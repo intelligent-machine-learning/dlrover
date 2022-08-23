@@ -1,4 +1,4 @@
-# EasyDL: An Kubernetes-native Elastic And Auto-Resource Deep Learning Service
+# EasyDL: An Elastic And Auto-Resource Deep Learning Service
 
 EasyDL is a distributued deep learning framework to support elastic,
 fault-tolerance and automatic resource configuration on the cloud.
