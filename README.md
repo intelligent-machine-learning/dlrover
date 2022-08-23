@@ -1,6 +1,6 @@
 # EasyDL: An Automatic Distributed Deep Learning Service
 
-EasyDL is a distributued deep learning framework to support elastic,
+EasyDL is a distributued deep learning service to support elastic,
 fault-tolerance and automatic resource configuration on the cloud.
 Using EasyDL, users don't need to configure any resources to submit
 DL training jobs on a Kubernetes (k8s) cluster. 
