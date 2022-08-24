@@ -90,10 +90,10 @@ spec:
         memory: 8192
 ```
 
-After the job starts, we can repeatedly modify and submit the `JobResource`.
-`elastic-operator` will reconcile against this definition.
-If `spec.resource_updation` is not null, `elastic-operator` will
-replace a new Pod with the `resource` in `resource_updation` to replace
+After a job starts, we can submit a `JobResource` for the job.
+`elastic-operator` will reconcile Pods of the job against this definition.
+If the `spec.resource_updation` is not null, `elastic-operator` will
+launch a new Pod with the `resource` in `resource_updation` to replace
 the Pod with the `resource_updation.name`.
 
 ### EasyDL Automatically and Dynamically Configures Resources.
