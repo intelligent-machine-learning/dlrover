@@ -11,6 +11,12 @@ to a resource plan, such as scale up/down the number of Pods.
 
 ## Design
 The `elastic-operator` consists of 2 new CRDs, `ElasticJob` and `JobResource`.
+Users use `ElasticJob` to submit an Elastic training job and use `JobResource`
+to configure Pods of the job.
+
+<div align="center">
+	<img src="../figures/elastic-operator.jpg" alt="Editor" width="500">
+</div>
 
 ### ElasticJob
 Users submit an `ElasticJob` to specify the job detail including the trainer's,
@@ -73,10 +79,32 @@ spec:
       memory: 4096
       disk: 8192
       gpu: 1
+  resource_updation:
+    - name: "elastic-deepctr-job-ps-0"
+      resource:
+        cpu: 8
+        memory: 8192
+    - name: "elastic-deepctr-job-ps-1"
+      resource:
+        cpu: 16
+        memory: 8192
 ```
 
 After the job starts, we can repeatedly modify and submit the `JobResource`.
-The `elastic-operator` will reconcile against this definition. 
+`elastic-operator` will reconcile against this definition.
+If `spec.resource_updation` is not null, `elastic-operator` will
+replace a new Pod with the `resource` in `resource_updation` to replace
+the Pod with the `resource_updation.name`.
 
-### EasyDL Automatically and Dynamically Configures Resources
+### EasyDL Automatically and Dynamically Configures Resources.
 
+At the submission of a job, `elastic-operator` only launches a Pod for
+`ElasticTrainer`. `ElasticTrainer` extracts features from the job and queries
+the startup resources from EasyDL `Brain`. Then, `ElasticTrainer` generate and
+apply a `JobResource` with the startup resources. `elastic-operator` creates
+Pods according to the `JobResource` after watching a creation event of
+the `JobResource`. After workers and parameter servers starts, `ElasticTrainer`
+will query new sources plans periodically from `Brain` and update the
+`JobResource`. `elastic-operator` will adjust resources of workers and
+parameter servers according the `JobResource` once it watches a
+updation event.
