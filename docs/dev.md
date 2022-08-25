@@ -3,6 +3,7 @@
 The document describes how to make contribution to EasyDL.
 
 ## Submit a PR
+
 - Fork ReasyDL Repo to your owner namespace.
 - `git clone git@github.com:intelligent-machine-learning/easydl.git`
 - `cd easydl`
@@ -11,4 +12,3 @@ The document describes how to make contribution to EasyDL.
 
 Then, you can check out your developed branch, push the branch to origin,
 and create a PR on github.
-
