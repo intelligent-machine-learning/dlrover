@@ -75,4 +75,4 @@ repos:
         description: "Checks the style of Markdown files."
         entry: markdownlint
         language: node
-        exclude: (easydl/go/vendor|docs/ant_release)
+        exclude: (easydl/go/vendor)
