@@ -17,12 +17,9 @@ The `elastic-operator` consists of 2 new CRDs, `ElasticJob` and `JobResource`.
 Users use `ElasticJob` to submit an Elastic training job and use `JobResource`
 to configure Pods of the job.
 
-<!-- <div align="center">
-	<img src="../figures/elastic-operator.jpg" alt="Editor" width="500">
-</div> -->
-
-
-![test image size](../figures/elastic-operator.jpg | width=500)
+<div align="center">
+<img src="../figures/elastic-operator.jpg" alt="Editor" width="500">
+</div>
 
 ### ElasticJob
 

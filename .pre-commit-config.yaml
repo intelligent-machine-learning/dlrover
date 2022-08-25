@@ -76,3 +76,4 @@ repos:
         entry: markdownlint
         language: node
         exclude: (easydl/go/vendor)
+        args: [-s, .markdownlint.yaml]
