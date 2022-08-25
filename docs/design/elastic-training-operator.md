@@ -5,8 +5,8 @@ training job.
 ## Motivation
 Computing Resources is important for training performance. EasyDL can
 automatically configure resources of a job and dynamically adjust
-resourdes of a job during training to optimize training performance.
-The operator should be capable of modifing resoures of a job according
+resources of a job during training to optimize training performance.
+The operator should be capable of modifying resoures of a job according
 to a resource plan, such as scale up/down the number of Pods.
 
 ## Design
