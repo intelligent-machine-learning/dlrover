@@ -1,0 +1,6 @@
+apiVersion: elastic.iml.github.io/v1alpha1
+kind: ElasticJob
+metadata:
+  name: elasticjob-sample
+spec:
+  # TODO(user): Add fields here
