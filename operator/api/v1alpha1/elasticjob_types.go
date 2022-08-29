@@ -52,7 +52,7 @@ type ReplicaSpec struct {
 	// Count is the requested number of replicas
 	Count int `json:"count,omitempty"`
 	// Resource is the requested resource of a replica
-	Resource * ResourceSpec `json:"resource,omitempty"`
+	Resource *ResourceSpec `json:"resource,omitempty"`
 }
 
 type ResourceSpec struct {
