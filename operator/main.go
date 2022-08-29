@@ -32,7 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
-	"github.com/intelligent-machine-learning/easydl/operator/controllers"
+	"github.com/intelligent-machine-learning/easydl/operator/pkg/controllers"
 	//+kubebuilder:scaffold:imports
 )
 
