@@ -48,6 +48,7 @@ type ElasticJobSpec struct {
 	Envs map[string]*corev1.EnvVar `json:"envs,omitempty"`
 }
 
+// ReplicaSpec specifies the number and resources of replica.
 type ReplicaSpec struct {
 	// Count is the requested number of replicas
 	Count int `json:"count,omitempty"`
@@ -55,6 +56,7 @@ type ReplicaSpec struct {
 	Resource *ResourceSpec `json:"resource,omitempty"`
 }
 
+// ResourceSpec specifies the resources of a repalica
 type ResourceSpec struct {
 	// CPU is the requested CPU cores of a replica
 	CPU int32 `json:"cpu,omitempty"`
