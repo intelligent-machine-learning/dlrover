@@ -1,18 +1,23 @@
 # EasyDL Design
 
-EasyDL is an auto-configuration system for parameter server based training jobs.
-With EasyDL system, users need not provide any resource configuration for their 
-deep learning training jobs. Instead, the EasyDL can pick up the appropriate resource 
+EasyDL is an automatic distributed deep learning system for parameter server based training jobs.
+EasyDL system can help users train their models with minimal efforts. For example,
+with EasyDL, users need not provide any resource configuration for their 
+deep learning training jobs. Instead, EasyDL can pick up the appropriate resource 
 configuration for each job smartly and continue to optimize those jobs during their runtime.
+
+Currently, EasyDL system has supported automatic resource configuration. 
+However, the final goal of EasyDL is to make the whole deep learning model
+training automatic.
 
 ## Background
 
-In parameter server based jobs, all relevant parameters of the training model 
+In parameter server based jobs, all relevant parameters of a model 
 are distributed on the parameter server nodes. Each worker node takes partial training data
-as input and compute the new parameters. After that, the worker node sends the
-updated parameters to the parameter server node which is keeping the parameters. 
+as input and compute new parameters. After that, the worker node sends 
+update parameters to the parameter server node which is keeping parameters. 
 
-However, the model developers (users) have to learn more rather than model training 
+However, model developers (users) have to learn more rather than model training 
 algorithms when they are using those jobs to train their models. In order to 
 run a training job, those users have to specify the required resources for their 
 this job. Then the kubernetes cluster can allocate the required resources and 
@@ -27,7 +32,7 @@ the users fail to provide the optimal resource configuration to their jobs.
 
 ## Target
 
-We hope to design and implement a system which can free the users from resource
+We hope to design and implement a system which can free users from resource
 configuration completely and focus on the model training itself. Without any
 input (on resource configuration), the EasyDL can still provide the optimal
 resource plan for each training job, Meanwhile, the EasyDL can optimize the 
@@ -37,6 +42,10 @@ are running.
 ## Design
 
 EasyDL consists of three main components: Brain, Elastic Trainer and Operator.
+
+<div align="center">
+<img src="../figures/easydl-design.jpg" alt="Editor" width="500">
+</div>
 
 ### Elastic Trainer
 
