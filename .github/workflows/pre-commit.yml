@@ -14,5 +14,5 @@ jobs:
       - uses: actions/setup-go@v3
         with:
           go-version: '>=1.17.0'
-      - run: go version
+      - run: go version && go get -u golang.org/x/lint/golint
       - uses: pre-commit/action@v3.0.0
