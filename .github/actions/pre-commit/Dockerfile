@@ -5,9 +5,6 @@ ARG EXTRA_PYPI_INDEX=https://pypi.org/simple
 # to the stream instead of being buffered.
 ENV PYTHONUNBUFFERED 0
 
-COPY docker/scripts/bashrc /etc/bash.bashrc
-RUN chmod a+rx /etc/bash.bashrc
-
 RUN apt-get -qq update && apt-get -qq install -y \
         unzip \
         curl \
@@ -33,8 +30,8 @@ RUN apt-get -qq update && apt-get -qq install -y \
 ARG GO_MIRROR_URL=https://dl.google.com/go
 ENV GOPATH /root/go
 ENV PATH /usr/local/go/bin:$GOPATH/bin:$PATH
-COPY docker/scripts/install_go.bash /
-RUN /install-go.bash ${GO_MIRROR_URL} && rm /install-go.bash
+COPY install_go.bash /
+RUN /install_go.bash ${GO_MIRROR_URL} && rm /install-go.bash
 
 RUN pip install pre-commit -U
 
