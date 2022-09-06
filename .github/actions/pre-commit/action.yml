@@ -1,0 +1,11 @@
+name: pre-commit
+description: run pre-commit to check codes
+inputs:
+  extra_args:
+    description: options to pass to pre-commit run
+    required: false
+    default: '--all-files'
+runs:
+  using: 'docker'
+  image: 'docker://elasticdl/elasticdl:dev'
+  entrypoint: 'pre-commit run --show-diff-on-failure --color=always ${{ inputs.extra_args }}'
