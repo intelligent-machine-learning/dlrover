@@ -14,5 +14,7 @@ jobs:
       - uses: actions/setup-go@v3
         with:
           go-version: '>=1.17.0'
-      - run: go version && go get -u golang.org/x/lint/golint
+      uses: Jerome1337/golint-action@v1.0.2
+        with:
+          golint-path: './operator/...'
       - uses: pre-commit/action@v3.0.0
