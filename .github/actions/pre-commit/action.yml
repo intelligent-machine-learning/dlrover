@@ -9,6 +9,7 @@ runs:
   using: 'docker'
   image: "elasticdl/elasticdl:dev"
   args:
+    - "/bin/bash"
     - "-c"
     - "pre-commit run -a"
 
