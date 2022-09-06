@@ -67,13 +67,13 @@ repos:
       - id: yamllint
         exclude:
           (elasticdl/python/tests/data|operator/config)
-  - repo: https://github.com/igorshubovych/markdownlint-cli
-    rev: v0.23.1
-    hooks:
-      - id: markdownlint
-        name: markdownlint
-        description: "Checks the style of Markdown files."
-        entry: markdownlint
-        language: node
-        exclude: (easydl/go/vendor)
-        args: [-s, .markdownlint.yaml]
+  # - repo: https://github.com/igorshubovych/markdownlint-cli
+  #   rev: v0.23.1
+  #   hooks:
+  #     - id: markdownlint
+  #       name: markdownlint
+  #       description: "Checks the style of Markdown files."
+  #       entry: markdownlint
+  #       language: node
+  #       exclude: (easydl/go/vendor)
+  #       args: [-s, .markdownlint.yaml]
