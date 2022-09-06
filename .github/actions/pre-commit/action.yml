@@ -1,3 +1,4 @@
+---
 name: pre-commit
 description: run pre-commit to check codes
 inputs:
