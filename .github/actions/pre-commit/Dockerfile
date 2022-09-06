@@ -1,7 +1,4 @@
-# To build Docker images, please refer to scripts/travis/build_images.sh.
-ARG BASE_IMAGE
-
-FROM ${BASE_IMAGE} as dev
+FROM python:3.6.15
 ARG EXTRA_PYPI_INDEX=https://pypi.org/simple
 
 # Allows for log messages by `print` in Python to be immediately dumped
