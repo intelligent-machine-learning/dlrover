@@ -8,13 +8,7 @@ on:
 jobs:
   pre-commit:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v3
-      - uses: actions/setup-go@v3
-        with:
-          go-version: '>=1.17.0'
-      uses: Jerome1337/golint-action@v1.0.2
-        with:
-          golint-path: './operator/...'
-      - uses: pre-commit/action@v3.0.0
+    runs:
+      using: 'docker'
+      image: 'elasticdl/elasticdl:dev'
+      entrypoint: 'pre-commit run -a'
