@@ -36,4 +36,6 @@ ENV PATH /usr/local/go/bin:$GOPATH/bin:$PATH
 COPY docker/scripts/install_go.bash /
 RUN /install-go.bash ${GO_MIRROR_URL} && rm /install-go.bash
 
+RUN pip install pre-commit -U
+
 ENTRYPOINT ["pre-commit run -a"]
