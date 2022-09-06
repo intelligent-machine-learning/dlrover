@@ -5,8 +5,12 @@ inputs:
     description: options to pass to pre-commit run
     required: false
     default: '--all-files'
+  base_image:
+    description: an image to build the image to run pre-commit
+    required: false
+    default: python:3.6.15
 runs:
   using: 'docker'
-  image: 'docker://elasticdl/elasticdl:dev'
+  image: './docker/build/ci.dockerfile'
   pre-entrypoint: 'pip install --upgrade pre-commit'
   entrypoint: 'pre-commit run -a --show-diff-on-failure --color=always'
