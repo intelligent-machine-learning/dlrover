@@ -8,9 +8,8 @@ inputs:
     default: '--all-files'
 runs:
   using: 'docker'
-  image: "elasticdl/elasticdl:dev"
+  image: "easydl/easydl:ci"
   args:
     - "/bin/bash"
     - "-c"
-    - "pip install --upgrade pre-commit && \
-    pre-commit run -a --show-diff-on-failure --color=always"
+    - "pre-commit run -a --show-diff-on-failure --color=always"
