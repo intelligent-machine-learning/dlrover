@@ -1,0 +1,10 @@
+---
+name: pre-commit
+description: run pytest to execute python test cases
+runs:
+  using: 'docker'
+  image: "easydl/easydl:ci"
+  args:
+    - "/bin/bash"
+    - "-c"
+    - "echo 'TODO'"
