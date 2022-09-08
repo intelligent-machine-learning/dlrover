@@ -1,0 +1,30 @@
+---
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+      # This step checks out a copy of your repository.
+      - uses: actions/checkout@v3
+      # This step references the directory that contains the action.
+      - uses: ./.github/actions/pre-commit
+  py-test:
+    runs-on: ubuntu-latest
+    steps:
+      # This step checks out a copy of your repository.
+      - uses: actions/checkout@v3
+      # This step references the directory that contains the action.
+      - uses: ./.github/actions/py-test
+  go-test:
+    runs-on: ubuntu-latest
+    steps:
+      # This step checks out a copy of your repository.
+      - uses: actions/checkout@v3
+      # This step references the directory that contains the action.
+      - uses: ./.github/actions/go-test
