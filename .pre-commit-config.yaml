@@ -67,7 +67,7 @@ repos:
     hooks:
       - id: yamllint
         exclude:
-          (elasticdl/python/tests/data|easydl/go/vendor|easydl/go/manifests)
+          (elasticdl/python/tests/data|operator/config)
   - repo: https://github.com/igorshubovych/markdownlint-cli
     rev: v0.23.1
     hooks:
