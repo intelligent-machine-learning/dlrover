@@ -29,13 +29,13 @@ specify any resource information like CPU/memory and replicas of workers
 in `ElasticJob`.  An example of `ElasticJob` is
 
 ```yaml
-apiVersion: "elastic.easydl.org/v1alpha1"
+apiVersion: "elastic.iml.github.io/v1alpha1"
 kind: "ElasticJob"
 metadata:
   name: "elastic-deepctr-job"
 spec:
   command: "python -m model_zoo.iris.dnn_estimator"
-  image:
+  image: elasticdl:iris_estimator
   parameter_server:
     image: elasticdl:iris_estimator
   worker:
