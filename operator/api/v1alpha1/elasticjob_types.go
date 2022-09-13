@@ -21,6 +21,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// JobState define the type of job state
 type JobState string
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
@@ -70,6 +71,7 @@ type ResourceSpec struct {
 
 // +kubebuilder:subresource:status
 // +kubebuilder:object:root=true
+
 // ElasticJobStatus defines the observed state of ElasticJob
 type ElasticJobStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
