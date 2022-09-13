@@ -14,20 +14,20 @@
 package controllers
 
 import (
-	"testing"
+	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
+	"testing"
 )
 
 func TestCreatePod(t *testing.T) {
 	job := &elasticv1alpha1.ElasticJob{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:       "test-ps",
+			Name:        "test-ps",
 			Namespace:   "easydl",
 			Annotations: map[string]string{},
-			Labels: map[string]string{},
+			Labels:      map[string]string{},
 		},
 	}
 	container := corev1.Container{

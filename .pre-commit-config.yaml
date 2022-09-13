@@ -61,7 +61,7 @@ repos:
         entry: python ./scripts/codestyle/copyright.py
         language: system
         files: \.(go|py|sh)$
-        exclude: (easydl/go/pkg/proto/easydl.pb.go|easydl/go/vendor)
+        exclude: (operator/api/v1alpha1)
   - repo: https://github.com/adrienverge/yamllint.git
     rev: v1.23.0
     hooks:

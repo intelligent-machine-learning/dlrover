@@ -78,46 +78,7 @@ func (r *ElasticJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	r.Scheme.Default(job)
 
-	return r.reconcileJob(job)
-}
-
-func (r *ElasticJobReconciler) reconcileJob(job *elasticv1alpha1.ElasticJob) (result ctrl.Result, err error) {
-	oldJobStatus := job.Status
-
-	defer func() {
-		latestJob := &elasticv1alpha1.ElasticJob{}
-		err := r.Get(context.TODO(), types.NamespacedName{
-			Name:      job.Name,
-			Namespace: job.Namespace,
-		}, latestJob)
-		if err == nil {
-			if latestJob.ObjectMeta.ResourceVersion != job.ObjectMeta.ResourceVersion {
-				latestJob.Status = job.Status
-				job = latestJob
-			}
-		}
-		r.updateJobStatus(job, oldJobStatus)
-	}()
-
-	if err != nil {
-		return ctrl.Result{}, err
-	}
 	return ctrl.Result{}, nil
-}
-
-func (r *ElasticJobReconciler) updateJobStatus(job *elasticv1alpha1.ElasticJob, oldStatus interface{}) error {
-	// no need to update the job if the status hasn't changed since last time.
-	if oldStatus != nil && reflect.DeepEqual(oldStatus, job.Status) {
-		// call apiserver of k8s to write job status
-		return nil
-	}
-	err := r.Status().Update(context.TODO(), job)
-	if err != nil {
-		glog.Warningf("update %s: %s status by apiserver failed, error: %v",
-			job.GetObjectKind().GroupVersionKind(), job.GetName(), err)
-		return err
-	}
-	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
