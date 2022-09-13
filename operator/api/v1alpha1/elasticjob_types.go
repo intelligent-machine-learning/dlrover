@@ -21,6 +21,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+type JobState string
+
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
@@ -66,10 +68,31 @@ type ResourceSpec struct {
 	GPU string `json:"gpu,omitempty"`
 }
 
+// +kubebuilder:subresource:status
+// +kubebuilder:object:root=true
 // ElasticJobStatus defines the observed state of ElasticJob
 type ElasticJobStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
+
+	// +optional
+	State JobState `json:"state,omitempty"`
+
+	// +optional
+	// Represents time when the job was acknowledged by the job controller.
+	// It is not guaranteed to be set in happens-before order across separate operations.
+	// It is represented in RFC3339 form and is in UTC.
+	AcceptTime *metav1.Time `json:"acceptTime,omitempty"`
+	// +optional
+	// Presents time when the job became RUNNING.
+	// It is not guaranteed to be set in happens-before order across separate operations.
+	// It is represented in RFC3339 form and is in UTC.
+	StartRunTime *metav1.Time `json:"startRunTime,omitempty"`
+	// +optional
+	// Represents time when the job was completed. It is not guaranteed to
+	// be set in happens-before order across separate operations.
+	// It is represented in RFC3339 form and is in UTC.
+	CompletionTime *metav1.Time `json:"completionTime,omitempty"`
 }
 
 //+kubebuilder:object:root=true
