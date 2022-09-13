@@ -92,6 +92,8 @@ func main() {
 	if err = (&controllers.ElasticJobReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorderFor("elasticjob-controller"),
+		Log: ctrl.Log.WithName("controllers").WithName("ElasticJob"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ElasticJob")
 		os.Exit(1)

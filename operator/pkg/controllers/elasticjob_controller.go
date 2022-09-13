@@ -18,11 +18,18 @@ package controllers
 
 import (
 	"context"
+	"reflect"
 
+	"github.com/golang/glog"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	"github.com/go-logr/logr"
+	"k8s.io/apimachinery/pkg/types"
 
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
 )
@@ -31,6 +38,8 @@ import (
 type ElasticJobReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+	Recorder record.EventRecorder
+	Log logr.Logger
 }
 
 //+kubebuilder:rbac:groups=elastic.iml.github.io,resources=elasticjobs,verbs=get;list;watch;create;update;patch;delete
@@ -49,14 +58,72 @@ type ElasticJobReconciler struct {
 func (r *ElasticJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = log.FromContext(ctx)
 
-	// TODO(user): your logic here
+	rlog := r.Log.WithValues("elasticjob", req.NamespacedName)
+	// Fetch the elastic Training job
+	job := &elasticv1alpha1.ElasticJob{}
+	if err := r.Get(context.TODO(), req.NamespacedName, job); err != nil {
+		if errors.IsNotFound(err) {
+			// Object not found, return.  Created objects are automatically garbage collected.
+			// For additional cleanup logic use finalizers.
+			return ctrl.Result{}, nil
+		}
+		// Error reading the object - requeue the request.
+		return ctrl.Result{}, err
+	}
+
+	if job.DeletionTimestamp != nil {
+		rlog.Info("Reconcil cancelled, the job has been deleted")
+		return ctrl.Result{}, nil
+	}
+
+	r.Scheme.Default(job)
 
 	return ctrl.Result{}, nil
+}
+
+func (r *ElasticJobReconciler) ReconcileJob(job *elasticv1alpha1.ElasticJob) (result ctrl.Result, err error){
+	oldJobStatus := job.Status
+
+	defer func() {
+		latestJob := &elasticv1alpha1.ElasticJob{}
+		err := r.Get(context.TODO(), types.NamespacedName{
+			Name:      job.Name,
+			Namespace: job.Namespace,
+		}, latestJob)
+		if err == nil {
+			if latestJob.ObjectMeta.ResourceVersion != job.ObjectMeta.ResourceVersion {
+				latestJob.Status = job.Status
+				job = latestJob
+			}
+		}
+		r.updateJobStatus(job, oldJobStatus)
+	}()
+
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	return ctrl.Result{}, nil
+}
+
+func (r *ElasticJobReconciler)updateJobStatus(job *elasticv1alpha1.ElasticJob, oldStatus interface{}) error {
+	// no need to update the job if the status hasn't changed since last time.
+	if oldStatus != nil && reflect.DeepEqual(oldStatus, job.Status) {
+		// call apiserver of k8s to write job status
+		return nil
+	}
+	err := r.Status().Update(context.TODO(), job)
+	if err != nil {
+		glog.Warningf("update %s: %s status by apiserver failed, error: %v", 
+			job.GetObjectKind().GroupVersionKind(), job.GetName(), err)
+		return err
+	}
+	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *ElasticJobReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&elasticv1alpha1.ElasticJob{}).
+		Owns(&corev1.Pod{}).
 		Complete(r)
 }
