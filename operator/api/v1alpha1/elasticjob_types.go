@@ -32,11 +32,9 @@ type ElasticJobSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Command is the entrypoint for Pods of the job.
-	Command string `json:"command,omitempty"`
-
-	//Image is the image for Pods of the job.
-	Image string `json:"Image,omitempty"`
+	// DistributionStrategy specifies the distribution strategy of a job.
+	// Now, the strategy supports parameter-server and ring-allreduce.
+	DistributionStrategy string `json:"distribution_strategy,omitempty"`
 
 	// ParameterServer specifies the resources of PS for the job.
 	ParameterServer *ReplicaSpec `json:"parameter_server,omitempty"`
@@ -53,10 +51,16 @@ type ElasticJobSpec struct {
 
 // ReplicaSpec specifies the number and resources of replica.
 type ReplicaSpec struct {
-	// Count is the requested number of replicas
-	Count int `json:"count,omitempty"`
-	// Resource is the requested resource of a replica
-	Resource *ResourceSpec `json:"resource,omitempty"`
+	// Replicas is the requested number of replicas
+	Replicas int `json:"replicas,omitempty"`
+
+	// RestartCount is the number of relaunching a failed replica.
+	RestartCount int `json:"restart_count,omitempty"`
+
+	// Template is the object that describes the pod that
+	// will be created for this replica. RestartPolicy in PodTemplateSpec
+	// will be overide by RestartPolicy in ReplicaSpec
+	Template corev1.PodTemplateSpec `json:"template,omitempty"`
 }
 
 // ResourceSpec specifies the resources of a repalica
@@ -68,9 +72,6 @@ type ResourceSpec struct {
 	// GPU is the requested GPU of a replica
 	GPU string `json:"gpu,omitempty"`
 }
-
-// +kubebuilder:subresource:status
-// +kubebuilder:object:root=true
 
 // ElasticJobStatus defines the observed state of ElasticJob
 type ElasticJobStatus struct {
