@@ -20,16 +20,16 @@ import (
 	"context"
 	"reflect"
 
+	"github.com/go-logr/logr"
 	"github.com/golang/glog"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	"github.com/go-logr/logr"
-	"k8s.io/apimachinery/pkg/types"
 
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
 )
@@ -37,9 +37,9 @@ import (
 // ElasticJobReconciler reconciles a ElasticJob object
 type ElasticJobReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
-	Log logr.Logger
+	Log      logr.Logger
 }
 
 //+kubebuilder:rbac:groups=elastic.iml.github.io,resources=elasticjobs,verbs=get;list;watch;create;update;patch;delete
@@ -78,10 +78,10 @@ func (r *ElasticJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	r.Scheme.Default(job)
 
-	return ctrl.Result{}, nil
+	return r.reconcileJob(job)
 }
 
-func (r *ElasticJobReconciler) ReconcileJob(job *elasticv1alpha1.ElasticJob) (result ctrl.Result, err error){
+func (r *ElasticJobReconciler) reconcileJob(job *elasticv1alpha1.ElasticJob) (result ctrl.Result, err error) {
 	oldJobStatus := job.Status
 
 	defer func() {
@@ -105,7 +105,7 @@ func (r *ElasticJobReconciler) ReconcileJob(job *elasticv1alpha1.ElasticJob) (re
 	return ctrl.Result{}, nil
 }
 
-func (r *ElasticJobReconciler)updateJobStatus(job *elasticv1alpha1.ElasticJob, oldStatus interface{}) error {
+func (r *ElasticJobReconciler) updateJobStatus(job *elasticv1alpha1.ElasticJob, oldStatus interface{}) error {
 	// no need to update the job if the status hasn't changed since last time.
 	if oldStatus != nil && reflect.DeepEqual(oldStatus, job.Status) {
 		// call apiserver of k8s to write job status
@@ -113,7 +113,7 @@ func (r *ElasticJobReconciler)updateJobStatus(job *elasticv1alpha1.ElasticJob, o
 	}
 	err := r.Status().Update(context.TODO(), job)
 	if err != nil {
-		glog.Warningf("update %s: %s status by apiserver failed, error: %v", 
+		glog.Warningf("update %s: %s status by apiserver failed, error: %v",
 			job.GetObjectKind().GroupVersionKind(), job.GetName(), err)
 		return err
 	}
