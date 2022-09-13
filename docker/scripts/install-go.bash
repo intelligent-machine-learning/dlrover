@@ -4,7 +4,7 @@ set -e
 
 GO_MIRROR_URL=$1
 
-curl --silent "$GO_MIRROR_URL"/go1.13.4.linux-amd64.tar.gz | \
+curl --silent "$GO_MIRROR_URL"/go1.19.1.linux-amd64.tar.gz | \
     tar -C /usr/local -xzf -
 
 go env -w GO111MODULE=on
