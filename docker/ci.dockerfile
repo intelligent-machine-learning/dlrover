@@ -33,4 +33,4 @@ COPY docker/scripts/install-protobuf.bash /
 RUN /install-protobuf.bash && rm /install-protobuf.bash
 
 # Install Pre-commit
-RUN pip install pre-commit pytest
+RUN pip install pre-commit pytest -i https://mirrors.aliyun.com/pypi/simple/
