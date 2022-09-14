@@ -16,5 +16,6 @@ go install golang.org/x/tools/cmd/goyacc@latest > /dev/null
 go install golang.org/x/tools/cmd/cover@latest > /dev/null
 go install github.com/mattn/goveralls@latest > /dev/null
 go install github.com/rakyll/gotest@latest > /dev/null
+go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
 
 cp "$GOPATH"/bin/* /usr/local/bin/
