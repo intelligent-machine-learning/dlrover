@@ -19,7 +19,11 @@ package controllers
 import (
 	"context"
 
+	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -30,7 +34,9 @@ import (
 // ElasticJobReconciler reconciles a ElasticJob object
 type ElasticJobReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme   *runtime.Scheme
+	Recorder record.EventRecorder
+	Log      logr.Logger
 }
 
 //+kubebuilder:rbac:groups=elastic.iml.github.io,resources=elasticjobs,verbs=get;list;watch;create;update;patch;delete
@@ -49,7 +55,25 @@ type ElasticJobReconciler struct {
 func (r *ElasticJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = log.FromContext(ctx)
 
-	// TODO(user): your logic here
+	rlog := r.Log.WithValues("elasticjob", req.NamespacedName)
+	// Fetch the elastic Training job
+	job := &elasticv1alpha1.ElasticJob{}
+	if err := r.Get(context.TODO(), req.NamespacedName, job); err != nil {
+		if errors.IsNotFound(err) {
+			// Object not found, return.  Created objects are automatically garbage collected.
+			// For additional cleanup logic use finalizers.
+			return ctrl.Result{}, nil
+		}
+		// Error reading the object - requeue the request.
+		return ctrl.Result{}, err
+	}
+
+	if job.DeletionTimestamp != nil {
+		rlog.Info("Reconcil cancelled, the job has been deleted")
+		return ctrl.Result{}, nil
+	}
+
+	r.Scheme.Default(job)
 
 	return ctrl.Result{}, nil
 }
@@ -58,5 +82,6 @@ func (r *ElasticJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 func (r *ElasticJobReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&elasticv1alpha1.ElasticJob{}).
+		Owns(&corev1.Pod{}).
 		Complete(r)
 }

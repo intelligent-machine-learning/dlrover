@@ -21,6 +21,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// JobState define the type of job state
+type JobState string
+
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
@@ -29,11 +32,9 @@ type ElasticJobSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Command is the entrypoint for Pods of the job.
-	Command string `json:"command,omitempty"`
-
-	//Image is the image for Pods of the job.
-	Image string `json:"Image,omitempty"`
+	// DistributionStrategy specifies the distribution strategy of a job.
+	// Now, the strategy supports parameter-server and ring-allreduce.
+	DistributionStrategy string `json:"distribution_strategy,omitempty"`
 
 	// ParameterServer specifies the resources of PS for the job.
 	ParameterServer *ReplicaSpec `json:"parameter_server,omitempty"`
@@ -50,10 +51,16 @@ type ElasticJobSpec struct {
 
 // ReplicaSpec specifies the number and resources of replica.
 type ReplicaSpec struct {
-	// Count is the requested number of replicas
-	Count int `json:"count,omitempty"`
-	// Resource is the requested resource of a replica
-	Resource *ResourceSpec `json:"resource,omitempty"`
+	// Replicas is the requested number of replicas
+	Replicas int `json:"replicas,omitempty"`
+
+	// RestartCount is the number of relaunching a failed replica.
+	RestartCount int `json:"restart_count,omitempty"`
+
+	// Template is the object that describes the pod that
+	// will be created for this replica. RestartPolicy in PodTemplateSpec
+	// will be overide by RestartPolicy in ReplicaSpec
+	Template corev1.PodTemplateSpec `json:"template,omitempty"`
 }
 
 // ResourceSpec specifies the resources of a repalica
@@ -70,6 +77,25 @@ type ResourceSpec struct {
 type ElasticJobStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
+
+	// +optional
+	State JobState `json:"state,omitempty"`
+
+	// +optional
+	// Represents time when the job was acknowledged by the job controller.
+	// It is not guaranteed to be set in happens-before order across separate operations.
+	// It is represented in RFC3339 form and is in UTC.
+	AcceptTime *metav1.Time `json:"acceptTime,omitempty"`
+	// +optional
+	// Presents time when the job became RUNNING.
+	// It is not guaranteed to be set in happens-before order across separate operations.
+	// It is represented in RFC3339 form and is in UTC.
+	StartRunTime *metav1.Time `json:"startRunTime,omitempty"`
+	// +optional
+	// Represents time when the job was completed. It is not guaranteed to
+	// be set in happens-before order across separate operations.
+	// It is represented in RFC3339 form and is in UTC.
+	CompletionTime *metav1.Time `json:"completionTime,omitempty"`
 }
 
 //+kubebuilder:object:root=true

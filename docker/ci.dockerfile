@@ -34,3 +34,8 @@ RUN /install-protobuf.bash && rm /install-protobuf.bash
 
 # Install Pre-commit
 RUN pip install pre-commit pytest -i https://mirrors.aliyun.com/pypi/simple/
+
+# Configure envtest for integration tests of kubebuilder
+ENV KUBEBUILDER_CONTROLPLANE_START_TIMEOUT 60s
+COPY docker/scripts/install-kube-envtest.bash /
+RUN /install-kube-envtest.bash 1.19.2 && rm /install-kube-envtest.bash
