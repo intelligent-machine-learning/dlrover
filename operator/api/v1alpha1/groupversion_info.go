@@ -33,4 +33,7 @@ var (
 
 	// AddToScheme adds the types in this group-version to the given scheme.
 	AddToScheme = SchemeBuilder.AddToScheme
+
+	// SchemeGroupVersionKind is the gvk of ElasticJob
+	SchemeGroupVersionKind = GroupVersion.WithKind("ElasticJob")
 )
