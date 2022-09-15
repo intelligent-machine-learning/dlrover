@@ -41,8 +41,8 @@ func newPodManager() *PodManager {
 	return &PodManager{}
 }
 
-// CreatePod creates a Pod according to a PodTemplateSpec
-func (m *PodManager) CreatePod(job *elasticv1alpha1.ElasticJob, podTemplate *corev1.PodTemplateSpec, taskType TaskType, taskIndex int) *corev1.Pod {
+// GeneratePod creates a Pod according to a PodTemplateSpec
+func (m *PodManager) GeneratePod(job *elasticv1alpha1.ElasticJob, podTemplate *corev1.PodTemplateSpec, taskType TaskType, taskIndex int) *corev1.Pod {
 	podName := fmt.Sprintf("%s-%s-%d", job.GetName(), taskType, taskIndex)
 
 	podSpec := podTemplate.DeepCopy()
