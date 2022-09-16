@@ -17,12 +17,10 @@ limitations under the License.
 package v1alpha1
 
 import (
+	commonv1 "github.com/kubeflow/common/pkg/apis/common/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
-
-// JobState define the type of job state
-type JobState string
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
@@ -34,10 +32,10 @@ type ElasticJobSpec struct {
 
 	// DistributionStrategy specifies the distribution strategy of a job.
 	// Now, the strategy supports parameter-server and ring-allreduce.
-	DistributionStrategy string `json:"distribution_strategy,omitempty"`
+	DistributionStrategy string `json:"distributionStrategy,omitempty"`
 
 	// ParameterServer specifies the resources of PS for the job.
-	ParameterServer *ReplicaSpec `json:"parameter_server,omitempty"`
+	ParameterServer *ReplicaSpec `json:"parameterServer,omitempty"`
 
 	// Worker specifies the resources of workers for the job.
 	Worker *ReplicaSpec `json:"worker,omitempty"`
@@ -51,20 +49,14 @@ type ElasticJobSpec struct {
 
 // ReplicaSpec specifies the number and resources of replica.
 type ReplicaSpec struct {
-	// Replicas is the requested number of replicas
-	Replicas int `json:"replicas,omitempty"`
+	commonv1.ReplicaSpec `json:",inline"`
 
 	// RestartCount is the number of relaunching a failed replica.
-	RestartCount int `json:"restart_count,omitempty"`
-
-	// Template is the object that describes the pod that
-	// will be created for this replica. RestartPolicy in PodTemplateSpec
-	// will be overide by RestartPolicy in ReplicaSpec
-	Template corev1.PodTemplateSpec `json:"template,omitempty"`
+	RestartCount int `json:"restartCount,omitempty"`
 }
 
-// ResourceSpec specifies the resources of a repalica
-type ResourceSpec struct {
+// ReplicaResourceSpec specifies the resources of a repalica
+type ReplicaResourceSpec struct {
 	// CPU is the requested CPU cores of a replica
 	CPU int32 `json:"cpu,omitempty"`
 	// Memory is the requested memory (MB) of a replica
@@ -78,28 +70,23 @@ type ElasticJobStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// +optional
-	State JobState `json:"state,omitempty"`
+	commonv1.JobStatus `json:"status,omitempty"`
 
-	// +optional
-	// Represents time when the job was acknowledged by the job controller.
-	// It is not guaranteed to be set in happens-before order across separate operations.
-	// It is represented in RFC3339 form and is in UTC.
-	AcceptTime *metav1.Time `json:"acceptTime,omitempty"`
-	// +optional
-	// Presents time when the job became RUNNING.
-	// It is not guaranteed to be set in happens-before order across separate operations.
-	// It is represented in RFC3339 form and is in UTC.
-	StartRunTime *metav1.Time `json:"startRunTime,omitempty"`
-	// +optional
-	// Represents time when the job was completed. It is not guaranteed to
-	// be set in happens-before order across separate operations.
-	// It is represented in RFC3339 form and is in UTC.
-	CompletionTime *metav1.Time `json:"completionTime,omitempty"`
+	Phase commonv1.JobConditionType `json:"phase,omitempty"`
+
+	// CurrentReplicaCount is the current count of replicas
+	CurrentReplicaCount map[string]int `json:"current_replica_count,omitempty"`
+
+	// TargetReplicaCount is the target count of replicas
+	TargetReplicaCount map[string]int `json:"target_worker_count,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
+// +resource:path=elasticjob
+// +kubebuilder:resource:scope=Namespaced
+// +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 
 // ElasticJob is the Schema for the elasticjobs API
 type ElasticJob struct {
