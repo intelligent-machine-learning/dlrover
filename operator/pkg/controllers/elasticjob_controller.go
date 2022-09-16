@@ -110,7 +110,7 @@ func (r *ElasticJobReconciler) reconcileJobs(job *elasticv1alpha1.ElasticJob) (c
 	switch job.Status.Phase {
 	case "", commonv1.JobCreated:
 		r.initializeJob(job)
-		err := r.generateEasydlMaster(job)
+		err := r.createEasydlMaster(job)
 		if err != nil {
 			logger.Warningf("Fail to create EasyDL Master")
 		}
@@ -135,15 +135,9 @@ func (r *ElasticJobReconciler) initializeJob(job *elasticv1alpha1.ElasticJob) {
 	}
 }
 
-func (r *ElasticJobReconciler) generateEasydlMaster(job *elasticv1alpha1.ElasticJob) error {
+func (r *ElasticJobReconciler) createEasydlMaster(job *elasticv1alpha1.ElasticJob) error {
 	masterManager := newMasterManager()
-	masterPod := masterManager.generateEasydlMaster(job)
-	err := r.Create(context.Background(), masterPod)
-	if err != nil {
-		r.Recorder.Eventf(job, corev1.EventTypeWarning, string(commonv1.JobFailed), "master pod created failed: %v", err)
-		return err
-	}
-	return nil
+	return masterManager.createPod(r, job)
 }
 
 // SetupWithManager sets up the controller with the Manager.
