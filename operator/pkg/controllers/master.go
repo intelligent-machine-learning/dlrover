@@ -14,7 +14,9 @@
 package controllers
 
 import (
+	"context"
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
+	commonv1 "github.com/kubeflow/common/pkg/apis/common/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 )
@@ -62,4 +64,14 @@ func (m *MasterManager) generateEasydlMaster(job *elasticv1alpha1.ElasticJob) *c
 	}
 	pod := m.GeneratePod(job, podTemplate, "easydl-master", 0)
 	return pod
+}
+
+func (m *MasterManager) createPod(r *ElasticJobReconciler, job *elasticv1alpha1.ElasticJob) error {
+	masterPod := m.generateEasydlMaster(job)
+	err := r.Create(context.Background(), masterPod)
+	if err != nil {
+		r.Recorder.Eventf(job, corev1.EventTypeWarning, string(commonv1.JobFailed), "master pod created failed: %v", err)
+		return err
+	}
+	return nil
 }
