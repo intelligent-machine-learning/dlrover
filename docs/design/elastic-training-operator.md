@@ -34,8 +34,8 @@ kind: "ElasticJob"
 metadata:
   name: "elastic-deepctr-job"
 spec:
-  distribution_strategy: parameter_server
-  parameter_server:
+  distributionStrategy: parameter_server
+  parameterServer:
     restartCount: 3
     template:
         metadata:
@@ -69,7 +69,7 @@ spec:
                 - --training_steps=1000
 ```
 
-The `spec.distribution_strategy` specifies the distribution strategy of
+The `spec.distributionStrategy` specifies the distribution strategy of
 a job. Now, `ElasticJob` supports `parameter_server` for [TensorFlow](https://www.tensorflow.org/tutorials/distribute/parameter_server_training)
 `ParameterServerStrategy` and `ring-allreduce` for [Horovod](https://horovod.readthedocs.io/en/stable/)
 and PyTorch [DistributedDataParallel](DistributedDataParallel).

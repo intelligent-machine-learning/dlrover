@@ -18,17 +18,23 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/go-logr/logr"
+	logger "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
+	commonv1 "github.com/kubeflow/common/pkg/apis/common/v1"
+	commonutil "github.com/kubeflow/common/pkg/util"
 )
 
 // ElasticJobReconciler reconciles a ElasticJob object
@@ -75,7 +81,69 @@ func (r *ElasticJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	r.Scheme.Default(job)
 
+	return r.reconcileJobs(job)
+}
+
+func (r *ElasticJobReconciler) reconcileJobs(job *elasticv1alpha1.ElasticJob) (ctrl.Result, error) {
+	logger.Infof("jobName: %v, condition: %v, phase %s", job.Name, job.Status.Conditions, job.Status.Phase)
+
+	defer func() {
+		latestJob := &elasticv1alpha1.ElasticJob{}
+		err := r.Get(context.TODO(), types.NamespacedName{
+			Name:      job.Name,
+			Namespace: job.Namespace,
+		}, latestJob)
+		if err == nil {
+			if latestJob.ObjectMeta.ResourceVersion != job.ObjectMeta.ResourceVersion {
+				latestJob.Status = job.Status
+				job = latestJob
+			}
+		}
+		err = r.Status().Update(context.TODO(), job)
+		if err != nil {
+			logger.Warningf("Failed to update %s : %s, error: %v",
+				job.GetObjectKind().GroupVersionKind(),
+				job.GetName(), err)
+		}
+	}()
+
+	switch job.Status.Phase {
+	case "", commonv1.JobCreated:
+		r.initializeJob(job)
+		err := r.generateEasydlMaster(job)
+		if err != nil {
+			logger.Warningf("Fail to create EasyDL Master")
+		}
+	default:
+		logger.Warningf("job %s unknown status %s", job.Name, job.Status.Phase)
+	}
+
 	return ctrl.Result{}, nil
+}
+
+func (r *ElasticJobReconciler) initializeJob(job *elasticv1alpha1.ElasticJob) {
+	if job.Status.Conditions == nil {
+		initializeJobStatuses(&job.Status, ReplicaTypeEasydlMaster)
+		msg := fmt.Sprintf("ElasticJob %s is created.", job.Name)
+		updateJobConditions(&job.Status, commonv1.JobCreated, commonutil.JobCreatedReason, msg)
+		updatePhase(&job.Status, commonv1.JobCreated)
+		logger.Infof(msg)
+	}
+	if job.Status.StartTime == nil {
+		now := metav1.Now()
+		job.Status.StartTime = &now
+	}
+}
+
+func (r *ElasticJobReconciler) generateEasydlMaster(job *elasticv1alpha1.ElasticJob) error {
+	masterManager := newMasterManager()
+	masterPod := masterManager.generateEasydlMaster(job)
+	err := r.Create(context.Background(), masterPod)
+	if err != nil {
+		r.Recorder.Eventf(job, corev1.EventTypeWarning, string(commonv1.JobFailed), "master pod created failed: %v", err)
+		return err
+	}
+	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
