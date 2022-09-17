@@ -45,6 +45,12 @@ type ElasticJobReconciler struct {
 	Log      logr.Logger
 }
 
+var masterManager *MasterManager
+
+func init() {
+	masterManager = newMasterManager()
+}
+
 //+kubebuilder:rbac:groups=elastic.iml.github.io,resources=elasticjobs,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=elastic.iml.github.io,resources=elasticjobs/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=elastic.iml.github.io,resources=elasticjobs/finalizers,verbs=update
@@ -85,7 +91,7 @@ func (r *ElasticJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 }
 
 func (r *ElasticJobReconciler) reconcileJobs(job *elasticv1alpha1.ElasticJob) (ctrl.Result, error) {
-	logger.Infof("jobName: %v, condition: %v, phase %s", job.Name, job.Status.Conditions, job.Status.Phase)
+	logger.Infof("jobName: %s, phase %s", job.Name, job.Status.Phase)
 
 	defer func() {
 		latestJob := &elasticv1alpha1.ElasticJob{}
@@ -114,10 +120,15 @@ func (r *ElasticJobReconciler) reconcileJobs(job *elasticv1alpha1.ElasticJob) (c
 		if err != nil {
 			logger.Warningf("Fail to create EasyDL Master")
 		}
+		msg := fmt.Sprintf("ElasticJob %s is running.", job.Name)
+		updateStatus(&job.Status, commonv1.JobRunning, commonutil.JobRunningReason, msg)
+	case commonv1.JobRunning:
+		masterManager.syncMasterState(r, job)
+	case commonv1.JobSucceeded:
+		logger.Infof("Job %s succeed", job.Name)
 	default:
 		logger.Warningf("job %s unknown status %s", job.Name, job.Status.Phase)
 	}
-
 	return ctrl.Result{}, nil
 }
 
@@ -125,9 +136,7 @@ func (r *ElasticJobReconciler) initializeJob(job *elasticv1alpha1.ElasticJob) {
 	if job.Status.Conditions == nil {
 		initializeJobStatuses(&job.Status, ReplicaTypeEasydlMaster)
 		msg := fmt.Sprintf("ElasticJob %s is created.", job.Name)
-		updateJobConditions(&job.Status, commonv1.JobCreated, commonutil.JobCreatedReason, msg)
-		updatePhase(&job.Status, commonv1.JobCreated)
-		logger.Infof(msg)
+		updateStatus(&job.Status, commonv1.JobCreated, commonutil.JobCreatedReason, msg)
 	}
 	if job.Status.StartTime == nil {
 		now := metav1.Now()
@@ -136,8 +145,11 @@ func (r *ElasticJobReconciler) initializeJob(job *elasticv1alpha1.ElasticJob) {
 }
 
 func (r *ElasticJobReconciler) createEasydlMaster(job *elasticv1alpha1.ElasticJob) error {
-	masterManager := newMasterManager()
-	return masterManager.createPod(r, job)
+	err := masterManager.createPod(r, job)
+	if err != nil {
+		return err
+	}
+	return err
 }
 
 // SetupWithManager sets up the controller with the Manager.
