@@ -30,10 +30,6 @@ const (
 	easydlApp            = "easydl"
 )
 
-type Pod interface {
-	CreatePodName() string
-}
-
 // PodManager manages the lifecycle of a pod including creation, updation and deletion.
 type PodManager struct{}
 
