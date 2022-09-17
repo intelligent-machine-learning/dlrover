@@ -24,7 +24,7 @@ import (
 func TestGeneratePod(t *testing.T) {
 	job := &elasticv1alpha1.ElasticJob{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        "test-ps",
+			Name:        "test-job",
 			Namespace:   "easydl",
 			Annotations: map[string]string{},
 			Labels:      map[string]string{},
@@ -43,8 +43,7 @@ func TestGeneratePod(t *testing.T) {
 	}
 
 	manager := newPodManager()
-	pod := manager.GeneratePod(job, podTemplate, "worker", 0)
-	assert.Equal(t, pod.Labels[labelReplicaTypeKey], "worker")
-	assert.Equal(t, pod.Name, "test-ps-worker-0")
+	pod := manager.GeneratePod(job, podTemplate, "test-job-worker-0")
+	assert.Equal(t, pod.Name, "test-job-worker-0")
 	assert.Equal(t, pod.Spec.Containers[0].Image, "test")
 }
