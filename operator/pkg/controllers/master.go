@@ -17,8 +17,8 @@ import (
 	"context"
 	"fmt"
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
-	commonv1 "github.com/kubeflow/common/pkg/apis/common/v1"
-	commonutil "github.com/kubeflow/common/pkg/util"
+	common "github.com/intelligent-machine-learning/easydl/operator/pkg/common"
+	commonv1 "github.com/intelligent-machine-learning/easydl/operator/pkg/common/api/v1"
 	logger "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -104,13 +104,13 @@ func (m *MasterManager) syncMasterState(r *ElasticJobReconciler, job *elasticv1a
 			now := metav1.Now()
 			job.Status.CompletionTime = &now
 		}
-		updateStatus(&job.Status, commonv1.JobSucceeded, commonutil.JobCreatedReason, msg)
+		updateStatus(&job.Status, commonv1.JobSucceeded, common.JobCreatedReason, msg)
 	} else if master.Status.Phase == corev1.PodFailed {
 		job.Status.ReplicaStatuses[ReplicaTypeEasydlMaster].Failed = 1
 		msg := fmt.Sprintf("job(%s/%s) has failed", job.Namespace, job.Name)
 		reason := master.Status.Reason
 		if reason == "" {
-			reason = commonutil.JobFailedReason
+			reason = common.JobFailedReason
 		}
 		r.Recorder.Event(job, corev1.EventTypeWarning, reason, msg)
 		if job.Status.CompletionTime == nil {
@@ -118,12 +118,16 @@ func (m *MasterManager) syncMasterState(r *ElasticJobReconciler, job *elasticv1a
 			job.Status.CompletionTime = &now
 		}
 		updateStatus(&job.Status, commonv1.JobFailed, reason, msg)
-	} else if master.Status.Phase == corev1.PodRunning || master.Status.Phase == corev1.PodPending {
+	} else if master.Status.Phase == corev1.PodPending {
+		job.Status.ReplicaStatuses[ReplicaTypeEasydlMaster].Pending = 1
+		sg := fmt.Sprintf("job(%s/%s) is pending.", job.Namespace, job.Name)
+		updateStatus(&job.Status, commonv1.JobPending, comon.JobPendingReason, msg)
+	} else if master.Status.Phase == corev1.PodRunning {
 		job.Status.ReplicaStatuses[ReplicaTypeEasydlMaster].Active = 1
 		if !isRunning(job.Status) {
 			msg := fmt.Sprintf("job(%s/%s) is running.", job.Namespace, job.Name)
-			updateStatus(&job.Status, commonv1.JobRunning, commonutil.JobRunningReason, msg)
-			r.Recorder.Event(job, corev1.EventTypeNormal, commonutil.JobRunningReason, msg)
+			updateStatus(&job.Status, commonv1.JobRunning, common.JobRunningReason, msg)
+			r.Recorder.Event(job, corev1.EventTypeNormal, common.JobRunningReason, msg)
 		}
 	}
 	return nil

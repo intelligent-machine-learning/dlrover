@@ -33,8 +33,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
-	commonv1 "github.com/kubeflow/common/pkg/apis/common/v1"
-	commonutil "github.com/kubeflow/common/pkg/util"
+	common "github.com/intelligent-machine-learning/easydl/operator/pkg/common"
+	commonv1 "github.com/intelligent-machine-learning/easydl/operator/pkg/common/api/v1"
 )
 
 // ElasticJobReconciler reconciles a ElasticJob object
@@ -121,7 +121,7 @@ func (r *ElasticJobReconciler) reconcileJobs(job *elasticv1alpha1.ElasticJob) (c
 			logger.Warningf("Fail to create EasyDL Master")
 		}
 		msg := fmt.Sprintf("ElasticJob %s is running.", job.Name)
-		updateStatus(&job.Status, commonv1.JobRunning, commonutil.JobRunningReason, msg)
+		updateStatus(&job.Status, commonv1.JobRunning, common.JobRunningReason, msg)
 	case commonv1.JobRunning:
 		masterManager.syncMasterState(r, job)
 	case commonv1.JobSucceeded:
@@ -136,7 +136,7 @@ func (r *ElasticJobReconciler) initializeJob(job *elasticv1alpha1.ElasticJob) {
 	if job.Status.Conditions == nil {
 		initializeJobStatuses(&job.Status, ReplicaTypeEasydlMaster)
 		msg := fmt.Sprintf("ElasticJob %s is created.", job.Name)
-		updateStatus(&job.Status, commonv1.JobCreated, commonutil.JobCreatedReason, msg)
+		updateStatus(&job.Status, commonv1.JobCreated, common.JobCreatedReason, msg)
 	}
 	if job.Status.StartTime == nil {
 		now := metav1.Now()
