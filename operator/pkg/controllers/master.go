@@ -120,8 +120,8 @@ func (m *MasterManager) syncMasterState(r *ElasticJobReconciler, job *elasticv1a
 		updateStatus(&job.Status, commonv1.JobFailed, reason, msg)
 	} else if master.Status.Phase == corev1.PodPending {
 		job.Status.ReplicaStatuses[ReplicaTypeEasydlMaster].Pending = 1
-		sg := fmt.Sprintf("job(%s/%s) is pending.", job.Namespace, job.Name)
-		updateStatus(&job.Status, commonv1.JobPending, comon.JobPendingReason, msg)
+		msg := fmt.Sprintf("job(%s/%s) is pending.", job.Namespace, job.Name)
+		updateStatus(&job.Status, commonv1.JobPending, common.JobPendingReason, msg)
 	} else if master.Status.Phase == corev1.PodRunning {
 		job.Status.ReplicaStatuses[ReplicaTypeEasydlMaster].Active = 1
 		if !isRunning(job.Status) {
