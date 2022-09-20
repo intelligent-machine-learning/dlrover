@@ -55,16 +55,6 @@ type ReplicaSpec struct {
 	RestartCount int `json:"restartCount,omitempty"`
 }
 
-// ReplicaResourceSpec specifies the resources of a repalica
-type ReplicaResourceSpec struct {
-	// CPU is the requested CPU cores of a replica
-	CPU int32 `json:"cpu,omitempty"`
-	// Memory is the requested memory (MB) of a replica
-	Memory int32 `json:"memory,omitempty"`
-	// GPU is the requested GPU of a replica
-	GPU string `json:"gpu,omitempty"`
-}
-
 // ElasticJobStatus defines the observed state of ElasticJob
 type ElasticJobStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster

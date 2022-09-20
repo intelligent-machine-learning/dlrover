@@ -122,5 +122,3 @@ func filterOutCondition(conditions []apiv1.JobCondition, condType apiv1.JobCondi
 	}
 	return newConditions
 }
-
-
