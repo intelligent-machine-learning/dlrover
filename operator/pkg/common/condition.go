@@ -1,3 +1,16 @@
+// Copyright 2022 The EasyDL Authors. All rights reserved.
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package commmon
 
 import (
@@ -15,7 +28,7 @@ const (
 	JobRunningReason = "JobRunning"
 	// JobFailedReason is added in a job when it is failed.
 	JobFailedReason = "JobFailed"
-	// JobRestarting is added in a job when it is restarting.
+	// JobRestartingReason is added in a job when it is restarting.
 	JobRestartingReason = "JobRestarting"
 	// JobPendingReason is added in a job when it is pending.
 	JobPendingReason = "JobPending"
@@ -26,22 +39,23 @@ const (
 
 // IsSucceeded checks if the job is succeeded
 func IsSucceeded(status apiv1.JobStatus) bool {
-	return hasCondition(status, apiv1.JobSucceeded)
+	return HasCondition(status, apiv1.JobSucceeded)
 }
 
 // IsFailed checks if the job is failed
 func IsFailed(status apiv1.JobStatus) bool {
-	return hasCondition(status, apiv1.JobFailed)
+	return HasCondition(status, apiv1.JobFailed)
 }
 
 // UpdateJobConditions adds to the jobStatus a new condition if needed, with the conditionType, reason, and message
 func UpdateJobConditions(jobStatus *apiv1.JobStatus, conditionType apiv1.JobConditionType, reason, message string) error {
-	condition := newCondition(conditionType, reason, message)
-	setCondition(jobStatus, condition)
+	condition := NewCondition(conditionType, reason, message)
+	SetCondition(jobStatus, condition)
 	return nil
 }
 
-func hasCondition(status apiv1.JobStatus, condType apiv1.JobConditionType) bool {
+// HasCondition check wether there is the conditionType in jobStatus.
+func HasCondition(status apiv1.JobStatus, condType apiv1.JobConditionType) bool {
 	for _, condition := range status.Conditions {
 		if condition.Type == condType && condition.Status == v1.ConditionTrue {
 			return true
@@ -50,8 +64,8 @@ func hasCondition(status apiv1.JobStatus, condType apiv1.JobConditionType) bool 
 	return false
 }
 
-// newCondition creates a new job condition.
-func newCondition(conditionType apiv1.JobConditionType, reason, message string) apiv1.JobCondition {
+// NewCondition creates a new job condition.
+func NewCondition(conditionType apiv1.JobConditionType, reason, message string) apiv1.JobCondition {
 	return apiv1.JobCondition{
 		Type:               conditionType,
 		Status:             v1.ConditionTrue,
@@ -62,8 +76,8 @@ func newCondition(conditionType apiv1.JobConditionType, reason, message string) 
 	}
 }
 
-// getCondition returns the condition with the provided type.
-func getCondition(status apiv1.JobStatus, condType apiv1.JobConditionType) *apiv1.JobCondition {
+// GetCondition returns the condition with the provided type.
+func GetCondition(status apiv1.JobStatus, condType apiv1.JobConditionType) *apiv1.JobCondition {
 	for _, condition := range status.Conditions {
 		if condition.Type == condType {
 			return &condition
@@ -72,16 +86,16 @@ func getCondition(status apiv1.JobStatus, condType apiv1.JobConditionType) *apiv
 	return nil
 }
 
-// setCondition updates the job to include the provided condition.
+// SetCondition updates the job to include the provided condition.
 // If the condition that we are about to add already exists
 // and has the same status and reason then we are not going to update.
-func setCondition(status *apiv1.JobStatus, condition apiv1.JobCondition) {
+func SetCondition(status *apiv1.JobStatus, condition apiv1.JobCondition) {
 	// Do nothing if JobStatus have failed condition
 	if IsFailed(*status) {
 		return
 	}
 
-	currentCond := getCondition(*status, condition.Type)
+	currentCond := GetCondition(*status, condition.Type)
 
 	// Do nothing if condition doesn't change
 	if currentCond != nil && currentCond.Status == condition.Status && currentCond.Reason == condition.Reason {
@@ -122,5 +136,3 @@ func filterOutCondition(conditions []apiv1.JobCondition, condType apiv1.JobCondi
 	}
 	return newConditions
 }
-
-

@@ -15,9 +15,8 @@ package controllers
 
 import (
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
+	common "github.com/intelligent-machine-learning/easydl/operator/pkg/common"
 	commonv1 "github.com/intelligent-machine-learning/easydl/operator/pkg/common/api/v1"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
@@ -60,20 +59,20 @@ func updateStatus(jobStatus *elasticv1alpha1.ElasticJobStatus, conditionType com
 }
 
 // updateJobConditions adds to the jobStatus a new condition if needed, with the conditionType, reason, and message.
-func updateJobConditions(jobStatus *elasticv1alpha1.ElasticJobStatus, conditionType commonv1.JobConditionType, reason, message string) error {
-	condition := newCondition(conditionType, reason, message)
-	setCondition(jobStatus, condition)
+func updateJobConditions(status *elasticv1alpha1.ElasticJobStatus, conditionType commonv1.JobConditionType, reason, message string) error {
+	condition := common.NewCondition(conditionType, reason, message)
+	common.SetCondition(&status.JobStatus, condition)
 	return nil
 }
 
 // isFailed checks if the job is failed.
 func isFailed(status elasticv1alpha1.ElasticJobStatus) bool {
-	return hasCondition(status, commonv1.JobFailed)
+	return common.HasCondition(status.JobStatus, commonv1.JobFailed)
 }
 
 // isRunning checks if the job is running.
 func isRunning(status elasticv1alpha1.ElasticJobStatus) bool {
-	return hasCondition(status, commonv1.JobRunning)
+	return common.HasCondition(status.JobStatus, commonv1.JobRunning)
 }
 
 func updatePhase(jobStatus *elasticv1alpha1.ElasticJobStatus, status commonv1.JobConditionType) {

@@ -4,22 +4,24 @@
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//      http://www.apache.org/licenses/LICENSE-2.0
+//	http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 package v1
 
 import (
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // +k8s:openapi-gen=true
 // +k8s:deepcopy-gen=true
+
 // JobStatus represents the current observed state of the training Job.
 type JobStatus struct {
 	// Conditions is an array of current observed job conditions.
@@ -46,11 +48,14 @@ type JobStatus struct {
 }
 
 // +k8s:openapi-gen=true
+
 // ReplicaType represents the type of the replica. Each operator needs to define its
 // own set of ReplicaTypes.
 type ReplicaType string
 
 // +k8s:openapi-gen=true
+// +k8s:deepcopy-gen=true
+
 // ReplicaStatus represents the current observed state of the replica.
 type ReplicaStatus struct {
 	// The number of pending pods.
@@ -73,6 +78,7 @@ type ReplicaStatus struct {
 
 // +k8s:openapi-gen=true
 // +k8s:deepcopy-gen=true
+
 // ReplicaSpec is a description of the replica
 type ReplicaSpec struct {
 	// Replicas is the desired number of replicas of the given template.
@@ -82,7 +88,7 @@ type ReplicaSpec struct {
 	// Template is the object that describes the pod that
 	// will be created for this replica. RestartPolicy in PodTemplateSpec
 	// will be overide by RestartPolicy in ReplicaSpec
-	Template v1.PodTemplateSpec `json:"template,omitempty"`
+	Template corev1.PodTemplateSpec `json:"template,omitempty"`
 
 	// Restart policy for all replicas within the job.
 	// One of Always, OnFailure, Never and ExitCode.
@@ -92,12 +98,13 @@ type ReplicaSpec struct {
 
 // +k8s:openapi-gen=true
 // +k8s:deepcopy-gen=true
+
 // JobCondition describes the state of the job at a certain point.
 type JobCondition struct {
 	// Type of job condition.
 	Type JobConditionType `json:"type"`
 	// Status of the condition, one of True, False, Unknown.
-	Status v1.ConditionStatus `json:"status"`
+	Status corev1.ConditionStatus `json:"status"`
 	// The reason for the condition's last transition.
 	Reason string `json:"reason,omitempty"`
 	// A human readable message indicating details about the transition.
@@ -109,6 +116,7 @@ type JobCondition struct {
 }
 
 // +k8s:openapi-gen=true
+
 // JobConditionType defines all kinds of types of JobStatus.
 type JobConditionType string
 
@@ -145,17 +153,23 @@ const (
 )
 
 // +k8s:openapi-gen=true
+
 // CleanPodPolicy describes how to deal with pods when the job is finished.
 type CleanPodPolicy string
 
 const (
+	// CleanPodPolicyUndefined is no policy to clean pods
 	CleanPodPolicyUndefined CleanPodPolicy = ""
-	CleanPodPolicyAll       CleanPodPolicy = "All"
-	CleanPodPolicyRunning   CleanPodPolicy = "Running"
-	CleanPodPolicyNone      CleanPodPolicy = "None"
+	// CleanPodPolicyAll is the policy to clean all pods
+	CleanPodPolicyAll CleanPodPolicy = "All"
+	// CleanPodPolicyRunning is the policy to clean all running pods
+	CleanPodPolicyRunning CleanPodPolicy = "Running"
+	// CleanPodPolicyNone is the policy to clean completed pods.
+	CleanPodPolicyNone CleanPodPolicy = "None"
 )
 
 // +k8s:openapi-gen=true
+
 // RestartPolicy describes how the replicas should be restarted.
 // Only one of the following restart policies may be specified.
 // If none of the following policies is specified, the default one
@@ -163,9 +177,12 @@ const (
 type RestartPolicy string
 
 const (
-	RestartPolicyAlways    RestartPolicy = "Always"
+	// RestartPolicyAlways is to always restart pods.
+	RestartPolicyAlways RestartPolicy = "Always"
+	// RestartPolicyOnFailure is to restart pods on failure.
 	RestartPolicyOnFailure RestartPolicy = "OnFailure"
-	RestartPolicyNever     RestartPolicy = "Never"
+	// RestartPolicyNever is to never restart pods.
+	RestartPolicyNever RestartPolicy = "Never"
 
 	// RestartPolicyExitCode policy means that user should add exit code by themselves,
 	// The job operator will check these exit codes to
@@ -177,6 +194,7 @@ const (
 
 // +k8s:openapi-gen=true
 // +k8s:deepcopy-gen=true
+
 // RunPolicy encapsulates various runtime policies of the distributed training
 // job, for example how to clean up resources and how long the job can stay
 // active.
@@ -206,11 +224,12 @@ type RunPolicy struct {
 }
 
 // +k8s:openapi-gen=true
+// +k8s:deepcopy-gen=true
+
 // SchedulingPolicy encapsulates various scheduling policies of the distributed training
 // job, for example `minAvailable` for gang-scheduling.
 type SchedulingPolicy struct {
-	MinAvailable  *int32           `json:"minAvailable,omitempty"`
-	Queue         string           `json:"queue,omitempty"`
-	MinResources  *v1.ResourceList `json:"minResources,omitempty"`
-	PriorityClass string           `json:"priorityClass,omitempty"`
+	MinAvailable  *int32 `json:"minAvailable,omitempty"`
+	Queue         string `json:"queue,omitempty"`
+	PriorityClass string `json:"priorityClass,omitempty"`
 }
