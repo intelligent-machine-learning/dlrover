@@ -51,6 +51,16 @@ func init() {
 	masterManager = newMasterManager()
 }
 
+func NewElasticJobReconciler(mgr ctrl.Manager) *ElasticJobReconciler {
+	r := &ElasticJobReconciler{
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorderFor("elasticjob-controller"),
+		Log:      ctrl.Log.WithName("controllers").WithName("ElasticJob"),
+	}
+	return r
+}
+
 //+kubebuilder:rbac:groups=elastic.iml.github.io,resources=elasticjobs,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=elastic.iml.github.io,resources=elasticjobs/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=elastic.iml.github.io,resources=elasticjobs/finalizers,verbs=update

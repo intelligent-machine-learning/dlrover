@@ -32,6 +32,8 @@ const (
 	JobRestartingReason = "JobRestarting"
 	// JobPendingReason is added in a job when it is pending.
 	JobPendingReason = "JobPending"
+	// JobScalingReason is added in a job when it is scaling up/down Pods.
+	JobScalingReason = "JobScaling"
 
 	// labels for pods and servers.
 
