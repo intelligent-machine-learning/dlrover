@@ -69,7 +69,7 @@ func (m *MasterManager) generateEasydlMaster(job *elasticv1alpha1.ElasticJob) *c
 			RestartPolicy: corev1.RestartPolicyNever,
 		},
 	}
-	masterName := m.createPodName(job)
+	masterName := m.generatePodName(job)
 	pod := m.GeneratePod(job, podTemplate, masterName)
 	return pod
 }
@@ -84,7 +84,7 @@ func (m *MasterManager) createPod(r *ElasticJobReconciler, job *elasticv1alpha1.
 	return nil
 }
 
-func (m *MasterManager) createPodName(job *elasticv1alpha1.ElasticJob) string {
+func (m *MasterManager) generatePodName(job *elasticv1alpha1.ElasticJob) string {
 	return fmt.Sprintf("%s-%s", job.GetName(), string(ReplicaTypeEasydlMaster))
 }
 
@@ -134,7 +134,7 @@ func (m *MasterManager) getMasterPod(r *ElasticJobReconciler, job *elasticv1alph
 	master := &corev1.Pod{}
 	name := ctrl.Request{}
 	name.NamespacedName.Namespace = job.GetNamespace()
-	name.NamespacedName.Name = m.createPodName(job)
+	name.NamespacedName.Name = m.generatePodName(job)
 	err := r.Get(context.Background(), name.NamespacedName, master)
 	if errors.IsNotFound(err) {
 		return nil, err
