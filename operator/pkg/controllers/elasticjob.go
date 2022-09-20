@@ -28,7 +28,7 @@ const (
 	ReplicaTypeWorker commonv1.ReplicaType = "worker"
 
 	// ReplicaTypeParameterServer is the type for training parameter server replica
-	ReplicaTypeParameterServer commonv1.ReplicaType = "parameter_server"
+	ReplicaTypeParameterServer commonv1.ReplicaType = "ps"
 
 	// ReplicaTypeEvaluator is the type for elaluator replica
 	ReplicaTypeEvaluator commonv1.ReplicaType = "evaluator"
@@ -50,6 +50,13 @@ func initializeJobStatus(jobStatus *elasticv1alpha1.ElasticJobStatus) {
 	if len(jobStatus.Conditions) == 0 {
 		jobStatus.Conditions = []commonv1.JobCondition{}
 	}
+}
+
+// updateJobConditions adds to the jobStatus a new condition if needed, with the conditionType, reason, and message.
+func updateStatus(jobStatus *elasticv1alpha1.ElasticJobStatus, conditionType commonv1.JobConditionType, reason, message string) error {
+	updateJobConditions(jobStatus, conditionType, reason, message)
+	updatePhase(jobStatus, conditionType)
+	return nil
 }
 
 // updateJobConditions adds to the jobStatus a new condition if needed, with the conditionType, reason, and message.
@@ -137,6 +144,11 @@ func filterOutCondition(conditions []commonv1.JobCondition, condType commonv1.Jo
 // isFailed checks if the job is failed.
 func isFailed(status elasticv1alpha1.ElasticJobStatus) bool {
 	return hasCondition(status, commonv1.JobFailed)
+}
+
+// isRunning checks if the job is running.
+func isRunning(status elasticv1alpha1.ElasticJobStatus) bool {
+	return hasCondition(status, commonv1.JobRunning)
 }
 
 func hasCondition(status elasticv1alpha1.ElasticJobStatus, condType commonv1.JobConditionType) bool {

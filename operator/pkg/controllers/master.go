@@ -15,10 +15,16 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
 	commonv1 "github.com/kubeflow/common/pkg/apis/common/v1"
+	commonutil "github.com/kubeflow/common/pkg/util"
+	logger "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	ctrl "sigs.k8s.io/controller-runtime"
 )
 
 const (
@@ -59,10 +65,12 @@ func (m *MasterManager) generateEasydlMaster(job *elasticv1alpha1.ElasticJob) *c
 	}
 	podTemplate := &corev1.PodTemplateSpec{
 		Spec: corev1.PodSpec{
-			Containers: []corev1.Container{container},
+			Containers:    []corev1.Container{container},
+			RestartPolicy: corev1.RestartPolicyNever,
 		},
 	}
-	pod := m.GeneratePod(job, podTemplate, "easydl-master", 0)
+	masterName := m.generatePodName(job)
+	pod := m.GeneratePod(job, podTemplate, masterName)
 	return pod
 }
 
@@ -74,4 +82,62 @@ func (m *MasterManager) createPod(r *ElasticJobReconciler, job *elasticv1alpha1.
 		return err
 	}
 	return nil
+}
+
+func (m *MasterManager) generatePodName(job *elasticv1alpha1.ElasticJob) string {
+	return fmt.Sprintf("%s-%s", job.GetName(), string(ReplicaTypeEasydlMaster))
+}
+
+func (m *MasterManager) syncMasterState(r *ElasticJobReconciler, job *elasticv1alpha1.ElasticJob) error {
+	master, err := m.getMasterPod(r, job)
+	if err != nil {
+		logger.Warnf("Failed to get master, error : %v", err)
+	}
+	if master == nil {
+		return nil
+	}
+	if master.Status.Phase == corev1.PodSucceeded {
+		job.Status.ReplicaStatuses[ReplicaTypeEasydlMaster].Succeeded = 1
+		msg := fmt.Sprintf("job(%s/%s) successfully completed", job.Namespace, job.Name)
+		r.Recorder.Event(job, corev1.EventTypeNormal, string(commonv1.JobSucceeded), msg)
+		if job.Status.CompletionTime == nil {
+			now := metav1.Now()
+			job.Status.CompletionTime = &now
+		}
+		updateStatus(&job.Status, commonv1.JobSucceeded, commonutil.JobCreatedReason, msg)
+	} else if master.Status.Phase == corev1.PodFailed {
+		job.Status.ReplicaStatuses[ReplicaTypeEasydlMaster].Failed = 1
+		msg := fmt.Sprintf("job(%s/%s) has failed", job.Namespace, job.Name)
+		reason := master.Status.Reason
+		if reason == "" {
+			reason = commonutil.JobFailedReason
+		}
+		r.Recorder.Event(job, corev1.EventTypeWarning, reason, msg)
+		if job.Status.CompletionTime == nil {
+			now := metav1.Now()
+			job.Status.CompletionTime = &now
+		}
+		updateStatus(&job.Status, commonv1.JobFailed, reason, msg)
+	} else if master.Status.Phase == corev1.PodRunning || master.Status.Phase == corev1.PodPending {
+		job.Status.ReplicaStatuses[ReplicaTypeEasydlMaster].Active = 1
+		if !isRunning(job.Status) {
+			msg := fmt.Sprintf("job(%s/%s) is running.", job.Namespace, job.Name)
+			updateStatus(&job.Status, commonv1.JobRunning, commonutil.JobRunningReason, msg)
+			r.Recorder.Event(job, corev1.EventTypeNormal, commonutil.JobRunningReason, msg)
+		}
+	}
+	return nil
+}
+
+// getMasterPod gets the master pod of a job from a cluster.
+func (m *MasterManager) getMasterPod(r *ElasticJobReconciler, job *elasticv1alpha1.ElasticJob) (*corev1.Pod, error) {
+	master := &corev1.Pod{}
+	name := ctrl.Request{}
+	name.NamespacedName.Namespace = job.GetNamespace()
+	name.NamespacedName.Name = m.generatePodName(job)
+	err := r.Get(context.Background(), name.NamespacedName, master)
+	if errors.IsNotFound(err) {
+		return nil, err
+	}
+	return master, nil
 }

@@ -17,7 +17,6 @@ limitations under the License.
 package controllers
 
 import (
-	"fmt"
 	"github.com/golang/glog"
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
@@ -31,9 +30,6 @@ const (
 	easydlApp            = "easydl"
 )
 
-// TaskType defines the task type (ps/worker) of a pod.
-type TaskType string
-
 // PodManager manages the lifecycle of a pod including creation, updation and deletion.
 type PodManager struct{}
 
@@ -42,9 +38,7 @@ func newPodManager() *PodManager {
 }
 
 // GeneratePod creates a Pod according to a PodTemplateSpec
-func (m *PodManager) GeneratePod(job *elasticv1alpha1.ElasticJob, podTemplate *corev1.PodTemplateSpec, taskType TaskType, taskIndex int) *corev1.Pod {
-	podName := fmt.Sprintf("%s-%s-%d", job.GetName(), taskType, taskIndex)
-
+func (m *PodManager) GeneratePod(job *elasticv1alpha1.ElasticJob, podTemplate *corev1.PodTemplateSpec, podName string) *corev1.Pod {
 	podSpec := podTemplate.DeepCopy()
 
 	if len(podSpec.Labels) == 0 {
@@ -55,8 +49,6 @@ func (m *PodManager) GeneratePod(job *elasticv1alpha1.ElasticJob, podTemplate *c
 		podSpec.Annotations = make(map[string]string)
 	}
 	podSpec.Labels[labelAppName] = easydlApp
-	podSpec.Labels[labelReplicaTypeKey] = string(taskType)
-	podSpec.Labels[labelReplicaIndexKey] = fmt.Sprintf("%d", taskIndex)
 
 	for key, value := range job.Labels {
 		podSpec.Labels[key] = value
@@ -67,7 +59,7 @@ func (m *PodManager) GeneratePod(job *elasticv1alpha1.ElasticJob, podTemplate *c
 	}
 
 	if len(podSpec.Spec.Containers) == 0 {
-		glog.Errorf("Pod %s-%d does not have any container", taskType, taskIndex)
+		glog.Errorf("Pod %s does not have any container", podName)
 		return nil
 	}
 
