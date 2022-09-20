@@ -22789,6 +22789,10 @@ spec:
                               type: object
                           type: object
                           x-kubernetes-map-type: atomic
+                        pending:
+                          description: The number of pending pods.
+                          format: int32
+                          type: integer
                         succeeded:
                           description: The number of pods which reached phase Succeeded.
                           format: int32

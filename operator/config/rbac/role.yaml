@@ -31,3 +31,29 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - elastic.iml.github.io
+  resources:
+  - scaler
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - elastic.iml.github.io
+  resources:
+  - scaler/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - elastic.iml.github.io
+  resources:
+  - scaler/status
+  verbs:
+  - get
+  - patch
+  - update
