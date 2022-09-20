@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -33,10 +34,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
+	common "github.com/intelligent-machine-learning/easydl/operator/pkg/common"
+	commonv1 "github.com/intelligent-machine-learning/easydl/operator/pkg/common/api/v1"
 )
 
 const (
-	pollInterval = time.Duration(3 * time.Second)
+	defaultPollInterval = time.Duration(3 * time.Second)
 )
 
 // ScalerReconciler reconciles a scaler object
@@ -45,6 +48,16 @@ type ScalerReconciler struct {
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
 	Log      logr.Logger
+}
+
+func NewScalerReconciler(mgr ctrl.Manager) *ScalerReconciler {
+	r := &ScalerReconciler{
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorderFor("scaler-controller"),
+		Log:      ctrl.Log.WithName("controllers").WithName("Scaler"),
+	}
+	return r
 }
 
 //+kubebuilder:rbac:groups=elastic.iml.github.io,resources=scaler,verbs=get;list;watch;create;update;patch;delete
@@ -67,16 +80,22 @@ func (r *ScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// Fetch the scale
 	scaler := &elasticv1alpha1.Scaler{}
 	if err := r.Get(context.TODO(), req.NamespacedName, scaler); err != nil {
-		if errors.IsNotFound(err) {
-			return ctrl.Result{}, nil
-		}
+		return ctrl.Result{}, err
+	}
+	job, err := r.getOwnerJob(scaler)
+	if err != nil {
 		return ctrl.Result{}, err
 	}
 
-	return r.setScalingOwner(scaler, pollInterval)
+	result, err := r.setScalingOwner(scaler, job, defaultPollInterval)
+	if err != nil {
+		return result, err
+	}
+	result, err = r.updateJobToScaling(job, defaultPollInterval)
+	return result, err
 }
 
-func (r *ScalerReconciler) getOwnerJob(scaler *elasticv1alpha1.Scaler) *elasticv1alpha1.ElasticJob {
+func (r *ScalerReconciler) getOwnerJob(scaler *elasticv1alpha1.Scaler) (*elasticv1alpha1.ElasticJob, error) {
 	job := &elasticv1alpha1.ElasticJob{}
 	nsn := types.NamespacedName{}
 	nsn.Namespace = scaler.GetNamespace()
@@ -85,33 +104,47 @@ func (r *ScalerReconciler) getOwnerJob(scaler *elasticv1alpha1.Scaler) *elasticv
 	if err != nil {
 		if errors.IsNotFound(err) {
 			logger.Warnf("%s not found elasticJob: %v, namespace: %v", scaler.Name, nsn.Name, nsn.Namespace)
-			return nil
+			return job, nil
 		}
-		return nil
+		return job, err
 	}
-	return job
+	return job, nil
 }
 
-func (r *ScalerReconciler) setScalingOwner(scaler *elasticv1alpha1.Scaler, pollInterval time.Duration) (ctrl.Result, error) {
+func (r *ScalerReconciler) setScalingOwner(scaler *elasticv1alpha1.Scaler,
+	job *elasticv1alpha1.ElasticJob, pollInterval time.Duration) (ctrl.Result, error) {
 	ownerRefs := scaler.GetOwnerReferences()
 	if len(ownerRefs) == 0 {
-		job := r.getOwnerJob(scaler)
+
 		gvk := elasticv1alpha1.SchemeGroupVersionKind
-		ownerRefs = append(ownerRefs, *metav1.NewControllerRef(job, schema.GroupVersionKind{Group: gvk.Group, Version: gvk.Version, Kind: gvk.Kind}))
+		ownerRefs = append(ownerRefs, *metav1.NewControllerRef(job,
+			schema.GroupVersionKind{Group: gvk.Group, Version: gvk.Version, Kind: gvk.Kind}))
 		scaler.SetOwnerReferences(ownerRefs)
 
 		err := r.Status().Update(context.Background(), scaler)
 		if err != nil {
 			logger.Errorf("failed to update scaler status: %s, err: %++v", scaler.Name, err)
-			return ctrl.Result{RequeueAfter: pollInterval}, nil
+			return ctrl.Result{RequeueAfter: pollInterval}, err
 		}
 
 		err = r.Update(context.Background(), scaler)
 		if err != nil {
 			logger.Errorf("failed to update scaler: %s, err: %++v", scaler.Name, err)
 			// Error updating the scaler - requeue the request.
-			return ctrl.Result{RequeueAfter: pollInterval}, nil
+			return ctrl.Result{RequeueAfter: pollInterval}, err
 		}
+	}
+	return ctrl.Result{}, nil
+}
+
+func (r *ScalerReconciler) updateJobToScaling(job *elasticv1alpha1.ElasticJob,
+	pollInterval time.Duration) (ctrl.Result, error) {
+	msg := fmt.Sprintf("ElasticJob %s is scaling.", job.Name)
+	updateStatus(&job.Status, commonv1.JobScaling, common.JobScalingReason, msg)
+	err := r.Status().Update(context.Background(), job)
+	if err != nil {
+		logger.Errorf("Failed to update job status to scaling: %s, err: %v", job.Name, err)
+		return ctrl.Result{RequeueAfter: pollInterval}, err
 	}
 	return ctrl.Result{}, nil
 }
