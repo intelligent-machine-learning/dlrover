@@ -36,7 +36,7 @@ import (
 )
 
 const (
-	pollInterval = time.Duration(10)
+	pollInterval = time.Duration(3 * time.Second)
 )
 
 // ScaleReconciler reconciles an ElasticJob object
@@ -103,7 +103,6 @@ func (r *ScalerReconciler) setScalingOwner(scaler *elasticv1alpha1.Scaler, pollI
 		err := r.Status().Update(context.Background(), scaler)
 		if err != nil {
 			logger.Errorf("failed to update scaler status: %s, err: %++v", scaler.Name, err)
-			// Error updating the scaler - requeue the request.
 			return ctrl.Result{RequeueAfter: pollInterval}, nil
 		}
 
@@ -115,10 +114,6 @@ func (r *ScalerReconciler) setScalingOwner(scaler *elasticv1alpha1.Scaler, pollI
 		}
 	}
 	return ctrl.Result{}, nil
-}
-
-func (r *ScalerReconciler) updateElasticJobToScale(job *elasticv1alpha1.ElasticJob) {
-
 }
 
 // SetupWithManager sets up the controller with the Manager.
