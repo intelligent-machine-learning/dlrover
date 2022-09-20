@@ -17,7 +17,6 @@ limitations under the License.
 package v1alpha1
 
 import (
-	commonv1 "github.com/intelligent-machine-learning/easydl/operator/pkg/common/api/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -66,7 +65,8 @@ type ScalerStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	commonv1.JobStatus `json:"status,omitempty"`
+	// CreateTime represents time when the scaler was acknowledged by the scaler controller.
+	CreateTime *metav1.Time `json:"createTime,omitempty"`
 }
 
 //+kubebuilder:object:root=true

@@ -39,7 +39,7 @@ const (
 	pollInterval = time.Duration(3 * time.Second)
 )
 
-// ScaleReconciler reconciles an ElasticJob object
+// ScalerReconciler reconciles a scaler object
 type ScalerReconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
