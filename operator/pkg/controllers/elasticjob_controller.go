@@ -51,6 +51,7 @@ func init() {
 	masterManager = newMasterManager()
 }
 
+// NewElasticJobReconciler creates a JobReconciler
 func NewElasticJobReconciler(mgr ctrl.Manager) *ElasticJobReconciler {
 	r := &ElasticJobReconciler{
 		Client:   mgr.GetClient(),
