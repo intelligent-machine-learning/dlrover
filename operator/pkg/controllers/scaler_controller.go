@@ -50,6 +50,7 @@ type ScalerReconciler struct {
 	Log      logr.Logger
 }
 
+// NewScalerReconciler creates a ScalerReconciler
 func NewScalerReconciler(mgr ctrl.Manager) *ScalerReconciler {
 	r := &ScalerReconciler{
 		Client:   mgr.GetClient(),
@@ -115,7 +116,6 @@ func (r *ScalerReconciler) setScalingOwner(scaler *elasticv1alpha1.Scaler,
 	job *elasticv1alpha1.ElasticJob, pollInterval time.Duration) (ctrl.Result, error) {
 	ownerRefs := scaler.GetOwnerReferences()
 	if len(ownerRefs) == 0 {
-
 		gvk := elasticv1alpha1.SchemeGroupVersionKind
 		ownerRefs = append(ownerRefs, *metav1.NewControllerRef(job,
 			schema.GroupVersionKind{Group: gvk.Group, Version: gvk.Version, Kind: gvk.Kind}))
