@@ -150,6 +150,9 @@ const (
 	// reached phase failed with no restarting.
 	// The training has failed its execution.
 	JobFailed JobConditionType = "Failed"
+
+	// JobScaling means the job is scaling up/down its Pods.
+	JobScaling JobConditionType = "Scaling"
 )
 
 // +k8s:openapi-gen=true
