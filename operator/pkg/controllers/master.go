@@ -31,13 +31,20 @@ const (
 	initMasterContainerCPU     = "2"
 	initMasterContainerMemory  = "4Gi"
 	initMasterContainerStorage = "4Gi"
-	masterCommand              = "python -m elasticdl.python.master.main"
-	masterImage                = "easydl/easydl-master:v1.0.0"
+	masterCommand              = "sleep 30"
+	masterImage                = "python:3.6.5"
+
+	// ReplicaTypeEasydlMaster is the type for easydl Master replica.
+	ReplicaTypeEasydlMaster commonv1.ReplicaType = "easydl-master"
 )
 
 // MasterManager generates a master pod object.
 type MasterManager struct {
 	PodManager
+}
+
+func init() {
+	ReplicaManagers[ReplicaTypeEasydlMaster] = newMasterManager()
 }
 
 func newMasterManager() *MasterManager {
@@ -74,7 +81,12 @@ func (m *MasterManager) generateEasydlMaster(job *elasticv1alpha1.ElasticJob) *c
 	return pod
 }
 
-func (m *MasterManager) createPod(r *ElasticJobReconciler, job *elasticv1alpha1.ElasticJob) error {
+// ReconcilePods reconciles Pods of a job on a K8s cluster
+func (m *MasterManager) ReconcilePods(
+	r *ElasticJobReconciler,
+	job *elasticv1alpha1.ElasticJob,
+	resourceSpec *elasticv1alpha1.ReplicaResourceSpec,
+) error {
 	masterPod := m.generateEasydlMaster(job)
 	err := r.Create(context.Background(), masterPod)
 	if err != nil {
@@ -88,7 +100,8 @@ func (m *MasterManager) generatePodName(job *elasticv1alpha1.ElasticJob) string 
 	return fmt.Sprintf("%s-%s", job.GetName(), string(ReplicaTypeEasydlMaster))
 }
 
-func (m *MasterManager) syncMasterState(r *ElasticJobReconciler, job *elasticv1alpha1.ElasticJob) error {
+// SyncJobState synchronize the job status by replicas
+func (m *MasterManager) SyncJobState(r *ElasticJobReconciler, job *elasticv1alpha1.ElasticJob) error {
 	master, err := m.getMasterPod(r, job)
 	if err != nil {
 		logger.Warnf("Failed to get master, error : %v", err)
@@ -104,7 +117,7 @@ func (m *MasterManager) syncMasterState(r *ElasticJobReconciler, job *elasticv1a
 			now := metav1.Now()
 			job.Status.CompletionTime = &now
 		}
-		updateStatus(&job.Status, commonv1.JobSucceeded, common.JobCreatedReason, msg)
+		UpdateStatus(&job.Status, commonv1.JobSucceeded, common.JobCreatedReason, msg)
 	} else if master.Status.Phase == corev1.PodFailed {
 		job.Status.ReplicaStatuses[ReplicaTypeEasydlMaster].Failed = 1
 		msg := fmt.Sprintf("job(%s/%s) has failed", job.Namespace, job.Name)
@@ -117,16 +130,16 @@ func (m *MasterManager) syncMasterState(r *ElasticJobReconciler, job *elasticv1a
 			now := metav1.Now()
 			job.Status.CompletionTime = &now
 		}
-		updateStatus(&job.Status, commonv1.JobFailed, reason, msg)
+		UpdateStatus(&job.Status, commonv1.JobFailed, reason, msg)
 	} else if master.Status.Phase == corev1.PodPending {
 		job.Status.ReplicaStatuses[ReplicaTypeEasydlMaster].Pending = 1
 		msg := fmt.Sprintf("job(%s/%s) is pending.", job.Namespace, job.Name)
-		updateStatus(&job.Status, commonv1.JobPending, common.JobPendingReason, msg)
+		UpdateStatus(&job.Status, commonv1.JobPending, common.JobPendingReason, msg)
 	} else if master.Status.Phase == corev1.PodRunning {
 		job.Status.ReplicaStatuses[ReplicaTypeEasydlMaster].Active = 1
 		if !isRunning(job.Status) {
 			msg := fmt.Sprintf("job(%s/%s) is running.", job.Namespace, job.Name)
-			updateStatus(&job.Status, commonv1.JobRunning, common.JobRunningReason, msg)
+			UpdateStatus(&job.Status, commonv1.JobRunning, common.JobRunningReason, msg)
 			r.Recorder.Event(job, corev1.EventTypeNormal, common.JobRunningReason, msg)
 		}
 	}

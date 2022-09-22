@@ -39,76 +39,34 @@ spec:
           spec:
             description: ScalerSpec defines the desired resource state of an ElasticJob
             properties:
-              evaluator:
-                description: Evaluator specifies the resource of evaluators for the
-                  job.
-                properties:
-                  replicas:
-                    description: Replicas is the number of replica
-                    type: integer
-                  resource:
-                    description: Resource defines the resource of each replica
-                    properties:
-                      cpu:
-                        description: CPU is the requested CPU cores of a replica
-                        format: int32
-                        type: integer
-                      gpu:
-                        description: GPU is the requested GPU of a replica
-                        type: string
-                      memory:
-                        description: Memory is the requested memory (MB) of a replica
-                        format: int32
-                        type: integer
-                    type: object
-                type: object
               ownerJob:
                 description: OwnerJob specifies a job to scale.
                 type: string
-              parameterServer:
-                description: ParameterServer specifies the resources of PS for the
-                  job.
-                properties:
-                  replicas:
-                    description: Replicas is the number of replica
-                    type: integer
-                  resource:
-                    description: Resource defines the resource of each replica
-                    properties:
-                      cpu:
-                        description: CPU is the requested CPU cores of a replica
-                        format: int32
-                        type: integer
-                      gpu:
-                        description: GPU is the requested GPU of a replica
-                        type: string
-                      memory:
-                        description: Memory is the requested memory (MB) of a replica
-                        format: int32
-                        type: integer
-                    type: object
-                type: object
-              worker:
-                description: Worker specifies the resources of workers for the job.
-                properties:
-                  replicas:
-                    description: Replicas is the number of replica
-                    type: integer
-                  resource:
-                    description: Resource defines the resource of each replica
-                    properties:
-                      cpu:
-                        description: CPU is the requested CPU cores of a replica
-                        format: int32
-                        type: integer
-                      gpu:
-                        description: GPU is the requested GPU of a replica
-                        type: string
-                      memory:
-                        description: Memory is the requested memory (MB) of a replica
-                        format: int32
-                        type: integer
-                    type: object
+              replicaResourceSpec:
+                additionalProperties:
+                  description: ReplicaResourceSpec specifies the number and resources
+                    of replica.
+                  properties:
+                    replicas:
+                      description: Replicas is the number of replica
+                      type: integer
+                    resource:
+                      description: Resource defines the resource of each replica
+                      properties:
+                        cpu:
+                          description: CPU is the requested CPU cores of a replica
+                          type: string
+                        gpu:
+                          description: GPU is the requested GPU of a replica
+                          type: string
+                        memory:
+                          description: Memory is the requested memory (MB) of a replica
+                          type: string
+                      type: object
+                  type: object
+                description: 'A map of ReplicaType (type) to ReplicaSpec (value).
+                  Specifies the resource of a job. For example, { "PS": ReplicaResourceSpec,
+                  "worker": ReplicaResourceSpec, }'
                 type: object
             type: object
           status:

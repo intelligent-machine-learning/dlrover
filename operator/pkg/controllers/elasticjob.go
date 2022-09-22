@@ -19,20 +19,6 @@ import (
 	commonv1 "github.com/intelligent-machine-learning/easydl/operator/pkg/common/api/v1"
 )
 
-const (
-	// ReplicaTypeEasydlMaster is the type for easydl Master replica.
-	ReplicaTypeEasydlMaster commonv1.ReplicaType = "easydl-master"
-
-	// ReplicaTypeWorker is the type for training worker replica.
-	ReplicaTypeWorker commonv1.ReplicaType = "worker"
-
-	// ReplicaTypeParameterServer is the type for training parameter server replica
-	ReplicaTypeParameterServer commonv1.ReplicaType = "ps"
-
-	// ReplicaTypeEvaluator is the type for elaluator replica
-	ReplicaTypeEvaluator commonv1.ReplicaType = "evaluator"
-)
-
 // initializeTrainingJobStatuses initializes the ReplicaStatuses for TrainingJob.
 func initializeJobStatuses(jobStatus *elasticv1alpha1.ElasticJobStatus, rtype commonv1.ReplicaType) {
 	initializeJobStatus(jobStatus)
@@ -51,8 +37,8 @@ func initializeJobStatus(jobStatus *elasticv1alpha1.ElasticJobStatus) {
 	}
 }
 
-// updateJobConditions adds to the jobStatus a new condition if needed, with the conditionType, reason, and message.
-func updateStatus(jobStatus *elasticv1alpha1.ElasticJobStatus, conditionType commonv1.JobConditionType, reason, message string) error {
+// UpdateStatus adds to the jobStatus a new condition if needed, with the conditionType, reason, and message.
+func UpdateStatus(jobStatus *elasticv1alpha1.ElasticJobStatus, conditionType commonv1.JobConditionType, reason, message string) error {
 	updateJobConditions(jobStatus, conditionType, reason, message)
 	updatePhase(jobStatus, conditionType)
 	return nil
