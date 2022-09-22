@@ -45,11 +45,8 @@ type ElasticJobReconciler struct {
 	Log      logr.Logger
 }
 
-var masterManager *MasterManager
-
-func init() {
-	masterManager = newMasterManager()
-}
+// ReplicaManagers contains the manager for each ReplicaType
+var ReplicaManagers = make(map[commonv1.ReplicaType]ReplicaManager)
 
 // NewElasticJobReconciler creates a JobReconciler
 func NewElasticJobReconciler(mgr ctrl.Manager) *ElasticJobReconciler {
@@ -132,9 +129,16 @@ func (r *ElasticJobReconciler) reconcileJobs(job *elasticv1alpha1.ElasticJob) (c
 			logger.Warningf("Fail to create EasyDL Master")
 		}
 		msg := fmt.Sprintf("ElasticJob %s is running.", job.Name)
-		updateStatus(&job.Status, commonv1.JobRunning, common.JobRunningReason, msg)
+		UpdateStatus(&job.Status, commonv1.JobRunning, common.JobRunningReason, msg)
 	case commonv1.JobRunning:
-		masterManager.syncMasterState(r, job)
+		r.syncJobStateByPod(job)
+	case commonv1.JobScaling:
+		scaler, err := r.getJobScaler(job)
+		if err == nil {
+			r.executeScaling(job, scaler)
+		}
+		msg := fmt.Sprintf("ElasticJob %s scaling finished.", job.Name)
+		UpdateStatus(&job.Status, commonv1.JobRunning, common.JobRunningReason, msg)
 	case commonv1.JobSucceeded:
 		logger.Infof("Job %s succeed", job.Name)
 	default:
@@ -147,7 +151,7 @@ func (r *ElasticJobReconciler) initializeJob(job *elasticv1alpha1.ElasticJob) {
 	if job.Status.Conditions == nil {
 		initializeJobStatuses(&job.Status, ReplicaTypeEasydlMaster)
 		msg := fmt.Sprintf("ElasticJob %s is created.", job.Name)
-		updateStatus(&job.Status, commonv1.JobCreated, common.JobCreatedReason, msg)
+		UpdateStatus(&job.Status, commonv1.JobCreated, common.JobCreatedReason, msg)
 	}
 	if job.Status.StartTime == nil {
 		now := metav1.Now()
@@ -155,12 +159,45 @@ func (r *ElasticJobReconciler) initializeJob(job *elasticv1alpha1.ElasticJob) {
 	}
 }
 
+func (r *ElasticJobReconciler) syncJobStateByPod(job *elasticv1alpha1.ElasticJob) {
+	for _, manager := range ReplicaManagers {
+		manager.SyncJobState(r, job)
+	}
+}
+
 func (r *ElasticJobReconciler) createEasydlMaster(job *elasticv1alpha1.ElasticJob) error {
-	err := masterManager.createPod(r, job)
+	masterManager := ReplicaManagers[ReplicaTypeEasydlMaster]
+	err := masterManager.ReconcilePods(r, job, nil)
 	if err != nil {
 		return err
 	}
 	return err
+}
+
+func (r *ElasticJobReconciler) getJobScaler(job *elasticv1alpha1.ElasticJob) (*elasticv1alpha1.Scaler, error) {
+	scaler := &elasticv1alpha1.Scaler{}
+	nsn := types.NamespacedName{}
+	nsn.Namespace = job.GetNamespace()
+	nsn.Name = job.Status.Scaler
+	err := r.Get(context.Background(), nsn, scaler)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			logger.Warnf("Scaler %s not found: namespace: %v", nsn.Name, nsn.Namespace)
+			return scaler, err
+		}
+		return scaler, err
+	}
+	return scaler, err
+}
+
+func (r *ElasticJobReconciler) executeScaling(job *elasticv1alpha1.ElasticJob, scaler *elasticv1alpha1.Scaler) error {
+	logger.Infof("managers : %v", ReplicaManagers)
+	for replicaType, resourceSpec := range scaler.Spec.ReplicaResourceSpecs {
+		logger.Infof("Replica %s, resource %v", replicaType, resourceSpec)
+		replicaManager := ReplicaManagers[replicaType]
+		replicaManager.ReconcilePods(r, job, &resourceSpec)
+	}
+	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

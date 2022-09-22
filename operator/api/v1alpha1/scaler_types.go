@@ -17,6 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	commonv1 "github.com/intelligent-machine-learning/easydl/operator/pkg/common/api/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -28,14 +29,13 @@ type ScalerSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// ParameterServer specifies the resources of PS for the job.
-	ParameterServer *ReplicaResourceSpec `json:"parameterServer,omitempty"`
-
-	// Worker specifies the resources of workers for the job.
-	Worker *ReplicaResourceSpec `json:"worker,omitempty"`
-
-	// Evaluator specifies the resource of evaluators for the job.
-	Evaluator *ReplicaResourceSpec `json:"evaluator,omitempty"`
+	// A map of ReplicaType (type) to ReplicaSpec (value). Specifies the resource of a job.
+	// For example,
+	//   {
+	//     "PS": ReplicaResourceSpec,
+	//     "worker": ReplicaResourceSpec,
+	//   }
+	ReplicaResourceSpecs map[commonv1.ReplicaType]ReplicaResourceSpec `json:"replicaResourceSpec,omitempty"`
 
 	// OwnerJob specifies a job to scale.
 	OwnerJob string `json:"ownerJob,omitempty"`
@@ -53,9 +53,9 @@ type ReplicaResourceSpec struct {
 // ResourceSpec specifies the resources of a repalica
 type ResourceSpec struct {
 	// CPU is the requested CPU cores of a replica
-	CPU int32 `json:"cpu,omitempty"`
+	CPU string `json:"cpu,omitempty"`
 	// Memory is the requested memory (MB) of a replica
-	Memory int32 `json:"memory,omitempty"`
+	Memory string `json:"memory,omitempty"`
 	// GPU is the requested GPU of a replica
 	GPU string `json:"gpu,omitempty"`
 }

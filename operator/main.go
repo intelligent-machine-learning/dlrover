@@ -33,6 +33,7 @@ import (
 
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
 	"github.com/intelligent-machine-learning/easydl/operator/pkg/controllers"
+	_ "github.com/intelligent-machine-learning/easydl/operator/pkg/controllers/psstrategy"
 	//+kubebuilder:scaffold:imports
 )
 
