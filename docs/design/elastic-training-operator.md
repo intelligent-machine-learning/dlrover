@@ -35,38 +35,39 @@ metadata:
   name: "elastic-deepctr-job"
 spec:
   distributionStrategy: parameter_server
-  parameterServer:
-    restartCount: 3
-    template:
-        metadata:
-          annotations:
-            sidecar.istio.io/inject: "false"
-        spec:
-          containers:
-            - name: main
-              image: elasticdl:iris_estimator
-              command:
-                - python
-                - -m
-                - model_zoo.iris.dnn_estimator
-                - --batch_size=32
-                - --training_steps=1000
-  worker:
-    restartCount: 3
-    template:
-        metadata:
-          annotations:
-            sidecar.istio.io/inject: "false"
-        spec:
-          containers:
-            - name: main
-              image: elasticdl:iris_estimator
-              command:
-                - python
-                - -m
-                - model_zoo.iris.dnn_estimator
-                - --batch_size=32
-                - --training_steps=1000
+  replicaSpecs:
+    ps:
+        restartCount: 3
+        template:
+            metadata:
+            annotations:
+                sidecar.istio.io/inject: "false"
+            spec:
+            containers:
+                - name: main
+                image: elasticdl:iris_estimator
+                command:
+                    - python
+                    - -m
+                    - model_zoo.iris.dnn_estimator
+                    - --batch_size=32
+                    - --training_steps=1000
+    worker:
+        restartCount: 3
+        template:
+            metadata:
+            annotations:
+                sidecar.istio.io/inject: "false"
+            spec:
+            containers:
+                - name: main
+                image: elasticdl:iris_estimator
+                command:
+                    - python
+                    - -m
+                    - model_zoo.iris.dnn_estimator
+                    - --batch_size=32
+                    - --training_steps=1000
 ```
 
 The `spec.distributionStrategy` specifies the distribution strategy of
@@ -92,7 +93,7 @@ metadata:
 spec:
   selector:
     name: elastic-deepctr-job  // Job Name
-  parameter_server:
+  ps:
     replicas: 4
     resource:
       cpu: 4
