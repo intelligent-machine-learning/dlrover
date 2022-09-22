@@ -5,7 +5,7 @@ metadata:
 spec:
   distributionStrategy: parameter_server
   replicaSpecs:
-    PS:
+    ps:
       restartCount: 3
       template:
           metadata:

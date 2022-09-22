@@ -5,7 +5,7 @@ metadata:
 spec:
   ownerJob: elasticjob-sample
   replicaResourceSpec:
-    PS:
+    ps:
       replicas: 3
       resource:
         cpu: "0.5"

@@ -9,7 +9,7 @@ const (
 	ReplicaTypeWorker commonv1.ReplicaType = "worker"
 
 	// ReplicaTypePS is the type for training parameter server replica
-	ReplicaTypePS commonv1.ReplicaType = "PS"
+	ReplicaTypePS commonv1.ReplicaType = "ps"
 
 	// ReplicaTypeEvaluator is the type for elaluator replica
 	ReplicaTypeEvaluator commonv1.ReplicaType = "evaluator"
