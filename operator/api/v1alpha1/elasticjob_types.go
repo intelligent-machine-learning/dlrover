@@ -34,14 +34,13 @@ type ElasticJobSpec struct {
 	// Now, the strategy supports parameter-server and ring-allreduce.
 	DistributionStrategy string `json:"distributionStrategy,omitempty"`
 
-	// ParameterServer specifies the resources of PS for the job.
-	ParameterServer *ReplicaSpec `json:"parameterServer,omitempty"`
-
-	// Worker specifies the resources of workers for the job.
-	Worker *ReplicaSpec `json:"worker,omitempty"`
-
-	// Evaluator specifies the resource of evaluators for the job.
-	Evaluator *ReplicaSpec `json:"evaluator,omitempty"`
+	// A map of ReplicaType (type) to ReplicaSpec (value). Specifies the training cluster configuration.
+	// For example,
+	//   {
+	//     "PS": ReplicaSpec,
+	//     "Worker": ReplicaSpec,
+	//   }
+	ReplicaSpecs map[commonv1.ReplicaType]*ReplicaSpec `json:"replicaSpecs"`
 
 	// Envs specifies environment variables for Pods of the job.
 	Envs map[string]*corev1.EnvVar `json:"envs,omitempty"`
@@ -64,11 +63,8 @@ type ElasticJobStatus struct {
 
 	Phase commonv1.JobConditionType `json:"phase,omitempty"`
 
-	// CurrentReplicaCount is the current count of replicas
-	CurrentReplicaCount map[string]int `json:"current_replica_count,omitempty"`
-
-	// TargetReplicaCount is the target count of replicas
-	TargetReplicaCount map[string]int `json:"target_worker_count,omitempty"`
+	// Scaler is a name of Scaler CRD to scale the job resource.
+	Scaler string `json:"scaler,omitemtpy"`
 }
 
 //+kubebuilder:object:root=true
