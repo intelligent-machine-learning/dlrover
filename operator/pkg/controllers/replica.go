@@ -20,6 +20,7 @@ import (
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
 )
 
+// ReplicaManager manage pods of ReplicaType
 type ReplicaManager interface {
 	ReconcilePods(r *ElasticJobReconciler, job *elasticv1alpha1.ElasticJob, resourceSpec *elasticv1alpha1.ReplicaResourceSpec) error
 

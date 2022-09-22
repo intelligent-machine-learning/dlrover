@@ -45,6 +45,7 @@ type ElasticJobReconciler struct {
 	Log      logr.Logger
 }
 
+// ReplicaManagers contains the manager for each ReplicaType
 var ReplicaManagers = make(map[commonv1.ReplicaType]ReplicaManager)
 
 // NewElasticJobReconciler creates a JobReconciler
