@@ -16,7 +16,6 @@ spec:
             containers:
               - name: main
                 image: elasticdl:iris_estimator
-                imagePullPolicy: Always
                 command:
                   - python
                   - -m
@@ -34,7 +33,6 @@ spec:
             containers:
               - name: main
                 image: elasticdl:iris_estimator
-                imagePullPolicy: Always
                 command:
                   - python
                   - -m
