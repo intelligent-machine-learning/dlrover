@@ -1,0 +1,17 @@
+apiVersion: elastic.iml.github.io/v1alpha1
+kind: Scaler
+metadata:
+  name: scaler-sample
+spec:
+  ownerJob: elasticjob-sample
+  replicaResourceSpec:
+    PS:
+      replicas: 3
+      resource:
+        cpu: "0.5"
+        memory: 256Mi
+    worker:
+      replicas: 2
+      resource:
+        cpu: "0.5"
+        memory: 256Mi

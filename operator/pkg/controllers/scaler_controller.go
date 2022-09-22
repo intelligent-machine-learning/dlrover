@@ -92,7 +92,7 @@ func (r *ScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if err != nil {
 		return result, err
 	}
-	result, err = r.updateJobToScaling(job, defaultPollInterval)
+	result, err = r.updateJobToScaling(scaler, job, defaultPollInterval)
 	return result, err
 }
 
@@ -137,13 +137,16 @@ func (r *ScalerReconciler) setScalingOwner(scaler *elasticv1alpha1.Scaler,
 	return ctrl.Result{}, nil
 }
 
-func (r *ScalerReconciler) updateJobToScaling(job *elasticv1alpha1.ElasticJob,
+func (r *ScalerReconciler) updateJobToScaling(
+	scaler *elasticv1alpha1.Scaler,
+	job *elasticv1alpha1.ElasticJob,
 	pollInterval time.Duration) (ctrl.Result, error) {
-	msg := fmt.Sprintf("ElasticJob %s is scaling.", job.Name)
-	updateStatus(&job.Status, commonv1.JobScaling, common.JobScalingReason, msg)
+	msg := fmt.Sprintf("ElasticJob %s is scaling by %s.", job.Name, scaler.Name)
+	job.Status.Scaler = scaler.Name
+	UpdateStatus(&job.Status, commonv1.JobScaling, common.JobScalingReason, msg)
 	err := r.Status().Update(context.Background(), job)
 	if err != nil {
-		logger.Errorf("Failed to update job status to scaling: %s, err: %v", job.Name, err)
+		logger.Errorf("Failed to update job %s status to scaling with %s, err: %v", job.Name, scaler.Name, err)
 		return ctrl.Result{RequeueAfter: pollInterval}, err
 	}
 	return ctrl.Result{}, nil
