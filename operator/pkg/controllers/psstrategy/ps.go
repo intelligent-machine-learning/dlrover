@@ -17,6 +17,7 @@ import (
 	"context"
 	"fmt"
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
+	commonv1 "github.com/intelligent-machine-learning/easydl/operator/pkg/common/api/v1"
 	controllers "github.com/intelligent-machine-learning/easydl/operator/pkg/controllers"
 	logger "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -63,20 +64,11 @@ func (m *PSManager) ReconcilePods(
 	job *elasticv1alpha1.ElasticJob,
 	resourceSpec *elasticv1alpha1.ReplicaResourceSpec,
 ) error {
-	for i := 0; i < resourceSpec.Replicas; i++ {
-		psIndex := int32(i)
-		ps := m.newParameterServer(job, psIndex)
-		err := r.Create(context.Background(), ps)
-		if err != nil {
-			r.Recorder.Eventf(job, corev1.EventTypeWarning, string(corev1.PodFailed), "PS pod %s created failed: %v", ps.Name, err)
-			return err
-		}
-		service := m.newPSService(job, psIndex)
-		err = r.Create(context.Background(), service)
-		if err != nil {
-			r.Recorder.Eventf(job, corev1.EventTypeWarning, string(corev1.PodFailed), "worker service %s created failed: %v", service.Name, err)
-			return err
-		}
+	psStatus := getPSStatus(job)
+	currentNum := int(psStatus.Active + psStatus.Pending + psStatus.Succeeded + psStatus.Failed)
+	aliveNum := int(psStatus.Active + psStatus.Pending)
+	if resourceSpec.Replicas > aliveNum {
+		m.scaleUpPS(r, job, currentNum, resourceSpec.Replicas-aliveNum)
 	}
 	return nil
 }
@@ -104,6 +96,38 @@ func (m *PSManager) newPSService(job *elasticv1alpha1.ElasticJob, psIndex int32)
 	return service
 }
 
+func (m *PSManager) scaleUpPS(
+	r *controllers.ElasticJobReconciler,
+	job *elasticv1alpha1.ElasticJob,
+	currentNum int,
+	upNum int,
+) error {
+	for i := currentNum; i < currentNum+upNum; i++ {
+		psIndex := int32(i)
+		ps := m.newParameterServer(job, psIndex)
+		err := r.Create(context.Background(), ps)
+		if err != nil {
+			r.Recorder.Eventf(job, corev1.EventTypeWarning, string(corev1.PodFailed), "PS pod %s created failed: %v", ps.Name, err)
+			return err
+		}
+		service := m.newPSService(job, psIndex)
+		err = r.Create(context.Background(), service)
+		if err != nil {
+			r.Recorder.Eventf(job, corev1.EventTypeWarning, string(corev1.PodFailed), "worker service %s created failed: %v", service.Name, err)
+			return err
+		}
+	}
+	return nil
+}
+
 func newPSName(jobName string, psIndex int32) string {
 	return fmt.Sprintf("%s-%s-%d", jobName, string(ReplicaTypePS), psIndex)
+}
+
+func getPSStatus(job *elasticv1alpha1.ElasticJob) *commonv1.ReplicaStatus {
+	replicaStatus, ok := job.Status.ReplicaStatuses[ReplicaTypePS]
+	if !ok {
+		return &commonv1.ReplicaStatus{}
+	}
+	return replicaStatus
 }

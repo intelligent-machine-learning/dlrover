@@ -21,14 +21,14 @@ import (
 	"fmt"
 	"github.com/golang/glog"
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
-	commonv1 "github.com/intelligent-machine-learning/easydl/operator/pkg/common/api/v1"
 	common "github.com/intelligent-machine-learning/easydl/operator/pkg/common"
+	commonv1 "github.com/intelligent-machine-learning/easydl/operator/pkg/common/api/v1"
 	logger "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilpointer "k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"k8s.io/apimachinery/pkg/api/errors"
 )
 
 const (
@@ -92,7 +92,7 @@ func (m *PodManager) NewPod(
 	return pod
 }
 
-// DeletePod remove a Pod 
+// DeletePod remove a Pod
 func (m *PodManager) DeletePod(
 	r *ElasticJobReconciler,
 	job *elasticv1alpha1.ElasticJob,

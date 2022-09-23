@@ -6,12 +6,12 @@ spec:
   ownerJob: elasticjob-sample
   replicaResourceSpec:
     ps:
-      replicas: 1
+      replicas: 2
       resource:
         cpu: "0.5"
         memory: 256Mi
     worker:
-      replicas: 2
+      replicas: 1
       resource:
         cpu: "0.5"
         memory: 256Mi

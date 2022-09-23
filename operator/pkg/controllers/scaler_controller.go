@@ -115,19 +115,14 @@ func (r *ScalerReconciler) getOwnerJob(scaler *elasticv1alpha1.Scaler) (*elastic
 func (r *ScalerReconciler) setScalingOwner(scaler *elasticv1alpha1.Scaler,
 	job *elasticv1alpha1.ElasticJob, pollInterval time.Duration) (ctrl.Result, error) {
 	ownerRefs := scaler.GetOwnerReferences()
+	logger.Infof("ownerRefs = %v", ownerRefs)
 	if len(ownerRefs) == 0 {
 		gvk := elasticv1alpha1.SchemeGroupVersionKind
 		ownerRefs = append(ownerRefs, *metav1.NewControllerRef(job,
 			schema.GroupVersionKind{Group: gvk.Group, Version: gvk.Version, Kind: gvk.Kind}))
 		scaler.SetOwnerReferences(ownerRefs)
 
-		err := r.Status().Update(context.Background(), scaler)
-		if err != nil {
-			logger.Errorf("failed to update scaler status: %s, err: %++v", scaler.Name, err)
-			return ctrl.Result{RequeueAfter: pollInterval}, err
-		}
-
-		err = r.Update(context.Background(), scaler)
+		err := r.Update(context.Background(), scaler)
 		if err != nil {
 			logger.Errorf("failed to update scaler: %s, err: %++v", scaler.Name, err)
 			// Error updating the scaler - requeue the request.

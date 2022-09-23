@@ -16,14 +16,14 @@ package psstrategy
 import (
 	"context"
 	"fmt"
-	"strconv"
-	"sort"
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
 	commonv1 "github.com/intelligent-machine-learning/easydl/operator/pkg/common/api/v1"
 	controllers "github.com/intelligent-machine-learning/easydl/operator/pkg/controllers"
 	logger "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"sort"
+	"strconv"
 )
 
 const (
@@ -71,9 +71,9 @@ func (m *WorkerManager) ReconcilePods(
 	currentNum := int(workerStatus.Active + workerStatus.Pending + workerStatus.Succeeded + workerStatus.Failed)
 	aliveNum := int(workerStatus.Active + workerStatus.Pending)
 	if resourceSpec.Replicas > aliveNum {
-		m.scaleUpWorkers(r, job, currentNum, resourceSpec.Replicas - aliveNum)
-	}else {
-		m.scaleDownWorkers(r, job, aliveNum - resourceSpec.Replicas)
+		m.scaleUpWorkers(r, job, currentNum, resourceSpec.Replicas-aliveNum)
+	} else {
+		m.scaleDownWorkers(r, job, aliveNum-resourceSpec.Replicas)
 	}
 	return nil
 }
@@ -107,7 +107,7 @@ func (m *WorkerManager) scaleUpWorkers(
 	currentNum int,
 	upNum int,
 ) error {
-	for i := currentNum; i < currentNum + upNum; i++ {
+	for i := currentNum; i < currentNum+upNum; i++ {
 		workerIndex := int32(i)
 		worker := m.newWorker(job, workerIndex)
 		err := r.Create(context.Background(), worker)
@@ -137,8 +137,8 @@ func (m *WorkerManager) scaleDownWorkers(
 	}
 	aliveWorkers := make(map[int]*corev1.Pod)
 	workerIndices := []int{}
-	for _, worker := range(workers){
-		if worker.Status.Phase == corev1.PodRunning || worker.Status.Phase == corev1.PodPending{
+	for _, worker := range workers {
+		if worker.Status.Phase == corev1.PodRunning || worker.Status.Phase == corev1.PodPending {
 			workerIndex, _ := strconv.Atoi(
 				worker.Labels[controllers.LabelReplicaIndexKey],
 			)
@@ -147,7 +147,7 @@ func (m *WorkerManager) scaleDownWorkers(
 		}
 	}
 	sort.Sort(sort.Reverse(sort.IntSlice(workerIndices)))
-	for i :=0 ; i < downNum; i++ {
+	for i := 0; i < downNum; i++ {
 		m.DeletePod(r, job, aliveWorkers[i])
 	}
 
