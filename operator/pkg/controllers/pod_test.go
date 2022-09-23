@@ -47,3 +47,22 @@ func TestGeneratePod(t *testing.T) {
 	assert.Equal(t, pod.Name, "test-job-worker-0")
 	assert.Equal(t, pod.Spec.Containers[0].Image, "test")
 }
+
+func TestGetReplicaStatus(t *testing.T) {
+	pods := []corev1.Pod{}
+	pod0 := corev1.Pod{}
+	pod0.Status.Phase = corev1.PodRunning
+	pods = append(pods, pod0)
+	pod1 := corev1.Pod{}
+	pod1.Status.Phase = corev1.PodFailed
+	pods = append(pods, pod1)
+	pod2 := corev1.Pod{}
+	pod2.Status.Phase = corev1.PodSucceeded
+	pods = append(pods, pod2)
+	manager := newPodManager()
+	replicaStatus := manager.GetReplicaStatus(pods)
+	int32One := int32(1)
+	assert.Equal(t, replicaStatus.Active, int32One)
+	assert.Equal(t, replicaStatus.Failed, int32One)
+	assert.Equal(t, replicaStatus.Succeeded, int32One)
+}

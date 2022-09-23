@@ -23,7 +23,7 @@ import (
 	"testing"
 )
 
-func TestCreateWorkerPod(t *testing.T) {
+func TestCreatePSPod(t *testing.T) {
 	job := &elasticv1alpha1.ElasticJob{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        "test-psstrategy",
@@ -43,7 +43,7 @@ func TestCreateWorkerPod(t *testing.T) {
 		Command:         []string{"/bin/bash", "echo 0"},
 	}
 
-	job.Spec.ReplicaSpecs[ReplicaTypeWorker] = &elasticv1alpha1.ReplicaSpec{
+	job.Spec.ReplicaSpecs[ReplicaTypePS] = &elasticv1alpha1.ReplicaSpec{
 		ReplicaSpec: commonv1.ReplicaSpec{
 			Template: corev1.PodTemplateSpec{
 				Spec: corev1.PodSpec{
@@ -55,13 +55,13 @@ func TestCreateWorkerPod(t *testing.T) {
 		RestartCount: 3,
 	}
 
-	manager := newWorkerManager()
-	pod := manager.generateWorker(job, 0)
-	assert.Equal(t, pod.Name, "test-psstrategy-worker-0")
+	manager := newPSManager()
+	pod := manager.generateParameterServer(job, 0)
+	assert.Equal(t, pod.Name, "test-psstrategy-ps-0")
 	assert.Equal(t, pod.Labels[LabelRestartCount], "3")
 	assert.Equal(
 		t,
 		pod.Labels[controllers.LabelReplicaTypeKey],
-		string(ReplicaTypeWorker),
+		string(ReplicaTypePS),
 	)
 }

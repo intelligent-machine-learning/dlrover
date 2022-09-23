@@ -17,11 +17,10 @@ import (
 	"context"
 	"fmt"
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
-	common "github.com/intelligent-machine-learning/easydl/operator/pkg/common"
-	commonv1 "github.com/intelligent-machine-learning/easydl/operator/pkg/common/api/v1"
 	controllers "github.com/intelligent-machine-learning/easydl/operator/pkg/controllers"
 	logger "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 )
 
 // WorkerManager generates a master pod object.
@@ -39,11 +38,15 @@ func newWorkerManager() *WorkerManager {
 }
 
 func (m *WorkerManager) generateWorker(job *elasticv1alpha1.ElasticJob, replicaIndex int32) *corev1.Pod {
-	workerSpec := job.Spec.ReplicaSpecs[ReplicaTypeWorker]
-	workerTemplate := &workerSpec.Template
-	workerName := m.generatePodName(job, replicaIndex)
-	pod := m.GeneratePod(job, workerTemplate, workerName)
-	pod.Labels[LabelRestartCount] = fmt.Sprintf("%d", workerSpec.RestartCount)
+	spec, ok := job.Spec.ReplicaSpecs[ReplicaTypeWorker]
+	if !ok {
+		return nil
+	}
+	name := m.generatePodName(job, replicaIndex)
+	pod := m.GeneratePod(job, &spec.Template, name)
+	pod.Labels[LabelRestartCount] = fmt.Sprintf("%d", spec.RestartCount)
+	pod.Labels[controllers.LabelReplicaTypeKey] = string(ReplicaTypeWorker)
+	pod.Labels[controllers.LabelReplicaIndexKey] = fmt.Sprintf("%d", replicaIndex)
 	return pod
 }
 
@@ -65,10 +68,17 @@ func (m *WorkerManager) ReconcilePods(
 }
 
 // SyncJobState synchronize the job status by replicas
-func (m *WorkerManager) SyncJobState(r *controllers.ElasticJobReconciler, job *elasticv1alpha1.ElasticJob) error {
-	msg := fmt.Sprintf("job(%s/%s) is running.", job.Namespace, job.Name)
-	controllers.UpdateStatus(&job.Status, commonv1.JobRunning, common.JobRunningReason, msg)
-	r.Recorder.Event(job, corev1.EventTypeNormal, common.JobRunningReason, msg)
+func (m *WorkerManager) SyncJobState(
+	r *controllers.ElasticJobReconciler,
+	job *elasticv1alpha1.ElasticJob,
+) error {
+	workers, err := m.GetReplicaTypePods(r, job, ReplicaTypeWorker)
+	if errors.IsNotFound(err) {
+		logger.Warningf("No any worker found: %v", err)
+		return nil
+	}
+	workerStatus := m.GetReplicaStatus(workers)
+	job.Status.ReplicaStatuses[ReplicaTypeWorker] = workerStatus
 	return nil
 }
 

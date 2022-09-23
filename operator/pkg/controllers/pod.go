@@ -17,17 +17,19 @@ limitations under the License.
 package controllers
 
 import (
+	"context"
 	"github.com/golang/glog"
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
+	commonv1 "github.com/intelligent-machine-learning/easydl/operator/pkg/common/api/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
-	labelAppName         = "app"
-	labelReplicaTypeKey  = "replica-type"
-	labelReplicaIndexKey = "replica-index"
-	easydlApp            = "easydl"
+	labelAppName = "app"
+	labelJobName = "elasticjob-name"
+	easydlApp    = "easydl"
 )
 
 // PodManager manages the lifecycle of a pod including creation, updation and deletion.
@@ -49,6 +51,7 @@ func (m *PodManager) GeneratePod(job *elasticv1alpha1.ElasticJob, podTemplate *c
 		podSpec.Annotations = make(map[string]string)
 	}
 	podSpec.Labels[labelAppName] = easydlApp
+	podSpec.Labels[labelJobName] = job.Name
 
 	for key, value := range job.Labels {
 		podSpec.Labels[key] = value
@@ -76,4 +79,43 @@ func (m *PodManager) GeneratePod(job *elasticv1alpha1.ElasticJob, podTemplate *c
 		Spec: podSpec.Spec,
 	}
 	return pod
+}
+
+// GetReplicaTypePods get all ReplicaType Pods of a job
+func (m *PodManager) GetReplicaTypePods(
+	r *ElasticJobReconciler,
+	job *elasticv1alpha1.ElasticJob,
+	replicaType commonv1.ReplicaType,
+) ([]corev1.Pod, error) {
+	replicaLabels := make(map[string]string)
+	replicaLabels[LabelReplicaTypeKey] = string(replicaType)
+	replicaLabels[labelJobName] = job.Name
+	labelSelector := &metav1.LabelSelector{
+		MatchLabels: replicaLabels,
+	}
+	selector, err := metav1.LabelSelectorAsSelector(labelSelector)
+	podlist := &corev1.PodList{}
+	err = r.List(context.Background(), podlist, client.MatchingLabelsSelector{Selector: selector})
+	if err != nil {
+		return nil, err
+	}
+	return podlist.Items, nil
+}
+
+// GetReplicaStatus gets ReplicaStatus from ReplicaType Pods
+func (m *PodManager) GetReplicaStatus(pods []corev1.Pod) *commonv1.ReplicaStatus {
+	replicaStatus := commonv1.ReplicaStatus{}
+
+	for _, pod := range pods {
+		if pod.Status.Phase == corev1.PodPending {
+			replicaStatus.Pending++
+		} else if pod.Status.Phase == corev1.PodRunning {
+			replicaStatus.Active++
+		} else if pod.Status.Phase == corev1.PodFailed {
+			replicaStatus.Failed++
+		} else if pod.Status.Phase == corev1.PodSucceeded {
+			replicaStatus.Succeeded++
+		}
+	}
+	return &replicaStatus
 }
