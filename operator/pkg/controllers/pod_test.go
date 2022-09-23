@@ -48,7 +48,6 @@ func TestGeneratePod(t *testing.T) {
 	assert.Equal(t, pod.Spec.Containers[0].Image, "test")
 }
 
-
 func TestGetReplicaStatus(t *testing.T) {
 	pods := []corev1.Pod{}
 	pod0 := corev1.Pod{}
@@ -62,8 +61,8 @@ func TestGetReplicaStatus(t *testing.T) {
 	pods = append(pods, pod2)
 	manager := newPodManager()
 	replicaStatus := manager.GetReplicaStatus(pods)
-	int32_one := int32(1)
-	assert.Equal(t, replicaStatus.Active, int32_one)
-	assert.Equal(t, replicaStatus.Failed, int32_one)
-	assert.Equal(t, replicaStatus.Succeeded, int32_one)
+	int32One := int32(1)
+	assert.Equal(t, replicaStatus.Active, int32One)
+	assert.Equal(t, replicaStatus.Failed, int32One)
+	assert.Equal(t, replicaStatus.Succeeded, int32One)
 }
