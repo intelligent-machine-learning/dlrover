@@ -39,8 +39,8 @@ func newPodManager() *PodManager {
 	return &PodManager{}
 }
 
-// GeneratePod creates a Pod according to a PodTemplateSpec
-func (m *PodManager) GeneratePod(job *elasticv1alpha1.ElasticJob, podTemplate *corev1.PodTemplateSpec, podName string) *corev1.Pod {
+// NewPod creates a Pod according to a PodTemplateSpec
+func (m *PodManager) NewPod(job *elasticv1alpha1.ElasticJob, podTemplate *corev1.PodTemplateSpec, podName string) *corev1.Pod {
 	podSpec := podTemplate.DeepCopy()
 
 	if len(podSpec.Labels) == 0 {
@@ -118,4 +118,29 @@ func (m *PodManager) GetReplicaStatus(pods []corev1.Pod) *commonv1.ReplicaStatus
 		}
 	}
 	return &replicaStatus
+}
+
+// NewService create a service
+func (m *PodManager)NewService(job *elasticv1alpha1.ElasticJob, name string, port int32, selector map[string]string) *corev1.Service {
+	selector[labelAppName] = easydlApp
+	selector[labelJobName] = job.Name
+	return &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: job.Namespace,
+			Labels:    selector,
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(job, elasticv1alpha1.SchemeGroupVersionKind),
+			},
+		},
+		Spec: corev1.ServiceSpec{
+			ClusterIP: "None",
+			Selector:  selector,
+			Ports: []corev1.ServicePort{
+				{
+					Port: port,
+				},
+			},
+		},
+	}
 }
