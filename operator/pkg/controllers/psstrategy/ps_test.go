@@ -55,7 +55,6 @@ func TestNewPSPod(t *testing.T) {
 	)
 }
 
-
 func TestNewPSService(t *testing.T) {
 	job := newTestJob()
 	manager := newPSManager()

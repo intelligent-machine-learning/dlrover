@@ -30,7 +30,7 @@ func newTestJob() *elasticv1alpha1.ElasticJob {
 			Labels:      map[string]string{},
 		},
 	}
-	
+
 	return job
 }
 
@@ -72,7 +72,6 @@ func TestGetReplicaStatus(t *testing.T) {
 	assert.Equal(t, replicaStatus.Failed, int32One)
 	assert.Equal(t, replicaStatus.Succeeded, int32One)
 }
-
 
 func TestNewService(t *testing.T) {
 	job := newTestJob()
