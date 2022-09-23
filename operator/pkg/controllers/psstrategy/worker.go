@@ -17,8 +17,6 @@ import (
 	"context"
 	"fmt"
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
-	common "github.com/intelligent-machine-learning/easydl/operator/pkg/common"
-	commonv1 "github.com/intelligent-machine-learning/easydl/operator/pkg/common/api/v1"
 	controllers "github.com/intelligent-machine-learning/easydl/operator/pkg/controllers"
 	logger "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -40,11 +38,10 @@ func newWorkerManager() *WorkerManager {
 }
 
 func (m *WorkerManager) generateWorker(job *elasticv1alpha1.ElasticJob, replicaIndex int32) *corev1.Pod {
-	workerSpec := job.Spec.ReplicaSpecs[ReplicaTypeWorker]
-	workerTemplate := &workerSpec.Template
-	workerName := m.generatePodName(job, replicaIndex)
-	pod := m.GeneratePod(job, workerTemplate, workerName)
-	pod.Labels[LabelRestartCount] = fmt.Sprintf("%d", workerSpec.RestartCount)
+	spec := job.Spec.ReplicaSpecs[ReplicaTypeWorker]
+	name := m.generatePodName(job, replicaIndex)
+	pod := m.GeneratePod(job, &spec.Template, name)
+	pod.Labels[LabelRestartCount] = fmt.Sprintf("%d", spec.RestartCount)
 	pod.Labels[controllers.LabelReplicaTypeKey] = string(ReplicaTypeWorker)
 	pod.Labels[controllers.LabelReplicaIndexKey] = fmt.Sprintf("%d", replicaIndex)
 	return pod
