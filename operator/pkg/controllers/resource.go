@@ -17,8 +17,8 @@ limitations under the License.
 package controllers
 
 import (
-	"fmt"
 	"context"
+	"fmt"
 	"github.com/golang/glog"
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
 	commonv1 "github.com/intelligent-machine-learning/easydl/operator/pkg/common/api/v1"
