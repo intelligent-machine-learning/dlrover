@@ -17,20 +17,21 @@ limitations under the License.
 package controllers
 
 import (
+	"fmt"
 	"context"
 	"github.com/golang/glog"
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
 	commonv1 "github.com/intelligent-machine-learning/easydl/operator/pkg/common/api/v1"
+	logger "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	logger "github.com/sirupsen/logrus"
 )
 
 const (
-	labelAppName = "app"
-	labelJobName = "elasticjob-name"
-	easydlApp    = "easydl"
+	labelAppName     = "app"
+	labelJobName     = "elasticjob-name"
+	easydlApp        = "easydl"
 	envMasterAddrKey = "MASTER_ADDR"
 )
 
@@ -151,15 +152,15 @@ func (m *PodManager) NewService(job *elasticv1alpha1.ElasticJob, name string, po
 	}
 }
 
-func setMasterAddrIntoContainer(container *corev1.Container, jobName string){
-	masterAddrEnv := NewMasterAddrEnvVar(jobName)
+func setMasterAddrIntoContainer(container *corev1.Container, jobName string) {
+	masterAddrEnv := newMasterAddrEnvVar(jobName)
 	container.Env = append(container.Env, masterAddrEnv)
 }
 
-func NewMasterAddrEnvVar(jobName string) corev1.EnvVar {
+func newMasterAddrEnvVar(jobName string) corev1.EnvVar {
 	masterServiceAddr := NewEasydlMasterName(jobName)
 	return corev1.EnvVar{
-		Name: envMasterAddrKey,
-		Value: masterServiceAddr,
+		Name:  envMasterAddrKey,
+		Value: fmt.Sprintf("%s:%d", masterServiceAddr, masterServicePort),
 	}
 }
