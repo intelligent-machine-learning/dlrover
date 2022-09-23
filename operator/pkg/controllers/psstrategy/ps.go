@@ -37,7 +37,10 @@ func newPSManager() *PSManager {
 }
 
 func (m *PSManager) generateParameterServer(job *elasticv1alpha1.ElasticJob, replicaIndex int32) *corev1.Pod {
-	spec := job.Spec.ReplicaSpecs[ReplicaTypePS]
+	spec, ok := job.Spec.ReplicaSpecs[ReplicaTypePS]
+	if !ok {
+		return nil
+	}
 	podName := m.generatePodName(job, replicaIndex)
 	pod := m.GeneratePod(job, &spec.Template, podName)
 	pod.Labels[LabelRestartCount] = fmt.Sprintf("%d", spec.RestartCount)
