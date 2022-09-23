@@ -32,7 +32,7 @@ const (
 	initMasterContainerStorage = "4Gi"
 	masterCommand              = "sleep 30"
 	masterImage                = "python:3.6.5"
-	masterServicePort          = 12345
+	masterServicePort          = 50001
 
 	// ReplicaTypeEasydlMaster is the type for easydl Master replica.
 	ReplicaTypeEasydlMaster commonv1.ReplicaType = "easydl-master"
@@ -106,11 +106,11 @@ func (m *MasterManager) ReconcilePods(
 // SyncJobState synchronize the job status by replicas
 func (m *MasterManager) SyncJobState(r *ElasticJobReconciler, job *elasticv1alpha1.ElasticJob) error {
 	master, err := m.getMasterPod(r, job)
-	if  master == nil {
+	if master == nil {
 		logger.Warnf("Failed to get master, error : %v", err)
 		return nil
 	}
-	
+
 	job.Status.ReplicaStatuses[ReplicaTypeEasydlMaster] = m.GetReplicaStatus([]corev1.Pod{*master})
 	if master.Status.Phase == corev1.PodSucceeded {
 		msg := fmt.Sprintf("job(%s/%s) successfully completed", job.Namespace, job.Name)
@@ -158,7 +158,6 @@ func (m *MasterManager) getMasterPod(r *ElasticJobReconciler, job *elasticv1alph
 	return &pods[0], nil
 }
 
-
 func (m *MasterManager) newEasydlMasterService(job *elasticv1alpha1.ElasticJob) *corev1.Service {
 	name := NewEasydlMasterName(job.Name)
 	selector := make(map[string]string)
@@ -167,6 +166,7 @@ func (m *MasterManager) newEasydlMasterService(job *elasticv1alpha1.ElasticJob) 
 	return service
 }
 
+// NewEasydlMasterName create a service name for Job master
 func NewEasydlMasterName(jobName string) string {
 	return fmt.Sprintf("%s-%s", jobName, string(ReplicaTypeEasydlMaster))
 }
