@@ -54,7 +54,7 @@ func TestNewPod(t *testing.T) {
 	assert.Equal(t, pod.Spec.Containers[0].Image, "test")
 	assert.Equal(t, len(pod.Spec.Containers[0].Env), 1)
 	assert.Equal(t, pod.Spec.Containers[0].Env[0].Name, "MASTER_ADDR")
-	assert.Equal(t, pod.Spec.Containers[0].Env[0].Value, "test-job-easydl-master")
+	assert.Equal(t, pod.Spec.Containers[0].Env[0].Value, "test-job-easydl-master:50001")
 }
 
 func TestGetReplicaStatus(t *testing.T) {
