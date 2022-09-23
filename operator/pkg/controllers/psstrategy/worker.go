@@ -51,7 +51,7 @@ func (m *WorkerManager) newWorker(job *elasticv1alpha1.ElasticJob, workerIndex i
 	if !ok {
 		return nil
 	}
-	name := m.newWorkerName(job.Name, workerIndex)
+	name := newWorkerName(job.Name, workerIndex)
 	pod := m.NewPod(job, &spec.Template, name)
 	pod.Labels[LabelRestartCount] = fmt.Sprintf("%d", spec.RestartCount)
 	insertCommonWorkerLabels(pod.Labels, workerIndex)
@@ -97,14 +97,14 @@ func (m *WorkerManager) SyncJobState(
 	return nil
 }
 
-func (m *WorkerManager) newWorkerName(jobName string, workerIndex int32) string {
-	return fmt.Sprintf("%s-%s-%d", jobName, string(ReplicaTypeWorker), workerIndex)
-}
-
 func (m *WorkerManager) newWorkerService(job *elasticv1alpha1.ElasticJob, workerIndex int32) *corev1.Service {
-	name := m.newWorkerName(job.Name, workerIndex)
+	name := newWorkerName(job.Name, workerIndex)
 	selector := make(map[string]string)
 	insertCommonWorkerLabels(selector, workerIndex)
 	service := m.NewService(job, name, workerServicePort, selector)
 	return service
+}
+
+func newWorkerName(jobName string, workerIndex int32) string {
+	return fmt.Sprintf("%s-%s-%d", jobName, string(ReplicaTypeWorker), workerIndex)
 }

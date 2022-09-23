@@ -50,7 +50,7 @@ func (m *PSManager) newParameterServer(job *elasticv1alpha1.ElasticJob, psIndex 
 	if !ok {
 		return nil
 	}
-	podName := m.newPSName(job.Name, psIndex)
+	podName := newPSName(job.Name, psIndex)
 	pod := m.NewPod(job, &spec.Template, podName)
 	pod.Labels[LabelRestartCount] = fmt.Sprintf("%d", spec.RestartCount)
 	insertCommonPSLabels(pod.Labels, psIndex)
@@ -96,14 +96,14 @@ func (m *PSManager) SyncJobState(
 	return nil
 }
 
-func (m *PSManager) newPSName(jobName string, psIndex int32) string {
-	return fmt.Sprintf("%s-%s-%d", jobName, string(ReplicaTypePS), psIndex)
-}
-
 func (m *PSManager) newPSService(job *elasticv1alpha1.ElasticJob, psIndex int32) *corev1.Service {
-	name := m.newPSName(job.Name, psIndex)
+	name := newPSName(job.Name, psIndex)
 	selector := make(map[string]string)
 	insertCommonPSLabels(selector, psIndex)
 	service := m.NewService(job, name, psServicePort, selector)
 	return service
+}
+
+func newPSName(jobName string, psIndex int32) string {
+	return fmt.Sprintf("%s-%s-%d", jobName, string(ReplicaTypePS), psIndex)
 }

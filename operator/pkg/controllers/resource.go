@@ -24,12 +24,14 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	logger "github.com/sirupsen/logrus"
 )
 
 const (
 	labelAppName = "app"
 	labelJobName = "elasticjob-name"
 	easydlApp    = "easydl"
+	envMasterAddrKey = "MASTER_ADDR"
 )
 
 // PodManager manages the lifecycle of a pod including creation, updation and deletion.
@@ -66,6 +68,7 @@ func (m *PodManager) NewPod(job *elasticv1alpha1.ElasticJob, podTemplate *corev1
 		return nil
 	}
 
+	setMasterAddrIntoContainer(&podSpec.Spec.Containers[0], job.Name)
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        podName,
@@ -94,6 +97,9 @@ func (m *PodManager) GetReplicaTypePods(
 		MatchLabels: replicaLabels,
 	}
 	selector, err := metav1.LabelSelectorAsSelector(labelSelector)
+	if err != nil {
+		logger.Warningf("No selector found")
+	}
 	podlist := &corev1.PodList{}
 	err = r.List(context.Background(), podlist, client.MatchingLabelsSelector{Selector: selector})
 	if err != nil {
@@ -142,5 +148,18 @@ func (m *PodManager) NewService(job *elasticv1alpha1.ElasticJob, name string, po
 				},
 			},
 		},
+	}
+}
+
+func setMasterAddrIntoContainer(container *corev1.Container, jobName string){
+	masterAddrEnv := NewMasterAddrEnvVar(jobName)
+	container.Env = append(container.Env, masterAddrEnv)
+}
+
+func NewMasterAddrEnvVar(jobName string) corev1.EnvVar {
+	masterServiceAddr := NewEasydlMasterName(jobName)
+	return corev1.EnvVar{
+		Name: envMasterAddrKey,
+		Value: masterServiceAddr,
 	}
 }
