@@ -24,7 +24,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	ctrl "sigs.k8s.io/controller-runtime"
 )
 
 const (
@@ -78,6 +77,7 @@ func (m *MasterManager) generateEasydlMaster(job *elasticv1alpha1.ElasticJob) *c
 	}
 	masterName := m.generatePodName(job)
 	pod := m.GeneratePod(job, podTemplate, masterName)
+	pod.Labels[LabelReplicaTypeKey] = string(ReplicaTypeEasydlMaster)
 	return pod
 }
 
@@ -100,17 +100,20 @@ func (m *MasterManager) generatePodName(job *elasticv1alpha1.ElasticJob) string 
 	return fmt.Sprintf("%s-%s", job.GetName(), string(ReplicaTypeEasydlMaster))
 }
 
-// SyncJobState synchronize the job status by replicas
-func (m *MasterManager) SyncJobState(r *ElasticJobReconciler, job *elasticv1alpha1.ElasticJob) error {
-	master, err := m.getMasterPod(r, job)
+// UpdateJobState synchronize the job status by replicas
+func (m *MasterManager) UpdateJobState(r *ElasticJobReconciler, job *elasticv1alpha1.ElasticJob) error {
+	pods, err := m.GetReplicaTypePods(r, job, ReplicaTypeEasydlMaster)
 	if err != nil {
 		logger.Warnf("Failed to get master, error : %v", err)
-	}
-	if master == nil {
 		return nil
 	}
+	if len(pods) == 0 {
+		logger.Warnf("No master Found")
+		return nil
+	}
+	job.Status.ReplicaStatuses[ReplicaTypeEasydlMaster] = m.GetReplicaStatus(pods)
+	master := pods[0]
 	if master.Status.Phase == corev1.PodSucceeded {
-		job.Status.ReplicaStatuses[ReplicaTypeEasydlMaster].Succeeded = 1
 		msg := fmt.Sprintf("job(%s/%s) successfully completed", job.Namespace, job.Name)
 		r.Recorder.Event(job, corev1.EventTypeNormal, string(commonv1.JobSucceeded), msg)
 		if job.Status.CompletionTime == nil {
@@ -119,7 +122,6 @@ func (m *MasterManager) SyncJobState(r *ElasticJobReconciler, job *elasticv1alph
 		}
 		UpdateStatus(&job.Status, commonv1.JobSucceeded, common.JobCreatedReason, msg)
 	} else if master.Status.Phase == corev1.PodFailed {
-		job.Status.ReplicaStatuses[ReplicaTypeEasydlMaster].Failed = 1
 		msg := fmt.Sprintf("job(%s/%s) has failed", job.Namespace, job.Name)
 		reason := master.Status.Reason
 		if reason == "" {
@@ -132,11 +134,9 @@ func (m *MasterManager) SyncJobState(r *ElasticJobReconciler, job *elasticv1alph
 		}
 		UpdateStatus(&job.Status, commonv1.JobFailed, reason, msg)
 	} else if master.Status.Phase == corev1.PodPending {
-		job.Status.ReplicaStatuses[ReplicaTypeEasydlMaster].Pending = 1
 		msg := fmt.Sprintf("job(%s/%s) is pending.", job.Namespace, job.Name)
 		UpdateStatus(&job.Status, commonv1.JobPending, common.JobPendingReason, msg)
 	} else if master.Status.Phase == corev1.PodRunning {
-		job.Status.ReplicaStatuses[ReplicaTypeEasydlMaster].Active = 1
 		if !isRunning(job.Status) {
 			msg := fmt.Sprintf("job(%s/%s) is running.", job.Namespace, job.Name)
 			UpdateStatus(&job.Status, commonv1.JobRunning, common.JobRunningReason, msg)
@@ -148,13 +148,9 @@ func (m *MasterManager) SyncJobState(r *ElasticJobReconciler, job *elasticv1alph
 
 // getMasterPod gets the master pod of a job from a cluster.
 func (m *MasterManager) getMasterPod(r *ElasticJobReconciler, job *elasticv1alpha1.ElasticJob) (*corev1.Pod, error) {
-	master := &corev1.Pod{}
-	name := ctrl.Request{}
-	name.NamespacedName.Namespace = job.GetNamespace()
-	name.NamespacedName.Name = m.generatePodName(job)
-	err := r.Get(context.Background(), name.NamespacedName, master)
+	pods, err := m.GetReplicaTypePods(r, job, ReplicaTypeEasydlMaster)
 	if errors.IsNotFound(err) {
 		return nil, err
 	}
-	return master, nil
+	return &pods[0], nil
 }
