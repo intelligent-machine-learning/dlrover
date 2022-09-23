@@ -21,7 +21,7 @@ import (
 	"testing"
 )
 
-func TestGeneratePod(t *testing.T) {
+func newTestJob() *elasticv1alpha1.ElasticJob {
 	job := &elasticv1alpha1.ElasticJob{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        "test-job",
@@ -30,22 +30,31 @@ func TestGeneratePod(t *testing.T) {
 			Labels:      map[string]string{},
 		},
 	}
+
+	return job
+}
+
+func TestNewPod(t *testing.T) {
+	job := newTestJob()
 	container := corev1.Container{
 		Name:            "main",
 		Image:           "test",
 		ImagePullPolicy: corev1.PullAlways,
 		Command:         []string{"python", "--version"},
 	}
+
 	podTemplate := &corev1.PodTemplateSpec{
 		Spec: corev1.PodSpec{
 			Containers: []corev1.Container{container},
 		},
 	}
-
 	manager := newPodManager()
-	pod := manager.GeneratePod(job, podTemplate, "test-job-worker-0")
+	pod := manager.NewPod(job, podTemplate, "test-job-worker-0")
 	assert.Equal(t, pod.Name, "test-job-worker-0")
 	assert.Equal(t, pod.Spec.Containers[0].Image, "test")
+	assert.Equal(t, len(pod.Spec.Containers[0].Env), 1)
+	assert.Equal(t, pod.Spec.Containers[0].Env[0].Name, "MASTER_ADDR")
+	assert.Equal(t, pod.Spec.Containers[0].Env[0].Value, "test-job-easydl-master:50001")
 }
 
 func TestGetReplicaStatus(t *testing.T) {
@@ -65,4 +74,15 @@ func TestGetReplicaStatus(t *testing.T) {
 	assert.Equal(t, replicaStatus.Active, int32One)
 	assert.Equal(t, replicaStatus.Failed, int32One)
 	assert.Equal(t, replicaStatus.Succeeded, int32One)
+}
+
+func TestNewService(t *testing.T) {
+	job := newTestJob()
+	manager := newPodManager()
+	selector := make(map[string]string)
+	selector[LabelReplicaTypeKey] = "worker"
+	selector[LabelReplicaIndexKey] = "1"
+	service := manager.NewService(job, "test-worker-0", 2222, selector)
+	assert.Equal(t, service.Spec.Selector[LabelReplicaTypeKey], "worker")
+	assert.Equal(t, service.Spec.Selector[LabelReplicaIndexKey], "1")
 }
