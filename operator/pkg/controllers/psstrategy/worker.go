@@ -16,7 +16,10 @@ package psstrategy
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"sort"
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
+	commonv1 "github.com/intelligent-machine-learning/easydl/operator/pkg/common/api/v1"
 	controllers "github.com/intelligent-machine-learning/easydl/operator/pkg/controllers"
 	logger "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -64,20 +67,13 @@ func (m *WorkerManager) ReconcilePods(
 	job *elasticv1alpha1.ElasticJob,
 	resourceSpec *elasticv1alpha1.ReplicaResourceSpec,
 ) error {
-	for i := 0; i < resourceSpec.Replicas; i++ {
-		workerIndex := int32(i)
-		worker := m.newWorker(job, workerIndex)
-		err := r.Create(context.Background(), worker)
-		if err != nil {
-			r.Recorder.Eventf(job, corev1.EventTypeWarning, string(corev1.PodFailed), "worker pod %s created failed: %v", worker.Name, err)
-			return err
-		}
-		service := m.newWorkerService(job, workerIndex)
-		err = r.Create(context.Background(), service)
-		if err != nil {
-			r.Recorder.Eventf(job, corev1.EventTypeWarning, string(corev1.PodFailed), "worker service %s created failed: %v", service.Name, err)
-			return err
-		}
+	workerStatus := getWorkerStatus(job)
+	currentNum := int(workerStatus.Active + workerStatus.Pending + workerStatus.Succeeded + workerStatus.Failed)
+	aliveNum := int(workerStatus.Active + workerStatus.Pending)
+	if resourceSpec.Replicas > aliveNum {
+		m.scaleUpWorkers(r, job, currentNum, resourceSpec.Replicas - aliveNum)
+	}else {
+		m.scaleDownWorkers(r, job, aliveNum - resourceSpec.Replicas)
 	}
 	return nil
 }
@@ -105,6 +101,67 @@ func (m *WorkerManager) newWorkerService(job *elasticv1alpha1.ElasticJob, worker
 	return service
 }
 
+func (m *WorkerManager) scaleUpWorkers(
+	r *controllers.ElasticJobReconciler,
+	job *elasticv1alpha1.ElasticJob,
+	currentNum int,
+	upNum int,
+) error {
+	for i := currentNum; i < currentNum + upNum; i++ {
+		workerIndex := int32(i)
+		worker := m.newWorker(job, workerIndex)
+		err := r.Create(context.Background(), worker)
+		if err != nil {
+			r.Recorder.Eventf(job, corev1.EventTypeWarning, string(corev1.PodFailed), "worker pod %s created failed: %v", worker.Name, err)
+			return err
+		}
+		service := m.newWorkerService(job, workerIndex)
+		err = r.Create(context.Background(), service)
+		if err != nil {
+			r.Recorder.Eventf(job, corev1.EventTypeWarning, string(corev1.PodFailed), "worker service %s created failed: %v", service.Name, err)
+			return err
+		}
+	}
+	return nil
+}
+
+func (m *WorkerManager) scaleDownWorkers(
+	r *controllers.ElasticJobReconciler,
+	job *elasticv1alpha1.ElasticJob,
+	downNum int,
+) error {
+	workers, err := m.GetReplicaTypePods(r, job, ReplicaTypeWorker)
+	if errors.IsNotFound(err) {
+		logger.Warningf("No any worker found: %v", err)
+		return nil
+	}
+	aliveWorkers := make(map[int]*corev1.Pod)
+	workerIndices := []int{}
+	for _, worker := range(workers){
+		if worker.Status.Phase == corev1.PodRunning || worker.Status.Phase == corev1.PodPending{
+			workerIndex, _ := strconv.Atoi(
+				worker.Labels[controllers.LabelReplicaIndexKey],
+			)
+			workerIndices = append(workerIndices, workerIndex)
+			aliveWorkers[workerIndex] = &worker
+		}
+	}
+	sort.Sort(sort.Reverse(sort.IntSlice(workerIndices)))
+	for i :=0 ; i < downNum; i++ {
+		m.DeletePod(r, job, aliveWorkers[i])
+	}
+
+	return nil
+}
+
 func newWorkerName(jobName string, workerIndex int32) string {
 	return fmt.Sprintf("%s-%s-%d", jobName, string(ReplicaTypeWorker), workerIndex)
+}
+
+func getWorkerStatus(job *elasticv1alpha1.ElasticJob) *commonv1.ReplicaStatus {
+	replicaStatus, ok := job.Status.ReplicaStatuses[ReplicaTypeWorker]
+	if !ok {
+		return &commonv1.ReplicaStatus{}
+	}
+	return replicaStatus
 }

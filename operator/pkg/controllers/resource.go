@@ -22,10 +22,13 @@ import (
 	"github.com/golang/glog"
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
 	commonv1 "github.com/intelligent-machine-learning/easydl/operator/pkg/common/api/v1"
+	common "github.com/intelligent-machine-learning/easydl/operator/pkg/common"
 	logger "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilpointer "k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"k8s.io/apimachinery/pkg/api/errors"
 )
 
 const (
@@ -43,7 +46,11 @@ func newPodManager() *PodManager {
 }
 
 // NewPod creates a Pod according to a PodTemplateSpec
-func (m *PodManager) NewPod(job *elasticv1alpha1.ElasticJob, podTemplate *corev1.PodTemplateSpec, podName string) *corev1.Pod {
+func (m *PodManager) NewPod(
+	job *elasticv1alpha1.ElasticJob,
+	podTemplate *corev1.PodTemplateSpec,
+	podName string,
+) *corev1.Pod {
 	podSpec := podTemplate.DeepCopy()
 
 	if len(podSpec.Labels) == 0 {
@@ -83,6 +90,25 @@ func (m *PodManager) NewPod(job *elasticv1alpha1.ElasticJob, podTemplate *corev1
 		Spec: podSpec.Spec,
 	}
 	return pod
+}
+
+// DeletePod remove a Pod 
+func (m *PodManager) DeletePod(
+	r *ElasticJobReconciler,
+	job *elasticv1alpha1.ElasticJob,
+	pod *corev1.Pod,
+) {
+	deleteOptions := &client.DeleteOptions{GracePeriodSeconds: utilpointer.Int64Ptr(0)}
+	if err := r.Delete(context.Background(), pod, deleteOptions); err != nil && !errors.IsNotFound(err) {
+		r.Recorder.Eventf(
+			job,
+			corev1.EventTypeWarning,
+			common.JobScalingReason,
+			"Error deleting worker %s: %v",
+			pod.Name,
+			err,
+		)
+	}
 }
 
 // GetReplicaTypePods get all ReplicaType Pods of a job
