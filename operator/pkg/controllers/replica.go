@@ -20,6 +20,13 @@ import (
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
 )
 
+const (
+	// LabelReplicaTypeKey is the key of ReplicaType in labels
+	LabelReplicaTypeKey = "replica-type"
+	// LabelReplicaIndexKey is the key of ReplicaIndex in labels
+	LabelReplicaIndexKey = "replica-index"
+)
+
 // ReplicaManager manage pods of ReplicaType
 type ReplicaManager interface {
 	ReconcilePods(r *ElasticJobReconciler, job *elasticv1alpha1.ElasticJob, resourceSpec *elasticv1alpha1.ReplicaResourceSpec) error

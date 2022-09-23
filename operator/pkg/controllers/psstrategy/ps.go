@@ -20,7 +20,9 @@ import (
 	common "github.com/intelligent-machine-learning/easydl/operator/pkg/common"
 	commonv1 "github.com/intelligent-machine-learning/easydl/operator/pkg/common/api/v1"
 	controllers "github.com/intelligent-machine-learning/easydl/operator/pkg/controllers"
+	logger "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 )
 
 // PSManager generates a master pod object.
@@ -61,10 +63,17 @@ func (m *PSManager) ReconcilePods(
 }
 
 // SyncJobState synchronize the job status by replicas
-func (m *PSManager) SyncJobState(r *controllers.ElasticJobReconciler, job *elasticv1alpha1.ElasticJob) error {
-	msg := fmt.Sprintf("job(%s/%s) is running.", job.Namespace, job.Name)
-	controllers.UpdateStatus(&job.Status, commonv1.JobRunning, common.JobRunningReason, msg)
-	r.Recorder.Event(job, corev1.EventTypeNormal, common.JobRunningReason, msg)
+func (m *PSManager) SyncJobState(
+	r *controllers.ElasticJobReconciler,
+	job *elasticv1alpha1.ElasticJob,
+) error {
+	psPods, err := m.GetReplicaTypePods(r, job, ReplicaTypePS)
+	if errors.IsNotFound(err) {
+		logger.Warningf("No any PS found: %v", err)
+		return nil
+	}
+	psStatus := m.GetReplicaStatus(psPods)
+	job.Status.ReplicaStatuses[ReplicaTypePS] = psStatus
 	return nil
 }
 
