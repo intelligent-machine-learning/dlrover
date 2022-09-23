@@ -23,7 +23,7 @@ import (
 	"testing"
 )
 
-func newTestJob() *elasticv1alpha1.ElasticJob{
+func newTestJob() *elasticv1alpha1.ElasticJob {
 	job := &elasticv1alpha1.ElasticJob{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        "test-psstrategy",

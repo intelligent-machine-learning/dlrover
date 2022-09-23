@@ -40,7 +40,7 @@ func newPSManager() *PSManager {
 	return &PSManager{}
 }
 
-func insertCommonPSLabels(labels map[string]string, psIndex int32){
+func insertCommonPSLabels(labels map[string]string, psIndex int32) {
 	labels[controllers.LabelReplicaTypeKey] = string(ReplicaTypePS)
 	labels[controllers.LabelReplicaIndexKey] = fmt.Sprintf("%d", psIndex)
 }

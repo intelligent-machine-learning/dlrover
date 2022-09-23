@@ -41,7 +41,7 @@ func newWorkerManager() *WorkerManager {
 	return &WorkerManager{}
 }
 
-func insertCommonWorkerLabels(labels map[string]string, workerIndex int32){
+func insertCommonWorkerLabels(labels map[string]string, workerIndex int32) {
 	labels[controllers.LabelReplicaTypeKey] = string(ReplicaTypeWorker)
 	labels[controllers.LabelReplicaIndexKey] = fmt.Sprintf("%d", workerIndex)
 }
