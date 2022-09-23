@@ -100,8 +100,8 @@ func (m *MasterManager) generatePodName(job *elasticv1alpha1.ElasticJob) string 
 	return fmt.Sprintf("%s-%s", job.GetName(), string(ReplicaTypeEasydlMaster))
 }
 
-// UpdateJobState synchronize the job status by replicas
-func (m *MasterManager) UpdateJobState(r *ElasticJobReconciler, job *elasticv1alpha1.ElasticJob) error {
+// SyncJobState synchronize the job status by replicas
+func (m *MasterManager) SyncJobState(r *ElasticJobReconciler, job *elasticv1alpha1.ElasticJob) error {
 	pods, err := m.GetReplicaTypePods(r, job, ReplicaTypeEasydlMaster)
 	if err != nil {
 		logger.Warnf("Failed to get master, error : %v", err)

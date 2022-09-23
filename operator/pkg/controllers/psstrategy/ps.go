@@ -17,8 +17,6 @@ import (
 	"context"
 	"fmt"
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
-	common "github.com/intelligent-machine-learning/easydl/operator/pkg/common"
-	commonv1 "github.com/intelligent-machine-learning/easydl/operator/pkg/common/api/v1"
 	controllers "github.com/intelligent-machine-learning/easydl/operator/pkg/controllers"
 	logger "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -42,6 +40,9 @@ func (m *PSManager) generateParameterServer(job *elasticv1alpha1.ElasticJob, rep
 	spec := job.Spec.ReplicaSpecs[ReplicaTypePS]
 	podName := m.generatePodName(job, replicaIndex)
 	pod := m.GeneratePod(job, &spec.Template, podName)
+	pod.Labels[LabelRestartCount] = fmt.Sprintf("%d", spec.RestartCount)
+	pod.Labels[controllers.LabelReplicaTypeKey] = string(ReplicaTypePS)
+	pod.Labels[controllers.LabelReplicaIndexKey] = fmt.Sprintf("%d", replicaIndex)
 	return pod
 }
 
