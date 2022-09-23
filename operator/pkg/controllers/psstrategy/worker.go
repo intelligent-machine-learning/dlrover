@@ -38,7 +38,10 @@ func newWorkerManager() *WorkerManager {
 }
 
 func (m *WorkerManager) generateWorker(job *elasticv1alpha1.ElasticJob, replicaIndex int32) *corev1.Pod {
-	spec := job.Spec.ReplicaSpecs[ReplicaTypeWorker]
+	spec, ok := job.Spec.ReplicaSpecs[ReplicaTypeWorker]
+	if !ok {
+		return nil
+	}
 	name := m.generatePodName(job, replicaIndex)
 	pod := m.GeneratePod(job, &spec.Template, name)
 	pod.Labels[LabelRestartCount] = fmt.Sprintf("%d", spec.RestartCount)
