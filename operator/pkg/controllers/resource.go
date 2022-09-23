@@ -18,18 +18,21 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	"github.com/golang/glog"
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
 	commonv1 "github.com/intelligent-machine-learning/easydl/operator/pkg/common/api/v1"
+	logger "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
-	labelAppName = "app"
-	labelJobName = "elasticjob-name"
-	easydlApp    = "easydl"
+	labelAppName     = "app"
+	labelJobName     = "elasticjob-name"
+	easydlApp        = "easydl"
+	envMasterAddrKey = "MASTER_ADDR"
 )
 
 // PodManager manages the lifecycle of a pod including creation, updation and deletion.
@@ -39,8 +42,8 @@ func newPodManager() *PodManager {
 	return &PodManager{}
 }
 
-// GeneratePod creates a Pod according to a PodTemplateSpec
-func (m *PodManager) GeneratePod(job *elasticv1alpha1.ElasticJob, podTemplate *corev1.PodTemplateSpec, podName string) *corev1.Pod {
+// NewPod creates a Pod according to a PodTemplateSpec
+func (m *PodManager) NewPod(job *elasticv1alpha1.ElasticJob, podTemplate *corev1.PodTemplateSpec, podName string) *corev1.Pod {
 	podSpec := podTemplate.DeepCopy()
 
 	if len(podSpec.Labels) == 0 {
@@ -66,6 +69,7 @@ func (m *PodManager) GeneratePod(job *elasticv1alpha1.ElasticJob, podTemplate *c
 		return nil
 	}
 
+	setMasterAddrIntoContainer(&podSpec.Spec.Containers[0], job.Name)
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        podName,
@@ -94,6 +98,9 @@ func (m *PodManager) GetReplicaTypePods(
 		MatchLabels: replicaLabels,
 	}
 	selector, err := metav1.LabelSelectorAsSelector(labelSelector)
+	if err != nil {
+		logger.Warningf("No selector found")
+	}
 	podlist := &corev1.PodList{}
 	err = r.List(context.Background(), podlist, client.MatchingLabelsSelector{Selector: selector})
 	if err != nil {
@@ -118,4 +125,42 @@ func (m *PodManager) GetReplicaStatus(pods []corev1.Pod) *commonv1.ReplicaStatus
 		}
 	}
 	return &replicaStatus
+}
+
+// NewService create a service
+func (m *PodManager) NewService(job *elasticv1alpha1.ElasticJob, name string, port int32, selector map[string]string) *corev1.Service {
+	selector[labelAppName] = easydlApp
+	selector[labelJobName] = job.Name
+	return &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: job.Namespace,
+			Labels:    selector,
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(job, elasticv1alpha1.SchemeGroupVersionKind),
+			},
+		},
+		Spec: corev1.ServiceSpec{
+			ClusterIP: "None",
+			Selector:  selector,
+			Ports: []corev1.ServicePort{
+				{
+					Port: port,
+				},
+			},
+		},
+	}
+}
+
+func setMasterAddrIntoContainer(container *corev1.Container, jobName string) {
+	masterAddrEnv := newMasterAddrEnvVar(jobName)
+	container.Env = append(container.Env, masterAddrEnv)
+}
+
+func newMasterAddrEnvVar(jobName string) corev1.EnvVar {
+	masterServiceAddr := NewEasydlMasterName(jobName)
+	return corev1.EnvVar{
+		Name:  envMasterAddrKey,
+		Value: fmt.Sprintf("%s:%d", masterServiceAddr, masterServicePort),
+	}
 }

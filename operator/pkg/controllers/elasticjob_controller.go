@@ -131,7 +131,7 @@ func (r *ElasticJobReconciler) reconcileJobs(job *elasticv1alpha1.ElasticJob) (c
 		msg := fmt.Sprintf("ElasticJob %s is running.", job.Name)
 		UpdateStatus(&job.Status, commonv1.JobRunning, common.JobRunningReason, msg)
 	case commonv1.JobRunning:
-		r.syncJobStateByPod(job)
+		r.syncJobStateByReplicas(job)
 	case commonv1.JobScaling:
 		scaler, err := r.getJobScaler(job)
 		if err == nil {
@@ -159,7 +159,7 @@ func (r *ElasticJobReconciler) initializeJob(job *elasticv1alpha1.ElasticJob) {
 	}
 }
 
-func (r *ElasticJobReconciler) syncJobStateByPod(job *elasticv1alpha1.ElasticJob) {
+func (r *ElasticJobReconciler) syncJobStateByReplicas(job *elasticv1alpha1.ElasticJob) {
 	for _, manager := range ReplicaManagers {
 		manager.SyncJobState(r, job)
 	}

@@ -23,7 +23,7 @@ import (
 	"testing"
 )
 
-func TestCreateWorkerPod(t *testing.T) {
+func newTestJob() *elasticv1alpha1.ElasticJob {
 	job := &elasticv1alpha1.ElasticJob{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        "test-psstrategy",
@@ -35,7 +35,11 @@ func TestCreateWorkerPod(t *testing.T) {
 			ReplicaSpecs: map[commonv1.ReplicaType]*elasticv1alpha1.ReplicaSpec{},
 		},
 	}
+	return job
+}
 
+func TestNewWorkerPod(t *testing.T) {
+	job := newTestJob()
 	container := corev1.Container{
 		Name:            "main",
 		Image:           "test",
@@ -56,7 +60,7 @@ func TestCreateWorkerPod(t *testing.T) {
 	}
 
 	manager := newWorkerManager()
-	pod := manager.generateWorker(job, 0)
+	pod := manager.newWorker(job, 0)
 	assert.Equal(t, pod.Name, "test-psstrategy-worker-0")
 	assert.Equal(t, pod.Labels[LabelRestartCount], "3")
 	assert.Equal(
@@ -64,4 +68,16 @@ func TestCreateWorkerPod(t *testing.T) {
 		pod.Labels[controllers.LabelReplicaTypeKey],
 		string(ReplicaTypeWorker),
 	)
+}
+
+func TestNewWorkerService(t *testing.T) {
+	job := newTestJob()
+	manager := newWorkerManager()
+	service := manager.newWorkerService(job, 0)
+	assert.Equal(
+		t,
+		service.Spec.Selector[controllers.LabelReplicaTypeKey],
+		string(ReplicaTypeWorker),
+	)
+	assert.Equal(t, service.Spec.Selector[controllers.LabelReplicaIndexKey], "0")
 }

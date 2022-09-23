@@ -23,6 +23,10 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 )
 
+const (
+	workerServicePort int32 = 2222
+)
+
 // WorkerManager generates a master pod object.
 type WorkerManager struct {
 	controllers.PodManager
@@ -37,16 +41,20 @@ func newWorkerManager() *WorkerManager {
 	return &WorkerManager{}
 }
 
-func (m *WorkerManager) generateWorker(job *elasticv1alpha1.ElasticJob, replicaIndex int32) *corev1.Pod {
+func insertCommonWorkerLabels(labels map[string]string, workerIndex int32) {
+	labels[controllers.LabelReplicaTypeKey] = string(ReplicaTypeWorker)
+	labels[controllers.LabelReplicaIndexKey] = fmt.Sprintf("%d", workerIndex)
+}
+
+func (m *WorkerManager) newWorker(job *elasticv1alpha1.ElasticJob, workerIndex int32) *corev1.Pod {
 	spec, ok := job.Spec.ReplicaSpecs[ReplicaTypeWorker]
 	if !ok {
 		return nil
 	}
-	name := m.generatePodName(job, replicaIndex)
-	pod := m.GeneratePod(job, &spec.Template, name)
+	name := newWorkerName(job.Name, workerIndex)
+	pod := m.NewPod(job, &spec.Template, name)
 	pod.Labels[LabelRestartCount] = fmt.Sprintf("%d", spec.RestartCount)
-	pod.Labels[controllers.LabelReplicaTypeKey] = string(ReplicaTypeWorker)
-	pod.Labels[controllers.LabelReplicaIndexKey] = fmt.Sprintf("%d", replicaIndex)
+	insertCommonWorkerLabels(pod.Labels, workerIndex)
 	return pod
 }
 
@@ -57,10 +65,17 @@ func (m *WorkerManager) ReconcilePods(
 	resourceSpec *elasticv1alpha1.ReplicaResourceSpec,
 ) error {
 	for i := 0; i < resourceSpec.Replicas; i++ {
-		worker := m.generateWorker(job, int32(i))
+		workerIndex := int32(i)
+		worker := m.newWorker(job, workerIndex)
 		err := r.Create(context.Background(), worker)
 		if err != nil {
 			r.Recorder.Eventf(job, corev1.EventTypeWarning, string(corev1.PodFailed), "worker pod %s created failed: %v", worker.Name, err)
+			return err
+		}
+		service := m.newWorkerService(job, workerIndex)
+		err = r.Create(context.Background(), service)
+		if err != nil {
+			r.Recorder.Eventf(job, corev1.EventTypeWarning, string(corev1.PodFailed), "worker service %s created failed: %v", service.Name, err)
 			return err
 		}
 	}
@@ -82,6 +97,14 @@ func (m *WorkerManager) SyncJobState(
 	return nil
 }
 
-func (m *WorkerManager) generatePodName(job *elasticv1alpha1.ElasticJob, replicaIndex int32) string {
-	return fmt.Sprintf("%s-%s-%d", job.GetName(), string(ReplicaTypeWorker), replicaIndex)
+func (m *WorkerManager) newWorkerService(job *elasticv1alpha1.ElasticJob, workerIndex int32) *corev1.Service {
+	name := newWorkerName(job.Name, workerIndex)
+	selector := make(map[string]string)
+	insertCommonWorkerLabels(selector, workerIndex)
+	service := m.NewService(job, name, workerServicePort, selector)
+	return service
+}
+
+func newWorkerName(jobName string, workerIndex int32) string {
+	return fmt.Sprintf("%s-%s-%d", jobName, string(ReplicaTypeWorker), workerIndex)
 }

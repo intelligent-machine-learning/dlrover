@@ -23,6 +23,10 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 )
 
+const (
+	psServicePort int32 = 3333
+)
+
 // PSManager generates a master pod object.
 type PSManager struct {
 	controllers.PodManager
@@ -36,16 +40,20 @@ func newPSManager() *PSManager {
 	return &PSManager{}
 }
 
-func (m *PSManager) generateParameterServer(job *elasticv1alpha1.ElasticJob, replicaIndex int32) *corev1.Pod {
+func insertCommonPSLabels(labels map[string]string, psIndex int32) {
+	labels[controllers.LabelReplicaTypeKey] = string(ReplicaTypePS)
+	labels[controllers.LabelReplicaIndexKey] = fmt.Sprintf("%d", psIndex)
+}
+
+func (m *PSManager) newParameterServer(job *elasticv1alpha1.ElasticJob, psIndex int32) *corev1.Pod {
 	spec, ok := job.Spec.ReplicaSpecs[ReplicaTypePS]
 	if !ok {
 		return nil
 	}
-	podName := m.generatePodName(job, replicaIndex)
-	pod := m.GeneratePod(job, &spec.Template, podName)
+	podName := newPSName(job.Name, psIndex)
+	pod := m.NewPod(job, &spec.Template, podName)
 	pod.Labels[LabelRestartCount] = fmt.Sprintf("%d", spec.RestartCount)
-	pod.Labels[controllers.LabelReplicaTypeKey] = string(ReplicaTypePS)
-	pod.Labels[controllers.LabelReplicaIndexKey] = fmt.Sprintf("%d", replicaIndex)
+	insertCommonPSLabels(pod.Labels, psIndex)
 	return pod
 }
 
@@ -56,10 +64,17 @@ func (m *PSManager) ReconcilePods(
 	resourceSpec *elasticv1alpha1.ReplicaResourceSpec,
 ) error {
 	for i := 0; i < resourceSpec.Replicas; i++ {
-		ps := m.generateParameterServer(job, int32(i))
+		psIndex := int32(i)
+		ps := m.newParameterServer(job, psIndex)
 		err := r.Create(context.Background(), ps)
 		if err != nil {
 			r.Recorder.Eventf(job, corev1.EventTypeWarning, string(corev1.PodFailed), "PS pod %s created failed: %v", ps.Name, err)
+			return err
+		}
+		service := m.newPSService(job, psIndex)
+		err = r.Create(context.Background(), service)
+		if err != nil {
+			r.Recorder.Eventf(job, corev1.EventTypeWarning, string(corev1.PodFailed), "worker service %s created failed: %v", service.Name, err)
 			return err
 		}
 	}
@@ -81,6 +96,14 @@ func (m *PSManager) SyncJobState(
 	return nil
 }
 
-func (m *PSManager) generatePodName(job *elasticv1alpha1.ElasticJob, replicaIndex int32) string {
-	return fmt.Sprintf("%s-%s-%d", job.GetName(), string(ReplicaTypePS), replicaIndex)
+func (m *PSManager) newPSService(job *elasticv1alpha1.ElasticJob, psIndex int32) *corev1.Service {
+	name := newPSName(job.Name, psIndex)
+	selector := make(map[string]string)
+	insertCommonPSLabels(selector, psIndex)
+	service := m.NewService(job, name, psServicePort, selector)
+	return service
+}
+
+func newPSName(jobName string, psIndex int32) string {
+	return fmt.Sprintf("%s-%s-%d", jobName, string(ReplicaTypePS), psIndex)
 }

@@ -32,6 +32,7 @@ const (
 	initMasterContainerStorage = "4Gi"
 	masterCommand              = "sleep 30"
 	masterImage                = "python:3.6.5"
+	masterServicePort          = 50001
 
 	// ReplicaTypeEasydlMaster is the type for easydl Master replica.
 	ReplicaTypeEasydlMaster commonv1.ReplicaType = "easydl-master"
@@ -50,7 +51,7 @@ func newMasterManager() *MasterManager {
 	return &MasterManager{}
 }
 
-func (m *MasterManager) generateEasydlMaster(job *elasticv1alpha1.ElasticJob) *corev1.Pod {
+func (m *MasterManager) newEasydlMaster(job *elasticv1alpha1.ElasticJob) *corev1.Pod {
 	container := corev1.Container{
 		Name:            "main",
 		Image:           masterImage,
@@ -75,8 +76,8 @@ func (m *MasterManager) generateEasydlMaster(job *elasticv1alpha1.ElasticJob) *c
 			RestartPolicy: corev1.RestartPolicyNever,
 		},
 	}
-	masterName := m.generatePodName(job)
-	pod := m.GeneratePod(job, podTemplate, masterName)
+	masterName := NewEasydlMasterName(job.Name)
+	pod := m.NewPod(job, podTemplate, masterName)
 	pod.Labels[LabelReplicaTypeKey] = string(ReplicaTypeEasydlMaster)
 	return pod
 }
@@ -87,32 +88,30 @@ func (m *MasterManager) ReconcilePods(
 	job *elasticv1alpha1.ElasticJob,
 	resourceSpec *elasticv1alpha1.ReplicaResourceSpec,
 ) error {
-	masterPod := m.generateEasydlMaster(job)
+	masterPod := m.newEasydlMaster(job)
 	err := r.Create(context.Background(), masterPod)
 	if err != nil {
 		r.Recorder.Eventf(job, corev1.EventTypeWarning, string(commonv1.JobFailed), "master pod created failed: %v", err)
 		return err
 	}
+	service := m.newEasydlMasterService(job)
+	err = r.Create(context.Background(), service)
+	if err != nil {
+		r.Recorder.Eventf(job, corev1.EventTypeWarning, string(corev1.PodFailed), "master service %s created failed: %v", service.Name, err)
+		return err
+	}
 	return nil
-}
-
-func (m *MasterManager) generatePodName(job *elasticv1alpha1.ElasticJob) string {
-	return fmt.Sprintf("%s-%s", job.GetName(), string(ReplicaTypeEasydlMaster))
 }
 
 // SyncJobState synchronize the job status by replicas
 func (m *MasterManager) SyncJobState(r *ElasticJobReconciler, job *elasticv1alpha1.ElasticJob) error {
-	pods, err := m.GetReplicaTypePods(r, job, ReplicaTypeEasydlMaster)
-	if err != nil {
+	master, err := m.getMasterPod(r, job)
+	if master == nil {
 		logger.Warnf("Failed to get master, error : %v", err)
 		return nil
 	}
-	if len(pods) == 0 {
-		logger.Warnf("No master Found")
-		return nil
-	}
-	job.Status.ReplicaStatuses[ReplicaTypeEasydlMaster] = m.GetReplicaStatus(pods)
-	master := pods[0]
+
+	job.Status.ReplicaStatuses[ReplicaTypeEasydlMaster] = m.GetReplicaStatus([]corev1.Pod{*master})
 	if master.Status.Phase == corev1.PodSucceeded {
 		msg := fmt.Sprintf("job(%s/%s) successfully completed", job.Namespace, job.Name)
 		r.Recorder.Event(job, corev1.EventTypeNormal, string(commonv1.JobSucceeded), msg)
@@ -152,5 +151,22 @@ func (m *MasterManager) getMasterPod(r *ElasticJobReconciler, job *elasticv1alph
 	if errors.IsNotFound(err) {
 		return nil, err
 	}
+	if len(pods) == 0 {
+		logger.Warnf("No master of job %s Found", job.Name)
+		return nil, nil
+	}
 	return &pods[0], nil
+}
+
+func (m *MasterManager) newEasydlMasterService(job *elasticv1alpha1.ElasticJob) *corev1.Service {
+	name := NewEasydlMasterName(job.Name)
+	selector := make(map[string]string)
+	selector[LabelReplicaTypeKey] = string(ReplicaTypeEasydlMaster)
+	service := m.NewService(job, name, masterServicePort, selector)
+	return service
+}
+
+// NewEasydlMasterName create a service name for Job master
+func NewEasydlMasterName(jobName string) string {
+	return fmt.Sprintf("%s-%s", jobName, string(ReplicaTypeEasydlMaster))
 }
