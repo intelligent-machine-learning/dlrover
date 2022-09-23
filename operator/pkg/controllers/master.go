@@ -50,7 +50,7 @@ func newMasterManager() *MasterManager {
 	return &MasterManager{}
 }
 
-func (m *MasterManager) generateEasydlMaster(job *elasticv1alpha1.ElasticJob) *corev1.Pod {
+func (m *MasterManager) newEasydlMaster(job *elasticv1alpha1.ElasticJob) *corev1.Pod {
 	container := corev1.Container{
 		Name:            "main",
 		Image:           masterImage,
@@ -75,8 +75,8 @@ func (m *MasterManager) generateEasydlMaster(job *elasticv1alpha1.ElasticJob) *c
 			RestartPolicy: corev1.RestartPolicyNever,
 		},
 	}
-	masterName := m.generatePodName(job)
-	pod := m.GeneratePod(job, podTemplate, masterName)
+	masterName := m.newEasydlMasterName(job)
+	pod := m.NewPod(job, podTemplate, masterName)
 	pod.Labels[LabelReplicaTypeKey] = string(ReplicaTypeEasydlMaster)
 	return pod
 }
@@ -87,7 +87,7 @@ func (m *MasterManager) ReconcilePods(
 	job *elasticv1alpha1.ElasticJob,
 	resourceSpec *elasticv1alpha1.ReplicaResourceSpec,
 ) error {
-	masterPod := m.generateEasydlMaster(job)
+	masterPod := m.newEasydlMaster(job)
 	err := r.Create(context.Background(), masterPod)
 	if err != nil {
 		r.Recorder.Eventf(job, corev1.EventTypeWarning, string(commonv1.JobFailed), "master pod created failed: %v", err)
@@ -96,7 +96,7 @@ func (m *MasterManager) ReconcilePods(
 	return nil
 }
 
-func (m *MasterManager) generatePodName(job *elasticv1alpha1.ElasticJob) string {
+func (m *MasterManager) newEasydlMasterName(job *elasticv1alpha1.ElasticJob) string {
 	return fmt.Sprintf("%s-%s", job.GetName(), string(ReplicaTypeEasydlMaster))
 }
 

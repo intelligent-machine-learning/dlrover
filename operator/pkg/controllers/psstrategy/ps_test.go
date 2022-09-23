@@ -19,22 +19,11 @@ import (
 	controllers "github.com/intelligent-machine-learning/easydl/operator/pkg/controllers"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"testing"
 )
 
-func TestCreatePSPod(t *testing.T) {
-	job := &elasticv1alpha1.ElasticJob{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        "test-psstrategy",
-			Namespace:   "easydl",
-			Annotations: map[string]string{},
-			Labels:      map[string]string{},
-		},
-		Spec: elasticv1alpha1.ElasticJobSpec{
-			ReplicaSpecs: map[commonv1.ReplicaType]*elasticv1alpha1.ReplicaSpec{},
-		},
-	}
+func TestNewPSPod(t *testing.T) {
+	job := newTestJob()
 
 	container := corev1.Container{
 		Name:            "main",
@@ -56,7 +45,7 @@ func TestCreatePSPod(t *testing.T) {
 	}
 
 	manager := newPSManager()
-	pod := manager.generateParameterServer(job, 0)
+	pod := manager.newParameterServer(job, 0)
 	assert.Equal(t, pod.Name, "test-psstrategy-ps-0")
 	assert.Equal(t, pod.Labels[LabelRestartCount], "3")
 	assert.Equal(
@@ -64,4 +53,17 @@ func TestCreatePSPod(t *testing.T) {
 		pod.Labels[controllers.LabelReplicaTypeKey],
 		string(ReplicaTypePS),
 	)
+}
+
+
+func TestNewPSService(t *testing.T) {
+	job := newTestJob()
+	manager := newPSManager()
+	service := manager.newPSService(job, 0)
+	assert.Equal(
+		t,
+		service.Spec.Selector[controllers.LabelReplicaTypeKey],
+		string(ReplicaTypePS),
+	)
+	assert.Equal(t, service.Spec.Selector[controllers.LabelReplicaIndexKey], "0")
 }
