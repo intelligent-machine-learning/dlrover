@@ -52,7 +52,7 @@ func (m *ChiefManager) ReconcilePods(
 ) error {
 	chiefStatus := m.getTaskStatus(job)
 	aliveNum := int(chiefStatus.Active + chiefStatus.Pending)
-	if aliveNum == 0{
+	if aliveNum == 0 {
 		chiefIndex := 0
 		chief := m.newTask(job, chiefIndex)
 		err := r.Create(context.Background(), chief)
@@ -84,7 +84,7 @@ func (m *ChiefManager) ReconcilePods(
 	return nil
 }
 
-func (m *ChiefManager) getAllChiefHost(jobName string, workerStatus *commonv1.ReplicaStatus) []string{
+func (m *ChiefManager) getAllChiefHost(jobName string, workerStatus *commonv1.ReplicaStatus) []string {
 	totalChiefCount := m.getTotalTaskCount(workerStatus)
 	hosts := []string{}
 	for i := 0; i < totalChiefCount; i++ {
