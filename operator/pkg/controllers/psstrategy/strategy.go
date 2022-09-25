@@ -56,7 +56,10 @@ func (m *PSTaskManager) insertCommonLabels(
 	labels[controllers.LabelReplicaIndexKey] = fmt.Sprintf("%d", taskIndex)
 }
 
-func (m *PSTaskManager) newTask(job *elasticv1alpha1.ElasticJob, taskIndex int) *corev1.Pod {
+func (m *PSTaskManager) newTask(
+	job *elasticv1alpha1.ElasticJob,
+	taskIndex int,
+) *corev1.Pod {
 	spec, ok := job.Spec.ReplicaSpecs[m.taskType]
 	if !ok {
 		logger.Infof("No ReplicaSpec for %s", m.taskType)
@@ -73,11 +76,17 @@ func (m *PSTaskManager) newTaskName(jobName string, taskIndex int) string {
 	return fmt.Sprintf("%s-%s-%d", jobName, string(m.taskType), taskIndex)
 }
 
-func (m *PSTaskManager) newTaskServiceAddr(jobName string, taskIndex int, port int) string {
+func (m *PSTaskManager) newTaskServiceAddr(
+	jobName string,
+	taskIndex int,
+	port int,
+) string {
 	return fmt.Sprintf("%s-%s-%d:%d", jobName, string(m.taskType), taskIndex, port)
 }
 
-func (m *PSTaskManager) getTaskStatus(job *elasticv1alpha1.ElasticJob) *commonv1.ReplicaStatus {
+func (m *PSTaskManager) getTaskStatus(
+	job *elasticv1alpha1.ElasticJob,
+) *commonv1.ReplicaStatus {
 	replicaStatus, ok := job.Status.ReplicaStatuses[m.taskType]
 	if !ok {
 		return &commonv1.ReplicaStatus{}
@@ -89,7 +98,11 @@ func (m *PSTaskManager) getTotalTaskCount(taskStatus *commonv1.ReplicaStatus) in
 	return int(taskStatus.Active + taskStatus.Pending + taskStatus.Succeeded + taskStatus.Failed)
 }
 
-func (m *PSTaskManager) newTaskService(job *elasticv1alpha1.ElasticJob, taskIndex int, servicePort int) *corev1.Service {
+func (m *PSTaskManager) newTaskService(
+	job *elasticv1alpha1.ElasticJob,
+	taskIndex int,
+	servicePort int,
+) *corev1.Service {
 	name := m.newTaskName(job.Name, taskIndex)
 	selector := make(map[string]string)
 	m.insertCommonLabels(selector, taskIndex)
@@ -97,7 +110,11 @@ func (m *PSTaskManager) newTaskService(job *elasticv1alpha1.ElasticJob, taskInde
 	return service
 }
 
-func (m *PSTaskManager) getAllTaskHost(jobName string, taskStatus *commonv1.ReplicaStatus, port int) []string {
+func (m *PSTaskManager) getAllTaskHost(
+	jobName string,
+	taskStatus *commonv1.ReplicaStatus,
+	port int,
+) []string {
 	totalTaskCount := m.getTotalTaskCount(taskStatus)
 	hosts := []string{}
 	for i := 0; i < totalTaskCount; i++ {
