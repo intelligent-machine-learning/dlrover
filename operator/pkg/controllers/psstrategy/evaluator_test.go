@@ -19,26 +19,10 @@ import (
 	controllers "github.com/intelligent-machine-learning/easydl/operator/pkg/controllers"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"testing"
 )
 
-func newTestJob() *elasticv1alpha1.ElasticJob {
-	job := &elasticv1alpha1.ElasticJob{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        "test-psstrategy",
-			Namespace:   "easydl",
-			Annotations: map[string]string{},
-			Labels:      map[string]string{},
-		},
-		Spec: elasticv1alpha1.ElasticJobSpec{
-			ReplicaSpecs: map[commonv1.ReplicaType]*elasticv1alpha1.ReplicaSpec{},
-		},
-	}
-	return job
-}
-
-func TestNewWorkerPod(t *testing.T) {
+func TestNewEvaluatorPod(t *testing.T) {
 	job := newTestJob()
 	container := corev1.Container{
 		Name:            "main",
@@ -47,7 +31,7 @@ func TestNewWorkerPod(t *testing.T) {
 		Command:         []string{"/bin/bash", "echo 0"},
 	}
 
-	job.Spec.ReplicaSpecs[ReplicaTypeWorker] = &elasticv1alpha1.ReplicaSpec{
+	job.Spec.ReplicaSpecs[ReplicaTypeEvaluator] = &elasticv1alpha1.ReplicaSpec{
 		ReplicaSpec: commonv1.ReplicaSpec{
 			Template: corev1.PodTemplateSpec{
 				Spec: corev1.PodSpec{
@@ -59,25 +43,25 @@ func TestNewWorkerPod(t *testing.T) {
 		RestartCount: 3,
 	}
 
-	manager := newWorkerManager()
+	manager := newEvaluatorManager()
 	pod := manager.newTask(job, 0)
-	assert.Equal(t, pod.Name, "test-psstrategy-worker-0")
+	assert.Equal(t, pod.Name, "test-psstrategy-evaluator-0")
 	assert.Equal(t, pod.Labels[LabelRestartCount], "3")
 	assert.Equal(
 		t,
 		pod.Labels[controllers.LabelReplicaTypeKey],
-		string(ReplicaTypeWorker),
+		string(ReplicaTypeEvaluator),
 	)
 }
 
-func TestNewWorkerService(t *testing.T) {
+func TestNewEvaluatorService(t *testing.T) {
 	job := newTestJob()
-	manager := newWorkerManager()
-	service := manager.newTaskService(job, 0, workerServicePort)
+	manager := newEvaluatorManager()
+	service := manager.newTaskService(job, 0, evaluatorServicePort)
 	assert.Equal(
 		t,
 		service.Spec.Selector[controllers.LabelReplicaTypeKey],
-		string(ReplicaTypeWorker),
+		string(ReplicaTypeEvaluator),
 	)
 	assert.Equal(t, service.Spec.Selector[controllers.LabelReplicaIndexKey], "0")
 }

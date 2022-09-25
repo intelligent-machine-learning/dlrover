@@ -45,7 +45,7 @@ func TestNewPSPod(t *testing.T) {
 	}
 
 	manager := newPSManager()
-	pod := manager.newParameterServer(job, 0)
+	pod := manager.newTask(job, 0)
 	assert.Equal(t, pod.Name, "test-psstrategy-ps-0")
 	assert.Equal(t, pod.Labels[LabelRestartCount], "3")
 	assert.Equal(
@@ -58,7 +58,7 @@ func TestNewPSPod(t *testing.T) {
 func TestNewPSService(t *testing.T) {
 	job := newTestJob()
 	manager := newPSManager()
-	service := manager.newPSService(job, 0)
+	service := manager.newTaskService(job, 0, psServicePort)
 	assert.Equal(
 		t,
 		service.Spec.Selector[controllers.LabelReplicaTypeKey],
