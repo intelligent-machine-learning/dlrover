@@ -17,74 +17,62 @@ import (
 	"context"
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
 	controllers "github.com/intelligent-machine-learning/easydl/operator/pkg/controllers"
+	logger "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
-	"strconv"
 )
 
 const (
-	psServicePort int = 3333
+	evaluatorServicePort int = 2222
 )
 
-// PSManager generates a master pod object.
-type PSManager struct {
+// EvaluatorManager generates an evaluator pod object.
+type EvaluatorManager struct {
 	PSTaskManager
 }
 
 func init() {
-	controllers.ReplicaManagers[ReplicaTypePS] = newPSManager()
+	logger.Infof("init evaluator manager")
+	controllers.ReplicaManagers[ReplicaTypeEvaluator] = newEvaluatorManager()
 }
 
-func newPSManager() *PSManager {
-	return &PSManager{
+func newEvaluatorManager() *EvaluatorManager {
+	return &EvaluatorManager{
 		PSTaskManager: PSTaskManager{
-			taskType: ReplicaTypePS,
+			taskType: ReplicaTypeEvaluator,
 		},
 	}
 }
 
 // ReconcilePods creates a Pod on a K8s cluster
-func (m *PSManager) ReconcilePods(
+func (m *EvaluatorManager) ReconcilePods(
 	r *controllers.ElasticJobReconciler,
 	job *elasticv1alpha1.ElasticJob,
 	resourceSpec *elasticv1alpha1.ReplicaResourceSpec,
 ) error {
-	psStatus := m.getTaskStatus(job)
-	currentNum := m.getTotalTaskCount(psStatus)
-	aliveNum := int(psStatus.Active + psStatus.Pending)
-	if resourceSpec.Replicas > aliveNum {
-		m.scaleUpPS(r, job, currentNum, resourceSpec.Replicas-aliveNum)
-	}
-	return nil
-}
-
-func (m *PSManager) scaleUpPS(
-	r *controllers.ElasticJobReconciler,
-	job *elasticv1alpha1.ElasticJob,
-	currentNum int,
-	upNum int,
-) error {
-	for i := currentNum; i < currentNum+upNum; i++ {
-		ps := m.newTask(job, i)
-		err := r.Create(context.Background(), ps)
+	evaluatorStatus := m.getTaskStatus(job)
+	aliveNum := int(evaluatorStatus.Active + evaluatorStatus.Pending)
+	if aliveNum == 0 {
+		evaluatorIndex := 0
+		evaluator := m.newTask(job, evaluatorIndex)
+		err := r.Create(context.Background(), evaluator)
 		if err != nil {
 			r.Recorder.Eventf(
 				job,
 				corev1.EventTypeWarning,
 				string(corev1.PodFailed),
-				"PS pod %s created failed: %v",
-				ps.Name,
+				"evaluator pod %s created failed: %v",
+				evaluator.Name,
 				err)
 			return err
-			return err
 		}
-		service := m.newTaskService(job, i, psServicePort)
+		service := m.newTaskService(job, evaluatorIndex, evaluatorServicePort)
 		err = r.Create(context.Background(), service)
 		if err != nil {
 			r.Recorder.Eventf(
 				job,
 				corev1.EventTypeWarning,
 				string(corev1.PodFailed),
-				"PS service %s created failed: %v",
+				"Evaluator service %s created failed: %v",
 				service.Name,
 				err,
 			)
@@ -92,19 +80,4 @@ func (m *PSManager) scaleUpPS(
 		}
 	}
 	return nil
-}
-
-func (m *PSManager) getAllPSHost(psPods []*corev1.Pod, jobName string) []string {
-	hosts := []string{}
-	for _, pod := range psPods {
-		psIndex, err := strconv.Atoi(pod.Labels[controllers.LabelReplicaIndexKey])
-		if err != nil {
-			continue
-		}
-		if pod.Status.Phase == corev1.PodPending || pod.Status.Phase == corev1.PodRunning {
-			psServiceAddr := m.newTaskServiceAddr(jobName, psIndex, psServicePort)
-			hosts = append(hosts, psServiceAddr)
-		}
-	}
-	return hosts
 }
