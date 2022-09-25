@@ -16,75 +16,65 @@ package psstrategy
 import (
 	"context"
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
+	commonv1 "github.com/intelligent-machine-learning/easydl/operator/pkg/common/api/v1"
 	controllers "github.com/intelligent-machine-learning/easydl/operator/pkg/controllers"
+	logger "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
-	"strconv"
 )
 
 const (
-	psServicePort int = 3333
+	chiefServicePort int = 2222
 )
 
-// PSManager generates a master pod object.
-type PSManager struct {
+// ChiefManager generates a chief pod object.
+type ChiefManager struct {
 	PSTaskManager
 }
 
 func init() {
-	controllers.ReplicaManagers[ReplicaTypePS] = newPSManager()
+	logger.Infof("init chief manager")
+	controllers.ReplicaManagers[ReplicaTypeChief] = newChiefManager()
 }
 
-func newPSManager() *PSManager {
-	return &PSManager{
+func newChiefManager() *ChiefManager {
+	return &ChiefManager{
 		PSTaskManager: PSTaskManager{
-			taskType: ReplicaTypePS,
+			taskType: ReplicaTypeChief,
 		},
 	}
 }
 
 // ReconcilePods creates a Pod on a K8s cluster
-func (m *PSManager) ReconcilePods(
+func (m *ChiefManager) ReconcilePods(
 	r *controllers.ElasticJobReconciler,
 	job *elasticv1alpha1.ElasticJob,
 	resourceSpec *elasticv1alpha1.ReplicaResourceSpec,
 ) error {
-	psStatus := m.getTaskStatus(job)
-	currentNum := m.getTotalTaskCount(psStatus)
-	aliveNum := int(psStatus.Active + psStatus.Pending)
-	if resourceSpec.Replicas > aliveNum {
-		m.scaleUpPS(r, job, currentNum, resourceSpec.Replicas-aliveNum)
-	}
-	return nil
-}
-
-func (m *PSManager) scaleUpPS(
-	r *controllers.ElasticJobReconciler,
-	job *elasticv1alpha1.ElasticJob,
-	currentNum int,
-	upNum int,
-) error {
-	for i := currentNum; i < currentNum+upNum; i++ {
-		ps := m.newTask(job, i)
-		err := r.Create(context.Background(), ps)
+	chiefStatus := m.getTaskStatus(job)
+	aliveNum := int(chiefStatus.Active + chiefStatus.Pending)
+	if aliveNum == 0 {
+		chiefIndex := 0
+		chief := m.newTask(job, chiefIndex)
+		err := r.Create(context.Background(), chief)
 		if err != nil {
 			r.Recorder.Eventf(
 				job,
 				corev1.EventTypeWarning,
 				string(corev1.PodFailed),
-				"PS pod %s created failed: %v",
-				ps.Name,
-				err)
-			return err
+				"Chief pod %s created failed: %v",
+				chief.Name,
+				err,
+			)
 			return err
 		}
-		service := m.newTaskService(job, i, psServicePort)
+		service := m.newTaskService(job, chiefIndex, chiefServicePort)
 		err = r.Create(context.Background(), service)
 		if err != nil {
 			r.Recorder.Eventf(
 				job,
 				corev1.EventTypeWarning,
 				string(corev1.PodFailed),
-				"PS service %s created failed: %v",
+				"Chief service %s created failed: %v",
 				service.Name,
 				err,
 			)
@@ -94,17 +84,12 @@ func (m *PSManager) scaleUpPS(
 	return nil
 }
 
-func (m *PSManager) getAllPSHost(psPods []*corev1.Pod, jobName string) []string {
+func (m *ChiefManager) getAllChiefHost(jobName string, workerStatus *commonv1.ReplicaStatus) []string {
+	totalChiefCount := m.getTotalTaskCount(workerStatus)
 	hosts := []string{}
-	for _, pod := range psPods {
-		psIndex, err := strconv.Atoi(pod.Labels[controllers.LabelReplicaIndexKey])
-		if err != nil {
-			continue
-		}
-		if pod.Status.Phase == corev1.PodPending || pod.Status.Phase == corev1.PodRunning {
-			psServiceAddr := m.newTaskServiceAddr(jobName, psIndex, psServicePort)
-			hosts = append(hosts, psServiceAddr)
-		}
+	for i := 0; i < totalChiefCount; i++ {
+		chiefServiceName := m.newTaskServiceAddr(jobName, i, workerServicePort)
+		hosts = append(hosts, chiefServiceName)
 	}
 	return hosts
 }

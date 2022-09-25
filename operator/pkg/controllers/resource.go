@@ -154,7 +154,7 @@ func (m *PodManager) GetReplicaStatus(pods []corev1.Pod) *commonv1.ReplicaStatus
 }
 
 // NewService create a service
-func (m *PodManager) NewService(job *elasticv1alpha1.ElasticJob, name string, port int32, selector map[string]string) *corev1.Service {
+func (m *PodManager) NewService(job *elasticv1alpha1.ElasticJob, name string, port int, selector map[string]string) *corev1.Service {
 	selector[labelAppName] = easydlApp
 	selector[labelJobName] = job.Name
 	return &corev1.Service{
@@ -171,7 +171,7 @@ func (m *PodManager) NewService(job *elasticv1alpha1.ElasticJob, name string, po
 			Selector:  selector,
 			Ports: []corev1.ServicePort{
 				{
-					Port: port,
+					Port: int32(port),
 				},
 			},
 		},
