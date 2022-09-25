@@ -51,7 +51,7 @@ func (m *EvaluatorManager) ReconcilePods(
 ) error {
 	evaluatorStatus := m.getTaskStatus(job)
 	aliveNum := int(evaluatorStatus.Active + evaluatorStatus.Pending)
-	if aliveNum == 0{
+	if aliveNum == 0 {
 		evaluatorIndex := 0
 		evaluator := m.newTask(job, evaluatorIndex)
 		err := r.Create(context.Background(), evaluator)
@@ -59,10 +59,10 @@ func (m *EvaluatorManager) ReconcilePods(
 			r.Recorder.Eventf(
 				job,
 				corev1.EventTypeWarning,
-				string(corev1.PodFailed), 
+				string(corev1.PodFailed),
 				"evaluator pod %s created failed: %v",
 				evaluator.Name,
-				err,)
+				err)
 			return err
 		}
 		service := m.newTaskService(job, evaluatorIndex, evaluatorServicePort)
@@ -81,4 +81,3 @@ func (m *EvaluatorManager) ReconcilePods(
 	}
 	return nil
 }
-
