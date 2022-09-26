@@ -14,29 +14,14 @@
 package psstrategy
 
 import (
+	"encoding/json"
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
 	commonv1 "github.com/intelligent-machine-learning/easydl/operator/pkg/common/api/v1"
 	controllers "github.com/intelligent-machine-learning/easydl/operator/pkg/controllers"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"testing"
 )
-
-func newTestJob() *elasticv1alpha1.ElasticJob {
-	job := &elasticv1alpha1.ElasticJob{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        "test-psstrategy",
-			Namespace:   "easydl",
-			Annotations: map[string]string{},
-			Labels:      map[string]string{},
-		},
-		Spec: elasticv1alpha1.ElasticJobSpec{
-			ReplicaSpecs: map[commonv1.ReplicaType]*elasticv1alpha1.ReplicaSpec{},
-		},
-	}
-	return job
-}
 
 func TestNewWorkerPod(t *testing.T) {
 	job := newTestJob()
@@ -68,6 +53,14 @@ func TestNewWorkerPod(t *testing.T) {
 		pod.Labels[controllers.LabelReplicaTypeKey],
 		string(ReplicaTypeWorker),
 	)
+
+	cluster := newTFcluster()
+	manager.insertTfConfigToEnv(&container, cluster, 1)
+	tfConfig := TFConfig{}
+	err := json.Unmarshal([]byte(container.Env[0].Value), &tfConfig)
+	assert.NoError(t, err)
+	assert.Equal(t, tfConfig.Task.Type, ReplicaTypeWorker)
+	assert.Equal(t, tfConfig.Task.Index, 1)
 }
 
 func TestNewWorkerService(t *testing.T) {

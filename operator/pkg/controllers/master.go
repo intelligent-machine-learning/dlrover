@@ -147,7 +147,7 @@ func (m *MasterManager) SyncJobState(r *ElasticJobReconciler, job *elasticv1alph
 
 // getMasterPod gets the master pod of a job from a cluster.
 func (m *MasterManager) getMasterPod(r *ElasticJobReconciler, job *elasticv1alpha1.ElasticJob) (*corev1.Pod, error) {
-	pods, err := m.GetReplicaTypePods(r, job, ReplicaTypeEasydlMaster)
+	pods, err := m.GetReplicaTypePods(r.Client, job, ReplicaTypeEasydlMaster)
 	if errors.IsNotFound(err) {
 		return nil, err
 	}

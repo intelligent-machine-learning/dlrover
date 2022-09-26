@@ -21,14 +21,12 @@ import (
 	"fmt"
 	"github.com/golang/glog"
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
-	common "github.com/intelligent-machine-learning/easydl/operator/pkg/common"
 	commonv1 "github.com/intelligent-machine-learning/easydl/operator/pkg/common/api/v1"
 	logger "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilpointer "k8s.io/utils/pointer"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	runtime_client "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
@@ -94,26 +92,18 @@ func (m *PodManager) NewPod(
 
 // DeletePod remove a Pod
 func (m *PodManager) DeletePod(
-	r *ElasticJobReconciler,
+	client runtime_client.Client,
 	job *elasticv1alpha1.ElasticJob,
 	pod *corev1.Pod,
-) {
-	deleteOptions := &client.DeleteOptions{GracePeriodSeconds: utilpointer.Int64Ptr(0)}
-	if err := r.Delete(context.Background(), pod, deleteOptions); err != nil && !errors.IsNotFound(err) {
-		r.Recorder.Eventf(
-			job,
-			corev1.EventTypeWarning,
-			common.JobScalingReason,
-			"Error deleting worker %s: %v",
-			pod.Name,
-			err,
-		)
-	}
+) error {
+	deleteOptions := &runtime_client.DeleteOptions{GracePeriodSeconds: utilpointer.Int64Ptr(0)}
+	err := client.Delete(context.Background(), pod, deleteOptions)
+	return err
 }
 
 // GetReplicaTypePods get all ReplicaType Pods of a job
 func (m *PodManager) GetReplicaTypePods(
-	r *ElasticJobReconciler,
+	client runtime_client.Client,
 	job *elasticv1alpha1.ElasticJob,
 	replicaType commonv1.ReplicaType,
 ) ([]corev1.Pod, error) {
@@ -128,7 +118,11 @@ func (m *PodManager) GetReplicaTypePods(
 		logger.Warningf("No selector found")
 	}
 	podlist := &corev1.PodList{}
-	err = r.List(context.Background(), podlist, client.MatchingLabelsSelector{Selector: selector})
+	err = client.List(
+		context.Background(),
+		podlist,
+		runtime_client.MatchingLabelsSelector{Selector: selector},
+	)
 	if err != nil {
 		return nil, err
 	}
