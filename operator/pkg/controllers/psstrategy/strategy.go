@@ -32,7 +32,8 @@ const (
 	EnvTfConfigName = "TF_CONFIG"
 )
 
-// TaskSpec is the specification for a task (PS or worker) of the TFJob.
+// TaskSpec is the specification for a task (PS or worker) of the ElasticJob using
+// ParameterServerStrategy.
 type TaskSpec struct {
 	Type  commonv1.ReplicaType `json:"type"`
 	Index int                  `json:"index"`
