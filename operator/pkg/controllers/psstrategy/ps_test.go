@@ -14,6 +14,7 @@
 package psstrategy
 
 import (
+	"encoding/json"
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
 	commonv1 "github.com/intelligent-machine-learning/easydl/operator/pkg/common/api/v1"
 	controllers "github.com/intelligent-machine-learning/easydl/operator/pkg/controllers"
@@ -53,6 +54,15 @@ func TestNewPSPod(t *testing.T) {
 		pod.Labels[controllers.LabelReplicaTypeKey],
 		string(ReplicaTypePS),
 	)
+
+	cluster := newTFcluster()
+	cluster[ReplicaTypePS] = []string{"test-psstrategy-ps-0:3333"}
+	manager.insertTfConfigToEnv(&container, cluster, 0)
+	tfConfig := TFConfig{}
+	err := json.Unmarshal([]byte(container.Env[0].Value), &tfConfig)
+	assert.NoError(t, err)
+	assert.Equal(t, tfConfig.Task.Type, ReplicaTypePS)
+	assert.Equal(t, tfConfig.Task.Index, 0)
 }
 
 func TestNewPSService(t *testing.T) {
