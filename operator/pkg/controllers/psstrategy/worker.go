@@ -69,8 +69,10 @@ func (m *WorkerManager) scaleUpWorkers(
 	currentNum int,
 	upNum int,
 ) error {
+	cluster := m.getPSCluster(r.Client, job)
 	for i := currentNum; i < currentNum+upNum; i++ {
 		worker := m.newTask(job, i)
+		m.insertTfConfigToEnv(&worker.Spec.Containers[0], cluster, i)
 		err := r.Create(context.Background(), worker)
 		if err != nil {
 			r.Recorder.Eventf(
@@ -105,7 +107,7 @@ func (m *WorkerManager) scaleDownWorkers(
 	job *elasticv1alpha1.ElasticJob,
 	downNum int,
 ) error {
-	workers, err := m.GetReplicaTypePods(r, job, m.taskType)
+	workers, err := m.GetReplicaTypePods(r.Client, job, m.taskType)
 	if errors.IsNotFound(err) {
 		logger.Warningf("No any worker found: %v", err)
 		return nil
@@ -123,7 +125,7 @@ func (m *WorkerManager) scaleDownWorkers(
 	}
 	sort.Sort(sort.Reverse(sort.IntSlice(workerIndices)))
 	for i := 0; i < downNum; i++ {
-		m.DeletePod(r, job, aliveWorkers[i])
+		m.DeletePod(r.Client, job, aliveWorkers[i])
 	}
 
 	return nil

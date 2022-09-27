@@ -52,8 +52,10 @@ func (m *EvaluatorManager) ReconcilePods(
 	evaluatorStatus := m.getTaskStatus(job)
 	aliveNum := int(evaluatorStatus.Active + evaluatorStatus.Pending)
 	if aliveNum == 0 {
+		cluster := m.getPSCluster(r.Client, job)
 		evaluatorIndex := 0
 		evaluator := m.newTask(job, evaluatorIndex)
+		m.insertTfConfigToEnv(&evaluator.Spec.Containers[0], cluster, evaluatorIndex)
 		err := r.Create(context.Background(), evaluator)
 		if err != nil {
 			r.Recorder.Eventf(

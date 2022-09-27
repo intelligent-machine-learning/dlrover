@@ -16,7 +16,6 @@ package psstrategy
 import (
 	"context"
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
-	commonv1 "github.com/intelligent-machine-learning/easydl/operator/pkg/common/api/v1"
 	controllers "github.com/intelligent-machine-learning/easydl/operator/pkg/controllers"
 	logger "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -53,8 +52,10 @@ func (m *ChiefManager) ReconcilePods(
 	chiefStatus := m.getTaskStatus(job)
 	aliveNum := int(chiefStatus.Active + chiefStatus.Pending)
 	if aliveNum == 0 {
+		cluster := m.getPSCluster(r.Client, job)
 		chiefIndex := 0
 		chief := m.newTask(job, chiefIndex)
+		m.insertTfConfigToEnv(&chief.Spec.Containers[0], cluster, chiefIndex)
 		err := r.Create(context.Background(), chief)
 		if err != nil {
 			r.Recorder.Eventf(
@@ -82,14 +83,4 @@ func (m *ChiefManager) ReconcilePods(
 		}
 	}
 	return nil
-}
-
-func (m *ChiefManager) getAllChiefHost(jobName string, workerStatus *commonv1.ReplicaStatus) []string {
-	totalChiefCount := m.getTotalTaskCount(workerStatus)
-	hosts := []string{}
-	for i := 0; i < totalChiefCount; i++ {
-		chiefServiceName := m.newTaskServiceAddr(jobName, i, workerServicePort)
-		hosts = append(hosts, chiefServiceName)
-	}
-	return hosts
 }
