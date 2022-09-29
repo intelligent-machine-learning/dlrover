@@ -17,6 +17,7 @@ import (
 	"context"
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
 	controllers "github.com/intelligent-machine-learning/easydl/operator/pkg/controllers"
+	logger "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	"strconv"
 )
@@ -35,6 +36,7 @@ func init() {
 }
 
 func newPSManager() *PSManager {
+	logger.Infof("init ps manager")
 	return &PSManager{
 		PSTaskManager: PSTaskManager{
 			taskType: ReplicaTypePS,
@@ -63,8 +65,10 @@ func (m *PSManager) scaleUpPS(
 	currentNum int,
 	upNum int,
 ) error {
+	cluster := m.getPSCluster(r.Client, job)
 	for i := currentNum; i < currentNum+upNum; i++ {
 		ps := m.newTask(job, i)
+		m.insertTfConfigToEnv(&ps.Spec.Containers[0], cluster, i)
 		err := r.Create(context.Background(), ps)
 		if err != nil {
 			r.Recorder.Eventf(
@@ -93,7 +97,7 @@ func (m *PSManager) scaleUpPS(
 	return nil
 }
 
-func (m *PSManager) getAllPSHost(psPods []*corev1.Pod, jobName string) []string {
+func (m *PSManager) getAllPSHosts(psPods []corev1.Pod, jobName string) []string {
 	hosts := []string{}
 	for _, pod := range psPods {
 		psIndex, err := strconv.Atoi(pod.Labels[controllers.LabelReplicaIndexKey])
