@@ -75,7 +75,6 @@ func (m *PSManager) scaleUpPS(
 				ps.Name,
 				err)
 			return err
-			return err
 		}
 		service := m.newTaskService(job, i, psServicePort)
 		err = r.Create(context.Background(), service)
