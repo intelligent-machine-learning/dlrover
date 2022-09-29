@@ -54,9 +54,12 @@ func TestNewChiefPod(t *testing.T) {
 		string(ReplicaTypeChief),
 	)
 
-	cluster := newTFcluster()
+	cluster := SparseClusterSpec{
+		Chief: map[int]string{0: "test-psstrategy-chief-0:2222"},
+		PS:    []string{"test-psstrategy-ps-0:3333"},
+	}
 	manager.insertTfConfigToEnv(&container, cluster, 0)
-	tfConfig := TFConfig{}
+	tfConfig := SparseTFConfig{}
 	err := json.Unmarshal([]byte(container.Env[0].Value), &tfConfig)
 	assert.NoError(t, err)
 	assert.Equal(t, tfConfig.Task.Type, ReplicaTypeChief)

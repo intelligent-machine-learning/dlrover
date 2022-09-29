@@ -71,6 +71,7 @@ func (m *WorkerManager) scaleUpWorkers(
 ) error {
 	cluster := m.getPSCluster(r.Client, job)
 	for i := currentNum; i < currentNum+upNum; i++ {
+		cluster.Worker[i] = m.newTaskServiceAddr(job.Name, i, workerServicePort)
 		worker := m.newTask(job, i)
 		m.insertTfConfigToEnv(&worker.Spec.Containers[0], cluster, i)
 		err := r.Create(context.Background(), worker)

@@ -15,6 +15,7 @@ package psstrategy
 
 import (
 	"context"
+	"fmt"
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
 	controllers "github.com/intelligent-machine-learning/easydl/operator/pkg/controllers"
 	logger "github.com/sirupsen/logrus"
@@ -52,9 +53,12 @@ func (m *ChiefManager) ReconcilePods(
 	chiefStatus := m.getTaskStatus(job)
 	aliveNum := int(chiefStatus.Active + chiefStatus.Pending)
 	if aliveNum == 0 {
-		cluster := m.getPSCluster(r.Client, job)
 		chiefIndex := 0
+		cluster := m.getPSCluster(r.Client, job)
 		chief := m.newTask(job, chiefIndex)
+		if chief == nil {
+			return fmt.Errorf("No Chief ReplicaSpec")
+		}
 		m.insertTfConfigToEnv(&chief.Spec.Containers[0], cluster, chiefIndex)
 		err := r.Create(context.Background(), chief)
 		if err != nil {
