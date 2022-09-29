@@ -132,6 +132,8 @@ func (r *ElasticJobReconciler) reconcileJobs(job *elasticv1alpha1.ElasticJob) (c
 		UpdateStatus(&job.Status, commonv1.JobRunning, common.JobRunningReason, msg)
 	case commonv1.JobRunning:
 		r.syncJobStateByReplicas(job)
+	case commonv1.JobPending:
+		r.syncJobStateByReplicas(job)
 	case commonv1.JobScaling:
 		scaler, err := r.getJobScaler(job)
 		if err == nil {
@@ -139,6 +141,7 @@ func (r *ElasticJobReconciler) reconcileJobs(job *elasticv1alpha1.ElasticJob) (c
 		}
 		msg := fmt.Sprintf("ElasticJob %s scaling finished.", job.Name)
 		UpdateStatus(&job.Status, commonv1.JobRunning, common.JobRunningReason, msg)
+		r.syncJobStateByReplicas(job)
 	case commonv1.JobSucceeded:
 		logger.Infof("Job %s succeed", job.Name)
 	default:

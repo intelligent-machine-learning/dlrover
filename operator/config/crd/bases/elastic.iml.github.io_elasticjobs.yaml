@@ -7934,6 +7934,10 @@ spec:
                           description: The number of pods which reached phase Failed.
                           format: int32
                           type: integer
+                        initial:
+                          description: The number of pods at begining
+                          format: int32
+                          type: integer
                         labelSelector:
                           description: A label selector is a label query over a set
                             of resources. The result of matchLabels and matchExpressions

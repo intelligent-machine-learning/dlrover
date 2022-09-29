@@ -138,6 +138,11 @@ func (r *ScalerReconciler) updateJobToScaling(
 	pollInterval time.Duration) (ctrl.Result, error) {
 	msg := fmt.Sprintf("ElasticJob %s is scaling by %s.", job.Name, scaler.Name)
 	job.Status.Scaler = scaler.Name
+	for taskType, resourceSpec := range scaler.Spec.ReplicaResourceSpecs {
+		if job.Status.ReplicaStatuses[taskType].Initial == 0 {
+			job.Status.ReplicaStatuses[taskType].Initial = int32(resourceSpec.Replicas)
+		}
+	}
 	UpdateStatus(&job.Status, commonv1.JobScaling, common.JobScalingReason, msg)
 	err := r.Status().Update(context.Background(), job)
 	if err != nil {
