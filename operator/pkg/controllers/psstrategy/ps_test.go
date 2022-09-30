@@ -55,10 +55,11 @@ func TestNewPSPod(t *testing.T) {
 		string(ReplicaTypePS),
 	)
 
-	cluster := newTFcluster()
-	cluster[ReplicaTypePS] = []string{"test-psstrategy-ps-0:3333"}
+	cluster := SparseClusterSpec{
+		PS: []string{"test-psstrategy-ps-0:3333"},
+	}
 	manager.insertTfConfigToEnv(&container, cluster, 0)
-	tfConfig := TFConfig{}
+	tfConfig := SparseTFConfig{}
 	err := json.Unmarshal([]byte(container.Env[0].Value), &tfConfig)
 	assert.NoError(t, err)
 	assert.Equal(t, tfConfig.Task.Type, ReplicaTypePS)

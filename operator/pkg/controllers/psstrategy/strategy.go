@@ -30,6 +30,8 @@ const (
 
 	// EnvTfConfigName is the environment variable name of TensorFlow cluster spec.
 	EnvTfConfigName = "TF_CONFIG"
+
+	maxWorkerCount = 100
 )
 
 // TaskSpec is the specification for a task (PS or worker) of the ElasticJob using
@@ -39,21 +41,22 @@ type TaskSpec struct {
 	Index int                  `json:"index"`
 }
 
-// ClusterSpec represents a cluster TensorFlow specification.
-// https://www.tensorflow.org/deploy/distributed#create_a_tftrainclusterspec_to_describe_the_cluster
-// It is a map from job names to network addresses.
-type ClusterSpec map[commonv1.ReplicaType][]string
+// SparseClusterSpec enables a server to be configured without needing to know
+// the identity of (for example) all other worker tasks.
+// https://www.tensorflow.org/api_docs/python/tf/train/ClusterSpec
+type SparseClusterSpec struct {
+	Worker    map[int]string `json:"worker,omitempty"`
+	PS        []string       `json:"ps"`
+	Chief     map[int]string `json:"chief"`
+	Evaluator map[int]string `json:"evaluator,omitempty"`
+}
 
-// TFConfig is a struct representing the distributed TensorFlow config.
-// This struct is turned into an environment variable TF_CONFIG
-// which is used by TensorFlow processes to configure themselves.
-// https://www.tensorflow.org/api_docs/python/tf/estimator/RunConfig#methods
-// https://cloud.google.com/ml-engine/docs/tensorflow/distributed-training-details
-type TFConfig struct {
+// SparseTFConfig is a struct representing the distributed TensorFlow config.
+type SparseTFConfig struct {
 	// Cluster represents a TensorFlow ClusterSpec.
 	// See: https://www.tensorflow.org/api_docs/python/tf/train/ClusterSpec
-	Cluster ClusterSpec `json:"cluster"`
-	Task    TaskSpec    `json:"task"`
+	Cluster SparseClusterSpec `json:"cluster"`
+	Task    TaskSpec          `json:"task"`
 }
 
 // PSTaskManager generates Pods for task in a distributed PS job.
@@ -74,7 +77,14 @@ func (m *PSTaskManager) SyncJobState(
 		return nil
 	}
 	taskStatus := m.GetReplicaStatus(taskPods)
-	job.Status.ReplicaStatuses[m.taskType] = taskStatus
+	if _, ok := job.Status.ReplicaStatuses[m.taskType]; !ok {
+		job.Status.ReplicaStatuses[m.taskType] = taskStatus
+	} else {
+		job.Status.ReplicaStatuses[m.taskType].Pending = taskStatus.Pending
+		job.Status.ReplicaStatuses[m.taskType].Active = taskStatus.Active
+		job.Status.ReplicaStatuses[m.taskType].Failed = taskStatus.Failed
+		job.Status.ReplicaStatuses[m.taskType].Succeeded = taskStatus.Succeeded
+	}
 	return nil
 }
 
@@ -141,14 +151,13 @@ func (m *PSTaskManager) newTaskService(
 
 func (m *PSTaskManager) getAllTaskHosts(
 	jobName string,
-	taskStatus *commonv1.ReplicaStatus,
+	totalTaskCount int,
 	port int,
 ) []string {
-	totalTaskCount := m.getTotalTaskCount(taskStatus)
 	hosts := []string{}
 	for i := 0; i < totalTaskCount; i++ {
-		chiefServiceName := m.newTaskServiceAddr(jobName, i, port)
-		hosts = append(hosts, chiefServiceName)
+		serviceName := m.newTaskServiceAddr(jobName, i, port)
+		hosts = append(hosts, serviceName)
 	}
 	return hosts
 }
@@ -156,46 +165,53 @@ func (m *PSTaskManager) getAllTaskHosts(
 func (m *PSTaskManager) getPSCluster(
 	client runtime_client.Client,
 	job *elasticv1alpha1.ElasticJob,
-) ClusterSpec {
-	cluster := ClusterSpec{}
+) SparseClusterSpec {
+	cluster := SparseClusterSpec{}
+	psHosts := m.getPSHosts(job, client)
+	if len(psHosts) > 0 {
+		cluster.PS = psHosts
+	}
 	if status, ok := job.Status.ReplicaStatuses[ReplicaTypeChief]; ok {
+		cluster.Chief = make(map[int]string)
 		chiefManager := controllers.ReplicaManagers[ReplicaTypeChief].(*ChiefManager)
-		chiefHosts := chiefManager.getAllTaskHosts(job.Name, status, chiefServicePort)
+		taskCount := chiefManager.getTotalTaskCount(status)
+		if taskCount == 0 {
+			taskCount = int(status.Initial)
+		}
+		chiefHosts := chiefManager.getAllTaskHosts(job.Name, taskCount, chiefServicePort)
 		if len(chiefHosts) > 0 {
-			cluster[ReplicaTypeChief] = chiefHosts
+			cluster.Chief[0] = chiefHosts[0]
 		}
 	}
-
-	if status, ok := job.Status.ReplicaStatuses[ReplicaTypeWorker]; ok {
-		workerManager := controllers.ReplicaManagers[ReplicaTypeWorker].(*WorkerManager)
-		workerHosts := workerManager.getAllTaskHosts(job.Name, status, workerServicePort)
-		if len(workerHosts) > 0 {
-			cluster[ReplicaTypeWorker] = workerHosts
+	if m.taskType == ReplicaTypePS {
+		cluster.Worker = make(map[int]string)
+		for i := 0; i < maxWorkerCount; i++ {
+			cluster.Worker[i] = fmt.Sprintf("%s-%s-%d:%d", job.Name, ReplicaTypeWorker, i, workerServicePort)
 		}
 	}
-
-	if status, ok := job.Status.ReplicaStatuses[ReplicaTypeEvaluator]; ok {
-		evaluatorManager := controllers.ReplicaManagers[ReplicaTypeEvaluator].(*EvaluatorManager)
-		evaluatorHosts := evaluatorManager.getAllTaskHosts(job.Name, status, evaluatorServicePort)
-		if len(evaluatorHosts) > 0 {
-			cluster[ReplicaTypeEvaluator] = evaluatorHosts
-		}
-	}
-
-	if status, ok := job.Status.ReplicaStatuses[ReplicaTypePS]; ok && status.Active+status.Pending > 0 {
-		psManager := controllers.ReplicaManagers[ReplicaTypePS].(*PSManager)
-		psPods, _ := psManager.GetReplicaTypePods(client, job, psManager.taskType)
-		psHosts := psManager.getAllPSHosts(psPods, job.Name)
-		if len(psHosts) > 0 {
-			cluster[ReplicaTypePS] = psHosts
-		}
-	}
-
 	return cluster
 }
 
-func (m *PSTaskManager) genTFConfigEnv(cluster ClusterSpec, taskIndex int) (corev1.EnvVar, error) {
-	tfConfig := TFConfig{
+func (m *PSTaskManager) getPSHosts(
+	job *elasticv1alpha1.ElasticJob,
+	client runtime_client.Client,
+) []string {
+	status := job.Status.ReplicaStatuses[ReplicaTypePS]
+	psManager := controllers.ReplicaManagers[ReplicaTypePS].(*PSManager)
+	taskCount := psManager.getTotalTaskCount(status)
+	var psHosts []string
+	if taskCount == 0 {
+		taskCount = int(status.Initial)
+		psHosts = psManager.getAllTaskHosts(job.Name, taskCount, psServicePort)
+	} else {
+		psPods, _ := psManager.GetReplicaTypePods(client, job, psManager.taskType)
+		psHosts = psManager.getAllPSHosts(psPods, job.Name)
+	}
+	return psHosts
+}
+
+func (m *PSTaskManager) genTFConfigEnv(cluster SparseClusterSpec, taskIndex int) (corev1.EnvVar, error) {
+	tfConfig := SparseTFConfig{
 		Cluster: cluster,
 		Task: TaskSpec{
 			Type:  m.taskType,
@@ -210,7 +226,7 @@ func (m *PSTaskManager) genTFConfigEnv(cluster ClusterSpec, taskIndex int) (core
 	}, err
 }
 
-func (m *PSTaskManager) insertTfConfigToEnv(container *corev1.Container, cluster ClusterSpec, taskIndex int) {
+func (m *PSTaskManager) insertTfConfigToEnv(container *corev1.Container, cluster SparseClusterSpec, taskIndex int) {
 	tfConfigEnv, err := m.genTFConfigEnv(cluster, taskIndex)
 	if err != nil {
 		logger.Infof("Failed to get TFCONFIG %v", err)
