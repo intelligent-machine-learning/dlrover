@@ -70,6 +70,9 @@ func (m *WorkerManager) scaleUpWorkers(
 	upNum int,
 ) error {
 	cluster := m.getPSCluster(r.Client, job)
+	if cluster.Worker == nil {
+		cluster.Worker = make(map[int]string)
+	}
 	for i := currentNum; i < currentNum+upNum; i++ {
 		cluster.Worker[i] = m.newTaskServiceAddr(job.Name, i, workerServicePort)
 		worker := m.newTask(job, i)

@@ -72,6 +72,9 @@ func (m *PSTaskManager) SyncJobState(
 	job *elasticv1alpha1.ElasticJob,
 ) error {
 	taskPods, err := m.GetReplicaTypePods(r.Client, job, m.taskType)
+	for _, pod := range taskPods {
+		logger.Infof("Pod :%s", pod.Name)
+	}
 	if errors.IsNotFound(err) {
 		logger.Warningf("No any Task %s found: %v", m.taskType, err)
 		return nil
