@@ -55,6 +55,9 @@ func (m *EvaluatorManager) ReconcilePods(
 	if aliveNum == 0 {
 		evaluatorIndex := 0
 		cluster := m.getPSCluster(r.Client, job)
+		if cluster.Evaluator == nil {
+			cluster.Evaluator = make(map[int]string)
+		}
 		cluster.Evaluator[evaluatorIndex] = m.newTaskServiceAddr(
 			job.Name, evaluatorIndex, evaluatorServicePort,
 		)

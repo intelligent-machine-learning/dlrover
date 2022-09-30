@@ -55,6 +55,9 @@ func (m *ChiefManager) ReconcilePods(
 	if aliveNum == 0 {
 		chiefIndex := 0
 		cluster := m.getPSCluster(r.Client, job)
+		if cluster.Chief == nil {
+			cluster.Chief = make(map[int]string)
+		}
 		chief := m.newTask(job, chiefIndex)
 		if chief == nil {
 			return fmt.Errorf("No Chief ReplicaSpec")
