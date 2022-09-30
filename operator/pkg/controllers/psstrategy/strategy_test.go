@@ -37,27 +37,10 @@ func newTestJob() *elasticv1alpha1.ElasticJob {
 	return job
 }
 
-func newTFcluster() ClusterSpec {
-	cluster := ClusterSpec{}
-	cluster[ReplicaTypeChief] = []string{"test-psstrategy-chief-0:2222"}
-	cluster[ReplicaTypeEvaluator] = []string{"test-psstrategy-evaluator-0:2222"}
-	workerHosts := []string{
-		"test-psstrategy-worker-0:2222",
-		"test-psstrategy-worker-1:2222",
-		"test-psstrategy-worker-2:2222",
-	}
-	cluster[ReplicaTypeWorker] = workerHosts
-	return cluster
-}
-
 func TestGetAllTaskHosts(t *testing.T) {
 	job := newTestJob()
 	manager := PSTaskManager{taskType: "worker"}
-	taskStatus := &commonv1.ReplicaStatus{
-		Active:  1,
-		Pending: 2,
-	}
-	hosts := manager.getAllTaskHosts(job.Name, taskStatus, 2222)
+	hosts := manager.getAllTaskHosts(job.Name, 3, 2222)
 	assert.Equal(
 		t,
 		hosts,
@@ -83,8 +66,14 @@ func TestGetPSCluster(t *testing.T) {
 	job.Status.ReplicaStatuses[ReplicaTypeEvaluator] = &commonv1.ReplicaStatus{
 		Active: 1,
 	}
+	job.Status.ReplicaStatuses[ReplicaTypePS] = &commonv1.ReplicaStatus{
+		Initial: 1,
+	}
 	client := runtime_client.NewDryRunClient(nil)
 	cluster := manager.getPSCluster(client, job)
-	expectedCluster := newTFcluster()
+	expectedCluster := SparseClusterSpec{
+		PS:    []string{"test-psstrategy-ps-0:3333"},
+		Chief: map[int]string{0: "test-psstrategy-chief-0:2222"},
+	}
 	assert.Equal(t, cluster, expectedCluster)
 }

@@ -30,7 +30,7 @@ const (
 	initMasterContainerCPU     = "2"
 	initMasterContainerMemory  = "4Gi"
 	initMasterContainerStorage = "4Gi"
-	masterCommand              = "sleep 30"
+	masterCommand              = "sleep 400"
 	masterImage                = "python:3.6.5"
 	masterServicePort          = 50001
 

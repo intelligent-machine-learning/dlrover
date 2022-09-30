@@ -15,6 +15,7 @@ package psstrategy
 
 import (
 	"context"
+	"fmt"
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
 	controllers "github.com/intelligent-machine-learning/easydl/operator/pkg/controllers"
 	logger "github.com/sirupsen/logrus"
@@ -52,9 +53,15 @@ func (m *EvaluatorManager) ReconcilePods(
 	evaluatorStatus := m.getTaskStatus(job)
 	aliveNum := int(evaluatorStatus.Active + evaluatorStatus.Pending)
 	if aliveNum == 0 {
-		cluster := m.getPSCluster(r.Client, job)
 		evaluatorIndex := 0
+		cluster := m.getPSCluster(r.Client, job)
+		cluster.Evaluator[evaluatorIndex] = m.newTaskServiceAddr(
+			job.Name, evaluatorIndex, evaluatorServicePort,
+		)
 		evaluator := m.newTask(job, evaluatorIndex)
+		if evaluator == nil {
+			return fmt.Errorf("No Evaluator ReplicaSpec")
+		}
 		m.insertTfConfigToEnv(&evaluator.Spec.Containers[0], cluster, evaluatorIndex)
 		err := r.Create(context.Background(), evaluator)
 		if err != nil {
