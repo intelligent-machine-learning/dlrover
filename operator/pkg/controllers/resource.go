@@ -178,7 +178,7 @@ func setMasterAddrIntoContainer(container *corev1.Container, jobName string) {
 }
 
 func newMasterAddrEnvVar(jobName string) corev1.EnvVar {
-	masterServiceAddr := NewEasydlMasterName(jobName)
+	masterServiceAddr := NewEasydlMasterServiceName(jobName)
 	return corev1.EnvVar{
 		Name:  envMasterAddrKey,
 		Value: fmt.Sprintf("%s:%d", masterServiceAddr, masterServicePort),

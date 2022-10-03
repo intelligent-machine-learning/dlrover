@@ -32,4 +32,6 @@ type ReplicaManager interface {
 	ReconcilePods(r *ElasticJobReconciler, job *elasticv1alpha1.ElasticJob, resourceSpec *elasticv1alpha1.ReplicaResourceSpec) error
 
 	SyncJobState(r *ElasticJobReconciler, job *elasticv1alpha1.ElasticJob) error
+
+	HandleFaultPods(r *ElasticJobReconciler, job *elasticv1alpha1.ElasticJob) error
 }
