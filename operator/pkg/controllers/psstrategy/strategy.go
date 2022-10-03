@@ -237,3 +237,11 @@ func (m *PSTaskManager) insertTfConfigToEnv(container *corev1.Container, cluster
 	}
 	container.Env = append(container.Env, tfConfigEnv)
 }
+
+// HandleFaultPods relaunches a new Pod if a pod is deleted or ignores
+// the fault Pod if it fails with uncoverable errors.
+func (m *PSTaskManager) HandleFaultPods(
+	r *controllers.ElasticJobReconciler, job *elasticv1alpha1.ElasticJob,
+) error {
+	return nil
+}

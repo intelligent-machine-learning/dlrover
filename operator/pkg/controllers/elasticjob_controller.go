@@ -130,9 +130,10 @@ func (r *ElasticJobReconciler) reconcileJobs(job *elasticv1alpha1.ElasticJob) (c
 		}
 		msg := fmt.Sprintf("ElasticJob %s is running.", job.Name)
 		UpdateStatus(&job.Status, commonv1.JobRunning, common.JobRunningReason, msg)
-	case commonv1.JobRunning:
-		r.syncJobStateByReplicas(job)
 	case commonv1.JobPending:
+		r.syncJobStateByReplicas(job)
+	case commonv1.JobRunning:
+		r.handleFaultPods(job)
 		r.syncJobStateByReplicas(job)
 	case commonv1.JobScaling:
 		scaler, err := r.getJobScaler(job)
@@ -194,7 +195,6 @@ func (r *ElasticJobReconciler) getJobScaler(job *elasticv1alpha1.ElasticJob) (*e
 }
 
 func (r *ElasticJobReconciler) executeScaling(job *elasticv1alpha1.ElasticJob, scaler *elasticv1alpha1.Scaler) error {
-	logger.Infof("managers : %v", ReplicaManagers)
 	for replicaType, resourceSpec := range scaler.Spec.ReplicaResourceSpecs {
 		logger.Infof("Replica %s, resource %v", replicaType, resourceSpec)
 		replicaManager := ReplicaManagers[replicaType]
@@ -203,10 +203,17 @@ func (r *ElasticJobReconciler) executeScaling(job *elasticv1alpha1.ElasticJob, s
 	return nil
 }
 
+func (r *ElasticJobReconciler) handleFaultPods(job *elasticv1alpha1.ElasticJob) {
+	for _, manager := range ReplicaManagers {
+		manager.HandleFaultPods(r, job)
+	}
+}
+
 // SetupWithManager sets up the controller with the Manager.
 func (r *ElasticJobReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&elasticv1alpha1.ElasticJob{}).
 		Owns(&corev1.Pod{}).
+		Owns(&corev1.Service{}).
 		Complete(r)
 }
