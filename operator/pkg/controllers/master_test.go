@@ -32,5 +32,5 @@ func TestCreateMasterPod(t *testing.T) {
 
 	manager := newMasterManager()
 	pod := manager.newEasydlMaster(job, initMasterIndex)
-	assert.Equal(t, pod.Name, "test-ps-easydl-master")
+	assert.Equal(t, pod.Name, "test-ps-easydl-master-0")
 }
