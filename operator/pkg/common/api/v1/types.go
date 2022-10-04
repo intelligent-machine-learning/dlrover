@@ -196,6 +196,13 @@ const (
 	// - 1-127: permanent error, do not restart.
 	// - 128-255: retryable error, will restart the pod.
 	RestartPolicyExitCode RestartPolicy = "ExitCode"
+
+	// ReasonOOMKilled indicates a container exits with OOM.
+	ReasonOOMKilled string = "OOMKilled"
+
+	// FatalExitCode indicates a container exits with a unrecoverable error.
+	// For example, the program fails because of a syntax error.
+	FatalExitCode = 1
 )
 
 // +k8s:openapi-gen=true
