@@ -16,7 +16,6 @@ package master
 import (
 	"context"
 	"fmt"
-	"strconv"
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
 	common "github.com/intelligent-machine-learning/easydl/operator/pkg/common"
 	commonv1 "github.com/intelligent-machine-learning/easydl/operator/pkg/common/api/v1"
@@ -26,6 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime_client "sigs.k8s.io/controller-runtime/pkg/client"
+	"strconv"
 )
 
 const (
@@ -44,7 +44,7 @@ const (
 )
 
 // MasterManager generates a master pod object.
-type MasterManager struct {}
+type MasterManager struct{}
 
 func init() {
 	common.ReplicaManagers[ReplicaTypeEasydlMaster] = newMasterManager()
