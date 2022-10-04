@@ -16,9 +16,10 @@ package psstrategy
 import (
 	"context"
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
-	controllers "github.com/intelligent-machine-learning/easydl/operator/pkg/controllers"
+	common "github.com/intelligent-machine-learning/easydl/operator/pkg/common"
 	logger "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	runtime_client "sigs.k8s.io/controller-runtime/pkg/client"
 	"strconv"
 )
 
@@ -32,7 +33,7 @@ type PSManager struct {
 }
 
 func init() {
-	controllers.ReplicaManagers[ReplicaTypePS] = newPSManager()
+	common.ReplicaManagers[ReplicaTypePS] = newPSManager()
 }
 
 func newPSManager() *PSManager {
@@ -46,7 +47,7 @@ func newPSManager() *PSManager {
 
 // ReconcilePods creates a Pod on a K8s cluster
 func (m *PSManager) ReconcilePods(
-	r *controllers.ElasticJobReconciler,
+	client runtime_client.Client,
 	job *elasticv1alpha1.ElasticJob,
 	resourceSpec *elasticv1alpha1.ReplicaResourceSpec,
 ) error {
@@ -54,43 +55,28 @@ func (m *PSManager) ReconcilePods(
 	currentNum := m.getTotalTaskCount(psStatus)
 	aliveNum := int(psStatus.Active + psStatus.Pending)
 	if resourceSpec.Replicas > aliveNum {
-		m.scaleUpPS(r, job, currentNum, resourceSpec.Replicas-aliveNum)
+		m.scaleUpPS(client, job, currentNum, resourceSpec.Replicas-aliveNum)
 	}
 	return nil
 }
 
 func (m *PSManager) scaleUpPS(
-	r *controllers.ElasticJobReconciler,
+	client runtime_client.Client,
 	job *elasticv1alpha1.ElasticJob,
 	currentNum int,
 	upNum int,
 ) error {
-	cluster := m.getPSCluster(r.Client, job)
+	cluster := m.getPSCluster(client, job)
 	for i := currentNum; i < currentNum+upNum; i++ {
 		ps := m.newTask(job, i)
 		m.insertTfConfigToEnv(&ps.Spec.Containers[0], cluster, i)
-		err := r.Create(context.Background(), ps)
+		err := client.Create(context.Background(), ps)
 		if err != nil {
-			r.Recorder.Eventf(
-				job,
-				corev1.EventTypeWarning,
-				string(corev1.PodFailed),
-				"PS pod %s created failed: %v",
-				ps.Name,
-				err)
 			return err
 		}
 		service := m.newTaskService(job, i, psServicePort)
-		err = r.Create(context.Background(), service)
+		err = client.Create(context.Background(), service)
 		if err != nil {
-			r.Recorder.Eventf(
-				job,
-				corev1.EventTypeWarning,
-				string(corev1.PodFailed),
-				"PS service %s created failed: %v",
-				service.Name,
-				err,
-			)
 			return err
 		}
 	}
@@ -100,7 +86,7 @@ func (m *PSManager) scaleUpPS(
 func (m *PSManager) getAllPSHosts(psPods []corev1.Pod, jobName string) []string {
 	hosts := []string{}
 	for _, pod := range psPods {
-		psIndex, err := strconv.Atoi(pod.Labels[controllers.LabelReplicaIndexKey])
+		psIndex, err := strconv.Atoi(pod.Labels[common.LabelReplicaIndexKey])
 		if err != nil {
 			continue
 		}

@@ -35,6 +35,7 @@ import (
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
 	common "github.com/intelligent-machine-learning/easydl/operator/pkg/common"
 	commonv1 "github.com/intelligent-machine-learning/easydl/operator/pkg/common/api/v1"
+	master "github.com/intelligent-machine-learning/easydl/operator/pkg/controllers/master"
 )
 
 // ElasticJobReconciler reconciles a ElasticJob object
@@ -44,9 +45,6 @@ type ElasticJobReconciler struct {
 	Recorder record.EventRecorder
 	Log      logr.Logger
 }
-
-// ReplicaManagers contains the manager for each ReplicaType
-var ReplicaManagers = make(map[commonv1.ReplicaType]ReplicaManager)
 
 // NewElasticJobReconciler creates a JobReconciler
 func NewElasticJobReconciler(mgr ctrl.Manager) *ElasticJobReconciler {
@@ -129,7 +127,7 @@ func (r *ElasticJobReconciler) reconcileJobs(job *elasticv1alpha1.ElasticJob) (c
 			logger.Warningf("Fail to create EasyDL Master")
 		}
 		msg := fmt.Sprintf("ElasticJob %s is running.", job.Name)
-		UpdateStatus(&job.Status, commonv1.JobRunning, common.JobRunningReason, msg)
+		common.UpdateStatus(&job.Status, commonv1.JobRunning, common.JobRunningReason, msg)
 	case commonv1.JobPending:
 		r.syncJobStateByReplicas(job)
 	case commonv1.JobRunning:
@@ -141,7 +139,7 @@ func (r *ElasticJobReconciler) reconcileJobs(job *elasticv1alpha1.ElasticJob) (c
 			r.executeScaling(job, scaler)
 		}
 		msg := fmt.Sprintf("ElasticJob %s scaling finished.", job.Name)
-		UpdateStatus(&job.Status, commonv1.JobRunning, common.JobRunningReason, msg)
+		common.UpdateStatus(&job.Status, commonv1.JobRunning, common.JobRunningReason, msg)
 		r.syncJobStateByReplicas(job)
 	case commonv1.JobSucceeded:
 		logger.Infof("Job %s succeed", job.Name)
@@ -153,9 +151,9 @@ func (r *ElasticJobReconciler) reconcileJobs(job *elasticv1alpha1.ElasticJob) (c
 
 func (r *ElasticJobReconciler) initializeJob(job *elasticv1alpha1.ElasticJob) {
 	if job.Status.Conditions == nil {
-		initializeJobStatuses(&job.Status, ReplicaTypeEasydlMaster)
+		common.InitializeJobStatuses(&job.Status, master.ReplicaTypeEasydlMaster)
 		msg := fmt.Sprintf("ElasticJob %s is created.", job.Name)
-		UpdateStatus(&job.Status, commonv1.JobCreated, common.JobCreatedReason, msg)
+		common.UpdateStatus(&job.Status, commonv1.JobCreated, common.JobCreatedReason, msg)
 	}
 	if job.Status.StartTime == nil {
 		now := metav1.Now()
@@ -164,15 +162,22 @@ func (r *ElasticJobReconciler) initializeJob(job *elasticv1alpha1.ElasticJob) {
 }
 
 func (r *ElasticJobReconciler) syncJobStateByReplicas(job *elasticv1alpha1.ElasticJob) {
-	for _, manager := range ReplicaManagers {
-		manager.SyncJobState(r, job)
+	for _, manager := range common.ReplicaManagers {
+		manager.SyncJobState(r.Client, job)
 	}
 }
 
 func (r *ElasticJobReconciler) createEasydlMaster(job *elasticv1alpha1.ElasticJob) error {
-	masterManager := ReplicaManagers[ReplicaTypeEasydlMaster]
-	err := masterManager.ReconcilePods(r, job, nil)
+	masterManager := common.ReplicaManagers[master.ReplicaTypeEasydlMaster]
+	err := masterManager.ReconcilePods(r.Client, job, nil)
 	if err != nil {
+		r.Recorder.Eventf(
+			job,
+			corev1.EventTypeWarning,
+			string(commonv1.JobFailed),
+			"master pod created failed: %v",
+			err,
+		)
 		return err
 	}
 	return err
@@ -197,15 +202,25 @@ func (r *ElasticJobReconciler) getJobScaler(job *elasticv1alpha1.ElasticJob) (*e
 func (r *ElasticJobReconciler) executeScaling(job *elasticv1alpha1.ElasticJob, scaler *elasticv1alpha1.Scaler) error {
 	for replicaType, resourceSpec := range scaler.Spec.ReplicaResourceSpecs {
 		logger.Infof("Replica %s, resource %v", replicaType, resourceSpec)
-		replicaManager := ReplicaManagers[replicaType]
-		replicaManager.ReconcilePods(r, job, &resourceSpec)
+		replicaManager := common.ReplicaManagers[replicaType]
+		err := replicaManager.ReconcilePods(r.Client, job, &resourceSpec)
+		if err != nil {
+			r.Recorder.Eventf(
+				job,
+				corev1.EventTypeWarning,
+				"Failed",
+				"Reconcile replica %s created failed: %v",
+				replicaType,
+				err,
+			)
+		}
 	}
 	return nil
 }
 
 func (r *ElasticJobReconciler) handleFaultPods(job *elasticv1alpha1.ElasticJob) {
-	for _, manager := range ReplicaManagers {
-		manager.HandleFaultPods(r, job)
+	for _, manager := range common.ReplicaManagers {
+		manager.HandleFaultPods(r.Client, job)
 	}
 }
 
