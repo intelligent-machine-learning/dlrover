@@ -43,18 +43,18 @@ const (
 	ReplicaTypeEasydlMaster commonv1.ReplicaType = "easydl-master"
 )
 
-// MasterManager generates a master pod object.
-type MasterManager struct{}
+// Manager generates a master pod object.
+type Manager struct{}
 
 func init() {
-	common.ReplicaManagers[ReplicaTypeEasydlMaster] = newMasterManager()
+	common.ReplicaManagers[ReplicaTypeEasydlMaster] = newManager()
 }
 
-func newMasterManager() *MasterManager {
-	return &MasterManager{}
+func newManager() *Manager {
+	return &Manager{}
 }
 
-func (m *MasterManager) newEasydlMaster(
+func (m *Manager) newEasydlMaster(
 	job *elasticv1alpha1.ElasticJob, replicaIndex int,
 ) *corev1.Pod {
 	container := corev1.Container{
@@ -89,7 +89,7 @@ func (m *MasterManager) newEasydlMaster(
 }
 
 // ReconcilePods reconciles Pods of a job on a K8s cluster
-func (m *MasterManager) ReconcilePods(
+func (m *Manager) ReconcilePods(
 	client runtime_client.Client,
 	job *elasticv1alpha1.ElasticJob,
 	resourceSpec *elasticv1alpha1.ReplicaResourceSpec,
@@ -108,7 +108,7 @@ func (m *MasterManager) ReconcilePods(
 }
 
 // SyncJobState synchronize the job status by replicas
-func (m *MasterManager) SyncJobState(client runtime_client.Client, job *elasticv1alpha1.ElasticJob) error {
+func (m *Manager) SyncJobState(client runtime_client.Client, job *elasticv1alpha1.ElasticJob) error {
 	master, err := m.getMasterPod(client, job)
 	if master == nil {
 		logger.Warnf("Failed to get master, error : %v", err)
@@ -149,7 +149,7 @@ func (m *MasterManager) SyncJobState(client runtime_client.Client, job *elasticv
 }
 
 // getMasterPod gets the master pod of a job from a cluster.
-func (m *MasterManager) getMasterPod(client runtime_client.Client, job *elasticv1alpha1.ElasticJob) (*corev1.Pod, error) {
+func (m *Manager) getMasterPod(client runtime_client.Client, job *elasticv1alpha1.ElasticJob) (*corev1.Pod, error) {
 	pods, err := common.GetReplicaTypePods(client, job, ReplicaTypeEasydlMaster)
 	if errors.IsNotFound(err) {
 		return nil, err
@@ -162,7 +162,7 @@ func (m *MasterManager) getMasterPod(client runtime_client.Client, job *elasticv
 	return &pods[len(pods)-1], nil
 }
 
-func (m *MasterManager) newEasydlMasterService(job *elasticv1alpha1.ElasticJob) *corev1.Service {
+func (m *Manager) newEasydlMasterService(job *elasticv1alpha1.ElasticJob) *corev1.Service {
 	name := NewEasydlMasterServiceName(job.Name)
 	selector := make(map[string]string)
 	selector[common.LabelReplicaTypeKey] = string(ReplicaTypeEasydlMaster)
@@ -182,7 +182,7 @@ func newEasydlMasterName(jobName string, index int) string {
 
 // HandleFaultPods relaunches a new Pod if a pod is deleted or ignores
 // the fault Pod if it fails with uncoverable errors.
-func (m *MasterManager) HandleFaultPods(client runtime_client.Client, job *elasticv1alpha1.ElasticJob) error {
+func (m *Manager) HandleFaultPods(client runtime_client.Client, job *elasticv1alpha1.ElasticJob) error {
 	curMaster, err := m.getMasterPod(client, job)
 	if curMaster == nil {
 		logger.Warnf("Failed to get master, error : %v", err)
