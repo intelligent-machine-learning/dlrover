@@ -243,5 +243,29 @@ func (m *PSTaskManager) insertTfConfigToEnv(container *corev1.Container, cluster
 func (m *PSTaskManager) HandleFaultPods(
 	r *controllers.ElasticJobReconciler, job *elasticv1alpha1.ElasticJob,
 ) error {
+	replicaPods, err := m.GetReplicaTypePods(r.Client, job, m.taskType)
+	if err != nil {
+		return err
+	}
+	for _, pod := range(replicaPods){
+		if pod.DeletionTimestamp != nil {
+			logger.Infof("Pod %s is deleted and will be relaunched", pod.Name) 
+			totalReplicaCount := m.getTotalTaskCount(job.Status.ReplicaStatuses[m.taskType])
+			pod.Name = m.newTaskName(job.Name, totalReplicaCount)
+
+		}else if pod.Status.Phase == corev1.PodFailed {
+			if len(pod.Status.ContainerStatuses) > 0 && pod.Status.ContainerStatuses[0].State.Terminated != nil{
+				terminated := pod.Status.ContainerStatuses[0].State.Terminated
+				if terminated.Reason == commonv1.ReasonOOMKilled {
+					if terminated.ExitCode == commonv1.FatalExitCode {
+						logger.Infof("Pod %s fails", pod.Name)
+					}
+				}else {
+					logger.Infof("Pod %s OOM", pod.Name)
+				}
+			}
+		}
+	}
 	return nil
 }
+
