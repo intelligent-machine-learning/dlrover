@@ -4,8 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
+	common "github.com/intelligent-machine-learning/easydl/operator/pkg/common"
 	commonv1 "github.com/intelligent-machine-learning/easydl/operator/pkg/common/api/v1"
-	controllers "github.com/intelligent-machine-learning/easydl/operator/pkg/controllers"
+	master "github.com/intelligent-machine-learning/easydl/operator/pkg/controllers/master"
 	logger "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -61,17 +62,15 @@ type SparseTFConfig struct {
 
 // PSTaskManager generates Pods for task in a distributed PS job.
 type PSTaskManager struct {
-	controllers.PodManager
-
 	taskType commonv1.ReplicaType
 }
 
 // SyncJobState synchronize the job status by replicas
 func (m *PSTaskManager) SyncJobState(
-	r *controllers.ElasticJobReconciler,
+	client runtime_client.Client,
 	job *elasticv1alpha1.ElasticJob,
 ) error {
-	taskPods, err := m.GetReplicaTypePods(r.Client, job, m.taskType)
+	taskPods, err := common.GetReplicaTypePods(client, job, m.taskType)
 	for _, pod := range taskPods {
 		logger.Infof("Pod :%s", pod.Name)
 	}
@@ -79,7 +78,7 @@ func (m *PSTaskManager) SyncJobState(
 		logger.Warningf("No any Task %s found: %v", m.taskType, err)
 		return nil
 	}
-	taskStatus := m.GetReplicaStatus(taskPods)
+	taskStatus := common.GetReplicaStatus(taskPods)
 	if _, ok := job.Status.ReplicaStatuses[m.taskType]; !ok {
 		job.Status.ReplicaStatuses[m.taskType] = taskStatus
 	} else {
@@ -94,8 +93,8 @@ func (m *PSTaskManager) SyncJobState(
 func (m *PSTaskManager) insertCommonLabels(
 	labels map[string]string, taskIndex int,
 ) {
-	labels[controllers.LabelReplicaTypeKey] = string(m.taskType)
-	labels[controllers.LabelReplicaIndexKey] = fmt.Sprintf("%d", taskIndex)
+	labels[common.LabelReplicaTypeKey] = string(m.taskType)
+	labels[common.LabelReplicaIndexKey] = fmt.Sprintf("%d", taskIndex)
 }
 
 func (m *PSTaskManager) newTask(
@@ -108,7 +107,8 @@ func (m *PSTaskManager) newTask(
 		return nil
 	}
 	name := m.newTaskName(job.Name, taskIndex)
-	pod := m.NewPod(job, &spec.Template, name)
+	pod := common.NewPod(job, &spec.Template, name)
+	master.SetMasterAddrIntoContainer(&pod.Spec.Containers[0], job.Name)
 	pod.Labels[LabelRestartCount] = fmt.Sprintf("%d", spec.RestartCount)
 	m.insertCommonLabels(pod.Labels, taskIndex)
 	return pod
@@ -148,7 +148,7 @@ func (m *PSTaskManager) newTaskService(
 	name := m.newTaskName(job.Name, taskIndex)
 	selector := make(map[string]string)
 	m.insertCommonLabels(selector, taskIndex)
-	service := m.NewService(job, name, servicePort, selector)
+	service := common.NewService(job, name, servicePort, selector)
 	return service
 }
 
@@ -165,18 +165,18 @@ func (m *PSTaskManager) getAllTaskHosts(
 	return hosts
 }
 
+// getPSCluster gets a cluster definition of a PS training cluster
 func (m *PSTaskManager) getPSCluster(
-	client runtime_client.Client,
-	job *elasticv1alpha1.ElasticJob,
+	client runtime_client.Client, job *elasticv1alpha1.ElasticJob,
 ) SparseClusterSpec {
 	cluster := SparseClusterSpec{}
-	psHosts := m.getPSHosts(job, client)
+	psHosts := getPSHosts(job, client)
 	if len(psHosts) > 0 {
 		cluster.PS = psHosts
 	}
 	if status, ok := job.Status.ReplicaStatuses[ReplicaTypeChief]; ok {
 		cluster.Chief = make(map[int]string)
-		chiefManager := controllers.ReplicaManagers[ReplicaTypeChief].(*ChiefManager)
+		chiefManager := common.ReplicaManagers[ReplicaTypeChief].(*ChiefManager)
 		taskCount := chiefManager.getTotalTaskCount(status)
 		if taskCount == 0 {
 			taskCount = int(status.Initial)
@@ -195,19 +195,19 @@ func (m *PSTaskManager) getPSCluster(
 	return cluster
 }
 
-func (m *PSTaskManager) getPSHosts(
+func getPSHosts(
 	job *elasticv1alpha1.ElasticJob,
 	client runtime_client.Client,
 ) []string {
 	status := job.Status.ReplicaStatuses[ReplicaTypePS]
-	psManager := controllers.ReplicaManagers[ReplicaTypePS].(*PSManager)
+	psManager := common.ReplicaManagers[ReplicaTypePS].(*PSManager)
 	taskCount := psManager.getTotalTaskCount(status)
 	var psHosts []string
 	if taskCount == 0 {
 		taskCount = int(status.Initial)
 		psHosts = psManager.getAllTaskHosts(job.Name, taskCount, psServicePort)
 	} else {
-		psPods, _ := psManager.GetReplicaTypePods(client, job, psManager.taskType)
+		psPods, _ := common.GetReplicaTypePods(client, job, psManager.taskType)
 		psHosts = psManager.getAllPSHosts(psPods, job.Name)
 	}
 	return psHosts
@@ -241,26 +241,26 @@ func (m *PSTaskManager) insertTfConfigToEnv(container *corev1.Container, cluster
 // HandleFaultPods relaunches a new Pod if a pod is deleted or ignores
 // the fault Pod if it fails with uncoverable errors.
 func (m *PSTaskManager) HandleFaultPods(
-	r *controllers.ElasticJobReconciler, job *elasticv1alpha1.ElasticJob,
+	client runtime_client.Client, job *elasticv1alpha1.ElasticJob,
 ) error {
-	replicaPods, err := m.GetReplicaTypePods(r.Client, job, m.taskType)
+	replicaPods, err := common.GetReplicaTypePods(client, job, m.taskType)
 	if err != nil {
 		return err
 	}
-	for _, pod := range(replicaPods){
+	for _, pod := range replicaPods {
 		if pod.DeletionTimestamp != nil {
-			logger.Infof("Pod %s is deleted and will be relaunched", pod.Name) 
+			logger.Infof("Pod %s is deleted and will be relaunched", pod.Name)
 			totalReplicaCount := m.getTotalTaskCount(job.Status.ReplicaStatuses[m.taskType])
 			pod.Name = m.newTaskName(job.Name, totalReplicaCount)
 
-		}else if pod.Status.Phase == corev1.PodFailed {
-			if len(pod.Status.ContainerStatuses) > 0 && pod.Status.ContainerStatuses[0].State.Terminated != nil{
+		} else if pod.Status.Phase == corev1.PodFailed {
+			if len(pod.Status.ContainerStatuses) > 0 && pod.Status.ContainerStatuses[0].State.Terminated != nil {
 				terminated := pod.Status.ContainerStatuses[0].State.Terminated
 				if terminated.Reason == commonv1.ReasonOOMKilled {
 					if terminated.ExitCode == commonv1.FatalExitCode {
 						logger.Infof("Pod %s fails", pod.Name)
 					}
-				}else {
+				} else {
 					logger.Infof("Pod %s OOM", pod.Name)
 				}
 			}
@@ -268,4 +268,3 @@ func (m *PSTaskManager) HandleFaultPods(
 	}
 	return nil
 }
-

@@ -11,9 +11,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package commmon
+package common
 
 import (
+	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
 	apiv1 "github.com/intelligent-machine-learning/easydl/operator/pkg/common/api/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -137,4 +138,45 @@ func filterOutCondition(conditions []apiv1.JobCondition, condType apiv1.JobCondi
 		newConditions = append(newConditions, c)
 	}
 	return newConditions
+}
+
+// isRunning checks if the job is running.
+func isRunning(status elasticv1alpha1.ElasticJobStatus) bool {
+	return HasCondition(status.JobStatus, apiv1.JobRunning)
+}
+
+func updatePhase(jobStatus *elasticv1alpha1.ElasticJobStatus, status apiv1.JobConditionType) {
+	jobStatus.Phase = status
+}
+
+// InitializeTrainingJobStatuses initializes the ReplicaStatuses for TrainingJob.
+func InitializeJobStatuses(jobStatus *elasticv1alpha1.ElasticJobStatus, rtype apiv1.ReplicaType) {
+	initializeJobStatus(jobStatus)
+
+	replicaType := apiv1.ReplicaType(rtype)
+	jobStatus.ReplicaStatuses[replicaType] = &apiv1.ReplicaStatus{}
+}
+
+// initializeTrainingJobStatuses initializes the ReplicaStatuses for TrainingJob.
+func initializeJobStatus(jobStatus *elasticv1alpha1.ElasticJobStatus) {
+	if jobStatus.ReplicaStatuses == nil {
+		jobStatus.ReplicaStatuses = make(map[apiv1.ReplicaType]*apiv1.ReplicaStatus)
+	}
+	if len(jobStatus.Conditions) == 0 {
+		jobStatus.Conditions = []apiv1.JobCondition{}
+	}
+}
+
+// UpdateStatus adds to the jobStatus a new condition if needed, with the conditionType, reason, and message.
+func UpdateStatus(jobStatus *elasticv1alpha1.ElasticJobStatus, conditionType apiv1.JobConditionType, reason, message string) error {
+	updateJobConditions(jobStatus, conditionType, reason, message)
+	updatePhase(jobStatus, conditionType)
+	return nil
+}
+
+// updateJobConditions adds to the jobStatus a new condition if needed, with the conditionType, reason, and message.
+func updateJobConditions(status *elasticv1alpha1.ElasticJobStatus, conditionType apiv1.JobConditionType, reason, message string) error {
+	condition := NewCondition(conditionType, reason, message)
+	SetCondition(&status.JobStatus, condition)
+	return nil
 }
