@@ -149,7 +149,7 @@ func updatePhase(jobStatus *elasticv1alpha1.ElasticJobStatus, status apiv1.JobCo
 	jobStatus.Phase = status
 }
 
-// InitializeTrainingJobStatuses initializes the ReplicaStatuses for TrainingJob.
+// InitializeJobStatuses initializes the ReplicaStatuses for TrainingJob.
 func InitializeJobStatuses(jobStatus *elasticv1alpha1.ElasticJobStatus, rtype apiv1.ReplicaType) {
 	initializeJobStatus(jobStatus)
 
@@ -157,7 +157,7 @@ func InitializeJobStatuses(jobStatus *elasticv1alpha1.ElasticJobStatus, rtype ap
 	jobStatus.ReplicaStatuses[replicaType] = &apiv1.ReplicaStatus{}
 }
 
-// initializeTrainingJobStatuses initializes the ReplicaStatuses for TrainingJob.
+// initializeJobStatus initializes the ReplicaStatuses for TrainingJob.
 func initializeJobStatus(jobStatus *elasticv1alpha1.ElasticJobStatus) {
 	if jobStatus.ReplicaStatuses == nil {
 		jobStatus.ReplicaStatuses = make(map[apiv1.ReplicaType]*apiv1.ReplicaStatus)

@@ -29,9 +29,9 @@ import (
 )
 
 const (
-	labelAppName     = "app"
-	labelJobName     = "elasticjob-name"
-	easydlApp        = "easydl"
+	labelAppName = "app"
+	labelJobName = "elasticjob-name"
+	easydlApp    = "easydl"
 	// LabelReplicaTypeKey is the key of ReplicaType in labels
 	LabelReplicaTypeKey = "replica-type"
 	// LabelReplicaIndexKey is the key of ReplicaIndex in labels
