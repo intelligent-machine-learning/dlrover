@@ -16,8 +16,8 @@ package psstrategy
 import (
 	"encoding/json"
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
+	common "github.com/intelligent-machine-learning/easydl/operator/pkg/common"
 	commonv1 "github.com/intelligent-machine-learning/easydl/operator/pkg/common/api/v1"
-	controllers "github.com/intelligent-machine-learning/easydl/operator/pkg/controllers"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	"testing"
@@ -50,9 +50,12 @@ func TestNewChiefPod(t *testing.T) {
 	assert.Equal(t, pod.Labels[LabelRestartCount], "3")
 	assert.Equal(
 		t,
-		pod.Labels[controllers.LabelReplicaTypeKey],
+		pod.Labels[common.LabelReplicaTypeKey],
 		string(ReplicaTypeChief),
 	)
+	assert.Equal(t, len(pod.Spec.Containers[0].Env), 1)
+	assert.Equal(t, pod.Spec.Containers[0].Env[0].Name, "MASTER_ADDR")
+	assert.Equal(t, pod.Spec.Containers[0].Env[0].Value, "test-psstrategy-easydl-master:50001")
 
 	cluster := SparseClusterSpec{
 		Chief: map[int]string{0: "test-psstrategy-chief-0:2222"},
@@ -72,8 +75,8 @@ func TestNewChiefService(t *testing.T) {
 	service := manager.newTaskService(job, 0, chiefServicePort)
 	assert.Equal(
 		t,
-		service.Spec.Selector[controllers.LabelReplicaTypeKey],
+		service.Spec.Selector[common.LabelReplicaTypeKey],
 		string(ReplicaTypeChief),
 	)
-	assert.Equal(t, service.Spec.Selector[controllers.LabelReplicaIndexKey], "0")
+	assert.Equal(t, service.Spec.Selector[common.LabelReplicaIndexKey], "0")
 }

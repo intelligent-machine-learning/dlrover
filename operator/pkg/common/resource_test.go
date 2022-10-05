@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package controllers
+package common
 
 import (
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
@@ -48,13 +48,9 @@ func TestNewPod(t *testing.T) {
 			Containers: []corev1.Container{container},
 		},
 	}
-	manager := newPodManager()
-	pod := manager.NewPod(job, podTemplate, "test-job-worker-0")
+	pod := NewPod(job, podTemplate, "test-job-worker-0")
 	assert.Equal(t, pod.Name, "test-job-worker-0")
 	assert.Equal(t, pod.Spec.Containers[0].Image, "test")
-	assert.Equal(t, len(pod.Spec.Containers[0].Env), 1)
-	assert.Equal(t, pod.Spec.Containers[0].Env[0].Name, "MASTER_ADDR")
-	assert.Equal(t, pod.Spec.Containers[0].Env[0].Value, "test-job-easydl-master:50001")
 }
 
 func TestGetReplicaStatus(t *testing.T) {
@@ -68,8 +64,7 @@ func TestGetReplicaStatus(t *testing.T) {
 	pod2 := corev1.Pod{}
 	pod2.Status.Phase = corev1.PodSucceeded
 	pods = append(pods, pod2)
-	manager := newPodManager()
-	replicaStatus := manager.GetReplicaStatus(pods)
+	replicaStatus := GetReplicaStatus(pods)
 	int32One := int32(1)
 	assert.Equal(t, replicaStatus.Active, int32One)
 	assert.Equal(t, replicaStatus.Failed, int32One)
@@ -78,11 +73,10 @@ func TestGetReplicaStatus(t *testing.T) {
 
 func TestNewService(t *testing.T) {
 	job := newTestJob()
-	manager := newPodManager()
 	selector := make(map[string]string)
 	selector[LabelReplicaTypeKey] = "worker"
 	selector[LabelReplicaIndexKey] = "1"
-	service := manager.NewService(job, "test-worker-0", 2222, selector)
+	service := NewService(job, "test-worker-0", 2222, selector)
 	assert.Equal(t, service.Spec.Selector[LabelReplicaTypeKey], "worker")
 	assert.Equal(t, service.Spec.Selector[LabelReplicaIndexKey], "1")
 }

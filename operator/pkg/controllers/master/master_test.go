@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package controllers
+package master
 
 import (
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
@@ -30,7 +30,7 @@ func TestCreateMasterPod(t *testing.T) {
 		},
 	}
 
-	manager := newMasterManager()
+	manager := newManager()
 	pod := manager.newEasydlMaster(job, initMasterIndex)
 	assert.Equal(t, pod.Name, "test-ps-easydl-master-0")
 }
