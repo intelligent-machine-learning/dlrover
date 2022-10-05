@@ -17,9 +17,9 @@ import (
 	"context"
 	"fmt"
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
-	controllers "github.com/intelligent-machine-learning/easydl/operator/pkg/controllers"
+	common "github.com/intelligent-machine-learning/easydl/operator/pkg/common"
 	logger "github.com/sirupsen/logrus"
-	corev1 "k8s.io/api/core/v1"
+	runtime_client "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
@@ -33,7 +33,7 @@ type ChiefManager struct {
 
 func init() {
 	logger.Infof("init chief manager")
-	controllers.ReplicaManagers[ReplicaTypeChief] = newChiefManager()
+	common.ReplicaManagers[ReplicaTypeChief] = newChiefManager()
 }
 
 func newChiefManager() *ChiefManager {
@@ -46,7 +46,7 @@ func newChiefManager() *ChiefManager {
 
 // ReconcilePods creates a Pod on a K8s cluster
 func (m *ChiefManager) ReconcilePods(
-	r *controllers.ElasticJobReconciler,
+	client runtime_client.Client,
 	job *elasticv1alpha1.ElasticJob,
 	resourceSpec *elasticv1alpha1.ReplicaResourceSpec,
 ) error {
@@ -54,7 +54,7 @@ func (m *ChiefManager) ReconcilePods(
 	aliveNum := int(chiefStatus.Active + chiefStatus.Pending)
 	if aliveNum == 0 {
 		chiefIndex := 0
-		cluster := m.getPSCluster(r.Client, job)
+		cluster := m.getPSCluster(client, job)
 		if cluster.Chief == nil {
 			cluster.Chief = make(map[int]string)
 		}
@@ -63,29 +63,13 @@ func (m *ChiefManager) ReconcilePods(
 			return fmt.Errorf("No Chief ReplicaSpec")
 		}
 		m.insertTfConfigToEnv(&chief.Spec.Containers[0], cluster, chiefIndex)
-		err := r.Create(context.Background(), chief)
+		err := client.Create(context.Background(), chief)
 		if err != nil {
-			r.Recorder.Eventf(
-				job,
-				corev1.EventTypeWarning,
-				string(corev1.PodFailed),
-				"Chief pod %s created failed: %v",
-				chief.Name,
-				err,
-			)
 			return err
 		}
 		service := m.newTaskService(job, chiefIndex, chiefServicePort)
-		err = r.Create(context.Background(), service)
+		err = client.Create(context.Background(), service)
 		if err != nil {
-			r.Recorder.Eventf(
-				job,
-				corev1.EventTypeWarning,
-				string(corev1.PodFailed),
-				"Chief service %s created failed: %v",
-				service.Name,
-				err,
-			)
 			return err
 		}
 	}
