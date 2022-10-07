@@ -1,8 +1,15 @@
-# operator
-// TODO(user): Add simple overview of use/purpose
+# ElasticJob Operator
+
+ElasticJob can scale in/out resources for distributed deep learning,
+including the number of nodes, CPU and memory of each node.
 
 ## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
+
+The operator contains 2 CRDs, `elasticjob` and `scaler`. Users don't need
+to set replica resource when they apply a `elasticjob` to train on a cluster.
+The `elasticjob` controller will create a EasyDL master Pod for each
+`elasticjob`. The master will generate a `scaler` with PS/worker resources
+to notify the controller to launch Pods for the training.
 
 ## Getting Started
 You’ll need a Kubernetes cluster to run against. You can use [KIND](https://sigs.k8s.io/kind) to get a local cluster for testing, or run against a remote cluster.
@@ -12,7 +19,7 @@ You’ll need a Kubernetes cluster to run against. You can use [KIND](https://si
 1. Install Instances of Custom Resources:
 
 ```sh
-kubectl apply -f config/samples/
+kubectl apply -f config/crd/bases
 ```
 
 2. Build and push your image to the location specified by `IMG`:
@@ -42,7 +49,8 @@ make undeploy
 ```
 
 ## Contributing
-// TODO(user): Add detailed information on how you would like others to contribute to this project
+
+You can feel free to submit PullRequest to support features or fix bugs.
 
 ### How it works
 This project aims to follow the Kubernetes [Operator pattern](https://kubernetes.io/docs/concepts/extend-kubernetes/operator/)
@@ -71,24 +79,4 @@ If you are editing the API definitions, generate the manifests such as CRs or CR
 ```sh
 make manifests
 ```
-
-**NOTE:** Run `make --help` for more information on all potential `make` targets
-
-More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
-
-## License
-
-Copyright 2022.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
 
