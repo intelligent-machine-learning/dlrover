@@ -17,9 +17,9 @@ import (
 	"context"
 	"fmt"
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
-	controllers "github.com/intelligent-machine-learning/easydl/operator/pkg/controllers"
+	common "github.com/intelligent-machine-learning/easydl/operator/pkg/common"
 	logger "github.com/sirupsen/logrus"
-	corev1 "k8s.io/api/core/v1"
+	runtime_client "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
@@ -33,7 +33,7 @@ type EvaluatorManager struct {
 
 func init() {
 	logger.Infof("init evaluator manager")
-	controllers.ReplicaManagers[ReplicaTypeEvaluator] = newEvaluatorManager()
+	common.ReplicaManagers[ReplicaTypeEvaluator] = newEvaluatorManager()
 }
 
 func newEvaluatorManager() *EvaluatorManager {
@@ -46,7 +46,7 @@ func newEvaluatorManager() *EvaluatorManager {
 
 // ReconcilePods creates a Pod on a K8s cluster
 func (m *EvaluatorManager) ReconcilePods(
-	r *controllers.ElasticJobReconciler,
+	client runtime_client.Client,
 	job *elasticv1alpha1.ElasticJob,
 	resourceSpec *elasticv1alpha1.ReplicaResourceSpec,
 ) error {
@@ -54,7 +54,7 @@ func (m *EvaluatorManager) ReconcilePods(
 	aliveNum := int(evaluatorStatus.Active + evaluatorStatus.Pending)
 	if aliveNum == 0 {
 		evaluatorIndex := 0
-		cluster := m.getPSCluster(r.Client, job)
+		cluster := m.getPSCluster(client, job)
 		if cluster.Evaluator == nil {
 			cluster.Evaluator = make(map[int]string)
 		}
@@ -66,28 +66,13 @@ func (m *EvaluatorManager) ReconcilePods(
 			return fmt.Errorf("No Evaluator ReplicaSpec")
 		}
 		m.insertTfConfigToEnv(&evaluator.Spec.Containers[0], cluster, evaluatorIndex)
-		err := r.Create(context.Background(), evaluator)
+		err := client.Create(context.Background(), evaluator)
 		if err != nil {
-			r.Recorder.Eventf(
-				job,
-				corev1.EventTypeWarning,
-				string(corev1.PodFailed),
-				"evaluator pod %s created failed: %v",
-				evaluator.Name,
-				err)
 			return err
 		}
 		service := m.newTaskService(job, evaluatorIndex, evaluatorServicePort)
-		err = r.Create(context.Background(), service)
+		err = client.Create(context.Background(), service)
 		if err != nil {
-			r.Recorder.Eventf(
-				job,
-				corev1.EventTypeWarning,
-				string(corev1.PodFailed),
-				"Evaluator service %s created failed: %v",
-				service.Name,
-				err,
-			)
 			return err
 		}
 	}
