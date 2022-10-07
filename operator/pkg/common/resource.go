@@ -14,11 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controllers
+package common
 
 import (
 	"context"
-	"fmt"
 	"github.com/golang/glog"
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
 	commonv1 "github.com/intelligent-machine-learning/easydl/operator/pkg/common/api/v1"
@@ -30,21 +29,29 @@ import (
 )
 
 const (
-	labelAppName     = "app"
-	labelJobName     = "elasticjob-name"
-	easydlApp        = "easydl"
-	envMasterAddrKey = "MASTER_ADDR"
+	labelAppName = "app"
+	labelJobName = "elasticjob-name"
+	easydlApp    = "easydl"
+	// LabelReplicaTypeKey is the key of ReplicaType in labels
+	LabelReplicaTypeKey = "replica-type"
+	// LabelReplicaIndexKey is the key of ReplicaIndex in labels
+	LabelReplicaIndexKey = "replica-index"
 )
 
-// PodManager manages the lifecycle of a pod including creation, updation and deletion.
-type PodManager struct{}
+// ReplicaManagers contains the manager for each ReplicaType
+var ReplicaManagers = make(map[commonv1.ReplicaType]ReplicaManager)
 
-func newPodManager() *PodManager {
-	return &PodManager{}
+// ReplicaManager manage pods of ReplicaType
+type ReplicaManager interface {
+	ReconcilePods(client runtime_client.Client, job *elasticv1alpha1.ElasticJob, resourceSpec *elasticv1alpha1.ReplicaResourceSpec) error
+
+	SyncJobState(client runtime_client.Client, job *elasticv1alpha1.ElasticJob) error
+
+	HandleFaultPods(client runtime_client.Client, job *elasticv1alpha1.ElasticJob) error
 }
 
 // NewPod creates a Pod according to a PodTemplateSpec
-func (m *PodManager) NewPod(
+func NewPod(
 	job *elasticv1alpha1.ElasticJob,
 	podTemplate *corev1.PodTemplateSpec,
 	podName string,
@@ -74,7 +81,6 @@ func (m *PodManager) NewPod(
 		return nil
 	}
 
-	setMasterAddrIntoContainer(&podSpec.Spec.Containers[0], job.Name)
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        podName,
@@ -91,18 +97,14 @@ func (m *PodManager) NewPod(
 }
 
 // DeletePod remove a Pod
-func (m *PodManager) DeletePod(
-	client runtime_client.Client,
-	job *elasticv1alpha1.ElasticJob,
-	pod *corev1.Pod,
-) error {
+func DeletePod(client runtime_client.Client, pod *corev1.Pod) error {
 	deleteOptions := &runtime_client.DeleteOptions{GracePeriodSeconds: utilpointer.Int64Ptr(0)}
 	err := client.Delete(context.Background(), pod, deleteOptions)
 	return err
 }
 
 // GetReplicaTypePods get all ReplicaType Pods of a job
-func (m *PodManager) GetReplicaTypePods(
+func GetReplicaTypePods(
 	client runtime_client.Client,
 	job *elasticv1alpha1.ElasticJob,
 	replicaType commonv1.ReplicaType,
@@ -130,7 +132,7 @@ func (m *PodManager) GetReplicaTypePods(
 }
 
 // GetReplicaStatus gets ReplicaStatus from ReplicaType Pods
-func (m *PodManager) GetReplicaStatus(pods []corev1.Pod) *commonv1.ReplicaStatus {
+func GetReplicaStatus(pods []corev1.Pod) *commonv1.ReplicaStatus {
 	replicaStatus := commonv1.ReplicaStatus{}
 
 	for _, pod := range pods {
@@ -148,7 +150,7 @@ func (m *PodManager) GetReplicaStatus(pods []corev1.Pod) *commonv1.ReplicaStatus
 }
 
 // NewService create a service
-func (m *PodManager) NewService(job *elasticv1alpha1.ElasticJob, name string, port int, selector map[string]string) *corev1.Service {
+func NewService(job *elasticv1alpha1.ElasticJob, name string, port int, selector map[string]string) *corev1.Service {
 	selector[labelAppName] = easydlApp
 	selector[labelJobName] = job.Name
 	return &corev1.Service{
@@ -169,18 +171,5 @@ func (m *PodManager) NewService(job *elasticv1alpha1.ElasticJob, name string, po
 				},
 			},
 		},
-	}
-}
-
-func setMasterAddrIntoContainer(container *corev1.Container, jobName string) {
-	masterAddrEnv := newMasterAddrEnvVar(jobName)
-	container.Env = append(container.Env, masterAddrEnv)
-}
-
-func newMasterAddrEnvVar(jobName string) corev1.EnvVar {
-	masterServiceAddr := NewEasydlMasterServiceName(jobName)
-	return corev1.EnvVar{
-		Name:  envMasterAddrKey,
-		Value: fmt.Sprintf("%s:%d", masterServiceAddr, masterServicePort),
 	}
 }

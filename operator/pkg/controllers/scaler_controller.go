@@ -143,7 +143,7 @@ func (r *ScalerReconciler) updateJobToScaling(
 			job.Status.ReplicaStatuses[taskType].Initial = int32(resourceSpec.Replicas)
 		}
 	}
-	UpdateStatus(&job.Status, commonv1.JobScaling, common.JobScalingReason, msg)
+	common.UpdateStatus(&job.Status, commonv1.JobScaling, common.JobScalingReason, msg)
 	err := r.Status().Update(context.Background(), job)
 	if err != nil {
 		logger.Errorf("Failed to update job %s status to scaling with %s, err: %v", job.Name, scaler.Name, err)
