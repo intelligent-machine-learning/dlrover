@@ -1,6 +1,7 @@
 package psstrategy
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
@@ -252,6 +253,10 @@ func (m *PSTaskManager) HandleFaultPods(
 			logger.Infof("Pod %s is deleted and will be relaunched", pod.Name)
 			totalReplicaCount := m.getTotalTaskCount(job.Status.ReplicaStatuses[m.taskType])
 			pod.Name = m.newTaskName(job.Name, totalReplicaCount)
+			err := client.Create(context.Background(), pod.DeepCopy())
+			if err != nil {
+				return err
+			}
 
 		} else if pod.Status.Phase == corev1.PodFailed {
 			if len(pod.Status.ContainerStatuses) > 0 && pod.Status.ContainerStatuses[0].State.Terminated != nil {
