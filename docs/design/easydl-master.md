@@ -99,14 +99,19 @@ throughput. It can report those statistics data to a remote storage like
 database or store those data in memory.
 
 ```Python
-class StatsCollector(metaclass=ABCmeta):
+class StatsCollector(metaclass=ABCMeta):
     def __init__(self, job_uuid):
         self._job_uuid = job_uuid
-        self._node_resource = {}
+        self._node_resource_usage = {}
 
-    def set_node_resource_usage(node_name, resource):
-        self._node_resource.setdefault(node_name, [])
-        self._node_resourece[node_name].append(resource)
+    def collect_node_resource_usage(self, node_name, resource):
+        """Collect the resource usage of the node_name node.
+        Args:
+            node_name: string, the name of node
+            resource: elasticl.python.resource.Resource instace, the resource
+                usage of the node.
+        """
+        self._node_resource_usage[node_name] = resource
 
     @abstractmethod
     def report_resource_usage(self):
