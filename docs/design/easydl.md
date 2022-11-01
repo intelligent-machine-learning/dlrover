@@ -1,21 +1,21 @@
-# EasyDL Design
+# DLRover Design
 
-EasyDL is an automatic distributed deep learning system for parameter server based training jobs.
-EasyDL system can help users train their models with minimal efforts. For example,
-with EasyDL, users need not provide any resource configuration for their 
-deep learning training jobs. Instead, EasyDL can pick up the appropriate resource 
+DLRover is an automatic distributed deep learning system.
+DLRover can help users train their models with minimal efforts. For example,
+with DLRover, users need not provide any resource configuration for their 
+deep learning training jobs. Instead, DLRover can pick up the appropriate resource 
 configuration for each job smartly and continue to optimize those jobs during their runtime.
 
-Currently, EasyDL system has supported automatic resource configuration. 
-However, the final goal of EasyDL is to make the whole deep learning model
+Currently, DLRover has supported automatic resource configuration. 
+However, the final goal of DLRover is to make the whole deep learning model
 training automatic.
 
 ## Background
 
 In parameter server based jobs, all relevant parameters of a model 
-are distributed on the parameter server nodes. Each worker node takes partial training data
-as input and compute new parameters. After that, the worker node sends 
-update parameters to the parameter server node which is keeping parameters. 
+are distributed across parameter servers. Each worker takes partial training data
+as input and compute gradients of parameters. After that, the worker node sends 
+update gradients to the parameter server node which is keeping parameters. 
 
 However, model developers (users) have to learn more rather than model training 
 algorithms when they are using those jobs to train their models. In order to 
@@ -34,49 +34,94 @@ the users fail to provide the optimal resource configuration to their jobs.
 
 We hope to design and implement a system which can free users from resource
 configuration completely and focus on the model training itself. Without any
-input (on resource configuration), the EasyDL can still provide the optimal
-resource plan for each training job, Meanwhile, the EasyDL can optimize the 
+input (on resource configuration), DLRover can still provide the optimal
+resource plan for each training job, Meanwhile, DLRover can optimize the 
 performance of training jobs further through resource adjustment when the jobs
 are running.
 
 ## Design
 
-EasyDL consists of three main components: Brain, Elastic Trainer and Operator.
+DLRover consists of three main components: ElasticJob, Elastic Trainer,
+and Brain service.
+
 
 <div align="center">
-<img src="../figures/easydl-design.jpg" alt="Editor" width="500">
+<img src="../figures/easydl-overview.jpg" alt="Editor" width="500">
 </div>
+
+
+### ElasticJob
+ElasticJob is a customized k8s controller to support elastic scheduling
+of Pods for DL training jobs. ElasticJob is reponsible to launch/delete
+Pods on a k8s cluster according to a Scale CRD.
+We can apply a Scale CRD to scale up/down the number of
+parameter servers or workers and relaunch new Pods with more resource
+to replace Pods with insuffient resource. For example, we relaunch
+a new Pod with more CPU cores to replace a Pod of parameter server
+if CPU cores of the parameter server is bottleneck.
+
+In automatic resource of DLRover,
+the controller can create a training master for the training job
+when a training job is submitted.
+The master will generate a Scale CRD to notity the ElasticJob controller
+to launch/delete paramter servers and workers.
 
 ### Elastic Trainer
 
-For each training job, there is an elastic trainer to manage the job during 
-the job's whole life cycle. The elastic trainer is to:
+For each training job, there is an Elastic Trainer to manage the job during 
+the job's whole life cycle.  Elastic Trainer is to:
 
-1. collect and persistent job's runtime information. 
-2. provide elasticity support to the training job. 
+1. provide dynamic data sharding to support elasticity of a job.
+2. generate a Scale CRD to scale up/down nodes of a job.
 
-When job is running, the elastic training keeps collecting the important runtime
-information of the job (e.g., CPU and memory usage). Those information is persistent
-to a storage and will be used in further optimization of this job.
+Elastic Trainer mainly contains two components:
 
-Unlike some other system which provides similar auto-configuration, elasticity 
-is the key basic function which support the auto-configuration in EasyDL. EasyDL
-does not pursue to have the best resource plan at the first place. Instead,
-EasyDL is designed to adjust the resources smoothly. 
+1. the training master which collects runtime statistics of all Pods,
+generates a Scale CRD notify ElasticJob, and dispatch data shards
+to workers.
+2. the elastic agent which runs on each Pod of the job. The elastic
+agent samples resource workload (e.g., CPU and memory usage)
+of the Pod and reports the workload
+data to the training master. The elastic agent of the worker also
+queries data shards form the training master to build input data
+pipeline of training frameworks.
 
-#### Parameter Server Elasticity
+#### Dynamic Data Sharding
 
-When to scale up/down parameter servers, the elastic trainer will checkpointing
-all parameters on the parameter servers. After the trainer adjusts the number
-of parameter servers, it re-distribute the parameters to new parameter servers
-and inform workers the location of those parameters (i.e., on which parameter server).
+The training master split the dataset into shards and the Elastic Agent
+of the worker quries the shard to train a model. Note a shard does not
+contain samples directly. Instead, a shard only includes indices of
+those samples. All shards are placed into a TODO queue.
+After a worker starts to run, the data input pipeline of a worker
+will query one shard from Elastic Trainer and read samples by indices
+in the shard. Meanwhile, Data Shard Manager marks this shard with the
+id of the worker and moves the shard from the TODO to the DOING queue. 
+After a worker consumes samples in the shard and update the new parameters in PS,
+it reports to the training master and queries a new shard.
+Then Data Shard Manager deletes the finished shard from the DOING queue.
 
-#### Worker Elasticity
+<div align="center">
+<img src="../figures/dynamic_data_shard.jpg" alt="Editor" width="500">
+</div>
 
-The elastic trainer splits the training data into multiple *shards*. Each worker
-will process a shard at a time. Since each worker is not assigned fixed training
-data. The scale up/down of workers does not influence the computation on other
-workers. The new worker just simply picks up a shard for computation.
+
+#### Elasticity of PS Training
+
+1. Worker elasticity. In asynchronous SGD, each PS updates parameters with gradients
+from a worker independently and does not synchronize with other workers.
+Thus, Elastic Trainer can add or remove workers without influencing other workers. A
+fter a new worker starts, it connects to all PS and queries shards from Data Shard Manager
+and consume shards to compute gradients. If a worker is terminated,
+Data Shard Manager moves uncompleted shards of this worker back to the TODO queue from the DOING queue.
+Later the shard can be dispatched to another workers.
+
+1. Parameter server elasticity. When to scale up/down parameter servers, the Elastic Agent of chief (the
+first worker in TensorFlow) will checkpoint model parameters on
+parameter servers.  After the ElasticJob adjusts the number
+of parameter servers, the training master will notiy new hosts of
+parameter servers to the Elastic Agent of all Pods. Then the Elastic
+Agent will notify the training framework (e.g. TensorFlow) to restart
+training and restore model paremeters from a checkpoint.
 
 #### Fault Tolerance
 
@@ -87,7 +132,16 @@ the trainer just starts a worker and let the work picks up a shard for computati
 
 ### Brain
 
-The Brain in EasyDL is to provide the optimal resource plans for each job. It 
+The Brain service of DLRover is to persist runtime statistics of jobs
+from the training master into a database and provide the optimal
+resource plans for each job
+to the training master. Beside the training master,
+it can optimize the job resource according to the information of all jobs.
+The optimization algorithm
+can more quickly provide more accurate resource configuration for the job
+with consideration of fairness of jobs.
+What's more, we can adopt more complicated algorithms like
+reinforcement learning to optimize the job resource. The Brain service
 includes three components.
 
 #### Administor
@@ -101,7 +155,7 @@ the administor will create an optimize event for a new resource plan.
 
 The optimize processor is to process the optimize events created by the administors.
 
-Since EasyDL waives the input from the users, optimize processor has to determine
+Since DLRover waives the input from the users, optimize processor has to determine
 the appropriate optimize algorithms for the training jobs. For example, we should
 use different algorithms to process unbalance workload on PS and insufficient PS numbers.
 Then we can have the optimal resource plans.
@@ -110,9 +164,3 @@ Then we can have the optimal resource plans.
 
 After the optimize processor decides the algorithm for the job, the algorithm 
 executor executes the algorithm and generate the resource plan.
-
-### Operator
-
-When a training job is submitted, the EasyDL operator creates the elastic trainer
-for the training job. Furthermore, when the elastic trainer is to create or deletes
-Pods, the operator is to execute the actual Pod creation and deletion.  
