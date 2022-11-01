@@ -17,8 +17,8 @@ distributed systems.
 ## Architecture of the Training Master
 
 The training master contains 5 components:
-- Resource Optimizer: it generates resource configuration plans for the job.
-- Scaler: it generates Scale CRDs according to scaling plans.
+- Resource Generator: it generates resource configuration plans for the job.
+- Scaler: it generates Scale CRDs according to resource plans.
 - Stats Collector: it collects the runtime statistics for the job, including
 the resource usage of each Node, training throughput and the global step.
 - Data Shard Manager: it splites the training dataset into shards and dispatches
