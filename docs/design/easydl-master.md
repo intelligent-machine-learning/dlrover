@@ -6,8 +6,8 @@ the ElasticJob controller will first create a training master.
 The master provides the following services:
 - Dynamic data sharding. The master can dispatch training data shards
 to workers according to the computation capability of the worker.
-- Collect runtime statistics, including the workload of each Pod,
-training throughput, training process.
+- Collect runtime statistics, including the workload of each parameter
+server and worker, training throughput, training process.
 - Scale up/down Pods. The master generates a Scale CRD to scale up/down
 parameter servers or workers according.
 
@@ -23,7 +23,7 @@ The training master contains 5 components:
 - Stats Collector: it collects the runtime statistics for the job, including
 the resource usage of each Node, training throughput and the global step.
 - Data Shard Manager: it split the training dataset into shards and dispatch
-shards to workers. Eash shard only contains indices of training samples not
+shards to workers. Each shard only contains indices of training samples not
 the data of samples.
 - Node Watcher: it watches events of nodes and notifies Data Shard Manager to
 recover the shard of failed workers or notify Scaler to add the memory
@@ -38,6 +38,43 @@ The design of the training master is shown as
 ## Interface Detail of Components
 
 Here, we introduce the interface of those components.
+
+### StatsCollector
+
+`StatsCollector` collects runtime statistics fo each node and training
+throughput. It can report those statistics data to a remote storage like
+database.
+
+```Python
+class StatsCollector(metaclass=ABCMeta):
+    def __init__(self, job_uuid):
+        self._job_uuid = job_uuid
+        self._node_resource_usage = {}
+
+    def collect_node_resource_usage(self, node_name, resource):
+        """Collect the resource usage of the node_name node.
+        Args:
+            node_name: string, the name of node
+            resource: elasticl.python.resource.Resource instace, the resource
+                usage of the node.
+        """
+        self._node_resource_usage[node_name] = resource
+
+    @abstractmethod
+    def report_resource_usage(self):
+        pass
+```
+We can implement `report_resource_usage` to report the runtime statistics
+(e.g. CPU/memory usage) of all parameter servers and workers
+to DLRover Brain to persist them in a database like MySQL.
+Even if the training master breaks down, we can launch a new
+Pod for the master without the loss of data. Using the data in a
+database, we can evaluate the performance of optimization algorithms
+and update our optimization algorithms.
+For simplity, we can store those statistics in the memory of
+the training master. But those data will be missing if
+the training master breaks down and we can not track the
+performace of optimization algorithms.
 
 ### ResourceGenerator
 
@@ -90,34 +127,6 @@ class k8sScaler(Scaler):
         crd = self.generate_scale_crd_by_plan(resource_plan)
         self.apply_crd(crd)
 ```
-
-### StatsCollector
-
-`StatsCollector` collects runtime statistics fo each node and training
-throughput. It can report those statistics data to a remote storage like
-database or store those data in memory.
-
-```Python
-class StatsCollector(metaclass=ABCMeta):
-    def __init__(self, job_uuid):
-        self._job_uuid = job_uuid
-        self._node_resource_usage = {}
-
-    def collect_node_resource_usage(self, node_name, resource):
-        """Collect the resource usage of the node_name node.
-        Args:
-            node_name: string, the name of node
-            resource: elasticl.python.resource.Resource instace, the resource
-                usage of the node.
-        """
-        self._node_resource_usage[node_name] = resource
-
-    @abstractmethod
-    def report_resource_usage(self):
-        pass
-```
-We can implement `report_resource_usage` to report the resource usage
-of all nodes to EasyDL Brain or a MySQL DB.
 
 ### NodeWatcher
 
