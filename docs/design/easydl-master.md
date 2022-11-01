@@ -91,8 +91,17 @@ class ResourceGenerator(metaclass=ABCMeta):
 
 The interface `generate_plan` generates a resource configuration plan for the
 job at the stage. We can implement a ResourceGenerator to query a resource
-plan from the optimizer of DLRover Brain service or generate a resource plan
-according to the local job runtime statistics of the training master.
+plan from the optimizer of DLRover Brain service.
+
+For simplity, we can implement a `ResourceGenerator` to
+generate a resource plan according to the local runtime
+statistics in the training master. However, the DLRover Brain service
+can acquire the information of all jobs including completed and running
+jobs. The optimizer of the DLRover Brain can more quickly
+generate a more optimal resource plan. It can short the
+searching time of optimization. What's, using the optimizer
+of DLRover Brain, we can support the fault-tolerance of the
+master because all statistics are persisted in a database by DLRover Brain.
 
 ### Scaler
 
