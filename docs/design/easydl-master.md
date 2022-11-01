@@ -1,6 +1,5 @@
-# Training Master For EasyDL
-
-The design describes how the architecture of the training master of EasyDL.
+# Training Master For DLRover
+The design describes how the architecture of the training master of DLRover.
 When the user submits an ElasticJob,
 the ElasticJob controller will first create a training master.
 The master provides the following services:
@@ -32,7 +31,7 @@ of OOM nodes.
 The design of the training master is shown as
 
 <div align="center">
-<img src="../figures/easydl-master-arch.jpg" alt="Editor" width="500">
+<img src="../figures/training-master" alt="Editor" width="500">
 </div>
 
 ## Interface Detail of Components
