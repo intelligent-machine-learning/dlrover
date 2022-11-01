@@ -1,14 +1,14 @@
 # Training Master For EasyDL
 
 The design describes how the architecture of the training master of EasyDL.
-When the user submit an ElasticJob,
+When the user submits an ElasticJob,
 the ElasticJob controller will first create a training master.
 The master provides the following services:
 - Dynamic data sharding. The master can dispatch training data shards
 to workers according to the computation capability of the worker.
 - Collect runtime statistics, including the workload of each Pod,
 training throughput, training process.
-- Scale up/down Pods. The master generate a Scale CRD to scale up/down
+- Scale up/down Pods. The master generates a Scale CRD to scale up/down
 parameter servers or workers according.
 
 We have implemented a training master of k8s ElasticJob and developers
@@ -22,14 +22,14 @@ The training master contains 5 components:
 - Scaler: it generates Scale CRDs according to scaling plans.
 - Stats Collector: it collects the runtime statistics for the job, including
 the resource usage of each Node, training throughput and the global step.
-- Data Shard Manager: it split the trianing dataset into shards and dispatch
+- Data Shard Manager: it split the training dataset into shards and dispatch
 shards to workers. Eash shard only contains indices of training samples not
 the data of samples.
-- Node Watcher: it watches events of nodes and notify Data Shard Manager to
+- Node Watcher: it watches events of nodes and notifies Data Shard Manager to
 recover the shard of failed workers or notify Scaler to add the memory
 of OOM nodes.
 
-The design of the tarining master is shown as
+The design of the training master is shown as
 
 <div align="center">
 <img src="../figures/easydl-master-arch.jpg" alt="Editor" width="500">
@@ -39,25 +39,24 @@ The design of the tarining master is shown as
 
 Here, we introduce the interface of those components.
 
-### ResourceOptimizer
+### ResourceGenerator
 
-`ResourceOptimizer` generates an optimization resource plan for the job.
+`ResourceGenerator` generates an optimization resource plan for the job.
 
 ```Python
-class ResourceOptimizer(metaclass=ABCMeta):
+class ResourceGenerator(metaclass=ABCMeta):
     def __init__(self, job_uuid):
         self._job_uuid = job_uuid
 
     @abstractmethod
-    def optimize(self, stage, config={}):
+    def generate_plan(self, stage, config={}):
         pass
 ```
 
-The interface `optimize` generates a resource configuration plan for the
-job at the stage. We can implement an optimizer to get the optimization
-resource plan from an optimization service or generate a resource plan
-at local.
-
+The interface `generate_plan` generates a resource configuration plan for the
+job at the stage. We can implement a ResourceGenerator to query a resource
+plan from the optimizer of DLRover Brain service or generate a resource plan
+according to the local job runtime statistics of the training master.
 
 ### Scaler
 
