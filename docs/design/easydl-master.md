@@ -21,7 +21,7 @@ The training master contains 5 components:
 - Scaler: it generates Scale CRDs according to scaling plans.
 - Stats Collector: it collects the runtime statistics for the job, including
 the resource usage of each Node, training throughput and the global step.
-- Data Shard Manager: it split the training dataset into shards and dispatch
+- Data Shard Manager: it splites the training dataset into shards and dispatches
 shards to workers. Each shard only contains indices of training samples not
 the data of samples.
 - Node Watcher: it watches events of nodes and notifies Data Shard Manager to
@@ -31,7 +31,7 @@ of OOM nodes.
 The design of the training master is shown as
 
 <div align="center">
-<img src="../figures/training-master" alt="Editor" width="500">
+<img src="../figures/training-master-arch.jpg" alt="Editor" width="500">
 </div>
 
 ## Interface Detail of Components
