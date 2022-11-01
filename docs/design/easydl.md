@@ -44,11 +44,25 @@ are running.
 DLRover consists of three main components: ElasticJob, Elastic Trainer,
 and Brain service.
 
-
 <div align="center">
 <img src="../figures/easydl-overview.jpg" alt="Editor" width="500">
 </div>
 
+The upper figure shows how DLRover manages DL training jobs on a k8s cluster.
+Users wrap up a training job as an ElasticJob CRD and submit it to the cluster.
+After receiving the CRD, ElasticJob operator creates a Elastic Trainer for
+the job by starting a master Pod. Then Elastic Trainer query a initial resource
+plan from the Brain service. After that, Elastic Trainer creates Scale CRDs
+from the plan and apply the Scale CRD to notify ElasticJob controller to
+launch required Pods and each Pod will start a Elastic Agent on it.
+During training, the training master of Elastic Trainer dispatches data shards
+to workers, keeps collecting runtime statistics
+(e.g., CPU, memory usage, and training progress)
+and reports them to EasyDL Brain to persist those data into database
+periodically. Based on the job’s running status, 
+EasyDL Brain picks up appropriate algorithms to
+generate new resource plans and informs Elastic Trainer to
+start resources adjustment.
 
 ### ElasticJob
 ElasticJob is a customized k8s controller to support elastic scheduling
