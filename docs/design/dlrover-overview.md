@@ -91,7 +91,7 @@ the job's whole life cycle.  Elastic Trainer is to:
 Elastic Trainer mainly contains two components:
 
 1. the training master which collects runtime statistics of all Pods,
-generates a Scale CRD notify ElasticJob, and dispatch data shards
+generates a Scale CRD notify ElasticJob, and dispatches data shards
 to workers.
 2. the elastic agent which runs on each Pod of the job. The elastic
 agent samples resource workload (e.g., CPU and memory usage)
