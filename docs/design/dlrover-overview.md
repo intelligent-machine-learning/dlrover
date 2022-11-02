@@ -72,7 +72,7 @@ DLRover consists of three main components: ElasticJob, Elastic Trainer,
 and Brain service.
 
 <div align="center">
-<img src="../figures/easydl-overview.jpg" alt="Editor" width="500">
+<img src="../figures/dlrover-overview.jpg" alt="Editor" width="500">
 </div>
 
 The upper figure shows how DLRover manages DL training jobs on a k8s cluster.
