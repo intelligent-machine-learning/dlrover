@@ -1,14 +1,22 @@
-# Training Master For DLRover
-The design describes how the architecture of the training master of DLRover.
-When the user submits an ElasticJob,
-the ElasticJob controller will first create a training master.
-The master provides the following services:
+# Training Master of DLRover
+The design describes the architecture of the training master of DLRover.
+The master is responsible to controll the training of a single job and
+provide the following services:
+
 - Dynamic data sharding. The master can dispatch training data shards
 to workers according to the computation capability of the worker.
 - Collect runtime statistics, including the workload of each parameter
 server and worker, training throughput, training process.
 - Scale up/down Pods. The master generates a Scale CRD to scale up/down
-parameter servers or workers according.
+parameter servers or workers.
+
+If we have deployed a Brain service, the training master can report
+statistics of a job to the Brain and get resource optimization plans
+from the Brain to scale the job. Otherwise, the training master
+need to store statistics in the memory and generate the resource
+optimization plan by those runtime statistics. The latter cannot support
+the fault-tolerance of the master because the data is missing if the master
+fails.
 
 We have implemented a training master of k8s ElasticJob and developers
 can implement interfaces to customize their training master on other
@@ -16,7 +24,7 @@ distributed systems.
 
 ## Architecture of the Training Master
 
-The training master contains 5 components:
+The master contains 5 components:
 - Resource Generator: it generates resource configuration plans for the job.
 - Scaler: it generates Scale CRDs according to resource plans.
 - Stats Collector: it collects the runtime statistics for the job, including
@@ -31,7 +39,7 @@ of OOM nodes.
 The design of the training master is shown as
 
 <div align="center">
-<img src="../figures/training-master-arch.jpg" alt="Editor" width="500">
+<img src="../figures/training-master.jpg" alt="Editor" width="500">
 </div>
 
 ## Interface Detail of Components
