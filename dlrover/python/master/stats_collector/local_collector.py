@@ -1,6 +1,4 @@
-from dlrover.python.master.stats_collector.base_collector import (
-    StatsCollector
-)
+from dlrover.python.master.stats_collector.base_collector import StatsCollector
 
 
 class LocalStatsCollector(StatsCollector):
