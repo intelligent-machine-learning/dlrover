@@ -1,4 +1,4 @@
-from elasticdl.python.master.stats_collector.base_collector import (
+from dlrover.python.master.stats_collector.base_collector import (
     StatsCollector
 )
 

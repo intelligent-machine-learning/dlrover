@@ -1,7 +1,7 @@
 import unittest
 
-from elasticdl.python.common.resource import NodeResource
-from elasticdl.python.master.stats_collector.local_collector import (
+from dlrover.python.common.resource import NodeResource
+from dlrover.python.master.stats_collector.local_collector import (
     LocalStatsCollector
 )
 
