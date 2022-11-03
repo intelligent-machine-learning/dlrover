@@ -43,11 +43,11 @@ is running.
 There are 3 scenarios to satisfy different requirements from the simple
 to the complex.
 
-### Elasticity of a Single Job 
+### Manual Scaling of a Single Job
 In the scenario, users can launch an elastic training job and manually scale
 up/down Pods of the job.
 
-### Auto-scaling of a single Job
+### Auto-scaling of a Single Job
 In the scenario, users implement algorithms in the master
 to auto-scale a training job using runtime statistics 
 (e.g. resource usage of all Pods, training speed and so on)
