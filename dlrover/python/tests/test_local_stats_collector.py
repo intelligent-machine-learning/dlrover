@@ -2,7 +2,7 @@ import unittest
 
 from dlrover.python.common.resource import NodeResource
 from dlrover.python.master.stats_collector.local_collector import (
-    LocalStatsCollector
+    LocalStatsCollector,
 )
 
 
