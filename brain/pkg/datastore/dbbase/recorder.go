@@ -68,16 +68,16 @@ type RecorderInterface interface {
 	UpsertMany(rows []interface{}) error
 }
 
-// DBRecorder is the struct of a recorder
-type DBRecorder struct {
+// DatabaseRecorder is the struct of the database recorder
+type DatabaseRecorder struct {
 	*xorm.Engine
 	TableName string
 }
 
-var _ RecorderInterface = &DBRecorder{}
+var _ RecorderInterface = &DatabaseRecorder{}
 
 // Get returns a single row which meets the condition
-func (r *DBRecorder) Get(row interface{}, condition Condition) error {
+func (r *DatabaseRecorder) Get(row interface{}, condition Condition) error {
 	if !utils.IsPtr(row) {
 		return errors.New("should pass a pointer to 'Get'")
 	}
@@ -96,7 +96,7 @@ func (r *DBRecorder) Get(row interface{}, condition Condition) error {
 }
 
 // List returns multiple rows which meet the condition
-func (r *DBRecorder) List(rows interface{}, condition Condition) error {
+func (r *DatabaseRecorder) List(rows interface{}, condition Condition) error {
 	if !utils.IsPtr(rows) {
 		return errors.New("should pass a pointer to 'List'")
 	}
@@ -111,7 +111,7 @@ func (r *DBRecorder) List(rows interface{}, condition Condition) error {
 }
 
 // Count returns the number of rows which meet the condition
-func (r *DBRecorder) Count(condition Condition) (uint64, error) {
+func (r *DatabaseRecorder) Count(condition Condition) (uint64, error) {
 	session := r.Table(r.TableName)
 	session = condition.Apply(session)
 	count, err := session.Count()
@@ -123,13 +123,13 @@ func (r *DBRecorder) Count(condition Condition) (uint64, error) {
 }
 
 // Upsert updates or insert a row
-func (r *DBRecorder) Upsert(row interface{}) error {
+func (r *DatabaseRecorder) Upsert(row interface{}) error {
 	session := r.Table(r.TableName)
 	return r.upsertInner(session, row)
 }
 
 // UpsertMany updates or insert many rows
-func (r *DBRecorder) UpsertMany(rows []interface{}) error {
+func (r *DatabaseRecorder) UpsertMany(rows []interface{}) error {
 	_, err := r.Transaction(func(session *xorm.Session) (interface{}, error) {
 		for _, row := range rows {
 			if err := r.upsertInner(session, row); err != nil {
@@ -141,7 +141,7 @@ func (r *DBRecorder) UpsertMany(rows []interface{}) error {
 	return err
 }
 
-func (r *DBRecorder) upsertInner(session *xorm.Session, row interface{}) error {
+func (r *DatabaseRecorder) upsertInner(session *xorm.Session, row interface{}) error {
 	if !utils.IsPtr(row) {
 		return errors.New("should pass pointer to Upsert/UpsertMany")
 	}
@@ -179,7 +179,7 @@ func generateInsertOnDupUpdateSQLAndArgs(tableName string, rowMap *orderedmap.Or
 	return sqlAndArgs
 }
 
-func (r *DBRecorder) toDBMap(row interface{}) (*orderedmap.OrderedMap, error) {
+func (r *DatabaseRecorder) toDBMap(row interface{}) (*orderedmap.OrderedMap, error) {
 	mapper := r.GetColumnMapper()
 	structFieldNameMap, err := utils.ToMap(row)
 	if err != nil {
