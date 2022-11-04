@@ -18,16 +18,12 @@ import "github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/dbbas
 // Client is the struct of mysql db client
 type Client struct {
 	JobMetricsRecorder JobMetricsRecorderInterface
-	TaskGroupsRecorder TaskGroupsRecorderInterface
-	TasksRecorder      TasksRecorderInterface
 }
 
 // NewClient returns a new mysql db client
 // Test
-func NewClient(db *dbbase.DB) *Client {
+func NewClient(db *dbbase.DatabaseRecorder) *Client {
 	return &Client{
 		JobMetricsRecorder: NewJobMetricsDBRecorder(db),
-		TaskGroupsRecorder: NewTaskGroupsDBRecorder(db),
-		TasksRecorder:      NewTasksRecorder(db),
 	}
 }

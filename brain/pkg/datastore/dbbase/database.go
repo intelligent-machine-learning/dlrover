@@ -24,16 +24,16 @@ import (
 	"xorm.io/xorm/names"
 )
 
-// DB is the struct of database
-type DB struct {
+// Database is the struct of database
+type Database struct {
 	*xorm.Engine
 }
 
-// NewDB creates a DB
-func NewDB(username, password, url string) *DB {
-	var db DB
+// NewDatabase creates a DB
+func NewDatabase(username, password, engineType, url string) *Database {
+	var db Database
 	uri := formatURI(username, password, url)
-	db.init(uri)
+	db.init(engineType, uri)
 	return &db
 }
 
@@ -65,9 +65,9 @@ func formatURI(username, password, url string) string {
 	return uri
 }
 
-func (db *DB) init(uri string) {
+func (db *Database) init(engineType string, uri string) {
 	var err error
-	engine, err := xorm.NewEngine("mysql", uri)
+	engine, err := xorm.NewEngine(engineType, uri)
 	if err != nil {
 		panic(err)
 	}
@@ -81,7 +81,7 @@ func (db *DB) init(uri string) {
 // postProcessEngine set default mapper, fix time zone problem and set show sql
 func postProcessEngine(engine *xorm.Engine, showSQL bool) *xorm.Engine {
 	uri := engine.DataSourceName()
-	// Gonic mapper example: WorkerGPU <==> worker_gpu
+	// Set Gonic mapper, for example: WorkerGPU <==> worker_gpu
 	engine.SetMapper(names.GonicMapper{})
 	// go-sql-driver default loc is "UTC", namely the default timezone of returned time2.Time.
 	// While xorm default timezone is "Local".
@@ -102,7 +102,7 @@ func postProcessEngine(engine *xorm.Engine, showSQL bool) *xorm.Engine {
 }
 
 // InitMockAndDB initializes a mock db
-func InitMockAndDB(showSQL bool) (*DB, sqlmock.Sqlmock, error) {
+func InitMockAndDB(showSQL bool) (*Database, sqlmock.Sqlmock, error) {
 	mockDB, mock, err := sqlmock.New()
 	if err != nil {
 		return nil, nil, err
@@ -112,7 +112,7 @@ func InitMockAndDB(showSQL bool) (*DB, sqlmock.Sqlmock, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	db := &DB{Engine: xormEngine}
+	db := &Database{Engine: xormEngine}
 	return db, mock, nil
 }
 
