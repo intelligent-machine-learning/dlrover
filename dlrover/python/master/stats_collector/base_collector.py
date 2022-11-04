@@ -23,7 +23,7 @@ class StatsCollector(metaclass=ABCMeta):
         """Collect the resource usage of the node_name node.
         Args:
             node_name: string, the name of node
-            resource: elasticl.python.resource.NodeResource instace,
+            resource: a dlrover.python.common.resource.NodeResource instace,
                 the resource usage of the node.
         """
         self._node_resource_usage[node_name] = resource
