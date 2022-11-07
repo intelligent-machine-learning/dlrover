@@ -126,10 +126,6 @@ class Scaler(metaclass=ABCMeta):
         pass
 ```
 
-```Python
-class StatsCollector(meta)
-```
-
 We can implement the `scale` for different distributed systems. For example
 we develop a `k8sScaler` to generate a `Scale` CRD to scale up/down Pods
 of an ElasticJob.
