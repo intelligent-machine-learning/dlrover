@@ -30,7 +30,7 @@ repos:
         entry: bash ./scripts/codestyle/clang_format.hook -i
         language: system
         files: \.(c|cc|cxx|cpp|cu|h|hpp|hxx|proto)$
-        exclude: easydl/go/vendor
+        exclude: brain/vendor
   - repo: local
     hooks:
       - id: cpplint-cpp-source
@@ -39,20 +39,20 @@ repos:
         entry: bash ./scripts/codestyle/cpplint_precommit.hook
         language: system
         files: \.(c|cc|cxx|cpp|cu|h|hpp|hxx)$
-        exclude: easydl/go/vendor
+        exclude: brain/vendor
   - repo: https://github.com/dnephin/pre-commit-golang.git
     rev: v0.3.3
     hooks:
       - id: go-fmt
-        exclude: easydl/go/vendor
+        exclude: brain/vendor
       - id: go-lint
-        exclude: easydl/go/vendor
+        exclude: brain/vendor
       - id: no-go-testing
   - repo: https://github.com/gruntwork-io/pre-commit
     rev: v0.1.8
     hooks:
       - id: shellcheck
-        exclude: easydl/go/vendor
+        exclude: brain/vendor
         files: \.(sh)$
   - repo: local
     hooks:
@@ -61,13 +61,14 @@ repos:
         entry: python ./scripts/codestyle/copyright.py
         language: system
         files: \.(go|py|sh)$
-        exclude: (operator/api/v1alpha1/|operator/pkg/common/api/v1/)
+        # yamllint disable-line rule:line-length
+        exclude: (operator/api/v1alpha1/|operator/pkg/common/api/v1/|brain/vendor)
   - repo: https://github.com/adrienverge/yamllint.git
     rev: v1.23.0
     hooks:
       - id: yamllint
         exclude:
-          (elasticdl/python/tests/data|operator/config)
+          (elasticdl/python/tests/data|operator/config|brain/vendor)
   - repo: https://github.com/igorshubovych/markdownlint-cli
     rev: v0.23.1
     hooks:
@@ -76,5 +77,5 @@ repos:
         description: "Checks the style of Markdown files."
         entry: markdownlint
         language: node
-        exclude: (easydl/go/vendor)
+        exclude: (brain/vendor)
         args: [-s, .markdownlint.yaml]
