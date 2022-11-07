@@ -17,3 +17,16 @@ class NodeResource(object):
         self.cpu = cpu
         self.memory = memory
         self.gpu = gpu
+
+
+class TaskGroupResource(object):
+    """The task group resource contains the number of the task
+    and resource (cpu, memory) of each task.
+    Args:
+        count: int, the number of task.
+        node_resource: a NodeResource instance.
+    """
+
+    def __init__(self, count, node_resource):
+        self.count = count
+        self.node_resource = node_resource
