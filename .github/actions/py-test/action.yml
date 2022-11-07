@@ -7,4 +7,4 @@ runs:
   args:
     - "/bin/bash"
     - "-c"
-    - "echo 'TODO'"
+    - "python -m pytest dlrover/python/tests"
