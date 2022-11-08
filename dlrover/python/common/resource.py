@@ -27,6 +27,6 @@ class TaskGroupResource(object):
         node_resource: a NodeResource instance.
     """
 
-    def __init__(self, count, node_resource):
+    def __init__(self, count, node_resource: NodeResource):
         self.count = count
         self.node_resource = node_resource
