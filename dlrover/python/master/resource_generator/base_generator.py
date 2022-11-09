@@ -12,30 +12,31 @@
 # limitations under the License.
 
 from abc import ABCMeta, abstractmethod
+from typing import Dict
+
+from dlrover.python.common.resource import NodeResource, TaskGroupResource
 
 
 class ResourcePlan(object):
     """A resource configuration plan."""
 
     def __init__(self):
-        self.task_group_resources = {}
-        self.node_resources = {}
+        self.task_group_resources: Dict[str, TaskGroupResource] = {}
+        self.node_resources: Dict[str, NodeResource] = {}
 
-    def add_task_group_resource(self, name, resource):
+    def add_task_group_resource(self, name, resource: TaskGroupResource):
         """Add task group resource.
         Args:
             name: string, the name of task group like "ps/worker".
-            resource: a dlrover.python.common.resource.TaskGroupResource
-                instance.
+            resource: the resource of task group.
         """
         self.task_group_resources[name] = resource
 
-    def add_node_resource(self, name, resource):
+    def add_node_resource(self, name, resource: NodeResource):
         """Add a node resource.
         Args:
             name: string, the name of node.
-            resource: a dlrover.python.common.resource.NodeResource
-                instance.
+            resource: the resource of a node.
         """
         self.node_resources[name] = resource
 

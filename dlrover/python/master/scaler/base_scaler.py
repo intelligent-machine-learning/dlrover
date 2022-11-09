@@ -11,22 +11,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from abc import ABCMeta, abstractmethod
 
-class NodeResource(object):
-    def __init__(self, cpu, memory, gpu=None):
-        self.cpu = cpu
-        self.memory = memory
-        self.gpu = gpu
+from dlrover.python.master.resource_generator.base_generator import (
+    ResourcePlan,
+)
 
 
-class TaskGroupResource(object):
-    """The task group resource contains the number of the task
-    and resource (cpu, memory) of each task.
-    Args:
-        count: int, the number of task.
-        node_resource: a NodeResource instance.
+class Scaler(metaclass=ABCMeta):
+    """Scaler is to call cluster scheduler to scale up/down nodes of a job.
+    Attributes:
+        job_name: string, the name of job.
     """
 
-    def __init__(self, count, node_resource: NodeResource):
-        self.count = count
-        self.node_resource = node_resource
+    def __init__(self, job_name):
+        self._job_name = job_name
+
+    @abstractmethod
+    def scale(self, plan: ResourcePlan):
+        """Scale the job with the plan"""
+        pass
