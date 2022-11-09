@@ -10,23 +10,3 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-
-class NodeResource(object):
-    def __init__(self, cpu, memory, gpu=None):
-        self.cpu = cpu
-        self.memory = memory
-        self.gpu = gpu
-
-
-class TaskGroupResource(object):
-    """The task group resource contains the number of the task
-    and resource (cpu, memory) of each task.
-    Args:
-        count: int, the number of task.
-        node_resource: a NodeResource instance.
-    """
-
-    def __init__(self, count, node_resource: NodeResource):
-        self.count = count
-        self.node_resource = node_resource

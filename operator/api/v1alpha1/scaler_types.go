@@ -37,6 +37,9 @@ type ScalerSpec struct {
 	//   }
 	ReplicaResourceSpecs map[commonv1.ReplicaType]ReplicaResourceSpec `json:"replicaResourceSpec,omitempty"`
 
+	// NodeResourceSpec specifics resources configurations of nodes.
+	NodeResourceSpec map[string]ResourceSpec `json:"nodeResourceSpec,omitempty"`
+
 	// OwnerJob specifies a job to scale.
 	OwnerJob string `json:"ownerJob,omitempty"`
 }
