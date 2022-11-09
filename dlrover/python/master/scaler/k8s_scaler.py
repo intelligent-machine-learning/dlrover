@@ -18,8 +18,10 @@ from dlrover.python.master.resource_generator.base_generator import (
     ResourcePlan,
 )
 from dlrover.python.master.scaler.base_scaler import Scaler
+from dlrover.python.scheduler.kubernetes import Client
 
-API_VERION = "elastic.iml.github.io/v1alpha1"
+SCALER_GROUP = "elastic.iml.github.io"
+SCALER_VERION = "v1alpha1"
 SCALER_KIND = "Scaler"
 
 
@@ -31,13 +33,25 @@ class BaseScalerSpec(metaclass=ABCMeta):
 
 
 class ScalerResourceSpec(BaseScalerSpec):
+    """The resource specification of a node.
+    Attributes:
+        cpu: CPU cores of a node.
+        memory: The memory of of a node with unit of MB.
+        gpu: GPU cores of a node.
+    """
+
     def __init__(self, cpu, memory, gpu):
         self.cpu = cpu
         self.memory = memory
         self.gpu = gpu
 
     def to_dict(self):
-        return self.__dict__
+        spec = {}
+        spec["cpu"] = str(self.cpu)
+        spec["memory"] = "{}Mi".format(self.memory)
+        if self.gpu:
+            spec["gpu"] = str(self.gpu)
+        return spec
 
 
 class ScalerReplicaResourceSpec(BaseScalerSpec):
@@ -76,7 +90,7 @@ class ScalerSpec(BaseScalerSpec):
         return spec
 
 
-class ScalerKind(object):
+class ScalerKind(BaseScalerSpec):
     """ScalerKind is a dictionary of a Scaler CRD for an ElasticJob
     to scale up/down Pods of a job on a k8s cluster.
     """
@@ -93,19 +107,35 @@ class ScalerKind(object):
         self.metadata = metadata
         self.spec = spec
 
+    def to_dict(self):
+        spec = {}
+        spec["apiVersion"] = self.api_version
+        spec["kind"] = self.kind
+        spec["metadata"] = self.metadata
+        spec["spec"] = self.spec.to_dict()
+        return spec
+
 
 class k8sScaler(Scaler):
-    def __init__(self, job_name, namespace, cluster):
+    def __init__(self, job_name, namespace, cluster, client: Client):
         super(k8sScaler, self).__init__(job_name)
         self._namespace = namespace
         self._cluster = cluster
+        self._client = client
 
     def scale(self, plan: ResourcePlan):
-        pass
+        scaler_crd = self._generate_scaler_crd_by_plan(plan)
+        self._client.create_custom_resource(
+            group=SCALER_GROUP,
+            version=SCALER_VERION,
+            plural="scalers",
+            body=scaler_crd.to_dict(),
+        )
 
     def _generate_scaler_crd_by_plan(self, plan: ResourcePlan) -> ScalerKind:
+        api_version = SCALER_GROUP + "/" + SCALER_VERION
         scaler_crd = ScalerKind(
-            api_version=API_VERION,
+            api_version=api_version,
             kind=SCALER_KIND,
             metadata={"name": "{}-scaler".format(self._job_name)},
             spec=ScalerSpec(self._job_name),

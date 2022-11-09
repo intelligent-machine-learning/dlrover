@@ -28,7 +28,9 @@ class k8sScalerTest(unittest.TestCase):
         group_resource = TaskGroupResource(1, node_resource)
         plan.add_task_group_resource("worker", group_resource)
 
-        scaler = k8sScaler(job_name="test", namespace="dlrover", cluster="")
+        scaler = k8sScaler(
+            job_name="test", namespace="dlrover", cluster="", client=None
+        )
         scaler_crd = scaler._generate_scaler_crd_by_plan(plan)
 
         expected_dict = {
@@ -36,9 +38,9 @@ class k8sScalerTest(unittest.TestCase):
             "replicaResourceSpec": {
                 "worker": {
                     "replicas": 1,
-                    "resource": {"cpu": 10, "memory": 4096, "gpu": None},
+                    "resource": {"cpu": "10", "memory": "4096Mi"},
                 }
             },
-            "nodeResourceSpec": {"cpu": 10, "memory": 4096, "gpu": None},
+            "nodeResourceSpec": {"cpu": "10", "memory": "4096Mi"},
         }
         self.assertDictEqual(scaler_crd.spec.to_dict(), expected_dict)
