@@ -7,4 +7,5 @@ runs:
   args:
     - "/bin/bash"
     - "-c"
+    - "pip install kubernetes"
     - "python -m pytest dlrover/python/tests"
