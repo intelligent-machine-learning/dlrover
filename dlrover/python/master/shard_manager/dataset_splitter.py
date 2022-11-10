@@ -1,8 +1,23 @@
+# Copyright 2022 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import math
 import random
-from dlrover.python.common.log_utils import default_logger as logger
-from typing import List
 from abc import ABCMeta, abstractmethod
+from typing import List
+
+from dlrover.python.common.log_utils import default_logger as logger
+
 _MAX_SHARD_COUNT = 50000
 
 
@@ -15,6 +30,7 @@ class Shard(object):
         end: int, the end record index of the shard.
         record_indices: indices of records in the dataset.
     """
+
     def __init__(self, name, start, end, record_indices: List[int] = None):
         self.name = name
         self.start = start
@@ -29,6 +45,7 @@ class DatasetSplitter(metaclass=ABCMeta):
         shard_size: the number of records in a shard.
         num_epochs: the number of passes of the entire dataset.
     """
+
     def __init__(self, dataset_size, shard_size, num_epochs) -> None:
         self._dataset_size = dataset_size
         self._shard_size = shard_size
@@ -57,6 +74,7 @@ class TableDatasetSplitter(DatasetSplitter):
             The value can limit the number of shards in the memory
             to avoid OOM.
     """
+
     def __init__(
         self,
         dataset_name: str,
@@ -68,7 +86,9 @@ class TableDatasetSplitter(DatasetSplitter):
         max_shard_count=_MAX_SHARD_COUNT,
     ):
         super(TableDatasetSplitter, self).__init__(
-            dataset_size, shard_size, num_epochs,
+            dataset_size,
+            shard_size,
+            num_epochs,
         )
         self._dataset_name = dataset_name
         self._shuffle = shuffle
@@ -88,9 +108,7 @@ class TableDatasetSplitter(DatasetSplitter):
                 self._dataset_name, self._epoch
             )
         )
-        shard_count = math.ceil(
-            self._dataset_size / self._shard_size
-        )
+        shard_count = math.ceil(self._dataset_size / self._shard_size)
         if shard_count <= self._max_shard_count:
             if not self._shards:
                 self._shards = self._create_shards_with_range(
@@ -119,9 +137,7 @@ class TableDatasetSplitter(DatasetSplitter):
                 )
             )
 
-            subepoch_records = (
-                self._max_shard_count * self._shard_size
-            )
+            subepoch_records = self._max_shard_count * self._shard_size
             start_idx = (self._subepoch_idx - 1) * subepoch_records
             end_idx = start_idx + subepoch_records
             if end_idx > self._dataset_size:
@@ -168,6 +184,7 @@ class TextDatasetSplitter(DatasetSplitter):
         shuffle: whether to shuffle samples of the dataset.
         batch_size: the number of records in a batch.
     """
+
     def __init__(
         self,
         dataset_name,
@@ -191,7 +208,8 @@ class TextDatasetSplitter(DatasetSplitter):
 
     def create_shards(self):
         self._shards = self._create_shards_with_indices(
-            0, self._dataset_size,
+            0,
+            self._dataset_size,
         )
         self._epoch += 1
 
@@ -202,7 +220,8 @@ class TextDatasetSplitter(DatasetSplitter):
             random.shuffle(record_indices)
         for shard_start_idx in range(start_idx, end_idx, self._shard_size):
             shard_end_idx = min(
-                shard_start_idx + self._shard_size, end_idx,
+                shard_start_idx + self._shard_size,
+                end_idx,
             )
             size = shard_end_idx - shard_start_idx
             shard_indices = record_indices[0:size]
