@@ -156,7 +156,7 @@ class NodeWatcher(metaclass=ABCmeta):
         """Wath events of nodes"""
         pass
 
-    @abstrctmethod
+    @abstractmethod
     def list(self):
         """List all nodes of the job"""
         pass
