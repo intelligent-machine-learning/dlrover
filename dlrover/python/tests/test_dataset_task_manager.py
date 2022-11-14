@@ -30,7 +30,7 @@ class DatasetTaskMangerTest(unittest.TestCase):
             shard_size=100,
             num_epochs=1,
         )
-        task_manager = DatasetTaskManager(TaskType.TRAINING, splitter)
+        task_manager = DatasetTaskManager(TaskType.TRAINING, 10, splitter)
         worker_id = 0
         task = task_manager.get_task(worker_id)
         self.assertEqual(task.task_id, 0)
@@ -47,3 +47,4 @@ class DatasetTaskMangerTest(unittest.TestCase):
                 break
             task_manager.report_task_status(task.task_id, True)
         self.assertTrue(task_manager.completed())
+        self.assertEqual(task_manager.get_completed_step(), 1000)

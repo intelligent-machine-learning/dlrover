@@ -40,17 +40,22 @@ class Task(object):
 class TaskManger(metaclass=ABCMeta):
     @abstractmethod
     def get_task(self, worker_id):
-        """Return a task with a shard for the worker with worker_id"""
+        """Return a task with a shard for the worker with worker_id."""
         pass
 
     @abstractmethod
     def recover_task(self, task):
-        """Recover a dispatched task if a worker fails"""
+        """Recover a dispatched task if a worker fails."""
         pass
 
     @abstractmethod
     def report_task_status(self, task_id, success):
-        """The worker reports the status of the shard"""
+        """The worker reports the status of the shard."""
+        pass
+
+    @abstractmethod
+    def get_completed_step(self):
+        """Get the completed step."""
         pass
 
     @abstractmethod
@@ -60,5 +65,5 @@ class TaskManger(metaclass=ABCMeta):
 
     @abstractmethod
     def restore_checkpoint(self, checkpoint):
-        """Restore uncompleted data shards from a checkpoint"""
+        """Restore uncompleted data shards from a checkpoint."""
         pass

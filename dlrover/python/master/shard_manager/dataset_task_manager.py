@@ -11,8 +11,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
 import time
-from typing import Dict, List, Set
+from typing import Dict, List
 
 from dlrover.python.common.log_utils import default_logger as logger
 from dlrover.python.master.shard_manager.base_task_manager import (
@@ -44,21 +45,24 @@ class DatasetTaskManager(TaskManger):
     def __init__(
         self,
         task_type,
+        batch_size,
         dataset_splitter: DatasetSplitter,
     ):
         self._task_type = task_type
+        self._batch_size = batch_size
         self._dataset_splitter = dataset_splitter
         self._todo: List[Task] = []
         self._doing: Dict[int, DoingTask] = {}
         self._max_task_completed_time = 0
         self._task_id = 0
-        self._workers: Set[int] = set()
+        self._completed_step = 0
 
     def reset(self):
         self._todo = []
         self._doing = {}
         self._task_id = 0
         self._max_task_completed_time = 0
+        self._completed_step = 0
 
     def get_task(self, worker_id) -> Task:
         """Return next Task"""
@@ -79,8 +83,6 @@ class DatasetTaskManager(TaskManger):
         self._doing[task.task_id] = DoingTask(
             task, worker_id, int(time.time())
         )
-
-        self._workers.add(worker_id)
         logger.info(
             "Assign task %s of dataset %s to worker %s",
             task.task_id,
@@ -129,6 +131,7 @@ class DatasetTaskManager(TaskManger):
             )
             self.recover_task(doing_task.task)
         else:
+            self._update_completed_step(doing_task.task)
             logger.info(
                 "Task:%d completed, %d remaining tasks for Dataset %s",
                 task_id,
@@ -136,6 +139,14 @@ class DatasetTaskManager(TaskManger):
                 self._dataset_splitter.dataset_name,
             )
         return success, doing_task
+
+    def _update_completed_step(self, task: Task):
+        record_count = task.shard.end - task.shard.start
+        batch_count = math.ceil(record_count / self._batch_size)
+        self._completed_step += batch_count
+
+    def get_completed_step(self):
+        return self._completed_step
 
     def recover_task(self, task):
         if not self._check_exceed_max_task_retries(task):
