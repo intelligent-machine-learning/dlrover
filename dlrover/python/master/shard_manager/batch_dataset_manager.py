@@ -16,9 +16,9 @@ import time
 from typing import Dict, List
 
 from dlrover.python.common.log_utils import default_logger as logger
-from dlrover.python.master.shard_manager.base_task_manager import (
+from dlrover.python.master.shard_manager.base_dataset_manager import (
     Task,
-    TaskManger,
+    DatasetManger,
 )
 from dlrover.python.master.shard_manager.dataset_splitter import (
     DatasetSplitter,
@@ -41,7 +41,15 @@ class DoingTask(object):
         self.start_time = start_time
 
 
-class DatasetTaskManager(TaskManger):
+class BatchDatasetManager(DatasetManger):
+    """BatchDatasetManager create tasks with shards in a static dataset.
+    Attributes:
+        task_type: the type of computation task like "training",
+            "evaluation" and "prediction".
+        batch_size: the size of a batch.
+        dataset_splitter: DatasetSplitter instace to split the dataset
+            into shards.
+    """
     def __init__(
         self,
         task_type,

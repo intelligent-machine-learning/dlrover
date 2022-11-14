@@ -14,11 +14,11 @@
 import unittest
 
 from dlrover.python.common.constants import TaskType
+from dlrover.python.master.shard_manager.batch_dataset_manager import (
+    BatchDatasetManager,
+)
 from dlrover.python.master.shard_manager.dataset_splitter import (
     TableDatasetSplitter,
-)
-from dlrover.python.master.shard_manager.dataset_task_manager import (
-    DatasetTaskManager,
 )
 
 
@@ -30,7 +30,7 @@ class DatasetTaskMangerTest(unittest.TestCase):
             shard_size=100,
             num_epochs=1,
         )
-        task_manager = DatasetTaskManager(TaskType.TRAINING, 10, splitter)
+        task_manager = BatchDatasetManager(TaskType.TRAINING, 10, splitter)
         worker_id = 0
         task = task_manager.get_task(worker_id)
         self.assertEqual(task.task_id, 0)
