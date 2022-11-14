@@ -17,8 +17,8 @@ from typing import Dict, List
 
 from dlrover.python.common.log_utils import default_logger as logger
 from dlrover.python.master.shard_manager.base_dataset_manager import (
-    Task,
     DatasetManger,
+    Task,
 )
 from dlrover.python.master.shard_manager.dataset_splitter import (
     DatasetSplitter,
@@ -50,6 +50,7 @@ class BatchDatasetManager(DatasetManger):
         dataset_splitter: DatasetSplitter instace to split the dataset
             into shards.
     """
+
     def __init__(
         self,
         task_type,
