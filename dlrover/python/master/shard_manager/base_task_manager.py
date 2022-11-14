@@ -9,26 +9,28 @@ class Task(object):
         task_type: str, task type may be "training", "evaluation"
             and "prediction".
         shard: a record shard.
+        retry_count: the count to retry a task.
     """
     def __init__(self, task_id, task_type, shard: Shard):
         self.task_id = task_id
         self.task_type = task_type
         self.shard = shard
+        self.retry_count = 0
 
 
-class ShardManger(metaclass=ABCMeta):
+class TaskManger(metaclass=ABCMeta):
     @abstractmethod
     def get_task(self, worker_id):
         """Return a task with a shard for the worker with worker_id"""
         pass
 
     @abstractmethod
-    def recover_task(self, shard_id):
+    def recover_task(self, task):
         """Recover a dispatched task if a worker fails"""
         pass
 
     @abstractmethod
-    def report_task_status(self, shard_id):
+    def report_task_status(self, task_id, success):
         """The worker reports the status of the shard"""
         pass
 

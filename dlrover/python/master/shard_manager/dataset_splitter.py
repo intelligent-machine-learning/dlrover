@@ -46,10 +46,14 @@ class DatasetSplitter(metaclass=ABCMeta):
         num_epochs: the number of passes of the entire dataset.
     """
 
-    def __init__(self, dataset_size, shard_size, num_epochs) -> None:
-        self._dataset_size = dataset_size
-        self._shard_size = shard_size
+    def __init__(
+        self, dataset_name, dataset_size, shard_size, num_epochs
+    ) -> None:
+        self.dataset_name = dataset_name
+        self.dataset_size = dataset_size
+        self.shard_size = shard_size
         self._num_epochs = num_epochs
+        self._epoch = 0
 
     @abstractmethod
     def create_shards(self):
@@ -60,6 +64,10 @@ class DatasetSplitter(metaclass=ABCMeta):
     def get_shards(self) -> List[Shard]:
         """Get all shards of the dataset"""
         pass
+
+    def epoch_finished(self) -> bool:
+        """Check wether to finish the configured epochs"""
+        return self._epoch >= self._num_epochs
 
 
 class TableDatasetSplitter(DatasetSplitter):
@@ -86,6 +94,7 @@ class TableDatasetSplitter(DatasetSplitter):
         max_shard_count=_MAX_SHARD_COUNT,
     ):
         super(TableDatasetSplitter, self).__init__(
+            dataset_name,
             dataset_size,
             shard_size,
             num_epochs,
@@ -108,11 +117,11 @@ class TableDatasetSplitter(DatasetSplitter):
                 self._dataset_name, self._epoch
             )
         )
-        shard_count = math.ceil(self._dataset_size / self._shard_size)
+        shard_count = math.ceil(self.dataset_size / self.shard_size)
         if shard_count <= self._max_shard_count:
             if not self._shards:
                 self._shards = self._create_shards_with_range(
-                    0, self._dataset_size
+                    0, self.dataset_size
                 )
             self._epoch += 1
         else:
@@ -137,28 +146,28 @@ class TableDatasetSplitter(DatasetSplitter):
                 )
             )
 
-            subepoch_records = self._max_shard_count * self._shard_size
+            subepoch_records = self._max_shard_count * self.shard_size
             start_idx = (self._subepoch_idx - 1) * subepoch_records
             end_idx = start_idx + subepoch_records
-            if end_idx > self._dataset_size:
-                end_idx = self._dataset_size
+            if end_idx > self.dataset_size:
+                end_idx = self.dataset_size
             self._shards = self._create_shards_with_range(start_idx, end_idx)
         if self._shuffle:
             random.shuffle(self._shards)
 
     def _create_shards_with_range(self, start_idx, end_idx) -> List[Shard]:
         shards = []
-        num_shards = (end_idx - start_idx) // self._shard_size
+        num_shards = (end_idx - start_idx) // self.shard_size
         for _ in range(num_shards):
             shard = Shard(
                 name=self._dataset_name,
                 start=start_idx,
-                end=start_idx + self._shard_size,
+                end=start_idx + self.shard_size,
             )
             shards.append(shard)
-            start_idx += self._shard_size
+            start_idx += self.shard_size
         # Create a shard with the last records
-        num_records_left = (end_idx - start_idx) % self._shard_size
+        num_records_left = (end_idx - start_idx) % self.shard_size
         if num_records_left != 0:
             shard = Shard(
                 name=self._dataset_name,
@@ -195,7 +204,7 @@ class TextDatasetSplitter(DatasetSplitter):
         batch_size=None,
     ):
         super(TextDatasetSplitter, self).__init__(
-            dataset_size, shard_size, num_epochs
+            dataset_name, dataset_size, shard_size, num_epochs
         )
         self._dataset_name = dataset_name
         self._shuffle = shuffle
@@ -215,12 +224,12 @@ class TextDatasetSplitter(DatasetSplitter):
 
     def _create_shards_with_indices(self, start_idx, end_idx) -> List[Shard]:
         shards = []
-        record_indices = list(range(self._dataset_size))
+        record_indices = list(range(self.dataset_size))
         if self._shuffle:
             random.shuffle(record_indices)
-        for shard_start_idx in range(start_idx, end_idx, self._shard_size):
+        for shard_start_idx in range(start_idx, end_idx, self.shard_size):
             shard_end_idx = min(
-                shard_start_idx + self._shard_size,
+                shard_start_idx + self.shard_size,
                 end_idx,
             )
             size = shard_end_idx - shard_start_idx
