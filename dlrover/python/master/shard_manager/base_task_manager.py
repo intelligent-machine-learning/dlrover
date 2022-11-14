@@ -33,7 +33,7 @@ class Task(object):
         self.retry_count = 0
 
     @classmethod
-    def get_invalid_task(self):
+    def create_invalid_task(self):
         return Task(-1, "", Shard("", -1, -1))
 
 

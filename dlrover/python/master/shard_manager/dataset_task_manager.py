@@ -73,7 +73,7 @@ class DatasetTaskManager(TaskManger):
             self._create_todo_tasks(shards)
         if not self._todo:
             # No more tasks
-            return Task.get_invalid_task()
+            return Task.create_invalid_task()
 
         task: Task = self._todo.pop(0)
         self._doing[task.task_id] = DoingTask(
