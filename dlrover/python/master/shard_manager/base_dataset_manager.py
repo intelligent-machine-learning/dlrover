@@ -37,7 +37,7 @@ class Task(object):
         return Task(-1, "", Shard("", -1, -1))
 
 
-class TaskManger(metaclass=ABCMeta):
+class DatasetManger(metaclass=ABCMeta):
     @abstractmethod
     def get_task(self, worker_id):
         """Return a task with a shard for the worker with worker_id."""
