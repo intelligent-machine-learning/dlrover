@@ -1,0 +1,135 @@
+import time
+from typing import List, Set
+from dlrover.python.common.global_context import Context
+from dlrover.python.common.log_utils import default_logger as logger
+
+_dlrover_context = Context.instance()
+
+
+class GlobalStepRecord(object):
+    """Record a global step with the time and the number of workers.
+    Attributes:
+        global_step: The global iteration step of a training job.
+        timestamp: the timestampe to collect the global step.
+        worker_num: the number of worker at the timestamp.
+    """
+    def __init__(self, global_step, timestamp, worker_num):
+        self.global_step = global_step
+        self.timestamp = timestamp
+        self.worker_num = worker_num
+
+
+class SpeedMonitor(object):
+    """Monitor the training speed by the number of batch per second"""
+
+    def __init__(self):
+        self._global_step_records: List[GlobalStepRecord] = []
+        self._workers: Set[int] = set()
+        self._max_record_count = _dlrover_context.train_speed_record_num
+        self._global_step = 0
+        self._target_worker_num = 0
+        self._init_time = time.time()
+        self._start_training_time = None
+        self._global_step_count = 0
+
+    def set_target_worker_num(self, worker_num):
+        """Set the target number of workers"""
+        self._target_worker_num = worker_num
+
+    def reduce_target_worker_num(self, num):
+        """Reduce the target number of workers"""
+        if self._target_worker_num > num:
+            self._target_worker_num -= num
+
+    def set_start_timestamp(self):
+        """Set the start timestamp of training"""
+        if self._global_step == 0 and not self._global_step_records:
+            self._global_step_records.append(
+                GlobalStepRecord(0, int(time.time()), len(self._workers))
+            )
+
+    def sample_global_step(self, global_step, timestamp):
+        """The sampling interval should be bigger than 6s. It means
+        that we calculate the speed with interval 1min.
+        """
+        if not self._start_training_time:
+            self._start_training_time = time.time()
+            logger.info(
+                "The initial training time is %s",
+                self._start_training_time - self._init_time,
+            )
+        self._global_step = global_step
+        if (
+            not self._global_step_records
+            or global_step > self._global_step_records[-1].global_step
+        ):
+            self._global_step_count += 1
+            self._global_step_records.append(
+                GlobalStepRecord(global_step, timestamp, len(self._workers))
+            )
+            if len(self._global_step_records) > self._max_record_count:
+                self._global_step_records.pop(0)
+            logger.info(
+                "Global step = %s, Worker number = %s, speed = %s steps/s",
+                self._global_step,
+                self._global_step_records[-1].worker_num,
+                round(self.running_speed, 2),
+            )
+
+    @property
+    def running_speed(self):
+        if len(self._global_step_records) < 2:
+            return 0
+        last_record = self._global_step_records[-1]
+        first_record = self._global_step_records[-2]
+        time_diff = last_record.timestamp - first_record.timestamp
+        if time_diff <= 0:
+            return 0
+        speed = (last_record.global_step - first_record.global_step) / (
+            time_diff
+        )
+        return speed
+
+    def add_running_worker(self, worker_id):
+        self._workers.add(worker_id)
+
+    def remove_running_worker(self, worker_id):
+        if worker_id in self._workers:
+            self._workers.remove(worker_id)
+
+    @property
+    def init_training_time(self):
+        if self._start_training_time:
+            return round(self._start_training_time - self._init_time)
+        else:
+            return 0
+
+    @property
+    def completed_global_step(self):
+        return self._global_step
+
+    @property
+    def running_workers(self):
+        return self._workers
+
+    def reset_running_speed_monitor(self):
+        """Reest the speed monitor"""
+        self._global_step_records = []
+
+    def worker_adjustment_finished(self):
+        """Check the number of workers is equal to the target
+        in the enough time, such 5min"""
+        if not self._global_step_records:
+            return False
+        worker_num = self._global_step_records[-1].worker_num
+        if worker_num != self._target_worker_num:
+            return False
+        last_time = self._global_step_records[-1].timestamp
+        for record in reversed(self._global_step_records):
+            if (
+                record.worker_num == worker_num
+                and last_time - record.timestamp
+                >= _dlrover_context.seconds_for_stable_worker_count
+            ):
+                return True
+        return False
