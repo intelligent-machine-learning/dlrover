@@ -1,13 +1,27 @@
+# Copyright 2022 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import time
-from typing import List, Dict
+from typing import Dict, List, Set
+
+from dlrover.python.common.log_utils import default_logger as logger
 from dlrover.python.master.shard_manager.base_task_manager import (
-    TaskManger,
     Task,
+    TaskManger,
 )
 from dlrover.python.master.shard_manager.dataset_splitter import (
     DatasetSplitter,
 )
-from dlrover.python.common.log_utils import default_logger as logger
 
 _MAX_TASK_RETRIES = 3
 
@@ -19,6 +33,7 @@ class DoingTask(object):
         worker_id: the id of a worker.
         start_time: the timestamp of a worker to fetch the task.
     """
+
     def __init__(self, task: Task, worker_id: int, start_time: int):
         self.task = task
         self.worker_id = worker_id
@@ -37,7 +52,7 @@ class DatasetTaskManager(TaskManger):
         self._doing: Dict[int, DoingTask] = {}
         self._max_task_completed_time = 0
         self._task_id = 0
-        self._workers = set()
+        self._workers: Set[int] = set()
 
     def reset(self):
         self._todo = []
@@ -58,7 +73,7 @@ class DatasetTaskManager(TaskManger):
             self._create_todo_tasks(shards)
         if not self._todo:
             # No more tasks
-            return None
+            return Task.get_invalid_task()
 
         task: Task = self._todo.pop(0)
         self._doing[task.task_id] = DoingTask(
@@ -91,11 +106,15 @@ class DatasetTaskManager(TaskManger):
         logger.info(
             "todo.extend: %d tasks created for "
             "dataset = %s with total of %s records."
-            % (len(tasks), self._dataset_splitter.dataset_name, self._dataset_splitter.dataset_size)
+            % (
+                len(tasks),
+                self._dataset_splitter.dataset_name,
+                self._dataset_splitter.dataset_size,
+            )
         )
         self._todo.extend(tasks)
 
-    def report_task_status(self, task_id, success) -> [bool, DoingTask]:
+    def report_task_status(self, task_id, success):
         doing_task = self._doing.pop(task_id)
         if not doing_task:
             logger.warning(
@@ -105,7 +124,8 @@ class DatasetTaskManager(TaskManger):
             success = False
         elif not success:
             logger.warning(
-                "Task %d of %s failed " % (task_id, self._dataset_splitter.dataset_name)
+                "Task %d of %s failed "
+                % (task_id, self._dataset_splitter.dataset_name)
             )
             self.recover_task(doing_task.task)
         else:

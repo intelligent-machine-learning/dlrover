@@ -13,13 +13,13 @@
 
 import unittest
 
+from dlrover.python.common.constants import TaskType
 from dlrover.python.master.shard_manager.dataset_splitter import (
     TableDatasetSplitter,
 )
 from dlrover.python.master.shard_manager.dataset_task_manager import (
-    DatasetTaskManager
+    DatasetTaskManager,
 )
-from dlrover.python.common.constants import TaskType
 
 
 class DatasetTaskMangerTest(unittest.TestCase):
@@ -43,7 +43,7 @@ class DatasetTaskMangerTest(unittest.TestCase):
 
         for i in range(101):
             task = task_manager.get_task(worker_id)
-            if not task:
+            if task.task_id < 0:
                 break
             task_manager.report_task_status(task.task_id, True)
         self.assertTrue(task_manager.completed())
