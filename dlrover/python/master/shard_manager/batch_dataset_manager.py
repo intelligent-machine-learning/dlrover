@@ -13,32 +13,20 @@
 
 import math
 import time
-from typing import Dict, List
 
 from dlrover.python.common.log_utils import default_logger as logger
 from dlrover.python.master.shard_manager.base_dataset_manager import (
     DatasetManger,
+    DatasetShardCheckpoint,
+    DoingTask,
     Task,
 )
 from dlrover.python.master.shard_manager.dataset_splitter import (
     DatasetSplitter,
+    Shard,
 )
 
 _MAX_TASK_RETRIES = 3
-
-
-class DoingTask(object):
-    """DoingTask records which worker fetches a task and when.
-    Attributes:
-        task: a task with a data shard.
-        worker_id: the id of a worker.
-        start_time: the timestamp of a worker to fetch the task.
-    """
-
-    def __init__(self, task: Task, worker_id: int, start_time: int):
-        self.task = task
-        self.worker_id = worker_id
-        self.start_time = start_time
 
 
 class BatchDatasetManager(DatasetManger):
@@ -57,26 +45,17 @@ class BatchDatasetManager(DatasetManger):
         batch_size,
         dataset_splitter: DatasetSplitter,
     ):
-        self._task_type = task_type
-        self._batch_size = batch_size
-        self._dataset_splitter = dataset_splitter
-        self._todo: List[Task] = []
-        self._doing: Dict[int, DoingTask] = {}
+        super(BatchDatasetManager, self).__init__(
+            task_type, batch_size, dataset_splitter
+        )
         self._max_task_completed_time = 0
         self._task_id = 0
-        self._completed_step = 0
-
-    def reset(self):
-        self._todo = []
-        self._doing = {}
-        self._task_id = 0
-        self._max_task_completed_time = 0
         self._completed_step = 0
 
     def get_task(self, worker_id) -> Task:
         """Return next Task"""
 
-        if not self._todo and not self._dataset_splitter.epoch_finished():
+        if not self.todo and not self._dataset_splitter.epoch_finished():
             # Start a new epoch
             # num_epochs <= 0 indicates that the master will create data
             # shards infinitely. So, the worker can use the dataset like
@@ -84,14 +63,12 @@ class BatchDatasetManager(DatasetManger):
             self._dataset_splitter.create_shards()
             shards = self._dataset_splitter.get_shards()
             self._create_todo_tasks(shards)
-        if not self._todo:
+        if not self.todo:
             # No more tasks
             return Task.create_invalid_task()
 
-        task: Task = self._todo.pop(0)
-        self._doing[task.task_id] = DoingTask(
-            task, worker_id, int(time.time())
-        )
+        task: Task = self.todo.pop(0)
+        self.doing[task.task_id] = DoingTask(task, worker_id, int(time.time()))
         logger.info(
             "Assign task %s of dataset %s to worker %s",
             task.task_id,
@@ -100,11 +77,14 @@ class BatchDatasetManager(DatasetManger):
         )
         return task
 
+    def get_epoch(self):
+        return self._dataset_splitter.get_epoch()
+
     def completed(self):
         return (
             self._dataset_splitter.epoch_finished()
-            and not self._todo
-            and not self._doing
+            and not self.todo
+            and not self.doing
         )
 
     def _create_todo_tasks(self, shards):
@@ -115,18 +95,14 @@ class BatchDatasetManager(DatasetManger):
             self._task_id += 1
 
         logger.info(
-            "todo.extend: %d tasks created for "
-            "dataset = %s with total of %s records."
-            % (
-                len(tasks),
-                self._dataset_splitter.dataset_name,
-                self._dataset_splitter.dataset_size,
-            )
+            "todo.extend: %d tasks created for dataset = %s.",
+            len(tasks),
+            self._dataset_splitter.dataset_name,
         )
-        self._todo.extend(tasks)
+        self.todo.extend(tasks)
 
     def report_task_status(self, task_id, success):
-        doing_task = self._doing.pop(task_id)
+        doing_task = self.doing.pop(task_id)
         if not doing_task:
             logger.warning(
                 "Unknown task_id: %d of dataset %s"
@@ -144,9 +120,12 @@ class BatchDatasetManager(DatasetManger):
             logger.info(
                 "Task:%d completed, %d remaining tasks for Dataset %s",
                 task_id,
-                len(self._todo) + len(self._doing),
+                len(self.todo) + len(self.doing),
                 self._dataset_splitter.dataset_name,
             )
+            task_completed_time = time.time() - doing_task.start_time
+            if task_completed_time > self._max_task_completed_time:
+                self._max_task_completed_time = task_completed_time
         return success, doing_task
 
     def _update_completed_step(self, task: Task):
@@ -171,12 +150,40 @@ class BatchDatasetManager(DatasetManger):
             return True
         return False
 
-    # TODO:implement the function
-    def checkpoint(self):
-        """Checkpoint todo and doing to a file."""
-        pass
+    def get_doing_tasks(self):
+        return self.doing
 
-    # TODO:implement the function
-    def restore_checkpoint(self, checkpoint):
+    def checkpoint(self):
+        todo_shards = []
+        for task in self.todo:
+            todo_shards.append([task.shard.start, task.shard.end])
+
+        doing_shards = []
+        for task_id in self.doing:
+            task = self.doing[task_id].task
+            doing_shards.append([task.shard.start, task.shard.end])
+
+        return DatasetShardCheckpoint(
+            dataset_name=self._dataset_splitter.dataset_name,
+            todo=todo_shards,
+            doing=doing_shards,
+            epoch=self._dataset_splitter.epoch,
+        )
+
+    def restore_checkpoint(self, checkpoint: DatasetShardCheckpoint):
         """Restore the task manager from a checkpoint"""
-        pass
+        self._dataset_splitter.epoch = checkpoint.epoch
+        self.todo = []
+        for shard_indices in checkpoint.doing + checkpoint.todo:
+            shard = Shard(
+                name=self._dataset_splitter.dataset_name,
+                start=shard_indices[0],
+                end=shard_indices[1],
+            )
+            self.todo.append(
+                Task(
+                    self._dataset_splitter.dataset_name,
+                    self._task_type,
+                    shard,
+                )
+            )

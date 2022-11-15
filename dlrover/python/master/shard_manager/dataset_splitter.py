@@ -41,19 +41,26 @@ class Shard(object):
 class DatasetSplitter(metaclass=ABCMeta):
     """DatasetSplitter splits a dataset to shards.
     Attrtibutes:
+        dataset_name: the name of dataset.
         dataset_size: the number of records in the dataset.
         shard_size: the number of records in a shard.
         num_epochs: the number of passes of the entire dataset.
+        epoch: the epoch index of the dataset.
     """
 
     def __init__(
         self, dataset_name, dataset_size, shard_size, num_epochs
     ) -> None:
         self.dataset_name = dataset_name
-        self.dataset_size = dataset_size
-        self.shard_size = shard_size
+        self.epoch = 0
+        self._dataset_size = dataset_size
+        self._shard_size = shard_size
         self._num_epochs = num_epochs
-        self._epoch = 0
+
+    @abstractmethod
+    def get_epoch(self):
+        """Get the current epoch"""
+        pass
 
     @abstractmethod
     def create_shards(self):
@@ -67,7 +74,7 @@ class DatasetSplitter(metaclass=ABCMeta):
 
     def epoch_finished(self) -> bool:
         """Check wether to finish the configured epochs"""
-        return self._epoch >= self._num_epochs
+        return self.epoch >= self._num_epochs
 
 
 class TableDatasetSplitter(DatasetSplitter):
@@ -83,6 +90,8 @@ class TableDatasetSplitter(DatasetSplitter):
             to avoid OOM.
     """
 
+    STORAGE_TYPE = "table"
+
     def __init__(
         self,
         dataset_name: str,
@@ -90,7 +99,6 @@ class TableDatasetSplitter(DatasetSplitter):
         shard_size: int,
         num_epochs: int,
         shuffle=False,
-        batch_size=None,
         max_shard_count=_MAX_SHARD_COUNT,
     ):
         super(TableDatasetSplitter, self).__init__(
@@ -101,73 +109,74 @@ class TableDatasetSplitter(DatasetSplitter):
         )
         self._dataset_name = dataset_name
         self._shuffle = shuffle
-        self._batch_size = batch_size
         self._max_shard_count = max_shard_count
-        self._epoch = 0
         self._subepoch_num_per_epoch = 0
         self._shards: List[Shard] = []
-        self._subepoch_idx = 0
+        self._split_epoch_for_huge_dataset()
+
+    def _split_epoch_for_huge_dataset(self):
+        shard_count = math.ceil(self._dataset_size / self._shard_size)
+        if shard_count > self._max_shard_count:
+            self._subepoch_num_per_epoch = math.ceil(
+                shard_count / self._max_shard_count
+            )
+            self._num_epochs = self._num_epochs * self._subepoch_num_per_epoch
+
+    def get_epoch(self):
+        if self._subepoch_num_per_epoch > 0:
+            return int(self.epoch / self._subepoch_num_per_epoch)
+        else:
+            return self.epoch
 
     def get_shards(self):
         return self._shards
 
-    def create_shards(self, model_version=-1):
+    def create_shards(self):
         logger.info(
             "Creating a new set of shards for dataset {} with epoch {}".format(
-                self._dataset_name, self._epoch
+                self._dataset_name, self.epoch
             )
         )
-        shard_count = math.ceil(self.dataset_size / self.shard_size)
+        shard_count = math.ceil(self._dataset_size / self._shard_size)
         if shard_count <= self._max_shard_count:
             if not self._shards:
                 self._shards = self._create_shards_with_range(
-                    0, self.dataset_size
+                    0, self._dataset_size
                 )
-            self._epoch += 1
         else:
-            self._subepoch_num_per_epoch = math.ceil(
-                shard_count / self._max_shard_count
-            )
-            if self._subepoch_idx >= self._subepoch_num_per_epoch:
-                self._subepoch_idx = 0
-
-            if self._subepoch_idx == 0:
-                self._epoch += 1
-
-            self._subepoch_idx += 1
-
+            subepoch_idx = self.epoch % self._subepoch_num_per_epoch
             logger.info(
-                "Creating tasks for dataset:{} in a subepoch, "
-                "subepoch_idx:{}, subepoch_num:{}, epoch:{}".format(
-                    self._dataset_name,
-                    self._subepoch_idx,
-                    self._subepoch_num_per_epoch,
-                    self._epoch,
-                )
+                "Creating tasks for dataset:%s in a subepoch, "
+                "subepoch_idx:%s, subepoch_num:%s, epoch:%s",
+                self._dataset_name,
+                subepoch_idx,
+                self._subepoch_num_per_epoch,
+                int(self.epoch / self._subepoch_num_per_epoch),
             )
 
-            subepoch_records = self._max_shard_count * self.shard_size
-            start_idx = (self._subepoch_idx - 1) * subepoch_records
-            end_idx = start_idx + subepoch_records
-            if end_idx > self.dataset_size:
-                end_idx = self.dataset_size
+            subepoch_size = self._max_shard_count * self._shard_size
+            start_idx = subepoch_idx * subepoch_size
+            end_idx = start_idx + subepoch_size
+            if end_idx > self._dataset_size:
+                end_idx = self._dataset_size
             self._shards = self._create_shards_with_range(start_idx, end_idx)
         if self._shuffle:
             random.shuffle(self._shards)
+        self.epoch += 1
 
     def _create_shards_with_range(self, start_idx, end_idx) -> List[Shard]:
         shards = []
-        num_shards = (end_idx - start_idx) // self.shard_size
+        num_shards = (end_idx - start_idx) // self._shard_size
         for _ in range(num_shards):
             shard = Shard(
                 name=self._dataset_name,
                 start=start_idx,
-                end=start_idx + self.shard_size,
+                end=start_idx + self._shard_size,
             )
             shards.append(shard)
-            start_idx += self.shard_size
+            start_idx += self._shard_size
         # Create a shard with the last records
-        num_records_left = (end_idx - start_idx) % self.shard_size
+        num_records_left = (end_idx - start_idx) % self._shard_size
         if num_records_left != 0:
             shard = Shard(
                 name=self._dataset_name,
@@ -194,6 +203,8 @@ class TextDatasetSplitter(DatasetSplitter):
         batch_size: the number of records in a batch.
     """
 
+    STORAGE_TYPE = "text"
+
     def __init__(
         self,
         dataset_name,
@@ -201,16 +212,16 @@ class TextDatasetSplitter(DatasetSplitter):
         shard_size,
         num_epochs,
         shuffle=False,
-        batch_size=None,
     ):
         super(TextDatasetSplitter, self).__init__(
             dataset_name, dataset_size, shard_size, num_epochs
         )
         self._dataset_name = dataset_name
         self._shuffle = shuffle
-        self._batch_size = batch_size
-        self._epoch = 0
         self._shards: List[Shard] = []
+
+    def get_epoch(self):
+        return self.epoch
 
     def get_shards(self) -> List[Shard]:
         return self._shards
@@ -220,16 +231,16 @@ class TextDatasetSplitter(DatasetSplitter):
             0,
             self._dataset_size,
         )
-        self._epoch += 1
+        self.epoch += 1
 
     def _create_shards_with_indices(self, start_idx, end_idx) -> List[Shard]:
         shards = []
-        record_indices = list(range(self.dataset_size))
+        record_indices = list(range(self._dataset_size))
         if self._shuffle:
             random.shuffle(record_indices)
-        for shard_start_idx in range(start_idx, end_idx, self.shard_size):
+        for shard_start_idx in range(start_idx, end_idx, self._shard_size):
             shard_end_idx = min(
-                shard_start_idx + self.shard_size,
+                shard_start_idx + self._shard_size,
                 end_idx,
             )
             size = shard_end_idx - shard_start_idx
@@ -244,3 +255,37 @@ class TextDatasetSplitter(DatasetSplitter):
                 )
             )
         return shards
+
+
+class DatasetSplitterFactory(object):
+    @classmethod
+    def create_dataset_splitter(
+        cls,
+        shuffle,
+        shard_size,
+        dataset_size,
+        num_epochs,
+        dataset_name,
+        storage_type=None,
+    ):
+        if (
+            not storage_type
+            or storage_type == TableDatasetSplitter.STORAGE_TYPE
+        ):
+            return TableDatasetSplitter(
+                dataset_name=dataset_name,
+                dataset_size=dataset_size,
+                shard_size=shard_size,
+                num_epochs=num_epochs,
+                shuffle=shuffle,
+            )
+        elif storage_type == TextDatasetSplitter.STORAGE_TYPE:
+            return TextDatasetSplitter(
+                dataset_name=dataset_name,
+                dataset_size=dataset_size,
+                shard_size=shard_size,
+                num_epochs=num_epochs,
+                shuffle=shuffle,
+            )
+        else:
+            raise ValueError("Not support dataset storage %s", storage_type)

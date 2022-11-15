@@ -1,0 +1,281 @@
+syntax = "proto3";
+
+package proto;
+
+import "google/protobuf/empty.proto";
+
+import "dlrover/proto/brain.proto";
+
+enum TaskType {
+  NONE = 0;
+  TRAINING = 1;
+  EVALUATION = 2;
+  PREDICTION = 3;
+  WAIT = 4;
+  TRAIN_END_CALLBACK = 5;
+}
+
+message Shard {
+  // Name for the shard. If RecordIO file format is used, this should be the
+  // filename for a RecordIO shard. An empty shard name signifies that the
+  // master has no pending tasks to assign to the requesting worker.
+  string name = 1;
+
+  // Starting and ending (non-inclusive) record number.
+  int64 start = 2;
+  int64 end = 3;
+  repeated int64 indices = 4;
+}
+
+// A task is a unit of work for ElasticDL training workers, assigned by master.
+// Worker divides a task into multiple minibatches and compute a gradient for
+// each minibatch. For now, only RecordIO file format is supported.
+message Task {
+  // Unique id assigned by master.
+  // TODO: int32 -> int64
+  int32 task_id = 1;
+
+  Shard shard = 2;
+
+  // Current model version on master
+  int32 model_version = 3;
+
+  // Whether this is training or evaluation task.
+  TaskType type = 4;
+
+  // Extended task configuration as a list of key-value pair.
+  // The task message is mainly targeted to data and model.
+  // What's more, we also leverage task mechanism to complete
+  // some work such as saving the model. To keep the message
+  // fields clean, we put the additional configurations of these
+  // task type into this field.
+  // For example:
+  // SAVE_MODEL task: saved_model_path
+  map<string, string> extended_config = 5;
+}
+
+message GetTaskRequest {
+  int32 worker_id = 1;
+  string dataset_name = 2;
+}
+
+message ReportTaskResultRequest {
+  // Task id assigned by master.
+  int64 task_id = 1;
+
+  // When error occurred, err_message contains error message in plain text.
+  string err_message = 2;
+  // statistics of the task being executed.
+  map<string, int32> exec_counters = 3;
+  string dataset_name = 4;
+}
+
+message ReportDatasetShardParamsRequest {
+  int32 batch_size = 1;
+  int32 num_epochs = 2;
+  int64 dataset_size = 3;
+  bool shuffle = 4;
+  bool shuffle_shards = 5;
+  int32 num_minibatches_per_shard = 6;
+  string dataset_name = 7;
+  TaskType task_type = 8;
+}
+
+message GetDatasetEpochRequest { string dataset_name = 1; }
+
+message GetDatasetEpochResponse { int32 epoch = 1; }
+
+message DdpResetSyncRequest {
+  string worker_host = 1;
+  int32 worker_local_process_id = 2;
+  int32 rendezvous_id = 3;
+}
+
+message DdpResetSyncResponse { bool reset = 1; }
+
+message DdpInitSyncRequest {
+  string worker_host = 1;
+  int32 worker_local_process_id = 2;
+  int32 rendezvous_id = 3;
+}
+
+message DdpInitSyncResponse { bool reset = 1; }
+
+message GetCommRankRequest {
+  string worker_host = 1;
+  int32 worker_local_process_id = 2;
+}
+
+message GetCommRankResponse {
+  int32 rank_id = 1;
+  int32 world_size = 2;
+  int32 rendezvous_id = 3;
+  int32 rendezvous_port = 4;
+  int32 local_rank = 5;
+  int32 local_size = 6;
+  int32 cross_rank = 7;
+  int32 cross_size = 8;
+  int32 master_port = 9;
+  string master_addr = 10;
+}
+
+message ReportTrainingLoopStatusRequest {
+  string worker_host = 1;
+  int32 status = 2;
+  int32 worker_local_process_id = 3;
+  int32 ddp_server_port = 4;
+}
+
+message GetShardCheckpointRequest { string dataset_name = 1; }
+
+message ShardCheckpoint { string content = 1; }
+
+message ReportShardCheckpointResponse { bool success = 1; }
+
+message ReportUsedResourceRequest {
+  // Used memory with Byte
+  int64 memory = 1;
+  float cpu = 2;
+  int32 worker_id = 3;
+  string worker_type = 4;
+}
+
+message TensorStats {
+  int64 variable_count = 1;
+  int64 total_variable_size = 2;
+  int64 max_variable_size = 3;
+  repeated int64 kv_embedding_dims = 4;
+  map<string, int64> tensor_alloc_bytes = 5;
+}
+
+message OperationStats {
+  int64 op_count = 1;
+  int64 update_op_count = 2;
+  int64 read_op_count = 3;
+  int64 input_fetch_dur = 4;
+  int64 flops = 5;
+  int64 recv_op_count = 6;
+  int64 runtime_flops = 7;
+}
+
+message ModelMetric {
+  TensorStats tensor_stats = 1;
+  OperationStats op_stats = 2;
+}
+
+message GetClusterVersionRequest {
+  int32 task_id = 1;
+  string version_type = 2;
+  string task_type = 3;
+}
+
+message GetClusterVersionResponse { int32 version = 1; }
+
+message UpdateClusterVersionRequest {
+  int32 task_id = 1;
+  int32 version = 2;
+  string version_type = 3;
+  string task_type = 4; // PS or Worker
+}
+
+message InitRemoteLockRequest {
+  string name = 1;
+  int32 timeout = 2;
+  int32 worker_id = 3;
+}
+
+message AcquireRemoteLockRequest {
+  string name = 1;
+  int32 timeout = 2;
+  int32 worker_id = 3;
+}
+
+message AcquireRemoteLockResponse { bool success = 1; }
+
+message ReleaseRemoteLockRequest { string name = 1; }
+
+message GlobalStepRecord {
+  int64 timestamp = 1;
+  int64 global_step = 2;
+}
+
+message QueryPsNodesResponse {
+  repeated NodeMeta ps_nodes = 1;
+  bool new_ps_ready = 2;
+}
+
+message NodeMeta {
+  string type = 1;
+  string addr = 2;
+  int32 memory = 3;
+  int32 cpu = 4;
+  int32 gpu = 5;
+  string gpu_type = 6;
+}
+
+message RunningNodes { repeated NodeMeta nodes = 1; }
+
+message QueryTrainingStatusResponse { int32 status = 1; }
+
+message ResourceConfig {
+  int32 num = 1;
+  int32 cpu = 2;
+  int32 memory = 3; // Mi
+}
+
+message ReportPreStopRequest { string worker_host = 1; }
+
+service Master {
+  rpc reset_sync(DdpResetSyncRequest) returns (DdpResetSyncResponse);
+  rpc barrier_sync(DdpInitSyncRequest) returns (DdpInitSyncResponse);
+  rpc get_comm_rank(GetCommRankRequest) returns (GetCommRankResponse);
+  rpc report_training_loop_status(ReportTrainingLoopStatusRequest)
+      returns (google.protobuf.Empty);
+
+  // TODO : Unify the above 3 PRCs with new ones.
+  rpc get_task(GetTaskRequest) returns (Task);
+  rpc report_task_result(ReportTaskResultRequest)
+      returns (google.protobuf.Empty);
+  rpc report_dataset_shard_params(ReportDatasetShardParamsRequest)
+      returns (google.protobuf.Empty);
+
+  rpc get_dataset_epoch(GetDatasetEpochRequest)
+      returns (GetDatasetEpochResponse);
+
+  // rpcs for supporting PS adjustment
+  rpc ready_for_ps_relaunch(google.protobuf.Empty)
+      returns (google.protobuf.Empty);
+
+  // rpcs for saving and restoring data shard checkpoints
+  rpc get_shard_checkpoint(GetShardCheckpointRequest) returns (ShardCheckpoint);
+  rpc report_shard_checkpoint(ShardCheckpoint)
+      returns (ReportShardCheckpointResponse);
+
+  rpc report_used_resource(ReportUsedResourceRequest)
+      returns (google.protobuf.Empty);
+
+  rpc report_model_metric(ModelMetric) returns (google.protobuf.Empty);
+  rpc report_global_step(GlobalStepRecord) returns (google.protobuf.Empty);
+  rpc query_running_nodes(google.protobuf.Empty) returns (RunningNodes);
+
+  // rpc for elastic PS
+  rpc get_cluster_version(GetClusterVersionRequest)
+      returns (GetClusterVersionResponse);
+  rpc update_cluster_version(UpdateClusterVersionRequest)
+      returns (google.protobuf.Empty);
+  rpc query_ps_nodes(google.protobuf.Empty) returns (QueryPsNodesResponse);
+  rpc query_training_status(google.protobuf.Empty)
+      returns (QueryTrainingStatusResponse);
+
+  // rpc for remote lock
+  rpc init_remote_lock(InitRemoteLockRequest) returns (google.protobuf.Empty);
+  rpc acquire_remote_lock(AcquireRemoteLockRequest)
+      returns (AcquireRemoteLockResponse);
+  rpc release_remote_lock(ReleaseRemoteLockRequest)
+      returns (google.protobuf.Empty);
+
+  // Optimize resource
+  rpc optimize(OptimizeResponse) returns (google.protobuf.Empty);
+
+  rpc report_prestop(ReportPreStopRequest) returns (google.protobuf.Empty);
+}

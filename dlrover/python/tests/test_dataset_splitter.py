@@ -33,7 +33,7 @@ class TableDatasetSplitterTest(unittest.TestCase):
         self.assertEqual(shards[0].start, 0)
         self.assertEqual(shards[0].end, 100)
         self.assertEqual(shards[0].name, "test")
-        self.assertEqual(splitter._epoch, 1)
+        self.assertEqual(splitter.epoch, 1)
 
     def test_create_shards_with_huge_dataset(self):
         splitter = TableDatasetSplitter(
@@ -48,12 +48,12 @@ class TableDatasetSplitterTest(unittest.TestCase):
         self.assertEqual(shards[-1].start, 4999900)
         self.assertEqual(shards[-1].end, 5000000)
         self.assertEqual(shards[0].name, "test")
-        self.assertEqual(splitter._epoch, 1)
+        self.assertEqual(splitter.epoch, 1)
         splitter.create_shards()
         shards = splitter.get_shards()
         self.assertEqual(shards[0].start, 5000000)
         self.assertEqual(shards[0].end, 5000100)
-        self.assertEqual(splitter._epoch, 1)
+        self.assertEqual(splitter.epoch, 2)
 
 
 class TextDatasetSplitterTest(unittest.TestCase):
@@ -72,7 +72,7 @@ class TextDatasetSplitterTest(unittest.TestCase):
         self.assertEqual(shards[0].end, 10)
         self.assertListEqual(shards[0].record_indices, list(range(10)))
         self.assertEqual(shards[0].name, "test")
-        self.assertEqual(splitter._epoch, 1)
+        self.assertEqual(splitter.epoch, 1)
 
     def test_create_shards_with_shuffle(self):
         splitter = TextDatasetSplitter(
@@ -89,4 +89,4 @@ class TextDatasetSplitterTest(unittest.TestCase):
         self.assertEqual(shards[0].end, 10)
         self.assertNotEqual(shards[0].record_indices, list(range(10)))
         self.assertEqual(shards[0].name, "test")
-        self.assertEqual(splitter._epoch, 1)
+        self.assertEqual(splitter.epoch, 1)
