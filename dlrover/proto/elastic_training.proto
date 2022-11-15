@@ -6,7 +6,6 @@ import "google/protobuf/empty.proto";
 
 import "dlrover/proto/brain.proto";
 
-
 enum TaskType {
   NONE = 0;
   TRAINING = 1;
@@ -82,13 +81,9 @@ message ReportDatasetShardParamsRequest {
   TaskType task_type = 8;
 }
 
-message GetDatasetEpochRequest {
-  string dataset_name = 1;
-}
+message GetDatasetEpochRequest { string dataset_name = 1; }
 
-message GetDatasetEpochResponse {
-  int32 epoch = 1;
-}
+message GetDatasetEpochResponse { int32 epoch = 1; }
 
 message DdpResetSyncRequest {
   string worker_host = 1;
@@ -96,9 +91,7 @@ message DdpResetSyncRequest {
   int32 rendezvous_id = 3;
 }
 
-message DdpResetSyncResponse {
-  bool reset = 1;
-}
+message DdpResetSyncResponse { bool reset = 1; }
 
 message DdpInitSyncRequest {
   string worker_host = 1;
@@ -106,9 +99,7 @@ message DdpInitSyncRequest {
   int32 rendezvous_id = 3;
 }
 
-message DdpInitSyncResponse {
-  bool reset = 1;
-}
+message DdpInitSyncResponse { bool reset = 1; }
 
 message GetCommRankRequest {
   string worker_host = 1;
@@ -135,17 +126,11 @@ message ReportTrainingLoopStatusRequest {
   int32 ddp_server_port = 4;
 }
 
-message GetShardCheckpointRequest {
-  string dataset_name = 1;
-}
+message GetShardCheckpointRequest { string dataset_name = 1; }
 
-message ShardCheckpoint {
-  string content = 1;
-}
+message ShardCheckpoint { string content = 1; }
 
-message ReportShardCheckpointResponse {
-  bool success = 1;
-}
+message ReportShardCheckpointResponse { bool success = 1; }
 
 message ReportUsedResourceRequest {
   // Used memory with Byte
@@ -184,15 +169,13 @@ message GetClusterVersionRequest {
   string task_type = 3;
 }
 
-message GetClusterVersionResponse {
-  int32 version = 1;
-}
+message GetClusterVersionResponse { int32 version = 1; }
 
 message UpdateClusterVersionRequest {
   int32 task_id = 1;
   int32 version = 2;
   string version_type = 3;
-  string task_type = 4;  // PS or Worker
+  string task_type = 4; // PS or Worker
 }
 
 message InitRemoteLockRequest {
@@ -207,13 +190,9 @@ message AcquireRemoteLockRequest {
   int32 worker_id = 3;
 }
 
-message AcquireRemoteLockResponse {
-  bool success = 1;
-}
+message AcquireRemoteLockResponse { bool success = 1; }
 
-message ReleaseRemoteLockRequest {
-  string name = 1;
-}
+message ReleaseRemoteLockRequest { string name = 1; }
 
 message GlobalStepRecord {
   int64 timestamp = 1;
@@ -234,23 +213,17 @@ message NodeMeta {
   string gpu_type = 6;
 }
 
-message RunningNodes {
-  repeated NodeMeta nodes = 1;
-}
+message RunningNodes { repeated NodeMeta nodes = 1; }
 
-message QueryTrainingStatusResponse {
-  int32 status = 1;
-}
+message QueryTrainingStatusResponse { int32 status = 1; }
 
 message ResourceConfig {
   int32 num = 1;
   int32 cpu = 2;
-  int32 memory = 3;  // Mi
+  int32 memory = 3; // Mi
 }
 
-message ReportPreStopRequest {
-  string worker_host = 1;
-}
+message ReportPreStopRequest { string worker_host = 1; }
 
 service Master {
   rpc reset_sync(DdpResetSyncRequest) returns (DdpResetSyncResponse);

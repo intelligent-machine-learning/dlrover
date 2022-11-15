@@ -68,11 +68,11 @@ message PodMeta {
 }
 
 message JobMeta {
-  string uuid = 1;       // The uuid of k8s training job
-  string name = 2;       // The name of k8s training job
-  string user = 3;       // The user id of k8s training job
-  string cluster = 4;    // The cluster of k8s training job
-  string namespace = 5;  // The namespace of k8s training job
+  string uuid = 1;      // The uuid of k8s training job
+  string name = 2;      // The name of k8s training job
+  string user = 3;      // The user id of k8s training job
+  string cluster = 4;   // The cluster of k8s training job
+  string namespace = 5; // The namespace of k8s training job
 }
 
 enum MetricsType {
@@ -90,7 +90,7 @@ enum MetricsType {
 }
 
 message JobMetrics {
-  string data_store = 1;  // data_store_elasticdl
+  string data_store = 1; // data_store_elasticdl
   JobMeta job_meta = 2;
   MetricsType metrics_type = 3;
   oneof metrics {
@@ -146,8 +146,8 @@ message OptimizeRequest {
 }
 
 message PodResource {
-  int64 memory = 1;  // unit MB
-  float cpu = 2;     // The number of cores
+  int64 memory = 1; // unit MB
+  float cpu = 2;    // The number of cores
   float gpu = 3;
   string gpu_type = 4;
 }
@@ -185,18 +185,14 @@ message OptimizeResponse {
   repeated JobOptimizePlan job_optimize_plans = 2;
 }
 
-message ConfigRequest {
-  string config_key = 1;
-}
+message ConfigRequest { string config_key = 1; }
 
 message ConfigResponse {
   Response response = 1;
   string config_value = 2;
 }
 
-message JobMetricsRequest {
-  string job_uuid = 1;
-}
+message JobMetricsRequest { string job_uuid = 1; }
 
 message JobMetricsResponse {
   Response response = 1;
@@ -226,9 +222,7 @@ message OptimizeEvent {
   map<string, string> customized_data = 5;
 }
 
-message OptimizeProcessResponse {
-  Response response = 1;
-}
+message OptimizeProcessResponse { Response response = 1; }
 
 service OptimizeProcessor {
   rpc process(OptimizeEvent) returns (OptimizeProcessResponse);
