@@ -1,25 +1,36 @@
+# Copyright 2022 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import inspect
 import threading
 import time
-import inspect
-
 from collections import OrderedDict
-from typing import Dict
+from collections.abc import Callable
+from typing import Dict, List
 
 from dlrover.proto import elastic_training_pb2
 from dlrover.python.common.log_utils import default_logger as logger
-from dlrover.python.master.shard_manager.batch_dataset_manager import (
-    BatchDatasetManager,
-    DoingTask
-)
+from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.shard_manager.base_dataset_manager import (
     DatasetManger,
     DatasetShardCheckpoint,
 )
-from dlrover.python.master.shard_manager.dataset_splitter import (
-    DatasetSplitterFactory
+from dlrover.python.master.shard_manager.batch_dataset_manager import (
+    BatchDatasetManager,
+    DoingTask,
 )
-from dlrover.python.master.monitor.speed_monitor import (
-    SpeedMonitor
+from dlrover.python.master.shard_manager.dataset_splitter import (
+    DatasetSplitterFactory,
 )
 
 _TASK_TIMEOUT_THRESHOLD_SECS = 1800
@@ -29,9 +40,7 @@ _DEFAULT_NUM_MINIBATCHES_PER_SHARD = 100
 class TaskManager(object):
     """Creates and dispatches Tasks. Keep track of a Task's lifecycle."""
 
-    def __init__(
-        self, relaunch_timeout_worker: bool
-    ):
+    def __init__(self, relaunch_timeout_worker: bool):
         """
         Args:
             relaunch_timeout_worker: Whether to relaunch a worker
@@ -41,8 +50,8 @@ class TaskManager(object):
         self.relaunch_timeout_worker = relaunch_timeout_worker
         self._should_stop = False
         self._datasets: Dict[str, DatasetManger] = OrderedDict()
-        self._worker_start_task_time = {}
-        self._task_timeout_callbacks = []
+        self._worker_start_task_time: Dict[int, float] = {}
+        self._task_timeout_callbacks: List[Callable] = []
         self._speed_monitor = SpeedMonitor()
 
     def new_dataset(
@@ -54,12 +63,12 @@ class TaskManager(object):
         num_minibatches_per_shard,
         dataset_name=None,
         task_type=elastic_training_pb2.NONE,
-        storage_type=None
+        storage_type=None,
     ):
         frame = inspect.currentframe()
         args, _, _, values = inspect.getargvalues(frame)
         logger.info(
-            "Set dataset sharding parameters: %s", 
+            "Set dataset sharding parameters: %s",
             [(i, values[i]) for i in args],
         )
 
@@ -103,9 +112,7 @@ class TaskManager(object):
             dataset = self._datasets.get(dataset_name, None)
             if dataset:
                 task = dataset.get_task(worker_id)
-                if (
-                    task.task_type == elastic_training_pb2.EVALUATION
-                ):
+                if task.task_type == elastic_training_pb2.EVALUATION:
                     # All workers will stop training to evaluate the model
                     # at parallel validation
                     self._speed_monitor.reset_running_speed_monitor()
@@ -130,9 +137,7 @@ class TaskManager(object):
                         dataset_name
                     )
                 )
-            success, doing_task = dataset.report_task_status(
-                task_id, success
-            )
+            success, doing_task = dataset.report_task_status(task_id, success)
             self._worker_start_task_time[doing_task.worker_id] = time.time()
             return doing_task.task, doing_task.worker_id
 
@@ -178,8 +183,7 @@ class TaskManager(object):
             callback_fn(worker_id)
 
     def _check_and_reassign_timeout_tasks(self):
-        """Check whether there are timeout tasks periodically.
-        """
+        """Check whether there are timeout tasks periodically."""
         logger.info("Start the thread to monitor timeout tasks")
         while True:
             for _, dataset in self._datasets.items():
