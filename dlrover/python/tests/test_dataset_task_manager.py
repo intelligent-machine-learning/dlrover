@@ -34,12 +34,12 @@ class DatasetTaskMangerTest(unittest.TestCase):
         worker_id = 0
         task = task_manager.get_task(worker_id)
         self.assertEqual(task.task_id, 0)
-        self.assertEqual(len(task_manager._todo), 99)
-        self.assertEqual(len(task_manager._doing), 1)
+        self.assertEqual(len(task_manager.todo), 99)
+        self.assertEqual(len(task_manager.doing), 1)
         self.assertFalse(task_manager.completed())
 
         task_manager.report_task_status(task.task_id, True)
-        self.assertEqual(len(task_manager._doing), 0)
+        self.assertEqual(len(task_manager.doing), 0)
 
         for i in range(101):
             task = task_manager.get_task(worker_id)
