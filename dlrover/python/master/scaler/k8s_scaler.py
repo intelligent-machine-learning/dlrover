@@ -18,7 +18,7 @@ from dlrover.python.master.resource_generator.base_generator import (
     ResourcePlan,
 )
 from dlrover.python.master.scaler.base_scaler import Scaler
-from dlrover.python.scheduler.kubernetes import Client
+from dlrover.python.scheduler.kubernetes import k8sClient
 
 SCALER_GROUP = "elastic.iml.github.io"
 SCALER_VERION = "v1alpha1"
@@ -117,7 +117,7 @@ class ScalerKind(BaseScalerSpec):
 
 
 class k8sScaler(Scaler):
-    def __init__(self, job_name, namespace, cluster, client: Client):
+    def __init__(self, job_name, namespace, cluster, client: k8sClient):
         super(k8sScaler, self).__init__(job_name)
         self._namespace = namespace
         self._cluster = cluster
