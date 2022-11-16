@@ -12,7 +12,6 @@
 # limitations under the License.
 
 import os
-import traceback
 
 from kubernetes import client, config
 
@@ -21,7 +20,7 @@ from dlrover.python.common.singleton_utils import singleton
 
 
 @singleton
-class Client(object):
+class k8sClient(object):
     def __init__(
         self,
         namespace,
@@ -61,9 +60,8 @@ class Client(object):
                 config.load_kube_config()
                 logger.info("Load the kube config file.")
         except Exception as ex:
-            traceback.print_exc()
-            raise Exception(
-                "Failed to load configuration for Kubernetes:\n%s" % str(ex)
+            logger.error(
+                "Failed to load configuration for Kubernetes:\n%s", ex
             )
 
         self.client = client.CoreV1Api()
