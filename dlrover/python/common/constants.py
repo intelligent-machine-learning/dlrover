@@ -30,7 +30,6 @@ class NodeType(object):
     TF_MASTER = "master"
 
 
-
 class ElasticJobLabel(object):
     APP_NAME = "elasticdl"
     JOB_KEY = "elasticdl-job-name"

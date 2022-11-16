@@ -1,12 +1,35 @@
+# Copyright 2022 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from kubernetes import watch
-from dlrover.python.master.node_watcher.base_watcher import NodeWatcher, Node, NodeEvent
-from dlrover.python.scheduler.kubernetes import k8sClient
+
+from dlrover.python.common.constants import (
+    ElasticJobLabel,
+    ExitCode,
+    NodeExitReason,
+    NodeType,
+)
 from dlrover.python.common.log_utils import default_logger as logger
-from dlrover.python.common.constants import ElasticJobLabel, ExitCode, NodeExitReason, NodeType
+from dlrover.python.master.node_watcher.base_watcher import (
+    Node,
+    NodeEvent,
+    NodeWatcher,
+)
+from dlrover.python.scheduler.kubernetes import k8sClient
 
 
 def _get_start_timestamp(pod_status_obj):
-    """Get the start timestamp of a Pod """
+    """Get the start timestamp of a Pod"""
     if (
         pod_status_obj.container_statuses
         and pod_status_obj.container_statuses[0].state
@@ -68,7 +91,7 @@ def _convert_pod_event_to_node_event(event):
         name=pod_name,
         task_index=task_id,
         status=evt_obj.status.phase,
-        start_time=_get_start_timestamp(evt_obj.status)
+        start_time=_get_start_timestamp(evt_obj.status),
     )
     node_event = NodeEvent(event_type=evt_type, node=node)
     return node_event
@@ -76,6 +99,7 @@ def _convert_pod_event_to_node_event(event):
 
 class PodWatcher(NodeWatcher):
     """PodWatcher monitors all Pods of a k8s Job."""
+
     def __init__(self, job_name, namespace):
         self._job_name = job_name
         self._namespace = namespace
@@ -108,7 +132,9 @@ class PodWatcher(NodeWatcher):
         nodes = []
         for pod in pod_list.items:
             pod_type = pod.metadata.labels[ElasticJobLabel.REPLICA_TYPE_KEY]
-            pod_id = int(pod.metadata.labels[ElasticJobLabel.REPLICA_INDEX_KEY])
+            pod_id = int(
+                pod.metadata.labels[ElasticJobLabel.REPLICA_INDEX_KEY]
+            )
             task_id = int(
                 pod.metadata.labels[ElasticJobLabel.TRAINING_TASK_INDEX_KEY]
             )
@@ -118,7 +144,7 @@ class PodWatcher(NodeWatcher):
                 name=pod.metadata.name,
                 task_index=task_id,
                 status=pod.status.phase,
-                start_time=_get_start_timestamp(pod.status)
+                start_time=_get_start_timestamp(pod.status),
             )
             node.set_exit_reason(_get_pod_exit_reason(pod))
             nodes.append(node)
