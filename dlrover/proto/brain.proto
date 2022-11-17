@@ -209,27 +209,9 @@ message KubeWatchEvent {
 service EasyDL {
   rpc persist_metrics(JobMetrics) returns (google.protobuf.Empty);
   rpc optimize(OptimizeRequest) returns (OptimizeResponse);
-  rpc get_config(ConfigRequest) returns (ConfigResponse);
+  
   rpc get_job_metrics(JobMetricsRequest) returns (JobMetricsResponse);
   rpc process_kube_watch_event(KubeWatchEvent) returns (Response);
 }
 
-message OptimizeEvent {
-  string type = 1;
-  string processor_name = 2;
-  string data_store_name = 3;
-  repeated string jobs = 4;
-  map<string, string> customized_data = 5;
-}
 
-message OptimizeProcessResponse { Response response = 1; }
-
-service OptimizeProcessor {
-  rpc process(OptimizeEvent) returns (OptimizeProcessResponse);
-  rpc optimize(OptimizeRequest) returns (OptimizeResponse);
-}
-
-service ExternalOptimizer {
-  rpc optimize(OptimizeRequest) returns (OptimizeResponse);
-  rpc add_training_job(OptimizeJobMeta) returns (Response);
-}
