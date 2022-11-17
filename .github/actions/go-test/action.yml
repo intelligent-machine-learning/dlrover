@@ -7,4 +7,4 @@ runs:
   args:
     - "/bin/bash"
     - "-c"
-    - "cd operator && go test ./..."
+    - "cd dlrover/go/elasticjob_operator && go test ./..."
