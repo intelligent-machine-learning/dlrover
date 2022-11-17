@@ -4,7 +4,7 @@ package proto;
 
 import "google/protobuf/empty.proto";
 
-option go_package = "easydl/go/pkg/proto";
+option go_package = "dlrover/go/brain/pkg/proto";
 
 message TrainingHyperParams {
   int64 batch_size = 1;

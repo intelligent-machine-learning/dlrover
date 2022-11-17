@@ -105,9 +105,9 @@ type JobMetricsRecorder struct {
 }
 
 // NewJobMetricsDBRecorder creates a new JobMetricsRecorder
-func NewJobMetricsDBRecorder(db *dbbase.DB) JobMetricsRecorderInterface {
+func NewJobMetricsDBRecorder(db *dbbase.Database) JobMetricsRecorderInterface {
 	return &JobMetricsRecorder{
-		Recorder: &dbbase.DBRecorder{Engine: db.Engine, TableName: TableJobMetrics},
+		Recorder: &dbbase.DatabaseRecorder{Engine: db.Engine, TableName: TableJobMetrics},
 	}
 }
 

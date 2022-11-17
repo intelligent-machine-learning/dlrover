@@ -13,7 +13,10 @@
 
 package mysql
 
-import "github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/dbbase"
+import (
+	"github.com/intelligent-machine-learning/easydl/brain/pkg/config"
+	"github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/dbbase"
+)
 
 // Client is the struct of mysql db client
 type Client struct {
@@ -21,8 +24,13 @@ type Client struct {
 }
 
 // NewClient returns a new mysql db client
-// Test
-func NewClient(db *dbbase.DatabaseRecorder) *Client {
+func NewClient(conf *config.Config) *Client {
+	user := conf.GetString(config.DBUser)
+	pw := conf.GetString(config.DBPassword)
+	engineType := conf.GetString(config.DBEngineType)
+	url := conf.GetString(config.DBURL)
+
+	db := dbbase.NewDatabase(user, pw, engineType, url)
 	return &Client{
 		JobMetricsRecorder: NewJobMetricsDBRecorder(db),
 	}
