@@ -1,0 +1,41 @@
+apiVersion: elastic.iml.github.io/v1alpha1
+kind: ElasticJob
+metadata:
+  name: elasticjob-sample
+spec:
+  distributionStrategy: parameter_server
+  replicaSpecs:
+    ps:
+      restartCount: 3
+      template:
+          metadata:
+            annotations:
+              sidecar.istio.io/inject: "false"
+          spec:
+            restartPolicy: Never
+            containers:
+              - name: main
+                image: elasticdl:iris_estimator
+                command:
+                  - python
+                  - -m
+                  - model_zoo.iris.dnn_estimator
+                  - --batch_size=32
+                  - --training_steps=1000
+    worker:
+      restartCount: 3
+      template:
+          metadata:
+            annotations:
+              sidecar.istio.io/inject: "false"
+          spec:
+            restartPolicy: Never
+            containers:
+              - name: main
+                image: elasticdl:iris_estimator
+                command:
+                  - python
+                  - -m
+                  - model_zoo.iris.dnn_estimator
+                  - --batch_size=32
+                  - --training_steps=1000
