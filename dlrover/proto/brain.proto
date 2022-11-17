@@ -197,5 +197,3 @@ service Brain {
   rpc optimize(OptimizeRequest) returns (OptimizeResponse);
   rpc get_job_metrics(JobMetricsRequest) returns (JobMetricsResponse);
 }
-
-
