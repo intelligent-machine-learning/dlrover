@@ -13,9 +13,54 @@
 
 package common
 
+import "time"
+
 const (
 	// WorkerTaskGroupName is the name of worker task group
 	WorkerTaskGroupName = "worker"
 	// PSTaskGroupName is the name of ps task group
 	PSTaskGroupName = "ps"
 )
+
+// JobMeta is the struct of job meta
+type JobMeta struct {
+	Name      string
+	UUID      string
+	User      string
+	Cluster   string
+	Namespace string
+	State     *JobState
+}
+
+// PodState is the struct of the pod state
+type PodState struct {
+	Name           string
+	UUID           string
+	Type           string
+	IsOOM          bool
+	CustomizedData map[string]string
+}
+
+// JobState is the struct of the job state
+type JobState struct {
+	PodStates      map[string]*PodState
+	CustomizedData map[string]string
+}
+
+// JobMetrics is the struct of job metrics
+type JobMetrics struct {
+	JobUUID            string
+	JobName            string
+	CreatedAt          time.Time
+	FinishedAt         time.Time
+	HyperParamsFeature string
+	JobFeature         string
+	DataSetFeature     string
+	ModelFeature       string
+	JobRuntime         string
+	ExitReason         string
+	Optimization       string
+	Type               string
+	Resource           string
+	CustomizedData     string
+}
