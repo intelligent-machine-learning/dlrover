@@ -15,7 +15,7 @@ import math
 import random
 from abc import ABCMeta, abstractmethod
 from typing import List
-
+import copy
 from dlrover.python.common.log_utils import default_logger as logger
 
 _MAX_SHARD_COUNT = 50000
@@ -31,10 +31,11 @@ class Shard(object):
         record_indices: indices of records in the dataset.
     """
 
-    def __init__(self, name, start, end, record_indices: List[int] = None):
+    def __init__(self, name, start, end, partition:int = None, record_indices: List[int] = None):
         self.name = name
         self.start = start
         self.end = end
+        self.partition = partition
         self.record_indices = record_indices
 
 
@@ -289,3 +290,108 @@ class DatasetSplitterFactory(object):
             )
         else:
             raise ValueError("Not support dataset storage %s", storage_type)
+
+
+class StreamingDatasetSplitter(DatasetSplitter):
+    """StreamingDatasetSplitter split a dataset stored in a message queue like 
+    Kafka or SLS. We can read data by record offset in the logstore.
+    The shard contains index ranges [start, end) and partition of batch records.
+    Attributes:
+        dataset_name: the name of the logstore.
+        shuffle: whether to shuffle shards of the dataset, by default is False
+        batch_size: the number of records in a batch.
+        data_size: the number of records of the dataset 
+        max_shard_count: the max number of shards in the memory.
+            The value can limit the number of shards in the memory
+            to avoid OOM.
+    """
+
+    STORAGE_TYPE = "sls"
+    def __init__(
+        self,
+        dataset_name,
+        shard_size,
+        partition_num,
+        partition_offset,
+        num_epochs=1,
+        dataset_size=-1,
+        shuffle=False,
+        max_shard_count=None,
+        fetch_data_size=10000,
+        ):
+
+        super(StreamingDatasetSplitter, self).__init__(
+            dataset_name,
+            dataset_size,
+            shard_size,
+            num_epochs,
+        )
+        self._dataset_name = dataset_name
+        self._shuffle = shuffle
+        self._max_shard_count = max_shard_count
+        self._shards = []
+        self._data_size = dataset_size
+        self._partition_offset = partition_offset
+        self._partition_num = partition_num
+        self._fetch_data_size = fetch_data_size
+        self.epoch = 0
+ 
+        
+    def epoch_finished(self):
+        finished = False
+        if self._data_size == 0:
+            finished = True
+        return finished
+        
+    def get_epoch(self):
+        return 1 
+
+    def get_fetch_data_size(self):
+        return self._fetch_data_size
+    def get_shard_size(self):
+        return self._shard_size
+    def get_default_shard_count(self):
+        return len(self._shards)
+    def get_shards(self):
+        return self._shards
+
+    def create_shards(self):
+        logger.info(
+            "Creating a new set of shards for dataset {} with epoch {}".format(
+                self._dataset_name, self.epoch
+            )
+        )
+        self._create_shards_with_range()
+    def get_partition_offset(self):
+        return self._partition_offset
+    def _create_shards_with_range(self):
+        shards = []
+
+        prev_partition_offset = copy.deepcopy(self._partition_offset)
+        
+        if self._data_size == -1:
+            shard_count = self._fetch_data_size/self._shard_size
+            count_per_partition = shard_count / self._partition_num
+        else:
+            shard_count = self._data_size/self._shard_size
+
+        for i in range(int(shard_count)):
+            partition = i%self._partition_num
+            start = self._partition_offset[partition]
+            end = start + self._shard_size
+            shard = Shard(name=self._dataset_name, start=start, end=end, partition=i)
+            self._shards.append(shard)
+            start = end
+            if self._data_size != -1:
+                self._data_size = self._data_size - self._shard_size
+            self._partition_offset[partition] = start
+        logger.info(
+            "Create %s shards with range [%s, %s) ",
+            len(shards)
+        )
+        for i in range(self._partition_num):
+            logger.info(
+                "partition %s : with start offset [%s, %s)", i, prev_partition_offset[i], self._partition_offset[i]
+            )
+
+        
