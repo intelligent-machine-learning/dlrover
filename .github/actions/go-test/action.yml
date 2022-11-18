@@ -8,3 +8,4 @@ runs:
     - "/bin/bash"
     - "-c"
     - "cd dlrover/go/elasticjob_operator && go test ./..."
+    - "cd dlrover/go/brain/pkg && go test ./..."

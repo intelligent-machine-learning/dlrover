@@ -185,13 +185,6 @@ message OptimizeResponse {
   repeated JobOptimizePlan job_optimize_plans = 2;
 }
 
-message ConfigRequest { string config_key = 1; }
-
-message ConfigResponse {
-  Response response = 1;
-  string config_value = 2;
-}
-
 message JobMetricsRequest { string job_uuid = 1; }
 
 message JobMetricsResponse {
@@ -199,37 +192,8 @@ message JobMetricsResponse {
   string job_metrics = 2;
 }
 
-message KubeWatchEvent {
-  string type = 1;
-  repeated JobMeta jobs = 2;
-  repeated string admins = 3;
-  map<string, string> customized_data = 4;
-}
-
-service EasyDL {
+service Brain {
   rpc persist_metrics(JobMetrics) returns (google.protobuf.Empty);
   rpc optimize(OptimizeRequest) returns (OptimizeResponse);
-  rpc get_config(ConfigRequest) returns (ConfigResponse);
   rpc get_job_metrics(JobMetricsRequest) returns (JobMetricsResponse);
-  rpc process_kube_watch_event(KubeWatchEvent) returns (Response);
-}
-
-message OptimizeEvent {
-  string type = 1;
-  string processor_name = 2;
-  string data_store_name = 3;
-  repeated string jobs = 4;
-  map<string, string> customized_data = 5;
-}
-
-message OptimizeProcessResponse { Response response = 1; }
-
-service OptimizeProcessor {
-  rpc process(OptimizeEvent) returns (OptimizeProcessResponse);
-  rpc optimize(OptimizeRequest) returns (OptimizeResponse);
-}
-
-service ExternalOptimizer {
-  rpc optimize(OptimizeRequest) returns (OptimizeResponse);
-  rpc add_training_job(OptimizeJobMeta) returns (Response);
 }

@@ -29,4 +29,11 @@ const (
 	DBEngineType = "db.engine.type"
 	// DBURL is the config key of database url
 	DBURL = "db.url"
+
+	// DataStoreConfigMapName is the name of data store config map
+	DataStoreConfigMapName = "data-store.config-map.name"
+	// DataStoreConfigMapKey is the key of data store config map
+	DataStoreConfigMapKey = "data-store.config-map.key"
+	// DataStoreName is the name of a data store
+	DataStoreName = "data-store.name"
 )
