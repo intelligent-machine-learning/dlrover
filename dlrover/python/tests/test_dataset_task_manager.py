@@ -17,12 +17,17 @@ from dlrover.python.common.constants import TaskType
 from dlrover.python.master.shard_manager.batch_dataset_manager import (
     BatchDatasetManager,
 )
+
+from dlrover.python.master.shard_manager.streaming_dataset_manager import (
+    StreamingDatasetManager
+)
 from dlrover.python.master.shard_manager.dataset_splitter import (
     TableDatasetSplitter,
+    StreamingDatasetSplitter
 )
 
 
-class DatasetTaskMangerTest(unittest.TestCase):
+class BatchDatasetTaskMangerTest(unittest.TestCase):
     def test_create_shards(self):
         splitter = TableDatasetSplitter(
             dataset_name="test",
@@ -48,3 +53,25 @@ class DatasetTaskMangerTest(unittest.TestCase):
             task_manager.report_task_status(task.task_id, True)
         self.assertTrue(task_manager.completed())
         self.assertEqual(task_manager.get_completed_step(), 1000)
+
+
+class StreamingDatasetTaskMangerTest(unittest.TestCase):
+    def test_create_shards(self):
+        splitter = StreamingDatasetSplitter(
+            dataset_name = "test",
+            dataset_size = 1000,
+            shard_size = 200,
+            partition_num = 2,
+            partition_offset = {0:1, 1:0},
+        )
+        task_manager = StreamingDatasetManager(TaskType.TRAINING, 10, splitter)
+        worker_id = 0
+        task = task_manager.get_task(worker_id)
+        self.assertEqual(task.task_id, 0)
+        self.assertEqual(len(task_manager.todo), 4)
+        self.assertEqual(len(task_manager.doing), 1)
+        self.assertFalse(task_manager.completed())
+
+        task_manager.report_task_status(task.task_id, True)
+        self.assertEqual(len(task_manager.doing), 0)
+
