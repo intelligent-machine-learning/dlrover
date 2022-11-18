@@ -1,6 +1,6 @@
 ---
-name: pre-commit
-description: run pytest to execute python test cases
+name: trainer-test
+description: run pytest to execute python test cases of trainer
 runs:
   using: 'docker'
   image: "easydl/easydl:ci"

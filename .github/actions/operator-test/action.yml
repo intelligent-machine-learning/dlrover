@@ -1,6 +1,6 @@
 ---
-name: pre-commit
-description: run gotest to execute go test cases
+name: operator-test
+description: run gotest to execute go test cases of ElasticJob operator
 runs:
   using: 'docker'
   image: "easydl/easydl:ci"
@@ -8,4 +8,3 @@ runs:
     - "/bin/bash"
     - "-c"
     - "cd dlrover/go/elasticjob_operator && go test ./..."
-    - "cd dlrover/go/brain/pkg && go test ./..."
