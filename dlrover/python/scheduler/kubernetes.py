@@ -15,8 +15,19 @@ import os
 
 from kubernetes import client, config
 
+from dlrover.python.common.constants import NodeType
 from dlrover.python.common.log_utils import default_logger as logger
 from dlrover.python.common.singleton_utils import singleton
+
+JOB_SUFFIX = "-edljob-"
+
+
+_SERVICE_PORTS = {
+    NodeType.WORKER: 3333,
+    NodeType.EVALUATOR: 3333,
+    NodeType.TF_MASTER: 3333,
+    NodeType.PS: 2222,
+}
 
 
 @singleton
@@ -25,9 +36,6 @@ class k8sClient(object):
         self,
         namespace,
         job_name,
-        event_callback=None,
-        pod_list_callback=None,
-        periodic_call_func=None,
         force_use_kube_config_file=False,
     ):
         """
@@ -66,11 +74,8 @@ class k8sClient(object):
 
         self.client = client.CoreV1Api()
         self.api_instance = client.CustomObjectsApi()
-        self.namespace = namespace
-        self.job_name = job_name
-        self._event_cb = event_callback
-        self._pod_list_cb = pod_list_callback
-        self._periodic_call_func = periodic_call_func
+        self._namespace = namespace
+        self._job_name = job_name
 
     def create_custom_resource(self, group, version, plural, body):
         try:
@@ -91,7 +96,7 @@ class k8sClient(object):
     def get_custom_resource(self, name, group, version, plural):
         try:
             crd_object = self.api_instance.get_namespaced_custom_object(
-                namespace=self.namespace,
+                namespace=self._namespace,
                 name=name,
                 group=group,
                 version=version,
@@ -101,3 +106,27 @@ class k8sClient(object):
         except client.ApiException as e:
             logger.warning("Exception when getting custom object: %s\n" % e)
             return None
+
+    def get_training_job(self):
+        try:
+            crd_object = self.get_custom_resource(
+                name=self._job_name,
+                group="jobs.kubemaker.alipay.net",
+                version="v1beta1",
+                plural="trainings",
+            )
+            return crd_object
+        except client.ApiException as e:
+            logger.warning("Exception when getting custom object: %s\n" % e)
+            return None
+
+    def get_service_address(self, pod_type, pod_id):
+        service_name = self.get_pod_name(pod_type, pod_id)
+        return "%s.%s.svc:%d" % (
+            service_name,
+            self._namespace,
+            _SERVICE_PORTS[pod_type],
+        )
+
+    def get_pod_name(self, pod_type, pod_id):
+        return "%s-%s" % (self._job_name + JOB_SUFFIX + pod_type, pod_id)

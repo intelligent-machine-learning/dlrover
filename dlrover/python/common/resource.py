@@ -10,23 +10,50 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import Dict
 
 
 class NodeResource(object):
-    def __init__(self, cpu, memory, gpu=None):
+    """NodeResource records a resource of a Node.
+    Attributes:
+        cpu: float, CPU cores.
+        memory: float, memory MB.
+        gpu: Dict.
+    """
+
+    def __init__(self, cpu, memory, gpu={}):
         self.cpu = cpu
         self.memory = memory
-        self.gpu = gpu
+        self.gpu: Dict[str, int] = gpu
+
+    @classmethod
+    def resource_str_to_node_resource(cls, resource_str):
+        """Convert the resource configuration like "memory=100Mi,cpu=5"
+        to a NodeResource instance."""
+        resource = {}
+        if not resource_str:
+            return resource
+        for value in resource_str.strip().split(","):
+            resource[value.split("=")[0]] = value.split("=")[1]
+
+        memory = float(resource.get("memory", "0Mi")[0:-2])
+        cpu = float(resource.get("cpu", "0"))
+        gpu = {}
+        for key, _ in resource.items():
+            if "nvidia.com" in key:
+                gpu[key] = int(resource[key])
+        return NodeResource(cpu, memory, gpu)
 
 
-class TaskGroupResource(object):
-    """The task group resource contains the number of the task
+class NodeGroupResource(object):
+    """The node group resource contains the number of the task
     and resource (cpu, memory) of each task.
     Args:
         count: int, the number of task.
         node_resource: a NodeResource instance.
     """
 
-    def __init__(self, count, node_resource: NodeResource):
+    def __init__(self, count, node_resource, priority):
         self.count = count
         self.node_resource = node_resource
+        self.priority = priority

@@ -93,6 +93,7 @@ def _convert_pod_event_to_node_event(event):
         status=evt_obj.status.phase,
         start_time=_get_start_timestamp(evt_obj.status),
     )
+    node.set_exit_reason(_get_pod_exit_reason(evt_obj))
     node_event = NodeEvent(event_type=evt_type, node=node)
     return node_event
 

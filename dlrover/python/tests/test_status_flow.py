@@ -13,12 +13,12 @@
 
 import unittest
 
+from dlrover.python.common.constants import NodeEventType, NodeStatus
 from dlrover.python.master.node_manager.status_flow import (
+    NODE_STATE_FLOWS,
     NodeStateFlow,
     get_node_state_flow,
-    NODE_STATE_FLOWS
 )
-from dlrover.python.common.constants import NodeStatus, NodeEventType
 
 
 class NodeStatusFlowTest(unittest.TestCase):
