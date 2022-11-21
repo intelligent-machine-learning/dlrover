@@ -13,7 +13,7 @@
 
 import unittest
 
-from dlrover.python.common.resource import NodeResource, TaskGroupResource
+from dlrover.python.common.resource import NodeGroupResource, NodeResource
 from dlrover.python.master.resource_generator.base_generator import (
     ResourcePlan,
 )
@@ -24,7 +24,7 @@ class ResourceGeneratorTest(unittest.TestCase):
         plan = ResourcePlan()
         node_resource = NodeResource(10, 4096)
         plan.add_node_resource("worker-0", node_resource)
-        group_resource = TaskGroupResource(1, node_resource)
+        group_resource = NodeGroupResource(1, node_resource)
         plan.add_task_group_resource("worker", group_resource)
         self.assertEqual(plan.node_resources["worker-0"].cpu, 10)
         self.assertEqual(plan.task_group_resources["worker"].count, 1)

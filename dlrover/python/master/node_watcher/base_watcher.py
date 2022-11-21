@@ -53,6 +53,7 @@ class Node(object):
         critical=False,
         max_relaunch_count=0,
         relaunchable=True,
+        service_addr=None,
     ):
         self.type = node_type
         self.id = node_id
@@ -61,9 +62,10 @@ class Node(object):
         self.start_time = start_time
         self.task_index = task_index if task_index is not None else node_id
         self.relaunch_count = relaunch_count
+        self.critical = critical
         self.max_relaunch_count = max_relaunch_count
         self.relaunchable = relaunchable
-        self.critical = critical
+        self.service_addr = service_addr
 
         self.create_time = None
         self.finish_time = None
@@ -124,7 +126,7 @@ class NodeEvent(object):
 
     def __init__(self, event_type, node):
         self.event_type = event_type
-        self.node = node
+        self.node: Node = node
 
 
 class NodeWatcher(metaclass=ABCMeta):

@@ -13,7 +13,7 @@
 
 import unittest
 
-from dlrover.python.common.resource import NodeResource, TaskGroupResource
+from dlrover.python.common.resource import NodeGroupResource, NodeResource
 from dlrover.python.master.resource_generator.base_generator import (
     ResourcePlan,
 )
@@ -25,7 +25,7 @@ class k8sScalerTest(unittest.TestCase):
         plan = ResourcePlan()
         node_resource = NodeResource(10, 4096)
         plan.add_node_resource("worker-0", node_resource)
-        group_resource = TaskGroupResource(1, node_resource)
+        group_resource = NodeGroupResource(1, node_resource)
         plan.add_task_group_resource("worker", group_resource)
 
         scaler = k8sScaler(
