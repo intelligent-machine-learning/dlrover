@@ -32,62 +32,7 @@ from dlrover.python.master.node_watcher.pod_watcher import (
     _convert_pod_event_to_node_event,
     _get_pod_exit_reason,
 )
-
-
-def create_pod(labels):
-    status = client.V1PodStatus(
-        container_statuses=[
-            client.V1ContainerStatus(
-                image="test",
-                name="main",
-                ready=True,
-                restart_count=1,
-                image_id="test",
-                state=client.V1ContainerState(
-                    running=client.V1ContainerStateRunning(
-                        started_at=datetime.datetime.strptime(
-                            "2022-11-11 11:11:11", "%Y-%m-%d %H:%M:%S"
-                        ),
-                    )
-                ),
-            )
-        ],
-        phase=NodeStatus.RUNNING,
-    )
-    pod = client.V1Pod(
-        kind="Pod",
-        metadata=client.V1ObjectMeta(
-            labels=labels,
-        ),
-        status=status,
-    )
-    return pod
-
-
-def mock_list_job_pods():
-    pods = []
-    for i in range(2):
-        labels = {
-            ElasticJobLabel.APP_NAME: "test",
-            ElasticJobLabel.REPLICA_TYPE_KEY: NodeType.PS,
-            ElasticJobLabel.REPLICA_INDEX_KEY: str(i),
-            ElasticJobLabel.TRAINING_TASK_INDEX_KEY: str(i),
-        }
-        pod = create_pod(labels)
-        pods.append(pod)
-
-    for i in range(3):
-        labels = {
-            ElasticJobLabel.APP_NAME: "test",
-            ElasticJobLabel.REPLICA_TYPE_KEY: NodeType.WORKER,
-            ElasticJobLabel.REPLICA_INDEX_KEY: str(i),
-            ElasticJobLabel.TRAINING_TASK_INDEX_KEY: str(i),
-        }
-        pod = create_pod(labels)
-        pods.append(pod)
-    return client.V1PodList(
-        items=pods, metadata=client.V1ListMeta(resource_version="12345678")
-    )
+from dlrover.python.tests.test_utils import create_pod, mock_list_job_pods
 
 
 class PodWatcherTest(unittest.TestCase):

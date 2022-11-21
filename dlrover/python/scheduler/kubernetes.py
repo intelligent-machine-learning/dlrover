@@ -107,7 +107,17 @@ class k8sClient(object):
             logger.warning("Exception when getting custom object: %s\n" % e)
             return None
 
-    def get_training_job(self):
+    def get_job_uuid(self):
+        job_data = self._get_training_job()
+        if (
+            job_data
+            and "metadata" in job_data
+            and "uid" in job_data["metadata"]
+        ):
+            return job_data["metadata"]["uid"]
+        return ""
+
+    def _get_training_job(self):
         try:
             crd_object = self.get_custom_resource(
                 name=self._job_name,
