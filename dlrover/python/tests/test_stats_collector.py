@@ -17,10 +17,10 @@ import unittest
 from dlrover.python.common.constants import NodeType
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node_watcher.base_watcher import Node
-from dlrover.python.master.stats_collector.metrics_collector import (
+from dlrover.python.master.stats_collector.job_collector import (
     JobMetricCollector,
 )
-from dlrover.python.master.stats_collector.stats_collector import (
+from dlrover.python.master.stats_collector.reporter import (
     JobMeta,
     LocalStatsReporter,
 )
