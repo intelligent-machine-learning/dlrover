@@ -102,3 +102,9 @@ class DistributionStrategy(object):
     PARAMETER_SERVER = "ParameterServerStrategy"
     ALLREDUCE = "AllreduceStrategy"
     CUSTOM = "CustomStrategy"
+
+
+class PSClusterVersionType(object):
+    GLOBAL = "GLOBAL"
+    LOCAL = "LOCAL"
+    RESTORED = "RESTORED"

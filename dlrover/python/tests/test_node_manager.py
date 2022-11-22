@@ -216,3 +216,32 @@ class JobConfigTest(unittest.TestCase):
         )
         manager._process_node_events(NODE_STATE_FLOWS[7], node)
         self.assertEqual(len(dataset.doing), 0)
+
+    def test_check_worker_status(self):
+        args = MockArgs()
+        manager = create_node_manager(args)
+        manager._init_attr_for_typed_pods()
+        self.assertFalse(manager.all_workers_exited())
+
+        for worker in manager._job_nodes[NodeType.WORKER].values():
+            worker.status = NodeStatus.FINISHED
+        for worker in manager._job_nodes[NodeType.TF_MASTER].values():
+            worker.status = NodeStatus.FINISHED
+        for worker in manager._job_nodes[NodeType.EVALUATOR].values():
+            worker.status = NodeStatus.FINISHED
+        self.assertTrue(manager.all_workers_exited())
+
+        for worker in manager._job_nodes[NodeType.WORKER].values():
+            worker.status = NodeStatus.FAILED
+        for worker in manager._job_nodes[NodeType.TF_MASTER].values():
+            worker.status = NodeStatus.FAILED
+        for worker in manager._job_nodes[NodeType.EVALUATOR].values():
+            worker.status = NodeStatus.FAILED
+        self.assertTrue(manager.all_workers_failed())
+
+        for worker in manager._job_nodes[NodeType.PS].values():
+            worker.status = NodeStatus.FINISHED
+        manager._job_nodes[NodeType.WORKER][0].status = NodeStatus.RUNNING
+        self.assertFalse(manager.all_critical_node_completed())
+        manager._job_nodes[NodeType.WORKER][0].status = NodeStatus.FINISHED
+        self.assertTrue(manager.all_critical_node_completed())

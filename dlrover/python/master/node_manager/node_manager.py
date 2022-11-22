@@ -13,6 +13,7 @@
 
 import threading
 import time
+from collections import Counter
 from typing import Dict, List
 
 from dlrover.python.common.constants import (
@@ -349,3 +350,82 @@ class NodeManager(object):
 
     def _relaunch_typed_pod(self, node: Node):
         logger.info("Relaunch the pod: {}".format(node.name))
+
+    def all_workers_exited(self):
+        counter = self._get_worker_status_counter()
+
+        # At start, there may be no launched worker.
+        if len(counter) == 1 and NodeStatus.INITIAL in counter:
+            return False
+
+        all_exited = True
+        with self._lock:
+            all_workers = (
+                list(self._job_nodes[NodeType.WORKER].values())
+                + list(self._job_nodes[NodeType.EVALUATOR].values())
+                + list(self._job_nodes[NodeType.TF_MASTER].values())
+            )
+            for worker in all_workers:
+                if not worker.is_released and (
+                    worker.status
+                    in [
+                        NodeStatus.RUNNING,
+                        NodeStatus.PENDING,
+                        NodeStatus.INITIAL,
+                    ]
+                ):
+                    all_exited = False
+                    break
+        return all_exited
+
+    def all_workers_failed(self):
+        counter = self._get_worker_status_counter()
+        if len(counter) == 1 and NodeStatus.INITIAL in counter:
+            return False
+
+        all_failed = all(
+            [
+                status
+                in [NodeStatus.FAILED, NodeStatus.DELETED, NodeStatus.INITIAL]
+                for status in counter
+            ]
+        )
+        return all_failed
+
+    def all_workers_deleted(self):
+        counter = self._get_worker_status_counter()
+        all_deleted = all([status == NodeStatus.DELETED for status in counter])
+        return all_deleted
+
+    def _get_worker_status_counter(self):
+        worker_counter = self._get_pod_counter(
+            self._job_nodes[NodeType.WORKER]
+        )
+        evaluator_counter = self._get_pod_counter(
+            self._job_nodes[NodeType.EVALUATOR]
+        )
+        tf_master_counter = self._get_pod_counter(
+            self._job_nodes[NodeType.TF_MASTER]
+        )
+        counter = worker_counter + evaluator_counter + tf_master_counter
+        return counter
+
+    def _get_pod_counter(self, nodes):
+        with self._lock:
+            return Counter([node.status for node in nodes.values()])
+
+    def all_critical_node_completed(self):
+        alive_critical_nodes = []
+        for _, nodes in self._job_nodes.items():
+            for node_id, node in nodes.items():
+                if node.critical and node.status in [
+                    NodeStatus.INITIAL,
+                    NodeStatus.PENDING,
+                    NodeStatus.RUNNING,
+                ]:
+                    alive_critical_nodes.append(node_id)
+
+        completed = not alive_critical_nodes
+        if not completed:
+            logger.info("Critical pods %s are running.", alive_critical_nodes)
+        return completed
