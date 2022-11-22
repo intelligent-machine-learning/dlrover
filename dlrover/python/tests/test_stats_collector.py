@@ -1,15 +1,27 @@
-import unittest
-import time
+# Copyright 2022 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
-from dlrover.python.master.stats_collector.metrics_collector import (
-    JobMetricCollector
-)
-from dlrover.python.master.stats_collector.stats_collector import JobMeta
+import time
+import unittest
+
+from dlrover.python.common.constants import NodeType
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node_watcher.base_watcher import Node
-from dlrover.python.common.constants import NodeType
-
+from dlrover.python.master.stats_collector.metrics_collector import (
+    JobMetricCollector,
+)
 from dlrover.python.master.stats_collector.stats_collector import (
+    JobMeta,
     LocalStatsReporter,
 )
 from dlrover.python.master.stats_collector.training_metrics import (

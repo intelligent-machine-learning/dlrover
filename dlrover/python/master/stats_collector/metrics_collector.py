@@ -14,27 +14,26 @@
 import threading
 import time
 from abc import ABCMeta, abstractmethod
-from typing import List
+from typing import Dict, List
 
-
-from dlrover.python.common.log_utils import default_logger as logger
-from dlrover.python.master.stats_collector.training_metrics import (
-    DatasetMetric,
-    TrainingHyperParams,
-    RuntimeMetric,
-    ModelMetric,
-    DatasetType,
-    CustomMetricKey,
-    TensorStats,
-    OpStats,
-)
 from dlrover.python.common.constants import NodeType
+from dlrover.python.common.log_utils import default_logger as logger
+from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
+from dlrover.python.master.node_watcher.base_watcher import Node
 from dlrover.python.master.stats_collector.stats_collector import (
+    JobMeta,
     StatsReporter,
 )
-from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
-from dlrover.python.master.stats_collector.stats_collector import JobMeta
-from dlrover.python.master.node_watcher.base_watcher import Node
+from dlrover.python.master.stats_collector.training_metrics import (
+    CustomMetricKey,
+    DatasetMetric,
+    DatasetType,
+    ModelMetric,
+    OpStats,
+    RuntimeMetric,
+    TensorStats,
+    TrainingHyperParams,
+)
 
 
 class BaseMetricCollector(metaclass=ABCMeta):
@@ -91,7 +90,7 @@ class JobMetricCollector(BaseMetricCollector):
         self._report_runtime_thread = threading.Thread(
             target=self.report_runtime_info_to_easydl, daemon=True
         )
-        self._custom_metric = {}
+        self._custom_metric: Dict[str, str] = {}
 
     @BaseMetricCollector.catch_easydl_exception
     def report_dataset_metric(self, name, size, ds_type=DatasetType.TEXT):
@@ -132,9 +131,7 @@ class JobMetricCollector(BaseMetricCollector):
 
     @BaseMetricCollector.catch_easydl_exception
     def report_custom_data(self):
-        self._stats_collector.report_customized_data(
-            self._custom_metric
-        )
+        self._stats_collector.report_customized_data(self._custom_metric)
 
     def set_runtime_info(
         self, speed_monitor: SpeedMonitor, running_nodes: List[Node]

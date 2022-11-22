@@ -12,13 +12,14 @@
 # limitations under the License.
 
 from abc import ABCMeta, abstractmethod
+
+from dlrover.python.common.log_utils import default_logger as logger
 from dlrover.python.master.stats_collector.training_metrics import (
     DatasetMetric,
-    TrainingHyperParams,
-    RuntimeMetric,
     ModelMetric,
+    RuntimeMetric,
+    TrainingHyperParams,
 )
-from dlrover.python.common.log_utils import default_logger as logger
 
 
 class JobMeta(object):
