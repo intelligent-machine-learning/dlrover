@@ -323,14 +323,14 @@ class NodeManager(object):
                 mem = node.used_resource.memory
                 if mem > NodeResourceBoundary.MAX_MEMORY:
                     should_relaunch = False
-                    logger.warn(
+                    logger.warning(
                         "The memory of worker %s is beyond the limit %s MB.",
                         mem,
                         NodeResourceBoundary.MAX_MEMORY,
                     )
                 elif node.relaunch_count >= node.max_relaunch_count:
                     should_relaunch = False
-                    logger.warn(
+                    logger.warning(
                         "The relaunched count %s is beyond the maximum %s.",
                         node.relaunch_count,
                         node.max_relaunch_count,
@@ -429,3 +429,11 @@ class NodeManager(object):
         if not completed:
             logger.info("Critical pods %s are running.", alive_critical_nodes)
         return completed
+
+    def remove_worker(self, worker_id):
+        if self._job_nodes[NodeType.WORKER][worker_id].critical:
+            logger.info("Skip the critical worker %s", worker_id)
+        else:
+            # TODO: implement to delete a worker.
+            logger.info("Delete worker %s", worker_id)
+    
