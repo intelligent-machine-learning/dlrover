@@ -196,7 +196,7 @@ class JobConfigTest(unittest.TestCase):
         args = MockArgs()
         manager = create_node_manager(args, SpeedMonitor())
         manager._init_job_nodes()
-        manager.add_pod_event_callback(task_callback)
+        manager.add_node_event_callback(task_callback)
 
         dataset = task_manager.get_dataset(dataset_name)
         task_manager.get_dataset_task(0, dataset_name)

@@ -72,7 +72,7 @@ class NodeManager(object):
             ps_relaunch_max_num, _MAX_POD_RELAUNCH_COUNT
         )
         self._use_ddp = use_ddp
-        self._pod_event_callbacks: List[NodeEventCallback] = []
+        self._node_event_callbacks: List[NodeEventCallback] = []
         self._chief_worker_started = False
         self._stop_monitor = False
         self._last_pod_stats = None
@@ -97,8 +97,8 @@ class NodeManager(object):
     def get_job_uuid(self):
         return self._job_uuid
 
-    def add_pod_event_callback(self, pod_event_callback):
-        self._pod_event_callbacks.append(pod_event_callback)
+    def add_node_event_callback(self, pod_event_callback):
+        self._node_event_callbacks.append(pod_event_callback)
 
     def _init_job_nodes(self):
         self._job_nodes = self._job_resource.init_job_node_meta(
@@ -226,17 +226,17 @@ class NodeManager(object):
         if status_change_flow.to_status == NodeStatus.RUNNING:
             [
                 callback.on_node_started(node, cluster_context)
-                for callback in self._pod_event_callbacks
+                for callback in self._node_event_callbacks
             ]
         elif status_change_flow.to_status == NodeStatus.SUCCEEDED:
             [
                 callback.on_node_succeeded(node, cluster_context)
-                for callback in self._pod_event_callbacks
+                for callback in self._node_event_callbacks
             ]
         elif status_change_flow.to_status == NodeStatus.FAILED:
             [
                 callback.on_node_failed(node, cluster_context)
-                for callback in self._pod_event_callbacks
+                for callback in self._node_event_callbacks
             ]
         elif (
             status_change_flow.from_status != NodeStatus.FAILED
@@ -245,7 +245,7 @@ class NodeManager(object):
         ):
             [
                 callback.on_node_deleted(node, cluster_context)
-                for callback in self._pod_event_callbacks
+                for callback in self._node_event_callbacks
             ]
 
     def _should_relaunch(self, node: Node, status_change_flow: NodeStateFlow):

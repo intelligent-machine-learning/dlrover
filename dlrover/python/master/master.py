@@ -20,6 +20,7 @@ from dlrover.python.elastic_training.elastic_ps import ElasticPsService
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node_manager.event_callback import (
     TaskRescheduleCallback,
+    TFPSNodeHandlingCallback,
 )
 from dlrover.python.master.node_manager.node_manager import create_node_manager
 from dlrover.python.master.servicer import create_master_service
@@ -99,7 +100,7 @@ class Master(object):
                 self.node_manager.remove_worker
             )
         if self.node_manager:
-            self._add_pod_event_callback()
+            self._add_node_event_callback()
 
         # Start the components one by one
         if self.task_manager:
@@ -118,11 +119,18 @@ class Master(object):
         self._master_server.start()
         logger.info("Master RPC server started")
 
-    def _add_pod_event_callback(self):
-        # Add PodEventCallbacks for the listeners of Pod events.
+    def _add_node_event_callback(self):
+        """Add NodeEventCallbacks for the listeners of Pod events."""
         if self.task_manager:
-            self.node_manager.add_pod_event_callback(
+            self.node_manager.add_node_event_callback(
                 TaskRescheduleCallback(self.task_manager)
+            )
+        if (
+            self._args.distribution_strategy
+            == DistributionStrategy.PARAMETER_SERVER
+        ):
+            self.node_manager.add_node_event_callback(
+                TFPSNodeHandlingCallback(self)
             )
 
     def run(self):
