@@ -22,12 +22,12 @@ class SpeedMonitorTest(unittest.TestCase):
         monitor.set_target_worker_num(2)
         monitor.add_running_worker(0)
         monitor.add_running_worker(1)
-        monitor.sample_global_step(1, 1)
-        monitor.sample_global_step(301, 11),
-        monitor.sample_global_step(9001, 301),
+        monitor.collect_global_step(1, 1)
+        monitor.collect_global_step(301, 11),
+        monitor.collect_global_step(9001, 301),
         self.assertEqual(monitor.completed_global_step, 9001)
         self.assertTrue(monitor.worker_adjustment_finished())
         self.assertEqual(monitor.running_speed, 30)
         monitor.remove_running_worker(1)
-        monitor.sample_global_step(18001, 601)
+        monitor.collect_global_step(18001, 601)
         self.assertFalse(monitor.worker_adjustment_finished())

@@ -45,7 +45,7 @@ class SpeedMonitor(object):
         self._target_worker_num = 0
         self._init_time = time.time()
         self._start_training_time = None
-        self._global_step_count = 0
+        self._sample_count = 0
 
     def set_target_worker_num(self, worker_num):
         """Set the target number of workers"""
@@ -63,7 +63,7 @@ class SpeedMonitor(object):
                 GlobalStepRecord(0, int(time.time()), len(self._workers))
             )
 
-    def sample_global_step(self, global_step, timestamp):
+    def collect_global_step(self, global_step, timestamp):
         """The sampling interval should be bigger than 6s. It means
         that we calculate the speed with interval 1min.
         """
@@ -78,7 +78,7 @@ class SpeedMonitor(object):
             not self._global_step_records
             or global_step > self._global_step_records[-1].global_step
         ):
-            self._global_step_count += 1
+            self._sample_count += 1
             self._global_step_records.append(
                 GlobalStepRecord(global_step, timestamp, len(self._workers))
             )
@@ -90,6 +90,9 @@ class SpeedMonitor(object):
                 self._global_step_records[-1].worker_num,
                 round(self.running_speed, 2),
             )
+
+    def get_sample_count(self):
+        return self._sample_count
 
     @property
     def running_speed(self):

@@ -14,14 +14,19 @@
 import unittest
 
 from dlrover.python.common.constants import (
-    DistributionStrategy,
+    JobExitReason,
     NodeEventType,
     NodeExitReason,
     NodeStatus,
     NodeType,
 )
+from dlrover.python.common.resource import NodeResource
+from dlrover.python.master.master import Master
+from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node_manager.event_callback import (
+    ClusterContext,
     TaskRescheduleCallback,
+    TFPSNodeHandlingCallback,
 )
 from dlrover.python.master.node_manager.job_config import (
     JobResourceConfig,
@@ -36,6 +41,7 @@ from dlrover.python.master.node_manager.status_flow import (
 )
 from dlrover.python.master.node_watcher.base_watcher import Node, NodeEvent
 from dlrover.python.tests.test_utils import (
+    MockArgs,
     create_task_manager,
     mock_list_job_pods,
 )
@@ -49,33 +55,6 @@ def get_service_fn(*args):
 
 def get_job_uuid():
     return "11111"
-
-
-class MockArgs(object):
-    def __init__(self):
-        self.job_name = "test"
-        self.namespace = "test"
-        self.ps_is_critical = True
-        self.ps_relaunch_max_num = 1
-        self.use_ddp = False
-        self.critical_worker_index = "0:3"
-        self.distribution_strategy = DistributionStrategy.PARAMETER_SERVER
-        self.relaunch_on_worker_failure = 1
-        self.num_workers = 3
-        self.worker_resource_request = "cpu=1,memory=4096Mi"
-        self.worker_pod_priority = ""
-
-        self.num_ps_pods = 3
-        self.ps_resource_request = "cpu=1,memory=4096Mi"
-        self.ps_pod_priority = ""
-
-        self.num_evaluators = 1
-        self.evaluator_resource_request = "cpu=1,memory=4096Mi"
-        self.evaluator_pod_priority = ""
-
-        self.num_tf_master = 3
-        self.tf_master_resource_request = "cpu=1,memory=4096Mi"
-        self.tf_master_pod_priority = ""
 
 
 class NodeStatusFlowTest(unittest.TestCase):
@@ -130,7 +109,10 @@ class JobConfigTest(unittest.TestCase):
         self.assertEqual(nodes[NodeType.PS][0].type, NodeType.PS)
         self.assertEqual(nodes[NodeType.WORKER][2].id, 2)
         self.assertEqual(nodes[NodeType.WORKER][0].type, NodeType.WORKER)
-        self.assertEqual(nodes[NodeType.WORKER][0].used_resource.cpu, 1)
+        self.assertEqual(nodes[NodeType.WORKER][0].config_resource.cpu, 1)
+        self.assertEqual(
+            nodes[NodeType.WORKER][0].config_resource.memory, 4096
+        )
 
     def test_set_critical_node(self):
         job = JobResourceConfig()
@@ -163,7 +145,7 @@ class JobConfigTest(unittest.TestCase):
 
     def test_create_node_manager(self):
         args = MockArgs()
-        manager = create_node_manager(args)
+        manager = create_node_manager(args, SpeedMonitor())
         self.assertEqual(manager._ps_relaunch_max_num, 1)
         manager._k8s_client.get_job_uuid = get_job_uuid
         manager._node_watcher._list_job_pods = mock_list_job_pods
@@ -176,6 +158,15 @@ class JobConfigTest(unittest.TestCase):
             node_type=NodeType.WORKER,
             node_id=1,
             status=NodeStatus.RUNNING,
+            config_resource=NodeResource(1, 4096),
+        )
+
+        manager.update_node_resource_usage(NodeType.WORKER, 0, 0.7, 2048)
+        self.assertEqual(
+            manager._job_nodes[NodeType.WORKER][0].used_resource.cpu, 0.7
+        )
+        self.assertEqual(
+            manager._job_nodes[NodeType.WORKER][0].used_resource.memory, 2048
         )
 
         node_event: NodeEvent = NodeEvent(NodeEventType.MODIFIED, node)
@@ -203,9 +194,9 @@ class JobConfigTest(unittest.TestCase):
         task_manager = create_task_manager()
         task_callback = TaskRescheduleCallback(task_manager)
         args = MockArgs()
-        manager = create_node_manager(args)
-        manager._init_attr_for_typed_pods()
-        manager.add_pod_event_callback(task_callback)
+        manager = create_node_manager(args, SpeedMonitor())
+        manager._init_job_nodes()
+        manager.add_node_event_callback(task_callback)
 
         dataset = task_manager.get_dataset(dataset_name)
         task_manager.get_dataset_task(0, dataset_name)
@@ -213,6 +204,62 @@ class JobConfigTest(unittest.TestCase):
             node_type=NodeType.WORKER,
             node_id=0,
             status=NodeStatus.RUNNING,
+            config_resource=NodeResource(1, 4096),
         )
         manager._process_node_events(NODE_STATE_FLOWS[7], node)
         self.assertEqual(len(dataset.doing), 0)
+
+    def test_check_worker_status(self):
+        args = MockArgs()
+        manager = create_node_manager(args, SpeedMonitor())
+        manager._init_job_nodes()
+        self.assertFalse(manager.all_workers_exited())
+
+        for worker in manager._job_nodes[NodeType.WORKER].values():
+            worker.status = NodeStatus.FINISHED
+        for worker in manager._job_nodes[NodeType.TF_MASTER].values():
+            worker.status = NodeStatus.FINISHED
+        for worker in manager._job_nodes[NodeType.EVALUATOR].values():
+            worker.status = NodeStatus.FINISHED
+        self.assertTrue(manager.all_workers_exited())
+
+        for worker in manager._job_nodes[NodeType.WORKER].values():
+            worker.status = NodeStatus.FAILED
+        for worker in manager._job_nodes[NodeType.TF_MASTER].values():
+            worker.status = NodeStatus.FAILED
+        for worker in manager._job_nodes[NodeType.EVALUATOR].values():
+            worker.status = NodeStatus.FAILED
+        self.assertTrue(manager.all_workers_failed())
+
+        for worker in manager._job_nodes[NodeType.PS].values():
+            worker.status = NodeStatus.FINISHED
+        manager._job_nodes[NodeType.WORKER][0].status = NodeStatus.RUNNING
+        self.assertFalse(manager.all_critical_node_completed())
+        manager._job_nodes[NodeType.WORKER][0].status = NodeStatus.FINISHED
+        self.assertTrue(manager.all_critical_node_completed())
+
+    def test_tf_ps_node_handling(self):
+
+        args = MockArgs()
+        master = Master(args)
+        callback = TFPSNodeHandlingCallback(master)
+
+        node = Node(NodeType.PS, 0, None)
+        node.exit_reason = NodeExitReason.OOM
+        reason = callback.get_job_exit_reason(node)
+        self.assertEqual(reason, JobExitReason.PS_OOM_ERROR)
+
+        node.type = NodeType.WORKER
+        reason = callback.get_job_exit_reason(node)
+        self.assertEqual(reason, JobExitReason.CODE_ERROR)
+
+        master.speed_monitor.add_running_worker(0)
+        master.speed_monitor.add_running_worker(1)
+        cluster_context = ClusterContext(master.node_manager)
+        callback.on_node_succeeded(node, cluster_context)
+        self.assertEqual(len(master.speed_monitor.running_workers), 1)
+
+        master.speed_monitor.set_target_worker_num(2)
+        node.exit_reason = NodeExitReason.FATAL_ERROR
+        callback.on_node_failed(node, cluster_context)
+        self.assertEqual(master.speed_monitor._target_worker_num, 1)

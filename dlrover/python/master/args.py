@@ -245,15 +245,27 @@ def add_params(parser):
         "--namespace",
         default="default",
         type=str,
-        help="The name of the Kubernetes namespace where ElasticDL "
+        help="The name of the Kubernetes namespace where "
         "pods will be created",
+    )
+    parser.add_argument(
+        "--cluster",
+        default="",
+        type=str,
+        help="The name of the Kubernetes cluster where" "pods will be created",
+    )
+    parser.add_argument(
+        "--user",
+        default="",
+        type=str,
+        help="The user to submit the job",
     )
     add_bool_param(
         parser=parser,
         name="--force_use_kube_config_file",
         default=False,
         help="If true, force to load the cluster config from ~/.kube/config "
-        "while submitting the ElasticDL job. Otherwise, if the client is in a "
+        "while submitting the elastic job. Otherwise, if the client is in a "
         "K8S environment, load the incluster config, if not, load the kube "
         "config file.",
     )
@@ -377,7 +389,7 @@ def print_args(args, exclude_args=[], groups=None):
 
 
 def _build_master_args_parser():
-    parser = argparse.ArgumentParser(description="ElasticDL Master")
+    parser = argparse.ArgumentParser(description="Training Master")
     parser.add_argument(
         "--port",
         default=50001,

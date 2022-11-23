@@ -13,6 +13,7 @@
 
 import copy
 from abc import ABCMeta, abstractmethod
+from datetime import datetime
 from typing import List
 
 from dlrover.python.common.constants import (
@@ -45,6 +46,7 @@ class Node(object):
         self,
         node_type,
         node_id,
+        config_resource: NodeResource,
         name=None,
         status=NodeStatus.INITIAL,
         start_time=None,
@@ -67,11 +69,13 @@ class Node(object):
         self.relaunchable = relaunchable
         self.service_addr = service_addr
 
-        self.create_time = None
-        self.finish_time = None
+        now = datetime.now()
+        self.create_time = now
+        self.finish_time = now
         self.is_recovered_oom = False
         self.is_released = False
         self.exit_reason = None
+        self.config_resource = config_resource
         self.used_resource = NodeResource(0.0, 0.0)
 
     def inc_relaunch_count(self):

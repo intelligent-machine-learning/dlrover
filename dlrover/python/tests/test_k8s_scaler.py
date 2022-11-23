@@ -25,7 +25,7 @@ class k8sScalerTest(unittest.TestCase):
         plan = ResourcePlan()
         node_resource = NodeResource(10, 4096)
         plan.add_node_resource("worker-0", node_resource)
-        group_resource = NodeGroupResource(1, node_resource)
+        group_resource = NodeGroupResource(1, node_resource, "low")
         plan.add_task_group_resource("worker", group_resource)
 
         scaler = k8sScaler(
