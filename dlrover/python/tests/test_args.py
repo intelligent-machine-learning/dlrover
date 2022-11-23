@@ -11,15 +11,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dlrover.python.master.stats_collector.base_collector import StatsCollector
+import unittest
+
+from dlrover.python.master.args import parse_master_args
 
 
-class LocalStatsCollector(StatsCollector):
-    def __init__(self, job_uuid):
-        super(LocalStatsCollector, self).__init__(job_uuid)
-        self._all_node_resources = {}
-
-    def report_resource_usage(self):
-        for node_name, resource in self._node_resource_usage.items():
-            self._all_node_resources.setdefault(node_name, [])
-            self._all_node_resources[node_name].append(resource)
+class ArgsTest(unittest.TestCase):
+    def test_parse_master_args(self):
+        original_args = [
+            "--num_workers",
+            "3",
+            "--enabled_auto_ps",
+            "true",
+        ]
+        parsed_args = parse_master_args(original_args)
+        self.assertEqual(parsed_args.num_workers, 3)
+        self.assertTrue(parsed_args.enabled_auto_ps)
