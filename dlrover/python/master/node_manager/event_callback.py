@@ -12,8 +12,7 @@
 # limitations under the License.
 
 import abc
-import collections
-import datetime
+from datetime import datetime
 
 from dlrover.python.common.constants import (
     JobExitReason,
@@ -23,7 +22,10 @@ from dlrover.python.common.constants import (
 from dlrover.python.common.log_utils import default_logger as logger
 from dlrover.python.master.node_watcher.base_watcher import Node
 
-ClusterContext = collections.namedtuple("ClusterContext", ("node_manager"))
+
+class ClusterContext(object):
+    def __init__(self, node_manager):
+        self.node_manager = node_manager
 
 
 class NodeEventCallback(metaclass=abc.ABCMeta):
@@ -117,9 +119,9 @@ class TaskRescheduleCallback(NodeEventCallback):
             self._task_manager.recover_tasks(node.id)
 
 
-class TFPSPodHandlingCallback(NodeEventCallback):
+class TFPSNodeHandlingCallback(NodeEventCallback):
     def __init__(self, master):
-        super(TFPSPodHandlingCallback, self).__init__()
+        super(TFPSNodeHandlingCallback, self).__init__()
         self._master = master
 
     def get_job_exit_reason(self, node: Node):
@@ -144,63 +146,53 @@ class TFPSPodHandlingCallback(NodeEventCallback):
             return JobExitReason.CODE_ERROR
 
     @NodeEventCallback.log_callback_exception
-    def on_pod_started(self, node: Node, cluster_context):
+    def on_node_started(self, node: Node, cluster_context):
         pass
 
     @NodeEventCallback.log_callback_exception
-    def on_pod_succeeded(self, node: Node, cluster_context):
+    def on_node_succeeded(self, node: Node, cluster_context: ClusterContext):
         node.finish_time = datetime.now()
         node_manager = cluster_context.node_manager
         if node.type == NodeType.WORKER and node.task_index == 0:
-            node_manager.remove_running_ps_training_pods()
-        if node.is_critical_pod:
-            completed = node_manager.all_critical_pod_completed()
+            node_manager.remove_training_nodes()
+        if node.critical:
+            completed = node_manager.all_critical_node_completed()
             if completed:
                 self._master.request_stop(
                     success=True,
                     reason=JobExitReason.SUCCEEDED,
-                    msg="All critical pods completed",
+                    msg="All critical nodes completed",
                 )
         if node.type == NodeType.WORKER:
             self._master.task_manager.remove_running_worker(node.id)
 
     @NodeEventCallback.log_callback_exception
-    def on_pod_failed(self, node, cluster_context):
+    def on_node_failed(self, node: Node, cluster_context):
         node.finish_time = datetime.now()
-        self._stop_job_if_needed(node, cluster_context)
-        if node.type == NodeType.PS:
-            cluster_context.pod_manager.clear_worker_sync(None, True)
-        elif node.type == NodeType.WORKER:
+        self._stop_job_if_needed(node)
+        if node.type == NodeType.WORKER:
             task_manager = self._master.task_manager
             task_manager.remove_running_worker(node.id)
             if node.is_unrecoverable_failure():
-                training_dataset = task_manager.get_training_dataset()
-                if training_dataset:
-                    training_dataset.reduce_target_worker_num(1)
+                self._master.speed_monitor.reduce_target_worker_num(1)
 
     @NodeEventCallback.log_callback_exception
-    def on_pod_deleted(self, node, cluster_context):
+    def on_node_deleted(self, node, cluster_context):
         node.finish_time = datetime.now()
-        self._stop_job_if_needed(node, cluster_context)
-        if node.type == NodeType.PS:
-            cluster_context.pod_manager.clear_worker_sync(None, True)
-        elif node.type == NodeType.WORKER:
+        self._stop_job_if_needed(
+            node,
+        )
+        if node.type == NodeType.WORKER:
             self._master.task_manager.remove_running_worker(node.id)
 
-    def _stop_job_if_needed(self, node, cluster_context):
-        if (
-            not cluster_context.pod_manager.is_deleted_ps_pod_for_relaunch(
-                node
-            )
-            and node.is_critical_pod
-            and node.is_unrecoverable_failure()
-        ):
+    def _stop_job_if_needed(self, node: Node):
+        if node.critical and node.is_unrecoverable_failure():
             job_exit_reason = self.get_job_exit_reason(node)
             self._master.request_stop(
                 success=False,
                 reason=job_exit_reason,
                 msg=(
-                    "Critical pod (type={}, id={}) is failed "
+                    "Critical node (type={}, id={}) is failed "
                     "and {} relaunches have been exhausted.".format(
                         node.type, node.id, node.max_relaunch_count
                     )

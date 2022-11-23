@@ -59,19 +59,21 @@ class BaseMetricCollector(metaclass=ABCMeta):
         return wrapper
 
     @abstractmethod
-    def report_model_metric(self, *args, **kwargs):
+    def collect_model_metric(self, *args, **kwargs):
         pass
 
     @abstractmethod
-    def report_training_hyper_params(self, *args, **kwargs):
+    def collect_training_hyper_params(self, *args, **kwargs):
         pass
 
     @abstractmethod
-    def report_dataset_metric(self, *args, **kwargs):
+    def collect_dataset_metric(self, *args, **kwargs):
         pass
 
     @abstractmethod
-    def report_runtime_info(self, *args, **kwargs):
+    def collect_runtime_stats(
+        self, speed_monitor: SpeedMonitor, running_nodes: List[Node]
+    ):
         pass
 
 
@@ -81,19 +83,20 @@ class JobMetricCollector(BaseMetricCollector):
     to EasyDL server.
     """
 
-    def __init__(self, job_meta: JobMeta):
+    def __init__(self, job_uuid, namespace, cluster, user):
+        job_meta = JobMeta(job_uuid, namespace, cluster, user)
         super(JobMetricCollector, self).__init__(job_meta)
         self._runtime_metric = RuntimeMetric([])
         self.dataset_metric = None
         self._flops = 0
         self._batch_size = 0
         self._report_runtime_thread = threading.Thread(
-            target=self.report_runtime_info_to_easydl, daemon=True
+            target=self.report_runtime_stats_periodically, daemon=True
         )
         self._custom_metric: Dict[str, str] = {}
 
     @BaseMetricCollector.catch_easydl_exception
-    def report_dataset_metric(self, name, size, ds_type=DatasetType.TEXT):
+    def collect_dataset_metric(self, name, size, ds_type=DatasetType.TEXT):
         if not self.dataset_metric:
             self.dataset_metric = DatasetMetric.new_dataset_metric(
                 ds_type, name, size
@@ -106,7 +109,7 @@ class JobMetricCollector(BaseMetricCollector):
         self._stats_collector.report_dataset_metric(self.dataset_metric)
 
     @BaseMetricCollector.catch_easydl_exception
-    def report_training_hyper_params(self, epoch, batch_size):
+    def collect_training_hyper_params(self, epoch, batch_size):
         self._batch_size = batch_size
         params = TrainingHyperParams(batch_size, epoch)
         self._stats_collector.report_training_hyper_params(params)
@@ -116,7 +119,7 @@ class JobMetricCollector(BaseMetricCollector):
         self._stats_collector.report_job_type(job_type)
 
     @BaseMetricCollector.catch_easydl_exception
-    def report_model_metric(
+    def collect_model_metric(
         self, tensor_stats: TensorStats, op_stats: OpStats
     ):
         if not self._flops:
@@ -126,14 +129,14 @@ class JobMetricCollector(BaseMetricCollector):
         self._stats_collector.report_model_metrics(metric)
 
     @BaseMetricCollector.catch_easydl_exception
-    def report_runtime_info(self):
+    def _report_runtime_stats(self):
         self._stats_collector.report_runtime_stats(self._runtime_metric)
 
     @BaseMetricCollector.catch_easydl_exception
-    def report_custom_data(self):
+    def collect_custom_data(self):
         self._stats_collector.report_customized_data(self._custom_metric)
 
-    def set_runtime_info(
+    def collect_runtime_stats(
         self, speed_monitor: SpeedMonitor, running_nodes: List[Node]
     ):
         """Set runtime info by global step"""
@@ -144,6 +147,7 @@ class JobMetricCollector(BaseMetricCollector):
         self._runtime_metric.timestamp = int(time.time())
         self._runtime_metric.speed = speed_monitor.running_speed
         running_workers = speed_monitor.running_workers
+
         if (
             speed_monitor.init_training_time > 0
             and self._custom_metric.get(CustomMetricKey.INIT_TRAINING_TIME, 0)
@@ -152,7 +156,7 @@ class JobMetricCollector(BaseMetricCollector):
             self._custom_metric[
                 CustomMetricKey.INIT_TRAINING_TIME
             ] = speed_monitor.init_training_time
-            self.report_custom_data()
+            self.collect_custom_data()
         for node in running_nodes:
             if node.type == NodeType.WORKER:
                 if node.id in running_workers:
@@ -162,14 +166,14 @@ class JobMetricCollector(BaseMetricCollector):
         if not self._report_runtime_thread.is_alive():
             self._report_runtime_thread.start()
 
-    def report_runtime_info_to_easydl(self):
+    def report_runtime_stats_periodically(self):
         global_step = 0
         while True:
             if (
                 self._runtime_metric.global_step > global_step
                 and self._runtime_metric.speed > 0
             ):
-                self.report_runtime_info()
+                self._report_runtime_stats()
                 global_step = self._runtime_metric.global_step
             time.sleep(15)
 

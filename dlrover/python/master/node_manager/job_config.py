@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 from typing import Dict
 
 from dlrover.python.common.constants import DistributionStrategy, NodeType
@@ -90,17 +91,15 @@ class JobResourceConfig(object):
         job_nodes: Dict[str, Dict[int, Node]] = {}
         for node_type in self.get_node_types():
             group_resource = self.get_node_group_resource(node_type)
+            config_resource = group_resource.node_resource
             group_nodes: Dict[int, Node] = {}
             for i in range(group_resource.count):
                 group_nodes[i] = Node(
                     node_type=node_type,
                     node_id=i,
+                    config_resource=copy.deepcopy(config_resource),
                     max_relaunch_count=relaunch_on_worker_failure,
                     service_addr=service_create_fn(node_type, id),
-                )
-                group_nodes[i].update_resource_usage(
-                    group_resource.node_resource.cpu,
-                    group_resource.node_resource.memory,
                 )
             job_nodes[node_type] = group_nodes
         return job_nodes

@@ -75,13 +75,13 @@ message ReportDatasetShardParamsRequest {
   int32 num_epochs = 2;
   int64 dataset_size = 3;
   bool shuffle = 4;
-  bool shuffle_shards = 5;
-  int32 num_minibatches_per_shard = 6;
-  string dataset_name = 7;
-  TaskType task_type = 8;
+  int32 num_minibatches_per_shard = 5;
+  string dataset_name = 6;
+  TaskType task_type = 7;
+  string storage_type = 8;
 }
 
-message GetDatasetEpochRequest { string dataset_name = 1; }
+message DatasetMeta { string dataset_name = 1; }
 
 message GetDatasetEpochResponse { int32 epoch = 1; }
 
@@ -126,8 +126,6 @@ message ReportTrainingLoopStatusRequest {
   int32 ddp_server_port = 4;
 }
 
-message GetShardCheckpointRequest { string dataset_name = 1; }
-
 message ShardCheckpoint { string content = 1; }
 
 message ReportShardCheckpointResponse { bool success = 1; }
@@ -136,8 +134,8 @@ message ReportUsedResourceRequest {
   // Used memory with Byte
   int64 memory = 1;
   float cpu = 2;
-  int32 worker_id = 3;
-  string worker_type = 4;
+  int32 node_id = 3;
+  string node_type = 4;
 }
 
 message TensorStats {
@@ -155,7 +153,6 @@ message OperationStats {
   int64 input_fetch_dur = 4;
   int64 flops = 5;
   int64 recv_op_count = 6;
-  int64 runtime_flops = 7;
 }
 
 message ModelMetric {
@@ -239,15 +236,14 @@ service Master {
   rpc report_dataset_shard_params(ReportDatasetShardParamsRequest)
       returns (google.protobuf.Empty);
 
-  rpc get_dataset_epoch(GetDatasetEpochRequest)
-      returns (GetDatasetEpochResponse);
+  rpc get_dataset_epoch(DatasetMeta) returns (GetDatasetEpochResponse);
 
   // rpcs for supporting PS adjustment
   rpc ready_for_ps_relaunch(google.protobuf.Empty)
       returns (google.protobuf.Empty);
 
   // rpcs for saving and restoring data shard checkpoints
-  rpc get_shard_checkpoint(GetShardCheckpointRequest) returns (ShardCheckpoint);
+  rpc get_shard_checkpoint(DatasetMeta) returns (ShardCheckpoint);
   rpc report_shard_checkpoint(ShardCheckpoint)
       returns (ReportShardCheckpointResponse);
 
@@ -273,9 +269,6 @@ service Master {
       returns (AcquireRemoteLockResponse);
   rpc release_remote_lock(ReleaseRemoteLockRequest)
       returns (google.protobuf.Empty);
-
-  // Optimize resource
-  rpc optimize(OptimizeResponse) returns (google.protobuf.Empty);
 
   rpc report_prestop(ReportPreStopRequest) returns (google.protobuf.Empty);
 }

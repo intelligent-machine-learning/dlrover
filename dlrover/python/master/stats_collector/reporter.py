@@ -12,6 +12,7 @@
 # limitations under the License.
 
 from abc import ABCMeta, abstractmethod
+from typing import List
 
 from dlrover.python.common.log_utils import default_logger as logger
 from dlrover.python.master.stats_collector.training_metrics import (
@@ -79,7 +80,7 @@ class StatsReporter(metaclass=ABCMeta):
 class LocalStatsReporter(StatsReporter):
     def __init__(self, job_meta):
         super(LocalStatsReporter, self).__init__(job_meta)
-        self._runtime_stats = []
+        self._runtime_stats: List[RuntimeMetric] = []
         self._dataset_metric = None
         self._training_hype_params = None
         self._model_metric = None

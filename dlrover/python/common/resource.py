@@ -10,7 +10,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Dict
 
 
 class NodeResource(object):
@@ -21,10 +20,11 @@ class NodeResource(object):
         gpu: Dict.
     """
 
-    def __init__(self, cpu, memory, gpu={}):
+    def __init__(self, cpu, memory, gpu_type=None, gpu_num=0):
         self.cpu = cpu
         self.memory = memory
-        self.gpu: Dict[str, int] = gpu
+        self.gpu_type = gpu_type
+        self.gpu_num = gpu_num
 
     @classmethod
     def resource_str_to_node_resource(cls, resource_str):
@@ -38,11 +38,13 @@ class NodeResource(object):
 
         memory = float(resource.get("memory", "0Mi")[0:-2])
         cpu = float(resource.get("cpu", "0"))
-        gpu = {}
+        gpu_type = None
+        gpu_num = 0
         for key, _ in resource.items():
             if "nvidia.com" in key:
-                gpu[key] = int(resource[key])
-        return NodeResource(cpu, memory, gpu)
+                gpu_type = key
+                gpu_num = int(resource[key])
+        return NodeResource(cpu, memory, gpu_type, gpu_num)
 
 
 class NodeGroupResource(object):
@@ -53,7 +55,7 @@ class NodeGroupResource(object):
         node_resource: a NodeResource instance.
     """
 
-    def __init__(self, count, node_resource, priority):
+    def __init__(self, count, node_resource, priority=None):
         self.count = count
         self.node_resource = node_resource
         self.priority = priority

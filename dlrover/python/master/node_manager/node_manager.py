@@ -45,70 +45,6 @@ from dlrover.python.scheduler.kubernetes import k8sClient
 _MAX_POD_RELAUNCH_COUNT = 5
 
 
-def create_node_manager(args):
-    # relaunch on worker failure for PS or custom strategy
-    if (
-        args.distribution_strategy != DistributionStrategy.PARAMETER_SERVER
-        and args.distribution_strategy != DistributionStrategy.CUSTOM
-    ):
-        args.relaunch_on_worker_failure = 0
-
-    job_resource = JobResourceConfig()
-    job_resource.add_node_group_resource(
-        NodeType.WORKER,
-        args.num_workers,
-        args.worker_resource_request,
-        args.worker_pod_priority,
-    )
-
-    job_resource.add_node_group_resource(
-        NodeType.PS,
-        args.num_ps_pods,
-        args.ps_resource_request,
-        args.ps_pod_priority,
-    )
-
-    # Keep the same as the worker.
-    evaluator_pod_priority = (
-        args.evaluator_pod_priority
-        if args.evaluator_pod_priority == "low"
-        else "high"
-    )
-
-    job_resource.add_node_group_resource(
-        NodeType.EVALUATOR,
-        args.num_evaluators,
-        args.evaluator_resource_request,
-        evaluator_pod_priority,
-    )
-
-    job_resource.add_node_group_resource(
-        NodeType.TF_MASTER,
-        args.num_tf_master,
-        args.tf_master_resource_request,
-        args.tf_master_pod_priority,
-    )
-
-    critical_worker_index = get_critical_worker_index(args)
-
-    # Custom distribution strategy does not exit if there are pending pods
-    wait_pending_relaunch = (
-        args.distribution_strategy == DistributionStrategy.CUSTOM
-    )
-
-    return NodeManager(
-        job_resource=job_resource,
-        job_name=args.job_name,
-        namespace=args.namespace,
-        relaunch_on_worker_failure=args.relaunch_on_worker_failure,
-        ps_is_critical=args.ps_is_critical,
-        critical_worker_index=critical_worker_index,
-        wait_pending_relaunch=wait_pending_relaunch,
-        ps_relaunch_max_num=args.ps_relaunch_max_num,
-        use_ddp=args.use_ddp,
-    )
-
-
 class NodeManager(object):
     def __init__(
         self,
@@ -121,6 +57,7 @@ class NodeManager(object):
         wait_pending_relaunch=False,
         ps_relaunch_max_num=1,
         use_ddp=False,
+        speed_monitor=None,
     ):
         self._job_resource = job_resource
         self._relaunch_on_worker_failure = min(
@@ -137,9 +74,9 @@ class NodeManager(object):
         self._use_ddp = use_ddp
         self._pod_event_callbacks: List[NodeEventCallback] = []
         self._chief_worker_started = False
-        self._stop_process_event = False
+        self._stop_monitor = False
         self._last_pod_stats = None
-        self._training_dataset = None
+        self._speed_monitor = speed_monitor
 
         # Protects followed variables, which are accessed from event_cb.
         self._lock = threading.Lock()
@@ -148,22 +85,22 @@ class NodeManager(object):
         self._k8s_client = k8sClient(namespace, job_name)
         self._job_nodes: Dict[str, Dict[int, Node]] = {}
         self._node_watcher = PodWatcher(job_name, namespace)
+        self._job_uuid = None
 
     def start(self):
         self._job_uuid = self._k8s_client.get_job_uuid()
-        self._init_attr_for_typed_pods()
+        self._init_job_nodes()
         threading.Thread(
             target=self._monitor_nodes, name="node_monitor", daemon=True
         ).start()
 
+    def get_job_uuid(self):
+        return self._job_uuid
+
     def add_pod_event_callback(self, pod_event_callback):
         self._pod_event_callbacks.append(pod_event_callback)
 
-    def set_training_dataset(self, dataset):
-        if not self._training_dataset:
-            self._training_dataset = dataset
-
-    def _init_attr_for_typed_pods(self):
+    def _init_job_nodes(self):
         self._job_nodes = self._job_resource.init_job_node_meta(
             self._relaunch_on_worker_failure,
             self._k8s_client.get_service_address,
@@ -191,8 +128,9 @@ class NodeManager(object):
             nodes = self._node_watcher.list()
             self._process_list_nodes(nodes)
             try:
-                if self._stop_process_event:
+                if self._stop_monitor:
                     logger.info("Stop processing node events")
+                    break
                 for event in self._node_watcher.watch():
                     try:
                         self._process_event(event)
@@ -425,6 +363,7 @@ class NodeManager(object):
                 ]:
                     alive_critical_nodes.append(node_id)
 
+        print(alive_critical_nodes)
         completed = not alive_critical_nodes
         if not completed:
             logger.info("Critical pods %s are running.", alive_critical_nodes)
@@ -436,4 +375,122 @@ class NodeManager(object):
         else:
             # TODO: implement to delete a worker.
             logger.info("Delete worker %s", worker_id)
-    
+
+    def get_all_training_nodes(self):
+        workers = self.get_running_workers()
+        ps = self.get_cur_cluster_ps()
+        workers.extend(ps)
+        return workers
+
+    def get_running_workers(self):
+        """Return running worker, master and evaluator"""
+        running_workers = []
+        with self._lock:
+            for node in self._job_nodes[NodeType.WORKER].values():
+                if node.status == NodeStatus.RUNNING:
+                    running_workers.append(node)
+
+            for node in self._job_nodes[NodeType.TF_MASTER].values():
+                if node.status == NodeStatus.RUNNING:
+                    running_workers.append(node)
+
+            for node in self._job_nodes[NodeType.EVALUATOR].values():
+                if node.status == NodeStatus.RUNNING:
+                    running_workers.append(node)
+        return running_workers
+
+    def stop(self):
+        self._relaunch_pod = False
+        with self._lock:
+            for node_type in self._job_nodes.keys():
+                for node in self._job_nodes[node_type].values():
+                    node.critical = False
+                    node.is_released = True
+        self._stop_monitor = True
+
+    def update_node_resource_usage(self, node_type, node_id, cpu, memory):
+        node = self._job_nodes[node_type][node_id]
+        node.update_resource_usage(cpu, memory)
+
+    # TODO: implement the function.
+    def start_auto_scale(self):
+        """Start to auto scale"""
+        pass
+
+    # TODO: implement the function.
+    def get_cur_cluster_ps(self):
+        """Get PS nodes in the current training cluster."""
+        return []
+
+    # TODO: implement the function.
+    def get_next_cluster_ps(self):
+        """Get PS nodes in the next training cluster."""
+        return []
+
+    # TODO: implement the function.
+    def ready_for_new_ps_cluster(self):
+        return True
+
+    # TODO: implement the function.
+    def remove_training_nodes(self):
+        """Remove all PS and workers"""
+        pass
+
+
+def create_node_manager(args, speed_monitor) -> NodeManager:
+    # relaunch on worker failure for PS or custom strategy
+    if (
+        args.distribution_strategy != DistributionStrategy.PARAMETER_SERVER
+        and args.distribution_strategy != DistributionStrategy.CUSTOM
+    ):
+        args.relaunch_on_worker_failure = 0
+
+    job_resource = JobResourceConfig()
+    job_resource.add_node_group_resource(
+        NodeType.WORKER,
+        args.num_workers,
+        args.worker_resource_request,
+        args.worker_pod_priority,
+    )
+    job_resource.add_node_group_resource(
+        NodeType.PS,
+        args.num_ps_pods,
+        args.ps_resource_request,
+        args.ps_pod_priority,
+    )
+    # Keep the same as the worker.
+    evaluator_pod_priority = (
+        args.evaluator_pod_priority
+        if args.evaluator_pod_priority == "low"
+        else "high"
+    )
+    job_resource.add_node_group_resource(
+        NodeType.EVALUATOR,
+        args.num_evaluators,
+        args.evaluator_resource_request,
+        evaluator_pod_priority,
+    )
+    job_resource.add_node_group_resource(
+        NodeType.TF_MASTER,
+        args.num_tf_master,
+        args.tf_master_resource_request,
+        args.tf_master_pod_priority,
+    )
+    critical_worker_index = get_critical_worker_index(args)
+    # Custom distribution strategy does not exit if there are pending pods
+    wait_pending_relaunch = (
+        args.distribution_strategy == DistributionStrategy.CUSTOM
+    )
+
+    return NodeManager(
+        job_resource=job_resource,
+        job_name=args.job_name,
+        namespace=args.namespace,
+        relaunch_on_worker_failure=args.relaunch_on_worker_failure,
+        ps_is_critical=args.ps_is_critical,
+        critical_worker_index=critical_worker_index,
+        wait_pending_relaunch=wait_pending_relaunch,
+        ps_relaunch_max_num=args.ps_relaunch_max_num,
+        use_ddp=args.use_ddp,
+        speed_monitor=speed_monitor,
+    )

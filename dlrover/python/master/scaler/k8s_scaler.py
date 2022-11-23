@@ -40,17 +40,19 @@ class ScalerResourceSpec(BaseScalerSpec):
         gpu: GPU cores of a node.
     """
 
-    def __init__(self, cpu, memory, gpu):
+    def __init__(self, cpu, memory, gpu_type, gpu_num):
         self.cpu = cpu
         self.memory = memory
-        self.gpu = gpu
+        self.gpu_type = gpu_type
+        self.gpu_num = gpu_num
 
     def to_dict(self):
         spec = {}
         spec["cpu"] = str(self.cpu)
         spec["memory"] = "{}Mi".format(self.memory)
-        if self.gpu:
-            spec["gpu"] = str(self.gpu)
+        if self.gpu_type:
+            spec["gpu_type"] = self.gpu_type
+            spec["gpu_num"] = str(self.gpu_num)
         return spec
 
 
@@ -144,7 +146,8 @@ class k8sScaler(Scaler):
             resource_spec = ScalerResourceSpec(
                 cpu=group_resource.node_resource.cpu,
                 memory=group_resource.node_resource.memory,
-                gpu=group_resource.node_resource.gpu,
+                gpu_type=group_resource.node_resource.gpu_type,
+                gpu_num=group_resource.node_resource.gpu_num,
             )
             replica_resource_spec = ScalerReplicaResourceSpec(
                 replicas=group_resource.count,
@@ -156,7 +159,8 @@ class k8sScaler(Scaler):
             resource_spec = ScalerResourceSpec(
                 cpu=node_resource.cpu,
                 memory=node_resource.memory,
-                gpu=node_resource.gpu,
+                gpu_type=node_resource.gpu_type,
+                gpu_num=node_resource.gpu_num,
             )
             scaler_crd.spec.add_node_resource(name, resource_spec)
         return scaler_crd
