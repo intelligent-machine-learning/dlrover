@@ -20,7 +20,7 @@ from dlrover.python.common.constants import (
     NodeStatus,
     NodeType,
 )
-from dlrover.python.common.resource import NodeResource
+from dlrover.python.common.node import NodeResource
 from dlrover.python.master.master import Master
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.event_callback import (
@@ -29,7 +29,6 @@ from dlrover.python.master.node.event_callback import (
     TFPSNodeHandlingCallback,
 )
 from dlrover.python.master.node.job_config import (
-    JobResourceConfig,
     get_critical_worker_index,
     set_critical_node,
 )
@@ -39,6 +38,7 @@ from dlrover.python.master.node.status_flow import (
     NodeStateFlow,
     get_node_state_flow,
 )
+from dlrover.python.master.resource.job import JobResourceConfig
 from dlrover.python.master.watcher.base_watcher import Node, NodeEvent
 from dlrover.python.tests.test_utils import (
     MockArgs,

@@ -11,21 +11,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from abc import ABCMeta, abstractmethod
+from dlrover.python.master.resource.optimizer import (
+    ResourceOptimizer,
+    ResourcePlan,
+)
 
-from dlrover.python.master.resource.optimizer import ResourcePlan
 
+class LocalOptimizer(ResourceOptimizer):
+    name = "local"
 
-class Scaler(metaclass=ABCMeta):
-    """Scaler is to call cluster scheduler to scale up/down nodes of a job.
-    Attributes:
-        job_name: string, the name of job.
-    """
+    def __init__(self, job_uuid):
+        self._job_uuid = job_uuid
 
-    def __init__(self, job_name):
-        self._job_name = job_name
+    def generate_opt_plan(self, stage, config={}):
+        return ResourcePlan()
 
-    @abstractmethod
-    def scale(self, plan: ResourcePlan):
-        """Scale the job with the plan"""
-        pass
+    def generate_oom_recovery_plan(self, oom_pods, stage, config={}):
+        return ResourcePlan()

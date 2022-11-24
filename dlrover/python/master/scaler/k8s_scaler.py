@@ -14,13 +14,7 @@
 from abc import ABCMeta, abstractmethod
 from typing import Dict
 
-<<<<<<< HEAD
-from dlrover.python.master.resource.base_generator import (
-    ResourcePlan,
-)
-=======
-from dlrover.python.master.resource.base_generator import ResourcePlan
->>>>>>> master
+from dlrover.python.master.resource.optimizer import ResourcePlan
 from dlrover.python.master.scaler.base_scaler import Scaler
 from dlrover.python.scheduler.kubernetes import k8sClient
 
@@ -77,12 +71,6 @@ class ScalerSpec(BaseScalerSpec):
         self.owner_job = owner_job
         self.replica_resource_specs: Dict[str, ScalerReplicaResourceSpec] = {}
         self.node_resource_specs: Dict[str, ScalerResourceSpec] = {}
-
-    def add_replica_resource(self, replica_name, replica_resource_spec):
-        self.replica_resource_specs[replica_name] = replica_resource_spec
-
-    def add_node_resource(self, node_name, resource_spec):
-        self.node_resource_specs[node_name] = resource_spec
 
     def to_dict(self):
         spec = {}
@@ -146,18 +134,18 @@ class k8sScaler(Scaler):
             metadata={"name": "{}-scaler".format(self._job_name)},
             spec=ScalerSpec(self._job_name),
         )
-        for name, group_resource in plan.task_group_resources.items():
+        for name, group_resource in plan.node_group_resources.items():
             resource_spec = ScalerResourceSpec(
                 cpu=group_resource.node_resource.cpu,
                 memory=group_resource.node_resource.memory,
                 gpu_type=group_resource.node_resource.gpu_type,
                 gpu_num=group_resource.node_resource.gpu_num,
             )
-            replica_resource_spec = ScalerReplicaResourceSpec(
+            replica_spec = ScalerReplicaResourceSpec(
                 replicas=group_resource.count,
                 resource_spec=resource_spec,
             )
-            scaler_crd.spec.add_replica_resource(name, replica_resource_spec)
+            scaler_crd.spec.replica_resource_specs[name] = replica_spec
 
         for name, node_resource in plan.node_resources.items():
             resource_spec = ScalerResourceSpec(
@@ -166,5 +154,5 @@ class k8sScaler(Scaler):
                 gpu_type=node_resource.gpu_type,
                 gpu_num=node_resource.gpu_num,
             )
-            scaler_crd.spec.add_node_resource(name, resource_spec)
+            scaler_crd.spec.node_resource_specs[name] = resource_spec
         return scaler_crd

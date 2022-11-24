@@ -12,16 +12,67 @@
 # limitations under the License.
 
 import copy
-from abc import ABCMeta, abstractmethod
 from datetime import datetime
-from typing import List
 
 from dlrover.python.common.constants import (
     NodeExitReason,
     NodeResourceLimit,
     NodeStatus,
 )
-from dlrover.python.common.node import NodeResource
+
+
+class NodeResource(object):
+    """NodeResource records a resource of a Node.
+    Attributes:
+        cpu: float, CPU cores.
+        memory: float, memory MB.
+        gpu: Dict.
+    """
+
+    def __init__(self, cpu, memory, gpu_type=None, gpu_num=0):
+        self.cpu = cpu
+        self.memory = memory
+        self.gpu_type = gpu_type
+        self.gpu_num = gpu_num
+
+    @classmethod
+    def resource_str_to_node_resource(cls, resource_str):
+        """Convert the resource configuration like "memory=100Mi,cpu=5"
+        to a NodeResource instance."""
+        resource = {}
+        if not resource_str:
+            return NodeResource(0, 0)
+        for value in resource_str.strip().split(","):
+            resource[value.split("=")[0]] = value.split("=")[1]
+
+        memory = float(resource.get("memory", "0Mi")[0:-2])
+        cpu = float(resource.get("cpu", "0"))
+        gpu_type = None
+        gpu_num = 0
+        for key, _ in resource.items():
+            if "nvidia.com" in key:
+                gpu_type = key
+                gpu_num = int(resource[key])
+        return NodeResource(cpu, memory, gpu_type, gpu_num)
+
+
+class NodeGroupResource(object):
+    """The node group resource contains the number of the task
+    and resource (cpu, memory) of each task.
+    Args:
+        count: int, the number of task.
+        node_resource: a NodeResource instance.
+    """
+
+    def __init__(self, count, node_resource: NodeResource, priority=None):
+        self.count = count
+        self.node_resource = node_resource
+        self.priority = priority
+
+    def update(self, count, cpu, memory):
+        self.count = count
+        self.node_resource.cpu = cpu
+        self.node_resource.memory = memory
 
 
 class Node(object):
@@ -123,26 +174,3 @@ class Node(object):
 
     def set_exit_reason(self, reason):
         self.exit_reason = reason
-
-
-class NodeEvent(object):
-    """NodeEvent is the event to change the status of a Node"""
-
-    def __init__(self, event_type, node):
-        self.event_type = event_type
-        self.node: Node = node
-
-
-class NodeWatcher(metaclass=ABCMeta):
-    def __init__(self, job_uuid):
-        self._job_uuid = job_uuid
-
-    @abstractmethod
-    def watch(self):
-        """Wath events of nodes and returns a generator"""
-        pass
-
-    @abstractmethod
-    def list(self) -> List[Node]:
-        """List all nodes of the job"""
-        pass

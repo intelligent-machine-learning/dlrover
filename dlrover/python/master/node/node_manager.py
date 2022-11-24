@@ -30,7 +30,6 @@ from dlrover.python.master.node.event_callback import (
     NodeEventCallback,
 )
 from dlrover.python.master.node.job_config import (
-    JobResourceConfig,
     get_critical_worker_index,
     set_critical_node,
 )
@@ -38,6 +37,7 @@ from dlrover.python.master.node.status_flow import (
     NodeStateFlow,
     get_node_state_flow,
 )
+from dlrover.python.master.resource.job import JobResourceConfig
 from dlrover.python.master.watcher.base_watcher import Node, NodeEvent
 from dlrover.python.master.watcher.pod_watcher import PodWatcher
 from dlrover.python.scheduler.kubernetes import k8sClient
@@ -48,7 +48,7 @@ _MAX_POD_RELAUNCH_COUNT = 5
 class NodeManager(object):
     def __init__(
         self,
-        job_resource,
+        job_resource: JobResourceConfig,
         job_name,
         namespace,
         relaunch_on_worker_failure=0,

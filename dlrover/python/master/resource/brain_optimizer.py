@@ -1,4 +1,4 @@
-# Copyright 2022 The ElasticDL Authors. All rights reserved.
+# Copyright 2022 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -11,88 +11,86 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from easydl.python.common.constants import EasydlOptRetriever
-from easydl.python.common.log_utils import default_logger as logger
-from easydl.python.runtime.easydl_client import GlobalEasydlClient
+import math
+
+from dlrover.python.brain.client import GlobalEasydlClient
+from dlrover.python.common.log_utils import default_logger as logger
+from dlrover.python.common.node import NodeGroupResource, NodeResource
+from dlrover.python.master.resource.optimizer import (
+    ResourceOptimizer,
+    ResourcePlan,
+)
+
+_BASE_CONFIG_RETRIEVER = "base_config_retriever"
+_MEMORY_MB = 1024 * 1024
 
 
-def catch_easydl_optimization_exception(func):
-    def wrapper(self, *args, **kwargs):
-        try:
-            return func(self, *args, **kwargs)
-        except Exception as e:
-            logger.debug("Fail to execute %s by %s", func.__name__, e)
+def convert_plan_msg(plan_msg):
+    """Convert a GRPC plan message to a ResourcePlan.
+    Args:
+        plan_msg: brain_pb2.JobOptimizePlan instance.
+    """
+    plan = ResourcePlan()
+    if not plan_msg:
+        return plan
+    for type, group in plan_msg.resource.task_group_resources.items():
+        count = group.count
+        memory = int(group.resource.memory / _MEMORY_MB)  # MiB
+        cpu = math.ceil(group.resource.cpu)
+        plan.node_group_resources[type] = NodeGroupResource(
+            count, NodeResource(cpu, memory)
+        )
 
-    return wrapper
+    for name, resource in plan_msg.resource.pod_resources.items():
+        cpu = int(resource.cpu)
+        memory = int(resource.memory / _MEMORY_MB)
+        plan.node_resources[name] = NodeResource(cpu, memory)
+    return plan
 
 
-class EDLJobResoureOptimizer(object):
+class BrainResoureOptimizer(ResourceOptimizer):
+    """Query resource plan from the brain service."""
+
+    name = "brain"
+
     def __init__(self, job_uuid):
         self._job_uuid = job_uuid
-        self._easydl_client = GlobalEasydlClient.EASYDL_CLIENT
+        self._brain_client = GlobalEasydlClient.EASYDL_CLIENT
 
-    @catch_easydl_optimization_exception
-    def get_optimization_plan(self, stage, config={}):
-        res = self._easydl_client.get_optimization_plan(
+    def generate_opt_plan(self, stage, config={}) -> ResourcePlan:
+        res = self._brain_client.get_optimization_plan(
             self._job_uuid,
             stage,
-            EasydlOptRetriever.BASE_CONFIG_RETRIEVER,
+            _BASE_CONFIG_RETRIEVER,
             config,
         )
         if not res.job_optimize_plans:
             logger.info("No any optimization plan for PS")
-            return
+            return ResourcePlan()
 
-        plan = res.job_optimize_plans[0]
+        plan_msg = res.job_optimize_plans[0]
         logger.info(
             "The optimization plan of %s with config %s is %s",
             stage,
             config,
-            plan,
+            plan_msg,
         )
+        plan = convert_plan_msg(plan_msg)
         return plan
 
-    @catch_easydl_optimization_exception
-    def get_oom_resource_plan(self, oom_pods, stage, config={}):
-        res = self._easydl_client.get_oom_resource_plan(
+    def generate_oom_recovery_plan(self, oom_pods, stage, config={}):
+        res = self._brain_client.get_oom_resource_plan(
             oom_pods,
             self._job_uuid,
             stage,
-            EasydlOptRetriever.BASE_CONFIG_RETRIEVER,
+            _BASE_CONFIG_RETRIEVER,
             config,
         )
         if not res.job_optimize_plans:
             logger.info("No any optimization plan for PS")
             return
 
-        plan = res.job_optimize_plans[0]
-        logger.info("The optimization plan of %s is %s", stage, plan)
-        return plan
-
-    @catch_easydl_optimization_exception
-    def get_estimated_resource_plan(self):
-        config = {"optimizer": "job_resource_estimate_optimizer"}
-        res = self._easydl_client.get_optimizer_resource_plan(
-            self._job_uuid, EasydlOptRetriever.BASE_CONFIG_RETRIEVER, config,
-        )
-        if not res.job_optimize_plans:
-            logger.info("No any estimated plan for PS")
-            return
-
-        plan = res.job_optimize_plans[0]
-        logger.info("The estimated plan is %s", plan)
-        return plan
-
-    @catch_easydl_optimization_exception
-    def get_reinforcement_learning_resource_plan(self):
-        config = {"optimizer": "reinforcement_learning_optimizer"}
-        res = self._easydl_client.get_optimizer_resource_plan(
-            self._job_uuid, EasydlOptRetriever.BASE_CONFIG_RETRIEVER, config,
-        )
-        if not res.job_optimize_plans:
-            logger.info("No any estimated plan for PS")
-            return
-
-        plan = res.job_optimize_plans[0]
-        logger.info("The estimated plan is %s", plan)
+        plan_msg = res.job_optimize_plans[0]
+        logger.info("The optimization plan of %s is %s", stage, plan_msg)
+        plan = convert_plan_msg(plan_msg)
         return plan
