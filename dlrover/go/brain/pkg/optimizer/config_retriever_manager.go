@@ -17,13 +17,16 @@ import (
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/config"
 	optapi "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/api"
 	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/config"
+	optconfretrieverimpl "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/implementation/configretriever"
 	pb "github.com/intelligent-machine-learning/easydl/brain/pkg/proto"
+	"sync"
 )
 
 // ConfigRetrieverManager is the struct of config retriever manager
 type ConfigRetrieverManager struct {
 	conf       *config.Config
 	retrievers map[string]optapi.ConfigRetriever
+	locker     *sync.RWMutex
 }
 
 // NewConfigRetrieverManager returns a new config retriever manager
@@ -31,11 +34,27 @@ func NewConfigRetrieverManager(conf *config.Config) *ConfigRetrieverManager {
 	return &ConfigRetrieverManager{
 		conf:       conf,
 		retrievers: make(map[string]optapi.ConfigRetriever),
+		locker:     &sync.RWMutex{},
 	}
 }
 
 // RetrieveOptimizerConfig retrieves optimizer config from pb optimize config
 func (m *ConfigRetrieverManager) RetrieveOptimizerConfig(conf *pb.OptimizeConfig) (*optconfig.OptimizerConfig, error) {
-	retriever, _ := m.retrievers[conf.OptimizerConfigRetriever]
+	var err error
+	name := conf.OptimizerConfigRetriever
+
+	m.locker.RLock()
+	retriever, found := m.retrievers[name]
+	m.locker.RUnlock()
+
+	if !found {
+		retriever, err = optconfretrieverimpl.CreateConfigRetriever(name, m.conf)
+		if err != nil {
+			return nil, err
+		}
+		m.locker.Lock()
+		m.retrievers[name] = retriever
+		m.locker.Unlock()
+	}
 	return retriever.Retrieve(conf)
 }

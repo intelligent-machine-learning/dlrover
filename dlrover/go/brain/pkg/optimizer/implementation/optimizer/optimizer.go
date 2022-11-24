@@ -27,10 +27,6 @@ var (
 	newOptimizerFuncs = make(map[string]newOptimizerFunc)
 )
 
-const (
-	defaultRLOptimizeRequestTimeout = 5
-)
-
 type newOptimizerFunc func(dataStore datastoreapi.DataStore, config *config.Config) api.Optimizer
 
 func registerNewOptimizerFunc(name string, newFunc newOptimizerFunc) error {

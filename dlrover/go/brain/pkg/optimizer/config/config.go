@@ -13,6 +13,13 @@
 
 package config
 
+const (
+	// ConfigRetrieverConfigKeyOptimizerName is the config key of optimizer name in config retriever
+	ConfigRetrieverConfigKeyOptimizerName = "optimizer"
+	// ConfigRetrieverConfigKeyOptimizeAlgorithm is the config key of optimize algorithm in config retriever
+	ConfigRetrieverConfigKeyOptimizeAlgorithm = "optimize-algorithm"
+)
+
 // OptimizeAlgorithmConfig is the config of optimize algorithm
 type OptimizeAlgorithmConfig struct {
 	// Name is the name of optimize config
