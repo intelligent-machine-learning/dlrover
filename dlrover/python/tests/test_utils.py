@@ -23,7 +23,7 @@ from dlrover.python.common.constants import (
     NodeType,
 )
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
-from dlrover.python.master.shard_manager.task_manager import TaskManager
+from dlrover.python.master.shard.task_manager import TaskManager
 
 
 class MockArgs(object):

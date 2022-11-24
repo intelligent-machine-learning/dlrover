@@ -14,9 +14,7 @@
 from abc import ABCMeta, abstractmethod
 from typing import Dict
 
-from dlrover.python.master.resource_generator.base_generator import (
-    ResourcePlan,
-)
+from dlrover.python.master.resource.base_generator import ResourcePlan
 from dlrover.python.master.scaler.base_scaler import Scaler
 from dlrover.python.scheduler.kubernetes import k8sClient
 

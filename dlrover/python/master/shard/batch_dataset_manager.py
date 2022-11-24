@@ -15,16 +15,13 @@ import math
 import time
 
 from dlrover.python.common.log_utils import default_logger as logger
-from dlrover.python.master.shard_manager.base_dataset_manager import (
+from dlrover.python.master.shard.base_dataset_manager import (
     DatasetManger,
     DatasetShardCheckpoint,
     DoingTask,
     Task,
 )
-from dlrover.python.master.shard_manager.dataset_splitter import (
-    DatasetSplitter,
-    Shard,
-)
+from dlrover.python.master.shard.dataset_splitter import DatasetSplitter, Shard
 
 _MAX_TASK_RETRIES = 3
 

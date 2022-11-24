@@ -13,7 +13,7 @@
 
 import unittest
 
-from dlrover.python.master.shard_manager.dataset_splitter import (
+from dlrover.python.master.shard.dataset_splitter import (
     TableDatasetSplitter,
     TextDatasetSplitter,
 )

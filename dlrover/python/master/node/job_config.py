@@ -16,7 +16,7 @@ from typing import Dict
 
 from dlrover.python.common.constants import DistributionStrategy, NodeType
 from dlrover.python.common.resource import NodeGroupResource, NodeResource
-from dlrover.python.master.node_watcher.base_watcher import Node
+from dlrover.python.master.watcher.base_watcher import Node
 
 
 class JobResourceConfig(object):

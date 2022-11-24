@@ -14,9 +14,7 @@
 import unittest
 
 from dlrover.python.common.resource import NodeGroupResource, NodeResource
-from dlrover.python.master.resource_generator.base_generator import (
-    ResourcePlan,
-)
+from dlrover.python.master.resource.base_generator import ResourcePlan
 from dlrover.python.master.scaler.k8s_scaler import k8sScaler
 
 

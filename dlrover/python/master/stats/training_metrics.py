@@ -15,7 +15,7 @@ from abc import ABCMeta, abstractmethod
 from typing import List
 
 from dlrover.python.common.log_utils import default_logger as logger
-from dlrover.python.master.node_watcher.base_watcher import Node
+from dlrover.python.master.watcher.base_watcher import Node
 
 
 class CustomMetricKey(object):

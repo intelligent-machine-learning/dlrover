@@ -25,16 +25,11 @@ from dlrover.python.common.global_context import Context
 from dlrover.python.common.log_utils import default_logger as logger
 from dlrover.python.elastic_training.elastic_ps import ElasticPsService
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
-from dlrover.python.master.node_manager.node_manager import NodeManager
-from dlrover.python.master.node_watcher.base_watcher import Node
-from dlrover.python.master.shard_manager.task_manager import TaskManager
-from dlrover.python.master.stats_collector.job_collector import (
-    JobMetricCollector,
-)
-from dlrover.python.master.stats_collector.training_metrics import (
-    OpStats,
-    TensorStats,
-)
+from dlrover.python.master.node.node_manager import NodeManager
+from dlrover.python.master.shard.task_manager import TaskManager
+from dlrover.python.master.stats.job_collector import JobMetricCollector
+from dlrover.python.master.stats.training_metrics import OpStats, TensorStats
+from dlrover.python.master.watcher.base_watcher import Node
 
 _dlrover_context = Context.instance()
 

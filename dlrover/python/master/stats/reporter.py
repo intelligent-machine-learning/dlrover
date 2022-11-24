@@ -15,7 +15,7 @@ from abc import ABCMeta, abstractmethod
 from typing import List
 
 from dlrover.python.common.log_utils import default_logger as logger
-from dlrover.python.master.stats_collector.training_metrics import (
+from dlrover.python.master.stats.training_metrics import (
     DatasetMetric,
     ModelMetric,
     RuntimeMetric,

@@ -22,12 +22,12 @@ from dlrover.python.common.constants import (
     NodeStatus,
     NodeType,
 )
-from dlrover.python.master.node_watcher.base_watcher import (
+from dlrover.python.master.watcher.base_watcher import (
     Node,
     NodeEvent,
     NodeExitReason,
 )
-from dlrover.python.master.node_watcher.pod_watcher import (
+from dlrover.python.master.watcher.pod_watcher import (
     PodWatcher,
     _convert_pod_event_to_node_event,
     _get_pod_exit_reason,
