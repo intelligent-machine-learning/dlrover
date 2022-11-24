@@ -18,7 +18,7 @@ from typing import List
 
 from dlrover.python.common.constants import (
     NodeExitReason,
-    NodeResourceBoundary,
+    NodeResourceLimit,
     NodeStatus,
 )
 from dlrover.python.common.resource import NodeResource
@@ -116,7 +116,7 @@ class Node(object):
         if (
             self.relaunch_count >= self.max_relaunch_count
             or self.exit_reason == NodeExitReason.FATAL_ERROR
-            or self.used_resource.memory >= NodeResourceBoundary.MAX_MEMORY
+            or self.used_resource.memory >= NodeResourceLimit.MAX_MEMORY
         ):
             return True
         return False

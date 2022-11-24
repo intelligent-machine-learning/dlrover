@@ -20,7 +20,7 @@ from dlrover.python.common.constants import (
     DistributionStrategy,
     NodeEventType,
     NodeExitReason,
-    NodeResourceBoundary,
+    NodeResourceLimit,
     NodeStatus,
     NodeType,
 )
@@ -259,12 +259,12 @@ class NodeManager(object):
                 should_relaunch = False
             elif node.exit_reason == NodeExitReason.OOM:
                 mem = node.used_resource.memory
-                if mem > NodeResourceBoundary.MAX_MEMORY:
+                if mem > NodeResourceLimit.MAX_MEMORY:
                     should_relaunch = False
                     logger.warning(
                         "The memory of worker %s is beyond the limit %s MB.",
                         mem,
-                        NodeResourceBoundary.MAX_MEMORY,
+                        NodeResourceLimit.MAX_MEMORY,
                     )
                 elif node.relaunch_count >= node.max_relaunch_count:
                     should_relaunch = False

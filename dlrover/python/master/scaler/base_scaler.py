@@ -13,7 +13,7 @@
 
 from abc import ABCMeta, abstractmethod
 
-from dlrover.python.master.resource_generator.base_generator import (
+from dlrover.python.master.resource.base_generator import (
     ResourcePlan,
 )
 
