@@ -36,4 +36,9 @@ const (
 	DataStoreConfigMapKey = "data-store.config-map.key"
 	// DataStoreName is the name of a data store
 	DataStoreName = "data-store.name"
+
+	// OptimizerConfigMapName is the name of optimizer config map
+	OptimizerConfigMapName = "optimizer.config-map.name"
+	// OptimizerConfigMapKey is the key of optimizer config map
+	OptimizerConfigMapKey = "optimizer.config-map.key"
 )

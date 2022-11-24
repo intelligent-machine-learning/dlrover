@@ -19,7 +19,7 @@ import (
 	"fmt"
 	log "github.com/golang/glog"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/common"
-	"github.com/intelligent-machine-learning/easydl/brain/pkg/utils"
+	"github.com/intelligent-machine-learning/easydl/brain/pkg/config/utils"
 	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
