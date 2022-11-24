@@ -14,12 +14,10 @@
 import unittest
 
 from dlrover.python.common.constants import TaskType
-from dlrover.python.master.shard_manager.batch_dataset_manager import (
+from dlrover.python.master.shard.batch_dataset_manager import (
     BatchDatasetManager,
 )
-from dlrover.python.master.shard_manager.dataset_splitter import (
-    TableDatasetSplitter,
-)
+from dlrover.python.master.shard.dataset_splitter import TableDatasetSplitter
 
 
 class DatasetTaskMangerTest(unittest.TestCase):

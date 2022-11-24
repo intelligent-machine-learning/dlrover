@@ -18,12 +18,10 @@ from dlrover.proto import elastic_training_pb2
 from dlrover.python.common.constants import NodeStatus, NodeType
 from dlrover.python.elastic_training.elastic_ps import ElasticPsService
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
-from dlrover.python.master.node_manager.node_manager import create_node_manager
+from dlrover.python.master.node.node_manager import create_node_manager
 from dlrover.python.master.servicer import MasterServicer
-from dlrover.python.master.shard_manager.task_manager import TaskManager
-from dlrover.python.master.stats_collector.job_collector import (
-    JobMetricCollector,
-)
+from dlrover.python.master.shard.task_manager import TaskManager
+from dlrover.python.master.stats.job_collector import JobMetricCollector
 from dlrover.python.tests.test_utils import MockArgs
 
 

@@ -14,9 +14,13 @@
 import unittest
 
 from dlrover.python.common.resource import NodeGroupResource, NodeResource
+<<<<<<< HEAD
 from dlrover.python.master.resource.base_generator import (
     ResourcePlan,
 )
+=======
+from dlrover.python.master.resource.base_generator import ResourcePlan
+>>>>>>> master
 
 
 class ResourceGeneratorTest(unittest.TestCase):

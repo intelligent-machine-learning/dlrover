@@ -19,12 +19,8 @@ from typing import Dict, List
 from dlrover.python.common.constants import NodeType
 from dlrover.python.common.log_utils import default_logger as logger
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
-from dlrover.python.master.node_watcher.base_watcher import Node
-from dlrover.python.master.stats_collector.reporter import (
-    JobMeta,
-    StatsReporter,
-)
-from dlrover.python.master.stats_collector.training_metrics import (
+from dlrover.python.master.stats.reporter import JobMeta, StatsReporter
+from dlrover.python.master.stats.training_metrics import (
     CustomMetricKey,
     DatasetMetric,
     DatasetType,
@@ -34,6 +30,7 @@ from dlrover.python.master.stats_collector.training_metrics import (
     TensorStats,
     TrainingHyperParams,
 )
+from dlrover.python.master.watcher.base_watcher import Node
 
 
 class BaseMetricCollector(metaclass=ABCMeta):

@@ -58,15 +58,6 @@ func (store *BaseDataStore) PersistMetrics(condition *datastoreapi.Condition, jo
 	if jobMetrics.JobMeta.Name != "" {
 		storeJobMetrics.JobName = jobMetrics.JobMeta.Name
 	}
-	if jobMetrics.JobMeta.Cluster != "" {
-		storeJobMetrics.Cluster = jobMetrics.JobMeta.Cluster
-	}
-	if jobMetrics.JobMeta.Namespace != "" {
-		storeJobMetrics.Namespace = jobMetrics.JobMeta.Namespace
-	}
-	if jobMetrics.JobMeta.User != "" {
-		storeJobMetrics.User = jobMetrics.JobMeta.User
-	}
 	if storeJobMetrics.CreatedAt.IsZero() {
 		storeJobMetrics.CreatedAt = time.Now()
 	}
@@ -146,7 +137,7 @@ func (store *BaseDataStore) GetData(condition *datastoreapi.Condition, data inte
 
 func (store *BaseDataStore) persistTrainingHyperParams(jobMetrics *mysql.JobMetrics, params *common.TrainingHyperParams) error {
 	hyperParams := &common.TrainingHyperParams{}
-	err := json.Unmarshal([]byte(jobMetrics.MetricUserConfig), hyperParams)
+	err := json.Unmarshal([]byte(jobMetrics.HyperParamsFeature), hyperParams)
 	if err != nil {
 		hyperParams = params
 	} else {
@@ -154,21 +145,21 @@ func (store *BaseDataStore) persistTrainingHyperParams(jobMetrics *mysql.JobMetr
 		hyperParams.Update(params)
 	}
 	jsonVal, _ := json.Marshal(hyperParams)
-	jobMetrics.MetricUserConfig = string(jsonVal)
+	jobMetrics.HyperParamsFeature = string(jsonVal)
 	err = store.client.JobMetricsRecorder.Upsert(jobMetrics)
 	return err
 }
 
 func (store *BaseDataStore) persistWorkflowFeature(jobMetrics *mysql.JobMetrics, params *common.WorkflowFeature) error {
 	jsonVal, _ := json.Marshal(params)
-	jobMetrics.MetricAistudioJobFeature = string(jsonVal)
+	jobMetrics.JobFeature = string(jsonVal)
 	err := store.client.JobMetricsRecorder.Upsert(jobMetrics)
 	return err
 }
 
 func (store *BaseDataStore) persistTrainingSetFeature(jobMetrics *mysql.JobMetrics, params *common.TrainingSetFeature) error {
 	trainingSet := &common.TrainingSetFeature{}
-	err := json.Unmarshal([]byte(jobMetrics.MetricTrainingDatasetFeature), trainingSet)
+	err := json.Unmarshal([]byte(jobMetrics.DataSetFeature), trainingSet)
 	if err != nil {
 		trainingSet = params
 	} else {
@@ -176,14 +167,14 @@ func (store *BaseDataStore) persistTrainingSetFeature(jobMetrics *mysql.JobMetri
 		trainingSet.Update(params)
 	}
 	jsonVal, _ := json.Marshal(trainingSet)
-	jobMetrics.MetricTrainingDatasetFeature = string(jsonVal)
+	jobMetrics.DataSetFeature = string(jsonVal)
 	err = store.client.JobMetricsRecorder.Upsert(jobMetrics)
 	return err
 }
 
 func (store *BaseDataStore) persistModelFeature(jobMetrics *mysql.JobMetrics, params *common.ModelFeature) error {
 	jsonVal, _ := json.Marshal(params)
-	jobMetrics.MetricModelFeature = string(jsonVal)
+	jobMetrics.ModelFeature = string(jsonVal)
 	err := store.client.JobMetricsRecorder.Upsert(jobMetrics)
 	return err
 }
@@ -226,8 +217,8 @@ func (store *BaseDataStore) persistRuntimeInfo(jobMetrics *mysql.JobMetrics, in 
 
 	var runtimeInfos []*common.JobRuntimeInfo
 
-	if jobMetrics.MetricJobRuntime != "" {
-		err := json.Unmarshal([]byte(jobMetrics.MetricJobRuntime), &runtimeInfos)
+	if jobMetrics.JobRuntime != "" {
+		err := json.Unmarshal([]byte(jobMetrics.JobRuntime), &runtimeInfos)
 		if err != nil {
 			log.Errorf("Fail to unmarshal runtime info: %v", err)
 			return err
@@ -241,7 +232,7 @@ func (store *BaseDataStore) persistRuntimeInfo(jobMetrics *mysql.JobMetrics, in 
 	if err != nil {
 		log.Errorf("Fail to dump json %v", err)
 	}
-	jobMetrics.MetricJobRuntime = string(jsonVal)
+	jobMetrics.JobRuntime = string(jsonVal)
 	err = store.client.JobMetricsRecorder.Upsert(jobMetrics)
 	return err
 }

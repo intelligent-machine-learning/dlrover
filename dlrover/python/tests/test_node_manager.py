@@ -23,23 +23,23 @@ from dlrover.python.common.constants import (
 from dlrover.python.common.resource import NodeResource
 from dlrover.python.master.master import Master
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
-from dlrover.python.master.node_manager.event_callback import (
+from dlrover.python.master.node.event_callback import (
     ClusterContext,
     TaskRescheduleCallback,
     TFPSNodeHandlingCallback,
 )
-from dlrover.python.master.node_manager.job_config import (
+from dlrover.python.master.node.job_config import (
     JobResourceConfig,
     get_critical_worker_index,
     set_critical_node,
 )
-from dlrover.python.master.node_manager.node_manager import create_node_manager
-from dlrover.python.master.node_manager.status_flow import (
+from dlrover.python.master.node.node_manager import create_node_manager
+from dlrover.python.master.node.status_flow import (
     NODE_STATE_FLOWS,
     NodeStateFlow,
     get_node_state_flow,
 )
-from dlrover.python.master.node_watcher.base_watcher import Node, NodeEvent
+from dlrover.python.master.watcher.base_watcher import Node, NodeEvent
 from dlrover.python.tests.test_utils import (
     MockArgs,
     create_task_manager,

@@ -13,9 +13,13 @@
 
 from abc import ABCMeta, abstractmethod
 
+<<<<<<< HEAD
 from dlrover.python.master.resource.base_generator import (
     ResourcePlan,
 )
+=======
+from dlrover.python.master.resource.base_generator import ResourcePlan
+>>>>>>> master
 
 
 class Scaler(metaclass=ABCMeta):

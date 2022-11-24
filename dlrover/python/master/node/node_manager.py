@@ -25,21 +25,21 @@ from dlrover.python.common.constants import (
     NodeType,
 )
 from dlrover.python.common.log_utils import default_logger as logger
-from dlrover.python.master.node_manager.event_callback import (
+from dlrover.python.master.node.event_callback import (
     ClusterContext,
     NodeEventCallback,
 )
-from dlrover.python.master.node_manager.job_config import (
+from dlrover.python.master.node.job_config import (
     JobResourceConfig,
     get_critical_worker_index,
     set_critical_node,
 )
-from dlrover.python.master.node_manager.status_flow import (
+from dlrover.python.master.node.status_flow import (
     NodeStateFlow,
     get_node_state_flow,
 )
-from dlrover.python.master.node_watcher.base_watcher import Node, NodeEvent
-from dlrover.python.master.node_watcher.pod_watcher import PodWatcher
+from dlrover.python.master.watcher.base_watcher import Node, NodeEvent
+from dlrover.python.master.watcher.pod_watcher import PodWatcher
 from dlrover.python.scheduler.kubernetes import k8sClient
 
 _MAX_POD_RELAUNCH_COUNT = 5
