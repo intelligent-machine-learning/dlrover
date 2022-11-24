@@ -18,16 +18,14 @@ from dlrover.python.common.constants import DistributionStrategy, JobExitReason
 from dlrover.python.common.log_utils import default_logger as logger
 from dlrover.python.elastic_training.elastic_ps import ElasticPsService
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
-from dlrover.python.master.node_manager.event_callback import (
+from dlrover.python.master.node.event_callback import (
     TaskRescheduleCallback,
     TFPSNodeHandlingCallback,
 )
-from dlrover.python.master.node_manager.node_manager import create_node_manager
+from dlrover.python.master.node.node_manager import create_node_manager
 from dlrover.python.master.servicer import create_master_service
-from dlrover.python.master.shard_manager.task_manager import TaskManager
-from dlrover.python.master.stats_collector.job_collector import (
-    JobMetricCollector,
-)
+from dlrover.python.master.shard.task_manager import TaskManager
+from dlrover.python.master.stats.job_collector import JobMetricCollector
 
 
 def _create_rendezvous_server_if_needed(args):

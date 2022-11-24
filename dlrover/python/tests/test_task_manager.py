@@ -15,9 +15,7 @@ import json
 import unittest
 
 from dlrover.proto import elastic_training_pb2
-from dlrover.python.master.shard_manager.task_manager import (
-    DatasetShardCheckpoint,
-)
+from dlrover.python.master.shard.task_manager import DatasetShardCheckpoint
 from dlrover.python.tests.test_utils import create_task_manager
 
 

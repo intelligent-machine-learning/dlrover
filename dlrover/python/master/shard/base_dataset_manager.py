@@ -15,10 +15,7 @@ import json
 from abc import ABCMeta, abstractmethod
 from typing import Dict, List
 
-from dlrover.python.master.shard_manager.dataset_splitter import (
-    DatasetSplitter,
-    Shard,
-)
+from dlrover.python.master.shard.dataset_splitter import DatasetSplitter, Shard
 
 
 class Task(object):
