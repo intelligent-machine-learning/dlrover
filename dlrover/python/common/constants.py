@@ -79,7 +79,7 @@ class ExitCode(object):
     CORE_DUMP_ERROR_CODE = 134
 
 
-class NodeResourceBoundary(object):
+class NodeResourceLimit(object):
     MAX_CPU_CORES = 32
     MIN_CPU_CORES = 4
     MIN_MEMORY = 6144  # 6Gi
@@ -95,6 +95,28 @@ class NodeResourceBoundary(object):
     PS_CPU_DECREASED_RATE = 0.5
     MIN_VALID_MEMORY = 1024  # 1GB
     MIN_VALID_CPU = 2
+
+
+class DefaultNodeResource(object):
+    PS_NUM = 3
+    PS_MEMORY = 16384  # 16GB
+    PS_CPU = 12
+    WORKER_NUM = 5
+    WORKER_CPU = 16
+    WORKER_MEMORY = 16384  # 16GB
+
+
+class JobOptStage(object):
+    CREATE = "job_stage_create"
+    PS_INITIAL = "job_stage_ps_initial"
+    WORKER_INITIAL = "job_stage_worker_initial"
+    RUNNING = "job_stage_running"
+
+
+class OptimizeWorkerPhase(object):
+    SAMPLE = "sample"
+    INITIAL = "initial"
+    STABLE = "stable"
 
 
 class DistributionStrategy(object):

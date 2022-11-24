@@ -13,8 +13,8 @@
 
 import unittest
 
-from dlrover.python.common.resource import NodeGroupResource, NodeResource
-from dlrover.python.master.resource.base_generator import ResourcePlan
+from dlrover.python.common.node import NodeGroupResource, NodeResource
+from dlrover.python.master.resource.optimizer import ResourcePlan
 from dlrover.python.master.scaler.k8s_scaler import k8sScaler
 
 
@@ -22,9 +22,9 @@ class k8sScalerTest(unittest.TestCase):
     def test_generate_scaler_crd_by_plan(self):
         plan = ResourcePlan()
         node_resource = NodeResource(10, 4096)
-        plan.add_node_resource("worker-0", node_resource)
+        plan.node_resources["worker-0"] = node_resource
         group_resource = NodeGroupResource(1, node_resource, "low")
-        plan.add_task_group_resource("worker", group_resource)
+        plan.node_group_resources["worker"] = group_resource
 
         scaler = k8sScaler(
             job_name="test", namespace="dlrover", cluster="", client=None

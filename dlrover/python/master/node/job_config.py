@@ -11,98 +11,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
 from typing import Dict
 
 from dlrover.python.common.constants import DistributionStrategy, NodeType
-from dlrover.python.common.resource import NodeGroupResource, NodeResource
 from dlrover.python.master.watcher.base_watcher import Node
-
-
-class JobResourceConfig(object):
-    def __init__(self):
-        self._group_resources: Dict[str, NodeGroupResource] = {}
-
-    def add_node_group_resource(
-        self, node_type, num, resource_config, priority
-    ):
-        self._group_resources[node_type] = NodeGroupResource(
-            count=num,
-            node_resource=NodeResource.resource_str_to_node_resource(
-                resource_config
-            ),
-            priority=priority,
-        )
-
-    def get_node_group_resource(self, node_type):
-        return self._group_resources.get(node_type, None)
-
-    def _get_group_node_num(self, node_type):
-        if node_type in self._group_resources:
-            return self._group_resources[node_type].count
-        return 0
-
-    def get_node_types(self):
-        return list(self._group_resources.keys())
-
-    def update_node_group_resource(self, node_type, num, cpu, memory):
-        self._group_resources.setdefault(
-            node_type,
-            NodeGroupResource(
-                count=0,
-                node_resource=NodeResource(0, 0),
-                priority=None,
-            ),
-        )
-        resource = self._group_resources[node_type]
-        resource.count = num or resource.count
-        resource.node_resource.cpu = cpu or resource.node_resource.cpu
-        resource.node_resource.memory = memory or resource.node_resource.memory
-
-    @property
-    def worker_num(self):
-        return self._get_group_node_num(NodeType.WORKER)
-
-    @property
-    def ps_num(self):
-        return self._get_group_node_num(NodeType.PS)
-
-    @property
-    def evaluator_num(self):
-        return self._get_group_node_num(NodeType.EVALUATOR)
-
-    @property
-    def tf_master_num(self):
-        return self._get_group_node_num(NodeType.TF_MASTER)
-
-    def init_job_node_meta(
-        self,
-        relaunch_on_worker_failure,
-        service_create_fn,
-    ):
-        """
-        job_resource: resource configuration of a job.
-        relaunch_on_worker_failure: int, the number of relaunches.
-        service_create_fn: a callable function to get the service address
-            of a node.
-        return: a dict with pod_type as key, and another dict as value.
-                The other dict uses pod id as key, and PodInfo as value.
-        """
-        job_nodes: Dict[str, Dict[int, Node]] = {}
-        for node_type in self.get_node_types():
-            group_resource = self.get_node_group_resource(node_type)
-            config_resource = group_resource.node_resource
-            group_nodes: Dict[int, Node] = {}
-            for i in range(group_resource.count):
-                group_nodes[i] = Node(
-                    node_type=node_type,
-                    node_id=i,
-                    config_resource=copy.deepcopy(config_resource),
-                    max_relaunch_count=relaunch_on_worker_failure,
-                    service_addr=service_create_fn(node_type, id),
-                )
-            job_nodes[node_type] = group_nodes
-        return job_nodes
 
 
 def set_critical_node(

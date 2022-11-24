@@ -1,0 +1,96 @@
+# Copyright 2022 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import math
+
+from dlrover.python.brain.client import GlobalEasydlClient
+from dlrover.python.common.log_utils import default_logger as logger
+from dlrover.python.common.node import NodeGroupResource, NodeResource
+from dlrover.python.master.resource.optimizer import (
+    ResourceOptimizer,
+    ResourcePlan,
+)
+
+_BASE_CONFIG_RETRIEVER = "base_config_retriever"
+_MEMORY_MB = 1024 * 1024
+
+
+def convert_plan_msg(plan_msg):
+    """Convert a GRPC plan message to a ResourcePlan.
+    Args:
+        plan_msg: brain_pb2.JobOptimizePlan instance.
+    """
+    plan = ResourcePlan()
+    if not plan_msg:
+        return plan
+    for type, group in plan_msg.resource.task_group_resources.items():
+        count = group.count
+        memory = int(group.resource.memory / _MEMORY_MB)  # MiB
+        cpu = math.ceil(group.resource.cpu)
+        plan.node_group_resources[type] = NodeGroupResource(
+            count, NodeResource(cpu, memory)
+        )
+
+    for name, resource in plan_msg.resource.pod_resources.items():
+        cpu = int(resource.cpu)
+        memory = int(resource.memory / _MEMORY_MB)
+        plan.node_resources[name] = NodeResource(cpu, memory)
+    return plan
+
+
+class BrainResoureOptimizer(ResourceOptimizer):
+    """Query resource plan from the brain service."""
+
+    name = "brain"
+
+    def __init__(self, job_uuid):
+        self._job_uuid = job_uuid
+        self._brain_client = GlobalEasydlClient.EASYDL_CLIENT
+
+    def generate_opt_plan(self, stage, config={}) -> ResourcePlan:
+        res = self._brain_client.get_optimization_plan(
+            self._job_uuid,
+            stage,
+            _BASE_CONFIG_RETRIEVER,
+            config,
+        )
+        if not res.job_optimize_plans:
+            logger.info("No any optimization plan for PS")
+            return ResourcePlan()
+
+        plan_msg = res.job_optimize_plans[0]
+        logger.info(
+            "The optimization plan of %s with config %s is %s",
+            stage,
+            config,
+            plan_msg,
+        )
+        plan = convert_plan_msg(plan_msg)
+        return plan
+
+    def generate_oom_recovery_plan(self, oom_pods, stage, config={}):
+        res = self._brain_client.get_oom_resource_plan(
+            oom_pods,
+            self._job_uuid,
+            stage,
+            _BASE_CONFIG_RETRIEVER,
+            config,
+        )
+        if not res.job_optimize_plans:
+            logger.info("No any optimization plan for PS")
+            return
+
+        plan_msg = res.job_optimize_plans[0]
+        logger.info("The optimization plan of %s is %s", stage, plan_msg)
+        plan = convert_plan_msg(plan_msg)
+        return plan
