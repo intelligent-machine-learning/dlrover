@@ -14,17 +14,17 @@
 from abc import ABCMeta, abstractmethod
 from typing import Dict
 
-from dlrover.python.common.resource import NodeResource, TaskGroupResource
+from dlrover.python.common.resource import NodeGroupResource, NodeResource
 
 
 class ResourcePlan(object):
     """A resource configuration plan."""
 
     def __init__(self):
-        self.task_group_resources: Dict[str, TaskGroupResource] = {}
+        self.task_group_resources: Dict[str, NodeGroupResource] = {}
         self.node_resources: Dict[str, NodeResource] = {}
 
-    def add_task_group_resource(self, name, resource: TaskGroupResource):
+    def add_task_group_resource(self, name, resource: NodeGroupResource):
         """Add task group resource.
         Args:
             name: string, the name of task group like "ps/worker".

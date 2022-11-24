@@ -1,0 +1,10 @@
+---
+name: brain-test
+description: run gotest to execute go test cases of DLRover brain
+runs:
+  using: 'docker'
+  image: "easydl/easydl:ci"
+  args:
+    - "/bin/bash"
+    - "-c"
+    - "cd dlrover/go/brain/pkg && go test ./..."

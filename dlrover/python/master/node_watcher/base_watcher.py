@@ -13,6 +13,7 @@
 
 import copy
 from abc import ABCMeta, abstractmethod
+from datetime import datetime
 from typing import List
 
 from dlrover.python.common.constants import (
@@ -45,6 +46,7 @@ class Node(object):
         self,
         node_type,
         node_id,
+        config_resource: NodeResource,
         name=None,
         status=NodeStatus.INITIAL,
         start_time=None,
@@ -53,6 +55,7 @@ class Node(object):
         critical=False,
         max_relaunch_count=0,
         relaunchable=True,
+        service_addr=None,
     ):
         self.type = node_type
         self.id = node_id
@@ -61,15 +64,18 @@ class Node(object):
         self.start_time = start_time
         self.task_index = task_index if task_index is not None else node_id
         self.relaunch_count = relaunch_count
+        self.critical = critical
         self.max_relaunch_count = max_relaunch_count
         self.relaunchable = relaunchable
-        self.critical = critical
+        self.service_addr = service_addr
 
-        self.create_time = None
-        self.finish_time = None
+        now = datetime.now()
+        self.create_time = now
+        self.finish_time = now
         self.is_recovered_oom = False
         self.is_released = False
         self.exit_reason = None
+        self.config_resource = config_resource
         self.used_resource = NodeResource(0.0, 0.0)
 
     def inc_relaunch_count(self):
@@ -124,7 +130,7 @@ class NodeEvent(object):
 
     def __init__(self, event_type, node):
         self.event_type = event_type
-        self.node = node
+        self.node: Node = node
 
 
 class NodeWatcher(metaclass=ABCMeta):

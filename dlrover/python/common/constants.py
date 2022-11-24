@@ -48,10 +48,27 @@ class NodeStatus(object):
     DELETED = "Deleted"
 
 
+class NodeEventType(object):
+    MODIFIED = "MODIFIED"
+    DELETED = "DELETED"
+
+
 class NodeExitReason(object):
     KILLED = "Deleted"
     OOM = "OOMKilled"
     FATAL_ERROR = "Error"
+    UNKNOWN_ERROR = "UnknownError"
+
+
+class JobExitReason(object):
+    SUCCEEDED = "Completed"
+    CODE_ERROR = "CodeError"
+    WORKER_OOM = "WorkerOOM"
+    WORKER_ERROR = "WorkerError"
+    PS_OOM_ERROR = "PSOOM"
+    PS_ERROR = "PSError"
+    EVALUATOR_OOM = "EvaluatorOOM"
+    EVALUATOR_ERROR = "EvaluatorError"
     UNKNOWN_ERROR = "UnknownError"
 
 
@@ -78,3 +95,29 @@ class NodeResourceBoundary(object):
     PS_CPU_DECREASED_RATE = 0.5
     MIN_VALID_MEMORY = 1024  # 1GB
     MIN_VALID_CPU = 2
+
+
+class DistributionStrategy(object):
+    LOCAL = "Local"
+    PARAMETER_SERVER = "ParameterServerStrategy"
+    ALLREDUCE = "AllreduceStrategy"
+    CUSTOM = "CustomStrategy"
+
+
+class PSClusterVersionType(object):
+    GLOBAL = "GLOBAL"
+    LOCAL = "LOCAL"
+    RESTORED = "RESTORED"
+
+
+class GRPC(object):
+    # gRPC limits the size of message by default to 4MB.
+    # It's too small to send model parameters.
+    MAX_SEND_MESSAGE_LENGTH = 256 * 1024 * 1024
+    MAX_RECEIVE_MESSAGE_LENGTH = 256 * 1024 * 1024
+
+
+class TrainingLoopStatus(object):
+    START = 1
+    END = 2
+    PENDING = 3

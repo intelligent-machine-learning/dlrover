@@ -92,7 +92,9 @@ def _convert_pod_event_to_node_event(event):
         task_index=task_id,
         status=evt_obj.status.phase,
         start_time=_get_start_timestamp(evt_obj.status),
+        config_resource=None,
     )
+    node.set_exit_reason(_get_pod_exit_reason(evt_obj))
     node_event = NodeEvent(event_type=evt_type, node=node)
     return node_event
 
@@ -145,6 +147,7 @@ class PodWatcher(NodeWatcher):
                 task_index=task_id,
                 status=pod.status.phase,
                 start_time=_get_start_timestamp(pod.status),
+                config_resource=None,
             )
             node.set_exit_reason(_get_pod_exit_reason(pod))
             nodes.append(node)

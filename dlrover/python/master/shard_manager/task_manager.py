@@ -40,11 +40,14 @@ _DEFAULT_NUM_MINIBATCHES_PER_SHARD = 100
 class TaskManager(object):
     """Creates and dispatches Tasks. Keep track of a Task's lifecycle."""
 
-    def __init__(self, relaunch_timeout_worker: bool):
+    def __init__(
+        self, relaunch_timeout_worker: bool, speed_monitor: SpeedMonitor
+    ):
         """
         Args:
             relaunch_timeout_worker: Whether to relaunch a worker
                 when it does not report a task status for a long time.
+            speed_monitor: monitor the training speed with workers.
         """
         self._lock = threading.Lock()
         self.relaunch_timeout_worker = relaunch_timeout_worker
@@ -52,7 +55,7 @@ class TaskManager(object):
         self._datasets: Dict[str, DatasetManger] = OrderedDict()
         self._worker_start_task_time: Dict[int, float] = {}
         self._task_timeout_callbacks: List[Callable] = []
-        self._speed_monitor = SpeedMonitor()
+        self._speed_monitor = speed_monitor
 
     def new_dataset(
         self,
@@ -144,8 +147,8 @@ class TaskManager(object):
     def finished(self):
         """Return if all tasks are done"""
         if not self._datasets:
-            return False
-        finished = all([ds.completed() for _, ds in self._datasets.items()])
+            return True
+        finished = all([ds.completed() for ds in self._datasets.values()])
         return finished
 
     def recover_tasks(self, worker_id):

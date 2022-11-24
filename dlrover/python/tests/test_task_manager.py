@@ -17,30 +17,14 @@ import unittest
 from dlrover.proto import elastic_training_pb2
 from dlrover.python.master.shard_manager.task_manager import (
     DatasetShardCheckpoint,
-    TaskManager,
 )
-
-
-def _create_task_manager():
-    task_manager = TaskManager(False)
-    dataset_name = "test"
-    task_manager.new_dataset(
-        batch_size=10,
-        num_epochs=1,
-        dataset_size=1000,
-        shuffle=False,
-        num_minibatches_per_shard=10,
-        dataset_name=dataset_name,
-        task_type=elastic_training_pb2.TRAINING,
-        storage_type="table",
-    )
-    return task_manager
+from dlrover.python.tests.test_utils import create_task_manager
 
 
 class TaskMangerTest(unittest.TestCase):
     def test_dispatch_task(self):
         dataset_name = "test"
-        task_manager = _create_task_manager()
+        task_manager = create_task_manager()
         self.assertEqual(len(task_manager._datasets), 1)
         task = task_manager.get_dataset_task(0, dataset_name)
         self.assertEqual(task.task_id, 0)
@@ -60,7 +44,7 @@ class TaskMangerTest(unittest.TestCase):
         self.assertEqual(epoch, 1)
 
     def test_recover_task(self):
-        task_manager = _create_task_manager()
+        task_manager = create_task_manager()
         dataset_name = "test"
         dataset = task_manager.get_dataset(dataset_name)
         task = task_manager.get_dataset_task(0, dataset_name)
@@ -73,7 +57,7 @@ class TaskMangerTest(unittest.TestCase):
         self.assertEqual(len(dataset.doing), 0)
 
     def test_dataset_checkpoint(self):
-        task_manager = _create_task_manager()
+        task_manager = create_task_manager()
         dataset_name = "test"
         task_manager.get_dataset_task(0, dataset_name)
         task_manager.get_dataset_task(0, dataset_name)
