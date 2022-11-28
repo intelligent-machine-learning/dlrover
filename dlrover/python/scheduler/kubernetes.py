@@ -22,8 +22,7 @@ from dlrover.python.common.constants import NodeType
 from dlrover.python.common.log_utils import default_logger as logger
 from dlrover.python.common.node import NodeResource
 from dlrover.python.common.singleton_utils import singleton
-
-JOB_SUFFIX = "-edljob-"
+from dlrover.python.scheduler.job import ElasticJob
 
 _SERVICE_PORTS = {
     NodeType.WORKER: 3333,
@@ -277,13 +276,8 @@ class PodTemplate(object):
         )
 
 
-class ElasticJob:
-    def __init__(
-        self,
-        namespace,
-        job_name,
-        k8s_client: k8sClient,
-    ):
+class K8sElasticJob(ElasticJob):
+    def __init__(self, job_name, namespace):
         """
         ElasticJob manages Pods by K8s Python APIs. The example of an elastic
         job is in dlrover/go/elasticjob_operator/config/samples/
@@ -294,12 +288,8 @@ class ElasticJob:
                 pods will be created.
             job_name: ElasticDL job name, should be unique in the namespace.
                 Used as pod name prefix and value for "elastic" label.
-            force_use_kube_config_file: If true, force to load the cluster
-                config from ~/.kube/config. Otherwise, if it's in a process
-                running in a K8S environment, it loads the incluster config,
-                if not, it loads the kube config file.
         """
-        self._k8s_client = k8s_client
+        self._k8s_client = k8sClient(namespace, job_name)
         self._namespace = namespace
         self._job_name = job_name
         job = self._retry_to_get_job()
@@ -323,18 +313,18 @@ class ElasticJob:
                 time.sleep(5)
         raise ValueError("Cannot get the training job %s", self._job_name)
 
-    def get_pod_name(self, pod_type, id):
-        return get_pod_name(self._job_name, pod_type, id)
+    def get_node_name(self, type, id):
+        return get_pod_name(self._job_name, type, id)
 
     def get_service_name(self, pod_type, id):
-        return self.get_pod_name(pod_type, id)
+        return self.get_node_name(pod_type, id)
 
-    def get_service_address(self, pod_type, id):
-        service_name = self.get_service_name(pod_type, id)
+    def get_node_service_addr(self, type, id):
+        service_name = self.get_service_name(type, id)
         return "%s.%s.svc:%d" % (
             service_name,
             self._namespace,
-            _SERVICE_PORTS[pod_type],
+            _SERVICE_PORTS[type],
         )
 
     def get_master_pod(self):
@@ -342,13 +332,13 @@ class ElasticJob:
         return self._k8s_client.get_pod(master_pod_name)
 
     def get_typed_pod(self, pod_type, id):
-        pod_name = self.get_pod_name(pod_type, id)
+        pod_name = self.get_node_name(pod_type, id)
         return self._k8s_client.get_pod(pod_name)
 
     def create_typed_pod(self, pod_type, pod_id, resource: NodeResource):
         # Find that master pod that will be used as the owner reference
         # for the ps or worker pod.
-        pod_name = self.get_pod_name(pod_type, pod_id)
+        pod_name = self.get_node_name(pod_type, pod_id)
         master_pod = self.get_master_pod()
         env: List[V1EnvVar] = []
         env = append_pod_ip_to_env(env)
@@ -386,7 +376,7 @@ class ElasticJob:
         return pod
 
     def delete_typed_pod(self, pod_type, id):
-        pod_name = self.get_pod_name(pod_type, id)
+        pod_name = self.get_node_name(pod_type, id)
         self._k8s_client.delete_pod(pod_name)
 
     def create_service(self, pod_type, pod_id, service_name):

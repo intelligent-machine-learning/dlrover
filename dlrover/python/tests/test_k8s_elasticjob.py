@@ -12,13 +12,14 @@
 # limitations under the License.
 
 import unittest
+from unittest import mock
 
 import yaml
 from kubernetes import client
 
 from dlrover.python.common.constants import NodeType
 from dlrover.python.common.node import NodeResource
-from dlrover.python.scheduler.kubernetes import ElasticJob, k8sClient
+from dlrover.python.scheduler.kubernetes import K8sElasticJob, k8sClient
 
 JOB_EXAMPLE = """apiVersion: elastic.iml.github.io/v1alpha1
 kind: ElasticJob
@@ -83,19 +84,20 @@ def _get_pod(name):
     return pod
 
 
-def _create_pod(pod):
-    return True
-
-
-def _create_service(service):
-    return True
-
-
 class K8sElasticJobTest(unittest.TestCase):
-    def test_init_pod_template(self):
+    def setUp(self) -> None:
         k8s_client = k8sClient("default", "elasticjob-sample")
-        k8s_client.get_training_job = _get_training_job
-        job = ElasticJob("default", "elasticjob-sample", k8s_client)
+        k8s_client.get_training_job = _get_training_job  # type: ignore
+        k8s_client.get_pod = _get_pod  # type: ignore
+        k8s_client.create_pod = mock.MagicMock(  # type: ignore
+            return_value=True
+        )
+        k8s_client.create_service = mock.MagicMock(  # type: ignore
+            return_value=True
+        )
+
+    def test_init_pod_template(self):
+        job = K8sElasticJob("elasticjob-sample", "default")
         self.assertEqual(job._distribution_strategy, "parameter_server")
         worker_template = job._replica_template[NodeType.WORKER]
         self.assertEqual(
@@ -112,16 +114,11 @@ class K8sElasticJobTest(unittest.TestCase):
                 "--training_steps=1000",
             ],
         )
-        worker0_name = job.get_pod_name(NodeType.WORKER, 0)
+        worker0_name = job.get_node_name(NodeType.WORKER, 0)
         self.assertEqual(worker0_name, "elasticjob-sample-edljob-worker-0")
 
     def test_create_pod(self):
-        k8s_client = k8sClient("default", "elasticjob-sample")
-        k8s_client.get_training_job = _get_training_job
-        k8s_client.get_pod = _get_pod
-        k8s_client.create_pod = _create_pod
-        job = ElasticJob("default", "elasticjob-sample", k8s_client)
-
+        job = K8sElasticJob("elasticjob-sample", "default")
         worker_resource = NodeResource(4, 8192)
         pod = job.create_typed_pod(NodeType.WORKER, 0, worker_resource)
         self.assertEqual(
@@ -132,10 +129,7 @@ class K8sElasticJobTest(unittest.TestCase):
         self.assertEqual(main_container.resources.limits["memory"], "8192Mi")
 
     def test_create_service(self):
-        k8s_client = k8sClient("default", "elasticjob-sample")
-        k8s_client.get_training_job = _get_training_job
-        k8s_client.create_service = _create_service
-        job = ElasticJob("default", "elasticjob-sample", k8s_client)
+        job = K8sElasticJob("elasticjob-sample", "default")
         service = job.create_service(
             NodeType.WORKER, 0, "elasticjob-sample-edljob-worker-0"
         )
