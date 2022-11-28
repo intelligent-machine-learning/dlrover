@@ -97,13 +97,14 @@ class JobResourceConfig(object):
         return self._get_group_node_num(NodeType.EVALUATOR)
 
     @property
-    def tf_master_num(self):
-        return self._get_group_node_num(NodeType.TF_MASTER)
+    def chief_num(self):
+        return self._get_group_node_num(NodeType.CHIEF)
 
     def init_job_node_meta(
         self,
         relaunch_on_worker_failure,
         service_create_fn,
+        new_node_name_fn,
     ):
         """
         job_resource: resource configuration of a job.
@@ -122,9 +123,10 @@ class JobResourceConfig(object):
                 group_nodes[i] = Node(
                     node_type=node_type,
                     node_id=i,
+                    name=new_node_name_fn(node_type, i),
                     config_resource=copy.deepcopy(config_resource),
                     max_relaunch_count=relaunch_on_worker_failure,
-                    service_addr=service_create_fn(node_type, id),
+                    service_addr=service_create_fn(node_type, i),
                 )
             job_nodes[node_type] = group_nodes
         return job_nodes

@@ -12,6 +12,10 @@
 # limitations under the License.
 
 
+class EngineType(object):
+    KUBERNETES = "k8s"
+
+
 class UserEnv(object):
     USER_ID = "USER_ID"
 

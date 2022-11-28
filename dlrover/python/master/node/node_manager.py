@@ -33,14 +33,16 @@ from dlrover.python.master.node.job_config import (
     get_critical_worker_index,
     set_critical_node,
 )
+from dlrover.python.master.node.ps_manager import ParameterServerManager
 from dlrover.python.master.node.status_flow import (
     NodeStateFlow,
     get_node_state_flow,
 )
 from dlrover.python.master.resource.job import JobResourceConfig
+from dlrover.python.master.resource.optimizer import ResourcePlan
 from dlrover.python.master.watcher.base_watcher import Node, NodeEvent
-from dlrover.python.master.watcher.pod_watcher import PodWatcher
-from dlrover.python.scheduler.kubernetes import k8sClient
+from dlrover.python.master.watcher.factory import new_node_watcher
+from dlrover.python.scheduler.factory import new_elastic_job
 
 _MAX_POD_RELAUNCH_COUNT = 5
 
@@ -58,6 +60,7 @@ class NodeManager(object):
         ps_relaunch_max_num=1,
         use_ddp=False,
         speed_monitor=None,
+        engine="k8s",
     ):
         self._job_resource = job_resource
         self._relaunch_on_worker_failure = min(
@@ -80,16 +83,25 @@ class NodeManager(object):
 
         # Protects followed variables, which are accessed from event_cb.
         self._lock = threading.Lock()
-
-        # TODO @workingloong bstract the k8sClient.
-        self._k8s_client = k8sClient(namespace, job_name)
         self._job_nodes: Dict[str, Dict[int, Node]] = {}
-        self._node_watcher = PodWatcher(job_name, namespace)
         self._job_uuid = None
+        self._ps_manager = None
+
+        self._elastic_job = new_elastic_job(engine, job_name, namespace)
+        self._node_watcher = new_node_watcher(engine, job_name, namespace)
+        self._ps_manager = None
 
     def start(self):
-        self._job_uuid = self._k8s_client.get_job_uuid()
+        self._job_uuid = self._elastic_job.get_job_uuid()
         self._init_job_nodes()
+        if NodeType.PS in self._job_nodes:
+            self._ps_manager = ParameterServerManager(
+                self._job_nodes[NodeType.PS],
+                self._job_resource,
+                self._ps_relaunch_max_num,
+                self._elastic_job.get_node_service_addr,
+                self._elastic_job.get_node_name,
+            )
         threading.Thread(
             target=self._monitor_nodes, name="node_monitor", daemon=True
         ).start()
@@ -103,7 +115,8 @@ class NodeManager(object):
     def _init_job_nodes(self):
         self._job_nodes = self._job_resource.init_job_node_meta(
             self._relaunch_on_worker_failure,
-            self._k8s_client.get_service_address,
+            self._elastic_job.get_node_service_addr,
+            self._elastic_job.get_node_name,
         )
 
         # worker and eval ids for pods that should be created
@@ -342,10 +355,8 @@ class NodeManager(object):
         evaluator_counter = self._get_pod_counter(
             self._job_nodes[NodeType.EVALUATOR]
         )
-        tf_master_counter = self._get_pod_counter(
-            self._job_nodes[NodeType.CHIEF]
-        )
-        counter = worker_counter + evaluator_counter + tf_master_counter
+        chief_counter = self._get_pod_counter(self._job_nodes[NodeType.CHIEF])
+        counter = worker_counter + evaluator_counter + chief_counter
         return counter
 
     def _get_pod_counter(self, nodes):
@@ -417,24 +428,34 @@ class NodeManager(object):
         """Start to auto scale"""
         pass
 
-    # TODO: implement the function.
     def get_cur_cluster_ps(self):
         """Get PS nodes in the current training cluster."""
-        return []
+        return self._ps_manager.get_training_ps_cluster()
 
-    # TODO: implement the function.
     def get_next_cluster_ps(self):
         """Get PS nodes in the next training cluster."""
-        return []
+        return self._ps_manager.get_next_training_ps_cluster()
 
-    # TODO: implement the function.
     def ready_for_new_ps_cluster(self):
-        return True
+        return self._ps_manager.get_ready_for_new_ps_cluster()
 
-    # TODO: implement the function.
     def remove_training_nodes(self):
         """Remove all PS and workers"""
-        pass
+        plan = ResourcePlan()
+        training_nodes = list(
+            self._job_nodes[NodeType.WORKER].values()
+        ) + list(self._job_nodes[NodeType.PS].values())
+        for node in training_nodes:
+            if (
+                node.status in [NodeStatus.RUNNING, NodeStatus.PENDING]
+                and not node.is_released
+            ):
+                node.critical = False
+                node.relaunchable = False
+                node.is_released = True
+                node.status = NodeStatus.DELETED
+                logger.info("Remove node %s", node.name)
+                plan.removed_nodes.append(node.name)
 
 
 def create_node_manager(args, speed_monitor) -> NodeManager:
