@@ -41,10 +41,7 @@ class NodeResource(object):
         self.priority = ""
 
     def to_resource_dict(self):
-        resource = {
-            "cpu": self.cpu,
-            "memory": str(self.memory) + "Mi"
-        }
+        resource = {"cpu": self.cpu, "memory": str(self.memory) + "Mi"}
         if self.gpu_num > 0:
             resource[self.gpu_type] = self.gpu_num
         return resource
