@@ -301,7 +301,7 @@ class NodeManager(object):
             all_workers = (
                 list(self._job_nodes[NodeType.WORKER].values())
                 + list(self._job_nodes[NodeType.EVALUATOR].values())
-                + list(self._job_nodes[NodeType.TF_MASTER].values())
+                + list(self._job_nodes[NodeType.CHIEF].values())
             )
             for worker in all_workers:
                 if not worker.is_released and (
@@ -343,7 +343,7 @@ class NodeManager(object):
             self._job_nodes[NodeType.EVALUATOR]
         )
         tf_master_counter = self._get_pod_counter(
-            self._job_nodes[NodeType.TF_MASTER]
+            self._job_nodes[NodeType.CHIEF]
         )
         counter = worker_counter + evaluator_counter + tf_master_counter
         return counter
@@ -390,7 +390,7 @@ class NodeManager(object):
                 if node.status == NodeStatus.RUNNING:
                     running_workers.append(node)
 
-            for node in self._job_nodes[NodeType.TF_MASTER].values():
+            for node in self._job_nodes[NodeType.CHIEF].values():
                 if node.status == NodeStatus.RUNNING:
                     running_workers.append(node)
 
@@ -471,7 +471,7 @@ def create_node_manager(args, speed_monitor) -> NodeManager:
         evaluator_pod_priority,
     )
     job_resource.add_node_group_resource(
-        NodeType.TF_MASTER,
+        NodeType.CHIEF,
         args.num_tf_master,
         args.tf_master_resource_request,
         args.tf_master_pod_priority,
