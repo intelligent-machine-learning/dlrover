@@ -19,14 +19,12 @@ from kubernetes import client
 
 from dlrover.python.common.constants import (
     ElasticJobLabel,
+    NodeExitReason,
     NodeStatus,
     NodeType,
 )
-from dlrover.python.master.watcher.base_watcher import (
-    Node,
-    NodeEvent,
-    NodeExitReason,
-)
+from dlrover.python.common.node import Node
+from dlrover.python.master.watcher.base_watcher import NodeEvent
 from dlrover.python.master.watcher.pod_watcher import (
     PodWatcher,
     _convert_pod_event_to_node_event,

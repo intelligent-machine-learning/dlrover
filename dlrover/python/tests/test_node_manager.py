@@ -57,6 +57,10 @@ def get_job_uuid():
     return "11111"
 
 
+def _get_node_name(type, id):
+    return "{}-{}".format(type, id)
+
+
 class NodeStatusFlowTest(unittest.TestCase):
     def test_get_node_state_flow(self):
         flow: NodeStateFlow = get_node_state_flow(
@@ -102,7 +106,7 @@ class JobConfigTest(unittest.TestCase):
         self.assertEqual(job.worker_num, 5)
         self.assertEqual(job.ps_num, 3)
 
-        nodes = job.init_job_node_meta(1, get_service_fn)
+        nodes = job.init_job_node_meta(1, get_service_fn, _get_node_name)
         self.assertEqual(len(nodes[NodeType.WORKER]), 5)
         self.assertEqual(len(nodes[NodeType.PS]), 3)
         self.assertEqual(nodes[NodeType.PS][0].id, 0)
@@ -121,7 +125,7 @@ class JobConfigTest(unittest.TestCase):
             NodeType.WORKER, 5, "cpu=1,memory=4096Mi", ""
         )
 
-        nodes = job.init_job_node_meta(1, get_service_fn)
+        nodes = job.init_job_node_meta(1, get_service_fn, _get_node_name)
         set_critical_node(
             nodes, critical_worker_index={0: 3}, ps_relaunch_max_num=2
         )
@@ -147,7 +151,7 @@ class JobConfigTest(unittest.TestCase):
         args = MockArgs()
         manager = create_node_manager(args, SpeedMonitor())
         self.assertEqual(manager._ps_relaunch_max_num, 1)
-        manager._k8s_client.get_job_uuid = get_job_uuid
+        manager._elastic_job.get_job_uuid = get_job_uuid
         manager._node_watcher._list_job_pods = mock_list_job_pods
         manager.start()
         self.assertEqual(manager._job_uuid, _MOCK_JOB_UUID)
@@ -217,7 +221,7 @@ class JobConfigTest(unittest.TestCase):
 
         for worker in manager._job_nodes[NodeType.WORKER].values():
             worker.status = NodeStatus.FINISHED
-        for worker in manager._job_nodes[NodeType.TF_MASTER].values():
+        for worker in manager._job_nodes[NodeType.CHIEF].values():
             worker.status = NodeStatus.FINISHED
         for worker in manager._job_nodes[NodeType.EVALUATOR].values():
             worker.status = NodeStatus.FINISHED
@@ -225,7 +229,7 @@ class JobConfigTest(unittest.TestCase):
 
         for worker in manager._job_nodes[NodeType.WORKER].values():
             worker.status = NodeStatus.FAILED
-        for worker in manager._job_nodes[NodeType.TF_MASTER].values():
+        for worker in manager._job_nodes[NodeType.CHIEF].values():
             worker.status = NodeStatus.FAILED
         for worker in manager._job_nodes[NodeType.EVALUATOR].values():
             worker.status = NodeStatus.FAILED

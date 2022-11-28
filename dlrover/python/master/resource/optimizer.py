@@ -12,7 +12,7 @@
 # limitations under the License.
 
 from abc import ABCMeta, abstractmethod
-from typing import Dict
+from typing import Dict, List
 
 from dlrover.python.common.constants import (
     DefaultNodeResource,
@@ -49,6 +49,7 @@ class ResourcePlan(object):
     def __init__(self):
         self.node_group_resources: Dict[str, NodeGroupResource] = {}
         self.node_resources: Dict[str, NodeResource] = {}
+        self.removed_nodes: List[str] = []
 
     def empty(self):
         return len(self.node_group_resources) + len(self.node_resources) == 0

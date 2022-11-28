@@ -15,7 +15,7 @@ import unittest
 
 from dlrover.python.common.node import NodeGroupResource, NodeResource
 from dlrover.python.master.resource.optimizer import ResourcePlan
-from dlrover.python.master.scaler.k8s_scaler import k8sScaler
+from dlrover.python.master.scaler.elasticjob_scaler import ElasticJobScaler
 
 
 class k8sScalerTest(unittest.TestCase):
@@ -26,7 +26,7 @@ class k8sScalerTest(unittest.TestCase):
         group_resource = NodeGroupResource(1, node_resource, "low")
         plan.node_group_resources["worker"] = group_resource
 
-        scaler = k8sScaler(
+        scaler = ElasticJobScaler(
             job_name="test", namespace="dlrover", cluster="", client=None
         )
         scaler_crd = scaler._generate_scaler_crd_by_plan(plan)

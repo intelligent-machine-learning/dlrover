@@ -30,7 +30,7 @@ class MasterTest(unittest.TestCase):
             node.status = NodeStatus.FINISHED
         for node in job_nodes[NodeType.EVALUATOR].values():
             node.status = NodeStatus.FINISHED
-        for node in job_nodes[NodeType.TF_MASTER].values():
+        for node in job_nodes[NodeType.CHIEF].values():
             node.status = NodeStatus.FINISHED
         self.master.run()
         self.assertEqual(self.master._exit_code, 0)
@@ -43,7 +43,7 @@ class MasterTest(unittest.TestCase):
             node.status = NodeStatus.FINISHED
         for node in job_nodes[NodeType.EVALUATOR].values():
             node.status = NodeStatus.FINISHED
-        for node in job_nodes[NodeType.TF_MASTER].values():
+        for node in job_nodes[NodeType.CHIEF].values():
             node.status = NodeStatus.FINISHED
 
         job_nodes[NodeType.WORKER][0].status = NodeStatus.FINISHED

@@ -12,7 +12,9 @@
 # limitations under the License.
 
 import datetime
+from unittest import mock
 
+import yaml
 from kubernetes import client
 
 from dlrover.proto import elastic_training_pb2
@@ -24,6 +26,69 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.shard.task_manager import TaskManager
+from dlrover.python.scheduler.kubernetes import k8sClient
+
+JOB_EXAMPLE = """apiVersion: elastic.iml.github.io/v1alpha1
+kind: ElasticJob
+metadata:
+  name: elasticjob-sample
+spec:
+  distributionStrategy: parameter_server
+  replicaSpecs:
+    ps:
+      restartCount: 3
+      template:
+          metadata:
+            annotations:
+              sidecar.istio.io/inject: "false"
+          spec:
+            restartPolicy: Never
+            containers:
+              - name: main
+                image: dlrover/elasticjob:iris_estimator
+                command:
+                  - python
+                  - -m
+                  - model_zoo.iris.dnn_estimator
+                  - --batch_size=32
+                  - --training_steps=1000
+    worker:
+      restartCount: 3
+      template:
+          metadata:
+            annotations:
+              sidecar.istio.io/inject: "false"
+          spec:
+            restartPolicy: Never
+            containers:
+              - name: main
+                image: dlrover/elasticjob:iris_estimator
+                command:
+                  - python
+                  - -m
+                  - model_zoo.iris.dnn_estimator
+                  - --batch_size=32
+                  - --training_steps=1000"""
+
+
+def _get_training_job():
+    job = yaml.safe_load(JOB_EXAMPLE)
+    return job
+
+
+def _get_pod(name):
+    pod = client.V1Pod(
+        api_version="v1",
+        kind="Pod",
+        spec={},
+        metadata=client.V1ObjectMeta(
+            name=name,
+            labels={},
+            namespace="default",
+            uid="111",
+        ),
+    )
+    return pod
 
 
 class MockArgs(object):
@@ -130,3 +195,13 @@ def create_task_manager():
         storage_type="table",
     )
     return task_manager
+
+
+def mock_k8s_client():
+    k8s_client = k8sClient("default", "elasticjob-sample")
+    k8s_client.get_training_job = _get_training_job  # type: ignore
+    k8s_client.get_pod = _get_pod  # type: ignore
+    k8s_client.create_pod = mock.MagicMock(return_value=True)  # type: ignore
+    k8s_client.create_service = mock.MagicMock(  # type: ignore
+        return_value=True
+    )
