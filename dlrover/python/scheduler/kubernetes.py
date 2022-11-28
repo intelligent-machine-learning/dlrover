@@ -13,16 +13,15 @@
 
 import os
 import time
+from typing import Dict, List
 
-from typing import Dict
 from kubernetes import client, config
 from kubernetes.client import V1EnvVar, V1EnvVarSource, V1ObjectFieldSelector
 
-
 from dlrover.python.common.constants import NodeType
 from dlrover.python.common.log_utils import default_logger as logger
-from dlrover.python.common.singleton_utils import singleton
 from dlrover.python.common.node import NodeResource
+from dlrover.python.common.singleton_utils import singleton
 
 JOB_SUFFIX = "-edljob-"
 
@@ -180,15 +179,15 @@ class k8sClient(object):
                 namespace=self._namespace, name=name
             )
         except client.ApiException as e:
-            logger.warning(
-                "Exception when reading pod %s: %s\n" % (name, e)
-            )
+            logger.warning("Exception when reading pod %s: %s\n" % (name, e))
             return None
 
     def delete_pod(self, name):
         try:
             self.client.delete_namespaced_pod(
-                name, self._namespace, body=client.V1DeleteOptions(),
+                name,
+                self._namespace,
+                body=client.V1DeleteOptions(),
             )
             return True
         except Exception as e:
@@ -223,7 +222,8 @@ class k8sClient(object):
             return True
         except client.rest.ApiException as e:
             logger.warning(
-                "Failed to create %s service: %s\n" % (service.metadata.name, e)
+                "Failed to create %s service: %s\n"
+                % (service.metadata.name, e)
             )
             return False
 
@@ -265,6 +265,7 @@ class k8sClient(object):
 
 class PodTemplate(object):
     """PodTemplate is the template of replica in a job"""
+
     def __init__(self, template):
         self.restart_policy = template["spec"]["restartPolicy"]
         main_container = template["spec"]["containers"][0]
@@ -276,7 +277,7 @@ class PodTemplate(object):
         )
 
 
-class ElasticJob():
+class ElasticJob:
     def __init__(
         self,
         namespace,
@@ -309,7 +310,7 @@ class ElasticJob():
 
     def _get_common_labels(self):
         """Labels that should be attached to all k8s objects belong to
-           current job.
+        current job.
         """
         return {"app": ELASTICDL_APP_NAME, ELASTICDL_JOB_KEY: self._job_name}
 
@@ -344,20 +345,22 @@ class ElasticJob():
         pod_name = self.get_pod_name(pod_type, id)
         return self._k8s_client.get_pod(pod_name)
 
-    def create_typed_pod(
-        self, pod_type, pod_id, resource: NodeResource
-    ):
+    def create_typed_pod(self, pod_type, pod_id, resource: NodeResource):
         # Find that master pod that will be used as the owner reference
         # for the ps or worker pod.
         pod_name = self.get_pod_name(pod_type, pod_id)
         master_pod = self.get_master_pod()
-        env = []
+        env: List[V1EnvVar] = []
         env = append_pod_ip_to_env(env)
 
         lifecycle = None
 
         if pod_type not in self._replica_template:
-            raise ValueError("No replica %s specification in job %s", pod_type, self._job_name)
+            raise ValueError(
+                "No replica %s specification in job %s",
+                pod_type,
+                self._job_name,
+            )
         pod_template = self._replica_template[pod_type]
 
         labels = self._get_common_labels()
@@ -451,21 +454,19 @@ class ElasticJob():
             # Otherwise annotation is `None` and cannot be modified
             # using `with_service()` for cluster specific information.
             annotations=labels,
-            owner_references=self.create_owner_reference(owner) if owner else None,
+            owner_references=self.create_owner_reference(owner)
+            if owner
+            else None,
             namespace=self._namespace,
         )
         selector = {
             "app": ELASTICDL_APP_NAME,
             ELASTICDL_JOB_KEY: self._job_name,
             ELASTICDL_REPLICA_TYPE_KEY: replica_type,
-            ELASTICDL_REPLICA_INDEX_KEY: str(replica_index)
+            ELASTICDL_REPLICA_INDEX_KEY: str(replica_index),
         }
         spec = client.V1ServiceSpec(
-            ports=[
-                client.V1ServicePort(
-                    port=port, target_port=target_port
-                )
-            ],
+            ports=[client.V1ServicePort(port=port, target_port=target_port)],
             selector=selector,
             type=None,
         )
@@ -551,9 +552,7 @@ class ElasticJob():
         termination_period=None,
     ):
         resource_limits = (
-            resource_limits
-            if len(resource_limits) > 0
-            else resource_requests
+            resource_limits if len(resource_limits) > 0 else resource_requests
         )
         container = client.V1Container(
             name="main",
@@ -573,7 +572,7 @@ class ElasticJob():
             containers=[container],
             restart_policy=restart_policy,
             priority_class_name=priority,
-            termination_grace_period_seconds=termination_period
+            termination_grace_period_seconds=termination_period,
         )
 
         pod = client.V1Pod(

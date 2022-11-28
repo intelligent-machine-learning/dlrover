@@ -12,13 +12,13 @@
 # limitations under the License.
 
 import unittest
-import yaml
-from yaml import Loader
 
+import yaml
+from kubernetes import client
+
+from dlrover.python.common.constants import NodeType
 from dlrover.python.common.node import NodeResource
 from dlrover.python.scheduler.kubernetes import ElasticJob, k8sClient
-from dlrover.python.common.constants import NodeType
-from kubernetes import client
 
 JOB_EXAMPLE = """apiVersion: elastic.iml.github.io/v1alpha1
 kind: ElasticJob
@@ -64,7 +64,7 @@ spec:
 
 
 def _get_training_job():
-    job = yaml.load(JOB_EXAMPLE, Loader)
+    job = yaml.safe_load(JOB_EXAMPLE)
     return job
 
 
@@ -78,7 +78,7 @@ def _get_pod(name):
             labels={},
             namespace="default",
             uid="111",
-        )
+        ),
     )
     return pod
 
@@ -102,7 +102,16 @@ class K8sElasticJobTest(unittest.TestCase):
             worker_template.image, "dlrover/elasticjob:iris_estimator"
         )
         self.assertEqual(worker_template.restart_policy, "Never")
-        self.assertListEqual(worker_template.command, ["python", "-m", "model_zoo.iris.dnn_estimator", "--batch_size=32", "--training_steps=1000"])
+        self.assertListEqual(
+            worker_template.command,
+            [
+                "python",
+                "-m",
+                "model_zoo.iris.dnn_estimator",
+                "--batch_size=32",
+                "--training_steps=1000",
+            ],
+        )
         worker0_name = job.get_pod_name(NodeType.WORKER, 0)
         self.assertEqual(worker0_name, "elasticjob-sample-edljob-worker-0")
 
@@ -115,7 +124,9 @@ class K8sElasticJobTest(unittest.TestCase):
 
         worker_resource = NodeResource(4, 8192)
         pod = job.create_typed_pod(NodeType.WORKER, 0, worker_resource)
-        self.assertEqual(pod.metadata.name, "elasticjob-sample-edljob-worker-0")
+        self.assertEqual(
+            pod.metadata.name, "elasticjob-sample-edljob-worker-0"
+        )
         main_container = pod.spec.containers[0]
         self.assertEqual(main_container.resources.limits["cpu"], 4)
         self.assertEqual(main_container.resources.limits["memory"], "8192Mi")
@@ -125,8 +136,10 @@ class K8sElasticJobTest(unittest.TestCase):
         k8s_client.get_training_job = _get_training_job
         k8s_client.create_service = _create_service
         job = ElasticJob("default", "elasticjob-sample", k8s_client)
-        service = job.create_service(NodeType.WORKER, 0, "elasticjob-sample-edljob-worker-0")
+        service = job.create_service(
+            NodeType.WORKER, 0, "elasticjob-sample-edljob-worker-0"
+        )
         self.assertEqual(service.spec.selector["elastic-replica-index"], "0")
-        self.assertEqual(service.spec.selector["elastic-replica-type"], "worker")
-
-        
+        self.assertEqual(
+            service.spec.selector["elastic-replica-type"], "worker"
+        )
