@@ -66,10 +66,6 @@ class BatchDatasetManager(DatasetManger):
         if not self.todo:
             # No more tasks
             return Task.create_invalid_task()
-        # 建立一个映射关系
-        # 取余数
-        # 
-
         task: Task = self.todo.pop(0)
         self.doing[task.task_id] = DoingTask(task, worker_id, int(time.time()))
         logger.info(
@@ -230,7 +226,6 @@ class StreamingDatasetManager(DatasetManger):
         if not self.todo:
             # No more tasks
             return Task.create_invalid_task()
-        # 根据worker id 去 pop 
         task: Task = self.get_task_from_todo(worker_id)
         self.doing[task.task_id] = DoingTask(task, worker_id, int(time.time()))
         logger.info(
