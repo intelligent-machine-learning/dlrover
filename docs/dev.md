@@ -4,7 +4,7 @@ The document describes how to make contribution to EasyDL.
 
 ## Submit a PR
 
-- Fork ReasyDL Repo to your owner namespace.
+- Fork EasyDL Repo to your owner namespace.
 - `git clone git@github.com:intelligent-machine-learning/easydl.git`
 - `cd easydl`
 - `git remote rename origin upstream`
