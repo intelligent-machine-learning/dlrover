@@ -47,12 +47,12 @@ supporting three different modes to satisfy users' requirements.
 
 Sometimes users want to explore a single job's performance through manually scaling this 
 job's resources during runtime. DLRover allows users to apply new resource configuration
-for a running job without restart the job.
+for a running job without restarting the job.
 
 ### Single-Job Mode
 
 During DL model development, users usually repeatedly train and test a model before 
-the model reach a stable status. In this scenario, users only need to run a single job
+the model reaches a stable status. In this scenario, users only need to run a single job
 without deploying extra components. However, single-job mode also supports resource auto-configuration
 for the job. In this mode, auto-scale algorithms are located in the master of the job
 The runtime statistics (e.g. resource usage of all Pods, training speed and so on)
@@ -95,7 +95,7 @@ from the plan and apply the Scale CRD to notify ElasticJob controller to
 launch required Pods and each Pod will start an Elastic Agent on it.
 During training, the training master of Elastic Trainer dispatches data shards
 to workers. Meanwhile, the Cluster Monitor is monitoring
-each job's running status (e.g., errors, CPU utilization etc) and
+each job's running status (e.g., resource workload of each node) and
 cluster status (e.g., idle resources). Those data will be reported to Brain periodically and 
 Brain persists the data into database. Then based on the job’s running status, 
 EasyDL Brain picks up appropriate algorithms to
