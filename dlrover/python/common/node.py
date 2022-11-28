@@ -26,7 +26,10 @@ class NodeResource(object):
     Attributes:
         cpu: float, CPU cores.
         memory: float, memory MB.
-        gpu: Dict.
+        gpu_type: str, the type of GPU.
+        gpu_num: int,
+        image: the image name of the node.
+        priority: the priority classs of the node.
     """
 
     def __init__(self, cpu, memory, gpu_type=None, gpu_num=0):
@@ -34,6 +37,14 @@ class NodeResource(object):
         self.memory = memory
         self.gpu_type = gpu_type
         self.gpu_num = gpu_num
+        self.image = ""
+        self.priority = ""
+
+    def to_resource_dict(self):
+        resource = {"cpu": self.cpu, "memory": str(self.memory) + "Mi"}
+        if self.gpu_num > 0:
+            resource[self.gpu_type] = self.gpu_num
+        return resource
 
     @classmethod
     def resource_str_to_node_resource(cls, resource_str):

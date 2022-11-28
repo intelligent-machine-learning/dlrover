@@ -41,8 +41,8 @@ def set_critical_node(
     if NodeType.EVALUATOR in job_nodes:
         for node in job_nodes[NodeType.EVALUATOR].values():
             node.critical = True
-    if NodeType.TF_MASTER in job_nodes:
-        for node in job_nodes[NodeType.TF_MASTER].values():
+    if NodeType.CHIEF in job_nodes:
+        for node in job_nodes[NodeType.CHIEF].values():
             node.critical = True
 
 

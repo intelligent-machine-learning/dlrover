@@ -27,7 +27,7 @@ class NodeType(object):
     PS = "ps"
     WORKER = "worker"
     EVALUATOR = "evaluator"
-    TF_MASTER = "master"
+    CHIEF = "chief"
 
 
 class ElasticJobLabel(object):
