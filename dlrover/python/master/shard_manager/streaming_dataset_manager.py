@@ -15,6 +15,7 @@ import math
 import time
 
 from dlrover.python.common.log_utils import default_logger as logger
+
 from dlrover.python.master.shard_manager.base_dataset_manager import (
     DatasetManger,
     DatasetShardCheckpoint,
@@ -23,6 +24,7 @@ from dlrover.python.master.shard_manager.base_dataset_manager import (
 )
 from dlrover.python.master.shard_manager.dataset_splitter import (
     DatasetSplitter,
+    StreamingDatasetSplitter,
     Shard,
 )
 
@@ -30,7 +32,7 @@ _MAX_TASK_RETRIES = 3
 
 
 class StreamingDatasetManager(DatasetManger):
-    """BatchDatasetManager create tasks with shards in a static dataset.
+    """StreamingDatasetManager create tasks with shards in a static dataset.
     Attributes:
         task_type: the type of computation task like "training",
             "evaluation" and "prediction".
@@ -66,7 +68,6 @@ class StreamingDatasetManager(DatasetManger):
         if not self.todo:
             # No more tasks
             return Task.create_invalid_task()
-        # 根据worker id 去 pop 
         task: Task = self.get_task_from_todo(worker_id)
         self.doing[task.task_id] = DoingTask(task, worker_id, int(time.time()))
         logger.info(
@@ -155,7 +156,7 @@ class StreamingDatasetManager(DatasetManger):
 
     def get_task_from_todo(self, worker_id):
         for task in self.todo:
-            if task.shard.partition == worker_id:
+            if task.shard.name == worker_id:
                 self.todo.remove(task)
                 return task
         return self.todo.pop(0)
@@ -169,17 +170,19 @@ class StreamingDatasetManager(DatasetManger):
         for task_id in self.doing:
             task = self.doing[task_id].task
             doing_shards.append([task.shard.start, task.shard.end])
-
+        splitter_info = self._dataset_splitter.to_checkpoint()
         return DatasetShardCheckpoint(
             dataset_name=self._dataset_splitter.dataset_name,
             todo=todo_shards,
             doing=doing_shards,
             epoch=self._dataset_splitter.epoch,
+            splitter_info=splitter_info
         )
 
     def restore_checkpoint(self, checkpoint: DatasetShardCheckpoint):
         """Restore the task manager from a checkpoint"""
-        self._dataset_splitter.epoch = checkpoint.epoch
+
+        self._dataset_splitter = StreamingDatasetSplitter.from_checkpoint(checkpoint.splitter_info)
         self.todo = []
         for shard_indices in checkpoint.doing + checkpoint.todo:
             shard = Shard(

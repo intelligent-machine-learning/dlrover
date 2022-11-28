@@ -56,6 +56,7 @@ class DoingTask(object):
         self.start_time = start_time
 
 
+
 class DatasetShardCheckpoint(object):
     def __init__(
         self,
@@ -63,6 +64,7 @@ class DatasetShardCheckpoint(object):
         todo,
         doing,
         epoch,
+        splitter_info=None,
     ):
         """
         TODO: support checkpoint for indices.
@@ -77,6 +79,7 @@ class DatasetShardCheckpoint(object):
         self.todo = todo
         self.doing = doing
         self.epoch = epoch
+        self.splitter_info = splitter_info
 
     def to_json(self):
         return json.dumps(self.__dict__)

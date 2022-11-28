@@ -17,7 +17,6 @@ from abc import ABCMeta, abstractmethod
 from typing import List
 import copy
 from dlrover.python.common.log_utils import default_logger as logger
-
 _MAX_SHARD_COUNT = 50000
 
 
@@ -31,12 +30,41 @@ class Shard(object):
         record_indices: indices of records in the dataset.
     """
 
-    def __init__(self, name, start, end, partition:int = None, record_indices: List[int] = None):
+    def __init__(self, name, start, end, record_indices: List[int] = None):
         self.name = name
         self.start = start
         self.end = end
-        self.partition = partition
         self.record_indices = record_indices
+
+class PartitionOffsets(object):
+    def __init__(self, partition_offsets):
+        self.partition_offsets = partition_offsets
+        self.start_partition = 0
+        self.partitions = []
+        self.ç = 0
+        self.update_partitions()
+
+    def update_partitions(self):
+        self.partitions = list(self.partition_offsets.keys())
+        self.partition_num = len(self.partitions)
+
+    def get_partitions(self):
+        return self.partitions
+
+    def get_round_robin_partition(self):
+        index = self.start_partition%self.partition_num
+        partition =  self.partitions[index]
+        self.start_partition += 1
+        return partition
+
+    def get_partition_offset(self, partition_index):
+        return self.partition_offsets.get(partition_index, None)
+
+    def set_partition_offset(self, partition_index, offset):
+        self.partition_offsets[partition_index] = offset
+
+    def to_json(self):
+        return self.partition_offsets
 
 
 class DatasetSplitter(metaclass=ABCMeta):
@@ -311,7 +339,6 @@ class StreamingDatasetSplitter(DatasetSplitter):
         self,
         dataset_name,
         shard_size,
-        partition_num,
         partition_offset,
         num_epochs=1,
         dataset_size=-1,
@@ -319,7 +346,6 @@ class StreamingDatasetSplitter(DatasetSplitter):
         max_shard_count=None,
         fetch_data_size=10000,
         ):
-
         super(StreamingDatasetSplitter, self).__init__(
             dataset_name,
             dataset_size,
@@ -327,19 +353,22 @@ class StreamingDatasetSplitter(DatasetSplitter):
             num_epochs,
         )
         self._dataset_name = dataset_name
+        self._shard_size = shard_size
+        self._partition_offset = partition_offset
+        self.num_epochs = num_epochs
+        self._dataset_size = dataset_size
         self._shuffle = shuffle
         self._max_shard_count = max_shard_count
-        self._shards = []
-        self._data_size = dataset_size
-        self._partition_offset = partition_offset
-        self._partition_num = partition_num
         self._fetch_data_size = fetch_data_size
+        self._shards = []
         self.epoch = 0
  
-        
+    def update_partition_offsets(self, partition_offset):
+        self._partition_offset = partition_offset
+
     def epoch_finished(self):
         finished = False
-        if self._data_size == 0:
+        if self._dataset_size == 0:
             finished = True
         return finished
         
@@ -348,10 +377,37 @@ class StreamingDatasetSplitter(DatasetSplitter):
 
     def get_fetch_data_size(self):
         return self._fetch_data_size
+
+    def to_checkpoint(self):
+        partition_offset = self._partition_offset.to_json()
+        checkpoint = self.__dict__
+        checkpoint.update({"_partition_offset":partition_offset})
+        return checkpoint
+
+    @staticmethod
+    def from_checkpoint(checkpoint):
+        init_args = {}
+        args_key = ["dataset_name",
+                    "shard_size",
+                    "partition_offset",
+                    "num_epochs",
+                    "dataset_size",
+                    "shuffle",
+                    "max_shard_count",
+                    "fetch_data_size"]
+        partition_offset = PartitionOffsets(checkpoint.pop("_partition_offset"))
+        for k in args_key:
+            checkpoint_key = "_"+k
+            init_args[k]=checkpoint.get(checkpoint_key)
+        init_args["partition_offset"] = partition_offset
+        return StreamingDatasetSplitter(**init_args)
+
     def get_shard_size(self):
         return self._shard_size
+
     def get_default_shard_count(self):
         return len(self._shards)
+
     def get_shards(self):
         return self._shards
 
@@ -362,36 +418,39 @@ class StreamingDatasetSplitter(DatasetSplitter):
             )
         )
         self._create_shards_with_range()
+
     def get_partition_offset(self):
         return self._partition_offset
+
+    def get_splitter_info(self):
+        return
     def _create_shards_with_range(self):
         shards = []
-
         prev_partition_offset = copy.deepcopy(self._partition_offset)
-        
-        if self._data_size == -1:
+        if self._dataset_size == -1:
             shard_count = self._fetch_data_size/self._shard_size
-            count_per_partition = shard_count / self._partition_num
+            count_per_partition = shard_count / self._partition_offset.partition_num
         else:
-            shard_count = self._data_size/self._shard_size
-
+            shard_count = self._dataset_size/self._shard_size
         for i in range(int(shard_count)):
-            partition = i%self._partition_num
-            start = self._partition_offset[partition]
+            partition_name =self._partition_offset.get_round_robin_partition()
+            start = self._partition_offset.get_partition_offset(partition_name)
             end = start + self._shard_size
-            shard = Shard(name=self._dataset_name, start=start, end=end, partition=i)
+            shard = Shard(name=partition_name, start=start, end=end)
             self._shards.append(shard)
             start = end
-            if self._data_size != -1:
-                self._data_size = self._data_size - self._shard_size
-            self._partition_offset[partition] = start
+            if self._dataset_size != -1:
+                self._dataset_size = self._dataset_size - self._shard_size
+            self._partition_offset.set_partition_offset(partition_name, end)
         logger.info(
-            "Create %s shards with range [%s, %s) ",
+            "Create %s shards",
             len(shards)
         )
-        for i in range(self._partition_num):
+        for p in self._partition_offset.get_partitions():
             logger.info(
-                "partition %s : with start offset [%s, %s)", i, prev_partition_offset[i], self._partition_offset[i]
+                "partition %s : with range [%s, %s)", p,
+                prev_partition_offset.get_partition_offset(p),
+                self._partition_offset.get_partition_offset(p)
             )
 
         
