@@ -14,9 +14,7 @@
 import collections
 import copy
 import itertools
-import math
 import threading
-import time
 from typing import Dict, List
 
 from dlrover.python.common.constants import (
@@ -24,16 +22,14 @@ from dlrover.python.common.constants import (
     NodeStatus,
     NodeType,
 )
-from dlrover.python.common.global_context import Context
 from dlrover.python.common.log_utils import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
+from dlrover.python.master.node.training_node import TrainingNodeManager
 from dlrover.python.master.resource.job import JobResourceConfig
 from dlrover.python.master.resource.optimizer import ResourcePlan
 
-_dlrover_context = Context.instance()
 
-
-class ParameterServerManager:
+class ParameterServerManager(TrainingNodeManager):
     def __init__(
         self,
         ps_nodes: Dict[int, Node],
@@ -48,7 +44,7 @@ class ParameterServerManager:
                 and the value is the PodInfo instance of PS pod.
             max_relaunch_num: The maximum relaunch number of PS.
         """
-        self._nodes = ps_nodes
+        super(ParameterServerManager, self).__init__(ps_nodes)
         self._max_relaunch_num = max_relaunch_num
         self._job_resource = job_resource
         self._new_service_fn = new_service_fn
@@ -73,23 +69,8 @@ class ParameterServerManager:
                 self._training_ps_cluster.append(node)
                 self._next_training_ps_cluster.append(node)
 
-    def cut_pending_ps_cpu(self):
-        """Cut down CPU cores of pendding PS Pods"""
-        pending_nodes: List[Node] = []
-        for node in self._nodes.values():
-            if node.status == NodeStatus.PENDING:
-                pending_nodes.append(node)
-
+    def relaunch_node(self, node: Node):
         plan = ResourcePlan()
-        for node in pending_nodes:
-            cut_cpu = self._cut_timeout_pending_pod_cpu(node)
-            if cut_cpu:
-                node.relaunchable = False
-                self.relaunch_pod(node)
-                plan.node_resources[node.name] = node.config_resource
-        return plan
-
-    def relaunch_pod(self, node: Node):
         with self._lock:
             node.is_released = True
             new_id = next(self._node_id_iter)
@@ -97,6 +78,9 @@ class ParameterServerManager:
             if node in self._training_ps_cluster:
                 i = self._training_ps_cluster.index(node)
                 self._training_ps_cluster[i] = self._nodes[new_id]
+        logger.info("Relaunch node %s to %s", node.name, new_id)
+        plan.node_resources[node.name] = self._nodes[new_id].config_resource
+        return plan
 
     def scale_up_ps(self, up_num):
         logger.info("Scale up ps with the number %s", up_num)
@@ -335,31 +319,3 @@ class ParameterServerManager:
             if pod_info.status == NodeStatus.RUNNING
         ]
         return len(running_ps) == self._job_resource.ps_num
-
-    def _cut_timeout_pending_pod_cpu(self, node: Node):
-        """Cut down CPU cores and relaunch it if the pending
-        time is too long"""
-        now = time.time()
-        if node.is_released or not node.create_time:
-            return False
-        pending_time = now - node.create_time.timestamp()
-        if pending_time < _dlrover_context.seconds_to_wait_pending_pod:
-            return False
-
-        original_cpu = node.config_resource.cpu
-        new_cpu = math.ceil(
-            original_cpu / _dlrover_context.factor_to_cut_pending_cpu
-        )
-        if new_cpu > NodeResourceLimit.MIN_CPU_CORES:
-            node.config_resource.cpu = new_cpu
-            logger.info(
-                "Pod %s pending time %s beyonds %s."
-                "Delete and relaunch it with CPU %s",
-                node.name,
-                pending_time,
-                _dlrover_context.seconds_to_wait_pending_pod,
-                new_cpu,
-            )
-            return True
-        else:
-            return False

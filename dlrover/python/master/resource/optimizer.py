@@ -54,6 +54,11 @@ class ResourcePlan(object):
     def empty(self):
         return len(self.node_group_resources) + len(self.node_resources) == 0
 
+    def merge(self, plan):
+        self.node_group_resources.update(plan.node_group_resources)
+        self.node_resources.update(plan.node_resources)
+        self.removed_nodes.extend(plan.removed_nodes)
+
     def adjust_plan_by_context(self):
         if not _dlrover_context.easydl_ps_enabled:
             if NodeType.PS in self.node_group_resources:

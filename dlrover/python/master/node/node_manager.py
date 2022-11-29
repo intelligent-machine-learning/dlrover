@@ -13,7 +13,6 @@
 
 import threading
 import time
-from collections import Counter
 from typing import Dict, List
 
 from dlrover.python.common.constants import (
@@ -29,14 +28,19 @@ from dlrover.python.master.node.event_callback import (
     ClusterContext,
     NodeEventCallback,
 )
-from dlrover.python.master.node.job_config import (
-    get_critical_worker_index,
-    set_critical_node,
-)
-from dlrover.python.master.node.ps_manager import ParameterServerManager
+from dlrover.python.master.node.ps import ParameterServerManager
 from dlrover.python.master.node.status_flow import (
     NodeStateFlow,
     get_node_state_flow,
+)
+from dlrover.python.master.node.training_node import (
+    get_critical_worker_index,
+    set_critical_node,
+)
+from dlrover.python.master.node.worker import (
+    ChiefManager,
+    EvaluatorManager,
+    WorkerManager,
 )
 from dlrover.python.master.resource.job import JobResourceConfig
 from dlrover.python.master.resource.optimizer import ResourcePlan
@@ -89,22 +93,44 @@ class NodeManager(object):
 
         self._elastic_job = new_elastic_job(engine, job_name, namespace)
         self._node_watcher = new_node_watcher(engine, job_name, namespace)
-        self._ps_manager = None
+        self._init_training_node_manager()
 
     def start(self):
         self._job_uuid = self._elastic_job.get_job_uuid()
         self._init_job_nodes()
-        if NodeType.PS in self._job_nodes:
-            self._ps_manager = ParameterServerManager(
-                self._job_nodes[NodeType.PS],
-                self._job_resource,
-                self._ps_relaunch_max_num,
-                self._elastic_job.get_node_service_addr,
-                self._elastic_job.get_node_name,
-            )
         threading.Thread(
             target=self._monitor_nodes, name="node_monitor", daemon=True
         ).start()
+
+    def _init_training_node_manager(self):
+        self._ps_manager = ParameterServerManager(
+            self._job_nodes.get(NodeType.PS, {}),
+            self._job_resource,
+            self._ps_relaunch_max_num,
+            self._elastic_job.get_node_service_addr,
+            self._elastic_job.get_node_name,
+        )
+        self._chief_manager = ChiefManager(
+            self._job_nodes.get(NodeType.CHIEF, {}),
+            self._job_resource,
+            self._ps_relaunch_max_num,
+            self._elastic_job.get_node_service_addr,
+            self._elastic_job.get_node_name,
+        )
+        self._worker_manager = WorkerManager(
+            self._job_nodes.get(NodeType.WORKER, {}),
+            self._job_resource,
+            self._ps_relaunch_max_num,
+            self._elastic_job.get_node_service_addr,
+            self._elastic_job.get_node_name,
+        )
+        self._evaluator_manager = EvaluatorManager(
+            self._job_nodes.get(NodeType.EVALUATOR, {}),
+            self._job_resource,
+            self._ps_relaunch_max_num,
+            self._elastic_job.get_node_service_addr,
+            self._elastic_job.get_node_name,
+        )
 
     def get_job_uuid(self):
         return self._job_uuid
@@ -134,6 +160,16 @@ class NodeManager(object):
             self._ps_is_critical,
             self._critical_worker_index,
             self._ps_relaunch_max_num,
+        )
+        self._ps_manager.update_nodes(self._job_nodes.get(NodeType.PS, {}))
+        self._chief_manager.update_nodes(
+            self._job_nodes.get(NodeType.CHIEF, {})
+        )
+        self._worker_manager.update_nodes(
+            self._job_nodes.get(NodeType.WORKER, {})
+        )
+        self._evaluator_manager.update_nodes(
+            self._job_nodes.get(NodeType.EVALUATOR, {})
         )
 
     def _monitor_nodes(self):
@@ -303,65 +339,25 @@ class NodeManager(object):
         logger.info("Relaunch the pod: {}".format(node.name))
 
     def all_workers_exited(self):
-        counter = self._get_worker_status_counter()
-
-        # At start, there may be no launched worker.
-        if len(counter) == 1 and NodeStatus.INITIAL in counter:
-            return False
-
-        all_exited = True
-        with self._lock:
-            all_workers = (
-                list(self._job_nodes[NodeType.WORKER].values())
-                + list(self._job_nodes[NodeType.EVALUATOR].values())
-                + list(self._job_nodes[NodeType.CHIEF].values())
-            )
-            for worker in all_workers:
-                if not worker.is_released and (
-                    worker.status
-                    in [
-                        NodeStatus.RUNNING,
-                        NodeStatus.PENDING,
-                        NodeStatus.INITIAL,
-                    ]
-                ):
-                    all_exited = False
-                    break
-        return all_exited
+        return (
+            self._chief_manager.all_nodes_exited()
+            and self._worker_manager.all_nodes_exited()
+            and self._evaluator_manager.all_nodes_exited()
+        )
 
     def all_workers_failed(self):
-        counter = self._get_worker_status_counter()
-        if len(counter) == 1 and NodeStatus.INITIAL in counter:
-            return False
-
-        all_failed = all(
-            [
-                status
-                in [NodeStatus.FAILED, NodeStatus.DELETED, NodeStatus.INITIAL]
-                for status in counter
-            ]
+        return (
+            self._chief_manager.all_nodes_failed()
+            and self._worker_manager.all_nodes_failed()
+            and self._evaluator_manager.all_nodes_failed()
         )
-        return all_failed
 
     def all_workers_deleted(self):
-        counter = self._get_worker_status_counter()
-        all_deleted = all([status == NodeStatus.DELETED for status in counter])
-        return all_deleted
-
-    def _get_worker_status_counter(self):
-        worker_counter = self._get_pod_counter(
-            self._job_nodes[NodeType.WORKER]
+        return (
+            self._chief_manager.all_nodes_deleted()
+            and self._worker_manager.all_nodes_deleted()
+            and self._evaluator_manager.all_nodes_deleted()
         )
-        evaluator_counter = self._get_pod_counter(
-            self._job_nodes[NodeType.EVALUATOR]
-        )
-        chief_counter = self._get_pod_counter(self._job_nodes[NodeType.CHIEF])
-        counter = worker_counter + evaluator_counter + chief_counter
-        return counter
-
-    def _get_pod_counter(self, nodes):
-        with self._lock:
-            return Counter([node.status for node in nodes.values()])
 
     def all_critical_node_completed(self):
         alive_critical_nodes = []
@@ -374,7 +370,6 @@ class NodeManager(object):
                 ]:
                     alive_critical_nodes.append(node_id)
 
-        print(alive_critical_nodes)
         completed = not alive_critical_nodes
         if not completed:
             logger.info("Critical pods %s are running.", alive_critical_nodes)
@@ -384,31 +379,16 @@ class NodeManager(object):
         if self._job_nodes[NodeType.WORKER][worker_id].critical:
             logger.info("Skip the critical worker %s", worker_id)
         else:
-            # TODO: implement to delete a worker.
             logger.info("Delete worker %s", worker_id)
+            plan = self._worker_manager.remove_node(worker_id)
+            logger.info("plan %s", plan)
 
-    def get_all_training_nodes(self):
-        workers = self.get_running_workers()
-        ps = self.get_cur_cluster_ps()
-        workers.extend(ps)
-        return workers
-
-    def get_running_workers(self):
-        """Return running worker, master and evaluator"""
-        running_workers = []
-        with self._lock:
-            for node in self._job_nodes[NodeType.WORKER].values():
-                if node.status == NodeStatus.RUNNING:
-                    running_workers.append(node)
-
-            for node in self._job_nodes[NodeType.CHIEF].values():
-                if node.status == NodeStatus.RUNNING:
-                    running_workers.append(node)
-
-            for node in self._job_nodes[NodeType.EVALUATOR].values():
-                if node.status == NodeStatus.RUNNING:
-                    running_workers.append(node)
-        return running_workers
+    def get_running_nodes(self):
+        nodes = self._chief_manager.get_running_nodes()
+        nodes.extend(self._worker_manager.get_running_nodes())
+        nodes.extend(self._evaluator_manager.get_running_nodes())
+        nodes.extend(self.get_cur_cluster_ps())
+        return nodes
 
     def stop(self):
         self._relaunch_pod = False
