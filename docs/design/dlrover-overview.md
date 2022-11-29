@@ -6,9 +6,9 @@ with DLRover, users need not provide any resource configuration for their
 deep learning training jobs. Instead, DLRover can pick up the appropriate resource 
 configuration for each job smartly and continue to optimize those jobs during their runtime.
 
-Currently, DLRover has supported automatic resource configuration. 
-However, the final goal of DLRover is to make the whole deep learning model
-training automatic.
+DLRover's short-term goal is to support automatic resource configuration for DL training jobs. 
+However, the long-term goal of DLRover is to make the whole deep learning model
+training completely automatic.
 
 ## Background
 
@@ -36,40 +36,51 @@ users fail to provide the optimal resource configuration for their jobs.
 We hope to design and implement a system which can free users from resource
 configuration completely and focus on the model training itself. Without any
 input (on resource configuration), DLRover can still provide the optimal
-resource plan for each training job, Meanwhile, DLRover can optimize the 
+resource plan for each training job. Meanwhile, DLRover can optimize the 
 performance of training jobs further through resource adjustment when a job
 is running.
 
-There are 3 scenarios to satisfy different requirements from the simple
-to the complex.
+Considering users may run their training jobs in different ways, DLRover is
+supporting three different modes to satisfy users' requirements.
 
-### Manual Scaling of a Single Job
-In the scenario, users can launch an elastic training job and manually scale
-up/down Pods of the job.
+### Manual Mode
 
-### Auto-scaling of a Single Job
-In the scenario, users implement algorithms in the master
-to auto-scale a training job using runtime statistics 
-(e.g. resource usage of all Pods, training speed and so on)
-of the job. Runtime statistics is stored in the memory of the master of
-job. If the master fails, all statistics data will be missing. So, it does
+Sometimes users want to explore a single job's performance through manually scaling this 
+job's resources during runtime. DLRover allows users to apply new resource configuration
+for a running job without restarting the job.
+
+### Single-Job Mode
+
+During DL model development, users usually repeatedly train and test a model before 
+the model reaches a stable status. In this scenario, users only need to run a single job
+without deploying extra components. However, single-job mode also supports resource auto-configuration
+for the job. In this mode, auto-scale algorithms are located in the master of the job
+The runtime statistics (e.g. resource usage of all Pods, training speed and so on)
+of the job is stored in the memory of the master. Thus the master can generate
+the optimized resource configuration directly.
+However, if the master fails, all statistics data will be missing. So, it does
 not support the fault-tolerance of the master.
 
-### Auto-scaling of Jobs in a Cluster
-In the scenario, users can implement algorithms in a service to auto-scale
-training jobs in a cluster. The service can persist all runtime statistics
-of jobs in a database. The algorithm can utilize information of all
+### Cluster Mode
+
+In the cluster mode, DLRover handles all training jobs in a cluster and 
+executes with complete functions. 
+
+Unlike single-job mode, DLRover in cluster mode has a separate service called 
+*Brain* which provides resource plans for each running job in the cluster. 
+The brain service persists all runtime statistics
+of jobs into a database. The algorithm can utilize information of all
 finished and running jobs to optimize the resources of new jobs. After
 jobs finish, users can evaluate their algorithm by the data in database.
-What's more, the master of a job does not need to store runtime
-statistics in the memory in the scenario, so we only need to
-launch a new master if the master fails.
+What's more, the master of a job only executes the resource plans from
+brain service. When the master fails, DLRover can simply restart a new one
+and the job can continue to run.
 
 
 ## Design
 
-DLRover consists of three main components: ElasticJob, Elastic Trainer,
-and Brain service.
+DLRover consists of four main components: ElasticJob, Elastic Trainer,
+Brain service and Cluster Monitor.
 
 <div align="center">
 <img src="../figures/dlrover-overview.jpg" alt="Editor" width="500">
@@ -83,10 +94,10 @@ plan from the Brain service. After that, Elastic Trainer creates Scale CRDs
 from the plan and apply the Scale CRD to notify ElasticJob controller to
 launch required Pods and each Pod will start an Elastic Agent on it.
 During training, the training master of Elastic Trainer dispatches data shards
-to workers, keeps collecting runtime statistics
-(e.g., CPU, memory usage, and training progress)
-and reports them to EasyDL Brain to persist those data in database
-periodically. Based on the job’s running status, 
+to workers. Meanwhile, the Cluster Monitor is monitoring
+each job's running status (e.g., resource workload of each node) and
+cluster status (e.g., idle resources). Those data will be reported to Brain periodically and 
+Brain persists the data into database. Then based on the job’s running status, 
 EasyDL Brain picks up appropriate algorithms to
 generate new resource plans and informs Elastic Trainer to
 start resources adjustment.
@@ -206,3 +217,10 @@ Then we can have the optimal resource plans.
 
 After the optimize processor decides the algorithm for the job, the algorithm 
 executor executes the algorithm and generate the resource plan.
+
+### Cluster Monitor
+
+In order to detach Brain from a particular platform, Brain only use data in the database 
+to generate optimized resource plans for jobs. In this way, we can easily reuse similar algorithm
+for different cluster platform (e.g., Kubernetes and Ray). Therefore, the Cluster Monitor is
+implemented for particular platform to collect jobs and cluster statistic data.
