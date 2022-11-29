@@ -32,12 +32,12 @@ _MAX_TASK_RETRIES = 3
 
 
 class StreamingDatasetManager(DatasetManger):
-    """StreamingDatasetManager create tasks with shards in a static dataset.
+    """StreamingDatasetManager create tasks with shards in a dynamic dataset.
     Attributes:
         task_type: the type of computation task like "training",
             "evaluation" and "prediction".
         batch_size: the size of a batch.
-        dataset_splitter: DatasetSplitter instace to split the dataset
+        dataset_splitter: DatasetSplitter instance to split the dataset
             into shards.
     """
 

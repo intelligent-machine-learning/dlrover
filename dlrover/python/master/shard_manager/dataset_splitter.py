@@ -37,11 +37,18 @@ class Shard(object):
         self.record_indices = record_indices
 
 class PartitionOffsets(object):
+    """PartitionOffsets contains index of the partition and its corresponding offsets.
+    Attribute:
+        partition_offsets: dict, key is the partition_index and
+            value is the start offset of unconsumed sample
+        partitions: list, the set of partition index
+        partition_num: int, the number of partitions
+    """
     def __init__(self, partition_offsets):
         self.partition_offsets = partition_offsets
         self.start_partition = 0
         self.partitions = []
-        self.ç = 0
+        self.partition_num = 0
         self.update_partitions()
 
     def update_partitions(self):
@@ -63,7 +70,7 @@ class PartitionOffsets(object):
     def set_partition_offset(self, partition_index, offset):
         self.partition_offsets[partition_index] = offset
 
-    def to_json(self):
+    def to_dict(self):
         return self.partition_offsets
 
 
@@ -323,7 +330,7 @@ class DatasetSplitterFactory(object):
 class StreamingDatasetSplitter(DatasetSplitter):
     """StreamingDatasetSplitter split a dataset stored in a message queue like 
     Kafka or SLS. We can read data by record offset in the logstore.
-    The shard contains index ranges [start, end) and partition of batch records.
+    The shard contains index ranges [start, end) and partition of records.
     Attributes:
         dataset_name: the name of the logstore.
         shuffle: whether to shuffle shards of the dataset, by default is False
