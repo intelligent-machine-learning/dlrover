@@ -21,18 +21,22 @@ from dlrover.python.master.shard.base_dataset_manager import (
     DoingTask,
     Task,
 )
-from dlrover.python.master.shard.dataset_splitter import DatasetSplitter, Shard
+from dlrover.python.master.shard.dataset_splitter import (
+    DatasetSplitter,
+    Shard,
+    StreamingDatasetSplitter,
+)
 
 _MAX_TASK_RETRIES = 3
 
 
-class BatchDatasetManager(DatasetManger):
-    """BatchDatasetManager create tasks with shards in a static dataset.
+class StreamingDatasetManager(DatasetManger):
+    """StreamingDatasetManager create tasks with shards in a dynamic dataset.
     Attributes:
         task_type: the type of computation task like "training",
             "evaluation" and "prediction".
         batch_size: the size of a batch.
-        dataset_splitter: DatasetSplitter instace to split the dataset
+        dataset_splitter: DatasetSplitter instance to split the dataset
             into shards.
     """
 
@@ -42,7 +46,7 @@ class BatchDatasetManager(DatasetManger):
         batch_size,
         dataset_splitter: DatasetSplitter,
     ):
-        super(BatchDatasetManager, self).__init__(
+        super(StreamingDatasetManager, self).__init__(
             task_type, batch_size, dataset_splitter
         )
         self._max_task_completed_time = 0
@@ -63,7 +67,7 @@ class BatchDatasetManager(DatasetManger):
         if not self.todo:
             # No more tasks
             return Task.create_invalid_task()
-        task: Task = self.todo.pop(0)
+        task: Task = self.get_task_from_todo(worker_id)
         self.doing[task.task_id] = DoingTask(task, worker_id, int(time.time()))
         logger.info(
             "Assign task %s of dataset %s to worker %s",
@@ -149,6 +153,17 @@ class BatchDatasetManager(DatasetManger):
     def get_doing_tasks(self):
         return self.doing
 
+    def get_task_from_todo(self, worker_id):
+        partition_offset = self._dataset_splitter.get_partition_offset()
+        partition_num = partition_offset.partition_num
+        for task in self.todo:
+            shard_partition_index = (
+                partition_offset.get_partition_index_by_name(task.shard.name)
+            )
+            if shard_partition_index == worker_id % partition_num:
+                self.todo.remove(task)
+                return task
+
     def checkpoint(self):
         todo_shards = []
         for task in self.todo:
@@ -158,17 +173,21 @@ class BatchDatasetManager(DatasetManger):
         for task_id in self.doing:
             task = self.doing[task_id].task
             doing_shards.append([task.shard.start, task.shard.end])
-
+        splitter = self._dataset_splitter.to_checkpoint()
         return DatasetShardCheckpoint(
             dataset_name=self._dataset_splitter.dataset_name,
             todo=todo_shards,
             doing=doing_shards,
             epoch=self._dataset_splitter.epoch,
+            splitter=splitter,
         )
 
     def restore_checkpoint(self, checkpoint: DatasetShardCheckpoint):
         """Restore the task manager from a checkpoint"""
-        self._dataset_splitter.epoch = checkpoint.epoch
+
+        self._dataset_splitter = StreamingDatasetSplitter.from_checkpoint(
+            checkpoint.splitter
+        )
         self.todo = []
         for shard_indices in checkpoint.doing + checkpoint.todo:
             shard = Shard(

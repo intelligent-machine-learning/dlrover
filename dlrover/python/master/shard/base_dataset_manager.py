@@ -60,6 +60,7 @@ class DatasetShardCheckpoint(object):
         todo,
         doing,
         epoch,
+        splitter=None,
     ):
         """
         TODO: support checkpoint for indices.
@@ -74,6 +75,7 @@ class DatasetShardCheckpoint(object):
         self.todo = todo
         self.doing = doing
         self.epoch = epoch
+        self.splitter = splitter
 
     def to_json(self):
         return json.dumps(self.__dict__)
