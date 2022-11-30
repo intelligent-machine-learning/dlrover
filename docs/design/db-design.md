@@ -2,10 +2,7 @@
 
 ```mysql
 create table job_metrics(
-    job_uuid varchar(255), // job uuid, the unique id         
-    job_name varchar(255), // job name
-    create_at timestamp, // job create timestamp
-    finished_at timestamp, // job finish timestamp
+    uid varchar(255), // job unique id         
     hyper_params_feature, mediumtext // the feature of hyper parameters
     job_feature mediumtext, // the feature of the job
     dataset_feature mediumtext, // the feature of the training dataset
@@ -14,7 +11,37 @@ create table job_metrics(
     exit_reason varchar(255), // the exit reason of the job
     optimization mediumtext, // the optimization information of the job
     resource mediumtext, // the resources of the job
-    customized_data mediumtext, // custimized data
+    customized_data mediumtext, // job metrics custimized data
     type varchar(255) // indicate the data type
 );
+
+create table job(
+    uid varchar(255), // job unique id
+    name varchar(255), // job name
+    create_at timestamp, // job create timestamp
+    started_at timestamp, // job start timestamp
+    finished_at timestamp, // job finish timestamp
+    exit_reason varchar(255), // the exit reason of the job
+    status mediumtext // the status of the job, e.g., error information
+);
+
+create table job_node(
+    uid varchar(255), // job node unique id
+    name varchar(255), // job node name
+    job_uid varchar(255), // the job uid
+    create_at timestamp, // job node create timestamp
+    started_at timestamp, // job node start timestamp
+    finished_at timestamp, // job node finish timestamp
+    resource mediumtext, // the resources of the job node
+    status mediumtext, // the status of the job node
+    customized_data mediumtext // job node custimized data
+);
+
+create table cluster(
+    cid varchar(255), // unique cluster id
+    name varchar(255), // cluster name
+    resources mediumtext, // cluster resource information
+    status mediumtext, // cluster status
+    customized_data mediumtext // cluster customized data
+)
 ```
