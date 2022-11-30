@@ -82,7 +82,20 @@ class ParameterServerManager(TrainingNodeManager):
         plan.node_resources[node.name] = self._nodes[new_id].config_resource
         return plan
 
-    def scale_up_ps(self, up_num):
+    def adjust_ps(self, ps_resource: NodeGroupResource):
+        logger.info(
+            "Adjust ps resource to num = %s, cpu = %s, memory = %sMi",
+            ps_resource.count,
+            ps_resource.node_resource.cpu,
+            ps_resource.node_resource.memory,
+        )
+        alive_num = len(self.get_training_ps_cluster())
+        if ps_resource.count > alive_num:
+            self._scale_up_ps(ps_resource.count - alive_num)
+        elif ps_resource.count < alive_num:
+            self._scale_down_ps(alive_num - ps_resource.count)
+
+    def _scale_up_ps(self, up_num):
         logger.info("Scale up ps with the number %s", up_num)
         with self._lock:
             self._ready_for_new_ps_cluster = False
@@ -120,7 +133,7 @@ class ParameterServerManager(TrainingNodeManager):
         )
         return plan
 
-    def scale_down_ps(self, down_num):
+    def _scale_down_ps(self, down_num):
         with self._lock:
             self._pre_dropped_ps = []
             self._ready_for_new_ps_cluster = False

@@ -17,14 +17,16 @@ from typing import Dict, List
 
 from dlrover.python.common.constants import (
     DistributionStrategy,
+    EngineType,
     NodeEventType,
     NodeExitReason,
     NodeResourceLimit,
     NodeStatus,
     NodeType,
-    EngineType,
 )
+from dlrover.python.common.global_context import Context
 from dlrover.python.common.log_utils import default_logger as logger
+from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.event_callback import (
     ClusterContext,
     NodeEventCallback,
@@ -43,15 +45,15 @@ from dlrover.python.master.node.worker import (
     EvaluatorManager,
     WorkerManager,
 )
-from dlrover.python.master.resource.job import JobResourceConfig
+from dlrover.python.master.resource.job import (
+    JobResourceConfig,
+    JobResourceOptimizer,
+)
 from dlrover.python.master.resource.optimizer import ResourcePlan
+from dlrover.python.master.scaler.factory import new_job_scaler
 from dlrover.python.master.watcher.base_watcher import Node, NodeEvent
 from dlrover.python.master.watcher.factory import new_node_watcher
 from dlrover.python.scheduler.factory import new_elastic_job
-from dlrover.python.master.scaler.factory import new_job_scaler
-from dlrover.python.master.resource.job import JobResourceOptimizer
-from dlrover.python.common.global_context import Context
-from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 
 _MAX_POD_RELAUNCH_COUNT = 5
 _dlrover_context = Context.instance()
@@ -71,7 +73,7 @@ class NodeManager(object):
         use_ddp=False,
         speed_monitor=None,
         engine="k8s",
-        resource_optimizer="local"
+        resource_optimizer="local",
     ):
         self._job_resource = job_resource
         self._relaunch_on_worker_failure = min(
@@ -103,7 +105,11 @@ class NodeManager(object):
         self._scaler = new_job_scaler(
             EngineType.KUBERNETES, job_name, namespace
         )
-        self._job_optimizer = JobResourceOptimizer(job_resource[NodeType.WORKER], job_resource[NodeType.PS], resource_optimizer)
+        self._job_optimizer = JobResourceOptimizer(
+            job_resource[NodeType.WORKER],
+            job_resource[NodeType.PS],
+            resource_optimizer,
+        )
         self._init_training_node_manager()
 
     def start(self):
@@ -233,12 +239,16 @@ class NodeManager(object):
     def _process_event(self, event: NodeEvent):
         node_type = event.node.type
         node_id = event.node.id
-        cur_node = self._job_nodes[node_type][node_id]
-        cur_node.update_info(
-            name=event.node.name,
-            start_time=event.node.start_time,
-            create_time=event.node.create_time,
-        )
+        if node_id not in self._job_nodes[node_type]:
+            self._job_nodes[node_type][node_id] = event.node
+            return
+        else:
+            cur_node = self._job_nodes[node_type][node_id]
+            cur_node.update_info(
+                name=event.node.name,
+                start_time=event.node.start_time,
+                create_time=event.node.create_time,
+            )
 
         # For the given node id, check whether it meets
         # the state change condition
@@ -348,7 +358,16 @@ class NodeManager(object):
         return should_relaunch
 
     def _relaunch_typed_pod(self, node: Node):
-        logger.info("Relaunch the pod: {}".format(node.name))
+        logger.info("Relaunch node: {}".format(node.name))
+        if node.type == NodeType.WORKER:
+            plan = self._worker_manager.relaunch_node(node)
+        elif node.type == NodeType.PS:
+            plan = self._ps_manager.relaunch_node(node)
+        elif node.type == NodeType.EVALUATOR:
+            plan = self._evaluator_manager.relaunch_node(node)
+        elif node.type == NodeType.CHIEF:
+            plan = self._chief_manager.relaunch_node(node)
+        self._scaler.scale(plan)
 
     def all_workers_exited(self):
         return (
@@ -484,9 +503,34 @@ class NodeManager(object):
                 plan = self._job_optimizer.get_job_resource_plan()
                 if plan:
                     last_plan_time = time.time()
-                plan = self._adjust_ps_resource_plan(plan)
-                self.execute_job_optimization_plan(plan)
+                self._execute_job_optimization_plan(plan)
             time.sleep(60)
+
+    def _execute_job_optimization_plan(self, plan: ResourcePlan):
+        """Execute the optimization plan of the training job.
+        The plan may adjust the number of PS and workers or
+        adjust the cpu and memory of pods.
+        """
+        if plan.empty():
+            return
+
+        exec_plan = ResourcePlan()
+        for node_type, group in plan.node_group_resources.items():
+            if group.count > 0:
+                self._job_resource.update_node_group_resource(
+                    node_type,
+                    group.count,
+                    group.node_resource.cpu,
+                    group.node_resource.memory,
+                )
+                if node_type == NodeType.PS:
+                    plan = self._ps_manager.adjust_ps(group)
+                    exec_plan.merge(plan)
+                elif node_type == NodeType.WORKER:
+                    self._speed_monitor.set_target_worker_num(group.count)
+                    plan = self._worker_manager.adjust_worker(group)
+                    exec_plan.merge(plan)
+        self._scaler.scale(plan)
 
 
 def create_node_manager(args, speed_monitor) -> NodeManager:

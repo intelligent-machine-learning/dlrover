@@ -18,7 +18,10 @@ from typing import Dict, List
 from dlrover.python.common.constants import NodeStatus, NodeType
 from dlrover.python.common.log_utils import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
-from dlrover.python.master.node.training_node import TrainingNodeManager
+from dlrover.python.master.node.training_node import (
+    ALIVE_STATUS,
+    TrainingNodeManager,
+)
 from dlrover.python.master.resource.job import JobResourceConfig
 from dlrover.python.master.resource.optimizer import ResourcePlan
 
@@ -128,7 +131,22 @@ class WorkerManager(TrainingNodeManager):
         plan.node_resources[node.name] = relaunch_node.config_resource
         return plan
 
-    def scale_up_workers(self, up_num):
+    def adjust_worker(self, num, cpu, mem):
+        logger.info(
+            "Adjust worker resource to {}, {}, {}".format(num, cpu, mem)
+        )
+        alive_workers = []
+        for worker in self._nodes.values():
+            if worker.status in ALIVE_STATUS:
+                alive_workers.append(worker)
+        alive_num = len(alive_workers)
+        with self._lock:
+            if num > alive_num:
+                return self._scale_up_workers(num - alive_num)
+            elif num < alive_num:
+                return self._scale_down_workers(alive_num - num, alive_workers)
+
+    def _scale_up_workers(self, up_num):
         """Launch up_num workers."""
         for _ in range(up_num):
             worker_id = next(self._node_id_iter)
@@ -156,7 +174,7 @@ class WorkerManager(TrainingNodeManager):
         )
         return plan
 
-    def scale_down_workers(self, down_num, running_workers: List[Node]):
+    def _scale_down_workers(self, down_num, running_workers: List[Node]):
         """Remove down_num running workers"""
         plan = ResourcePlan()
         for worker in reversed(running_workers):

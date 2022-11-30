@@ -11,21 +11,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import base64
 import copy
 import itertools
 import json
 import threading
-import base64
 from typing import Dict
 
 from kubernetes.client import V1EnvVar
 
-from dlrover.python.master.resource.optimizer import ResourcePlan
-from dlrover.python.scheduler.kubernetes import k8sClient
-from dlrover.python.master.scaler.base_scaler import Scaler
-from dlrover.python.common.log_utils import default_logger as logger
 from dlrover.python.common.constants import NodeType
+from dlrover.python.common.log_utils import default_logger as logger
 from dlrover.python.common.node import NodeGroupResource
+from dlrover.python.master.resource.optimizer import ResourcePlan
+from dlrover.python.master.scaler.base_scaler import Scaler
+from dlrover.python.scheduler.kubernetes import k8sClient
 
 SCALER_GROUP = "elastic.iml.github.io"
 SCALER_VERION = "v1alpha1"
@@ -78,7 +78,7 @@ def new_tf_config(
     get_service_fn,
     type_key,
     index_key,
-    ps_addrs
+    ps_addrs,
 ):
     """Get tf.estimator config spec data. The detail is in
     https://www.tensorflow.org/api_docs/python/tf/estimator/RunConfig
@@ -154,5 +154,3 @@ class PodLauncher(object):
         job_command += " ".join(pod_args[2:])
         job_command = BashCommandTemplate.SET_PIPEFAIL + job_command
         return job_command
-
-    

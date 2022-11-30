@@ -32,6 +32,8 @@ from dlrover.python.master.watcher.base_watcher import Node
 
 _dlrover_context = Context.instance()
 
+ALIVE_STATUS = [NodeStatus.INITIAL, NodeStatus.PENDING, NodeStatus.RUNNING]
+
 
 def set_critical_node(
     job_nodes: Dict[str, Dict[int, Node]],
@@ -190,14 +192,7 @@ class TrainingNodeManager(object):
         all_exited = True
         with self._lock:
             for node in self._nodes.values():
-                if not node.is_released and (
-                    node.status
-                    in [
-                        NodeStatus.RUNNING,
-                        NodeStatus.PENDING,
-                        NodeStatus.INITIAL,
-                    ]
-                ):
+                if not node.is_released and (node.status in ALIVE_STATUS):
                     all_exited = False
                     break
         return all_exited
