@@ -155,11 +155,14 @@ class StreamingDatasetManager(DatasetManger):
         return self.doing
 
     def get_task_from_todo(self, worker_id):
+        partition_offset = self._dataset_splitter.get_partition_offset()
+        partition_num = partition_offset.partition_num
         for task in self.todo:
-            if task.shard.name == worker_id:
+            shard_partition_index = partition_offset.get_partition_index_by_name(task.shard.name)
+            if shard_partition_index == worker_id%partition_num:
                 self.todo.remove(task)
                 return task
-        return self.todo.pop(0)
+
 
     def checkpoint(self):
         todo_shards = []
@@ -170,19 +173,19 @@ class StreamingDatasetManager(DatasetManger):
         for task_id in self.doing:
             task = self.doing[task_id].task
             doing_shards.append([task.shard.start, task.shard.end])
-        splitter_info = self._dataset_splitter.to_checkpoint()
+        splitter = self._dataset_splitter.to_checkpoint()
         return DatasetShardCheckpoint(
             dataset_name=self._dataset_splitter.dataset_name,
             todo=todo_shards,
             doing=doing_shards,
             epoch=self._dataset_splitter.epoch,
-            splitter_info=splitter_info
+            splitter=splitter
         )
 
     def restore_checkpoint(self, checkpoint: DatasetShardCheckpoint):
         """Restore the task manager from a checkpoint"""
 
-        self._dataset_splitter = StreamingDatasetSplitter.from_checkpoint(checkpoint.splitter_info)
+        self._dataset_splitter = StreamingDatasetSplitter.from_checkpoint(checkpoint.splitter)
         self.todo = []
         for shard_indices in checkpoint.doing + checkpoint.todo:
             shard = Shard(

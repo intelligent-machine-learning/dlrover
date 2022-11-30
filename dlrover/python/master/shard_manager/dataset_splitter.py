@@ -49,11 +49,16 @@ class PartitionOffsets(object):
         self.start_partition = 0
         self.partitions = []
         self.partition_num = 0
-        self.update_partitions()
+        self.partition_name_index = {}
+        self._update_partitions()
 
-    def update_partitions(self):
+    def _update_partitions(self):
         self.partitions = list(self.partition_offsets.keys())
         self.partition_num = len(self.partitions)
+        self.partition_name_index = {k:v for k,v in enumerate(self.partitions)}
+
+    def get_partition_index_by_name(self, partition_name):
+        return self.partition_name_index.get(partition_name, None)
 
     def get_partitions(self):
         return self.partitions
@@ -328,14 +333,16 @@ class DatasetSplitterFactory(object):
 
 
 class StreamingDatasetSplitter(DatasetSplitter):
-    """StreamingDatasetSplitter split a dataset stored in a message queue like 
+    """StreamingDatasetSplitter split a dataset stored in a message queue like
     Kafka or SLS. We can read data by record offset in the logstore.
     The shard contains index ranges [start, end) and partition of records.
     Attributes:
         dataset_name: the name of the logstore.
         shuffle: whether to shuffle shards of the dataset, by default is False
         batch_size: the number of records in a batch.
-        data_size: the number of records of the dataset 
+        data_size: the number of records of the dataset. When
+            data_size is set to -1,the number of records of the
+            dataset is infinity.
         max_shard_count: the max number of shards in the memory.
             The value can limit the number of shards in the memory
             to avoid OOM.
@@ -369,7 +376,7 @@ class StreamingDatasetSplitter(DatasetSplitter):
         self._fetch_data_size = fetch_data_size
         self._shards = []
         self.epoch = 0
- 
+
     def update_partition_offsets(self, partition_offset):
         self._partition_offset = partition_offset
 
@@ -378,15 +385,15 @@ class StreamingDatasetSplitter(DatasetSplitter):
         if self._dataset_size == 0:
             finished = True
         return finished
-        
+
     def get_epoch(self):
-        return 1 
+        return 1
 
     def get_fetch_data_size(self):
         return self._fetch_data_size
 
     def to_checkpoint(self):
-        partition_offset = self._partition_offset.to_json()
+        partition_offset = self._partition_offset.to_dict()
         checkpoint = self.__dict__
         checkpoint.update({"_partition_offset":partition_offset})
         return checkpoint
@@ -409,8 +416,6 @@ class StreamingDatasetSplitter(DatasetSplitter):
         init_args["partition_offset"] = partition_offset
         return StreamingDatasetSplitter(**init_args)
 
-    def get_shard_size(self):
-        return self._shard_size
 
     def get_default_shard_count(self):
         return len(self._shards)
@@ -429,8 +434,6 @@ class StreamingDatasetSplitter(DatasetSplitter):
     def get_partition_offset(self):
         return self._partition_offset
 
-    def get_splitter_info(self):
-        return
     def _create_shards_with_range(self):
         shards = []
         prev_partition_offset = copy.deepcopy(self._partition_offset)
@@ -460,4 +463,4 @@ class StreamingDatasetSplitter(DatasetSplitter):
                 self._partition_offset.get_partition_offset(p)
             )
 
-        
+
