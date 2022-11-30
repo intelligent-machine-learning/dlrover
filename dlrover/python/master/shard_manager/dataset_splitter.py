@@ -428,9 +428,6 @@ class StreamingDatasetSplitter(DatasetSplitter):
         init_args["partition_offset"] = partition_offset
         return StreamingDatasetSplitter(**init_args)
 
-    def get_default_shard_count(self):
-        return len(self._shards)
-
     def get_shards(self):
         return self._shards
 
