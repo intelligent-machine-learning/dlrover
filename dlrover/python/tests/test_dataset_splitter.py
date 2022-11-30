@@ -13,7 +13,6 @@
 
 import unittest
 
-
 from dlrover.python.master.shard.dataset_splitter import (
     PartitionOffsets,
     StreamingDatasetSplitter,

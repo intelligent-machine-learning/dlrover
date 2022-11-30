@@ -17,15 +17,13 @@ from dlrover.python.common.constants import TaskType
 from dlrover.python.master.shard.batch_dataset_manager import (
     BatchDatasetManager,
 )
-
+from dlrover.python.master.shard.dataset_splitter import (
+    PartitionOffsets,
+    StreamingDatasetSplitter,
+    TableDatasetSplitter,
+)
 from dlrover.python.master.shard.streaming_dataset_manager import (
     StreamingDatasetManager,
-)
-
-from dlrover.python.master.shard.dataset_splitter import (
-    TableDatasetSplitter,
-    PartitionOffsets,
-    StreamingDatasetSplitter
 )
 
 
