@@ -20,6 +20,7 @@ from dlrover.python.common.constants import (
     NodeResourceLimit,
     NodeType,
     OptimizeWorkerPhase,
+    ResourceOptimizerName,
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log_utils import default_logger as logger
@@ -137,10 +138,10 @@ class JobResourceOptimizer(object):
 
     def __init__(
         self,
-        job_uuid,
         worker_resource: NodeGroupResource,
         ps_resource: NodeGroupResource,
-        optimizer,
+        optimizer: ResourceOptimizerName,
+        job_uuid="",
     ):
         self._worker_resource = worker_resource
         self._ps_resource = ps_resource
@@ -151,6 +152,9 @@ class JobResourceOptimizer(object):
         self.optimized_ps_mem = False
         self.optimize_worker_sampled = False
         self._job_stage = JobOptStage.CREATE
+
+    def update_job_uuid(self, job_uuid):
+        self._resource_optimizer.updaet_job_uuid(job_uuid)
 
     def _init_job_resource_by_optimizer(self):
         plan = self._resource_optimizer.generate_opt_plan(self._job_stage)

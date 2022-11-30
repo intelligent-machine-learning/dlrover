@@ -22,6 +22,7 @@ from dlrover.python.common.constants import (
     NodeResourceLimit,
     NodeStatus,
     NodeType,
+    EngineType,
 )
 from dlrover.python.common.log_utils import default_logger as logger
 from dlrover.python.master.node.event_callback import (
@@ -47,8 +48,13 @@ from dlrover.python.master.resource.optimizer import ResourcePlan
 from dlrover.python.master.watcher.base_watcher import Node, NodeEvent
 from dlrover.python.master.watcher.factory import new_node_watcher
 from dlrover.python.scheduler.factory import new_elastic_job
+from dlrover.python.master.scaler.factory import new_job_scaler
+from dlrover.python.master.resource.job import JobResourceOptimizer
+from dlrover.python.common.global_context import Context
+from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 
 _MAX_POD_RELAUNCH_COUNT = 5
+_dlrover_context = Context.instance()
 
 
 class NodeManager(object):
@@ -65,6 +71,7 @@ class NodeManager(object):
         use_ddp=False,
         speed_monitor=None,
         engine="k8s",
+        resource_optimizer="local"
     ):
         self._job_resource = job_resource
         self._relaunch_on_worker_failure = min(
@@ -83,7 +90,7 @@ class NodeManager(object):
         self._chief_worker_started = False
         self._stop_monitor = False
         self._last_pod_stats = None
-        self._speed_monitor = speed_monitor
+        self._speed_monitor: SpeedMonitor = speed_monitor
 
         # Protects followed variables, which are accessed from event_cb.
         self._lock = threading.Lock()
@@ -93,10 +100,15 @@ class NodeManager(object):
 
         self._elastic_job = new_elastic_job(engine, job_name, namespace)
         self._node_watcher = new_node_watcher(engine, job_name, namespace)
+        self._scaler = new_job_scaler(
+            EngineType.KUBERNETES, job_name, namespace
+        )
+        self._job_optimizer = JobResourceOptimizer(job_resource[NodeType.WORKER], job_resource[NodeType.PS], resource_optimizer)
         self._init_training_node_manager()
 
     def start(self):
         self._job_uuid = self._elastic_job.get_job_uuid()
+        self._job_optimizer.update_job_uuid(self._job_uuid)
         self._init_job_nodes()
         threading.Thread(
             target=self._monitor_nodes, name="node_monitor", daemon=True
@@ -403,11 +415,6 @@ class NodeManager(object):
         node = self._job_nodes[node_type][node_id]
         node.update_resource_usage(cpu, memory)
 
-    # TODO: implement the function.
-    def start_auto_scale(self):
-        """Start to auto scale"""
-        pass
-
     def get_cur_cluster_ps(self):
         """Get PS nodes in the current training cluster."""
         return self._ps_manager.get_training_ps_cluster()
@@ -436,6 +443,50 @@ class NodeManager(object):
                 node.status = NodeStatus.DELETED
                 logger.info("Remove node %s", node.name)
                 plan.removed_nodes.append(node.name)
+
+    def start_auto_scale(self):
+        """Start to auto-scale nodes to improve the training throughput."""
+        if not self._chief_worker_started:
+            logger.info("Chief started!")
+            self._chief_worker_started = True
+            if (
+                not _dlrover_context.easydl_ps_enabled
+                and not _dlrover_context.easydl_worker_enabled
+            ):
+                return
+            if self._speed_monitor:
+                self._speed_monitor.set_target_worker_num(
+                    self._job_resource.worker_num
+                )
+                threading.Thread(
+                    target=self._periodic_optimize_running_resource,
+                    name="resource-autoscaler",
+                    daemon=True,
+                ).start()
+
+    def _periodic_optimize_running_resource(self):
+        """Adjust job resource periodically and stop adjustment
+        if there is a failed worker with the fatal error.
+        """
+        logger.info("Start to auto scale ")
+        last_plan_time = 0
+        opt_interval = _dlrover_context.seconds_interval_to_optimize
+        while True:
+            if self._stop_launch_worker_for_ps:
+                logger.info("Stop to autoscale the number of worker.")
+                break
+            if (
+                self._speed_monitor.worker_adjustment_finished()
+                # Control the interval to query plans
+                and time.time() - last_plan_time > opt_interval
+                and not self._ps_manager.exist_migrated_ps_nodes()
+            ):
+                plan = self._job_optimizer.get_job_resource_plan()
+                if plan:
+                    last_plan_time = time.time()
+                plan = self._adjust_ps_resource_plan(plan)
+                self.execute_job_optimization_plan(plan)
+            time.sleep(60)
 
 
 def create_node_manager(args, speed_monitor) -> NodeManager:

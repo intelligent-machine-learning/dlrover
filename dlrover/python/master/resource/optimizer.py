@@ -134,6 +134,9 @@ class ResourceOptimizer(metaclass=ABCMeta):
     def __init__(self, job_uuid):
         self._job_uuid = job_uuid
 
+    def updaet_job_uuid(self, job_uuid):
+        self._job_uuid = job_uuid
+
     @abstractmethod
     def generate_opt_plan(self, stage, config={}) -> ResourcePlan:
         """Generate a resource configuration plan"""
