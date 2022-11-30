@@ -38,7 +38,7 @@ share/python-wheels/
 *.egg
 MANIFEST
 *.ckpt
-elasticdl/go/bin/elasticdl_ps
+dlrover/go/operator/bin/
 model_zoo/Dockerfile
 
 # PyInstaller

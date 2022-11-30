@@ -28,21 +28,22 @@ from dlrover.python.master.node.event_callback import (
     TaskRescheduleCallback,
     TFPSNodeHandlingCallback,
 )
-from dlrover.python.master.node.job_config import (
-    get_critical_worker_index,
-    set_critical_node,
-)
 from dlrover.python.master.node.node_manager import create_node_manager
 from dlrover.python.master.node.status_flow import (
     NODE_STATE_FLOWS,
     NodeStateFlow,
     get_node_state_flow,
 )
+from dlrover.python.master.node.training_node import (
+    get_critical_worker_index,
+    set_critical_node,
+)
 from dlrover.python.master.resource.job import JobResourceConfig
 from dlrover.python.master.watcher.base_watcher import Node, NodeEvent
 from dlrover.python.tests.test_utils import (
     MockArgs,
     create_task_manager,
+    mock_k8s_client,
     mock_list_job_pods,
 )
 
@@ -87,6 +88,9 @@ class NodeStatusFlowTest(unittest.TestCase):
 
 
 class JobConfigTest(unittest.TestCase):
+    def setUp(self) -> None:
+        mock_k8s_client()
+
     def test_job_resource(self):
         job = JobResourceConfig()
         job.add_node_group_resource(NodeType.PS, 3, "cpu=1,memory=4096Mi", "")
@@ -246,6 +250,7 @@ class JobConfigTest(unittest.TestCase):
 
         args = MockArgs()
         master = Master(args)
+        master.node_manager._init_job_nodes()
         callback = TFPSNodeHandlingCallback(master)
 
         node = Node(NodeType.PS, 0, None)

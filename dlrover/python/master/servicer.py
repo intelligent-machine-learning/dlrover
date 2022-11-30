@@ -350,7 +350,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         return res
 
     def query_running_nodes(self, request, _):
-        nodes: List[Node] = self._node_manager.get_all_training_nodes()
+        nodes: List[Node] = self._node_manager.get_all_running_nodes()
         res = elastic_training_pb2.RunningNodes()
         for node in nodes:
             meta = elastic_training_pb2.NodeMeta()

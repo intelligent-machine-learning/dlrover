@@ -16,7 +16,7 @@ from datetime import datetime, timedelta
 
 from dlrover.python.common.constants import EngineType, NodeStatus, NodeType
 from dlrover.python.common.node import NodeResource
-from dlrover.python.master.node.ps_manager import ParameterServerManager
+from dlrover.python.master.node.ps import ParameterServerManager
 from dlrover.python.master.resource.job import JobResourceConfig
 from dlrover.python.scheduler.factory import new_elastic_job
 from dlrover.python.tests.test_utils import mock_k8s_client
@@ -63,7 +63,7 @@ class PSManagerTest(unittest.TestCase):
             node.status = NodeStatus.PENDING
             node.create_time = datetime.now() + timedelta(days=-1)
 
-        plan = self._ps_manager.cut_pending_ps_cpu()
+        plan = self._ps_manager.cut_pending_node_cpu()
         self.assertEqual(len(plan.node_resources), 2)
         self.assertEqual(plan.node_resources["test-edljob-ps-0"].cpu, 8)
         self.assertEqual(plan.node_resources["test-edljob-ps-0"].memory, 2048)
