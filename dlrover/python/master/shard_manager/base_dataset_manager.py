@@ -56,7 +56,6 @@ class DoingTask(object):
         self.start_time = start_time
 
 
-
 class DatasetShardCheckpoint(object):
     def __init__(
         self,

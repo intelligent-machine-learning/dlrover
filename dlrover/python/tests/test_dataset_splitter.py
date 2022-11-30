@@ -14,25 +14,26 @@
 import unittest
 
 from dlrover.python.master.shard_manager.dataset_splitter import (
+    PartitionOffsets,
+    StreamingDatasetSplitter,
     TableDatasetSplitter,
     TextDatasetSplitter,
-    StreamingDatasetSplitter,
-    PartitionOffsets
 )
+
 
 class StreamingDatasetSplitterTest(unittest.TestCase):
     def test_create_streaming_shards_with_dataset_size(self):
-        partition_offset = PartitionOffsets({0:1, 1:0})
+        partition_offset = PartitionOffsets({0: 1, 1: 0})
         splitter = StreamingDatasetSplitter(
-            dataset_name = "logstore_test",
-            dataset_size = 1000,
-            shard_size = 200,
-            partition_offset = partition_offset,
+            dataset_name="logstore_test",
+            dataset_size=1000,
+            shard_size=200,
+            partition_offset=partition_offset,
         )
         splitter.create_shards()
         shards = splitter.get_shards()
         shard_count = splitter.get_default_shard_count()
-        self.assertEqual(len(shards),  shard_count)
+        self.assertEqual(len(shards), shard_count)
         self.assertEqual(shards[0].name, 0)
         self.assertEqual(splitter.epoch, 0)
         shard_0 = shards[0]
@@ -40,14 +41,13 @@ class StreamingDatasetSplitterTest(unittest.TestCase):
         self.assertEqual(shard_0.start, 1)
         self.assertEqual(shard_0.end, 201)
 
-
     def test_create_streaming_shards_without_dataset_size(self):
-        partition_offset = PartitionOffsets({0:1, 1:0})
+        partition_offset = PartitionOffsets({0: 1, 1: 0})
         splitter = StreamingDatasetSplitter(
-            dataset_name = "test",
-            shard_size = 200,
-            partition_offset = partition_offset,
-            fetch_data_size = 10000,
+            dataset_name="test",
+            shard_size=200,
+            partition_offset=partition_offset,
+            fetch_data_size=10000,
         )
         splitter.create_shards()
         shards = splitter.get_shards()

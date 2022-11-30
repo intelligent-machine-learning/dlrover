@@ -17,15 +17,13 @@ from dlrover.python.common.constants import TaskType
 from dlrover.python.master.shard_manager.batch_dataset_manager import (
     BatchDatasetManager,
 )
-
-from dlrover.python.master.shard_manager.dataset_splitter import PartitionOffsets
-
-from dlrover.python.master.shard_manager.streaming_dataset_manager import (
-    StreamingDatasetManager
-)
 from dlrover.python.master.shard_manager.dataset_splitter import (
+    PartitionOffsets,
+    StreamingDatasetSplitter,
     TableDatasetSplitter,
-    StreamingDatasetSplitter
+)
+from dlrover.python.master.shard_manager.streaming_dataset_manager import (
+    StreamingDatasetManager,
 )
 
 
@@ -59,12 +57,12 @@ class BatchDatasetTaskMangerTest(unittest.TestCase):
 
 class StreamingDatasetTaskMangerTest(unittest.TestCase):
     def test_create_shards(self):
-        partition_offset = PartitionOffsets({0:1, 1:0})
+        partition_offset = PartitionOffsets({0: 1, 1: 0})
         splitter = StreamingDatasetSplitter(
-            dataset_name = "logstore_test",
-            dataset_size = 1000,
-            shard_size = 200,
-            partition_offset = partition_offset,
+            dataset_name="logstore_test",
+            dataset_size=1000,
+            shard_size=200,
+            partition_offset=partition_offset,
         )
         task_manager = StreamingDatasetManager(TaskType.TRAINING, 10, splitter)
         worker_id = 0
@@ -77,5 +75,3 @@ class StreamingDatasetTaskMangerTest(unittest.TestCase):
         self.assertEqual(len(task_manager.doing), 0)
         checkpoint = task_manager.checkpoint()
         task_manager.restore_checkpoint(checkpoint)
-
-

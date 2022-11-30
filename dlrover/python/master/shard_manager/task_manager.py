@@ -37,9 +37,6 @@ _TASK_TIMEOUT_THRESHOLD_SECS = 1800
 _DEFAULT_NUM_MINIBATCHES_PER_SHARD = 100
 
 
-
-
-
 class TaskManager(object):
     """Creates and dispatches Tasks. Keep track of a Task's lifecycle."""
 

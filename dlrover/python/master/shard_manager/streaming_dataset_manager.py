@@ -15,7 +15,6 @@ import math
 import time
 
 from dlrover.python.common.log_utils import default_logger as logger
-
 from dlrover.python.master.shard_manager.base_dataset_manager import (
     DatasetManger,
     DatasetShardCheckpoint,
@@ -24,8 +23,8 @@ from dlrover.python.master.shard_manager.base_dataset_manager import (
 )
 from dlrover.python.master.shard_manager.dataset_splitter import (
     DatasetSplitter,
-    StreamingDatasetSplitter,
     Shard,
+    StreamingDatasetSplitter,
 )
 
 _MAX_TASK_RETRIES = 3
@@ -158,11 +157,12 @@ class StreamingDatasetManager(DatasetManger):
         partition_offset = self._dataset_splitter.get_partition_offset()
         partition_num = partition_offset.partition_num
         for task in self.todo:
-            shard_partition_index = partition_offset.get_partition_index_by_name(task.shard.name)
-            if shard_partition_index == worker_id%partition_num:
+            shard_partition_index = (
+                partition_offset.get_partition_index_by_name(task.shard.name)
+            )
+            if shard_partition_index == worker_id % partition_num:
                 self.todo.remove(task)
                 return task
-
 
     def checkpoint(self):
         todo_shards = []
@@ -179,13 +179,15 @@ class StreamingDatasetManager(DatasetManger):
             todo=todo_shards,
             doing=doing_shards,
             epoch=self._dataset_splitter.epoch,
-            splitter=splitter
+            splitter=splitter,
         )
 
     def restore_checkpoint(self, checkpoint: DatasetShardCheckpoint):
         """Restore the task manager from a checkpoint"""
 
-        self._dataset_splitter = StreamingDatasetSplitter.from_checkpoint(checkpoint.splitter)
+        self._dataset_splitter = StreamingDatasetSplitter.from_checkpoint(
+            checkpoint.splitter
+        )
         self.todo = []
         for shard_indices in checkpoint.doing + checkpoint.todo:
             shard = Shard(
