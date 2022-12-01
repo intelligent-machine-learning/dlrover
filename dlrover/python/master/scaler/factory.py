@@ -12,11 +12,12 @@
 # limitations under the License.
 
 from dlrover.python.common.constants import EngineType
-from dlrover.python.scheduler.kubernetes import K8sElasticJob
+from dlrover.python.master.scaler.elasticjob_scaler import ElasticJobScaler
+from dlrover.python.master.scaler.pod_scaler import PodScaler
 
 
-def new_elastic_job(engine, job_name, namespace):
+def new_job_scaler(engine, job_name, namespace):
     if engine == EngineType.ELASTICJOB:
-        return K8sElasticJob(job_name, namespace)
-    else:
-        raise ValueError("Not support engine %s", engine)
+        return ElasticJobScaler(job_name, namespace)
+    elif engine == EngineType.PY_ELASTICJOB:
+        return PodScaler(job_name, namespace)

@@ -11,19 +11,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import threading
 import time
 from typing import Dict, List
 
 from dlrover.python.common.constants import (
     DistributionStrategy,
+    EngineType,
     NodeEventType,
     NodeExitReason,
     NodeResourceLimit,
     NodeStatus,
     NodeType,
 )
+from dlrover.python.common.global_context import Context
 from dlrover.python.common.log_utils import default_logger as logger
+from dlrover.python.common.node import Node, NodeResource
+from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.event_callback import (
     ClusterContext,
     NodeEventCallback,
@@ -42,19 +47,25 @@ from dlrover.python.master.node.worker import (
     EvaluatorManager,
     WorkerManager,
 )
-from dlrover.python.master.resource.job import JobResourceConfig
+from dlrover.python.master.resource.job import (
+    JobResource,
+    JobResourceOptimizer,
+)
 from dlrover.python.master.resource.optimizer import ResourcePlan
-from dlrover.python.master.watcher.base_watcher import Node, NodeEvent
+from dlrover.python.master.scaler.base_scaler import ScalePlan
+from dlrover.python.master.scaler.factory import new_job_scaler
+from dlrover.python.master.watcher.base_watcher import NodeEvent
 from dlrover.python.master.watcher.factory import new_node_watcher
 from dlrover.python.scheduler.factory import new_elastic_job
 
 _MAX_POD_RELAUNCH_COUNT = 5
+_dlrover_context = Context.instance()
 
 
 class NodeManager(object):
     def __init__(
         self,
-        job_resource: JobResourceConfig,
+        job_resource: JobResource,
         job_name,
         namespace,
         relaunch_on_worker_failure=0,
@@ -64,7 +75,8 @@ class NodeManager(object):
         ps_relaunch_max_num=1,
         use_ddp=False,
         speed_monitor=None,
-        engine="k8s",
+        engine=EngineType.ELASTICJOB,
+        resource_optimizer="local",
     ):
         self._job_resource = job_resource
         self._relaunch_on_worker_failure = min(
@@ -82,21 +94,28 @@ class NodeManager(object):
         self._node_event_callbacks: List[NodeEventCallback] = []
         self._chief_worker_started = False
         self._stop_monitor = False
-        self._last_pod_stats = None
-        self._speed_monitor = speed_monitor
+        self._speed_monitor: SpeedMonitor = speed_monitor
 
         # Protects followed variables, which are accessed from event_cb.
         self._lock = threading.Lock()
         self._job_nodes: Dict[str, Dict[int, Node]] = {}
         self._job_uuid = None
-        self._ps_manager = None
 
         self._elastic_job = new_elastic_job(engine, job_name, namespace)
         self._node_watcher = new_node_watcher(engine, job_name, namespace)
+        self._scaler = new_job_scaler(
+            EngineType.ELASTICJOB, job_name, namespace
+        )
+        self._job_optimizer = JobResourceOptimizer(
+            job_resource.node_group_resources[NodeType.WORKER],
+            job_resource.node_group_resources[NodeType.PS],
+            resource_optimizer,
+        )
         self._init_training_node_manager()
 
     def start(self):
         self._job_uuid = self._elastic_job.get_job_uuid()
+        self._job_optimizer.update_job_uuid(self._job_uuid)
         self._init_job_nodes()
         threading.Thread(
             target=self._monitor_nodes, name="node_monitor", daemon=True
@@ -135,8 +154,8 @@ class NodeManager(object):
     def get_job_uuid(self):
         return self._job_uuid
 
-    def add_node_event_callback(self, pod_event_callback):
-        self._node_event_callbacks.append(pod_event_callback)
+    def add_node_event_callback(self, node_event_callback):
+        self._node_event_callbacks.append(node_event_callback)
 
     def _init_job_nodes(self):
         self._job_nodes = self._job_resource.init_job_node_meta(
@@ -145,14 +164,11 @@ class NodeManager(object):
             self._elastic_job.get_node_name,
         )
 
-        # worker and eval ids for pods that should be created
+        # worker and eval ids for nodes that should be created
         # after all ps are running.
         self._workers_waiting_ps_running = []
 
-        # ps pod ids that are deleted and waiting for relaunch
-        self._deleted_ps_pod_ids = []
-
-        self._relaunch_pod = True
+        self._enable_relaunch_node = True
         self._pending_relaunch_count = 0
 
         set_critical_node(
@@ -190,12 +206,12 @@ class NodeManager(object):
                 time.sleep(30)
 
     def _process_list_nodes(self, nodes: List[Node]):
-        """Callback with pod list by the list api of k8s."""
-        exist_pods: Dict[str, List[int]] = {}
+        """Callback with node list by the list api of k8s."""
+        exist_nodes: Dict[str, List[int]] = {}
         for node_type in self._job_nodes.keys():
-            exist_pods[node_type] = []
+            exist_nodes[node_type] = []
         for node in nodes:
-            exist_pods[node.type].append(node.id)
+            exist_nodes[node.type].append(node.id)
             if node.status == NodeStatus.DELETED:
                 type = NodeEventType.DELETED
             else:
@@ -209,7 +225,7 @@ class NodeManager(object):
                 if (
                     node.status != NodeStatus.INITIAL
                     and not node.is_released
-                    and node_id not in exist_pods[node_type]
+                    and node_id not in exist_nodes[node_type]
                 ):
                     logger.info(
                         "Node %s %s is deleted without the event",
@@ -221,12 +237,16 @@ class NodeManager(object):
     def _process_event(self, event: NodeEvent):
         node_type = event.node.type
         node_id = event.node.id
-        cur_node = self._job_nodes[node_type][node_id]
-        cur_node.update_info(
-            name=event.node.name,
-            start_time=event.node.start_time,
-            create_time=event.node.create_time,
-        )
+        if node_id not in self._job_nodes[node_type]:
+            self._job_nodes[node_type][node_id] = event.node
+            return
+        else:
+            cur_node = self._job_nodes[node_type][node_id]
+            cur_node.update_info(
+                name=event.node.name,
+                start_time=event.node.start_time,
+                create_time=event.node.create_time,
+            )
 
         # For the given node id, check whether it meets
         # the state change condition
@@ -238,14 +258,14 @@ class NodeManager(object):
             )
             cur_node.update_status(new_status)
             # If there is no matched state change, return directly
-            # If the pod has been succeed, return directly
+            # If the node has been succeed, return directly
             if (
                 status_change_flow is None
                 or status_change_flow.from_status == NodeStatus.SUCCEEDED
             ):
                 return
 
-            # Update the pod status for pod_info
+            # Update the node status
             new_status = status_change_flow.to_status
             cur_node.set_exit_reason(event.node.exit_reason)
             self._process_node_events(status_change_flow, cur_node)
@@ -266,7 +286,7 @@ class NodeManager(object):
         )
 
         if should_relaunch:
-            self._relaunch_typed_pod(cur_node)
+            self._relaunch_node(cur_node)
 
     def _process_node_events(
         self, status_change_flow: NodeStateFlow, node: Node
@@ -300,7 +320,7 @@ class NodeManager(object):
     def _should_relaunch(self, node: Node, status_change_flow: NodeStateFlow):
         should_relaunch = (
             status_change_flow.should_relaunch
-            and self._relaunch_pod
+            and self._enable_relaunch_node
             and node.relaunchable
         )
         if should_relaunch:
@@ -335,8 +355,18 @@ class NodeManager(object):
 
         return should_relaunch
 
-    def _relaunch_typed_pod(self, node: Node):
-        logger.info("Relaunch the pod: {}".format(node.name))
+    def _relaunch_node(self, node: Node):
+        logger.info("Relaunch node: {}".format(node.name))
+        if node.type == NodeType.WORKER:
+            plan = self._worker_manager.relaunch_node(node)
+        elif node.type == NodeType.PS:
+            plan = self._ps_manager.relaunch_node(node)
+        elif node.type == NodeType.EVALUATOR:
+            plan = self._evaluator_manager.relaunch_node(node)
+        elif node.type == NodeType.CHIEF:
+            plan = self._chief_manager.relaunch_node(node)
+        self._set_job_resource_in_plan(plan)
+        self._scaler.scale(plan)
 
     def all_workers_exited(self):
         return (
@@ -372,7 +402,7 @@ class NodeManager(object):
 
         completed = not alive_critical_nodes
         if not completed:
-            logger.info("Critical pods %s are running.", alive_critical_nodes)
+            logger.info("Critical nodes %s are running.", alive_critical_nodes)
         return completed
 
     def remove_worker(self, worker_id):
@@ -387,11 +417,11 @@ class NodeManager(object):
         nodes = self._chief_manager.get_running_nodes()
         nodes.extend(self._worker_manager.get_running_nodes())
         nodes.extend(self._evaluator_manager.get_running_nodes())
-        nodes.extend(self.get_cur_cluster_ps())
+        nodes.extend(self._ps_manager.get_training_ps_cluster())
         return nodes
 
     def stop(self):
-        self._relaunch_pod = False
+        self._enable_relaunch_node = False
         with self._lock:
             for node_type in self._job_nodes.keys():
                 for node in self._job_nodes[node_type].values():
@@ -402,11 +432,6 @@ class NodeManager(object):
     def update_node_resource_usage(self, node_type, node_id, cpu, memory):
         node = self._job_nodes[node_type][node_id]
         node.update_resource_usage(cpu, memory)
-
-    # TODO: implement the function.
-    def start_auto_scale(self):
-        """Start to auto scale"""
-        pass
 
     def get_cur_cluster_ps(self):
         """Get PS nodes in the current training cluster."""
@@ -421,7 +446,7 @@ class NodeManager(object):
 
     def remove_training_nodes(self):
         """Remove all PS and workers"""
-        plan = ResourcePlan()
+        plan = ScalePlan()
         training_nodes = list(
             self._job_nodes[NodeType.WORKER].values()
         ) + list(self._job_nodes[NodeType.PS].values())
@@ -435,7 +460,110 @@ class NodeManager(object):
                 node.is_released = True
                 node.status = NodeStatus.DELETED
                 logger.info("Remove node %s", node.name)
-                plan.removed_nodes.append(node.name)
+                plan.remove_nodes.append(node.name)
+        self._scaler.scale(plan)
+
+    def start_auto_scale(self):
+        """Start to auto-scale nodes to improve the training throughput."""
+        if not self._chief_worker_started:
+            logger.info("Chief started!")
+            self._chief_worker_started = True
+            if (
+                not _dlrover_context.easydl_ps_enabled
+                and not _dlrover_context.easydl_worker_enabled
+            ):
+                return
+            if self._speed_monitor:
+                self._speed_monitor.set_target_worker_num(
+                    self._job_resource.worker_num
+                )
+                threading.Thread(
+                    target=self._periodic_optimize_running_resource,
+                    name="resource-autoscaler",
+                    daemon=True,
+                ).start()
+
+    def _periodic_optimize_running_resource(self):
+        """Adjust job resource periodically and stop adjustment
+        if there is a failed worker with the fatal error.
+        """
+        logger.info("Start to auto scale ")
+        last_plan_time = 0
+        opt_interval = _dlrover_context.seconds_interval_to_optimize
+        while True:
+            if self._stop_launch_worker_for_ps:
+                logger.info("Stop to autoscale the number of worker.")
+                break
+            if (
+                self._speed_monitor.worker_adjustment_finished()
+                # Control the interval to query plans
+                and time.time() - last_plan_time > opt_interval
+                and not self._ps_manager.exist_migrated_ps_nodes()
+            ):
+                plan = self._job_optimizer.get_job_resource_plan()
+                if plan:
+                    last_plan_time = time.time()
+                self._execute_job_optimization_plan(plan)
+            time.sleep(60)
+
+    def _execute_job_optimization_plan(self, plan: ResourcePlan):
+        """Execute the optimization plan of the training job.
+        The plan may adjust the number of PS and workers or
+        adjust the cpu and memory of nodes.
+        """
+        scale_plan = ScalePlan()
+        if plan.empty():
+            return scale_plan
+        for node_type, group in plan.node_group_resources.items():
+            if group.count > 0:
+                self._job_resource.update_node_group_resource(
+                    node_type,
+                    group.count,
+                    group.node_resource.cpu,
+                    group.node_resource.memory,
+                )
+                if node_type == NodeType.PS:
+                    self._ps_manager.adjust_ps(group)
+                elif node_type == NodeType.WORKER:
+                    self._speed_monitor.set_target_worker_num(group.count)
+                    self._worker_manager.adjust_worker(group)
+
+        self._set_job_resource_in_plan(scale_plan)
+        if len(plan.node_resources) > 0:
+            print(plan.node_resources)
+            migration_plan = self._migrate_nodes(plan.node_resources)
+            scale_plan.merge(migration_plan)
+        self._scaler.scale(scale_plan)
+        return scale_plan
+
+    def _migrate_nodes(self, node_resources):
+        workers: Dict[str, NodeResource] = {}
+        ps: Dict[str, NodeResource] = {}
+        for name, resource in node_resources.items():
+            type = name.split("-")[-2]
+            if type == NodeType.WORKER:
+                workers[name] = resource
+            elif type == NodeType.PS:
+                ps[name] = resource
+
+        scale_plan = ScalePlan()
+        if len(ps) > 0:
+            plan = self._ps_manager.migrate_parameter_servers(ps)
+            scale_plan.merge(plan)
+            self._speed_monitor.reset_running_speed_monitor()
+
+        if len(workers) > 0:
+            plan = self._worker_manager.migrate_workers(workers)
+            scale_plan.merge(plan)
+        return scale_plan
+
+    def _set_job_resource_in_plan(self, plan: ScalePlan):
+        for type in self._job_resource.get_node_types():
+            plan.node_group_resources[type] = copy.deepcopy(
+                self._job_resource.get_node_group_resource(type)
+            )
+        ps_addrs = self._ps_manager.get_ps_addrs()
+        plan.ps_addrs.extend(ps_addrs)
 
 
 def create_node_manager(args, speed_monitor) -> NodeManager:
@@ -446,7 +574,7 @@ def create_node_manager(args, speed_monitor) -> NodeManager:
     ):
         args.relaunch_on_worker_failure = 0
 
-    job_resource = JobResourceConfig()
+    job_resource = JobResource()
     job_resource.add_node_group_resource(
         NodeType.WORKER,
         args.num_workers,
@@ -460,7 +588,7 @@ def create_node_manager(args, speed_monitor) -> NodeManager:
         args.ps_pod_priority,
     )
     # Keep the same as the worker.
-    evaluator_pod_priority = (
+    evaluator_priority = (
         args.evaluator_pod_priority
         if args.evaluator_pod_priority == "low"
         else "high"
@@ -469,7 +597,7 @@ def create_node_manager(args, speed_monitor) -> NodeManager:
         NodeType.EVALUATOR,
         args.num_evaluators,
         args.evaluator_resource_request,
-        evaluator_pod_priority,
+        evaluator_priority,
     )
     job_resource.add_node_group_resource(
         NodeType.CHIEF,
@@ -478,7 +606,7 @@ def create_node_manager(args, speed_monitor) -> NodeManager:
         args.tf_master_pod_priority,
     )
     critical_worker_index = get_critical_worker_index(args)
-    # Custom distribution strategy does not exit if there are pending pods
+    # Custom distribution strategy does not exit if there are pending nodes
     wait_pending_relaunch = (
         args.distribution_strategy == DistributionStrategy.CUSTOM
     )

@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import unittest
+from unittest import mock
 
 from dlrover.python.common.constants import (
     JobExitReason,
@@ -20,7 +21,7 @@ from dlrover.python.common.constants import (
     NodeStatus,
     NodeType,
 )
-from dlrover.python.common.node import NodeResource
+from dlrover.python.common.node import NodeGroupResource, NodeResource
 from dlrover.python.master.master import Master
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.event_callback import (
@@ -38,7 +39,8 @@ from dlrover.python.master.node.training_node import (
     get_critical_worker_index,
     set_critical_node,
 )
-from dlrover.python.master.resource.job import JobResourceConfig
+from dlrover.python.master.resource.job import JobResource
+from dlrover.python.master.resource.optimizer import ResourcePlan
 from dlrover.python.master.watcher.base_watcher import Node, NodeEvent
 from dlrover.python.tests.test_utils import (
     MockArgs,
@@ -92,7 +94,7 @@ class JobConfigTest(unittest.TestCase):
         mock_k8s_client()
 
     def test_job_resource(self):
-        job = JobResourceConfig()
+        job = JobResource()
         job.add_node_group_resource(NodeType.PS, 3, "cpu=1,memory=4096Mi", "")
         job.add_node_group_resource(
             NodeType.WORKER, 5, "cpu=1,memory=4096Mi", ""
@@ -123,7 +125,7 @@ class JobConfigTest(unittest.TestCase):
         )
 
     def test_set_critical_node(self):
-        job = JobResourceConfig()
+        job = JobResource()
         job.add_node_group_resource(NodeType.PS, 3, "cpu=1,memory=4096Mi", "")
         job.add_node_group_resource(
             NodeType.WORKER, 5, "cpu=1,memory=4096Mi", ""
@@ -247,10 +249,10 @@ class JobConfigTest(unittest.TestCase):
         self.assertTrue(manager.all_critical_node_completed())
 
     def test_tf_ps_node_handling(self):
-
         args = MockArgs()
         master = Master(args)
         master.node_manager._init_job_nodes()
+        master.node_manager._scaler.scale = mock.MagicMock(return_value=True)
         callback = TFPSNodeHandlingCallback(master)
 
         node = Node(NodeType.PS, 0, None)
@@ -272,3 +274,32 @@ class JobConfigTest(unittest.TestCase):
         node.exit_reason = NodeExitReason.FATAL_ERROR
         callback.on_node_failed(node, cluster_context)
         self.assertEqual(master.speed_monitor._target_worker_num, 1)
+
+    def test_execute_job_optimization_plan(self):
+        args = MockArgs()
+        manager = create_node_manager(args, SpeedMonitor())
+        manager._init_job_nodes()
+
+        manager._scaler.scale = mock.MagicMock(return_value=True)
+        plan = ResourcePlan()
+        plan.node_group_resources[NodeType.WORKER] = NodeGroupResource(
+            6, NodeResource(4, 4096)
+        )
+        plan.node_resources["test-edljob-worker-0"] = NodeResource(8, 8192)
+        plan.node_resources["test-edljob-ps-1"] = NodeResource(8, 8192)
+        manager._ps_manager._nodes[1].status = NodeStatus.RUNNING
+        scale_plan = manager._execute_job_optimization_plan(plan)
+        self.assertEqual(len(manager._ps_manager._nodes), 4)
+        self.assertEqual(len(manager._worker_manager._nodes), 7)
+        self.assertEqual(scale_plan.node_group_resources[NodeType.PS].count, 3)
+        self.assertEqual(
+            scale_plan.node_group_resources[NodeType.WORKER].count, 6
+        )
+        self.assertEqual(len(scale_plan.remove_nodes), 1)
+        self.assertEqual(len(scale_plan.launch_nodes), 2)
+
+        ps_addrs = []
+        for i in range(3):
+            ps_addrs.append("test-edljob-ps-{}.test.svc:2222".format(i))
+
+        self.assertListEqual(scale_plan.ps_addrs, ps_addrs)

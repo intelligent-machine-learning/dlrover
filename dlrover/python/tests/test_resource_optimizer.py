@@ -22,7 +22,7 @@ from dlrover.python.master.resource.brain_optimizer import (
     BrainResoureOptimizer,
 )
 from dlrover.python.master.resource.job import (
-    JobResourceConfig,
+    JobResource,
     JobResourceOptimizer,
 )
 from dlrover.python.master.resource.optimizer import ResourcePlan
@@ -105,7 +105,7 @@ class JobResourceOptimizerTest(unittest.TestCase):
             NodeResource(0, 0),
         )
         self._job_optimizer = JobResourceOptimizer(
-            "aa0_uuid", worker_resource, ps_resource, "brain"
+            worker_resource, ps_resource, "brain", "aa0_uuid"
         )
         resource_optimizer = self._job_optimizer._resource_optimizer
         resource_optimizer._brain_client = self._client
@@ -122,7 +122,7 @@ class JobResourceOptimizerTest(unittest.TestCase):
             NodeResource(4, 1024),
         )
         self._job_optimizer = JobResourceOptimizer(
-            "aa0_uuid", worker_resource, ps_resource, "brain"
+            worker_resource, ps_resource, "brain", "aa0_uuid"
         )
         resource_optimizer = self._job_optimizer._resource_optimizer
         resource_optimizer._brain_client = self._client
@@ -159,7 +159,7 @@ class JobResourceOptimizerTest(unittest.TestCase):
         self.assertEqual(worker.node_resource.memory, _MEMORY)
 
     def test_init_job_resource(self):
-        job = JobResourceConfig()
+        job = JobResource()
         job.add_node_group_resource(
             NodeType.PS, 3, "cpu=1,memory=256Mi", "high"
         )
@@ -186,7 +186,7 @@ class JobResourceOptimizerTest(unittest.TestCase):
         worker_resource = NodeGroupResource(5, NodeResource(0, 0))
         ps_resource = NodeGroupResource(0, NodeResource(0, 0))
         job_optimizer = JobResourceOptimizer(
-            "aa0_uuid", worker_resource, ps_resource, "brain"
+            worker_resource, ps_resource, "brain", "aa0_uuid"
         )
         job_optimizer._resource_optimizer._brain_client = self._client
         job_optimizer._init_job_resource_by_optimizer()
@@ -199,7 +199,7 @@ class JobResourceOptimizerTest(unittest.TestCase):
         worker_resource = NodeGroupResource(10, NodeResource(1, 256))
         ps_resource = NodeGroupResource(3, NodeResource(2, 1024))
         job_optimizer = JobResourceOptimizer(
-            "aa0_uuid", worker_resource, ps_resource, "brain"
+            worker_resource, ps_resource, "brain", "aa0_uuid"
         )
 
         job_optimizer._resource_optimizer._brain_client = self._client

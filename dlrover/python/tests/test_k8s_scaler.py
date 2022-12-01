@@ -13,22 +13,28 @@
 
 import unittest
 
-from dlrover.python.common.node import NodeGroupResource, NodeResource
-from dlrover.python.master.resource.optimizer import ResourcePlan
+from dlrover.python.common.constants import NodeType
+from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
+from dlrover.python.master.scaler.base_scaler import ScalePlan
 from dlrover.python.master.scaler.elasticjob_scaler import ElasticJobScaler
 
 
 class k8sScalerTest(unittest.TestCase):
     def test_generate_scaler_crd_by_plan(self):
-        plan = ResourcePlan()
+        plan = ScalePlan()
         node_resource = NodeResource(10, 4096)
-        plan.node_resources["worker-0"] = node_resource
+        plan.launch_nodes.append(
+            Node(
+                NodeType.WORKER,
+                0,
+                NodeResource(10, 4096),
+                task_index=0,
+            )
+        )
         group_resource = NodeGroupResource(1, node_resource, "low")
         plan.node_group_resources["worker"] = group_resource
 
-        scaler = ElasticJobScaler(
-            job_name="test", namespace="dlrover", cluster="", client=None
-        )
+        scaler = ElasticJobScaler(job_name="test", namespace="dlrover")
         scaler_crd = scaler._generate_scaler_crd_by_plan(plan)
 
         expected_dict = {

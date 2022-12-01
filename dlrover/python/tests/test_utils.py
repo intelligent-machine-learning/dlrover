@@ -52,6 +52,23 @@ spec:
                   - model_zoo.iris.dnn_estimator
                   - --batch_size=32
                   - --training_steps=1000
+    chief:
+      restartCount: 1
+      template:
+          metadata:
+            annotations:
+              sidecar.istio.io/inject: "false"
+          spec:
+            restartPolicy: Never
+            containers:
+              - name: main
+                image: dlrover/elasticjob:iris_estimator
+                command:
+                  - python
+                  - -m
+                  - model_zoo.iris.dnn_estimator
+                  - --batch_size=32
+                  - --training_steps=1000
     worker:
       restartCount: 3
       template:
@@ -145,9 +162,32 @@ def create_pod(labels):
         ],
         phase=NodeStatus.RUNNING,
     )
+
+    resource = {"cpu": 1, "memory": "10Gi"}
+    container = client.V1Container(
+        name="main",
+        image="test",
+        command="echo 1",
+        resources=client.V1ResourceRequirements(
+            requests=resource,
+            limits=resource,
+        ),
+        image_pull_policy="Never",
+    )
+
+    # Pod
+    spec = client.V1PodSpec(
+        containers=[container],
+        restart_policy="Never",
+        priority_class_name="high",
+    )
+
     pod = client.V1Pod(
+        api_version="v1",
         kind="Pod",
+        spec=spec,
         metadata=client.V1ObjectMeta(
+            name="test-worker-0",
             labels=labels,
         ),
         status=status,
@@ -155,7 +195,7 @@ def create_pod(labels):
     return pod
 
 
-def mock_list_job_pods():
+def mock_list_job_pods(label_selector):
     pods = []
     for i in range(2):
         labels = {
@@ -201,6 +241,7 @@ def mock_k8s_client():
     k8s_client = k8sClient("default", "elasticjob-sample")
     k8s_client.get_training_job = _get_training_job  # type: ignore
     k8s_client.get_pod = _get_pod  # type: ignore
+    k8s_client.list_namespaced_pod = mock_list_job_pods  # type: ignore
     k8s_client.create_pod = mock.MagicMock(return_value=True)  # type: ignore
     k8s_client.create_service = mock.MagicMock(  # type: ignore
         return_value=True

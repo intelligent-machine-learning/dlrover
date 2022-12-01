@@ -20,12 +20,19 @@ from dlrover.python.common.constants import (
     NodeType,
 )
 from dlrover.python.common.log_utils import default_logger as logger
-from dlrover.python.master.watcher.base_watcher import (
-    Node,
-    NodeEvent,
-    NodeWatcher,
-)
+from dlrover.python.common.node import Node, NodeResource
+from dlrover.python.master.watcher.base_watcher import NodeEvent, NodeWatcher
 from dlrover.python.scheduler.kubernetes import k8sClient
+
+
+def _convert_memory_to_mb(memory: str):
+    unit = memory[-2:]
+    value = int(memory[0:-2])
+    if unit == "Gi":
+        value = value * 1024
+    elif unit == "Ki":
+        value = int(value / 1024)
+    return value
 
 
 def _get_start_timestamp(pod_status_obj):
@@ -85,6 +92,12 @@ def _convert_pod_event_to_node_event(event):
     )
 
     pod_id = int(evt_obj.metadata.labels[ElasticJobLabel.REPLICA_INDEX_KEY])
+
+    cpu = evt_obj.spec.containers[0].resources.requests["cpu"]
+    memory = _convert_memory_to_mb(
+        evt_obj.spec.containers[0].resources.requests["memory"]
+    )
+    pod_resource = NodeResource(cpu, memory)
     node = Node(
         node_type=pod_type,
         node_id=pod_id,
@@ -92,7 +105,7 @@ def _convert_pod_event_to_node_event(event):
         task_index=task_id,
         status=evt_obj.status.phase,
         start_time=_get_start_timestamp(evt_obj.status),
-        config_resource=None,
+        config_resource=pod_resource,
     )
     node.set_exit_reason(_get_pod_exit_reason(evt_obj))
     node_event = NodeEvent(event_type=evt_type, node=node)
@@ -130,8 +143,11 @@ class PodWatcher(NodeWatcher):
             raise e
 
     def list(self):
-        pod_list = self._list_job_pods()
         nodes = []
+        pod_list = self._k8s_client.list_namespaced_pod(self._job_selector)
+        if not pod_list or not pod_list.items:
+            return nodes
+
         for pod in pod_list.items:
             pod_type = pod.metadata.labels[ElasticJobLabel.REPLICA_TYPE_KEY]
             pod_id = int(
@@ -152,14 +168,3 @@ class PodWatcher(NodeWatcher):
             node.set_exit_reason(_get_pod_exit_reason(pod))
             nodes.append(node)
         return nodes
-
-    def _list_job_pods(self):
-        try:
-            pod_list = self.client.list_namespaced_pod(
-                self.namespace,
-                label_selector=self._job_selector,
-            )
-            return pod_list
-        except Exception as e:
-            logger.warning(e)
-        return None

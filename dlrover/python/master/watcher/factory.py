@@ -16,7 +16,7 @@ from dlrover.python.master.watcher.pod_watcher import PodWatcher
 
 
 def new_node_watcher(engine, job_name, namespace):
-    if engine == EngineType.KUBERNETES:
+    if engine == EngineType.ELASTICJOB:
         return PodWatcher(job_name, namespace)
     else:
         raise ValueError("Not support engine %s", engine)

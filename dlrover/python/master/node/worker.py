@@ -18,16 +18,19 @@ from typing import Dict, List
 from dlrover.python.common.constants import NodeStatus, NodeType
 from dlrover.python.common.log_utils import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
-from dlrover.python.master.node.training_node import TrainingNodeManager
-from dlrover.python.master.resource.job import JobResourceConfig
-from dlrover.python.master.resource.optimizer import ResourcePlan
+from dlrover.python.master.node.training_node import (
+    ALIVE_STATUS,
+    TrainingNodeManager,
+)
+from dlrover.python.master.resource.job import JobResource
+from dlrover.python.master.scaler.base_scaler import ScalePlan
 
 
 class ChiefManager(TrainingNodeManager):
     def __init__(
         self,
         chief_nodes: Dict[int, Node],
-        job_resource: JobResourceConfig,
+        job_resource: JobResource,
         max_relaunch_num,
         new_service_fn,
         new_node_name_fn,
@@ -60,7 +63,7 @@ class EvaluatorManager(TrainingNodeManager):
     def __init__(
         self,
         evaluator_nodes: Dict[int, Node],
-        job_resource: JobResourceConfig,
+        job_resource: JobResource,
         max_relaunch_num,
         new_service_fn,
         new_node_name_fn,
@@ -93,7 +96,7 @@ class WorkerManager(TrainingNodeManager):
     def __init__(
         self,
         worker_nodes: Dict[int, Node],
-        job_resource: JobResourceConfig,
+        job_resource: JobResource,
         max_relaunch_num,
         new_service_fn,
         new_node_name_fn,
@@ -117,18 +120,27 @@ class WorkerManager(TrainingNodeManager):
         worker = job_resource.get_node_group_resource(NodeType.WORKER)
         self._task_id_iter = itertools.count(worker.count)
 
-    def relaunch_node(self, node: Node):
-        plan = ResourcePlan()
+    def adjust_worker(self, worker_resource: NodeGroupResource):
+        num = worker_resource.count
+        logger.info(
+            "Adjust worker resource to {}, {}, {}".format(
+                num,
+                worker_resource.node_resource.cpu,
+                worker_resource.node_resource.memory,
+            )
+        )
+        alive_workers = []
+        for worker in self._nodes.values():
+            if worker.status in ALIVE_STATUS:
+                alive_workers.append(worker)
+        alive_num = len(alive_workers)
         with self._lock:
-            new_id = next(self._node_id_iter)
-            relaunch_node = node.get_relaunch_node_info(new_id)
-            self._nodes[new_id] = relaunch_node
+            if num > alive_num:
+                self._scale_up_workers(num - alive_num)
+            elif num < alive_num:
+                self._scale_down_workers(alive_num - num, alive_workers)
 
-        logger.info("Relaunch worker %s from %s", new_id, node.id)
-        plan.node_resources[node.name] = relaunch_node.config_resource
-        return plan
-
-    def scale_up_workers(self, up_num):
+    def _scale_up_workers(self, up_num):
         """Launch up_num workers."""
         for _ in range(up_num):
             worker_id = next(self._node_id_iter)
@@ -146,19 +158,9 @@ class WorkerManager(TrainingNodeManager):
                 config_resource=copy.deepcopy(worker_resource),
                 service_addr=service_addr,
             )
-        plan = ResourcePlan()
-        plan.node_group_resources[NodeType.WORKER] = NodeGroupResource(
-            worker_resource.count + up_num,
-            NodeResource(
-                worker_resource.node_resource.cpu,
-                worker_resource.node_resource.memory,
-            ),
-        )
-        return plan
 
-    def scale_down_workers(self, down_num, running_workers: List[Node]):
+    def _scale_down_workers(self, down_num, running_workers: List[Node]):
         """Remove down_num running workers"""
-        plan = ResourcePlan()
         for worker in reversed(running_workers):
             if down_num <= 0:
                 break
@@ -166,12 +168,10 @@ class WorkerManager(TrainingNodeManager):
                 worker.relaunchable = False
                 worker.is_released = True
                 down_num -= 1
-            plan.removed_nodes.append(worker.name)
-        return plan
 
     def delete_exited_workers(self):
         """Delete failed, succeed, finished workers."""
-        plan = ResourcePlan()
+        plan = ScalePlan()
         with self._lock:
             for worker in self._nodes.values():
                 if (
@@ -184,11 +184,11 @@ class WorkerManager(TrainingNodeManager):
                     and not worker.is_released
                 ):
                     worker.is_released = True
-                    plan.removed_nodes.append(worker.name)
+                    plan.remove_nodes.append(worker.name)
         return plan
 
     def delete_running_workers(self):
-        plan = ResourcePlan()
+        plan = ScalePlan()
         for worker in self._nodes.values():
             if not worker.critical and worker.status in [
                 NodeStatus.RUNNING,
@@ -201,7 +201,7 @@ class WorkerManager(TrainingNodeManager):
                     worker.name,
                 )
                 worker.is_released = True
-                plan.removed_nodes.append(worker.name)
+                plan.remove_nodes.append(worker.name)
         return plan
 
     def remove_noncritical_worker(self, worker_id):
@@ -209,3 +209,21 @@ class WorkerManager(TrainingNodeManager):
             logger.info("Skip the critical worker %s", worker_id)
         else:
             return self.remove_node(worker_id)
+
+    def migrate_workers(self, workers: Dict[str, NodeResource]):
+        """Migrate workers with the new resource"""
+        plan = ScalePlan()
+        for name, resource in workers.items():
+            old_node_id = int(name.split("-")[-1])
+            node_id = next(self._node_id_iter)
+            task_id = self._nodes[old_node_id].task_index
+            self._nodes[node_id] = Node(
+                NodeType.WORKER,
+                node_id,
+                config_resource=resource,
+                status=NodeStatus.INITIAL,
+                task_index=task_id,
+            )
+            plan.launch_nodes.append(self._nodes[node_id])
+            plan.remove_nodes.append(name)
+        return plan

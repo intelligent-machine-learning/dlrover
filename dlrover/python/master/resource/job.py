@@ -44,14 +44,14 @@ def new_resource_optimizer(optimizer: str, job_uuid):
         logger.error("Not support %s optimizer", optimizer)
 
 
-class JobResourceConfig(object):
+class JobResource(object):
     def __init__(self):
-        self._group_resources: Dict[str, NodeGroupResource] = {}
+        self.node_group_resources: Dict[str, NodeGroupResource] = {}
 
     def add_node_group_resource(
         self, node_type, num, resource_config, priority
     ):
-        self._group_resources[node_type] = NodeGroupResource(
+        self.node_group_resources[node_type] = NodeGroupResource(
             count=num,
             node_resource=NodeResource.resource_str_to_node_resource(
                 resource_config
@@ -60,18 +60,18 @@ class JobResourceConfig(object):
         )
 
     def get_node_group_resource(self, node_type):
-        return self._group_resources.get(node_type, None)
+        return self.node_group_resources.get(node_type, None)
 
     def _get_group_node_num(self, node_type):
-        if node_type in self._group_resources:
-            return self._group_resources[node_type].count
+        if node_type in self.node_group_resources:
+            return self.node_group_resources[node_type].count
         return 0
 
     def get_node_types(self):
-        return list(self._group_resources.keys())
+        return list(self.node_group_resources.keys())
 
     def update_node_group_resource(self, node_type, num, cpu, memory):
-        self._group_resources.setdefault(
+        self.node_group_resources.setdefault(
             node_type,
             NodeGroupResource(
                 count=0,
@@ -79,7 +79,7 @@ class JobResourceConfig(object):
                 priority=None,
             ),
         )
-        resource = self._group_resources[node_type]
+        resource = self.node_group_resources[node_type]
         resource.count = num or resource.count
         resource.node_resource.cpu = cpu or resource.node_resource.cpu
         resource.node_resource.memory = memory or resource.node_resource.memory
@@ -137,10 +137,10 @@ class JobResourceOptimizer(object):
 
     def __init__(
         self,
-        job_uuid,
         worker_resource: NodeGroupResource,
         ps_resource: NodeGroupResource,
-        optimizer,
+        optimizer: str,
+        job_uuid="",
     ):
         self._worker_resource = worker_resource
         self._ps_resource = ps_resource
@@ -151,6 +151,9 @@ class JobResourceOptimizer(object):
         self.optimized_ps_mem = False
         self.optimize_worker_sampled = False
         self._job_stage = JobOptStage.CREATE
+
+    def update_job_uuid(self, job_uuid):
+        self._resource_optimizer.updaet_job_uuid(job_uuid)
 
     def _init_job_resource_by_optimizer(self):
         plan = self._resource_optimizer.generate_opt_plan(self._job_stage)
@@ -196,7 +199,7 @@ class JobResourceOptimizer(object):
     def get_worker_resource(self):
         return self._worker_resource
 
-    def init_job_resource(self, job_resource: JobResourceConfig):
+    def init_job_resource(self, job_resource: JobResource):
         """Adjust the initial resource of typed pods by EasyDL.
         Args:
             job_resource: node resource configuration of a job.
