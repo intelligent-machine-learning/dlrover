@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import threading
 import time
 from typing import Dict, List
@@ -51,9 +52,11 @@ from dlrover.python.master.resource.job import (
 )
 from dlrover.python.master.resource.optimizer import ResourcePlan
 from dlrover.python.master.scaler.factory import new_job_scaler
-from dlrover.python.master.watcher.base_watcher import Node, NodeEvent
+from dlrover.python.master.scaler.base_scaler import ScalePlan
+from dlrover.python.master.watcher.base_watcher import NodeEvent
 from dlrover.python.master.watcher.factory import new_node_watcher
 from dlrover.python.scheduler.factory import new_elastic_job
+from dlrover.python.common.node import Node, NodeResource, NodeGroupResource
 
 _MAX_POD_RELAUNCH_COUNT = 5
 _dlrover_context = Context.instance()
@@ -91,7 +94,6 @@ class NodeManager(object):
         self._node_event_callbacks: List[NodeEventCallback] = []
         self._chief_worker_started = False
         self._stop_monitor = False
-        self._last_pod_stats = None
         self._speed_monitor: SpeedMonitor = speed_monitor
 
         # Protects followed variables, which are accessed from event_cb.
@@ -153,8 +155,8 @@ class NodeManager(object):
     def get_job_uuid(self):
         return self._job_uuid
 
-    def add_node_event_callback(self, pod_event_callback):
-        self._node_event_callbacks.append(pod_event_callback)
+    def add_node_event_callback(self, node_event_callback):
+        self._node_event_callbacks.append(node_event_callback)
 
     def _init_job_nodes(self):
         self._job_nodes = self._job_resource.init_job_node_meta(
@@ -163,14 +165,11 @@ class NodeManager(object):
             self._elastic_job.get_node_name,
         )
 
-        # worker and eval ids for pods that should be created
+        # worker and eval ids for nodes that should be created
         # after all ps are running.
         self._workers_waiting_ps_running = []
 
-        # ps pod ids that are deleted and waiting for relaunch
-        self._deleted_ps_pod_ids = []
-
-        self._relaunch_pod = True
+        self._enable_relaunch_node = True
         self._pending_relaunch_count = 0
 
         set_critical_node(
@@ -208,12 +207,12 @@ class NodeManager(object):
                 time.sleep(30)
 
     def _process_list_nodes(self, nodes: List[Node]):
-        """Callback with pod list by the list api of k8s."""
-        exist_pods: Dict[str, List[int]] = {}
+        """Callback with node list by the list api of k8s."""
+        exist_nodes: Dict[str, List[int]] = {}
         for node_type in self._job_nodes.keys():
-            exist_pods[node_type] = []
+            exist_nodes[node_type] = []
         for node in nodes:
-            exist_pods[node.type].append(node.id)
+            exist_nodes[node.type].append(node.id)
             if node.status == NodeStatus.DELETED:
                 type = NodeEventType.DELETED
             else:
@@ -227,7 +226,7 @@ class NodeManager(object):
                 if (
                     node.status != NodeStatus.INITIAL
                     and not node.is_released
-                    and node_id not in exist_pods[node_type]
+                    and node_id not in exist_nodes[node_type]
                 ):
                     logger.info(
                         "Node %s %s is deleted without the event",
@@ -260,14 +259,14 @@ class NodeManager(object):
             )
             cur_node.update_status(new_status)
             # If there is no matched state change, return directly
-            # If the pod has been succeed, return directly
+            # If the node has been succeed, return directly
             if (
                 status_change_flow is None
                 or status_change_flow.from_status == NodeStatus.SUCCEEDED
             ):
                 return
 
-            # Update the pod status for pod_info
+            # Update the node status
             new_status = status_change_flow.to_status
             cur_node.set_exit_reason(event.node.exit_reason)
             self._process_node_events(status_change_flow, cur_node)
@@ -288,7 +287,7 @@ class NodeManager(object):
         )
 
         if should_relaunch:
-            self._relaunch_typed_pod(cur_node)
+            self._relaunch_node(cur_node)
 
     def _process_node_events(
         self, status_change_flow: NodeStateFlow, node: Node
@@ -322,7 +321,7 @@ class NodeManager(object):
     def _should_relaunch(self, node: Node, status_change_flow: NodeStateFlow):
         should_relaunch = (
             status_change_flow.should_relaunch
-            and self._relaunch_pod
+            and self._enable_relaunch_node
             and node.relaunchable
         )
         if should_relaunch:
@@ -357,7 +356,7 @@ class NodeManager(object):
 
         return should_relaunch
 
-    def _relaunch_typed_pod(self, node: Node):
+    def _relaunch_node(self, node: Node):
         logger.info("Relaunch node: {}".format(node.name))
         if node.type == NodeType.WORKER:
             plan = self._worker_manager.relaunch_node(node)
@@ -367,6 +366,7 @@ class NodeManager(object):
             plan = self._evaluator_manager.relaunch_node(node)
         elif node.type == NodeType.CHIEF:
             plan = self._chief_manager.relaunch_node(node)
+        self._set_job_resource_in_plan(plan)
         self._scaler.scale(plan)
 
     def all_workers_exited(self):
@@ -403,7 +403,7 @@ class NodeManager(object):
 
         completed = not alive_critical_nodes
         if not completed:
-            logger.info("Critical pods %s are running.", alive_critical_nodes)
+            logger.info("Critical nodes %s are running.", alive_critical_nodes)
         return completed
 
     def remove_worker(self, worker_id):
@@ -422,7 +422,7 @@ class NodeManager(object):
         return nodes
 
     def stop(self):
-        self._relaunch_pod = False
+        self._enable_relaunch_node = False
         with self._lock:
             for node_type in self._job_nodes.keys():
                 for node in self._job_nodes[node_type].values():
@@ -509,12 +509,12 @@ class NodeManager(object):
     def _execute_job_optimization_plan(self, plan: ResourcePlan):
         """Execute the optimization plan of the training job.
         The plan may adjust the number of PS and workers or
-        adjust the cpu and memory of pods.
+        adjust the cpu and memory of nodes.
         """
         if plan.empty():
             return
 
-        exec_plan = ResourcePlan()
+        scale_plan = ScalePlan()
         for node_type, group in plan.node_group_resources.items():
             if group.count > 0:
                 self._job_resource.update_node_group_resource(
@@ -524,13 +524,21 @@ class NodeManager(object):
                     group.node_resource.memory,
                 )
                 if node_type == NodeType.PS:
-                    plan = self._ps_manager.adjust_ps(group)
-                    exec_plan.merge(plan)
+                    self._ps_manager.adjust_ps(group)
                 elif node_type == NodeType.WORKER:
                     self._speed_monitor.set_target_worker_num(group.count)
                     plan = self._worker_manager.adjust_worker(group)
-                    exec_plan.merge(plan)
-        self._scaler.scale(plan)
+                    scale_plan.merge(plan)
+        self._set_job_resource_in_plan(plan)
+        self._scaler.scale(scale_plan)
+
+    def _set_job_resource_in_plan(self, plan: ScalePlan):
+        for type in self._job_resource.get_node_types():
+            plan.node_group_resources[type] = copy.deepcopy(
+                self._job_resource.get_node_group_resource(type)
+            )
+        ps_addrs = self._ps_manager.get_ps_addrs()
+        plan.ps_addrs.extend(ps_addrs)
 
 
 def create_node_manager(args, speed_monitor) -> NodeManager:
@@ -555,7 +563,7 @@ def create_node_manager(args, speed_monitor) -> NodeManager:
         args.ps_pod_priority,
     )
     # Keep the same as the worker.
-    evaluator_pod_priority = (
+    evaluator_priority = (
         args.evaluator_pod_priority
         if args.evaluator_pod_priority == "low"
         else "high"
@@ -564,7 +572,7 @@ def create_node_manager(args, speed_monitor) -> NodeManager:
         NodeType.EVALUATOR,
         args.num_evaluators,
         args.evaluator_resource_request,
-        evaluator_pod_priority,
+        evaluator_priority,
     )
     job_resource.add_node_group_resource(
         NodeType.CHIEF,
@@ -573,7 +581,7 @@ def create_node_manager(args, speed_monitor) -> NodeManager:
         args.tf_master_pod_priority,
     )
     critical_worker_index = get_critical_worker_index(args)
-    # Custom distribution strategy does not exit if there are pending pods
+    # Custom distribution strategy does not exit if there are pending nodes
     wait_pending_relaunch = (
         args.distribution_strategy == DistributionStrategy.CUSTOM
     )

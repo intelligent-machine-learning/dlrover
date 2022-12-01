@@ -111,6 +111,8 @@ class ScalerKind(BaseScalerSpec):
 
 
 class ElasticJobScaler(Scaler):
+    """ElasticJobScaler creates a elastic.iml.github.io/v1alpha1/Scaler
+    CRD to notify ElasticJob controller to scale Pods of a job."""
     def __init__(self, job_name, namespace):
         super(ElasticJobScaler, self).__init__(job_name)
         self._client = k8sClient(namespace, job_name)

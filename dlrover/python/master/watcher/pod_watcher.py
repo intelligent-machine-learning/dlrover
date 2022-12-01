@@ -143,8 +143,11 @@ class PodWatcher(NodeWatcher):
             raise e
 
     def list(self):
-        pod_list = self._list_job_pods()
         nodes = []
+        pod_list = self._k8s_client.list_namespaced_pod(self._job_selector)
+        if not pod_list or not pod_list.items:
+            return nodes
+
         for pod in pod_list.items:
             pod_type = pod.metadata.labels[ElasticJobLabel.REPLICA_TYPE_KEY]
             pod_id = int(
@@ -164,15 +167,4 @@ class PodWatcher(NodeWatcher):
             )
             node.set_exit_reason(_get_pod_exit_reason(pod))
             nodes.append(node)
-        return nodes
-
-    def _list_job_pods(self):
-        try:
-            pod_list = self.client.list_namespaced_pod(
-                self.namespace,
-                label_selector=self._job_selector,
-            )
-            return pod_list
-        except Exception as e:
-            logger.warning(e)
-        return None
+        return nodes 

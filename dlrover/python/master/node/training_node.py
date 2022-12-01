@@ -27,7 +27,7 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log_utils import default_logger as logger
-from dlrover.python.master.resource.optimizer import ResourcePlan
+from dlrover.python.master.scaler.base_scaler import ScalePlan, LaunchNode
 from dlrover.python.master.watcher.base_watcher import Node
 
 _dlrover_context = Context.instance()
@@ -135,7 +135,7 @@ class TrainingNodeManager(object):
         self._node_id_iter = itertools.count(len(self._nodes))
 
     def remove_node(self, node_id):
-        plan = ResourcePlan()
+        plan = ScalePlan()
         if node_id not in self._nodes:
             logger.info("Delete non-existed worker %s", node_id)
             return plan
@@ -145,23 +145,31 @@ class TrainingNodeManager(object):
                 logger.error("Unknown deletable worker id: %s" % node_id)
                 return
         worker.is_released = True
-        plan.removed_nodes.append(worker.name)
+        plan.remove_nodes.append(worker.name)
         return plan
 
     def relaunch_node(self, node: Node):
-        plan = ResourcePlan()
+        plan = ScalePlan()
         with self._lock:
             node.is_released = True
             new_id = next(self._node_id_iter)
             relaunch_node = node.get_relaunch_node_info(new_id)
             self._nodes[new_id] = relaunch_node
         logger.info("Relaunch node %s to %s", node.name, new_id)
-        plan.node_resources[node.name] = relaunch_node.config_resource
+        plan.launch_nodes.append(
+            LaunchNode(
+                node.type,
+                new_id,
+                node.task_index,
+                relaunch_node.config_resource,
+            )
+        )
+        plan.remove_nodes.append(node.name)
         return plan
 
     def cut_pending_node_cpu(self):
         """Cut down CPU cores of pendding PS Pods"""
-        plan = ResourcePlan()
+        plan = ScalePlan()
         nodes = copy.deepcopy(self._nodes)
         for node in nodes.values():
             if node.status == NodeStatus.PENDING:
@@ -170,7 +178,6 @@ class TrainingNodeManager(object):
                     node.relaunchable = False
                     node_plan = self.relaunch_node(node)
                     plan.merge(node_plan)
-                    print(node_plan.__dict__)
         return plan
 
     def get_running_nodes(self):

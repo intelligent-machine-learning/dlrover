@@ -13,7 +13,40 @@
 
 from abc import ABCMeta, abstractmethod
 
-from dlrover.python.master.resource.optimizer import ResourcePlan
+from typing import List, Dict
+from dlrover.python.common.node import NodeGroupResource, NodeResource
+
+
+class LaunchNode(object):
+    def __init__(self, type, node_id, task_id, resource: NodeResource):
+        self.type = type
+        self.node_id = node_id
+        self.task_id = task_id
+        self.resource = resource
+
+
+class ScalePlan(object):
+    """The plan to scaler to adjust nodes.
+    Attrbutes:
+        ndoe_group_resource: the resoruce configuration of a group node.
+        launch_nodes: a scaler to launch nodes.
+        remove_nodes: a scaler to remove nodes.
+        ps_addrs: all add addresses of PS nodes.
+    """
+
+    def __init__(self):
+        self.node_group_resources: Dict[str, NodeGroupResource] = {}
+        self.launch_nodes: List[LaunchNode] = {}
+        self.remove_nodes: List[str] = []
+        self.ps_addrs: List[str] = []
+
+    def empty(self):
+        return len(self.node_group_resources) + len(self.node_resources) == 0
+
+    def merge(self, plan):
+        self.node_group_resources.update(plan.node_group_resources)
+        self.launch_nodes.extend(plan.launch_nodes)
+        self.remove_nodes.extend(plan.remove_nodes)
 
 
 class Scaler(metaclass=ABCMeta):
@@ -26,6 +59,6 @@ class Scaler(metaclass=ABCMeta):
         self._job_name = job_name
 
     @abstractmethod
-    def scale(self, plan: ResourcePlan):
+    def scale(self, plan: ScalePlan):
         """Scale the job with the plan"""
         pass

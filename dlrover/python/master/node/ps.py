@@ -26,7 +26,7 @@ from dlrover.python.common.log_utils import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
 from dlrover.python.master.node.training_node import TrainingNodeManager
 from dlrover.python.master.resource.job import JobResourceConfig
-from dlrover.python.master.resource.optimizer import ResourcePlan
+from dlrover.python.master.scaler.base_scaler import ScalePlan, LaunchNode
 
 
 class ParameterServerManager(TrainingNodeManager):
@@ -70,7 +70,7 @@ class ParameterServerManager(TrainingNodeManager):
                 self._next_training_ps_cluster.append(node)
 
     def relaunch_node(self, node: Node):
-        plan = ResourcePlan()
+        plan = ScalePlan()
         with self._lock:
             node.is_released = True
             new_id = next(self._node_id_iter)
@@ -79,7 +79,14 @@ class ParameterServerManager(TrainingNodeManager):
                 i = self._training_ps_cluster.index(node)
                 self._training_ps_cluster[i] = self._nodes[new_id]
         logger.info("Relaunch node %s to %s", node.name, new_id)
-        plan.node_resources[node.name] = self._nodes[new_id].config_resource
+        plan.launch_nodes.append(
+            LaunchNode(
+                node.type,
+                new_id,
+                node.task_index,
+                self._nodes[new_id].config_resource,
+            )
+        )
         return plan
 
     def adjust_ps(self, ps_resource: NodeGroupResource):
@@ -118,20 +125,6 @@ class ParameterServerManager(TrainingNodeManager):
                     critical=True,
                     service_addr=service_addr,
                 )
-        new_ps_num = self._job_resource.ps_num + up_num
-        self._job_resource.update_node_group_resource(
-            NodeType.PS, new_ps_num, 0, 0
-        )
-        ps_resource = self._job_resource.get_node_group_resource(NodeType.PS)
-        plan = ResourcePlan()
-        plan.node_group_resources[NodeType.PS] = NodeGroupResource(
-            ps_resource.count,
-            NodeResource(
-                ps_resource.node_resource.cpu,
-                ps_resource.node_resource.memory,
-            ),
-        )
-        return plan
 
     def _scale_down_ps(self, down_num):
         with self._lock:
@@ -154,7 +147,7 @@ class ParameterServerManager(TrainingNodeManager):
         self._ready_for_new_ps_cluster = True
         self._training_ps_cluster = []
         self._training_ps_cluster.extend(self._next_training_ps_cluster)
-        plan = ResourcePlan()
+        plan = ScalePlan()
         with self._lock:
             while self._pre_dropped_ps:
                 node = self._pre_dropped_ps.pop()
@@ -163,7 +156,7 @@ class ParameterServerManager(TrainingNodeManager):
                 node.is_released = True
                 if node.id in self._migrated_ps_nodes:
                     self._migrated_ps_nodes.pop(node.id)
-                plan.removed_nodes.append(node.name)
+                plan.remove_nodes.append(node.name)
         return plan
 
     def _get_alive_ps(self) -> List[Node]:
@@ -250,7 +243,7 @@ class ParameterServerManager(TrainingNodeManager):
 
     def delete_running_ps(self):
         """Delete all running ps pods"""
-        plan = ResourcePlan()
+        plan = ScalePlan()
         for node in list(self._nodes.values()):
             if (
                 node.status in [NodeStatus.RUNNING, NodeStatus.PENDING]
@@ -265,17 +258,24 @@ class ParameterServerManager(TrainingNodeManager):
                 )
                 node.is_released = True
                 node.status = NodeStatus.DELETED
-                plan.removed_nodes.append(node.name)
+                plan.remove_nodes.append(node.name)
         return plan
 
     def migrate_parameter_servers(self, ps_nodes: Dict[str, NodeResource]):
-        plan = ResourcePlan()
+        plan = ScalePlan()
         for name, resource in ps_nodes.items():
             node = self._migrate_parameter_server(
                 name, resource.cpu, resource.memory
             )
             if node:
-                plan.node_resources[node.name] = node.config_resource
+                plan.launch_nodes.append(
+                    LaunchNode(
+                        node.type,
+                        node.id,
+                        node.task_index,
+                        node.config_resource,
+                    )
+                )
         return plan
 
     def _migrate_parameter_server(self, name: str, cpu=0, memory=0):

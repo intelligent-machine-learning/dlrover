@@ -23,7 +23,7 @@ from dlrover.python.master.node.training_node import (
     TrainingNodeManager,
 )
 from dlrover.python.master.resource.job import JobResourceConfig
-from dlrover.python.master.resource.optimizer import ResourcePlan
+from dlrover.python.master.scaler.base_scaler import ScalePlan, LaunchNode
 
 
 class ChiefManager(TrainingNodeManager):
@@ -120,17 +120,6 @@ class WorkerManager(TrainingNodeManager):
         worker = job_resource.get_node_group_resource(NodeType.WORKER)
         self._task_id_iter = itertools.count(worker.count)
 
-    def relaunch_node(self, node: Node):
-        plan = ResourcePlan()
-        with self._lock:
-            new_id = next(self._node_id_iter)
-            relaunch_node = node.get_relaunch_node_info(new_id)
-            self._nodes[new_id] = relaunch_node
-
-        logger.info("Relaunch worker %s from %s", new_id, node.id)
-        plan.node_resources[node.name] = relaunch_node.config_resource
-        return plan
-
     def adjust_worker(self, num, cpu, mem):
         logger.info(
             "Adjust worker resource to {}, {}, {}".format(num, cpu, mem)
@@ -164,19 +153,10 @@ class WorkerManager(TrainingNodeManager):
                 config_resource=copy.deepcopy(worker_resource),
                 service_addr=service_addr,
             )
-        plan = ResourcePlan()
-        plan.node_group_resources[NodeType.WORKER] = NodeGroupResource(
-            worker_resource.count + up_num,
-            NodeResource(
-                worker_resource.node_resource.cpu,
-                worker_resource.node_resource.memory,
-            ),
-        )
-        return plan
 
     def _scale_down_workers(self, down_num, running_workers: List[Node]):
         """Remove down_num running workers"""
-        plan = ResourcePlan()
+        plan = ScalePlan()
         for worker in reversed(running_workers):
             if down_num <= 0:
                 break
@@ -184,12 +164,12 @@ class WorkerManager(TrainingNodeManager):
                 worker.relaunchable = False
                 worker.is_released = True
                 down_num -= 1
-            plan.removed_nodes.append(worker.name)
+            plan.remove_nodes.append(worker.name)
         return plan
 
     def delete_exited_workers(self):
         """Delete failed, succeed, finished workers."""
-        plan = ResourcePlan()
+        plan = ScalePlan()
         with self._lock:
             for worker in self._nodes.values():
                 if (
@@ -202,11 +182,11 @@ class WorkerManager(TrainingNodeManager):
                     and not worker.is_released
                 ):
                     worker.is_released = True
-                    plan.removed_nodes.append(worker.name)
+                    plan.remove_nodes.append(worker.name)
         return plan
 
     def delete_running_workers(self):
-        plan = ResourcePlan()
+        plan = ScalePlan()
         for worker in self._nodes.values():
             if not worker.critical and worker.status in [
                 NodeStatus.RUNNING,
@@ -219,7 +199,7 @@ class WorkerManager(TrainingNodeManager):
                     worker.name,
                 )
                 worker.is_released = True
-                plan.removed_nodes.append(worker.name)
+                plan.remove_nodes.append(worker.name)
         return plan
 
     def remove_noncritical_worker(self, worker_id):
