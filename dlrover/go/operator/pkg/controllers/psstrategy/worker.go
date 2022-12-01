@@ -18,8 +18,8 @@ import (
 	"sort"
 	"strconv"
 
-	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/api/v1alpha1"
-	common "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/pkg/common"
+	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
+	common "github.com/intelligent-machine-learning/easydl/operator/pkg/common"
 	logger "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"

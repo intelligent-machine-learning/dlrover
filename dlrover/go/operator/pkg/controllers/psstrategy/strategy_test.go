@@ -14,8 +14,8 @@
 package psstrategy
 
 import (
-	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/api/v1alpha1"
-	commonv1 "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/pkg/common/api/v1"
+	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
+	commonv1 "github.com/intelligent-machine-learning/easydl/operator/pkg/common/api/v1"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime_client "sigs.k8s.io/controller-runtime/pkg/client"

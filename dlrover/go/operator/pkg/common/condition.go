@@ -14,8 +14,8 @@
 package common
 
 import (
-	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/api/v1alpha1"
-	apiv1 "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/pkg/common/api/v1"
+	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
+	apiv1 "github.com/intelligent-machine-learning/easydl/operator/pkg/common/api/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
