@@ -15,9 +15,9 @@ package psstrategy
 
 import (
 	"encoding/json"
-	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
-	common "github.com/intelligent-machine-learning/easydl/operator/pkg/common"
-	commonv1 "github.com/intelligent-machine-learning/easydl/operator/pkg/common/api/v1"
+	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/api/v1alpha1"
+	common "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/pkg/common"
+	commonv1 "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/pkg/common/api/v1"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	"testing"
