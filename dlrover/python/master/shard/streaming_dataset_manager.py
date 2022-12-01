@@ -22,7 +22,6 @@ from dlrover.python.master.shard.base_dataset_manager import (
     Task,
 )
 from dlrover.python.master.shard.dataset_splitter import (
-    DatasetSplitter,
     Shard,
     StreamingDatasetSplitter,
 )
@@ -44,7 +43,7 @@ class StreamingDatasetManager(DatasetManger):
         self,
         task_type,
         batch_size,
-        dataset_splitter: DatasetSplitter,
+        dataset_splitter: StreamingDatasetSplitter,
     ):
         super(StreamingDatasetManager, self).__init__(
             task_type, batch_size, dataset_splitter

@@ -385,9 +385,6 @@ class StreamingDatasetSplitter(DatasetSplitter):
         self._shards = []
         self.epoch = 0
 
-    def update_partition_offsets(self, partition_offset):
-        self._partition_offset = partition_offset
-
     def epoch_finished(self):
         finished = False
         if self._dataset_size == 0:
@@ -396,9 +393,6 @@ class StreamingDatasetSplitter(DatasetSplitter):
 
     def get_epoch(self):
         return 1
-
-    def get_fetch_data_size(self):
-        return self._fetch_data_size
 
     def to_checkpoint(self):
         partition_offset = self._partition_offset.to_dict()
