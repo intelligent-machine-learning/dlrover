@@ -27,6 +27,7 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log_utils import default_logger as logger
+from dlrover.python.common.node import Node, NodeResource
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.event_callback import (
     ClusterContext,
@@ -47,16 +48,15 @@ from dlrover.python.master.node.worker import (
     WorkerManager,
 )
 from dlrover.python.master.resource.job import (
-    JobResourceConfig,
+    JobResource,
     JobResourceOptimizer,
 )
 from dlrover.python.master.resource.optimizer import ResourcePlan
-from dlrover.python.master.scaler.factory import new_job_scaler
 from dlrover.python.master.scaler.base_scaler import ScalePlan
+from dlrover.python.master.scaler.factory import new_job_scaler
 from dlrover.python.master.watcher.base_watcher import NodeEvent
 from dlrover.python.master.watcher.factory import new_node_watcher
 from dlrover.python.scheduler.factory import new_elastic_job
-from dlrover.python.common.node import Node, NodeResource, NodeGroupResource
 
 _MAX_POD_RELAUNCH_COUNT = 5
 _dlrover_context = Context.instance()
@@ -65,7 +65,7 @@ _dlrover_context = Context.instance()
 class NodeManager(object):
     def __init__(
         self,
-        job_resource: JobResourceConfig,
+        job_resource: JobResource,
         job_name,
         namespace,
         relaunch_on_worker_failure=0,
@@ -75,7 +75,7 @@ class NodeManager(object):
         ps_relaunch_max_num=1,
         use_ddp=False,
         speed_monitor=None,
-        engine="k8s",
+        engine=EngineType.ELASTICJOB,
         resource_optimizer="local",
     ):
         self._job_resource = job_resource
@@ -100,16 +100,15 @@ class NodeManager(object):
         self._lock = threading.Lock()
         self._job_nodes: Dict[str, Dict[int, Node]] = {}
         self._job_uuid = None
-        self._ps_manager = None
 
         self._elastic_job = new_elastic_job(engine, job_name, namespace)
         self._node_watcher = new_node_watcher(engine, job_name, namespace)
         self._scaler = new_job_scaler(
-            EngineType.KUBERNETES, job_name, namespace
+            EngineType.ELASTICJOB, job_name, namespace
         )
         self._job_optimizer = JobResourceOptimizer(
-            job_resource[NodeType.WORKER],
-            job_resource[NodeType.PS],
+            job_resource.node_group_resources[NodeType.WORKER],
+            job_resource.node_group_resources[NodeType.PS],
             resource_optimizer,
         )
         self._init_training_node_manager()
@@ -418,7 +417,7 @@ class NodeManager(object):
         nodes = self._chief_manager.get_running_nodes()
         nodes.extend(self._worker_manager.get_running_nodes())
         nodes.extend(self._evaluator_manager.get_running_nodes())
-        nodes.extend(self.get_cur_cluster_ps())
+        nodes.extend(self._ps_manager.get_training_ps_cluster())
         return nodes
 
     def stop(self):
@@ -447,7 +446,7 @@ class NodeManager(object):
 
     def remove_training_nodes(self):
         """Remove all PS and workers"""
-        plan = ResourcePlan()
+        plan = ScalePlan()
         training_nodes = list(
             self._job_nodes[NodeType.WORKER].values()
         ) + list(self._job_nodes[NodeType.PS].values())
@@ -461,7 +460,8 @@ class NodeManager(object):
                 node.is_released = True
                 node.status = NodeStatus.DELETED
                 logger.info("Remove node %s", node.name)
-                plan.removed_nodes.append(node.name)
+                plan.remove_nodes.append(node.name)
+        self._scaler.scale(plan)
 
     def start_auto_scale(self):
         """Start to auto-scale nodes to improve the training throughput."""
@@ -511,10 +511,9 @@ class NodeManager(object):
         The plan may adjust the number of PS and workers or
         adjust the cpu and memory of nodes.
         """
-        if plan.empty():
-            return
-
         scale_plan = ScalePlan()
+        if plan.empty():
+            return scale_plan
         for node_type, group in plan.node_group_resources.items():
             if group.count > 0:
                 self._job_resource.update_node_group_resource(
@@ -527,10 +526,36 @@ class NodeManager(object):
                     self._ps_manager.adjust_ps(group)
                 elif node_type == NodeType.WORKER:
                     self._speed_monitor.set_target_worker_num(group.count)
-                    plan = self._worker_manager.adjust_worker(group)
-                    scale_plan.merge(plan)
-        self._set_job_resource_in_plan(plan)
+                    self._worker_manager.adjust_worker(group)
+
+        self._set_job_resource_in_plan(scale_plan)
+        if len(plan.node_resources) > 0:
+            print(plan.node_resources)
+            migration_plan = self._migrate_nodes(plan.node_resources)
+            scale_plan.merge(migration_plan)
         self._scaler.scale(scale_plan)
+        return scale_plan
+
+    def _migrate_nodes(self, node_resources):
+        workers: Dict[str, NodeResource] = {}
+        ps: Dict[str, NodeResource] = {}
+        for name, resource in node_resources.items():
+            type = name.split("-")[-2]
+            if type == NodeType.WORKER:
+                workers[name] = resource
+            elif type == NodeType.PS:
+                ps[name] = resource
+
+        scale_plan = ScalePlan()
+        if len(ps) > 0:
+            plan = self._ps_manager.migrate_parameter_servers(ps)
+            scale_plan.merge(plan)
+            self._speed_monitor.reset_running_speed_monitor()
+
+        if len(workers) > 0:
+            plan = self._worker_manager.migrate_workers(workers)
+            scale_plan.merge(plan)
+        return scale_plan
 
     def _set_job_resource_in_plan(self, plan: ScalePlan):
         for type in self._job_resource.get_node_types():
@@ -549,7 +574,7 @@ def create_node_manager(args, speed_monitor) -> NodeManager:
     ):
         args.relaunch_on_worker_failure = 0
 
-    job_resource = JobResourceConfig()
+    job_resource = JobResource()
     job_resource.add_node_group_resource(
         NodeType.WORKER,
         args.num_workers,

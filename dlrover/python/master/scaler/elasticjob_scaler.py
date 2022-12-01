@@ -14,9 +14,8 @@
 from abc import ABCMeta, abstractmethod
 from typing import Dict
 
-from dlrover.python.master.resource.optimizer import ResourcePlan
-from dlrover.python.master.scaler.base_scaler import Scaler
-from dlrover.python.scheduler.kubernetes import k8sClient
+from dlrover.python.master.scaler.base_scaler import ScalePlan, Scaler
+from dlrover.python.scheduler.kubernetes import get_pod_name, k8sClient
 
 SCALER_GROUP = "elastic.iml.github.io"
 SCALER_VERION = "v1alpha1"
@@ -113,11 +112,12 @@ class ScalerKind(BaseScalerSpec):
 class ElasticJobScaler(Scaler):
     """ElasticJobScaler creates a elastic.iml.github.io/v1alpha1/Scaler
     CRD to notify ElasticJob controller to scale Pods of a job."""
+
     def __init__(self, job_name, namespace):
         super(ElasticJobScaler, self).__init__(job_name)
         self._client = k8sClient(namespace, job_name)
 
-    def scale(self, plan: ResourcePlan):
+    def scale(self, plan: ScalePlan):
         scaler_crd = self._generate_scaler_crd_by_plan(plan)
         self._client.create_custom_resource(
             group=SCALER_GROUP,
@@ -126,7 +126,7 @@ class ElasticJobScaler(Scaler):
             body=scaler_crd.to_dict(),
         )
 
-    def _generate_scaler_crd_by_plan(self, plan: ResourcePlan) -> ScalerKind:
+    def _generate_scaler_crd_by_plan(self, plan: ScalePlan) -> ScalerKind:
         api_version = SCALER_GROUP + "/" + SCALER_VERION
         scaler_crd = ScalerKind(
             api_version=api_version,
@@ -147,12 +147,13 @@ class ElasticJobScaler(Scaler):
             )
             scaler_crd.spec.replica_resource_specs[name] = replica_spec
 
-        for name, node_resource in plan.node_resources.items():
+        for node in plan.launch_nodes:
             resource_spec = ScalerResourceSpec(
-                cpu=node_resource.cpu,
-                memory=node_resource.memory,
-                gpu_type=node_resource.gpu_type,
-                gpu_num=node_resource.gpu_num,
+                cpu=node.config_resource.cpu,
+                memory=node.config_resource.memory,
+                gpu_type=node.config_resource.gpu_type,
+                gpu_num=node.config_resource.gpu_num,
             )
+            name = get_pod_name(self._job_name, node.type, node.id)
             scaler_crd.spec.node_resource_specs[name] = resource_spec
         return scaler_crd

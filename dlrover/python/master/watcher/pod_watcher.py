@@ -31,7 +31,7 @@ def _convert_memory_to_mb(memory: str):
     if unit == "Gi":
         value = value * 1024
     elif unit == "Ki":
-        value = value / 1024
+        value = int(value / 1024)
     return value
 
 
@@ -167,4 +167,4 @@ class PodWatcher(NodeWatcher):
             )
             node.set_exit_reason(_get_pod_exit_reason(pod))
             nodes.append(node)
-        return nodes 
+        return nodes

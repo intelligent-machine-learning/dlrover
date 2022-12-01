@@ -16,7 +16,7 @@ from dlrover.python.scheduler.kubernetes import K8sElasticJob
 
 
 def new_elastic_job(engine, job_name, namespace):
-    if engine == EngineType.KUBERNETES:
+    if engine == EngineType.ELASTICJOB:
         return K8sElasticJob(job_name, namespace)
     else:
         raise ValueError("Not support engine %s", engine)

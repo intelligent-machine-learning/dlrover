@@ -12,17 +12,9 @@
 # limitations under the License.
 
 from abc import ABCMeta, abstractmethod
+from typing import Dict, List
 
-from typing import List, Dict
-from dlrover.python.common.node import NodeGroupResource, NodeResource
-
-
-class LaunchNode(object):
-    def __init__(self, type, node_id, task_id, resource: NodeResource):
-        self.type = type
-        self.node_id = node_id
-        self.task_id = task_id
-        self.resource = resource
+from dlrover.python.common.node import Node, NodeGroupResource
 
 
 class ScalePlan(object):
@@ -36,7 +28,7 @@ class ScalePlan(object):
 
     def __init__(self):
         self.node_group_resources: Dict[str, NodeGroupResource] = {}
-        self.launch_nodes: List[LaunchNode] = {}
+        self.launch_nodes: List[Node] = []
         self.remove_nodes: List[str] = []
         self.ps_addrs: List[str] = []
 

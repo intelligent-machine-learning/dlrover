@@ -27,7 +27,7 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log_utils import default_logger as logger
-from dlrover.python.master.scaler.base_scaler import ScalePlan, LaunchNode
+from dlrover.python.master.scaler.base_scaler import ScalePlan
 from dlrover.python.master.watcher.base_watcher import Node
 
 _dlrover_context = Context.instance()
@@ -157,11 +157,11 @@ class TrainingNodeManager(object):
             self._nodes[new_id] = relaunch_node
         logger.info("Relaunch node %s to %s", node.name, new_id)
         plan.launch_nodes.append(
-            LaunchNode(
+            Node(
                 node.type,
                 new_id,
-                node.task_index,
                 relaunch_node.config_resource,
+                task_index=node.task_index,
             )
         )
         plan.remove_nodes.append(node.name)

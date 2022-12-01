@@ -13,7 +13,8 @@
 
 
 class EngineType(object):
-    KUBERNETES = "k8s"
+    ELASTICJOB = "elasticjob"
+    PY_ELASTICJOB = "py_elastic_job"
 
 
 class UserEnv(object):
@@ -108,6 +109,11 @@ class DefaultNodeResource(object):
     WORKER_NUM = 5
     WORKER_CPU = 16
     WORKER_MEMORY = 16384  # 16GB
+
+
+class ResourceOptimizerName(object):
+    BRAIN = "brain"
+    LOCAL = "local"
 
 
 class JobOptStage(object):

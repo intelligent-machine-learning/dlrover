@@ -287,8 +287,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
 
     def _collect_runtime_stats(self):
         if self._job_metric_collector:
-            nodes = self._node_manager.get_running_workers()
-            nodes.extend(self._node_manager.get_cur_cluster_ps())
+            nodes = self._node_manager.get_running_nodes()
             self._job_metric_collector.collect_runtime_stats(
                 self._speed_monitor, nodes
             )

@@ -22,15 +22,15 @@ from dlrover.python.master.node.training_node import (
     ALIVE_STATUS,
     TrainingNodeManager,
 )
-from dlrover.python.master.resource.job import JobResourceConfig
-from dlrover.python.master.scaler.base_scaler import ScalePlan, LaunchNode
+from dlrover.python.master.resource.job import JobResource
+from dlrover.python.master.scaler.base_scaler import ScalePlan
 
 
 class ChiefManager(TrainingNodeManager):
     def __init__(
         self,
         chief_nodes: Dict[int, Node],
-        job_resource: JobResourceConfig,
+        job_resource: JobResource,
         max_relaunch_num,
         new_service_fn,
         new_node_name_fn,
@@ -63,7 +63,7 @@ class EvaluatorManager(TrainingNodeManager):
     def __init__(
         self,
         evaluator_nodes: Dict[int, Node],
-        job_resource: JobResourceConfig,
+        job_resource: JobResource,
         max_relaunch_num,
         new_service_fn,
         new_node_name_fn,
@@ -96,7 +96,7 @@ class WorkerManager(TrainingNodeManager):
     def __init__(
         self,
         worker_nodes: Dict[int, Node],
-        job_resource: JobResourceConfig,
+        job_resource: JobResource,
         max_relaunch_num,
         new_service_fn,
         new_node_name_fn,
@@ -120,9 +120,14 @@ class WorkerManager(TrainingNodeManager):
         worker = job_resource.get_node_group_resource(NodeType.WORKER)
         self._task_id_iter = itertools.count(worker.count)
 
-    def adjust_worker(self, num, cpu, mem):
+    def adjust_worker(self, worker_resource: NodeGroupResource):
+        num = worker_resource.count
         logger.info(
-            "Adjust worker resource to {}, {}, {}".format(num, cpu, mem)
+            "Adjust worker resource to {}, {}, {}".format(
+                num,
+                worker_resource.node_resource.cpu,
+                worker_resource.node_resource.memory,
+            )
         )
         alive_workers = []
         for worker in self._nodes.values():
@@ -131,9 +136,9 @@ class WorkerManager(TrainingNodeManager):
         alive_num = len(alive_workers)
         with self._lock:
             if num > alive_num:
-                return self._scale_up_workers(num - alive_num)
+                self._scale_up_workers(num - alive_num)
             elif num < alive_num:
-                return self._scale_down_workers(alive_num - num, alive_workers)
+                self._scale_down_workers(alive_num - num, alive_workers)
 
     def _scale_up_workers(self, up_num):
         """Launch up_num workers."""
@@ -156,7 +161,6 @@ class WorkerManager(TrainingNodeManager):
 
     def _scale_down_workers(self, down_num, running_workers: List[Node]):
         """Remove down_num running workers"""
-        plan = ScalePlan()
         for worker in reversed(running_workers):
             if down_num <= 0:
                 break
@@ -164,8 +168,6 @@ class WorkerManager(TrainingNodeManager):
                 worker.relaunchable = False
                 worker.is_released = True
                 down_num -= 1
-            plan.remove_nodes.append(worker.name)
-        return plan
 
     def delete_exited_workers(self):
         """Delete failed, succeed, finished workers."""
@@ -207,3 +209,21 @@ class WorkerManager(TrainingNodeManager):
             logger.info("Skip the critical worker %s", worker_id)
         else:
             return self.remove_node(worker_id)
+
+    def migrate_workers(self, workers: Dict[str, NodeResource]):
+        """Migrate workers with the new resource"""
+        plan = ScalePlan()
+        for name, resource in workers.items():
+            old_node_id = int(name.split("-")[-1])
+            node_id = next(self._node_id_iter)
+            task_id = self._nodes[old_node_id].task_index
+            self._nodes[node_id] = Node(
+                NodeType.WORKER,
+                node_id,
+                config_resource=resource,
+                status=NodeStatus.INITIAL,
+                task_index=task_id,
+            )
+            plan.launch_nodes.append(self._nodes[node_id])
+            plan.remove_nodes.append(name)
+        return plan

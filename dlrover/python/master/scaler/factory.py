@@ -13,8 +13,11 @@
 
 from dlrover.python.common.constants import EngineType
 from dlrover.python.master.scaler.elasticjob_scaler import ElasticJobScaler
+from dlrover.python.master.scaler.pod_scaler import PodScaler
 
 
 def new_job_scaler(engine, job_name, namespace):
-    if engine == EngineType.KUBERNETES:
+    if engine == EngineType.ELASTICJOB:
         return ElasticJobScaler(job_name, namespace)
+    elif engine == EngineType.PY_ELASTICJOB:
+        return PodScaler(job_name, namespace)

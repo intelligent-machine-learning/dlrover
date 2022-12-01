@@ -30,13 +30,16 @@ from dlrover.python.master.watcher.pod_watcher import (
     _convert_pod_event_to_node_event,
     _get_pod_exit_reason,
 )
-from dlrover.python.tests.test_utils import create_pod, mock_list_job_pods
+from dlrover.python.tests.test_utils import create_pod, mock_k8s_client
 
 
 class PodWatcherTest(unittest.TestCase):
+    def setUp(self) -> None:
+        mock_k8s_client()
+
     def test_list(self):
+        mock_k8s_client()
         pod_watcher = PodWatcher("test", "")
-        pod_watcher._list_job_pods = mock_list_job_pods
         nodes: List[Node] = pod_watcher.list()
         self.assertEqual(len(nodes), 5)
         node: Node = nodes[0]
@@ -68,6 +71,8 @@ class PodWatcherTest(unittest.TestCase):
         self.assertEqual(node_event.event_type, event_type)
         self.assertEqual(node_event.node.id, 0)
         self.assertEqual(node_event.node.type, NodeType.WORKER)
+        self.assertEqual(node_event.node.config_resource.cpu, 1)
+        self.assertEqual(node_event.node.config_resource.memory, 10240)
 
     def test_get_pod_exit_reason(self):
         labels = {

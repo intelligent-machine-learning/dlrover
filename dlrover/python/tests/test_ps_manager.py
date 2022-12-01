@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 from dlrover.python.common.constants import EngineType, NodeStatus, NodeType
 from dlrover.python.common.node import NodeResource
 from dlrover.python.master.node.ps import ParameterServerManager
-from dlrover.python.master.resource.job import JobResourceConfig
+from dlrover.python.master.resource.job import JobResource
 from dlrover.python.scheduler.factory import new_elastic_job
 from dlrover.python.tests.test_utils import mock_k8s_client
 
@@ -25,12 +25,12 @@ from dlrover.python.tests.test_utils import mock_k8s_client
 class PSManagerTest(unittest.TestCase):
     def setUp(self) -> None:
         mock_k8s_client()
-        self._job_resource = JobResourceConfig()
+        self._job_resource = JobResource()
         self._job_resource.add_node_group_resource(
             NodeType.PS, 2, "cpu=16,memory=2048Mi", ""
         )
         self._elastic_job = new_elastic_job(
-            EngineType.KUBERNETES, "test", "default"
+            EngineType.ELASTICJOB, "test", "default"
         )
         self._job_nodes = self._job_resource.init_job_node_meta(
             1,
@@ -64,16 +64,12 @@ class PSManagerTest(unittest.TestCase):
             node.create_time = datetime.now() + timedelta(days=-1)
 
         plan = self._ps_manager.cut_pending_node_cpu()
-        self.assertEqual(len(plan.node_resources), 2)
-        self.assertEqual(plan.node_resources["test-edljob-ps-0"].cpu, 8)
-        self.assertEqual(plan.node_resources["test-edljob-ps-0"].memory, 2048)
+        self.assertEqual(len(plan.launch_nodes), 2)
+        self.assertEqual(plan.launch_nodes[0].config_resource.cpu, 8)
+        self.assertEqual(plan.launch_nodes[0].config_resource.memory, 2048)
 
     def test_scale_up_ps(self):
-        plan = self._ps_manager.scale_up_ps(2)
-        self.assertEqual(plan.node_group_resources[NodeType.PS].count, 4)
-        self.assertEqual(
-            plan.node_group_resources[NodeType.PS].node_resource.cpu, 16
-        )
+        self._ps_manager._scale_up_ps(2)
         training_ps = self._ps_manager.get_next_training_ps_cluster()
         self.assertEqual(len(training_ps), 2)
         for node in self._ps_manager._nodes.values():
@@ -96,12 +92,12 @@ class PSManagerTest(unittest.TestCase):
         )
         for node in ps_manager._nodes.values():
             node.status = NodeStatus.RUNNING
-        ps_manager.scale_down_ps(1)
+        ps_manager._scale_down_ps(1)
         self.assertEqual(len(ps_manager._pre_dropped_ps), 1)
         self.assertEqual(ps_manager._pre_dropped_ps[0].id, 1)
 
         plan = ps_manager.process_after_ps_cluster_ready()
-        self.assertListEqual(plan.removed_nodes, ["test-edljob-ps-1"])
+        self.assertListEqual(plan.remove_nodes, ["test-edljob-ps-1"])
 
     def test_delete_running_ps(self):
         job_nodes = self._job_resource.init_job_node_meta(
@@ -120,7 +116,7 @@ class PSManagerTest(unittest.TestCase):
             node.status = NodeStatus.RUNNING
 
         plan = ps_manager.delete_running_ps()
-        self.assertEqual(len(plan.removed_nodes), 2)
+        self.assertEqual(len(plan.remove_nodes), 2)
         self.assertTrue(job_nodes[NodeType.PS][0].is_released)
         self.assertTrue(job_nodes[NodeType.PS][1].is_released)
 
@@ -142,7 +138,7 @@ class PSManagerTest(unittest.TestCase):
         node_name = job_nodes[NodeType.PS][0].name
         nodes = {node_name: NodeResource(20, 2048)}
         plan = ps_manager.migrate_parameter_servers(nodes)
-        self.assertEqual(len(plan.node_resources), 1)
+        self.assertEqual(len(plan.launch_nodes), 1)
         self.assertEqual(ps_manager._migrated_ps_nodes[0].id, 2)
         self.assertTrue(ps_manager.exist_migrated_ps_nodes())
 

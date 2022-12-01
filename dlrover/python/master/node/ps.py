@@ -25,15 +25,15 @@ from dlrover.python.common.constants import (
 from dlrover.python.common.log_utils import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
 from dlrover.python.master.node.training_node import TrainingNodeManager
-from dlrover.python.master.resource.job import JobResourceConfig
-from dlrover.python.master.scaler.base_scaler import ScalePlan, LaunchNode
+from dlrover.python.master.resource.job import JobResource
+from dlrover.python.master.scaler.base_scaler import ScalePlan
 
 
 class ParameterServerManager(TrainingNodeManager):
     def __init__(
         self,
         ps_nodes: Dict[int, Node],
-        job_resource: JobResourceConfig,
+        job_resource: JobResource,
         max_relaunch_num,
         new_service_fn,
         new_node_name_fn,
@@ -80,11 +80,11 @@ class ParameterServerManager(TrainingNodeManager):
                 self._training_ps_cluster[i] = self._nodes[new_id]
         logger.info("Relaunch node %s to %s", node.name, new_id)
         plan.launch_nodes.append(
-            LaunchNode(
+            Node(
                 node.type,
                 new_id,
-                node.task_index,
-                self._nodes[new_id].config_resource,
+                node.config_resource,
+                task_index=node.task_index,
             )
         )
         return plan
@@ -218,6 +218,8 @@ class ParameterServerManager(TrainingNodeManager):
 
     def get_training_ps_cluster(self):
         """Get the ps nodes who are training."""
+        if not self._training_ps_cluster:
+            self._init_training_ps_cluster()
         training_ps = []
         for ps in self._training_ps_cluster:
             if not ps.is_released and ps.status != NodeStatus.FAILED:
@@ -269,11 +271,11 @@ class ParameterServerManager(TrainingNodeManager):
             )
             if node:
                 plan.launch_nodes.append(
-                    LaunchNode(
+                    Node(
                         node.type,
                         node.id,
-                        node.task_index,
                         node.config_resource,
+                        task_index=node.task_index,
                     )
                 )
         return plan
