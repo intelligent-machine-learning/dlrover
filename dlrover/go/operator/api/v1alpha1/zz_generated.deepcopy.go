@@ -22,7 +22,7 @@ limitations under the License.
 package v1alpha1
 
 import (
-	"github.com/intelligent-machine-learning/easydl/dlrover/go/operator/pkg/common/api/v1"
+	"github.com/intelligent-machine-learning/easydl/operator/pkg/common/api/v1"
 	corev1 "k8s.io/api/core/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )

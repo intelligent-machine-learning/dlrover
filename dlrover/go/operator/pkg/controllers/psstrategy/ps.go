@@ -15,8 +15,8 @@ package psstrategy
 
 import (
 	"context"
-	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/api/v1alpha1"
-	common "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/pkg/common"
+	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/operator/api/v1alpha1"
+	common "github.com/intelligent-machine-learning/easydl/operator/pkg/common"
 	logger "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	runtime_client "sigs.k8s.io/controller-runtime/pkg/client"
