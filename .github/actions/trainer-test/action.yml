@@ -7,7 +7,7 @@ runs:
   args:
     - "/bin/bash"
     - "-c"
-    - "pip install kubernetes grpcio-tools \
+    - "pip install kubernetes grpcio-tools psutil \
 && python -m grpc_tools.protoc -I. \
 dlrover/proto/*.proto --python_out=. --grpc_python_out=. \
 && python -m pytest dlrover/python/tests"
