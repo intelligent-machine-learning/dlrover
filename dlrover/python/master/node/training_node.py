@@ -26,7 +26,7 @@ from dlrover.python.common.constants import (
     NodeType,
 )
 from dlrover.python.common.global_context import Context
-from dlrover.python.common.log_utils import default_logger as logger
+from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.scaler.base_scaler import ScalePlan
 from dlrover.python.master.watcher.base_watcher import Node
 

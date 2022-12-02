@@ -22,10 +22,11 @@ from kubernetes.client import V1EnvVar, V1EnvVarSource, V1ObjectFieldSelector
 from dlrover.python.common.constants import (
     DistributionStrategy,
     ElasticJobLabel,
+    NodeEnv,
     NodeStatus,
     NodeType,
 )
-from dlrover.python.common.log_utils import default_logger as logger
+from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource
 from dlrover.python.master.scaler.base_scaler import ScalePlan, Scaler
 from dlrover.python.scheduler.kubernetes import (
@@ -38,15 +39,6 @@ ELASTICDL_APP_NAME = "elastic"
 ELASTICDL_JOB_KEY = "elastic-job-name"
 ELASTICDL_REPLICA_TYPE_KEY = "elastic-replica-type"
 ELASTICDL_REPLICA_INDEX_KEY = "elastic-replica-index"
-
-
-class PodEnv(object):
-    RELAUNCHED_POD = "RELAUNCHED_POD"
-    ELASTICDL_ENABLED = "ELASTICDL_ENABLED"
-    MASTER_ADDR = "MASTER_ADDR"
-    WORKER_TYPE = "WORKER_TYPE"
-    WORKER_ID = "WORKER_ID"
-    WORKER_NUM = "WORKER_NUM"
 
 
 def append_pod_ip_to_env(env):
@@ -274,7 +266,7 @@ class PodScaler(Scaler):
         env: List[V1EnvVar] = []
         env = append_pod_ip_to_env(env)
 
-        env.append(V1EnvVar(name=PodEnv.WORKER_TYPE, value=node.type))
+        env.append(V1EnvVar(name=NodeEnv.WORKER_TYPE, value=node.type))
 
         if (
             self._distribution_strategy

@@ -15,7 +15,7 @@ import os
 import time
 
 from dlrover.python.common.constants import DistributionStrategy, JobExitReason
-from dlrover.python.common.log_utils import default_logger as logger
+from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_training.elastic_ps import ElasticPsService
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.event_callback import (

@@ -16,8 +16,8 @@ import os
 from kubernetes import client, config
 
 from dlrover.python.common.constants import NodeType
-from dlrover.python.common.log_utils import default_logger as logger
-from dlrover.python.common.singleton_utils import singleton
+from dlrover.python.common.log import default_logger as logger
+from dlrover.python.common.singleton import singleton
 from dlrover.python.scheduler.job import ElasticJob
 
 NODE_SERVICE_PORTS = {

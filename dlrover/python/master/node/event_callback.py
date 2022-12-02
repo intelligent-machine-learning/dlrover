@@ -19,7 +19,7 @@ from dlrover.python.common.constants import (
     NodeExitReason,
     NodeType,
 )
-from dlrover.python.common.log_utils import default_logger as logger
+from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.watcher.base_watcher import Node
 
 

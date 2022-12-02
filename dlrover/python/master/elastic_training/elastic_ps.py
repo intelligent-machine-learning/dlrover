@@ -12,7 +12,7 @@
 # limitations under the License.
 
 from dlrover.python.common.constants import PSClusterVersionType
-from dlrover.python.common.log_utils import default_logger as logger
+from dlrover.python.common.log import default_logger as logger
 
 
 class ElasticPsService(object):
