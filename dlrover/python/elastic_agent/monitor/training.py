@@ -15,10 +15,10 @@ import json
 import os
 import time
 
-from dlrover.python.elastic_agent.master_client import GlobalMasterClient
-from dlrover.python.elastic_agent.monitor.resource import ResourceMonitor
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import singleton
+from dlrover.python.elastic_agent.master_client import GlobalMasterClient
+from dlrover.python.elastic_agent.monitor.resource import ResourceMonitor
 
 
 def is_tf_chief():

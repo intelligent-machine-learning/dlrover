@@ -17,7 +17,9 @@ from collections import OrderedDict
 
 from dlrover.proto import elastic_training_pb2
 from dlrover.python.elastic_agent.master_client import GlobalMasterClient
-from dlrover.python.elastic_agent.monitor.training import TrainingProcessReporter
+from dlrover.python.elastic_agent.monitor.training import (
+    TrainingProcessReporter,
+)
 
 training_reporter = TrainingProcessReporter()
 

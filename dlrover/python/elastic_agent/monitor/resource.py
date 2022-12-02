@@ -17,9 +17,9 @@ import time
 
 import psutil
 
-from dlrover.python.elastic_agent.master_client import GlobalMasterClient
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import singleton
+from dlrover.python.elastic_agent.master_client import GlobalMasterClient
 
 
 def get_process_cpu_percent():

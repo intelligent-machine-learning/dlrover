@@ -14,12 +14,12 @@
 import json
 import os
 
-from dlrover.python.elastic_agent.master_client import GlobalMasterClient
-from dlrover.python.elastic_agent.monitor.resource import ResourceMonitor
 from dlrover.python.common.constants import (
     PSClusterVersionType,
     TrainingLoopStatus,
 )
+from dlrover.python.elastic_agent.master_client import GlobalMasterClient
+from dlrover.python.elastic_agent.monitor.resource import ResourceMonitor
 
 monitor = ResourceMonitor()
 

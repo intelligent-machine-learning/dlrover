@@ -20,6 +20,7 @@ from tensorflow.python.training.session_run_hook import (
     SessionRunHook,
 )
 
+from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.master_client import GlobalMasterClient
 from dlrover.python.elastic_agent.monitor.training import (
     TrainingProcessReporter,
@@ -31,7 +32,6 @@ from dlrover.python.elastic_agent.tensorflow.profile_extractor import (
     ProfileExtracter,
     TensorStats,
 )
-from dlrover.python.common.log import default_logger as logger
 
 training_reporter = TrainingProcessReporter()
 
