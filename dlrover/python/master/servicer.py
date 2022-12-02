@@ -23,7 +23,7 @@ from dlrover.proto import elastic_training_pb2, elastic_training_pb2_grpc
 from dlrover.python.common.constants import GRPC, NodeType, TrainingLoopStatus
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.elastic_training.elastic_ps import ElasticPsService
+from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.node_manager import NodeManager
 from dlrover.python.master.shard.task_manager import TaskManager

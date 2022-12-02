@@ -14,7 +14,7 @@
 import os
 
 from dlrover.proto import brain_pb2, brain_pb2_grpc
-from dlrover.python.common.grpc_utils import build_channel
+from dlrover.python.common.grpc import build_channel
 from dlrover.python.common.log import default_logger as logger
 
 DATA_STORE = "data_store_elasticdl"
