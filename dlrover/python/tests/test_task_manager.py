@@ -69,6 +69,7 @@ class TaskMangerTest(unittest.TestCase):
         checkpoint_str = checkpoint.to_json()
 
         checkpoint_dict = json.loads(checkpoint_str)
+        print(checkpoint_dict)
         self.assertDictEqual(
             checkpoint_dict,
             {
@@ -85,6 +86,7 @@ class TaskMangerTest(unittest.TestCase):
                 ],
                 "doing": [[0, 100], [100, 200]],
                 "epoch": 1,
+                "splitter": None,
             },
         )
 
