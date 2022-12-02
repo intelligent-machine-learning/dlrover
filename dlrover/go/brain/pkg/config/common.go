@@ -41,4 +41,15 @@ const (
 	OptimizerConfigMapName = "optimizer.config-map.name"
 	// OptimizerConfigMapKey is the key of optimizer config map
 	OptimizerConfigMapKey = "optimizer.config-map.key"
+
+	// KubeWatcherConfigMapName is the name of kube watcher config map
+	KubeWatcherConfigMapName = "kube-watcher.config-map.name"
+	// KubeWatcherConfigMapKey is the key of kube watcher config map
+	KubeWatcherConfigMapKey = "kube-watcher.config-map.key"
+	// KubeWatcherMetricsAddress is the address of kube watcher metrics
+	KubeWatcherMetricsAddress = "kube-watcher.metrics-address"
+	// KubeWatcherEnableLeaderElect is key of if enable leader select of kube watcher
+	KubeWatcherEnableLeaderElect = "kube-watcher.leader-elect.enable"
+	// KubeWatcherRegisterCreateEventAdmin is the config key of administrator which register create events
+	KubeWatcherRegisterCreateEventAdmin = "kube-watcher.register-create-admin"
 )
