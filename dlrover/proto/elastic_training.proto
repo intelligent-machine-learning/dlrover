@@ -4,8 +4,6 @@ package proto;
 
 import "google/protobuf/empty.proto";
 
-import "dlrover/proto/brain.proto";
-
 enum TaskType {
   NONE = 0;
   TRAINING = 1;

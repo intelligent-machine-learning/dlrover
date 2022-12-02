@@ -8,4 +8,6 @@ runs:
     - "/bin/bash"
     - "-c"
     - "pip install kubernetes grpcio-tools \
+&& python -m grpc_tools.protoc -I. \
+dlrover/proto/*.proto --python_out=. --grpc_python_out=. \
 && python -m pytest dlrover/python/tests"
