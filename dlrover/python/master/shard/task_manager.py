@@ -19,7 +19,7 @@ from collections.abc import Callable
 from typing import Dict, List
 
 from dlrover.proto import elastic_training_pb2
-from dlrover.python.common.log_utils import default_logger as logger
+from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.shard.base_dataset_manager import (
     DatasetManger,

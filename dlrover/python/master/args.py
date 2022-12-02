@@ -15,7 +15,7 @@ import argparse
 from itertools import chain
 
 from dlrover.python.common.constants import DistributionStrategy
-from dlrover.python.common.log_utils import default_logger as logger
+from dlrover.python.common.log import default_logger as logger
 
 
 def add_params(parser):

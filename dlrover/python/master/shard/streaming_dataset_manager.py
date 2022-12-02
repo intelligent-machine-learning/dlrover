@@ -14,7 +14,7 @@
 import math
 import time
 
-from dlrover.python.common.log_utils import default_logger as logger
+from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.shard.base_dataset_manager import (
     DatasetManger,
     DatasetShardCheckpoint,

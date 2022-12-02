@@ -16,7 +16,7 @@ import itertools
 from typing import Dict, List
 
 from dlrover.python.common.constants import NodeStatus, NodeType
-from dlrover.python.common.log_utils import default_logger as logger
+from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
 from dlrover.python.master.node.training_node import (
     ALIVE_STATUS,

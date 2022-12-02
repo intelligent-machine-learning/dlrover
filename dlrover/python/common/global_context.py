@@ -15,7 +15,7 @@ import os
 import threading
 
 from dlrover.python.common.constants import UserEnv
-from dlrover.python.common.log_utils import default_logger as logger
+from dlrover.python.common.log import default_logger as logger
 
 
 # TODO: Get configuration parameters from DLRover Brain

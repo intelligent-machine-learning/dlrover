@@ -17,7 +17,7 @@ import random
 from abc import ABCMeta, abstractmethod
 from typing import List
 
-from dlrover.python.common.log_utils import default_logger as logger
+from dlrover.python.common.log import default_logger as logger
 
 _MAX_SHARD_COUNT = 50000
 

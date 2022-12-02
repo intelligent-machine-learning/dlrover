@@ -153,3 +153,12 @@ class TrainingLoopStatus(object):
     START = 1
     END = 2
     PENDING = 3
+
+
+class NodeEnv(object):
+    RELAUNCHED_POD = "RELAUNCHED_POD"
+    ELASTICDL_ENABLED = "ELASTICDL_ENABLED"
+    MASTER_ADDR = "DLROVER_MASTER_ADDR"
+    WORKER_TYPE = "WORKER_TYPE"
+    WORKER_ID = "WORKER_ID"
+    WORKER_NUM = "WORKER_NUM"
