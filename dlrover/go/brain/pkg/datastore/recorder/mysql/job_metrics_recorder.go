@@ -15,7 +15,6 @@ package mysql
 
 import (
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/dbbase"
-	"time"
 	"xorm.io/xorm"
 )
 
@@ -24,17 +23,14 @@ const TableJobMetrics = "job_metrics"
 
 // JobMetricsCondition is the struct of sql condition for job metrics table
 type JobMetricsCondition struct {
-	JobUUID        string
-	JobName        string
-	CreatedAtRange *dbbase.TimeRange
+	JobUUID string
+	JobName string
 }
 
 // JobMetrics is the struct of job metrics for mysql db
 type JobMetrics struct {
 	JobUUID            string
 	JobName            string
-	CreatedAt          time.Time
-	FinishedAt         time.Time
 	HyperParamsFeature string
 	JobFeature         string
 	DataSetFeature     string
@@ -54,14 +50,6 @@ func (c *JobMetricsCondition) Apply(session *xorm.Session) *xorm.Session {
 	}
 	if c.JobName != "" {
 		session.Where("job_name = ?", c.JobName)
-	}
-	if r := c.CreatedAtRange; r != nil {
-		if !r.From.IsZero() {
-			session.Where("created_at >= ?", r.From)
-		}
-		if !r.To.IsZero() {
-			session.Where("created_at <= ?", r.To)
-		}
 	}
 	return session
 }

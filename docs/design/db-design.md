@@ -21,7 +21,6 @@ create table job(
     create_at timestamp, // job create timestamp
     started_at timestamp, // job start timestamp
     finished_at timestamp, // job finish timestamp
-    exit_reason varchar(255), // the exit reason of the job
     status mediumtext // the status of the job, e.g., error information
 );
 
@@ -29,6 +28,7 @@ create table job_node(
     uid varchar(255), // job node unique id
     name varchar(255), // job node name
     job_uid varchar(255), // the job uid
+    type varchar(255), // the type of the job node, e.g., ps, worker
     create_at timestamp, // job node create timestamp
     started_at timestamp, // job node start timestamp
     finished_at timestamp, // job node finish timestamp

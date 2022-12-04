@@ -24,7 +24,6 @@ import (
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/recorder/mysql"
 	pb "github.com/intelligent-machine-learning/easydl/brain/pkg/proto"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/utils"
-	"time"
 )
 
 const (
@@ -57,9 +56,6 @@ func (store *BaseDataStore) PersistMetrics(condition *datastoreapi.Condition, jo
 	log.Infof("Report job metrics is %s", jobMetrics.JobMeta)
 	if jobMetrics.JobMeta.Name != "" {
 		storeJobMetrics.JobName = jobMetrics.JobMeta.Name
-	}
-	if storeJobMetrics.CreatedAt.IsZero() {
-		storeJobMetrics.CreatedAt = time.Now()
 	}
 
 	switch jobMetrics.MetricsType {
