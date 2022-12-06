@@ -21,6 +21,8 @@ import (
 // Client is the struct of mysql db client
 type Client struct {
 	JobMetricsRecorder JobMetricsRecorderInterface
+	JobRecorder        JobRecorderInterface
+	JobNodeRecorder    JobNodeRecorderInterface
 }
 
 // NewClient returns a new mysql db client
@@ -33,5 +35,7 @@ func NewClient(conf *config.Config) *Client {
 	db := dbbase.NewDatabase(user, pw, engineType, url)
 	return &Client{
 		JobMetricsRecorder: NewJobMetricsDBRecorder(db),
+		JobRecorder:        NewJobDBRecorder(db),
+		JobNodeRecorder:    NewJobNodeDBRecorder(db),
 	}
 }
