@@ -19,7 +19,6 @@ from kubernetes import client
 
 from dlrover.proto import elastic_training_pb2
 from dlrover.python.common.constants import (
-    DistributionStrategy,
     ElasticJobLabel,
     NodeStatus,
     NodeType,

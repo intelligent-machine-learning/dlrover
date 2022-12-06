@@ -26,7 +26,10 @@ class PodScalerTest(unittest.TestCase):
 
     def test_init_pod_template(self):
         scaler = PodScaler("elasticjob-sample", "default")
-        self.assertEqual(scaler._distribution_strategy, "parameter_server")
+        self.assertEqual(
+            scaler._distribution_strategy,
+            DistributionStrategy.PARAMETER_SERVER,
+        )
         worker_template = scaler._replica_template[NodeType.WORKER]
         self.assertEqual(
             worker_template.image, "dlrover/elasticjob:iris_estimator"
