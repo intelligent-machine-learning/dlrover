@@ -117,40 +117,6 @@ def _get_pod(name):
     return pod
 
 
-class MockArgs(object):
-    def __init__(self):
-        self.job_name = "test"
-        self.namespace = "test"
-        self.ps_is_critical = True
-        self.ps_relaunch_max_num = 1
-        self.use_ddp = False
-        self.critical_worker_index = "0:3"
-        self.distribution_strategy = DistributionStrategy.PARAMETER_SERVER
-        self.relaunch_on_worker_failure = 1
-        self.num_workers = 3
-        self.worker_resource_request = "cpu=1,memory=4096Mi"
-        self.worker_pod_priority = ""
-
-        self.num_ps_pods = 3
-        self.ps_resource_request = "cpu=1,memory=4096Mi"
-        self.ps_pod_priority = ""
-
-        self.num_evaluators = 1
-        self.evaluator_resource_request = "cpu=1,memory=4096Mi"
-        self.evaluator_pod_priority = ""
-
-        self.num_tf_master = 3
-        self.tf_master_resource_request = "cpu=1,memory=4096Mi"
-        self.tf_master_pod_priority = ""
-
-        self.need_node_manager = True
-        self.need_task_manager = True
-        self.relaunch_timeout_worker = False
-        self.cluster = "local"
-        self.user = "dlrover"
-        self.port = 2222
-
-
 class MockJobParams(JobParams):
     def __init__(self):
         super(MockJobParams, self).__init__(
