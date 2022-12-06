@@ -58,7 +58,7 @@ func (s *BrainServer) PersistMetrics(ctx context.Context, in *pb.JobMetrics) (*e
 	if err != nil {
 		return nil, err
 	}
-	err = dataStore.PersistMetrics(nil, in, nil)
+	err = dataStore.PersistData(nil, in, nil)
 	if err != nil {
 		return nil, err
 	}

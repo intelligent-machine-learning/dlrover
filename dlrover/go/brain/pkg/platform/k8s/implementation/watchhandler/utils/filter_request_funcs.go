@@ -11,15 +11,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package common
+package utils
 
-const (
-	// TypeGetDataGetJobMetrics is to get job metrics
-	TypeGetDataGetJobMetrics = "GetJobMetrics"
-	// TypeGetDataListJobMetrics is to list job metrics
-	TypeGetDataListJobMetrics = "ListJobMetrics"
-	// TypeUpsertJob is to upsert a job record
-	TypeUpsertJob = "UpsertJob"
-	// TypeUpsertJobNode is to upsert a job node record
-	TypeUpsertJobNode = "UpsertJobNode"
+import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+// ElasticJobFilterFunc filters non elasticDL jobs
+func ElasticJobFilterFunc(object metav1.Object) bool {
+	return true
+}
