@@ -18,7 +18,6 @@ from typing import Dict, List
 
 from dlrover.python.common.constants import (
     DistributionStrategy,
-    EngineType,
     NodeEventType,
     NodeExitReason,
     NodeResourceLimit,
@@ -27,7 +26,7 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.common.node import Node, NodeResource
+from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.event_callback import (
     ClusterContext,
@@ -57,6 +56,7 @@ from dlrover.python.master.scaler.factory import new_job_scaler
 from dlrover.python.master.watcher.base_watcher import NodeEvent
 from dlrover.python.master.watcher.factory import new_node_watcher
 from dlrover.python.scheduler.factory import new_elastic_job
+from dlrover.python.scheduler.job import JobParams
 
 _MAX_POD_RELAUNCH_COUNT = 5
 _dlrover_context = Context.instance()
@@ -65,32 +65,52 @@ _dlrover_context = Context.instance()
 class NodeManager(object):
     def __init__(
         self,
-        job_resource: JobResource,
-        job_name,
-        namespace,
-        relaunch_on_worker_failure=0,
-        ps_is_critical=True,
+        job_params: JobParams,
         critical_worker_index={},
         wait_pending_relaunch=False,
-        ps_relaunch_max_num=1,
-        use_ddp=False,
         speed_monitor=None,
-        engine=EngineType.ELASTICJOB,
-        resource_optimizer="local",
     ):
-        self._job_resource = job_resource
+        self._job_resource = JobResource()
+        node_restart_count: Dict[str, int] = {}
+        for type, node_params in job_params.node_params.items():
+            self._job_resource.node_group_resources[
+                type
+            ] = node_params.group_resource
+            node_restart_count[type] = node_params.restart_count
+
+        for type in [
+            NodeType.PS,
+            NodeType.EVALUATOR,
+            NodeType.CHIEF,
+            NodeType.WORKER,
+        ]:
+            if type not in self._job_resource.node_group_resources:
+                self._job_resource.node_group_resources[
+                    type
+                ] = NodeGroupResource.new_empty()
+        self._ps_is_critical = False
+        if (
+            job_params.distribution_strategy
+            == DistributionStrategy.PARAMETER_SERVER
+        ):
+            self._ps_is_critical = (
+                job_params.node_params[NodeType.PS].critical_nodes == "all"
+            )
+
+        worker_restart_count = node_restart_count.get(NodeType.WORKER, 0)
+        ps_restart_count = node_restart_count.get(NodeType.PS, 0)
+
         self._relaunch_on_worker_failure = min(
-            relaunch_on_worker_failure, _MAX_POD_RELAUNCH_COUNT
+            worker_restart_count, _MAX_POD_RELAUNCH_COUNT
         )
         self._wait_pending_relaunch = wait_pending_relaunch
         self._start_launch_waiting_workers_time = time.time()
         self._stop_launch_worker_for_ps = False
-        self._ps_is_critical = ps_is_critical
         self._critical_worker_index = critical_worker_index
         self._ps_relaunch_max_num = min(
-            ps_relaunch_max_num, _MAX_POD_RELAUNCH_COUNT
+            ps_restart_count, _MAX_POD_RELAUNCH_COUNT
         )
-        self._use_ddp = use_ddp
+        self._use_ddp = job_params.use_ddp
         self._node_event_callbacks: List[NodeEventCallback] = []
         self._chief_worker_started = False
         self._stop_monitor = False
@@ -101,15 +121,19 @@ class NodeManager(object):
         self._job_nodes: Dict[str, Dict[int, Node]] = {}
         self._job_uuid = None
 
-        self._elastic_job = new_elastic_job(engine, job_name, namespace)
-        self._node_watcher = new_node_watcher(engine, job_name, namespace)
+        self._elastic_job = new_elastic_job(
+            job_params.platform, job_params.job_name, job_params.namespace
+        )
+        self._node_watcher = new_node_watcher(
+            job_params.platform, job_params.job_name, job_params.namespace
+        )
         self._scaler = new_job_scaler(
-            EngineType.ELASTICJOB, job_name, namespace
+            job_params.platform, job_params.job_name, job_params.namespace
         )
         self._job_optimizer = JobResourceOptimizer(
-            job_resource.node_group_resources[NodeType.WORKER],
-            job_resource.node_group_resources[NodeType.PS],
-            resource_optimizer,
+            self._job_resource.node_group_resources[NodeType.WORKER],
+            self._job_resource.node_group_resources[NodeType.PS],
+            job_params.scaling_optimizer,
         )
         self._init_training_node_manager()
 
@@ -566,60 +590,23 @@ class NodeManager(object):
         plan.ps_addrs.extend(ps_addrs)
 
 
-def create_node_manager(args, speed_monitor) -> NodeManager:
+def create_node_manager(params: JobParams, speed_monitor) -> NodeManager:
     # relaunch on worker failure for PS or custom strategy
     if (
-        args.distribution_strategy != DistributionStrategy.PARAMETER_SERVER
-        and args.distribution_strategy != DistributionStrategy.CUSTOM
+        params.distribution_strategy != DistributionStrategy.PARAMETER_SERVER
+        and params.distribution_strategy != DistributionStrategy.CUSTOM
     ):
-        args.relaunch_on_worker_failure = 0
+        params.node_params[NodeType.WORKER].restart_count = 0
 
-    job_resource = JobResource()
-    job_resource.add_node_group_resource(
-        NodeType.WORKER,
-        args.num_workers,
-        args.worker_resource_request,
-        args.worker_pod_priority,
-    )
-    job_resource.add_node_group_resource(
-        NodeType.PS,
-        args.num_ps_pods,
-        args.ps_resource_request,
-        args.ps_pod_priority,
-    )
-    # Keep the same as the worker.
-    evaluator_priority = (
-        args.evaluator_pod_priority
-        if args.evaluator_pod_priority == "low"
-        else "high"
-    )
-    job_resource.add_node_group_resource(
-        NodeType.EVALUATOR,
-        args.num_evaluators,
-        args.evaluator_resource_request,
-        evaluator_priority,
-    )
-    job_resource.add_node_group_resource(
-        NodeType.CHIEF,
-        args.num_tf_master,
-        args.tf_master_resource_request,
-        args.tf_master_pod_priority,
-    )
-    critical_worker_index = get_critical_worker_index(args)
+    critical_worker_index = get_critical_worker_index(params)
     # Custom distribution strategy does not exit if there are pending nodes
     wait_pending_relaunch = (
-        args.distribution_strategy == DistributionStrategy.CUSTOM
+        params.distribution_strategy == DistributionStrategy.CUSTOM
     )
 
     return NodeManager(
-        job_resource=job_resource,
-        job_name=args.job_name,
-        namespace=args.namespace,
-        relaunch_on_worker_failure=args.relaunch_on_worker_failure,
-        ps_is_critical=args.ps_is_critical,
+        job_params=params,
         critical_worker_index=critical_worker_index,
         wait_pending_relaunch=wait_pending_relaunch,
-        ps_relaunch_max_num=args.ps_relaunch_max_num,
-        use_ddp=args.use_ddp,
         speed_monitor=speed_monitor,
     )

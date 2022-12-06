@@ -19,11 +19,11 @@ from dlrover.python.master.args import parse_master_args
 class ArgsTest(unittest.TestCase):
     def test_parse_master_args(self):
         original_args = [
-            "--num_workers",
-            "3",
-            "--enabled_auto_ps",
-            "true",
+            "--job_name",
+            "test",
+            "--namespace",
+            "default",
         ]
         parsed_args = parse_master_args(original_args)
-        self.assertEqual(parsed_args.num_workers, 3)
-        self.assertTrue(parsed_args.enabled_auto_ps)
+        self.assertEqual(parsed_args.job_name, "test")
+        self.assertTrue(parsed_args.namespace, "default")

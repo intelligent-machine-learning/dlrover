@@ -25,16 +25,6 @@ from dlrover.python.master.watcher.base_watcher import NodeEvent, NodeWatcher
 from dlrover.python.scheduler.kubernetes import k8sClient
 
 
-def _convert_memory_to_mb(memory: str):
-    unit = memory[-2:]
-    value = int(memory[0:-2])
-    if unit == "Gi":
-        value = value * 1024
-    elif unit == "Ki":
-        value = int(value / 1024)
-    return value
-
-
 def _get_start_timestamp(pod_status_obj):
     """Get the start timestamp of a Pod"""
     if (
@@ -94,7 +84,7 @@ def _convert_pod_event_to_node_event(event):
     pod_id = int(evt_obj.metadata.labels[ElasticJobLabel.REPLICA_INDEX_KEY])
 
     cpu = evt_obj.spec.containers[0].resources.requests["cpu"]
-    memory = _convert_memory_to_mb(
+    memory = NodeResource.convert_memory_to_mb(
         evt_obj.spec.containers[0].resources.requests["memory"]
     )
     pod_resource = NodeResource(cpu, memory)

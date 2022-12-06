@@ -39,16 +39,16 @@ class TaskManager(object):
     """Creates and dispatches Tasks. Keep track of a Task's lifecycle."""
 
     def __init__(
-        self, relaunch_timeout_worker: bool, speed_monitor: SpeedMonitor
+        self, worker_restart_timeout: int, speed_monitor: SpeedMonitor
     ):
         """
         Args:
-            relaunch_timeout_worker: Whether to relaunch a worker
+            worker_restart_timeout: Whether to relaunch a worker
                 when it does not report a task status for a long time.
             speed_monitor: monitor the training speed with workers.
         """
         self._lock = threading.Lock()
-        self.relaunch_timeout_worker = relaunch_timeout_worker
+        self._worker_restart_timeout = worker_restart_timeout
         self._should_stop = False
         self._datasets: Dict[str, DatasetManger] = OrderedDict()
         self._worker_start_task_time: Dict[int, float] = {}
@@ -166,7 +166,7 @@ class TaskManager(object):
             logger.info("Recover tasks assigned to worker %d" % worker_id)
 
     def start(self):
-        if self.relaunch_timeout_worker:
+        if self._worker_restart_timeout > 0:
             threading.Thread(
                 target=self._check_and_reassign_timeout_tasks,
                 name="check_timeout_tasks",
@@ -196,7 +196,11 @@ class TaskManager(object):
                     )
                     if (
                         doing_task.task.type == elastic_training_pb2.EVALUATION
-                        and cur - start > _TASK_TIMEOUT_THRESHOLD_SECS
+                        and cur - start
+                        > max(
+                            _TASK_TIMEOUT_THRESHOLD_SECS,
+                            self._worker_restart_timeout,
+                        )
                     ):
                         logger.info(
                             "worker %d timeout with task %d, relaunch it",

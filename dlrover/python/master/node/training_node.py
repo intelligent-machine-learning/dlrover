@@ -29,6 +29,7 @@ from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.scaler.base_scaler import ScalePlan
 from dlrover.python.master.watcher.base_watcher import Node
+from dlrover.python.scheduler.job import JobParams
 
 _dlrover_context = Context.instance()
 
@@ -64,18 +65,22 @@ def set_critical_node(
             node.critical = True
 
 
-def get_critical_worker_index(args):
+def get_critical_worker_index(params: JobParams):
     critical_worker_index = {}
+    worker_params = params.node_params[NodeType.WORKER]
 
-    if args.critical_worker_index == "default":
+    if worker_params.critical_nodes == "":
         # for default, worker0 is critical if PS strategy with custom training
-        if args.distribution_strategy == DistributionStrategy.PARAMETER_SERVER:
-            critical_worker_index[0] = args.relaunch_on_worker_failure
-    elif args.critical_worker_index == "all":
-        for i in range(args.num_workers):
-            critical_worker_index[i] = args.relaunch_on_worker_failure
-    elif args.critical_worker_index != "none":
-        for pod_relaunch_conf in args.critical_worker_index.split(","):
+        if (
+            params.distribution_strategy
+            == DistributionStrategy.PARAMETER_SERVER
+        ):
+            critical_worker_index[0] = worker_params.restart_count
+    elif worker_params.critical_nodes == "all":
+        for i in range(worker_params.group_resource.count):
+            critical_worker_index[i] = worker_params.restart_count
+    elif worker_params.critical_nodes != "none":
+        for pod_relaunch_conf in worker_params.critical_nodes.split(","):
             # The conf is "pod_index:relaunch_times"
             pod_relaunch = pod_relaunch_conf.strip().split(":")
             critical_worker_index[int(pod_relaunch[0])] = int(pod_relaunch[1])

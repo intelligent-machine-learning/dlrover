@@ -14,7 +14,7 @@
 import unittest
 from datetime import datetime, timedelta
 
-from dlrover.python.common.constants import EngineType, NodeStatus, NodeType
+from dlrover.python.common.constants import NodeStatus, NodeType, PlatformType
 from dlrover.python.common.node import NodeResource
 from dlrover.python.master.node.ps import ParameterServerManager
 from dlrover.python.master.resource.job import JobResource
@@ -30,7 +30,7 @@ class PSManagerTest(unittest.TestCase):
             NodeType.PS, 2, "cpu=16,memory=2048Mi", ""
         )
         self._elastic_job = new_elastic_job(
-            EngineType.ELASTICJOB, "test", "default"
+            PlatformType.KUBERNETES, "test", "default"
         )
         self._job_nodes = self._job_resource.init_job_node_meta(
             1,

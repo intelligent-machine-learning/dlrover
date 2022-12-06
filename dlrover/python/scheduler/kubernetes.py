@@ -12,13 +12,15 @@
 # limitations under the License.
 
 import os
+import time
 
 from kubernetes import client, config
 
 from dlrover.python.common.constants import NodeType
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.common.node import NodeGroupResource, NodeResource
 from dlrover.python.common.singleton import singleton
-from dlrover.python.scheduler.job import ElasticJob
+from dlrover.python.scheduler.job import ElasticJob, JobParams, NodeParams
 
 NODE_SERVICE_PORTS = {
     NodeType.WORKER: 3333,
@@ -28,6 +30,10 @@ NODE_SERVICE_PORTS = {
 }
 
 JOB_SUFFIX = "-edljob-"
+
+
+def parse_bool(s: str):
+    return s.lower() in ["true", "yes", "t", "y"]
 
 
 def get_pod_name(job_name, pod_type, worker_id):
@@ -40,7 +46,6 @@ class k8sClient(object):
         self,
         namespace,
         job_name,
-        force_use_kube_config_file=False,
     ):
         """
         ElasticDL k8s client.
@@ -54,16 +59,9 @@ class k8sClient(object):
             event_callback: If not None, an event watcher will be created and
                 events passed to the callback.
             periodic_call_func: If not None, call this method periodically.
-            force_use_kube_config_file: If true, force to load the cluster
-                config from ~/.kube/config. Otherwise, if it's in a process
-                running in a K8S environment, it loads the incluster config,
-                if not, it loads the kube config file.
         """
         try:
-            if (
-                os.getenv("KUBERNETES_SERVICE_HOST")
-                and not force_use_kube_config_file
-            ):
+            if os.getenv("KUBERNETES_SERVICE_HOST"):
                 # We are running inside a k8s cluster
                 config.load_incluster_config()
                 logger.info("Load the incluster config.")
@@ -273,12 +271,61 @@ class K8sElasticJob(ElasticJob):
             NODE_SERVICE_PORTS[type],
         )
 
-    def get_job_uuid(self):
-        job_data = self._k8s_client.get_training_job()
-        if (
-            job_data
-            and "metadata" in job_data
-            and "uid" in job_data["metadata"]
-        ):
-            return job_data["metadata"]["uid"]
+
+class K8sJobParams(JobParams):
+    def __init__(self, platform, namespace, job_name):
+        super(K8sJobParams, self).__init__(platform, namespace, job_name)
+
+    def initilize(self):
+        self.user = os.getenv("USER", "")
+        k8s_client = k8sClient(self.namespace, self.job_name)
+        job = self._retry_to_get_job(k8s_client)
+        self.job_uuid = self._get_job_uuid(job)
+        if "distributionStrategy" in job["spec"]:
+            self.distribution_strategy = job["spec"]["distributionStrategy"]
+        for replica, spec in job["spec"]["replicaSpecs"].items():
+            priority = spec.get("priority", "")
+            num = int(spec.get("replicas", 0))
+            print(spec["template"])
+            container = spec["template"]["spec"]["containers"][0]
+            resources = container.get("resources", {})
+            requests = resources.get("requests", {})
+            cpu = int(requests.get("cpu", 0))
+            if "memory" in requests:
+                memory = NodeResource.convert_memory_to_mb(requests["memory"])
+            else:
+                memory = 0
+            gpu_type = None
+            gpu_num = 0
+            for k, v in requests.items():
+                if "nvidia.com" in k:
+                    gpu_type = k
+                    gpu_num = int(v)
+            group_resource = NodeGroupResource(
+                num, NodeResource(cpu, memory, gpu_type, gpu_num), priority
+            )
+            restart_count = int(spec.get("restartCount", 3))
+            auto_scale = parse_bool(spec.get("autoScale", "True"))
+            restart_timeout = int(spec.get("restartTimeout", 0))
+            critical_nodes = spec.get("criticalNodes", "")
+            self.node_params[replica] = NodeParams(
+                group_resource,
+                auto_scale,
+                restart_count,
+                restart_timeout,
+                critical_nodes,
+            )
+
+    def _retry_to_get_job(self, k8s_client):
+        for _ in range(3):
+            job = k8s_client.get_training_job()
+            if job:
+                return job
+            else:
+                time.sleep(5)
+        raise ValueError("Cannot get the training job %s", self._job_name)
+
+    def _get_job_uuid(self, job):
+        if job and "uid" in job["metadata"]:
+            return job["metadata"]["uid"]
         return ""

@@ -34,6 +34,12 @@ type ElasticJobSpec struct {
 	// Now, the strategy supports parameter-server and ring-allreduce.
 	DistributionStrategy string `json:"distributionStrategy,omitempty"`
 
+	// EnableElasticScheduling starts elasticity of Pods.
+	EnableElasticScheduling bool `json:"enableElasticScheduling,omitempty"`
+
+	// EnableDynamicSharding starts the dynamic sharding of the dataset.
+	EnableDynamicSharding bool `json:"enableDynamicSharding,omitempty"`
+
 	// A map of ReplicaType (type) to ReplicaSpec (value). Specifies the training cluster configuration.
 	// For example,
 	//   {
@@ -51,7 +57,17 @@ type ReplicaSpec struct {
 	commonv1.ReplicaSpec `json:",inline"`
 
 	// RestartCount is the number of relaunching a failed replica.
-	RestartCount int `json:"restartCount,omitempty"`
+	RestartCount int `json:"restartSount,omitempty"`
+
+	// AutoScale is the flag to auto scale the number of replicas and resource of each replica.
+	AutoScale bool `json:"autoScale,omitempty"`
+
+	// RestartTimeout is the time to wait a hanging replica.
+	RestartTimeout int `json:"restartTimeout,omitempty"`
+
+	// Priority supports high/low/0.5. The 0.5 means that half workers have high priority,
+	// and half workers have low priority. The default value is low.
+	Priority string `json:"priority,omitempty"`
 }
 
 // ElasticJobStatus defines the observed state of ElasticJob

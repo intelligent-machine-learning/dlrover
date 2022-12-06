@@ -43,7 +43,7 @@ from dlrover.python.master.resource.job import JobResource
 from dlrover.python.master.resource.optimizer import ResourcePlan
 from dlrover.python.master.watcher.base_watcher import Node, NodeEvent
 from dlrover.python.tests.test_utils import (
-    MockArgs,
+    MockJobParams,
     create_task_manager,
     mock_k8s_client,
     mock_list_job_pods,
@@ -143,22 +143,24 @@ class JobConfigTest(unittest.TestCase):
         self.assertFalse(nodes[NodeType.WORKER][1].critical)
 
     def test_get_critical_worker_index(self):
-        args = MockArgs()
-        critical_worker = get_critical_worker_index(args)
+        params = MockJobParams()
+        params.initilize()
+        critical_worker = get_critical_worker_index(params)
         self.assertDictEqual(critical_worker, {0: 3})
-        args.critical_worker_index = "default"
-        critical_worker = get_critical_worker_index(args)
+        params.node_params[NodeType.WORKER].critical_nodes = "0:1"
+        critical_worker = get_critical_worker_index(params)
         self.assertDictEqual(critical_worker, {0: 1})
-        args.critical_worker_index = "all"
-        critical_worker = get_critical_worker_index(args)
-        self.assertDictEqual(critical_worker, {0: 1, 1: 1, 2: 1})
+        params.node_params[NodeType.WORKER].critical_nodes = "all"
+        critical_worker = get_critical_worker_index(params)
+        self.assertDictEqual(critical_worker, {0: 3, 1: 3, 2: 3})
 
     def test_create_node_manager(self):
-        args = MockArgs()
-        manager = create_node_manager(args, SpeedMonitor())
+        params = MockJobParams()
+        params.initilize()
+        manager = create_node_manager(params, SpeedMonitor())
         self.assertEqual(manager._ps_relaunch_max_num, 1)
         manager._elastic_job.get_job_uuid = get_job_uuid
-        manager._node_watcher._list_job_pods = mock_list_job_pods
+        manager._node_watcher._list_job_pods = lambda: mock_list_job_pods({})
         manager.start()
         self.assertEqual(manager._job_uuid, _MOCK_JOB_UUID)
         self.assertEqual(len(manager._job_nodes), 4)
@@ -203,8 +205,9 @@ class JobConfigTest(unittest.TestCase):
         dataset_name = "test"
         task_manager = create_task_manager()
         task_callback = TaskRescheduleCallback(task_manager)
-        args = MockArgs()
-        manager = create_node_manager(args, SpeedMonitor())
+        params = MockJobParams()
+        params.initilize()
+        manager = create_node_manager(params, SpeedMonitor())
         manager._init_job_nodes()
         manager.add_node_event_callback(task_callback)
 
@@ -220,8 +223,9 @@ class JobConfigTest(unittest.TestCase):
         self.assertEqual(len(dataset.doing), 0)
 
     def test_check_worker_status(self):
-        args = MockArgs()
-        manager = create_node_manager(args, SpeedMonitor())
+        params = MockJobParams()
+        params.initilize()
+        manager = create_node_manager(params, SpeedMonitor())
         manager._init_job_nodes()
         self.assertFalse(manager.all_workers_exited())
 
@@ -249,8 +253,9 @@ class JobConfigTest(unittest.TestCase):
         self.assertTrue(manager.all_critical_node_completed())
 
     def test_tf_ps_node_handling(self):
-        args = MockArgs()
-        master = Master(args)
+        params = MockJobParams()
+        params.initilize()
+        master = Master(2222, params)
         master.node_manager._init_job_nodes()
         master.node_manager._scaler.scale = mock.MagicMock(return_value=True)
         callback = TFPSNodeHandlingCallback(master)
@@ -276,8 +281,9 @@ class JobConfigTest(unittest.TestCase):
         self.assertEqual(master.speed_monitor._target_worker_num, 1)
 
     def test_execute_job_optimization_plan(self):
-        args = MockArgs()
-        manager = create_node_manager(args, SpeedMonitor())
+        params = MockJobParams()
+        params.initilize()
+        manager = create_node_manager(params, SpeedMonitor())
         manager._init_job_nodes()
 
         manager._scaler.scale = mock.MagicMock(return_value=True)
@@ -300,6 +306,6 @@ class JobConfigTest(unittest.TestCase):
 
         ps_addrs = []
         for i in range(3):
-            ps_addrs.append("test-edljob-ps-{}.test.svc:2222".format(i))
+            ps_addrs.append("test-edljob-ps-{}.default.svc:2222".format(i))
 
         self.assertListEqual(scale_plan.ps_addrs, ps_addrs)
