@@ -14,7 +14,11 @@
 import os
 import time
 
-from dlrover.python.common.constants import DistributionStrategy, JobExitReason
+from dlrover.python.common.constants import (
+    DistributionStrategy,
+    JobExitReason,
+    NodeType,
+)
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
@@ -26,14 +30,15 @@ from dlrover.python.master.node.node_manager import create_node_manager
 from dlrover.python.master.servicer import create_master_service
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.master.stats.job_collector import JobMetricCollector
+from dlrover.python.scheduler.job import JobParams
 
 
-def _create_rendezvous_server_if_needed(args):
+def _create_rendezvous_server_if_needed(params: JobParams):
     master_ip = os.getenv("MY_POD_IP", "localhost")
-    if args.use_ddp:
+    if params.use_ddp:
         logger.info("call DDPRendezvousServer, master_ip:{}".format(master_ip))
         return None
-    elif args.distribution_strategy != DistributionStrategy.ALLREDUCE:
+    elif params.distribution_strategy != DistributionStrategy.ALLREDUCE:
         return None
     else:
         logger.info(
@@ -42,39 +47,42 @@ def _create_rendezvous_server_if_needed(args):
         return None
 
 
-def _create_elastic_ps_service_if_needed(args):
-    if args.distribution_strategy == DistributionStrategy.PARAMETER_SERVER:
+def _create_elastic_ps_service_if_needed(params: JobParams):
+    if params.distribution_strategy == DistributionStrategy.PARAMETER_SERVER:
         return ElasticPsService()
     return None
 
 
 class Master(object):
-    def __init__(self, args):
+    def __init__(self, port, params: JobParams):
         self.speed_monitor = SpeedMonitor()
         self.node_manager = (
-            create_node_manager(args, self.speed_monitor)
-            if args.need_node_manager
+            create_node_manager(params, self.speed_monitor)
+            if params.enable_elastic_scheduling
             else None
         )
         self.task_manager = (
-            TaskManager(args.relaunch_timeout_worker, self.speed_monitor)
-            if args.need_task_manager
+            TaskManager(
+                params.node_params[NodeType.WORKER].restart_timeout,
+                self.speed_monitor,
+            )
+            if params.enable_dynamic_sharding
             else None
         )
-        self.rendezvous_server = _create_rendezvous_server_if_needed(args)
+        self.rendezvous_server = _create_rendezvous_server_if_needed(params)
         self.job_metric_collector = self._create_metric_collector_if_needed(
-            args
+            params
         )
-        self.elastic_ps_service = _create_elastic_ps_service_if_needed(args)
-        self._master_server = self._create_master_grpc_service(args)
-        self._args = args
+        self.elastic_ps_service = _create_elastic_ps_service_if_needed(params)
+        self._master_server = self._create_master_grpc_service(port, params)
+        self._job_params = params
         self._stop_requested = False
         self._exit_code = 0
         self._exit_reason = None
 
-    def _create_master_grpc_service(self, args):
+    def _create_master_grpc_service(self, port, params: JobParams):
         return create_master_service(
-            args.port,
+            port,
             self.task_manager,
             self.node_manager,
             self.speed_monitor,
@@ -83,12 +91,12 @@ class Master(object):
             self.elastic_ps_service,
         )
 
-    def _create_metric_collector_if_needed(self, args):
-        if not args.need_node_manager:
+    def _create_metric_collector_if_needed(self, params: JobParams):
+        if not params.enable_dynamic_sharding:
             return None
-        job_uuid = self.node_manager.get_job_uuid()
+        job_uuid = params.job_uuid
         return JobMetricCollector(
-            job_uuid, args.namespace, args.cluster, args.user
+            job_uuid, params.namespace, params.cluster, params.user
         )
 
     def prepare(self):
@@ -109,7 +117,7 @@ class Master(object):
             self.node_manager.start()
         if self.job_metric_collector:
             self.job_metric_collector.report_job_type(
-                self._args.distribution_strategy
+                self._job_params.distribution_strategy
             )
 
         # Start the master GRPC server
@@ -124,7 +132,7 @@ class Master(object):
                 TaskRescheduleCallback(self.task_manager)
             )
         if (
-            self._args.distribution_strategy
+            self._job_params.distribution_strategy
             == DistributionStrategy.PARAMETER_SERVER
         ):
             self.node_manager.add_node_event_callback(

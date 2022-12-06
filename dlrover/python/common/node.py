@@ -66,6 +66,16 @@ class NodeResource(object):
                 gpu_num = int(resource[key])
         return NodeResource(cpu, memory, gpu_type, gpu_num)
 
+    @classmethod
+    def convert_memory_to_mb(cls, memory: str):
+        unit = memory[-2:]
+        value = int(memory[0:-2])
+        if unit == "Gi":
+            value = value * 1024
+        elif unit == "Ki":
+            value = int(value / 1024)
+        return value
+
 
 class NodeGroupResource(object):
     """The node group resource contains the number of the task
@@ -84,6 +94,10 @@ class NodeGroupResource(object):
         self.count = count
         self.node_resource.cpu = cpu
         self.node_resource.memory = memory
+
+    @classmethod
+    def new_empty(cls):
+        return NodeGroupResource(0, NodeResource(0, 0))
 
 
 class Node(object):

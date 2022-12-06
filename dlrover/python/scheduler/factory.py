@@ -11,12 +11,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dlrover.python.common.constants import EngineType
-from dlrover.python.scheduler.kubernetes import K8sElasticJob
+from dlrover.python.common.constants import PlatformType
+from dlrover.python.scheduler.kubernetes import K8sElasticJob, K8sJobParams
 
 
-def new_elastic_job(engine, job_name, namespace):
-    if engine == EngineType.ELASTICJOB:
+def new_elastic_job(platform, job_name, namespace):
+    if platform in (PlatformType.KUBERNETES, PlatformType.PY_KUBERNETES):
         return K8sElasticJob(job_name, namespace)
     else:
-        raise ValueError("Not support engine %s", engine)
+        raise ValueError("Not support engine %s", platform)
+
+
+def new_job_params(platform, job_name, namespace):
+    if platform in (PlatformType.KUBERNETES, PlatformType.PY_KUBERNETES):
+        return K8sJobParams(platform, namespace, job_name)
+    else:
+        raise ValueError("Not support platform %s", platform)

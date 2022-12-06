@@ -11,13 +11,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dlrover.python.common.constants import EngineType
+from dlrover.python.common.constants import PlatformType
 from dlrover.python.master.scaler.elasticjob_scaler import ElasticJobScaler
 from dlrover.python.master.scaler.pod_scaler import PodScaler
 
 
-def new_job_scaler(engine, job_name, namespace):
-    if engine == EngineType.ELASTICJOB:
+def new_job_scaler(platform, job_name, namespace):
+    if platform == PlatformType.KUBERNETES:
         return ElasticJobScaler(job_name, namespace)
-    elif engine == EngineType.PY_ELASTICJOB:
+    elif platform == PlatformType.PY_KUBERNETES:
         return PodScaler(job_name, namespace)

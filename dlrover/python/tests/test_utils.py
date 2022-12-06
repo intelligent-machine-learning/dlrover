@@ -23,9 +23,12 @@ from dlrover.python.common.constants import (
     ElasticJobLabel,
     NodeStatus,
     NodeType,
+    PlatformType,
 )
+from dlrover.python.common.node import NodeGroupResource, NodeResource
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.shard.task_manager import TaskManager
+from dlrover.python.scheduler.job import JobParams, NodeParams
 from dlrover.python.scheduler.kubernetes import k8sClient
 
 JOB_EXAMPLE = """apiVersion: elastic.iml.github.io/v1alpha1
@@ -33,10 +36,12 @@ kind: ElasticJob
 metadata:
   name: elasticjob-sample
 spec:
-  distributionStrategy: parameter_server
+  distributionStrategy: ParameterServerStrategy
   replicaSpecs:
     ps:
       restartCount: 3
+      replicas: 3
+      priority: "high"
       template:
           metadata:
             annotations:
@@ -52,6 +57,10 @@ spec:
                   - model_zoo.iris.dnn_estimator
                   - --batch_size=32
                   - --training_steps=1000
+                resources:
+                  requests:
+                    cpu: 1
+                    memory: 4096Mi
     chief:
       restartCount: 1
       template:
@@ -140,6 +149,34 @@ class MockArgs(object):
         self.cluster = "local"
         self.user = "dlrover"
         self.port = 2222
+
+
+class MockJobParams(JobParams):
+    def __init__(self):
+        super(MockJobParams, self).__init__(
+            PlatformType.KUBERNETES, "default", "test"
+        )
+
+    def initilize(self):
+        worker_resource = NodeGroupResource(3, NodeResource(1, 4096), "")
+        self.node_params[NodeType.WORKER] = NodeParams(
+            worker_resource, True, 3, 0, ""
+        )
+
+        ps_resource = NodeGroupResource(3, NodeResource(1, 4096), "")
+        self.node_params[NodeType.PS] = NodeParams(
+            ps_resource, True, 1, 0, "all"
+        )
+
+        evaluator_resource = NodeGroupResource(1, NodeResource(1, 4096), "")
+        self.node_params[NodeType.EVALUATOR] = NodeParams(
+            evaluator_resource, False, 1, 0, ""
+        )
+
+        chief_resource = NodeGroupResource(1, NodeResource(1, 4096), "")
+        self.node_params[NodeType.CHIEF] = NodeParams(
+            chief_resource, True, 1, 0, ""
+        )
 
 
 def create_pod(labels):

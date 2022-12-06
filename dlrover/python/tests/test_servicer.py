@@ -22,15 +22,16 @@ from dlrover.python.master.node.node_manager import create_node_manager
 from dlrover.python.master.servicer import MasterServicer
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.master.stats.job_collector import JobMetricCollector
-from dlrover.python.tests.test_utils import MockArgs
+from dlrover.python.tests.test_utils import MockJobParams
 
 
 class MasterServicerTest(unittest.TestCase):
     def setUp(self) -> None:
-        args = MockArgs()
+        params = MockJobParams()
+        params.initilize()
         speed_monitor = SpeedMonitor()
         self.task_manager = TaskManager(False, speed_monitor)
-        self.node_manager = create_node_manager(args, speed_monitor)
+        self.node_manager = create_node_manager(params, speed_monitor)
         self.job_metric_collector = JobMetricCollector(
             "1", "default", "local", "dlrover"
         )

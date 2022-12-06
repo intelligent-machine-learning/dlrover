@@ -12,9 +12,9 @@
 # limitations under the License.
 
 
-class EngineType(object):
-    ELASTICJOB = "elasticjob"
-    PY_ELASTICJOB = "py_elastic_job"
+class PlatformType(object):
+    KUBERNETES = "k8s"
+    PY_KUBERNETES = "pyk8s"
 
 
 class UserEnv(object):
