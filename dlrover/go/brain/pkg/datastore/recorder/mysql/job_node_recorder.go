@@ -25,6 +25,7 @@ const TableJobNode = "job_node"
 // JobNodeCondition is the struct of sql condition for job node table
 type JobNodeCondition struct {
 	UID            string
+	Name           string
 	JobUUID        string
 	JobName        string
 	Type           string
@@ -34,6 +35,7 @@ type JobNodeCondition struct {
 // JobNode is the struct of job node for mysql db
 type JobNode struct {
 	UID            string
+	Name           string
 	JobUUID        string
 	JobName        string
 	Type           string
@@ -49,6 +51,9 @@ type JobNode struct {
 func (c *JobNodeCondition) Apply(session *xorm.Session) *xorm.Session {
 	if c.UID != "" {
 		session.Where("uid = ?", c.UID)
+	}
+	if c.Name != "" {
+		session.Where("name = ?", c.Name)
 	}
 	if c.JobUUID != "" {
 		session.Where("job_uuid = ?", c.JobUUID)

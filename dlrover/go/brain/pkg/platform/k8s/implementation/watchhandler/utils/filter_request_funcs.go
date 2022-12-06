@@ -21,3 +21,8 @@ import (
 func ElasticJobFilterFunc(object metav1.Object) bool {
 	return true
 }
+
+// ElasticJobNodeFilterFunc filters non elasticDL job pods
+func ElasticJobNodeFilterFunc(object metav1.Object) bool {
+	return true
+}

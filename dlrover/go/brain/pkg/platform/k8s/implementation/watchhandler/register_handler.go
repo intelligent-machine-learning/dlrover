@@ -21,6 +21,10 @@ import (
 	"sync"
 )
 
+const (
+	workerConcurrent = 3
+)
+
 var (
 	registerWatchHandlerFuncs = make(map[string]RegisterWatchHandlerFunc)
 	registerFuncMutx          = &sync.RWMutex{}
