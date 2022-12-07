@@ -21,41 +21,41 @@ import (
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/recorder/mysql"
 	handlerutils "github.com/intelligent-machine-learning/easydl/brain/pkg/platform/k8s/implementation/watchhandler/utils"
 	watchercommon "github.com/intelligent-machine-learning/easydl/brain/pkg/platform/k8s/watcher/common"
-	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/api/v1alpha1"
+	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"time"
 )
 
 const (
-	elasticJobHandlerName = "elastic_job_handler"
+	elasticJobNodeHandlerName = "elasticjob_node_handler"
 )
 
 func init() {
-	registerWatchHandlerFunc(elasticJobHandlerName, registerElasticJobHandler)
+	registerWatchHandlerFunc(elasticJobNodeHandlerName, registerElasticJobNodeHandler)
 }
 
-// ElasticJobHandler is to watch and record the status of elastic jobs
-type ElasticJobHandler struct {
+// ElasticJobNodeHandler is to watch and record the status of elastic job nodes
+type ElasticJobNodeHandler struct {
 	name      string
 	conf      *config.Config
 	dataStore datastoreapi.DataStore
 }
 
-func newElasticJobHandler(name string, conf *config.Config, dataStore datastoreapi.DataStore) (watchercommon.EventHandler, error) {
-	return &ElasticJobHandler{
+func newElasticJobNodeHandler(name string, conf *config.Config, dataStore datastoreapi.DataStore) (watchercommon.EventHandler, error) {
+	return &ElasticJobNodeHandler{
 		name:      name,
 		conf:      conf,
 		dataStore: dataStore,
 	}, nil
 }
 
-func registerElasticJobHandler(kubeWatcher *watchercommon.KubeWatcher, name string, conf *config.Config, dataStore datastoreapi.DataStore) error {
-	handler, err := newElasticJobHandler(name, conf, dataStore)
+func registerElasticJobNodeHandler(kubeWatcher *watchercommon.KubeWatcher, name string, conf *config.Config, dataStore datastoreapi.DataStore) error {
+	handler, err := newElasticJobNodeHandler(name, conf, dataStore)
 	if err != nil {
 		return err
 	}
-	filterEnqueueRequestForObject := watchercommon.NewWatchFilterEnqueueRequestForObject(handlerutils.ElasticJobFilterFunc)
-	if err = kubeWatcher.WatchKubeResource(elasticv1alpha1.SchemeGroupVersionKind, handler,
+	filterEnqueueRequestForObject := watchercommon.NewWatchFilterEnqueueRequestForObject(handlerutils.ElasticJobNodeFilterFunc)
+	if err = kubeWatcher.WatchKubeResource(v1.SchemeGroupVersion.WithKind("Pod"), handler,
 		watchercommon.WithEnqueueEventHandler(filterEnqueueRequestForObject), watchercommon.WithMaxConcurrent(workerConcurrent)); err != nil {
 		return err
 	}
@@ -63,28 +63,28 @@ func registerElasticJobHandler(kubeWatcher *watchercommon.KubeWatcher, name stri
 }
 
 // HandleCreateEvent handles create events
-func (handler *ElasticJobHandler) HandleCreateEvent(object runtime.Object, event watchercommon.Event) error {
-	job := object.(*elasticv1alpha1.ElasticJob)
-	log.Infof("job %s is created", job.Name)
+func (handler *ElasticJobNodeHandler) HandleCreateEvent(object runtime.Object, event watchercommon.Event) error {
+	node := object.(*v1.Pod)
+	log.Infof("Job node %s is created", node.Name)
 
-	record := &mysql.Job{
-		JobUUID:   string(job.UID),
-		JobName:   job.Name,
+	record := &mysql.JobNode{
+		UID:       string(node.UID),
+		Name:      node.Name,
 		CreatedAt: time.Now(),
 	}
 
 	cond := &datastoreapi.Condition{
-		Type: common.TypeUpsertJob,
+		Type: common.TypeUpsertJobNode,
 	}
 	return handler.dataStore.PersistData(cond, record, nil)
 }
 
 // HandleUpdateEvent handles update events
-func (handler *ElasticJobHandler) HandleUpdateEvent(object runtime.Object, oldObject runtime.Object, event watchercommon.Event) error {
+func (handler *ElasticJobNodeHandler) HandleUpdateEvent(object runtime.Object, oldObject runtime.Object, event watchercommon.Event) error {
 	return nil
 }
 
 // HandleDeleteEvent handles delete events
-func (handler *ElasticJobHandler) HandleDeleteEvent(deleteObject runtime.Object, event watchercommon.Event) error {
+func (handler *ElasticJobNodeHandler) HandleDeleteEvent(deleteObject runtime.Object, event watchercommon.Event) error {
 	return nil
 }
