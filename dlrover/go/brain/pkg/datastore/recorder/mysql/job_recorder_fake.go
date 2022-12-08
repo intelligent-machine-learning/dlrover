@@ -37,6 +37,9 @@ func canApplyJobCondition(c *JobCondition, job *Job) bool {
 	if len(c.JobName) > 0 && c.JobName != job.JobName {
 		return false
 	}
+	if len(c.Scenario) > 0 && c.Scenario != job.Scenario {
+		return false
+	}
 
 	if c.CreatedAtRange != nil {
 		if c.CreatedAtRange.From.After(job.CreatedAt) {

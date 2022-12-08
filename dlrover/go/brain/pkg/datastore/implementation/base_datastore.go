@@ -34,14 +34,14 @@ func init() {
 
 // BaseDataStore is the base data store
 type BaseDataStore struct {
-	client *mysql.Client
+	Client *mysql.Client
 }
 
 func newBaseDataStore(conf *config.Config) (datastoreapi.DataStore, error) {
 	client := mysql.NewClient(conf)
 
 	return &BaseDataStore{
-		client: client,
+		Client: client,
 	}, nil
 }
 
@@ -52,10 +52,10 @@ func (store *BaseDataStore) PersistData(condition *datastoreapi.Condition, recor
 		err := fmt.Errorf("record must be type of pb JobMetrics")
 		return err
 	}
-	return dsimplutils.PersistJobMetrics(store.client, jobMetrics)
+	return dsimplutils.PersistJobMetrics(store.Client, jobMetrics)
 }
 
 // GetData returns data for a given condition
 func (store *BaseDataStore) GetData(condition *datastoreapi.Condition, data interface{}) error {
-	return dsimplutils.GetData(store.client, condition, data)
+	return dsimplutils.GetData(store.Client, condition, data)
 }
