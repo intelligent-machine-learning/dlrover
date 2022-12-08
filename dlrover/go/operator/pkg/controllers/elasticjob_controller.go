@@ -151,7 +151,7 @@ func (r *ElasticJobReconciler) reconcileJobs(job *elasticv1alpha1.ElasticJob) (c
 
 func (r *ElasticJobReconciler) initializeJob(job *elasticv1alpha1.ElasticJob) {
 	if job.Status.Conditions == nil {
-		common.InitializeJobStatuses(&job.Status, master.ReplicaTypeEasydlMaster)
+		common.InitializeJobStatuses(&job.Status, master.ReplicaTypeTrainerMaster)
 		msg := fmt.Sprintf("ElasticJob %s is created.", job.Name)
 		common.UpdateStatus(&job.Status, commonv1.JobCreated, common.JobCreatedReason, msg)
 	}
@@ -168,7 +168,7 @@ func (r *ElasticJobReconciler) syncJobStateByReplicas(job *elasticv1alpha1.Elast
 }
 
 func (r *ElasticJobReconciler) createEasydlMaster(job *elasticv1alpha1.ElasticJob) error {
-	masterManager := common.ReplicaManagers[master.ReplicaTypeEasydlMaster]
+	masterManager := common.ReplicaManagers[master.ReplicaTypeTrainerMaster]
 	err := masterManager.ReconcilePods(r.Client, job, nil)
 	if err != nil {
 		r.Recorder.Eventf(

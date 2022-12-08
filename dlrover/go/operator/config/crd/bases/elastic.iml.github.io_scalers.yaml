@@ -39,6 +39,23 @@ spec:
           spec:
             description: ScalerSpec defines the desired resource state of an ElasticJob
             properties:
+              nodeResourceSpec:
+                additionalProperties:
+                  description: ResourceSpec specifies the resources of a repalica
+                  properties:
+                    cpu:
+                      description: CPU is the requested CPU cores of a replica
+                      type: string
+                    gpu:
+                      description: GPU is the requested GPU of a replica
+                      type: string
+                    memory:
+                      description: Memory is the requested memory (MB) of a replica
+                      type: string
+                  type: object
+                description: NodeResourceSpec specifics resources configurations of
+                  nodes.
+                type: object
               ownerJob:
                 description: OwnerJob specifies a job to scale.
                 type: string

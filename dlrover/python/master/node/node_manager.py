@@ -119,7 +119,7 @@ class NodeManager(object):
         # Protects followed variables, which are accessed from event_cb.
         self._lock = threading.Lock()
         self._job_nodes: Dict[str, Dict[int, Node]] = {}
-        self._job_uuid = None
+        self._job_uuid = job_params.job_uuid
 
         self._elastic_job = new_elastic_job(
             job_params.platform, job_params.job_name, job_params.namespace
@@ -138,7 +138,6 @@ class NodeManager(object):
         self._init_training_node_manager()
 
     def start(self):
-        self._job_uuid = self._elastic_job.get_job_uuid()
         self._job_optimizer.update_job_uuid(self._job_uuid)
         self._init_job_nodes()
         threading.Thread(

@@ -145,7 +145,7 @@ class TaskManager(object):
     def finished(self):
         """Return if all tasks are done"""
         if not self._datasets:
-            return True
+            return False
         finished = all([ds.completed() for ds in self._datasets.values()])
         return finished
 

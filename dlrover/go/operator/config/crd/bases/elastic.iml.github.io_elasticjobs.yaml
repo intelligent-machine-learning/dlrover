@@ -46,6 +46,13 @@ spec:
                 description: DistributionStrategy specifies the distribution strategy
                   of a job. Now, the strategy supports parameter-server and ring-allreduce.
                 type: string
+              enableDynamicSharding:
+                description: EnableDynamicSharding starts the dynamic sharding of
+                  the dataset.
+                type: boolean
+              enableElasticScheduling:
+                description: EnableElasticScheduling starts elasticity of Pods.
+                type: boolean
               envs:
                 additionalProperties:
                   description: EnvVar represents an environment variable present in
@@ -160,6 +167,15 @@ spec:
                 additionalProperties:
                   description: ReplicaSpec specifies the number and resources of replica.
                   properties:
+                    autoScale:
+                      description: AutoScale is the flag to auto scale the number
+                        of replicas and resource of each replica.
+                      type: boolean
+                    priority:
+                      description: Priority supports high/low/0.5. The 0.5 means that
+                        half workers have high priority, and half workers have low
+                        priority. The default value is low.
+                      type: string
                     replicas:
                       description: Replicas is the desired number of replicas of the
                         given template. If unspecified, defaults to 1.
@@ -173,6 +189,9 @@ spec:
                       description: Restart policy for all replicas within the job.
                         One of Always, OnFailure, Never and ExitCode. Default to Never.
                       type: string
+                    restartTimeout:
+                      description: RestartTimeout is the time to wait a hanging replica.
+                      type: integer
                     template:
                       description: Template is the object that describes the pod that
                         will be created for this replica. RestartPolicy in PodTemplateSpec

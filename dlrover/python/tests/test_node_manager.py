@@ -46,7 +46,7 @@ from dlrover.python.tests.test_utils import (
     MockJobParams,
     create_task_manager,
     mock_k8s_client,
-    mock_list_job_pods,
+    mock_list,
 )
 
 _MOCK_JOB_UUID = "11111"
@@ -160,7 +160,7 @@ class JobConfigTest(unittest.TestCase):
         manager = create_node_manager(params, SpeedMonitor())
         self.assertEqual(manager._ps_relaunch_max_num, 1)
         manager._elastic_job.get_job_uuid = get_job_uuid
-        manager._node_watcher._list_job_pods = lambda: mock_list_job_pods({})
+        manager._node_watcher.list = lambda: mock_list({})
         manager.start()
         self.assertEqual(manager._job_uuid, _MOCK_JOB_UUID)
         self.assertEqual(len(manager._job_nodes), 4)

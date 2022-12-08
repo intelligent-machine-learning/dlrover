@@ -124,8 +124,8 @@ class k8sClient(object):
         try:
             crd_object = self.get_custom_resource(
                 name=self._job_name,
-                group="jobs.kubemaker.alipay.net",
-                version="v1beta1",
+                group="elastic.iml.github.io",
+                version="v1alpha1",
                 plural="elasticjobs",
             )
             return crd_object
@@ -290,7 +290,7 @@ class K8sJobParams(JobParams):
             container = spec["template"]["spec"]["containers"][0]
             resources = container.get("resources", {})
             requests = resources.get("requests", {})
-            cpu = int(requests.get("cpu", 0))
+            cpu = float(requests.get("cpu", 0))
             if "memory" in requests:
                 memory = NodeResource.convert_memory_to_mb(requests["memory"])
             else:
@@ -316,14 +316,14 @@ class K8sJobParams(JobParams):
                 critical_nodes,
             )
 
-    def _retry_to_get_job(self, k8s_client):
+    def _retry_to_get_job(self, k8s_client: k8sClient):
         for _ in range(3):
             job = k8s_client.get_training_job()
             if job:
                 return job
             else:
                 time.sleep(5)
-        raise ValueError("Cannot get the training job %s", self._job_name)
+        raise ValueError("Cannot get the training job %s" % self.job_name)
 
     def _get_job_uuid(self, job):
         if job and "uid" in job["metadata"]:

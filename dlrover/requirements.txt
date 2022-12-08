@@ -1,0 +1,5 @@
+grpcio==1.34.1
+grpcio-tools==1.34.1
+protobuf>=3.12.0
+psutil
+kubernetes

@@ -113,7 +113,7 @@ class PodWatcher(NodeWatcher):
 
     def watch(self):
         resource_version = None
-        pod_list = self._list_job_pods()
+        pod_list = self.list()
         if pod_list:
             resource_version = pod_list.metadata.resource_version
         try:
