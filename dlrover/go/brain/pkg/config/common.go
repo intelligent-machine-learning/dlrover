@@ -50,6 +50,17 @@ const (
 	KubeWatcherMetricsAddress = "kube-watcher.metrics-address"
 	// KubeWatcherEnableLeaderElect is key of if enable leader select of kube watcher
 	KubeWatcherEnableLeaderElect = "kube-watcher.leader-elect.enable"
-	// KubeWatcherRegisterCreateEventAdmin is the config key of administrator which register create events
-	KubeWatcherRegisterCreateEventAdmin = "kube-watcher.register-create-admin"
+
+	// QueryBackwardTimePeriodInHour is the config key for query backward time period in hour
+	QueryBackwardTimePeriodInHour = "query.backward.time-period.hour"
+
+	// JobNodeMemoryMarginPercent is the config key for job node memory margin percent
+	JobNodeMemoryMarginPercent = "job.node.memory.margin.percent"
+
+	// OptimizerMinWorkerCreateCPU is the key of min CPU of the first worker
+	OptimizerMinWorkerCreateCPU = "optimizer.worker.create.cpu.min"
+	// OptimizerWorkerOomMemoryMarginPercent is the config key of oom worker memory margin percent
+	OptimizerWorkerOomMemoryMarginPercent = "optimizer.worker.oom.memory.margin-percent"
+	// OptimizerWorkerOomMemoryMinIncrease is the config key of oom worker memory margin percent
+	OptimizerWorkerOomMemoryMinIncrease = "optimizer.worker.oom.memory.min-increase"
 )

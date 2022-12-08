@@ -39,3 +39,12 @@ func NewClient(conf *config.Config) *Client {
 		JobNodeRecorder:    NewJobNodeDBRecorder(db),
 	}
 }
+
+// NewFakeClient returns a new fake mysql db client
+func NewFakeClient() *Client {
+	return &Client{
+		JobMetricsRecorder: NewJobMetricsFakeRecorder(),
+		JobRecorder:        NewJobFakeRecorder(),
+		JobNodeRecorder:    NewJobNodeFakeRecorder(),
+	}
+}

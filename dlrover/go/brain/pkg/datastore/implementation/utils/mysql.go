@@ -52,7 +52,48 @@ func GetData(client *mysql.Client, condition *datastoreapi.Condition, data inter
 			return fmt.Errorf("GetData %s data is not *[]*JobMetrics", condition.Type)
 		}
 		return client.JobMetricsRecorder.List(condition.Extra.(*mysql.JobMetricsCondition), data.(*[]*mysql.JobMetrics))
+	case common.TypeGetDataGetJob:
+		_, ok := condition.Extra.(*mysql.JobCondition)
+		if !ok {
+			return fmt.Errorf("GetData %s condition is not *JobCondition", condition.Type)
+		}
+		_, ok = data.(*mysql.Job)
+		if !ok {
+			return fmt.Errorf("GetData %s data is not *Job", condition.Type)
+		}
+		return client.JobRecorder.Get(condition.Extra.(*mysql.JobCondition), data.(*mysql.Job))
+	case common.TypeGetDataListJob:
+		_, ok := condition.Extra.(*mysql.JobCondition)
+		if !ok {
+			return fmt.Errorf("GetData %s condition is not *JobCondition", condition.Type)
+		}
+		_, ok = data.(*[]*mysql.Job)
+		if !ok {
+			return fmt.Errorf("GetData %s data is not *[]*Job", condition.Type)
+		}
+		return client.JobRecorder.List(condition.Extra.(*mysql.JobCondition), data.(*[]*mysql.Job))
+	case common.TypeGetDataGetJobNode:
+		_, ok := condition.Extra.(*mysql.JobNodeCondition)
+		if !ok {
+			return fmt.Errorf("GetData %s condition is not *JobNodeCondition", condition.Type)
+		}
+		_, ok = data.(*mysql.JobNode)
+		if !ok {
+			return fmt.Errorf("GetData %s data is not *JobNode", condition.Type)
+		}
+		return client.JobNodeRecorder.Get(condition.Extra.(*mysql.JobNodeCondition), data.(*mysql.JobNode))
+	case common.TypeGetDataListJobNode:
+		_, ok := condition.Extra.(*mysql.JobNodeCondition)
+		if !ok {
+			return fmt.Errorf("GetData %s condition is not *JobNodeCondition", condition.Type)
+		}
+		_, ok = data.(*[]*mysql.JobNode)
+		if !ok {
+			return fmt.Errorf("GetData %s data is not *[]*JobNode", condition.Type)
+		}
+		return client.JobNodeRecorder.List(condition.Extra.(*mysql.JobNodeCondition), data.(*[]*mysql.JobNode))
 	}
+
 	return fmt.Errorf("invalid type: %s", condition.Type)
 }
 

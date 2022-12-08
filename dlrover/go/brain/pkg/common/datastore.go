@@ -18,6 +18,14 @@ const (
 	TypeGetDataGetJobMetrics = "GetJobMetrics"
 	// TypeGetDataListJobMetrics is to list job metrics
 	TypeGetDataListJobMetrics = "ListJobMetrics"
+	// TypeGetDataGetJob is to get job
+	TypeGetDataGetJob = "GetJob"
+	// TypeGetDataListJob is to list jobs
+	TypeGetDataListJob = "ListJob"
+	// TypeGetDataGetJobNode is to get job node
+	TypeGetDataGetJobNode = "GetJobNode"
+	// TypeGetDataListJobNode is to list job nodes
+	TypeGetDataListJobNode = "ListJobNode"
 	// TypeUpsertJob is to upsert a job record
 	TypeUpsertJob = "UpsertJob"
 	// TypeUpsertJobNode is to upsert a job node record

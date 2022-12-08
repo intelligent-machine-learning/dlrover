@@ -26,6 +26,7 @@ const TableJob = "job"
 type JobCondition struct {
 	JobUUID        string
 	JobName        string
+	ExtraID        string
 	CreatedAtRange *dbbase.TimeRange
 }
 
@@ -33,6 +34,7 @@ type JobCondition struct {
 type Job struct {
 	JobUUID    string
 	JobName    string
+	ExtraID    string // extra identifier, e.g., user
 	CreatedAt  time.Time
 	StartedAt  time.Time
 	FinishedAt time.Time
@@ -46,6 +48,9 @@ func (c *JobCondition) Apply(session *xorm.Session) *xorm.Session {
 	}
 	if c.JobName != "" {
 		session.Where("job_name = ?", c.JobName)
+	}
+	if c.ExtraID != "" {
+		session.Where("extra_id = ?", c.ExtraID)
 	}
 	if r := c.CreatedAtRange; r != nil {
 		if !r.From.IsZero() {

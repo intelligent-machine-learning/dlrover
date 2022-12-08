@@ -64,3 +64,20 @@ type JobMetrics struct {
 	Resource           string
 	CustomizedData     string
 }
+
+// OptimizeJobMeta includes required information for optimization
+type OptimizeJobMeta struct {
+	JobMeta        *JobMeta
+	Metrics        *JobMetrics
+	CustomizedData map[string]string
+}
+
+// JobNodeStatus is the struct of job node status
+type JobNodeStatus struct {
+	IsOOM bool
+}
+
+// JobStatus is the struct of job stauts
+type JobStatus struct {
+	IsOOM bool
+}
