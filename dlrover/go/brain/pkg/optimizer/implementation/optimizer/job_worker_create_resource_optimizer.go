@@ -96,7 +96,7 @@ func (optimizer *JobWorkerCreateResourceOptimizer) Optimize(conf *optconfig.Opti
 	cond = &datastoreapi.Condition{
 		Type: common.TypeGetDataListJob,
 		Extra: &mysql.JobCondition{
-			ExtraID: job.ExtraID,
+			Scenario: job.Scenario,
 			CreatedAtRange: &dbbase.TimeRange{
 				From: startTime,
 				To:   now,
@@ -106,7 +106,7 @@ func (optimizer *JobWorkerCreateResourceOptimizer) Optimize(conf *optconfig.Opti
 	historyJobs := make([]*mysql.Job, 0)
 	err = optimizer.dataStore.GetData(cond, &historyJobs)
 	if err != nil {
-		log.Errorf("Fail to list job for %s: %v", job.ExtraID, err)
+		log.Errorf("Fail to list job for %s: %v", job.Scenario, err)
 		return nil, err
 	}
 

@@ -33,7 +33,7 @@ func TestJobWorkerCreateResourceOptimizerWithoutOOM(t *testing.T) {
 
 	jobUUID := "job-uuid-0"
 	jobName := "job-name-0"
-	extraID := "extra-id"
+	scenario := "scenario"
 
 	jobMetas := []*common.JobMeta{
 		{
@@ -43,9 +43,9 @@ func TestJobWorkerCreateResourceOptimizerWithoutOOM(t *testing.T) {
 	}
 
 	job := &mysql.Job{
-		JobName: jobName,
-		JobUUID: jobUUID,
-		ExtraID: extraID,
+		JobName:  jobName,
+		JobUUID:  jobUUID,
+		Scenario: scenario,
 	}
 	dataStore.Client.JobRecorder.Upsert(job)
 
@@ -65,13 +65,13 @@ func TestJobWorkerCreateResourceOptimizerWithoutOOM(t *testing.T) {
 	job1 := &mysql.Job{
 		JobName:   jobName1,
 		JobUUID:   jobUUID1,
-		ExtraID:   extraID,
+		Scenario:  scenario,
 		CreatedAt: time.Now().Add(time.Duration(-10) * time.Minute),
 	}
 	job2 := &mysql.Job{
 		JobName:   jobName2,
 		JobUUID:   jobUUID2,
-		ExtraID:   extraID,
+		Scenario:  scenario,
 		CreatedAt: time.Now().Add(time.Duration(-10) * time.Minute),
 	}
 	dataStore.Client.JobRecorder.Upsert(job1)
@@ -151,7 +151,7 @@ func TestJobWorkerCreateResourceOptimizerWithOOM(t *testing.T) {
 
 	jobUUID := "job-uuid-0"
 	jobName := "job-name-0"
-	extraID := "extra-id"
+	scenario := "scenario"
 
 	jobMetas := []*common.JobMeta{
 		{
@@ -166,10 +166,10 @@ func TestJobWorkerCreateResourceOptimizerWithOOM(t *testing.T) {
 	jobStatusStr, err := json.Marshal(jobStatus)
 	assert.NoError(t, err)
 	job := &mysql.Job{
-		JobName: jobName,
-		JobUUID: jobUUID,
-		ExtraID: extraID,
-		Status:  string(jobStatusStr),
+		JobName:  jobName,
+		JobUUID:  jobUUID,
+		Scenario: scenario,
+		Status:   string(jobStatusStr),
 	}
 	dataStore.Client.JobRecorder.Upsert(job)
 
@@ -186,7 +186,7 @@ func TestJobWorkerCreateResourceOptimizerWithOOM(t *testing.T) {
 	job1 := &mysql.Job{
 		JobName:   jobName1,
 		JobUUID:   jobUUID1,
-		ExtraID:   extraID,
+		Scenario:  scenario,
 		CreatedAt: time.Now().Add(time.Duration(-10) * time.Minute),
 	}
 	dataStore.Client.JobRecorder.Upsert(job1)

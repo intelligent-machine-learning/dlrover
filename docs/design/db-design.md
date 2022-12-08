@@ -18,7 +18,7 @@ create table job_metrics(
 create table job(
     uid varchar(255), // job unique id
     name varchar(255), // job name
-    extra_id varchar(255) // job extra identifier, e.g., user
+    scenario varchar(255) // job scenario
     create_at timestamp, // job create timestamp
     started_at timestamp, // job start timestamp
     finished_at timestamp, // job finish timestamp
