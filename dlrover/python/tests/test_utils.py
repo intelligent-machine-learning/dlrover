@@ -142,6 +142,7 @@ class MockJobParams(JobParams):
         self.node_params[NodeType.CHIEF] = NodeParams(
             chief_resource, True, 1, 0, ""
         )
+        self.job_uuid = "11111"
 
 
 def create_pod(labels):
@@ -197,7 +198,7 @@ def create_pod(labels):
     return pod
 
 
-def mock_list(label_selector):
+def mock_list_namespaced_pod(label_selector):
     pods = []
     for i in range(2):
         labels = {
@@ -243,7 +244,7 @@ def mock_k8s_client():
     k8s_client = k8sClient("default", "elasticjob-sample")
     k8s_client.get_training_job = _get_training_job  # type: ignore
     k8s_client.get_pod = _get_pod  # type: ignore
-    k8s_client.list_namespaced_pod = mock_list  # type: ignore
+    k8s_client.list_namespaced_pod = mock_list_namespaced_pod  # type: ignore
     k8s_client.create_pod = mock.MagicMock(return_value=True)  # type: ignore
     k8s_client.create_service = mock.MagicMock(  # type: ignore
         return_value=True

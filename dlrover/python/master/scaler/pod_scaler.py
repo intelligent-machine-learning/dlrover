@@ -189,7 +189,7 @@ class PodScaler(Scaler):
             self._initial_nodes.append(node)
 
     def _get_max_pod_id(self, pods: List[Node]):
-        max_id = 0
+        max_id = -1
         for pod in pods:
             max_id = max(pod.id, max_id)
         return max_id
@@ -241,7 +241,7 @@ class PodScaler(Scaler):
         while True:
             with self._lock:
                 while self._initial_nodes:
-                    node = self._initial_nodes.pop()
+                    node = self._initial_nodes.pop(0)
                     pod = self._create_pod(
                         node,
                         self._plan.node_group_resources,
@@ -337,7 +337,8 @@ class PodScaler(Scaler):
                 )
             )
             self._delete_typed_pod(node.type, node.id)
-            return False
+            service_ready = False
+        return service_ready
 
     def _create_service_with_retry(
         self, pod_type, pod_id, service_name, retry_num=5
@@ -439,7 +440,7 @@ class PodScaler(Scaler):
         return self._k8s_client.create_pvc(pvc)
 
     def _get_master_pod(self):
-        master_pod_name = "elastic-%s-master" % self._job_name
+        master_pod_name = "elasticjob-%s-master" % self._job_name
         return self._k8s_client.get_pod(master_pod_name)
 
     def _create_persistent_volume_claim_object(

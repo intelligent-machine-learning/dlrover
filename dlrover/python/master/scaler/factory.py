@@ -12,11 +12,13 @@
 # limitations under the License.
 
 from dlrover.python.common.constants import PlatformType
+from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.scaler.elasticjob_scaler import ElasticJobScaler
 from dlrover.python.master.scaler.pod_scaler import PodScaler
 
 
 def new_job_scaler(platform, job_name, namespace):
+    logger.info("New %s JobScaler", platform)
     if platform == PlatformType.KUBERNETES:
         return ElasticJobScaler(job_name, namespace)
     elif platform == PlatformType.PY_KUBERNETES:

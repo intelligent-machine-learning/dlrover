@@ -139,10 +139,21 @@ class NodeManager(object):
 
     def start(self):
         self._job_optimizer.update_job_uuid(self._job_uuid)
+        self._job_optimizer.init_job_resource(self._job_resource)
         self._init_job_nodes()
+        plan = self._create_initial_scale_plan()
+        self._scaler.scale(plan)
         threading.Thread(
             target=self._monitor_nodes, name="node_monitor", daemon=True
         ).start()
+
+    def _create_initial_scale_plan(self):
+        scale_plan = ScalePlan()
+        scale_plan.node_group_resources = (
+            self._job_resource.node_group_resources
+        )
+        scale_plan.ps_addrs = self._ps_manager.get_ps_addrs()
+        return scale_plan
 
     def _init_training_node_manager(self):
         self._ps_manager = ParameterServerManager(

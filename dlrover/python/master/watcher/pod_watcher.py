@@ -11,6 +11,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import List
+
 from kubernetes import watch
 
 from dlrover.python.common.constants import (
@@ -83,11 +85,7 @@ def _convert_pod_event_to_node_event(event):
 
     pod_id = int(evt_obj.metadata.labels[ElasticJobLabel.REPLICA_INDEX_KEY])
 
-    cpu = evt_obj.spec.containers[0].resources.requests["cpu"]
-    memory = NodeResource.convert_memory_to_mb(
-        evt_obj.spec.containers[0].resources.requests["memory"]
-    )
-    pod_resource = NodeResource(cpu, memory)
+    resource = _parse_container_resource(evt_obj.spec.containers[0])
     node = Node(
         node_type=pod_type,
         node_id=pod_id,
@@ -95,11 +93,19 @@ def _convert_pod_event_to_node_event(event):
         task_index=task_id,
         status=evt_obj.status.phase,
         start_time=_get_start_timestamp(evt_obj.status),
-        config_resource=pod_resource,
+        config_resource=resource,
     )
     node.set_exit_reason(_get_pod_exit_reason(evt_obj))
     node_event = NodeEvent(event_type=evt_type, node=node)
     return node_event
+
+
+def _parse_container_resource(container):
+    cpu = container.resources.requests["cpu"]
+    memory = NodeResource.convert_memory_to_mb(
+        container.resources.requests["memory"]
+    )
+    return NodeResource(cpu, memory)
 
 
 class PodWatcher(NodeWatcher):
@@ -132,8 +138,8 @@ class PodWatcher(NodeWatcher):
         except Exception as e:
             raise e
 
-    def list(self):
-        nodes = []
+    def list(self) -> List[Node]:
+        nodes: List[Node] = []
         pod_list = self._k8s_client.list_namespaced_pod(self._job_selector)
         if not pod_list or not pod_list.items:
             return nodes
@@ -146,6 +152,7 @@ class PodWatcher(NodeWatcher):
             task_id = int(
                 pod.metadata.labels[ElasticJobLabel.TRAINING_TASK_INDEX_KEY]
             )
+            resource = _parse_container_resource(pod.spec.containers[0])
             node = Node(
                 node_type=pod_type,
                 node_id=pod_id,
@@ -153,7 +160,7 @@ class PodWatcher(NodeWatcher):
                 task_index=task_id,
                 status=pod.status.phase,
                 start_time=_get_start_timestamp(pod.status),
-                config_resource=None,
+                config_resource=resource,
             )
             node.set_exit_reason(_get_pod_exit_reason(pod))
             nodes.append(node)

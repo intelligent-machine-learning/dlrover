@@ -198,7 +198,7 @@ class k8sClient(object):
 
     def create_service(self, service):
         try:
-            self.client.create_namespaced_service(self.namespace, service)
+            self.client.create_namespaced_service(self._namespace, service)
             return True
         except client.rest.ApiException as e:
             logger.warning(
@@ -210,7 +210,7 @@ class k8sClient(object):
     def patch_service(self, service_name, service):
         try:
             self.client.patch_namespaced_service(
-                service_name, self.namespace, service
+                service_name, self._namespace, service
             )
             return True
         except client.rest.ApiException as e:

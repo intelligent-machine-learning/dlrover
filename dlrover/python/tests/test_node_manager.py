@@ -46,7 +46,6 @@ from dlrover.python.tests.test_utils import (
     MockJobParams,
     create_task_manager,
     mock_k8s_client,
-    mock_list,
 )
 
 _MOCK_JOB_UUID = "11111"
@@ -159,8 +158,6 @@ class JobConfigTest(unittest.TestCase):
         params.initilize()
         manager = create_node_manager(params, SpeedMonitor())
         self.assertEqual(manager._ps_relaunch_max_num, 1)
-        manager._elastic_job.get_job_uuid = get_job_uuid
-        manager._node_watcher.list = lambda: mock_list({})
         manager.start()
         self.assertEqual(manager._job_uuid, _MOCK_JOB_UUID)
         self.assertEqual(len(manager._job_nodes), 4)
@@ -221,6 +218,23 @@ class JobConfigTest(unittest.TestCase):
         )
         manager._process_node_events(NODE_STATE_FLOWS[7], node)
         self.assertEqual(len(dataset.doing), 0)
+
+    def test_create_initial_nodes(self):
+        params = MockJobParams()
+        params.initilize()
+        manager = create_node_manager(params, SpeedMonitor())
+        manager._init_job_nodes()
+        plan = manager._create_initial_scale_plan()
+        self.assertEqual(
+            plan.ps_addrs,
+            [
+                "test-edljob-ps-0.default.svc:2222",
+                "test-edljob-ps-1.default.svc:2222",
+                "test-edljob-ps-2.default.svc:2222",
+            ],
+        )
+        self.assertEqual(plan.node_group_resources[NodeType.PS].count, 3)
+        self.assertEqual(plan.node_group_resources[NodeType.WORKER].count, 3)
 
     def test_check_worker_status(self):
         params = MockJobParams()
