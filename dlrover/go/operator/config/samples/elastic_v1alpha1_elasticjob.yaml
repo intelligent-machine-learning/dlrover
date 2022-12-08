@@ -3,9 +3,10 @@ kind: ElasticJob
 metadata:
   name: elasticjob-sample
 spec:
-  distributionStrategy: parameter_server
+  distributionStrategy: ParameterServerStrategy
   replicaSpecs:
     ps:
+      replicas: 1
       restartCount: 3
       template:
           metadata:
@@ -22,7 +23,34 @@ spec:
                   - model_zoo.iris.dnn_estimator
                   - --batch_size=32
                   - --training_steps=1000
+                resources:
+                  requests:
+                    cpu: "0.5"
+                    memory: 256Mi
+    chief:
+      replicas: 1
+      restartCount: 3
+      template:
+          metadata:
+            annotations:
+              sidecar.istio.io/inject: "false"
+          spec:
+            restartPolicy: Never
+            containers:
+              - name: main
+                image: elasticdl:iris_estimator
+                command:
+                  - python
+                  - -m
+                  - model_zoo.iris.dnn_estimator
+                  - --batch_size=32
+                  - --training_steps=1000
+                resources:
+                  requests:
+                    cpu: "0.5"
+                    memory: 256Mi
     worker:
+      replicas: 2
       restartCount: 3
       template:
           metadata:
@@ -39,3 +67,7 @@ spec:
                   - model_zoo.iris.dnn_estimator
                   - --batch_size=32
                   - --training_steps=1000
+                resources:
+                  requests:
+                    cpu: "0.5"
+                    memory: 256Mi

@@ -1,3 +1,4 @@
+#!/bin/bash
 # Copyright 2022 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,14 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dlrover.python.common.constants import PlatformType
-from dlrover.python.common.log import default_logger as logger
-from dlrover.python.master.watcher.pod_watcher import PodWatcher
+set -e
 
+rm -rf build
+# NOTE: The following commands requires that the current working directory is
+# the source tree root.
+make -f dlrover/Makefile
 
-def new_node_watcher(platform, job_name, namespace):
-    logger.info("New %s NodeWatcher", platform)
-    if platform in (PlatformType.KUBERNETES, PlatformType.PY_KUBERNETES):
-        return PodWatcher(job_name, namespace)
-    else:
-        raise ValueError("Not support engine %s", platform)
+# Create elasticdl_preprocessing package
+echo "Building the wheel for elasticdl_preprocessing."
+rm -rf ./build/lib
+python setup.py --quiet bdist_wheel --dist-dir ./build

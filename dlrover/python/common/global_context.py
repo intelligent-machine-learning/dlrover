@@ -95,11 +95,9 @@ class Context(object):
             DefaultConfigValues.DEFALUT_GLOBAL_STEP_COUNT_TO_AUTO_WORKER,
         )
         self.easydl_worker_enabled = False
-        self.worker_resource_optimization_enabled = False
         self.easydl_ps_enabled = False
         self.is_tfv1_ps = False
         self.launch_worker_after_ps_running = False
-        self.slow_ps_relaunch_enabled = False
 
         logger.info("DLRover global context = {}".format(self.__dict__))
 

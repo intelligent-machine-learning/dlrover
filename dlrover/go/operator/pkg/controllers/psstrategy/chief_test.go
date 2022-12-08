@@ -55,7 +55,7 @@ func TestNewChiefPod(t *testing.T) {
 	)
 	assert.Equal(t, len(pod.Spec.Containers[0].Env), 1)
 	assert.Equal(t, pod.Spec.Containers[0].Env[0].Name, "MASTER_ADDR")
-	assert.Equal(t, pod.Spec.Containers[0].Env[0].Value, "test-psstrategy-easydl-master:50001")
+	assert.Equal(t, pod.Spec.Containers[0].Env[0].Value, "test-psstrategy-master:50001")
 
 	cluster := SparseClusterSpec{
 		Chief: map[int]string{0: "test-psstrategy-chief-0:2222"},

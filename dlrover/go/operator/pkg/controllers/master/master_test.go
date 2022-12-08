@@ -17,6 +17,7 @@ import (
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/api/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"strings"
 	"testing"
 )
 
@@ -31,6 +32,8 @@ func TestCreateMasterPod(t *testing.T) {
 	}
 
 	manager := newManager()
-	pod := manager.newEasydlMaster(job, initMasterIndex)
-	assert.Equal(t, pod.Name, "test-ps-easydl-master-0")
+	pod := manager.newJobMaster(job, initMasterIndex)
+	assert.Equal(t, pod.Name, "elasticjob-test-ps-master")
+	assert.True(t, strings.Contains(pod.Spec.Containers[0].Command[2], "--job_name test-ps"))
+	assert.True(t, strings.Contains(pod.Spec.Containers[0].Command[2], "--port 50001"))
 }

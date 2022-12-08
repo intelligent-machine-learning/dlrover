@@ -109,6 +109,16 @@ class PodScalerTest(unittest.TestCase):
         scaler.scale(scale_plan)
         self.assertEqual(len(scaler._initial_nodes), 3)
 
+        worker_ids = []
+        chief_ids = []
+        for node in scaler._initial_nodes:
+            if node.type == NodeType.WORKER:
+                worker_ids.append(node.id)
+            elif node.type == NodeType.CHIEF:
+                chief_ids.append(node.id)
+        self.assertListEqual(chief_ids, [0])
+        self.assertListEqual(worker_ids, [3, 4])
+
         scale_plan.node_group_resources = {
             NodeType.WORKER: NodeGroupResource(3, resource),
             NodeType.CHIEF: NodeGroupResource(1, resource),

@@ -12,10 +12,12 @@
 # limitations under the License.
 
 from dlrover.python.common.constants import PlatformType
+from dlrover.python.common.log import default_logger as logger
 from dlrover.python.scheduler.kubernetes import K8sElasticJob, K8sJobParams
 
 
 def new_elastic_job(platform, job_name, namespace):
+    logger.info("New %s ElasticJob", platform)
     if platform in (PlatformType.KUBERNETES, PlatformType.PY_KUBERNETES):
         return K8sElasticJob(job_name, namespace)
     else:
@@ -23,6 +25,7 @@ def new_elastic_job(platform, job_name, namespace):
 
 
 def new_job_params(platform, job_name, namespace):
+    logger.info("New %s JobParameters", platform)
     if platform in (PlatformType.KUBERNETES, PlatformType.PY_KUBERNETES):
         return K8sJobParams(platform, namespace, job_name)
     else:

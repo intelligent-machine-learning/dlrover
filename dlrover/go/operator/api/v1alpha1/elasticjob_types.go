@@ -57,7 +57,7 @@ type ReplicaSpec struct {
 	commonv1.ReplicaSpec `json:",inline"`
 
 	// RestartCount is the number of relaunching a failed replica.
-	RestartCount int `json:"restartSount,omitempty"`
+	RestartCount int `json:"restartCount,omitempty"`
 
 	// AutoScale is the flag to auto scale the number of replicas and resource of each replica.
 	AutoScale bool `json:"autoScale,omitempty"`
