@@ -92,9 +92,7 @@ class PodScalerTest(unittest.TestCase):
             NodeType.WORKER, 0, "elasticjob-sample-edljob-worker-0"
         )
         self.assertEqual(service.spec.selector["replica-index"], "0")
-        self.assertEqual(
-            service.spec.selector["replica-type"], "worker"
-        )
+        self.assertEqual(service.spec.selector["replica-type"], "worker")
 
     def test_scale(self):
         scaler = PodScaler("elasticjob-sample", "default")

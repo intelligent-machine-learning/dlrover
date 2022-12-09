@@ -79,9 +79,7 @@ def _convert_pod_event_to_node_event(event):
         return None
 
     pod_name = evt_obj.metadata.name
-    rank = int(
-        evt_obj.metadata.labels[ElasticJobLabel.RANK_INDEX_KEY]
-    )
+    rank = int(evt_obj.metadata.labels[ElasticJobLabel.RANK_INDEX_KEY])
 
     pod_id = int(evt_obj.metadata.labels[ElasticJobLabel.REPLICA_INDEX_KEY])
 
@@ -151,9 +149,7 @@ class PodWatcher(NodeWatcher):
             pod_id = int(
                 pod.metadata.labels[ElasticJobLabel.REPLICA_INDEX_KEY]
             )
-            task_id = int(
-                pod.metadata.labels[ElasticJobLabel.RANK_INDEX_KEY]
-            )
+            task_id = int(pod.metadata.labels[ElasticJobLabel.RANK_INDEX_KEY])
             resource = _parse_container_resource(pod.spec.containers[0])
             node = Node(
                 node_type=pod_type,

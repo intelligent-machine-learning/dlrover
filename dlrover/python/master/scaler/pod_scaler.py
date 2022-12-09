@@ -152,9 +152,7 @@ class PodScaler(Scaler):
             pod_id = int(
                 pod.metadata.labels[ElasticJobLabel.REPLICA_INDEX_KEY]
             )
-            task_id = int(
-                pod.metadata.labels[ElasticJobLabel.RANK_INDEX_KEY]
-            )
+            task_id = int(pod.metadata.labels[ElasticJobLabel.RANK_INDEX_KEY])
             node = Node(
                 node_type=pod_type,
                 node_id=pod_id,
@@ -220,7 +218,10 @@ class PodScaler(Scaler):
         """Labels that should be attached to all k8s objects belong to
         current job.
         """
-        return {"app": ElasticJobLabel.APP_NAME, ElasticJobLabel.JOB_KEY: self._job_name}
+        return {
+            "app": ElasticJobLabel.APP_NAME,
+            ElasticJobLabel.JOB_KEY: self._job_name,
+        }
 
     def get_node_service_addr(self, type, id):
         service_name = get_pod_name(self._job_name, type, id)
