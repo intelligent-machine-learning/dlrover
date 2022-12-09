@@ -117,7 +117,7 @@ class PodWatcher(NodeWatcher):
 
     def watch(self):
         resource_version = None
-        pod_list = self.list()
+        pod_list = self._k8s_client.list_namespaced_pod(self._job_selector)
         if pod_list:
             resource_version = pod_list.metadata.resource_version
         try:
