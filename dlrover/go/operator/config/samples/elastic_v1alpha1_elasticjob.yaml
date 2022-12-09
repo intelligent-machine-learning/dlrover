@@ -17,10 +17,11 @@ spec:
             containers:
               - name: main
                 image: elasticdl:iris_estimator
+                imagePullPolicy: IfNotPresent
                 command:
                   - python
                   - -m
-                  - model_zoo.iris.dnn_estimator
+                  - model_zoo.tf_estimator.iris_dnn_local
                   - --batch_size=32
                   - --training_steps=1000
                 resources:
@@ -39,10 +40,11 @@ spec:
             containers:
               - name: main
                 image: elasticdl:iris_estimator
+                imagePullPolicy: IfNotPresent
                 command:
                   - python
                   - -m
-                  - model_zoo.iris.dnn_estimator
+                  - model_zoo.tf_estimator.iris_dnn_local
                   - --batch_size=32
                   - --training_steps=1000
                 resources:
@@ -61,10 +63,11 @@ spec:
             containers:
               - name: main
                 image: elasticdl:iris_estimator
+                imagePullPolicy: IfNotPresent
                 command:
                   - python
                   - -m
-                  - model_zoo.iris.dnn_estimator
+                  - model_zoo.tf_estimator.iris_dnn_local
                   - --batch_size=32
                   - --training_steps=1000
                 resources:
