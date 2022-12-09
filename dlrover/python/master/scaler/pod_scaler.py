@@ -66,7 +66,7 @@ class PodTemplate(object):
         self.name = main_container["name"]
         self.image = main_container["image"]
         self.command = main_container["command"]
-        self.args = main_container.get("args", "")
+        self.args = main_container.get("args", [])
         self.image_pull_policy = main_container.get(
             "imagePullPolicy", "Always"
         )
@@ -254,7 +254,7 @@ class PodScaler(Scaler):
                     if not service_ready:
                         self._initial_nodes.insert(0, node)
                         break
-            time.sleep(15)
+            time.sleep(3)
 
     def _create_pod(self, node: Node, job_resource, ps_addrs):
         # Find that master pod that will be used as the owner reference
