@@ -17,13 +17,10 @@ spec:
             containers:
               - name: main
                 image: elasticdl:iris_estimator
-                imagePullPolicy: IfNotPresent
                 command:
-                  - python
-                  - -m
-                  - model_zoo.tf_estimator.iris_dnn_local
-                  - --batch_size=32
-                  - --training_steps=1000
+                  - /bin/bash
+                  - -c
+                  - "pip install http://armor-test.oss-cn-hangzhou-zmf.aliyuncs.com/apps/elasticdl/dlrover-0.1.0rc0.dev0-py3-none-any.whl -I --no-deps && python -m model_zoo.iris.dnn_estimator --batch_size=32 --training_steps=1000"
                 resources:
                   requests:
                     cpu: "0.5"
@@ -40,13 +37,10 @@ spec:
             containers:
               - name: main
                 image: elasticdl:iris_estimator
-                imagePullPolicy: IfNotPresent
                 command:
-                  - python
-                  - -m
-                  - model_zoo.tf_estimator.iris_dnn_local
-                  - --batch_size=32
-                  - --training_steps=1000
+                  - /bin/bash
+                  - -c
+                  - "pip install http://armor-test.oss-cn-hangzhou-zmf.aliyuncs.com/apps/elasticdl/dlrover-0.1.0rc0.dev0-py3-none-any.whl -I --no-deps && python -m model_zoo.iris.dnn_estimator --batch_size=32 --training_steps=1000"
                 resources:
                   requests:
                     cpu: "0.5"
@@ -63,13 +57,10 @@ spec:
             containers:
               - name: main
                 image: elasticdl:iris_estimator
-                imagePullPolicy: IfNotPresent
                 command:
-                  - python
-                  - -m
-                  - model_zoo.tf_estimator.iris_dnn_local
-                  - --batch_size=32
-                  - --training_steps=1000
+                  - /bin/bash
+                  - -c
+                  - "pip install http://armor-test.oss-cn-hangzhou-zmf.aliyuncs.com/apps/elasticdl/dlrover-0.1.0rc0.dev0-py3-none-any.whl -I --no-deps && python -m model_zoo.iris.dnn_estimator --batch_size=32 --training_steps=1000"
                 resources:
                   requests:
                     cpu: "0.5"
