@@ -63,4 +63,22 @@ const (
 	OptimizerWorkerOomMemoryMarginPercent = "optimizer.worker.oom.memory.margin-percent"
 	// OptimizerWorkerOomMemoryMinIncrease is the config key of oom worker memory margin percent
 	OptimizerWorkerOomMemoryMinIncrease = "optimizer.worker.oom.memory.min-increase"
+
+	// OptimizerPSMemoryMarginPercent is the config key of cold job initial ps memory
+	OptimizerPSMemoryMarginPercent = "optimizer.ps.memory.margin.percent"
+	// OptimizerPSCPUMarginPercent is the config key of cold job initial ps memory
+	OptimizerPSCPUMarginPercent = "optimizer.ps.cpu.margin.percent"
+	// OptimizerPSMaxCount is the config key of the max number of PS
+	OptimizerPSMaxCount = "optimizer.ps.count.maximum"
+	// OptimizerPSMinCPUCore is the config key of ps min cpu
+	OptimizerPSMinCPUCore = "optimizer.ps.min.cpu"
+	// OptimizerPSColdMemory is the config key of cold job initial ps memory
+	OptimizerPSColdMemory = "optimizer.ps.cold.memory"
+	// OptimizerPSColdCPU is the config key of cold job initial ps cpu
+	OptimizerPSColdCPU = "optimizer.ps.cold.cpu"
+	// OptimizerPSColdReplica is the config key of cold job initial ps replica
+	OptimizerPSColdReplica = "optimizer.ps.cold.replica"
+
+	// JobNodeCPUMargin is the config key for job node cpu margin
+	JobNodeCPUMargin = "job-node.cpu.margin"
 )

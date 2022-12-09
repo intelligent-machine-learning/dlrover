@@ -13,6 +13,8 @@
 
 package utils
 
+import "sort"
+
 // GetMaxJobNodeResource returns max resources of job nodes
 func GetMaxJobNodeResource(resources map[uint64]float64) float64 {
 	if resources == nil {
@@ -25,4 +27,37 @@ func GetMaxJobNodeResource(resources map[uint64]float64) float64 {
 		}
 	}
 	return maxRes
+}
+
+// ComputeMajorCluster computes a cluster where the number of samples is bigger than 50%
+func ComputeMajorCluster(nums []float64) []float64 {
+	clusterValues := make([]float64, 0)
+	if len(nums) == 0 {
+		return clusterValues
+	}
+	sort.Float64s(nums)
+	mediumIndex := len(nums) / 2
+	clusterValues = append(clusterValues, nums[mediumIndex])
+	leftIndex := mediumIndex - 1
+	rightIndex := mediumIndex + 1
+	for leftIndex >= 0 && rightIndex < len(nums) && len(clusterValues) < mediumIndex+1 {
+		clusterKernel := clusterValues[len(clusterValues)/2]
+		if clusterKernel-nums[leftIndex] < nums[rightIndex]-clusterKernel {
+			clusterValues = append([]float64{nums[leftIndex]}, clusterValues...)
+			leftIndex--
+		} else {
+			clusterValues = append(clusterValues, nums[rightIndex])
+			rightIndex++
+		}
+	}
+	return clusterValues
+}
+
+// ComputeAverage computes the average value of a float array
+func ComputeAverage(nums []float64) float64 {
+	sum := 0.0
+	for i := 0; i < len(nums); i++ {
+		sum += nums[i]
+	}
+	return sum / float64(len(nums))
 }
