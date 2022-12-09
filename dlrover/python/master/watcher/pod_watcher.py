@@ -79,8 +79,8 @@ def _convert_pod_event_to_node_event(event):
         return None
 
     pod_name = evt_obj.metadata.name
-    task_id = int(
-        evt_obj.metadata.labels[ElasticJobLabel.TRAINING_TASK_INDEX_KEY]
+    rank = int(
+        evt_obj.metadata.labels[ElasticJobLabel.RANK_INDEX_KEY]
     )
 
     pod_id = int(evt_obj.metadata.labels[ElasticJobLabel.REPLICA_INDEX_KEY])
@@ -90,7 +90,7 @@ def _convert_pod_event_to_node_event(event):
         node_type=pod_type,
         node_id=pod_id,
         name=pod_name,
-        task_index=task_id,
+        rank_index=rank,
         status=evt_obj.status.phase,
         start_time=_get_start_timestamp(evt_obj.status),
         config_resource=resource,
@@ -134,7 +134,7 @@ class PodWatcher(NodeWatcher):
                 node_event = _convert_pod_event_to_node_event(event)
                 if not node_event:
                     continue
-                yield event
+                yield node_event
         except Exception as e:
             raise e
 
@@ -146,18 +146,20 @@ class PodWatcher(NodeWatcher):
 
         for pod in pod_list.items:
             pod_type = pod.metadata.labels[ElasticJobLabel.REPLICA_TYPE_KEY]
+            if pod_type == NodeType.MASTER:
+                continue
             pod_id = int(
                 pod.metadata.labels[ElasticJobLabel.REPLICA_INDEX_KEY]
             )
             task_id = int(
-                pod.metadata.labels[ElasticJobLabel.TRAINING_TASK_INDEX_KEY]
+                pod.metadata.labels[ElasticJobLabel.RANK_INDEX_KEY]
             )
             resource = _parse_container_resource(pod.spec.containers[0])
             node = Node(
                 node_type=pod_type,
                 node_id=pod_id,
                 name=pod.metadata.name,
-                task_index=task_id,
+                rank_index=task_id,
                 status=pod.status.phase,
                 start_time=_get_start_timestamp(pod.status),
                 config_resource=resource,

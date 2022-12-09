@@ -108,7 +108,7 @@ class Node(object):
         name: str, the name of a node.
         status: the status of a node.
         start_time: int, the start timestamp of a node.
-        task_index: int, the task index of a node in a training cluster.
+        rank_index: int, the rank index of a node in a training cluster.
         relaunch_count: int, the relaunched number of the training node.
         critical: bool, if true, the job will fail if the node fails.
         max_relaunch_count: int, the maximum to relaunch a node.
@@ -126,7 +126,7 @@ class Node(object):
         name=None,
         status=NodeStatus.INITIAL,
         start_time=None,
-        task_index=None,
+        rank_index=None,
         relaunch_count=0,
         critical=False,
         max_relaunch_count=0,
@@ -138,7 +138,7 @@ class Node(object):
         self.name = name
         self.status = status
         self.start_time = start_time
-        self.task_index = task_index if task_index is not None else node_id
+        self.rank_index = rank_index if rank_index is not None else node_id
         self.relaunch_count = relaunch_count
         self.critical = critical
         self.max_relaunch_count = max_relaunch_count

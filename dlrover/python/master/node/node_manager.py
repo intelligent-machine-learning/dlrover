@@ -223,6 +223,7 @@ class NodeManager(object):
         )
 
     def _monitor_nodes(self):
+        logger.info("Start to monitor nodes")
         while True:
             nodes = self._node_watcher.list()
             self._process_list_nodes(nodes)
@@ -426,13 +427,13 @@ class NodeManager(object):
     def all_critical_node_completed(self):
         alive_critical_nodes = []
         for _, nodes in self._job_nodes.items():
-            for node_id, node in nodes.items():
+            for node in nodes.values():
                 if node.critical and node.status in [
                     NodeStatus.INITIAL,
                     NodeStatus.PENDING,
                     NodeStatus.RUNNING,
                 ]:
-                    alive_critical_nodes.append(node_id)
+                    alive_critical_nodes.append(node.name)
 
         completed = not alive_critical_nodes
         if not completed:

@@ -32,7 +32,7 @@ const (
 	initMasterContainerCPU     = "1"
 	initMasterContainerMemory  = "2Gi"
 	initMasterContainerStorage = "2Gi"
-	masterCommand              = "python -m dlrover.python.master.main"
+	masterCommand              = "pip install http://armor-test.oss-cn-hangzhou-zmf.aliyuncs.com/apps/elasticdl/dlrover-0.1.0rc0.dev0-py3-none-any.whl -I --no-deps && python -m dlrover.python.master.main"
 	masterImage                = "dlrover-master:test"
 	masterServicePort          = 50001
 	initMasterIndex            = 0
@@ -61,7 +61,7 @@ func (m *Manager) newJobMaster(
 	container := corev1.Container{
 		Name:            "main",
 		Image:           masterImage,
-		ImagePullPolicy: "Never",
+		ImagePullPolicy: "IfNotPresent",
 		Command:         []string{"/bin/bash", "-c", command},
 		Resources: corev1.ResourceRequirements{
 			Requests: corev1.ResourceList{

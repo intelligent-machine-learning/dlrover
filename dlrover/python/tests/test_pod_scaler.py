@@ -50,7 +50,7 @@ class PodScalerTest(unittest.TestCase):
         scaler = PodScaler("elasticjob-sample", "default")
         scaler._distribution_strategy = DistributionStrategy.PARAMETER_SERVER
         resource = NodeResource(4, 8192)
-        node = Node(NodeType.WORKER, 0, resource, task_index=0)
+        node = Node(NodeType.WORKER, 0, resource, rank_index=0)
         job_resource = {
             NodeType.WORKER: NodeGroupResource(3, NodeResource(4, 2048)),
             NodeType.CHIEF: NodeGroupResource(1, NodeResource(4, 2048)),
@@ -72,14 +72,14 @@ class PodScalerTest(unittest.TestCase):
             """{"type": "worker", "index": 0}"""
             in main_container.env[-1].value
         )
-        node = Node(NodeType.CHIEF, 0, resource, task_index=0)
+        node = Node(NodeType.CHIEF, 0, resource, rank_index=0)
         pod = scaler._create_pod(node, job_resource, ps_addrs)
         main_container = pod.spec.containers[0]
         self.assertTrue(
             """{"type": "chief", "index": 0}""" in main_container.env[-1].value
         )
 
-        node = Node(NodeType.PS, 0, resource, task_index=0)
+        node = Node(NodeType.PS, 0, resource, rank_index=0)
         pod = scaler._create_pod(node, job_resource, ps_addrs)
         main_container = pod.spec.containers[0]
         self.assertTrue(
@@ -91,9 +91,9 @@ class PodScalerTest(unittest.TestCase):
         service = scaler._create_service(
             NodeType.WORKER, 0, "elasticjob-sample-edljob-worker-0"
         )
-        self.assertEqual(service.spec.selector["elastic-replica-index"], "0")
+        self.assertEqual(service.spec.selector["replica-index"], "0")
         self.assertEqual(
-            service.spec.selector["elastic-replica-type"], "worker"
+            service.spec.selector["replica-type"], "worker"
         )
 
     def test_scale(self):
