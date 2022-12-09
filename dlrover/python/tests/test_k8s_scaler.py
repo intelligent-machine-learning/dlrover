@@ -28,7 +28,7 @@ class k8sScalerTest(unittest.TestCase):
                 NodeType.WORKER,
                 0,
                 NodeResource(10, 4096),
-                task_index=0,
+                rank_index=0,
             )
         )
         group_resource = NodeGroupResource(1, node_resource, "low")

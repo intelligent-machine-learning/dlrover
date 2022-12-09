@@ -153,8 +153,6 @@ class TFPSNodeHandlingCallback(NodeEventCallback):
     def on_node_succeeded(self, node: Node, cluster_context: ClusterContext):
         node.finish_time = datetime.now()
         node_manager = cluster_context.node_manager
-        if node.type == NodeType.WORKER and node.task_index == 0:
-            node_manager.remove_training_nodes()
         if node.critical:
             completed = node_manager.all_critical_node_completed()
             if completed:

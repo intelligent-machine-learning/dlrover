@@ -62,7 +62,7 @@ class PodWatcherTest(unittest.TestCase):
             ElasticJobLabel.APP_NAME: "test",
             ElasticJobLabel.REPLICA_TYPE_KEY: NodeType.WORKER,
             ElasticJobLabel.REPLICA_INDEX_KEY: "0",
-            ElasticJobLabel.TRAINING_TASK_INDEX_KEY: "0",
+            ElasticJobLabel.RANK_INDEX_KEY: "0",
         }
         pod = create_pod(labels)
         event_type = "Modified"
@@ -79,7 +79,7 @@ class PodWatcherTest(unittest.TestCase):
             ElasticJobLabel.APP_NAME: "test",
             ElasticJobLabel.REPLICA_TYPE_KEY: NodeType.WORKER,
             ElasticJobLabel.REPLICA_INDEX_KEY: "0",
-            ElasticJobLabel.TRAINING_TASK_INDEX_KEY: "0",
+            ElasticJobLabel.RANK_INDEX_KEY: "0",
         }
         pod = create_pod(labels)
         state = pod.status.container_statuses[0].state

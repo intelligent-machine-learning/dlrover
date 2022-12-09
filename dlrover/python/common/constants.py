@@ -28,7 +28,7 @@ class TaskType(object):
 
 
 class NodeType(object):
-    MASTER = "edl-master"
+    MASTER = "master"
     PS = "ps"
     WORKER = "worker"
     EVALUATOR = "evaluator"
@@ -36,11 +36,11 @@ class NodeType(object):
 
 
 class ElasticJobLabel(object):
-    APP_NAME = "elasticdl"
-    JOB_KEY = "elasticdl-job-name"
+    APP_NAME = "dlrover"
+    JOB_KEY = "elasticjob-name"
     REPLICA_TYPE_KEY = "replica-type"
     REPLICA_INDEX_KEY = "replica-index"
-    TRAINING_TASK_INDEX_KEY = "training-task-index"
+    RANK_INDEX_KEY = "rank-index"
 
 
 class NodeStatus(object):

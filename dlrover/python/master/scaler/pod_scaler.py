@@ -35,11 +35,6 @@ from dlrover.python.scheduler.kubernetes import (
     k8sClient,
 )
 
-ELASTICDL_APP_NAME = "elastic"
-ELASTICDL_JOB_KEY = "elastic-job-name"
-ELASTICDL_REPLICA_TYPE_KEY = "elastic-replica-type"
-ELASTICDL_REPLICA_INDEX_KEY = "elastic-replica-index"
-
 
 def append_pod_ip_to_env(env):
     pod_ip_var = V1EnvVar(
@@ -71,6 +66,7 @@ class PodTemplate(object):
         self.name = main_container["name"]
         self.image = main_container["image"]
         self.command = main_container["command"]
+        self.args = main_container.get("args", [])
         self.image_pull_policy = main_container.get(
             "imagePullPolicy", "Always"
         )
@@ -137,7 +133,7 @@ class PodScaler(Scaler):
         with self._lock:
             not_created_pod = None
             for pod in self._initial_nodes:
-                if pod_name == get_pod_name(pod.type, pod.id):
+                if pod_name == get_pod_name(self._job_name, pod.type, pod.id):
                     not_created_pod = pod
                     break
             if not_created_pod:
@@ -151,18 +147,18 @@ class PodScaler(Scaler):
         job_pods = {}
         for pod in pod_list.items:
             pod_type = pod.metadata.labels[ElasticJobLabel.REPLICA_TYPE_KEY]
+            if pod_type == NodeType.MASTER:
+                continue
             job_pods.setdefault(pod_type, [])
             pod_id = int(
                 pod.metadata.labels[ElasticJobLabel.REPLICA_INDEX_KEY]
             )
-            task_id = int(
-                pod.metadata.labels[ElasticJobLabel.TRAINING_TASK_INDEX_KEY]
-            )
+            task_id = int(pod.metadata.labels[ElasticJobLabel.RANK_INDEX_KEY])
             node = Node(
                 node_type=pod_type,
                 node_id=pod_id,
                 name=pod.metadata.name,
-                task_index=task_id,
+                rank_index=task_id,
                 status=pod.status.phase,
                 config_resource=None,
             )
@@ -184,7 +180,7 @@ class PodScaler(Scaler):
             node_id = max_id + 1 + i
             task_id = cur_num + i
             node = Node(
-                type, node_id, group_resource.node_resource, task_index=task_id
+                type, node_id, group_resource.node_resource, rank_index=task_id
             )
             self._initial_nodes.append(node)
 
@@ -223,7 +219,10 @@ class PodScaler(Scaler):
         """Labels that should be attached to all k8s objects belong to
         current job.
         """
-        return {"app": ELASTICDL_APP_NAME, ELASTICDL_JOB_KEY: self._job_name}
+        return {
+            "app": ElasticJobLabel.APP_NAME,
+            ElasticJobLabel.JOB_KEY: self._job_name,
+        }
 
     def get_node_service_addr(self, type, id):
         service_name = get_pod_name(self._job_name, type, id)
@@ -255,7 +254,7 @@ class PodScaler(Scaler):
                     if not service_ready:
                         self._initial_nodes.insert(0, node)
                         break
-            time.sleep(15)
+            time.sleep(3)
 
     def _create_pod(self, node: Node, job_resource, ps_addrs):
         # Find that master pod that will be used as the owner reference
@@ -277,7 +276,7 @@ class PodScaler(Scaler):
                 job_resource,
                 self.get_node_service_addr,
                 node.type,
-                node.task_index,
+                node.rank_index,
                 ps_addrs,
             )
             if tf_config:
@@ -297,6 +296,7 @@ class PodScaler(Scaler):
             name=pod_name,
             image=pod_template.image,
             command=pod_template.command,
+            args=pod_template.args,
             resource_requests=node.config_resource.to_resource_dict(),
             resource_limits=node.config_resource.to_resource_dict(),
             priority=node.config_resource.priority,
@@ -308,8 +308,11 @@ class PodScaler(Scaler):
             labels=labels,
         )
         # Add replica type and index
-        pod.metadata.labels[ELASTICDL_REPLICA_TYPE_KEY] = node.type
-        pod.metadata.labels[ELASTICDL_REPLICA_INDEX_KEY] = str(node.id)
+        pod.metadata.labels[ElasticJobLabel.REPLICA_TYPE_KEY] = node.type
+        pod.metadata.labels[ElasticJobLabel.REPLICA_INDEX_KEY] = str(node.id)
+        pod.metadata.labels[ElasticJobLabel.RANK_INDEX_KEY] = str(
+            node.rank_index
+        )
         return pod
 
     def _delete_typed_pod(self, pod_type, id):
@@ -319,7 +322,7 @@ class PodScaler(Scaler):
     def _create_service_for_pod(self, node: Node):
         # create or patch worker service
         service_ready = True
-        service_name = get_pod_name(self._job_name, node.type, node.task_index)
+        service_name = get_pod_name(self._job_name, node.type, node.rank_index)
         if not self._k8s_client.get_service(service_name):
             succeed = self._create_service_with_retry(
                 node.type, node.id, service_name
@@ -400,10 +403,10 @@ class PodScaler(Scaler):
             namespace=self._namespace,
         )
         selector = {
-            "app": ELASTICDL_APP_NAME,
-            ELASTICDL_JOB_KEY: self._job_name,
-            ELASTICDL_REPLICA_TYPE_KEY: replica_type,
-            ELASTICDL_REPLICA_INDEX_KEY: str(replica_index),
+            "app": ElasticJobLabel.APP_NAME,
+            ElasticJobLabel.JOB_KEY: self._job_name,
+            ElasticJobLabel.REPLICA_TYPE_KEY: replica_type,
+            ElasticJobLabel.REPLICA_INDEX_KEY: str(replica_index),
         }
         spec = client.V1ServiceSpec(
             ports=[client.V1ServicePort(port=port, target_port=target_port)],
@@ -486,6 +489,7 @@ class PodScaler(Scaler):
         owner,
         image,
         command,
+        args,
         resource_requests: Dict[str, float],
         resource_limits: Dict[str, float],
         image_pull_policy,
@@ -503,6 +507,7 @@ class PodScaler(Scaler):
             name="main",
             image=image,
             command=command,
+            args=args,
             resources=client.V1ResourceRequirements(
                 requests=resource_requests,
                 limits=resource_limits,
@@ -567,26 +572,25 @@ def new_tf_config(
         worker_num = job_resource[NodeType.WORKER].count
         if type_key == NodeType.WORKER and index_key >= worker_num:
             worker_num = index_key + 1
-        if worker_num > 0:
-            cluster_dict[NodeType.WORKER] = []
-            for worker_id in range(worker_num):
-                cluster_dict[NodeType.WORKER].append(
-                    new_service_fn(NodeType.WORKER, worker_id)
-                )
+        workers = []
+        for worker_id in range(worker_num):
+            workers.append(new_service_fn(NodeType.WORKER, worker_id))
+        if len(workers) > 0:
+            cluster_dict[NodeType.WORKER] = workers
     if NodeType.EVALUATOR in job_resource:
         evaluator_num = job_resource[NodeType.EVALUATOR].count
-        cluster_dict[NodeType.EVALUATOR] = []
+        evaluators = []
         for worker_id in range(evaluator_num):
-            cluster_dict[NodeType.EVALUATOR].append(
-                new_service_fn(NodeType.EVALUATOR, worker_id)
-            )
+            evaluators.append(new_service_fn(NodeType.EVALUATOR, worker_id))
+        if len(evaluators) > 0:
+            cluster_dict[NodeType.EVALUATOR] = evaluators
     if NodeType.CHIEF in job_resource:
         chief_num = job_resource[NodeType.CHIEF].count
-        cluster_dict[NodeType.CHIEF] = []
+        chiefs = []
         for worker_id in range(chief_num):
-            cluster_dict[NodeType.CHIEF].append(
-                new_service_fn(NodeType.CHIEF, worker_id)
-            )
+            chiefs.append(new_service_fn(NodeType.CHIEF, worker_id))
+        if len(chiefs) > 0:
+            cluster_dict[NodeType.CHIEF] = chiefs
 
     task_dict = {}
     task_dict["type"] = type_key

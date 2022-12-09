@@ -84,7 +84,7 @@ class ParameterServerManager(TrainingNodeManager):
                 node.type,
                 new_id,
                 node.config_resource,
-                task_index=node.task_index,
+                rank_index=node.rank_index,
             )
         )
         return plan
@@ -118,7 +118,7 @@ class ParameterServerManager(TrainingNodeManager):
                 self._nodes[ps_id] = Node(
                     NodeType.PS,
                     node_id=ps_id,
-                    task_index=task_id,
+                    rank_index=task_id,
                     name=ps_name,
                     max_relaunch_count=self._max_relaunch_num,
                     config_resource=copy.deepcopy(ps_resource.node_resource),
@@ -198,7 +198,7 @@ class ParameterServerManager(TrainingNodeManager):
             self._pre_drop_migrated_ps(alive_ps)
             for ps in alive_ps:
                 if ps not in self._pre_dropped_ps:
-                    training_ps[ps.task_index] = ps
+                    training_ps[ps.rank_index] = ps
         training_ps = collections.OrderedDict(sorted(training_ps.items()))
         return list(training_ps.values())
 
@@ -239,7 +239,7 @@ class ParameterServerManager(TrainingNodeManager):
                 and ps.status
                 in [NodeStatus.INITIAL, NodeStatus.PENDING, NodeStatus.RUNNING]
             ):
-                ps_addrs[ps.task_index] = ps.service_addr
+                ps_addrs[ps.rank_index] = ps.service_addr
         ps_addrs = collections.OrderedDict(sorted(ps_addrs.items()))
         return list(ps_addrs.values())
 
@@ -275,7 +275,7 @@ class ParameterServerManager(TrainingNodeManager):
                         node.type,
                         node.id,
                         node.config_resource,
-                        task_index=node.task_index,
+                        rank_index=node.rank_index,
                     )
                 )
         return plan
@@ -312,7 +312,7 @@ class ParameterServerManager(TrainingNodeManager):
             new_node = Node(
                 NodeType.PS,
                 node_id=new_ps_id,
-                task_index=original_pod.task_index,
+                rank_index=original_pod.rank_index,
                 max_relaunch_count=self._max_relaunch_num,
                 config_resource=resource,
                 critical=True,

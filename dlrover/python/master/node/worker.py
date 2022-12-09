@@ -152,7 +152,7 @@ class WorkerManager(TrainingNodeManager):
             self._nodes[worker_id] = Node(
                 NodeType.WORKER,
                 node_id=worker_id,
-                task_index=task_id,
+                rank_index=task_id,
                 name=self._new_node_name_fn(NodeType.WORKER, worker_id),
                 max_relaunch_count=self._max_relaunch_num,
                 config_resource=copy.deepcopy(worker_resource),
@@ -216,13 +216,13 @@ class WorkerManager(TrainingNodeManager):
         for name, resource in workers.items():
             old_node_id = int(name.split("-")[-1])
             node_id = next(self._node_id_iter)
-            task_id = self._nodes[old_node_id].task_index
+            task_id = self._nodes[old_node_id].rank_index
             self._nodes[node_id] = Node(
                 NodeType.WORKER,
                 node_id,
                 config_resource=resource,
                 status=NodeStatus.INITIAL,
-                task_index=task_id,
+                rank_index=task_id,
             )
             plan.launch_nodes.append(self._nodes[node_id])
             plan.remove_nodes.append(name)

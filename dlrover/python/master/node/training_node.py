@@ -166,7 +166,7 @@ class TrainingNodeManager(object):
                 node.type,
                 new_id,
                 relaunch_node.config_resource,
-                task_index=node.task_index,
+                rank_index=node.rank_index,
             )
         )
         plan.remove_nodes.append(node.name)
