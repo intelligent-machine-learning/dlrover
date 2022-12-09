@@ -36,8 +36,8 @@ def parse_bool(s: str):
     return s.lower() in ["true", "yes", "t", "y"]
 
 
-def get_pod_name(job_name, pod_type, worker_id):
-    return "%s-%s" % (job_name + JOB_SUFFIX + pod_type, str(worker_id))
+def get_pod_name(job_name, pod_type, node_id):
+    return "%s-%s" % (job_name + JOB_SUFFIX + pod_type, str(node_id))
 
 
 @singleton

@@ -66,6 +66,7 @@ class PodTemplate(object):
         self.name = main_container["name"]
         self.image = main_container["image"]
         self.command = main_container["command"]
+        self.args = main_container.get("args", "")
         self.image_pull_policy = main_container.get(
             "imagePullPolicy", "Always"
         )
@@ -132,7 +133,7 @@ class PodScaler(Scaler):
         with self._lock:
             not_created_pod = None
             for pod in self._initial_nodes:
-                if pod_name == get_pod_name(pod.type, pod.id):
+                if pod_name == get_pod_name(self._job_name, pod.type, pod.id):
                     not_created_pod = pod
                     break
             if not_created_pod:
@@ -295,6 +296,7 @@ class PodScaler(Scaler):
             name=pod_name,
             image=pod_template.image,
             command=pod_template.command,
+            args=pod_template.args,
             resource_requests=node.config_resource.to_resource_dict(),
             resource_limits=node.config_resource.to_resource_dict(),
             priority=node.config_resource.priority,
@@ -487,6 +489,7 @@ class PodScaler(Scaler):
         owner,
         image,
         command,
+        args,
         resource_requests: Dict[str, float],
         resource_limits: Dict[str, float],
         image_pull_policy,
@@ -504,6 +507,7 @@ class PodScaler(Scaler):
             name="main",
             image=image,
             command=command,
+            args=args,
             resources=client.V1ResourceRequirements(
                 requests=resource_requests,
                 limits=resource_limits,
