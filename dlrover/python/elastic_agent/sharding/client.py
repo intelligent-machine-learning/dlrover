@@ -20,6 +20,7 @@ from dlrover.python.elastic_agent.master_client import GlobalMasterClient
 from dlrover.python.elastic_agent.monitor.training import (
     TrainingProcessReporter,
 )
+from dlrover.python.common.log import default_logger as logger
 
 training_reporter = TrainingProcessReporter()
 
@@ -77,7 +78,7 @@ class ShardingClient(object):
     def get_current_task(self):
         return self._current_task
 
-    def get_task(self, task_type=None):
+    def get_task(self):
         training_reporter.set_start_time()
         for _ in range(5):
             success, task = self._mc.get_task(self._dataset_name)
@@ -89,14 +90,14 @@ class ShardingClient(object):
                 self._pending_tasks[task.task_id] = task
                 if len(self._pending_tasks) == 1:
                     self._current_task = task
-
-        return task
+            return task
+        return None
 
     def _report_task(self, task, err_msg=""):
         self._mc.report_task_result(
+            self._dataset_name,
             task.task_id,
             err_msg,
-            self._dataset_name,
         )
 
     def report_all_task_error(self, err_msg):
@@ -120,6 +121,7 @@ class ShardingClient(object):
         with self._lock:
             if not task_ids:
                 task_ids = list(self._pending_tasks.keys())
+            logger.info("task ids = %s", task_ids)
             for task_id in task_ids:
                 if record_count > 0:
                     task = self._pending_tasks[task_id]
@@ -127,16 +129,17 @@ class ShardingClient(object):
 
                     self._reported_record_count.setdefault(task_id, 0)
                     cur_count = self._reported_record_count[task_id]
-
                     if cur_count + record_count >= task_record_count:
                         self._report_task(task, err_msg)
-                        self._report_training_local_step()
                         reported = True
                         self._reported_record_count.pop(task_id)
+                        logger.info("Pending tasks = %s", list(self._pending_tasks.keys()))
                         self._pending_tasks.pop(task_id)
+                        logger.info("Pending tasks = %s", list(self._pending_tasks.keys()))
                         record_count = (
                             cur_count + record_count - task_record_count
                         )
+                        self._report_training_local_step()
                     else:
                         self._reported_record_count[task_id] += record_count
                         record_count = 0
@@ -153,11 +156,10 @@ class ShardingClient(object):
         """Fetch data shard and each shard contains the name,
         start and end index.
         """
-        task = self.get_task(self._task_type)
-        if task.type != self._task_type:
-            return None
-
-        return task.shard
+        task = self.get_task()
+        if task:
+            return task.shard
+        return None
 
     def get_shard_checkpoint(self):
         """Get the data shard checkpoint of a dataset.

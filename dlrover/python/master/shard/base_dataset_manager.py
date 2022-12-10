@@ -14,6 +14,7 @@
 import json
 from abc import ABCMeta, abstractmethod
 from typing import Dict, List
+from dlrover.proto import elastic_training_pb2
 
 from dlrover.python.master.shard.dataset_splitter import DatasetSplitter, Shard
 
@@ -36,7 +37,7 @@ class Task(object):
 
     @classmethod
     def create_invalid_task(self):
-        return Task(-1, "", Shard("", -1, -1))
+        return Task(-1, elastic_training_pb2.NONE, Shard("", -1, -1))
 
 
 class DoingTask(object):

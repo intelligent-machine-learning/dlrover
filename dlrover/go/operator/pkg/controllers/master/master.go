@@ -173,7 +173,7 @@ func (m *Manager) newJobMasterService(job *elasticv1alpha1.ElasticJob) *corev1.S
 
 // NewEasydlMasterServiceName create a service name for Job master
 func NewEasydlMasterServiceName(jobName string) string {
-	return fmt.Sprintf("%s-%s", jobName, string(ReplicaTypeTrainerMaster))
+	return fmt.Sprintf("elasticjob-%s-%s", jobName, string(ReplicaTypeTrainerMaster))
 }
 
 // newJobMasterName create a name for Job master

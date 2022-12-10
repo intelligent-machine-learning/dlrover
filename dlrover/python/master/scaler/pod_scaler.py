@@ -266,6 +266,9 @@ class PodScaler(Scaler):
         env = append_pod_ip_to_env(env)
 
         env.append(V1EnvVar(name=NodeEnv.WORKER_TYPE, value=node.type))
+        env.append(V1EnvVar(name=NodeEnv.WORKER_ID, value=str(node.id)))
+        master_service = "elasticjob-{}-master:50001".format(self._job_name)
+        env.append(V1EnvVar(name=NodeEnv.MASTER_ADDR, value=master_service))
 
         if (
             self._distribution_strategy

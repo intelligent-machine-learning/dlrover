@@ -19,7 +19,7 @@ rm -rf build
 # the source tree root.
 make -f dlrover/Makefile
 
-# Create elasticdl_preprocessing package
-echo "Building the wheel for elasticdl_preprocessing."
+# Create dlrover package
+echo "Building the wheel for dlrover."
 rm -rf ./build/lib
 python setup.py --quiet bdist_wheel --dist-dir ./build
