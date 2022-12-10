@@ -121,7 +121,6 @@ class ShardingClient(object):
         with self._lock:
             if not task_ids:
                 task_ids = list(self._pending_tasks.keys())
-            logger.info("task ids = %s", task_ids)
             for task_id in task_ids:
                 if record_count > 0:
                     task = self._pending_tasks[task_id]
@@ -133,9 +132,7 @@ class ShardingClient(object):
                         self._report_task(task, err_msg)
                         reported = True
                         self._reported_record_count.pop(task_id)
-                        logger.info("Pending tasks = %s", list(self._pending_tasks.keys()))
                         self._pending_tasks.pop(task_id)
-                        logger.info("Pending tasks = %s", list(self._pending_tasks.keys()))
                         record_count = (
                             cur_count + record_count - task_record_count
                         )
