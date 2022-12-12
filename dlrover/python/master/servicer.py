@@ -87,7 +87,6 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         return empty_pb2.Empty()
 
     def get_task(self, request, _):
-        logger.info("request = %s", request)
         if not self._start_training_time:
             self._start_training_time = int(time.time())
         shard = elastic_training_pb2.Shard()
