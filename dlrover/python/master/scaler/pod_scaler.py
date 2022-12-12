@@ -541,11 +541,11 @@ class PodScaler(Scaler):
         owner_ref = (
             [
                 client.V1OwnerReference(
-                    api_version="v1alpha1",
+                    api_version="elastic.iml.github.io/v1alpha1",
                     block_owner_deletion=True,
                     kind="ElasticJob",
-                    name=job.metadata.name,
-                    uid=job.metadata.uid,
+                    name=job["metadata"]["name"],
+                    uid=job["metadata"]["uid"],
                 )
             ]
             if job
