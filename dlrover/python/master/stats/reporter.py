@@ -11,9 +11,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 from abc import ABCMeta, abstractmethod
 from typing import List
-import copy
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.stats.training_metrics import (
