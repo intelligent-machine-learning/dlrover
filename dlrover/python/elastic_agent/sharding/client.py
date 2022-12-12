@@ -20,7 +20,6 @@ from dlrover.python.elastic_agent.master_client import GlobalMasterClient
 from dlrover.python.elastic_agent.monitor.training import (
     TrainingProcessReporter,
 )
-from dlrover.python.common.log import default_logger as logger
 
 training_reporter = TrainingProcessReporter()
 

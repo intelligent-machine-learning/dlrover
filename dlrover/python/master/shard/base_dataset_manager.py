@@ -14,8 +14,8 @@
 import json
 from abc import ABCMeta, abstractmethod
 from typing import Dict, List
-from dlrover.proto import elastic_training_pb2
 
+from dlrover.proto import elastic_training_pb2
 from dlrover.python.master.shard.dataset_splitter import DatasetSplitter, Shard
 
 

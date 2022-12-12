@@ -386,7 +386,6 @@ def create_master_service(
     rendezvous_server,
     job_metric_collector,
     elastic_ps_service,
-    
 ) -> MasterServicer:
     """Create GRPC server"""
     logger.info("Creating master service")
