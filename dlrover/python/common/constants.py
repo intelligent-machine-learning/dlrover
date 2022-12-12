@@ -162,3 +162,8 @@ class NodeEnv(object):
     WORKER_TYPE = "WORKER_TYPE"
     WORKER_ID = "WORKER_ID"
     WORKER_NUM = "WORKER_NUM"
+
+
+class DatasetType(object):
+    TEXT = "text"
+    MAXCOMPUTE_TABLE = "maxcompute_table"

@@ -14,17 +14,13 @@
 from abc import ABCMeta, abstractmethod
 from typing import List
 
+from dlrover.python.common.constants import DatasetType
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.watcher.base_watcher import Node
 
 
 class CustomMetricKey(object):
     INIT_TRAINING_TIME = "init_training_time"
-
-
-class DatasetType(object):
-    TEXT = "text"
-    MAXCOMPUTE_TABLE = "maxcompute_table"
 
 
 class TrainingHyperParams(metaclass=ABCMeta):
@@ -85,7 +81,7 @@ class DatasetMetric(metaclass=ABCMeta):
 
     @classmethod
     def new_dataset_metric(cls, ds_type, name, size):
-        if ds_type == DatasetType.TEXT:
+        if not ds_type or ds_type == DatasetType.TEXT:
             return TextDatasetMetric(name, size)
         else:
             logger.warning("Not support dataset type %s", ds_type)
