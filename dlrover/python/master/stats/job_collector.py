@@ -16,7 +16,6 @@ import time
 from abc import ABCMeta, abstractmethod
 from typing import Dict, List
 
-from dlrover.python.common.constants import NodeType
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.stats.reporter import JobMeta, StatsReporter
@@ -143,7 +142,6 @@ class JobMetricCollector(BaseMetricCollector):
         self._runtime_metric.global_step = speed_monitor.completed_global_step
         self._runtime_metric.timestamp = int(time.time())
         self._runtime_metric.speed = speed_monitor.running_speed
-        running_workers = speed_monitor.running_workers
 
         if (
             speed_monitor.init_training_time > 0
@@ -155,11 +153,10 @@ class JobMetricCollector(BaseMetricCollector):
             ] = speed_monitor.init_training_time
             self.collect_custom_data()
         for node in running_nodes:
-            if node.type == NodeType.WORKER:
-                if node.id in running_workers:
-                    self._runtime_metric.running_pods.append(node)
+            if (node.type, node.id) in speed_monitor.running_workers:
+                self._runtime_metric.running_nodes.append(node)
             else:
-                self._runtime_metric.running_pods.append(node)
+                self._runtime_metric.running_nodes.append(node)
         if not self._report_runtime_thread.is_alive():
             self._report_runtime_thread.start()
 

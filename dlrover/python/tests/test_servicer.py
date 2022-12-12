@@ -110,7 +110,7 @@ class MasterServicerTest(unittest.TestCase):
         ps0 = self.node_manager._job_nodes[NodeType.PS][0]
         ps0.status = NodeStatus.RUNNING
         request = elastic_training_pb2.GlobalStepRecord()
-        self.task_manager._speed_monitor.add_running_worker(0)
+        self.task_manager._speed_monitor.add_running_worker(NodeType.WORKER, 0)
         ts = int(time.time())
         request.timestamp = ts
         request.global_step = 100
@@ -121,7 +121,7 @@ class MasterServicerTest(unittest.TestCase):
         self.job_metric_collector._report_runtime_stats()
         self.assertEqual(len(collector._runtime_stats), 2)
         self.assertEqual(collector._runtime_stats[0].global_step, 1100)
-        self.assertEqual(len(collector._runtime_stats[0].running_pods), 4)
+        self.assertEqual(len(collector._runtime_stats[0].running_nodes), 4)
 
         request.timestamp = ts + 20
         request.global_step = 2100

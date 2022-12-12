@@ -117,6 +117,8 @@ class TaskManager(object):
                     # All workers will stop training to evaluate the model
                     # at parallel validation
                     self._speed_monitor.reset_running_speed_monitor()
+                if task.task_type == elastic_training_pb2.TRAINING:
+                    self._speed_monitor.add_running_worker(node_type, node_id)
                 self._worker_start_task_time[node_id] = time.time()
                 return task
             else:
@@ -261,6 +263,3 @@ class TaskManager(object):
             if dataset.get_completed_step() > 0:
                 return True
         return False
-
-    def remove_running_worker(self, worker_id):
-        self._speed_monitor.remove_running_worker(worker_id)
