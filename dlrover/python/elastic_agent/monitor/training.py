@@ -60,7 +60,7 @@ class TrainingProcessReporter(object):
         try:
             timestamp = int(time.time())
             secs = self.get_wait_seconds(timestamp)
-            if step > 0 and timestamp - self._last_timestamp > secs:
+            if step > 0 and timestamp - self._last_timestamp > 0.1:
                 self._resource_monitor.report_resource()
                 logger.info("Report global step = {}".format(step))
                 self._last_timestamp = timestamp
