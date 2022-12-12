@@ -25,21 +25,9 @@ class CustomMetricKey(object):
 
 class TrainingHyperParams(metaclass=ABCMeta):
     def __init__(self):
-        self.batch_size = self.get_batch_size()
-        self.epoch = self.get_epoch()
-        self.max_steps = self.get_max_steps()
-
-    @abstractmethod
-    def get_batch_size(self):
-        pass
-
-    @abstractmethod
-    def get_epoch(self):
-        pass
-
-    @abstractmethod
-    def get_max_steps(self):
-        pass
+        self.batch_size = 0
+        self.epoch = 0
+        self.max_steps = 0
 
 
 class DatasetMetric(metaclass=ABCMeta):
