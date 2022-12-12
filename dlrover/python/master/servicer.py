@@ -87,6 +87,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         return empty_pb2.Empty()
 
     def get_task(self, request, _):
+        logger.info("request = %s", request)
         if not self._start_training_time:
             self._start_training_time = int(time.time())
         shard = elastic_training_pb2.Shard()
@@ -383,10 +384,10 @@ def create_master_service(
     port,
     task_manager,
     node_manager,
+    speed_monitor,
     rendezvous_server,
     job_metric_collector,
     elastic_ps_service,
-    speed_monitor,
 ) -> MasterServicer:
     """Create GRPC server"""
     logger.info("Creating master service")

@@ -17,12 +17,11 @@ spec:
             containers:
               - name: main
                 image: elasticdl:iris_estimator
+                imagePullPolicy: IfNotPresent
                 command:
-                  - python
-                  - -m
-                  - model_zoo.iris.dnn_estimator
-                  - --batch_size=32
-                  - --training_steps=1000
+                  - /bin/bash
+                  - -c
+                  - "python -m model_zoo.tf_estimator.iris_dnn_elastic --batch_size=32 --training_steps=1000"
                 resources:
                   requests:
                     cpu: "0.5"
@@ -39,12 +38,11 @@ spec:
             containers:
               - name: main
                 image: elasticdl:iris_estimator
+                imagePullPolicy: IfNotPresent
                 command:
-                  - python
-                  - -m
-                  - model_zoo.iris.dnn_estimator
-                  - --batch_size=32
-                  - --training_steps=1000
+                  - /bin/bash
+                  - -c
+                  - "python -m model_zoo.tf_estimator.iris_dnn_elastic --batch_size=32 --training_steps=1000"
                 resources:
                   requests:
                     cpu: "0.5"
@@ -61,12 +59,11 @@ spec:
             containers:
               - name: main
                 image: elasticdl:iris_estimator
+                imagePullPolicy: IfNotPresent
                 command:
-                  - python
-                  - -m
-                  - model_zoo.iris.dnn_estimator
-                  - --batch_size=32
-                  - --training_steps=1000
+                  - /bin/bash
+                  - -c
+                  - "python -m model_zoo.tf_estimator.iris_dnn_elastic --batch_size=32 --training_steps=1000"
                 resources:
                   requests:
                     cpu: "0.5"
