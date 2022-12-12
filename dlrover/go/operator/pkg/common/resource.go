@@ -31,7 +31,7 @@ import (
 const (
 	labelAppName = "app"
 	labelJobName = "elasticjob-name"
-	easydlApp    = "easydl"
+	appName      = "dlrover"
 	// LabelReplicaTypeKey is the key of ReplicaType in labels
 	LabelReplicaTypeKey = "replica-type"
 	// LabelReplicaIndexKey is the key of ReplicaIndex in labels
@@ -65,7 +65,7 @@ func NewPod(
 	if len(podSpec.Annotations) == 0 {
 		podSpec.Annotations = make(map[string]string)
 	}
-	podSpec.Labels[labelAppName] = easydlApp
+	podSpec.Labels[labelAppName] = appName
 	podSpec.Labels[labelJobName] = job.Name
 
 	for key, value := range job.Labels {
@@ -151,7 +151,7 @@ func GetReplicaStatus(pods []corev1.Pod) *commonv1.ReplicaStatus {
 
 // NewService create a service
 func NewService(job *elasticv1alpha1.ElasticJob, name string, port int, selector map[string]string) *corev1.Service {
-	selector[labelAppName] = easydlApp
+	selector[labelAppName] = appName
 	selector[labelJobName] = job.Name
 	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{

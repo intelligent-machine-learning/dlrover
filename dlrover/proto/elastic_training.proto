@@ -58,14 +58,14 @@ message GetTaskRequest {
 }
 
 message ReportTaskResultRequest {
+  string dataset_name = 1;
   // Task id assigned by master.
-  int64 task_id = 1;
+  int64 task_id = 2;
 
   // When error occurred, err_message contains error message in plain text.
-  string err_message = 2;
+  string err_message = 3;
   // statistics of the task being executed.
-  map<string, int32> exec_counters = 3;
-  string dataset_name = 4;
+  map<string, int32> exec_counters = 4;
 }
 
 message ReportDatasetShardParamsRequest {
