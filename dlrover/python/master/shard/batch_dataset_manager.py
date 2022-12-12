@@ -68,9 +68,10 @@ class BatchDatasetManager(DatasetManger):
             task, node_type, node_id, int(time.time())
         )
         logger.info(
-            "Assign task %s of dataset %s to worker %s",
+            "Assign task %s of dataset %s to %s %s",
             task.task_id,
             self._dataset_splitter.dataset_name,
+            node_type,
             node_id,
         )
         return task
