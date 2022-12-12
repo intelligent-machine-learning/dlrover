@@ -13,6 +13,7 @@
 
 from abc import ABCMeta, abstractmethod
 from typing import List
+import copy
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.stats.training_metrics import (
@@ -98,7 +99,7 @@ class LocalStatsReporter(StatsReporter):
         self._model_metric = metric
 
     def report_runtime_stats(self, stats: RuntimeMetric):
-        self._runtime_stats.append(stats)
+        self._runtime_stats.append(copy.deepcopy(stats))
 
     def report_job_type(self, job_type: str):
         self._job_type = job_type
