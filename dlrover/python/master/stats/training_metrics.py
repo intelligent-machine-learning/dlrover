@@ -23,23 +23,11 @@ class CustomMetricKey(object):
     INIT_TRAINING_TIME = "init_training_time"
 
 
-class TrainingHyperParams(metaclass=ABCMeta):
-    def __init__(self):
-        self.batch_size = self.get_batch_size()
-        self.epoch = self.get_epoch()
-        self.max_steps = self.get_max_steps()
-
-    @abstractmethod
-    def get_batch_size(self):
-        pass
-
-    @abstractmethod
-    def get_epoch(self):
-        pass
-
-    @abstractmethod
-    def get_max_steps(self):
-        pass
+class TrainingHyperParams(object):
+    def __init__(self, batch_size=0, epoch=0, max_steps=0):
+        self.batch_size = batch_size
+        self.epoch = epoch
+        self.max_steps = max_steps
 
 
 class DatasetMetric(metaclass=ABCMeta):
