@@ -251,7 +251,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         pod_id = request.node_id
         pod_type = request.node_type
         self._node_manager.update_node_resource_usage(
-            pod_type, pod_id, memory, cpu
+            pod_type, pod_id, cpu, memory
         )
         return empty_pb2.Empty()
 
