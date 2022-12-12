@@ -283,16 +283,14 @@ class JobConfigTest(unittest.TestCase):
         reason = callback.get_job_exit_reason(node)
         self.assertEqual(reason, JobExitReason.CODE_ERROR)
 
-        master.speed_monitor.add_running_worker(0)
-        master.speed_monitor.add_running_worker(1)
+        master.speed_monitor.add_running_worker(NodeType.WORKER, 0)
+        master.speed_monitor.add_running_worker(NodeType.WORKER, 1)
         cluster_context = ClusterContext(master.node_manager)
-        callback.on_node_succeeded(node, cluster_context)
-        self.assertEqual(len(master.speed_monitor.running_workers), 1)
-
         master.speed_monitor.set_target_worker_num(2)
         node.exit_reason = NodeExitReason.FATAL_ERROR
         callback.on_node_failed(node, cluster_context)
         self.assertEqual(master.speed_monitor._target_worker_num, 1)
+        self.assertEqual(len(master.speed_monitor.running_workers), 1)
 
     def test_execute_job_optimization_plan(self):
         params = MockJobParams()

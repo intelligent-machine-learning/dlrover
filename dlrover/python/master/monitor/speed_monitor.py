@@ -12,7 +12,7 @@
 # limitations under the License.
 
 import time
-from typing import List, Set
+from typing import List, Set, Tuple
 
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
@@ -39,7 +39,7 @@ class SpeedMonitor(object):
 
     def __init__(self):
         self._global_step_records: List[GlobalStepRecord] = []
-        self._workers: Set[int] = set()
+        self._workers: Set[Tuple[str, int]] = set()
         self._max_record_count = _dlrover_context.train_speed_record_num
         self._global_step = 0
         self._target_worker_num = 0
@@ -51,8 +51,13 @@ class SpeedMonitor(object):
         """Set the target number of workers"""
         self._target_worker_num = worker_num
 
-    def reduce_target_worker_num(self, num):
+    def reduce_target_worker_num(self, workers: List[Tuple[str, int]]):
         """Reduce the target number of workers"""
+        num = 0
+        for worker in workers:
+            if worker in self._workers:
+                num += 1
+
         if self._target_worker_num > num:
             self._target_worker_num -= num
 
@@ -108,12 +113,12 @@ class SpeedMonitor(object):
         )
         return speed
 
-    def add_running_worker(self, worker_id):
-        self._workers.add(worker_id)
+    def add_running_worker(self, type, worker_id):
+        self._workers.add((type, worker_id))
 
-    def remove_running_worker(self, worker_id):
-        if worker_id in self._workers:
-            self._workers.remove(worker_id)
+    def remove_running_worker(self, type, worker_id):
+        if (type, worker_id) in self._workers:
+            self._workers.remove((type, worker_id))
 
     @property
     def init_training_time(self):
