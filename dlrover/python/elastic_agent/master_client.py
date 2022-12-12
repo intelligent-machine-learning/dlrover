@@ -189,6 +189,7 @@ class MasterClient(object):
         num_minibatches_per_shard=0,
         dataset_name=None,
         task_type=elastic_training_pb2.NONE,
+        storage_type="",
     ):
         request = elastic_training_pb2.ReportDatasetShardParamsRequest()
         request.batch_size = batch_size
@@ -200,6 +201,7 @@ class MasterClient(object):
         if dataset_size is not None:
             request.dataset_size = dataset_size
         request.num_minibatches_per_shard = num_minibatches_per_shard
+        request.storage_type = storage_type
         return self._stub.report_dataset_shard_params(request)
 
     @retry_grpc_request

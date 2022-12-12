@@ -35,6 +35,7 @@ class ShardingClient(object):
         task_type=elastic_training_pb2.TRAINING,
         num_minibatches_per_shard=0,
         master_client=None,
+        storage_type="",
     ):
         self._mc = (
             master_client
@@ -46,6 +47,7 @@ class ShardingClient(object):
         self._dataset_size = dataset_size
         self._shuffle = shuffle
         self._task_type = task_type
+        self._storage_type = storage_type
         self._num_minibatches_per_shard = num_minibatches_per_shard
         self._lock = threading.Lock()
         self._reported_record_count = {}
@@ -65,6 +67,7 @@ class ShardingClient(object):
                 num_minibatches_per_shard=self._num_minibatches_per_shard,
                 dataset_name=self._dataset_name,
                 task_type=self._task_type,
+                storage_type=self._storage_type,
             )
 
     def get_minibatch_count_per_epoch(self):
