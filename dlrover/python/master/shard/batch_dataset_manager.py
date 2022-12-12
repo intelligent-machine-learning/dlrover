@@ -46,7 +46,7 @@ class BatchDatasetManager(DatasetManger):
             task_type, batch_size, dataset_splitter
         )
         self._max_task_completed_time = 0
-        self._task_id = 1
+        self._task_id = 0
         self._completed_step = 0
 
     def get_task(self, worker_id) -> Task:
