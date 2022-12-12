@@ -111,6 +111,7 @@ class MasterClient(object):
         """
 
         req = elastic_training_pb2.GetTaskRequest()
+        req.worker_type = self._node_type
         req.worker_id = self._node_id
         req.dataset_name = dataset_name
         logger.info("req= %s", req)

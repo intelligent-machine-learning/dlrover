@@ -209,7 +209,7 @@ class JobConfigTest(unittest.TestCase):
         manager.add_node_event_callback(task_callback)
 
         dataset = task_manager.get_dataset(dataset_name)
-        task_manager.get_dataset_task(0, dataset_name)
+        task_manager.get_dataset_task(NodeType.WORKER, 0, dataset_name)
         node = Node(
             node_type=NodeType.WORKER,
             node_id=0,

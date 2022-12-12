@@ -107,17 +107,17 @@ class TaskManager(object):
             )
             self._datasets[dataset_name] = dataset
 
-    def get_dataset_task(self, worker_id, dataset_name):
+    def get_dataset_task(self, node_type, node_id, dataset_name):
         """Return next Task"""
         with self._lock:
             dataset = self._datasets.get(dataset_name, None)
             if dataset:
-                task = dataset.get_task(worker_id)
+                task = dataset.get_task(node_type, node_id)
                 if task.task_type == elastic_training_pb2.EVALUATION:
                     # All workers will stop training to evaluate the model
                     # at parallel validation
                     self._speed_monitor.reset_running_speed_monitor()
-                self._worker_start_task_time[worker_id] = time.time()
+                self._worker_start_task_time[node_id] = time.time()
                 return task
             else:
                 return None
@@ -139,8 +139,8 @@ class TaskManager(object):
                     )
                 )
             success, doing_task = dataset.report_task_status(task_id, success)
-            self._worker_start_task_time[doing_task.worker_id] = time.time()
-            return doing_task.task, doing_task.worker_id
+            self._worker_start_task_time[doing_task.node_id] = time.time()
+            return doing_task.task, doing_task.node_id
 
     def finished(self):
         """Return if all tasks are done"""
@@ -149,21 +149,23 @@ class TaskManager(object):
         finished = all([ds.completed() for ds in self._datasets.values()])
         return finished
 
-    def recover_tasks(self, worker_id):
+    def recover_tasks(self, node_type, node_id):
         """Recover doing tasks for a dead worker if needed"""
         for name, dataset in self._datasets.items():
             doing_tasks: Dict[int, DoingTask] = dataset.get_doing_tasks()
+            print("doing tasks = %s", doing_tasks)
             ids = [
                 task_id
                 for task_id, doing_task in doing_tasks.items()
-                if doing_task.worker_id == worker_id
+                if doing_task.node_id == node_id
+                and doing_task.node_type == node_type
             ]
             request = elastic_training_pb2.ReportTaskResultRequest()
             for id in ids:
                 request.task_id = id
                 request.dataset_name = name
                 self.report_dataset_task(request, False)
-            logger.info("Recover tasks assigned to worker %d" % worker_id)
+            logger.info("Recover tasks assigned to %s-%d", node_type, node_id)
 
     def start(self):
         if self._worker_restart_timeout > 0:
@@ -192,7 +194,7 @@ class TaskManager(object):
                 cur = time.time()
                 for task_id, doing_task in doing_tasks.items():
                     start = self._worker_start_task_time.get(
-                        doing_task.worker_id, cur
+                        doing_task.node_id, cur
                     )
                     if (
                         doing_task.task.type == elastic_training_pb2.EVALUATION
@@ -204,12 +206,10 @@ class TaskManager(object):
                     ):
                         logger.info(
                             "worker %d timeout with task %d, relaunch it",
-                            doing_task.worker_id,
+                            doing_task.node_id,
                             task_id,
                         )
-                        self._invoke_task_timeout_callback(
-                            doing_task.worker_id
-                        )
+                        self._invoke_task_timeout_callback(doing_task.node_id)
                         break
             time.sleep(30)
 

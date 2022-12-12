@@ -13,7 +13,7 @@
 
 import unittest
 
-from dlrover.python.common.constants import TaskType
+from dlrover.python.common.constants import NodeType, TaskType
 from dlrover.python.master.shard.batch_dataset_manager import (
     BatchDatasetManager,
 )
@@ -37,7 +37,7 @@ class BatchDatasetTaskMangerTest(unittest.TestCase):
         )
         task_manager = BatchDatasetManager(TaskType.TRAINING, 10, splitter)
         worker_id = 0
-        task = task_manager.get_task(worker_id)
+        task = task_manager.get_task(NodeType.WORKER, worker_id)
         self.assertEqual(task.task_id, 0)
         self.assertEqual(len(task_manager.todo), 99)
         self.assertEqual(len(task_manager.doing), 1)
@@ -47,7 +47,7 @@ class BatchDatasetTaskMangerTest(unittest.TestCase):
         self.assertEqual(len(task_manager.doing), 0)
 
         for i in range(101):
-            task = task_manager.get_task(worker_id)
+            task = task_manager.get_task(NodeType.WORKER, worker_id)
             if task.task_id < 0:
                 break
             task_manager.report_task_status(task.task_id, True)
@@ -66,7 +66,7 @@ class StreamingDatasetTaskMangerTest(unittest.TestCase):
         )
         task_manager = StreamingDatasetManager(TaskType.TRAINING, 10, splitter)
         worker_id = 0
-        task = task_manager.get_task(worker_id)
+        task = task_manager.get_task(NodeType.WORKER, worker_id)
         self.assertEqual(task.task_id, 0)
         self.assertEqual(len(task_manager.todo), 4)
         self.assertEqual(len(task_manager.doing), 1)

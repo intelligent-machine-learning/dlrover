@@ -110,13 +110,13 @@ class TaskRescheduleCallback(NodeEventCallback):
 
     @NodeEventCallback.log_callback_exception
     def on_node_failed(self, node, cluster_context):
-        if node.id is not None and node.type == NodeType.WORKER:
-            self._task_manager.recover_tasks(node.id)
+        if node.id is not None:
+            self._task_manager.recover_tasks(node.type, node.id)
 
     @NodeEventCallback.log_callback_exception
     def on_node_deleted(self, node, cluster_context):
         if node.id is not None and node.type == NodeType.WORKER:
-            self._task_manager.recover_tasks(node.id)
+            self._task_manager.recover_tasks(node.type, node.id)
 
 
 class TFPSNodeHandlingCallback(NodeEventCallback):
