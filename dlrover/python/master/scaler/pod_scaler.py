@@ -80,9 +80,9 @@ class PodScaler(Scaler):
         self._k8s_client = k8sClient(namespace, job_name)
         self._namespace = namespace
         self._replica_template: Dict[str, PodTemplate] = {}
-        job = self._retry_to_get_job()
-        self._distribution_strategy = job["spec"]["distributionStrategy"]
-        for replica, spec in job["spec"]["replicaSpecs"].items():
+        self._job = self._retry_to_get_job()
+        self._distribution_strategy = self._job["spec"]["distributionStrategy"]
+        for replica, spec in self._job["spec"]["replicaSpecs"].items():
             self._replica_template[replica] = PodTemplate(spec["template"])
 
         self._initial_nodes: List[Node] = []
@@ -261,7 +261,6 @@ class PodScaler(Scaler):
         # for the ps or worker pod.
         pod_name = get_pod_name(self._job_name, node.type, node.id)
         logger.info("Create Pod %s", pod_name)
-        master_pod = self._get_master_pod()
         env: List[V1EnvVar] = []
         env = append_pod_ip_to_env(env)
 
@@ -305,7 +304,7 @@ class PodScaler(Scaler):
             priority=node.config_resource.priority,
             image_pull_policy=pod_template.image_pull_policy,
             restart_policy=pod_template.restart_policy,
-            owner=master_pod,
+            owner=self._job,
             env=env,
             lifecycle=None,
             labels=labels,
@@ -366,7 +365,7 @@ class PodScaler(Scaler):
             target_port=NODE_SERVICE_PORTS[pod_type],
             replica_type=pod_type,
             replica_index=pod_id,
-            owner=self._get_master_pod(),
+            owner=self._job,
         )
         self._k8s_client.create_service(service)
         return service
@@ -428,7 +427,7 @@ class PodScaler(Scaler):
             target_port=NODE_SERVICE_PORTS[pod_type],
             replica_type=pod_type,
             replica_index=id,
-            owner=self._get_master_pod(),
+            owner=self._job,
         )
         self._k8s_client.patch_service(service_name, service)
 
@@ -440,14 +439,10 @@ class PodScaler(Scaler):
         pvc = self._create_persistent_volume_claim_object(
             name=pvc_name,
             storage=storage,
-            owner=self._get_master_pod(),
+            owner=self._job,
             iolimits_enabled=iolimits_enabled,
         )
         return self._k8s_client.create_pvc(pvc)
-
-    def _get_master_pod(self):
-        master_pod_name = "elasticjob-%s-master" % self._job_name
-        return self._k8s_client.get_pod(master_pod_name)
 
     def _create_persistent_volume_claim_object(
         self, name, storage, owner, iolimits_enabled
@@ -542,18 +537,18 @@ class PodScaler(Scaler):
         return pod
 
     @staticmethod
-    def _create_owner_reference(owner_pod):
+    def _create_owner_reference(job):
         owner_ref = (
             [
                 client.V1OwnerReference(
-                    api_version="v1",
+                    api_version="v1alpha1",
                     block_owner_deletion=True,
-                    kind="Pod",
-                    name=owner_pod.metadata.name,
-                    uid=owner_pod.metadata.uid,
+                    kind="ElasticJob",
+                    name=job.metadata.name,
+                    uid=job.metadata.uid,
                 )
             ]
-            if owner_pod
+            if job
             else None
         )
         return owner_ref
