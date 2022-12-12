@@ -32,8 +32,8 @@ const (
 	initMasterContainerCPU     = "1"
 	initMasterContainerMemory  = "2Gi"
 	initMasterContainerStorage = "2Gi"
-	masterCommand              = "python -m dlrover.python.master.main"
-	masterImage                = "pip install http://armor-test.oss-cn-hangzhou-zmf.aliyuncs.com/apps/elasticdl/dlrover-0.1.0rc0.dev0-py3-none-any.whl -I --no-deps && dlrover-master:test"
+	masterCommand              = "pip install http://armor-test.oss-cn-hangzhou-zmf.aliyuncs.com/apps/elasticdl/dlrover-0.1.0rc0.dev0-py3-none-any.whl -I --no-deps && python -m dlrover.python.master.main"
+	masterImage                = "dlrover-master:test"
 	masterServicePort          = 50001
 	initMasterIndex            = 0
 
