@@ -34,6 +34,7 @@ JOB_EXAMPLE = """apiVersion: elastic.iml.github.io/v1alpha1
 kind: ElasticJob
 metadata:
   name: elasticjob-sample
+  uid: "111-222"
 spec:
   distributionStrategy: ParameterServerStrategy
   replicaSpecs:
