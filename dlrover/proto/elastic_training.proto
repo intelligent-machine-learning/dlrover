@@ -53,8 +53,9 @@ message Task {
 }
 
 message GetTaskRequest {
-  int32 worker_id = 1;
-  string dataset_name = 2;
+  string worker_type = 1;
+  int32 worker_id = 2;
+  string dataset_name = 3;
 }
 
 message ReportTaskResultRequest {

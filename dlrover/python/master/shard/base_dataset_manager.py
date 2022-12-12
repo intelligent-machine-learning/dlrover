@@ -40,16 +40,19 @@ class Task(object):
 
 
 class DoingTask(object):
-    """DoingTask records which worker fetches a task and when.
+    """DoingTask records which node fetches a task and when.
     Attributes:
         task: a task with a data shard.
-        worker_id: the id of a worker.
+        node_id: the id of a node.
         start_time: the timestamp of a worker to fetch the task.
     """
 
-    def __init__(self, task: Task, worker_id: int, start_time: int):
+    def __init__(
+        self, task: Task, node_type: str, node_id: int, start_time: int
+    ):
         self.task = task
-        self.worker_id = worker_id
+        self.node_type = node_type
+        self.node_id = node_id
         self.start_time = start_time
 
 
@@ -114,8 +117,8 @@ class DatasetManger(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def get_task(self, worker_id) -> Task:
-        """Return a task with a shard for the worker with worker_id."""
+    def get_task(self, node_type, node_id) -> Task:
+        """Return a task with a shard for the node with node_id."""
         pass
 
     @abstractmethod

@@ -49,7 +49,7 @@ class BatchDatasetManager(DatasetManger):
         self._task_id = 0
         self._completed_step = 0
 
-    def get_task(self, worker_id) -> Task:
+    def get_task(self, node_type, node_id) -> Task:
         """Return next Task"""
 
         if not self.todo and not self._dataset_splitter.epoch_finished():
@@ -64,12 +64,14 @@ class BatchDatasetManager(DatasetManger):
             # No more tasks
             return Task.create_invalid_task()
         task: Task = self.todo.pop(0)
-        self.doing[task.task_id] = DoingTask(task, worker_id, int(time.time()))
+        self.doing[task.task_id] = DoingTask(
+            task, node_type, node_id, int(time.time())
+        )
         logger.info(
             "Assign task %s of dataset %s to worker %s",
             task.task_id,
             self._dataset_splitter.dataset_name,
-            worker_id,
+            node_id,
         )
         return task
 
