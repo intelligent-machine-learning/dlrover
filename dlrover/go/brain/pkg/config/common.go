@@ -90,6 +90,16 @@ const (
 	OptimizerPSCPUOverload = "optimizer.ps.cpu.overload"
 	// OptimizerPSMemoryWorkloadUnbalancePercent is the config key of ps memory workload unbalance percent
 	OptimizerPSMemoryWorkloadUnbalancePercent = "optimizer.ps.memory.workload-balance-percent"
+	// OptimizerHotPSCPUThreshold is the config key of ps overloaded threshold
+	OptimizerHotPSCPUThreshold = "optimizer.ps.cpu.hot-threshold"
+	// OptimizerHotPSCPUTargetWorkerCount is the config key of adjust overloaded ps cpu
+	OptimizerHotPSCPUTargetWorkerCount = "optimizer.ps.cpu.hot-target-worker-count"
+	// OptimizerHotPSMemoryThreshold is the config key of ps overloaded threshold
+	OptimizerHotPSMemoryThreshold = "optimizer.ps.memory.hot-threshold"
+	// OptimizerHotPSMemoryAdjust is the config key of adjust overloaded ps memory
+	OptimizerHotPSMemoryAdjust = "optimizer.ps.memory.hot-adjust"
+	// OptimizerLowPSCPUThreshold is the config key of ps overloaded threshold
+	OptimizerLowPSCPUThreshold = "optimizer.ps.cpu.low-threshold"
 
 	// OptimizerStepCountThreshold is the config key of step count threshold
 	OptimizerStepCountThreshold = "optimizer.step.count.threshold"

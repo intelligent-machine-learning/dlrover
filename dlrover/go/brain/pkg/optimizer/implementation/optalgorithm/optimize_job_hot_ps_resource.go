@@ -1,8 +1,16 @@
 package optalgorithm
 
 import (
+	"encoding/json"
+	log "github.com/golang/glog"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/common"
+	"github.com/intelligent-machine-learning/easydl/brain/pkg/config"
 	datastoreapi "github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/api"
+	"github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/recorder/mysql"
+	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/config"
+	optimplcomm "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/implementation/common"
+	optimplutils "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/implementation/utils"
+	"github.com/intelligent-machine-learning/easydl/brain/pkg/utils"
 	"math"
 	"strconv"
 )
@@ -19,7 +27,7 @@ func init() {
 }
 
 // OptimizeJobHotPSResource optimizes job ps initial resources
-func OptimizeJobHotPSResource(dataStore datastoreapi.DataStore, conf *optimizerconfig.OptimizeAlgorithmConfig, optJob *common.OptimizeJobMeta,
+func OptimizeJobHotPSResource(dataStore datastoreapi.DataStore, conf *optconfig.OptimizeAlgorithmConfig, optJob *common.OptimizeJobMeta,
 	historyJobs []*common.OptimizeJobMeta) (*common.AlgorithmOptimizePlan, error) {
 
 	hotCPUThreshold, err := strconv.ParseFloat(conf.CustomizedConfig[config.OptimizerHotPSCPUThreshold], 64)
@@ -47,35 +55,43 @@ func OptimizeJobHotPSResource(dataStore datastoreapi.DataStore, conf *optimizerc
 	}
 
 	cond := &datastoreapi.Condition{
-		Type: common.TypeGetDataListTask,
-		Extra: &cougardb.TaskCondition{
-			JobUUID:       utils.GetJobUUIDForDBRecord(optJob.JobMeta.UUID),
-			TaskGroupName: common.PSTaskGroupName,
+		Type: common.TypeGetDataListJobNode,
+		Extra: &mysql.JobNodeCondition{
+			JobUUID: optJob.JobMeta.UUID,
+			Type:    common.PSTaskGroupName,
 		},
 	}
-	tasks := make([]*cougardb.Task, 0)
-	err = dataStore.GetData(cond, &tasks)
+	nodes := make([]*mysql.JobNode, 0)
+	err = dataStore.GetData(cond, &nodes)
 	if err != nil {
-		log.Errorf("fail to get tasks for %s: %v", optJob.JobMeta.UUID, err)
+		log.Errorf("fail to get nodes for %s: %v", optJob.JobMeta.UUID, err)
 		return nil, err
 	}
 
-	taskRes := make(map[uint64]float64)
-	taskMemory := make(map[uint64]float64)
-	taskNames := make(map[uint64]string)
-	for _, task := range tasks {
-		num, err := utils.ExtractTaskNumberFromName(task.Name)
-		if err != nil {
-			log.Errorf("fail to extract number for %s", task.Name)
+	nodeCPUs := make(map[uint64]float64)
+	nodeMemory := make(map[uint64]float64)
+	nodeNames := make(map[uint64]string)
+	for _, node := range nodes {
+		_, num := utils.ExtractPodTypeAndIDFromName(node.Name)
+		if num < 0 {
+			log.Errorf("fail to extract number for %s", node.Name)
 			continue
 		}
-		taskRes[num] = float64(task.CPU)
-		taskMemory[num] = float64(task.Memory)
-		taskNames[num] = task.Name
+		res := &common.PodResource{}
+		err = json.Unmarshal([]byte(node.Resource), res)
+		if err != nil {
+			log.Errorf("fail to unmarshal resource %s for node %s: %v", node.Resource, node.Name, err)
+			continue
+		}
+
+		num64 := uint64(num)
+		nodeCPUs[num64] = float64(res.CPUCore)
+		nodeMemory[num64] = res.Memory
+		nodeNames[num64] = node.Name
 	}
 
 	runtimeInfos := make([]*common.JobRuntimeInfo, 0)
-	err = json.Unmarshal([]byte(optJob.Metrics.MetricJobRuntime), &runtimeInfos)
+	err = json.Unmarshal([]byte(optJob.Metrics.JobRuntime), &runtimeInfos)
 	if err != nil {
 		log.Errorf("fail to unmarshal runtime info for %s: %v", optJob.JobMeta.Name, err)
 		return nil, err
@@ -86,19 +102,17 @@ func OptimizeJobHotPSResource(dataStore datastoreapi.DataStore, conf *optimizerc
 		return nil, nil
 	}
 
-	runtimeInfos = implutils.FilterRuntimeInfosWithLatestPS(runtimeInfos)
+	runtimeInfos = optimplutils.FilterRuntimeInfosWithLatestPS(runtimeInfos)
 
-	optTaskRes := make(map[string]*common.PodResource)
+	optNodeRes := make(map[string]*common.PodResource)
 
-	hotCPUPsNodes := implutils.CheckHotCPUNodes(
-		runtimeInfos, taskRes, hotCPUThreshold, implutils.RecordNumToAvgResource)
-	hotMemoryPsNodes := checkHotMemoryNodes(
-		runtimeInfos, taskMemory, hotMemoryThreshold, implutils.RecordNumToAvgResource)
+	hotCPUPsNodes := optimplutils.CheckHotCPUNodes(runtimeInfos, nodeCPUs, hotCPUThreshold, optimplcomm.NRecordToAvgResource)
+	hotMemoryPsNodes := checkHotMemoryNodes(runtimeInfos, nodeMemory, hotMemoryThreshold, optimplcomm.NRecordToAvgResource)
 
 	if len(hotCPUPsNodes) > 0 {
 		rt := runtimeInfos[len(runtimeInfos)-1]
 		curWorkerNum := len(rt.WorkerCPU)
-		avgCPU := implutils.CalculatePSAvgCPU(runtimeInfos, implutils.RecordNumToAvgResource)
+		avgCPU := optimplutils.CalculateJobNodeAvgResources(runtimeInfos, optimplcomm.NRecordToAvgResource, optimplcomm.ResourceTypePSCPU)
 
 		coeff := float64(hotTargetWorkerCount) / float64(curWorkerNum)
 		for _, n := range hotCPUPsNodes {
@@ -112,9 +126,9 @@ func OptimizeJobHotPSResource(dataStore datastoreapi.DataStore, conf *optimizerc
 		// Enlarge the CPU of ps nodes with the same ratio.
 		for n, cpu := range avgCPU {
 			optCPU := math.Ceil(cpu * coeff)
-			if optCPU > taskRes[n] {
-				taskName := taskNames[n]
-				optTaskRes[taskName] = &common.PodResource{
+			if optCPU > nodeCPUs[n] {
+				nodeName := nodeNames[n]
+				optNodeRes[nodeName] = &common.PodResource{
 					CPUCore: float32(optCPU),
 				}
 			}
@@ -122,34 +136,34 @@ func OptimizeJobHotPSResource(dataStore datastoreapi.DataStore, conf *optimizerc
 	}
 
 	for _, n := range hotMemoryPsNodes {
-		totalMemory, found := taskMemory[n]
+		totalMemory, found := nodeMemory[n]
 		if !found {
 			log.Errorf("fail to find task %d total cpu", n)
 			continue
 		}
-		taskName := taskNames[n]
+		nodeName := nodeNames[n]
 		optMemory := totalMemory + float64(hotAdjustMemory)
-		if _, ok := optTaskRes[taskName]; ok {
-			optTaskRes[taskName].Memory = optMemory
+		if _, ok := optNodeRes[nodeName]; ok {
+			optNodeRes[nodeName].Memory = optMemory
 		} else {
-			optTaskRes[taskName] = &common.PodResource{
+			optNodeRes[nodeName] = &common.PodResource{
 				Memory: optMemory,
 			}
 		}
 	}
 
-	if len(optTaskRes) == 0 {
+	if len(optNodeRes) == 0 {
 		return nil, nil
 	}
 
 	return &common.AlgorithmOptimizePlan{
 		JobRes: &common.JobResource{
-			PodResources: optTaskRes,
+			PodResources: optNodeRes,
 		},
 	}, nil
 }
 
-func checkHotMemoryNodes(runtimeInfos []*common.JobRuntimeInfo, taskMemory map[uint64]float64, hotThreshold float64, checkHotStep int) []uint64 {
+func checkHotMemoryNodes(runtimeInfos []*common.JobRuntimeInfo, nodeMemory map[uint64]float64, hotThreshold float64, checkHotStep int) []uint64 {
 	if len(runtimeInfos) < checkHotStep {
 		return nil
 	}
@@ -162,7 +176,7 @@ func checkHotMemoryNodes(runtimeInfos []*common.JobRuntimeInfo, taskMemory map[u
 	for i := 0; i < checkHotStep; i++ {
 		rt := runtimeInfos[len(runtimeInfos)-i-1]
 		for n, memory := range rt.PSMemory {
-			totalMemory, found := taskMemory[n]
+			totalMemory, found := nodeMemory[n]
 			if !found {
 				log.Errorf("fail to find task %d total memory", n)
 				continue
