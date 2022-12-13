@@ -21,6 +21,10 @@ import (
 	"sync"
 )
 
+const (
+	defaultStepCountThreshold = 5
+)
+
 var (
 	locker            = &sync.RWMutex{}
 	optimizers        = make(map[string]api.Optimizer)
