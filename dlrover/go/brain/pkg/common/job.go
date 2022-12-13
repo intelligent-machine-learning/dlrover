@@ -74,7 +74,8 @@ type OptimizeJobMeta struct {
 
 // JobNodeStatus is the struct of job node status
 type JobNodeStatus struct {
-	IsOOM bool
+	IsOOM  bool
+	Status string
 }
 
 // JobStatus is the struct of job stauts

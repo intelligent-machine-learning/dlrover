@@ -21,6 +21,11 @@ import (
 	"sync"
 )
 
+const (
+	initStepTime      = 1800
+	defaultInitWorker = 10
+)
+
 var (
 	locker        = &sync.RWMutex{}
 	optAlgorithms = make(map[string]optimizeAlgorithm)

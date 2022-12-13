@@ -44,4 +44,17 @@ const (
 	DefaultWorkerMinReplica = 2
 	// DefaultMaxPSMemory is the max memory of a PS.
 	DefaultMaxPSMemory = 68719476736
+	//NRecordToAvgResource is the number of record to compute the average resource usage.
+	NRecordToAvgResource = 3
+)
+
+const (
+	// ResourceTypePSCPU is the job node resource type of ps cpu
+	ResourceTypePSCPU = "ps.cpu"
+	// ResourceTypePSMemory is the job node resource type of ps memory
+	ResourceTypePSMemory = "ps.mem"
+	// ResourceTypeWorkerCPU is the job node resource type of worker cpu
+	ResourceTypeWorkerCPU = "worker.cpu"
+	// ResourceTypeWorkerMemory is the job node resource type of worker memory
+	ResourceTypeWorkerMemory = "worker.memory"
 )
