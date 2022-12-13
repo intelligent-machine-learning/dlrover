@@ -15,12 +15,12 @@ import csv
 import os
 
 import tensorflow as tf
+
+from dlrover.python.elastic_agent.sharding.client import ShardingClient
 from dlrover.python.elastic_agent.tensorflow.hooks import (
     ElasticDataShardReportHook,
     ReportModelMetricHook,
 )
-
-from dlrover.python.elastic_agent.sharding.client import ShardingClient
 
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.INFO)
 
@@ -91,6 +91,7 @@ def model_fn(features, labels, mode, params):
 
 def train_generator(shard_service):
     import time
+
     rows = read_csv(DATASET_DIR)
     while True:
         # Read samples by the range of the shard from
@@ -164,9 +165,7 @@ if __name__ == "__main__":
     ]
 
     def train_input_fn():
-        return input_fn(
-            lambda: train_generator(sharding_client), batch_size
-        )
+        return input_fn(lambda: train_generator(sharding_client), batch_size)
 
     train_spec = tf.estimator.TrainSpec(
         input_fn=train_input_fn,
