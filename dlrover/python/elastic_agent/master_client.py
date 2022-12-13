@@ -111,8 +111,10 @@ class MasterClient(object):
         """
 
         req = elastic_training_pb2.GetTaskRequest()
+        req.worker_type = self._node_type
         req.worker_id = self._node_id
         req.dataset_name = dataset_name
+        logger.info("req= %s", req)
 
         success = False
         res = None
@@ -128,7 +130,7 @@ class MasterClient(object):
             res = elastic_training_pb2.Task()
         return success, res
 
-    @retry_grpc_request
+    # @retry_grpc_request
     def report_task_result(self, dataset_name, task_id, err_msg):
         """Report task result to master.
 
@@ -143,7 +145,7 @@ class MasterClient(object):
         request.dataset_name = dataset_name
         request.task_id = task_id
         request.err_message = err_msg
-        self._stub.report_task_result(request)
+        return self._stub.report_task_result(request)
 
     @retry_grpc_request
     def reset_sync(self, rendezvous_id):
@@ -187,6 +189,7 @@ class MasterClient(object):
         num_minibatches_per_shard=0,
         dataset_name=None,
         task_type=elastic_training_pb2.NONE,
+        storage_type="",
     ):
         request = elastic_training_pb2.ReportDatasetShardParamsRequest()
         request.batch_size = batch_size
@@ -198,6 +201,7 @@ class MasterClient(object):
         if dataset_size is not None:
             request.dataset_size = dataset_size
         request.num_minibatches_per_shard = num_minibatches_per_shard
+        request.storage_type = storage_type
         return self._stub.report_dataset_shard_params(request)
 
     @retry_grpc_request
@@ -442,6 +446,7 @@ class LocalMasterClient(object):
         num_minibatches_per_shard=0,
         dataset_name=None,
         task_type=elastic_training_pb2.NONE,
+        storage_type="",
     ):
         dataset = LocalDataset(
             batch_size,

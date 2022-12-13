@@ -12,8 +12,6 @@
 # limitations under the License.
 
 import tensorflow as tf
-from tensorflow.core.protobuf import config_pb2
-from tensorflow.python.client import timeline
 from tensorflow.python.training import training_util
 from tensorflow.python.training.session_run_hook import (
     SessionRunArgs,
@@ -29,7 +27,6 @@ from dlrover.python.elastic_agent.monitor.training import (
 from dlrover.python.elastic_agent.sharding.client import ShardingClient
 from dlrover.python.elastic_agent.tensorflow.profile_extractor import (
     OperationStats,
-    ProfileExtracter,
     TensorStats,
 )
 
@@ -71,7 +68,6 @@ class ReportModelMetricHook(SessionRunHook):
         self._global_step = 0
         self._op_stats = None
         self._tensor_stats = None
-        self._has_summaried = True
         super(ReportModelMetricHook, self).__init__()
 
     def begin(self):
@@ -97,37 +93,12 @@ class ReportModelMetricHook(SessionRunHook):
     def before_run(self, run_context):  # pylint: disable=unused-argument
         if not self._is_chief:
             return
-        self._request_summary = False
-        if self._global_step > 0 and not self._has_summaried:
-            self._request_summary = True
-
         requests = {"global_step": self._global_step_tensor}
-        opts = (
-            config_pb2.RunOptions(trace_level=config_pb2.RunOptions.FULL_TRACE)
-            if self._request_summary
-            else None
-        )
-
-        return SessionRunArgs(requests, options=opts)
+        return SessionRunArgs(requests)
 
     def after_run(self, run_context, run_values):
         if not self._is_chief:
             return
-        if self._request_summary:
-            step_stats = run_values.run_metadata.step_stats
-            trace = timeline.Timeline(step_stats)
-            profile_fe = ProfileExtracter(trace)
-            self._tensor_stats.tensor_alloc_bytes = (
-                profile_fe.get_tensor_alloc_bytes()
-            )
-            self._op_stats.recv_op_count = profile_fe.get_chief_recv_op_count()
-            self._op_stats.input_fetch_dur = profile_fe.get_input_fetch_dur()
-            GlobalMasterClient.MASTER_CLIENT.report_model_metric(
-                self._tensor_stats,
-                self._op_stats,
-            )
-            self._has_summaried = True
-
         self._global_step = run_values.results["global_step"]
         training_reporter.report_resource_with_step(self._global_step)
 

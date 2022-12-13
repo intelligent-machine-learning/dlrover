@@ -14,6 +14,7 @@
 from abc import ABCMeta, abstractmethod
 from typing import List
 
+from dlrover.python.common.constants import DatasetType
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.watcher.base_watcher import Node
 
@@ -22,28 +23,11 @@ class CustomMetricKey(object):
     INIT_TRAINING_TIME = "init_training_time"
 
 
-class DatasetType(object):
-    TEXT = "text"
-    MAXCOMPUTE_TABLE = "maxcompute_table"
-
-
-class TrainingHyperParams(metaclass=ABCMeta):
-    def __init__(self):
-        self.batch_size = self.get_batch_size()
-        self.epoch = self.get_epoch()
-        self.max_steps = self.get_max_steps()
-
-    @abstractmethod
-    def get_batch_size(self):
-        pass
-
-    @abstractmethod
-    def get_epoch(self):
-        pass
-
-    @abstractmethod
-    def get_max_steps(self):
-        pass
+class TrainingHyperParams(object):
+    def __init__(self, batch_size=0, epoch=0, max_steps=0):
+        self.batch_size = batch_size
+        self.epoch = epoch
+        self.max_steps = max_steps
 
 
 class DatasetMetric(metaclass=ABCMeta):
@@ -85,7 +69,7 @@ class DatasetMetric(metaclass=ABCMeta):
 
     @classmethod
     def new_dataset_metric(cls, ds_type, name, size):
-        if ds_type == DatasetType.TEXT:
+        if not ds_type or ds_type == DatasetType.TEXT:
             return TextDatasetMetric(name, size)
         else:
             logger.warning("Not support dataset type %s", ds_type)
@@ -155,12 +139,12 @@ class RuntimeMetric(object):
     """RuntimeMetric contains the runtime statistics of a job."""
 
     def __init__(
-        self, running_pods: List[Node], global_step=0, speed=0, timestamp=0
+        self, running_nodes: List[Node], global_step=0, speed=0, timestamp=0
     ):
-        self.running_pods = running_pods
+        self.running_nodes = running_nodes
         self.global_step = global_step
         self.speed = speed
         self.timestamp = timestamp
 
     def clear(self):
-        self.running_pods = []
+        self.running_nodes = []

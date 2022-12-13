@@ -61,7 +61,7 @@ func (m *Manager) newJobMaster(
 	container := corev1.Container{
 		Name:            "main",
 		Image:           masterImage,
-		ImagePullPolicy: "Never",
+		ImagePullPolicy: "IfNotPresent",
 		Command:         []string{"/bin/bash", "-c", command},
 		Resources: corev1.ResourceRequirements{
 			Requests: corev1.ResourceList{
@@ -173,7 +173,7 @@ func (m *Manager) newJobMasterService(job *elasticv1alpha1.ElasticJob) *corev1.S
 
 // NewEasydlMasterServiceName create a service name for Job master
 func NewEasydlMasterServiceName(jobName string) string {
-	return fmt.Sprintf("%s-%s", jobName, string(ReplicaTypeTrainerMaster))
+	return fmt.Sprintf("elasticjob-%s-%s", jobName, string(ReplicaTypeTrainerMaster))
 }
 
 // newJobMasterName create a name for Job master

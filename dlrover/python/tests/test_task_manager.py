@@ -15,6 +15,7 @@ import json
 import unittest
 
 from dlrover.proto import elastic_training_pb2
+from dlrover.python.common.constants import NodeType
 from dlrover.python.master.shard.task_manager import DatasetShardCheckpoint
 from dlrover.python.tests.test_utils import create_task_manager
 
@@ -24,7 +25,7 @@ class TaskMangerTest(unittest.TestCase):
         dataset_name = "test"
         task_manager = create_task_manager()
         self.assertEqual(len(task_manager._datasets), 1)
-        task = task_manager.get_dataset_task(0, dataset_name)
+        task = task_manager.get_dataset_task(NodeType.WORKER, 0, dataset_name)
         self.assertEqual(task.task_id, 0)
         dataset_manager = task_manager.get_dataset(dataset_name)
         self.assertIsNotNone(dataset_manager)
@@ -37,7 +38,7 @@ class TaskMangerTest(unittest.TestCase):
         self.assertEqual(task.task_id, 0)
         self.assertGreater(task_manager._worker_start_task_time[0], 0)
         self.assertFalse(task_manager.finished())
-        task = task_manager.get_dataset_task(dataset_name, 1)
+        task = task_manager.get_dataset_task(NodeType.WORKER, 1, dataset_name)
         epoch = task_manager.get_dataset_epoch(dataset_name)
         self.assertEqual(epoch, 1)
 
@@ -45,7 +46,7 @@ class TaskMangerTest(unittest.TestCase):
         task_manager = create_task_manager()
         dataset_name = "test"
         dataset = task_manager.get_dataset(dataset_name)
-        task = task_manager.get_dataset_task(0, dataset_name)
+        task = task_manager.get_dataset_task(NodeType.WORKER, 0, dataset_name)
         self.assertEqual(len(dataset.todo), 9)
         request = elastic_training_pb2.ReportTaskResultRequest()
         request.task_id = task.task_id
@@ -57,8 +58,8 @@ class TaskMangerTest(unittest.TestCase):
     def test_dataset_checkpoint(self):
         task_manager = create_task_manager()
         dataset_name = "test"
-        task_manager.get_dataset_task(0, dataset_name)
-        task_manager.get_dataset_task(0, dataset_name)
+        task_manager.get_dataset_task(NodeType.WORKER, 0, dataset_name)
+        task_manager.get_dataset_task(NodeType.WORKER, 0, dataset_name)
         checkpoint: DatasetShardCheckpoint = (
             task_manager.get_dataset_checkpoint(dataset_name)
         )
@@ -91,7 +92,7 @@ class TaskMangerTest(unittest.TestCase):
         )
 
         dataset = task_manager.get_dataset(dataset_name)
-        task_manager.get_dataset_task(0, dataset_name)
+        task_manager.get_dataset_task(NodeType.WORKER, 0, dataset_name)
         self.assertEqual(len(dataset.todo), 7)
         task_manager.restore_dataset_from_checkpoint(checkpoint_str)
         self.assertEqual(dataset.todo[1].shard.start, 100)

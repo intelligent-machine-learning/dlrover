@@ -110,13 +110,13 @@ class TaskRescheduleCallback(NodeEventCallback):
 
     @NodeEventCallback.log_callback_exception
     def on_node_failed(self, node, cluster_context):
-        if node.id is not None and node.type == NodeType.WORKER:
-            self._task_manager.recover_tasks(node.id)
+        if node.id is not None:
+            self._task_manager.recover_tasks(node.type, node.id)
 
     @NodeEventCallback.log_callback_exception
     def on_node_deleted(self, node, cluster_context):
         if node.id is not None and node.type == NodeType.WORKER:
-            self._task_manager.recover_tasks(node.id)
+            self._task_manager.recover_tasks(node.type, node.id)
 
 
 class TFPSNodeHandlingCallback(NodeEventCallback):
@@ -153,8 +153,6 @@ class TFPSNodeHandlingCallback(NodeEventCallback):
     def on_node_succeeded(self, node: Node, cluster_context: ClusterContext):
         node.finish_time = datetime.now()
         node_manager = cluster_context.node_manager
-        if node.type == NodeType.WORKER and node.task_index == 0:
-            node_manager.remove_training_nodes()
         if node.critical:
             completed = node_manager.all_critical_node_completed()
             if completed:
@@ -163,18 +161,17 @@ class TFPSNodeHandlingCallback(NodeEventCallback):
                     reason=JobExitReason.SUCCEEDED,
                     msg="All critical nodes completed",
                 )
-        if node.type == NodeType.WORKER:
-            self._master.task_manager.remove_running_worker(node.id)
+        self._master.speed_monitor.remove_running_worker(node.type, node.id)
 
     @NodeEventCallback.log_callback_exception
     def on_node_failed(self, node: Node, cluster_context):
         node.finish_time = datetime.now()
         self._stop_job_if_needed(node)
-        if node.type == NodeType.WORKER:
-            task_manager = self._master.task_manager
-            task_manager.remove_running_worker(node.id)
-            if node.is_unrecoverable_failure():
-                self._master.speed_monitor.reduce_target_worker_num(1)
+        if node.is_unrecoverable_failure():
+            self._master.speed_monitor.reduce_target_worker_num(
+                [(node.type, node.id)]
+            )
+        self._master.speed_monitor.remove_running_worker(node.type, node.id)
 
     @NodeEventCallback.log_callback_exception
     def on_node_deleted(self, node, cluster_context):
@@ -182,8 +179,7 @@ class TFPSNodeHandlingCallback(NodeEventCallback):
         self._stop_job_if_needed(
             node,
         )
-        if node.type == NodeType.WORKER:
-            self._master.task_manager.remove_running_worker(node.id)
+        self._master.speed_monitor.remove_running_worker(node.type, node.id)
 
     def _stop_job_if_needed(self, node: Node):
         if node.critical and node.is_unrecoverable_failure():

@@ -62,11 +62,11 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         return self._version
 
     def report_task_result(self, request, _):
+        success = True
         if request.err_message:
             logger.warning("Worker reported error: " + request.err_message)
-            task, _ = self._task_manager.report_dataset_task(request, False)
-        else:
-            task, _ = self._task_manager.report_dataset_task(request, True)
+            success = False
+        task, _ = self._task_manager.report_dataset_task(request, success)
         if (
             not self._start_autoscale
             and self._node_manager
@@ -96,7 +96,9 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         dataset = self._task_manager.get_dataset(ds_name)
         if not dataset:
             return res
-        task = self._task_manager.get_dataset_task(request.worker_id, ds_name)
+        task = self._task_manager.get_dataset_task(
+            request.worker_type, request.worker_id, ds_name
+        )
 
         if task:
             res.task_id = task.task_id
@@ -248,7 +250,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         pod_id = request.node_id
         pod_type = request.node_type
         self._node_manager.update_node_resource_usage(
-            pod_type, pod_id, memory, cpu
+            pod_type, pod_id, cpu, memory
         )
         return empty_pb2.Empty()
 
@@ -381,10 +383,10 @@ def create_master_service(
     port,
     task_manager,
     node_manager,
+    speed_monitor,
     rendezvous_server,
     job_metric_collector,
     elastic_ps_service,
-    speed_monitor,
 ) -> MasterServicer:
     """Create GRPC server"""
     logger.info("Creating master service")

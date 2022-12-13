@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 from abc import ABCMeta, abstractmethod
 from typing import List
 
@@ -98,7 +99,7 @@ class LocalStatsReporter(StatsReporter):
         self._model_metric = metric
 
     def report_runtime_stats(self, stats: RuntimeMetric):
-        self._runtime_stats.append(stats)
+        self._runtime_stats.append(copy.deepcopy(stats))
 
     def report_job_type(self, job_type: str):
         self._job_type = job_type

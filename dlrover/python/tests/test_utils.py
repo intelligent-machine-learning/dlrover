@@ -34,6 +34,7 @@ JOB_EXAMPLE = """apiVersion: elastic.iml.github.io/v1alpha1
 kind: ElasticJob
 metadata:
   name: elasticjob-sample
+  uid: "111-222"
 spec:
   distributionStrategy: ParameterServerStrategy
   replicaSpecs:
@@ -205,7 +206,7 @@ def mock_list_namespaced_pod(label_selector):
             ElasticJobLabel.APP_NAME: "test",
             ElasticJobLabel.REPLICA_TYPE_KEY: NodeType.PS,
             ElasticJobLabel.REPLICA_INDEX_KEY: str(i),
-            ElasticJobLabel.TRAINING_TASK_INDEX_KEY: str(i),
+            ElasticJobLabel.RANK_INDEX_KEY: str(i),
         }
         pod = create_pod(labels)
         pods.append(pod)
@@ -215,7 +216,7 @@ def mock_list_namespaced_pod(label_selector):
             ElasticJobLabel.APP_NAME: "test",
             ElasticJobLabel.REPLICA_TYPE_KEY: NodeType.WORKER,
             ElasticJobLabel.REPLICA_INDEX_KEY: str(i),
-            ElasticJobLabel.TRAINING_TASK_INDEX_KEY: str(i),
+            ElasticJobLabel.RANK_INDEX_KEY: str(i),
         }
         pod = create_pod(labels)
         pods.append(pod)

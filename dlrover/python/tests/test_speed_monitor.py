@@ -13,6 +13,7 @@
 
 import unittest
 
+from dlrover.python.common.constants import NodeType
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 
 
@@ -20,14 +21,14 @@ class SpeedMonitorTest(unittest.TestCase):
     def test_speed_monitor(self):
         monitor = SpeedMonitor()
         monitor.set_target_worker_num(2)
-        monitor.add_running_worker(0)
-        monitor.add_running_worker(1)
+        monitor.add_running_worker(NodeType.WORKER, 0)
+        monitor.add_running_worker(NodeType.WORKER, 1)
         monitor.collect_global_step(1, 1)
         monitor.collect_global_step(301, 11),
         monitor.collect_global_step(9001, 301),
         self.assertEqual(monitor.completed_global_step, 9001)
         self.assertTrue(monitor.worker_adjustment_finished())
         self.assertEqual(monitor.running_speed, 30)
-        monitor.remove_running_worker(1)
+        monitor.remove_running_worker(NodeType.WORKER, 1)
         monitor.collect_global_step(18001, 601)
         self.assertFalse(monitor.worker_adjustment_finished())
