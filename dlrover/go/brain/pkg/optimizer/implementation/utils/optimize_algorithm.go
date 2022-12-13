@@ -142,3 +142,59 @@ func EstimateJobResourceByHistoricJobs(conf *optconfig.OptimizeAlgorithmConfig, 
 	}
 	return resOptPlan, nil
 }
+
+// ComputeAvgSpeed the average training speed
+func ComputeAvgSpeed(runtimeInfos []*common.JobRuntimeInfo, maxCount int) float64 {
+	l := len(runtimeInfos)
+
+	count := minInt(l, maxCount)
+	if count == 0 {
+		return 0
+	}
+
+	totalSpeed := float64(0)
+
+	for i := l - 1; i >= l-count; i-- {
+		totalSpeed = totalSpeed + runtimeInfos[i].Speed/float64(len(runtimeInfos[i].WorkerCPU))
+	}
+	return totalSpeed / float64(count)
+}
+
+// ComputePerStepTime computes time of per step of training
+func ComputePerStepTime(metrics *common.JobMetrics, speed float64) (float64, error) {
+	trainingHyperParam := &common.TrainingHyperParams{}
+	err := json.Unmarshal([]byte(metrics.HyperParamsFeature), trainingHyperParam)
+	if err != nil {
+		log.Errorf("Fail to unmarshal hyper parameters: %v", err)
+		return 0, err
+	}
+	batchSize := float64(trainingHyperParam.BatchSize)
+
+	trainingDatasetFeature := &common.TrainingSetFeature{}
+	err = json.Unmarshal([]byte(metrics.DataSetFeature), trainingDatasetFeature)
+	if err != nil {
+		log.Errorf("Fail to unmarshal dataset feature: %v", err)
+		return 0, err
+	}
+	datasetSize := float64(trainingDatasetFeature.DatasetSize)
+
+	steps := datasetSize / batchSize
+	epoch := float64(trainingHyperParam.Epoch)
+	maxSteps := float64(trainingHyperParam.MaxSteps)
+	if epoch > 0 {
+		steps = epoch * steps
+	}
+	if maxSteps > 0 && steps > maxSteps {
+		steps = maxSteps
+	}
+
+	time := steps / speed
+	return time, nil
+}
+
+func minInt(x, y int) int {
+	if x < y {
+		return x
+	}
+	return y
+}

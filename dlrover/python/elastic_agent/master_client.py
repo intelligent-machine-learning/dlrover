@@ -446,6 +446,7 @@ class LocalMasterClient(object):
         num_minibatches_per_shard=0,
         dataset_name=None,
         task_type=elastic_training_pb2.NONE,
+        storage_type="",
     ):
         dataset = LocalDataset(
             batch_size,

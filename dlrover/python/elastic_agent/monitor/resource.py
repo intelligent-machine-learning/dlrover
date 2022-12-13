@@ -61,10 +61,7 @@ class ResourceMonitor(object):
         reports the used memory and cpu percent to the ElasticDL master.
         """
         self._total_cpu = psutil.cpu_count(logical=True)
-        if (
-            os.getenv("MASTER_ADDR")
-            and os.getenv("ELASTICDL_ENABLED", "") == "true"
-        ):
+        if os.getenv("DLROVER_MASTER_ADDR", ""):
             threading.Thread(
                 target=self._monitor_resource,
                 name="monitor_resource",
@@ -92,4 +89,4 @@ class ResourceMonitor(object):
         logger.info("Start to monitor resource usage")
         while True:
             self.report_resource()
-            time.sleep(60)
+            time.sleep(30)

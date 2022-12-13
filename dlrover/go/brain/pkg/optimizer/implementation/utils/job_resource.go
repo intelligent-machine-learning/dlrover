@@ -13,7 +13,12 @@
 
 package utils
 
-import "sort"
+import (
+	log "github.com/golang/glog"
+	"github.com/intelligent-machine-learning/easydl/brain/pkg/common"
+	optimplcomm "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/implementation/common"
+	"sort"
+)
 
 // GetMaxJobNodeResource returns max resources of job nodes
 func GetMaxJobNodeResource(resources map[uint64]float64) float64 {
@@ -60,4 +65,47 @@ func ComputeAverage(nums []float64) float64 {
 		sum += nums[i]
 	}
 	return sum / float64(len(nums))
+}
+
+// CalculateJobNodeAvgResources get the avg resources for each job node from the runtime infos
+func CalculateJobNodeAvgResources(rts []*common.JobRuntimeInfo, sampleStep int, resType string) map[uint64]float64 {
+	nRecords := len(rts)
+	if sampleStep > nRecords {
+		sampleStep = nRecords
+	}
+	nodeSumRes := make(map[uint64]float64)
+	nodeRecordNum := make(map[uint64]float64)
+	avgRes := make(map[uint64]float64)
+
+	for i := 0; i < sampleStep; i++ {
+		var resources map[uint64]float64
+		rt := rts[nRecords-i-1]
+		switch resType {
+		case optimplcomm.ResourceTypePSCPU:
+			resources = rt.PSCPU
+		case optimplcomm.ResourceTypePSMemory:
+			resources = rt.PSMemory
+		case optimplcomm.ResourceTypeWorkerCPU:
+			resources = rt.WorkerCPU
+		case optimplcomm.ResourceTypeWorkerMemory:
+			resources = rt.WorkerMemory
+		default:
+			log.Errorf("invalid resource type %s", resType)
+			return avgRes
+		}
+
+		for n, res := range resources {
+			nodeSumRes[n] += res
+			nodeRecordNum[n]++
+		}
+	}
+
+	for n, res := range nodeSumRes {
+		if res > 0 {
+			avgRes[n] = nodeSumRes[n] / nodeRecordNum[n]
+		} else {
+			avgRes[n] = 0.0
+		}
+	}
+	return avgRes
 }
