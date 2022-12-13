@@ -44,6 +44,7 @@ make run
 3. Submit an ElasticJob.
 
 ```bash
+eval $(minikube docker-env)
 kubectl apply -f dlrover/go/operator/config/samples/elastic_v1alpha1_elasticjob.yaml
 ```
 
