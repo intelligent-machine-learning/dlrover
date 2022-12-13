@@ -21,6 +21,7 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.node import NodeGroupResource, NodeResource
+from dlrover.python.scheduler.job import ResourceLimits
 
 _dlrover_context = Context.instance()
 
@@ -126,10 +127,11 @@ class ResourcePlan(object):
 
 
 class ResourceOptimizer(metaclass=ABCMeta):
-    def __init__(self, job_uuid):
+    def __init__(self, job_uuid, resource_limits: ResourceLimits):
         self._job_uuid = job_uuid
+        self._resource_limits = resource_limits
 
-    def updaet_job_uuid(self, job_uuid):
+    def update_job_uuid(self, job_uuid):
         self._job_uuid = job_uuid
 
     @abstractmethod

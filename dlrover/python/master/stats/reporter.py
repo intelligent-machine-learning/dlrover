@@ -22,6 +22,7 @@ from dlrover.python.master.stats.training_metrics import (
     RuntimeMetric,
     TrainingHyperParams,
 )
+from dlrover.python.common.singleton import singleton
 
 
 class JobMeta(object):
@@ -38,7 +39,7 @@ class CollectorType(object):
     DLROVER_BRAIN = "brain"
 
 
-class StatsReporter(metaclass=ABCMeta):
+class StatsCollector(metaclass=ABCMeta):
     def __init__(self, job_meta: JobMeta):
         self._job_meta = job_meta
 
@@ -73,14 +74,15 @@ class StatsReporter(metaclass=ABCMeta):
     @classmethod
     def new_stats_collector(cls, job_meta, collector_type=None):
         if not collector_type or collector_type == CollectorType.LOCAL:
-            return LocalStatsReporter(job_meta)
+            return LocalStatsCollector(job_meta)
         else:
             logger.warning("Not support stats collector %s", collector_type)
 
 
-class LocalStatsReporter(StatsReporter):
+@singleton
+class LocalStatsCollector(StatsCollector):
     def __init__(self, job_meta):
-        super(LocalStatsReporter, self).__init__(job_meta)
+        super(LocalStatsCollector, self).__init__(job_meta)
         self._runtime_stats: List[RuntimeMetric] = []
         self._dataset_metric = None
         self._training_hype_params = None
@@ -109,3 +111,6 @@ class LocalStatsReporter(StatsReporter):
 
     def report_customized_data(self, data):
         self._custom_data = data
+
+    def get_runtime_stats(self) -> List[RuntimeMetric]:
+        return self._runtime_stats

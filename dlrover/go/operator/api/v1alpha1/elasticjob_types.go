@@ -34,6 +34,11 @@ type ElasticJobSpec struct {
 	// Now, the strategy supports parameter-server and ring-allreduce.
 	DistributionStrategy string `json:"distributionStrategy,omitempty"`
 
+	// ResourceLimits specifies the maximum resource of a job. For example, 
+	// {"cpu": "100", "memory": "10240Mi"} means the number of maximum cpu cores
+	// is 100 and the maximum of all Pods is 10Gi.
+	ResourceLimits map[string]string `json:"resourceLimits,omitempty"`
+
 	// EnableElasticScheduling starts elasticity of Pods.
 	EnableElasticScheduling bool `json:"enableElasticScheduling,omitempty"`
 

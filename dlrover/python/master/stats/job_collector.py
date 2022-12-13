@@ -18,7 +18,7 @@ from typing import Dict, List
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
-from dlrover.python.master.stats.reporter import JobMeta, StatsReporter
+from dlrover.python.master.stats.reporter import JobMeta, StatsCollector
 from dlrover.python.master.stats.training_metrics import (
     CustomMetricKey,
     DatasetMetric,
@@ -35,7 +35,7 @@ from dlrover.python.master.watcher.base_watcher import Node
 class BaseMetricCollector(metaclass=ABCMeta):
     def __init__(self, job_meta: JobMeta, collector_type=None):
         self._job_meta = job_meta
-        self._stats_collector = StatsReporter.new_stats_collector(
+        self._stats_collector = StatsCollector.new_stats_collector(
             job_meta, collector_type
         )
 

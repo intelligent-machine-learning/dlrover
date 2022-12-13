@@ -16,11 +16,11 @@ import time
 
 from kubernetes import client, config
 
-from dlrover.python.common.constants import NodeType
+from dlrover.python.common.constants import NodeType, DefaultResourceLimits
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import NodeGroupResource, NodeResource
 from dlrover.python.common.singleton import singleton
-from dlrover.python.scheduler.job import ElasticJob, JobParams, NodeParams
+from dlrover.python.scheduler.job import ElasticJob, JobParams, NodeParams, ResourceLimits
 
 NODE_SERVICE_PORTS = {
     NodeType.WORKER: 3333,
@@ -283,6 +283,17 @@ class K8sJobParams(JobParams):
         self.job_uuid = self._get_job_uuid(job)
         if "distributionStrategy" in job["spec"]:
             self.distribution_strategy = job["spec"]["distributionStrategy"]
+        limit_config = job["spec"].get("resourceLimits", {})
+        self.resource_limits.cpu = float(
+            limit_config.get("cpu", DefaultResourceLimits.CPU_LIMIT)
+        )
+        self.resource_limits.memory = NodeResource.convert_memory_to_mb(
+            limit_config.get("memory", DefaultResourceLimits.MEMORY_LIMIT)
+        )
+        self.resource_limits.gpu_num = int(
+            limit_config.get("gpu", DefaultResourceLimits.GPU_LIMIT)
+        )
+
         for replica, spec in job["spec"]["replicaSpecs"].items():
             priority = spec.get("priority", "")
             num = int(spec.get("replicas", 0))

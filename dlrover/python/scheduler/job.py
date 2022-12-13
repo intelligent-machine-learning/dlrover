@@ -60,6 +60,13 @@ class NodeParams(metaclass=ABCMeta):
         self.critical_nodes = critical_nodes
 
 
+class ResourceLimits(object):
+    def __init__(self) -> None:
+        self.cpu = 0
+        self.memory = 0
+        self.gpu_num = 0
+
+
 class JobParams(object):
     """JobParams are parameters of an elastic training job.
     Attributes:
@@ -86,6 +93,7 @@ class JobParams(object):
         self.cluster = ""
         self.scaling_optimizer = "local"
         self.use_ddp = False
+        self.resource_limits = ResourceLimits()
 
     def print(self):
         logger.info(
