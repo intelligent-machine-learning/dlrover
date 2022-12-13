@@ -139,12 +139,12 @@ class RuntimeMetric(object):
     """RuntimeMetric contains the runtime statistics of a job."""
 
     def __init__(
-        self, running_pods: List[Node], global_step=0, speed=0, timestamp=0
+        self, running_nodes: List[Node], global_step=0, speed=0, timestamp=0
     ):
-        self.running_pods = running_pods
+        self.running_nodes = running_nodes
         self.global_step = global_step
         self.speed = speed
         self.timestamp = timestamp
 
     def clear(self):
-        self.running_pods = []
+        self.running_nodes = []
