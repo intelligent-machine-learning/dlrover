@@ -56,6 +56,8 @@ const (
 
 	// JobNodeMemoryMarginPercent is the config key for job node memory margin percent
 	JobNodeMemoryMarginPercent = "job.node.memory.margin.percent"
+	// JobNodeCPUMargin is the config key for job node cpu margin
+	JobNodeCPUMargin = "job-node.cpu.margin"
 
 	// OptimizerMinWorkerCreateCPU is the key of min CPU of the first worker
 	OptimizerMinWorkerCreateCPU = "optimizer.worker.create.cpu.min"
@@ -63,6 +65,8 @@ const (
 	OptimizerWorkerOomMemoryMarginPercent = "optimizer.worker.oom.memory.margin-percent"
 	// OptimizerWorkerOomMemoryMinIncrease is the config key of oom worker memory margin percent
 	OptimizerWorkerOomMemoryMinIncrease = "optimizer.worker.oom.memory.min-increase"
+	// OptimizerWorkerMemoryMarginPercent is the config key of worker memory margin percent
+	OptimizerWorkerMemoryMarginPercent = "optimizer.worker.memory.margin-percent"
 
 	// OptimizerPSMemoryMarginPercent is the config key of cold job initial ps memory
 	OptimizerPSMemoryMarginPercent = "optimizer.ps.memory.margin.percent"
@@ -78,7 +82,15 @@ const (
 	OptimizerPSColdCPU = "optimizer.ps.cold.cpu"
 	// OptimizerPSColdReplica is the config key of cold job initial ps replica
 	OptimizerPSColdReplica = "optimizer.ps.cold.replica"
+	// OptimizerPSInitAdjustTargetWorkerCount is the target count of workers supporting by PS CPU.
+	OptimizerPSInitAdjustTargetWorkerCount = "optimizer.ps.init-adjust.target-worker-count"
+	// OptimizerPSMarginCPU is the config key of the ps margin cpu
+	OptimizerPSMarginCPU = "optimizer.ps.cpu.margin"
+	// OptimizerPSCPUOverload is the config key of ps cpu overloaded threshold
+	OptimizerPSCPUOverload = "optimizer.ps.cpu.overload"
+	// OptimizerPSMemoryWorkloadUnbalancePercent is the config key of ps memory workload unbalance percent
+	OptimizerPSMemoryWorkloadUnbalancePercent = "optimizer.ps.memory.workload-balance-percent"
 
-	// JobNodeCPUMargin is the config key for job node cpu margin
-	JobNodeCPUMargin = "job-node.cpu.margin"
+	// OptimizerStepCountThreshold is the config key of step count threshold
+	OptimizerStepCountThreshold = "optimizer.step.count.threshold"
 )
