@@ -25,11 +25,11 @@ from dlrover.python.master.watcher.base_watcher import Node
 class LocalStatsCollectorTest(unittest.TestCase):
     def test_report_resource_usage(self):
         job_meta = JobMeta("1111")
-        collector = LocalStatsReporter(job_meta)
-
-        collector.report_runtime_stats(RuntimeMetric([]))
-        collector.report_runtime_stats(RuntimeMetric([]))
-        self.assertEqual(len(collector._runtime_stats), 2)
+        reporter = LocalStatsReporter(job_meta)
+        reporter._runtime_stats = []
+        reporter.report_runtime_stats(RuntimeMetric([]))
+        reporter.report_runtime_stats(RuntimeMetric([]))
+        self.assertEqual(len(reporter._runtime_stats), 2)
 
 
 class StatsCollectorTest(unittest.TestCase):
@@ -43,7 +43,8 @@ class StatsCollectorTest(unittest.TestCase):
         speed_monitor.collect_global_step(1100, t + 10)
         speed_monitor.add_running_worker(NodeType.WORKER, 0)
         worker = Node(NodeType.WORKER, 0, None)
+        collector._stats_reporter._runtime_stats = []
         collector.collect_runtime_stats(speed_monitor, [worker])
         self.assertEqual(len(collector._runtime_metric.running_nodes), 1)
         self.assertEqual(collector._runtime_metric.speed, 100)
-        self.assertEqual(len(collector._stats_collector._runtime_stats), 1)
+        self.assertEqual(len(collector._stats_reporter._runtime_stats), 1)

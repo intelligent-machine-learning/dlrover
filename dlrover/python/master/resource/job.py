@@ -29,17 +29,21 @@ from dlrover.python.master.resource.brain_optimizer import (
 )
 from dlrover.python.master.resource.local_optimizer import LocalOptimizer
 from dlrover.python.master.resource.optimizer import ResourcePlan
+from dlrover.python.scheduler.job import ResourceLimits
 
 _WORKER_OPTIMIZE_PHASE = "optimizer.worker.optimize-phase"
 
 _dlrover_context = Context.instance()
 
 
-def new_resource_optimizer(optimizer: str, job_uuid):
+def new_resource_optimizer(
+    optimizer: str, job_uuid, resoure_limits: ResourceLimits
+):
+    logger.info("New resource optimizer %s for job %s", optimizer, job_uuid)
     if optimizer == BrainResoureOptimizer.name:
-        return BrainResoureOptimizer(job_uuid)
+        return BrainResoureOptimizer(job_uuid, resoure_limits)
     elif optimizer == LocalOptimizer.name:
-        return LocalOptimizer(job_uuid)
+        return LocalOptimizer(job_uuid, resoure_limits)
     else:
         logger.error("Not support %s optimizer", optimizer)
 
@@ -141,19 +145,22 @@ class JobResourceOptimizer(object):
         ps_resource: NodeGroupResource,
         optimizer: str,
         job_uuid="",
+        resource_limits=ResourceLimits(),
     ):
         self._worker_resource = worker_resource
         self._ps_resource = ps_resource
         self._original_worker_resource = copy.deepcopy(self._worker_resource)
         self._original_ps_resource = copy.deepcopy(self._ps_resource)
-        self._resource_optimizer = new_resource_optimizer(optimizer, job_uuid)
+        self._resource_optimizer = new_resource_optimizer(
+            optimizer, job_uuid, resource_limits
+        )
         self._lock = threading.Lock()
         self.optimized_ps_mem = False
         self.optimize_worker_sampled = False
         self._job_stage = JobOptStage.CREATE
 
     def update_job_uuid(self, job_uuid):
-        self._resource_optimizer.updaet_job_uuid(job_uuid)
+        self._resource_optimizer.update_job_uuid(job_uuid)
 
     def _init_job_resource_by_optimizer(self):
         plan = self._resource_optimizer.generate_opt_plan(self._job_stage)

@@ -167,3 +167,9 @@ class NodeEnv(object):
 class DatasetType(object):
     TEXT = "text"
     MAXCOMPUTE_TABLE = "maxcompute_table"
+
+
+class DefaultResourceLimits(object):
+    CPU_LIMIT = 100
+    MEMORY_LIMIT = "102400Mi"  # 100Gi
+    GPU_LIMIT = 4

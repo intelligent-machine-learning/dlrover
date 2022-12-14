@@ -192,7 +192,7 @@ class EasydlClient(object):
         metrics.global_step = runtime_metric.global_step
         metrics.time_stamp = runtime_metric.timestamp
         metrics.speed = runtime_metric.speed
-        for pod in runtime_metric.running_pods:
+        for pod in runtime_metric.running_nodes:
             pod_meta = brain_pb2.PodMeta()
             pod_meta.pod_name = pod.name
             pod_meta.pod_ip = pod.pod_ip
@@ -202,7 +202,7 @@ class EasydlClient(object):
             pod_meta.is_mixed = pod.qos == "SigmaBestEffort"
             pod_meta.mem_usage = pod.mem_usage
             pod_meta.cpu_usage = pod.cpu_usage
-            metrics.running_pods.append(pod_meta)
+            metrics.running_nodes.append(pod_meta)
         return self.report_metrics(job_metrics)
 
     def get_optimization_plan(self, job_uuid, stage, opt_retriever, config={}):

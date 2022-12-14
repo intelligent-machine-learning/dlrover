@@ -16,6 +16,7 @@ from abc import ABCMeta, abstractmethod
 from typing import List
 
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.common.singleton import singleton
 from dlrover.python.master.stats.training_metrics import (
     DatasetMetric,
     ModelMetric,
@@ -71,16 +72,17 @@ class StatsReporter(metaclass=ABCMeta):
         pass
 
     @classmethod
-    def new_stats_collector(cls, job_meta, collector_type=None):
+    def new_stats_reporter(cls, job_meta, collector_type=None):
         if not collector_type or collector_type == CollectorType.LOCAL:
             return LocalStatsReporter(job_meta)
         else:
             logger.warning("Not support stats collector %s", collector_type)
 
 
+@singleton
 class LocalStatsReporter(StatsReporter):
     def __init__(self, job_meta):
-        super(LocalStatsReporter, self).__init__(job_meta)
+        self._job_meta = job_meta
         self._runtime_stats: List[RuntimeMetric] = []
         self._dataset_metric = None
         self._training_hype_params = None
@@ -109,3 +111,6 @@ class LocalStatsReporter(StatsReporter):
 
     def report_customized_data(self, data):
         self._custom_data = data
+
+    def get_runtime_stats(self) -> List[RuntimeMetric]:
+        return self._runtime_stats
