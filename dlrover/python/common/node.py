@@ -19,6 +19,7 @@ from dlrover.python.common.constants import (
     NodeResourceLimit,
     NodeStatus,
 )
+from dlrover.python.common.serialize import JsonSerializable
 
 
 class NodeResource(object):
@@ -77,7 +78,7 @@ class NodeResource(object):
         return value
 
 
-class NodeGroupResource(object):
+class NodeGroupResource(JsonSerializable):
     """The node group resource contains the number of the task
     and resource (cpu, memory) of each task.
     Args:

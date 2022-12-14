@@ -50,6 +50,9 @@ class SpeedMonitor(object):
     def set_target_worker_num(self, worker_num):
         """Set the target number of workers"""
         self._target_worker_num = worker_num
+        logger.info(
+            "The target number of worker : %s", self._target_worker_num
+        )
 
     def reduce_target_worker_num(self, workers: List[Tuple[str, int]]):
         """Reduce the target number of workers"""
@@ -145,9 +148,9 @@ class SpeedMonitor(object):
         if not self._global_step_records:
             return False
         worker_num = self._global_step_records[-1].worker_num
+        last_time = self._global_step_records[-1].timestamp
         if worker_num != self._target_worker_num:
             return False
-        last_time = self._global_step_records[-1].timestamp
         for record in reversed(self._global_step_records):
             if (
                 record.worker_num == worker_num

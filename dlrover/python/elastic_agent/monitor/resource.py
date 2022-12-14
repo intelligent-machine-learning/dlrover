@@ -50,7 +50,7 @@ def get_used_memory():
     """ "Get the used memory of the container"""
     mem = psutil.virtual_memory()
     used_mem = mem.total - mem.available
-    return used_mem
+    return int(used_mem / 1024 / 1024)
 
 
 @singleton
@@ -89,4 +89,4 @@ class ResourceMonitor(object):
         logger.info("Start to monitor resource usage")
         while True:
             self.report_resource()
-            time.sleep(30)
+            time.sleep(15)

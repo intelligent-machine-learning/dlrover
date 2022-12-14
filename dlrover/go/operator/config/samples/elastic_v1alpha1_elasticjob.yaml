@@ -9,7 +9,6 @@ spec:
     memory: "8192Mi"
   replicaSpecs:
     ps:
-      replicas: 1
       restartCount: 3
       template:
           metadata:
@@ -24,34 +23,9 @@ spec:
                 command:
                   - /bin/bash
                   - -c
-                  - "pip install http://armor-test.oss-cn-hangzhou-zmf.aliyuncs.com/apps/elasticdl/dlrover-0.1.0rc0.dev0-py3-none-any.whl -I --no-deps && python -m model_zoo.tf_estimator.iris_dnn_elastic --batch_size=32 --training_steps=1000"
-                resources:
-                  requests:
-                    cpu: "0.5"
-                    memory: 256Mi
-    chief:
-      replicas: 1
-      restartCount: 3
-      template:
-          metadata:
-            annotations:
-              sidecar.istio.io/inject: "false"
-          spec:
-            restartPolicy: Never
-            containers:
-              - name: main
-                image: elasticdl:iris_estimator
-                imagePullPolicy: IfNotPresent
-                command:
-                  - /bin/bash
-                  - -c
-                  - "pip install http://armor-test.oss-cn-hangzhou-zmf.aliyuncs.com/apps/elasticdl/dlrover-0.1.0rc0.dev0-py3-none-any.whl -I --no-deps && python -m model_zoo.tf_estimator.iris_dnn_elastic --batch_size=32 --training_steps=1000"
-                resources:
-                  requests:
-                    cpu: "0.5"
-                    memory: 256Mi
+                  - "python -m model_zoo.tf_estimator.iris_dnn_elastic"
     worker:
-      replicas: 2
+      replicas: 0
       restartCount: 3
       template:
           metadata:
@@ -66,8 +40,4 @@ spec:
                 command:
                   - /bin/bash
                   - -c
-                  - "pip install http://armor-test.oss-cn-hangzhou-zmf.aliyuncs.com/apps/elasticdl/dlrover-0.1.0rc0.dev0-py3-none-any.whl -I --no-deps && python -m model_zoo.tf_estimator.iris_dnn_elastic --batch_size=32 --training_steps=1000"
-                resources:
-                  requests:
-                    cpu: "0.5"
-                    memory: 256Mi
+                  - "python -m model_zoo.tf_estimator.iris_dnn_elastic"

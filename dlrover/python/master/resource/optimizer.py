@@ -12,7 +12,7 @@
 # limitations under the License.
 
 from abc import ABCMeta, abstractmethod
-from typing import Dict, List
+from typing import Dict
 
 from dlrover.python.common.constants import (
     DefaultNodeResource,
@@ -21,6 +21,7 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.node import NodeGroupResource, NodeResource
+from dlrover.python.common.serialize import JsonSerializable
 from dlrover.python.scheduler.job import ResourceLimits
 
 _dlrover_context = Context.instance()
@@ -44,13 +45,12 @@ def _limit_memory(memory):
     return memory
 
 
-class ResourcePlan(object):
+class ResourcePlan(JsonSerializable):
     """A resource configuration plan."""
 
     def __init__(self):
         self.node_group_resources: Dict[str, NodeGroupResource] = {}
         self.node_resources: Dict[str, NodeResource] = {}
-        self.removed_nodes: List[str] = []
 
     def empty(self):
         return len(self.node_group_resources) + len(self.node_resources) == 0

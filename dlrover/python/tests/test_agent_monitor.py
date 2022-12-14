@@ -44,9 +44,6 @@ class ResourceMonitorTest(unittest.TestCase):
         reporter0 = TrainingProcessReporter()
         reporter1 = TrainingProcessReporter()
         self.assertEqual(reporter0, reporter1)
-        reporter0.set_start_time()
-        wait_time = reporter0.get_wait_seconds(int(time.time()) + 3600)
-        self.assertEqual(wait_time, 300)
 
 
 if __name__ == "__main__":

@@ -24,6 +24,7 @@ from dlrover.python.common.constants import (
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
+from dlrover.python.common.serialize import JsonSerializable
 from dlrover.python.master.resource.brain_optimizer import (
     BrainResoureOptimizer,
 )
@@ -48,7 +49,7 @@ def new_resource_optimizer(
         logger.error("Not support %s optimizer", optimizer)
 
 
-class JobResource(object):
+class JobResource(JsonSerializable):
     def __init__(self):
         self.node_group_resources: Dict[str, NodeGroupResource] = {}
 
@@ -134,6 +135,27 @@ class JobResource(object):
                 )
             job_nodes[node_type] = group_nodes
         return job_nodes
+
+    def adjust_worker_for_estimator(self):
+        if (
+            NodeType.CHIEF in self.node_group_resources
+            and self.node_group_resources[NodeType.CHIEF].count > 0
+        ) or (NodeType.WORKER not in self.node_group_resources):
+            return
+
+        worker = self.node_group_resources[NodeType.WORKER]
+        if worker.count <= 0:
+            return
+
+        chief = self.node_group_resources.get(
+            NodeType.CHIEF, NodeGroupResource.new_empty()
+        )
+        chief.count = 1
+        chief.node_resource.cpu = worker.node_resource.cpu
+        chief.node_resource.memory = worker.node_resource.memory
+        self.node_group_resources[NodeType.CHIEF] = chief
+        worker.count -= 1
+        logger.info("self = %s", self.toJSON())
 
 
 class JobResourceOptimizer(object):
@@ -237,6 +259,7 @@ class JobResourceOptimizer(object):
             if resource.memory < min_memory:
                 resource.memory = self._worker_resource.node_resource.memory
 
+        logger.info("Job resource = %s", job_resource.toJSON(indent=4))
         return job_resource
 
     def adjust_oom_worker_resource(self, node: Node):
@@ -414,7 +437,7 @@ class JobResourceOptimizer(object):
         #  Users may worry about that the increasing number of worker hurts the
         #  accuracy, so the max number of worker is the configuration.
         if self._original_worker_resource.count > 0:
-            num = self._original_worker_resource.count
+            num = min(num, self._original_worker_resource.count)
         if (
             self._original_worker_resource.node_resource.memory
             >= NodeResourceLimit.MIN_VALID_MEMORY
