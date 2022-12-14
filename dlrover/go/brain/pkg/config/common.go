@@ -67,6 +67,20 @@ const (
 	OptimizerWorkerOomMemoryMinIncrease = "optimizer.worker.oom.memory.min-increase"
 	// OptimizerWorkerMemoryMarginPercent is the config key of worker memory margin percent
 	OptimizerWorkerMemoryMarginPercent = "optimizer.worker.memory.margin-percent"
+	// OptimizerWorkerMaxReplicaCount is the config key of the maximum number of workers
+	OptimizerWorkerMaxReplicaCount = "optimizer.worker.max.replica-count"
+	// OptimizerWorkerReplicaDecreaseCount is the config key of worker replica decrease count each time
+	OptimizerWorkerReplicaDecreaseCount = "optimizer.worker.replica.decrease-count"
+	// OptimizerWorkerMaxInitCountPerStep is the config key of first max worker increase count
+	OptimizerWorkerMaxInitCountPerStep = "optimizer.worker.max.init-count-per-step"
+	// OptimizerWorkerMaxCountPerStep is the config key of max worker increase count per step
+	OptimizerWorkerMaxCountPerStep = "optimizer.worker.max.count-per-step"
+	// OptimizerWorkerCPUMarginCore is the config key of worker cpu margin cores
+	OptimizerWorkerCPUMarginCore = "optimizer.worker.cpu.margin-core"
+	// OptimizerWorkerCPUUtilCompCount is the config key of worker cpu util compare count
+	OptimizerWorkerCPUUtilCompCount = "optimizer.worker.cpu-util.comp-count"
+	// OptimizerWorkerCPUUtilLessPercent is the config key of worker cpu util less percent
+	OptimizerWorkerCPUUtilLessPercent = "optimizer.worker.cpu-util.less-percent"
 
 	// OptimizerPSMemoryMarginPercent is the config key of cold job initial ps memory
 	OptimizerPSMemoryMarginPercent = "optimizer.ps.memory.margin.percent"
@@ -90,7 +104,29 @@ const (
 	OptimizerPSCPUOverload = "optimizer.ps.cpu.overload"
 	// OptimizerPSMemoryWorkloadUnbalancePercent is the config key of ps memory workload unbalance percent
 	OptimizerPSMemoryWorkloadUnbalancePercent = "optimizer.ps.memory.workload-balance-percent"
+	// OptimizerHotPSCPUThreshold is the config key of ps overloaded threshold
+	OptimizerHotPSCPUThreshold = "optimizer.ps.cpu.hot-threshold"
+	// OptimizerHotPSCPUTargetWorkerCount is the config key of adjust overloaded ps cpu
+	OptimizerHotPSCPUTargetWorkerCount = "optimizer.ps.cpu.hot-target-worker-count"
+	// OptimizerHotPSMemoryThreshold is the config key of ps overloaded threshold
+	OptimizerHotPSMemoryThreshold = "optimizer.ps.memory.hot-threshold"
+	// OptimizerHotPSMemoryAdjust is the config key of adjust overloaded ps memory
+	OptimizerHotPSMemoryAdjust = "optimizer.ps.memory.hot-adjust"
+	// OptimizerLowPSCPUThreshold is the config key of ps overloaded threshold
+	OptimizerLowPSCPUThreshold = "optimizer.ps.cpu.low-threshold"
+	// OptimizerPSCPUExhaustedThreshold is the config key of ps cpu overloaded threshold
+	OptimizerPSCPUExhaustedThreshold = "optimizer.ps.cpu.exhausted-threshold"
 
 	// OptimizerStepCountThreshold is the config key of step count threshold
 	OptimizerStepCountThreshold = "optimizer.step.count.threshold"
+	// OptimizerTrainingSpeedLessPercent is the config key of training speed less comparison percent
+	OptimizerTrainingSpeedLessPercent = "optimizer.training-speed.less-percent"
+	// OptimizerWorkerOptimizePhase is the config key of worker optimize phase
+	OptimizerWorkerOptimizePhase = "optimizer.worker.optimize-phase"
+	// OptimizerWorkerOptimizePhaseSample is the config value of sample optimize phase
+	OptimizerWorkerOptimizePhaseSample = "sample"
+	// OptimizerWorkerOptimizePhaseInitial is the config value of initial optimize phase
+	OptimizerWorkerOptimizePhaseInitial = "initial"
+	// OptimizerWorkerOptimizePhaseStable is the config value of stable optimize phase
+	OptimizerWorkerOptimizePhaseStable = "stable"
 )
