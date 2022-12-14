@@ -39,7 +39,7 @@ _dlrover_context = Context.instance()
 def new_resource_optimizer(
     optimizer: str, job_uuid, resoure_limits: ResourceLimits
 ):
-    logger.info("New resource optimizer %s for job %s", optimizer, job_uuid)
+    logger.info("New  %s resource optimizer for job %s", optimizer, job_uuid)
     if optimizer == BrainResoureOptimizer.name:
         return BrainResoureOptimizer(job_uuid, resoure_limits)
     elif optimizer == LocalOptimizer.name:
