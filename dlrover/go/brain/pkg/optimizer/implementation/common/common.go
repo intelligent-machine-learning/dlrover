@@ -57,4 +57,9 @@ const (
 	ResourceTypeWorkerCPU = "worker.cpu"
 	// ResourceTypeWorkerMemory is the job node resource type of worker memory
 	ResourceTypeWorkerMemory = "worker.memory"
+
+	// ResourceTypeCPU is cpu resource type
+	ResourceTypeCPU = "cpu"
+	// ResourceTypeMemory is memory resource type
+	ResourceTypeMemory = "memory"
 )

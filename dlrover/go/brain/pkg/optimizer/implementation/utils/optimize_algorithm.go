@@ -21,6 +21,7 @@ import (
 	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/config"
 	optimplcomm "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/implementation/common"
 	"math"
+	"reflect"
 	"strconv"
 )
 
@@ -197,4 +198,54 @@ func minInt(x, y int) int {
 		return x
 	}
 	return y
+}
+
+// FilterRuntimeInfosWithLatestPS get the runtime infos with the latest PS group
+func FilterRuntimeInfosWithLatestPS(runtimeInfos []*common.JobRuntimeInfo) []*common.JobRuntimeInfo {
+	newInfos := make([]*common.JobRuntimeInfo, 0)
+
+	l := len(runtimeInfos)
+	lastPsIds := make(map[uint64]bool)
+
+	if l > 0 {
+		lastInfo := runtimeInfos[l-1]
+		for i := range lastInfo.PSCPU {
+			lastPsIds[i] = true
+		}
+	}
+	for _, info := range runtimeInfos {
+		psIds := make(map[uint64]bool)
+		for i := range info.PSCPU {
+			psIds[i] = true
+		}
+		// Filter invalid records where the PS set is not equal the last set.
+		if !reflect.DeepEqual(lastPsIds, psIds) {
+			continue
+		}
+		newInfos = append(newInfos, info)
+	}
+	return newInfos
+}
+
+// CheckHotCPUNodes check whether there is node whose CPU util is beyond hotThreshold
+func CheckHotCPUNodes(runtimeInfos []*common.JobRuntimeInfo, nodeCPUs map[uint64]float64, hotThreshold float64, sampleStep int) []uint64 {
+	hotPsIds := make([]uint64, 0)
+	if len(runtimeInfos) < sampleStep {
+		return hotPsIds
+	}
+	psAvgCPU := CalculateJobNodeAvgResources(runtimeInfos, sampleStep, optimplcomm.ResourceTypePSCPU)
+	for n, cpu := range psAvgCPU {
+		totalCPU, found := nodeCPUs[n]
+		if !found {
+			log.Errorf("fail to find node %d total cpu", n)
+			continue
+		}
+		cpuUtil := cpu / totalCPU
+		if cpuUtil > hotThreshold {
+			hotPsIds = append(hotPsIds, n)
+			log.Errorf("The CPU util %f of PS %d is overload %f ", cpuUtil, n, hotThreshold)
+		}
+	}
+
+	return hotPsIds
 }
