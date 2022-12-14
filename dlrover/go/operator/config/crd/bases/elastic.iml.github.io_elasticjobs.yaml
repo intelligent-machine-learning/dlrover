@@ -7877,6 +7877,13 @@ spec:
                   Specifies the training cluster configuration. For example, { "PS":
                   ReplicaSpec, "Worker": ReplicaSpec, }'
                 type: object
+              resourceLimits:
+                additionalProperties:
+                  type: string
+                description: 'ResourceLimits specifies the maximum resource of a job.
+                  For example, {"cpu": "100", "memory": "10240Mi"} means the number
+                  of maximum cpu cores is 100 and the maximum of all Pods is 10Gi.'
+                type: object
             required:
             - replicaSpecs
             type: object
