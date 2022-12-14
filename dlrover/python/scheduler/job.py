@@ -61,10 +61,10 @@ class NodeParams(metaclass=ABCMeta):
 
 
 class ResourceLimits(object):
-    def __init__(self) -> None:
-        self.cpu = 0
-        self.memory = 0
-        self.gpu_num = 0
+    def __init__(self, cpu=0, memory=0, gpu_num=0) -> None:
+        self.cpu = cpu
+        self.memory = memory
+        self.gpu_num = gpu_num
 
 
 class JobParams(object):

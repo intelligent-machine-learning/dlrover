@@ -17,7 +17,7 @@ import unittest
 from dlrover.python.common.constants import NodeType
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.stats.job_collector import JobMetricCollector
-from dlrover.python.master.stats.reporter import JobMeta, LocalStatsCollector
+from dlrover.python.master.stats.reporter import JobMeta, LocalStatsReporter
 from dlrover.python.master.stats.training_metrics import RuntimeMetric
 from dlrover.python.master.watcher.base_watcher import Node
 
@@ -25,7 +25,7 @@ from dlrover.python.master.watcher.base_watcher import Node
 class LocalStatsCollectorTest(unittest.TestCase):
     def test_report_resource_usage(self):
         job_meta = JobMeta("1111")
-        collector = LocalStatsCollector(job_meta)
+        collector = LocalStatsReporter(job_meta)
 
         collector.report_runtime_stats(RuntimeMetric([]))
         collector.report_runtime_stats(RuntimeMetric([]))

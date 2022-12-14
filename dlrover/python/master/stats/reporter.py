@@ -16,13 +16,13 @@ from abc import ABCMeta, abstractmethod
 from typing import List
 
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.common.singleton import singleton
 from dlrover.python.master.stats.training_metrics import (
     DatasetMetric,
     ModelMetric,
     RuntimeMetric,
     TrainingHyperParams,
 )
-from dlrover.python.common.singleton import singleton
 
 
 class JobMeta(object):
@@ -39,7 +39,7 @@ class CollectorType(object):
     DLROVER_BRAIN = "brain"
 
 
-class StatsCollector(metaclass=ABCMeta):
+class StatsReporter(metaclass=ABCMeta):
     def __init__(self, job_meta: JobMeta):
         self._job_meta = job_meta
 
@@ -74,15 +74,15 @@ class StatsCollector(metaclass=ABCMeta):
     @classmethod
     def new_stats_collector(cls, job_meta, collector_type=None):
         if not collector_type or collector_type == CollectorType.LOCAL:
-            return LocalStatsCollector(job_meta)
+            return LocalStatsReporter(job_meta)
         else:
             logger.warning("Not support stats collector %s", collector_type)
 
 
 @singleton
-class LocalStatsCollector(StatsCollector):
+class LocalStatsReporter(StatsReporter):
     def __init__(self, job_meta):
-        super(LocalStatsCollector, self).__init__(job_meta)
+        self._job_meta = job_meta
         self._runtime_stats: List[RuntimeMetric] = []
         self._dataset_metric = None
         self._training_hype_params = None

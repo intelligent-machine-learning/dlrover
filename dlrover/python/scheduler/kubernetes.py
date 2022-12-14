@@ -16,11 +16,11 @@ import time
 
 from kubernetes import client, config
 
-from dlrover.python.common.constants import NodeType, DefaultResourceLimits
+from dlrover.python.common.constants import DefaultResourceLimits, NodeType
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import NodeGroupResource, NodeResource
 from dlrover.python.common.singleton import singleton
-from dlrover.python.scheduler.job import ElasticJob, JobParams, NodeParams, ResourceLimits
+from dlrover.python.scheduler.job import ElasticJob, JobParams, NodeParams
 
 NODE_SERVICE_PORTS = {
     NodeType.WORKER: 3333,
