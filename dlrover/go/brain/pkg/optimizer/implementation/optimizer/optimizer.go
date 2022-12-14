@@ -23,6 +23,7 @@ import (
 
 const (
 	defaultStepCountThreshold = 5
+	defaultPSCPUOverload      = 0.8
 )
 
 var (
