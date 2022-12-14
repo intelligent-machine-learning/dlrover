@@ -30,14 +30,13 @@ minikube start --vm-driver=docker --cpus 6 --memory 6144
 1. Deploy ElasticJob CRD on minikube.
 
 ```bash
-kubectl apply -f dlrover/go/operator/config/crd/bases/
-kubectl apply -f dlrover/go/operator/config/rbac/
+cd dlrover/go/operator
+make deploy
 ```
 
 2. Start ElasticJob Controller
 
 ```bash
-cd dlrover/go/operator
 make run
 ```
 
