@@ -4,6 +4,9 @@ metadata:
   name: elasticjob-sample
 spec:
   distributionStrategy: ParameterServerStrategy
+  resourceLimits:
+    cpu: "6"
+    memory: "8192Mi"
   replicaSpecs:
     ps:
       replicas: 1
