@@ -57,7 +57,7 @@ class MasterServicerTest(unittest.TestCase):
         request.storage_type = "text"
         self.servicer.report_dataset_shard_params(request, None)
 
-        collector = self.job_metric_collector._stats_collector
+        collector = self.job_metric_collector._stats_reporter
         self.assertEqual(collector._dataset_metric.get_size(), 1000)
 
         request = elastic_training_pb2.GetTaskRequest()
@@ -102,8 +102,9 @@ class MasterServicerTest(unittest.TestCase):
         request.op_stats.op_count = 100
         request.op_stats.flops = 10000
         self.servicer.report_model_metric(request, None)
-        collector = self.job_metric_collector._stats_collector
-        self.assertEqual(collector._model_metric.op_stats.flops, 10000)
+        reporter = self.job_metric_collector._stats_reporter
+        reporter._runtime_stats = []
+        self.assertEqual(reporter._model_metric.op_stats.flops, 10000)
 
         worker0 = self.node_manager._job_nodes[NodeType.WORKER][0]
         worker0.status = NodeStatus.RUNNING
@@ -119,9 +120,9 @@ class MasterServicerTest(unittest.TestCase):
         request.global_step = 1100
         self.servicer.report_global_step(request, None)
         self.job_metric_collector._report_runtime_stats()
-        self.assertEqual(len(collector._runtime_stats), 2)
-        self.assertEqual(collector._runtime_stats[0].global_step, 1100)
-        self.assertEqual(len(collector._runtime_stats[0].running_nodes), 4)
+        self.assertEqual(len(reporter._runtime_stats), 2)
+        self.assertEqual(reporter._runtime_stats[0].global_step, 1100)
+        self.assertEqual(len(reporter._runtime_stats[0].running_nodes), 4)
 
         request.timestamp = ts + 20
         request.global_step = 2100

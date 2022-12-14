@@ -24,6 +24,7 @@ from dlrover.python.master.resource.brain_optimizer import (
 from dlrover.python.master.resource.job import (
     JobResource,
     JobResourceOptimizer,
+    ResourceLimits,
 )
 from dlrover.python.master.resource.optimizer import ResourcePlan
 
@@ -52,7 +53,7 @@ class MockStub(object):
 
 class ResourceOptimizerTest(unittest.TestCase):
     def test_brain_optimizer(self):
-        optimizer = BrainResoureOptimizer("1111")
+        optimizer = BrainResoureOptimizer("1111", ResourceLimits(100, 102400))
         optimizer._brain_client = build_easydl_client()
         optimizer._brain_client._processor_stub = MockStub()
         plan: ResourcePlan = optimizer.generate_opt_plan("", {})

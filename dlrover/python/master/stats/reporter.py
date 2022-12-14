@@ -72,7 +72,7 @@ class StatsReporter(metaclass=ABCMeta):
         pass
 
     @classmethod
-    def new_stats_collector(cls, job_meta, collector_type=None):
+    def new_stats_reporter(cls, job_meta, collector_type=None):
         if not collector_type or collector_type == CollectorType.LOCAL:
             return LocalStatsReporter(job_meta)
         else:
