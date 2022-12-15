@@ -151,6 +151,9 @@ func (m *PSTaskManager) getTaskStatus(
 }
 
 func (m *PSTaskManager) getTotalTaskCount(taskStatus *commonv1.ReplicaStatus) int {
+	if taskStatus == nil {
+		return 0
+	}
 	return int(taskStatus.Active + taskStatus.Pending + taskStatus.Succeeded + taskStatus.Failed)
 }
 
@@ -263,14 +266,7 @@ func (m *PSTaskManager) HandleFaultPods(
 	}
 	for _, pod := range replicaPods {
 		if pod.DeletionTimestamp != nil {
-			logger.Infof("Pod %s is deleted and will be relaunched", pod.Name)
-			totalReplicaCount := m.getTotalTaskCount(job.Status.ReplicaStatuses[m.taskType])
-			pod.Name = m.newTaskName(job.Name, totalReplicaCount)
-			err := client.Create(context.Background(), pod.DeepCopy())
-			if err != nil {
-				return err
-			}
-
+			logger.Infof("Pod %s is deleted", pod.Name)
 		} else if pod.Status.Phase == corev1.PodFailed {
 			if len(pod.Status.ContainerStatuses) > 0 && pod.Status.ContainerStatuses[0].State.Terminated != nil {
 				terminated := pod.Status.ContainerStatuses[0].State.Terminated
