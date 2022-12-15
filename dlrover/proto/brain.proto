@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package proto;
+package brain;
 
 import "google/protobuf/empty.proto";
 
