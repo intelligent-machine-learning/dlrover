@@ -26,7 +26,7 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
+from dlrover.python.common.node import Node, NodeResource
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.event_callback import (
     ClusterContext,
@@ -59,7 +59,7 @@ from dlrover.python.scheduler.factory import new_elastic_job
 from dlrover.python.scheduler.job import JobArgs
 
 _MAX_POD_RELAUNCH_COUNT = 5
-_dlrover_context = Context.instance()
+_dlrover_context = Context.singleton_instance()
 
 
 class NodeManager(object):
@@ -78,16 +78,7 @@ class NodeManager(object):
             ] = node_args.group_resource
             node_restart_count[type] = node_args.restart_count
 
-        for type in [
-            NodeType.PS,
-            NodeType.EVALUATOR,
-            NodeType.CHIEF,
-            NodeType.WORKER,
-        ]:
-            if type not in self._job_resource.node_group_resources:
-                self._job_resource.node_group_resources[
-                    type
-                ] = NodeGroupResource.new_empty()
+        self._job_args = job_args
         self._ps_is_critical = False
         if (
             job_args.distribution_strategy
@@ -119,7 +110,6 @@ class NodeManager(object):
         # Protects followed variables, which are accessed from event_cb.
         self._lock = threading.Lock()
         self._job_nodes: Dict[str, Dict[int, Node]] = {}
-        self._job_uuid = job_args.job_uuid
 
         self._elastic_job = new_elastic_job(
             job_args.platform, job_args.job_name, job_args.namespace
@@ -140,8 +130,13 @@ class NodeManager(object):
         self._init_training_node_manager()
 
     def start(self):
-        self._job_optimizer.update_job_uuid(self._job_uuid)
+        self._job_optimizer.update_job_uuid(self._job_args.job_uuid)
         self._job_optimizer.init_job_resource(self._job_resource)
+        if (
+            self._job_args.distribution_strategy
+            == DistributionStrategy.PARAMETER_SERVER
+        ):
+            self._job_resource.adjust_worker_for_estimator()
         self._init_job_nodes()
         plan = self._create_initial_scale_plan()
         self._scaler.scale(plan)
@@ -186,9 +181,6 @@ class NodeManager(object):
             self._elastic_job.get_node_service_addr,
             self._elastic_job.get_node_name,
         )
-
-    def get_job_uuid(self):
-        return self._job_uuid
 
     def add_node_event_callback(self, node_event_callback):
         self._node_event_callbacks.append(node_event_callback)
@@ -513,6 +505,7 @@ class NodeManager(object):
             if self._speed_monitor:
                 self._speed_monitor.set_target_worker_num(
                     self._job_resource.worker_num
+                    + self._job_resource.chief_num
                 )
                 threading.Thread(
                     target=self._periodic_optimize_running_resource,
@@ -541,7 +534,7 @@ class NodeManager(object):
                 if plan:
                     last_plan_time = time.time()
                 self._execute_job_optimization_plan(plan)
-            time.sleep(60)
+            time.sleep(30)
 
     def _execute_job_optimization_plan(self, plan: ResourcePlan):
         """Execute the optimization plan of the training job.

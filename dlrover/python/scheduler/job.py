@@ -15,8 +15,8 @@ from abc import ABCMeta, abstractmethod
 from typing import Dict
 
 from dlrover.python.common.constants import DistributionStrategy
-from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import NodeGroupResource
+from dlrover.python.common.serialize import JsonSerializable
 
 
 class ElasticJob(metaclass=ABCMeta):
@@ -67,7 +67,7 @@ class ResourceLimits(object):
         self.gpu_num = gpu_num
 
 
-class JobArgs(object):
+class JobArgs(JsonSerializable):
     """JobArgs are arguments of an elastic training job.
     Attributes:
         namespace: The name of the Kubernetes namespace where the
@@ -94,34 +94,6 @@ class JobArgs(object):
         self.scaling_optimizer = "local"
         self.use_ddp = False
         self.resource_limits = ResourceLimits()
-
-    def print(self):
-        logger.info(
-            "enable_dynamic_sharding = %s", self.enable_dynamic_sharding
-        )
-        logger.info(
-            "enable_elastic_scheduling = %s", self.enable_elastic_scheduling
-        )
-        logger.info("distribution_strategy = %s", self.distribution_strategy)
-        logger.info("scaling_optimizer = %s", self.scaling_optimizer)
-        for type, params in self.node_args.items():
-            logger.info("%s: restart_count = %s", type, params.restart_count)
-            logger.info(
-                "%s: restart_timeout = %s", type, params.restart_timeout
-            )
-            logger.info("%s: auto_scale = %s", type, params.auto_scale)
-            logger.info(
-                "%s: replica_count = %s", type, params.group_resource.count
-            )
-            logger.info(
-                "%s: priority = %s", type, params.group_resource.priority
-            )
-            logger.info(
-                "%s: resource = %s",
-                type,
-                params.group_resource.node_resource.__dict__,
-            )
-            logger.info("%s: critical_nodes = %s", type, params.critical_nodes)
 
     @abstractmethod
     def initilize(self):

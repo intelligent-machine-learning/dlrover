@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import os
+import threading
 import time
 
 from kubernetes import client, config
@@ -19,7 +20,6 @@ from kubernetes import client, config
 from dlrover.python.common.constants import DefaultResourceLimits, NodeType
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import NodeGroupResource, NodeResource
-from dlrover.python.common.singleton import singleton
 from dlrover.python.scheduler.job import ElasticJob, JobArgs, NodeArgs
 
 NODE_SERVICE_PORTS = {
@@ -40,13 +40,10 @@ def get_pod_name(job_name, pod_type, node_id):
     return "%s-%s" % (job_name + JOB_SUFFIX + pod_type, str(node_id))
 
 
-@singleton
 class k8sClient(object):
-    def __init__(
-        self,
-        namespace,
-        job_name,
-    ):
+    _instance_lock = threading.Lock()
+
+    def __init__(self, namespace, job_name):
         """
         ElasticDL k8s client.
 
@@ -242,6 +239,14 @@ class k8sClient(object):
             )
             return False
 
+    @classmethod
+    def singleton_instance(cls, *args, **kwargs):
+        if not hasattr(k8sClient, "_instance"):
+            with k8sClient._instance_lock:
+                if not hasattr(k8sClient, "_instance"):
+                    k8sClient._instance = k8sClient(*args, **kwargs)
+        return k8sClient._instance
+
 
 class K8sElasticJob(ElasticJob):
     def __init__(self, job_name, namespace):
@@ -256,7 +261,7 @@ class K8sElasticJob(ElasticJob):
             job_name: ElasticDL job name, should be unique in the namespace.
                 Used as pod name prefix and value for "elastic" label.
         """
-        self._k8s_client = k8sClient(namespace, job_name)
+        self._k8s_client = k8sClient.singleton_instance(namespace, job_name)
         self._namespace = namespace
         self._job_name = job_name
 
@@ -278,7 +283,9 @@ class K8sJobArgs(JobArgs):
 
     def initilize(self):
         self.user = os.getenv("USER", "")
-        k8s_client = k8sClient(self.namespace, self.job_name)
+        k8s_client = k8sClient.singleton_instance(
+            self.namespace, self.job_name
+        )
         job = self._retry_to_get_job(k8s_client)
         self.job_uuid = self._get_job_uuid(job)
         if "distributionStrategy" in job["spec"]:

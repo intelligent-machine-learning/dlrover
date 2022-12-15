@@ -38,11 +38,11 @@ class ConfigKeys(object):
 
 
 class DefaultConfigValues(object):
-    DEFAULT_TRAIN_SPEED_RECORD_NUM = 5
+    DEFAULT_TRAIN_SPEED_RECORD_NUM = 50
     DEFAULT_SECENDS_TO_START_AUTOSCALE_WORKER = 90
     DEFAULT_STEP_TO_ADJUST_WORKER = 200
     DEFAULT_OPTIMIZED_WORKER_CPU_THRESHOLD = 20
-    DEFAULT_SECONDS_FOR_STABLE_WORKER_COUNT = 300
+    DEFAULT_SECONDS_FOR_STABLE_WORKER_COUNT = 60
     DEFAULT_SECONDS_INTERVAL_TO_OPTIMIZE = 300
     DEFAULT_FACTOR_TO_CUT_PENDING_CPU = 2
     DEFAULT_SECONDS_TO_WAIT_PENDING_POD = 900  # 15min
@@ -98,7 +98,9 @@ class Context(object):
         self.easydl_ps_enabled = False
         self.is_tfv1_ps = False
         self.launch_worker_after_ps_running = False
+        self.print_config()
 
+    def print_config(self):
         logger.info("DLRover global context = {}".format(self.__dict__))
 
     @property
@@ -106,7 +108,7 @@ class Context(object):
         return os.getenv(UserEnv.USER_ID, "")
 
     @classmethod
-    def instance(cls, *args, **kwargs):
+    def singleton_instance(cls, *args, **kwargs):
         if not hasattr(Context, "_instance"):
             with Context._instance_lock:
                 if not hasattr(Context, "_instance"):

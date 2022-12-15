@@ -59,8 +59,7 @@ class TrainingProcessReporter(object):
             return
         try:
             timestamp = int(time.time())
-            secs = self.get_wait_seconds(timestamp)
-            if step > 0 and timestamp - self._last_timestamp > secs:
+            if step > 0 and timestamp - self._last_timestamp > 15:
                 self._resource_monitor.report_resource()
                 logger.info("Report global step = {}".format(step))
                 self._last_timestamp = timestamp
@@ -69,12 +68,3 @@ class TrainingProcessReporter(object):
                 )
         except Exception as e:
             logger.warning(e)
-
-    def get_wait_seconds(self, timestamp):
-        """Adjust the waited seconds by the training time"""
-        if timestamp - self._start_time < 1800:
-            return 60
-        elif timestamp - self._start_time < 3600:
-            return 180
-        else:
-            return 300

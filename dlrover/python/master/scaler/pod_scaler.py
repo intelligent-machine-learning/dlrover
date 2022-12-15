@@ -77,7 +77,7 @@ class PodScaler(Scaler):
 
     def __init__(self, job_name, namespace):
         super(PodScaler, self).__init__(job_name)
-        self._k8s_client = k8sClient(namespace, job_name)
+        self._k8s_client = k8sClient.singleton_instance(namespace, job_name)
         self._namespace = namespace
         self._replica_template: Dict[str, PodTemplate] = {}
         self._job = self._retry_to_get_job()
@@ -286,13 +286,17 @@ class PodScaler(Scaler):
                     V1EnvVar(name="TF_CONFIG", value=json.dumps(tf_config))
                 )
 
+        node_type = node.type
         if node.type not in self._replica_template:
+            if node.type in [NodeType.CHIEF, NodeType.EVALUATOR]:
+                node_type = NodeType.WORKER
+        if node_type not in self._replica_template:
             raise ValueError(
                 "No replica %s specification in job %s",
                 node.type,
                 self._job_name,
             )
-        pod_template = self._replica_template[node.type]
+        pod_template = self._replica_template[node_type]
         labels = self._get_common_labels()
         pod = self._create_pod_obj(
             name=pod_name,

@@ -112,7 +112,7 @@ class PodWatcher(NodeWatcher):
     def __init__(self, job_name, namespace):
         self._job_name = job_name
         self._namespace = namespace
-        self._k8s_client = k8sClient(job_name, namespace)
+        self._k8s_client = k8sClient.singleton_instance(job_name, namespace)
         self._job_selector = ElasticJobLabel.JOB_KEY + "=" + self._job_name
 
     def watch(self):

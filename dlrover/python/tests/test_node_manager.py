@@ -55,10 +55,6 @@ def get_service_fn(*args):
     return "test:2222"
 
 
-def get_job_uuid():
-    return "11111"
-
-
 def _get_node_name(type, id):
     return "{}-{}".format(type, id)
 
@@ -159,7 +155,7 @@ class JobConfigTest(unittest.TestCase):
         manager = create_node_manager(params, SpeedMonitor())
         self.assertEqual(manager._ps_relaunch_max_num, 1)
         manager.start()
-        self.assertEqual(manager._job_uuid, _MOCK_JOB_UUID)
+        self.assertEqual(manager._job_args.job_uuid, _MOCK_JOB_UUID)
         self.assertEqual(len(manager._job_nodes), 4)
         self.assertTrue(manager._job_nodes[NodeType.PS][0].critical)
 

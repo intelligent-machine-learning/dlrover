@@ -31,7 +31,7 @@ from dlrover.python.master.stats.job_collector import JobMetricCollector
 from dlrover.python.master.stats.training_metrics import OpStats, TensorStats
 from dlrover.python.master.watcher.base_watcher import Node
 
-_dlrover_context = Context.instance()
+_dlrover_context = Context.singleton_instance()
 
 
 class MasterServicer(elastic_training_pb2_grpc.MasterServicer):

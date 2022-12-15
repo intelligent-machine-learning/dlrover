@@ -4,9 +4,11 @@ metadata:
   name: elasticjob-sample
 spec:
   distributionStrategy: ParameterServerStrategy
+  resourceLimits:
+    cpu: "6"
+    memory: "8192Mi"
   replicaSpecs:
     ps:
-      replicas: 1
       restartCount: 3
       template:
           metadata:
@@ -21,34 +23,9 @@ spec:
                 command:
                   - /bin/bash
                   - -c
-                  - "python -m model_zoo.tf_estimator.iris_dnn_elastic --batch_size=32 --training_steps=1000"
-                resources:
-                  requests:
-                    cpu: "0.5"
-                    memory: 256Mi
-    chief:
-      replicas: 1
-      restartCount: 3
-      template:
-          metadata:
-            annotations:
-              sidecar.istio.io/inject: "false"
-          spec:
-            restartPolicy: Never
-            containers:
-              - name: main
-                image: elasticdl:iris_estimator
-                imagePullPolicy: IfNotPresent
-                command:
-                  - /bin/bash
-                  - -c
-                  - "python -m model_zoo.tf_estimator.iris_dnn_elastic --batch_size=32 --training_steps=1000"
-                resources:
-                  requests:
-                    cpu: "0.5"
-                    memory: 256Mi
+                  - "python -m model_zoo.tf_estimator.iris_dnn_elastic"
     worker:
-      replicas: 2
+      replicas: 0
       restartCount: 3
       template:
           metadata:
@@ -63,8 +40,4 @@ spec:
                 command:
                   - /bin/bash
                   - -c
-                  - "python -m model_zoo.tf_estimator.iris_dnn_elastic --batch_size=32 --training_steps=1000"
-                resources:
-                  requests:
-                    cpu: "0.5"
-                    memory: 256Mi
+                  - "python -m model_zoo.tf_estimator.iris_dnn_elastic"
