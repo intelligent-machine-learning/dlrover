@@ -14,7 +14,6 @@
 package psstrategy
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/api/v1alpha1"
