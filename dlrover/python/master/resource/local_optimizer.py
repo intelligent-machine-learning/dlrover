@@ -17,7 +17,6 @@ from typing import Dict, List
 from dlrover.python.common.constants import JobOptStage, NodeType
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
-from dlrover.python.common.serialize import JsonSerializable
 from dlrover.python.master.resource.optimizer import (
     ResourceOptimizer,
     ResourcePlan,
@@ -43,7 +42,7 @@ class OptimizerParams(object):
         self.node_max_cpu = 32
 
 
-class ProcessResourceRequirement(JsonSerializable):
+class ProcessResourceRequirement(object):
     def __init__(self, worker_cpu, ps_cpu, worker_memory) -> None:
         self.worker_cpu = worker_cpu
         self.ps_cpu = ps_cpu
@@ -157,7 +156,6 @@ class LocalOptimizer(ResourceOptimizer):
         resource = ProcessResourceRequirement(
             worker_cpu, ps_cpu_per_process, worker_memory
         )
-        logger.info("Each process needs resoure: %s", resource.toJSON())
         return resource
 
     def _generate_worker_resoruce(self):
