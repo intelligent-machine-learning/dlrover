@@ -24,7 +24,7 @@ from dlrover.python.common.node import NodeGroupResource, NodeResource
 from dlrover.python.common.serialize import JsonSerializable
 from dlrover.python.scheduler.job import ResourceLimits
 
-_dlrover_context = Context.instance()
+_dlrover_context = Context.singleton_instance()
 
 
 def _limit_cpu(cpu):

@@ -242,7 +242,7 @@ def create_task_manager():
 
 
 def mock_k8s_client():
-    k8s_client = k8sClient("default", "elasticjob-sample")
+    k8s_client = k8sClient.singleton_instance("default", "elasticjob-sample")
     k8s_client.get_training_job = _get_training_job  # type: ignore
     k8s_client.get_pod = _get_pod  # type: ignore
     k8s_client.list_namespaced_pod = mock_list_namespaced_pod  # type: ignore

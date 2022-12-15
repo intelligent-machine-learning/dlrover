@@ -28,7 +28,7 @@ from dlrover.python.master.resource.job import (
 )
 from dlrover.python.master.resource.optimizer import ResourcePlan
 
-_dlrover_context = Context.instance()
+_dlrover_context = Context.singleton_instance()
 _MEMORY = 8192
 
 

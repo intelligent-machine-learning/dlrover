@@ -38,7 +38,7 @@ class ConfigKeys(object):
 
 
 class DefaultConfigValues(object):
-    DEFAULT_TRAIN_SPEED_RECORD_NUM = 100
+    DEFAULT_TRAIN_SPEED_RECORD_NUM = 50
     DEFAULT_SECENDS_TO_START_AUTOSCALE_WORKER = 90
     DEFAULT_STEP_TO_ADJUST_WORKER = 200
     DEFAULT_OPTIMIZED_WORKER_CPU_THRESHOLD = 20
@@ -108,7 +108,7 @@ class Context(object):
         return os.getenv(UserEnv.USER_ID, "")
 
     @classmethod
-    def instance(cls, *args, **kwargs):
+    def singleton_instance(cls, *args, **kwargs):
         if not hasattr(Context, "_instance"):
             with Context._instance_lock:
                 if not hasattr(Context, "_instance"):

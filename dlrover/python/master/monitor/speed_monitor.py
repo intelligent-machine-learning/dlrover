@@ -17,7 +17,7 @@ from typing import List, Set, Tuple
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 
-_dlrover_context = Context.instance()
+_dlrover_context = Context.singleton_instance()
 
 
 class GlobalStepRecord(object):

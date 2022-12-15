@@ -17,6 +17,7 @@ from typing import Dict, List
 from dlrover.python.common.constants import JobOptStage, NodeType
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
+from dlrover.python.common.serialize import JsonSerializable
 from dlrover.python.master.resource.optimizer import (
     ResourceOptimizer,
     ResourcePlan,
@@ -24,8 +25,6 @@ from dlrover.python.master.resource.optimizer import (
 from dlrover.python.master.stats.reporter import JobMeta, LocalStatsReporter
 from dlrover.python.master.stats.training_metrics import RuntimeMetric
 from dlrover.python.scheduler.job import ResourceLimits
-from dlrover.python.common.serialize import JsonSerializable
-
 
 _LATEST_SAMPLE_COUNT = 5
 _INITIAL_NODE_CPU = 16

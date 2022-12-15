@@ -20,7 +20,7 @@ from dlrover.python.master.master import Master
 from dlrover.python.scheduler.factory import new_job_params
 from dlrover.python.scheduler.job import JobParams
 
-_dlrover_context = Context.instance()
+_dlrover_context = Context.singleton_instance()
 
 
 def update_context(job_params: JobParams):

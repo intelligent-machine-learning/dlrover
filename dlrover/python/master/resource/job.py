@@ -34,7 +34,7 @@ from dlrover.python.scheduler.job import ResourceLimits
 
 _WORKER_OPTIMIZE_PHASE = "optimizer.worker.optimize-phase"
 
-_dlrover_context = Context.instance()
+_dlrover_context = Context.singleton_instance()
 
 
 def new_resource_optimizer(

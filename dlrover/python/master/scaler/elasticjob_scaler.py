@@ -115,7 +115,7 @@ class ElasticJobScaler(Scaler):
 
     def __init__(self, job_name, namespace):
         super(ElasticJobScaler, self).__init__(job_name)
-        self._client = k8sClient(namespace, job_name)
+        self._client = k8sClient.singleton_instance(namespace, job_name)
 
     def scale(self, plan: ScalePlan):
         scaler_crd = self._generate_scaler_crd_by_plan(plan)

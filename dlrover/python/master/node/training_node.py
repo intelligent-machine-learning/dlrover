@@ -31,7 +31,7 @@ from dlrover.python.master.scaler.base_scaler import ScalePlan
 from dlrover.python.master.watcher.base_watcher import Node
 from dlrover.python.scheduler.job import JobParams
 
-_dlrover_context = Context.instance()
+_dlrover_context = Context.singleton_instance()
 
 ALIVE_STATUS = [NodeStatus.INITIAL, NodeStatus.PENDING, NodeStatus.RUNNING]
 

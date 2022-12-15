@@ -59,7 +59,7 @@ from dlrover.python.scheduler.factory import new_elastic_job
 from dlrover.python.scheduler.job import JobParams
 
 _MAX_POD_RELAUNCH_COUNT = 5
-_dlrover_context = Context.instance()
+_dlrover_context = Context.singleton_instance()
 
 
 class NodeManager(object):
