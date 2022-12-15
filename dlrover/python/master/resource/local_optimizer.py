@@ -24,6 +24,10 @@ from dlrover.python.master.resource.optimizer import (
 from dlrover.python.master.stats.reporter import JobMeta, LocalStatsReporter
 from dlrover.python.master.stats.training_metrics import RuntimeMetric
 from dlrover.python.scheduler.job import ResourceLimits
+from dlrover.python.common.serialize import JsonSerializable
+
+
+_LATEST_SAMPLE_COUNT = 5
 
 
 class OptimizerParams(object):
@@ -36,7 +40,7 @@ class OptimizerParams(object):
         self.node_max_cpu = 32
 
 
-class ProcessResourceRequirement(object):
+class ProcessResourceRequirement(JsonSerializable):
     def __init__(self, worker_cpu, ps_cpu, worker_memory) -> None:
         self.worker_cpu = worker_cpu
         self.ps_cpu = ps_cpu
@@ -147,12 +151,7 @@ class LocalOptimizer(ResourceOptimizer):
         resource = ProcessResourceRequirement(
             worker_cpu, ps_cpu_per_process, worker_memory
         )
-        logger.info(
-            "Each process needs PS CPU: %s, worker CPU: %s, worker memory: %s",
-            worker_cpu,
-            ps_cpu_per_process,
-            worker_memory,
-        )
+        logger.info("Each process needs resoure: %s", resource.toJSON())
         return resource
 
     def _generate_worker_resoruce(self):
@@ -243,7 +242,8 @@ class LocalOptimizer(ResourceOptimizer):
             elif node.type == NodeType.PS:
                 latest_ps.add(node.id)
 
-        for stat in reversed(stats[-5:]):
+        sample_index = max(0, len(stats) - _LATEST_SAMPLE_COUNT)
+        for stat in reversed(stats[sample_index:]):
             cur_ps_samples = []
             cur_worker_samples = []
             cur_ps = set()
