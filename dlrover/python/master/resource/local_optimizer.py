@@ -25,6 +25,12 @@ from dlrover.python.master.stats.reporter import JobMeta, LocalStatsReporter
 from dlrover.python.master.stats.training_metrics import RuntimeMetric
 from dlrover.python.scheduler.job import ResourceLimits
 
+_LATEST_SAMPLE_COUNT = 5
+_INITIAL_NODE_CPU = 16
+_INITIAL_NODE_MEMORY = 16 * 1024  # 16Gi
+_MINIKUBE_INITIAL_NODE_CPU = 1
+_MINIKUBE_INITIAL_NODE_MEMORY = 512  # 512Mi
+
 
 class OptimizerParams(object):
     def __init__(self):
@@ -80,12 +86,15 @@ class LocalOptimizer(ResourceOptimizer):
 
     def _generate_job_create_resource(self):
         plan = ResourcePlan()
-        node_cpu = 16
-        if self._resource_limits.cpu < 16:
-            node_cpu = 1
-        node_memory = 16 * 1024
-        if self._resource_limits.memory < 32 * 1024:
-            node_memory = 512
+        node_cpu = _INITIAL_NODE_CPU
+        node_memory = _INITIAL_NODE_MEMORY
+        if (
+            self._resource_limits.cpu < 16
+            and self._resource_limits.memory < 32 * 1024
+        ):
+            # Set a little resource to test an elastic job on minikube.
+            node_cpu = _MINIKUBE_INITIAL_NODE_CPU
+            node_memory = _MINIKUBE_INITIAL_NODE_MEMORY
 
         ps = NodeGroupResource(1, NodeResource(node_cpu, node_memory))
         worker = NodeGroupResource(1, NodeResource(node_cpu, node_memory))
@@ -150,12 +159,6 @@ class LocalOptimizer(ResourceOptimizer):
         ps_cpu_per_process = avg_ps_cpu / worker_num
         resource = ProcessResourceRequirement(
             worker_cpu, ps_cpu_per_process, worker_memory
-        )
-        logger.info(
-            "Each process needs PS CPU: %s, worker CPU: %s, worker memory: %s",
-            worker_cpu,
-            ps_cpu_per_process,
-            worker_memory,
         )
         return resource
 
@@ -255,7 +258,8 @@ class LocalOptimizer(ResourceOptimizer):
             elif node.type == NodeType.PS:
                 latest_ps.add(node.id)
 
-        for stat in reversed(stats[-5:]):
+        sample_index = max(0, len(stats) - _LATEST_SAMPLE_COUNT)
+        for stat in reversed(stats[sample_index:]):
             cur_ps_samples = []
             cur_worker_samples = []
             cur_ps = set()
