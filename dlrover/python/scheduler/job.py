@@ -44,7 +44,7 @@ class ElasticJob(metaclass=ABCMeta):
         pass
 
 
-class NodeParams(metaclass=ABCMeta):
+class NodeArgs(metaclass=ABCMeta):
     def __init__(
         self,
         group_resource: NodeGroupResource,
@@ -67,13 +67,13 @@ class ResourceLimits(object):
         self.gpu_num = gpu_num
 
 
-class JobParams(object):
-    """JobParams are parameters of an elastic training job.
+class JobArgs(object):
+    """JobArgs are arguments of an elastic training job.
     Attributes:
         namespace: The name of the Kubernetes namespace where the
             job is created.
         job_name: The name of the job.
-        node_params: It contains resource and elasticity
+        node_args: It contains resource and elasticity
             configuraions of nodes.
         enable_dynamic_sharding: Whether to use dynamic sharding of a dataset.
         enable_elastic_scheduling: Whether to use elastic scheduling.
@@ -84,7 +84,7 @@ class JobParams(object):
         self.platform = platform
         self.namespace = namespace
         self.job_name = job_name
-        self.node_params: Dict[str, NodeParams] = {}
+        self.node_args: Dict[str, NodeArgs] = {}
         self.enable_dynamic_sharding = True
         self.enable_elastic_scheduling = True
         self.distribution_strategy = DistributionStrategy.PARAMETER_SERVER
@@ -104,7 +104,7 @@ class JobParams(object):
         )
         logger.info("distribution_strategy = %s", self.distribution_strategy)
         logger.info("scaling_optimizer = %s", self.scaling_optimizer)
-        for type, params in self.node_params.items():
+        for type, params in self.node_args.items():
             logger.info("%s: restart_count = %s", type, params.restart_count)
             logger.info(
                 "%s: restart_timeout = %s", type, params.restart_timeout
