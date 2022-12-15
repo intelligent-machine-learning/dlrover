@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package proto;
+package elastic;
 
 import "google/protobuf/empty.proto";
 
