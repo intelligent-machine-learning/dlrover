@@ -33,7 +33,12 @@ class NodeResource(object):
     """
 
     def __init__(
-        self, cpu, memory, gpu_type=None, gpu_num=0, **kwargs,
+        self,
+        cpu,
+        memory,
+        gpu_type=None,
+        gpu_num=0,
+        **kwargs,
     ):
         self.cpu = cpu
         self.memory = memory
