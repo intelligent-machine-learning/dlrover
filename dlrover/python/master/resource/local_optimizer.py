@@ -17,6 +17,7 @@ from typing import Dict, List
 from dlrover.python.common.constants import JobOptStage, NodeType
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
+from dlrover.python.common.serialize import JsonSerializable
 from dlrover.python.master.resource.optimizer import (
     ResourceOptimizer,
     ResourcePlan,
@@ -24,10 +25,12 @@ from dlrover.python.master.resource.optimizer import (
 from dlrover.python.master.stats.reporter import JobMeta, LocalStatsReporter
 from dlrover.python.master.stats.training_metrics import RuntimeMetric
 from dlrover.python.scheduler.job import ResourceLimits
-from dlrover.python.common.serialize import JsonSerializable
-
 
 _LATEST_SAMPLE_COUNT = 5
+_INITIAL_NODE_CPU = 16
+_INITIAL_NODE_MEMORY = 16 * 1024  # 16Gi
+_MINIKUBE_INITIAL_NODE_CPU = 1
+_MINIKUBE_INITIAL_NODE_MEMORY = 512  # 512Mi
 
 
 class OptimizerParams(object):
@@ -80,12 +83,15 @@ class LocalOptimizer(ResourceOptimizer):
 
     def _generate_job_create_resource(self):
         plan = ResourcePlan()
-        node_cpu = 16
-        if self._resource_limits.cpu < 16:
-            node_cpu = 1
-        node_memory = 16 * 1024
-        if self._resource_limits.memory < 32 * 1024:
-            node_memory = 512
+        node_cpu = _INITIAL_NODE_CPU
+        node_memory = _INITIAL_NODE_MEMORY
+        if (
+            self._resource_limits.cpu < 16
+            and self._resource_limits.memory < 32 * 1024
+        ):
+            # Set a little resource to test an elastic job on minikube.
+            node_cpu = _MINIKUBE_INITIAL_NODE_CPU
+            node_memory = _MINIKUBE_INITIAL_NODE_MEMORY
 
         ps = NodeGroupResource(1, NodeResource(node_cpu, node_memory))
         worker = NodeGroupResource(1, NodeResource(node_cpu, node_memory))
