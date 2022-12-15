@@ -32,16 +32,26 @@ class NodeResource(object):
         priority: the priority classs of the node.
     """
 
-    def __init__(self, cpu, memory, gpu_type=None, gpu_num=0):
+    def __init__(
+        self,
+        cpu,
+        memory,
+        gpu_type=None,
+        gpu_num=0,
+        **kwargs,
+    ):
         self.cpu = cpu
         self.memory = memory
         self.gpu_type = gpu_type
         self.gpu_num = gpu_num
+        self.kwargs = kwargs
         self.image = ""
         self.priority = ""
 
     def to_resource_dict(self):
-        resource = {"cpu": self.cpu, "memory": str(self.memory) + "Mi"}
+        resource = self.kwargs
+        resource["cpu"] = self.cpu
+        resource["memory"] = str(self.memory) + "Mi"
         if self.gpu_num > 0:
             resource[self.gpu_type] = self.gpu_num
         return resource
