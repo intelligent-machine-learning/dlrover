@@ -15,12 +15,12 @@ import unittest
 
 from dlrover.python.common.constants import JobExitReason, NodeStatus, NodeType
 from dlrover.python.master.master import Master
-from dlrover.python.tests.test_utils import MockJobParams
+from dlrover.python.tests.test_utils import MockJobArgs
 
 
 class MasterTest(unittest.TestCase):
     def setUp(self) -> None:
-        params = MockJobParams()
+        params = MockJobArgs()
         params.initilize()
         self.master = Master(2222, params)
 

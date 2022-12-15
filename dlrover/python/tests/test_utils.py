@@ -27,7 +27,7 @@ from dlrover.python.common.constants import (
 from dlrover.python.common.node import NodeGroupResource, NodeResource
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.shard.task_manager import TaskManager
-from dlrover.python.scheduler.job import JobParams, NodeParams
+from dlrover.python.scheduler.job import JobArgs, NodeArgs
 from dlrover.python.scheduler.kubernetes import k8sClient
 
 JOB_EXAMPLE = """apiVersion: elastic.iml.github.io/v1alpha1
@@ -117,30 +117,28 @@ def _get_pod(name):
     return pod
 
 
-class MockJobParams(JobParams):
+class MockJobArgs(JobArgs):
     def __init__(self):
-        super(MockJobParams, self).__init__(
+        super(MockJobArgs, self).__init__(
             PlatformType.KUBERNETES, "default", "test"
         )
 
     def initilize(self):
         worker_resource = NodeGroupResource(3, NodeResource(1, 4096), "")
-        self.node_params[NodeType.WORKER] = NodeParams(
+        self.node_args[NodeType.WORKER] = NodeArgs(
             worker_resource, True, 3, 0, ""
         )
 
         ps_resource = NodeGroupResource(3, NodeResource(1, 4096), "")
-        self.node_params[NodeType.PS] = NodeParams(
-            ps_resource, True, 1, 0, "all"
-        )
+        self.node_args[NodeType.PS] = NodeArgs(ps_resource, True, 1, 0, "all")
 
         evaluator_resource = NodeGroupResource(1, NodeResource(1, 4096), "")
-        self.node_params[NodeType.EVALUATOR] = NodeParams(
+        self.node_args[NodeType.EVALUATOR] = NodeArgs(
             evaluator_resource, False, 1, 0, ""
         )
 
         chief_resource = NodeGroupResource(1, NodeResource(1, 4096), "")
-        self.node_params[NodeType.CHIEF] = NodeParams(
+        self.node_args[NodeType.CHIEF] = NodeArgs(
             chief_resource, True, 1, 0, ""
         )
         self.job_uuid = "11111"

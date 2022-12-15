@@ -20,7 +20,7 @@ from kubernetes import client, config
 from dlrover.python.common.constants import DefaultResourceLimits, NodeType
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import NodeGroupResource, NodeResource
-from dlrover.python.scheduler.job import ElasticJob, JobParams, NodeParams
+from dlrover.python.scheduler.job import ElasticJob, JobArgs, NodeArgs
 
 NODE_SERVICE_PORTS = {
     NodeType.WORKER: 3333,
@@ -277,9 +277,9 @@ class K8sElasticJob(ElasticJob):
         )
 
 
-class K8sJobParams(JobParams):
+class K8sJobArgs(JobArgs):
     def __init__(self, platform, namespace, job_name):
-        super(K8sJobParams, self).__init__(platform, namespace, job_name)
+        super(K8sJobArgs, self).__init__(platform, namespace, job_name)
 
     def initilize(self):
         self.user = os.getenv("USER", "")
@@ -326,7 +326,7 @@ class K8sJobParams(JobParams):
             auto_scale = parse_bool(spec.get("autoScale", "True"))
             restart_timeout = int(spec.get("restartTimeout", 0))
             critical_nodes = spec.get("criticalNodes", "")
-            self.node_params[replica] = NodeParams(
+            self.node_args[replica] = NodeArgs(
                 group_resource,
                 auto_scale,
                 restart_count,

@@ -15,29 +15,30 @@ import os
 
 from dlrover.python.common.constants import NodeType
 from dlrover.python.common.global_context import Context
+from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.args import parse_master_args
 from dlrover.python.master.master import Master
-from dlrover.python.scheduler.factory import new_job_params
-from dlrover.python.scheduler.job import JobParams
+from dlrover.python.scheduler.factory import new_job_args
+from dlrover.python.scheduler.job import JobArgs
 
 _dlrover_context = Context.singleton_instance()
 
 
-def update_context(job_params: JobParams):
-    for node_type, node_params in job_params.node_params.items():
+def update_context(job_args: JobArgs):
+    for node_type, node_args in job_args.node_args.items():
         if node_type == NodeType.WORKER:
-            _dlrover_context.easydl_worker_enabled = node_params.auto_scale
+            _dlrover_context.easydl_worker_enabled = node_args.auto_scale
         elif node_type == NodeType.PS:
-            _dlrover_context.easydl_ps_enabled = node_params.auto_scale
+            _dlrover_context.easydl_ps_enabled = node_args.auto_scale
     _dlrover_context.print_config()
 
 
 def run(args):
-    job_params = new_job_params(args.platform, args.job_name, args.namespace)
-    job_params.initilize()
-    job_params.print()
-    update_context(job_params)
-    master = Master(args.port, job_params)
+    job_args = new_job_args(args.platform, args.job_name, args.namespace)
+    job_args.initilize()
+    logger.info("Job args : %s", job_args.toJSON())
+    update_context(job_args)
+    master = Master(args.port, job_args)
     master.prepare()
     return master.run()
 

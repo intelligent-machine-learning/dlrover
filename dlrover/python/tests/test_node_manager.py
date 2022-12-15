@@ -43,7 +43,7 @@ from dlrover.python.master.resource.job import JobResource
 from dlrover.python.master.resource.optimizer import ResourcePlan
 from dlrover.python.master.watcher.base_watcher import Node, NodeEvent
 from dlrover.python.tests.test_utils import (
-    MockJobParams,
+    MockJobArgs,
     create_task_manager,
     mock_k8s_client,
 )
@@ -138,24 +138,24 @@ class JobConfigTest(unittest.TestCase):
         self.assertFalse(nodes[NodeType.WORKER][1].critical)
 
     def test_get_critical_worker_index(self):
-        params = MockJobParams()
+        params = MockJobArgs()
         params.initilize()
         critical_worker = get_critical_worker_index(params)
         self.assertDictEqual(critical_worker, {0: 3})
-        params.node_params[NodeType.WORKER].critical_nodes = "0:1"
+        params.node_args[NodeType.WORKER].critical_nodes = "0:1"
         critical_worker = get_critical_worker_index(params)
         self.assertDictEqual(critical_worker, {0: 1})
-        params.node_params[NodeType.WORKER].critical_nodes = "all"
+        params.node_args[NodeType.WORKER].critical_nodes = "all"
         critical_worker = get_critical_worker_index(params)
         self.assertDictEqual(critical_worker, {0: 3, 1: 3, 2: 3})
 
     def test_create_node_manager(self):
-        params = MockJobParams()
+        params = MockJobArgs()
         params.initilize()
         manager = create_node_manager(params, SpeedMonitor())
         self.assertEqual(manager._ps_relaunch_max_num, 1)
         manager.start()
-        self.assertEqual(manager._job_params.job_uuid, _MOCK_JOB_UUID)
+        self.assertEqual(manager._job_args.job_uuid, _MOCK_JOB_UUID)
         self.assertEqual(len(manager._job_nodes), 4)
         self.assertTrue(manager._job_nodes[NodeType.PS][0].critical)
 
@@ -198,7 +198,7 @@ class JobConfigTest(unittest.TestCase):
         dataset_name = "test"
         task_manager = create_task_manager()
         task_callback = TaskRescheduleCallback(task_manager)
-        params = MockJobParams()
+        params = MockJobArgs()
         params.initilize()
         manager = create_node_manager(params, SpeedMonitor())
         manager._init_job_nodes()
@@ -216,7 +216,7 @@ class JobConfigTest(unittest.TestCase):
         self.assertEqual(len(dataset.doing), 0)
 
     def test_create_initial_nodes(self):
-        params = MockJobParams()
+        params = MockJobArgs()
         params.initilize()
         manager = create_node_manager(params, SpeedMonitor())
         manager._init_job_nodes()
@@ -233,7 +233,7 @@ class JobConfigTest(unittest.TestCase):
         self.assertEqual(plan.node_group_resources[NodeType.WORKER].count, 3)
 
     def test_check_worker_status(self):
-        params = MockJobParams()
+        params = MockJobArgs()
         params.initilize()
         manager = create_node_manager(params, SpeedMonitor())
         manager._init_job_nodes()
@@ -263,7 +263,7 @@ class JobConfigTest(unittest.TestCase):
         self.assertTrue(manager.all_critical_node_completed())
 
     def test_tf_ps_node_handling(self):
-        params = MockJobParams()
+        params = MockJobArgs()
         params.initilize()
         master = Master(2222, params)
         master.node_manager._init_job_nodes()
@@ -289,7 +289,7 @@ class JobConfigTest(unittest.TestCase):
         self.assertEqual(len(master.speed_monitor.running_workers), 1)
 
     def test_execute_job_optimization_plan(self):
-        params = MockJobParams()
+        params = MockJobArgs()
         params.initilize()
         manager = create_node_manager(params, SpeedMonitor())
         manager._init_job_nodes()

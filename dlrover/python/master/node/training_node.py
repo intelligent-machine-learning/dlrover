@@ -29,7 +29,7 @@ from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.scaler.base_scaler import ScalePlan
 from dlrover.python.master.watcher.base_watcher import Node
-from dlrover.python.scheduler.job import JobParams
+from dlrover.python.scheduler.job import JobArgs
 
 _dlrover_context = Context.singleton_instance()
 
@@ -65,9 +65,9 @@ def set_critical_node(
             node.critical = True
 
 
-def get_critical_worker_index(params: JobParams):
+def get_critical_worker_index(params: JobArgs):
     critical_worker_index = {}
-    worker_params = params.node_params[NodeType.WORKER]
+    worker_params = params.node_args[NodeType.WORKER]
 
     if worker_params.critical_nodes == "":
         # for default, worker0 is critical if PS strategy with custom training
