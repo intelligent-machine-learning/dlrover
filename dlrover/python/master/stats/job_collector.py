@@ -35,7 +35,7 @@ from dlrover.python.master.watcher.base_watcher import Node
 class BaseMetricCollector(metaclass=ABCMeta):
     def __init__(self, job_meta: JobMeta, collector_type=None):
         self._job_meta = job_meta
-        self._stats_collector = StatsReporter.new_stats_collector(
+        self._stats_reporter = StatsReporter.new_stats_reporter(
             job_meta, collector_type
         )
 
@@ -102,17 +102,17 @@ class JobMetricCollector(BaseMetricCollector):
                 self.dataset_metric.name = name
             if not self.dataset_metric.size:
                 self.dataset_metric.size = size
-        self._stats_collector.report_dataset_metric(self.dataset_metric)
+        self._stats_reporter.report_dataset_metric(self.dataset_metric)
 
     @BaseMetricCollector.catch_easydl_exception
     def collect_training_hyper_params(self, epoch, batch_size):
         self._batch_size = batch_size
         params = TrainingHyperParams(batch_size, epoch)
-        self._stats_collector.report_training_hyper_params(params)
+        self._stats_reporter.report_training_hyper_params(params)
 
     @BaseMetricCollector.catch_easydl_exception
     def report_job_type(self, job_type):
-        self._stats_collector.report_job_type(job_type)
+        self._stats_reporter.report_job_type(job_type)
 
     @BaseMetricCollector.catch_easydl_exception
     def collect_model_metric(
@@ -122,15 +122,15 @@ class JobMetricCollector(BaseMetricCollector):
             self._flops = op_stats.flops
         op_stats.flops = self._flops
         metric = ModelMetric(tensor_stats, op_stats)
-        self._stats_collector.report_model_metrics(metric)
+        self._stats_reporter.report_model_metrics(metric)
 
     @BaseMetricCollector.catch_easydl_exception
     def _report_runtime_stats(self):
-        self._stats_collector.report_runtime_stats(self._runtime_metric)
+        self._stats_reporter.report_runtime_stats(self._runtime_metric)
 
     @BaseMetricCollector.catch_easydl_exception
     def collect_custom_data(self):
-        self._stats_collector.report_customized_data(self._custom_metric)
+        self._stats_reporter.report_customized_data(self._custom_metric)
 
     def collect_runtime_stats(
         self, speed_monitor: SpeedMonitor, running_nodes: List[Node]
@@ -173,4 +173,4 @@ class JobMetricCollector(BaseMetricCollector):
 
     @BaseMetricCollector.catch_easydl_exception
     def report_job_exit_reason_to_easydl(self, reason):
-        self._stats_collector.report_job_exit_reason(reason)
+        self._stats_reporter.report_job_exit_reason(reason)

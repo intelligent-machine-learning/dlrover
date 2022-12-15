@@ -53,8 +53,8 @@ class BrainResoureOptimizer(ResourceOptimizer):
 
     name = "brain"
 
-    def __init__(self, job_uuid):
-        self._job_uuid = job_uuid
+    def __init__(self, job_uuid, resource_limits):
+        super(BrainResoureOptimizer, self).__init__(job_uuid, resource_limits)
         self._brain_client = GlobalEasydlClient.EASYDL_CLIENT
 
     def generate_opt_plan(self, stage, config={}) -> ResourcePlan:

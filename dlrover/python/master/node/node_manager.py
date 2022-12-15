@@ -134,6 +134,8 @@ class NodeManager(object):
             self._job_resource.node_group_resources[NodeType.WORKER],
             self._job_resource.node_group_resources[NodeType.PS],
             job_params.scaling_optimizer,
+            job_params.job_uuid,
+            job_params.resource_limits,
         )
         self._init_training_node_manager()
 
