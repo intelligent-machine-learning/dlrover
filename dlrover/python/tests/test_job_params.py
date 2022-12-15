@@ -18,29 +18,29 @@ from dlrover.python.common.constants import (
     NodeType,
     PlatformType,
 )
-from dlrover.python.scheduler.kubernetes import K8sJobParams
+from dlrover.python.scheduler.kubernetes import K8sJobArgs
 from dlrover.python.tests.test_utils import mock_k8s_client
 
 
-class k8sJobParamsTest(unittest.TestCase):
+class k8sJobArgsTest(unittest.TestCase):
     def test_initialize_params(self):
         mock_k8s_client()
-        params = K8sJobParams(PlatformType.KUBERNETES, "default", "test")
+        params = K8sJobArgs(PlatformType.KUBERNETES, "default", "test")
         params.initilize()
-        self.assertTrue(NodeType.WORKER in params.node_params)
-        self.assertTrue(NodeType.PS in params.node_params)
+        self.assertTrue(NodeType.WORKER in params.node_args)
+        self.assertTrue(NodeType.PS in params.node_args)
         self.assertTrue(
             params.distribution_strategy
             == DistributionStrategy.PARAMETER_SERVER
         )
-        worker_params = params.node_params[NodeType.WORKER]
+        worker_params = params.node_args[NodeType.WORKER]
         self.assertEqual(worker_params.restart_count, 3)
         self.assertEqual(worker_params.restart_timeout, 0)
         self.assertEqual(worker_params.group_resource.count, 0)
         self.assertEqual(worker_params.group_resource.node_resource.cpu, 0)
         self.assertEqual(worker_params.group_resource.node_resource.memory, 0)
 
-        ps_params = params.node_params[NodeType.PS]
+        ps_params = params.node_args[NodeType.PS]
         self.assertEqual(ps_params.restart_count, 3)
         self.assertEqual(ps_params.restart_timeout, 0)
         self.assertEqual(ps_params.group_resource.count, 3)

@@ -56,7 +56,7 @@ from dlrover.python.master.scaler.factory import new_job_scaler
 from dlrover.python.master.watcher.base_watcher import NodeEvent
 from dlrover.python.master.watcher.factory import new_node_watcher
 from dlrover.python.scheduler.factory import new_elastic_job
-from dlrover.python.scheduler.job import JobParams
+from dlrover.python.scheduler.job import JobArgs
 
 _MAX_POD_RELAUNCH_COUNT = 5
 _dlrover_context = Context.instance()
@@ -65,18 +65,18 @@ _dlrover_context = Context.instance()
 class NodeManager(object):
     def __init__(
         self,
-        job_params: JobParams,
+        job_args: JobArgs,
         critical_worker_index={},
         wait_pending_relaunch=False,
         speed_monitor=None,
     ):
         self._job_resource = JobResource()
         node_restart_count: Dict[str, int] = {}
-        for type, node_params in job_params.node_params.items():
+        for type, node_args in job_args.node_args.items():
             self._job_resource.node_group_resources[
                 type
-            ] = node_params.group_resource
-            node_restart_count[type] = node_params.restart_count
+            ] = node_args.group_resource
+            node_restart_count[type] = node_args.restart_count
 
         for type in [
             NodeType.PS,
@@ -90,11 +90,11 @@ class NodeManager(object):
                 ] = NodeGroupResource.new_empty()
         self._ps_is_critical = False
         if (
-            job_params.distribution_strategy
+            job_args.distribution_strategy
             == DistributionStrategy.PARAMETER_SERVER
         ):
             self._ps_is_critical = (
-                job_params.node_params[NodeType.PS].critical_nodes == "all"
+                job_args.node_args[NodeType.PS].critical_nodes == "all"
             )
 
         worker_restart_count = node_restart_count.get(NodeType.WORKER, 0)
@@ -110,7 +110,7 @@ class NodeManager(object):
         self._ps_relaunch_max_num = min(
             ps_restart_count, _MAX_POD_RELAUNCH_COUNT
         )
-        self._use_ddp = job_params.use_ddp
+        self._use_ddp = job_args.use_ddp
         self._node_event_callbacks: List[NodeEventCallback] = []
         self._chief_worker_started = False
         self._stop_monitor = False
@@ -119,23 +119,23 @@ class NodeManager(object):
         # Protects followed variables, which are accessed from event_cb.
         self._lock = threading.Lock()
         self._job_nodes: Dict[str, Dict[int, Node]] = {}
-        self._job_uuid = job_params.job_uuid
+        self._job_uuid = job_args.job_uuid
 
         self._elastic_job = new_elastic_job(
-            job_params.platform, job_params.job_name, job_params.namespace
+            job_args.platform, job_args.job_name, job_args.namespace
         )
         self._node_watcher = new_node_watcher(
-            job_params.platform, job_params.job_name, job_params.namespace
+            job_args.platform, job_args.job_name, job_args.namespace
         )
         self._scaler = new_job_scaler(
-            job_params.platform, job_params.job_name, job_params.namespace
+            job_args.platform, job_args.job_name, job_args.namespace
         )
         self._job_optimizer = JobResourceOptimizer(
             self._job_resource.node_group_resources[NodeType.WORKER],
             self._job_resource.node_group_resources[NodeType.PS],
-            job_params.scaling_optimizer,
-            job_params.job_uuid,
-            job_params.resource_limits,
+            job_args.scaling_optimizer,
+            job_args.job_uuid,
+            job_args.resource_limits,
         )
         self._init_training_node_manager()
 
@@ -603,13 +603,13 @@ class NodeManager(object):
         plan.ps_addrs.extend(ps_addrs)
 
 
-def create_node_manager(params: JobParams, speed_monitor) -> NodeManager:
+def create_node_manager(params: JobArgs, speed_monitor) -> NodeManager:
     # relaunch on worker failure for PS or custom strategy
     if (
         params.distribution_strategy != DistributionStrategy.PARAMETER_SERVER
         and params.distribution_strategy != DistributionStrategy.CUSTOM
     ):
-        params.node_params[NodeType.WORKER].restart_count = 0
+        params.node_args[NodeType.WORKER].restart_count = 0
 
     critical_worker_index = get_critical_worker_index(params)
     # Custom distribution strategy does not exit if there are pending nodes
@@ -618,7 +618,7 @@ def create_node_manager(params: JobParams, speed_monitor) -> NodeManager:
     )
 
     return NodeManager(
-        job_params=params,
+        job_args=params,
         critical_worker_index=critical_worker_index,
         wait_pending_relaunch=wait_pending_relaunch,
         speed_monitor=speed_monitor,

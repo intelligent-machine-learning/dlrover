@@ -15,14 +15,14 @@ import os
 
 from dlrover.python.master.args import parse_master_args
 from dlrover.python.master.master import Master
-from dlrover.python.scheduler.factory import new_job_params
+from dlrover.python.scheduler.factory import new_job_args
 
 
 def run(args):
-    job_params = new_job_params(args.platform, args.job_name, args.namespace)
-    job_params.initilize()
-    job_params.print()
-    master = Master(args.port, job_params)
+    job_args = new_job_args(args.platform, args.job_name, args.namespace)
+    job_args.initilize()
+    job_args.print()
+    master = Master(args.port, job_args)
     master.prepare()
     return master.run()
 
