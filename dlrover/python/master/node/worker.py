@@ -37,12 +37,14 @@ class ChiefManager(TrainingNodeManager):
     ):
         """
         Args:
-            k8s_client: The client to connect the k8s cluster.
-            worker_pods: A dictionary where the key is the index of worker pod
-                and the value is the PodInfo instance of PS pod.
-            typed_pod_config: The ps/worker/evaluator configuration.
-            max_relaunch_num: The maximum relaunch number of PS.
-            command: The command of worker pods.
+            chief_nodes: A dictionary where the key is the index of
+                chief and the value is a Node instance.
+            job_resource: the resource configuration of a job.
+            max_relaunch_num: The maximum relaunch number of a chief.
+            new_service_fn: A callable function to generate a server name of
+                chief.
+            new_node_name_fn: A callable function to generate a node name of
+                chief.
         """
         super(ChiefManager, self).__init__(chief_nodes)
         self._job_resource = job_resource
@@ -70,12 +72,14 @@ class EvaluatorManager(TrainingNodeManager):
     ):
         """
         Args:
-            k8s_client: The client to connect the k8s cluster.
-            worker_pods: A dictionary where the key is the index of worker pod
-                and the value is the PodInfo instance of PS pod.
-            typed_pod_config: The ps/worker/evaluator configuration.
-            max_relaunch_num: The maximum relaunch number of PS.
-            command: The command of worker pods.
+            evaluator_nodes: A dictionary where the key is the index of
+                evaluator and the value is a Node instance.
+            job_resource: the resource configuration of a job.
+            max_relaunch_num: The maximum relaunch number of an evaluator.
+            new_service_fn: A callable function to generate a server name of
+                evaluator.
+            new_node_name_fn: A callable function to generate a node name of
+                evaluator.
         """
         super(EvaluatorManager, self).__init__(evaluator_nodes)
         self._job_resource = job_resource
@@ -104,12 +108,15 @@ class WorkerManager(TrainingNodeManager):
     ):
         """
         Args:
-            k8s_client: The client to connect the k8s cluster.
-            worker_pods: A dictionary where the key is the index of worker pod
-                and the value is the PodInfo instance of PS pod.
-            typed_pod_config: The ps/worker/evaluator configuration.
-            max_relaunch_num: The maximum relaunch number of PS.
-            command: The command of worker pods.
+            worker_nodes: A dictionary where the key is the index of worker
+                and the value is a Node instance.
+            job_resource: the resource configuration of a job.
+            max_relaunch_num: The maximum relaunch number of worker.
+            new_service_fn: A callable function to generate a server name of
+                worker.
+            new_node_name_fn: A callable function to generate a node name of
+                worker.
+            use_ddp: bool, whether workers use DDP to train a model.
         """
         super(WorkerManager, self).__init__(worker_nodes)
         self._job_resource = job_resource
