@@ -119,7 +119,8 @@ def cut_timeout_pending_node_cpu(node: Node):
 
 class TrainingNodeManager(object):
     def __init__(
-        self, nodes: Dict[int, Node],
+        self,
+        nodes: Dict[int, Node],
     ):
         """
         Args:

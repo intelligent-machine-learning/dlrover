@@ -108,7 +108,10 @@ def _get_pod(name):
         kind="Pod",
         spec={},
         metadata=client.V1ObjectMeta(
-            name=name, labels={}, namespace="default", uid="111",
+            name=name,
+            labels={},
+            namespace="default",
+            uid="111",
         ),
     )
     return pod
@@ -168,7 +171,8 @@ def create_pod(labels):
         image="test",
         command="echo 1",
         resources=client.V1ResourceRequirements(
-            requests=resource, limits=resource,
+            requests=resource,
+            limits=resource,
         ),
         image_pull_policy="Never",
     )
@@ -184,7 +188,10 @@ def create_pod(labels):
         api_version="v1",
         kind="Pod",
         spec=spec,
-        metadata=client.V1ObjectMeta(name="test-worker-0", labels=labels,),
+        metadata=client.V1ObjectMeta(
+            name="test-worker-0",
+            labels=labels,
+        ),
         status=status,
     )
     return pod

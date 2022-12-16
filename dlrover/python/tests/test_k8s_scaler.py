@@ -24,7 +24,12 @@ class k8sScalerTest(unittest.TestCase):
         plan = ScalePlan()
         node_resource = NodeResource(10, 4096)
         plan.launch_nodes.append(
-            Node(NodeType.WORKER, 0, NodeResource(10, 4096), rank_index=0,)
+            Node(
+                NodeType.WORKER,
+                0,
+                NodeResource(10, 4096),
+                rank_index=0,
+            )
         )
         group_resource = NodeGroupResource(1, node_resource, "low")
         plan.node_group_resources["worker"] = group_resource

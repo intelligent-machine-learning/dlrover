@@ -153,7 +153,9 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         worker_local_process_id = request.worker_local_process_id
         res = elastic_training_pb2.DdpResetSyncResponse()
         res.reset = self._rendezvous_server.reset_sync(
-            worker_host, worker_local_process_id, rendezvous_id,
+            worker_host,
+            worker_local_process_id,
+            rendezvous_id,
         )
         return res
 
@@ -163,7 +165,9 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         worker_local_process_id = request.worker_local_process_id
         res = elastic_training_pb2.DdpInitSyncResponse()
         res.reset = self._rendezvous_server.barrier_sync(
-            worker_host, worker_local_process_id, rendezvous_id,
+            worker_host,
+            worker_local_process_id,
+            rendezvous_id,
         )
         return res
 
@@ -270,7 +274,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
                 flops=request.op_stats.flops,
             )
             self._job_metric_collector.collect_model_metric(
-                tensor_stats, op_stats,
+                tensor_stats,
+                op_stats,
             )
         return empty_pb2.Empty()
 
@@ -296,7 +301,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             and sample_count >= _dlrover_context.sample_count_to_adjust_worker
         ):
             logger.info(
-                "Start autoscale with %s stats samples", sample_count,
+                "Start autoscale with %s stats samples",
+                sample_count,
             )
             self._node_manager.start_auto_scale()
             self._start_autoscale = True

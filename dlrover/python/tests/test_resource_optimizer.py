@@ -70,10 +70,12 @@ class ResourceOptimizerTest(unittest.TestCase):
     def test_limit_resource_plan(self):
         plan = ResourcePlan()
         plan.node_group_resources[NodeType.WORKER] = NodeGroupResource(
-            1, NodeResource(1, 256),
+            1,
+            NodeResource(1, 256),
         )
         plan.node_group_resources[NodeType.PS] = NodeGroupResource(
-            1, NodeResource(64, 2560000),
+            1,
+            NodeResource(64, 2560000),
         )
         plan.limit_resource_value()
         worker = plan.node_group_resources[NodeType.WORKER]
@@ -95,8 +97,14 @@ class JobResourceOptimizerTest(unittest.TestCase):
     def setUp(self):
         self._client = build_easydl_client()
         self._client._processor_stub = MockStub()
-        worker_resource = NodeGroupResource(0, NodeResource(0, 0),)
-        ps_resource = NodeGroupResource(0, NodeResource(0, 0),)
+        worker_resource = NodeGroupResource(
+            0,
+            NodeResource(0, 0),
+        )
+        ps_resource = NodeGroupResource(
+            0,
+            NodeResource(0, 0),
+        )
         self._job_optimizer = JobResourceOptimizer(
             worker_resource, ps_resource, "brain", "aa0_uuid"
         )
@@ -106,8 +114,14 @@ class JobResourceOptimizerTest(unittest.TestCase):
         _dlrover_context.easydl_worker_enabled = True
 
     def test_fixed_resource(self):
-        worker_resource = NodeGroupResource(1, NodeResource(0, 1024),)
-        ps_resource = NodeGroupResource(1, NodeResource(4, 1024),)
+        worker_resource = NodeGroupResource(
+            1,
+            NodeResource(0, 1024),
+        )
+        ps_resource = NodeGroupResource(
+            1,
+            NodeResource(4, 1024),
+        )
         self._job_optimizer = JobResourceOptimizer(
             worker_resource, ps_resource, "brain", "aa0_uuid"
         )
@@ -116,7 +130,8 @@ class JobResourceOptimizerTest(unittest.TestCase):
         self._job_optimizer._init_job_resource_by_optimizer()
         worker = self._job_optimizer._worker_resource
         self.assertEqual(
-            worker.node_resource.memory, 1024,
+            worker.node_resource.memory,
+            1024,
         )
         self.assertEqual(worker.node_resource.cpu, 16)
         self.assertEqual(worker.count, 1)
@@ -129,7 +144,8 @@ class JobResourceOptimizerTest(unittest.TestCase):
         self._job_optimizer._init_job_resource_by_optimizer()
         worker = self._job_optimizer._worker_resource
         self.assertEqual(
-            worker.node_resource.memory, _MEMORY,
+            worker.node_resource.memory,
+            _MEMORY,
         )
         self.assertEqual(worker.node_resource.cpu, 16)
         self.assertEqual(worker.count, 5)

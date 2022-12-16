@@ -59,7 +59,12 @@ class DoingTask(object):
 
 class DatasetShardCheckpoint(object):
     def __init__(
-        self, dataset_name, todo, doing, epoch, splitter=None,
+        self,
+        dataset_name,
+        todo,
+        doing,
+        epoch,
+        splitter=None,
     ):
         """
         TODO: support checkpoint for indices.

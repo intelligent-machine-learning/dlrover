@@ -26,7 +26,10 @@ def add_params(parser):
         "pods will be created",
     )
     parser.add_argument(
-        "--platform", default="pyk8s", type=str, help="The name of platform",
+        "--platform",
+        default="pyk8s",
+        type=str,
+        help="The name of platform",
     )
 
 

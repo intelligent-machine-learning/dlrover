@@ -142,7 +142,8 @@ class ElasticJobScaler(Scaler):
                 gpu_num=group_resource.node_resource.gpu_num,
             )
             replica_spec = ScalerReplicaResourceSpec(
-                replicas=group_resource.count, resource_spec=resource_spec,
+                replicas=group_resource.count,
+                resource_spec=resource_spec,
             )
             scaler_crd.spec.replica_resource_specs[name] = replica_spec
 

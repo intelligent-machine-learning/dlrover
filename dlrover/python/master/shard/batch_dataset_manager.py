@@ -37,7 +37,10 @@ class BatchDatasetManager(DatasetManger):
     """
 
     def __init__(
-        self, task_type, batch_size, dataset_splitter: DatasetSplitter,
+        self,
+        task_type,
+        batch_size,
+        dataset_splitter: DatasetSplitter,
     ):
         super(BatchDatasetManager, self).__init__(
             task_type, batch_size, dataset_splitter

@@ -82,7 +82,9 @@ class TextDatasetMetric(DatasetMetric):
     """
 
     def __init__(
-        self, name, size=0,
+        self,
+        name,
+        size=0,
     ):
         super(TextDatasetMetric, self).__init__(name, size)
 

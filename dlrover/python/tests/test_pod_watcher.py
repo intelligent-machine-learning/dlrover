@@ -84,7 +84,8 @@ class PodWatcherTest(unittest.TestCase):
         pod = create_pod(labels)
         state = pod.status.container_statuses[0].state
         state.terminated = client.V1ContainerStateTerminated(
-            reason="OOMKilled", exit_code=143,
+            reason="OOMKilled",
+            exit_code=143,
         )
         exit_reason = _get_pod_exit_reason(pod)
         self.assertEqual(exit_reason, NodeExitReason.OOM)

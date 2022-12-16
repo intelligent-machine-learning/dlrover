@@ -119,7 +119,8 @@ class ResourcePlan(JsonSerializable):
         plan.node_group_resources[NodeType.PS] = NodeGroupResource(
             DefaultNodeResource.PS_NUM,
             NodeResource(
-                DefaultNodeResource.PS_CPU, DefaultNodeResource.PS_MEMORY,
+                DefaultNodeResource.PS_CPU,
+                DefaultNodeResource.PS_MEMORY,
             ),
         )
         return plan
