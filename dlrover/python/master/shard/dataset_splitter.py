@@ -150,10 +150,7 @@ class TableDatasetSplitter(DatasetSplitter):
         max_shard_count=_MAX_SHARD_COUNT,
     ):
         super(TableDatasetSplitter, self).__init__(
-            dataset_name,
-            dataset_size,
-            shard_size,
-            num_epochs,
+            dataset_name, dataset_size, shard_size, num_epochs,
         )
         self._dataset_name = dataset_name
         self._shuffle = shuffle
@@ -275,10 +272,7 @@ class TextDatasetSplitter(DatasetSplitter):
         return self._shards
 
     def create_shards(self):
-        self._shards = self._create_shards_with_indices(
-            0,
-            self._dataset_size,
-        )
+        self._shards = self._create_shards_with_indices(0, self._dataset_size,)
         self.epoch += 1
 
     def _create_shards_with_indices(self, start_idx, end_idx) -> List[Shard]:
@@ -287,10 +281,7 @@ class TextDatasetSplitter(DatasetSplitter):
         if self._shuffle:
             random.shuffle(record_indices)
         for shard_start_idx in range(start_idx, end_idx, self._shard_size):
-            shard_end_idx = min(
-                shard_start_idx + self._shard_size,
-                end_idx,
-            )
+            shard_end_idx = min(shard_start_idx + self._shard_size, end_idx,)
             size = shard_end_idx - shard_start_idx
             shard_indices = record_indices[0:size]
             record_indices = record_indices[size:]
@@ -369,10 +360,7 @@ class StreamingDatasetSplitter(DatasetSplitter):
         fetch_data_size=10000,
     ):
         super(StreamingDatasetSplitter, self).__init__(
-            dataset_name,
-            dataset_size,
-            shard_size,
-            num_epochs,
+            dataset_name, dataset_size, shard_size, num_epochs,
         )
         self._dataset_name = dataset_name
         self._shard_size = shard_size

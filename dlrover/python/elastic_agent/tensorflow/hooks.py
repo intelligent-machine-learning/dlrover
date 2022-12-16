@@ -37,8 +37,7 @@ def collect_model_stats(flops):
     tensor_stats, op_stats = generate_model_stats()
     op_stats.runtime_flops = flops
     GlobalMasterClient.MASTER_CLIENT.report_model_metric(
-        tensor_stats,
-        op_stats,
+        tensor_stats, op_stats,
     )
 
 
@@ -83,8 +82,7 @@ class ReportModelMetricHook(SessionRunHook):
         try:
             tensor_stats, op_stats = generate_model_stats()
             GlobalMasterClient.MASTER_CLIENT.report_model_metric(
-                tensor_stats,
-                op_stats,
+                tensor_stats, op_stats,
             )
             training_reporter.set_start_time()
         except Exception as e:

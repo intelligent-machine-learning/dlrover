@@ -79,8 +79,7 @@ class k8sClient(object):
     def list_namespaced_pod(self, label_selector):
         try:
             pod_list = self.client.list_namespaced_pod(
-                self._namespace,
-                label_selector=label_selector,
+                self._namespace, label_selector=label_selector,
             )
             return pod_list
         except Exception as e:
@@ -91,11 +90,7 @@ class k8sClient(object):
         try:
             print(body)
             self.api_instance.create_namespaced_custom_object(
-                group,
-                version,
-                "default",
-                plural,
-                body,
+                group, version, "default", plural, body,
             )
         except client.rest.ApiException as e:
             logger.error(
@@ -162,9 +157,7 @@ class k8sClient(object):
     def delete_pod(self, name):
         try:
             self.client.delete_namespaced_pod(
-                name,
-                self._namespace,
-                body=client.V1DeleteOptions(),
+                name, self._namespace, body=client.V1DeleteOptions(),
             )
             return True
         except Exception as e:

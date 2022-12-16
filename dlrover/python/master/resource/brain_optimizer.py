@@ -59,10 +59,7 @@ class BrainResoureOptimizer(ResourceOptimizer):
 
     def generate_opt_plan(self, stage, config={}) -> ResourcePlan:
         res = self._brain_client.get_optimization_plan(
-            self._job_uuid,
-            stage,
-            _BASE_CONFIG_RETRIEVER,
-            config,
+            self._job_uuid, stage, _BASE_CONFIG_RETRIEVER, config,
         )
         if not res.job_optimize_plans:
             logger.info("No any optimization plan for PS")
@@ -80,11 +77,7 @@ class BrainResoureOptimizer(ResourceOptimizer):
 
     def generate_oom_recovery_plan(self, oom_pods, stage, config={}):
         res = self._brain_client.get_oom_resource_plan(
-            oom_pods,
-            self._job_uuid,
-            stage,
-            _BASE_CONFIG_RETRIEVER,
-            config,
+            oom_pods, self._job_uuid, stage, _BASE_CONFIG_RETRIEVER, config,
         )
         if not res.job_optimize_plans:
             logger.info("No any optimization plan for PS")

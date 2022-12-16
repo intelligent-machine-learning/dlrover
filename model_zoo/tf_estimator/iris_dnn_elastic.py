@@ -167,10 +167,7 @@ if __name__ == "__main__":
     def train_input_fn():
         return input_fn(lambda: train_generator(sharding_client), batch_size)
 
-    train_spec = tf.estimator.TrainSpec(
-        input_fn=train_input_fn,
-        hooks=hooks,
-    )
+    train_spec = tf.estimator.TrainSpec(input_fn=train_input_fn, hooks=hooks,)
     eval_spec = tf.estimator.EvalSpec(
         input_fn=lambda: input_fn(eval_generator, batch_size)
     )

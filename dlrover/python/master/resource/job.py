@@ -79,9 +79,7 @@ class JobResource(JsonSerializable):
         self.node_group_resources.setdefault(
             node_type,
             NodeGroupResource(
-                count=0,
-                node_resource=NodeResource(0, 0),
-                priority=None,
+                count=0, node_resource=NodeResource(0, 0), priority=None,
             ),
         )
         resource = self.node_group_resources[node_type]
@@ -106,10 +104,7 @@ class JobResource(JsonSerializable):
         return self._get_group_node_num(NodeType.CHIEF)
 
     def init_job_node_meta(
-        self,
-        relaunch_on_worker_failure,
-        service_create_fn,
-        new_node_name_fn,
+        self, relaunch_on_worker_failure, service_create_fn, new_node_name_fn,
     ):
         """
         job_resource: resource configuration of a job.

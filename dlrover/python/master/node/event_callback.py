@@ -176,9 +176,7 @@ class TFPSNodeHandlingCallback(NodeEventCallback):
     @NodeEventCallback.log_callback_exception
     def on_node_deleted(self, node, cluster_context):
         node.finish_time = datetime.now()
-        self._stop_job_if_needed(
-            node,
-        )
+        self._stop_job_if_needed(node,)
         self._master.speed_monitor.remove_running_worker(node.type, node.id)
 
     def _stop_job_if_needed(self, node: Node):

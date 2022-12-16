@@ -34,12 +34,7 @@ class NodeResource(object):
     """
 
     def __init__(
-        self,
-        cpu,
-        memory,
-        gpu_type=None,
-        gpu_num=0,
-        **kwargs,
+        self, cpu, memory, gpu_type=None, gpu_num=0, **kwargs,
     ):
         self.cpu = cpu
         self.memory = memory
@@ -169,10 +164,7 @@ class Node(object):
         self.relaunch_count += 1
 
     def update_info(
-        self,
-        name=None,
-        start_time=None,
-        create_time=None,
+        self, name=None, start_time=None, create_time=None,
     ):
         if name is not None:
             self.name = name

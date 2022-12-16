@@ -167,10 +167,7 @@ class PodScaler(Scaler):
         return job_pods
 
     def _scale_up_pods(
-        self,
-        type,
-        plan: ScalePlan,
-        cur_pods: List[Node],
+        self, type, plan: ScalePlan, cur_pods: List[Node],
     ):
         cur_num = len(cur_pods)
         group_resource = plan.node_group_resources[type]
@@ -191,10 +188,7 @@ class PodScaler(Scaler):
         return max_id
 
     def _scale_down_pods(
-        self,
-        type,
-        plan: ScalePlan,
-        cur_pods: List[Node],
+        self, type, plan: ScalePlan, cur_pods: List[Node],
     ):
         group_resource = plan.node_group_resources[type]
         down_num = len(cur_pods) - group_resource.count
@@ -386,13 +380,7 @@ class PodScaler(Scaler):
         return False
 
     def _create_service_obj(
-        self,
-        name,
-        port,
-        target_port,
-        replica_type,
-        replica_index,
-        owner=None,
+        self, name, port, target_port, replica_type, replica_index, owner=None,
     ):
         labels = self._get_common_labels()
 
@@ -511,8 +499,7 @@ class PodScaler(Scaler):
             command=command,
             args=args,
             resources=client.V1ResourceRequirements(
-                requests=resource_requests,
-                limits=resource_limits,
+                requests=resource_requests, limits=resource_limits,
             ),
             image_pull_policy=image_pull_policy,
             env=env,

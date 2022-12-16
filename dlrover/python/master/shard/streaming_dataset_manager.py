@@ -158,9 +158,8 @@ class StreamingDatasetManager(DatasetManger):
         partition_offset = self._dataset_splitter.get_partition_offset()
         partition_num = partition_offset.partition_num
         for task in self.todo:
-            shard_partition_index = (
-                partition_offset.get_partition_index_by_name(task.shard.name)
-            )
+            get_partition = partition_offset.get_partition_index_by_name
+            shard_partition_index = get_partition(task.shard.name)
             if shard_partition_index == worker_id % partition_num:
                 self.todo.remove(task)
                 return task

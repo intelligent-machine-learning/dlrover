@@ -97,9 +97,7 @@ class ShardingClient(object):
 
     def _report_task(self, task, err_msg=""):
         self._mc.report_task_result(
-            self._dataset_name,
-            task.task_id,
-            err_msg,
+            self._dataset_name, task.task_id, err_msg,
         )
 
     def report_all_task_error(self, err_msg):
