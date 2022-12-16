@@ -42,7 +42,12 @@ class ParameterServerManager(TrainingNodeManager):
         Args:
             ps_nodes: A dictionary where the key is the index of PS pod
                 and the value is the PodInfo instance of PS pod.
+            job_resource: the resource configuration of a job.
             max_relaunch_num: The maximum relaunch number of PS.
+            new_service_fn: A callable function to generate a server name of
+                PS.
+            new_node_name_fn: A callable function to generate a node name of
+                PS.
         """
         super(ParameterServerManager, self).__init__(ps_nodes)
         self._max_relaunch_num = max_relaunch_num
