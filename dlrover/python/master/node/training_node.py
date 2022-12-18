@@ -39,12 +39,16 @@ ALIVE_STATUS = [NodeStatus.INITIAL, NodeStatus.PENDING, NodeStatus.RUNNING]
 def set_critical_node(
     job_nodes: Dict[str, Dict[int, Node]],
     ps_is_critical=True,
-    critical_worker_index={},
     ps_relaunch_max_num=0,
+    critical_worker_index: Dict[int, int] = {},
 ):
-    """
-    pod_info is a dict, where pod_info[type][id] is a PodInfo instance
-    Set is_critical_pod values accordingly
+    """Set critial nodes of a job.
+    Args:
+        job_nodes: nodes of a job.
+        ps_is_critical: bool, whether all PS are critial.
+        ps_relaunch_max_num: the maximum relaunch number of PS.
+        critical_worker_index: a dict where the key is the index of critical
+            workers and the value is the relaunchable count of the worker.
     """
     if NodeType.PS in job_nodes:
         for node in job_nodes[NodeType.PS].values():
@@ -66,6 +70,11 @@ def set_critical_node(
 
 
 def get_critical_worker_index(params: JobArgs):
+    """Get indices of critical workers.
+    Returns:
+        A dict: the key is the index of critical
+            workers and the value is the relaunchable count of the worker.
+    """
     critical_worker_index = {}
     worker_params = params.node_args[NodeType.WORKER]
 

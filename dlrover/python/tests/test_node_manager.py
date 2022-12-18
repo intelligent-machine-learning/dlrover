@@ -128,7 +128,7 @@ class JobConfigTest(unittest.TestCase):
 
         nodes = job.init_job_node_meta(1, get_service_fn, _get_node_name)
         set_critical_node(
-            nodes, critical_worker_index={0: 3}, ps_relaunch_max_num=2
+            nodes, ps_relaunch_max_num=2, critical_worker_index={0: 3}
         )
         self.assertTrue(nodes[NodeType.PS][0].critical)
         self.assertEqual(nodes[NodeType.PS][0].max_relaunch_count, 2)

@@ -202,8 +202,8 @@ class NodeManager(object):
         set_critical_node(
             self._job_nodes,
             self._ps_is_critical,
-            self._critical_worker_index,
             self._ps_relaunch_max_num,
+            self._critical_worker_index,
         )
         self._ps_manager.update_nodes(self._job_nodes.get(NodeType.PS, {}))
         self._chief_manager.update_nodes(
