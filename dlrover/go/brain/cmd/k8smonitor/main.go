@@ -71,7 +71,7 @@ func main() {
 		log.Fatalf("fail to create brain processor server: %v", err)
 	}
 
-	log.Infof("create kube watcher manager: %v", manager)
+	log.Infof("create kube watcher manager: %+v", manager)
 
 	err = manager.Run(ctx, errHandler, errHandler)
 	if err != nil {
