@@ -72,11 +72,11 @@ class StatsReporter(metaclass=ABCMeta):
         pass
 
     @classmethod
-    def new_stats_reporter(cls, job_meta, collector_type=None):
-        if not collector_type or collector_type == CollectorType.LOCAL:
+    def new_stats_reporter(cls, job_meta, reporter_type=None):
+        if not reporter_type or reporter_type == CollectorType.LOCAL:
             return LocalStatsReporter(job_meta)
         else:
-            logger.warning("Not support stats collector %s", collector_type)
+            logger.warning("Not support stats collector %s", reporter_type)
 
 
 @singleton

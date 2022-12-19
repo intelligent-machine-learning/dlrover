@@ -33,10 +33,10 @@ from dlrover.python.master.watcher.base_watcher import Node
 
 
 class BaseMetricCollector(metaclass=ABCMeta):
-    def __init__(self, job_meta: JobMeta, collector_type=None):
+    def __init__(self, job_meta: JobMeta, reporter_type=None):
         self._job_meta = job_meta
         self._stats_reporter = StatsReporter.new_stats_reporter(
-            job_meta, collector_type
+            job_meta, reporter_type
         )
 
     @classmethod
