@@ -106,7 +106,7 @@ class NodeManager(object):
         )
         self._use_ddp = job_args.use_ddp
         self._node_event_callbacks: List[NodeEventCallback] = []
-        self._chief_worker_started = False
+        self._chief_started = False
         self._stop_monitor = False
         self._speed_monitor: SpeedMonitor = speed_monitor
 
@@ -453,6 +453,7 @@ class NodeManager(object):
                 for node in self._job_nodes[node_type].values():
                     node.critical = False
                     node.is_released = True
+                    node.relaunchable = False
         self._stop_monitor = True
 
     def update_node_resource_usage(self, node_type, node_id, cpu, memory):
@@ -491,9 +492,9 @@ class NodeManager(object):
 
     def start_auto_scale(self):
         """Start to auto-scale nodes to improve the training throughput."""
-        if not self._chief_worker_started:
+        if not self._chief_started:
             logger.info("Chief started!")
-            self._chief_worker_started = True
+            self._chief_started = True
             if (
                 not _dlrover_context.easydl_ps_enabled
                 and not _dlrover_context.easydl_worker_enabled
@@ -592,6 +593,15 @@ class NodeManager(object):
         ps_addrs = self._ps_manager.get_ps_addrs()
         plan.ps_addrs.extend(ps_addrs)
 
+    def cut_timeout_pending_node_cpu(self):
+        """Cut down CPU cores of pending pod at the job starts"""
+        if self._chief_started:
+            return
+        if _dlrover_context.easydl_ps_enabled:
+            self._ps_manager.cut_pending_node_cpu()
+        if _dlrover_context.easydl_worker_enabled:
+            self._worker_manager.cut_pending_node_cpu()
+
 
 def create_node_manager(args: JobArgs, speed_monitor) -> NodeManager:
     # relaunch on worker failure for PS or custom strategy
@@ -607,15 +617,11 @@ def create_node_manager(args: JobArgs, speed_monitor) -> NodeManager:
         args.distribution_strategy == DistributionStrategy.CUSTOM
     )
 
-    elastic_job = new_elastic_job(
-        args.platform, args.job_name, args.namespace
-    )
+    elastic_job = new_elastic_job(args.platform, args.job_name, args.namespace)
     node_watcher = new_node_watcher(
         args.platform, args.job_name, args.namespace
     )
-    job_scaler = new_job_scaler(
-        args.platform, args.job_name, args.namespace
-    )
+    job_scaler = new_job_scaler(args.platform, args.job_name, args.namespace)
 
     return NodeManager(
         job_args=args,

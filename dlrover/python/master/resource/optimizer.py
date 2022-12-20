@@ -145,3 +145,8 @@ class ResourceOptimizer(metaclass=ABCMeta):
     ) -> ResourcePlan:
         """Generate a recovery plan for OOM nodes"""
         pass
+
+    @abstractmethod
+    def generate_resource_plan_with_optimizer(self, config={}) -> ResourcePlan:
+        """Generate a resource plan by an optimizer"""
+        pass

@@ -81,9 +81,12 @@ class PodScaler(Scaler):
         self._namespace = namespace
         self._replica_template: Dict[str, PodTemplate] = {}
         self._job = self._retry_to_get_job()
-        self._distribution_strategy = self._job["spec"]["distributionStrategy"]
-        for replica, spec in self._job["spec"]["replicaSpecs"].items():
-            self._replica_template[replica] = PodTemplate(spec["template"])
+        self._distribution_strategy = self._job["spec"].get(
+            "distributionStrategy", None
+        )
+        if "replicaSpecs" in self._job["spec"]:
+            for replica, spec in self._job["spec"]["replicaSpecs"].items():
+                self._replica_template[replica] = PodTemplate(spec["template"])
 
         self._initial_nodes: List[Node] = []
         self._lock = threading.Lock()
@@ -94,7 +97,12 @@ class PodScaler(Scaler):
 
     def _retry_to_get_job(self):
         for _ in range(3):
-            job = self._k8s_client.get_training_job()
+            job = self._k8s_client.get_custom_resource(
+                name=self._job_name,
+                group="elastic.iml.github.io",
+                version="v1alpha1",
+                plural="elasticjobs",
+            )
             if job:
                 return job
             else:

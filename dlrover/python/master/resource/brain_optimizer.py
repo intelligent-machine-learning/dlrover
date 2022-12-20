@@ -94,3 +94,17 @@ class BrainResoureOptimizer(ResourceOptimizer):
         logger.info("The optimization plan of %s is %s", stage, plan_msg)
         plan = convert_plan_msg(plan_msg)
         return plan
+
+    def generate_resource_plan_with_optimizer(self, config):
+        res = self._brain_client.get_optimizer_resource_plan(
+            self._job_uuid,
+            _BASE_CONFIG_RETRIEVER,
+            config,
+        )
+        if not res.job_optimize_plans:
+            logger.info("No any plan with %s", config)
+            return
+
+        plan = res.job_optimize_plans[0]
+        logger.info("The resource plan of %s is %s", config, plan)
+        return plan

@@ -85,6 +85,10 @@ class LocalOptimizer(ResourceOptimizer):
             plan.node_resources[node.name] = NodeResource(0, opt_memory)
         return plan
 
+    def generate_resource_plan_with_optimizer(self, config={}) -> ResourcePlan:
+        """Generate a resource plan by an optimizer"""
+        pass
+
     def _generate_job_create_resource(self):
         plan = ResourcePlan()
         node_cpu = _INITIAL_NODE_CPU
