@@ -192,7 +192,7 @@ class JobResourceOptimizer(object):
         self._job_stage = JobOptStage.WORKER_INITIAL
 
         if (
-            _dlrover_context.easydl_worker_enabled
+            _dlrover_context.auto_worker_enabled
             and NodeType.WORKER in plan.node_group_resources
         ):
             worker_resource = plan.node_group_resources[NodeType.WORKER]
@@ -204,7 +204,7 @@ class JobResourceOptimizer(object):
             self._worker_resource.update(num, cpu, mem)
 
         if (
-            _dlrover_context.easydl_ps_enabled
+            _dlrover_context.auto_ps_enabled
             and NodeType.PS in plan.node_group_resources
         ):
             ps_resource = plan.node_group_resources[NodeType.PS]
@@ -271,7 +271,7 @@ class JobResourceOptimizer(object):
         """
         cur_mem = node.config_resource.memory
         if (
-            _dlrover_context.easydl_worker_enabled
+            _dlrover_context.auto_worker_enabled
             and self._job_stage == JobOptStage.WORKER_INITIAL
         ):
             plan = self._resource_optimizer.generate_oom_recovery_plan(
@@ -462,7 +462,7 @@ class JobResourceOptimizer(object):
         #  Users may worry about that the increasing number of worker hurts the
         #  accuracy, so the max number of worker is the configuration.
         if self._original_worker_resource.count > 0:
-            num = min(num, self._original_worker_resource.count)
+            num = self._original_worker_resource.count
         if (
             self._original_worker_resource.node_resource.memory
             >= NodeResourceLimit.MIN_VALID_MEMORY

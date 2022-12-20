@@ -94,8 +94,8 @@ class Context(object):
             ConfigKeys.GLOBAL_STEP_COUNT_TO_AUTO_WORKER,
             DefaultConfigValues.DEFALUT_GLOBAL_STEP_COUNT_TO_AUTO_WORKER,
         )
-        self.easydl_worker_enabled = False
-        self.easydl_ps_enabled = False
+        self.auto_worker_enabled = False
+        self.auto_ps_enabled = False
         self.is_tfv1_ps = False
         self.launch_worker_after_ps_running = False
         self.print_config()

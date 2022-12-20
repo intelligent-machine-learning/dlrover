@@ -505,8 +505,8 @@ class NodeManager(object):
             logger.info("Chief started!")
             self._chief_started = True
             if (
-                not _dlrover_context.easydl_ps_enabled
-                and not _dlrover_context.easydl_worker_enabled
+                not _dlrover_context.auto_ps_enabled
+                and not _dlrover_context.auto_worker_enabled
             ):
                 return
             if self._speed_monitor:
@@ -606,9 +606,9 @@ class NodeManager(object):
         """Cut down CPU cores of pending pod at the job starts"""
         if self._chief_started:
             return
-        if _dlrover_context.easydl_ps_enabled:
+        if _dlrover_context.auto_ps_enabled:
             self._ps_manager.cut_pending_node_cpu()
-        if _dlrover_context.easydl_worker_enabled:
+        if _dlrover_context.auto_worker_enabled:
             self._worker_manager.cut_pending_node_cpu()
 
 

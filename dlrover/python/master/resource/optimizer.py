@@ -56,13 +56,13 @@ class ResourcePlan(JsonSerializable):
         return len(self.node_group_resources) + len(self.node_resources) == 0
 
     def adjust_plan_by_context(self):
-        if not _dlrover_context.easydl_ps_enabled:
+        if not _dlrover_context.auto_ps_enabled:
             if NodeType.PS in self.node_group_resources:
                 del self.node_group_resources[NodeType.PS]
             self.node_resources.clear()
 
         if (
-            not _dlrover_context.easydl_worker_enabled
+            not _dlrover_context.auto_worker_enabled
             and NodeType.WORKER in self.node_group_resources
         ):
             del self.node_group_resources[NodeType.WORKER]
