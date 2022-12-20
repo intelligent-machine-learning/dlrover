@@ -69,6 +69,9 @@ class NodeManager(object):
         critical_worker_index={},
         wait_pending_relaunch=False,
         speed_monitor=None,
+        job=None,
+        node_watcher=None,
+        job_scaler=None,
     ):
         self._job_resource = JobResource()
         node_restart_count: Dict[str, int] = {}
@@ -111,15 +114,9 @@ class NodeManager(object):
         self._lock = threading.Lock()
         self._job_nodes: Dict[str, Dict[int, Node]] = {}
 
-        self._elastic_job = new_elastic_job(
-            job_args.platform, job_args.job_name, job_args.namespace
-        )
-        self._node_watcher = new_node_watcher(
-            job_args.platform, job_args.job_name, job_args.namespace
-        )
-        self._scaler = new_job_scaler(
-            job_args.platform, job_args.job_name, job_args.namespace
-        )
+        self._elastic_job = job
+        self._node_watcher = node_watcher
+        self._scaler = job_scaler
         self._job_optimizer = JobResourceOptimizer(
             self._job_resource.node_group_resources[NodeType.WORKER],
             self._job_resource.node_group_resources[NodeType.PS],
@@ -596,23 +593,36 @@ class NodeManager(object):
         plan.ps_addrs.extend(ps_addrs)
 
 
-def create_node_manager(params: JobArgs, speed_monitor) -> NodeManager:
+def create_node_manager(args: JobArgs, speed_monitor) -> NodeManager:
     # relaunch on worker failure for PS or custom strategy
     if (
-        params.distribution_strategy != DistributionStrategy.PARAMETER_SERVER
-        and params.distribution_strategy != DistributionStrategy.CUSTOM
+        args.distribution_strategy != DistributionStrategy.PARAMETER_SERVER
+        and args.distribution_strategy != DistributionStrategy.CUSTOM
     ):
-        params.node_args[NodeType.WORKER].restart_count = 0
+        args.node_args[NodeType.WORKER].restart_count = 0
 
-    critical_worker_index = get_critical_worker_index(params)
+    critical_worker_index = get_critical_worker_index(args)
     # Custom distribution strategy does not exit if there are pending nodes
     wait_pending_relaunch = (
-        params.distribution_strategy == DistributionStrategy.CUSTOM
+        args.distribution_strategy == DistributionStrategy.CUSTOM
+    )
+
+    elastic_job = new_elastic_job(
+        args.platform, args.job_name, args.namespace
+    )
+    node_watcher = new_node_watcher(
+        args.platform, args.job_name, args.namespace
+    )
+    job_scaler = new_job_scaler(
+        args.platform, args.job_name, args.namespace
     )
 
     return NodeManager(
-        job_args=params,
+        job_args=args,
         critical_worker_index=critical_worker_index,
         wait_pending_relaunch=wait_pending_relaunch,
         speed_monitor=speed_monitor,
+        job=elastic_job,
+        node_watcher=node_watcher,
+        job_scaler=job_scaler,
     )
