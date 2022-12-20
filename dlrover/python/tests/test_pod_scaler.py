@@ -17,7 +17,6 @@ from dlrover.python.common.constants import DistributionStrategy, NodeType
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
 from dlrover.python.master.scaler.base_scaler import ScalePlan
 from dlrover.python.master.scaler.pod_scaler import PodScaler
-from dlrover.python.scheduler.kubernetes import k8sClient
 from dlrover.python.tests.test_utils import mock_k8s_client
 
 

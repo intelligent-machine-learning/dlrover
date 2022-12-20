@@ -129,17 +129,20 @@ class NodeManager(object):
     def start(self):
         self._job_optimizer.update_job_uuid(self._job_args.job_uuid)
         self._job_optimizer.init_job_resource(self._job_resource)
-        if (
-            self._job_args.distribution_strategy
-            == DistributionStrategy.PARAMETER_SERVER
-        ):
-            self._job_resource.adjust_worker_for_estimator()
+        self._adjust_worker_for_estimator()
         self._init_job_nodes()
         plan = self._create_initial_scale_plan()
         self._scaler.scale(plan)
         threading.Thread(
             target=self._monitor_nodes, name="node_monitor", daemon=True
         ).start()
+
+    def _adjust_worker_for_estimator(self):
+        if (
+            self._job_args.distribution_strategy
+            == DistributionStrategy.PARAMETER_SERVER
+        ):
+            self._job_resource.adjust_worker_for_estimator()
 
     def _create_initial_scale_plan(self):
         scale_plan = ScalePlan()
@@ -445,6 +448,12 @@ class NodeManager(object):
         nodes.extend(self._evaluator_manager.get_running_nodes())
         nodes.extend(self._ps_manager.get_training_ps_cluster())
         return nodes
+
+    def get_running_workers(self):
+        return self._worker_manager.get_running_nodes()
+
+    def post_ps_ready(self):
+        self._ps_manager.process_after_ps_cluster_ready()
 
     def stop(self):
         self._enable_relaunch_node = False

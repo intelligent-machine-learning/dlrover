@@ -17,7 +17,6 @@ from dlrover.python.common.constants import NodeType
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
 from dlrover.python.master.scaler.base_scaler import ScalePlan
 from dlrover.python.master.scaler.elasticjob_scaler import ElasticJobScaler
-from dlrover.python.scheduler.kubernetes import k8sClient
 
 
 class k8sScalerTest(unittest.TestCase):

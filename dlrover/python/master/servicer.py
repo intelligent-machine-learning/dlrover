@@ -223,7 +223,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         return empty_pb2.Empty()
 
     def ready_for_ps_relaunch(self, request, _):
-        self._node_manager.change_ps_cluster()
+        self._node_manager.post_ps_ready()
         return empty_pb2.Empty()
 
     def get_shard_checkpoint(self, request, _):
