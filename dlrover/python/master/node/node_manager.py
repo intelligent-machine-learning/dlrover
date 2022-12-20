@@ -69,6 +69,9 @@ class NodeManager(object):
         critical_worker_index={},
         wait_pending_relaunch=False,
         speed_monitor=None,
+        job=None,
+        node_watcher=None,
+        job_scaler=None,
     ):
         self._job_resource = JobResource()
         node_restart_count: Dict[str, int] = {}
@@ -103,7 +106,7 @@ class NodeManager(object):
         )
         self._use_ddp = job_args.use_ddp
         self._node_event_callbacks: List[NodeEventCallback] = []
-        self._chief_worker_started = False
+        self._chief_started = False
         self._stop_monitor = False
         self._speed_monitor: SpeedMonitor = speed_monitor
 
@@ -111,15 +114,9 @@ class NodeManager(object):
         self._lock = threading.Lock()
         self._job_nodes: Dict[str, Dict[int, Node]] = {}
 
-        self._elastic_job = new_elastic_job(
-            job_args.platform, job_args.job_name, job_args.namespace
-        )
-        self._node_watcher = new_node_watcher(
-            job_args.platform, job_args.job_name, job_args.namespace
-        )
-        self._scaler = new_job_scaler(
-            job_args.platform, job_args.job_name, job_args.namespace
-        )
+        self._elastic_job = job
+        self._node_watcher = node_watcher
+        self._scaler = job_scaler
         self._job_optimizer = JobResourceOptimizer(
             self._job_resource.node_group_resources[NodeType.WORKER],
             self._job_resource.node_group_resources[NodeType.PS],
@@ -132,17 +129,20 @@ class NodeManager(object):
     def start(self):
         self._job_optimizer.update_job_uuid(self._job_args.job_uuid)
         self._job_optimizer.init_job_resource(self._job_resource)
-        if (
-            self._job_args.distribution_strategy
-            == DistributionStrategy.PARAMETER_SERVER
-        ):
-            self._job_resource.adjust_worker_for_estimator()
+        self._adjust_worker_for_estimator()
         self._init_job_nodes()
         plan = self._create_initial_scale_plan()
         self._scaler.scale(plan)
         threading.Thread(
             target=self._monitor_nodes, name="node_monitor", daemon=True
         ).start()
+
+    def _adjust_worker_for_estimator(self):
+        if (
+            self._job_args.distribution_strategy
+            == DistributionStrategy.PARAMETER_SERVER
+        ):
+            self._job_resource.adjust_worker_for_estimator()
 
     def _create_initial_scale_plan(self):
         scale_plan = ScalePlan()
@@ -449,6 +449,12 @@ class NodeManager(object):
         nodes.extend(self._ps_manager.get_training_ps_cluster())
         return nodes
 
+    def get_running_workers(self):
+        return self._worker_manager.get_running_nodes()
+
+    def post_ps_ready(self):
+        self._ps_manager.process_after_ps_cluster_ready()
+
     def stop(self):
         self._enable_relaunch_node = False
         with self._lock:
@@ -456,6 +462,7 @@ class NodeManager(object):
                 for node in self._job_nodes[node_type].values():
                     node.critical = False
                     node.is_released = True
+                    node.relaunchable = False
         self._stop_monitor = True
 
     def update_node_resource_usage(self, node_type, node_id, cpu, memory):
@@ -494,12 +501,12 @@ class NodeManager(object):
 
     def start_auto_scale(self):
         """Start to auto-scale nodes to improve the training throughput."""
-        if not self._chief_worker_started:
+        if not self._chief_started:
             logger.info("Chief started!")
-            self._chief_worker_started = True
+            self._chief_started = True
             if (
-                not _dlrover_context.easydl_ps_enabled
-                and not _dlrover_context.easydl_worker_enabled
+                not _dlrover_context.auto_ps_enabled
+                and not _dlrover_context.auto_worker_enabled
             ):
                 return
             if self._speed_monitor:
@@ -595,24 +602,42 @@ class NodeManager(object):
         ps_addrs = self._ps_manager.get_ps_addrs()
         plan.ps_addrs.extend(ps_addrs)
 
+    def cut_timeout_pending_node_cpu(self):
+        """Cut down CPU cores of pending pod at the job starts"""
+        if self._chief_started:
+            return
+        if _dlrover_context.auto_ps_enabled:
+            self._ps_manager.cut_pending_node_cpu()
+        if _dlrover_context.auto_worker_enabled:
+            self._worker_manager.cut_pending_node_cpu()
 
-def create_node_manager(params: JobArgs, speed_monitor) -> NodeManager:
+
+def create_node_manager(args: JobArgs, speed_monitor) -> NodeManager:
     # relaunch on worker failure for PS or custom strategy
     if (
-        params.distribution_strategy != DistributionStrategy.PARAMETER_SERVER
-        and params.distribution_strategy != DistributionStrategy.CUSTOM
+        args.distribution_strategy != DistributionStrategy.PARAMETER_SERVER
+        and args.distribution_strategy != DistributionStrategy.CUSTOM
     ):
-        params.node_args[NodeType.WORKER].restart_count = 0
+        args.node_args[NodeType.WORKER].restart_count = 0
 
-    critical_worker_index = get_critical_worker_index(params)
+    critical_worker_index = get_critical_worker_index(args)
     # Custom distribution strategy does not exit if there are pending nodes
     wait_pending_relaunch = (
-        params.distribution_strategy == DistributionStrategy.CUSTOM
+        args.distribution_strategy == DistributionStrategy.CUSTOM
     )
 
+    elastic_job = new_elastic_job(args.platform, args.job_name, args.namespace)
+    node_watcher = new_node_watcher(
+        args.platform, args.job_name, args.namespace
+    )
+    job_scaler = new_job_scaler(args.platform, args.job_name, args.namespace)
+
     return NodeManager(
-        job_args=params,
+        job_args=args,
         critical_worker_index=critical_worker_index,
         wait_pending_relaunch=wait_pending_relaunch,
         speed_monitor=speed_monitor,
+        job=elastic_job,
+        node_watcher=node_watcher,
+        job_scaler=job_scaler,
     )

@@ -97,7 +97,7 @@ spec:
                   - --training_steps=1000"""
 
 
-def _get_training_job():
+def _get_training_job(*args, **kwargs):
     job = yaml.safe_load(JOB_EXAMPLE)
     return job
 
@@ -241,7 +241,7 @@ def create_task_manager():
 
 def mock_k8s_client():
     k8s_client = k8sClient.singleton_instance("default", "elasticjob-sample")
-    k8s_client.get_training_job = _get_training_job  # type: ignore
+    k8s_client.get_custom_resource = _get_training_job  # type: ignore
     k8s_client.get_pod = _get_pod  # type: ignore
     k8s_client.list_namespaced_pod = mock_list_namespaced_pod  # type: ignore
     k8s_client.create_custom_resource = mock.MagicMock(  # type: ignore

@@ -110,8 +110,8 @@ class JobResourceOptimizerTest(unittest.TestCase):
         )
         resource_optimizer = self._job_optimizer._resource_optimizer
         resource_optimizer._brain_client = self._client
-        _dlrover_context.easydl_ps_enabled = True
-        _dlrover_context.easydl_worker_enabled = True
+        _dlrover_context.auto_ps_enabled = True
+        _dlrover_context.auto_worker_enabled = True
 
     def test_fixed_resource(self):
         worker_resource = NodeGroupResource(

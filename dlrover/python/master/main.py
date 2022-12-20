@@ -27,9 +27,9 @@ _dlrover_context = Context.singleton_instance()
 def update_context(job_args: JobArgs):
     for node_type, node_args in job_args.node_args.items():
         if node_type == NodeType.WORKER:
-            _dlrover_context.easydl_worker_enabled = node_args.auto_scale
+            _dlrover_context.auto_worker_enabled = node_args.auto_scale
         elif node_type == NodeType.PS:
-            _dlrover_context.easydl_ps_enabled = node_args.auto_scale
+            _dlrover_context.auto_ps_enabled = node_args.auto_scale
     _dlrover_context.print_config()
 
 

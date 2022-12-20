@@ -240,3 +240,15 @@ class TrainingNodeManager(object):
     def _get_node_counter(self):
         with self._lock:
             return Counter([node.status for node in self._nodes.values()])
+
+    def update_critical_node(self, critical_node_restarts):
+        """Update critical node by a dict.
+        Args:
+            critical_node_restarts: A dict where keys are node ids
+                and values are the relaunchable number of nodes
+        """
+        logger.info("Update critical worker {}".format(critical_node_restarts))
+        for id, node in self._nodes.items():
+            if id in critical_node_restarts:
+                node.critical = True
+                node.max_relaunch_count = critical_node_restarts[id]

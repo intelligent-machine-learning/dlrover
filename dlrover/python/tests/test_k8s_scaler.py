@@ -34,7 +34,7 @@ class k8sScalerTest(unittest.TestCase):
         group_resource = NodeGroupResource(1, node_resource, "low")
         plan.node_group_resources["worker"] = group_resource
 
-        scaler = ElasticJobScaler(job_name="test", namespace="dlrover")
+        scaler = ElasticJobScaler("test", "dlrover")
         scaler_crd = scaler._generate_scaler_crd_by_plan(plan)
 
         expected_dict = {

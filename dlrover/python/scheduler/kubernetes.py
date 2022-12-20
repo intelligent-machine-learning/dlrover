@@ -27,6 +27,7 @@ NODE_SERVICE_PORTS = {
     NodeType.EVALUATOR: 3333,
     NodeType.CHIEF: 3333,
     NodeType.PS: 2222,
+    NodeType.MASTER: 3333,
 }
 
 JOB_SUFFIX = "-edljob-"
@@ -111,19 +112,6 @@ class k8sClient(object):
                 group=group,
                 version=version,
                 plural=plural,
-            )
-            return crd_object
-        except client.ApiException as e:
-            logger.warning("Exception when getting custom object: %s\n" % e)
-            return None
-
-    def get_training_job(self):
-        try:
-            crd_object = self.get_custom_resource(
-                name=self._job_name,
-                group="elastic.iml.github.io",
-                version="v1alpha1",
-                plural="elasticjobs",
             )
             return crd_object
         except client.ApiException as e:
@@ -336,7 +324,12 @@ class K8sJobArgs(JobArgs):
 
     def _retry_to_get_job(self, k8s_client: k8sClient):
         for _ in range(3):
-            job = k8s_client.get_training_job()
+            job = k8s_client.get_custom_resource(
+                name=self.job_name,
+                group="elastic.iml.github.io",
+                version="v1alpha1",
+                plural="elasticjobs",
+            )
             if job:
                 return job
             else:

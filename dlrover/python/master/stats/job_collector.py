@@ -172,5 +172,5 @@ class JobMetricCollector(BaseMetricCollector):
             time.sleep(15)
 
     @BaseMetricCollector.catch_exception
-    def report_job_exit_reason_to_easydl(self, reason):
+    def collect_job_exit_reason(self, reason):
         self._stats_reporter.report_job_exit_reason(reason)

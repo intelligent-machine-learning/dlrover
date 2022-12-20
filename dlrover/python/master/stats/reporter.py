@@ -34,7 +34,7 @@ class JobMeta(object):
         self.user = user
 
 
-class CollectorType(object):
+class ReporterType(object):
     LOCAL = "local"
     DLROVER_BRAIN = "brain"
 
@@ -73,7 +73,7 @@ class StatsReporter(metaclass=ABCMeta):
 
     @classmethod
     def new_stats_reporter(cls, job_meta, reporter_type=None):
-        if not reporter_type or reporter_type == CollectorType.LOCAL:
+        if not reporter_type or reporter_type == ReporterType.LOCAL:
             return LocalStatsReporter(job_meta)
         else:
             logger.warning("Not support stats collector %s", reporter_type)
