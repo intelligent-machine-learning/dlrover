@@ -195,7 +195,7 @@ class Master(object):
             self._exit_reason = JobExitReason.SUCCEEDED
         logger.info("Job exit with the reason {}".format(self._exit_reason))
         if self.job_metric_collector:
-            self.job_metric_collector.report_job_exit_reason_to_easydl(
+            self.job_metric_collector.collect_job_exit_reason(
                 self._exit_reason
             )
         logger.info("Stopping master")
