@@ -29,10 +29,9 @@ from dlrover.python.master.shard.batch_dataset_manager import (
     BatchDatasetManager,
     DoingTask,
 )
-from dlrover.python.master.shard.dataset_splitter import DatasetSplitterFactory
+from dlrover.python.master.shard.dataset_splitter import DatasetSplitter
 
 _TASK_TIMEOUT_THRESHOLD_SECS = 1800
-_DEFAULT_NUM_MINIBATCHES_PER_SHARD = 100
 
 
 class TaskManager(object):
@@ -58,13 +57,10 @@ class TaskManager(object):
     def new_dataset(
         self,
         batch_size,
-        num_epochs,
         dataset_size,
-        shuffle,
-        num_minibatches_per_shard,
+        dataset_splitter: DatasetSplitter,
         dataset_name=None,
         task_type=elastic_training_pb2.NONE,
-        storage_type=None,
     ):
         frame = inspect.currentframe()
         args, _, _, values = inspect.getargvalues(frame)
@@ -88,18 +84,6 @@ class TaskManager(object):
                     dataset_size,
                 )
                 return
-            num_minibatches_per_task = (
-                num_minibatches_per_shard or _DEFAULT_NUM_MINIBATCHES_PER_SHARD
-            )
-            shard_size = batch_size * num_minibatches_per_task
-            dataset_splitter = DatasetSplitterFactory.create_dataset_splitter(
-                shuffle,
-                shard_size,
-                dataset_size,
-                num_epochs,
-                dataset_name,
-                storage_type,
-            )
             dataset = BatchDatasetManager(
                 task_type=task_type,
                 batch_size=batch_size,
