@@ -249,12 +249,14 @@ class PodScaler(Scaler):
             with self._lock:
                 while self._initial_nodes:
                     node = self._initial_nodes.pop(0)
-                    pod = self._create_pod(
-                        node,
-                        self._plan.node_group_resources,
-                        self._plan.ps_addrs,
-                    )
-                    succeed = self._k8s_client.create_pod(pod)
+                    succeed = False
+                    if self._check_cluster_ready_for_pod(node):
+                        pod = self._create_pod(
+                            node,
+                            self._plan.node_group_resources,
+                            self._plan.ps_addrs,
+                        )
+                        succeed = self._k8s_client.create_pod(pod)
                     if not succeed:
                         self._initial_nodes.insert(0, node)
                         break
@@ -263,6 +265,11 @@ class PodScaler(Scaler):
                         self._initial_nodes.insert(0, node)
                         break
             time.sleep(3)
+
+    def _check_cluster_ready_for_pod(self, node: Node):
+        """Check whether the resource of a cluster is enough to
+        create a node"""
+        return True
 
     def _create_pod(self, node: Node, job_resource, ps_addrs):
         # Find that master pod that will be used as the owner reference
