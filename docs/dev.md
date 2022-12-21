@@ -31,7 +31,7 @@ minikube start --vm-driver=docker --cpus 6 --memory 6144
 
 ```bash
 cd dlrover/go/operator
-make deploy
+make install
 ```
 
 2. Start ElasticJob Controller
