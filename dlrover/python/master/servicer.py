@@ -26,13 +26,11 @@ from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.node_manager import NodeManager
+from dlrover.python.master.shard.dataset_splitter import new_dataset_splitter
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.master.stats.job_collector import JobMetricCollector
 from dlrover.python.master.stats.training_metrics import OpStats, TensorStats
 from dlrover.python.master.watcher.base_watcher import Node
-from dlrover.python.master.shard.dataset_splitter import (
-    new_dataset_splitter
-)
 
 _dlrover_context = Context.singleton_instance()
 _DEFAULT_NUM_MINIBATCHES_PER_SHARD = 100
@@ -145,8 +143,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         self._task_manager.new_dataset(
             request.batch_size,
             request.dataset_size,
-            splitter,
             request.dataset_name,
+            splitter,
             request.task_type,
         )
         if self._job_metric_collector:

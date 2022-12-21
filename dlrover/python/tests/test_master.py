@@ -15,8 +15,8 @@ import unittest
 
 from dlrover.python.common.constants import JobExitReason, NodeStatus, NodeType
 from dlrover.python.master.master import Master
-from dlrover.python.tests.test_utils import MockJobArgs
 from dlrover.python.master.shard.dataset_splitter import new_dataset_splitter
+from dlrover.python.tests.test_utils import MockJobArgs
 
 
 class MasterTest(unittest.TestCase):
@@ -59,7 +59,7 @@ class MasterTest(unittest.TestCase):
             "table",
         )
 
-        self.master.task_manager.new_dataset(10, 10000, splitter, "test")
+        self.master.task_manager.new_dataset(10, 10000, "test", splitter)
 
         for dataset in self.master.task_manager._datasets.values():
             dataset.todo.clear()

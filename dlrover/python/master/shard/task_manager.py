@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import inspect
 import threading
 import time
 from collections import OrderedDict
@@ -58,15 +57,15 @@ class TaskManager(object):
         self,
         batch_size,
         dataset_size,
+        dataset_name,
         dataset_splitter: DatasetSplitter,
-        dataset_name=None,
         task_type=elastic_training_pb2.NONE,
     ):
-        frame = inspect.currentframe()
-        args, _, _, values = inspect.getargvalues(frame)
         logger.info(
-            "Set dataset sharding parameters: %s",
-            [(i, values[i]) for i in args],
+            "New %s dataset with batch size = %s, dataset size = %s",
+            dataset_name,
+            batch_size,
+            dataset_size,
         )
 
         with self._lock:

@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import copy
+import inspect
 import math
 import random
 from abc import ABCMeta, abstractmethod
@@ -313,10 +314,13 @@ def new_dataset_splitter(
     dataset_name,
     storage_type=None,
 ):
-    if (
-        not storage_type
-        or storage_type == TableDatasetSplitter.STORAGE_TYPE
-    ):
+    frame = inspect.currentframe()
+    args, _, _, values = inspect.getargvalues(frame)
+    logger.info(
+        "New a datast splitter with: %s",
+        [(i, values[i]) for i in args],
+    )
+    if not storage_type or storage_type == TableDatasetSplitter.STORAGE_TYPE:
         return TableDatasetSplitter(
             dataset_name=dataset_name,
             dataset_size=dataset_size,
