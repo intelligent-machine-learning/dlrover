@@ -26,6 +26,7 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.node import NodeGroupResource, NodeResource
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
+from dlrover.python.master.shard.dataset_splitter import new_dataset_splitter
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.scheduler.job import JobArgs, NodeArgs
 from dlrover.python.scheduler.kubernetes import k8sClient
@@ -226,15 +227,20 @@ def mock_list_namespaced_pod(label_selector):
 def create_task_manager():
     task_manager = TaskManager(False, SpeedMonitor())
     dataset_name = "test"
+    splitter = new_dataset_splitter(
+        False,
+        100,
+        1000,
+        1,
+        dataset_name,
+        "table",
+    )
     task_manager.new_dataset(
         batch_size=10,
-        num_epochs=1,
         dataset_size=1000,
-        shuffle=False,
-        num_minibatches_per_shard=10,
         dataset_name=dataset_name,
+        dataset_splitter=splitter,
         task_type=elastic_training_pb2.TRAINING,
-        storage_type="table",
     )
     return task_manager
 

@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import copy
+import inspect
 import math
 import random
 from abc import ABCMeta, abstractmethod
@@ -305,38 +306,38 @@ class TextDatasetSplitter(DatasetSplitter):
         return shards
 
 
-class DatasetSplitterFactory(object):
-    @classmethod
-    def create_dataset_splitter(
-        cls,
-        shuffle,
-        shard_size,
-        dataset_size,
-        num_epochs,
-        dataset_name,
-        storage_type=None,
-    ):
-        if (
-            not storage_type
-            or storage_type == TableDatasetSplitter.STORAGE_TYPE
-        ):
-            return TableDatasetSplitter(
-                dataset_name=dataset_name,
-                dataset_size=dataset_size,
-                shard_size=shard_size,
-                num_epochs=num_epochs,
-                shuffle=shuffle,
-            )
-        elif storage_type == TextDatasetSplitter.STORAGE_TYPE:
-            return TextDatasetSplitter(
-                dataset_name=dataset_name,
-                dataset_size=dataset_size,
-                shard_size=shard_size,
-                num_epochs=num_epochs,
-                shuffle=shuffle,
-            )
-        else:
-            raise ValueError("Not support dataset storage %s", storage_type)
+def new_dataset_splitter(
+    shuffle,
+    shard_size,
+    dataset_size,
+    num_epochs,
+    dataset_name,
+    storage_type=None,
+):
+    frame = inspect.currentframe()
+    args, _, _, values = inspect.getargvalues(frame)
+    logger.info(
+        "New a datast splitter with: %s",
+        [(i, values[i]) for i in args],
+    )
+    if not storage_type or storage_type == TableDatasetSplitter.STORAGE_TYPE:
+        return TableDatasetSplitter(
+            dataset_name=dataset_name,
+            dataset_size=dataset_size,
+            shard_size=shard_size,
+            num_epochs=num_epochs,
+            shuffle=shuffle,
+        )
+    elif storage_type == TextDatasetSplitter.STORAGE_TYPE:
+        return TextDatasetSplitter(
+            dataset_name=dataset_name,
+            dataset_size=dataset_size,
+            shard_size=shard_size,
+            num_epochs=num_epochs,
+            shuffle=shuffle,
+        )
+    else:
+        raise ValueError("Not support dataset storage %s", storage_type)
 
 
 class StreamingDatasetSplitter(DatasetSplitter):
