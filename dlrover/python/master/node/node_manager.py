@@ -53,6 +53,7 @@ from dlrover.python.master.resource.job import (
 from dlrover.python.master.resource.optimizer import ResourcePlan
 from dlrover.python.master.scaler.base_scaler import ScalePlan
 from dlrover.python.master.scaler.factory import new_job_scaler
+from dlrover.python.master.scaler.base_scaler import Scaler
 from dlrover.python.master.watcher.base_watcher import NodeEvent
 from dlrover.python.master.watcher.factory import new_node_watcher
 from dlrover.python.scheduler.factory import new_elastic_job
@@ -116,7 +117,7 @@ class NodeManager(object):
 
         self._elastic_job = job
         self._node_watcher = node_watcher
-        self._scaler = job_scaler
+        self._scaler: Scaler = job_scaler
         self._job_optimizer = JobResourceOptimizer(
             self._job_resource.node_group_resources[NodeType.WORKER],
             self._job_resource.node_group_resources[NodeType.PS],
@@ -146,7 +147,7 @@ class NodeManager(object):
 
     def _create_initial_scale_plan(self):
         scale_plan = ScalePlan()
-        scale_plan.node_group_resources = (
+        scale_plan.node_group_resources = copy.deepcopy(
             self._job_resource.node_group_resources
         )
         scale_plan.ps_addrs = self._ps_manager.get_ps_addrs()
