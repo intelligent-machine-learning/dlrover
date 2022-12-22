@@ -51,9 +51,8 @@ from dlrover.python.master.resource.job import (
     JobResourceOptimizer,
 )
 from dlrover.python.master.resource.optimizer import ResourcePlan
-from dlrover.python.master.scaler.base_scaler import ScalePlan
+from dlrover.python.master.scaler.base_scaler import ScalePlan, Scaler
 from dlrover.python.master.scaler.factory import new_job_scaler
-from dlrover.python.master.scaler.base_scaler import Scaler
 from dlrover.python.master.watcher.base_watcher import NodeEvent
 from dlrover.python.master.watcher.factory import new_node_watcher
 from dlrover.python.scheduler.factory import new_elastic_job
