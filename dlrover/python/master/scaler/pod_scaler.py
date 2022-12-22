@@ -284,23 +284,6 @@ class PodScaler(Scaler):
         master_service = "elasticjob-{}-master:50001".format(self._job_name)
         env.append(V1EnvVar(name=NodeEnv.MASTER_ADDR, value=master_service))
 
-        if (
-            self._distribution_strategy
-            == DistributionStrategy.PARAMETER_SERVER
-            and ps_addrs
-        ):
-            tf_config = new_tf_config(
-                job_resource,
-                self.get_node_service_addr,
-                node.type,
-                node.rank_index,
-                ps_addrs,
-            )
-            if tf_config:
-                env.append(
-                    V1EnvVar(name="TF_CONFIG", value=json.dumps(tf_config))
-                )
-
         node_type = node.type
         if node.type not in self._replica_template:
             if node.type in [NodeType.CHIEF, NodeType.EVALUATOR]:
@@ -334,7 +317,28 @@ class PodScaler(Scaler):
         pod.metadata.labels[ElasticJobLabel.RANK_INDEX_KEY] = str(
             node.rank_index
         )
+        self._patch_tf_config_into_env(pod, node, job_resource, ps_addrs)
         return pod
+
+    def _patch_tf_config_into_env(
+        self, pod, node: Node, job_resource, ps_addrs
+    ):
+        if (
+            self._distribution_strategy
+            == DistributionStrategy.PARAMETER_SERVER
+            and ps_addrs
+        ):
+            tf_config = new_tf_config(
+                job_resource,
+                self.get_node_service_addr,
+                node.type,
+                node.rank_index,
+                ps_addrs,
+            )
+            if tf_config:
+                pod.spec.containers[0].env.append(
+                    V1EnvVar(name="TF_CONFIG", value=json.dumps(tf_config))
+                )
 
     def _delete_typed_pod(self, pod_type, id):
         pod_name = get_pod_name(self._job_name, pod_type, id)
@@ -449,56 +453,6 @@ class PodScaler(Scaler):
             owner=self._job,
         )
         self._k8s_client.patch_service(service_name, service)
-
-    def _create_persistent_volume_claim(
-        self, pvc_name, storage, iolimits_enabled
-    ):
-        # Use master pod as service owner so the service will not be
-        #  deleted if the corresponding pod is deleted.
-        pvc = self._create_persistent_volume_claim_object(
-            name=pvc_name,
-            storage=storage,
-            owner=self._job,
-            iolimits_enabled=iolimits_enabled,
-        )
-        return self._k8s_client.create_pvc(pvc)
-
-    def _create_persistent_volume_claim_object(
-        self, name, storage, owner, iolimits_enabled
-    ):
-        labels = self._get_common_labels()
-        # Support speed limitation of SSD
-        annotations = {}
-        if iolimits_enabled:
-            annotations["alibabacloud.csi.alipay.com/enable-iolimits"] = "true"
-        metadata = client.V1ObjectMeta(
-            name=name,
-            labels=labels,
-            # Note: We have to add at least one annotation here.
-            # Otherwise annotation is `None` and cannot be modified
-            # using `with_service()` for cluster specific information.
-            annotations=annotations,
-            owner_references=self._create_owner_reference(owner)
-            if owner
-            else None,
-            namespace=self._namespace,
-        )
-
-        spec = client.V1PersistentVolumeClaimSpec(
-            access_modes=["ReadWriteOnce"],
-            resources=client.V1ResourceRequirements(
-                requests={"storage": storage}
-            ),
-            storage_class_name="alibabacloud-raw-file",
-            volume_mode="Filesystem",
-        )
-        pvc = client.V1PersistentVolumeClaim(
-            api_version="v1",
-            kind="PersistentVolumeClaim",
-            metadata=metadata,
-            spec=spec,
-        )
-        return pvc
 
     def _create_pod_obj(
         self,
