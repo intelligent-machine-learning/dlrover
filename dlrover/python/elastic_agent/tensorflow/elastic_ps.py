@@ -45,7 +45,7 @@ class ElasticPsClient(object):
         if not task_type:
             task_type = get_task_type_from_tf_config()
         if not task_id:
-            task_id = get_task_id_from_tf_config()
+            task_id = int(get_task_id_from_tf_config())
 
         self._task_type = task_type
         self._task_id = task_id
