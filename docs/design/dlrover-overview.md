@@ -211,7 +211,8 @@ In order to overcome the challenge, DLRover supports fixed batch size at runtime
 if the maximum number $N$ of workers is configured. Before the phase of al-reduce,
 the master assigns the number of mini-batch computations to workers according to
 the number $N_0$ of existing workers. The worker 𝑖 will perform $𝑚_𝑖$ mini-batch 
-before merging gradients across workers by all-reduce $𝑚_𝑖 =⌊𝑁/𝑁0⌋+𝐼_{𝑖<𝑁\%𝑁_0}$.
+before merging gradients across workers by all-reduce. $𝑚_𝑖 =⌊𝑁/𝑁_0⌋+1$ if $𝑖<𝑁\%𝑁_0$,
+otherwise, $𝑚_𝑖 =⌊𝑁/𝑁_0⌋$ .
 
 <div align="center">
 <img src="../figures/elastic-allreduce.jpg" alt="Editor" width="500">
