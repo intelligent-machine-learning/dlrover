@@ -6,6 +6,30 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - elastic.iml.github.io
   resources:
   - elasticjobs
@@ -34,7 +58,7 @@ rules:
 - apiGroups:
   - elastic.iml.github.io
   resources:
-  - scaler
+  - scalers
   verbs:
   - create
   - delete
@@ -46,13 +70,13 @@ rules:
 - apiGroups:
   - elastic.iml.github.io
   resources:
-  - scaler/finalizers
+  - scalers/finalizers
   verbs:
   - update
 - apiGroups:
   - elastic.iml.github.io
   resources:
-  - scaler/status
+  - scalers/status
   verbs:
   - get
   - patch

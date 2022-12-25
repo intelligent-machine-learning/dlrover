@@ -61,9 +61,9 @@ func NewScalerReconciler(mgr ctrl.Manager) *ScalerReconciler {
 	return r
 }
 
-//+kubebuilder:rbac:groups=elastic.iml.github.io,resources=scaler,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=elastic.iml.github.io,resources=scaler/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=elastic.iml.github.io,resources=scaler/finalizers,verbs=update
+//+kubebuilder:rbac:groups=elastic.iml.github.io,resources=scalers,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=elastic.iml.github.io,resources=scalers/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=elastic.iml.github.io,resources=scalers/finalizers,verbs=update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.

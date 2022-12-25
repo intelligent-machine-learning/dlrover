@@ -60,6 +60,8 @@ func NewElasticJobReconciler(mgr ctrl.Manager) *ElasticJobReconciler {
 //+kubebuilder:rbac:groups=elastic.iml.github.io,resources=elasticjobs,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=elastic.iml.github.io,resources=elasticjobs/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=elastic.iml.github.io,resources=elasticjobs/finalizers,verbs=update
+//+kubebuilder:rbac:groups="",resources=pods,verbs=create;get;watch;list;update;patch;delete
+//+kubebuilder:rbac:groups="",resources=services,verbs=create;get;watch;list;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.

@@ -33,7 +33,7 @@ const (
 	initMasterContainerMemory  = "2Gi"
 	initMasterContainerStorage = "2Gi"
 	masterCommand              = "python -m dlrover.python.master.main"
-	masterImage                = "dlrover-master:test"
+	masterImage                = "easydl/dlrover-master:test"
 	masterServicePort          = 50001
 	initMasterIndex            = 0
 
@@ -57,7 +57,10 @@ func newManager() *Manager {
 func (m *Manager) newJobMaster(
 	job *elasticv1alpha1.ElasticJob, replicaIndex int,
 ) *corev1.Pod {
-	command := masterCommand + fmt.Sprintf(" --job_name %s --port %d", job.Name, masterServicePort)
+	command := masterCommand + fmt.Sprintf(
+		" --namespace %s --job_name %s --port %d",
+		job.Namespace, job.Name, masterServicePort,
+	)
 	container := corev1.Container{
 		Name:            "main",
 		Image:           masterImage,

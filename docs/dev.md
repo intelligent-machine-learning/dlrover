@@ -25,32 +25,33 @@ And you can start minikube by the command
 minikube start --vm-driver=docker --cpus 6 --memory 6144
 ```
 
-### Start ElasticJob Controller
+### Run ElasticJob Controller
 
-1. Deploy ElasticJob CRD on minikube.
+1. Run the controller in the terminal.
 
 ```bash
 cd dlrover/go/operator
 make install
-```
-
-2. Start ElasticJob Controller
-
-```bash
 make run
 ```
 
-3. Submit an ElasticJob.
+2. Deploy the controller
+
+```bash
+make deploy IMG=easydl/elasticjob-controller:test
+```
+
+### Submit an ElasticJob.
 
 ```bash
 eval $(minikube docker-env)
-kubectl apply -f dlrover/go/operator/config/samples/elastic_v1alpha1_elasticjob.yaml
+kubectl -n dlrover apply -f dlrover/go/operator/config/samples/elastic_v1alpha1_elasticjob.yaml
 ```
 
-4. Check traning nodes.
+Check traning nodes.
 
 ```bash
-kubectl get pods
+kubectl -n dlrover get pods
 ```
 
 ```
