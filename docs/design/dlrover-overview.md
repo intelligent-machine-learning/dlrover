@@ -12,12 +12,15 @@ training completely automatic.
 
 ## Background
 
-In parameter server training jobs, all model parameters
-are distributed across parameter servers. Each worker takes partial training data
-as input and compute gradients of parameters. After that, the worker node sends 
-update gradients to the parameter server node which is keeping parameters. 
+In distributed deep learning, resource configuration is key to the training
+performance. More resource may not result in higher throughput. Using parameter
+server to training a job, we need to take account of the computation
+and communication capability of parameter servers when configuring
+workers. Using allreduce architecture, we need to take
+account of the increasing comunication cost with more workers.
+It is difficult to configure the appropriate resource with different models.
 
-However, model developers (users) have to learn more rather than model training 
+Model developers (users) have to learn more rather than model training 
 algorithms when they are using those jobs to train their models. To 
 run a training job, those users have to specify the required resources for their 
 this job. Then the Kubernetes cluster can allocate the required resources and 
@@ -175,6 +178,48 @@ of parameter servers, the training master will notiy new hosts of
 parameter servers to the Elastic Agent of all Pods. Then the Elastic
 Agent will notify the training framework (e.g. TensorFlow) to restart
 training and restore model paremeters from a checkpoint.
+
+
+#### Elasticity of AllReduce Training
+
+DLRover implements Fault-tolerance of allreduce
+based elastic HOROVOD/TorchElastic. There is a rendezvous server on the master
+node. The master can monitor all workers and assign a rank to each worker.
+Workers can build a communication world by the rendezvous server on the master.
+If the number of worker changes, the master can re-assign new ranks to workers.
+Then, workers build a new world with new ranks.
+
+1. Fault-tolerance. Using elastic HOROVOD/TorchElastic,
+the alive worker will raise a Python Exception if some workers
+fail in the phase of all-reduce or all-gather at runtime. Workers will catch the exception
+and query a new rank from the master to build a new communication world by ‘hvd.init‘.
+Meanwhile, the master watches the event of the failed worker by K8s APIs and
+re-assign new ranks for alive workers. The oldest worker will get
+the rank 0 and broadcast its model and optimization states
+in the memory to other workers. Because the oldest worker certainly has the whole
+model at the time of worker fail. Then, the training continues. 
+
+2. Scalable. After new worker starts, it will send a start signal to the master
+and the master will re-assign ranks with all alive workers. The worker
+periodically queries rank allocation from the master. If the new rank
+is different from the current rank, the worker will stop training and build
+a new world with the new rank.
+
+3. Fixed batch size. Not like Asynchronous training, the batch size $B$ of
+synchronous stochastic gradient descent (SGD) is $𝐵 = 𝑁 ∗ 𝐵_𝑚$ . 𝑁 is the number
+of workers and 𝐵𝑚 is the size of mini-batch performed by each worker at each step. 
+However, the batch size of synchronous SGD affects the model accuracy. 
+So, the model accuracy may fluctuate if the number of workers changes at runtime. 
+In order to overcome the challenge, DLRover supports fixed batch size at runtime
+if the maximum number $N$ of workers is configured. Before the phase of al-reduce,
+the master assigns the number of mini-batch computations to workers according to
+the number $N_0$ of existing workers. The worker 𝑖 will perform $𝑚_𝑖$ mini-batch 
+before merging gradients across workers by all-reduce. $𝑚_𝑖 =⌊𝑁/𝑁_0⌋+1$ if $𝑖<𝑁\%𝑁_0$,
+otherwise, $𝑚_𝑖 =⌊𝑁/𝑁_0⌋$ .
+
+<div align="center">
+<img src="../figures/elastic-allreduce.jpg" alt="Editor" width="500">
+</div>
 
 #### Fault Tolerance
 
