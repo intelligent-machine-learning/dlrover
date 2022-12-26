@@ -12,12 +12,15 @@ training completely automatic.
 
 ## Background
 
-In parameter server training jobs, all model parameters
-are distributed across parameter servers. Each worker takes partial training data
-as input and compute gradients of parameters. After that, the worker node sends 
-update gradients to the parameter server node which is keeping parameters. 
+In distributed deep learning, resource configuration is key to the training
+performance. More resource may not result in higher throughput. Using parameter
+server to training a job, we need to take account of the computation
+and communication capability of parameter servers when configuring
+workers. Using allreduce architecture, we need to take
+account of the increasing comunication cost with more workers.
+It is difficult to configure the appropriate resource with different models.
 
-However, model developers (users) have to learn more rather than model training 
+Model developers (users) have to learn more rather than model training 
 algorithms when they are using those jobs to train their models. To 
 run a training job, those users have to specify the required resources for their 
 this job. Then the Kubernetes cluster can allocate the required resources and 
@@ -179,7 +182,7 @@ training and restore model paremeters from a checkpoint.
 
 #### Elasticity of AllReduce Training
 
-DLRover implements Fault-tolerance of ring-based allreduce
+DLRover implements Fault-tolerance of allreduce
 based elastic HOROVOD/TorchElastic. There is a rendezvous server on the master
 node. The master can monitor all workers and assign a rank to each worker.
 Workers can build a communication world by the rendezvous server on the master.

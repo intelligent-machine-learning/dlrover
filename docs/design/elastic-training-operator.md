@@ -1,11 +1,11 @@
-# Elastic Training Operator For EasyDL
+# Elastic Training Operator For DLRover
 
-The design described how the elastic operator manages Pods of a EasyDL
+The design described how the elastic operator manages Pods of a DLRover
 training job.
 
 ## Motivation
 
-Computing Resources is important for training performance. EasyDL can
+Computing Resources is important for training performance. DLRover can
 automatically configure resources of a job and dynamically adjust
 resources of a job during training to optimize training performance.
 The operator should be capable of modifying resoures of a job according
@@ -131,11 +131,11 @@ If the `spec.resource_updation` is not null, `elastic-operator` will
 launch a new Pod with the `resource` in `resource_updation` to replace
 the Pod with the `resource_updation.name`.
 
-### EasyDL Automatically and Dynamically Configures Resources
+### DLRover Automatically and Dynamically Configures Resources
 
 At the submission of a job, `elastic-operator` only launches a Pod for
 `ElasticTrainer`. `ElasticTrainer` extracts features from the job and queries
-the startup resources from EasyDL `Brain`. Then, `ElasticTrainer` generate and
+the startup resources from DLRover `Brain`. Then, `ElasticTrainer` generate and
 apply a `Scaler` with the startup resources. `elastic-operator` creates
 Pods according to the `Scaler` after watching a creation event of
 the `Scaler`. After workers and parameter servers starts, `ElasticTrainer`
