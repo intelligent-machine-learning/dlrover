@@ -1,10 +1,25 @@
-from penrose.util.log_util import default_logger as logger
+# Copyright 2022 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import os
+
+import penrose
+from penrose.constants.platform_constants import PlatformConstants
 from penrose.mock.tf_process_scheduler import TFProcessScheduler
 from penrose.util.args_util import get_parsed_args
-from penrose.constants.platform_constants import PlatformConstants
-import penrose
+from penrose.util.log_util import default_logger as logger
 from penrose.worker.tf_kubernetes_worker import TFKubernetesWorker
+
 
 def print_info(append_detail=False):
     """Print penrose information"""
@@ -35,9 +50,7 @@ def execute(args):
         worker = TFKubernetesWorker(args)
     elif platform in [PlatformConstants.Local()]:
         # local mode, actually we use a scheduler
-        logger.info(
-            "create ProcessScheduler with run_type = ProcessScheduler"
-        )
+        logger.info("create ProcessScheduler with run_type = ProcessScheduler")
         worker = TFProcessScheduler(
             ps_num=args.ps_num,
             worker_num=args.worker_num,

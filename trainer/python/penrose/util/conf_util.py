@@ -1,11 +1,21 @@
-from pyhocon import ConfigFactory, ConfigTree, ConfigMissingException
-from pyhocon.converter import HOCONConverter
+# Copyright 2022 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
-from penrose.util.log_util import default_logger as logger
-from penrose.util import reflect_util
 import inspect
 
-
+from penrose.util import reflect_util
+from penrose.util.log_util import default_logger as logger
+from pyhocon import ConfigFactory, ConfigMissingException, ConfigTree
 
 config_tree_get_ori = ConfigTree.get
 
@@ -34,8 +44,7 @@ class Singleton:
 
 
 class Configuration(Singleton):
-    """wrapper get and set for new conf
-    """
+    """wrapper get and set for new conf"""
 
     def __init__(self, inner_dict=None):
         object.__setattr__(
@@ -54,7 +63,6 @@ class Configuration(Singleton):
             f"get value from conf: the key is {key} and value is {val}"
         )
         logger.info(f"get value from conf: value type is {type(val)}")
-        # to avoid 'dict' object has no attribute 'put' and ConfigTree get key which doesn't exist
         if type(val) is dict:
             # to avoid ConfigTree is a sub-class of dict
             val = ConfigFactory.from_dict(val)
@@ -97,6 +105,7 @@ class Configuration(Singleton):
 
     def __reduce__(self):
         return (self.__class__, (self.inner_dict,))
+
 
 class ConfigurationManagerMeta(type):
     _all_conf_by_name = {}  # type:dict
@@ -173,19 +182,14 @@ class ConfigurationManagerMeta(type):
 
 
 class ConfigurationManagerInterface(metaclass=ConfigurationManagerMeta):
-    """only for configuration class to inherit
-    """
+    """only for configuration class to inherit"""
 
     pass
 
 
-def get_conf(
-    py_conf=None
-):
+def get_conf(py_conf=None):
     """Get `ConfigurationManager` from args"""
-    logger.info(
-        f"Entering get_conf, original py_conf is {py_conf}"
-    )
+    logger.info(f"Entering get_conf, original py_conf is {py_conf}")
     attribute_class = py_conf
     if py_conf:
         if isinstance(py_conf, str):
@@ -196,7 +200,9 @@ def get_conf(
             properties[i] = getattr(attribute_class, i)
 
     attribute_class = type(
-        "py_conf", (ConfigurationManagerInterface,), properties,
+        "py_conf",
+        (ConfigurationManagerInterface,),
+        properties,
     )
     all_conf = ConfigurationManagerMeta.merge_configs()
     return all_conf

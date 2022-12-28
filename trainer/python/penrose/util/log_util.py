@@ -1,10 +1,24 @@
+# Copyright 2022 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import logging
+import os
 from logging.handlers import RotatingFileHandler
 
-import os
 
 def get_log_file_path_from_env():
-    return os.getenv("PENROSE_LOG_DIR","./log")
+    return os.getenv("PENROSE_LOG_DIR", "./log")
+
 
 DEFAULT_LEVEL = logging.INFO
 
@@ -12,11 +26,13 @@ DEFAULT_FORMATTER = logging.Formatter(
     "[%(asctime)s] [%(levelname)s]"
     "[%(filename)s:%(lineno)d:%(funcName)s] %(message)s"
 )
+
+
 class LogFactory(object):
     def __init__(self):
         self.file_handler = None
         self.stream_handler = None
-        self.log_file_path = get_log_file_path_from_env()+str(os.getpid())
+        self.log_file_path = get_log_file_path_from_env() + str(os.getpid())
         self.formatter = None
         self.log_level = logging.INFO
         self.handlers = []
@@ -36,17 +52,19 @@ class LogFactory(object):
     def set_log_level(self, level=None):
         for h in self.handlers:
             h.setLevel(self.log_level)
-        self.logger.setLevel(level = self.log_level)
+        self.logger.setLevel(level=self.log_level)
 
     def set_stream_handler(self):
         self.stream_handler = logging.StreamHandler()
         self.handlers.append(self.stream_handler)
 
     def set_file_handler(self):
-        self.file_handler = RotatingFileHandler(self.log_file_path,
-                                       encoding="utf8",
-                                       maxBytes=512 * 1024 * 1024,
-                                       backupCount = 3)
+        self.file_handler = RotatingFileHandler(
+            self.log_file_path,
+            encoding="utf8",
+            maxBytes=512 * 1024 * 1024,
+            backupCount=3,
+        )
         self.handlers.append(self.file_handler)
 
     def update_default_logger(self):

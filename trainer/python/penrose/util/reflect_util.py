@@ -1,4 +1,18 @@
+# Copyright 2022 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from __future__ import absolute_import, division, print_function
+
 import importlib
 
 from penrose.util.log_util import default_logger as logger
@@ -62,17 +76,17 @@ class Importer(object):
         import_module_content_names, msg=None, raise_if_error=True
     ):
         """import multi class via `import_module_content`
-         return first available class
+           return first available class
 
-      Args:
-        import_module_content_names: tuple or list of name of module
-        msg: same as `import_module_content`
-        raise_if_error: same as `import_module_content`
+        Args:
+          import_module_content_names: tuple or list of name of module
+          msg: same as `import_module_content`
+          raise_if_error: same as `import_module_content`
 
-      Returns:
-          imported content: None for any exception
-          status: True for a successfully import
-      """
+        Returns:
+            imported content: None for any exception
+            status: True for a successfully import
+        """
         ret_clazz, ok = None, False
         for name in import_module_content_names:
             ret_clazz, ok = Importer.import_module_content(
