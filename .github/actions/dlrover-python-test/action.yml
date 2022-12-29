@@ -1,6 +1,6 @@
 ---
-name: trainer-test
-description: run pytest to execute python test cases of trainer
+name: dlrover-python-test
+description: run pytest to execute python test cases of dlrover python
 runs:
   using: 'docker'
   image: "easydl/easydl:ci"
