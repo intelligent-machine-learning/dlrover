@@ -19,7 +19,7 @@ import signal
 import sys
 import threading
 
-from penrose.util.log_util import default_logger as logger
+from trainer.util.log_util import default_logger as logger
 
 
 class BaseProcessScheduler(object):

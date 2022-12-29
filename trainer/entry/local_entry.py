@@ -13,8 +13,8 @@
 
 import os
 
-from penrose.platform import starter
-from penrose.util.log_util import default_logger as logger
+from trainer.platform import starter
+from trainer.util.log_util import default_logger as logger
 
 if __name__ == "__main__":
     logger.info(

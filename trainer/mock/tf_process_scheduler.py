@@ -17,9 +17,9 @@ import os
 import subprocess
 import sys
 
-from penrose.mock.base_process_scheduler import BaseProcessScheduler
-from penrose.util.log_util import default_logger as logger
-from penrose.util.net_util import get_available_port
+from trainer.mock.base_process_scheduler import BaseProcessScheduler
+from trainer.util.log_util import default_logger as logger
+from trainer.util.net_util import get_available_port
 
 
 def start_subprocess(tf_config):

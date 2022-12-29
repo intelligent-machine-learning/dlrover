@@ -13,17 +13,17 @@
 
 import os
 
-import penrose
-from penrose.constants.platform_constants import PlatformConstants
-from penrose.mock.tf_process_scheduler import TFProcessScheduler
-from penrose.util.args_util import get_parsed_args
-from penrose.util.log_util import default_logger as logger
-from penrose.worker.tf_kubernetes_worker import TFKubernetesWorker
+import trainer
+from trainer.constants.platform_constants import PlatformConstants
+from trainer.mock.tf_process_scheduler import TFProcessScheduler
+from trainer.util.args_util import get_parsed_args
+from trainer.util.log_util import default_logger as logger
+from trainer.worker.tf_kubernetes_worker import TFKubernetesWorker
 
 
 def print_info(append_detail=False):
     """Print penrose information"""
-    penrose_dir = os.path.dirname(penrose.__file__)
+    penrose_dir = os.path.dirname(trainer.__file__)
     file_path = os.path.join(penrose_dir, "COMMIT_INFO")
     if not os.path.exists(file_path):
         logger.info("Whl is not built by sh build.sh, please be careful.")
@@ -32,9 +32,9 @@ def print_info(append_detail=False):
         commit_id = fd.readline().strip()
         user = fd.readline().strip()
         time = fd.readline().strip()
-    logger.info(penrose.logo_string)
+    logger.info(trainer.logo_string)
     logger.info("-" * 30)
-    logger.info("Penrose version: %s", penrose.__version__)
+    logger.info("Penrose version: %s", trainer.__version__)
     logger.info("Build by: %s", user)
     logger.info("Build time: %s", time)
     logger.info("Commit id: %s", commit_id)

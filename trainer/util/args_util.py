@@ -13,7 +13,7 @@
 
 import argparse
 
-from penrose.util.log_util import default_logger as logger
+from trainer.util.log_util import default_logger as logger
 
 
 def add_platform_args(parser):

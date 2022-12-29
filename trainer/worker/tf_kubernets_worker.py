@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from penrose.util.conf_util import get_conf
+from trainer.util.conf_util import get_conf
 
 
 class TFKubernetesWorker:
