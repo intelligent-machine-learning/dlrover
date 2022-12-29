@@ -14,11 +14,11 @@
 import os
 
 import trainer
-from trainer.constants.platform_constants import PlatformConstants
-from trainer.mock.tf_process_scheduler import TFProcessScheduler
-from trainer.util.args_util import get_parsed_args
-from trainer.util.log_util import default_logger as logger
-from trainer.worker.tf_kubernetes_worker import TFKubernetesWorker
+from dlrover.trainer.constants.platform_constants import PlatformConstants
+from dlrover.trainer.mock.tf_process_scheduler import TFProcessScheduler
+from dlrover.trainer.util.args_util import get_parsed_args
+from dlrover.trainer.util.log_util import default_logger as logger
+from dlrover.trainer.worker.tf_kubernetes_worker import TFKubernetesWorker
 
 
 def print_info(append_detail=False):

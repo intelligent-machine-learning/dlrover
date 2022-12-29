@@ -17,9 +17,9 @@ import os
 import subprocess
 import sys
 
-from trainer.mock.base_process_scheduler import BaseProcessScheduler
-from trainer.util.log_util import default_logger as logger
-from trainer.util.net_util import get_available_port
+from dlrover.trainer.mock.base_process_scheduler import BaseProcessScheduler
+from dlrover.trainer.util.log_util import default_logger as logger
+from dlrover.trainer.util.net_util import get_available_port
 
 
 def start_subprocess(tf_config):

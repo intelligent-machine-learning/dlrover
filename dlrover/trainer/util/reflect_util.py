@@ -15,7 +15,7 @@ from __future__ import absolute_import, division, print_function
 
 import importlib
 
-from trainer.util.log_util import default_logger as logger
+from dlrover.trainer.util.log_util import default_logger as logger
 
 
 class Importer(object):

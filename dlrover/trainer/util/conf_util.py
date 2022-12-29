@@ -14,8 +14,8 @@
 import inspect
 
 from pyhocon import ConfigFactory, ConfigMissingException, ConfigTree
-from trainer.util import reflect_util
-from trainer.util.log_util import default_logger as logger
+from dlrover.trainer.util import reflect_util
+from dlrover.trainer.util.log_util import default_logger as logger
 
 config_tree_get_ori = ConfigTree.get
 

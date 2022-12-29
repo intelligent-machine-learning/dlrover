@@ -13,7 +13,7 @@
 
 import unittest
 
-from trainer.util.conf_util import (
+from dlrover.trainer.util.conf_util import (
     ConfigurationManagerInterface,
     ConfigurationManagerMeta,
     get_conf,

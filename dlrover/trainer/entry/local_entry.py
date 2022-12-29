@@ -13,8 +13,8 @@
 
 import os
 
-from trainer.platform import starter
-from trainer.util.log_util import default_logger as logger
+from dlrover.trainer.platform import starter
+from dlrover.trainer.util.log_util import default_logger as logger
 
 if __name__ == "__main__":
     logger.info(
