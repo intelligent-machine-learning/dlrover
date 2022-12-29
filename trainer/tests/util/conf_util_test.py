@@ -1,6 +1,6 @@
 import unittest 
 
-from trainer.util.conf_util import ConfigurationManagerMeta, ConfigurationManagerInterface
+from trainer.util.conf_util import ConfigurationManagerMeta, ConfigurationManagerInterface, get_conf
 
 class NewConfigurationManagerTest(unittest.TestCase):
     def tearDown(self):
@@ -132,9 +132,34 @@ class NewConfigurationManagerTest(unittest.TestCase):
             test_set = {"path": "dd", "sls": {"ak": "23", "sk": "ss"}}
 
         final_conf = ConfigurationManagerMeta.merge_configs()
+        self.assertTrue(final_conf.get("a")==22)
         final_conf.clear()
         self.assertEqual(str(final_conf), "{}")
 
 
+    def test_get_conf(self):
+
+        class TrainConf(object):
+            batch_size = 64 
+            log_steps = 100 
+            save_steps = 1000 
+            save_min_secs = 60  
+            save_max_secs = 60*6
+
+            params = {
+                "deep_embedding_dim": 8,
+                "learning_rate": 0.0001,
+                "l1": 0.0,
+                "l21": 0.0,
+                "l2": 0.0,
+                "optimizer": "group_adam",
+                "log_steps": 100
+            }
+        conf = get_conf(TrainConf)
+        self.assertTrue(conf.get("batch_size")==64)
+        self.assertTrue(conf.get("epoch")==None)
+        self.assertTrue(conf.get("epoch", 1)==1)
+
+ 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
