@@ -33,17 +33,20 @@ def start_subprocess(tf_config):
     worker_argv.extend(["--platform", "kubernetes"])
     logger.info(worker_argv)
     env = dict(os.environ)
+    fild_path = os.path.dirname(__file__)
+    fild_path = fild_path.split("/")
+    python_path = "/".join(fild_path[: len(fild_path) - 3])
+    logger.info(python_path)
     env.update(
         {
             "TF_CONFIG": json.dumps(tf_config),
-            "PYTHONPATH": "/easydl/easydl",
+            "PYTHONPATH": python_path,
         }
     )
     logger.info(json.dumps(tf_config))
     env["WORKFLOW_ID"] = os.getenv("WORKFLOW_ID", default="test_id")
     env["USERNUMBER"] = os.getenv("USERNUMBER", default="test_user")
     process = subprocess.Popen(worker_argv, shell=False, env=env)
-    # process = subprocess.Popen("python -c 'import os; import time;print(os.getpid());time.sleep(10)'", shell=True, env=env)
     return process
 
 

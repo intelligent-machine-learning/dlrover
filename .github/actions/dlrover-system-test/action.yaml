@@ -1,0 +1,14 @@
+---
+name: dlrover-trainer-test
+description: run pytest to execute python test cases of dlrover-trainer
+runs:
+  using: 'docker'
+  image: "easydl/easydl:ci"
+  args:
+    - "/bin/bash"
+    - "-c"
+    - "pip install kubernetes grpcio-tools psutil \
+&& python -m grpc_tools.protoc -I. \
+dlrover/proto/*.proto --python_out=. --grpc_python_out=. \
+&& pip install pyhocon tensorflow==1.13.1 \
+&& cd dlrover/trainer/examples/estimator_executor && sh run.sh"

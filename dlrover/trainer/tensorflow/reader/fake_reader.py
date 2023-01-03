@@ -10,9 +10,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-import tensorflow as tf
-
 from dlrover.python.elastic_agent.sharding.client import ShardingClient
 from dlrover.trainer.util.log_util import default_logger as logger
 
@@ -80,7 +77,5 @@ class FakeReader:
             for data in self._read_data():
                 self._consumed_data += 1
                 if self._consumed_data == self._data_nums:
-                    raise tf.errors.OutOfRangeError(
-                        None, None, "data out of range"
-                    )
+                    return
                 yield data
