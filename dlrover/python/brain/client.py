@@ -82,9 +82,7 @@ class BrainClient(object):
             by elasticdl command-line.
         """
         if brain_channel:
-            self._brain_stub = brain_pb2_grpc.BrainStub(
-                brain_channel
-            )
+            self._brain_stub = brain_pb2_grpc.BrainStub(brain_channel)
         else:
             logger.warning("Cannot initialize brain channel")
 
