@@ -11,4 +11,4 @@ runs:
 && python -m grpc_tools.protoc -I. \
 dlrover/proto/*.proto --python_out=. --grpc_python_out=. \
 && pip install pyhocon tensorflow==1.13.1 \
-&& cd dlrover/trainer/examples/estimator_executor && sh run.sh"
+&& export PYTHONPATH=`pwd` && cd dlrover/trainer/examples/estimator_executor && sh run.sh"
