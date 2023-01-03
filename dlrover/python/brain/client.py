@@ -21,8 +21,7 @@ DATA_STORE = "data_store_elasticdl"
 OPTIMIZE_PROCESSOR = "running_training_job_optimize_processor"
 BASE_OPTIMIZE_PROCESSOR = "base_optimize_processor"
 
-_ENV_ADMINISTER_ADDR_KEY = "EASYDL_BRAIN_ADMINISTER_ADDR"
-_ENV_PROCESSOR_ADDR_KEY = "EASYDL_BRAIN_PROCESSOR_ADDR"
+_ENV_BRAIN_ADDR_KEY = "EASYDL_BRAIN_SERVICE_ADDR"
 
 
 def catch_exception(func):
@@ -60,7 +59,7 @@ class JobMeta(object):
         self.user = user
 
 
-class EasydlClient(object):
+class BrainClient(object):
     """EasyClient provides APIs to access EasyDL service via gRPC calls.
 
     Usage:
@@ -72,7 +71,7 @@ class EasydlClient(object):
         easydl_client.report(...)
     """
 
-    def __init__(self, administer_channel, processor_channel):
+    def __init__(self, brain_channel):
         """Initialize an EasyDL client.
         Args:
             channel: grpc.Channel
@@ -82,22 +81,14 @@ class EasydlClient(object):
             the unique and ordered worker ID assigned
             by elasticdl command-line.
         """
-        if administer_channel:
-            self._administer_stub = brain_pb2_grpc.EasyDLStub(
-                administer_channel
-            )
+        if brain_channel:
+            self._brain_stub = brain_pb2_grpc.BrainStub(brain_channel)
         else:
-            logger.warning("Cannot initialize administer channel")
-        if processor_channel:
-            self._processor_stub = brain_pb2_grpc.OptimizeProcessorStub(
-                processor_channel
-            )
-        else:
-            logger.warning("Cannot initialize processor channel")
+            logger.warning("Cannot initialize brain channel")
 
     def report_metrics(self, job_metrics):
         """Report job metrics to administer service"""
-        return self._administer_stub.persist_metrics(job_metrics)
+        return self._brain_stub.persist_metrics(job_metrics)
 
     def get_job_metrics(self, job_uuid):
         """Get the job metrics by the job uuid.
@@ -112,12 +103,12 @@ class EasydlClient(object):
         """
         request = brain_pb2.JobMetricsRequest()
         request.job_uuid = job_uuid
-        return self._administer_stub.get_job_metrics(request)
+        return self._brain_stub.get_job_metrics(request)
 
     def request_optimization(self, opt_request):
         """Get the optimization plan from the processor service"""
         logger.debug("Optimization request is %s", opt_request)
-        return self._processor_stub.optimize(opt_request)
+        return self._brain_stub.optimize(opt_request)
 
     def report_training_hyper_params(self, job_meta, hyper_params):
         job_metrics = init_job_metrics_message(job_meta)
@@ -256,7 +247,7 @@ class EasydlClient(object):
     def get_config(self, key):
         request = brain_pb2.ConfigRequest()
         request.config_key = key
-        response = self._administer_stub.get_config(request)
+        response = self._brain_stub.get_config(request)
         if response.response.success:
             return response.config_value
         return None
@@ -268,15 +259,13 @@ def build_easydl_client():
     Example:
         ```
         import os
-        os.environ["EASYDL_BRAIN_ADMINISTER_ADDR"] = "xxx"
+        os.environ["EASYDL_BRAIN_SERVICE_ADDR"] = "xxx"
         client = build_easydl_client()
         ```
     """
-    administer_addr = os.getenv(_ENV_ADMINISTER_ADDR_KEY, None)
-    processor_addr = os.getenv(_ENV_PROCESSOR_ADDR_KEY, None)
-    administer_channel = build_channel(administer_addr)
-    processor_channel = build_channel(processor_addr)
-    return EasydlClient(administer_channel, processor_channel)
+    brain_addr = os.getenv(_ENV_BRAIN_ADDR_KEY, None)
+    channel = build_channel(brain_addr)
+    return BrainClient(channel)
 
 
 class GlobalEasydlClient(object):

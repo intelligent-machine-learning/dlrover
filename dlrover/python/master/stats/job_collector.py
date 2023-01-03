@@ -111,7 +111,7 @@ class JobMetricCollector(BaseMetricCollector):
         self._stats_reporter.report_training_hyper_params(params)
 
     @BaseMetricCollector.catch_exception
-    def report_job_type(self, job_type):
+    def collect_job_type(self, job_type):
         self._stats_reporter.report_job_type(job_type)
 
     @BaseMetricCollector.catch_exception

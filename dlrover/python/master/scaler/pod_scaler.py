@@ -428,7 +428,6 @@ class PodScaler(Scaler):
             namespace=self._namespace,
         )
         selector = {
-            "app": ElasticJobLabel.APP_NAME,
             ElasticJobLabel.JOB_KEY: self._job_name,
             ElasticJobLabel.REPLICA_TYPE_KEY: replica_type,
             ElasticJobLabel.REPLICA_INDEX_KEY: str(replica_index),

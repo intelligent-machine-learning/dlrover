@@ -55,7 +55,7 @@ class ResourceOptimizerTest(unittest.TestCase):
     def test_brain_optimizer(self):
         optimizer = BrainResoureOptimizer("1111", ResourceLimits(100, 102400))
         optimizer._brain_client = build_easydl_client()
-        optimizer._brain_client._processor_stub = MockStub()
+        optimizer._brain_client._brain_stub = MockStub()
         plan: ResourcePlan = optimizer.generate_opt_plan("", {})
         worker = plan.node_group_resources[NodeType.WORKER]
         self.assertEqual(worker.count, 5)
@@ -96,7 +96,7 @@ class ResourceOptimizerTest(unittest.TestCase):
 class JobResourceOptimizerTest(unittest.TestCase):
     def setUp(self):
         self._client = build_easydl_client()
-        self._client._processor_stub = MockStub()
+        self._client._brain_stub = MockStub()
         worker_resource = NodeGroupResource(
             0,
             NodeResource(0, 0),
