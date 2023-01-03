@@ -22,9 +22,9 @@ from dlrover.trainer.worker.tf_kubernetes_worker import TFKubernetesWorker
 
 
 def print_info(append_detail=False):
-    """Print penrose information"""
-    penrose_dir = os.path.dirname(trainer.__file__)
-    file_path = os.path.join(penrose_dir, "COMMIT_INFO")
+    """Print dlrover_trainer information"""
+    dlrover_trainer = os.path.dirname(trainer.__file__)
+    file_path = os.path.join(dlrover_trainer, "COMMIT_INFO")
     if not os.path.exists(file_path):
         logger.info("Whl is not built by sh build.sh, please be careful.")
         return

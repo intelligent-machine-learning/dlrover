@@ -40,7 +40,6 @@ class EstimatorExecutor(BaseExecutor):
     def __init__(self, context, can_pickle=False, context_from_storage=False):
         """
         Args:
-            context: penrose.context.ExecutorContext
             unpickle: need pickle.unpickle(context) or not
             context_from_storage: We saved the `context` value in storage and
                                 passed the storage-key as the `context`
@@ -88,8 +87,6 @@ class EstimatorExecutor(BaseExecutor):
         + EstimatorSpec
         + TrainSpec
         + Estimator
-        + export_model_context: a dict that matches:
-            penrose.util.internal.model_export_util.ModelExporter.export_model
         """
         classifier_class = self._get_classifier()
         if classifier_class is None:
@@ -101,7 +98,7 @@ class EstimatorExecutor(BaseExecutor):
             return
         logger.info(
             "found `classifier_class` in your estimator class"
-            " penrose will decide the training and evaluting process."
+            " dlrover.trainer will decide the training and evaluting process."
         )
         if isinstance(classifier_class, str):
             self._classifier_class = get_class(classifier_class)

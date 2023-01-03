@@ -17,7 +17,7 @@ from dlrover.trainer.platform import starter
 
 
 def main():
-    """Entrance for penrose"""
+    """Entrance for dlrover.trainer"""
     starter.run()
 
 

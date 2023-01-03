@@ -50,7 +50,7 @@ def add_platform_args(parser):
 
 
 def build_parser():
-    """Build a parser for penrose"""
+    """Build a parser for dlrover trainer"""
     parser = argparse.ArgumentParser()
     add_platform_args(parser)
     return parser

@@ -17,7 +17,7 @@ from logging.handlers import RotatingFileHandler
 
 
 def get_log_file_path_from_env():
-    return os.getenv("PENROSE_LOG_DIR", "./log")
+    return os.getenv("DLROVER_TRAINER_LOG_DIR", "./log")
 
 
 DEFAULT_LEVEL = logging.INFO
@@ -36,7 +36,7 @@ class LogFactory(object):
         self.formatter = None
         self.log_level = logging.INFO
         self.handlers = []
-        self.logger = logging.getLogger("penrose")
+        self.logger = logging.getLogger("dlrover.trainer")
 
     def set_formatter(self, formatter=None):
         self.formatter = DEFAULT_FORMATTER or formatter

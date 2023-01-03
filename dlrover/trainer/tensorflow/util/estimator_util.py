@@ -55,7 +55,7 @@ def hook_estimator_call_model_fn(params=None):
 
     estimator_call_model_fn = Estimator._call_model_fn
 
-    def penrose_call_model_fn(*args, **kwargs):
+    def dlrover_call_model_fn(*args, **kwargs):
         model_fn_results = estimator_call_model_fn(*args, **kwargs)
         if params:
             keys = [
@@ -68,4 +68,4 @@ def hook_estimator_call_model_fn(params=None):
                 model_fn_results = append_hooks(model_fn_results, key, params)
         return model_fn_results
 
-    Estimator._call_model_fn = penrose_call_model_fn
+    Estimator._call_model_fn = dlrover_call_model_fn

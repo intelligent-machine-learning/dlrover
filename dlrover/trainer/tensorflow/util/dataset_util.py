@@ -26,7 +26,7 @@ class DatasetUtil(object):
     def __init__(
         self,
         path=None,  # input path
-        columns=None,  # penrose columns
+        columns=None,  # dlrover.trainer columns
         reader_fn=None,  # streaming data,
         schema=None,  # by default schema=[column.name]
         batch_size=128,
@@ -131,7 +131,7 @@ class DatasetUtil(object):
     ):
         """
         Args:
-            task_conf: penrose task conf
+            task_conf: dlrover.trainer task conf
             data_name: current data name train_set/test_set..
             initializable: whether reinitialize dataset
             wrapped_reader: for online learning
