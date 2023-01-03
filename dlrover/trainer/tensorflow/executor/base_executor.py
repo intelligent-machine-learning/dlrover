@@ -74,8 +74,6 @@ class BaseExecutor:
              "chief": ["web04-pod1.default.svc:5000"],
              "worker": ["web04-pod2.default.svc:5000"],
         }
-        "保留 ps"
-        "保留 本地worker"
         """
         mini_cluster_spec = {}
         ps_hosts = []

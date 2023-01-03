@@ -35,8 +35,6 @@ class MyEstimator(tf.estimator.Estimator):
         )
 
     def model_fn(self, features, labels, mode, params):
-        # 具体的含义见
-        # https://www.tensorflow.org/api_docs/python/tf/estimator/Estimator#args
         optimizer = tf.train.AdamOptimizer()
         x = features["x"]
         w = tf.Variable(0.1, name="x")

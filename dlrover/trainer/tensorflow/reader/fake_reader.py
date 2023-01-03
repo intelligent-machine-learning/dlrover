@@ -32,7 +32,7 @@ def build_data_shard_service(
 
 
 class FakeReader:
-    def __init__(self, num_epochs=1, batch_size=64, enable_easydl=False):
+    def __init__(self, num_epochs=1, batch_size=64, enable_easydl=True):
 
         self._num_epochs = num_epochs
         self._batch_size = batch_size
