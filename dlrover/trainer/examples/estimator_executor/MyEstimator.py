@@ -17,8 +17,7 @@ from dlrover.trainer.util.log_util import default_logger as logger
 
 tf.disable_v2_behavior()
 
-
-tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.INFO)
+tf.logging.set_verbosity(tf.logging.INFO)
 
 
 class MyEstimator(tf.estimator.Estimator):
