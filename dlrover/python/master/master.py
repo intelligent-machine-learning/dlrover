@@ -116,7 +116,7 @@ class Master(object):
         if self.node_manager:
             self.node_manager.start()
         if self.job_metric_collector:
-            self.job_metric_collector.report_job_type(
+            self.job_metric_collector.collect_job_type(
                 self._job_args.distribution_strategy
             )
 
