@@ -13,6 +13,7 @@
 
 import numpy as np
 import tensorflow as tf
+from tensorflow.python.ops import parsing_ops
 
 from dlrover.trainer.tensorflow.reader.fake_reader import FakeReader
 from dlrover.trainer.tensorflow.util import path_util
@@ -82,7 +83,7 @@ class DatasetUtil(object):
             default_columns_names.append(i.name)
 
         def parse_csv(value):
-            columns = tf.decode_csv(
+            columns = parsing_ops.decode_csv(
                 value, record_defaults=default_columns_types, field_delim=","
             )
             features = dict(zip(default_columns_names, columns))

@@ -11,9 +11,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from dlrover.trainer.util.log_util import default_logger as logger
+
+tf.disable_v2_behavior()
+
 
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.INFO)
 
@@ -23,8 +26,7 @@ class MyEstimator(tf.estimator.Estimator):
 
     def __init__(self, model_dir, config=None, params=None):
 
-        logger.info("buildinf model fn")
-        logger.info("config is {}".format(config))
+        logger.info("config is {}".format(str(config)))
         run_config = config
 
         super(MyEstimator, self).__init__(

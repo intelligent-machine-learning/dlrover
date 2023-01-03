@@ -11,13 +11,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 from tensorflow.python.training.basic_session_run_hooks import (
     SecondOrStepTimer,
 )
 from tensorflow.python.training.session_run_hook import SessionRunHook
 
 from dlrover.trainer.util.log_util import default_logger as logger
+
+tf.disable_v2_behavior()
 
 
 class GlobalStepHook(SessionRunHook):

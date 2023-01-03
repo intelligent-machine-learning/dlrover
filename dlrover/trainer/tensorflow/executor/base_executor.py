@@ -14,11 +14,13 @@
 import json
 import os
 
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 from tensorflow.core.protobuf import cluster_pb2
 from tensorflow.python.training import server_lib
 
 from dlrover.trainer.util.log_util import default_logger as logger
+
+tf.disable_v2_behavior()
 
 
 class BaseExecutor:
