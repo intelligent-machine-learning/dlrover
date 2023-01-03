@@ -11,9 +11,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import tensorflow as tf
+
 from dlrover.python.elastic_agent.sharding.client import ShardingClient
 from dlrover.trainer.util.log_util import default_logger as logger
-import tensorflow as tf
+
 
 def build_data_shard_service(
     batch_size=1,
@@ -76,7 +78,9 @@ class FakeReader:
     def iterator(self):
         while True:
             for data in self._read_data():
-                self._consumed_data+=1
+                self._consumed_data += 1
                 if self._consumed_data == self._data_nums:
-                    raise tf.errors.OutOfRangeError(None, None,"data out of range")
+                    raise tf.errors.OutOfRangeError(
+                        None, None, "data out of range"
+                    )
                 yield data

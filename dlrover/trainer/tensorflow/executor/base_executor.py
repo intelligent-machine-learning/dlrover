@@ -115,7 +115,7 @@ class BaseExecutor:
         return cluster_def
 
     def start_server(self):
-        if self.task_type!="evaluator":
+        if self.task_type != "evaluator":
             logger.info("starting server")
             self.server = server_lib.Server(
                 {"localhost": [self.address]}, protocol="grpc"

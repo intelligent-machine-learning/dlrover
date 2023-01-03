@@ -115,7 +115,7 @@ class EstimatorExecutor(BaseExecutor):
         config, params = self._prepare_estimator_config_and_params()
         self._tf_estimator = self._classifier_class(
             self._model_dir, config, params
-            )
+        )
 
     def _prepare_estimator_config_and_params(self):
         config = self.get_config(self.cluster_spec)
