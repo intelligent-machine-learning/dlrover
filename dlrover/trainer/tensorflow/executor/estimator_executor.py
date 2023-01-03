@@ -1,21 +1,40 @@
-from dlrover.constants.tf_constants import TFConstants
-from dlrover.util.log_util import default_logger as logger
-from dlrover.tensorflow.util.dataset_util import DatasetUtil
-from dlrover.util.reflect_util import get_class
-from dlrover.tensorflow.util.estimator_util import hook_estimator_call_model_fn
-from dlrover.tensorflow.hooks.global_step_hook import GlobalStepHook
-from tensorflow.python.training.session_run_hook import SessionRunHook
-from dlrover.tensorflow.executor.base_executor import BaseExecutor
-import tensorflow as tf
+# Copyright 2023 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import os
+
+import tensorflow as tf
+
+from dlrover.trainer.constants.tf_constants import TFConstants
+from dlrover.trainer.tensorflow.executor.base_executor import BaseExecutor
+from dlrover.trainer.tensorflow.hooks.elastic_data_shard_report_hook import (
+    ElasticDataShardReportHook,
+)
+from dlrover.trainer.tensorflow.hooks.global_step_hook import GlobalStepHook
+from dlrover.trainer.tensorflow.util.dataset_util import DatasetUtil
+from dlrover.trainer.tensorflow.util.estimator_util import (
+    hook_estimator_call_model_fn,
+)
+from dlrover.trainer.util.log_util import default_logger as logger
+from dlrover.trainer.util.reflect_util import get_class
 
 try:
     from dlrover.python.elastic_agent.tensorflow.hooks import (
-        ElasticDataShardReportHook,
         ReportModelMetricHook,
     )
-except Exception as e:
+except Exception:
     logger.warning("fail to import dlrover")
+
 
 class EstimatorExecutor(BaseExecutor):
     def __init__(self, context, can_pickle=False, context_from_storage=False):
@@ -27,10 +46,9 @@ class EstimatorExecutor(BaseExecutor):
                                 passed the storage-key as the `context`
         """
 
-        super(EstimatorExecutor).__init__() 
+        super(EstimatorExecutor, self).__init__()
         self.get_cluster_info_by_tf_config()
 
-        
         self._initialize_estimator_related()
         self._prepare_env()
         # prepare estimator class from user
@@ -38,8 +56,6 @@ class EstimatorExecutor(BaseExecutor):
         self._task_conf = context
         self._prepare_estimator_class()
         self._prepare_estimator()
-
-
 
     def gen_model_dir(self):
         self._model_dir = "/input/model/test1"
@@ -95,44 +111,24 @@ class EstimatorExecutor(BaseExecutor):
         self._prepare_dataset()
         self._prepare_train_spec()
         self._prepare_eval_spec()
-        
+
         config, params = self._prepare_estimator_config_and_params()
         self._tf_estimator = self._classifier_class(
             self._model_dir, config, params
-        )
-
+            )
 
     def _prepare_estimator_config_and_params(self):
-        session_config = self._task_conf.get(
-            TFConstants.SessionConfig.name, None
-        )
-        run_config = self._task_conf.get(TFConstants.RunConfig.name, {})
-        
         config = self.get_config(self.cluster_spec)
-        config._model_dir=self._model_dir
+        config._model_dir = self._model_dir
         params = {}
-        log_steps = self._task_conf.get(
-            TFConstants.LogSteps.name, TFConstants.LogSteps()
-        )
         training_hooks = [GlobalStepHook()]
         data_shard_client = self.train_dataset.reader.data_shard_client
         if data_shard_client is not None:
             logger.info("appending ElasticDataShardReportHook")
-            class ElasticDataShardReportHook(SessionRunHook):
-                def __init__(self, sharding_client):
-                    self._sharding_client = sharding_client
-
-                def after_run(self, run_context, run_values):
-                    try:
-                        self._sharding_client.report_batch_done()
-                        logger.info("report_batch_done")
-                    except Exception as ex:
-                        logger.error("DLrover agent: report batch done failed: %s", ex)
-
             shard_report_hook = ElasticDataShardReportHook(data_shard_client)
-            #model_metric_report_hook = ReportModelMetricHook()
+            model_metric_report_hook = ReportModelMetricHook()
             training_hooks.append(shard_report_hook)
-            #training_hooks.append(model_metric_report_hook)
+            training_hooks.append(model_metric_report_hook)
         params[TFConstants.EstimatorTrainingHooks.name] = training_hooks
         hook_estimator_call_model_fn(params)
         user_params = {}
@@ -156,7 +152,8 @@ class EstimatorExecutor(BaseExecutor):
         max_steps = self._task_conf.get(TFConstants.MaxSteps.name, None)
         input_fn = self._train_input_fn
         self._train_spec = tf.estimator.TrainSpec(
-            input_fn=input_fn, max_steps=max_steps,
+            input_fn=input_fn,
+            max_steps=max_steps,
         )
 
     def _prepare_eval_spec(self):
@@ -168,7 +165,7 @@ class EstimatorExecutor(BaseExecutor):
             throttle_secs=10,
             start_delay_secs=5,
         )
-    
+
     def train_and_evaluate(self):
         logger.info("starting train and evaluate")
         try:

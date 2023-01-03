@@ -1,12 +1,27 @@
-from dlrover.tensorflow.util import path_util
-from dlrover.tensorflow.reader.fake_reader import FakeReader
-from dlrover.util.log_util import default_logger as logger
-import tensorflow as tf
+# Copyright 2023 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import numpy as np
+import tensorflow as tf
+
+from dlrover.trainer.tensorflow.reader.fake_reader import FakeReader
+from dlrover.trainer.tensorflow.util import path_util
+from dlrover.trainer.util.log_util import default_logger as logger
 
 
 class DatasetUtil(object):
     """Prepare dataset from generator and parse them"""
+
     def __init__(
         self,
         path=None,  # input path
@@ -14,7 +29,8 @@ class DatasetUtil(object):
         reader_fn=None,  # streaming data,
         schema=None,  # by default schema=[column.name]
         batch_size=128,
-        epoch=10):
+        epoch=10,
+    ):
 
         self.path = path
         self.columns = columns
@@ -24,6 +40,7 @@ class DatasetUtil(object):
         def reader_fn():
             for data in self.reader.iterator():
                 yield data
+
         self._reader_fn = reader_fn
         if self._reader_fn is None:
             if isinstance(self.path, (list, tuple)):
@@ -32,7 +49,9 @@ class DatasetUtil(object):
                 scheme, path = path_util.parse_uri(self.path)
             if scheme == path_util.FILE_SCHEME:
                 if isinstance(path, (list, tuple)):
-                    path_without_scheme = [path_util.parse_uri(p)[1] for p in path]
+                    path_without_scheme = [
+                        path_util.parse_uri(p)[1] for p in path
+                    ]
                 else:
                     path_without_scheme = path
                 dataset = tf.data.TextLineDataset(path_without_scheme)
@@ -61,11 +80,15 @@ class DatasetUtil(object):
                 default_val = np.dtype(dtype).type(0)
             default_columns_types.append(default_val)
             default_columns_names.append(i.name)
+
         def parse_csv(value):
-            columns = tf.decode_csv(value, record_defaults=default_columns_types,field_delim=",")
+            columns = tf.decode_csv(
+                value, record_defaults=default_columns_types, field_delim=","
+            )
             features = dict(zip(default_columns_names, columns))
-            labels = features.pop('y')
+            labels = features.pop("y")
             return features, labels
+
         return dataset.map(parse_csv, num_parallel_calls=10)
 
     def process_dataset(self, dataset):
@@ -75,9 +98,7 @@ class DatasetUtil(object):
         return lambda: self.make_dataset()
 
     @staticmethod
-    def get_dataset_from_uri(
-        path
-    ):
+    def get_dataset_from_uri(path):
         """Get dataset from URI
 
         Args:
@@ -124,12 +145,8 @@ class DatasetUtil(object):
         columns = data_set.get("columns")
         reader_fn = data_set.get("reader_fn")
         dataset_util_kwargs = {
-                "path": path,
-                "columns": columns,
-                "reader_fn": reader_fn,
+            "path": path,
+            "columns": columns,
+            "reader_fn": reader_fn,
         }
         return DatasetUtil(**dataset_util_kwargs)
-
-
-
-

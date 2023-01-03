@@ -12,11 +12,12 @@
 # limitations under the License.
 
 from dlrover.trainer.util.conf_util import get_conf
-
+from dlrover.trainer.util.log_util import default_logger as logger
+from dlrover.trainer.tensorflow.util import common_util
+from dlrover.trainer.tensorflow.executor.estimator_executor import EstimatorExecutor
 
 class TFKubernetesWorker:
-    """KubemakerWorker"""
-
+    """TFKubemakerWorker"""
     def __init__(self, args):
         """
         Argument:
@@ -27,10 +28,19 @@ class TFKubernetesWorker:
         self.init_executor(task_conf)
 
     def init_executor(self, task_conf):
-        pass
-
+        self.estimator = EstimatorExecutor(task_conf)
+    
     def start_failover_monitor(self):
-        pass
+        pass 
 
     def run(self):
-        pass
+        global_dict = common_util.GlobalDict()
+        global_dict["executor"] = self.estimator
+        self.start_failover_monitor()
+        logger.info("KubernetesWorker is running!")
+        self.estimator.start_server()
+        if self.estimator.task_type == "ps":
+            logger.info("ps server join")
+            self.estimator.server.join()
+        else:
+            self.estimator.train_and_evaluate()

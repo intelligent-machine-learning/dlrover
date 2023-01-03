@@ -13,7 +13,7 @@
 
 import sys
 
-from penrose.platform import starter
+from dlrover.trainer.platform import starter
 
 
 def main():

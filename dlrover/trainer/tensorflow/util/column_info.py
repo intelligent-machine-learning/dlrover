@@ -1,4 +1,18 @@
+# Copyright 2023 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from dlrover.trainer.tensorflow.util.common_util import add_prop
+
 
 class Property(object):
     """Property descriptor"""
@@ -22,6 +36,7 @@ class Property(object):
     def __doc__(self):
         return self._doc
 
+
 @add_prop(
     ("dtype", "data type"),
     ("name", "feature_name"),
@@ -39,15 +54,6 @@ class Column(object):
 
     def set_default(self):
         """Set default value of column fields"""
-        if self.is_sparse:
-            self.separator = self.separator or "\\u0001"
-            self.group_separator = self.group_separator or "\\u0002"
-        else:
-            self.separator = self.separator or ","
-
-        self.group = common_util.get_group_num(self.group)
-        self.shape = common_util.get_shape(
-            self.name, self.is_sparse, self.shape, self.group
-        )
+        pass
 
     __repr__ = __str__
