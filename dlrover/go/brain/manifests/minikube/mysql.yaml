@@ -4,11 +4,14 @@ metadata:
   name: mysql
   namespace: dlrover
 spec:
+  type: NodePort
   ports:
     - port: 3306
+      protocol: TCP
+      targetPort: 3306
   selector:
     app: mysql
-  clusterIP: None
+#  clusterIP: None
 ---
 
 apiVersion: apps/v1

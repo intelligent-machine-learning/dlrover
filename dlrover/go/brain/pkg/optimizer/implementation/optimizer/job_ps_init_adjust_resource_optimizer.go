@@ -70,7 +70,7 @@ func (optimizer *JobPSInitAdjustResourceOptimizer) Optimize(conf *optconfig.Opti
 	cond := &datastoreapi.Condition{
 		Type: common.TypeGetDataGetJobMetrics,
 		Extra: &mysql.JobMetricsCondition{
-			JobUUID: jobMeta.UUID,
+			UID: jobMeta.UUID,
 		},
 	}
 	jobMetrics := &mysql.JobMetrics{}

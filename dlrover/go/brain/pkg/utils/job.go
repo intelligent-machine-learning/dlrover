@@ -279,8 +279,7 @@ func ConvertDBJobMetricsToJobMetrics(job *mysql.JobMetrics) *common.JobMetrics {
 		return nil
 	}
 	return &common.JobMetrics{
-		JobUUID:            job.JobUUID,
-		JobName:            job.JobName,
+		JobUUID:            job.UID,
 		HyperParamsFeature: job.HyperParamsFeature,
 		JobFeature:         job.JobFeature,
 		DataSetFeature:     job.DataSetFeature,

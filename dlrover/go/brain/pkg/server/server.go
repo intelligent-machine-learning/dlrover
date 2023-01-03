@@ -98,7 +98,7 @@ func (s *BrainServer) GetJobMetrics(ctx context.Context, in *pb.JobMetricsReques
 	cond := &datastoreapi.Condition{
 		Type: common.TypeGetDataGetJobMetrics,
 		Extra: &mysql.JobMetricsCondition{
-			JobUUID: in.JobUuid,
+			UID: in.JobUuid,
 		},
 	}
 	jobMetrics := &mysql.JobMetrics{}

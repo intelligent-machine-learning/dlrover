@@ -78,7 +78,7 @@ func TestJobPSInitialResourceOptimizer(t *testing.T) {
 	assert.NoError(t, err)
 
 	jobMetrics := &mysql.JobMetrics{
-		JobUUID:      jobUUID,
+		UID:          jobUUID,
 		JobRuntime:   string(runtimeStr),
 		ModelFeature: string(modelFeatureStr),
 	}
@@ -144,8 +144,7 @@ func TestJobPSResourceOptimizerForPSOom(t *testing.T) {
 	assert.NoError(t, err)
 
 	jobMetrics := &mysql.JobMetrics{
-		JobUUID:    jobUUID,
-		JobName:    jobName,
+		UID:        jobUUID,
 		JobRuntime: string(rtsStr),
 	}
 	dataStore.Client.JobMetricsRecorder.Upsert(jobMetrics)

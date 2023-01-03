@@ -31,10 +31,7 @@ func NewJobMetricsFakeRecorder() JobMetricsRecorderInterface {
 }
 
 func canApplyJobMetricsCondition(condition *JobMetricsCondition, jobMetrics *JobMetrics) bool {
-	if len(condition.JobUUID) > 0 && condition.JobUUID != jobMetrics.JobUUID {
-		return false
-	}
-	if len(condition.JobName) > 0 && condition.JobName != jobMetrics.JobName {
+	if len(condition.UID) > 0 && condition.UID != jobMetrics.UID {
 		return false
 	}
 	return true
@@ -70,9 +67,9 @@ func (r *JobMetricsFakeRecorder) List(condition *JobMetricsCondition, jobs *[]*J
 
 // Upsert insert or update a row
 func (r *JobMetricsFakeRecorder) Upsert(jobMetrics *JobMetrics) error {
-	if len(jobMetrics.JobUUID) == 0 {
+	if len(jobMetrics.UID) == 0 {
 		return errors.New("JobUUID can not be empty")
 	}
-	r.records[jobMetrics.JobUUID] = jobMetrics
+	r.records[jobMetrics.UID] = jobMetrics
 	return nil
 }
