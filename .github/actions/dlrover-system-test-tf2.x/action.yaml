@@ -1,0 +1,15 @@
+---
+name: dlrover-system-test-tf2.x
+description: run pytest to execute python test cases of dlrover-trainer
+runs:
+  using: 'docker'
+  image: "python:3.8.16"
+  args:
+    - "/bin/bash"
+    - "-c"
+    - "pip install kubernetes grpcio-tools psutil \
+&& python -m grpc_tools.protoc -I. \
+dlrover/proto/*.proto --python_out=. --grpc_python_out=. \
+&& pip install pyhocon tensorflow==2.11 \
+&& export PYTHONPATH=`pwd` && \
+cd dlrover/trainer/examples/estimator_executor && sh run.sh"
