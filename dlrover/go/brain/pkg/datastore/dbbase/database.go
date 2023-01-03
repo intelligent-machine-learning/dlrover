@@ -17,6 +17,7 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/DATA-DOG/go-sqlmock"
+	_ "github.com/go-sql-driver/mysql"
 	log "github.com/golang/glog"
 	"strings"
 	"time"

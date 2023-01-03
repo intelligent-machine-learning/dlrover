@@ -14,6 +14,7 @@
 package mysql
 
 import (
+	log "github.com/golang/glog"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/config"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/dbbase"
 )
@@ -31,6 +32,8 @@ func NewClient(conf *config.Config) *Client {
 	pw := conf.GetString(config.DBPassword)
 	engineType := conf.GetString(config.DBEngineType)
 	url := conf.GetString(config.DBURL)
+
+	log.Infof("create mysql db with user(%s), password(%s), engineType(%s), url(%s)", user, pw, engineType, url)
 
 	db := dbbase.NewDatabase(user, pw, engineType, url)
 	return &Client{
