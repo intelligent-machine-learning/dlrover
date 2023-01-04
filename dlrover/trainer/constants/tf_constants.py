@@ -17,6 +17,11 @@ from dlrover.trainer.constants.constants import Constant
 class TFConstants(object):
     """Platform related constants"""
 
+    Worker = Constant("worker", "worker")
+    Chief = Constant("chief", "chief")
+    PS = Constant("ps", "ps")
+    Evalutor = Constant("evaluator", "evaluator")
+
     PlatformName = Constant("Platform")
     EstimatorClassifier = Constant("estimator")
     ClassifierTypeEstimator = Constant("estimator", "estimator")
