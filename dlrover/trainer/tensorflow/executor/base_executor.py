@@ -58,7 +58,7 @@ class BaseExecutor:
                     },
          "task": {"type": "ps", "index": 0}}'
         """
-    
+
         tf_config = self.get_tf_config_from_env()
         task_type = tf_config["task"]["type"]
         task_id = tf_config["task"]["index"]

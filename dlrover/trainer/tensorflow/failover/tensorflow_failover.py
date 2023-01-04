@@ -21,10 +21,10 @@ import threading
 import time
 from typing import List
 
+from dlrover.trainer.constants.tf_constants import TFConstants
 from dlrover.trainer.tensorflow.util import common_util
 from dlrover.trainer.tensorflow.util.failover_client_util import FailoverClient
 from dlrover.trainer.tensorflow.util.tf_patch_util import hotpatch_for_dynet
-from dlrover.trainer.constants.tf_constants import TFConstants
 from dlrover.trainer.util.log_util import default_logger as logger
 
 
@@ -136,7 +136,7 @@ class TensorflowFailover:
             # Get worker's index and address from previous session config
             # instead of TF_CONFIG
             for i in config.cluster_def.job:
-                if i.name in [TFConstants.Worker, TFConstants.Cheif]:
+                if i.name in [TFConstants.Worker, TFConstants.Chief]:
                     task = i.tasks[0]
                     if isinstance(task, dict):
                         ind, address = list(task.items())[0]
