@@ -28,10 +28,10 @@ class DatasetUtil(object):
 
     def __init__(
         self,
-        path=None,  # input path
-        columns: List[Column] = [],  # dlrover.trainer columns
-        reader_fn=None,  # streaming data,
-        schema=None,  # by default schema=[column.name]
+        path=None,   
+        columns: List[Column] = [],  
+        reader_fn=None,  
+        schema=None,  
         batch_size=128,
         epoch=10,
     ):
