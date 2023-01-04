@@ -153,10 +153,10 @@ class TensorflowFailover:
             worker_job.name = self.task_type
             worker_job.tasks[ind] = address
             ps_job = config.cluster_def.job.add()
-            ps_job.name = TFConstants.PS
+            ps_job.name = TFConstants.PS()
             for i, j in enumerate(cluster_spec):
                 ps_job.tasks[i] = j
-            logger.info("after updating, session config is {}".format(config))
+            logger.info("after updating, session config is %s.", str(vars(config)))
 
             # TODO: before relaunch ps, there should a sync between all workers
             if self.task_type == "chief":
