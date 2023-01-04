@@ -78,7 +78,7 @@ func (optimizer *JobWorkerCreateResourceOptimizer) Optimize(conf *optconfig.Opti
 	cond = &datastoreapi.Condition{
 		Type: common.TypeGetDataGetJobMetrics,
 		Extra: &mysql.JobMetricsCondition{
-			JobUUID: jobMeta.UUID,
+			UID: jobMeta.UUID,
 		},
 	}
 	jobMetrics := &mysql.JobMetrics{}
@@ -116,7 +116,7 @@ func (optimizer *JobWorkerCreateResourceOptimizer) Optimize(conf *optconfig.Opti
 		cond = &datastoreapi.Condition{
 			Type: common.TypeGetDataGetJobMetrics,
 			Extra: &mysql.JobMetricsCondition{
-				JobUUID: historyJob.JobUUID,
+				UID: historyJob.JobUUID,
 			},
 		}
 		err = optimizer.dataStore.GetData(cond, historyJobMetrics)

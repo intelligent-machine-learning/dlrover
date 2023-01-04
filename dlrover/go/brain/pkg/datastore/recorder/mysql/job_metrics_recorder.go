@@ -23,14 +23,12 @@ const TableJobMetrics = "job_metrics"
 
 // JobMetricsCondition is the struct of sql condition for job metrics table
 type JobMetricsCondition struct {
-	JobUUID string
-	JobName string
+	UID string
 }
 
 // JobMetrics is the struct of job metrics for mysql db
 type JobMetrics struct {
-	JobUUID            string
-	JobName            string
+	UID                string
 	HyperParamsFeature string
 	JobFeature         string
 	DataSetFeature     string
@@ -45,11 +43,8 @@ type JobMetrics struct {
 
 // Apply applies JobMetricsCondition
 func (c *JobMetricsCondition) Apply(session *xorm.Session) *xorm.Session {
-	if c.JobUUID != "" {
-		session.Where("job_uuid = ?", c.JobUUID)
-	}
-	if c.JobName != "" {
-		session.Where("job_name = ?", c.JobName)
+	if c.UID != "" {
+		session.Where("uid = ?", c.UID)
 	}
 	return session
 }

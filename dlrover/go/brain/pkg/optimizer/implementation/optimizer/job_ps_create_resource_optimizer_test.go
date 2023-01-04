@@ -131,18 +131,15 @@ func TestOptimizeJobPSCreateResource(t *testing.T) {
 	assert.NoError(t, err)
 
 	jobMetrics := &mysql.JobMetrics{
-		JobUUID: jobUUID,
-		JobName: jobName,
+		UID: jobUUID,
 	}
 	jobMetrics1 := &mysql.JobMetrics{
-		JobUUID:    jobUUID1,
-		JobName:    jobName1,
+		UID:        jobUUID1,
 		JobRuntime: string(runtimeStr1),
 		ExitReason: optimplcomm.ExitReasonCompleted,
 	}
 	jobMetrics2 := &mysql.JobMetrics{
-		JobUUID:    jobUUID2,
-		JobName:    jobName2,
+		UID:        jobUUID2,
 		JobRuntime: string(runtimeStr2),
 		ExitReason: optimplcomm.ExitReasonCompleted,
 	}

@@ -50,8 +50,7 @@ func TestJobWorkerCreateResourceOptimizerWithoutOOM(t *testing.T) {
 	dataStore.Client.JobRecorder.Upsert(job)
 
 	jobMetrics := &mysql.JobMetrics{
-		JobUUID: jobUUID,
-		JobName: jobName,
+		UID: jobUUID,
 	}
 	dataStore.Client.JobMetricsRecorder.Upsert(jobMetrics)
 
@@ -111,14 +110,12 @@ func TestJobWorkerCreateResourceOptimizerWithoutOOM(t *testing.T) {
 	assert.NoError(t, err)
 
 	jobMetrics1 := &mysql.JobMetrics{
-		JobUUID:    jobUUID1,
-		JobName:    jobName1,
+		UID:        jobUUID1,
 		JobRuntime: string(rtStr1),
 		ExitReason: optimplcomm.ExitReasonCompleted,
 	}
 	jobMetrics2 := &mysql.JobMetrics{
-		JobUUID:    jobUUID2,
-		JobName:    jobName2,
+		UID:        jobUUID2,
 		JobRuntime: string(rtStr2),
 		ExitReason: optimplcomm.ExitReasonCompleted,
 	}
@@ -174,8 +171,7 @@ func TestJobWorkerCreateResourceOptimizerWithOOM(t *testing.T) {
 	dataStore.Client.JobRecorder.Upsert(job)
 
 	jobMetrics := &mysql.JobMetrics{
-		JobUUID: jobUUID,
-		JobName: jobName,
+		UID: jobUUID,
 	}
 	dataStore.Client.JobMetricsRecorder.Upsert(jobMetrics)
 
@@ -211,8 +207,7 @@ func TestJobWorkerCreateResourceOptimizerWithOOM(t *testing.T) {
 	assert.NoError(t, err)
 
 	jobMetrics1 := &mysql.JobMetrics{
-		JobUUID:    jobUUID1,
-		JobName:    jobName1,
+		UID:        jobUUID1,
 		JobRuntime: string(rtStr1),
 		ExitReason: optimplcomm.ExitReasonCompleted,
 	}

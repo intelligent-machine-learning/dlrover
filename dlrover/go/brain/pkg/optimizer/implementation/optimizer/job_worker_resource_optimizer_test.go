@@ -100,7 +100,7 @@ func TestJobWorkerResourceOptimizer(t *testing.T) {
 	assert.NoError(t, err)
 
 	jobMetrics := &mysql.JobMetrics{
-		JobUUID:            jobUUID,
+		UID:                jobUUID,
 		JobRuntime:         string(rtInfosStr),
 		DataSetFeature:     string(setFeatureStr),
 		HyperParamsFeature: string(hyperParamStr),

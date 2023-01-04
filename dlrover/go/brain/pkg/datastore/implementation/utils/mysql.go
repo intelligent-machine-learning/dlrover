@@ -101,9 +101,6 @@ func GetData(client *mysql.Client, condition *datastoreapi.Condition, data inter
 func PersistJobMetrics(client *mysql.Client, jobMetrics *pb.JobMetrics) error {
 	storeJobMetrics := queryJobMetrics(client, jobMetrics.JobMeta.Uuid)
 	log.Infof("Report job metrics is %s", jobMetrics.JobMeta)
-	if jobMetrics.JobMeta.Name != "" {
-		storeJobMetrics.JobName = jobMetrics.JobMeta.Name
-	}
 
 	switch jobMetrics.MetricsType {
 	case pb.MetricsType_Job_Exit_Reason:
@@ -175,13 +172,13 @@ func PersistJobMetrics(client *mysql.Client, jobMetrics *pb.JobMetrics) error {
 
 func queryJobMetrics(client *mysql.Client, jobUUID string) *mysql.JobMetrics {
 	cond := &mysql.JobMetricsCondition{
-		JobUUID: jobUUID,
+		UID: jobUUID,
 	}
 	jobMetrics := &mysql.JobMetrics{}
 	err := client.JobMetricsRecorder.Get(cond, jobMetrics)
 	if err != nil {
 		log.Infof("Not found job %s in db, insert a new one.", jobUUID)
-		jobMetrics.JobUUID = jobUUID
+		jobMetrics.UID = jobUUID
 	}
 	return jobMetrics
 }
@@ -299,7 +296,7 @@ func persistOptimization(client *mysql.Client, jobMetrics *mysql.JobMetrics, in 
 	if jobMetrics.Optimization != "" {
 		err := json.Unmarshal([]byte(jobMetrics.Optimization), &jobOptimizations)
 		if err != nil {
-			log.Errorf("Fail to unmarshal %s optimization json: %v", jobMetrics.JobUUID, err)
+			log.Errorf("Fail to unmarshal %s optimization json: %v", jobMetrics.UID, err)
 		}
 	}
 
@@ -315,7 +312,7 @@ func persistOptimization(client *mysql.Client, jobMetrics *mysql.JobMetrics, in 
 
 	optimizationVal, err := json.Marshal(jobOptimizations)
 	if err != nil {
-		log.Errorf("Fail to dump %s optimization json: %v", jobMetrics.JobUUID, err)
+		log.Errorf("Fail to dump %s optimization json: %v", jobMetrics.UID, err)
 	}
 
 	jobMetrics.Optimization = string(optimizationVal)
