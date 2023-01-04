@@ -212,8 +212,10 @@ class TableDatasetSplitter(DatasetSplitter):
         if self._shuffle:
             random.shuffle(self._shards)
         self.epoch += 1
+        return self._shards
 
     def _create_shards_with_range(self, start_idx, end_idx) -> List[Shard]:
+        logger.info("Create shard with range [%s, %s)", start_idx, end_idx)
         shards = []
         num_shards = (end_idx - start_idx) // self._shard_size
         for _ in range(num_shards):
@@ -233,12 +235,7 @@ class TableDatasetSplitter(DatasetSplitter):
                 end=start_idx + num_records_left,
             )
             shards.append(shard)
-        logger.info(
-            "Create %s shards with range [%s, %s) ",
-            len(shards),
-            start_idx,
-            end_idx,
-        )
+        logger.info("%s shards are created ", len(shards))
         return shards
 
 
@@ -281,6 +278,7 @@ class TextDatasetSplitter(DatasetSplitter):
             self._dataset_size,
         )
         self.epoch += 1
+        return self._shards
 
     def _create_shards_with_indices(self, start_idx, end_idx) -> List[Shard]:
         shards = []
@@ -433,6 +431,7 @@ class StreamingDatasetSplitter(DatasetSplitter):
             )
         )
         self._create_shards_with_range()
+        return self._shards
 
     def get_partition_offset(self):
         return self._partition_offset

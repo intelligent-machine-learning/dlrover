@@ -182,7 +182,8 @@ class TaskManager(object):
                         doing_task.node_id, cur
                     )
                     if (
-                        doing_task.task.type == elastic_training_pb2.EVALUATION
+                        doing_task.task.task_type
+                        == elastic_training_pb2.EVALUATION
                         and cur - start
                         > max(
                             _TASK_TIMEOUT_THRESHOLD_SECS,

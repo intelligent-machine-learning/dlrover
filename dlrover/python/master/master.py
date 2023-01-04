@@ -73,6 +73,10 @@ class Master(object):
         self.job_metric_collector = self._create_metric_collector_if_needed(
             args
         )
+        if self.job_metric_collector:
+            self.job_metric_collector.collect_job_type(
+                self._job_args.distribution_strategy
+            )
         self.elastic_ps_service = _create_elastic_ps_service_if_needed(args)
         self._master_server = self._create_master_grpc_service(port, args)
         self._job_args = args
@@ -115,10 +119,6 @@ class Master(object):
             self.rendezvous_server.start()
         if self.node_manager:
             self.node_manager.start()
-        if self.job_metric_collector:
-            self.job_metric_collector.collect_job_type(
-                self._job_args.distribution_strategy
-            )
 
         # Start the master GRPC server
         logger.info("Starting master RPC server")
