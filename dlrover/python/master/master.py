@@ -73,10 +73,6 @@ class Master(object):
         self.job_metric_collector = self._create_metric_collector_if_needed(
             args
         )
-        if self.job_metric_collector:
-            self.job_metric_collector.collect_job_type(
-                self._job_args.distribution_strategy
-            )
         self.elastic_ps_service = _create_elastic_ps_service_if_needed(args)
         self._master_server = self._create_master_grpc_service(port, args)
         self._job_args = args
@@ -99,9 +95,10 @@ class Master(object):
         if not params.enable_dynamic_sharding:
             return None
         job_uuid = params.job_uuid
-        return JobMetricCollector(
+        collector = JobMetricCollector(
             job_uuid, params.namespace, params.cluster, params.user
         )
+        collector.collect_job_type(params.distribution_strategy)
 
     def prepare(self):
         # Composite the components
