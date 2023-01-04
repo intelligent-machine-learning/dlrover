@@ -186,7 +186,7 @@ class Node(object):
             self.status = status
 
     def update_resource_usage(self, cpu, memory):
-        self.used_resource.cpu = cpu
+        self.used_resource.cpu = round(cpu, 2)
         self.used_resource.memory = memory
 
     def get_relaunch_node_info(self, new_id):
