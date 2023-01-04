@@ -7,4 +7,4 @@ runs:
   args:
     - "/bin/bash"
     - "-c"
-    - "pip install pyhocon && python -m pytest dlrover/trainer/tests"
+    - "pip install pyhocon tensorflow==1.15.5 && python -m pytest dlrover/trainer/tests"
