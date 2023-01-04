@@ -171,5 +171,5 @@ class BaseExecutor:
             config._model_dir = "model_dir"
             config._log_step_count_steps = 1e20
             config._server_name = self.address
-            logger.info("config is %s", config)
+            logger.info("config is %s", str(vars(config)))
         return config
