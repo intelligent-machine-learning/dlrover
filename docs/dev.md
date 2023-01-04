@@ -27,6 +27,9 @@ minikube start --vm-driver=docker --cpus 6 --memory 6144
 
 ### Run ElasticJob Controller
 
+We can run the ElasticJob in the terminal or deploy the controller with
+a docker image.
+
 1. Run the controller in the terminal.
 
 ```bash
