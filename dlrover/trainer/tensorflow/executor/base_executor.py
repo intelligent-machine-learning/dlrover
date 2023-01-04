@@ -24,14 +24,29 @@ tf.disable_v2_behavior()
 
 
 class BaseExecutor:
+    """BaseExecutor is a wrapper for tensorflow model.
+    It helps prepare cluster spec, session config and
+    tf.estimator.RunConfig and starts server.
+    """
+
     def __init__(self):
         self.cluster_spec = None
+        self.mini_cluster_spec = None
         self.task_id = None
         self.task_type = None
         self.address = None
         self.role = None
-        self.cluster_spec = None
-        self.mini_cluster_spec = None
+
+    def get_tf_config_from_env(self):
+        tf_config = json.loads(os.environ.get("TF_CONFIG") or "{}")
+        if not tf_config:
+            logger.error(
+                "TF_CONFIG should not be empty in distributed environment."
+            )
+            raise Exception(
+                "TF_CONFIG should not be empty in distributed environment."
+            )
+        return tf_config
 
     def get_cluster_info_by_tf_config(self):
         """
@@ -43,20 +58,15 @@ class BaseExecutor:
          "task": {"type": "ps", "index": 0}}'
         """
         self.address = None
-        TF_CONFIG = os.getenv("TF_CONFIG")
-        if not isinstance(TF_CONFIG, str):
-            logger.error("fail to parse tf config")
-        TF_CONFIG = json.loads(TF_CONFIG)
-        task_type = TF_CONFIG["task"]["type"]
-        task_id = TF_CONFIG["task"]["index"]
+        tf_config = self.get_tf_config_from_env()
+        task_type = tf_config["task"]["type"]
+        task_id = tf_config["task"]["index"]
         self.task_type = task_type
         self.task_id = task_id
         self.role = task_type + ":" + str(task_id)
-        self.cluster_spec = TF_CONFIG["cluster"]
+        self.cluster_spec = tf_config["cluster"]
         if self.task_type != "evaluator":
-            self.address = TF_CONFIG["cluster"][task_type][task_id]
-            # self.cluster_spec = TF_CONFIG["cluster"]
-
+            self.address = tf_config["cluster"][task_type][task_id]
             logger.info(
                 "cluster spec is {} \
                     task_type is {} \
@@ -70,7 +80,7 @@ class BaseExecutor:
             )
 
     def get_cluster_def(self, cluster_spec):
-        """
+        """get cluster def from cluster spec
         {
              "ps": ["web04-pod2.default.svc:5002"],
              "chief": ["web04-pod1.default.svc:5000"],
@@ -104,17 +114,12 @@ class BaseExecutor:
             mini_cluster_spec["chief"] = worker_hosts
         else:
             mini_cluster_spec["worker"] = worker_hosts
-
-        if self.task_type == "chief":
-            print(1)
-            # mini_cluster_spec.pop("worker")
-            # mini_cluster_spec["chief"] = worker_hosts
-
         self.mini_cluster_spec = mini_cluster_spec
-        logger.info("cluster def is:\n {}".format(cluster_def))
+        logger.info("cluster def is:\n %s", cluster_def)
         return cluster_def
 
     def start_server(self):
+        """start tensorflow server not using cluster spec."""
         if self.task_type != "evaluator":
             logger.info("starting server")
             self.server = server_lib.Server(
@@ -123,10 +128,13 @@ class BaseExecutor:
             self.server.start()
 
     def get_config(self, cluster_spec):
+        """build session config and estimator.RunConfig"""
         config = tf.estimator.RunConfig()
         if self.task_type != "evaluator":
             tf_config = os.environ["TF_CONFIG"]
             tf_config = json.loads(tf_config)
+            # we set the tf_config["environment"] = "google" and _is_google_env() is True,   # noqa: E501
+            # so that to avoid tensorflow server is started in estimator/training.py # noqa: E501
             tf_config["environment"] = "google"
             os.environ["TF_CONFIG"] = json.dumps(tf_config)
             cluster_def = self.get_cluster_def(cluster_spec)
@@ -163,6 +171,5 @@ class BaseExecutor:
             config._model_dir = "model_dir"
             config._log_step_count_steps = 1e20
             config._server_name = self.address
-
-            logger.info("config is {}".format(config))
+            logger.info("config is %s", config)
         return config

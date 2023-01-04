@@ -11,12 +11,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import List
+
 import numpy as np
 import tensorflow as tf
 from tensorflow.python.ops import parsing_ops
 
 from dlrover.trainer.tensorflow.reader.fake_reader import FakeReader
 from dlrover.trainer.tensorflow.util import path_util
+from dlrover.trainer.tensorflow.util.column_info import Column
 from dlrover.trainer.util.log_util import default_logger as logger
 
 
@@ -26,7 +29,7 @@ class DatasetUtil(object):
     def __init__(
         self,
         path=None,  # input path
-        columns=None,  # dlrover.trainer columns
+        columns: List[Column] = [],  # dlrover.trainer columns
         reader_fn=None,  # streaming data,
         schema=None,  # by default schema=[column.name]
         batch_size=128,

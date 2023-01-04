@@ -37,10 +37,15 @@ except Exception:
 
 
 class EstimatorExecutor(BaseExecutor):
-    def __init__(self, context, can_pickle=False, context_from_storage=False):
+    """
+    EstimatorExecutor is a wrapper for tensorflow estimator.
+    It helps prepare estimator which speicified in the config
+    by relcecting method, parse inputs, build train_spec, eval_spec.
+    """
+
+    def __init__(self, context, context_from_storage=False):
         """
         Args:
-            unpickle: need pickle.unpickle(context) or not
             context_from_storage: We saved the `context` value in storage and
                                 passed the storage-key as the `context`
         """
@@ -105,7 +110,8 @@ class EstimatorExecutor(BaseExecutor):
         else:
             self._classifier_class = classifier_class
 
-        self._prepare_dataset()
+        self._prepare_train_dataset()
+        self._prepare_eval_dataset()
         self._prepare_train_spec()
         self._prepare_eval_spec()
 
@@ -115,6 +121,7 @@ class EstimatorExecutor(BaseExecutor):
         )
 
     def _prepare_estimator_config_and_params(self):
+        """prepare estimator.RunConfig and set default estimator hooks"""
         config = self.get_config(self.cluster_spec)
         config._model_dir = self._model_dir
         params = {}
@@ -132,21 +139,29 @@ class EstimatorExecutor(BaseExecutor):
         logger.info("config is {}".format(config))
         return config, user_params
 
-    def _prepare_dataset(self):
-        train_set = self._task_conf.get("train_set")
+    def _prepare_train_dataset(self):
+        """prepare_train_dataset"""
+        train_set = self._task_conf.get(TFConstants.TrainSet.name)
         self.train_dataset = DatasetUtil.create(train_set)
+
+    def _prepare_eval_dataset(self):
+        """prepare_eval_datasets"""
+        eval_set = self._task_conf.get(TFConstants.EvalSet.name)
+        self.eval_dataset = DatasetUtil.create(eval_set)
 
     def _prepare_train_input_fn(self):
         self._train_input_fn = self.train_dataset.input_fn()
         return self._train_input_fn
 
     def _prepare_eval_input_fn(self):
-        self._eval_input_fn = self.train_dataset.input_fn()
+        self._eval_input_fn = self.eval_dataset.input_fn()
         return self._eval_input_fn
 
     def _prepare_train_spec(self):
         self._prepare_train_input_fn()
-        max_steps = self._task_conf.get(TFConstants.MaxSteps.name, None)
+        max_steps = self._task_conf.get(
+            TFConstants.MaxSteps.name, TFConstants.MaxSteps()
+        )
         input_fn = self._train_input_fn
         self._train_spec = tf.estimator.TrainSpec(
             input_fn=input_fn,
@@ -155,10 +170,12 @@ class EstimatorExecutor(BaseExecutor):
 
     def _prepare_eval_spec(self):
         self._prepare_eval_input_fn()
-        steps = 100
+        eval_steps = self._task_conf.get(
+            TFConstants.EvalSteps.name, TFConstants.EvalSteps()
+        )
         self._eval_spec = tf.estimator.EvalSpec(
             input_fn=self._eval_input_fn,
-            steps=steps,
+            steps=eval_steps,
             throttle_secs=10,
             start_delay_secs=5,
         )

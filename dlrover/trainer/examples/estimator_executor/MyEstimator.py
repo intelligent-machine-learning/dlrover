@@ -25,7 +25,7 @@ class MyEstimator(tf.estimator.Estimator):
 
     def __init__(self, model_dir, config=None, params=None):
 
-        logger.info("config is {}".format(str(config)))
+        logger.info("config is %s", config)
         run_config = config
 
         super(MyEstimator, self).__init__(

@@ -28,6 +28,8 @@ class TFConstants(object):
     )
     SessionConfig = Constant("session_config")
     RunConfig = Constant("run_config")
+    TrainSet = Constant("train_set")
+    EvalSet = Constant("eval_set")
     LogSteps = Constant("log_steps", 100)
     BatchSize = Constant("log_steps", 64)
     EstimatorTrainingChiefHooks = Constant("training_chief_hooks")

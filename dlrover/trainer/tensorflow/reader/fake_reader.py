@@ -32,11 +32,13 @@ def build_data_shard_service(
 
 
 class FakeReader:
-    def __init__(self, num_epochs=1, batch_size=64, enable_easydl=True):
+    def __init__(
+        self, num_epochs=1, batch_size=64, enable_dynamic_sharding=True
+    ):
 
         self._num_epochs = num_epochs
         self._batch_size = batch_size
-        self.enable_easydl = enable_easydl
+        self.enable_dynamic_sharding = enable_dynamic_sharding
         self.data_shard_service = None
         self.count_data()
         self.data_shard_client = None
@@ -44,7 +46,7 @@ class FakeReader:
         self.build_data_shard_client()
 
     def build_data_shard_client(self):
-        if self.enable_easydl is True:
+        if self.enable_dynamic_sharding is True:
             self.data_shard_client = build_data_shard_service(
                 batch_size=self._batch_size,
                 num_epochs=1,
