@@ -28,10 +28,10 @@ class DatasetUtil(object):
 
     def __init__(
         self,
-        path=None,   
-        columns: List[Column] = [],  
-        reader_fn=None,  
-        schema=None,  
+        path=None,
+        columns: List[Column] = [],
+        reader_fn=None,
+        schema=None,
         batch_size=128,
         epoch=10,
     ):
