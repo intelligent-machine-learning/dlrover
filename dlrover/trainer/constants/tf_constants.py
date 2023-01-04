@@ -20,7 +20,7 @@ class TFConstants(object):
     Worker = Constant("worker", "worker")
     Chief = Constant("chief", "chief")
     PS = Constant("ps", "ps")
-    Evalutor = Constant("evaluator", "evaluator")
+    Evaluator = Constant("evaluator", "evaluator")
 
     PlatformName = Constant("Platform")
     EstimatorClassifier = Constant("estimator")

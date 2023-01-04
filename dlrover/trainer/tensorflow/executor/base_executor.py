@@ -18,7 +18,7 @@ import tensorflow.compat.v1 as tf
 from tensorflow.core.protobuf import cluster_pb2
 from tensorflow.python.training import server_lib
 
-from dlrover.trainer.tf_constants import TFConstants
+from dlrover.trainer.constants.tf_constants import TFConstants
 from dlrover.trainer.util.log_util import default_logger as logger
 
 tf.disable_v2_behavior()
@@ -58,7 +58,7 @@ class BaseExecutor:
                     },
          "task": {"type": "ps", "index": 0}}'
         """
-        self.address = None
+    
         tf_config = self.get_tf_config_from_env()
         task_type = tf_config["task"]["type"]
         task_id = tf_config["task"]["index"]
@@ -66,8 +66,8 @@ class BaseExecutor:
         self.task_id = task_id
         self.role = task_type + ":" + str(task_id)
         self.cluster_spec = tf_config["cluster"]
+        self.address = tf_config["cluster"][task_type][task_id]
         if self.task_type != TFConstants.Evaluator.name:
-            self.address = tf_config["cluster"][task_type][task_id]
             logger.info(
                 "cluster spec is {} \
                     task_type is {} \

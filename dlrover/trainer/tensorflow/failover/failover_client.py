@@ -14,7 +14,7 @@
 import time
 
 from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
-from dlrover.trainer.tf_constants import TFConstants
+from dlrover.trainer.constants.tf_constants import TFConstants
 from dlrover.trainer.util.log_util import default_logger as logger
 
 

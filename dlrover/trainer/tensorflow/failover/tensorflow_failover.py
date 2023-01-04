@@ -24,7 +24,7 @@ from typing import List
 from dlrover.trainer.tensorflow.util import common_util
 from dlrover.trainer.tensorflow.util.failover_client_util import FailoverClient
 from dlrover.trainer.tensorflow.util.tf_patch_util import hotpatch_for_dynet
-from dlrover.trainer.tf_constants import TFConstants
+from dlrover.trainer.constants.tf_constants import TFConstants
 from dlrover.trainer.util.log_util import default_logger as logger
 
 
