@@ -57,8 +57,7 @@ class BatchDatasetManager(DatasetManger):
             # num_epochs <= 0 indicates that the master will create data
             # shards infinitely. So, the worker can use the dataset like
             # `dataset.repeat()`.
-            self._dataset_splitter.create_shards()
-            shards = self._dataset_splitter.get_shards()
+            shards = self._dataset_splitter.create_shards()
             self._create_todo_tasks(shards)
         if not self.todo:
             # No more tasks

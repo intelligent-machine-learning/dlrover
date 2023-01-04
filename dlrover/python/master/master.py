@@ -95,9 +95,10 @@ class Master(object):
         if not params.enable_dynamic_sharding:
             return None
         job_uuid = params.job_uuid
-        return JobMetricCollector(
+        collector = JobMetricCollector(
             job_uuid, params.namespace, params.cluster, params.user
         )
+        collector.collect_job_type(params.distribution_strategy)
 
     def prepare(self):
         # Composite the components
@@ -115,10 +116,6 @@ class Master(object):
             self.rendezvous_server.start()
         if self.node_manager:
             self.node_manager.start()
-        if self.job_metric_collector:
-            self.job_metric_collector.collect_job_type(
-                self._job_args.distribution_strategy
-            )
 
         # Start the master GRPC server
         logger.info("Starting master RPC server")

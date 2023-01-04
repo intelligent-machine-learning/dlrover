@@ -11,9 +11,6 @@ spec:
     ps:
       restartCount: 3
       template:
-          metadata:
-            annotations:
-              sidecar.istio.io/inject: "false"
           spec:
             restartPolicy: Never
             containers:
@@ -28,9 +25,6 @@ spec:
       replicas: 0
       restartCount: 3
       template:
-          metadata:
-            annotations:
-              sidecar.istio.io/inject: "false"
           spec:
             restartPolicy: Never
             containers:
