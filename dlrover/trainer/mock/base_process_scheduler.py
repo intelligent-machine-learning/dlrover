@@ -57,7 +57,6 @@ class BaseProcessScheduler(object):
                                 return
 
             inner()
-            logger.info("all process exit")
             if all(
                 map(
                     lambda p: p.returncode == 0 or p.poll() is None,
