@@ -15,7 +15,7 @@ import logging
 import os
 from logging.handlers import RotatingFileHandler
 
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 tf.logging.set_verbosity(tf.logging.INFO)
 
