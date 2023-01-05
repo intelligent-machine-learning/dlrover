@@ -102,9 +102,12 @@ class NodeGroupResource(JsonSerializable):
         self.priority = priority
 
     def update(self, count, cpu, memory):
-        self.count = count
-        self.node_resource.cpu = cpu
-        self.node_resource.memory = memory
+        if count > 0:
+            self.count = count
+        if cpu > 0:
+            self.node_resource.cpu = cpu
+        if memory > 0:
+            self.node_resource.memory = memory
 
     @classmethod
     def new_empty(cls):

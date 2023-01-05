@@ -25,6 +25,17 @@ _BASE_CONFIG_RETRIEVER = "base_config_retriever"
 _MEMORY_MB = 1024 * 1024
 
 
+def catch_brain_optimization_exception(func):
+    def wrapper(self, *args, **kwargs):
+        try:
+            return func(self, *args, **kwargs)
+        except Exception as e:
+            logger.debug("Fail to execute %s by %s", func.__name__, e)
+            return ResourcePlan()
+
+    return wrapper
+
+
 def convert_plan_msg(plan_msg):
     """Convert a GRPC plan message to a ResourcePlan.
     Args:
@@ -57,6 +68,7 @@ class BrainResoureOptimizer(ResourceOptimizer):
         super(BrainResoureOptimizer, self).__init__(job_uuid, resource_limits)
         self._brain_client = GlobalEasydlClient.EASYDL_CLIENT
 
+    @catch_brain_optimization_exception
     def generate_opt_plan(self, stage, config={}) -> ResourcePlan:
         res = self._brain_client.get_optimization_plan(
             self._job_uuid,
@@ -78,6 +90,7 @@ class BrainResoureOptimizer(ResourceOptimizer):
         plan = convert_plan_msg(plan_msg)
         return plan
 
+    @catch_brain_optimization_exception
     def generate_oom_recovery_plan(self, oom_pods, stage, config={}):
         res = self._brain_client.get_oom_resource_plan(
             oom_pods,
@@ -95,6 +108,7 @@ class BrainResoureOptimizer(ResourceOptimizer):
         plan = convert_plan_msg(plan_msg)
         return plan
 
+    @catch_brain_optimization_exception
     def generate_resource_plan_with_optimizer(self, config):
         res = self._brain_client.get_optimizer_resource_plan(
             self._job_uuid,

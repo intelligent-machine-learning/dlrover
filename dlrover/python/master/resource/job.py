@@ -195,35 +195,44 @@ class JobResourceOptimizer(object):
             _dlrover_context.auto_worker_enabled
             and NodeType.WORKER in plan.node_group_resources
         ):
-            worker_resource = plan.node_group_resources[NodeType.WORKER]
-            num, cpu, mem = self._check_ignore_original_worker_resource(
-                worker_resource.count,
-                worker_resource.node_resource.cpu,
-                worker_resource.node_resource.memory,
+            worker_resource = self._check_ignore_original_worker_resource(
+                plan.node_group_resources[NodeType.WORKER]
             )
-            self._worker_resource.update(num, cpu, mem)
-
-        if (
-            _dlrover_context.auto_ps_enabled
-            and NodeType.PS in plan.node_group_resources
-        ):
-            ps_resource = plan.node_group_resources[NodeType.PS]
-            count, cpu, mem = self._check_ignore_original_ps_resource(
-                ps_resource.count,
-                ps_resource.node_resource.cpu,
-                ps_resource.node_resource.memory,
-            )
-            self._ps_resource.update(count, cpu, mem)
-
-    def optimize_worker_resource(self):
-        plan = self._get_worker_resource_at_init_phase()
-        if plan and NodeType.WORKER in plan.node_group_resources:
-            worker_resource = plan.node_group_resources[NodeType.WORKER]
             self._worker_resource.update(
                 worker_resource.count,
                 worker_resource.node_resource.cpu,
                 worker_resource.node_resource.memory,
             )
+        if (
+            _dlrover_context.auto_ps_enabled
+            and NodeType.PS in plan.node_group_resources
+        ):
+            ps_resource = self._check_ignore_original_ps_resource(
+                plan.node_group_resources[NodeType.PS]
+            )
+            self._ps_resource.update(
+                ps_resource.count,
+                ps_resource.node_resource.cpu,
+                ps_resource.node_resource.memory,
+            )
+
+    def optimize_worker_resource(self):
+        plan = self._get_worker_resource_at_init_phase()
+        if NodeType.WORKER in plan.node_group_resources:
+            worker_resource = self._check_ignore_original_worker_resource(
+                plan.node_group_resources[NodeType.WORKER]
+            )
+            self._worker_resource.update(
+                worker_resource.count,
+                worker_resource.node_resource.cpu,
+                worker_resource.node_resource.memory,
+            )
+        else:
+            logger.info("Use the default original worker resource.")
+            plan.node_group_resources[NodeType.WORKER] = copy.deepcopy(
+                self._worker_resource
+            )
+        return plan
 
     def get_worker_resource(self):
         return self._worker_resource
@@ -259,7 +268,7 @@ class JobResourceOptimizer(object):
             if resource.memory < min_memory:
                 resource.memory = self._worker_resource.node_resource.memory
 
-        logger.info("Job resource = %s", job_resource.toJSON(indent=4))
+        logger.info("Job resource = %s", job_resource.toJSON())
         return job_resource
 
     def adjust_oom_worker_resource(self, node: Node):
@@ -401,8 +410,6 @@ class JobResourceOptimizer(object):
         )
         if plan.empty():
             logger.info("No any plan to initialize the number of worker")
-            return
-
         return plan
 
     def _get_worker_resource_at_sample_phase(self):
@@ -411,7 +418,7 @@ class JobResourceOptimizer(object):
         plan = self._resource_optimizer.generate_opt_plan(
             JobOptStage.WORKER_INITIAL, optimizer_config
         )
-        if not plan:
+        if not plan or plan.empty():
             return
         return plan
 
@@ -435,58 +442,43 @@ class JobResourceOptimizer(object):
     def _verify_optimized_group_resource(self, plan: ResourcePlan, node_type):
         group = plan.node_group_resources[node_type]
         if node_type == NodeType.WORKER:
-            num, cpu, mem = self._check_ignore_original_worker_resource(
-                group.count,
-                group.node_resource.cpu,
-                group.node_resource.memory,
-            )
-            self._worker_resource.count = num
-            self._worker_resource.node_resource.cpu = cpu
-            self._worker_resource.node_resource.memory = mem
+            group = self._check_ignore_original_worker_resource(group)
+            node_resource = group.node_resource
+            self._worker_resource.count = group.count
+            self._worker_resource.node_resource.cpu = node_resource.cpu
+            self._worker_resource.node_resource.memory = node_resource.memory
         elif node_type == NodeType.PS:
-            num, cpu, mem = self._check_ignore_original_ps_resource(
-                group.count,
-                group.node_resource.cpu,
-                group.node_resource.memory,
+            group = self._check_ignore_original_ps_resource(group)
+            node_resource = group.node_resource
+            self._ps_resource.count = min(
+                group.count, NodeResourceLimit.MAX_PS_NUM
             )
-            self._ps_resource.count = min(num, NodeResourceLimit.MAX_PS_NUM)
-            self._ps_resource.node_resource.cpu = cpu
-            self._ps_resource.node_resource.memory = mem
-        group.count = num
-        group.node_resource.cpu = cpu
-        group.node_resource.memory = mem
+            self._ps_resource.node_resource.cpu = node_resource.cpu
+            self._ps_resource.node_resource.memory = node_resource.memory
         return group
 
-    def _check_ignore_original_worker_resource(self, num, cpu, mem):
+    def _check_ignore_original_worker_resource(
+        self, resource: NodeGroupResource
+    ):
         """Abandon the optimization result if users have set the resource."""
         #  Users may worry about that the increasing number of worker hurts the
         #  accuracy, so the max number of worker is the configuration.
+        original_resource = self._original_worker_resource.node_resource
         if self._original_worker_resource.count > 0:
-            num = self._original_worker_resource.count
-        if (
-            self._original_worker_resource.node_resource.memory
-            >= NodeResourceLimit.MIN_VALID_MEMORY
-        ):
-            mem = self._original_worker_resource.node_resource.memory
-        if (
-            self._original_worker_resource.node_resource.cpu
-            >= NodeResourceLimit.MIN_VALID_CPU
-        ):
-            cpu = self._original_worker_resource.node_resource.cpu
-        return num, cpu, mem
+            resource.count = self._original_worker_resource.count
+        if resource.node_resource.cpu == 0:
+            resource.node_resource.cpu = original_resource.cpu
+        if resource.node_resource.memory == 0:
+            resource.node_resource.memory = original_resource.memory
+        return resource
 
-    def _check_ignore_original_ps_resource(self, num, cpu, mem):
+    def _check_ignore_original_ps_resource(self, resource: NodeGroupResource):
         """Abandon the optimization result if users have set the resource."""
+        original_resource = self._original_ps_resource.node_resource
         if self._original_ps_resource.count > 0:
-            num = self._original_ps_resource.count
-        if (
-            self._original_ps_resource.node_resource.memory
-            >= NodeResourceLimit.MIN_VALID_MEMORY
-        ):
-            mem = self._original_ps_resource.node_resource.memory
-        if (
-            self._original_ps_resource.node_resource.cpu
-            >= NodeResourceLimit.MIN_VALID_CPU
-        ):
-            cpu = self._original_ps_resource.node_resource.cpu
-        return num, cpu, mem
+            resource.count = self._original_ps_resource.count
+        if original_resource.memory >= NodeResourceLimit.MIN_VALID_MEMORY:
+            resource.node_resource.memory = original_resource.memory
+        if original_resource.cpu >= NodeResourceLimit.MIN_VALID_CPU:
+            resource.node_resource.cpu = original_resource.cpu
+        return resource
