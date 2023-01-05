@@ -360,9 +360,10 @@ class PodScaler(Scaler):
             service_ready = service_ready and succeed
         if not service_ready:
             logger.error(
-                "Fail to create a service for the {} pod {}".format(
-                    node.type, node.id
-                )
+                "Fail to create service %s for the %s pod %s",
+                service_name,
+                node.type,
+                node.id,
             )
             self._delete_typed_pod(node.type, node.id)
             service_ready = False
@@ -451,7 +452,7 @@ class PodScaler(Scaler):
             replica_index=id,
             owner=self._job,
         )
-        self._k8s_client.patch_service(service_name, service)
+        return self._k8s_client.patch_service(service_name, service)
 
     def _create_pod_obj(
         self,

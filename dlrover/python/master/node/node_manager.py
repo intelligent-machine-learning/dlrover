@@ -504,6 +504,9 @@ class NodeManager(object):
         if not self._chief_started:
             logger.info("Chief started!")
             self._chief_started = True
+            if self._job_resource.worker_num > 1:
+                plan = self._job_optimizer.optimize_worker_resource()
+                self._execute_job_optimization_plan(plan)
             if (
                 not _dlrover_context.auto_ps_enabled
                 and not _dlrover_context.auto_worker_enabled

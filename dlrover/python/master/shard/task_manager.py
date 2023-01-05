@@ -18,6 +18,7 @@ from collections.abc import Callable
 from typing import Dict, List
 
 from dlrover.proto import elastic_training_pb2
+from dlrover.python.common.constants import NodeType
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.shard.base_dataset_manager import (
@@ -96,7 +97,10 @@ class TaskManager(object):
             dataset = self._datasets.get(dataset_name, None)
             if dataset:
                 task = dataset.get_task(node_type, node_id)
-                if task.task_type == elastic_training_pb2.EVALUATION:
+                if (
+                    task.task_type == elastic_training_pb2.EVALUATION
+                    and node_type == NodeType.WORKER
+                ):
                     # All workers will stop training to evaluate the model
                     # at parallel validation
                     self._speed_monitor.reset_running_speed_monitor()

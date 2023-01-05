@@ -131,7 +131,7 @@ class JobResourceOptimizerTest(unittest.TestCase):
         worker = self._job_optimizer._worker_resource
         self.assertEqual(
             worker.node_resource.memory,
-            1024,
+            8192,
         )
         self.assertEqual(worker.node_resource.cpu, 16)
         self.assertEqual(worker.count, 1)
