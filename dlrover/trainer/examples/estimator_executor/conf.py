@@ -24,6 +24,7 @@ class TrainConf(object):
     classifier_class = MyEstimator
     batch_size = 64
     log_steps = 100
+    eval_steps = 10
     save_steps = 1000
     save_min_secs = 60
     save_max_secs = 60 * 6

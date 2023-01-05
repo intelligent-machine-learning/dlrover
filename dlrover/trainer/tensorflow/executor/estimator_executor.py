@@ -14,6 +14,11 @@
 import os
 
 import tensorflow as tf
+from tensorflow.python.estimator.exporter import BestExporter
+from tensorflow.python.ops import array_ops
+from tensorflow.python.training.basic_session_run_hooks import (
+    CheckpointSaverHook,
+)
 
 from dlrover.trainer.constants.tf_constants import TFConstants
 from dlrover.trainer.tensorflow.executor.base_executor import BaseExecutor
@@ -21,6 +26,7 @@ from dlrover.trainer.tensorflow.hooks.elastic_data_shard_report_hook import (
     ElasticDataShardReportHook,
 )
 from dlrover.trainer.tensorflow.hooks.global_step_hook import GlobalStepHook
+from dlrover.trainer.tensorflow.util.data_mapping_util import data_mapping
 from dlrover.trainer.tensorflow.util.dataset_util import DatasetUtil
 from dlrover.trainer.tensorflow.util.estimator_util import (
     hook_estimator_call_model_fn,
@@ -62,7 +68,7 @@ class EstimatorExecutor(BaseExecutor):
         self._prepare_estimator()
 
     def gen_model_dir(self):
-        self._model_dir = "/input/model/test1"
+        self._model_dir = "./"
         if not os.path.exists(self._model_dir):
             os.makedirs(self._model_dir)
 
@@ -134,6 +140,11 @@ class EstimatorExecutor(BaseExecutor):
             training_hooks.append(shard_report_hook)
             training_hooks.append(model_metric_report_hook)
         params[TFConstants.EstimatorTrainingHooks.name] = training_hooks
+        params[TFConstants.EstimatorTrainingChiefHooks.name] = [
+            CheckpointSaverHook(self._model_dir, save_steps=10)
+        ]
+        train_set = self._task_conf.get(TFConstants.TrainSet.name)
+        params["columns"] = train_set.columns
         hook_estimator_call_model_fn(params)
         user_params = {}
         logger.info("config is {}".format(config))
@@ -173,11 +184,30 @@ class EstimatorExecutor(BaseExecutor):
         eval_steps = self._task_conf.get(
             TFConstants.EvalSteps.name, TFConstants.EvalSteps()
         )
+        columns = self.eval_dataset.columns
+
+        def serving_input_receiver_fn():
+            feature_map = {}
+            for i in columns:
+                # Todo: support different shape
+                feature_map[i.name] = array_ops.placeholder(
+                    dtype=data_mapping[i.dtype], shape=[None]
+                )
+            return tf.estimator.export.build_raw_serving_input_receiver_fn(
+                feature_map
+            )
+
+        exporter = BestExporter(
+            serving_input_receiver_fn=serving_input_receiver_fn()
+        )
+        logger.info("Adding export to estimator_spec")
+
         self._eval_spec = tf.estimator.EvalSpec(
             input_fn=self._eval_input_fn,
             steps=eval_steps,
             throttle_secs=10,
             start_delay_secs=5,
+            exporters=[exporter],
         )
 
     def train_and_evaluate(self):

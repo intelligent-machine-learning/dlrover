@@ -67,18 +67,17 @@ class BaseExecutor:
         self.role = task_type + ":" + str(task_id)
         self.cluster_spec = tf_config["cluster"]
         self.address = tf_config["cluster"][task_type][task_id]
-        if self.task_type != TFConstants.Evaluator.name:
-            logger.info(
-                "cluster spec is {} \
-                    task_type is {} \
-                    task_id is {} \
-                    address is {}".format(
-                    self.cluster_spec,
-                    self.task_type,
-                    self.task_id,
-                    self.address,
-                )
+        logger.info(
+            "cluster spec is {} \
+                task_type is {} \
+                task_id is {} \
+                address is {}".format(
+                self.cluster_spec,
+                self.task_type,
+                self.task_id,
+                self.address,
             )
+        )
 
     def get_cluster_def(self, cluster_spec):
         """get cluster def from cluster spec
@@ -131,48 +130,44 @@ class BaseExecutor:
     def get_config(self, cluster_spec):
         """build session config and estimator.RunConfig"""
         config = tf.estimator.RunConfig()
-        if self.task_type != TFConstants.Evaluator:
-            tf_config = os.environ["TF_CONFIG"]
-            tf_config = json.loads(tf_config)
-            # we set the tf_config["environment"] = "google" and _is_google_env() is True,   # noqa: E501
-            # so that to avoid tensorflow server is started in estimator/training.py # noqa: E501
-            tf_config["environment"] = "google"
-            os.environ["TF_CONFIG"] = json.dumps(tf_config)
-            cluster_def = self.get_cluster_def(cluster_spec)
-            session_config = tf.ConfigProto(
-                cluster_def=cluster_def,
-                gpu_options=tf.GPUOptions(allow_growth=True),
-                allow_soft_placement=True,
-                log_device_placement=False,
-            )
-            config = tf.estimator.RunConfig()
-            logger.info("Using _get_run_config : %s", str(vars(config)))
-            experimental_config = session_config.experimental
-            experimental_config.share_session_state_in_clusterspec_propagation = (  # noqa: E501
-                True
-            )
-            config._session_config = session_config
-            config._is_chief = self.task_type == TFConstants.Chief()
-            logger.info(
-                "mini cluster spec is {}".format(self.mini_cluster_spec)
-            )
-            config._cluster_spec = server_lib.ClusterSpec(
-                self.mini_cluster_spec
-            )
-            config._task_id = self.task_id
-            if self.task_type == TFConstants.Worker():
-                config._task_id = self.task_id + 1
-            config._task_type = self.task_type
-            if self.task_type == TFConstants.Chief():
-                config._task_type = "chief"
-            config._num_ps_replicas = len(
-                self.mini_cluster_spec.get(TFConstants.PS(), {})
-            )
-            config._num_worker_replicas = 1
-            config._master = "grpc://" + self.address
-            config._protocol = "grpc"
-            config._model_dir = "model_dir"
-            config._log_step_count_steps = 1e20
-            config._server_name = self.address
-            logger.info("config is %s", str(vars(config)))
+        tf_config = os.environ["TF_CONFIG"]
+        tf_config = json.loads(tf_config)
+        # we set the tf_config["environment"] = "google" and _is_google_env() is True,   # noqa: E501
+        # so that to avoid tensorflow server is started in estimator/training.py # noqa: E501
+        tf_config["environment"] = "google"
+        os.environ["TF_CONFIG"] = json.dumps(tf_config)
+        cluster_def = self.get_cluster_def(cluster_spec)
+        session_config = tf.ConfigProto(
+            cluster_def=cluster_def,
+            gpu_options=tf.GPUOptions(allow_growth=True),
+            allow_soft_placement=True,
+            log_device_placement=False,
+        )
+        config = tf.estimator.RunConfig()
+        logger.info("Using _get_run_config : %s", str(vars(config)))
+        experimental_config = session_config.experimental
+        experimental_config.share_session_state_in_clusterspec_propagation = (  # noqa: E501
+            True
+        )
+        config._session_config = session_config
+        config._is_chief = self.task_type == TFConstants.Chief()
+        config._keep_checkpoint_max = 20
+        logger.info("mini cluster spec is {}".format(self.mini_cluster_spec))
+        config._cluster_spec = server_lib.ClusterSpec(self.mini_cluster_spec)
+        config._task_id = self.task_id
+        if self.task_type == TFConstants.Worker():
+            config._task_id = self.task_id + 1
+        config._task_type = self.task_type
+        if self.task_type == TFConstants.Chief():
+            config._task_type = "chief"
+        config._num_ps_replicas = len(
+            self.mini_cluster_spec.get(TFConstants.PS(), {})
+        )
+        config._num_worker_replicas = 1
+        config._master = "grpc://" + self.address
+        config._protocol = "grpc"
+        config._model_dir = "./"
+        config._log_step_count_steps = 1e20
+        config._server_name = self.address
+        logger.info("config is %s", str(vars(config)))
         return config

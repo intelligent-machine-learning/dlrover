@@ -1,4 +1,3 @@
-#!/bin/sh
 # Copyright 2023 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,5 +10,22 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-rm -rf log* eval/  checkpoint  model.ckpt* events.out* -rf graph.pbtxt
-python -m dlrover.trainer --platform=local --conf=conf.TrainConf --ps_num=1 --worker_num=1 --enable_easydl=False
+
+from tensorflow.python.framework import dtypes
+
+data_mapping = {
+    "float": dtypes.float32,
+    "float32": dtypes.float32,
+    "float64": dtypes.float64,
+    "double": dtypes.float64,
+    "int": dtypes.int8,
+    "int8": dtypes.int8,
+    "int16": dtypes.int16,
+    "int32": dtypes.int32,
+    "int64": dtypes.int64,
+    "uint8": dtypes.uint8,
+    "uint16": dtypes.uint16,
+    "uint32": dtypes.uint32,
+    "uint64": dtypes.uint64,
+    "string": dtypes.string,
+}
