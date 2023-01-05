@@ -119,14 +119,14 @@ class ParameterServerManager(TrainingNodeManager):
                 ps_name = self._new_node_name_fn(NodeType.PS, ps_id)
                 ps_resource = self._job_resource.get_node_group_resource(
                     NodeType.PS
-                )
+                ).node_resource
                 self._nodes[ps_id] = Node(
                     NodeType.PS,
                     node_id=ps_id,
                     rank_index=task_id,
                     name=ps_name,
                     max_relaunch_count=self._max_relaunch_num,
-                    config_resource=copy.deepcopy(ps_resource.node_resource),
+                    config_resource=copy.deepcopy(ps_resource),
                     critical=True,
                     service_addr=service_addr,
                 )

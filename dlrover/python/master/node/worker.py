@@ -154,7 +154,7 @@ class WorkerManager(TrainingNodeManager):
             task_id = next(self._task_id_iter)
             worker_resource = self._job_resource.get_node_group_resource(
                 NodeType.WORKER
-            )
+            ).node_resource
             service_addr = self._new_service_fn(NodeType.WORKER, task_id)
             self._nodes[worker_id] = Node(
                 NodeType.WORKER,
