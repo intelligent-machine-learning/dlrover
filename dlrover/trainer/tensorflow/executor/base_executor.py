@@ -120,7 +120,7 @@ class BaseExecutor:
 
     def start_server(self):
         """start tensorflow server not using cluster spec."""
-        if self.task_type != TFConstants.Evaluator:
+        if self.task_type != TFConstants.Evaluator():
             logger.info("starting server")
             self.server = server_lib.Server(
                 {"localhost": [self.address]}, protocol="grpc"
@@ -166,7 +166,6 @@ class BaseExecutor:
         config._num_worker_replicas = 1
         config._master = "grpc://" + self.address
         config._protocol = "grpc"
-        config._model_dir = "./"
         config._log_step_count_steps = 1e20
         config._server_name = self.address
         logger.info("config is %s", str(vars(config)))

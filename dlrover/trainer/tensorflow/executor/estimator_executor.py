@@ -58,17 +58,16 @@ class EstimatorExecutor(BaseExecutor):
 
         super(EstimatorExecutor, self).__init__()
         self.get_cluster_info_by_tf_config()
-
+        self._task_conf = context
         self._initialize_estimator_related()
         self._prepare_env()
         # prepare estimator class from user
         self.gen_model_dir()
-        self._task_conf = context
         self._prepare_estimator_class()
         self._prepare_estimator()
 
     def gen_model_dir(self):
-        self._model_dir = "./"
+        self._model_dir = self._task_conf.get(TFConstants.ModelDir.name)
         if not os.path.exists(self._model_dir):
             os.makedirs(self._model_dir)
 
@@ -140,8 +139,17 @@ class EstimatorExecutor(BaseExecutor):
             training_hooks.append(shard_report_hook)
             training_hooks.append(model_metric_report_hook)
         params[TFConstants.EstimatorTrainingHooks.name] = training_hooks
+
+        save_steps = self._task_conf.get(
+            TFConstants.SaveSteps.name, TFConstants.SaveSteps()
+        )
+        save_secs = self._task_conf.get(
+            TFConstants.SaveSecs.name, TFConstants.SaveSecs()
+        )
         params[TFConstants.EstimatorTrainingChiefHooks.name] = [
-            CheckpointSaverHook(self._model_dir, save_steps=10)
+            CheckpointSaverHook(
+                self._model_dir, save_steps=save_steps, save_secs=save_secs
+            )
         ]
         train_set = self._task_conf.get(TFConstants.TrainSet.name)
         params["columns"] = train_set.columns
