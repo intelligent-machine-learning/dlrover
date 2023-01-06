@@ -140,8 +140,6 @@ class PodWatcher(NodeWatcher):
 
         for pod in pod_list.items:
             pod_type = pod.metadata.labels[ElasticJobLabel.REPLICA_TYPE_KEY]
-            if pod_type == NodeType.MASTER:
-                continue
             pod_id = int(
                 pod.metadata.labels[ElasticJobLabel.REPLICA_INDEX_KEY]
             )

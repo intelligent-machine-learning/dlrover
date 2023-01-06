@@ -140,6 +140,7 @@ class SpeedMonitor(object):
 
     def reset_running_speed_monitor(self):
         """Reest the speed monitor"""
+        logger.info("Reset speed monitor")
         self._global_step_records = []
 
     def worker_adjustment_finished(self):
