@@ -146,8 +146,9 @@ class TensorflowFailover:
             logger.info(
                 "worker ind is {} and address is {}".format(ind, address)
             )
-            for i in range(2):
-                # pop ps and worker info
+            len_job = len(config.cluster_def.job)
+            for i in range(len_job):
+                # pop ps and worker/chief info
                 config.cluster_def.job.pop()
             worker_job = config.cluster_def.job.add()
             worker_job.name = self.task_type
