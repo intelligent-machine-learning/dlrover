@@ -357,7 +357,7 @@ class JobResourceOptimizer(object):
             plan = self._get_ps_resource_plan()
             if plan.empty():
                 plan = self._get_worker_resource_at_running()
-        if plan.empty():
+        if not plan or plan.empty():
             return None
 
         if NodeType.WORKER in plan.node_group_resources:
