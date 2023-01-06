@@ -19,7 +19,6 @@ from dlrover.python.common.constants import (
     ElasticJobLabel,
     ExitCode,
     NodeExitReason,
-    NodeType,
 )
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeResource

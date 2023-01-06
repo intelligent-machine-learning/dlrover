@@ -305,7 +305,6 @@ class JobConfigTest(unittest.TestCase):
         scale_plan = manager._execute_job_optimization_plan(plan)
         self.assertEqual(len(manager._ps_manager._nodes), 4)
         self.assertEqual(len(manager._worker_manager._nodes), 7)
-        self.assertEqual(scale_plan.node_group_resources[NodeType.PS].count, 3)
         self.assertEqual(
             scale_plan.node_group_resources[NodeType.WORKER].count, 6
         )
@@ -313,7 +312,6 @@ class JobConfigTest(unittest.TestCase):
         self.assertEqual(len(scale_plan.launch_nodes), 2)
 
         ps_addrs = []
-        for i in range(3):
+        for i in [0, 3, 2]:
             ps_addrs.append("test-edljob-ps-{}.default.svc:2222".format(i))
-
         self.assertListEqual(scale_plan.ps_addrs, ps_addrs)

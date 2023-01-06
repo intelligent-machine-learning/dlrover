@@ -28,7 +28,7 @@ from dlrover.python.common.constants import (
     NodeType,
 )
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.common.node import Node, NodeGroupResource
+from dlrover.python.common.node import Node
 from dlrover.python.master.scaler.base_scaler import ScalePlan, Scaler
 from dlrover.python.scheduler.kubernetes import (
     NODE_SERVICE_PORTS,
@@ -340,9 +340,7 @@ class PodScaler(Scaler):
         self._patch_tf_config_into_env(pod, node, pod_stats, ps_addrs)
         return pod
 
-    def _patch_tf_config_into_env(
-        self, pod, node: Node, pod_stats, ps_addrs
-    ):
+    def _patch_tf_config_into_env(self, pod, node: Node, pod_stats, ps_addrs):
         if (
             self._distribution_strategy
             == DistributionStrategy.PARAMETER_SERVER
