@@ -562,7 +562,7 @@ class NodeManager(object):
                     group.node_resource.cpu,
                     group.node_resource.memory,
                 )
-                plan.node_group_resources[node_type] = copy.deepcopy(
+                scale_plan.node_group_resources[node_type] = copy.deepcopy(
                     self._job_resource.get_node_group_resource(node_type)
                 )
                 if node_type == NodeType.PS:
@@ -570,11 +570,10 @@ class NodeManager(object):
                 elif node_type == NodeType.WORKER:
                     self._speed_monitor.set_target_worker_num(group.count)
                     self._worker_manager.adjust_worker(group)
-
-        self._set_ps_addrs_in_plan(scale_plan)
         if len(plan.node_resources) > 0:
             migration_plan = self._migrate_nodes(plan.node_resources)
             scale_plan.merge(migration_plan)
+        self._set_ps_addrs_in_plan(scale_plan)
         self._scaler.scale(scale_plan)
         return scale_plan
 
