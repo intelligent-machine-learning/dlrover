@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import json
 import threading
 import time
@@ -188,7 +189,11 @@ class PodScaler(Scaler):
             node_id = max_id + 1 + i
             task_id = cur_num + i
             node = Node(
-                type, node_id, group_resource.node_resource, rank_index=task_id
+                type,
+                node_id,
+                copy.deepcopy(group_resource.node_resource),
+                rank_index=task_id,
+                name=get_pod_name(self._job_name, type, node_id),
             )
             self._initial_nodes.append(node)
 

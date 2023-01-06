@@ -46,11 +46,10 @@ class ChiefManager(TrainingNodeManager):
             new_node_name_fn: A callable function to generate a node name of
                 chief.
         """
-        super(ChiefManager, self).__init__(chief_nodes)
+        super(ChiefManager, self).__init__(chief_nodes, new_node_name_fn)
         self._job_resource = job_resource
         self._max_relaunch_num = max_relaunch_num
         self._new_service_fn = new_service_fn
-        self._new_node_name_fn = new_node_name_fn
 
     def is_chief_running(self):
         """The chief worker with id=0 is responsible to initialize
@@ -81,11 +80,12 @@ class EvaluatorManager(TrainingNodeManager):
             new_node_name_fn: A callable function to generate a node name of
                 evaluator.
         """
-        super(EvaluatorManager, self).__init__(evaluator_nodes)
+        super(EvaluatorManager, self).__init__(
+            evaluator_nodes, new_node_name_fn
+        )
         self._job_resource = job_resource
         self._max_relaunch_num = max_relaunch_num
         self._new_service_fn = new_service_fn
-        self._new_node_name_fn = new_node_name_fn
 
     def is_chief_running(self):
         """The chief worker with id=0 is responsible to initialize
@@ -118,11 +118,10 @@ class WorkerManager(TrainingNodeManager):
                 worker.
             use_ddp: bool, whether workers use DDP to train a model.
         """
-        super(WorkerManager, self).__init__(worker_nodes)
+        super(WorkerManager, self).__init__(worker_nodes, new_node_name_fn)
         self._job_resource = job_resource
         self._max_relaunch_num = max_relaunch_num
         self._new_service_fn = new_service_fn
-        self._new_node_name_fn = new_node_name_fn
         self._use_ddp = use_ddp
         worker = job_resource.get_node_group_resource(NodeType.WORKER)
         self._task_id_iter = itertools.count(worker.count)
@@ -230,6 +229,7 @@ class WorkerManager(TrainingNodeManager):
                 config_resource=resource,
                 status=NodeStatus.INITIAL,
                 rank_index=task_id,
+                name=self._new_node_name_fn(NodeType.WORKER, node_id),
             )
             plan.launch_nodes.append(self._nodes[node_id])
             plan.remove_nodes.append(name)
