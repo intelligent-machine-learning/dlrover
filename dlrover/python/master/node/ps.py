@@ -49,11 +49,12 @@ class ParameterServerManager(TrainingNodeManager):
             new_node_name_fn: A callable function to generate a node name of
                 PS.
         """
-        super(ParameterServerManager, self).__init__(ps_nodes)
+        super(ParameterServerManager, self).__init__(
+            ps_nodes, new_node_name_fn
+        )
         self._max_relaunch_num = max_relaunch_num
         self._job_resource = job_resource
         self._new_service_fn = new_service_fn
-        self._new_node_name_fn = new_node_name_fn
         self._pre_dropped_ps: List[Node] = []
         self._lock = threading.Lock()
         self._ready_for_new_ps_cluster = False
@@ -88,8 +89,9 @@ class ParameterServerManager(TrainingNodeManager):
             Node(
                 node.type,
                 new_id,
-                node.config_resource,
+                copy.deepcopy(node.config_resource),
                 rank_index=node.rank_index,
+                name=self._new_node_name_fn(node.type, new_id),
             )
         )
         return plan
@@ -116,7 +118,6 @@ class ParameterServerManager(TrainingNodeManager):
                 ps_id = next(self._node_id_iter)
                 task_id = next(task_id_iter)
                 service_addr = self._new_service_fn(NodeType.PS, ps_id)
-                ps_name = self._new_node_name_fn(NodeType.PS, ps_id)
                 ps_resource = self._job_resource.get_node_group_resource(
                     NodeType.PS
                 ).node_resource
@@ -124,7 +125,7 @@ class ParameterServerManager(TrainingNodeManager):
                     NodeType.PS,
                     node_id=ps_id,
                     rank_index=task_id,
-                    name=ps_name,
+                    name=self._new_node_name_fn(NodeType.PS, ps_id),
                     max_relaunch_count=self._max_relaunch_num,
                     config_resource=copy.deepcopy(ps_resource),
                     critical=True,
@@ -279,8 +280,9 @@ class ParameterServerManager(TrainingNodeManager):
                     Node(
                         node.type,
                         node.id,
-                        node.config_resource,
+                        copy.deepcopy(node.config_resource),
                         rank_index=node.rank_index,
+                        name=self._new_node_name_fn(node.type, node.id),
                     )
                 )
         return plan

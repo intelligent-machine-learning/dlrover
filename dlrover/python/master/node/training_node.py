@@ -130,6 +130,7 @@ class TrainingNodeManager(object):
     def __init__(
         self,
         nodes: Dict[int, Node],
+        new_node_name_fn,
     ):
         """
         Args:
@@ -141,6 +142,7 @@ class TrainingNodeManager(object):
             command: The command of worker pods.
         """
         self._nodes = nodes
+        self._new_node_name_fn = new_node_name_fn
         self._lock = threading.Lock()
         self._node_id_iter = itertools.count(len(self._nodes))
 
@@ -174,8 +176,9 @@ class TrainingNodeManager(object):
             Node(
                 node.type,
                 new_id,
-                relaunch_node.config_resource,
+                copy.deepcopy(relaunch_node.config_resource),
                 rank_index=node.rank_index,
+                name=self._new_node_name_fn(node.type, new_id),
             )
         )
         plan.remove_nodes.append(node.name)
