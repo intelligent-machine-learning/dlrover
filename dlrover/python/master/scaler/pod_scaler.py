@@ -171,7 +171,11 @@ class PodScaler(Scaler):
                 status=pod.status.phase,
                 config_resource=None,
             )
-            if node.status in [NodeStatus.PENDING, NodeStatus.RUNNING]:
+            if node.status in [
+                NodeStatus.PENDING,
+                NodeStatus.RUNNING,
+                NodeStatus.SUCCEEDED,
+            ]:
                 job_pods[pod_type].append(node)
         return job_pods
 

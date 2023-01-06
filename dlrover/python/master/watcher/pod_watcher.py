@@ -74,10 +74,6 @@ def _convert_pod_event_to_node_event(event):
         return None
 
     pod_type = evt_obj.metadata.labels[ElasticJobLabel.REPLICA_TYPE_KEY]
-    if pod_type == NodeType.MASTER:
-        # No need to care about master pod
-        return None
-
     pod_name = evt_obj.metadata.name
     rank = int(evt_obj.metadata.labels[ElasticJobLabel.RANK_INDEX_KEY])
 
