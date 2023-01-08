@@ -15,6 +15,10 @@ import logging
 import os
 from logging.handlers import RotatingFileHandler
 
+import tensorflow.compat.v1 as tf
+
+tf.logging.set_verbosity(tf.logging.INFO)
+
 
 def get_log_file_path_from_env():
     return os.getenv("DLROVER_TRAINER_LOG_DIR", "./log")
@@ -78,6 +82,8 @@ class LogFactory(object):
         self.logger.handlers = []
         for h in self.handlers:
             self.logger.addHandler(h)
+
+        logging.getLogger("tensorflow").handlers = self.handlers
 
     def get_default_logger(self):
         self.update_default_logger()

@@ -10,6 +10,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import numpy as np
+
 from dlrover.python.elastic_agent.sharding.client import ShardingClient
 from dlrover.trainer.util.log_util import default_logger as logger
 
@@ -56,7 +58,7 @@ class FakeReader:
             )
 
     def count_data(self):
-        self._data_nums = 1000
+        self._data_nums = 10000
 
     def get_default_shard(self):
         return 1
@@ -72,7 +74,9 @@ class FakeReader:
         yield data
 
     def get_data_by_shard(self, shard):
-        return "1,1"
+        x = np.random.randint(1, 1000)
+        y = 2 * x + np.random.randint(1, 5)
+        return "{},{}".format(x, y)
 
     def iterator(self):
         while True:

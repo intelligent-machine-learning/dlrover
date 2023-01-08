@@ -17,7 +17,11 @@ from dlrover.trainer.constants.constants import Constant
 class TFConstants(object):
     """Platform related constants"""
 
-    PlatformName = Constant("Platform")
+    Worker = Constant("worker", "worker")
+    Chief = Constant("chief", "chief")
+    PS = Constant("ps", "ps")
+    Evaluator = Constant("evaluator", "evaluator")
+
     EstimatorClassifier = Constant("estimator")
     ClassifierTypeEstimator = Constant("estimator", "estimator")
     EstimatorClassifierType = Constant(
@@ -31,6 +35,7 @@ class TFConstants(object):
     TrainSet = Constant("train_set")
     EvalSet = Constant("eval_set")
     LogSteps = Constant("log_steps", 100)
+
     BatchSize = Constant("log_steps", 64)
     EstimatorTrainingChiefHooks = Constant("training_chief_hooks")
     EstimatorTrainingHooks = Constant("training_hooks")
@@ -38,9 +43,13 @@ class TFConstants(object):
     EstimatorEvaluationHooks = Constant("evaluation_hooks")
     Epoch = Constant("epoch", 1)
     LogSteps = Constant("log_steps", 100)
+    # CheckpointSaverHook
     SaveSteps = Constant("save_steps", 100)
+    SaveSecs = Constant("save_secs", None)
+
     EvalSteps = Constant("eval_steps", 100)
     MaxSteps = Constant("max_steps")
+
     SaveMinSecs = Constant("save_min_secs", 0)
     SaveMaxSecs = Constant("save_max_secs", 3600 * 24 * 5)
     EvalMinSecs = Constant("eval_min_secs", 0)

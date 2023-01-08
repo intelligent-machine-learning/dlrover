@@ -24,10 +24,9 @@ class TrainConf(object):
     classifier_class = MyEstimator
     batch_size = 64
     log_steps = 100
-    save_steps = 1000
-    save_min_secs = 60
-    save_max_secs = 60 * 6
-
+    eval_steps = 10
+    save_steps = 500
+    model_dir = "./"
     params = {
         "deep_embedding_dim": 8,
         "learning_rate": 0.0001,
