@@ -70,6 +70,7 @@ func main() {
 		Scheme:             scheme,
 		MetricsBindAddress: metricsAddr,
 		Port:               9443,
+		HealthProbeBindAddress: probeAddr,
 		LeaderElection:     enableLeaderElection,
 		LeaderElectionID:   "9b6611a4.iml.github.io",
 		// LeaderElectionReleaseOnCancel defines if the leader should step down voluntarily
