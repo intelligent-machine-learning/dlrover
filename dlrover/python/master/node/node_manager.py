@@ -571,6 +571,7 @@ class NodeManager(object):
                 )
                 if node_type == NodeType.PS:
                     self._ps_manager.adjust_ps(group)
+                    self._speed_monitor.reset_running_speed_monitor()
                 elif node_type == NodeType.WORKER:
                     self._speed_monitor.set_target_worker_num(group.count)
                     self._worker_manager.adjust_worker(group)

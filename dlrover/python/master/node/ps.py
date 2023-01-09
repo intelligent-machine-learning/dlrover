@@ -222,11 +222,17 @@ class ParameterServerManager(TrainingNodeManager):
             ):
                 self._pre_dropped_ps.append(node)
 
+    def get_total_request_cpu(self):
+        total_cpu = 0
+        for node in self._get_alive_ps():
+            total_cpu += node.config_resource.cpu
+        return total_cpu
+
     def get_training_ps_cluster(self):
         """Get the ps nodes who are training."""
         if not self._training_ps_cluster:
             self._init_training_ps_cluster()
-        training_ps = []
+        training_ps: List[Node] = []
         for ps in self._training_ps_cluster:
             if not ps.is_released and ps.status != NodeStatus.FAILED:
                 training_ps.append(ps)
