@@ -11,7 +11,7 @@ runs:
 && python -m grpc_tools.protoc -I. \
 dlrover/proto/*.proto --python_out=. --grpc_python_out=. \
 && pip install deepctr \
-&& pip install numpy==1.21 \
+&& pip install numpy==1.21 
 && pip install pyhocon tensorflow==2.11 \
 && export PYTHONPATH=`pwd` && \
 cd dlrover/trainer/examples/estimator_executor && sh run.sh \
