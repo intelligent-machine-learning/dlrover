@@ -33,6 +33,7 @@ class NodeType(object):
     WORKER = "worker"
     EVALUATOR = "evaluator"
     CHIEF = "chief"
+    DLROVER_MASTER = "dlrover-master"
 
 
 class ElasticJobLabel(object):

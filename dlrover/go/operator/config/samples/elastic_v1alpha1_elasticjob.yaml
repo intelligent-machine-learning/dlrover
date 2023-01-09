@@ -15,7 +15,7 @@ spec:
             restartPolicy: Never
             containers:
               - name: main
-                image: elasticdl:iris_estimator
+                image: easydl/tf-estimator:iris_dnn_v0
                 imagePullPolicy: IfNotPresent
                 command:
                   - /bin/bash
@@ -29,7 +29,7 @@ spec:
             restartPolicy: Never
             containers:
               - name: main
-                image: elasticdl:iris_estimator
+                image: easydl/tf-estimator:iris_dnn_v0
                 imagePullPolicy: IfNotPresent
                 command:
                   - /bin/bash

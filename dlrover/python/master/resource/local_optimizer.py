@@ -256,6 +256,9 @@ class LocalOptimizer(ResourceOptimizer):
         node_used_resources[NodeType.PS] = []
         node_used_resources[NodeType.WORKER] = []
 
+        if len(stats) == 0:
+            return node_used_resources
+
         latest_ps = set()
         latest_worker_num = 0
         for node in stats[-1].running_nodes:

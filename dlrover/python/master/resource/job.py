@@ -308,23 +308,13 @@ class JobResourceOptimizer(object):
             node.config_resource.memory,
         )
 
-    def adjust_oom_ps_resource(
-        self, node: Node, training_started
-    ) -> ResourcePlan:
+    def adjust_oom_ps_resource(self, node: Node):
         """Adjust PS resource if there is a OOM PS"""
         plan = self._resource_optimizer.generate_oom_recovery_plan(
             [node.name], JobOptStage.PS_INITIAL
         )
         if plan and not plan.empty():
             ps = plan.node_group_resources[NodeType.PS]
-            if (
-                not training_started
-                and ps.count > 0
-                and ps.node_resource.memory < NodeResourceLimit.MAX_MEMORY
-            ):
-                self._verify_optimized_group_resource(plan, NodeType.PS)
-                plan.adjust_plan_by_context()
-                return plan
             self._ps_resource.node_resource.memory = max(
                 self._ps_resource.node_resource.memory,
                 ps.node_resource.memory,
@@ -343,7 +333,6 @@ class JobResourceOptimizer(object):
             node.name,
             node.config_resource.memory,
         )
-        return ResourcePlan()
 
     def get_job_resource_plan(self):
         plan = None

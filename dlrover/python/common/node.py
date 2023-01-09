@@ -159,9 +159,8 @@ class Node(object):
         self.relaunchable = relaunchable
         self.service_addr = service_addr
 
-        now = datetime.now()
-        self.create_time = now
-        self.finish_time = now
+        self.create_time = None
+        self.finish_time = None
         self.is_recovered_oom = False
         self.is_released = False
         self.exit_reason = None
@@ -206,7 +205,7 @@ class Node(object):
         if (
             self.relaunch_count >= self.max_relaunch_count
             or self.exit_reason == NodeExitReason.FATAL_ERROR
-            or self.used_resource.memory >= NodeResourceLimit.MAX_MEMORY
+            or self.config_resource.memory >= NodeResourceLimit.MAX_MEMORY
         ):
             return True
         return False
