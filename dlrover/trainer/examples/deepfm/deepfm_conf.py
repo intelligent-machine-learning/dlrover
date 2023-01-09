@@ -35,7 +35,7 @@ class TrainConf(object):
     }
 
     dense_col = [
-        Column.create(
+        Column.create(  # type: ignore
             name="I" + str(i),
             dtype="float32" if i != 0 else "int32",
             is_sparse=False,
@@ -45,7 +45,7 @@ class TrainConf(object):
     ]
 
     sparse_col = [
-        Column.create(
+        Column.create(  # type: ignore
             name="C" + str(i), dtype="string", is_sparse=True, is_label=False
         )
         for i in range(1, 27)

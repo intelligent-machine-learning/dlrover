@@ -64,14 +64,14 @@ class FakeReader:
         return 1
 
     def _read_data(self):
+        shard = None
         if self.data_shard_client is not None:
             shard = self.data_shard_client.fetch_shard()
             logger.info("getting data shard from easydl {}".format(shard))
-        else:
-            logger.info("getting data shard by default")
-            shard = self.get_default_shard()
         data = self.get_data_by_shard(shard)
-        yield data
+        if shard is None:
+            data = None
+        return data
 
     def get_data_by_shard(self, shard):
         x = np.random.randint(1, 1000)
@@ -80,8 +80,7 @@ class FakeReader:
 
     def iterator(self):
         while True:
-            for data in self._read_data():
-                self._consumed_data += 1
-                if self._consumed_data == self._data_nums:
-                    return
-                yield data
+            data = self._read_data()
+            if data is None:
+                break
+            yield data
