@@ -15,9 +15,10 @@ from abc import ABCMeta, abstractmethod
 from typing import Dict, List
 
 from dlrover.python.common.node import Node, NodeGroupResource
+from dlrover.python.common.serialize import JsonSerializable
 
 
-class ScalePlan(object):
+class ScalePlan(JsonSerializable):
     """The plan to scaler to adjust nodes.
     Attrbutes:
         ndoe_group_resource: the resoruce configuration of a group node.

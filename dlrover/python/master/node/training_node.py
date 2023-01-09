@@ -50,6 +50,7 @@ def set_critical_node(
         critical_worker_index: a dict where the key is the index of critical
             workers and the value is the relaunchable count of the worker.
     """
+    logger.info("Critical workers = %s", critical_worker_index)
     if NodeType.PS in job_nodes:
         for node in job_nodes[NodeType.PS].values():
             node.critical = ps_is_critical

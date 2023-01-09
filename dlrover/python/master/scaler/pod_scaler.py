@@ -28,7 +28,7 @@ from dlrover.python.common.constants import (
     NodeType,
 )
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.common.node import Node, NodeGroupResource
+from dlrover.python.common.node import Node
 from dlrover.python.master.scaler.base_scaler import ScalePlan, Scaler
 from dlrover.python.scheduler.kubernetes import (
     NODE_SERVICE_PORTS,
@@ -92,6 +92,7 @@ class PodScaler(Scaler):
         self._initial_nodes: List[Node] = []
         self._lock = threading.Lock()
         self._plan = ScalePlan()
+        self._pod_stats: Dict[str, int] = {}
         threading.Thread(
             target=self._periodic_create_pod, name="pod-creater", daemon=True
         ).start()
@@ -113,8 +114,9 @@ class PodScaler(Scaler):
     def scale(self, plan: ScalePlan):
         self._plan = plan
         job_pods = self._stats_alive_pods()
+        logger.info("Scale the job by plan %s", plan.toJSON())
 
-        if not plan.launch_nodes and not plan.remove_nodes:
+        with self._lock:
             for type, group_resource in plan.node_group_resources.items():
                 cur_pods = job_pods.get(type, []) + self._get_initial_pods(
                     type
@@ -123,37 +125,47 @@ class PodScaler(Scaler):
                     self._scale_up_pods(type, plan, cur_pods)
                 elif group_resource.count < len(cur_pods):
                     self._scale_down_pods(type, plan, cur_pods)
-        for node in plan.launch_nodes:
-            self._initial_nodes.append(node)
-        for pod_name in plan.remove_nodes:
-            removed = self._remove_not_create_pod(pod_name)
-            if not removed:
-                self._k8s_client.delete_pod(pod_name)
+            for node in plan.launch_nodes:
+                self._initial_nodes.append(node)
+            for pod_name in plan.remove_nodes:
+                removed = self._remove_not_create_pod(pod_name)
+                if not removed:
+                    self._k8s_client.delete_pod(pod_name)
+            self._update_job_pods(job_pods)
+
+    def _update_job_pods(self, job_pods: Dict[str, List[Node]]):
+        for type in [
+            NodeType.CHIEF,
+            NodeType.MASTER,
+            NodeType.PS,
+            NodeType.WORKER,
+            NodeType.EVALUATOR,
+        ]:
+            cur_pods = job_pods.get(type, []) + self._get_initial_pods(type)
+            self._pod_stats[type] = len(cur_pods)
 
     def _get_initial_pods(self, type):
         initial_pods = []
-        with self._lock:
-            for pod in self._initial_nodes:
-                if pod.type == type:
-                    initial_pods.append(pod)
+        for pod in self._initial_nodes:
+            if pod.type == type:
+                initial_pods.append(pod)
         return initial_pods
 
     def _remove_not_create_pod(self, pod_name):
-        with self._lock:
-            not_created_pod = None
-            for pod in self._initial_nodes:
-                if pod_name == get_pod_name(self._job_name, pod.type, pod.id):
-                    not_created_pod = pod
-                    break
-            if not_created_pod:
-                self._initial_nodes.remove(not_created_pod)
-                return True
+        not_created_pod = None
+        for pod in self._initial_nodes:
+            if pod_name == get_pod_name(self._job_name, pod.type, pod.id):
+                not_created_pod = pod
+                break
+        if not_created_pod:
+            self._initial_nodes.remove(not_created_pod)
+            return True
         return False
 
     def _stats_alive_pods(self):
         job_selector = ElasticJobLabel.JOB_KEY + "=" + self._job_name
         pod_list = self._k8s_client.list_namespaced_pod(job_selector)
-        job_pods = {}
+        job_pods: Dict[str, List[Node]] = {}
         for pod in pod_list.items:
             pod_type = pod.metadata.labels[ElasticJobLabel.REPLICA_TYPE_KEY]
             if pod_type == NodeType.MASTER:
@@ -171,7 +183,11 @@ class PodScaler(Scaler):
                 status=pod.status.phase,
                 config_resource=None,
             )
-            if node.status in [NodeStatus.PENDING, NodeStatus.RUNNING]:
+            if node.status in [
+                NodeStatus.PENDING,
+                NodeStatus.RUNNING,
+                NodeStatus.SUCCEEDED,
+            ]:
                 job_pods[pod_type].append(node)
         return job_pods
 
@@ -212,15 +228,14 @@ class PodScaler(Scaler):
         group_resource = plan.node_group_resources[type]
         down_num = len(cur_pods) - group_resource.count
 
-        with self._lock:
-            not_created_pods = []
-            for pending_pod in self._initial_nodes:
-                if pending_pod.type == type:
-                    not_created_pods.append(pending_pod)
-            while down_num > 0 and not_created_pods:
-                pod = not_created_pods.pop()
-                self._initial_nodes.remove(pod)
-                down_num -= 1
+        not_created_pods = []
+        for pending_pod in self._initial_nodes:
+            if pending_pod.type == type:
+                not_created_pods.append(pending_pod)
+        while down_num > 0 and not_created_pods:
+            pod = not_created_pods.pop()
+            self._initial_nodes.remove(pod)
+            down_num -= 1
         cur_pods.sort(key=lambda x: x.id, reverse=True)
         for pod in cur_pods:
             if down_num <= 0:
@@ -258,7 +273,7 @@ class PodScaler(Scaler):
                     if self._check_cluster_ready_for_pod(node):
                         pod = self._create_pod(
                             node,
-                            self._plan.node_group_resources,
+                            self._pod_stats,
                             self._plan.ps_addrs,
                         )
                         succeed = self._k8s_client.create_pod(pod)
@@ -276,7 +291,7 @@ class PodScaler(Scaler):
         create a node"""
         return True
 
-    def _create_pod(self, node: Node, job_resource, ps_addrs):
+    def _create_pod(self, node: Node, pod_stats: Dict[str, int], ps_addrs):
         # Find that master pod that will be used as the owner reference
         # for the ps or worker pod.
         pod_name = get_pod_name(self._job_name, node.type, node.id)
@@ -322,19 +337,17 @@ class PodScaler(Scaler):
         pod.metadata.labels[ElasticJobLabel.RANK_INDEX_KEY] = str(
             node.rank_index
         )
-        self._patch_tf_config_into_env(pod, node, job_resource, ps_addrs)
+        self._patch_tf_config_into_env(pod, node, pod_stats, ps_addrs)
         return pod
 
-    def _patch_tf_config_into_env(
-        self, pod, node: Node, job_resource, ps_addrs
-    ):
+    def _patch_tf_config_into_env(self, pod, node: Node, pod_stats, ps_addrs):
         if (
             self._distribution_strategy
             == DistributionStrategy.PARAMETER_SERVER
             and ps_addrs
         ):
             tf_config = new_tf_config(
-                job_resource,
+                pod_stats,
                 self.get_node_service_addr,
                 node.type,
                 node.rank_index,
@@ -533,7 +546,7 @@ class PodScaler(Scaler):
 
 
 def new_tf_config(
-    job_resource: Dict[str, NodeGroupResource],
+    pod_stats: Dict[str, int],
     new_service_fn,
     type_key,
     index_key,
@@ -544,8 +557,8 @@ def new_tf_config(
     """
     cluster_dict = {}
     cluster_dict[NodeType.PS] = ps_addrs
-    if NodeType.WORKER in job_resource:
-        worker_num = job_resource[NodeType.WORKER].count
+    if NodeType.WORKER in pod_stats:
+        worker_num = pod_stats[NodeType.WORKER]
         if type_key == NodeType.WORKER and index_key >= worker_num:
             worker_num = index_key + 1
         workers = []
@@ -553,15 +566,15 @@ def new_tf_config(
             workers.append(new_service_fn(NodeType.WORKER, worker_id))
         if len(workers) > 0:
             cluster_dict[NodeType.WORKER] = workers
-    if NodeType.EVALUATOR in job_resource:
-        evaluator_num = job_resource[NodeType.EVALUATOR].count
+    if NodeType.EVALUATOR in pod_stats:
+        evaluator_num = pod_stats[NodeType.EVALUATOR]
         evaluators = []
         for worker_id in range(evaluator_num):
             evaluators.append(new_service_fn(NodeType.EVALUATOR, worker_id))
         if len(evaluators) > 0:
             cluster_dict[NodeType.EVALUATOR] = evaluators
-    if NodeType.CHIEF in job_resource:
-        chief_num = job_resource[NodeType.CHIEF].count
+    if NodeType.CHIEF in pod_stats:
+        chief_num = pod_stats[NodeType.CHIEF]
         chiefs = []
         for worker_id in range(chief_num):
             chiefs.append(new_service_fn(NodeType.CHIEF, worker_id))

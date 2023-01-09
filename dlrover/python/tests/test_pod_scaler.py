@@ -51,16 +51,16 @@ class PodScalerTest(unittest.TestCase):
         scaler._distribution_strategy = DistributionStrategy.PARAMETER_SERVER
         resource = NodeResource(4, 8192)
         node = Node(NodeType.WORKER, 0, resource, rank_index=0)
-        job_resource = {
-            NodeType.WORKER: NodeGroupResource(3, NodeResource(4, 2048)),
-            NodeType.CHIEF: NodeGroupResource(1, NodeResource(4, 2048)),
-            NodeType.PS: NodeGroupResource(2, NodeResource(4, 2048)),
+        pod_stats = {
+            NodeType.WORKER: 3,
+            NodeType.CHIEF: 1,
+            NodeType.PS: 2,
         }
         ps_addrs = [
             "elasticjob-sample-edljob-ps-0",
             "elasticjob-sample-edljob-ps-1",
         ]
-        pod = scaler._create_pod(node, job_resource, ps_addrs)
+        pod = scaler._create_pod(node, pod_stats, ps_addrs)
         self.assertEqual(
             pod.metadata.name, "elasticjob-sample-edljob-worker-0"
         )
@@ -73,14 +73,14 @@ class PodScalerTest(unittest.TestCase):
             in main_container.env[-1].value
         )
         node = Node(NodeType.CHIEF, 0, resource, rank_index=0)
-        pod = scaler._create_pod(node, job_resource, ps_addrs)
+        pod = scaler._create_pod(node, pod_stats, ps_addrs)
         main_container = pod.spec.containers[0]
         self.assertTrue(
             """{"type": "chief", "index": 0}""" in main_container.env[-1].value
         )
 
         node = Node(NodeType.PS, 0, resource, rank_index=0)
-        pod = scaler._create_pod(node, job_resource, ps_addrs)
+        pod = scaler._create_pod(node, pod_stats, ps_addrs)
         main_container = pod.spec.containers[0]
         self.assertTrue(
             """{"type": "ps", "index": 0}""" in main_container.env[-1].value

@@ -19,7 +19,6 @@ from dlrover.python.common.constants import (
     ElasticJobLabel,
     ExitCode,
     NodeExitReason,
-    NodeType,
 )
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeResource
@@ -74,10 +73,6 @@ def _convert_pod_event_to_node_event(event):
         return None
 
     pod_type = evt_obj.metadata.labels[ElasticJobLabel.REPLICA_TYPE_KEY]
-    if pod_type == NodeType.MASTER:
-        # No need to care about master pod
-        return None
-
     pod_name = evt_obj.metadata.name
     rank = int(evt_obj.metadata.labels[ElasticJobLabel.RANK_INDEX_KEY])
 
@@ -144,8 +139,6 @@ class PodWatcher(NodeWatcher):
 
         for pod in pod_list.items:
             pod_type = pod.metadata.labels[ElasticJobLabel.REPLICA_TYPE_KEY]
-            if pod_type == NodeType.MASTER:
-                continue
             pod_id = int(
                 pod.metadata.labels[ElasticJobLabel.REPLICA_INDEX_KEY]
             )
