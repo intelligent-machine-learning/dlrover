@@ -38,7 +38,7 @@ class TrainConf(object):
     }
 
     train_set = {
-        "path": "file://test.data",
+        "path": "fake://test.data",
         "columns": (
             Column.create(  # type: ignore
                 name="x",
@@ -53,4 +53,4 @@ class TrainConf(object):
         ),
     }
 
-    eval_set = {"path": "file://eval.data", "columns": train_set["columns"]}
+    eval_set = {"path": "fake://eval.data", "columns": train_set["columns"]}

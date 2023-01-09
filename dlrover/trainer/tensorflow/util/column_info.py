@@ -40,6 +40,7 @@ class Property(object):
 @add_prop(
     ("dtype", "data type"),
     ("name", "feature_name"),
+    ("is_sparse", "whether it is a sparse or dense feature"),
     ("is_label", "whether it is a label or a feature"),
 )
 class Column(object):

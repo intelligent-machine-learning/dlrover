@@ -17,7 +17,9 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.python.ops import parsing_ops
 
+from dlrover.trainer.constants.tf_constants import TFConstants
 from dlrover.trainer.tensorflow.reader.fake_reader import FakeReader
+from dlrover.trainer.tensorflow.reader.file_reader import FileReader
 from dlrover.trainer.tensorflow.util import path_util
 from dlrover.trainer.tensorflow.util.column_info import Column
 from dlrover.trainer.util.log_util import default_logger as logger
@@ -32,13 +34,24 @@ class DatasetUtil(object):
         columns: List[Column] = [],
         reader_fn=None,
         schema=None,
-        batch_size=128,
+        batch_size=64,
         epoch=10,
     ):
 
-        self.path = path
         self.columns = columns
-        self.reader = reader_fn or FakeReader()
+        self._batch_size = batch_size
+        self._epoch = epoch
+        scheme, path = path_util.parse_uri(path)
+        self.path = path
+        if scheme == TFConstants.FILE_SCHEME():
+            self.reader = FileReader(
+                self.path, batch_size=self._batch_size, num_epochs=self._epoch
+            )
+        elif scheme == TFConstants.FAKE_SCHEME():
+            self.reader = FakeReader()
+
+        if reader_fn is not None:
+            self.reader = reader_fn
 
     def make_dataset(self):
         def reader_fn():
@@ -47,36 +60,29 @@ class DatasetUtil(object):
 
         self._reader_fn = reader_fn
         if self._reader_fn is None:
-            if isinstance(self.path, (list, tuple)):
-                scheme, path = path_util.parse_uri(self.path[0])
-            else:
-                scheme, path = path_util.parse_uri(self.path)
-            if scheme == path_util.FILE_SCHEME:
-                if isinstance(path, (list, tuple)):
-                    path_without_scheme = [
-                        path_util.parse_uri(p)[1] for p in path
-                    ]
-                else:
-                    path_without_scheme = path
-                dataset = tf.data.TextLineDataset(path_without_scheme)
-        else:
-            logger.info("building dataset with reader")
+            logger.error("building dataset without reader")
+
+        logger.info("building dataset with reader")
 
         if self._reader_fn is not None:
             logger.info("Make dataset from reader_fn")
             dataset = tf.data.Dataset.from_generator(
                 self._reader_fn, output_types=(tf.string)
             )
+        dataset = dataset.batch(self._batch_size).repeat(self._epoch)
         return self.process_dataset(dataset)
 
     def parse_features(self, dataset):
         default_columns_types = []
         default_columns_names = []
+        self._label_column_name = None
         for i in self.columns:
             float_types = ["float", "float32", "float64", "double"]
             int_types = ["int", "int8", "int16", "int32", "int64"]
             uint_types = ["uint8", "uint16", "uint32", "uint64"]
             all_types = float_types + int_types + uint_types
+            if i.is_label is True:
+                self._label_column_name = i.name
             dtype = i.dtype
             if dtype == "string":
                 default_val = ""
@@ -90,7 +96,7 @@ class DatasetUtil(object):
                 value, record_defaults=default_columns_types, field_delim=","
             )
             features = dict(zip(default_columns_names, columns))
-            labels = features.pop("y")
+            labels = features.pop(self._label_column_name)
             return features, labels
 
         return dataset.map(parse_csv, num_parallel_calls=10)
@@ -117,16 +123,7 @@ class DatasetUtil(object):
         Return:
             dataset
         """
-        scheme, path = path_util.parse_uri(path)
-        if scheme == path_util.FILE_SCHEME:
-            if isinstance(path, (list, tuple)):
-                path_without_scheme = [path_util.parse_uri(p)[1] for p in path]
-            else:
-                path_without_scheme = path
-            dataset = tf.data.TextLineDataset(path_without_scheme)
-            return dataset
-        else:
-            raise ValueError("Unknown path: %s" % path)
+        pass
 
     @staticmethod
     def create(

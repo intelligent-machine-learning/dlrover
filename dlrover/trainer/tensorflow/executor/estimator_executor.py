@@ -121,6 +121,8 @@ class EstimatorExecutor(BaseExecutor):
         self._prepare_eval_spec()
 
         config, params = self._prepare_estimator_config_and_params()
+        conf_params = self._task_conf.get("params", {})
+        params.update(conf_params)
         self._tf_estimator = self._classifier_class(
             self._model_dir, config, params
         )
