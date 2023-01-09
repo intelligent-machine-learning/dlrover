@@ -40,7 +40,7 @@ const (
 	envMasterAddrKey = "MASTER_ADDR"
 
 	// ReplicaTypeTrainerMaster is the type for DLRover Master replica.
-	ReplicaTypeTrainerMaster commonv1.ReplicaType = "master"
+	ReplicaTypeTrainerMaster commonv1.ReplicaType = "dlrover-master"
 )
 
 // Manager generates a master pod object.
@@ -64,7 +64,7 @@ func (m *Manager) newJobMaster(
 	container := corev1.Container{
 		Name:            "main",
 		Image:           masterImage,
-		ImagePullPolicy: "IfNotPresent",
+		ImagePullPolicy: "Always",
 		Command:         []string{"/bin/bash", "-c", command},
 		Resources: corev1.ResourceRequirements{
 			Requests: corev1.ResourceList{

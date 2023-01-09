@@ -356,7 +356,7 @@ class NodeManager(object):
             if node.exit_reason == NodeExitReason.FATAL_ERROR:
                 should_relaunch = False
             elif node.exit_reason == NodeExitReason.OOM:
-                mem = node.used_resource.memory
+                mem = node.config_resource.memory
                 if mem > NodeResourceLimit.MAX_MEMORY:
                     should_relaunch = False
                     logger.warning(
@@ -373,6 +373,10 @@ class NodeManager(object):
                     )
                 else:
                     node.is_recovered_oom = True
+                    if node.type == NodeType.PS:
+                        self._job_optimizer.adjust_oom_ps_resource(node)
+                    else:
+                        self._job_optimizer.adjust_oom_worker_resource(node)
             elif node.exit_reason != NodeExitReason.KILLED:
                 if node.relaunch_count > node.max_relaunch_count:
                     logger.warning(
@@ -567,6 +571,7 @@ class NodeManager(object):
                 )
                 if node_type == NodeType.PS:
                     self._ps_manager.adjust_ps(group)
+                    self._speed_monitor.reset_running_speed_monitor()
                 elif node_type == NodeType.WORKER:
                     self._speed_monitor.set_target_worker_num(group.count)
                     self._worker_manager.adjust_worker(group)

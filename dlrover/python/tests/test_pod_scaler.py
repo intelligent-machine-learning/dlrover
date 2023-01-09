@@ -122,5 +122,8 @@ class PodScalerTest(unittest.TestCase):
             NodeType.CHIEF: NodeGroupResource(1, resource),
             NodeType.PS: NodeGroupResource(2, resource),
         }
+        scale_plan.launch_nodes.append(
+            Node(NodeType.WORKER, 1, NodeResource(0, 0))
+        )
         scaler.scale(scale_plan)
-        self.assertEqual(len(scaler._initial_nodes), 1)
+        self.assertEqual(len(scaler._initial_nodes), 2)

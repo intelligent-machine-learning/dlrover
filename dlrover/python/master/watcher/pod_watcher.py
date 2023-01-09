@@ -19,6 +19,7 @@ from dlrover.python.common.constants import (
     ElasticJobLabel,
     ExitCode,
     NodeExitReason,
+    NodeType,
 )
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeResource
@@ -142,6 +143,8 @@ class PodWatcher(NodeWatcher):
             pod_id = int(
                 pod.metadata.labels[ElasticJobLabel.REPLICA_INDEX_KEY]
             )
+            if pod_type == NodeType.DLROVER_MASTER:
+                continue
             task_id = int(pod.metadata.labels[ElasticJobLabel.RANK_INDEX_KEY])
             resource = _parse_container_resource(pod.spec.containers[0])
             node = Node(

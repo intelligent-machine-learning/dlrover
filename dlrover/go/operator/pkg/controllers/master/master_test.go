@@ -33,7 +33,7 @@ func TestCreateMasterPod(t *testing.T) {
 
 	manager := newManager()
 	pod := manager.newJobMaster(job, initMasterIndex)
-	assert.Equal(t, pod.Name, "elasticjob-test-ps-master")
+	assert.Equal(t, pod.Name, "elasticjob-test-ps-dlrover-master")
 	assert.True(t, strings.Contains(pod.Spec.Containers[0].Command[2], "--namespace dlrover"))
 	assert.True(t, strings.Contains(pod.Spec.Containers[0].Command[2], "--job_name test-ps"))
 	assert.True(t, strings.Contains(pod.Spec.Containers[0].Command[2], "--port 50001"))

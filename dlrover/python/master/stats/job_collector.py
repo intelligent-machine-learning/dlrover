@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import threading
 import time
 from abc import ABCMeta, abstractmethod
@@ -153,10 +154,12 @@ class JobMetricCollector(BaseMetricCollector):
             ] = speed_monitor.init_training_time
             self.collect_custom_data()
         for node in running_nodes:
+            node_sample = copy.deepcopy(node)
+            node_sample.used_resource.memory *= 1024
             if (node.type, node.id) in speed_monitor.running_workers:
-                self._runtime_metric.running_nodes.append(node)
+                self._runtime_metric.running_nodes.append(node_sample)
             else:
-                self._runtime_metric.running_nodes.append(node)
+                self._runtime_metric.running_nodes.append(node_sample)
         if not self._report_runtime_thread.is_alive():
             self._report_runtime_thread.start()
 

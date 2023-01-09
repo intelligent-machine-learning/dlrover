@@ -168,7 +168,7 @@ class PodScaler(Scaler):
         job_pods: Dict[str, List[Node]] = {}
         for pod in pod_list.items:
             pod_type = pod.metadata.labels[ElasticJobLabel.REPLICA_TYPE_KEY]
-            if pod_type == NodeType.MASTER:
+            if pod_type == NodeType.DLROVER_MASTER:
                 continue
             job_pods.setdefault(pod_type, [])
             pod_id = int(
@@ -301,7 +301,9 @@ class PodScaler(Scaler):
 
         env.append(V1EnvVar(name=NodeEnv.WORKER_TYPE, value=node.type))
         env.append(V1EnvVar(name=NodeEnv.WORKER_ID, value=str(node.id)))
-        master_service = "elasticjob-{}-master:50001".format(self._job_name)
+        master_service = "elasticjob-{}-dlrover-master:50001".format(
+            self._job_name
+        )
         env.append(V1EnvVar(name=NodeEnv.MASTER_ADDR, value=master_service))
 
         node_type = node.type
