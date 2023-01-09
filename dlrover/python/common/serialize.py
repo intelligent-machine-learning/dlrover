@@ -14,11 +14,18 @@
 import json
 
 
+def to_dict(o):
+    if hasattr(o, "__dict__"):
+        return o.__dict__
+    else:
+        return {}
+
+
 class JsonSerializable(object):
     def toJSON(self, indent=None):
         return json.dumps(
             self,
-            default=lambda o: o.__dict__,
+            default=to_dict,
             sort_keys=True,
             indent=indent,
         )

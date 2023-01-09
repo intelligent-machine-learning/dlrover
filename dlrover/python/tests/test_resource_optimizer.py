@@ -207,13 +207,6 @@ class JobResourceOptimizerTest(unittest.TestCase):
         oom_ps = Node(
             "ps", 0, name="ps-0", config_resource=NodeResource(2, 1024)
         )
-        plan: ResourcePlan = job_optimizer.adjust_oom_ps_resource(
-            oom_ps, False
-        )
-        self.assertFalse(plan.empty())
-        ps = plan.node_group_resources[NodeType.PS]
-        self.assertEqual(ps.count, 3)
 
-        plan = job_optimizer.adjust_oom_ps_resource(oom_ps, True)
-        self.assertTrue(plan.empty())
+        job_optimizer.adjust_oom_ps_resource(oom_ps)
         self.assertEqual(oom_ps.config_resource.memory, 8192)
