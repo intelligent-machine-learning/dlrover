@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List
 
 import numpy as np
 import tensorflow as tf
@@ -21,7 +20,6 @@ from dlrover.trainer.constants.tf_constants import TFConstants
 from dlrover.trainer.tensorflow.reader.fake_reader import FakeReader
 from dlrover.trainer.tensorflow.reader.file_reader import FileReader
 from dlrover.trainer.tensorflow.util import path_util
-from dlrover.trainer.tensorflow.util.column_info import Column
 from dlrover.trainer.util.log_util import default_logger as logger
 
 
@@ -31,7 +29,7 @@ class DatasetUtil(object):
     def __init__(
         self,
         path=None,
-        columns: List[Column] = [],
+        columns=None,
         reader_fn=None,
         schema=None,
         batch_size=64,

@@ -10,11 +10,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
- 
 
 from dlrover.python.elastic_agent.sharding.client import ShardingClient
 from dlrover.trainer.util.log_util import default_logger as logger
-import csv
+
 
 def build_data_shard_service(
     batch_size=1,
@@ -33,15 +32,14 @@ def build_data_shard_service(
     return sharding_client
 
 
-
 class FileReader:
     def __init__(
-        self, 
-        file_name, 
-        num_epochs=1, 
-        batch_size=64, 
+        self,
+        file_name,
+        num_epochs=1,
+        batch_size=64,
         enable_dynamic_sharding=True,
-        skip_header = True
+        skip_header=True,
     ):
 
         self._num_epochs = num_epochs
@@ -49,8 +47,8 @@ class FileReader:
         self._skip_header = skip_header
         self.enable_dynamic_sharding = enable_dynamic_sharding
         self.data_shard_service = None
-        self._file_handler = open(file_name,"r")
- 
+        self._file_handler = open(file_name, "r")
+
         self.count_data()
         self.data_shard_client = None
         self._consumed_data = 0
@@ -73,7 +71,6 @@ class FileReader:
             self.data = self.data[1:]
         else:
             self._data_nums = len(self.data)
-            
 
     def iterator(self):
         while True:
@@ -83,9 +80,9 @@ class FileReader:
             for i in range(shard.start, shard.end):
                 logger.info("shard is {}".format(shard))
                 d = self.data[i]
-                d=d.strip()
+                d = d.strip()
                 dd = d.split(",")
-                assert len(dd)==40
+                assert len(dd) == 40
                 yield d
 
     def __del__(self):
