@@ -66,5 +66,6 @@ spec:
           requests:
             cpu: 10m
             memory: 64Mi
+        imagePullPolicy: Always
       serviceAccountName: controller-manager
       terminationGracePeriodSeconds: 10

@@ -128,13 +128,18 @@ func (r *ElasticJobReconciler) reconcileJobs(job *elasticv1alpha1.ElasticJob) (c
 		if err != nil {
 			logger.Warningf("Fail to create EasyDL Master")
 		}
-		msg := fmt.Sprintf("ElasticJob %s is running.", job.Name)
-		common.UpdateStatus(&job.Status, commonv1.JobRunning, common.JobRunningReason, msg)
+		msg := fmt.Sprintf("ElasticJob %s is Created.", job.Name)
+		common.UpdateStatus(&job.Status, commonv1.JobRunning, common.JobCreatedReason, msg)
+		r.syncJobStateByReplicas(job)
 	case commonv1.JobPending:
 		r.syncJobStateByReplicas(job)
+		msg := fmt.Sprintf("ElasticJob %s is Pending.", job.Name)
+		common.UpdateStatus(&job.Status, commonv1.JobPending, common.JobPendingReason, msg)
 	case commonv1.JobRunning:
 		r.handleFaultPods(job)
 		r.syncJobStateByReplicas(job)
+		msg := fmt.Sprintf("ElasticJob %s is Running.", job.Name)
+		common.UpdateStatus(&job.Status, commonv1.JobRunning, common.JobCreatedReason, msg)
 	case commonv1.JobScaling:
 		scaler, err := r.getJobScaler(job)
 		if err == nil {
@@ -145,6 +150,14 @@ func (r *ElasticJobReconciler) reconcileJobs(job *elasticv1alpha1.ElasticJob) (c
 		r.syncJobStateByReplicas(job)
 	case commonv1.JobSucceeded:
 		logger.Infof("Job %s succeed", job.Name)
+		msg := fmt.Sprintf("ElasticJob %s is Succeed.", job.Name)
+		common.UpdateStatus(&job.Status, commonv1.JobSucceeded, common.JobSucceededReason, msg)
+		r.syncJobStateByReplicas(job)
+	case commonv1.JobFailed:
+		logger.Infof("Job %s failed", job.Name)
+		msg := fmt.Sprintf("ElasticJob %s is Pending.", job.Name)
+		common.UpdateStatus(&job.Status, commonv1.JobFailed, common.JobFailedReason, msg)
+		r.syncJobStateByReplicas(job)
 	default:
 		logger.Warningf("job %s unknown status %s", job.Name, job.Status.Phase)
 	}
