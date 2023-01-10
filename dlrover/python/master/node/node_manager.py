@@ -56,7 +56,7 @@ from dlrover.python.master.scaler.factory import new_job_scaler
 from dlrover.python.master.watcher.base_watcher import NodeEvent
 from dlrover.python.master.watcher.factory import new_node_watcher
 from dlrover.python.scheduler.factory import new_elastic_job
-from dlrover.python.scheduler.job import JobArgs, ElasticJob
+from dlrover.python.scheduler.job import ElasticJob, JobArgs
 
 _MAX_POD_RELAUNCH_COUNT = 5
 _dlrover_context = Context.singleton_instance()

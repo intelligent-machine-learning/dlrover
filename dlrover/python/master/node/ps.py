@@ -313,7 +313,9 @@ class ParameterServerManager(TrainingNodeManager):
             new_ps_id = next(self._node_id_iter)
             resource.cpu = cpu if cpu > resource.cpu * rate else resource.cpu
             resource.memory = memory if memory > 0 else resource.memory
-            logger.info("resource memory = %s, cpu = %s", resource.memory, resource.cpu)
+            logger.info(
+                "resource memory = %s, cpu = %s", resource.memory, resource.cpu
+            )
 
             service_addr = self._new_service_fn(NodeType.PS, new_ps_id)
             new_node = Node(
