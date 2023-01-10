@@ -151,7 +151,7 @@ class TFPSNodeHandlingCallback(NodeEventCallback):
 
     @NodeEventCallback.log_callback_exception
     def on_node_succeeded(self, node: Node, cluster_context: ClusterContext):
-        node.finish_time = datetime.now()
+        node.finish_time = datetime.now()  # type: ignore
         node_manager = cluster_context.node_manager
         if node.critical:
             completed = node_manager.all_critical_node_completed()
@@ -165,7 +165,7 @@ class TFPSNodeHandlingCallback(NodeEventCallback):
 
     @NodeEventCallback.log_callback_exception
     def on_node_failed(self, node: Node, cluster_context):
-        node.finish_time = datetime.now()
+        node.finish_time = datetime.now()  # type: ignore
         self._stop_job_if_needed(node)
         if node.is_unrecoverable_failure():
             self._master.speed_monitor.reduce_target_worker_num(
@@ -175,7 +175,7 @@ class TFPSNodeHandlingCallback(NodeEventCallback):
 
     @NodeEventCallback.log_callback_exception
     def on_node_deleted(self, node, cluster_context):
-        node.finish_time = datetime.now()
+        node.finish_time = datetime.now()  # type: ignore
         self._stop_job_if_needed(
             node,
         )

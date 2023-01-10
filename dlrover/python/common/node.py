@@ -158,8 +158,8 @@ class Node(object):
         self.max_relaunch_count = max_relaunch_count
         self.relaunchable = relaunchable
         self.service_addr = service_addr
-        self.create_time = datetime.now()
-        self.finish_time = datetime.max
+        self.create_time = None
+        self.finish_time = None
         self.is_recovered_oom = False
         self.is_released = False
         self.exit_reason = None
