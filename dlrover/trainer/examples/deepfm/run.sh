@@ -11,5 +11,5 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-rm -rf log* eval/  checkpoint  model.ckpt* events.out* -rf graph.pbtxt
+rm -rf log* eval/ export/  checkpoint  model.ckpt* events.out* -rf graph.pbtxt
 python -m dlrover.trainer --platform=local --conf=deepfm_conf.TrainConf --ps_num=1 --worker_num=1 --enable_easydl=False

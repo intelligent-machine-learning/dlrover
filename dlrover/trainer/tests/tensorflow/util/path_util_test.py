@@ -19,9 +19,6 @@ from dlrover.trainer.tensorflow.util.path_util import parse_uri
 
 class BaseExecutorTest(unittest.TestCase):
     def test_parse_file_scheme(self):
-        import pdb
-
-        pdb.set_trace()
         path = "file:///home/test/data.csv"
         scheme, file_path = parse_uri(path)
         self.assertEqual(scheme, TFConstants.FILE_SCHEME())
