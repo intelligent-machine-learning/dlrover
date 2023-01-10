@@ -557,7 +557,7 @@ class NodeManager(object):
         adjust the cpu and memory of nodes.
         """
         scale_plan = ScalePlan()
-        if plan.empty():
+        if not plan or plan.empty():
             return scale_plan
         for node_type, group in plan.node_group_resources.items():
             if group.count > 0:
