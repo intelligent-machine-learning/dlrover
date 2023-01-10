@@ -12,7 +12,6 @@
 # limitations under the License.
 
 import copy
-from datetime import datetime
 
 from dlrover.python.common.constants import (
     NodeExitReason,
