@@ -148,3 +148,9 @@ class PSManagerTest(unittest.TestCase):
             node.status = NodeStatus.RUNNING
         ps_manager._pre_drop_migrated_ps(list(ps_manager._nodes.values()))
         self.assertEqual(len(ps_manager._pre_dropped_ps), 1)
+
+        training_ps = ps_manager.get_next_training_ps_cluster()
+        self.assertEqual(len(training_ps), 2)
+        self.assertEqual(
+            training_ps[0].service_addr, "test-edljob-ps-2.default.svc:2222"
+        )

@@ -180,6 +180,7 @@ class TrainingNodeManager(object):
                 copy.deepcopy(relaunch_node.config_resource),
                 rank_index=node.rank_index,
                 name=self._new_node_name_fn(node.type, new_id),
+                service_addr=node.service_addr,
             )
         )
         plan.remove_nodes.append(node.name)
