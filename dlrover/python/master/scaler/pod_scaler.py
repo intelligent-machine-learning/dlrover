@@ -367,7 +367,12 @@ class PodScaler(Scaler):
     def _create_service_for_pod(self, node: Node):
         # create or patch worker service
         service_ready = True
-        service_name = get_pod_name(self._job_name, node.type, node.rank_index)
+        if node.service_addr:
+            service_name = node.service_addr.split(".")[0]
+        else:
+            service_name = get_pod_name(
+                self._job_name, node.type, node.rank_index
+            )
         if not self._k8s_client.get_service(service_name):
             succeed = self._create_service_with_retry(
                 node.type, node.id, service_name

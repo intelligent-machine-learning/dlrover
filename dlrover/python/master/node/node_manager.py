@@ -56,7 +56,7 @@ from dlrover.python.master.scaler.factory import new_job_scaler
 from dlrover.python.master.watcher.base_watcher import NodeEvent
 from dlrover.python.master.watcher.factory import new_node_watcher
 from dlrover.python.scheduler.factory import new_elastic_job
-from dlrover.python.scheduler.job import JobArgs
+from dlrover.python.scheduler.job import JobArgs, ElasticJob
 
 _MAX_POD_RELAUNCH_COUNT = 5
 _dlrover_context = Context.singleton_instance()
@@ -114,7 +114,7 @@ class NodeManager(object):
         self._lock = threading.Lock()
         self._job_nodes: Dict[str, Dict[int, Node]] = {}
 
-        self._elastic_job = job
+        self._elastic_job: ElasticJob = job
         self._node_watcher = node_watcher
         self._scaler: Scaler = job_scaler
         self._job_optimizer = JobResourceOptimizer(
@@ -547,6 +547,7 @@ class NodeManager(object):
                 plan = self._job_optimizer.get_job_resource_plan()
                 if plan:
                     last_plan_time = time.time()
+                plan = self._skip_ps_plan_if_needed()
                 self._execute_job_optimization_plan(plan)
             time.sleep(30)
 
@@ -582,6 +583,49 @@ class NodeManager(object):
         self._scaler.scale(scale_plan)
         return scale_plan
 
+    def _skip_ps_plan_if_needed(self, plan: ResourcePlan):
+        """There is overhead to adjust the PS resource. So, the master
+        will skip adjusting PS if there is no remarkable change
+        of the PS resource.
+        """
+        if not plan or NodeType.PS not in plan.node_group_resources:
+            return plan
+        ps_resource = plan.node_group_resources[NodeType.PS]
+        ps_cpu = ps_resource.node_resource.cpu
+
+        if ps_resource.count > 0:
+            total_cpu = ps_resource.count * ps_cpu
+            cur_request_cpu = self._ps_manager.get_total_request_cpu()
+            threshold = _dlrover_context.seconds_huge_training_threshold
+            if self._speed_monitor.init_training_time > threshold:
+                logger.info(
+                    "Skip adjusting PS because the initial time %s"
+                    "of model is too long",
+                    self._speed_monitor.init_training_time,
+                )
+                del plan.node_group_resources[NodeType.PS]
+                return plan
+            elif (
+                total_cpu
+                < cur_request_cpu * NodeResourceLimit.PS_CPU_GROWTH_RATE
+                and total_cpu
+                > cur_request_cpu * NodeResourceLimit.PS_CPU_DECREASED_RATE
+            ):
+                logger.info(
+                    "Skip adjusting PS: the current CPU = %s,"
+                    "the target CPU = %s",
+                    cur_request_cpu,
+                    total_cpu,
+                )
+                del plan.node_group_resources[NodeType.PS]
+                return plan
+
+        ps_nodes = self._ps_manager.get_training_ps_cluster()
+        for ps in ps_nodes:
+            if ps_cpu > ps.config_resource.cpu:
+                plan.node_resources[ps.name].cpu = ps_cpu
+        return plan
+
     def _migrate_nodes(self, node_resources):
         workers: Dict[str, NodeResource] = {}
         ps: Dict[str, NodeResource] = {}
@@ -601,6 +645,7 @@ class NodeManager(object):
         if len(workers) > 0:
             plan = self._worker_manager.migrate_workers(workers)
             scale_plan.merge(plan)
+        logger.info("Migration plan = %s", scale_plan.toJSON())
         return scale_plan
 
     def _set_ps_addrs_in_plan(self, plan: ScalePlan):

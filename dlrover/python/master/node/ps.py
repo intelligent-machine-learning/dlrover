@@ -92,6 +92,7 @@ class ParameterServerManager(TrainingNodeManager):
                 copy.deepcopy(node.config_resource),
                 rank_index=node.rank_index,
                 name=self._new_node_name_fn(node.type, new_id),
+                service_addr=node.service_addr,
             )
         )
         return plan
@@ -185,8 +186,8 @@ class ParameterServerManager(TrainingNodeManager):
             return self._next_training_ps_cluster
 
         all_new_ps_ready = True
-        for pod_info in self._nodes.values():
-            if not pod_info.is_released and pod_info.status in [
+        for node in self._nodes.values():
+            if not node.is_released and node.status in [
                 NodeStatus.INITIAL,
                 NodeStatus.PENDING,
             ]:
@@ -282,15 +283,7 @@ class ParameterServerManager(TrainingNodeManager):
                 name, resource.cpu, resource.memory
             )
             if node:
-                plan.launch_nodes.append(
-                    Node(
-                        node.type,
-                        node.id,
-                        copy.deepcopy(node.config_resource),
-                        rank_index=node.rank_index,
-                        name=self._new_node_name_fn(node.type, node.id),
-                    )
-                )
+                plan.launch_nodes.append(copy.deepcopy(node))
         return plan
 
     def _migrate_parameter_server(self, name: str, cpu=0, memory=0):
@@ -320,6 +313,7 @@ class ParameterServerManager(TrainingNodeManager):
             new_ps_id = next(self._node_id_iter)
             resource.cpu = cpu if cpu > resource.cpu * rate else resource.cpu
             resource.memory = memory if memory > 0 else resource.memory
+            logger.info("resource memory = %s, cpu = %s", resource.memory, resource.cpu)
 
             service_addr = self._new_service_fn(NodeType.PS, new_ps_id)
             new_node = Node(
