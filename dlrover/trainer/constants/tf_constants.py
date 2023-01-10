@@ -17,8 +17,8 @@ from dlrover.trainer.constants.constants import Constant
 class TFConstants(object):
     """Platform related constants"""
 
-    FILE_SCHEME = Constant("file", "file:/")
-    FAKE_SCHEME = Constant("fake", "fake:/")
+    FILE_SCHEME = Constant("file", "file://")
+    FAKE_SCHEME = Constant("fake", "fake://")
     Worker = Constant("worker", "worker")
     Chief = Constant("chief", "chief")
     PS = Constant("ps", "ps")

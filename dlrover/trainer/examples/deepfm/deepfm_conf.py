@@ -53,11 +53,11 @@ class TrainConf(object):
 
     col = dense_col + sparse_col
     train_set = {
-        "path": "file://easydl/dlrover/trainer/examples/deepfm/data_kaggle_ad_ctr_train.csv",  # noqa: E501
+        "path": "file://./data_kaggle_ad_ctr_train.csv",
         "columns": col,
     }
 
     eval_set = {
-        "path": "file://easydl/dlrover/trainer/examples/deepfm/data_kaggle_ad_ctr_train.csv",  # noqa: E501
+        "path": "file://./data_kaggle_ad_ctr_train.csv",
         "columns": train_set["columns"],
     }
