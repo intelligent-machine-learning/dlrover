@@ -547,7 +547,7 @@ class NodeManager(object):
                 plan = self._job_optimizer.get_job_resource_plan()
                 if plan:
                     last_plan_time = time.time()
-                plan = self._skip_ps_plan_if_needed()
+                plan = self._skip_ps_plan_if_needed(plan)
                 self._execute_job_optimization_plan(plan)
             time.sleep(30)
 
