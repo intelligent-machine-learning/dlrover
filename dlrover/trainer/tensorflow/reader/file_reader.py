@@ -10,7 +10,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import numpy as np
 
 from dlrover.python.elastic_agent.sharding.client import ShardingClient
 from dlrover.trainer.util.log_util import default_logger as logger
@@ -33,15 +32,23 @@ def build_data_shard_service(
     return sharding_client
 
 
-class FakeReader:
+class FileReader:
     def __init__(
-        self, num_epochs=1, batch_size=64, enable_dynamic_sharding=True
+        self,
+        file_name,
+        num_epochs=1,
+        batch_size=64,
+        enable_dynamic_sharding=True,
+        skip_header=True,
     ):
 
         self._num_epochs = num_epochs
         self._batch_size = batch_size
+        self._skip_header = skip_header
         self.enable_dynamic_sharding = enable_dynamic_sharding
         self.data_shard_service = None
+        self._file_handler = open(file_name, "r")
+
         self.count_data()
         self.data_shard_client = None
         self._consumed_data = 0
@@ -58,29 +65,26 @@ class FakeReader:
             )
 
     def count_data(self):
-        self._data_nums = 10000
-
-    def get_default_shard(self):
-        return 1
-
-    def _read_data(self):
-        shard = None
-        if self.data_shard_client is not None:
-            shard = self.data_shard_client.fetch_shard()
-            logger.info("getting data shard from easydl {}".format(shard))
-        data = self.get_data_by_shard(shard)
-        if shard is None:
-            data = None
-        return data
-
-    def get_data_by_shard(self, shard):
-        x = np.random.randint(1, 1000)
-        y = 2 * x + np.random.randint(1, 5)
-        return "{},{}".format(x, y)
+        self.data = self._file_handler.readlines()
+        if self._skip_header:
+            self._data_nums = len(self.data) - 1
+            self.data = self.data[1:]
+        else:
+            self._data_nums = len(self.data)
 
     def iterator(self):
         while True:
-            data = self._read_data()
-            if data is None:
+            shard = self.data_shard_client.fetch_shard()
+            if not shard:
                 break
-            yield data
+            for i in range(shard.start, shard.end):
+                logger.info("shard is {}".format(shard))
+                d = self.data[i]
+                d = d.strip()
+                dd = d.split(",")
+                assert len(dd) == 40
+                yield d
+
+    def __del__(self):
+        if self._file_handler is not None:
+            self._file_handler.close()

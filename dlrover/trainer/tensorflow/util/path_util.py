@@ -11,17 +11,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FILE_SCHEME = "file://"
+from dlrover.trainer.constants.tf_constants import TFConstants
 
 
 def parse_uri(path):
     """Parse a path into a schema"""
     path = path.strip()
     scheme = None
-    if "://" not in path:
-        return FILE_SCHEME, path
-    elif path.startswith(FILE_SCHEME):
-        scheme = FILE_SCHEME
+    if path.startswith(TFConstants.FILE_SCHEME()):
+        scheme = TFConstants.FILE_SCHEME()
+    elif path.startswith(TFConstants.FAKE_SCHEME()):
+        scheme = TFConstants.FAKE_SCHEME()
     else:
         raise ValueError("Wrong path provided: %s" % path)
     scheme_prefix = scheme
