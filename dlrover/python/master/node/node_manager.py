@@ -547,7 +547,7 @@ class NodeManager(object):
                 plan = self._job_optimizer.get_job_resource_plan()
                 if plan:
                     last_plan_time = time.time()
-                plan = self._skip_ps_plan_if_needed()
+                plan = self._skip_ps_plan_if_needed(plan)
                 self._execute_job_optimization_plan(plan)
             time.sleep(30)
 
@@ -557,7 +557,7 @@ class NodeManager(object):
         adjust the cpu and memory of nodes.
         """
         scale_plan = ScalePlan()
-        if plan.empty():
+        if not plan or plan.empty():
             return scale_plan
         for node_type, group in plan.node_group_resources.items():
             if group.count > 0:
