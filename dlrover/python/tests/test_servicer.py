@@ -24,6 +24,8 @@ from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.master.stats.job_collector import JobMetricCollector
 from dlrover.python.tests.test_utils import MockJobArgs
 
+from google.protobuf import empty_pb2
+
 
 class MasterServicerTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -140,3 +142,12 @@ class MasterServicerTest(unittest.TestCase):
         request.global_step = 5100
         self.servicer.report_global_step(request, None)
         self.assertTrue(self.servicer._start_autoscale)
+
+    def test_query_ps_nodes(self):
+        request = empty_pb2.Empty()
+        self.node_manager._init_job_nodes()
+        for node in self.node_manager._job_nodes[NodeType.PS].values():
+            node.status = NodeStatus.RUNNING
+        res = self.servicer.query_ps_nodes(request, None)
+        self.assertEqual(len(res.ps_nodes), 3)
+        self.assertEqual(res.ps_nodes[0].addr, "test-edljob-ps-0.default.svc:2222")
