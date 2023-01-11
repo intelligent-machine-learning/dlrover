@@ -143,9 +143,11 @@ func (r *ElasticJobReconciler) reconcileJobs(job *elasticv1alpha1.ElasticJob) (c
 	case commonv1.JobSucceeded:
 		logger.Infof("Job %s succeed", job.Name)
 		r.syncJobStateByReplicas(job)
+		r.stopRunningPods(job)
 	case commonv1.JobFailed:
 		logger.Infof("Job %s failed", job.Name)
 		r.syncJobStateByReplicas(job)
+		r.stopRunningPods(job)
 	default:
 		logger.Warningf("job %s unknown status %s", job.Name, job.Status.Phase)
 	}
