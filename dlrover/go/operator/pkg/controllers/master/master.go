@@ -118,9 +118,7 @@ func (m *Manager) SyncJobState(client runtime_client.Client, job *elasticv1alpha
 		logger.Warnf("Failed to get master, error : %v", err)
 		return nil
 	}
-	logger.Infof("Master Pod = %s, status = %s", master.Name, master.Status.Phase)
 	masterIndex, _ := strconv.Atoi(master.Labels[common.LabelReplicaIndexKey])
-
 	job.Status.ReplicaStatuses[ReplicaTypeTrainerMaster] = common.GetReplicaStatus([]corev1.Pod{*master})
 	if master.Status.Phase == corev1.PodSucceeded {
 		msg := fmt.Sprintf("job(%s/%s) successfully completed", job.Namespace, job.Name)

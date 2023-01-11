@@ -84,9 +84,6 @@ func (m *PSTaskManager) SyncJobState(
 	job *elasticv1alpha1.ElasticJob,
 ) error {
 	taskPods, err := common.GetReplicaTypePods(client, job, m.taskType)
-	for _, pod := range taskPods {
-		logger.Infof("Pod :%s", pod.Name)
-	}
 	if errors.IsNotFound(err) {
 		logger.Warningf("No any Task %s found: %v", m.taskType, err)
 		return nil
@@ -277,6 +274,24 @@ func (m *PSTaskManager) HandleFaultPods(
 					logger.Infof("Pod %s OOM", pod.Name)
 				}
 			}
+		}
+	}
+	return nil
+}
+
+// StopRunningPods stops all running Pods
+func (m *PSTaskManager) StopRunningPods(
+	client runtime_client.Client,
+	job *elasticv1alpha1.ElasticJob,
+) error {
+	taskPods, err := common.GetReplicaTypePods(client, job, m.taskType)
+	if errors.IsNotFound(err) {
+		logger.Warningf("No any Task %s found: %v", m.taskType, err)
+		return nil
+	}
+	for _, pod := range taskPods {
+		if pod.Status.Phase == corev1.PodRunning || pod.Status.Phase == corev1.PodPending {
+			common.DeletePod(client, &pod)
 		}
 	}
 	return nil

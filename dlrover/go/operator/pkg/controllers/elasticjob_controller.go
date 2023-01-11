@@ -170,6 +170,12 @@ func (r *ElasticJobReconciler) syncJobStateByReplicas(job *elasticv1alpha1.Elast
 	}
 }
 
+func (r *ElasticJobReconciler) stopRunningPods(job *elasticv1alpha1.ElasticJob) {
+	for _, manager := range common.ReplicaManagers {
+		manager.StopRunningPods(r.Client, job)
+	}
+}
+
 func (r *ElasticJobReconciler) createEasydlMaster(job *elasticv1alpha1.ElasticJob) error {
 	masterManager := common.ReplicaManagers[master.ReplicaTypeTrainerMaster]
 	err := masterManager.ReconcilePods(r.Client, job, nil)
