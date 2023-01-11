@@ -220,6 +220,7 @@ func newMasterAddrEnvVar(jobName string) corev1.EnvVar {
 	}
 }
 
+// StopRunningPods stops all running master Pods
 func (m *Manager) StopRunningPods(
 	client runtime_client.Client,
 	job *elasticv1alpha1.ElasticJob,
