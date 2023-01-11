@@ -31,6 +31,8 @@ _INITIAL_NODE_CPU = 16
 _INITIAL_NODE_MEMORY = 16 * 1024  # 16Gi
 _MINIKUBE_INITIAL_NODE_CPU = 1
 _MINIKUBE_INITIAL_NODE_MEMORY = 512  # 512Mi
+_MIN_NODE_CPU = 1
+_MIN_NODE_MEMORY = 1024
 
 
 class OptimizerParams(object):
@@ -194,9 +196,13 @@ class LocalOptimizer(ResourceOptimizer):
             for node in nodes:
                 worker_cpus.append(node.used_resource.cpu)
                 worker_memory = max(node.used_resource.memory, worker_memory)
-        opt_cpu = round(sum(worker_cpus) / len(worker_cpus), 1)
+        opt_cpu = sum(worker_cpus) / len(worker_cpus)
+        opt_cpu = opt_cpu if opt_cpu > _MIN_NODE_CPU else _MIN_NODE_CPU
         opt_memory = int(
             (1 + self._opt_params.worker_memory_margin_percent) * worker_memory
+        )
+        opt_memory = (
+            opt_memory if opt_memory > _MIN_NODE_MEMORY else _MIN_NODE_MEMORY
         )
 
         ps_resource = self._compute_total_requested_resource(NodeType.PS)
@@ -211,7 +217,6 @@ class LocalOptimizer(ResourceOptimizer):
             remaining_cpu / opt_cpu, remaining_memory / opt_memory
         )
         opt_worker_num = int(min(max_worker_num, opt_worker_num))
-
         plan.node_group_resources[NodeType.WORKER] = NodeGroupResource(
             opt_worker_num, NodeResource(opt_cpu, opt_memory)
         )

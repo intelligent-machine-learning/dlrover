@@ -103,7 +103,6 @@ class LocalStatsReporter(StatsReporter):
 
     def report_runtime_stats(self, stats: RuntimeMetric):
         self._runtime_stats.append(copy.deepcopy(stats))
-        logger.info("Runtime stats count = %s", len(self._runtime_stats))
 
     def report_job_type(self, job_type: str):
         self._job_type = job_type
