@@ -177,10 +177,11 @@ class LocalOptimizer(ResourceOptimizer):
                 cpu_util = node.used_resource.cpu / node.config_resource.cpu
                 max_ps_cpu_util = max(cpu_util, max_ps_cpu_util)
 
-        opt_worker_num = len(node_samples[NodeType.WORKER][0])
-        if max_ps_cpu_util == 0:
+        sample_count = len(node_samples[NodeType.WORKER])
+        if max_ps_cpu_util == 0 or sample_count == 0:
             logger.warning("No CPU utilization of PS")
             return plan
+        opt_worker_num = len(node_samples[NodeType.WORKER][0])
         factor = self._opt_params.ps_cpu_overload_threshold / max_ps_cpu_util
         if factor > 1:
             opt_worker_num = int(opt_worker_num * factor)

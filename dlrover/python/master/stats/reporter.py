@@ -74,6 +74,7 @@ class StatsReporter(metaclass=ABCMeta):
     @classmethod
     def new_stats_reporter(cls, job_meta, reporter_type=None):
         if not reporter_type or reporter_type == ReporterType.LOCAL:
+            logger.info("New local stats reporter")
             return LocalStatsReporter(job_meta)
         else:
             logger.warning("Not support stats collector %s", reporter_type)
@@ -102,6 +103,7 @@ class LocalStatsReporter(StatsReporter):
 
     def report_runtime_stats(self, stats: RuntimeMetric):
         self._runtime_stats.append(copy.deepcopy(stats))
+        logger.info("Runtime stats count = %s", len(self._runtime_stats))
 
     def report_job_type(self, job_type: str):
         self._job_type = job_type

@@ -21,6 +21,13 @@ spec:
                   - /bin/bash
                   - -c
                   - "python -m model_zoo.tf_estimator.iris_dnn_elastic"
+                volumeMounts:
+                  - name: pvc-nas
+                    mountPath: "/nas"
+            volumes:
+              - name: pvc-nas
+                persistentVolumeClaim:
+                  claimName: pvc-nas
     worker:
       replicas: 0
       restartCount: 3
@@ -35,3 +42,10 @@ spec:
                   - /bin/bash
                   - -c
                   - "python -m model_zoo.tf_estimator.iris_dnn_elastic"
+                volumeMounts:
+                  - name: pvc-nas
+                    mountPath: "/nas"
+            volumes:
+              - name: pvc-nas
+                persistentVolumeClaim:
+                  claimName: pvc-nas
