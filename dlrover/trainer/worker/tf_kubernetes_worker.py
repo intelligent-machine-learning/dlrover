@@ -11,8 +11,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dlrover.trainer.constants.tf_constants import TFConstants
 from dlrover.trainer.tensorflow.executor.estimator_executor import (
     EstimatorExecutor,
+)
+from dlrover.trainer.tensorflow.failover.tensorflow_failover import (
+    TensorflowFailover,
 )
 from dlrover.trainer.tensorflow.util import common_util
 from dlrover.trainer.util.conf_util import get_conf
@@ -29,13 +33,17 @@ class TFKubernetesWorker:
         """
         self._args = args
         task_conf = get_conf(py_conf=args.conf)
+        self._task_conf = task_conf
         self.init_executor(task_conf)
 
     def init_executor(self, task_conf):
         self.estimator = EstimatorExecutor(task_conf)
 
     def start_failover_monitor(self):
-        pass
+        if self._args.enable_easydl:
+            self._task_conf.put(TFConstants.EnableDynamicSharding.name, True)
+            self.tensorflow_failover = TensorflowFailover()
+            self.tensorflow_failover.start_failover_monitor()
 
     def run(self):
         global_dict = common_util.GlobalDict()
@@ -43,7 +51,7 @@ class TFKubernetesWorker:
         self.start_failover_monitor()
         logger.info("KubernetesWorker is running!")
         self.estimator.start_server()
-        if self.estimator.task_type == "ps":
+        if self.estimator.task_type == TFConstants.PS():
             logger.info("ps server join")
             self.estimator.server.join()
         else:

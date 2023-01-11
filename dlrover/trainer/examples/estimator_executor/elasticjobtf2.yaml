@@ -1,0 +1,53 @@
+---
+apiVersion: elastic.iml.github.io/v1alpha1
+kind: ElasticJob
+metadata:
+  name: elasticjob-sample-23
+spec:
+  distributionStrategy: ParameterServerStrategy
+  resourceLimits:
+    cpu: "1"
+    memory: "1000Mi"
+  replicaSpecs:
+    ps:
+      replicas: 1
+      restartCount: 3
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: main
+              image: easydl/tf-estimator:iris_dnn_v0
+              imagePullPolicy: IfNotPresent
+              command:
+                - /bin/bash
+                - -c
+                - "pip uninstall dlrover -y && pip install -i https://test.pypi.org/simple/ dlrover==0.1.0rc0.dev6 -U  pip install pyhocon yamllint disable-line rule:line-length && cd /usr/local/lib/python3.8/site-packages/dlrover/trainer/examples/estimator_executor  && python -m dlrover.trainer.entry.local_entry --platform=Kubernetes  --conf=conf.TrainConf --enable_easydl=True --ps_num=1 --worker_num=2 --evaluator_num=1" # yamllint disable-line rule:line-length
+              volumeMounts:
+                - name: pvc-nas
+                  mountPath: /nas
+          volumes:
+            - name: pvc-nas
+              persistentVolumeClaim:
+                claimName: pvc-nas
+    worker:
+      replicas: 1
+      restartCount: 3
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: main
+              image: easydl/tf-estimator:iris_dnn_v0
+              imagePullPolicy: IfNotPresent
+              command:
+                - /bin/bash
+                - -c
+                - "pip uninstall dlrover -y && pip install -i https://test.pypi.org/simple/ dlrover==0.1.0rc0.dev6 -U  pip install pyhocon yamllint disable-line rule:line-length && cd /usr/local/lib/python3.8/site-packages/dlrover/trainer/examples/estimator_executor  && python -m dlrover.trainer.entry.local_entry --platform=Kubernetes  --conf=conf.TrainConf --enable_easydl=True --ps_num=1 --worker_num=2 --evaluator_num=1" # yamllint disable-line rule:line-length
+              volumeMounts:
+                - name: pvc-nas
+                  mountPath: /nas
+          volumes:
+            - name: pvc-nas
+              persistentVolumeClaim:
+                claimName: pvc-nas

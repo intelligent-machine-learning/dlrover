@@ -148,6 +148,7 @@ class EstimatorExecutor(BaseExecutor):
         save_secs = self._task_conf.get(
             TFConstants.SaveSecs.name, TFConstants.SaveSecs()
         )
+        logger.info("checkpoint hook %s", self._model_dir)
         params[TFConstants.EstimatorTrainingChiefHooks.name] = [
             CheckpointSaverHook(
                 self._model_dir, save_steps=save_steps, save_secs=save_secs
