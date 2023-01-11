@@ -1,0 +1,72 @@
+apiVersion: elastic.iml.github.io/v1alpha1
+kind: ElasticJob
+metadata:
+  name: elasticjob-sample
+  uid: "111-222"
+spec:
+  distributionStrategy: ParameterServerStrategy
+  replicaSpecs:
+    ps:
+      restartCount: 3
+      replicas: 3
+      priority: "high"
+      template:
+          metadata:
+            annotations:
+              sidecar.istio.io/inject: "false"
+          spec:
+            restartPolicy: Never
+            containers:
+              - name: main
+                image: dlrover/elasticjob:iris_estimator
+                command:
+                  - python
+                  - -m
+                  - model_zoo.iris.dnn_estimator
+                  - --batch_size=32
+                  - --training_steps=1000
+                resources:
+                  requests:
+                    cpu: 1
+                    memory: 4096Mi
+    chief:
+      restartCount: 1
+      template:
+          metadata:
+            annotations:
+              sidecar.istio.io/inject: "false"
+          spec:
+            restartPolicy: Never
+            containers:
+              - name: main
+                image: dlrover/elasticjob:iris_estimator
+                command:
+                  - python
+                  - -m
+                  - model_zoo.iris.dnn_estimator
+                  - --batch_size=32
+                  - --training_steps=1000
+    worker:
+      restartCount: 3
+      template:
+          metadata:
+            annotations:
+              sidecar.istio.io/inject: "false"
+          spec:
+            restartPolicy: Never
+            containers:
+              - name: main
+                image: dlrover/elasticjob:iris_estimator
+                command:
+                  - python
+                  - -m
+                  - model_zoo.iris.dnn_estimator
+                  - --batch_size=32
+                  - --training_steps=1000
+                volumeMounts:
+                  - name: pvc-nas
+                    mountPath: "/nas"
+            volumes:
+              - name: pvc-nas
+                persistentVolumeClaim:
+                  claimName: pvc-nas

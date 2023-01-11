@@ -62,15 +62,17 @@ class PodTemplate(object):
     """PodTemplate is the template of replica in a job"""
 
     def __init__(self, template):
-        self.restart_policy = template["spec"]["restartPolicy"]
-        main_container = template["spec"]["containers"][0]
-        self.name = main_container["name"]
-        self.image = main_container["image"]
-        self.command = main_container["command"]
-        self.args = main_container.get("args", [])
-        self.image_pull_policy = main_container.get(
+        self.spec = template["spec"]
+        self.restart_policy = self.spec["restartPolicy"]
+        self.main_container = self.spec["containers"][0]
+        self.name = self.main_container["name"]
+        self.image = self.main_container["image"]
+        self.command = self.main_container["command"]
+        self.args = self.main_container.get("args", [])
+        self.image_pull_policy = self.main_container.get(
             "imagePullPolicy", "Always"
         )
+        self.volumes = self.spec.get("volumes", [])
 
 
 class PodScaler(Scaler):
@@ -320,14 +322,10 @@ class PodScaler(Scaler):
         labels = self._get_common_labels()
         pod = self._create_pod_obj(
             name=pod_name,
-            image=pod_template.image,
-            command=pod_template.command,
-            args=pod_template.args,
+            pod_template=pod_template,
             resource_requests=node.config_resource.to_resource_dict(),
             resource_limits=node.config_resource.to_resource_dict(),
             priority=node.config_resource.priority,
-            image_pull_policy=pod_template.image_pull_policy,
-            restart_policy=pod_template.restart_policy,
             owner=self._job,
             env=env,
             lifecycle=None,
@@ -482,16 +480,12 @@ class PodScaler(Scaler):
     def _create_pod_obj(
         self,
         name,
-        owner,
-        image,
-        command,
-        args,
+        pod_template: PodTemplate,
         resource_requests: Dict[str, float],
         resource_limits: Dict[str, float],
-        image_pull_policy,
+        owner,
         lifecycle,
         env,
-        restart_policy,
         priority,
         labels,
         termination_period=None,
@@ -499,26 +493,50 @@ class PodScaler(Scaler):
         resource_limits = (
             resource_limits if len(resource_limits) > 0 else resource_requests
         )
+
+        volume_mounts = []
+        mounts_conf = pod_template.main_container.get("volumeMounts", [])
+        for mounts in mounts_conf:
+            volume_mounts.append(
+                client.V1VolumeMount(
+                    name=mounts["name"],
+                    mount_path=mounts["mountPath"],
+                    sub_path=mounts.get("sub_path", None),
+                )
+            )
         container = client.V1Container(
             name="main",
-            image=image,
-            command=command,
-            args=args,
+            image=pod_template.image,
+            command=pod_template.command,
+            args=pod_template.args,
             resources=client.V1ResourceRequirements(
                 requests=resource_requests,
                 limits=resource_limits,
             ),
-            image_pull_policy=image_pull_policy,
+            image_pull_policy=pod_template.image_pull_policy,
             env=env,
             lifecycle=lifecycle,
+            volume_mounts=volume_mounts,
         )
+
+        volumes = []
+        for volume in pod_template.volumes:
+            pvc_volume_source = client.V1PersistentVolumeClaimVolumeSource(
+                claim_name=volume["persistentVolumeClaim"]["claimName"],
+                read_only=False,
+            )
+            volume = client.V1Volume(
+                name=volume["name"], persistent_volume_claim=pvc_volume_source
+            )
+            volumes.append(volume)
 
         # Pod
         spec = client.V1PodSpec(
             containers=[container],
-            restart_policy=restart_policy,
+            restart_policy=pod_template.restart_policy,
             priority_class_name=priority,
             termination_grace_period_seconds=termination_period,
+            volumes=volumes,
         )
 
         pod = client.V1Pod(

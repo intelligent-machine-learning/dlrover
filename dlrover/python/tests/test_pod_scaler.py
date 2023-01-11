@@ -86,6 +86,13 @@ class PodScalerTest(unittest.TestCase):
             """{"type": "ps", "index": 0}""" in main_container.env[-1].value
         )
 
+        node = Node(NodeType.WORKER, 0, resource, rank_index=0)
+        pod = scaler._create_pod(node, pod_stats, ps_addrs)
+        main_container = pod.spec.containers[0]
+        self.assertEqual(len(pod.spec.volumes), 1)
+        self.assertEqual(pod.spec.volumes[0].name, "pvc-nas")
+        self.assertEqual(len(main_container.volume_mounts), 1)
+
     def test_create_service(self):
         scaler = PodScaler("elasticjob-sample", "default")
         service = scaler._create_service(
