@@ -14,6 +14,8 @@
 import time
 import unittest
 
+from google.protobuf import empty_pb2
+
 from dlrover.proto import elastic_training_pb2
 from dlrover.python.common.constants import NodeStatus, NodeType
 from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
@@ -23,8 +25,6 @@ from dlrover.python.master.servicer import MasterServicer
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.master.stats.job_collector import JobMetricCollector
 from dlrover.python.tests.test_utils import MockJobArgs
-
-from google.protobuf import empty_pb2
 
 
 class MasterServicerTest(unittest.TestCase):
