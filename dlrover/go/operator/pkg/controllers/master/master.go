@@ -33,7 +33,7 @@ const (
 	initMasterContainerMemory  = "2Gi"
 	initMasterContainerStorage = "2Gi"
 	masterCommand              = "python -m dlrover.python.master.main"
-	masterImage                = "easydl/dlrover-master:test"
+	masterImage                = "registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:test"
 	masterServicePort          = 50001
 	initMasterIndex            = 0
 
@@ -64,7 +64,7 @@ func (m *Manager) newJobMaster(
 	container := corev1.Container{
 		Name:            "main",
 		Image:           masterImage,
-		ImagePullPolicy: "IfNotPresent",
+		ImagePullPolicy: "Always",
 		Command:         []string{"/bin/bash", "-c", command},
 		Resources: corev1.ResourceRequirements{
 			Requests: corev1.ResourceList{

@@ -353,12 +353,11 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         ready = self._node_manager.ready_for_new_ps_cluster()
         res = elastic_training_pb2.QueryPsNodesResponse()
         for ps in training_ps:
-            ps_meta = elastic_training_pb2.NodeMeta
+            ps_meta = res.ps_nodes.add()
             ps_meta.type = NodeType.PS
             ps_meta.addr = ps.service_addr
             ps_meta.cpu = ps.config_resource.cpu
             ps_meta.memory = ps.config_resource.memory
-            res.ps_nodes.append(ps_meta)
         res.new_ps_ready = ready
         return res
 

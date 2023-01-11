@@ -14,6 +14,8 @@
 import time
 import unittest
 
+from google.protobuf import empty_pb2
+
 from dlrover.proto import elastic_training_pb2
 from dlrover.python.common.constants import NodeStatus, NodeType
 from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
@@ -140,3 +142,14 @@ class MasterServicerTest(unittest.TestCase):
         request.global_step = 5100
         self.servicer.report_global_step(request, None)
         self.assertTrue(self.servicer._start_autoscale)
+
+    def test_query_ps_nodes(self):
+        request = empty_pb2.Empty()
+        self.node_manager._init_job_nodes()
+        for node in self.node_manager._job_nodes[NodeType.PS].values():
+            node.status = NodeStatus.RUNNING
+        res = self.servicer.query_ps_nodes(request, None)
+        self.assertEqual(len(res.ps_nodes), 3)
+        self.assertEqual(
+            res.ps_nodes[0].addr, "test-edljob-ps-0.default.svc:2222"
+        )
