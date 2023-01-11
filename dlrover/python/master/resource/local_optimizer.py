@@ -111,6 +111,9 @@ class LocalOptimizer(ResourceOptimizer):
         node_samples = self._extract_node_resource()
         max_ps_memory = 0
         ps_cpu_requested = 0
+        plan = ResourcePlan()
+        if len(node_samples[NodeType.PS]) == 0:
+            return plan
         for node in node_samples[NodeType.PS][0]:
             max_ps_memory = max(max_ps_memory, node.used_resource.memory)
             ps_cpu_requested = max(node.config_resource.cpu, ps_cpu_requested)
@@ -124,7 +127,6 @@ class LocalOptimizer(ResourceOptimizer):
         opt_ps_memory = int(
             max_ps_memory * (1 + self._opt_params.ps_memory_margin_percent)
         )
-        plan = ResourcePlan()
         plan.node_group_resources[NodeType.PS] = NodeGroupResource(
             opt_ps_num, NodeResource(ps_cpu_requested, opt_ps_memory)
         )
@@ -177,8 +179,8 @@ class LocalOptimizer(ResourceOptimizer):
                 cpu_util = node.used_resource.cpu / node.config_resource.cpu
                 max_ps_cpu_util = max(cpu_util, max_ps_cpu_util)
 
-        opt_worker_num = len(node_samples[NodeType.WORKER][0])
-        if max_ps_cpu_util == 0:
+        opt_worker_num = len(node_samples[NodeType.WORKER])
+        if max_ps_cpu_util == 0 or opt_worker_num == 0:
             logger.warning("No CPU utilization of PS")
             return plan
         factor = self._opt_params.ps_cpu_overload_threshold / max_ps_cpu_util

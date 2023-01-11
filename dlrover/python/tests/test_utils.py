@@ -31,75 +31,11 @@ from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.scheduler.job import JobArgs, NodeArgs
 from dlrover.python.scheduler.kubernetes import k8sClient
 
-JOB_EXAMPLE = """apiVersion: elastic.iml.github.io/v1alpha1
-kind: ElasticJob
-metadata:
-  name: elasticjob-sample
-  uid: "111-222"
-spec:
-  distributionStrategy: ParameterServerStrategy
-  replicaSpecs:
-    ps:
-      restartCount: 3
-      replicas: 3
-      priority: "high"
-      template:
-          metadata:
-            annotations:
-              sidecar.istio.io/inject: "false"
-          spec:
-            restartPolicy: Never
-            containers:
-              - name: main
-                image: dlrover/elasticjob:iris_estimator
-                command:
-                  - python
-                  - -m
-                  - model_zoo.iris.dnn_estimator
-                  - --batch_size=32
-                  - --training_steps=1000
-                resources:
-                  requests:
-                    cpu: 1
-                    memory: 4096Mi
-    chief:
-      restartCount: 1
-      template:
-          metadata:
-            annotations:
-              sidecar.istio.io/inject: "false"
-          spec:
-            restartPolicy: Never
-            containers:
-              - name: main
-                image: dlrover/elasticjob:iris_estimator
-                command:
-                  - python
-                  - -m
-                  - model_zoo.iris.dnn_estimator
-                  - --batch_size=32
-                  - --training_steps=1000
-    worker:
-      restartCount: 3
-      template:
-          metadata:
-            annotations:
-              sidecar.istio.io/inject: "false"
-          spec:
-            restartPolicy: Never
-            containers:
-              - name: main
-                image: dlrover/elasticjob:iris_estimator
-                command:
-                  - python
-                  - -m
-                  - model_zoo.iris.dnn_estimator
-                  - --batch_size=32
-                  - --training_steps=1000"""
-
 
 def _get_training_job(*args, **kwargs):
-    job = yaml.safe_load(JOB_EXAMPLE)
+    with open("dlrover/python/tests/data/elasticjob_sample.yaml", "r") as f:
+        job_content = f.read()
+    job = yaml.safe_load(job_content)
     return job
 
 
