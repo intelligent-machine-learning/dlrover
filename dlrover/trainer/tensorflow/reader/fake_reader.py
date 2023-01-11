@@ -68,7 +68,7 @@ class FakeReader:
             shard = self.data_shard_client.fetch_shard()
         data = self.get_data_by_shard(shard)
         if shard is None:
-            data = "1,1"
+            data = None
         return data
 
     def get_data_by_shard(self, shard):

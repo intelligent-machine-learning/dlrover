@@ -23,7 +23,7 @@ def compare_fn(prev_eval_result, cur_eval_result):
 class TrainConf(object):
     classifier_class = MyEstimator
     batch_size = 64
-    epoch = 100
+    epoch = 1000
     log_steps = 100
     eval_steps = 10
     save_steps = 500
