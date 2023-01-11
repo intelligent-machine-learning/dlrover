@@ -150,4 +150,6 @@ class MasterServicerTest(unittest.TestCase):
             node.status = NodeStatus.RUNNING
         res = self.servicer.query_ps_nodes(request, None)
         self.assertEqual(len(res.ps_nodes), 3)
-        self.assertEqual(res.ps_nodes[0].addr, "test-edljob-ps-0.default.svc:2222")
+        self.assertEqual(
+            res.ps_nodes[0].addr, "test-edljob-ps-0.default.svc:2222"
+        )
