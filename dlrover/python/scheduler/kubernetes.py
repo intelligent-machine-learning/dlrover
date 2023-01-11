@@ -90,7 +90,6 @@ class k8sClient(object):
 
     def create_custom_resource(self, group, version, plural, body):
         try:
-            print(body)
             self.api_instance.create_namespaced_custom_object(
                 group,
                 version,
@@ -292,7 +291,6 @@ class K8sJobArgs(JobArgs):
         for replica, spec in job["spec"]["replicaSpecs"].items():
             priority = spec.get("priority", "")
             num = int(spec.get("replicas", 0))
-            print(spec["template"])
             container = spec["template"]["spec"]["containers"][0]
             resources = container.get("resources", {})
             requests = resources.get("requests", {})

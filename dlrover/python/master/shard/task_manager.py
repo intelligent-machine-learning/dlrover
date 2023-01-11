@@ -142,7 +142,6 @@ class TaskManager(object):
         """Recover doing tasks for a dead worker if needed"""
         for name, dataset in self._datasets.items():
             doing_tasks: Dict[int, DoingTask] = dataset.get_doing_tasks()
-            print("doing tasks = %s", doing_tasks)
             ids = [
                 task_id
                 for task_id, doing_task in doing_tasks.items()
