@@ -118,9 +118,7 @@ func (m *Manager) SyncJobState(client runtime_client.Client, job *elasticv1alpha
 		logger.Warnf("Failed to get master, error : %v", err)
 		return nil
 	}
-	logger.Infof("Master Pod = %s, status = %s", master.Name, master.Status.Phase)
 	masterIndex, _ := strconv.Atoi(master.Labels[common.LabelReplicaIndexKey])
-
 	job.Status.ReplicaStatuses[ReplicaTypeTrainerMaster] = common.GetReplicaStatus([]corev1.Pod{*master})
 	if master.Status.Phase == corev1.PodSucceeded {
 		msg := fmt.Sprintf("job(%s/%s) successfully completed", job.Namespace, job.Name)
@@ -220,4 +218,20 @@ func newMasterAddrEnvVar(jobName string) corev1.EnvVar {
 		Name:  envMasterAddrKey,
 		Value: fmt.Sprintf("%s:%d", masterServiceAddr, masterServicePort),
 	}
+}
+
+// StopRunningPods stops all running master Pods
+func (m *Manager) StopRunningPods(
+	client runtime_client.Client,
+	job *elasticv1alpha1.ElasticJob,
+) error {
+	pod, err := m.getMasterPod(client, job)
+	if pod == nil {
+		logger.Warnf("Failed to get master, error : %v", err)
+		return nil
+	}
+	if pod.Status.Phase == corev1.PodRunning || pod.Status.Phase == corev1.PodPending {
+		common.DeletePod(client, pod)
+	}
+	return nil
 }

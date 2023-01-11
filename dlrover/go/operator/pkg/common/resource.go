@@ -48,6 +48,8 @@ type ReplicaManager interface {
 	SyncJobState(client runtime_client.Client, job *elasticv1alpha1.ElasticJob) error
 
 	HandleFaultPods(client runtime_client.Client, job *elasticv1alpha1.ElasticJob) error
+
+	StopRunningPods(client runtime_client.Client, job *elasticv1alpha1.ElasticJob) error
 }
 
 // NewPod creates a Pod according to a PodTemplateSpec
