@@ -219,3 +219,18 @@ func newMasterAddrEnvVar(jobName string) corev1.EnvVar {
 		Value: fmt.Sprintf("%s:%d", masterServiceAddr, masterServicePort),
 	}
 }
+
+func (m *Manager) StopRunningPods(
+	client runtime_client.Client,
+	job *elasticv1alpha1.ElasticJob,
+) error {
+	pod, err := m.getMasterPod(client, job)
+	if pod == nil {
+		logger.Warnf("Failed to get master, error : %v", err)
+		return nil
+	}
+	if pod.Status.Phase == corev1.PodRunning || pod.Status.Phase == corev1.PodPending {
+		common.DeletePod(client, pod)
+	}
+	return nil
+}
