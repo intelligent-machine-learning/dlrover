@@ -521,9 +521,12 @@ class PodScaler(Scaler):
 
         volumes = []
         for volume in pod_template.volumes:
-            pvc = volume["persistentVolumeClaim"]["claimName"]
+            pvc_volume_source = client.V1PersistentVolumeClaimVolumeSource(
+                claim_name=volume["persistentVolumeClaim"]["claimName"],
+                read_only=False
+            )
             volume = client.V1Volume(
-                name=volume["name"], persistent_volume_claim=pvc
+                name=volume["name"], persistent_volume_claim=pvc_volume_source
             )
             volumes.append(volume)
 
