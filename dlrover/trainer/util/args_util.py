@@ -42,7 +42,7 @@ def add_platform_args(parser):
     )
 
     parser.add_argument(
-        "--enable_easydl",
+        "--enable_auto_scaling",
         help="configuration for elastic training",
         type=bool,
         default=False,

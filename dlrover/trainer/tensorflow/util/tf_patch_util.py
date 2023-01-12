@@ -18,9 +18,13 @@ from tensorflow.python.framework import errors
 from tensorflow.python.training import monitored_session, session_manager
 from tensorflow.python.training.monitored_session import _WrappedSession
 
-from dlrover.tensorflow.util.tf_version_util import is_tf_113, is_tf_115
 from dlrover.trainer.tensorflow.util import common_util
-from dlrover.util.log_util import default_logger as logger
+from dlrover.trainer.tensorflow.util.tf_version_util import (
+    is_tf_2,
+    is_tf_113,
+    is_tf_115,
+)
+from dlrover.trainer.util.log_util import default_logger as logger
 
 
 def wait_for_session_and_get_session(
@@ -349,5 +353,5 @@ def hotpatch_for_dynet(failover_level=1):
         )
     if is_tf_115():
         session_manager.SessionManager.prepare_session = prepare_session_115
-    if is_tf_113():
+    if is_tf_113() or is_tf_2():
         session_manager.SessionManager.prepare_session = prepare_session_113

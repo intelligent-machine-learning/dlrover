@@ -22,8 +22,8 @@ import time
 from typing import List
 
 from dlrover.trainer.constants.tf_constants import TFConstants
+from dlrover.trainer.tensorflow.failover.failover_client import FailoverClient
 from dlrover.trainer.tensorflow.util import common_util
-from dlrover.trainer.tensorflow.util.failover_client_util import FailoverClient
 from dlrover.trainer.tensorflow.util.tf_patch_util import hotpatch_for_dynet
 from dlrover.trainer.util.log_util import default_logger as logger
 
@@ -36,7 +36,7 @@ class TensorflowFailover:
             uuid_key: unique key that marks this cluster
             failover_level: switch for dynet
         """
-        assert role is not None, "role should not be none"
+        self._role = role
         logger.info(
             "initiating tensorflow_failover and failover level is {}".format(
                 failover_level
@@ -44,7 +44,6 @@ class TensorflowFailover:
         )
         self._failover_level = failover_level
         hotpatch_for_dynet(failover_level)
-        self._role = role
         if common_util.should_failover(self._failover_level):
             self.init_for_dynet_from_tf_config()
         logger.info(
@@ -77,8 +76,8 @@ class TensorflowFailover:
         self._failover_client.init_version()
 
     def start_failover_monitor(self):
-        if self._role and self._role != TFConstants.Evalutor.name:
-            pass
+        if self._role and TFConstants.Evaluator.name not in self._role:
+            self._start_for_ps_migration()
 
     def _start_for_ps_migration(self):
         """

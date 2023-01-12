@@ -166,7 +166,6 @@ class BaseExecutor:
         config._num_worker_replicas = 1
         config._master = "grpc://" + self.address
         config._protocol = "grpc"
-        config._log_step_count_steps = 1e20
+        config._log_step_count_steps = 10
         config._server_name = self.address
-        logger.info("config is %s", str(vars(config)))
         return config

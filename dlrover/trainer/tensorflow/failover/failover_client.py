@@ -13,7 +13,7 @@
 
 import time
 
-from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
+from dlrover.python.elastic_agent.tensorflow.elastic_ps import ElasticPsClient
 from dlrover.trainer.constants.tf_constants import TFConstants
 from dlrover.trainer.util.log_util import default_logger as logger
 
@@ -31,17 +31,17 @@ class FailoverClient:
         task_id = int(task_id)
         self.task_type = task_type
         self.task_id = task_id
-        if self.task_type == TFConstants.Chief():
-            self.task_type = "worker"
         if self.task_type == TFConstants.Worker():
             self.task_id = +1
-        self._client = ElasticPsService(self.task_type, self.task_id)
+        if self.task_type == TFConstants.Chief():
+            self.task_type = "worker"
+        self._client = ElasticPsClient(self.task_type, self.task_id)
         logger.info(
             "ElasticPsService is created, task_type: {} and task_id {}.".format(  # noqa : E501
                 task_type, task_id
             )
         )
-        self.ps_client = ElasticPsService(TFConstants.PS(), 0)
+        self.ps_client = ElasticPsClient(TFConstants.PS(), 0)
 
     def get_local_version(self):
         local_version = self._client.get_local_cluster_version()
@@ -63,7 +63,7 @@ class FailoverClient:
 
     def set_local_version(self, version=0):
         self._client.update_local_cluster_version(version)
-        logger.info("successfully set local version: {}.", version)
+        logger.info("successfully set local version: %s.", version)
 
     def get_training_ps_addr(self):
         logger.info("get training ps addresses")
