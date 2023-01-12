@@ -62,5 +62,5 @@ class TFConstants(object):
     EstimatorTrainingHooks = Constant("training_hooks")
     EstimatorPredictionHooks = Constant("prediction_hooks")
     EstimatorEvaluationHooks = Constant("evaluation_hooks")
-    EnableEasydl = Constant("enable_easydl")
+    EnableAutoScaling = Constant("enable_auto_scaling")
     EnableDynamicSharding = Constant("enable_dynamic_sharding", True)

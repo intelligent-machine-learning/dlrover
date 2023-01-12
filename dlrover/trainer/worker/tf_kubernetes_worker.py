@@ -40,7 +40,7 @@ class TFKubernetesWorker:
         self.estimator = EstimatorExecutor(task_conf)
 
     def start_failover_monitor(self):
-        if self._args.enable_easydl:
+        if self._args.enable_auto_scaling:
             self._task_conf.put(TFConstants.EnableDynamicSharding.name, True)
             self.tensorflow_failover = TensorflowFailover()
             self.tensorflow_failover.start_failover_monitor()

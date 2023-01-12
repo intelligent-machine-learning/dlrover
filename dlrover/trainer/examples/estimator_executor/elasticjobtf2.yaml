@@ -2,7 +2,7 @@
 apiVersion: elastic.iml.github.io/v1alpha1
 kind: ElasticJob
 metadata:
-  name: elasticjob-sample-23
+  name: elasticjob-sample-24
 spec:
   distributionStrategy: ParameterServerStrategy
   resourceLimits:
@@ -22,7 +22,7 @@ spec:
               command:
                 - /bin/bash
                 - -c
-                - "pip uninstall dlrover -y && pip install -i https://test.pypi.org/simple/ dlrover==0.1.0rc0.dev6 -U && pip install pyhocon  && cd /usr/local/lib/python3.8/site-packages/dlrover/trainer/examples/estimator_executor  && python -m dlrover.trainer.entry.local_entry --platform=Kubernetes  --conf=conf.TrainConf --enable_easydl=True --ps_num=1 --worker_num=2 --evaluator_num=1" # yamllint disable-line rule:line-length
+                - "pip uninstall dlrover -y && pip install -i https://test.pypi.org/simple/ dlrover==0.1.0rc0.dev6 -U && pip install pyhocon  && cd /usr/local/lib/python3.8/site-packages/dlrover/trainer/examples/estimator_executor  && python -m dlrover.trainer.entry.local_entry --platform=Kubernetes  --conf=conf.TrainConf --enable_auto_scaling=True  " # yamllint disable-line rule:line-length
               volumeMounts:
                 - name: pvc-nas
                   mountPath: /nas
@@ -43,7 +43,7 @@ spec:
               command:
                 - /bin/bash
                 - -c
-                - "pip uninstall dlrover -y && pip install -i https://test.pypi.org/simple/ dlrover==0.1.0rc0.dev6 -U && pip install pyhocon  && cd /usr/local/lib/python3.8/site-packages/dlrover/trainer/examples/estimator_executor  && python -m dlrover.trainer.entry.local_entry --platform=Kubernetes  --conf=conf.TrainConf --enable_easydl=True --ps_num=1 --worker_num=2 --evaluator_num=1" # yamllint disable-line rule:line-length
+                - "pip uninstall dlrover -y && pip install -i https://test.pypi.org/simple/ dlrover==0.1.0rc0.dev6 -U && pip install pyhocon  && cd /usr/local/lib/python3.8/site-packages/dlrover/trainer/examples/estimator_executor  && python -m dlrover.trainer.entry.local_entry --platform=Kubernetes  --conf=conf.TrainConf --enable_auto_scaling=True" # yamllint disable-line rule:line-length
               volumeMounts:
                 - name: pvc-nas
                   mountPath: /nas
