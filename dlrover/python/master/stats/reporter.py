@@ -74,6 +74,7 @@ class StatsReporter(metaclass=ABCMeta):
     @classmethod
     def new_stats_reporter(cls, job_meta, reporter_type=None):
         if not reporter_type or reporter_type == ReporterType.LOCAL:
+            logger.info("New local stats reporter")
             return LocalStatsReporter(job_meta)
         else:
             logger.warning("Not support stats collector %s", reporter_type)

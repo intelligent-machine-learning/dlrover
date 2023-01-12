@@ -31,6 +31,8 @@ _INITIAL_NODE_CPU = 16
 _INITIAL_NODE_MEMORY = 16 * 1024  # 16Gi
 _MINIKUBE_INITIAL_NODE_CPU = 1
 _MINIKUBE_INITIAL_NODE_MEMORY = 512  # 512Mi
+_MIN_NODE_CPU = 1
+_MIN_NODE_MEMORY = 1024
 
 
 class OptimizerParams(object):
@@ -111,6 +113,9 @@ class LocalOptimizer(ResourceOptimizer):
         node_samples = self._extract_node_resource()
         max_ps_memory = 0
         ps_cpu_requested = 0
+        plan = ResourcePlan()
+        if len(node_samples[NodeType.PS]) == 0:
+            return plan
         for node in node_samples[NodeType.PS][0]:
             max_ps_memory = max(max_ps_memory, node.used_resource.memory)
             ps_cpu_requested = max(node.config_resource.cpu, ps_cpu_requested)
@@ -124,7 +129,6 @@ class LocalOptimizer(ResourceOptimizer):
         opt_ps_memory = int(
             max_ps_memory * (1 + self._opt_params.ps_memory_margin_percent)
         )
-        plan = ResourcePlan()
         plan.node_group_resources[NodeType.PS] = NodeGroupResource(
             opt_ps_num, NodeResource(ps_cpu_requested, opt_ps_memory)
         )
@@ -177,10 +181,11 @@ class LocalOptimizer(ResourceOptimizer):
                 cpu_util = node.used_resource.cpu / node.config_resource.cpu
                 max_ps_cpu_util = max(cpu_util, max_ps_cpu_util)
 
-        opt_worker_num = len(node_samples[NodeType.WORKER][0])
-        if max_ps_cpu_util == 0:
+        sample_count = len(node_samples[NodeType.WORKER])
+        if max_ps_cpu_util == 0 or sample_count == 0:
             logger.warning("No CPU utilization of PS")
             return plan
+        opt_worker_num = len(node_samples[NodeType.WORKER][0])
         factor = self._opt_params.ps_cpu_overload_threshold / max_ps_cpu_util
         if factor > 1:
             opt_worker_num = int(opt_worker_num * factor)
@@ -191,9 +196,13 @@ class LocalOptimizer(ResourceOptimizer):
             for node in nodes:
                 worker_cpus.append(node.used_resource.cpu)
                 worker_memory = max(node.used_resource.memory, worker_memory)
-        opt_cpu = round(sum(worker_cpus) / len(worker_cpus), 1)
+        opt_cpu = sum(worker_cpus) / len(worker_cpus)
+        opt_cpu = opt_cpu if opt_cpu > _MIN_NODE_CPU else _MIN_NODE_CPU
         opt_memory = int(
             (1 + self._opt_params.worker_memory_margin_percent) * worker_memory
+        )
+        opt_memory = (
+            opt_memory if opt_memory > _MIN_NODE_MEMORY else _MIN_NODE_MEMORY
         )
 
         ps_resource = self._compute_total_requested_resource(NodeType.PS)
@@ -208,7 +217,6 @@ class LocalOptimizer(ResourceOptimizer):
             remaining_cpu / opt_cpu, remaining_memory / opt_memory
         )
         opt_worker_num = int(min(max_worker_num, opt_worker_num))
-
         plan.node_group_resources[NodeType.WORKER] = NodeGroupResource(
             opt_worker_num, NodeResource(opt_cpu, opt_memory)
         )
