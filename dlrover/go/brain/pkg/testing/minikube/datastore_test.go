@@ -28,7 +28,7 @@ func TestDatastore(t *testing.T) {
 }
 
 func testMysqlConnection() error {
-	// run "minikube service mysql --url -n dlrover" to get the port number
+	// run "k8s service mysql --url -n dlrover" to get the port number
 	port := "61680"
 	url := fmt.Sprintf("tcp(127.0.0.1:%s)/dlrover?parseTime=true&interpolateParams=true&loc=Local", port)
 
