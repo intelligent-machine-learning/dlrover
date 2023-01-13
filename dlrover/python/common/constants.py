@@ -12,6 +12,11 @@
 # limitations under the License.
 
 
+class PriorityClass(object):
+    LOW = "low"
+    HIGH = "high"
+
+
 class PlatformType(object):
     KUBERNETES = "k8s"
     PY_KUBERNETES = "pyk8s"

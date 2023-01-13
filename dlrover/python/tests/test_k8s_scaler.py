@@ -27,11 +27,11 @@ class k8sScalerTest(unittest.TestCase):
             Node(
                 NodeType.WORKER,
                 0,
-                NodeResource(10, 4096),
+                NodeResource(10, 4096, priority="low"),
                 rank_index=0,
             )
         )
-        group_resource = NodeGroupResource(1, node_resource, "low")
+        group_resource = NodeGroupResource(1, node_resource)
         plan.node_group_resources["worker"] = group_resource
 
         scaler = ElasticJobScaler("test", "dlrover")

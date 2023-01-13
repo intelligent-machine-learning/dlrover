@@ -40,6 +40,7 @@ from dlrover.python.master.node.status_flow import (
 from dlrover.python.master.node.training_node import (
     get_critical_worker_index,
     set_critical_node,
+    update_nodes_priority,
 )
 from dlrover.python.master.node.worker import (
     ChiefManager,
@@ -205,6 +206,7 @@ class NodeManager(object):
             self._ps_relaunch_max_num,
             self._critical_worker_index,
         )
+        update_nodes_priority(self._job_nodes)
         self._ps_manager.update_nodes(self._job_nodes.get(NodeType.PS, {}))
         self._chief_manager.update_nodes(
             self._job_nodes.get(NodeType.CHIEF, {})

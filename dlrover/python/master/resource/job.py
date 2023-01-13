@@ -53,17 +53,6 @@ class JobResource(JsonSerializable):
     def __init__(self):
         self.node_group_resources: Dict[str, NodeGroupResource] = {}
 
-    def add_node_group_resource(
-        self, node_type, num, resource_config, priority
-    ):
-        self.node_group_resources[node_type] = NodeGroupResource(
-            count=num,
-            node_resource=NodeResource.resource_str_to_node_resource(
-                resource_config
-            ),
-            priority=priority,
-        )
-
     def get_node_group_resource(self, node_type):
         return self.node_group_resources.get(node_type, None)
 
@@ -81,7 +70,6 @@ class JobResource(JsonSerializable):
             NodeGroupResource(
                 count=0,
                 node_resource=NodeResource(0, 0),
-                priority=None,
             ),
         )
         resource = self.node_group_resources[node_type]

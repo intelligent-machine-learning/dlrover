@@ -27,8 +27,8 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.common.node import Node
 from dlrover.python.master.scaler.base_scaler import ScalePlan
-from dlrover.python.master.watcher.base_watcher import Node
 from dlrover.python.scheduler.job import JobArgs
 
 _dlrover_context = Context.singleton_instance()
@@ -68,6 +68,13 @@ def set_critical_node(
     if NodeType.CHIEF in job_nodes:
         for node in job_nodes[NodeType.CHIEF].values():
             node.critical = True
+
+
+def update_nodes_priority(job_nodes: Dict[str, Dict[int, Node]]):
+    for nodes in job_nodes.values():
+        group_node_num = len(nodes)
+        for node in nodes.values():
+            node.update_priority(group_node_num)
 
 
 def get_critical_worker_index(params: JobArgs):
