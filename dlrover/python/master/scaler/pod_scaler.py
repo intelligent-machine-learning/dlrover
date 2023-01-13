@@ -28,7 +28,7 @@ from dlrover.python.common.constants import (
     NodeType,
 )
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.common.node import Node
+from dlrover.python.common.node import Node, NodeResource
 from dlrover.python.master.scaler.base_scaler import ScalePlan, Scaler
 from dlrover.python.scheduler.kubernetes import (
     NODE_SERVICE_PORTS,
@@ -177,13 +177,14 @@ class PodScaler(Scaler):
                 pod.metadata.labels[ElasticJobLabel.REPLICA_INDEX_KEY]
             )
             task_id = int(pod.metadata.labels[ElasticJobLabel.RANK_INDEX_KEY])
+            pod_resource = self._get_pod_resource(pod)
             node = Node(
                 node_type=pod_type,
                 node_id=pod_id,
                 name=pod.metadata.name,
                 rank_index=task_id,
                 status=pod.status.phase,
-                config_resource=None,
+                config_resource=pod_resource,
             )
             if node.status in [
                 NodeStatus.PENDING,
@@ -192,6 +193,17 @@ class PodScaler(Scaler):
             ]:
                 job_pods[pod_type].append(node)
         return job_pods
+
+    def _get_pod_resource(self, pod):
+        container = pod.spec.containers[0]
+        resources = container.get("resources", {})
+        requests = resources.get("requests", {})
+        cpu = float(requests.get("cpu", 0))
+        if "memory" in requests:
+            memory = NodeResource.convert_memory_to_mb(requests["memory"])
+        else:
+            memory = 0
+        return NodeResource(cpu, memory)
 
     def _scale_up_pods(
         self,
