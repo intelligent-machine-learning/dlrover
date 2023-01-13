@@ -195,12 +195,12 @@ class PodScaler(Scaler):
         return job_pods
 
     def _get_pod_resource(self, pod):
-        container = pod.spec.containers[0]
-        resources = container.get("resources", {})
-        requests = resources.get("requests", {})
-        cpu = float(requests.get("cpu", 0))
-        if "memory" in requests:
-            memory = NodeResource.convert_memory_to_mb(requests["memory"])
+        resources = pod.spec.containers[0].resources
+        cpu = float(resources.requests.get("cpu", 0))
+        if "memory" in resources.requests:
+            memory = NodeResource.convert_memory_to_mb(
+                resources.requests["memory"]
+            )
         else:
             memory = 0
         return NodeResource(cpu, memory)
