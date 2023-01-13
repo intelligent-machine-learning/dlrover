@@ -61,20 +61,20 @@ class MockJobArgs(JobArgs):
         )
 
     def initilize(self):
-        worker_resource = NodeGroupResource(3, NodeResource(1, 4096), "")
+        worker_resource = NodeGroupResource(3, NodeResource(1, 4096))
         self.node_args[NodeType.WORKER] = NodeArgs(
             worker_resource, True, 3, 0, ""
         )
 
-        ps_resource = NodeGroupResource(3, NodeResource(1, 4096), "")
+        ps_resource = NodeGroupResource(3, NodeResource(1, 4096))
         self.node_args[NodeType.PS] = NodeArgs(ps_resource, True, 1, 0, "all")
 
-        evaluator_resource = NodeGroupResource(1, NodeResource(1, 4096), "")
+        evaluator_resource = NodeGroupResource(1, NodeResource(1, 4096))
         self.node_args[NodeType.EVALUATOR] = NodeArgs(
             evaluator_resource, False, 1, 0, ""
         )
 
-        chief_resource = NodeGroupResource(1, NodeResource(1, 4096), "")
+        chief_resource = NodeGroupResource(1, NodeResource(1, 4096))
         self.node_args[NodeType.CHIEF] = NodeArgs(
             chief_resource, True, 1, 0, ""
         )

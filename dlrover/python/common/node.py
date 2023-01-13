@@ -17,8 +17,19 @@ from dlrover.python.common.constants import (
     NodeExitReason,
     NodeResourceLimit,
     NodeStatus,
+    PriorityClass,
 )
 from dlrover.python.common.serialize import JsonSerializable
+
+
+def _is_float_str(str_number):
+    if not str_number:
+        return False
+    try:
+        float(str_number)
+        return True
+    except ValueError:
+        return False
 
 
 class NodeResource(object):
@@ -38,6 +49,7 @@ class NodeResource(object):
         memory,
         gpu_type=None,
         gpu_num=0,
+        priority="",
         **kwargs,
     ):
         self.cpu = cpu
@@ -46,7 +58,7 @@ class NodeResource(object):
         self.gpu_num = gpu_num
         self.kwargs = kwargs
         self.image = ""
-        self.priority = ""
+        self.priority = priority
 
     def to_resource_dict(self):
         resource = self.kwargs
@@ -95,10 +107,9 @@ class NodeGroupResource(JsonSerializable):
         node_resource: a NodeResource instance.
     """
 
-    def __init__(self, count, node_resource: NodeResource, priority=None):
+    def __init__(self, count, node_resource: NodeResource):
         self.count = count
         self.node_resource = node_resource
-        self.priority = priority
 
     def update(self, count, cpu, memory):
         if count > 0:
@@ -210,3 +221,30 @@ class Node(object):
 
     def set_exit_reason(self, reason):
         self.exit_reason = reason
+
+    def update_priority(self, group_node_num):
+        """Update the priority if the priority is a fraction.
+        For example, if the prirority is 0.5, and the number of
+        typed nodes is 10. The node priority with id <5 is high
+        and others are low.
+        Args:
+            group_node_num: the number of the group nodes.
+        """
+        priority = self.config_resource.priority
+        if _is_float_str(priority):
+            fraction = float(priority)
+            if fraction <= 0 or fraction > 1:
+                raise ValueError(
+                    "If priority is a float, it should be greater than 0 or"
+                    "less equal than 1."
+                )
+            high_count = round(group_node_num * fraction)
+            if self.id <= high_count:
+                self.config_resource.priority = PriorityClass.HIGH
+            else:
+                self.config_resource.priority = PriorityClass.LOW
+        elif priority not in [None, "", PriorityClass.HIGH, PriorityClass.LOW]:
+            raise ValueError(
+                "Not support priority = {}, please set priority = "
+                "high/low/a fraction value.".format(priority)
+            )

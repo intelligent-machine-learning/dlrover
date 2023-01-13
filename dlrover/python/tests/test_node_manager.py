@@ -38,6 +38,7 @@ from dlrover.python.master.node.status_flow import (
 from dlrover.python.master.node.training_node import (
     get_critical_worker_index,
     set_critical_node,
+    update_nodes_priority,
 )
 from dlrover.python.master.resource.job import JobResource
 from dlrover.python.master.resource.optimizer import ResourcePlan
@@ -90,9 +91,11 @@ class JobConfigTest(unittest.TestCase):
 
     def test_job_resource(self):
         job = JobResource()
-        job.add_node_group_resource(NodeType.PS, 3, "cpu=1,memory=4096Mi", "")
-        job.add_node_group_resource(
-            NodeType.WORKER, 5, "cpu=1,memory=4096Mi", ""
+        job.node_group_resources[NodeType.PS] = NodeGroupResource(
+            3, NodeResource(1, 4096)
+        )
+        job.node_group_resources[NodeType.WORKER] = NodeGroupResource(
+            5, NodeResource(1, 4096)
         )
         group_resource = job.get_node_group_resource(NodeType.WORKER)
         self.assertEqual(group_resource.count, 5)
@@ -119,11 +122,35 @@ class JobConfigTest(unittest.TestCase):
             nodes[NodeType.WORKER][0].config_resource.memory, 4096
         )
 
+    def test_node_priority(self):
+        job = JobResource()
+        job.node_group_resources[NodeType.PS] = NodeGroupResource(
+            3, NodeResource(8, 10240, priority="high")
+        )
+        job.node_group_resources[NodeType.WORKER] = NodeGroupResource(
+            5, NodeResource(8, 10240, priority="0.5")
+        )
+
+        nodes = job.init_job_node_meta(1, get_service_fn, _get_node_name)
+        update_nodes_priority(nodes)
+        ps_priority = []
+        for node in nodes[NodeType.PS].values():
+            ps_priority.append(node.config_resource.priority)
+        self.assertListEqual(ps_priority, ["high"] * 3)
+        worker_priority = []
+        for node in nodes[NodeType.WORKER].values():
+            worker_priority.append(node.config_resource.priority)
+        self.assertListEqual(
+            worker_priority, ["high", "high", "high", "low", "low"]
+        )
+
     def test_set_critical_node(self):
         job = JobResource()
-        job.add_node_group_resource(NodeType.PS, 3, "cpu=1,memory=4096Mi", "")
-        job.add_node_group_resource(
-            NodeType.WORKER, 5, "cpu=1,memory=4096Mi", ""
+        job.node_group_resources[NodeType.PS] = NodeGroupResource(
+            3, NodeResource(1, 4096)
+        )
+        job.node_group_resources[NodeType.WORKER] = NodeGroupResource(
+            5, NodeResource(1, 4096)
         )
 
         nodes = job.init_job_node_meta(1, get_service_fn, _get_node_name)

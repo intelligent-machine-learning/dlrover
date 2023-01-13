@@ -46,4 +46,6 @@ class k8sJobArgsTest(unittest.TestCase):
         self.assertEqual(ps_params.group_resource.count, 3)
         self.assertEqual(ps_params.group_resource.node_resource.cpu, 1)
         self.assertEqual(ps_params.group_resource.node_resource.memory, 4096)
-        self.assertEqual(ps_params.group_resource.priority, "high")
+        self.assertEqual(
+            ps_params.group_resource.node_resource.priority, "high"
+        )

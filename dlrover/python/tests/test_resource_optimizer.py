@@ -161,13 +161,15 @@ class JobResourceOptimizerTest(unittest.TestCase):
 
     def test_init_job_resource(self):
         job = JobResource()
-        job.add_node_group_resource(
-            NodeType.PS, 3, "cpu=1,memory=256Mi", "high"
+        job.node_group_resources[NodeType.PS] = NodeGroupResource(
+            3, NodeResource(1, 256, priority="high")
         )
-        job.add_node_group_resource(
-            NodeType.WORKER, 0, "cpu=1,memory=2564Mi", "high"
+        job.node_group_resources[NodeType.WORKER] = NodeGroupResource(
+            0, NodeResource(1, 256, priority="high")
         )
-        job.add_node_group_resource(NodeType.EVALUATOR, 5, "", "high")
+        job.node_group_resources[NodeType.EVALUATOR] = NodeGroupResource(
+            5, NodeResource(1, 256, priority="high")
+        )
         job = self._job_optimizer.init_job_resource(job)
         self.assertEqual(job.worker_num, 5)
         self.assertEqual(job.ps_num, 2)

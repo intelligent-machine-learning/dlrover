@@ -15,7 +15,7 @@ import unittest
 from datetime import datetime, timedelta
 
 from dlrover.python.common.constants import NodeStatus, NodeType, PlatformType
-from dlrover.python.common.node import NodeResource
+from dlrover.python.common.node import NodeGroupResource, NodeResource
 from dlrover.python.master.node.ps import ParameterServerManager
 from dlrover.python.master.resource.job import JobResource
 from dlrover.python.scheduler.factory import new_elastic_job
@@ -26,9 +26,9 @@ class PSManagerTest(unittest.TestCase):
     def setUp(self) -> None:
         mock_k8s_client()
         self._job_resource = JobResource()
-        self._job_resource.add_node_group_resource(
-            NodeType.PS, 2, "cpu=16,memory=2048Mi", ""
-        )
+        self._job_resource.node_group_resources[
+            NodeType.PS
+        ] = NodeGroupResource(2, NodeResource(16, 2048))
         self._elastic_job = new_elastic_job(
             PlatformType.KUBERNETES, "test", "default"
         )
