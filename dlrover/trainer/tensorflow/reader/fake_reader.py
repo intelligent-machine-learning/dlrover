@@ -13,7 +13,6 @@
 import numpy as np
 
 from dlrover.python.elastic_agent.sharding.client import ShardingClient
-from dlrover.trainer.util.log_util import default_logger as logger
 
 
 def build_data_shard_service(
@@ -67,7 +66,6 @@ class FakeReader:
         shard = None
         if self.data_shard_client is not None:
             shard = self.data_shard_client.fetch_shard()
-            logger.info("getting data shard from easydl {}".format(shard))
         data = self.get_data_by_shard(shard)
         if shard is None:
             data = None

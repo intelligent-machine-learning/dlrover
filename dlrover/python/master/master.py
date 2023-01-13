@@ -99,6 +99,7 @@ class Master(object):
             job_uuid, params.namespace, params.cluster, params.user
         )
         collector.collect_job_type(params.distribution_strategy)
+        return collector
 
     def prepare(self):
         # Composite the components

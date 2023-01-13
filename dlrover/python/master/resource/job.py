@@ -346,31 +346,6 @@ class JobResourceOptimizer(object):
         plan.adjust_plan_by_context()
         return plan
 
-    def get_job_resource_budget(self):
-        plan = self._resource_optimizer.generate_resource_plan_with_optimizer(
-            {"optimizer": "job_resource_estimate_optimizer"}
-        )
-        quota: Dict[str, Dict[str, int]] = {}
-        for task_type, group in plan.resource.task_group_resources.items():
-            if group.count <= 0:
-                continue
-            stats = {
-                "total_cpu": 0,
-                "total_memory": 0,
-                "total": 0,
-                "active": 0,
-                "succeeded": 0,
-                "failed": 0,
-            }
-            stats["total"] = int(group.count)
-            stats["total_cpu"] = int(group.resource.cpu * group.count)
-            stats["total_memory"] = int(
-                group.resource.memory * group.count / 1024 / 1024
-            )
-            stats["active"] = int(group.count)
-            quota[task_type] = stats
-        return quota
-
     def _get_worker_resource_at_running(self):
         if not self.optimize_worker_sampled:
             plan = self._get_worker_resource_at_sample_phase()
