@@ -308,8 +308,13 @@ class PodScaler(Scaler):
     def _create_pod(self, node: Node, pod_stats: Dict[str, int], ps_addrs):
         # Find that master pod that will be used as the owner reference
         # for the ps or worker pod.
+        node.update_priority(pod_stats[node.type])
         pod_name = get_pod_name(self._job_name, node.type, node.id)
-        logger.info("Create Pod %s", pod_name)
+        logger.info(
+            "Create Pod %s with resource %s",
+            pod_name,
+            node.config_resource.to_resource_dict(),
+        )
         env: List[V1EnvVar] = []
         env = append_pod_ip_to_env(env)
 
