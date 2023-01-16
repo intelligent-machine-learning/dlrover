@@ -49,7 +49,7 @@ kubectl -n dlrover get pods -l elasticjob-name=deepctr-sample
 ```
 
 ```bash
-deepctr-sample-edljob-chief-0              0/1     Running             0          90s
+deepctr-sample-edljob-chief-0              1/1     Running             0          90s
 deepctr-sample-edljob-ps-0                 1/1     Running             0          90s
 elasticjob-deepctr-sample-dlrover-master   1/1     Running             0          94s
 ```
