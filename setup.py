@@ -33,7 +33,6 @@ setup(
     python_requires=">=3.5",
     packages=find_packages(
         exclude=[
-            "*test*",
             "model_zoo*",
         ]
     ),
