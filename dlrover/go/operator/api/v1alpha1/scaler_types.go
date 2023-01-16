@@ -37,8 +37,20 @@ type ScalerSpec struct {
 	//   }
 	ReplicaResourceSpecs map[commonv1.ReplicaType]ReplicaResourceSpec `json:"replicaResourceSpec,omitempty"`
 
-	// NodeResourceSpec specifics resources configurations of nodes.
-	NodeResourceSpec map[string]ResourceSpec `json:"nodeResourceSpec,omitempty"`
+	// CreatePods are Pods to be created.
+	CreatePods []PodMeta `json:"createPods,omitempty"`
+
+	// RemovePods are Pods to be removed
+	RemovePods []string `json:"removePods,omitempty"`
+
+	// MigratePods are Pods to be migrated to other Pods with the new resource.
+	MigratePods []PodMeta `json:"migratePods,omitempty"`
+
+	// PsHosts are hosts of PS Pods
+	PsHosts []string `json:"psHosts,omitempty"`
+
+	// MaunnalScaling specifies the ScalerCRD created by users.
+	MaunnalScaling bool `json:"manunalScaling,omitempty"`
 
 	// OwnerJob specifies a job to scale.
 	OwnerJob string `json:"ownerJob,omitempty"`
@@ -61,6 +73,27 @@ type ResourceSpec struct {
 	Memory string `json:"memory,omitempty"`
 	// GPU is the requested GPU of a replica
 	GPU string `json:"gpu,omitempty"`
+}
+
+// PodMeta specifies the meta of a Pod.
+type PodMeta struct {
+	// Name is the name of the Pod
+	Name string `json:"name,omitempty"`
+
+	// Id is the identity of the Pod
+	ID int `json:"id,omitempty"`
+
+	// Type is the type of the Pod
+	Type string `json:"type,omitempty"`
+
+	// RankIndex is the index of the Pod
+	RankIndex int `json:"randIndex,omitempty"`
+
+	// Service is the service whose endpoint is the Pod.
+	Service string `json:"service,omitempty"`
+
+	// Resource defines the resource of each replica
+	Resource ResourceSpec `json:"resoruce,omitempty"`
 }
 
 // ScalerStatus defines the observed state of ElasticJob
