@@ -1,17 +1,17 @@
-# Introduction to Develop Tensorflow Estimator Model with Dlrover.trainer
+# Introduction to Develop Tensorflow Estimator Model with DLRover trainer
 
-The document describes how to develop tensorflow estimator model with Dlrover.trainer.
+The document describes how to develop tensorflow estimator model with DLRover trainer.
 
 ## Develop model with tensorflow estimator
 [Tensorflow Estimator](https://www.tensorflow.org/guide/estimator)
 encapsulate Training, Evaluation, Prediction and Export for serving actions.
-In Dlrover, both custome estimators and pre-made estimators are supported.
+In DLrover, both custome estimators and pre-made estimators are supported.
 
-A Dlrover program with Estimator typically consists of the following four steps:
+A DLrover program with Estimator typically consists of the following four steps:
 ### Define the features and label column in the conf
 
 Each `Column` identifies a feature name, its type and whether it is label.
-(For example)[https://github.com/intelligent-machine-learning/dlrover/tree/master/dlrover/trainer/examples/estimator_executor], the following snippet define two feature columns. 
+(For example)[https://github.com/intelligent-machine-learning/dlrover/tree/master/dlrover/trainer/examples/estimator_executor], the following snippet defines two feature columns. 
 ```
 train_set = {
     "path": "fake://test.data",
@@ -32,19 +32,19 @@ train_set = {
 
 The first feature is `x` and its type is `float32`.
 The second feature is `y` and is label. Its type is `float32`. 
-Dlrover.trainer helps build `input_fn` for train set and test set with column info. 
+`dlrover.trainer` helps build `input_fn` for train set and test set with those column info. 
    
 ### Instantiate the Estimator.
 The heart of every Estimator—whether pre-made or custom—is its model function, model_fn, which is a method that builds graphs for training, evaluation, and prediction.  
-In Dlrover.trainer, we assume the Estimator is a custom estimator. And pre-made estimators should be converted to custom estimator with little overhead.
+In `dlrover.trainer`, we assume the Estimator is a custom estimator. And pre-made estimators should be converted to custom estimator with little overhead.
 #### Train a model from custome estimators
 When relying on a custom Estimator, you must write the model function yourself. Refer the [tutorial](https://www.tensorflow.org/guide/estimator).
 #### Train a model from pre-made estimators 
-You can convert an existing pre-made estimators by writing an Adaptor to fit with dlrover.trainer.
+You can convert an existing pre-made estimators by writing an Adaptor to fit with `dlrover.trainer`.
 As we can see, the model_fn is the key part of estimator.
 When training and evaluating, the model_fn is called with different mode and the graph is returned.
 Thus, you can define a custom estimator in which model_fn function acts as a wrapper for pre-made estimator model_fn.
-(For example)[https://github.com/intelligent-machine-learning/dlrover/tree/master/dlrover/trainer/examples/deepfm], `DeepFMEstimator` in [`deepctr.estimator.models`](https://pypi.org/project/deepctr/) is a pre-made estimator. 
+(For example)[https://github.com/intelligent-machine-learning/dlrover/tree/master/dlrover/trainer/examples/deepfm], `DeepFMEstimator` in [`deepctr.estimator.models`](https://github.com/shenweichen/DeepCTR/tree/master/deepctr/estimator/models) is a pre-made estimator. 
 
 ```
 class DeepFMAdaptor(tf.estimator.Estimator):
