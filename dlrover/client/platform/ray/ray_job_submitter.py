@@ -24,6 +24,13 @@ _logger.setLevel("INFO")
 logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
 
 
+def load_conf(conf_path):
+    with open(conf_path, "r", encoding="utf-8") as file:
+        file_data = file.read()
+        all_data = yaml.safe_load(file_data)
+    return all_data
+
+
 def split_lines(text: str) -> List[str]:
     lines = []
     while len(text) > 0:
@@ -51,19 +58,17 @@ class RayJobSubimitter:
     def __init__(self, conf_path):
         self._conf_path = conf_path
         self.run_options = {}
+        self._load_conf()
         job_submission_addr = self.run_options["dashboardUrl"]
         self._dashboard_addr = job_submission_addr
         self._client = JobSubmissionClient(f"http://{job_submission_addr}")
 
 
     def _load_conf(self):
-        with open(self._conf_path, "r", encoding="utf-8") as file:
-            file_data = file.read()
-            all_data = yaml.load_all(file_data, Loader=yaml.SafeLoader)
-        self.run_options = all_data
+        self.run_options = load_conf(self._conf_path)
+        print(self.run_options)
 
     def submit(self):
-
         runtime_env = {"working_dir": self.run_options.get("workingDir", "./")}
         if self.run_options.get("requirements", None):
             runtime_env["pip"] = self.run_options.get("requirements")
