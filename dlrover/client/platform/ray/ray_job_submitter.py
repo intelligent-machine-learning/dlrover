@@ -48,7 +48,7 @@ def split_lines(text: str) -> List[str]:
 class RayJobSubimitter:
     """
     RayJobSubimiter is a dlrover interface to Ray.
-    The job environment is specified by the TorchX workspace. Any files in
+    The job environment is specified by the workspace. Any files in
     the workspace will be present in the Ray job unless specified in
     """
 
