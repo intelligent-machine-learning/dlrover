@@ -32,7 +32,7 @@ train_set = {
 
 The first feature is `x` and its type is `float32`.
 The second feature is `y` and is label. Its type is `float32`. 
-`dlrover.trainer` helps build `input_fn` for train set and test set with those column info. 
+`dlrover.trainer` helps build `input_fn` for train set and test set with those columns. 
    
 ### Instantiate the Estimator.
 The heart of every Estimator—whether pre-made or custom—is its model function, model_fn, which is a method that builds graphs for training, evaluation, and prediction.  
