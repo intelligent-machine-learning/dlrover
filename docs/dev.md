@@ -16,7 +16,7 @@ and create a PR on github.
 
 ## Test ElasticJob on Minikube
 
-### Preliminary
+### 1. Preliminary
 
 Install [minikube](https://kubernetes.io/docs/tasks/tools/) on your loptop.
 And you can start minikube by the command
@@ -25,12 +25,12 @@ And you can start minikube by the command
 minikube start --vm-driver=docker --cpus 6 --memory 6144
 ```
 
-### Run ElasticJob Controller
+### 2. Run ElasticJob Controller
 
 We can run the ElasticJob in the terminal or deploy the controller with
 a docker image.
 
-1. Run the controller in the terminal.
+- Run the controller in the terminal.
 
 ```bash
 cd dlrover/go/operator
@@ -38,13 +38,19 @@ make install
 make run
 ```
 
-2. Deploy the controller
+- Deploy the controller.
 
 ```bash
 make deploy IMG=easydl/elasticjob-controller:test
 ```
 
-### Submit an ElasticJob.
+### 3. Grant Permission for the DLRover Master to Access CRDs
+
+```bash
+kubectl apply -f dlrover/go/operator/config/rbac/default_role.yaml 
+```
+
+### 4. Submit an ElasticJob.
 
 ```bash
 eval $(minikube docker-env)
