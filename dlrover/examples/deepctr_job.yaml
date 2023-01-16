@@ -2,16 +2,14 @@
 apiVersion: elastic.iml.github.io/v1alpha1
 kind: ElasticJob
 metadata:
-  name: elasticjob-sample-24
+  name: deepctr-sample
 spec:
   distributionStrategy: ParameterServerStrategy
   resourceLimits:
-    cpu: "1"
-    memory: "1000Mi"
+    cpu: "12"
+    memory: "20000Mi"
   replicaSpecs:
     ps:
-      replicas: 1
-      restartCount: 3
       template:
         spec:
           restartPolicy: Never
@@ -22,7 +20,15 @@ spec:
               command:
                 - /bin/bash
                 - -c
-                - "pip uninstall dlrover -y && pip install -i https://test.pypi.org/simple/ dlrover==0.1.0rc0.dev6 -U && pip install pyhocon  && cd /usr/local/lib/python3.8/site-packages/dlrover/trainer/examples/estimator_executor  && python -m dlrover.trainer.entry.local_entry --platform=Kubernetes  --conf=conf.TrainConf --enable_auto_scaling=True  " # yamllint disable-line rule:line-length
+                - "pip uninstall dlrover -y \
+                  && pip install dlrover==0.1.0rc0.dev6 -U \
+                  -i https://test.pypi.org/simple/ \
+                  && pip install pyhocon \
+                  && cd /usr/local/lib/python3.8/site-packages/\
+                  dlrover/trainer/examples/estimator_executor \
+                  && python -m dlrover.trainer.entry.local_entry \
+                  --platform=Kubernetes --conf=conf.TrainConf \
+                  --enable_auto_scaling=True"
               volumeMounts:
                 - name: pvc-nas
                   mountPath: /nas
@@ -31,8 +37,6 @@ spec:
               persistentVolumeClaim:
                 claimName: pvc-nas
     worker:
-      replicas: 2
-      restartCount: 3
       template:
         spec:
           restartPolicy: Never
@@ -43,7 +47,15 @@ spec:
               command:
                 - /bin/bash
                 - -c
-                - "pip uninstall dlrover -y && pip install -i https://test.pypi.org/simple/ dlrover==0.1.0rc0.dev6 -U && pip install pyhocon  && cd /usr/local/lib/python3.8/site-packages/dlrover/trainer/examples/estimator_executor  && python -m dlrover.trainer.entry.local_entry --platform=Kubernetes  --conf=conf.TrainConf --enable_auto_scaling=True" # yamllint disable-line rule:line-length
+                - "pip uninstall dlrover -y \
+                  && pip install dlrover==0.1.0rc0.dev6 -U \
+                  -i https://test.pypi.org/simple/ \
+                  && pip install pyhocon \
+                  && cd /usr/local/lib/python3.8/site-packages/\
+                  dlrover/trainer/examples/estimator_executor \
+                  && python -m dlrover.trainer.entry.local_entry \
+                  --platform=Kubernetes --conf=conf.TrainConf \
+                  --enable_auto_scaling=True"
               volumeMounts:
                 - name: pvc-nas
                   mountPath: /nas
