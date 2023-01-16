@@ -1,6 +1,7 @@
 ---
 distributionStrategy: ParameterServerStrategy
 dashboardUrl: "localhost:5000"
+command: "python -c 'import time;time.sleep(10)'"
 worker:
   replica: 3
   cpu: 1

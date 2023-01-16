@@ -35,10 +35,8 @@ class RayJobSubmitter(unittest.TestCase):
     def test_submit_job(self):
         current_directory = os.path.dirname(os.path.abspath(__file__))
         conf_path = os.path.join(current_directory, "demo.yaml")
-        print(conf_path)
         submitter = create_scheduler(conf_path)
         job_id = submitter.submit()
-        print(job_id)
         self.assertNotEqual(job_id, None)
         submitter.wait_until_finish(job_id)
 

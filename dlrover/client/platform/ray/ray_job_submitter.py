@@ -69,11 +69,12 @@ class RayJobSubimitter:
 
     def submit(self):
         runtime_env = {"working_dir": self.run_options.get("workingDir", "./")}
+        entrypoint =  self.run_options.get("command")
         if self.run_options.get("requirements", None):
             runtime_env["pip"] = self.run_options.get("requirements")
         try:
             job_id: str = self._client.submit_job(
-                entrypoint="python -c 'import time; time.sleep(10)'",
+                entrypoint=entrypoint,
                 runtime_env=runtime_env,
             )
         except Exception as e:
