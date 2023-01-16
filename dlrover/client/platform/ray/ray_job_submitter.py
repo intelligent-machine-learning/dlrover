@@ -63,7 +63,6 @@ class RayJobSubimitter:
         self._dashboard_addr = job_submission_addr
         self._client = JobSubmissionClient(f"http://{job_submission_addr}")
 
-
     def _load_conf(self):
         self.run_options = load_conf(self._conf_path)
         print(self.run_options)

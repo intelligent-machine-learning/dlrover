@@ -13,9 +13,11 @@
 
 import os
 import unittest
-import yaml
 
-from dlrover.client.platform.ray.ray_job_submitter import create_scheduler,load_conf
+from dlrover.client.platform.ray.ray_job_submitter import (
+    create_scheduler,
+    load_conf,
+)
 
 
 class RayJobSubmitter(unittest.TestCase):
@@ -23,12 +25,12 @@ class RayJobSubmitter(unittest.TestCase):
         os.system("ray stop")
         r = os.system("ray start --head --port=5001  --dashboard-port=5000")
         self.assertEqual(r, 0)
-    
+
     def test_parse_conf(self):
         current_directory = os.path.dirname(os.path.abspath(__file__))
         conf_path = os.path.join(current_directory, "demo.yaml")
         all_data = load_conf(conf_path)
-        self.assertEqual(all_data["dashboardUrl"],"localhost:5000")
+        self.assertEqual(all_data["dashboardUrl"], "localhost:5000")
 
     def test_submit_job(self):
         current_directory = os.path.dirname(os.path.abspath(__file__))
@@ -39,11 +41,10 @@ class RayJobSubmitter(unittest.TestCase):
         print(job_id)
         self.assertNotEqual(job_id, None)
         submitter.wait_until_finish(job_id)
-        
+
     def tearDown(self) -> None:
         r = os.system("ray stop")
         self.assertEqual(r, 0)
-
 
 
 if __name__ == "__main__":
