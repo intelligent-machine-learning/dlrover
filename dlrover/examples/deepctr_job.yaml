@@ -55,7 +55,7 @@ spec:
                   dlrover/trainer/examples/estimator_executor \
                   && python -m dlrover.trainer.entry.local_entry \
                   --platform=Kubernetes --conf=conf.TrainConf \
-                  --enable_auto_scaling=True"        
+                  --enable_auto_scaling=True"
               volumeMounts:
                 - name: pvc-nas
                   mountPath: /nas
