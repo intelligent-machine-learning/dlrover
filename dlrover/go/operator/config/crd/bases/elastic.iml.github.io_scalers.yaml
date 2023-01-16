@@ -39,26 +39,93 @@ spec:
           spec:
             description: ScalerSpec defines the desired resource state of an ElasticJob
             properties:
-              nodeResourceSpec:
-                additionalProperties:
-                  description: ResourceSpec specifies the resources of a repalica
+              createPods:
+                description: CreatePods are Pods to be created.
+                items:
+                  description: PodMeta specifies the meta of a Pod.
                   properties:
-                    cpu:
-                      description: CPU is the requested CPU cores of a replica
+                    id:
+                      description: Id is the identity of the Pod
+                      type: integer
+                    name:
+                      description: Name is the name of the Pod
                       type: string
-                    gpu:
-                      description: GPU is the requested GPU of a replica
+                    randIndex:
+                      description: RankIndex is the index of the Pod
+                      type: integer
+                    resoruce:
+                      description: Resource defines the resource of each replica
+                      properties:
+                        cpu:
+                          description: CPU is the requested CPU cores of a replica
+                          type: string
+                        gpu:
+                          description: GPU is the requested GPU of a replica
+                          type: string
+                        memory:
+                          description: Memory is the requested memory (MB) of a replica
+                          type: string
+                      type: object
+                    service:
+                      description: Service is the service whose endpoint is the Pod.
                       type: string
-                    memory:
-                      description: Memory is the requested memory (MB) of a replica
+                    type:
+                      description: Type is the type of the Pod
                       type: string
                   type: object
-                description: NodeResourceSpec specifics resources configurations of
-                  nodes.
-                type: object
+                type: array
+              manunalScaling:
+                description: MaunnalScaling specifies the ScalerCRD created by users.
+                type: boolean
+              migratePods:
+                description: MigratePods are Pods to be migrated to other Pods with
+                  the new resource.
+                items:
+                  description: PodMeta specifies the meta of a Pod.
+                  properties:
+                    id:
+                      description: Id is the identity of the Pod
+                      type: integer
+                    name:
+                      description: Name is the name of the Pod
+                      type: string
+                    randIndex:
+                      description: RankIndex is the index of the Pod
+                      type: integer
+                    resoruce:
+                      description: Resource defines the resource of each replica
+                      properties:
+                        cpu:
+                          description: CPU is the requested CPU cores of a replica
+                          type: string
+                        gpu:
+                          description: GPU is the requested GPU of a replica
+                          type: string
+                        memory:
+                          description: Memory is the requested memory (MB) of a replica
+                          type: string
+                      type: object
+                    service:
+                      description: Service is the service whose endpoint is the Pod.
+                      type: string
+                    type:
+                      description: Type is the type of the Pod
+                      type: string
+                  type: object
+                type: array
               ownerJob:
                 description: OwnerJob specifies a job to scale.
                 type: string
+              psHosts:
+                description: PsHosts are hosts of PS Pods
+                items:
+                  type: string
+                type: array
+              removePods:
+                description: RemovePods are Pods to be removed
+                items:
+                  type: string
+                type: array
               replicaResourceSpec:
                 additionalProperties:
                   description: ReplicaResourceSpec specifies the number and resources
