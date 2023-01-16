@@ -47,13 +47,20 @@ Thus, you can define a custom estimator in which model_fn function acts as a wra
 (For example)[https://github.com/intelligent-machine-learning/dlrover/tree/master/dlrover/trainer/examples/deepfm], `DeepFMEstimator` in [`deepctr.estimator.models`](https://github.com/shenweichen/DeepCTR/tree/master/deepctr/estimator/models) is a pre-made estimator. 
 
 ```
+from deepctr.estimator.models.deepfm import DeepFMEstimator
+
 class DeepFMAdaptor(tf.estimator.Estimator):
     """Adaptor"""
 
     def model_fn(self, features, labels, mode, params):
- 
-        dnn_feature_columns = xx
-        dnn_feature_columns = xx
+        '''
+            featurs: type dict, key is the feature name and value is tensor.
+            labels: type tensor, corresponding to the colum which `is_label` equals True.
+        '''
+        x =  features["x"]
+        x_buckets = feature_column.bucketized_column(x, boundaries=[1, 3, 5])
+        linear_feature_columns = [x_buckets]
+        dnn_feature_columns = [x]
         self.estimator = DeepFMEstimator(
             linear_feature_columns,
             dnn_feature_columns,
