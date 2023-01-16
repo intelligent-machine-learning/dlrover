@@ -11,27 +11,27 @@ spec:
     ps:
       restartCount: 3
       template:
-          spec:
-            restartPolicy: Never
-            containers:
-              - name: main
-                image: easydl/tf-estimator:iris_dnn_v0
-                imagePullPolicy: IfNotPresent
-                command:
-                  - /bin/bash
-                  - -c
-                  - "python -m model_zoo.tf_estimator.iris_dnn_elastic"
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: main
+              image: easydl/tf-estimator:iris_dnn_v0
+              imagePullPolicy: IfNotPresent
+              command:
+                - /bin/bash
+                - -c
+                - "python -m model_zoo.tf_estimator.iris_dnn_elastic"
     worker:
       replicas: 0
       restartCount: 3
       template:
-          spec:
-            restartPolicy: Never
-            containers:
-              - name: main
-                image: easydl/tf-estimator:iris_dnn_v0
-                imagePullPolicy: IfNotPresent
-                command:
-                  - /bin/bash
-                  - -c
-                  - "python -m model_zoo.tf_estimator.iris_dnn_elastic"
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: main
+              image: easydl/tf-estimator:iris_dnn_v0
+              imagePullPolicy: IfNotPresent
+              command:
+                - /bin/bash
+                - -c
+                - "python -m model_zoo.tf_estimator.iris_dnn_elastic"
