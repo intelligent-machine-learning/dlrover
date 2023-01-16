@@ -50,9 +50,6 @@ class RayJobSubimitter:
     RayJobSubimiter is a dlrover interface to Ray.
     The job environment is specified by the TorchX workspace. Any files in
     the workspace will be present in the Ray job unless specified in
-    **Config Options**
-    .. runopts::
-        class: torchx.schedulers.ray_scheduler.create_scheduler
     """
 
     def __init__(self, conf_path):
