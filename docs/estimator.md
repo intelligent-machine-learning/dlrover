@@ -11,8 +11,7 @@ A Dlrover program with Estimator typically consists of the following four steps:
 ### Define the features and label column in the conf
 
 Each `Column` identifies a feature name, its type and whether it is label.
-For example, the following snippet define two feature columns.
-
+(For example)[https://github.com/intelligent-machine-learning/dlrover/tree/master/dlrover/trainer/examples/estimator_executor], the following snippet define two feature columns. 
 ```
 train_set = {
     "path": "fake://test.data",
@@ -29,8 +28,7 @@ train_set = {
         ),
     ),
 }
-
-```
+``` 
 
 The first feature is `x` and its type is `float32`.
 The second feature is `y` and is label. Its type is `float32`. 
@@ -46,7 +44,7 @@ You can convert an existing pre-made estimators by writing an Adaptor to fit wit
 As we can see, the model_fn is the key part of estimator.
 When training and evaluating, the model_fn is called with different mode and the graph is returned.
 Thus, you can define a custom estimator in which model_fn function acts as a wrapper for pre-made estimator model_fn.
-For example,`DeepFMEstimator` in [`deepctr.estimator.models`](https://pypi.org/project/deepctr/) is a pre-made estimator. 
+(For example)[https://github.com/intelligent-machine-learning/dlrover/tree/master/dlrover/trainer/examples/deepfm], `DeepFMEstimator` in [`deepctr.estimator.models`](https://pypi.org/project/deepctr/) is a pre-made estimator. 
 
 ```
 class DeepFMAdaptor(tf.estimator.Estimator):
