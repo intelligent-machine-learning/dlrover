@@ -24,6 +24,7 @@ from dlrover.python.common.constants import (
     NodeResourceLimit,
     NodeStatus,
     NodeType,
+    PriorityClass,
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
@@ -222,13 +223,40 @@ class TrainingNodeManager(object):
         if len(counter) == 1 and NodeStatus.INITIAL in counter:
             return False
 
-        all_exited = True
         with self._lock:
-            for node in self._nodes.values():
-                if not node.is_released and (node.status in ALIVE_STATUS):
-                    all_exited = False
-                    break
-        return all_exited
+            high_worker_num = 0
+            running_workers = []
+            pending_high_workers = []
+            pending_low_workers = []
+            for worker_id, worker in self._nodes.items():
+                if worker.is_released:
+                    continue
+                if worker.config_resource.priority == PriorityClass.LOW:
+                    if worker.status == NodeStatus.RUNNING:
+                        running_workers.append(worker_id)
+                    elif worker.status in [
+                        NodeStatus.INITIAL,
+                        NodeStatus.PENDING,
+                    ]:
+                        pending_low_workers.append(worker_id)
+                else:
+                    high_worker_num += 1
+                    if worker.status == NodeStatus.RUNNING:
+                        running_workers.append(worker_id)
+                    elif worker.status in [
+                        NodeStatus.INITIAL,
+                        NodeStatus.PENDING,
+                    ]:
+                        pending_high_workers.append(worker_id)
+
+            if (
+                running_workers
+                or pending_high_workers
+                or (not high_worker_num and pending_low_workers)
+            ):
+                return False
+            else:
+                return True
 
     def all_nodes_deleted(self):
         counter = self._get_node_counter()
