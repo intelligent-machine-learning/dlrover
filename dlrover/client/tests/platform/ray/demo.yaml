@@ -1,0 +1,19 @@
+---
+distributionStrategy: ParameterServerStrategy
+worker:
+  replica: 3
+  cpu: 1
+  memory: 1024
+ps:
+  replica: 1
+  cpu: 2
+  memory: 1024
+workingDir: "./"
+env:
+  - key: "key1"
+    value: "v1"
+  - key: "key2"
+    value: "v2"
+requirements:
+  - pip install numpy
+  - pip install tensorflow
