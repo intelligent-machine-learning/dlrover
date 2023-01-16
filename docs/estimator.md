@@ -1,6 +1,6 @@
 # Introduction to Develop Tensorflow Estimator Model with Dlrover.trainer
 
-The document describes how to develop tensorflow estimator model with dlrover.trainer.
+The document describes how to develop tensorflow estimator model with Dlrover.trainer.
 
 ## Develop model with tensorflow estimator
 [Tensorflow Estimator](https://www.tensorflow.org/guide/estimator)
