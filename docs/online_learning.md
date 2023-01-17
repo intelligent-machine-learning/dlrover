@@ -27,6 +27,19 @@ In addition, if parameter servers are at a risk of failing to store the model pa
 Training data for online learning are processed by streaming engine like Flink or a message queue like Kafka for the sake of timeliness. In the field of recommendation, 
 page view stream data and click stream data should be joined together and feature engineering for the streaming data is also needed before fed to training. In order to avoid backpressure, high performace states storage backend is needed.
 
+## Fundamental Algorithms for Better Online Model Result
+
+Online learning is different from offline/batch learning in many aspects. In order to achieve high better result,  special algorithms are developed to tackle challenges in online learning.
+
+- Learning with delayed feedback.
+- Training data drift detection and recovery.
+- Optimizer for online learning.
+- Online Hyper-parameter optimization.
+
+## Integration to the Online Inference System
+
+Unlike offline/batch learning, online model updates needed to be delivered for serving in second. Otherwise, timeliveness would be lost and performance is likely to degrade. For a big model, which size may be more than 1 TB, only a small fraction of model parameters is updated during several training steps. The delta updates needed be delivered to multiple online servers by p2p transfer
+
 
 Onling learning provided by DLrover is decoupled from specific training framework and streaming engine by its design.
 
@@ -40,7 +53,7 @@ Currently, DLrover supports following features for tensorflow estimator model
 Other kinds of DL frameworks can be supported by implementing pluggable Executors if needed.
 
 
-In addition, following features are under developing and their priorities can be changed as needed.
+In addition, the following features are under refactoring to the open source version, and their priorities can be changed as needed.
 - [ ] High Performance States Storage Backend
 - [ ] Model Parameters Resharding and PS AutoScaling  
 - [ ] An End-to-End Online Learning Example 
