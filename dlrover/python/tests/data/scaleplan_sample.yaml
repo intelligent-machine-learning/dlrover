@@ -2,11 +2,8 @@ apiVersion: elastic.iml.github.io/v1alpha1
 kind: ScalePlan
 metadata:
   name: scaleplan-sample
-  labels:
-    elasticjob-name: elasticjob-sample
 spec:
   ownerJob: elasticjob-sample
-  manualScaling: True
   replicaResourceSpec:
     ps:
       replicas: 1
@@ -18,3 +15,14 @@ spec:
       resource:
         cpu: "0.5"
         memory: 256Mi
+  migratePods:
+    - name: elasticjob_sample-ps-0
+      resource:
+        cpu: 4
+        memory: "1024Mi"
+    - name: elasticjob_sample-worker-0
+      resource:
+        cpu: 4
+        memory: "1024Mi"
+  manualScaling: True
+   

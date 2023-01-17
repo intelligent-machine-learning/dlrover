@@ -56,6 +56,7 @@ from dlrover.python.master.scaler.base_scaler import ScalePlan, Scaler
 from dlrover.python.master.scaler.factory import new_job_scaler
 from dlrover.python.master.watcher.base_watcher import NodeEvent
 from dlrover.python.master.watcher.factory import new_node_watcher
+from dlrover.python.master.watcher.k8s_watcher import ScalePlanWatcher
 from dlrover.python.scheduler.factory import new_elastic_job
 from dlrover.python.scheduler.job import ElasticJob, JobArgs
 
@@ -117,6 +118,9 @@ class NodeManager(object):
 
         self._elastic_job: ElasticJob = job
         self._node_watcher = node_watcher
+        self._scaler_watcher = ScalePlanWatcher(
+            job_args.job_name, job_args.namespace
+        )
         self._scaler: Scaler = job_scaler
         self._job_optimizer = JobResourceOptimizer(
             self._job_resource.node_group_resources[NodeType.WORKER],
@@ -136,6 +140,11 @@ class NodeManager(object):
         self._scaler.scale(plan)
         threading.Thread(
             target=self._monitor_nodes, name="node_monitor", daemon=True
+        ).start()
+        threading.Thread(
+            target=self._monitor_scale_plan_crd,
+            name="scaleplan_monitor",
+            daemon=True,
         ).start()
 
     def _adjust_worker_for_estimator(self):
@@ -235,6 +244,23 @@ class NodeManager(object):
             except Exception as e:
                 logger.warning(e)
                 time.sleep(30)
+
+    def _monitor_scale_plan_crd(self):
+        """Monitor the Scaler CRD from users to adjust the job resource"""
+        logger.info("Start to monitor Scaler CRD")
+        while True:
+            try:
+                if self._stop_monitor:
+                    logger.info("Stop monitoring Scaler CRDs")
+                    break
+                for plan in self._scaler_watcher.watch():
+                    try:
+                        self._execute_job_optimization_plan(plan)
+                    except Exception as e:
+                        logger.warning(e)
+            except Exception as e:
+                logger.warning(e)
+                time.sleep(1)
 
     def _process_list_nodes(self, nodes: List[Node]):
         """Callback with node list by the list api of k8s."""
