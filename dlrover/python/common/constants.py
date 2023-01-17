@@ -19,6 +19,7 @@ class PriorityClass(object):
 
 class PlatformType(object):
     KUBERNETES = "k8s"
+    RAY = "ray"
     PY_KUBERNETES = "pyk8s"
 
 
