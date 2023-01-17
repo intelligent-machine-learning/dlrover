@@ -13,7 +13,7 @@
 
 from dlrover.python.common.constants import PlatformType
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.master.watcher.pod_watcher import PodWatcher
+from dlrover.python.master.watcher.k8s_watcher import PodWatcher
 
 
 def new_node_watcher(platform, job_name, namespace):

@@ -19,7 +19,7 @@ from dlrover.python.master.scaler.base_scaler import ScalePlan
 from dlrover.python.master.scaler.elasticjob_scaler import ElasticJobScaler
 
 
-class k8sScalerTest(unittest.TestCase):
+class ElasticJobScalerTest(unittest.TestCase):
     def test_generate_scaler_crd_by_plan(self):
         plan = ScalePlan()
         node_resource = NodeResource(10, 4096)

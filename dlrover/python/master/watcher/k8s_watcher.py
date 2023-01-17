@@ -22,7 +22,8 @@ from dlrover.python.common.constants import (
     NodeType,
 )
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.common.node import Node, NodeResource
+from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
+from dlrover.python.master.resource.optimizer import ResourcePlan
 from dlrover.python.master.watcher.base_watcher import NodeEvent, NodeWatcher
 from dlrover.python.scheduler.kubernetes import k8sClient
 
@@ -159,3 +160,63 @@ class PodWatcher(NodeWatcher):
             node.set_exit_reason(_get_pod_exit_reason(pod))
             nodes.append(node)
         return nodes
+
+
+class ScalePlanWatcher(object):
+    """ScalePlanWatcher monitors the manual Scaler CRDs on the cluster.
+    It generates a ResourcePlan by a Scaler CRD and notidy the
+    NodeManager to adjust job resource by the ResourcePlan.
+    """
+
+    def __init__(self, job_name, namespace):
+        self._job_name = job_name
+        self._namespace = namespace
+        self._k8s_client = k8sClient.singleton_instance(job_name, namespace)
+        self._job_selector = ElasticJobLabel.JOB_KEY + "=" + self._job_name
+
+    def watch(self):
+        resource_version = None
+        try:
+            stream = watch.Watch().stream(
+                self._k8s_client.api_instance.list_namespaced_custom_object,
+                self._namespace,
+                label_selector=self._job_selector,
+                resource_version=resource_version,
+                timeout_seconds=60,
+            )
+            for event in stream:
+                scaler_crd = event.get("object", None)
+                if not scaler_crd or scaler_crd["kind"] != "ScalePlan":
+                    logger.error(
+                        "Event doesn't have ScalePlan or type: %s" % event
+                    )
+                    continue
+                resource_plan = self._get_resoruce_plan_from_event(scaler_crd)
+                logger.info("Get a manual resource plan %s", resource_plan)
+                yield resource_plan
+        except Exception as e:
+            raise e
+
+    def _get_resoruce_plan_from_event(self, scaler_crd) -> ResourcePlan:
+        resource_plan = ResourcePlan()
+        if not scaler_crd["spec"]["manualScaling"]:
+            logger.info("Skip the Scaler which is not manual")
+            return resource_plan
+
+        for replica, spec in scaler_crd["spec"]["replicaResourceSpec"].items():
+            cpu = float(spec.get("resource", {}).get("cpu", "0"))
+            memory = NodeResource.convert_memory_to_mb(
+                spec.get("resource", {}).get("memory", "0Mi")
+            )
+            resource_plan.node_group_resources[replica] = NodeGroupResource(
+                spec["replicas"], NodeResource(cpu, memory)
+            )
+
+        for pod in scaler_crd["spec"]["migratePods"]:
+            resource_plan.node_resources[pod["name"]] = NodeResource(
+                float(pod["resource"].get("cpu", "0")),
+                NodeResource.convert_memory_to_mb(
+                    pod["resource"].get("memory", "0Mi"),
+                ),
+            )
+        return resource_plan

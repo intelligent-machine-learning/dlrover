@@ -24,13 +24,19 @@ from dlrover.python.common.constants import (
     NodeType,
 )
 from dlrover.python.common.node import Node
+from dlrover.python.master.resource.optimizer import ResourcePlan
 from dlrover.python.master.watcher.base_watcher import NodeEvent
-from dlrover.python.master.watcher.pod_watcher import (
+from dlrover.python.master.watcher.k8s_watcher import (
     PodWatcher,
+    ScalePlanWatcher,
     _convert_pod_event_to_node_event,
     _get_pod_exit_reason,
 )
-from dlrover.python.tests.test_utils import create_pod, mock_k8s_client
+from dlrover.python.tests.test_utils import (
+    create_pod,
+    get_test_scale_plan,
+    mock_k8s_client,
+)
 
 
 class PodWatcherTest(unittest.TestCase):
@@ -95,3 +101,47 @@ class PodWatcherTest(unittest.TestCase):
         state.terminated = client.V1ContainerStateTerminated(exit_code=1)
         exit_reason = _get_pod_exit_reason(pod)
         self.assertEqual(exit_reason, NodeExitReason.FATAL_ERROR)
+
+
+class ScalePlanWatcherTest(unittest.TestCase):
+    def setUp(self) -> None:
+        mock_k8s_client()
+
+    def test_get_resource_plan_from_scale_plan(self):
+        watcher = ScalePlanWatcher("test", "default")
+        scale_plan = get_test_scale_plan()
+        resource_plan: ResourcePlan = watcher._get_resoruce_plan_from_event(
+            scale_plan
+        )
+        self.assertEqual(
+            resource_plan.node_group_resources[NodeType.WORKER].count, 2
+        )
+        self.assertEqual(
+            resource_plan.node_group_resources[
+                NodeType.WORKER
+            ].node_resource.cpu,
+            0.5,
+        )
+        self.assertEqual(
+            resource_plan.node_group_resources[
+                NodeType.WORKER
+            ].node_resource.memory,
+            256,
+        )
+        self.assertEqual(
+            resource_plan.node_group_resources[NodeType.PS].count, 1
+        )
+        self.assertEqual(len(resource_plan.node_resources), 2)
+        self.assertEqual(
+            resource_plan.node_resources["elasticjob_sample-ps-0"].cpu, 4.0
+        )
+        self.assertEqual(
+            resource_plan.node_resources["elasticjob_sample-ps-0"].memory, 1024
+        )
+        self.assertEqual(
+            resource_plan.node_resources["elasticjob_sample-worker-0"].cpu, 4.0
+        )
+        self.assertEqual(
+            resource_plan.node_resources["elasticjob_sample-worker-0"].memory,
+            1024,
+        )
