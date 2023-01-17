@@ -602,7 +602,9 @@ class NodeManager(object):
                     self._ps_manager.adjust_ps(group)
                     self._speed_monitor.reset_running_speed_monitor()
                 elif node_type == NodeType.WORKER:
-                    self._speed_monitor.set_target_worker_num(group.count)
+                    chief_num = len(self._job_nodes.get(NodeType.CHIEF, []))
+                    worker_num = chief_num + group.count
+                    self._speed_monitor.set_target_worker_num(worker_num)
                     self._worker_manager.adjust_worker(group)
         if len(plan.node_resources) > 0:
             migration_plan = self._migrate_nodes(plan.node_resources)
