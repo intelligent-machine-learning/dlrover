@@ -224,6 +224,7 @@ class PodScaler(Scaler):
                 copy.deepcopy(group_resource.node_resource),
                 rank_index=task_id,
                 name=get_pod_name(self._job_name, type, node_id),
+                service_addr=self.get_node_service_addr(type, node_id),
             )
             self._initial_nodes.append(node)
 
@@ -386,7 +387,7 @@ class PodScaler(Scaler):
             service_name = node.service_addr.split(".")[0]
         else:
             service_name = get_pod_name(
-                self._job_name, node.type, node.rank_index
+                self._job_name, node.type, node.id
             )
         if not self._k8s_client.get_service(service_name):
             succeed = self._create_service_with_retry(
