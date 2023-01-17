@@ -22,7 +22,7 @@ tf.logging.set_verbosity(tf.logging.INFO)
 
 
 class DeepFMAdaptor(tf.estimator.Estimator):
-    """MyEstimator"""
+    """Adaptor"""
 
     def __init__(self, model_dir, config=None, params=None):
 

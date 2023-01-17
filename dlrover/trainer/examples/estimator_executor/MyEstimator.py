@@ -37,6 +37,12 @@ class MyEstimator(tf.estimator.Estimator):
         )
 
     def model_fn(self, features, labels, mode, params):
+        """
+        featurs: type dict, key is the feature name and value is tensor.
+                 In this case. it is like {"x": Tensor}.
+        labels: type tensor, corresponding to the colum which `is_label` equals True. # noqa: E501
+                In this case, it is like Tensor.
+        """
         optimizer = tf.train.AdamOptimizer()
         x = features["x"]
         w = tf.Variable(0.1, name="x")
