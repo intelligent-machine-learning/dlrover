@@ -135,9 +135,9 @@ func (r *ElasticJobReconciler) reconcileJobs(job *elasticv1alpha1.ElasticJob) (c
 		r.handleFaultPods(job)
 		r.syncJobStateByReplicas(job)
 	case commonv1.JobScaling:
-		scaler, err := r.getJobScaler(job)
+		scalePlan, err := r.getJobScalePlan(job)
 		if err == nil {
-			r.executeScaling(job, scaler)
+			r.executeScaling(job, scalePlan)
 		}
 		r.syncJobStateByReplicas(job)
 	case commonv1.JobSucceeded:
@@ -194,24 +194,24 @@ func (r *ElasticJobReconciler) createEasydlMaster(job *elasticv1alpha1.ElasticJo
 	return err
 }
 
-func (r *ElasticJobReconciler) getJobScaler(job *elasticv1alpha1.ElasticJob) (*elasticv1alpha1.ScalePlan, error) {
-	scaler := &elasticv1alpha1.ScalePlan{}
+func (r *ElasticJobReconciler) getJobScalePlan(job *elasticv1alpha1.ElasticJob) (*elasticv1alpha1.ScalePlan, error) {
+	scalePlan := &elasticv1alpha1.ScalePlan{}
 	nsn := types.NamespacedName{}
 	nsn.Namespace = job.GetNamespace()
-	nsn.Name = job.Status.Scaler
-	err := r.Get(context.Background(), nsn, scaler)
+	nsn.Name = job.Status.ScalePlan
+	err := r.Get(context.Background(), nsn, scalePlan)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			logger.Warnf("Scaler %s not found: namespace: %v", nsn.Name, nsn.Namespace)
-			return scaler, err
+			logger.Warnf("ScalePlan %s not found: namespace: %v", nsn.Name, nsn.Namespace)
+			return scalePlan, err
 		}
-		return scaler, err
+		return scalePlan, err
 	}
-	return scaler, err
+	return scalePlan, err
 }
 
-func (r *ElasticJobReconciler) executeScaling(job *elasticv1alpha1.ElasticJob, scaler *elasticv1alpha1.ScalePlan) error {
-	for replicaType, resourceSpec := range scaler.Spec.ReplicaResourceSpecs {
+func (r *ElasticJobReconciler) executeScaling(job *elasticv1alpha1.ElasticJob, scalePlan *elasticv1alpha1.ScalePlan) error {
+	for replicaType, resourceSpec := range scalePlan.Spec.ReplicaResourceSpecs {
 		logger.Infof("Replica %s, resource %v", replicaType, resourceSpec)
 		replicaManager := common.ReplicaManagers[replicaType]
 		err := replicaManager.ReconcilePods(r.Client, job, &resourceSpec)

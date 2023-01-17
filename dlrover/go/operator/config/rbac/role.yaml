@@ -58,7 +58,7 @@ rules:
 - apiGroups:
   - elastic.iml.github.io
   resources:
-  - scalers
+  - scaleplans
   verbs:
   - create
   - delete
@@ -70,13 +70,13 @@ rules:
 - apiGroups:
   - elastic.iml.github.io
   resources:
-  - scalers/finalizers
+  - scaleplans/finalizers
   verbs:
   - update
 - apiGroups:
   - elastic.iml.github.io
   resources:
-  - scalers/status
+  - scaleplans/status
   verbs:
   - get
   - patch

@@ -84,8 +84,8 @@ type ElasticJobStatus struct {
 
 	Phase commonv1.JobConditionType `json:"phase,omitempty"`
 
-	// Scaler is a name of Scaler CRD to scale the job resource.
-	Scaler string `json:"scaler,omitemtpy"`
+	// ScalePlan is a name of ScalePlan CRD to scale the job resource.
+	ScalePlan string `json:"scalePlan,omitempty"`
 }
 
 //+kubebuilder:object:root=true

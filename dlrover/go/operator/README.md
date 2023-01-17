@@ -5,10 +5,10 @@ including the number of nodes, CPU and memory of each node.
 
 ## Description
 
-The operator contains 2 CRDs, `elasticjob` and `scaler`. Users don't need
+The operator contains 2 CRDs, `elasticjob` and `scaleplan`. Users don't need
 to set replica resource when they apply a `elasticjob` to train on a cluster.
 The `elasticjob` controller will create a EasyDL master Pod for each
-`elasticjob`. The master will generate a `scaler` with PS/worker resources
+`elasticjob`. The master will generate a `scaleplan` with PS/worker resources
 to notify the controller to launch Pods for the training.
 
 ## Getting Started

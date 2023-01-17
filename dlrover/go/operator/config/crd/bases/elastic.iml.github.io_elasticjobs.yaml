@@ -7893,8 +7893,9 @@ spec:
               phase:
                 description: JobConditionType defines all kinds of types of JobStatus.
                 type: string
-              scaler:
-                description: Scaler is a name of Scaler CRD to scale the job resource.
+              scalePlan:
+                description: ScalePlan is a name of ScalePlan CRD to scale the job
+                  resource.
                 type: string
               status:
                 description: JobStatus represents the current observed state of the
@@ -8036,8 +8037,6 @@ spec:
                 - conditions
                 - replicaStatuses
                 type: object
-            required:
-            - scaler
             type: object
         type: object
     served: true

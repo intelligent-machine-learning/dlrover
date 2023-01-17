@@ -95,8 +95,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = controllers.NewScalerReconciler(mgr).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Scaler")
+	if err = controllers.NewScalePlanReconciler(mgr).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "ScalePlan")
 		os.Exit(1)
 	}
 
