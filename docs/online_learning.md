@@ -1,6 +1,6 @@
 
 # Introduction to Develop Online Learnin Model with DLRover
-The document describes pre-requisites for online learning and how to develop online learnin model with DLRover.
+The document describes pre-requisites for online learning and how to develop online learning model with DLRover.
 
 ## A Stable Running Environment
 Online Learning is a long running job since it needs to learn from the lastest data and export model for serving as soon as possible.
