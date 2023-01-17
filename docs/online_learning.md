@@ -1,6 +1,6 @@
 
-# Introduction to Develop Online Learnin Model with DLRover
-The document describes pre-requisites for online learning and how to develop online learning model with DLRover.
+# Introduction to Develop Online Learning Model with DLRover
+This document describes the prerequisites to build an industrial online deep learning system, and what DLRover can help.
 
 ## A Stable Running Environment
 Online Learning is a long running job since it needs to learn from the lastest data and export model for serving as soon as possible.
@@ -35,9 +35,9 @@ Currently, DLrover supports following features for tensorflow estimator model
 - [x] Auto Resource Configuration for Training job
 - [x] Worker/PS Failover
 - [x] Worker AutoScaling 
-- [x] PS Migration from a Slow Machine to a Fast Machine
+- [x] Slow Worker Pod Migration in Multi-tenancy Environment.
 
-Other kinds of model will be supported if needed.
+Other kinds of DL frameworks can be supported by implementing pluggable Executors if needed.
 
 
 In addition, following features are under developing and their priorities can be changed as needed.
