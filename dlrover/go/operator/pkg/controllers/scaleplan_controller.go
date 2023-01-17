@@ -42,28 +42,28 @@ const (
 	defaultPollInterval = time.Duration(3 * time.Second)
 )
 
-// ScalerReconciler reconciles a scaler object
-type ScalerReconciler struct {
+// ScalePlanReconciler reconciles a scalePlan object
+type ScalePlanReconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
 	Log      logr.Logger
 }
 
-// NewScalerReconciler creates a ScalerReconciler
-func NewScalerReconciler(mgr ctrl.Manager) *ScalerReconciler {
-	r := &ScalerReconciler{
+// NewScalePlanReconciler creates a ScalePlanReconciler
+func NewScalePlanReconciler(mgr ctrl.Manager) *ScalePlanReconciler {
+	r := &ScalePlanReconciler{
 		Client:   mgr.GetClient(),
 		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("scaler-controller"),
-		Log:      ctrl.Log.WithName("controllers").WithName("Scaler"),
+		Recorder: mgr.GetEventRecorderFor("scaleplan-controller"),
+		Log:      ctrl.Log.WithName("controllers").WithName("ScalePlan"),
 	}
 	return r
 }
 
-//+kubebuilder:rbac:groups=elastic.iml.github.io,resources=scalers,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=elastic.iml.github.io,resources=scalers/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=elastic.iml.github.io,resources=scalers/finalizers,verbs=update
+//+kubebuilder:rbac:groups=elastic.iml.github.io,resources=scaleplans,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=elastic.iml.github.io,resources=scaleplans/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=elastic.iml.github.io,resources=scaleplans/finalizers,verbs=update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -74,37 +74,36 @@ func NewScalerReconciler(mgr ctrl.Manager) *ScalerReconciler {
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.12.2/pkg/reconcile
-func (r *ScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *ScalePlanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = log.FromContext(ctx)
 
-	// rlog := r.Log.WithValues("scaler", req.NamespacedName)
 	// Fetch the scale
-	scaler := &elasticv1alpha1.ScalePlan{}
-	if err := r.Get(context.TODO(), req.NamespacedName, scaler); err != nil {
+	scalePlan := &elasticv1alpha1.ScalePlan{}
+	if err := r.Get(context.TODO(), req.NamespacedName, scalePlan); err != nil {
 		return ctrl.Result{}, err
 	}
-	job, err := r.getOwnerJob(scaler)
+	job, err := r.getOwnerJob(scalePlan)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
-	result, err := r.setScalingOwner(scaler, job, defaultPollInterval)
+	result, err := r.setScalingOwner(scalePlan, job, defaultPollInterval)
 	if err != nil {
 		return result, err
 	}
-	result, err = r.updateJobToScaling(scaler, job, defaultPollInterval)
+	result, err = r.updateJobToScaling(scalePlan, job, defaultPollInterval)
 	return result, err
 }
 
-func (r *ScalerReconciler) getOwnerJob(scaler *elasticv1alpha1.ScalePlan) (*elasticv1alpha1.ElasticJob, error) {
+func (r *ScalePlanReconciler) getOwnerJob(scalePlan *elasticv1alpha1.ScalePlan) (*elasticv1alpha1.ElasticJob, error) {
 	job := &elasticv1alpha1.ElasticJob{}
 	nsn := types.NamespacedName{}
-	nsn.Namespace = scaler.GetNamespace()
-	nsn.Name = scaler.Spec.OwnerJob
+	nsn.Namespace = scalePlan.GetNamespace()
+	nsn.Name = scalePlan.Spec.OwnerJob
 	err := r.Get(context.Background(), nsn, job)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			logger.Warnf("%s not found elasticJob: %v, namespace: %v", scaler.Name, nsn.Name, nsn.Namespace)
+			logger.Warnf("%s not found elasticJob: %v, namespace: %v", scalePlan.Name, nsn.Name, nsn.Namespace)
 			return job, nil
 		}
 		return job, err
@@ -112,33 +111,33 @@ func (r *ScalerReconciler) getOwnerJob(scaler *elasticv1alpha1.ScalePlan) (*elas
 	return job, nil
 }
 
-func (r *ScalerReconciler) setScalingOwner(scaler *elasticv1alpha1.ScalePlan,
+func (r *ScalePlanReconciler) setScalingOwner(scalePlan *elasticv1alpha1.ScalePlan,
 	job *elasticv1alpha1.ElasticJob, pollInterval time.Duration) (ctrl.Result, error) {
-	ownerRefs := scaler.GetOwnerReferences()
+	ownerRefs := scalePlan.GetOwnerReferences()
 	logger.Infof("ownerRefs = %v", ownerRefs)
 	if len(ownerRefs) == 0 {
 		gvk := elasticv1alpha1.SchemeGroupVersionKind
 		ownerRefs = append(ownerRefs, *metav1.NewControllerRef(job,
 			schema.GroupVersionKind{Group: gvk.Group, Version: gvk.Version, Kind: gvk.Kind}))
-		scaler.SetOwnerReferences(ownerRefs)
+		scalePlan.SetOwnerReferences(ownerRefs)
 
-		err := r.Update(context.Background(), scaler)
+		err := r.Update(context.Background(), scalePlan)
 		if err != nil {
-			logger.Errorf("failed to update scaler: %s, err: %++v", scaler.Name, err)
-			// Error updating the scaler - requeue the request.
+			logger.Errorf("failed to update scalePlan: %s, err: %++v", scalePlan.Name, err)
+			// Error updating the scalePlan - requeue the request.
 			return ctrl.Result{RequeueAfter: pollInterval}, err
 		}
 	}
 	return ctrl.Result{}, nil
 }
 
-func (r *ScalerReconciler) updateJobToScaling(
-	scaler *elasticv1alpha1.ScalePlan,
+func (r *ScalePlanReconciler) updateJobToScaling(
+	scalePlan *elasticv1alpha1.ScalePlan,
 	job *elasticv1alpha1.ElasticJob,
 	pollInterval time.Duration) (ctrl.Result, error) {
-	msg := fmt.Sprintf("ElasticJob %s is scaling by %s.", job.Name, scaler.Name)
-	job.Status.Scaler = scaler.Name
-	for taskType, resourceSpec := range scaler.Spec.ReplicaResourceSpecs {
+	msg := fmt.Sprintf("ElasticJob %s is scaling by %s.", job.Name, scalePlan.Name)
+	job.Status.ScalePlan = scalePlan.Name
+	for taskType, resourceSpec := range scalePlan.Spec.ReplicaResourceSpecs {
 		if job.Status.ReplicaStatuses[taskType].Initial == 0 {
 			job.Status.ReplicaStatuses[taskType].Initial = int32(resourceSpec.Replicas)
 		}
@@ -146,14 +145,14 @@ func (r *ScalerReconciler) updateJobToScaling(
 	common.UpdateStatus(&job.Status, commonv1.JobScaling, common.JobScalingReason, msg)
 	err := r.Status().Update(context.Background(), job)
 	if err != nil {
-		logger.Errorf("Failed to update job %s status to scaling with %s, err: %v", job.Name, scaler.Name, err)
+		logger.Errorf("Failed to update job %s status to scaling with %s, err: %v", job.Name, scalePlan.Name, err)
 		return ctrl.Result{RequeueAfter: pollInterval}, err
 	}
 	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *ScalerReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *ScalePlanReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&elasticv1alpha1.ScalePlan{}).
 		Complete(r)
