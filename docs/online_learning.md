@@ -44,7 +44,7 @@ In addition, following features is under developing
 - [ ] High Performance States Storage Backend
 - [ ] Model Parameters Resharding and PS AutoScaling  
 - [ ] An End-to-End Online Learning Example 
-- [ ] BufferService to decouple Training with Streaming
+- [ ] BufferService to Decouple Training with Streaming
 
 
 
