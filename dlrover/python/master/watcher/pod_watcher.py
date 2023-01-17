@@ -159,32 +159,3 @@ class PodWatcher(NodeWatcher):
             node.set_exit_reason(_get_pod_exit_reason(pod))
             nodes.append(node)
         return nodes
-
-
-class ScalerWatcher(object):
-    def __init__(self, job_name, namespace):
-        self._job_name = job_name
-        self._namespace = namespace
-        self._k8s_client = k8sClient.singleton_instance(job_name, namespace)
-        self._job_selector = ElasticJobLabel.JOB_KEY + "=" + self._job_name
-
-    def watch(self):
-        resource_version = None
-        pod_list = self._k8s_client.get_custom_resource(self._job_selector)
-        if pod_list:
-            resource_version = pod_list.metadata.resource_version
-        try:
-            stream = watch.Watch().stream(
-                self._k8s_client.api_instance.list_namespaced_custom_object,
-                self._namespace,
-                label_selector=self._job_selector,
-                resource_version=resource_version,
-                timeout_seconds=60,
-            )
-            for event in stream:
-                node_event = _convert_pod_event_to_node_event(event)
-                if not node_event:
-                    continue
-                yield node_event
-        except Exception as e:
-            raise e
