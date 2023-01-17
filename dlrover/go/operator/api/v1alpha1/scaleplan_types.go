@@ -24,8 +24,8 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-// ScalerSpec defines the desired resource state of an ElasticJob
-type ScalerSpec struct {
+// ScaleSpec defines the desired resource state of an ElasticJob
+type ScaleSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
@@ -49,8 +49,8 @@ type ScalerSpec struct {
 	// PsHosts are hosts of PS Pods
 	PsHosts []string `json:"psHosts,omitempty"`
 
-	// MaunnalScaling specifies the ScalerCRD created by users.
-	MaunnalScaling bool `json:"manunalScaling,omitempty"`
+	// ManualScaling specifies the ScalerCRD created by users.
+	ManualScaling bool `json:"manualScaling,omitempty"`
 
 	// OwnerJob specifies a job to scale.
 	OwnerJob string `json:"ownerJob,omitempty"`
@@ -93,42 +93,42 @@ type PodMeta struct {
 	Service string `json:"service,omitempty"`
 
 	// Resource defines the resource of each replica
-	Resource ResourceSpec `json:"resoruce,omitempty"`
+	Resource ResourceSpec `json:"resource,omitempty"`
 }
 
-// ScalerStatus defines the observed state of ElasticJob
-type ScalerStatus struct {
+// ScalePlanStatus defines the observed state of ElasticJob
+type ScalePlanStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// CreateTime represents time when the scaler was acknowledged by the scaler controller.
+	// CreateTime represents time when the scaling plan was acknowledged by the controller.
 	CreateTime *metav1.Time `json:"createTime,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
-// +resource:path=scaler
+// +resource:path=scaleplan
 // +kubebuilder:resource:scope=Namespaced
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 
-// Scaler is the Schema for the scalers API
-type Scaler struct {
+// ScalePlan is the Schema for the scaling plan API
+type ScalePlan struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   ScalerSpec   `json:"spec,omitempty"`
-	Status ScalerStatus `json:"status,omitempty"`
+	Spec   ScaleSpec       `json:"spec,omitempty"`
+	Status ScalePlanStatus `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 
-// ScalerList contains a list of Scale
-type ScalerList struct {
+// ScalePlanList contains a list of ScalePlan
+type ScalePlanList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Scaler `json:"items"`
+	Items           []ScalePlan `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&Scaler{}, &ScalerList{})
+	SchemeBuilder.Register(&ScalePlan{}, &ScalePlanList{})
 }

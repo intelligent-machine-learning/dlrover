@@ -194,8 +194,8 @@ func (r *ElasticJobReconciler) createEasydlMaster(job *elasticv1alpha1.ElasticJo
 	return err
 }
 
-func (r *ElasticJobReconciler) getJobScaler(job *elasticv1alpha1.ElasticJob) (*elasticv1alpha1.Scaler, error) {
-	scaler := &elasticv1alpha1.Scaler{}
+func (r *ElasticJobReconciler) getJobScaler(job *elasticv1alpha1.ElasticJob) (*elasticv1alpha1.ScalePlan, error) {
+	scaler := &elasticv1alpha1.ScalePlan{}
 	nsn := types.NamespacedName{}
 	nsn.Namespace = job.GetNamespace()
 	nsn.Name = job.Status.Scaler
@@ -210,7 +210,7 @@ func (r *ElasticJobReconciler) getJobScaler(job *elasticv1alpha1.ElasticJob) (*e
 	return scaler, err
 }
 
-func (r *ElasticJobReconciler) executeScaling(job *elasticv1alpha1.ElasticJob, scaler *elasticv1alpha1.Scaler) error {
+func (r *ElasticJobReconciler) executeScaling(job *elasticv1alpha1.ElasticJob, scaler *elasticv1alpha1.ScalePlan) error {
 	for replicaType, resourceSpec := range scaler.Spec.ReplicaResourceSpecs {
 		logger.Infof("Replica %s, resource %v", replicaType, resourceSpec)
 		replicaManager := common.ReplicaManagers[replicaType]
