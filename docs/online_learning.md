@@ -29,7 +29,7 @@ page view stream data and click stream data should be joined together and featur
 
 ## Fundamental Algorithms for Better Online Model Result
 
-Online learning is different from offline/batch learning in many aspects. In order to achieve high better result,  special algorithms are developed to tackle challenges in online learning.
+Online learning is different from offline/batch learning in many aspects. In order to achieve better result, special algorithms are developed to tackle challenges in online learning.
 
 - Learning with delayed feedback.
 - Training data drift detection and recovery.
