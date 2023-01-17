@@ -1,7 +1,7 @@
 apiVersion: elastic.iml.github.io/v1alpha1
-kind: Scaler
+kind: ScalePlan
 metadata:
-  name: scaler-sample
+  name: scaleplan-sample
 spec:
   ownerJob: elasticjob-sample
   replicaResourceSpec:

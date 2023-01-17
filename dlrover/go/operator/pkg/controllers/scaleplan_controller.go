@@ -79,7 +79,7 @@ func (r *ScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	// rlog := r.Log.WithValues("scaler", req.NamespacedName)
 	// Fetch the scale
-	scaler := &elasticv1alpha1.Scaler{}
+	scaler := &elasticv1alpha1.ScalePlan{}
 	if err := r.Get(context.TODO(), req.NamespacedName, scaler); err != nil {
 		return ctrl.Result{}, err
 	}
@@ -96,7 +96,7 @@ func (r *ScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	return result, err
 }
 
-func (r *ScalerReconciler) getOwnerJob(scaler *elasticv1alpha1.Scaler) (*elasticv1alpha1.ElasticJob, error) {
+func (r *ScalerReconciler) getOwnerJob(scaler *elasticv1alpha1.ScalePlan) (*elasticv1alpha1.ElasticJob, error) {
 	job := &elasticv1alpha1.ElasticJob{}
 	nsn := types.NamespacedName{}
 	nsn.Namespace = scaler.GetNamespace()
@@ -112,7 +112,7 @@ func (r *ScalerReconciler) getOwnerJob(scaler *elasticv1alpha1.Scaler) (*elastic
 	return job, nil
 }
 
-func (r *ScalerReconciler) setScalingOwner(scaler *elasticv1alpha1.Scaler,
+func (r *ScalerReconciler) setScalingOwner(scaler *elasticv1alpha1.ScalePlan,
 	job *elasticv1alpha1.ElasticJob, pollInterval time.Duration) (ctrl.Result, error) {
 	ownerRefs := scaler.GetOwnerReferences()
 	logger.Infof("ownerRefs = %v", ownerRefs)
@@ -133,7 +133,7 @@ func (r *ScalerReconciler) setScalingOwner(scaler *elasticv1alpha1.Scaler,
 }
 
 func (r *ScalerReconciler) updateJobToScaling(
-	scaler *elasticv1alpha1.Scaler,
+	scaler *elasticv1alpha1.ScalePlan,
 	job *elasticv1alpha1.ElasticJob,
 	pollInterval time.Duration) (ctrl.Result, error) {
 	msg := fmt.Sprintf("ElasticJob %s is scaling by %s.", job.Name, scaler.Name)
@@ -155,6 +155,6 @@ func (r *ScalerReconciler) updateJobToScaling(
 // SetupWithManager sets up the controller with the Manager.
 func (r *ScalerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&elasticv1alpha1.Scaler{}).
+		For(&elasticv1alpha1.ScalePlan{}).
 		Complete(r)
 }
