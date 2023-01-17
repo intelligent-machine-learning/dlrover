@@ -180,8 +180,9 @@ class BatchDatasetManager(DatasetManger):
             )
             self.todo.append(
                 Task(
-                    self._dataset_splitter.dataset_name,
+                    self._task_id,
                     self._task_type,
                     shard,
                 )
             )
+            self._task_id += 1
