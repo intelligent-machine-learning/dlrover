@@ -11,7 +11,8 @@ Refer(tutorial)[https://github.com/intelligent-machine-learning/dlrover/blob/mas
 For a safe distributed training loop, special attention should be paid to creating/restoring checkpoint files and recovering from failures.
 For parameter server training, both ps and worker would fail due to reasons like physical node is removed. It's unnecessary to resubmit the job because of overhead.
 For asynchronous training, a worker should join the training loop after it fails while other ps/workers doesn't need stop and handle the situation.
-If a ps fails, other healthy ps doesn't need to restart and cheif should restore the checkpoint once the ps is recovered.
+If a ps fails, other healthy ps doesn't need to restart and chief should restore the checkpoint once the ps is recovered.
+In addition, upwards streaming job may also fail and restore from the latest checkpoints. Streaming job and training job should work together to ensure that data is delivered exactly once.
 
 ## Dynamic Embedding 
 Since online learning is a long running job, there will be numerous brand new items in the training data and embedding for the new items will be learned.
@@ -43,6 +44,7 @@ In addition, following features is under developing
 - [ ] High Performance States Storage Backend
 - [ ] Model Parameters Resharding and PS AutoScaling  
 - [ ] An End-to-End Online Learning Example 
+- [ ] BufferService to decouple Training with Streaming
 
 
 
