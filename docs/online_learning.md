@@ -40,7 +40,7 @@ Currently, DLrover supports following features for tensorflow estimator model
 Other kinds of model will be supported if needed.
 
 
-In addition, following features is under developing
+In addition, following features are under developing and their priorities can be changed as needed.
 - [ ] High Performance States Storage Backend
 - [ ] Model Parameters Resharding and PS AutoScaling  
 - [ ] An End-to-End Online Learning Example 
