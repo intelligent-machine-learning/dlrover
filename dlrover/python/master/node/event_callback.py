@@ -167,6 +167,8 @@ class TFPSNodeHandlingCallback(NodeEventCallback):
     def on_node_failed(self, node: Node, cluster_context):
         node.finish_time = datetime.now()  # type: ignore
         self._stop_job_if_needed(node)
+        if node.type == NodeType.PS:
+            self._master.elastic_ps_service.inc_global_cluster_version()
         if node.is_unrecoverable_failure():
             self._master.speed_monitor.reduce_target_worker_num(
                 [(node.type, node.id)]
@@ -176,9 +178,9 @@ class TFPSNodeHandlingCallback(NodeEventCallback):
     @NodeEventCallback.log_callback_exception
     def on_node_deleted(self, node, cluster_context):
         node.finish_time = datetime.now()  # type: ignore
-        self._stop_job_if_needed(
-            node,
-        )
+        self._stop_job_if_needed(node)
+        if node.type == NodeType.PS:
+            self._master.elastic_ps_service.inc_global_cluster_version()
         self._master.speed_monitor.remove_running_worker(node.type, node.id)
 
     def _stop_job_if_needed(self, node: Node):

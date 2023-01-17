@@ -23,6 +23,7 @@ class ElasticPsService(object):
         self._worker_restored_version = {}
 
     def inc_global_cluster_version(self):
+        logger.info("Increment the global version to %s", self._global_version)
         self._global_version += 1
 
     def get_ps_version(self, version_type, ps_id):
