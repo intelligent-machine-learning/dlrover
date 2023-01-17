@@ -386,9 +386,7 @@ class PodScaler(Scaler):
         if node.service_addr:
             service_name = node.service_addr.split(".")[0]
         else:
-            service_name = get_pod_name(
-                self._job_name, node.type, node.id
-            )
+            service_name = get_pod_name(self._job_name, node.type, node.id)
         if not self._k8s_client.get_service(service_name):
             succeed = self._create_service_with_retry(
                 node.type, node.id, service_name
