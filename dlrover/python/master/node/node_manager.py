@@ -141,6 +141,11 @@ class NodeManager(object):
         threading.Thread(
             target=self._monitor_nodes, name="node_monitor", daemon=True
         ).start()
+        threading.Thread(
+            target=self._monitor_scale_plan_crd,
+            name="scaleplan_monitor",
+            daemon=True,
+        ).start()
 
     def _adjust_worker_for_estimator(self):
         if (
@@ -240,7 +245,7 @@ class NodeManager(object):
                 logger.warning(e)
                 time.sleep(30)
 
-    def _monitor_scaler_crd(self):
+    def _monitor_scale_plan_crd(self):
         """Monitor the Scaler CRD from users to adjust the job resource"""
         logger.info("Start to monitor Scaler CRD")
         while True:

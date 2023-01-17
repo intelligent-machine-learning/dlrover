@@ -86,10 +86,12 @@ func (r *ScalePlanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-
 	result, err := r.setScalingOwner(scalePlan, job, defaultPollInterval)
 	if err != nil {
 		return result, err
+	}
+	if scalePlan.Spec.ManualScaling {
+		return ctrl.Result{}, err
 	}
 	result, err = r.updateJobToScaling(scalePlan, job, defaultPollInterval)
 	return result, err

@@ -64,7 +64,7 @@ func (m *Manager) newJobMaster(
 	container := corev1.Container{
 		Name:            "main",
 		Image:           masterImage,
-		ImagePullPolicy: "Always",
+		ImagePullPolicy: "IfNotPresent",
 		Command:         []string{"/bin/bash", "-c", command},
 		Resources: corev1.ResourceRequirements{
 			Requests: corev1.ResourceList{

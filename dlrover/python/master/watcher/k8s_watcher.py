@@ -179,7 +179,10 @@ class ScalePlanWatcher(object):
         try:
             stream = watch.Watch().stream(
                 self._k8s_client.api_instance.list_namespaced_custom_object,
-                self._namespace,
+                namespace=self._namespace,
+                group="elastic.iml.github.io",
+                version="v1alpha1",
+                plural="scaleplans",
                 label_selector=self._job_selector,
                 resource_version=resource_version,
                 timeout_seconds=60,
@@ -192,18 +195,22 @@ class ScalePlanWatcher(object):
                     )
                     continue
                 resource_plan = self._get_resoruce_plan_from_event(scaler_crd)
-                logger.info("Get a manual resource plan %s", resource_plan)
+                logger.info(
+                    "Get a manual resource plan %s", resource_plan.toJSON()
+                )
                 yield resource_plan
         except Exception as e:
             raise e
 
     def _get_resoruce_plan_from_event(self, scaler_crd) -> ResourcePlan:
         resource_plan = ResourcePlan()
-        if not scaler_crd["spec"]["manualScaling"]:
+        if not scaler_crd["spec"].get("manualScaling", False):
             logger.info("Skip the Scaler which is not manual")
             return resource_plan
 
-        for replica, spec in scaler_crd["spec"]["replicaResourceSpec"].items():
+        for replica, spec in (
+            scaler_crd["spec"].get("replicaResourceSpec", {}).items()
+        ):
             cpu = float(spec.get("resource", {}).get("cpu", "0"))
             memory = NodeResource.convert_memory_to_mb(
                 spec.get("resource", {}).get("memory", "0Mi")
@@ -212,7 +219,7 @@ class ScalePlanWatcher(object):
                 spec["replicas"], NodeResource(cpu, memory)
             )
 
-        for pod in scaler_crd["spec"]["migratePods"]:
+        for pod in scaler_crd["spec"].get("migratePods", []):
             resource_plan.node_resources[pod["name"]] = NodeResource(
                 float(pod["resource"].get("cpu", "0")),
                 NodeResource.convert_memory_to_mb(
