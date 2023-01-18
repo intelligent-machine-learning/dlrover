@@ -528,7 +528,7 @@ class NodeManager(object):
                 node.is_released = True
                 node.status = NodeStatus.DELETED
                 logger.info("Remove node %s", node.name)
-                plan.remove_nodes.append(node.name)
+                plan.remove_nodes.append(node)
         self._scaler.scale(plan)
 
     def start_auto_scale(self):

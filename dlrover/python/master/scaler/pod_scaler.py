@@ -129,10 +129,10 @@ class PodScaler(Scaler):
                     self._scale_down_pods(type, plan, cur_pods)
             for node in plan.launch_nodes:
                 self._initial_nodes.append(node)
-            for pod_name in plan.remove_nodes:
-                removed = self._remove_not_create_pod(pod_name)
+            for node in plan.remove_nodes:
+                removed = self._remove_not_create_pod(node.name)
                 if not removed:
-                    self._k8s_client.delete_pod(pod_name)
+                    self._k8s_client.delete_pod(node.name)
             self._update_job_pods(job_pods)
 
     def _update_job_pods(self, job_pods: Dict[str, List[Node]]):

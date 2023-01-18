@@ -12,24 +12,24 @@
 # limitations under the License.
 
 from abc import ABCMeta, abstractmethod
-from typing import Dict
+from typing import Dict, List
 
 from dlrover.python.master.scaler.base_scaler import ScalePlan, Scaler
 from dlrover.python.scheduler.kubernetes import get_pod_name, k8sClient
 
 SCALER_GROUP = "elastic.iml.github.io"
 SCALER_VERION = "v1alpha1"
-SCALER_KIND = "Scaler"
+SCALER_KIND = "ScalePlan"
 
 
-class BaseScalerSpec(metaclass=ABCMeta):
+class BaseScaleSpec(metaclass=ABCMeta):
     @abstractmethod
     def to_dict(self):
         """Serialize the object to a dictionary"""
         pass
 
 
-class ScalerResourceSpec(BaseScalerSpec):
+class ContainerResourceSpec(BaseScaleSpec):
     """The resource specification of a node.
     Attributes:
         cpu: CPU cores of a node.
@@ -53,8 +53,8 @@ class ScalerResourceSpec(BaseScalerSpec):
         return spec
 
 
-class ScalerReplicaResourceSpec(BaseScalerSpec):
-    def __init__(self, replicas, resource_spec) -> None:
+class ReplicaResourceSpec(BaseScaleSpec):
+    def __init__(self, replicas, resource_spec: ContainerResourceSpec) -> None:
         self.replicas = replicas
         self.resource = resource_spec
 
@@ -65,25 +65,61 @@ class ScalerReplicaResourceSpec(BaseScalerSpec):
         return spec
 
 
-class ScalerSpec(BaseScalerSpec):
+class PodMeta(BaseScaleSpec):
+    def __init__(
+        self,
+        name,
+        id,
+        type,
+        rank_index,
+        service,
+        resource: ContainerResourceSpec,
+    ):
+        self.name = name
+        self.id = id
+        self.type = type
+        self.rank_index = rank_index
+        self.service = service
+        self.resource = resource
+
+    def to_dict(self):
+        spec = {}
+        spec["name"] = self.name
+        spec["type"] = self.type
+        spec["id"] = self.id
+        spec["rankIndex"] = self.rank_index
+        spec["service"] = self.service
+        spec["resource"] = self.resource.to_dict()
+        return spec
+
+
+class ScaleSpec(BaseScaleSpec):
     def __init__(self, owner_job: str) -> None:
         self.owner_job = owner_job
-        self.replica_resource_specs: Dict[str, ScalerReplicaResourceSpec] = {}
-        self.node_resource_specs: Dict[str, ScalerResourceSpec] = {}
+        self.replica_resource_specs: Dict[str, ReplicaResourceSpec] = {}
+        self.create_pods: List[PodMeta] = []
+        self.remove_pods: List[PodMeta] = []
+        self.ps_hosts: List[str] = []
+        self.manual_scaling = False
 
     def to_dict(self):
         spec = {}
         spec["ownerJob"] = self.owner_job
-        spec["replicaResourceSpec"] = dict()
+        spec["replicaResourceSpecs"] = dict()
         for name, resource_spec in self.replica_resource_specs.items():
-            spec["replicaResourceSpec"][name] = resource_spec.to_dict()
-        spec["nodeResourceSpec"] = dict()
-        for name, resource_spec in self.node_resource_specs.items():
-            spec["nodeResourceSpec"] = resource_spec.to_dict()
+            spec["replicaResourceSpecs"][name] = resource_spec.to_dict()
+        spec["createPods"] = []
+        for pod in self.create_pods:
+            spec["createPods"].append(pod.to_dict())
+        spec["removePods"] = []
+        for pod in self.create_pods:
+            spec["removePods"].append(pod.to_dict())
+        spec["psHosts"] = self.ps_hosts
+        spec["manualScaling"] = self.manual_scaling
         return spec
 
 
-class ScalerKind(BaseScalerSpec):
+class ScalePlanCrd(BaseScaleSpec):
     """ScalerKind is a dictionary of a Scaler CRD for an ElasticJob
     to scale up/down Pods of a job on a k8s cluster.
     """
@@ -93,7 +129,7 @@ class ScalerKind(BaseScalerSpec):
         api_version: str,
         kind: str,
         metadata: Dict[str, str],
-        spec: ScalerSpec,
+        spec: ScaleSpec,
     ):
         self.api_version = api_version
         self.kind = kind
@@ -119,42 +155,67 @@ class ElasticJobScaler(Scaler):
         self._namespace = namespace
 
     def scale(self, plan: ScalePlan):
-        scaler_crd = self._generate_scaler_crd_by_plan(plan)
+        scaler_crd = self._generate_scale_plan_crd(plan)
         self._client.create_custom_resource(
             group=SCALER_GROUP,
             version=SCALER_VERION,
-            plural="scalers",
+            plural="scaleplans",
             body=scaler_crd.to_dict(),
         )
 
-    def _generate_scaler_crd_by_plan(self, plan: ScalePlan) -> ScalerKind:
+    def _generate_scale_plan_crd(self, plan: ScalePlan) -> ScalePlanCrd:
         api_version = SCALER_GROUP + "/" + SCALER_VERION
-        scaler_crd = ScalerKind(
+        scale_crd = ScalePlanCrd(
             api_version=api_version,
             kind=SCALER_KIND,
-            metadata={"name": "{}-scaler".format(self._job_name)},
-            spec=ScalerSpec(self._job_name),
+            metadata={"name": "{}-scaleplan".format(self._job_name)},
+            spec=ScaleSpec(self._job_name),
         )
         for name, group_resource in plan.node_group_resources.items():
-            resource_spec = ScalerResourceSpec(
+            resource_spec = ContainerResourceSpec(
                 cpu=group_resource.node_resource.cpu,
                 memory=group_resource.node_resource.memory,
                 gpu_type=group_resource.node_resource.gpu_type,
                 gpu_num=group_resource.node_resource.gpu_num,
             )
-            replica_spec = ScalerReplicaResourceSpec(
+            replica_spec = ReplicaResourceSpec(
                 replicas=group_resource.count,
                 resource_spec=resource_spec,
             )
-            scaler_crd.spec.replica_resource_specs[name] = replica_spec
+            scale_crd.spec.replica_resource_specs[name] = replica_spec
 
         for node in plan.launch_nodes:
-            resource_spec = ScalerResourceSpec(
+            resource_spec = ContainerResourceSpec(
                 cpu=node.config_resource.cpu,
                 memory=node.config_resource.memory,
                 gpu_type=node.config_resource.gpu_type,
                 gpu_num=node.config_resource.gpu_num,
             )
-            name = get_pod_name(self._job_name, node.type, node.id)
-            scaler_crd.spec.node_resource_specs[name] = resource_spec
-        return scaler_crd
+            pod_meta = PodMeta(
+                node.name,
+                node.id,
+                node.type,
+                node.rank_index,
+                node.service_addr,
+                resource_spec,
+            )
+            scale_crd.spec.create_pods.append(pod_meta)
+
+        for node in plan.remove_nodes:
+            resource_spec = ContainerResourceSpec(
+                cpu=node.config_resource.cpu,
+                memory=node.config_resource.memory,
+                gpu_type=node.config_resource.gpu_type,
+                gpu_num=node.config_resource.gpu_num,
+            )
+            pod_meta = PodMeta(
+                node.name,
+                node.id,
+                node.type,
+                node.rank_index,
+                node.service_addr,
+                resource_spec,
+            )
+            scale_crd.spec.remove_pods.append(pod_meta)
+        scale_crd.spec.ps_hosts = plan.ps_addrs
+        return scale_crd

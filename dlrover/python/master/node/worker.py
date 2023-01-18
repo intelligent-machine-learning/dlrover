@@ -190,7 +190,7 @@ class WorkerManager(TrainingNodeManager):
                     and not worker.is_released
                 ):
                     worker.is_released = True
-                    plan.remove_nodes.append(worker.name)
+                    plan.remove_nodes.append(worker)
         return plan
 
     def delete_running_workers(self):

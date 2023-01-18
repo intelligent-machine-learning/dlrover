@@ -65,8 +65,9 @@ class WorkerManagerTest(unittest.TestCase):
         self._worker_manager._nodes[4].status = NodeStatus.FAILED
 
         plan = self._worker_manager.delete_exited_workers()
+        node_names = [node.name for node in plan.remove_nodes]
         self.assertListEqual(
-            plan.remove_nodes,
+            node_names,
             ["test-edljob-worker-3", "test-edljob-worker-4"],
         )
 
@@ -74,8 +75,9 @@ class WorkerManagerTest(unittest.TestCase):
         for node in self._worker_manager._nodes.values():
             node.status = NodeStatus.RUNNING
         plan = self._worker_manager.delete_running_workers()
+        node_names = [node.name for node in plan.remove_nodes]
         self.assertListEqual(
-            plan.remove_nodes,
+            node_names,
             [
                 "test-edljob-worker-0",
                 "test-edljob-worker-1",

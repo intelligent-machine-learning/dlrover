@@ -170,7 +170,7 @@ class TrainingNodeManager(object):
                 logger.error("Unknown deletable worker id: %s" % node_id)
                 return
         worker.is_released = True
-        plan.remove_nodes.append(worker.name)
+        plan.remove_nodes.append(worker)
         return plan
 
     def relaunch_node(self, node: Node):
@@ -191,7 +191,7 @@ class TrainingNodeManager(object):
                 service_addr=node.service_addr,
             )
         )
-        plan.remove_nodes.append(node.name)
+        plan.remove_nodes.append(node)
         return plan
 
     def cut_pending_node_cpu(self):

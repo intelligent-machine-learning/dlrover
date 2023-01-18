@@ -30,7 +30,7 @@ class ScalePlan(JsonSerializable):
     def __init__(self):
         self.node_group_resources: Dict[str, NodeGroupResource] = {}
         self.launch_nodes: List[Node] = []
-        self.remove_nodes: List[str] = []
+        self.remove_nodes: List[Node] = []
         self.ps_addrs: List[str] = []
 
     def empty(self):
