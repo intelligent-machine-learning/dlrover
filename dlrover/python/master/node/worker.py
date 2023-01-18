@@ -221,9 +221,10 @@ class WorkerManager(TrainingNodeManager):
         plan = ScalePlan()
         for name, resource in workers.items():
             old_node_id = int(name.split("-")[-1])
+            old_node = self._nodes[old_node_id]
             node_id = next(self._node_id_iter)
-            task_id = self._nodes[old_node_id].rank_index
-            self._nodes[node_id] = Node(
+            task_id = old_node.rank_index
+            new_node = Node(
                 NodeType.WORKER,
                 node_id,
                 config_resource=resource,
@@ -231,6 +232,7 @@ class WorkerManager(TrainingNodeManager):
                 rank_index=task_id,
                 name=self._new_node_name_fn(NodeType.WORKER, node_id),
             )
-            plan.launch_nodes.append(self._nodes[node_id])
-            plan.remove_nodes.append(name)
+            self._nodes[node_id] = new_node
+            plan.launch_nodes.append(new_node)
+            plan.remove_nodes.append(old_node)
         return plan
