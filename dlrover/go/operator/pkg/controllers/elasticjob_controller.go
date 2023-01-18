@@ -211,10 +211,9 @@ func (r *ElasticJobReconciler) getJobScalePlan(job *elasticv1alpha1.ElasticJob) 
 }
 
 func (r *ElasticJobReconciler) executeScaling(job *elasticv1alpha1.ElasticJob, scalePlan *elasticv1alpha1.ScalePlan) error {
-	for replicaType, resourceSpec := range scalePlan.Spec.ReplicaResourceSpecs {
-		logger.Infof("Replica %s, resource %v", replicaType, resourceSpec)
+	for replicaType := range scalePlan.Spec.ReplicaResourceSpecs {
 		replicaManager := common.ReplicaManagers[replicaType]
-		err := replicaManager.ReconcilePods(r.Client, job, &resourceSpec)
+		err := replicaManager.ReconcilePods(r.Client, job, scalePlan)
 		if err != nil {
 			r.Recorder.Eventf(
 				job,

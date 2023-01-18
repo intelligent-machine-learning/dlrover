@@ -18,6 +18,7 @@ package v1alpha1
 
 import (
 	commonv1 "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/pkg/common/api/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -41,7 +42,7 @@ type ScaleSpec struct {
 	CreatePods []PodMeta `json:"createPods,omitempty"`
 
 	// RemovePods are Pods to be removed
-	RemovePods []string `json:"removePods,omitempty"`
+	RemovePods []PodMeta `json:"removePods,omitempty"`
 
 	// MigratePods are Pods to be migrated to other Pods with the new resource.
 	MigratePods []PodMeta `json:"migratePods,omitempty"`
@@ -62,17 +63,7 @@ type ReplicaResourceSpec struct {
 	Replicas int `json:"replicas,omitempty"`
 
 	// Resource defines the resource of each replica
-	Resource ResourceSpec `json:"resource,omitempty"`
-}
-
-// ResourceSpec specifies the resources of a repalica
-type ResourceSpec struct {
-	// CPU is the requested CPU cores of a replica
-	CPU string `json:"cpu,omitempty"`
-	// Memory is the requested memory (MB) of a replica
-	Memory string `json:"memory,omitempty"`
-	// GPU is the requested GPU of a replica
-	GPU string `json:"gpu,omitempty"`
+	Resource corev1.ResourceList `json:"resource,omitempty"`
 }
 
 // PodMeta specifies the meta of a Pod.
@@ -84,7 +75,7 @@ type PodMeta struct {
 	ID int `json:"id,omitempty"`
 
 	// Type is the type of the Pod
-	Type string `json:"type,omitempty"`
+	Type commonv1.ReplicaType `json:"type,omitempty"`
 
 	// RankIndex is the index of the Pod
 	RankIndex int `json:"randIndex,omitempty"`
@@ -93,7 +84,7 @@ type PodMeta struct {
 	Service string `json:"service,omitempty"`
 
 	// Resource defines the resource of each replica
-	Resource ResourceSpec `json:"resource,omitempty"`
+	Resource corev1.ResourceList `json:"resource,omitempty"`
 }
 
 // ScalePlanStatus defines the observed state of ElasticJob

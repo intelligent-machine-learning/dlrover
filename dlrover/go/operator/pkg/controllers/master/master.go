@@ -96,7 +96,7 @@ func (m *Manager) newJobMaster(
 func (m *Manager) ReconcilePods(
 	client runtime_client.Client,
 	job *elasticv1alpha1.ElasticJob,
-	resourceSpec *elasticv1alpha1.ReplicaResourceSpec,
+	scalePlan *elasticv1alpha1.ScalePlan,
 ) error {
 	masterPod := m.newJobMaster(job, initMasterIndex)
 	err := client.Create(context.Background(), masterPod)
