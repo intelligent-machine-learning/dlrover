@@ -15,7 +15,7 @@ from abc import ABCMeta, abstractmethod
 from typing import Dict, List
 
 from dlrover.python.master.scaler.base_scaler import ScalePlan, Scaler
-from dlrover.python.scheduler.kubernetes import get_pod_name, k8sClient
+from dlrover.python.scheduler.kubernetes import k8sClient
 
 SCALER_GROUP = "elastic.iml.github.io"
 SCALER_VERION = "v1alpha1"

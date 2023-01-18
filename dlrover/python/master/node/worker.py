@@ -207,7 +207,7 @@ class WorkerManager(TrainingNodeManager):
                     worker.name,
                 )
                 worker.is_released = True
-                plan.remove_nodes.append(worker.name)
+                plan.remove_nodes.append(worker)
         return plan
 
     def remove_noncritical_worker(self, worker_id):
