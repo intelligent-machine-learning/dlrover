@@ -36,6 +36,8 @@ const (
 	LabelReplicaTypeKey = "replica-type"
 	// LabelReplicaIndexKey is the key of ReplicaIndex in labels
 	LabelReplicaIndexKey = "replica-index"
+	// LabelRankIndexKey is the key of rankIndex.
+	LabelRankIndexKey = "rank-index"
 )
 
 // ReplicaManagers contains the manager for each ReplicaType
@@ -43,7 +45,7 @@ var ReplicaManagers = make(map[commonv1.ReplicaType]ReplicaManager)
 
 // ReplicaManager manage pods of ReplicaType
 type ReplicaManager interface {
-	ReconcilePods(client runtime_client.Client, job *elasticv1alpha1.ElasticJob, resourceSpec *elasticv1alpha1.ReplicaResourceSpec) error
+	ReconcilePods(client runtime_client.Client, job *elasticv1alpha1.ElasticJob, scalePlan *elasticv1alpha1.ScalePlan) error
 
 	SyncJobState(client runtime_client.Client, job *elasticv1alpha1.ElasticJob) error
 
