@@ -22,7 +22,8 @@ rules:
   - apiGroups:
       - elastic.iml.github.io
     resources:
-      - '*'
+      - elasticjobs
+      - scaleplans
     verbs:
       - create
       - get

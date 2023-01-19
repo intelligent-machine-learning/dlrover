@@ -17,10 +17,12 @@ from dlrover.python.common.constants import NodeType
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
 from dlrover.python.master.scaler.base_scaler import ScalePlan
 from dlrover.python.master.scaler.elasticjob_scaler import ElasticJobScaler
+from dlrover.python.tests.test_utils import mock_k8s_client
 
 
 class ElasticJobScalerTest(unittest.TestCase):
     def test_generate_scaler_crd_by_plan(self):
+        mock_k8s_client()
         plan = ScalePlan()
         node_resource = NodeResource(10, 4096)
         plan.launch_nodes.append(
@@ -40,7 +42,7 @@ class ElasticJobScalerTest(unittest.TestCase):
                 NodeResource(10, 4096, priority="low"),
                 rank_index=1,
                 name="test-worker-1",
-                service_addr="test-worker-0:2222",
+                service_addr="test-worker-1:2222",
             )
         )
         plan.ps_addrs = ["test-ps-0:2222", "test-ps-1:2222"]
@@ -70,15 +72,16 @@ class ElasticJobScalerTest(unittest.TestCase):
             ],
             "removePods": [
                 {
-                    "name": "test-worker-0",
+                    "name": "test-worker-1",
                     "type": "worker",
-                    "id": 0,
-                    "rankIndex": 0,
-                    "service": "test-worker-0:2222",
+                    "id": 1,
+                    "rankIndex": 1,
+                    "service": "test-worker-1:2222",
                     "resource": {"cpu": "10", "memory": "4096Mi"},
                 }
             ],
             "psHosts": ["test-ps-0:2222", "test-ps-1:2222"],
             "manualScaling": False,
         }
+        print(scaler_crd.spec.to_dict())
         self.assertDictEqual(scaler_crd.spec.to_dict(), expected_dict)

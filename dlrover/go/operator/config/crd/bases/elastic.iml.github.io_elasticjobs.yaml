@@ -7891,7 +7891,7 @@ spec:
             description: ElasticJobStatus defines the observed state of ElasticJob
             properties:
               phase:
-                description: JobConditionType defines all kinds of types of JobStatus.
+                description: Phase shows the phase of job lifecycle
                 type: string
               scalePlan:
                 description: ScalePlan is a name of ScalePlan CRD to scale the job

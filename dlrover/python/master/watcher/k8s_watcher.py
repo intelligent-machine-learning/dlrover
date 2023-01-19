@@ -16,6 +16,7 @@ from typing import List
 from kubernetes import watch
 
 from dlrover.python.common.constants import (
+    ElasticJobApi,
     ElasticJobLabel,
     ExitCode,
     NodeExitReason,
@@ -74,11 +75,14 @@ def _convert_pod_event_to_node_event(event):
         # We only care about pod related events
         return None
 
+    # Skip events of dlrover mater Pod
     pod_type = evt_obj.metadata.labels[ElasticJobLabel.REPLICA_TYPE_KEY]
-    pod_name = evt_obj.metadata.name
-    rank = int(evt_obj.metadata.labels[ElasticJobLabel.RANK_INDEX_KEY])
+    if pod_type == NodeType.DLROVER_MASTER:
+        return None
 
+    rank = int(evt_obj.metadata.labels[ElasticJobLabel.RANK_INDEX_KEY])
     pod_id = int(evt_obj.metadata.labels[ElasticJobLabel.REPLICA_INDEX_KEY])
+    pod_name = evt_obj.metadata.name
 
     resource = _parse_container_resource(evt_obj.spec.containers[0])
     node = Node(
@@ -96,7 +100,9 @@ def _convert_pod_event_to_node_event(event):
 
 
 def _parse_container_resource(container):
-    cpu = container.resources.requests["cpu"]
+    cpu = NodeResource.convert_cpu_to_decimal(
+        container.resources.requests["cpu"]
+    )
     memory = NodeResource.convert_memory_to_mb(
         container.resources.requests["memory"]
     )
@@ -180,24 +186,24 @@ class ScalePlanWatcher(object):
             stream = watch.Watch().stream(
                 self._k8s_client.api_instance.list_namespaced_custom_object,
                 namespace=self._namespace,
-                group="elastic.iml.github.io",
-                version="v1alpha1",
-                plural="scaleplans",
+                group=ElasticJobApi.GROUP,
+                version=ElasticJobApi.VERION,
+                plural=ElasticJobApi.SCALEPLAN_PLURAL,
                 label_selector=self._job_selector,
                 resource_version=resource_version,
                 timeout_seconds=60,
             )
             for event in stream:
                 scaler_crd = event.get("object", None)
-                if not scaler_crd or scaler_crd["kind"] != "ScalePlan":
-                    logger.error(
-                        "Event doesn't have ScalePlan or type: %s" % event
-                    )
+                evt_type = event.get("type")
+                if (
+                    evt_type != "ADDED"
+                    or not scaler_crd
+                    or scaler_crd["kind"] != "ScalePlan"
+                ):
+                    logger.info("Ignore an event")
                     continue
                 resource_plan = self._get_resoruce_plan_from_event(scaler_crd)
-                logger.info(
-                    "Get a manual resource plan %s", resource_plan.toJSON()
-                )
                 yield resource_plan
         except Exception as e:
             raise e
@@ -211,7 +217,9 @@ class ScalePlanWatcher(object):
         for replica, spec in (
             scaler_crd["spec"].get("replicaResourceSpecs", {}).items()
         ):
-            cpu = float(spec.get("resource", {}).get("cpu", "0"))
+            cpu = NodeResource.convert_cpu_to_decimal(
+                spec.get("resource", {}).get("cpu", "0")
+            )
             memory = NodeResource.convert_memory_to_mb(
                 spec.get("resource", {}).get("memory", "0Mi")
             )
@@ -220,10 +228,14 @@ class ScalePlanWatcher(object):
             )
 
         for pod in scaler_crd["spec"].get("migratePods", []):
-            resource_plan.node_resources[pod["name"]] = NodeResource(
-                float(pod["resource"].get("cpu", "0")),
-                NodeResource.convert_memory_to_mb(
-                    pod["resource"].get("memory", "0Mi"),
-                ),
+            cpu = NodeResource.convert_cpu_to_decimal(
+                pod["resource"].get("cpu", "0"),
             )
+            memory = NodeResource.convert_memory_to_mb(
+                pod["resource"].get("memory", "0Mi"),
+            )
+            resource_plan.node_resources[pod["name"]] = NodeResource(
+                cpu, memory
+            )
+        logger.info("Get a manual resource plan %s", resource_plan.toJSON())
         return resource_plan

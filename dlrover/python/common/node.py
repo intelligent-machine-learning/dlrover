@@ -13,6 +13,8 @@
 
 import copy
 
+from kubernetes.utils.quantity import parse_quantity
+
 from dlrover.python.common.constants import (
     NodeExitReason,
     NodeResourceLimit,
@@ -32,7 +34,7 @@ def _is_float_str(str_number):
         return False
 
 
-class NodeResource(object):
+class NodeResource(JsonSerializable):
     """NodeResource records a resource of a Node.
     Attributes:
         cpu: float, CPU cores.
@@ -90,13 +92,11 @@ class NodeResource(object):
 
     @classmethod
     def convert_memory_to_mb(cls, memory: str):
-        unit = memory[-2:]
-        value = int(memory[0:-2])
-        if unit == "Gi":
-            value = value * 1024
-        elif unit == "Ki":
-            value = int(value / 1024)
-        return value
+        return int(parse_quantity(memory) / 1024 / 1024)
+
+    @classmethod
+    def convert_cpu_to_decimal(cls, cpu: str):
+        return round(float(parse_quantity(cpu)), 1)
 
 
 class NodeGroupResource(JsonSerializable):

@@ -91,17 +91,45 @@ class k8sClient(object):
     def create_custom_resource(self, group, version, plural, body):
         try:
             self.api_instance.create_namespaced_custom_object(
-                group,
-                version,
-                "default",
-                plural,
-                body,
+                group=group,
+                version=version,
+                namespace=self._namespace,
+                plural=plural,
+                body=body,
             )
         except client.rest.ApiException as e:
             logger.error(
                 "Exception when calling CustomObjectsApi->",
                 "create_namespaced_custom_object: %s" % e,
             )
+
+    def replace_custom_resource(self, group, version, plural, name, body):
+        try:
+            self.api_instance.replace_namespaced_custom_object(
+                group=group,
+                version=version,
+                namespace=self._namespace,
+                plural=plural,
+                name=name,
+                body=body,
+            )
+        except client.rest.ApiException as e:
+            logger.error(
+                "Exception when calling CustomObjectsApi->",
+                "replace_namespaced_custom_object: %s" % e,
+            )
+
+    def delete_custom_resource(self, group, version, plural, name):
+        try:
+            self.api_instance.delete_namespaced_custom_object(
+                group=group,
+                version=version,
+                namespace=self._namespace,
+                plural=plural,
+                name=name,
+            )
+        except client.rest.ApiException:
+            logger.error("Fail to delete %s", name)
 
     def get_custom_resource(self, name, group, version, plural):
         try:
@@ -234,6 +262,17 @@ class k8sClient(object):
                     k8sClient._instance = k8sClient(*args, **kwargs)
         return k8sClient._instance
 
+    @classmethod
+    def create_owner_reference(cls, api_version, kind, name, uid):
+        owner_ref = client.V1OwnerReference(
+            api_version=api_version,
+            block_owner_deletion=True,
+            kind=kind,
+            name=name,
+            uid=uid,
+        )
+        return owner_ref
+
 
 class K8sElasticJob(ElasticJob):
     def __init__(self, job_name, namespace):
@@ -278,7 +317,7 @@ class K8sJobArgs(JobArgs):
         if "distributionStrategy" in job["spec"]:
             self.distribution_strategy = job["spec"]["distributionStrategy"]
         limit_config = job["spec"].get("resourceLimits", {})
-        self.resource_limits.cpu = float(
+        self.resource_limits.cpu = NodeResource.convert_cpu_to_decimal(
             limit_config.get("cpu", DefaultResourceLimits.CPU_LIMIT)
         )
         self.resource_limits.memory = NodeResource.convert_memory_to_mb(
@@ -294,7 +333,7 @@ class K8sJobArgs(JobArgs):
             container = spec["template"]["spec"]["containers"][0]
             resources = container.get("resources", {})
             requests = resources.get("requests", {})
-            cpu = float(requests.get("cpu", 0))
+            cpu = NodeResource.convert_cpu_to_decimal(requests.get("cpu", 0))
             if "memory" in requests:
                 memory = NodeResource.convert_memory_to_mb(requests["memory"])
             else:

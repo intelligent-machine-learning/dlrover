@@ -23,6 +23,15 @@ class PlatformType(object):
     PY_KUBERNETES = "pyk8s"
 
 
+class ElasticJobApi(object):
+    GROUP = "elastic.iml.github.io"
+    VERION = "v1alpha1"
+    SCALEPLAN_KIND = "ScalePlan"
+    SCALEPLAN_PLURAL = "scaleplans"
+    ELASTICJOB_KIND = "elasticjob"
+    ELASTICJOB_PLURAL = "elasticjobs"
+
+
 class UserEnv(object):
     USER_ID = "USER_ID"
 

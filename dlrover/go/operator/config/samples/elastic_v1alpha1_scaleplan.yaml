@@ -18,3 +18,9 @@ spec:
       resource:
         cpu: "0.5"
         memory: 256Mi
+  migratePods:
+    - name: elasticjob-sample-edljob-ps-0
+      resource:
+        cpu: "2"
+        memory: "512Mi"
+  manualScaling: True 

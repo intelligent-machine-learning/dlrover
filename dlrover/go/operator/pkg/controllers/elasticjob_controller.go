@@ -19,6 +19,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/go-logr/logr"
 	logger "github.com/sirupsen/logrus"
@@ -36,6 +37,10 @@ import (
 	common "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/pkg/common"
 	commonv1 "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/pkg/common/api/v1"
 	master "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/pkg/controllers/master"
+)
+
+const (
+	defaultPollInterval = time.Duration(5 * time.Second)
 )
 
 // ElasticJobReconciler reconciles a ElasticJob object
@@ -60,6 +65,9 @@ func NewElasticJobReconciler(mgr ctrl.Manager) *ElasticJobReconciler {
 //+kubebuilder:rbac:groups=elastic.iml.github.io,resources=elasticjobs,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=elastic.iml.github.io,resources=elasticjobs/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=elastic.iml.github.io,resources=elasticjobs/finalizers,verbs=update
+//+kubebuilder:rbac:groups=elastic.iml.github.io,resources=scaleplans,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=elastic.iml.github.io,resources=scaleplans/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=elastic.iml.github.io,resources=scaleplans/finalizers,verbs=update
 //+kubebuilder:rbac:groups="",resources=pods,verbs=create;get;watch;list;update;patch;delete
 //+kubebuilder:rbac:groups="",resources=services,verbs=create;get;watch;list;update;patch;delete
 
@@ -87,14 +95,11 @@ func (r *ElasticJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		// Error reading the object - requeue the request.
 		return ctrl.Result{}, err
 	}
-
 	if job.DeletionTimestamp != nil {
 		rlog.Info("Reconcil cancelled, the job has been deleted")
 		return ctrl.Result{}, nil
 	}
-
 	r.Scheme.Default(job)
-
 	return r.reconcileJobs(job)
 }
 
@@ -127,6 +132,7 @@ func (r *ElasticJobReconciler) reconcileJobs(job *elasticv1alpha1.ElasticJob) (c
 		err := r.createEasydlMaster(job)
 		if err != nil {
 			logger.Warningf("Fail to create EasyDL Master")
+			return ctrl.Result{RequeueAfter: defaultPollInterval}, err
 		}
 		r.syncJobStateByReplicas(job)
 	case commonv1.JobPending:
@@ -136,8 +142,14 @@ func (r *ElasticJobReconciler) reconcileJobs(job *elasticv1alpha1.ElasticJob) (c
 		r.syncJobStateByReplicas(job)
 	case commonv1.JobScaling:
 		scalePlan, err := r.getJobScalePlan(job)
-		if err == nil {
-			r.executeScaling(job, scalePlan)
+		if err != nil {
+			return ctrl.Result{RequeueAfter: defaultPollInterval}, err
+		}
+		if scalePlan != nil {
+			err := r.executeScaling(job, scalePlan)
+			if err != nil {
+				return ctrl.Result{RequeueAfter: defaultPollInterval}, err
+			}
 		}
 		r.syncJobStateByReplicas(job)
 	case commonv1.JobSucceeded:
@@ -203,9 +215,9 @@ func (r *ElasticJobReconciler) getJobScalePlan(job *elasticv1alpha1.ElasticJob) 
 	if err != nil {
 		if errors.IsNotFound(err) {
 			logger.Warnf("ScalePlan %s not found: namespace: %v", nsn.Name, nsn.Namespace)
-			return scalePlan, err
+			return nil, nil
 		}
-		return scalePlan, err
+		return nil, err
 	}
 	return scalePlan, err
 }
@@ -223,6 +235,7 @@ func (r *ElasticJobReconciler) executeScaling(job *elasticv1alpha1.ElasticJob, s
 				replicaType,
 				err,
 			)
+			return err
 		}
 	}
 	return nil
@@ -238,6 +251,7 @@ func (r *ElasticJobReconciler) handleFaultPods(job *elasticv1alpha1.ElasticJob) 
 func (r *ElasticJobReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&elasticv1alpha1.ElasticJob{}).
+		Owns(&elasticv1alpha1.ScalePlan{}).
 		Owns(&corev1.Pod{}).
 		Owns(&corev1.Service{}).
 		Complete(r)

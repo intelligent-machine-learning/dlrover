@@ -196,7 +196,9 @@ class PodScaler(Scaler):
 
     def _get_pod_resource(self, pod):
         resources = pod.spec.containers[0].resources
-        cpu = float(resources.requests.get("cpu", 0))
+        cpu = NodeResource.convert_cpu_to_decimal(
+            resources.requests.get("cpu", "0")
+        )
         if "memory" in resources.requests:
             memory = NodeResource.convert_memory_to_mb(
                 resources.requests["memory"]
@@ -344,7 +346,6 @@ class PodScaler(Scaler):
             resource_requests=node.config_resource.to_resource_dict(),
             resource_limits=node.config_resource.to_resource_dict(),
             priority=node.config_resource.priority,
-            owner=self._job,
             env=env,
             lifecycle=None,
             labels=labels,
@@ -428,7 +429,6 @@ class PodScaler(Scaler):
             target_port=NODE_SERVICE_PORTS[pod_type],
             replica_type=pod_type,
             replica_index=pod_id,
-            owner=self._job,
         )
         self._k8s_client.create_service(service)
         return service
@@ -451,7 +451,6 @@ class PodScaler(Scaler):
         target_port,
         replica_type,
         replica_index,
-        owner=None,
     ):
         labels = self._get_common_labels()
 
@@ -462,9 +461,7 @@ class PodScaler(Scaler):
             # Otherwise annotation is `None` and cannot be modified
             # using `with_service()` for cluster specific information.
             annotations=labels,
-            owner_references=self._create_owner_reference(owner)
-            if owner
-            else None,
+            owner_references=[self._create_job_owner_reference()],
             namespace=self._namespace,
         )
         selector = {
@@ -499,7 +496,6 @@ class PodScaler(Scaler):
         pod_template: PodTemplate,
         resource_requests: Dict[str, float],
         resource_limits: Dict[str, float],
-        owner,
         lifecycle,
         env,
         priority,
@@ -562,26 +558,18 @@ class PodScaler(Scaler):
             metadata=client.V1ObjectMeta(
                 name=name,
                 labels=labels,
-                owner_references=self._create_owner_reference(owner),
+                owner_references=[self._create_job_owner_reference()],
                 namespace=self._namespace,
             ),
         )
         return pod
 
-    @staticmethod
-    def _create_owner_reference(job):
-        owner_ref = (
-            [
-                client.V1OwnerReference(
-                    api_version="elastic.iml.github.io/v1alpha1",
-                    block_owner_deletion=True,
-                    kind="ElasticJob",
-                    name=job["metadata"]["name"],
-                    uid=job["metadata"]["uid"],
-                )
-            ]
-            if job
-            else None
+    def _create_job_owner_reference(self):
+        owner_ref = k8sClient.create_owner_reference(
+            api_version="elastic.iml.github.io/v1alpha1",
+            kind="ElasticJob",
+            name=self._job["metadata"]["name"],
+            uid=self._job["metadata"]["uid"],
         )
         return owner_ref
 

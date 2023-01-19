@@ -16,6 +16,9 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
@@ -174,6 +177,14 @@ spec:
                 description: CreateTime represents time when the scaling plan was
                   acknowledged by the controller.
                 format: date-time
+                type: string
+              finishTime:
+                description: FinishTime represents time when the scaling plan is executed
+                  by the controller.
+                format: date-time
+                type: string
+              phase:
+                description: Phase shows the phase of scalePlan lifecycle
                 type: string
             type: object
         type: object

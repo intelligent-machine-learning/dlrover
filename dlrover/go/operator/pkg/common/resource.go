@@ -61,7 +61,6 @@ func NewPod(
 	podName string,
 ) *corev1.Pod {
 	podSpec := podTemplate.DeepCopy()
-
 	if len(podSpec.Labels) == 0 {
 		podSpec.Labels = make(map[string]string)
 	}

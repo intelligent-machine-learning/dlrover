@@ -98,6 +98,11 @@ func (m *Manager) ReconcilePods(
 	job *elasticv1alpha1.ElasticJob,
 	scalePlan *elasticv1alpha1.ScalePlan,
 ) error {
+	master, _ := m.getMasterPod(client, job)
+	if master != nil {
+		logger.Warnf("Master exists")
+		return nil
+	}
 	masterPod := m.newJobMaster(job, initMasterIndex)
 	err := client.Create(context.Background(), masterPod)
 	if err != nil {

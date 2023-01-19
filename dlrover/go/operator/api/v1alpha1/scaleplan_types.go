@@ -94,12 +94,19 @@ type ScalePlanStatus struct {
 
 	// CreateTime represents time when the scaling plan was acknowledged by the controller.
 	CreateTime *metav1.Time `json:"createTime,omitempty"`
+
+	// FinishTime represents time when the scaling plan is executed by the controller.
+	FinishTime *metav1.Time `json:"finishTime,omitempty"`
+
+	// Phase shows the phase of scalePlan lifecycle
+	Phase commonv1.JobConditionType `json:"phase,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 // +resource:path=scaleplan
 // +kubebuilder:resource:scope=Namespaced
+// +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 
 // ScalePlan is the Schema for the scaling plan API
