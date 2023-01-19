@@ -138,7 +138,7 @@ class ScalePlanCrd(BaseScaleSpec):
         ref_dict = {}
         ref_dict["apiVersion"] = api_version
         ref_dict["blockOwnerDeletion"] = True
-        ref_dict["kind"] = "ElasticJob"
+        ref_dict["kind"] = ElasticJobApi.ELASTICJOB_KIND
         ref_dict["name"] = name
         ref_dict["uid"] = uid
         self.metadata["ownerReferences"] = [ref_dict]
@@ -168,9 +168,9 @@ class ElasticJobScaler(Scaler):
         for _ in range(3):
             job = self._client.get_custom_resource(
                 name=self._job_name,
-                group="elastic.iml.github.io",
-                version="v1alpha1",
-                plural="elasticjobs",
+                group=ElasticJobApi.GROUP,
+                version=ElasticJobApi.VERION,
+                plural=ElasticJobApi.ELASTICJOB_PLURAL,
             )
             if job:
                 return job

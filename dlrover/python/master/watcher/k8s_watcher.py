@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import time
 from typing import List
 
 from kubernetes import watch
@@ -179,6 +180,8 @@ class ScalePlanWatcher(object):
         self._namespace = namespace
         self._k8s_client = k8sClient.singleton_instance(job_name, namespace)
         self._job_selector = ElasticJobLabel.JOB_KEY + "=" + self._job_name
+        self._job = self._retry_to_get_job()
+        self._job_uid = self._job["metadata"]["uid"]
 
     def watch(self):
         resource_version = None
@@ -204,6 +207,7 @@ class ScalePlanWatcher(object):
                     logger.info("Ignore an event")
                     continue
                 resource_plan = self._get_resoruce_plan_from_event(scaler_crd)
+                self._set_owner_to_scaleplan(scaler_crd)
                 yield resource_plan
         except Exception as e:
             raise e
@@ -239,3 +243,34 @@ class ScalePlanWatcher(object):
             )
         logger.info("Get a manual resource plan %s", resource_plan.toJSON())
         return resource_plan
+
+    def _set_owner_to_scaleplan(self, scale_crd):
+        api_version = ElasticJobApi.GROUP + "/" + ElasticJobApi.VERION
+        ref_dict = {}
+        ref_dict["apiVersion"] = api_version
+        ref_dict["blockOwnerDeletion"] = True
+        ref_dict["kind"] = ElasticJobApi.ELASTICJOB_KIND
+        ref_dict["name"] = self._job_name
+        ref_dict["uid"] = self._job_uid
+        scale_crd["metadata"]["ownerReferences"] = ref_dict
+        self._k8s_client.patch_custom_resource(
+            group=ElasticJobApi.GROUP,
+            version=ElasticJobApi.VERION,
+            plural=ElasticJobApi.VERION,
+            name=scale_crd["meatadata"]["name"],
+            body=scale_crd,
+        )
+
+    def _retry_to_get_job(self):
+        for _ in range(3):
+            job = self._k8s_client.get_custom_resource(
+                name=self._job_name,
+                group=ElasticJobApi.GROUP,
+                version=ElasticJobApi.VERION,
+                plural=ElasticJobApi.ELASTICJOB_PLURAL,
+            )
+            if job:
+                return job
+            else:
+                time.sleep(5)
+        raise ValueError("Cannot get the training job %s", self._job_name)

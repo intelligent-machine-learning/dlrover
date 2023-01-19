@@ -103,9 +103,9 @@ class k8sClient(object):
                 "create_namespaced_custom_object: %s" % e,
             )
 
-    def replace_custom_resource(self, group, version, plural, name, body):
+    def patch_custom_resource(self, group, version, plural, name, body):
         try:
-            self.api_instance.replace_namespaced_custom_object(
+            self.api_instance.patch_namespaced_custom_object(
                 group=group,
                 version=version,
                 namespace=self._namespace,
