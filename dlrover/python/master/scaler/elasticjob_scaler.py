@@ -11,15 +11,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import time
 from abc import ABCMeta, abstractmethod
 from typing import Dict, List
 
+from dlrover.python.common.constants import ElasticJobApi
 from dlrover.python.master.scaler.base_scaler import ScalePlan, Scaler
 from dlrover.python.scheduler.kubernetes import k8sClient
-
-SCALER_GROUP = "elastic.iml.github.io"
-SCALER_VERION = "v1alpha1"
-SCALER_KIND = "ScalePlan"
 
 
 class BaseScaleSpec(metaclass=ABCMeta):
@@ -112,7 +110,7 @@ class ScaleSpec(BaseScaleSpec):
         for pod in self.create_pods:
             spec["createPods"].append(pod.to_dict())
         spec["removePods"] = []
-        for pod in self.create_pods:
+        for pod in self.remove_pods:
             spec["removePods"].append(pod.to_dict())
         spec["psHosts"] = self.ps_hosts
         spec["manualScaling"] = self.manual_scaling
@@ -136,6 +134,15 @@ class ScalePlanCrd(BaseScaleSpec):
         self.metadata = metadata
         self.spec = spec
 
+    def set_owner_reference(self, api_version, name, uid):
+        ref_dict = {}
+        ref_dict["apiVersion"] = api_version
+        ref_dict["blockOwnerDeletion"] = True
+        ref_dict["kind"] = ElasticJobApi.ELASTICJOB_KIND
+        ref_dict["name"] = name
+        ref_dict["uid"] = uid
+        self.metadata["ownerReferences"] = [ref_dict]
+
     def to_dict(self):
         spec = {}
         spec["apiVersion"] = self.api_version
@@ -153,24 +160,51 @@ class ElasticJobScaler(Scaler):
         super(ElasticJobScaler, self).__init__(job_name)
         self._client = k8sClient.singleton_instance(namespace, job_name)
         self._namespace = namespace
+        self._scaleplan_name = self._job_name + "-scaleplan"
+        self._job = self._retry_to_get_job()
+        self._job_uid = self._job["metadata"]["uid"]
+
+    def _retry_to_get_job(self):
+        for _ in range(3):
+            job = self._client.get_custom_resource(
+                name=self._job_name,
+                group=ElasticJobApi.GROUP,
+                version=ElasticJobApi.VERION,
+                plural=ElasticJobApi.ELASTICJOB_PLURAL,
+            )
+            if job:
+                return job
+            else:
+                time.sleep(5)
+        raise ValueError("Cannot get the training job %s", self._job_name)
 
     def scale(self, plan: ScalePlan):
-        scaler_crd = self._generate_scale_plan_crd(plan)
+        scale_plan_crd = self._generate_scale_plan_crd(plan)
+        self._client.delete_custom_resource(
+            group=ElasticJobApi.GROUP,
+            version=ElasticJobApi.VERION,
+            plural=ElasticJobApi.SCALEPLAN_PLURAL,
+            name=self._scaleplan_name,
+        )
         self._client.create_custom_resource(
-            group=SCALER_GROUP,
-            version=SCALER_VERION,
-            plural="scaleplans",
-            body=scaler_crd.to_dict(),
+            group=ElasticJobApi.GROUP,
+            version=ElasticJobApi.VERION,
+            plural=ElasticJobApi.SCALEPLAN_PLURAL,
+            body=scale_plan_crd.to_dict(),
         )
 
     def _generate_scale_plan_crd(self, plan: ScalePlan) -> ScalePlanCrd:
-        api_version = SCALER_GROUP + "/" + SCALER_VERION
+        api_version = ElasticJobApi.GROUP + "/" + ElasticJobApi.VERION
         scale_crd = ScalePlanCrd(
             api_version=api_version,
-            kind=SCALER_KIND,
-            metadata={"name": "{}-scaleplan".format(self._job_name)},
+            kind=ElasticJobApi.SCALEPLAN_KIND,
+            metadata={"name": self._scaleplan_name},
             spec=ScaleSpec(self._job_name),
         )
+        scale_crd.set_owner_reference(
+            api_version, self._job_name, self._job_uid
+        )
+
         for name, group_resource in plan.node_group_resources.items():
             resource_spec = ContainerResourceSpec(
                 cpu=group_resource.node_resource.cpu,

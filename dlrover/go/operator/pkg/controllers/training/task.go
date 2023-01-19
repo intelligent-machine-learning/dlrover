@@ -110,6 +110,7 @@ func (m *TaskManager) ReconcilePods(
 				client, job, scalePlan, &resourceSpec.Resource, diffNum,
 			)
 		} else if diffNum < 0 {
+			diffNum = -1 * diffNum
 			m.scaleDownReplicas(client, job, diffNum)
 		}
 	}
@@ -191,15 +192,21 @@ func (m *TaskManager) newTask(
 	job *elasticv1alpha1.ElasticJob,
 	podMeta *elasticv1alpha1.PodMeta,
 ) *corev1.Pod {
-	spec, ok := job.Spec.ReplicaSpecs[m.taskType]
-	if !ok {
-		logger.Infof("No ReplicaSpec for %s", m.taskType)
+	spec := job.Spec.ReplicaSpecs[m.taskType]
+	if spec == nil && m.taskType == ReplicaTypeChief {
+		spec = job.Spec.ReplicaSpecs[ReplicaTypeWorker]
+		if spec != nil {
+			logger.Infof("Use worker spec to create the chief")
+		}
+	}
+	if spec == nil {
+		logger.Errorf("No replica specification for %s", m.taskType)
 		return nil
 	}
 	podTemplate := spec.Template.DeepCopy()
 	podTemplate.Spec.Containers[0].Resources.Requests = podMeta.Resource
 	podTemplate.Spec.Containers[0].Resources.Limits = podMeta.Resource
-	pod := common.NewPod(job, &spec.Template, podMeta.Name)
+	pod := common.NewPod(job, podTemplate, podMeta.Name)
 	master.SetMasterAddrIntoContainer(&pod.Spec.Containers[0], job.Name)
 	pod.Labels[LabelRestartCount] = fmt.Sprintf("%d", spec.RestartCount)
 	pod.Labels[common.LabelReplicaTypeKey] = string(m.taskType)
@@ -278,7 +285,7 @@ func (m *TaskManager) getPSClusterForPod(
 		chiefManager := common.ReplicaManagers[ReplicaTypeChief].(*TaskManager)
 		taskCount := chiefManager.getTotalTaskCount(status)
 		if taskCount == 0 {
-			taskCount = int(status.Initial)
+			taskCount = int(status.Initial) + scalePlan.Spec.ReplicaResourceSpecs[ReplicaTypeChief].Replicas
 		}
 		chiefHosts := chiefManager.getAllTaskHosts(job.Name, taskCount, ServicePort)
 		if len(chiefHosts) == 1 {

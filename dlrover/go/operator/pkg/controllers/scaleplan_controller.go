@@ -24,9 +24,7 @@ import (
 	"github.com/go-logr/logr"
 	logger "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -36,10 +34,6 @@ import (
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/api/v1alpha1"
 	common "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/pkg/common"
 	commonv1 "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/pkg/common/api/v1"
-)
-
-const (
-	defaultPollInterval = time.Duration(3 * time.Second)
 )
 
 // ScalePlanReconciler reconciles a scalePlan object
@@ -82,18 +76,14 @@ func (r *ScalePlanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	if err := r.Get(context.TODO(), req.NamespacedName, scalePlan); err != nil {
 		return ctrl.Result{}, err
 	}
+	if scalePlan.Spec.ManualScaling {
+		return ctrl.Result{}, nil
+	}
 	job, err := r.getOwnerJob(scalePlan)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-	result, err := r.setScalingOwner(scalePlan, job, defaultPollInterval)
-	if err != nil {
-		return result, err
-	}
-	if scalePlan.Spec.ManualScaling {
-		return ctrl.Result{}, err
-	}
-	result, err = r.updateJobToScaling(scalePlan, job, defaultPollInterval)
+	result, err := r.updateJobToScaling(scalePlan, job, defaultPollInterval)
 	return result, err
 }
 
@@ -113,37 +103,17 @@ func (r *ScalePlanReconciler) getOwnerJob(scalePlan *elasticv1alpha1.ScalePlan) 
 	return job, nil
 }
 
-func (r *ScalePlanReconciler) setScalingOwner(scalePlan *elasticv1alpha1.ScalePlan,
-	job *elasticv1alpha1.ElasticJob, pollInterval time.Duration) (ctrl.Result, error) {
-	ownerRefs := scalePlan.GetOwnerReferences()
-	logger.Infof("ownerRefs = %v", ownerRefs)
-	if len(ownerRefs) == 0 {
-		gvk := elasticv1alpha1.SchemeGroupVersionKind
-		ownerRefs = append(ownerRefs, *metav1.NewControllerRef(job,
-			schema.GroupVersionKind{Group: gvk.Group, Version: gvk.Version, Kind: gvk.Kind}))
-		scalePlan.SetOwnerReferences(ownerRefs)
-
-		err := r.Update(context.Background(), scalePlan)
-		if err != nil {
-			logger.Errorf("failed to update scalePlan: %s, err: %++v", scalePlan.Name, err)
-			// Error updating the scalePlan - requeue the request.
-			return ctrl.Result{RequeueAfter: pollInterval}, err
-		}
-	}
-	return ctrl.Result{}, nil
-}
-
 func (r *ScalePlanReconciler) updateJobToScaling(
 	scalePlan *elasticv1alpha1.ScalePlan,
 	job *elasticv1alpha1.ElasticJob,
 	pollInterval time.Duration) (ctrl.Result, error) {
-	msg := fmt.Sprintf("ElasticJob %s is scaling by %s.", job.Name, scalePlan.Name)
 	job.Status.ScalePlan = scalePlan.Name
 	for taskType, resourceSpec := range scalePlan.Spec.ReplicaResourceSpecs {
 		if job.Status.ReplicaStatuses[taskType].Initial == 0 {
 			job.Status.ReplicaStatuses[taskType].Initial = int32(resourceSpec.Replicas)
 		}
 	}
+	msg := fmt.Sprintf("ElasticJob %s is scaling by %s.", job.Name, scalePlan.Name)
 	common.UpdateStatus(&job.Status, commonv1.JobScaling, common.JobScalingReason, msg)
 	err := r.Status().Update(context.Background(), job)
 	if err != nil {

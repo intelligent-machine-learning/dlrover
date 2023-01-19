@@ -141,6 +141,11 @@ func TestNewTaskPod(t *testing.T) {
 		pod.Labels[common.LabelReplicaTypeKey],
 		string(ReplicaTypeChief),
 	)
+	assert.Equal(
+		t,
+		pod.Spec.Containers[0].Resources.Requests.Cpu().AsApproximateFloat64(),
+		float64(1),
+	)
 	assert.Equal(t, len(pod.Spec.Containers[0].Env), 1)
 	assert.Equal(t, pod.Spec.Containers[0].Env[0].Name, "MASTER_ADDR")
 	assert.Equal(
