@@ -50,21 +50,17 @@ spec:
                     name:
                       description: Name is the name of the Pod
                       type: string
-                    randIndex:
+                    rankIndex:
                       description: RankIndex is the index of the Pod
                       type: integer
                     resource:
+                      additionalProperties:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
                       description: Resource defines the resource of each replica
-                      properties:
-                        cpu:
-                          description: CPU is the requested CPU cores of a replica
-                          type: string
-                        gpu:
-                          description: GPU is the requested GPU of a replica
-                          type: string
-                        memory:
-                          description: Memory is the requested memory (MB) of a replica
-                          type: string
                       type: object
                     service:
                       description: Service is the service whose endpoint is the Pod.
@@ -89,21 +85,17 @@ spec:
                     name:
                       description: Name is the name of the Pod
                       type: string
-                    randIndex:
+                    rankIndex:
                       description: RankIndex is the index of the Pod
                       type: integer
                     resource:
+                      additionalProperties:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
                       description: Resource defines the resource of each replica
-                      properties:
-                        cpu:
-                          description: CPU is the requested CPU cores of a replica
-                          type: string
-                        gpu:
-                          description: GPU is the requested GPU of a replica
-                          type: string
-                        memory:
-                          description: Memory is the requested memory (MB) of a replica
-                          type: string
                       type: object
                     service:
                       description: Service is the service whose endpoint is the Pod.
@@ -124,9 +116,35 @@ spec:
               removePods:
                 description: RemovePods are Pods to be removed
                 items:
-                  type: string
+                  description: PodMeta specifies the meta of a Pod.
+                  properties:
+                    id:
+                      description: Id is the identity of the Pod
+                      type: integer
+                    name:
+                      description: Name is the name of the Pod
+                      type: string
+                    rankIndex:
+                      description: RankIndex is the index of the Pod
+                      type: integer
+                    resource:
+                      additionalProperties:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
+                      description: Resource defines the resource of each replica
+                      type: object
+                    service:
+                      description: Service is the service whose endpoint is the Pod.
+                      type: string
+                    type:
+                      description: Type is the type of the Pod
+                      type: string
+                  type: object
                 type: array
-              replicaResourceSpec:
+              replicaResourceSpecs:
                 additionalProperties:
                   description: ReplicaResourceSpec specifies the number and resources
                     of replica.
@@ -135,17 +153,13 @@ spec:
                       description: Replicas is the number of replica
                       type: integer
                     resource:
+                      additionalProperties:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
                       description: Resource defines the resource of each replica
-                      properties:
-                        cpu:
-                          description: CPU is the requested CPU cores of a replica
-                          type: string
-                        gpu:
-                          description: GPU is the requested GPU of a replica
-                          type: string
-                        memory:
-                          description: Memory is the requested memory (MB) of a replica
-                          type: string
                       type: object
                   type: object
                 description: 'A map of ReplicaType (type) to ReplicaSpec (value).

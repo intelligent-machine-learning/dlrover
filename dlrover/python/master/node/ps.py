@@ -163,7 +163,7 @@ class ParameterServerManager(TrainingNodeManager):
                 node.is_released = True
                 if node.id in self._migrated_ps_nodes:
                     self._migrated_ps_nodes.pop(node.id)
-                plan.remove_nodes.append(node.name)
+                plan.remove_nodes.append(node)
         return plan
 
     def _get_alive_ps(self) -> List[Node]:
@@ -273,7 +273,7 @@ class ParameterServerManager(TrainingNodeManager):
                 )
                 node.is_released = True
                 node.status = NodeStatus.DELETED
-                plan.remove_nodes.append(node.name)
+                plan.remove_nodes.append(node)
         return plan
 
     def migrate_parameter_servers(self, ps_nodes: Dict[str, NodeResource]):

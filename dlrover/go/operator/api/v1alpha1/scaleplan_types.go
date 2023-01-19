@@ -36,7 +36,7 @@ type ScaleSpec struct {
 	//     "PS": ReplicaResourceSpec,
 	//     "worker": ReplicaResourceSpec,
 	//   }
-	ReplicaResourceSpecs map[commonv1.ReplicaType]ReplicaResourceSpec `json:"replicaResourceSpec,omitempty"`
+	ReplicaResourceSpecs map[commonv1.ReplicaType]ReplicaResourceSpec `json:"replicaResourceSpecs,omitempty"`
 
 	// CreatePods are Pods to be created.
 	CreatePods []PodMeta `json:"createPods,omitempty"`
@@ -78,7 +78,7 @@ type PodMeta struct {
 	Type commonv1.ReplicaType `json:"type,omitempty"`
 
 	// RankIndex is the index of the Pod
-	RankIndex int `json:"randIndex,omitempty"`
+	RankIndex int `json:"rankIndex,omitempty"`
 
 	// Service is the service whose endpoint is the Pod.
 	Service string `json:"service,omitempty"`

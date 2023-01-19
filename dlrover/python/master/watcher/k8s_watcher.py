@@ -209,7 +209,7 @@ class ScalePlanWatcher(object):
             return resource_plan
 
         for replica, spec in (
-            scaler_crd["spec"].get("replicaResourceSpec", {}).items()
+            scaler_crd["spec"].get("replicaResourceSpecs", {}).items()
         ):
             cpu = float(spec.get("resource", {}).get("cpu", "0"))
             memory = NodeResource.convert_memory_to_mb(

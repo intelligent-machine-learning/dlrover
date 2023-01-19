@@ -97,7 +97,7 @@ class PSManagerTest(unittest.TestCase):
         self.assertEqual(ps_manager._pre_dropped_ps[0].id, 1)
 
         plan = ps_manager.process_after_ps_cluster_ready()
-        self.assertListEqual(plan.remove_nodes, ["test-edljob-ps-1"])
+        self.assertEqual(plan.remove_nodes[0].name, "test-edljob-ps-1")
 
     def test_delete_running_ps(self):
         job_nodes = self._job_resource.init_job_node_meta(

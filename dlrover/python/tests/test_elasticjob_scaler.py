@@ -29,22 +29,56 @@ class ElasticJobScalerTest(unittest.TestCase):
                 0,
                 NodeResource(10, 4096, priority="low"),
                 rank_index=0,
+                name="test-worker-0",
+                service_addr="test-worker-0:2222",
             )
         )
+        plan.remove_nodes.append(
+            Node(
+                NodeType.WORKER,
+                1,
+                NodeResource(10, 4096, priority="low"),
+                rank_index=1,
+                name="test-worker-1",
+                service_addr="test-worker-0:2222",
+            )
+        )
+        plan.ps_addrs = ["test-ps-0:2222", "test-ps-1:2222"]
         group_resource = NodeGroupResource(1, node_resource)
         plan.node_group_resources["worker"] = group_resource
 
         scaler = ElasticJobScaler("test", "dlrover")
-        scaler_crd = scaler._generate_scaler_crd_by_plan(plan)
+        scaler_crd = scaler._generate_scale_plan_crd(plan)
 
         expected_dict = {
             "ownerJob": "test",
-            "replicaResourceSpec": {
+            "replicaResourceSpecs": {
                 "worker": {
                     "replicas": 1,
                     "resource": {"cpu": "10", "memory": "4096Mi"},
                 }
             },
-            "nodeResourceSpec": {"cpu": "10", "memory": "4096Mi"},
+            "createPods": [
+                {
+                    "name": "test-worker-0",
+                    "type": "worker",
+                    "id": 0,
+                    "rankIndex": 0,
+                    "service": "test-worker-0:2222",
+                    "resource": {"cpu": "10", "memory": "4096Mi"},
+                }
+            ],
+            "removePods": [
+                {
+                    "name": "test-worker-0",
+                    "type": "worker",
+                    "id": 0,
+                    "rankIndex": 0,
+                    "service": "test-worker-0:2222",
+                    "resource": {"cpu": "10", "memory": "4096Mi"},
+                }
+            ],
+            "psHosts": ["test-ps-0:2222", "test-ps-1:2222"],
+            "manualScaling": False,
         }
         self.assertDictEqual(scaler_crd.spec.to_dict(), expected_dict)
