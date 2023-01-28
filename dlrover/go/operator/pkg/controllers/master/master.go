@@ -33,11 +33,10 @@ const (
 	initMasterContainerMemory  = "2Gi"
 	initMasterContainerStorage = "2Gi"
 	masterCommand              = "python -m dlrover.python.master.main"
-	masterImage                = "registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:test"
 	masterServicePort          = 50001
 	initMasterIndex            = 0
-
-	envMasterAddrKey = "MASTER_ADDR"
+	defaultImagePullPolicy     = "IfNotPresent"
+	envMasterAddrKey           = "MASTER_ADDR"
 
 	// ReplicaTypeTrainerMaster is the type for DLRover Master replica.
 	ReplicaTypeTrainerMaster commonv1.ReplicaType = "dlrover-master"
@@ -47,46 +46,14 @@ const (
 type Manager struct{}
 
 func init() {
-	common.ReplicaManagers[ReplicaTypeTrainerMaster] = newManager()
-}
-
-func newManager() *Manager {
-	return &Manager{}
+	common.ReplicaManagers[ReplicaTypeTrainerMaster] = &Manager{}
 }
 
 func (m *Manager) newJobMaster(
 	job *elasticv1alpha1.ElasticJob, replicaIndex int,
 ) *corev1.Pod {
-	command := masterCommand + fmt.Sprintf(
-		" --namespace %s --job_name %s --port %d",
-		job.Namespace, job.Name, masterServicePort,
-	)
-	container := corev1.Container{
-		Name:            "main",
-		Image:           masterImage,
-		ImagePullPolicy: "IfNotPresent",
-		Command:         []string{"/bin/bash", "-c", command},
-		Resources: corev1.ResourceRequirements{
-			Requests: corev1.ResourceList{
-				corev1.ResourceCPU:              resource.MustParse(initMasterContainerCPU),
-				corev1.ResourceMemory:           resource.MustParse(initMasterContainerMemory),
-				corev1.ResourceEphemeralStorage: resource.MustParse(initMasterContainerStorage),
-			},
-			Limits: corev1.ResourceList{
-				corev1.ResourceCPU:              resource.MustParse(initMasterContainerCPU),
-				corev1.ResourceMemory:           resource.MustParse(initMasterContainerMemory),
-				corev1.ResourceEphemeralStorage: resource.MustParse(initMasterContainerStorage),
-			},
-		},
-	}
-	podTemplate := &corev1.PodTemplateSpec{
-		Spec: corev1.PodSpec{
-			Containers:    []corev1.Container{container},
-			RestartPolicy: corev1.RestartPolicyNever,
-		},
-	}
 	masterName := newJobMasterName(job.Name)
-	pod := common.NewPod(job, podTemplate, masterName)
+	pod := common.NewPod(job, job.Spec.DlroverMaster, masterName)
 	pod.Labels[common.LabelReplicaTypeKey] = string(ReplicaTypeTrainerMaster)
 	pod.Labels[common.LabelReplicaIndexKey] = fmt.Sprintf("%d", replicaIndex)
 	return pod
@@ -239,4 +206,46 @@ func (m *Manager) StopRunningPods(
 		common.DeletePod(client, pod)
 	}
 	return nil
+}
+
+// newMasterTemplateToJob sets configurations to the master template of a job.
+func newMasterTemplateToJob(job *elasticv1alpha1.ElasticJob, masterImage string) {
+	command := masterCommand + fmt.Sprintf(
+		" --namespace %s --job_name %s --port %d",
+		job.Namespace, job.Name, masterServicePort,
+	)
+	container := corev1.Container{
+		Name:            "main",
+		Image:           masterImage,
+		ImagePullPolicy: defaultImagePullPolicy,
+		Command:         []string{"/bin/bash", "-c", command},
+		Resources: corev1.ResourceRequirements{
+			Requests: corev1.ResourceList{
+				corev1.ResourceCPU:              resource.MustParse(initMasterContainerCPU),
+				corev1.ResourceMemory:           resource.MustParse(initMasterContainerMemory),
+				corev1.ResourceEphemeralStorage: resource.MustParse(initMasterContainerStorage),
+			},
+			Limits: corev1.ResourceList{
+				corev1.ResourceCPU:              resource.MustParse(initMasterContainerCPU),
+				corev1.ResourceMemory:           resource.MustParse(initMasterContainerMemory),
+				corev1.ResourceEphemeralStorage: resource.MustParse(initMasterContainerStorage),
+			},
+		},
+	}
+	podTemplate := &corev1.PodTemplateSpec{
+		Spec: corev1.PodSpec{
+			Containers:    []corev1.Container{container},
+			RestartPolicy: corev1.RestartPolicyNever,
+		},
+	}
+	if job.Spec.DlroverMaster != nil {
+		mainContainer := job.Spec.DlroverMaster.Spec.Containers[0]
+		if mainContainer.Image != "" {
+			podTemplate.Spec.Containers[0].Image = mainContainer.Image
+		}
+		if mainContainer.ImagePullPolicy != "" {
+			podTemplate.Spec.Containers[0].ImagePullPolicy = mainContainer.ImagePullPolicy
+		}
+	}
+	job.Spec.DlroverMaster = podTemplate
 }

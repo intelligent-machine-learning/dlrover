@@ -46,18 +46,20 @@ const (
 // ElasticJobReconciler reconciles a ElasticJob object
 type ElasticJobReconciler struct {
 	client.Client
-	Scheme   *runtime.Scheme
-	Recorder record.EventRecorder
-	Log      logr.Logger
+	Scheme      *runtime.Scheme
+	Recorder    record.EventRecorder
+	Log         logr.Logger
+	masterImage string
 }
 
 // NewElasticJobReconciler creates a JobReconciler
-func NewElasticJobReconciler(mgr ctrl.Manager) *ElasticJobReconciler {
+func NewElasticJobReconciler(mgr ctrl.Manager, masterImage string) *ElasticJobReconciler {
 	r := &ElasticJobReconciler{
-		Client:   mgr.GetClient(),
-		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("elasticjob-controller"),
-		Log:      ctrl.Log.WithName("controllers").WithName("ElasticJob"),
+		Client:      mgr.GetClient(),
+		Scheme:      mgr.GetScheme(),
+		Recorder:    mgr.GetEventRecorderFor("elasticjob-controller"),
+		Log:         ctrl.Log.WithName("controllers").WithName("ElasticJob"),
+		masterImage: masterImage,
 	}
 	return r
 }
@@ -191,6 +193,7 @@ func (r *ElasticJobReconciler) stopRunningPods(job *elasticv1alpha1.ElasticJob) 
 }
 
 func (r *ElasticJobReconciler) createEasydlMaster(job *elasticv1alpha1.ElasticJob) error {
+	master.newMasterTemplateToJob(job, r.masterImage)
 	masterManager := common.ReplicaManagers[master.ReplicaTypeTrainerMaster]
 	err := masterManager.ReconcilePods(r.Client, job, nil)
 	if err != nil {

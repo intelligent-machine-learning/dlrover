@@ -55,6 +55,9 @@ type ElasticJobSpec struct {
 
 	// Envs specifies environment variables for Pods of the job.
 	Envs map[string]*corev1.EnvVar `json:"envs,omitempty"`
+
+	// DlroverMaster specifies the specification of the DLRover master.
+	DlroverMaster *corev1.PodTemplateSpec `json:"dlroverMaster"`
 }
 
 // ReplicaSpec specifies the number and resources of replica.
