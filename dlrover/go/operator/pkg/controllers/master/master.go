@@ -208,8 +208,8 @@ func (m *Manager) StopRunningPods(
 	return nil
 }
 
-// newMasterTemplateToJob sets configurations to the master template of a job.
-func newMasterTemplateToJob(job *elasticv1alpha1.ElasticJob, masterImage string) {
+// NewMasterTemplateToJob sets configurations to the master template of a job.
+func NewMasterTemplateToJob(job *elasticv1alpha1.ElasticJob, masterImage string) {
 	command := masterCommand + fmt.Sprintf(
 		" --namespace %s --job_name %s --port %d",
 		job.Namespace, job.Name, masterServicePort,

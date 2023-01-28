@@ -31,7 +31,7 @@ func TestCreateMasterPod(t *testing.T) {
 			Labels:      map[string]string{},
 		},
 	}
-	newMasterTemplateToJob(job, "dlrover-master:test")
+	NewMasterTemplateToJob(job, "dlrover-master:test")
 	manager := &Manager{}
 	pod := manager.newJobMaster(job, initMasterIndex)
 	assert.Equal(t, pod.Name, "elasticjob-test-ps-dlrover-master")
@@ -62,7 +62,7 @@ func TestCreateMasterPodWithImage(t *testing.T) {
 			RestartPolicy: corev1.RestartPolicyNever,
 		},
 	}
-	newMasterTemplateToJob(job, "dlrover-master:test")
+	NewMasterTemplateToJob(job, "dlrover-master:test")
 	manager := &Manager{}
 	pod := manager.newJobMaster(job, initMasterIndex)
 	assert.Equal(t, pod.Name, "elasticjob-test-ps-dlrover-master")

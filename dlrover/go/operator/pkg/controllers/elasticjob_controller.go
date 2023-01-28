@@ -193,7 +193,7 @@ func (r *ElasticJobReconciler) stopRunningPods(job *elasticv1alpha1.ElasticJob) 
 }
 
 func (r *ElasticJobReconciler) createEasydlMaster(job *elasticv1alpha1.ElasticJob) error {
-	master.newMasterTemplateToJob(job, r.masterImage)
+	master.NewMasterTemplateToJob(job, r.masterImage)
 	masterManager := common.ReplicaManagers[master.ReplicaTypeTrainerMaster]
 	err := masterManager.ReconcilePods(r.Client, job, nil)
 	if err != nil {
