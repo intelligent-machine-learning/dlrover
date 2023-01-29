@@ -15,7 +15,9 @@ package master
 
 import (
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/api/v1alpha1"
+	commonv1 "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/pkg/common/api/v1"
 	"github.com/stretchr/testify/assert"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"strings"
 	"testing"
@@ -30,11 +32,48 @@ func TestCreateMasterPod(t *testing.T) {
 			Labels:      map[string]string{},
 		},
 	}
-
-	manager := newManager()
+	job.Spec.ReplicaSpecs = make(map[commonv1.ReplicaType]*elasticv1alpha1.ReplicaSpec)
+	NewMasterTemplateToJob(job, "dlrover-master:test")
+	manager := &Manager{}
 	pod := manager.newJobMaster(job, initMasterIndex)
 	assert.Equal(t, pod.Name, "elasticjob-test-ps-dlrover-master")
+	assert.Equal(t, pod.Spec.Containers[0].Image, "dlrover-master:test")
+	assert.Equal(t, string(pod.Spec.Containers[0].ImagePullPolicy), "IfNotPresent")
 	assert.True(t, strings.Contains(pod.Spec.Containers[0].Command[2], "--namespace dlrover"))
 	assert.True(t, strings.Contains(pod.Spec.Containers[0].Command[2], "--job_name test-ps"))
 	assert.True(t, strings.Contains(pod.Spec.Containers[0].Command[2], "--port 50001"))
+}
+
+func TestCreateMasterPodWithImage(t *testing.T) {
+	job := &elasticv1alpha1.ElasticJob{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "test-ps",
+			Namespace:   "dlrover",
+			Annotations: map[string]string{},
+			Labels:      map[string]string{},
+		},
+	}
+
+	container := corev1.Container{
+		Image:           "dlrover-master:test-v0",
+		ImagePullPolicy: "Always",
+	}
+	job.Spec.ReplicaSpecs = make(map[commonv1.ReplicaType]*elasticv1alpha1.ReplicaSpec)
+	job.Spec.ReplicaSpecs[ReplicaTypeTrainerMaster] = &elasticv1alpha1.ReplicaSpec{
+		ReplicaSpec: commonv1.ReplicaSpec{
+			Template: corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					Containers:    []corev1.Container{container},
+					RestartPolicy: corev1.RestartPolicyNever,
+				},
+			},
+		},
+	}
+
+	NewMasterTemplateToJob(job, "dlrover-master:test")
+	manager := &Manager{}
+	pod := manager.newJobMaster(job, initMasterIndex)
+	assert.Equal(t, pod.Name, "elasticjob-test-ps-dlrover-master")
+	assert.Equal(t, pod.Spec.Containers[0].Image, "dlrover-master:test-v0")
+	assert.Equal(t, string(pod.Spec.Containers[0].ImagePullPolicy), "Always")
 }
