@@ -50,7 +50,13 @@ make deploy IMG=easydl/elasticjob-controller:test
 kubectl apply -f dlrover/go/operator/config/rbac/default_role.yaml 
 ```
 
-### 4. Submit an ElasticJob.
+### 4. Build the Image of DLRover Master
+
+```bash
+docker build -t easydl/dlrover-master:test -f docker/Dockerfile.
+```
+
+### 5. Submit an ElasticJob.
 
 ```bash
 eval $(minikube docker-env)

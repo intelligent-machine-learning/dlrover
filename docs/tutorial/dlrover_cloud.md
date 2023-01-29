@@ -14,7 +14,7 @@ namely, Alibaba Cloud Container Service for Kubernetes(ACK).
 1. Deploy the controller on the cluster.
 
 ```bash
-make deploy IMG=easydl/elasticjob-controller:test
+make deploy IMG=easydl/elasticjob-controller:v0.1.1
 ```
 
 2. Grant permission for the DLRover master to Access CRDs.
