@@ -5,8 +5,8 @@
 DLRover, as it says, is making deep learning models' training easy. It helps model developers focus on model algorithm itself, without taking care of any engineering stuff, say, hardware acceleration, distribute running, etc. It provides static and dynamic nodes' configuration automatically, before and during a model training job running on k8s. Detail features as,
 
 - Fault-Tolerance.
-- Static and Dynamic resource configuration.
-- Automatic distributed model training.
+- Auto-Scaling.
+- Automatic Resource Optimization.
 
 DLRover consists three components:
 
@@ -22,14 +22,22 @@ DLRover can recover failed parameter servers and workers and resume the training
 Some failed nodes do not interrupt the training and hurt the convergence
 accuracy.
 
-### Static and Dynamic Resource Configuration
+### Auto-Scaling
 
-DLRover can automatically configure the resources to start a training job
-and monitor the performance of a training job and dynamically adjust
-the resources to improve the training performance.
+DLRover can automatically scale up and down the number of
+nodes (parameter servers or workers) at runtime of a training job
+with workload-aware alogrithms. In a training job of DLrover, nodes can come and
+go at any time without interruptting the training process and wasted
+work (e.g., initialization and iterations since the number of nodes changes)
 
-### Automatic distributed model training
 
-(To be added)
+### Automatic Resource Optimization
+
+DLRover can automatically configure the resources to start a training job.
+After the job starts, DLRover monitors the performance (e.g. throughput and workload)
+of a training job and dynamically adjusts the resources to
+improve the training performance.
 
 ## Quick Start
+
+[TensorFlow Estimator on Aliyun ACK](docs/tutorial/dlrover_cloud.md)
