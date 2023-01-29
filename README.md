@@ -5,8 +5,8 @@
 DLRover, as it says, is making deep learning models' training easy. It helps model developers focus on model algorithm itself, without taking care of any engineering stuff, say, hardware acceleration, distribute running, etc. It provides static and dynamic nodes' configuration automatically, before and during a model training job running on k8s. Detail features as,
 
 - Fault-Tolerance.
-- Static and Dynamic resource configuration.
-- Automatic distributed model training.
+- Elastic Scheduling.
+- Automatic Resource Optimization.
 
 DLRover consists three components:
 
