@@ -15,6 +15,7 @@ package master
 
 import (
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/api/v1alpha1"
+	commonv1 "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/pkg/common/api/v1"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -31,6 +32,7 @@ func TestCreateMasterPod(t *testing.T) {
 			Labels:      map[string]string{},
 		},
 	}
+	job.Spec.ReplicaSpecs = make(map[commonv1.ReplicaType]*elasticv1alpha1.ReplicaSpec)
 	NewMasterTemplateToJob(job, "dlrover-master:test")
 	manager := &Manager{}
 	pod := manager.newJobMaster(job, initMasterIndex)
@@ -56,12 +58,18 @@ func TestCreateMasterPodWithImage(t *testing.T) {
 		Image:           "dlrover-master:test-v0",
 		ImagePullPolicy: "Always",
 	}
-	job.Spec.DlroverMaster = &corev1.PodTemplateSpec{
-		Spec: corev1.PodSpec{
-			Containers:    []corev1.Container{container},
-			RestartPolicy: corev1.RestartPolicyNever,
+	job.Spec.ReplicaSpecs = make(map[commonv1.ReplicaType]*elasticv1alpha1.ReplicaSpec)
+	job.Spec.ReplicaSpecs[ReplicaTypeTrainerMaster] = &elasticv1alpha1.ReplicaSpec{
+		ReplicaSpec: commonv1.ReplicaSpec{
+			Template: corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					Containers:    []corev1.Container{container},
+					RestartPolicy: corev1.RestartPolicyNever,
+				},
+			},
 		},
 	}
+
 	NewMasterTemplateToJob(job, "dlrover-master:test")
 	manager := &Manager{}
 	pod := manager.newJobMaster(job, initMasterIndex)

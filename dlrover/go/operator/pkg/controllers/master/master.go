@@ -53,7 +53,9 @@ func (m *Manager) newJobMaster(
 	job *elasticv1alpha1.ElasticJob, replicaIndex int,
 ) *corev1.Pod {
 	masterName := newJobMasterName(job.Name)
-	pod := common.NewPod(job, job.Spec.DlroverMaster, masterName)
+	pod := common.NewPod(
+		job, &job.Spec.ReplicaSpecs[ReplicaTypeTrainerMaster].Template, masterName,
+	)
 	pod.Labels[common.LabelReplicaTypeKey] = string(ReplicaTypeTrainerMaster)
 	pod.Labels[common.LabelReplicaIndexKey] = fmt.Sprintf("%d", replicaIndex)
 	return pod
@@ -238,8 +240,8 @@ func NewMasterTemplateToJob(job *elasticv1alpha1.ElasticJob, masterImage string)
 			RestartPolicy: corev1.RestartPolicyNever,
 		},
 	}
-	if job.Spec.DlroverMaster != nil {
-		mainContainer := job.Spec.DlroverMaster.Spec.Containers[0]
+	if _, ok := job.Spec.ReplicaSpecs[ReplicaTypeTrainerMaster]; ok {
+		mainContainer := job.Spec.ReplicaSpecs[ReplicaTypeTrainerMaster].ReplicaSpec.Template.Spec.Containers[0]
 		if mainContainer.Image != "" {
 			podTemplate.Spec.Containers[0].Image = mainContainer.Image
 		}
@@ -247,5 +249,9 @@ func NewMasterTemplateToJob(job *elasticv1alpha1.ElasticJob, masterImage string)
 			podTemplate.Spec.Containers[0].ImagePullPolicy = mainContainer.ImagePullPolicy
 		}
 	}
-	job.Spec.DlroverMaster = podTemplate
+	job.Spec.ReplicaSpecs[ReplicaTypeTrainerMaster] = &elasticv1alpha1.ReplicaSpec{
+		ReplicaSpec: commonv1.ReplicaSpec{
+			Template: *podTemplate,
+		},
+	}
 }

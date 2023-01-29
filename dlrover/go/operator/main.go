@@ -59,7 +59,7 @@ func main() {
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
-	flag.StringVar(&masterImage, "master-image", "registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:latest ",
+	flag.StringVar(&masterImage, "master-image", "registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:latest",
 		"The image to launch a dlrover master Pod of an ElasticJob.")
 	opts := zap.Options{
 		Development: true,
