@@ -23,7 +23,44 @@ from dlrover.trainer.util.log_util import default_logger as logger
 from dlrover.trainer.util.net_util import get_available_port
 
 
-def start_subprocess(tf_config):
+def mock_ray_platform_subprocess(tf_config):
+    """
+    start process using subprocess
+    """
+    argv = sys.argv
+    task_type = tf_config["task"]["type"]
+    task_id = tf_config["task"]['index']
+    worker_argv = [sys.executable, "-m", "dlrover.trainer.entry.local_entry"]
+
+    worker_argv.extend(argv[1:])
+    worker_argv.extend(["--platform", "ray"])
+    worker_argv.extend(["--task_type", task_type])
+    worker_argv.extend(["--task_id", str(task_id)])
+ 
+    
+    logger.info(worker_argv)
+    env = dict(os.environ)
+    fild_path = os.path.dirname(__file__)
+    fild_path = fild_path.split("/")
+    python_path = "/".join(fild_path[: len(fild_path) - 3])
+    logger.info(python_path)
+    env.update(
+        {
+          
+            "PYTHONPATH": python_path,
+        }
+    )
+ 
+    logger.info(json.dumps(tf_config))
+    env["WORKFLOW_ID"] = os.getenv("WORKFLOW_ID", default="test_id")
+    env["USERNUMBER"] = os.getenv("USERNUMBER", default="test_user")
+    process = subprocess.Popen(worker_argv, shell=False, env=env)
+    return process
+
+
+
+
+def mock_k8s_platform_subprocess(tf_config):
     """
     start process using subprocess
     """
@@ -66,6 +103,10 @@ class TFProcessScheduler(BaseProcessScheduler):
         self.chief_num = 1
         self.worker_num = worker_num - 1
         self.evaluator_num = evaluator_num
+        self.start_subprocess = None 
+    
+    def set_start_subprocess(self, start_subprocess):
+        self.start_subprocess = start_subprocess
 
     def prepare_cluster(self):
         """
@@ -91,7 +132,7 @@ class TFProcessScheduler(BaseProcessScheduler):
     def update_spec_and_start_process(self, task_spec):
         tf_cluster_spec = copy.deepcopy(self.tf_cluster_spec)
         tf_cluster_spec.update(task_spec)
-        p = start_subprocess(tf_cluster_spec)
+        p = self.start_subprocess(tf_cluster_spec)
         return p
 
     def start_chief_process(self):
@@ -149,15 +190,17 @@ class TFProcessScheduler(BaseProcessScheduler):
         self.prepare_cluster()
         chief_process = self.start_chief_process()
         ps_process = self.start_ps_process()
-        evaluator_process = self.start_evaluator_process()
-        worker_process = self.start_worker_process()
+        import time
+        time.sleep(100)
+        #evaluator_process = self.start_evaluator_process()
+        #worker_process = self.start_worker_process()
 
-        self.all_processes = {
-            "chief_process": chief_process,
-            "ps_process": ps_process,
-            "worker_process": worker_process,
-            "evaluator_process": evaluator_process,
-        }
+        #self.all_processes = {
+        #    "chief_process": chief_process,
+        #    "ps_process": ps_process,
+        #    "worker_process": worker_process,
+        #    "evaluator_process": evaluator_process,
+        #}
         all_process = list(itertools.chain(*self.all_processes.values()))
         all_process_pid = [p.pid for p in all_process]
         logger.info("all processes are {}".format(all_process_pid))

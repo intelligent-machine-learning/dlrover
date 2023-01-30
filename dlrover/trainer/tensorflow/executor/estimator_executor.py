@@ -33,7 +33,8 @@ from dlrover.trainer.tensorflow.util.estimator_util import (
 )
 from dlrover.trainer.util.log_util import default_logger as logger
 from dlrover.trainer.util.reflect_util import get_class
-
+import time 
+import json
 try:
     from dlrover.python.elastic_agent.tensorflow.hooks import (
         ReportModelMetricHook,
@@ -57,8 +58,27 @@ class EstimatorExecutor(BaseExecutor):
         """
 
         super(EstimatorExecutor, self).__init__()
-        self.get_cluster_info_by_tf_config()
+        # 判断运行时环境K8s还是Ray
+        # 如果是K8s，需要从tf_config中获取数据
         self._task_conf = context
+
+        # 如果是ray，对于ps，直接启动任务，不需要parse
+        #           对于worker，等待ps信息ready后再启动
+
+    def wait_for_tf_config(self):
+        # to do: 通过锁和信号量避免循环 
+        while os.environ.get("TF_CONFIG", None) is None:
+            time.sleep(1)
+    
+    def set_tf_config(self, tf_config):
+        if not isinstance(tf_config, str):
+           tf_config = json.dumps(tf_config)
+        os.environ["TF_CONFIG"] = tf_config
+        self.prepare()
+
+    def prepare(self):
+  
+        self.get_cluster_info_by_tf_config()
         self._initialize_estimator_related()
         self._prepare_env()
         # prepare estimator class from user

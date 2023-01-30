@@ -1,0 +1,11 @@
+[2023-01-30 09:31:48,558] [WARNING][deprecation.py:350:new_func] From /usr/local/lib/python3.8/site-packages/tensorflow/python/compat/v2_compat.py:107: disable_resource_variables (from tensorflow.python.ops.variable_scope) is deprecated and will be removed in a future version.
+Instructions for updating:
+non-resource variables are not supported in the long term
+[2023-01-30 09:31:48,650] [INFO][starter.py:55:execute] create ProcessScheduler with run_type = ProcessScheduler
+[2023-01-30 09:31:48,652] [INFO][starter.py:72:execute] Running platform: LOCAL_KUBERNETES, worker action: run
+[2023-01-30 09:31:48,654] [INFO][tf_process_scheduler.py:71:mock_k8s_platform_subprocess] ['/usr/local/bin/python', '-m', 'dlrover.trainer.entry.local_entry', '--platform=local_kubernetes', '--conf=conf.TrainConf', '--ps_num=1', '--worker_num=1', '--platform', 'kubernetes']
+[2023-01-30 09:31:48,655] [INFO][tf_process_scheduler.py:76:mock_k8s_platform_subprocess] /home/dlrover
+[2023-01-30 09:31:48,657] [INFO][tf_process_scheduler.py:83:mock_k8s_platform_subprocess] {"cluster": {"ps": ["localhost:57859"], "chief": ["localhost:37963"], "evaluator": ["localhost:41055"]}, "task": {"type": "chief", "index": 0}}
+[2023-01-30 09:31:48,668] [INFO][tf_process_scheduler.py:71:mock_k8s_platform_subprocess] ['/usr/local/bin/python', '-m', 'dlrover.trainer.entry.local_entry', '--platform=local_kubernetes', '--conf=conf.TrainConf', '--ps_num=1', '--worker_num=1', '--platform', 'kubernetes']
+[2023-01-30 09:31:48,670] [INFO][tf_process_scheduler.py:76:mock_k8s_platform_subprocess] /home/dlrover
+[2023-01-30 09:31:48,671] [INFO][tf_process_scheduler.py:83:mock_k8s_platform_subprocess] {"cluster": {"ps": ["localhost:57859"], "chief": ["localhost:37963"], "evaluator": ["localhost:41055"]}, "task": {"type": "ps", "index": 0}}

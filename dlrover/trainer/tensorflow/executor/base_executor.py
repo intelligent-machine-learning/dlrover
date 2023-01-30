@@ -13,14 +13,14 @@
 
 import json
 import os
-
+import time 
 import tensorflow.compat.v1 as tf
 from tensorflow.core.protobuf import cluster_pb2
 from tensorflow.python.training import server_lib
 
 from dlrover.trainer.constants.tf_constants import TFConstants
 from dlrover.trainer.util.log_util import default_logger as logger
-
+import socket 
 tf.disable_v2_behavior()
 
 
@@ -35,8 +35,8 @@ class BaseExecutor:
         self.mini_cluster_spec = None
         self.task_id = None
         self.task_type = None
-        self.address = None
-        self.role = None
+        self.address :str = ""
+        self.role :str = ""
 
     def get_tf_config_from_env(self):
         tf_config = json.loads(os.environ.get("TF_CONFIG") or "{}")
@@ -49,6 +49,9 @@ class BaseExecutor:
             )
         return tf_config
 
+    def get_cluster_info_by_master(self):
+        pass 
+
     def get_cluster_info_by_tf_config(self):
         """
         get cluster info by TF_CONFIG
@@ -58,7 +61,6 @@ class BaseExecutor:
                     },
          "task": {"type": "ps", "index": 0}}'
         """
-
         tf_config = self.get_tf_config_from_env()
         task_type = tf_config["task"]["type"]
         task_id = tf_config["task"]["index"]
@@ -118,14 +120,26 @@ class BaseExecutor:
         logger.info("cluster def is:\n %s", cluster_def)
         return cluster_def
 
+    def address_initiated(self):
+        return self.address != ""
+
     def start_server(self):
         """start tensorflow server not using cluster spec."""
         if self.task_type != TFConstants.Evaluator():
             logger.info("starting server")
-            self.server = server_lib.Server(
-                {"localhost": [self.address]}, protocol="grpc"
-            )
-            self.server.start()
+            if self.address_initiated():
+                self.server = server_lib.Server(
+                    {"localhost": [self.address]}, protocol="grpc"
+                )
+                self.server.start()
+            else:
+                self.server = server_lib.Server.create_local_server()
+                # grpc address 'grpc://localhost:37229'
+                grpc_address =  self.server.target
+                hostname = socket.gethostname()
+                ip = socket.gethostbyname(hostname)
+                # ip + ":" + port,  "172.17.0.3" + ":" + "37229"
+                self.address = ip+ ":" +grpc_address.split(":")[-1]
 
     def get_config(self, cluster_spec):
         """build session config and estimator.RunConfig"""
@@ -159,7 +173,8 @@ class BaseExecutor:
             config._task_id = self.task_id + 1
         config._task_type = self.task_type
         if self.task_type == TFConstants.Chief():
-            config._task_type = "chief"
+            # config._task_type = "chief"
+            config._task_type = TFConstants.Chief()
         config._num_ps_replicas = len(
             self.mini_cluster_spec.get(TFConstants.PS(), {})
         )

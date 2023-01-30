@@ -1,0 +1,84 @@
+[2023-01-30 09:31:50,366] [WARNING][deprecation.py:350:new_func] From /usr/local/lib/python3.8/site-packages/tensorflow/python/compat/v2_compat.py:107: disable_resource_variables (from tensorflow.python.ops.variable_scope) is deprecated and will be removed in a future version.
+Instructions for updating:
+non-resource variables are not supported in the long term
+[2023-01-30 09:31:50,475] [INFO][local_entry.py:20:<module>] WORKFLOW_ID: test_id, USERNUMBER: test_user
+[2023-01-30 09:31:50,477] [INFO][local_entry.py:26:<module>] local entry is running
+[2023-01-30 09:31:50,480] [INFO][conf_util.py:193:get_conf] Entering get_conf, original py_conf is conf.TrainConf
+[2023-01-30 09:31:50,487] [INFO][conf_util.py:176:merge_configs] override sequence is py_conf
+[2023-01-30 09:31:50,488] [INFO][conf_util.py:181:merge_configs] conf after merge is {'batch_size': 64, 'classifier_class': <class 'MyEstimator.MyEstimator'>, 'epoch': 1000, 'eval_set': {'path': 'fake://eval.data', 'columns': ({dtype=float32;name=x;is_sparse=None;is_label=False}, {dtype=float32;name=y;is_sparse=None;is_label=True})}, 'eval_steps': 10, 'log_steps': 100, 'model_dir': '/nas', 'params': {'deep_embedding_dim': 8, 'learning_rate': 0.0001, 'l1': 0.0, 'l21': 0.0, 'l2': 0.0, 'optimizer': 'group_adam', 'log_steps': 100}, 'priority': 1073741824, 'save_steps': 500, 'train_set': {'path': 'fake://test.data', 'columns': ({dtype=float32;name=x;is_sparse=None;is_label=False}, {dtype=float32;name=y;is_sparse=None;is_label=True})}}
+[2023-01-30 09:31:50,490] [INFO][starter.py:72:execute] Running platform: KUBERNETES, worker action: run
+[2023-01-30 09:31:50,492] [INFO][base_executor.py:72:get_cluster_info_by_tf_config] cluster spec is {'ps': ['localhost:57859'], 'chief': ['localhost:37963'], 'evaluator': ['localhost:41055']}                 task_type is ps                 task_id is 0                 address is localhost:57859
+[2023-01-30 09:31:50,494] [INFO][conf_util.py:63:get] get value from conf: the key is model_dir and value is /nas
+[2023-01-30 09:31:50,496] [INFO][conf_util.py:66:get] get value from conf: value type is <class 'str'>
+[2023-01-30 09:31:50,498] [INFO][conf_util.py:63:get] get value from conf: the key is classifier_class and value is <class 'MyEstimator.MyEstimator'>
+[2023-01-30 09:31:50,499] [INFO][conf_util.py:66:get] get value from conf: value type is <class 'type'>
+[2023-01-30 09:31:50,504] [INFO][estimator_executor.py:129:_prepare_estimator] found `classifier_class` in your estimator class dlrover.trainer will decide the training and evaluting process.
+[2023-01-30 09:31:50,508] [INFO][conf_util.py:63:get] get value from conf: the key is train_set and value is {'path': 'fake://test.data', 'columns': ({dtype=float32;name=x;is_sparse=None;is_label=False}, {dtype=float32;name=y;is_sparse=None;is_label=True})}
+[2023-01-30 09:31:50,510] [INFO][conf_util.py:66:get] get value from conf: value type is <class 'dict'>
+[2023-01-30 09:31:50,512] [INFO][conf_util.py:31:new_func] key reader_fn, def None
+[2023-01-30 09:31:50,514] [INFO][conf_util.py:63:get] get value from conf: the key is eval_set and value is {'path': 'fake://eval.data', 'columns': ({dtype=float32;name=x;is_sparse=None;is_label=False}, {dtype=float32;name=y;is_sparse=None;is_label=True})}
+[2023-01-30 09:31:50,515] [INFO][conf_util.py:66:get] get value from conf: value type is <class 'dict'>
+[2023-01-30 09:31:50,519] [INFO][conf_util.py:31:new_func] key reader_fn, def None
+[2023-01-30 09:31:50,522] [INFO][conf_util.py:63:get] get value from conf: the key is max_steps and value is None
+[2023-01-30 09:31:50,524] [INFO][conf_util.py:66:get] get value from conf: value type is <class 'NoneType'>
+[2023-01-30 09:31:50,530] [INFO][conf_util.py:63:get] get value from conf: the key is eval_steps and value is 10
+[2023-01-30 09:31:50,532] [INFO][conf_util.py:66:get] get value from conf: value type is <class 'int'>
+[2023-01-30 09:31:50,537] [INFO][estimator_executor.py:234:_prepare_eval_spec] Adding export to estimator_spec
+[2023-01-30 09:31:50,539] [INFO][run_config.py:549:__init__] TF_CONFIG environment variable: {'cluster': {'ps': ['localhost:57859'], 'chief': ['localhost:37963'], 'evaluator': ['localhost:41055']}, 'task': {'type': 'ps', 'index': 0}}
+[2023-01-30 09:31:50,541] [INFO][base_executor.py:120:get_cluster_def] cluster def is:
+ job {
+  name: "ps"
+  tasks {
+    key: 0
+    value: "localhost:57859"
+  }
+}
+
+[2023-01-30 09:31:50,543] [INFO][run_config.py:549:__init__] TF_CONFIG environment variable: {'cluster': {'ps': ['localhost:57859'], 'chief': ['localhost:37963'], 'evaluator': ['localhost:41055']}, 'task': {'type': 'ps', 'index': 0}, 'environment': 'google'}
+[2023-01-30 09:31:50,545] [INFO][base_executor.py:161:get_config] Using _get_run_config : {'_model_dir': None, '_tf_random_seed': None, '_save_summary_steps': 100, '_save_checkpoints_steps': None, '_save_checkpoints_secs': 600, '_session_config': device_filters: "/job:ps"
+device_filters: "/job:worker"
+device_filters: "/job:chief"
+device_filters: "/job:master"
+allow_soft_placement: true
+graph_options {
+  rewrite_options {
+    meta_optimizer_iterations: ONE
+  }
+}
+, '_keep_checkpoint_max': 5, '_keep_checkpoint_every_n_hours': 10000, '_log_step_count_steps': 100, '_train_distribute': None, '_device_fn': None, '_protocol': None, '_eval_distribute': None, '_experimental_distribute': None, '_experimental_max_worker_delay_secs': None, '_session_creation_timeout_secs': 7200, '_checkpoint_save_graph_def': True, '_service': None, '_cluster_spec': ClusterSpec({'chief': ['localhost:37963'], 'evaluator': ['localhost:41055'], 'ps': ['localhost:57859']}), '_task_type': 'ps', '_task_id': 0, '_evaluation_master': '', '_master': 'grpc://localhost:57859', '_num_ps_replicas': 1, '_num_worker_replicas': 1, '_global_id_in_cluster': 2, '_is_chief': False}
+[2023-01-30 09:31:50,547] [INFO][base_executor.py:169:get_config] mini cluster spec is {'ps': ['localhost:57859'], 'worker': []}
+[2023-01-30 09:31:50,549] [INFO][global_step_hook.py:29:__init__] ModelSizeHook: every_n_iter: 1
+[2023-01-30 09:31:50,551] [INFO][estimator_executor.py:158:_prepare_estimator_config_and_params] appending ElasticDataShardReportHook
+[2023-01-30 09:31:50,555] [INFO][conf_util.py:63:get] get value from conf: the key is save_steps and value is 500
+[2023-01-30 09:31:50,557] [INFO][conf_util.py:66:get] get value from conf: value type is <class 'int'>
+[2023-01-30 09:31:50,559] [INFO][conf_util.py:63:get] get value from conf: the key is save_secs and value is None
+[2023-01-30 09:31:50,561] [INFO][conf_util.py:66:get] get value from conf: value type is <class 'NoneType'>
+[2023-01-30 09:31:50,563] [INFO][estimator_executor.py:171:_prepare_estimator_config_and_params] checkpoint hook /nas
+[2023-01-30 09:31:50,564] [INFO][basic_session_run_hooks.py:557:__init__] Create CheckpointSaverHook.
+[2023-01-30 09:31:50,568] [INFO][conf_util.py:63:get] get value from conf: the key is train_set and value is ConfigTree([('path', 'fake://test.data'), ('columns', ({dtype=float32;name=x;is_sparse=None;is_label=False}, {dtype=float32;name=y;is_sparse=None;is_label=True}))])
+[2023-01-30 09:31:50,571] [INFO][conf_util.py:66:get] get value from conf: value type is <class 'pyhocon.config_tree.ConfigTree'>
+[2023-01-30 09:31:50,573] [INFO][estimator_executor.py:181:_prepare_estimator_config_and_params] config is <tensorflow_estimator.python.estimator.run_config.RunConfig object at 0x7f5853a48700>
+[2023-01-30 09:31:50,575] [INFO][conf_util.py:63:get] get value from conf: the key is params and value is {'deep_embedding_dim': 8, 'learning_rate': 0.0001, 'l1': 0.0, 'l21': 0.0, 'l2': 0.0, 'optimizer': 'group_adam', 'log_steps': 100}
+[2023-01-30 09:31:50,579] [INFO][conf_util.py:66:get] get value from conf: value type is <class 'dict'>
+[2023-01-30 09:31:50,583] [INFO][MyEstimator.py:28:__init__] config is <tensorflow_estimator.python.estimator.run_config.RunConfig object at 0x7f5853a48700>
+[2023-01-30 09:31:50,587] [INFO][MyEstimator.py:29:__init__] model_dir is <tensorflow_estimator.python.estimator.run_config.RunConfig object at 0x7f5853a48700>
+[2023-01-30 09:31:50,591] [INFO][estimator.py:202:__init__] Using config: {'_model_dir': '/nas', '_tf_random_seed': None, '_save_summary_steps': 100, '_save_checkpoints_steps': None, '_save_checkpoints_secs': 600, '_session_config': gpu_options {
+  allow_growth: true
+}
+allow_soft_placement: true
+cluster_def {
+  job {
+    name: "ps"
+    tasks {
+      key: 0
+      value: "localhost:57859"
+    }
+  }
+}
+experimental {
+  share_session_state_in_clusterspec_propagation: true
+}
+, '_keep_checkpoint_max': 20, '_keep_checkpoint_every_n_hours': 10000, '_log_step_count_steps': 10, '_train_distribute': None, '_device_fn': None, '_protocol': 'grpc', '_eval_distribute': None, '_experimental_distribute': None, '_experimental_max_worker_delay_secs': None, '_session_creation_timeout_secs': 7200, '_checkpoint_save_graph_def': True, '_service': None, '_cluster_spec': ClusterSpec({'ps': ['localhost:57859'], 'worker': {}}), '_task_type': 'ps', '_task_id': 0, '_evaluation_master': '', '_master': 'grpc://localhost:57859', '_num_ps_replicas': 1, '_num_worker_replicas': 1, '_global_id_in_cluster': 2, '_is_chief': False, '_server_name': 'localhost:57859'}
+[2023-01-30 09:31:50,594] [INFO][tf_kubernetes_worker.py:53:run] KubernetesWorker is running!
+[2023-01-30 09:31:50,597] [INFO][base_executor.py:129:start_server] starting server
+[2023-01-30 09:31:50,615] [INFO][tf_kubernetes_worker.py:56:run] ps server join
