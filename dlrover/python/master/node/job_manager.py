@@ -135,7 +135,7 @@ class JobManager(object):
         self._job_optimizer.update_job_uuid(self._job_args.job_uuid)
         self._job_optimizer.init_job_resource(self._job_resource)
         self._adjust_worker_for_estimator()
-        self._init_job_nodes()
+        self._init_nodes()
         plan = self._create_initial_scale_plan()
         self._scaler.scale(plan)
         threading.Thread(
@@ -195,7 +195,7 @@ class JobManager(object):
     def add_node_event_callback(self, node_event_callback):
         self._node_event_callbacks.append(node_event_callback)
 
-    def _init_job_nodes(self):
+    def _init_nodes(self):
         self._job_nodes = self._job_resource.init_job_node_meta(
             self._relaunch_on_worker_failure,
             self._elastic_job.get_node_service_addr,
@@ -348,7 +348,7 @@ class JobManager(object):
     def _process_node_events(
         self, status_change_flow: NodeStateFlow, node: Node
     ):
-        cluster_context = ClusterContext(node_manager=self)
+        cluster_context = ClusterContext(job_manager=self)
         if status_change_flow.to_status == NodeStatus.RUNNING:
             [
                 callback.on_node_started(node, cluster_context)
@@ -692,7 +692,7 @@ class JobManager(object):
             self._worker_manager.cut_pending_node_cpu()
 
 
-def create_node_manager(args: JobArgs, speed_monitor) -> JobManager:
+def create_job_manager(args: JobArgs, speed_monitor) -> JobManager:
     # relaunch on worker failure for PS or custom strategy
     if (
         args.distribution_strategy != DistributionStrategy.PARAMETER_SERVER

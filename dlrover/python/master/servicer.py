@@ -42,7 +42,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
     def __init__(
         self,
         task_manager: TaskManager,
-        node_manager: JobManager,
+        job_manager: JobManager,
         speed_monitor: SpeedMonitor,
         rendezvous_server=None,
         job_metric_collector=None,
@@ -50,7 +50,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
     ):
         # TODO: group params together into a single object.
         self._task_manager = task_manager
-        self._node_manager = node_manager
+        self._job_manager = job_manager
         self._speed_monitor = speed_monitor
         self._rendezvous_server = rendezvous_server
         self._job_metric_collector: JobMetricCollector = job_metric_collector
@@ -71,13 +71,13 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         task, _ = self._task_manager.report_dataset_task(request, success)
         if (
             not self._start_autoscale
-            and self._node_manager
+            and self._job_manager
             and self._speed_monitor.completed_global_step == 0
             and int(time.time()) - self._start_training_time
             > _dlrover_context.seconds_to_autoscale_worker
         ):
             logger.info("Start autoscale for non-training jobs")
-            self._node_manager.start_auto_scale()
+            self._job_manager.start_auto_scale()
             self._start_autoscale = True
 
         if (
@@ -118,7 +118,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             if self._rendezvous_server:
                 # If there is no more task, master only send wait task to
                 # the last worker and other workers exit.
-                if len(self._node_manager.get_running_workers()) == 1:
+                if len(self._job_manager.get_running_workers()) == 1:
                     res.type = elastic_training_pb2.WAIT
             else:
                 res.type = elastic_training_pb2.WAIT
@@ -235,7 +235,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         return empty_pb2.Empty()
 
     def ready_for_ps_relaunch(self, request, _):
-        self._node_manager.post_ps_ready()
+        self._job_manager.post_ps_ready()
         return empty_pb2.Empty()
 
     def get_shard_checkpoint(self, request, _):
@@ -261,7 +261,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         memory = int(request.memory / 1024)  # Mi
         pod_id = request.node_id
         pod_type = request.node_type
-        self._node_manager.update_node_resource_usage(
+        self._job_manager.update_node_resource_usage(
             pod_type, pod_id, cpu, memory
         )
         return empty_pb2.Empty()
@@ -301,7 +301,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
 
     def _collect_runtime_stats(self):
         if self._job_metric_collector:
-            nodes = self._node_manager.get_running_nodes()
+            nodes = self._job_manager.get_running_nodes()
             self._job_metric_collector.collect_runtime_stats(
                 self._speed_monitor, nodes
             )
@@ -316,7 +316,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
                 "Start autoscale with %s stats samples",
                 sample_count,
             )
-            self._node_manager.start_auto_scale()
+            self._job_manager.start_auto_scale()
             self._start_autoscale = True
 
     def get_cluster_version(self, request, _):
@@ -349,8 +349,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         return empty_pb2.Empty()
 
     def query_ps_nodes(self, request, _):
-        training_ps: List[Node] = self._node_manager.get_next_cluster_ps()
-        ready = self._node_manager.ready_for_new_ps_cluster()
+        training_ps: List[Node] = self._job_manager.get_next_cluster_ps()
+        ready = self._job_manager.ready_for_new_ps_cluster()
         res = elastic_training_pb2.QueryPsNodesResponse()
         for ps in training_ps:
             ps_meta = res.ps_nodes.add()
@@ -362,7 +362,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         return res
 
     def query_running_nodes(self, request, _):
-        nodes: List[Node] = self._node_manager.get_all_running_nodes()
+        nodes: List[Node] = self._job_manager.get_all_running_nodes()
         res = elastic_training_pb2.RunningNodes()
         for node in nodes:
             meta = elastic_training_pb2.NodeMeta()
@@ -393,7 +393,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
 def create_master_service(
     port,
     task_manager,
-    node_manager,
+    job_manager,
     speed_monitor,
     rendezvous_server,
     job_metric_collector,
@@ -413,7 +413,7 @@ def create_master_service(
     )
     master_servicer = MasterServicer(
         task_manager=task_manager,
-        node_manager=node_manager,
+        job_manager=job_manager,
         speed_monitor=speed_monitor,
         rendezvous_server=rendezvous_server,
         job_metric_collector=job_metric_collector,

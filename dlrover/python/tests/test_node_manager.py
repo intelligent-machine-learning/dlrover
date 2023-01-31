@@ -29,7 +29,7 @@ from dlrover.python.master.node.event_callback import (
     TaskRescheduleCallback,
     TFPSNodeHandlingCallback,
 )
-from dlrover.python.master.node.job_manager import create_node_manager
+from dlrover.python.master.node.job_manager import create_job_manager
 from dlrover.python.master.node.status_flow import (
     NODE_STATE_FLOWS,
     NodeStateFlow,
@@ -176,10 +176,10 @@ class JobConfigTest(unittest.TestCase):
         critical_worker = get_critical_worker_index(params)
         self.assertDictEqual(critical_worker, {0: 3, 1: 3, 2: 3})
 
-    def test_create_node_manager(self):
+    def test_create_job_manager(self):
         params = MockJobArgs()
         params.initilize()
-        manager = create_node_manager(params, SpeedMonitor())
+        manager = create_job_manager(params, SpeedMonitor())
         self.assertEqual(manager._ps_relaunch_max_num, 1)
         manager.start()
         self.assertEqual(manager._job_args.job_uuid, _MOCK_JOB_UUID)
@@ -227,8 +227,8 @@ class JobConfigTest(unittest.TestCase):
         task_callback = TaskRescheduleCallback(task_manager)
         params = MockJobArgs()
         params.initilize()
-        manager = create_node_manager(params, SpeedMonitor())
-        manager._init_job_nodes()
+        manager = create_job_manager(params, SpeedMonitor())
+        manager._init_nodes()
         manager.add_node_event_callback(task_callback)
 
         dataset = task_manager.get_dataset(dataset_name)
@@ -245,8 +245,8 @@ class JobConfigTest(unittest.TestCase):
     def test_create_initial_nodes(self):
         params = MockJobArgs()
         params.initilize()
-        manager = create_node_manager(params, SpeedMonitor())
-        manager._init_job_nodes()
+        manager = create_job_manager(params, SpeedMonitor())
+        manager._init_nodes()
         plan = manager._create_initial_scale_plan()
         self.assertEqual(
             plan.ps_addrs,
@@ -262,8 +262,8 @@ class JobConfigTest(unittest.TestCase):
     def test_check_worker_status(self):
         params = MockJobArgs()
         params.initilize()
-        manager = create_node_manager(params, SpeedMonitor())
-        manager._init_job_nodes()
+        manager = create_job_manager(params, SpeedMonitor())
+        manager._init_nodes()
         self.assertFalse(manager.all_workers_exited())
 
         for worker in manager._job_nodes[NodeType.WORKER].values():
@@ -293,8 +293,8 @@ class JobConfigTest(unittest.TestCase):
         params = MockJobArgs()
         params.initilize()
         master = Master(2222, params)
-        master.node_manager._init_job_nodes()
-        master.node_manager._scaler.scale = mock.MagicMock(return_value=True)
+        master.job_manager._init_nodes()
+        master.job_manager._scaler.scale = mock.MagicMock(return_value=True)
         callback = TFPSNodeHandlingCallback(master)
 
         node = Node(NodeType.PS, 0, None)
@@ -308,7 +308,7 @@ class JobConfigTest(unittest.TestCase):
 
         master.speed_monitor.add_running_worker(NodeType.WORKER, 0)
         master.speed_monitor.add_running_worker(NodeType.WORKER, 1)
-        cluster_context = ClusterContext(master.node_manager)
+        cluster_context = ClusterContext(master.job_manager)
         master.speed_monitor.set_target_worker_num(2)
         node.exit_reason = NodeExitReason.FATAL_ERROR
         callback.on_node_failed(node, cluster_context)
@@ -318,8 +318,8 @@ class JobConfigTest(unittest.TestCase):
     def test_execute_job_optimization_plan(self):
         params = MockJobArgs()
         params.initilize()
-        manager = create_node_manager(params, SpeedMonitor())
-        manager._init_job_nodes()
+        manager = create_job_manager(params, SpeedMonitor())
+        manager._init_nodes()
 
         manager._scaler.scale = mock.MagicMock(return_value=True)
         plan = ResourcePlan()

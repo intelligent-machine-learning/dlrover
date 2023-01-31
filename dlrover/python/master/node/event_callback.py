@@ -24,8 +24,8 @@ from dlrover.python.master.watcher.base_watcher import Node
 
 
 class ClusterContext(object):
-    def __init__(self, node_manager):
-        self.node_manager = node_manager
+    def __init__(self, job_manager):
+        self.job_manager = job_manager
 
 
 class NodeEventCallback(metaclass=abc.ABCMeta):
@@ -152,9 +152,9 @@ class TFPSNodeHandlingCallback(NodeEventCallback):
     @NodeEventCallback.log_callback_exception
     def on_node_succeeded(self, node: Node, cluster_context: ClusterContext):
         node.finish_time = datetime.now()  # type: ignore
-        node_manager = cluster_context.node_manager
+        job_manager = cluster_context.job_manager
         if node.critical:
-            completed = node_manager.all_critical_node_completed()
+            completed = job_manager.all_critical_node_completed()
             if completed:
                 self._master.request_stop(
                     success=True,

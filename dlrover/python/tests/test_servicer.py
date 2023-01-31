@@ -20,7 +20,7 @@ from dlrover.proto import elastic_training_pb2
 from dlrover.python.common.constants import NodeStatus, NodeType
 from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
-from dlrover.python.master.node.job_manager import create_node_manager
+from dlrover.python.master.node.job_manager import create_job_manager
 from dlrover.python.master.servicer import MasterServicer
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.master.stats.job_collector import JobMetricCollector
@@ -33,14 +33,14 @@ class MasterServicerTest(unittest.TestCase):
         params.initilize()
         speed_monitor = SpeedMonitor()
         self.task_manager = TaskManager(False, speed_monitor)
-        self.node_manager = create_node_manager(params, speed_monitor)
+        self.job_manager = create_job_manager(params, speed_monitor)
         self.job_metric_collector = JobMetricCollector(
             "1", "default", "local", "dlrover"
         )
         self.elastic_ps_service = ElasticPsService()
         self.servicer = MasterServicer(
             task_manager=self.task_manager,
-            node_manager=self.node_manager,
+            job_manager=self.job_manager,
             speed_monitor=speed_monitor,
             rendezvous_server=None,
             job_metric_collector=self.job_metric_collector,
@@ -87,7 +87,7 @@ class MasterServicerTest(unittest.TestCase):
         self.assertEqual(res.epoch, 1)
 
     def test_metric_service(self):
-        self.node_manager._init_job_nodes()
+        self.job_manager._init_nodes()
         request = elastic_training_pb2.ReportUsedResourceRequest()
         request.memory = 4096
         request.cpu = 2
@@ -108,9 +108,9 @@ class MasterServicerTest(unittest.TestCase):
         reporter._runtime_stats = []
         self.assertEqual(reporter._model_metric.op_stats.flops, 10000)
 
-        worker0 = self.node_manager._job_nodes[NodeType.WORKER][0]
+        worker0 = self.job_manager._job_nodes[NodeType.WORKER][0]
         worker0.status = NodeStatus.RUNNING
-        ps0 = self.node_manager._job_nodes[NodeType.PS][0]
+        ps0 = self.job_manager._job_nodes[NodeType.PS][0]
         ps0.status = NodeStatus.RUNNING
         request = elastic_training_pb2.GlobalStepRecord()
         self.task_manager._speed_monitor.add_running_worker(NodeType.WORKER, 0)
@@ -145,8 +145,8 @@ class MasterServicerTest(unittest.TestCase):
 
     def test_query_ps_nodes(self):
         request = empty_pb2.Empty()
-        self.node_manager._init_job_nodes()
-        for node in self.node_manager._job_nodes[NodeType.PS].values():
+        self.job_manager._init_nodes()
+        for node in self.job_manager._job_nodes[NodeType.PS].values():
             node.status = NodeStatus.RUNNING
         res = self.servicer.query_ps_nodes(request, None)
         self.assertEqual(len(res.ps_nodes), 3)
