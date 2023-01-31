@@ -25,7 +25,7 @@ from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
-from dlrover.python.master.node.node_manager import NodeManager
+from dlrover.python.master.node.job_manager import JobManager
 from dlrover.python.master.shard.dataset_splitter import new_dataset_splitter
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.master.stats.job_collector import JobMetricCollector
@@ -42,7 +42,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
     def __init__(
         self,
         task_manager: TaskManager,
-        node_manager: NodeManager,
+        node_manager: JobManager,
         speed_monitor: SpeedMonitor,
         rendezvous_server=None,
         job_metric_collector=None,

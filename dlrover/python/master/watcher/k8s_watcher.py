@@ -172,7 +172,7 @@ class PodWatcher(NodeWatcher):
 class ScalePlanWatcher(object):
     """ScalePlanWatcher monitors the manual Scaler CRDs on the cluster.
     It generates a ResourcePlan by a Scaler CRD and notidy the
-    NodeManager to adjust job resource by the ResourcePlan.
+    JobManager to adjust job resource by the ResourcePlan.
     """
 
     def __init__(self, job_name, namespace):

@@ -64,7 +64,7 @@ _MAX_POD_RELAUNCH_COUNT = 5
 _dlrover_context = Context.singleton_instance()
 
 
-class NodeManager(object):
+class JobManager(object):
     def __init__(
         self,
         job_args: JobArgs,
@@ -692,7 +692,7 @@ class NodeManager(object):
             self._worker_manager.cut_pending_node_cpu()
 
 
-def create_node_manager(args: JobArgs, speed_monitor) -> NodeManager:
+def create_node_manager(args: JobArgs, speed_monitor) -> JobManager:
     # relaunch on worker failure for PS or custom strategy
     if (
         args.distribution_strategy != DistributionStrategy.PARAMETER_SERVER
@@ -712,7 +712,7 @@ def create_node_manager(args: JobArgs, speed_monitor) -> NodeManager:
     )
     job_scaler = new_job_scaler(args.platform, args.job_name, args.namespace)
 
-    return NodeManager(
+    return JobManager(
         job_args=args,
         critical_worker_index=critical_worker_index,
         wait_pending_relaunch=wait_pending_relaunch,

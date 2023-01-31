@@ -29,7 +29,7 @@ from dlrover.python.master.node.event_callback import (
     TaskRescheduleCallback,
     TFPSNodeHandlingCallback,
 )
-from dlrover.python.master.node.node_manager import create_node_manager
+from dlrover.python.master.node.job_manager import create_node_manager
 from dlrover.python.master.node.status_flow import (
     NODE_STATE_FLOWS,
     NodeStateFlow,
