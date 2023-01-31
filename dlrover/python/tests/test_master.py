@@ -26,8 +26,8 @@ class MasterTest(unittest.TestCase):
         self.master = Master(2222, params)
 
     def test_exit_by_workers(self):
-        self.master.node_manager._init_job_nodes()
-        job_nodes = self.master.node_manager._job_nodes
+        self.master.job_manager._init_nodes()
+        job_nodes = self.master.job_manager._job_nodes
         for node in job_nodes[NodeType.WORKER].values():
             node.status = NodeStatus.FINISHED
         for node in job_nodes[NodeType.EVALUATOR].values():
@@ -39,8 +39,8 @@ class MasterTest(unittest.TestCase):
         self.assertEqual(self.master._exit_reason, JobExitReason.SUCCEEDED)
 
     def test_exit_by_tasks(self):
-        self.master.node_manager._init_job_nodes()
-        job_nodes = self.master.node_manager._job_nodes
+        self.master.job_manager._init_nodes()
+        job_nodes = self.master.job_manager._job_nodes
         for node in job_nodes[NodeType.PS].values():
             node.status = NodeStatus.FINISHED
         for node in job_nodes[NodeType.EVALUATOR].values():

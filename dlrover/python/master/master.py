@@ -26,7 +26,7 @@ from dlrover.python.master.node.event_callback import (
     TaskRescheduleCallback,
     TFPSNodeHandlingCallback,
 )
-from dlrover.python.master.node.node_manager import create_node_manager
+from dlrover.python.master.node.job_manager import create_job_manager
 from dlrover.python.master.servicer import create_master_service
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.master.stats.job_collector import JobMetricCollector
@@ -56,8 +56,8 @@ def _create_elastic_ps_service_if_needed(params: JobArgs):
 class Master(object):
     def __init__(self, port, args: JobArgs):
         self.speed_monitor = SpeedMonitor()
-        self.node_manager = (
-            create_node_manager(args, self.speed_monitor)
+        self.job_manager = (
+            create_job_manager(args, self.speed_monitor)
             if args.enable_elastic_scheduling
             else None
         )
@@ -84,7 +84,7 @@ class Master(object):
         return create_master_service(
             port,
             self.task_manager,
-            self.node_manager,
+            self.job_manager,
             self.speed_monitor,
             self.rendezvous_server,
             self.job_metric_collector,
@@ -103,11 +103,11 @@ class Master(object):
 
     def prepare(self):
         # Composite the components
-        if self.task_manager and self.node_manager:
+        if self.task_manager and self.job_manager:
             self.task_manager.set_task_timeout_callback(
-                self.node_manager.remove_worker
+                self.job_manager.remove_worker
             )
-        if self.node_manager:
+        if self.job_manager:
             self._add_node_event_callback()
 
         # Start the components one by one
@@ -115,8 +115,8 @@ class Master(object):
             self.task_manager.start()
         if self.rendezvous_server:
             self.rendezvous_server.start()
-        if self.node_manager:
-            self.node_manager.start()
+        if self.job_manager:
+            self.job_manager.start()
 
         # Start the master GRPC server
         logger.info("Starting master RPC server")
@@ -126,14 +126,14 @@ class Master(object):
     def _add_node_event_callback(self):
         """Add NodeEventCallbacks for the listeners of Pod events."""
         if self.task_manager:
-            self.node_manager.add_node_event_callback(
+            self.job_manager.add_node_event_callback(
                 TaskRescheduleCallback(self.task_manager)
             )
         if (
             self._job_args.distribution_strategy
             == DistributionStrategy.PARAMETER_SERVER
         ):
-            self.node_manager.add_node_event_callback(
+            self.job_manager.add_node_event_callback(
                 TFPSNodeHandlingCallback(self)
             )
 
@@ -146,11 +146,8 @@ class Master(object):
             while True:
                 if self._stop_requested:
                     break
-                if (
-                    self.node_manager
-                    and self.node_manager.all_workers_exited()
-                ):
-                    if self.node_manager.all_workers_failed():
+                if self.job_manager and self.job_manager.all_workers_exited():
+                    if self.job_manager.all_workers_failed():
                         logger.error("All workers failed")
                         self._exit_code = 1
                         self._exit_reason = JobExitReason.UNKNOWN_ERROR
@@ -167,8 +164,8 @@ class Master(object):
                     self.task_manager
                     and self.task_manager.finished()
                     and (
-                        not self.node_manager
-                        or self.node_manager.all_critical_node_completed()
+                        not self.job_manager
+                        or self.job_manager.all_critical_node_completed()
                     )
                 ):
                     logger.info("All task completed")
@@ -178,8 +175,8 @@ class Master(object):
         except KeyboardInterrupt:
             logger.warning("Server stopping")
         finally:
-            if self.node_manager:
-                self.node_manager.stop()
+            if self.job_manager:
+                self.job_manager.stop()
             self.stop()
 
         return self._exit_code

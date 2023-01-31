@@ -100,10 +100,9 @@ class JobResource(JsonSerializable):
         new_node_name_fn,
     ):
         """
-        job_resource: resource configuration of a job.
         relaunch_on_worker_failure: int, the number of relaunches.
-        service_create_fn: a callable function to get the service address
-            of a node.
+        service_create_fn: a callable function to create the name for a sevice.
+        new_node_name_fn: a callable function to create the name for a node.
         return: a dict with pod_type as key, and another dict as value.
                 The other dict uses pod id as key, and PodInfo as value.
         """
