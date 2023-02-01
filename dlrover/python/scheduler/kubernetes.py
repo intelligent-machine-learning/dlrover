@@ -44,7 +44,7 @@ def get_pod_name(job_name, pod_type, node_id):
 class k8sClient(object):
     _instance_lock = threading.Lock()
 
-    def __init__(self, namespace, job_name):
+    def __init__(self, namespace):
         """
         ElasticDL k8s client.
 
@@ -52,8 +52,6 @@ class k8sClient(object):
             image_name: Docker image path for ElasticDL pod.
             namespace: The name of the Kubernetes namespace where ElasticDL
                 pods will be created.
-            job_name: ElasticDL job name, should be unique in the namespace.
-                Used as pod name prefix and value for "elastic" label.
             event_callback: If not None, an event watcher will be created and
                 events passed to the callback.
             periodic_call_func: If not None, call this method periodically.
@@ -75,7 +73,6 @@ class k8sClient(object):
         self.client = client.CoreV1Api()
         self.api_instance = client.CustomObjectsApi()
         self._namespace = namespace
-        self._job_name = job_name
 
     def list_namespaced_pod(self, label_selector):
         try:
@@ -287,7 +284,7 @@ class K8sElasticJob(ElasticJob):
             job_name: ElasticDL job name, should be unique in the namespace.
                 Used as pod name prefix and value for "elastic" label.
         """
-        self._k8s_client = k8sClient.singleton_instance(namespace, job_name)
+        self._k8s_client = k8sClient.singleton_instance(namespace)
         self._namespace = namespace
         self._job_name = job_name
 
@@ -309,9 +306,7 @@ class K8sJobArgs(JobArgs):
 
     def initilize(self):
         self.user = os.getenv("USER", "")
-        k8s_client = k8sClient.singleton_instance(
-            self.namespace, self.job_name
-        )
+        k8s_client = k8sClient.singleton_instance(self.namespace)
         job = self._retry_to_get_job(k8s_client)
         self.job_uuid = self._get_job_uuid(job)
         if "distributionStrategy" in job["spec"]:

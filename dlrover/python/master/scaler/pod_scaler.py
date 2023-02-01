@@ -80,7 +80,7 @@ class PodScaler(Scaler):
 
     def __init__(self, job_name, namespace):
         super(PodScaler, self).__init__(job_name)
-        self._k8s_client = k8sClient.singleton_instance(namespace, job_name)
+        self._k8s_client = k8sClient.singleton_instance(namespace)
         self._namespace = namespace
         self._replica_template: Dict[str, PodTemplate] = {}
         self._job = self._retry_to_get_job()
