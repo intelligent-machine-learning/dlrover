@@ -158,7 +158,7 @@ class ElasticJobScaler(Scaler):
 
     def __init__(self, job_name, namespace):
         super(ElasticJobScaler, self).__init__(job_name)
-        self._client = k8sClient.singleton_instance(namespace, job_name)
+        self._client = k8sClient.singleton_instance(namespace)
         self._namespace = namespace
         self._scaleplan_name = self._job_name + "-scaleplan"
         self._job = self._retry_to_get_job()
