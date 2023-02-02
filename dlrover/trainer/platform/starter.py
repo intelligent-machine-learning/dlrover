@@ -15,7 +15,11 @@ import os
 
 from dlrover import trainer
 from dlrover.trainer.constants.platform_constants import PlatformConstants
-from dlrover.trainer.mock.tf_process_scheduler import TFProcessScheduler, mock_ray_platform_subprocess, mock_k8s_platform_subprocess
+from dlrover.trainer.mock.tf_process_scheduler import (
+    TFProcessScheduler,
+    mock_k8s_platform_subprocess,
+    mock_ray_platform_subprocess,
+)
 from dlrover.trainer.util.args_util import get_parsed_args
 from dlrover.trainer.util.log_util import default_logger as logger
 from dlrover.trainer.worker.tf_kubernetes_worker import TFKubernetesWorker
@@ -43,6 +47,7 @@ def print_info(append_detail=False):
     logger.info("CWD: %s", os.getcwd())
     logger.info("-" * 30)
 
+
 def execute(args):
     """run routine"""
     platform = args.platform.upper()
@@ -60,14 +65,13 @@ def execute(args):
             conf=args.conf,
             parsed_args=args,
         )
-        # to do use constants 
+        # to do use constants
         if "RAY" in platform:
             worker.set_start_subprocess(mock_ray_platform_subprocess)
         elif "KUBERNETES" in platform:
             worker.set_start_subprocess(mock_k8s_platform_subprocess)
-        else: 
+        else:
             raise Exception("e")
-        
 
     logger.info(
         "Running platform: %s, worker action: %s",

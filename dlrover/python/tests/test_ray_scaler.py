@@ -11,25 +11,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os 
+import os
 import unittest
-from typing import List
- 
 
- 
-from dlrover.python.common.node import Node
- 
-from dlrover.python.master.scaler.ray_watcher import (
-    ActorWatcher
-)
+from dlrover.python.master.scaler.ray_watcher import ActorWatcher
 
-from dlrover.python.scheduler.ray import RayClient
-from dlrover.python.util.queue.queue import RayEventQueue
 
 class ActorWatcherTest(unittest.TestCase):
-
     @classmethod
     def setUpClass(cls):
         os.system("ray stop --force")
         r = os.system("ray start --head --port=5001  --dashboard-port=5000")
+        assert r == 0
         cls.actor_watcher = ActorWatcher("test", "")

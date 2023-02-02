@@ -21,5 +21,5 @@ class PlatformConstants(object):
     ExecutePlaform = Constant("ExecutePlaform")
     Local = Constant("LOCAL", "LOCAL")
     Kubernetes = Constant("KUBERNETES", "KUBERNETES")
-    Ray =  Constant("RAY", "RAY")
+    Ray = Constant("RAY", "RAY")
     WorkerActionRun = Constant("run", "run")

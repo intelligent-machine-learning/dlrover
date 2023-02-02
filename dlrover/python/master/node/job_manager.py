@@ -118,6 +118,16 @@ class JobManager(object):
 
         self._elastic_job: ElasticJob = job
         self._node_watcher = node_watcher
+
+        class ScalePlanWatcher:
+            def __init__(self, job_name, namespace):
+                self.job_name = job_name
+                self.namespace = namespace
+
+            def watch(self):
+                while True:
+                    yield None
+
         self._scaler_watcher = ScalePlanWatcher(
             job_args.namespace, job_args.job_name, job_args.job_uuid
         )

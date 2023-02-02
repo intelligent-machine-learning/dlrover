@@ -1,17 +1,31 @@
+# Copyright 2023 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import queue
-import threading 
+import threading
+
 
 class ConcurrentQueue:
-    def __init__(self, capacity = -1):
-        self.__capacity = capacity           
-        self.__mutex = threading.Lock()      
-        self.__cond  = threading.Condition(self.__mutex)     
-        self.__queue = queue.Queue()    
+    def __init__(self, capacity=-1):
+        self.__capacity = capacity
+        self.__mutex = threading.Lock()
+        self.__cond = threading.Condition(self.__mutex)
+        self.__queue = queue.Queue()
 
     def get(self):
-        if  self.__cond.acquire():           
+        if self.__cond.acquire():
             while self.__queue.empty():
-                self.__cond.wait()           
+                self.__cond.wait()
             elem = self.__queue.get()
             self.__cond.notify()
             self.__cond.release()
@@ -32,8 +46,8 @@ class ConcurrentQueue:
             self.__cond.notifyAll()
 
     def empty(self):
-        is_empty = False;
-        if self.__mutex.acquire():             
+        is_empty = False
+        if self.__mutex.acquire():
             is_empty = self.__queue.empty()
             self.__mutex.release()
         return is_empty
@@ -45,25 +59,25 @@ class ConcurrentQueue:
             self.__mutex.release()
         return size
 
-    def resize(self,capacity = -1):
+    def resize(self, capacity=-1):
         self.__capacity = capacity
- 
 
 
 class RayEventQueue:
     _instance_lock = threading.Lock()
+
     def __init__(self):
         self.queue = ConcurrentQueue(capacity=1000)
 
     def put(self, value):
         return self.queue.put(value)
-        
+
     def get(self):
         return self.queue.get()
 
     def size(self):
         return self.queue.size()
-    
+
     @classmethod
     def singleton_instance(cls, *args, **kwargs):
         if not hasattr(RayEventQueue, "_instance"):

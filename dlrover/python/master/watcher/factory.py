@@ -14,11 +14,14 @@
 from dlrover.python.common.constants import PlatformType
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.watcher.k8s_watcher import PodWatcher
+from dlrover.python.master.watcher.ray_watcher import ActorWatcher
 
 
 def new_node_watcher(platform, job_name, namespace):
     logger.info("New %s NodeWatcher", platform)
     if platform in (PlatformType.KUBERNETES, PlatformType.PY_KUBERNETES):
         return PodWatcher(job_name, namespace)
+    elif platform in (PlatformType.RAY):
+        return ActorWatcher(job_name, namespace)
     else:
         raise ValueError("Not support engine %s", platform)

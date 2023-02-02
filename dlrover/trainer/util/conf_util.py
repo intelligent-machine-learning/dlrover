@@ -191,6 +191,9 @@ class ConfigurationManagerInterface(metaclass=ConfigurationManagerMeta):
 def get_conf(py_conf=None):
     """Get `ConfigurationManager` from args"""
     logger.info(f"Entering get_conf, original py_conf is {py_conf}")
+    import os
+
+    logger.info(os.getcwd())
     attribute_class = py_conf
     if py_conf:
         if isinstance(py_conf, str):

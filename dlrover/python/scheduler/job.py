@@ -98,4 +98,3 @@ class JobArgs(JsonSerializable):
     @abstractmethod
     def initilize(self):
         pass
-

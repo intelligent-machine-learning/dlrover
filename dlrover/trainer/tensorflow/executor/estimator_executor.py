@@ -11,7 +11,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import os
+import time
 
 import tensorflow as tf
 from tensorflow.python.estimator.exporter import BestExporter
@@ -33,8 +35,7 @@ from dlrover.trainer.tensorflow.util.estimator_util import (
 )
 from dlrover.trainer.util.log_util import default_logger as logger
 from dlrover.trainer.util.reflect_util import get_class
-import time 
-import json
+
 try:
     from dlrover.python.elastic_agent.tensorflow.hooks import (
         ReportModelMetricHook,
@@ -66,18 +67,18 @@ class EstimatorExecutor(BaseExecutor):
         #           对于worker，等待ps信息ready后再启动
 
     def wait_for_tf_config(self):
-        # to do: 通过锁和信号量避免循环 
+        # to do: 通过锁和信号量避免循环
         while os.environ.get("TF_CONFIG", None) is None:
             time.sleep(1)
-    
+
     def set_tf_config(self, tf_config):
         if not isinstance(tf_config, str):
-           tf_config = json.dumps(tf_config)
+            tf_config = json.dumps(tf_config)
         os.environ["TF_CONFIG"] = tf_config
         self.prepare()
 
     def prepare(self):
-  
+
         self.get_cluster_info_by_tf_config()
         self._initialize_estimator_related()
         self._prepare_env()

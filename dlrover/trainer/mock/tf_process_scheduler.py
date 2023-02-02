@@ -29,15 +29,14 @@ def mock_ray_platform_subprocess(tf_config):
     """
     argv = sys.argv
     task_type = tf_config["task"]["type"]
-    task_id = tf_config["task"]['index']
+    task_id = tf_config["task"]["index"]
     worker_argv = [sys.executable, "-m", "dlrover.trainer.entry.local_entry"]
 
     worker_argv.extend(argv[1:])
     worker_argv.extend(["--platform", "ray"])
     worker_argv.extend(["--task_type", task_type])
     worker_argv.extend(["--task_id", str(task_id)])
- 
-    
+
     logger.info(worker_argv)
     env = dict(os.environ)
     fild_path = os.path.dirname(__file__)
@@ -46,18 +45,15 @@ def mock_ray_platform_subprocess(tf_config):
     logger.info(python_path)
     env.update(
         {
-          
             "PYTHONPATH": python_path,
         }
     )
- 
+
     logger.info(json.dumps(tf_config))
     env["WORKFLOW_ID"] = os.getenv("WORKFLOW_ID", default="test_id")
     env["USERNUMBER"] = os.getenv("USERNUMBER", default="test_user")
     process = subprocess.Popen(worker_argv, shell=False, env=env)
     return process
-
-
 
 
 def mock_k8s_platform_subprocess(tf_config):
@@ -103,8 +99,8 @@ class TFProcessScheduler(BaseProcessScheduler):
         self.chief_num = 1
         self.worker_num = worker_num - 1
         self.evaluator_num = evaluator_num
-        self.start_subprocess = None 
-    
+        self.start_subprocess = None
+
     def set_start_subprocess(self, start_subprocess):
         self.start_subprocess = start_subprocess
 
@@ -190,17 +186,15 @@ class TFProcessScheduler(BaseProcessScheduler):
         self.prepare_cluster()
         chief_process = self.start_chief_process()
         ps_process = self.start_ps_process()
-        import time
-        time.sleep(100)
-        #evaluator_process = self.start_evaluator_process()
-        #worker_process = self.start_worker_process()
+        evaluator_process = self.start_evaluator_process()
+        worker_process = self.start_worker_process()
 
-        #self.all_processes = {
-        #    "chief_process": chief_process,
-        #    "ps_process": ps_process,
-        #    "worker_process": worker_process,
-        #    "evaluator_process": evaluator_process,
-        #}
+        self.all_processes = {
+            "chief_process": chief_process,
+            "ps_process": ps_process,
+            "worker_process": worker_process,
+            "evaluator_process": evaluator_process,
+        }
         all_process = list(itertools.chain(*self.all_processes.values()))
         all_process_pid = [p.pid for p in all_process]
         logger.info("all processes are {}".format(all_process_pid))

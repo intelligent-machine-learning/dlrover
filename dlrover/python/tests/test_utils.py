@@ -203,25 +203,3 @@ def mock_k8s_client():
     k8s_client.create_service = mock.MagicMock(  # type: ignore
         return_value=True
     )
-
-
-
-def mock_ray_client():
-    """
-        对于RayClient接口进行hook，返回fake信息
-        对于Actor的申请资源信息
-    """
-
-    def get_actor_status():
-        return "RUNNING"
-    
-    def create_actor():
-        return ActorHandle()
-    
-    def delete_actor():
-        return True 
-
-    ray_client = RayClient.singleton_instance("default", "elasticjob-sample")
-    ray_client.get_actor_status = _get_training_job  # type: ignore
-    k8s_client.get_pod = _get_pod  # type: ignore
-    

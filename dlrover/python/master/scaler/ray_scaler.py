@@ -11,51 +11,49 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
-import json
 import threading
-import time
 from typing import Dict, List
 
- 
+import ray
 
-from dlrover.python.common.constants import (
-    DistributionStrategy,
-    ElasticJobLabel,
-    NodeEnv,
-    NodeStatus,
-    NodeType,
-)
+from dlrover.python.common.constants import NodeStatus, NodeType
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeResource
 from dlrover.python.master.scaler.base_scaler import ScalePlan, Scaler
 from dlrover.python.scheduler.ray import RayClient
+from dlrover.trainer.worker.tf_ray_worker import TFRayWorker
 
- 
- 
 
-# 当前actor的信息存储在后端，通过后端查询当前有多少actor处于运行中
-# 增加或者删除actor，根据index，从index最大到最小删除
-# 
+class ActorArgs:
+    def __init__(self, actor_name, executor, args=[], kargs={}):
+        self.actor_name = actor_name
+        self.executor = executor
+        self.args = args
+        self.kargs = kargs
+
+    def get(self, key, default_value=None):
+        return getattr(self, key, default_value)
+
 
 def parse_type(name):
     name = name.lower()
-    node_type = None 
+    node_type = None
     if NodeType.PS in name:
         node_type = NodeType.PS
-    elif NodeType.EVALUATOR in name :
+    elif NodeType.EVALUATOR in name:
         node_type = NodeType.EVALUATOR
-    elif NodeType.WORKER in name :
+    elif NodeType.WORKER in name:
         node_type = NodeType.WORKER
     return node_type
 
+
 def parse_index(name):
     """
-        PsActor_1 split("_")[-1]
-        13-PythonOperator_streaming.operator.impl.tf_function.TFSinkFunction-4|20 split("|").split("-")[-1]
+    PsActor_1 split("_")[-1]
+    TFSinkFunction-4|20 split("|").split("-")[-1]
     """
     node_type = parse_type(name)
-    node_index = None 
+    node_index = None
     if node_type == NodeType.PS:
         node_index = int(name.split("_")[-1])
     elif node_type == NodeType.EVALUATOR:
@@ -64,12 +62,14 @@ def parse_index(name):
         node_index = int(name.split("|")[0].split("-")[-1])
     return node_index
 
+
 def parse_type_id_from_actor_name(name):
     node_type = parse_type(name)
     node_index = parse_index(name)
     return node_type, node_index
 
 
+ray.init()
 
 
 class ActorScaler(Scaler):
@@ -82,7 +82,7 @@ class ActorScaler(Scaler):
         self._lock = threading.Lock()
 
     def _retry_to_get_job(self):
-        pass 
+        pass
 
     def scale(self, plan: ScalePlan):
         self._plan = plan
@@ -91,16 +91,15 @@ class ActorScaler(Scaler):
             alive_actors = self._stats_alive_actors()
             for type, group_resource in plan.node_group_resources.items():
                 cur_actors = alive_actors.get(type)
-                # 通过 查询到当前正在运行的pod 
-                if group_resource.count > len(cur_actors):
+                cur_actors = []
+                if group_resource.count > len(alive_actors):
                     self._scale_up_actors(type, plan, cur_actors)
-                elif group_resource.count < len(cur_actors):
-                    self._scale_down_actor(type, plan, cur_actors)
- 
- 
+                elif group_resource.count < len(alive_actors):
+                    self._scale_down_actors(type, plan, cur_actors)
+
     def _stats_alive_actors(self):
         job_pods: Dict[str, List[Node]] = {}
-        resource = NodeResource(1, 1024) # to do 使用存储后端
+        resource = NodeResource(1, 1024)  # to do 使用存储后端
         for name, status in self._ray_client.list_actor():
             actor_type, actor_index = parse_type_id_from_actor_name(name)
             node = Node(
@@ -109,8 +108,8 @@ class ActorScaler(Scaler):
                 name=name,
                 rank_index=actor_index,
                 status=status,
-                start_time=None, #to be decided，获取actor创建时间
-                config_resource=resource, #to be decided，获取actor的创建时间
+                start_time=None,  # to be decided，获取actor创建时间
+                config_resource=resource,  # to be decided，获取actor的创建时间
             )
             if node.status in [
                 NodeStatus.PENDING,
@@ -120,17 +119,33 @@ class ActorScaler(Scaler):
                 job_pods[actor_type].append(node)
         return job_pods
 
-     
     def _scale_up_actors(
         self,
         type,
         plan: ScalePlan,
         cur_actors: List[Node],
     ):
-        cur_num = len(cur_actors)
-        
-         
- 
+        v = plan.node_group_resources[type]
+        if v.count > 0:
+            context = {
+                "platform": "ray",
+                "ps_num": 1,
+                "worker_num": 1,
+                "conf": "conf.TrainConf",
+                "task_id": 0,
+                "task_type": type,
+            }
+            if type == "ps":
+                actor_name = "PsActor_0"
+            elif type == "chief":
+                actor_name = "PythonWorker-0|1"
+            actor_args = ActorArgs(
+                actor_name=actor_name,
+                executor=TFRayWorker,
+                args=[],
+                kargs={"args": context},
+            )
+            self._ray_client.create_actor(actor_args=actor_args)
 
     def _scale_down_actors(
         self,
@@ -138,6 +153,4 @@ class ActorScaler(Scaler):
         plan: ScalePlan,
         cur_actors: List[Node],
     ):
-        cur_num = len(cur_actors)
-     
-     
+        pass

@@ -1,0 +1,1 @@
+python -m dlrover.python.master.main --namespace dlrover --platform ray --job_name elasticjob-sample-24 --port 50001

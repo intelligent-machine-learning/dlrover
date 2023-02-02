@@ -14,7 +14,8 @@
 from dlrover.python.common.constants import PlatformType
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.scheduler.kubernetes import K8sElasticJob, K8sJobArgs
-from dlrover.python.scheduler.Ray import RayElasticJob, RayJobArgs
+from dlrover.python.scheduler.ray import RayElasticJob, RayJobArgs
+
 
 def new_elastic_job(platform, job_name, namespace):
     logger.info("New %s ElasticJob", platform)
@@ -31,6 +32,6 @@ def new_job_args(platform, job_name, namespace):
     if platform in (PlatformType.KUBERNETES, PlatformType.PY_KUBERNETES):
         return K8sJobArgs(platform, namespace, job_name)
     elif platform in (PlatformType.RAY):
-        return RayJobArgs(job_name, namespace)
+        return RayJobArgs(platform, namespace, job_name)
     else:
         raise ValueError("Not support platform %s", platform)
