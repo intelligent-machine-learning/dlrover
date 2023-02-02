@@ -4,7 +4,7 @@ The design described how DLrover scales up/down nodes of a job.
 
 ## Motivation
 
-AutoScaling is the key to automatic maintenance of a DL training job.
+Auto-scaling is the key to automatic maintenance of a DL training job.
 DLRover should support add/remove nodes to a job without interrupting
 the training process to improve the training performance.
 
