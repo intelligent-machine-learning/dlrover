@@ -105,19 +105,19 @@ contains nodes to be luanched or removed. For example,
 
 ```Python
 scale_plan = ScalePlan()
-scale_pan.node_group_resource =NodeGroupResource(
+scale_plan.node_group_resource =NodeGroupResource(
     3, 
     NodeResource(
         cpu=8, memory=10240, gpu_type="v100", gpu_num=1, priority="high"
     )
 )  # Scale up the number of workers to 3 with the NodeResource.
-scale_pan.launch_nodes = [
+scale_plan.launch_nodes = [
     Node(NodeType.WORKER, 0, NodeResource(cpu=9, memory=10240))
 ]  # New worker to be launched
-scale_pan.remove_nodes = [
+scale_plan.remove_nodes = [
     Node(NodeType.WORKER, 1, NodeResource(cpu=9, memory=10240), name="worker-0")
 ]  # New worker to be removed
-scale_pan.ps_addrs = ["ps-0:2222", "ps-1:2222"]  ## The host set of PS nodes.
+scale_plan.ps_addrs = ["ps-0:2222", "ps-1:2222"]  ## The host set of PS nodes.
 
 ```
 
