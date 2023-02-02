@@ -14,7 +14,7 @@ Auto-scaling in DLRover contains the following steps:
 - The `JobResourceOptimizer` in `JobManager` queries a `ResourcePlan`.
 - The `TrainingNodeManager` (e.g. `PSManager` and `WorkerManger`)
 in `JobManager` generates the `ScalePlan`.
-- The `Scaler` in `PodManager` adds/removes nodes by the `ScalePlan`.
+- The `Scaler` in `JobManager` adds/removes nodes by the `ScalePlan`.
 
 ### Job Resource Optimizer
 
@@ -29,10 +29,13 @@ exampel:
 ```Python
 resource_plan = ResourcePlan()
 resource_plan.node_group_resources["ps"] = NodeGroupResource(
-    3, NodeResource(cpu=8, memory=10240)
+    count=3, node_resource=NodeResource(cpu=8, memory=10240)
 )
 resource_plan.node_group_resources["worker"] = NodeGroupResource(
-    3, NodeResource(cpu=8, memory=10240, gpu_type="v100", gpu_num=1, priority="high")
+    count=3,
+    node_resource=NodeResource(
+        cpu=8, memory=10240, gpu_type="v100", gpu_num=1, priority="high"
+    )
 )
 resource_plan.node_resources["training-edljob-worker-0"] =  NodeResource(
     cpu=8, memory=10240, gpu_type="v100", gpu_num=1, priority="high"
@@ -105,8 +108,7 @@ scale_pan.ps_addrs = ["ps-0:2222", "ps-1:2222"]  ## The host set of PS nodes.
 and node events from `NodeMonitor`. `PSManager` also generate
 a `ScalePlan` when migrating PS.
 
-**Scale Up PS**
-
+**Scale Up PS.**
 If the number of PS in `ResourcePlan` is bigger than the current number
 of PS. `PSManager` will create new PS `Node` by the difference and set
 the node status to `NodeStatus.INITIAL`. `PSManger` will set the status
@@ -114,8 +116,7 @@ by node events from `NodeMonitor`. If all PS nodes are running, `PSManager`
 will update its `_next_training_ps_cluster` which is used to notify
 workers to connect new PS clusters.
 
-**Scale Down PS**
-
+**Scale Down PS.**
 If the number of PS is less than the current number of PS. `PSManager` will
 not delete the additional PS nodes immediately because model parameters are
 stored across PS nodes. `PSManager` will place those additional PS nodes
@@ -124,8 +125,7 @@ its `_next_training_ps_cluster`. After workers succeed to connect the next
 PS cluster. `PSManager` will set those additional PS nodes into `remove_nodes`
 of a `ScalePlan`.
 
-**Migrate PS**
-
+**Migrate PS.**
 If there is a PS resource in `ResourcePlan.node_resources` which is different
 from the current resource of the PS node, `PSManager` will create a `Node`
 with the new resource. After the new PS node is running, `PSManager`
@@ -139,13 +139,12 @@ of a `ScalePlan`.
 `WorkerManager` manages the status of worker nodes by the `ResourcePlan`
 and node events from `NodeMonitor`.
 
-**Scale up workers**
-
+**Scale up workers.**
 If the number of worker is bigger than the current number of workers,
 `WorkerManager` will create new `Node`s with the status `NodeStatus.INITIAL`
 and update the node status by node events from `NodeMonitor`.
 
-**Scale down workers**
+**Scale down workers.**
 If the number of worker is less than the current number of workers,
 `WorkerManager` will set `relaunchable=False` and `is_released=True`
 for additional workers to be removed.
@@ -160,14 +159,13 @@ differenct `Scaler` for different distributed cluster.
 `PodScaler` is implemented by K8s Python APIs to create/update/delete Pods
 on a K8s cluster.
 
-**Scale up Pods**
+**Scale up Pods.**
 `PodScaler` starts a creating thread to periodicall create Pods from a `Node` queue.
 If the number of Pods in `ScalePlan.node_group_resource`, `PodScaler`
 will create `Node`s into a queue. If `PodScaler` fail to create a Pod, it
 will replace the `Node` into the queue to retry.
 
-**Scale down Pods**
-If there are nodes in `ScalePlan.remove_nodes`, `PodScaler` will delete the Pod
+**Scale down Pods.** If there are nodes in `ScalePlan.remove_nodes`, `PodScaler` will delete the Pod
 by the name of the node in `remove_nodes`.
 
 #### ElasticJob Scaler
