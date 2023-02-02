@@ -13,6 +13,6 @@ dlrover/proto/*.proto --python_out=. --grpc_python_out=. \
 && pip install pyhocon tensorflow==1.15.5 \
 && pip install ray['defult'] \
 && pip install deepctr \
-&& export PYTHONPATH=`pwd` && \
-cd dlrover/trainer/examples/estimator_executor && sh run.sh \
-&& cd - && cd dlrover/trainer/examples/deepfm && sh mock_k8s_run.sh"
+&& export PYTHONPATH=`pwd` \
+&& cd dlrover/trainer/examples/estimator_executor && sh mock_k8s_run.sh"
+ 
