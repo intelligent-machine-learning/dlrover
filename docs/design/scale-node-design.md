@@ -90,9 +90,9 @@ service on the cluster. `LocalOptimizer` collects job runtime statistics and
 store those data in memory. It can generate optimized `ResourcePlan` by
 its own job runtime statistics but without the information of the cluster.
 
-#### Remote Brain Optimizer for Cluster Mode
+#### Brain Optimizer for Cluster Mode
 
-`BrainOptimizer` is designed for Cluster Mode when the Brain optimizations service
+`BrainOptimizer` is designed for Cluster Mode when the Brain optimization service
 it deployed. `BrainOptimizer` is the client to query optimization resource plan
 from the service. When using `BrainOptimizer`, job runtime statistics is
 send to the Brain service by the `StatsReporter` and persisted into a database.
@@ -129,19 +129,22 @@ a `ScalePlan` when migrating PS.
 
 **Scale Up PS.**
 If the number of PS in `ResourcePlan` is larger than the current number
-of PS. `PSManager` will create new PS `Node` by the difference and set
-the node status to `NodeStatus.INITIAL`. `PSManger` will set the status
-by node events from `NodeMonitor`. If all PS nodes are running, `PSManager`
-will update its `_next_training_ps_cluster` which is used to notify
-workers to connect new PS clusters.
+of PS. `PSManager` will create new PS `Node`s and increase the total PS
+number to the required value in the plan.
+Those new nodes' status is set to NodeStatus.INITIAL. `PSManger` will set the status
+by node events from `NodeMonitor`. After all PS nodes are running, `PSManager`
+will update its `_next_training_ps_cluster` and inform workers to connect the
+new PS cluster.
 
 **Scale Down PS.**
 If the number of PS is smaller than the current number of PS. `PSManager` will
-not delete the additional PS nodes immediately because model parameters are
-stored across PS nodes. `PSManager` will  add those PS nodes which is to be removed 
+not delete the additional PS nodes immediately. Because model parameters are
+stored across PS nodes and will be lost if we delele PS nodes before
+workers checkpoints model parameters on PS.
+`PSManager` will  add those PS nodes which is to be removed 
 to a queuee `_pre_dropped_ps` and remove those PS hosts from 
-its `_next_training_ps_cluster`. After workers succeed to connect the next
-PS cluster. `PSManager` will set those those PS nodes into `remove_nodes`
+its `_next_training_ps_cluster`. After workers succeed to checkpoint model parameters
+and connect the next PS cluster. `PSManager` will set those those PS nodes into `remove_nodes`
 of a `ScalePlan`.
 
 **Migrate PS.**
