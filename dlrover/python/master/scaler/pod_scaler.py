@@ -76,7 +76,12 @@ class PodTemplate(object):
 
 
 class PodScaler(Scaler):
-    """PodScaler launches or removes Pods using Kubernetes Python APIs."""
+    """PodScaler launches or removes Pods using Kubernetes Python APIs
+    by a ScalePlan. After PodScaler receives a ScalePlan, it will
+    list all alive Pods of the job and push new `Node`s to a queue.
+    The thread of creating Pods will create Pods if there is `Node`
+    in a queue.
+    """
 
     def __init__(self, job_name, namespace):
         super(PodScaler, self).__init__(job_name)
@@ -114,6 +119,7 @@ class PodScaler(Scaler):
         raise ValueError("Cannot get the training job %s", self._job_name)
 
     def scale(self, plan: ScalePlan):
+        """Scale in/out Pods by a ScalePlan."""
         self._plan = plan
         job_pods = self._stats_alive_pods()
         logger.info("Scale the job by plan %s", plan.toJSON())
@@ -213,6 +219,9 @@ class PodScaler(Scaler):
         plan: ScalePlan,
         cur_pods: List[Node],
     ):
+        """The method will create a Node instances and push it into a queue.
+        The thread to create Pods will periodicall create Pods by
+        the Node instance in the queue."""
         cur_num = len(cur_pods)
         group_resource = plan.node_group_resources[type]
         up_num = group_resource.count - cur_num
@@ -242,6 +251,7 @@ class PodScaler(Scaler):
         plan: ScalePlan,
         cur_pods: List[Node],
     ):
+        """Delete Pods to scale down Pods."""
         group_resource = plan.node_group_resources[type]
         down_num = len(cur_pods) - group_resource.count
 
