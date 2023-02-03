@@ -70,7 +70,7 @@ failure reasons of job are data error, NaN loss of the model, network breakdown
 and so on.
 
 <div align="center">
-<img src="docs/figures/job-complete-rate.png" alt="Editor" width="800">
+<img src="docs/figures/job-complete-rate.png" alt="Editor" width="600">
 </div>
 
 ### Auto-Scaling to Improve Training Performance.
@@ -84,7 +84,7 @@ the insifficient number of PS/workers. DLRover can improve
 the training performance by dynamic resource adjustment.
 
 We use the dataset of [Kaggle CRITEO](https://www.kaggle.com/c/criteo-display-ad-challenge)
-to train Wide&Deep and xDeepFM with 10 epoch on a K8s cluster.
+to train Wide&Deep and xDeepFM with 10 epoches on a K8s cluster.
 The resource configuration in normal experiments without straggler is 
 
 <table>
@@ -122,11 +122,11 @@ The resource configuration in normal experiments without straggler is
 </table>
 
 <div align="center">
-<img src="docs/figures/exp-jct-deepctr.png" alt="Editor" width="800">
+<img src="docs/figures/exp-jct-deepctr.png" alt="Editor" width="600">
 </div>
 
-DLRover can migitate straggler to improve the training throughput
-and shorten the competion time.
+DLRover can migigate straggler to improve the training throughput
+and shorten the job competion time (JCT).
 
 ### Auto-Scaling to improve Resource Utilization.
 
@@ -138,7 +138,7 @@ can allocate resource by the demand of model training to reduce
 the waste of resource.
 
 <div align="center">
-<img src="docs/figures/daily-job-resource-util.png" alt="Editor" width="800">
+<img src="docs/figures/daily-job-resource-util.png" alt="Editor" width="1000">
 </div>
 
 
