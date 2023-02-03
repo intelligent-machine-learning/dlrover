@@ -11,7 +11,8 @@ A DLrover program with Estimator typically consists of the following four steps:
 ### Define the features and label column in the conf
 
 Each `Column` identifies a feature name, its type and whether it is label.
-(For example)[https://github.com/intelligent-machine-learning/dlrover/tree/master/dlrover/trainer/examples/estimator_executor], the following snippet defines two feature columns. 
+The following snippet defines two feature columns in the
+[example](../../dlrover/trainer/examples/estimator_executor/conf.py). 
 ```
 train_set = {
     "path": "fake://test.data",
@@ -44,7 +45,8 @@ You can convert an existing pre-made estimators by writing an Adaptor to fit wit
 As we can see, the model_fn is the key part of estimator.
 When training and evaluating, the model_fn is called with different mode and the graph is returned.
 Thus, you can define a custom estimator in which model_fn function acts as a wrapper for pre-made estimator model_fn.
-(For example)[https://github.com/intelligent-machine-learning/dlrover/tree/master/dlrover/trainer/examples/deepfm], `DeepFMEstimator` in [`deepctr.estimator.models`](https://github.com/shenweichen/DeepCTR/tree/master/deepctr/estimator/models) is a pre-made estimator. 
+In the example of [DeepFMAdaptor](../../dlrover/trainer/examples/deepfm/DeepFMAdaptor.py),
+`DeepFMEstimator` in [`deepctr.estimator.models`](https://github.com/shenweichen/DeepCTR/tree/master/deepctr/estimator/models) is a pre-made estimator. 
 
 ```
 from deepctr.estimator.models.deepfm import DeepFMEstimator
