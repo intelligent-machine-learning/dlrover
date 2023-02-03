@@ -79,13 +79,13 @@ nodes (parameter servers or workers) at runtime of a training job.
 By monitoring the workload of nodes and throughput, DLRover can
 diagnose the bottleneck of resource configuration.
 The common bottleneck contains
-node straggler, unbalanced workload of PS, insifficient CPU cores of nodes and
-the insifficient number of nodes. DLRover can improve
+node straggler, unbalanced workload of PS, insufficient CPU cores of nodes and
+the insufficient number of nodes. DLRover can improve
 the training performance by dynamic resource adjustment.
 
 We use the dataset of [Kaggle CRITEO](https://www.kaggle.com/c/criteo-display-ad-challenge)
 to train Wide&Deep and xDeepFM with 10 epoches on a K8s cluster.
-DLRover can migigate straggler to improve the training throughput
+DLRover can mitigate straggler to improve the training throughput
 and shorten the job competion time (JCT).
 
 <div align="center">
