@@ -87,6 +87,7 @@ We use the dataset of [Kaggle CRITEO](https://www.kaggle.com/c/criteo-display-ad
 to train Wide&Deep and xDeepFM with 10 epoches on a K8s cluster.
 The resource configuration in normal experiments without straggler is 
 
+<div align="center">
 <table>
     <tr>
         <td rowspan="2">Model</td>
@@ -120,6 +121,7 @@ The resource configuration in normal experiments without straggler is
         <td>8GB</td>
     </tr>
 </table>
+</div>
 
 <div align="center">
 <img src="docs/figures/exp-jct-deepctr.png" alt="Editor" width="600">
