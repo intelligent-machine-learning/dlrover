@@ -119,7 +119,7 @@ class JobManager(object):
         self._elastic_job: ElasticJob = job
         self._node_watcher = node_watcher
         self._scaler_watcher = ScalePlanWatcher(
-            job_args.job_name, job_args.namespace
+            job_args.namespace, job_args.job_name, job_args.job_uuid
         )
         self._scaler: Scaler = job_scaler
         self._job_optimizer = JobResourceOptimizer(
