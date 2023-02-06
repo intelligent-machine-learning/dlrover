@@ -104,14 +104,18 @@ class ParameterServerManager(TrainingNodeManager):
             ps_resource.node_resource.cpu,
             ps_resource.node_resource.memory,
         )
+        plan = ScalePlan()
         alive_num = len(self.get_training_ps_cluster())
         if ps_resource.count > alive_num:
-            self._scale_up_ps(ps_resource.count - alive_num)
+            new_ps = self._scale_up_ps(ps_resource.count - alive_num)
+            plan.launch_nodes.extend(new_ps)
         elif ps_resource.count < alive_num:
             self._scale_down_ps(alive_num - ps_resource.count)
+        return plan
 
     def _scale_up_ps(self, up_num):
         logger.info("Scale up ps with the number %s", up_num)
+        new_ps = []
         with self._lock:
             self._ready_for_new_ps_cluster = False
             task_id_iter = itertools.count(self._job_resource.ps_num)
@@ -132,6 +136,8 @@ class ParameterServerManager(TrainingNodeManager):
                     critical=True,
                     service_addr=service_addr,
                 )
+                new_ps.append(self._nodes[ps_id])
+        return new_ps
 
     def _scale_down_ps(self, down_num):
         with self._lock:
@@ -142,10 +148,10 @@ class ParameterServerManager(TrainingNodeManager):
                 NodeType.PS, new_ps_num, 0, 0
             )
             running_ps = self._get_alive_ps()
-            for pod in reversed(running_ps):
+            for node in reversed(running_ps):
                 if down_num <= 0:
                     break
-                self._pre_dropped_ps.append(pod)
+                self._pre_dropped_ps.append(node)
                 down_num -= 1
         dropped_ps = [ps.name for ps in self._pre_dropped_ps]
         logger.info("Scale down PS %s", dropped_ps)

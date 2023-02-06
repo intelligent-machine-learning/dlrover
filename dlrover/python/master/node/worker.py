@@ -145,6 +145,11 @@ class WorkerManager(TrainingNodeManager):
                 self._scale_up_workers(num - alive_num)
             elif num < alive_num:
                 self._scale_down_workers(alive_num - num, alive_workers)
+        plan = ScalePlan()
+        plan.node_group_resources[NodeType.WORKER] = copy.deepcopy(
+            worker_resource
+        )
+        return plan
 
     def _scale_up_workers(self, up_num):
         """Launch up_num workers."""
