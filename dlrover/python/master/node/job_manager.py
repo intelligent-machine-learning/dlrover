@@ -595,6 +595,7 @@ class JobManager(object):
                     group.node_resource.cpu,
                     group.node_resource.memory,
                 )
+                group = self._job_resource.get_node_group_resource(node_type)
                 if node_type == NodeType.PS:
                     ps_plan = self._ps_manager.adjust_ps(group)
                     scale_plan.merge(ps_plan)

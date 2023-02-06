@@ -127,6 +127,7 @@ class WorkerManager(TrainingNodeManager):
         self._task_id_iter = itertools.count(worker.count)
 
     def adjust_worker(self, worker_resource: NodeGroupResource):
+        plan = ScalePlan()
         num = worker_resource.count
         logger.info(
             "Adjust worker resource to {}, {}, {}".format(
@@ -140,12 +141,13 @@ class WorkerManager(TrainingNodeManager):
             if worker.status in ALIVE_STATUS:
                 alive_workers.append(worker)
         alive_num = len(alive_workers)
+        if alive_num == num:
+            return plan
         with self._lock:
             if num > alive_num:
                 self._scale_up_workers(num - alive_num)
             elif num < alive_num:
                 self._scale_down_workers(alive_num - num, alive_workers)
-        plan = ScalePlan()
         plan.node_group_resources[NodeType.WORKER] = copy.deepcopy(
             worker_resource
         )

@@ -118,7 +118,8 @@ class ParameterServerManager(TrainingNodeManager):
         new_ps = []
         with self._lock:
             self._ready_for_new_ps_cluster = False
-            task_id_iter = itertools.count(self._job_resource.ps_num)
+            alive_num = len(self.get_training_ps_cluster())
+            task_id_iter = itertools.count(alive_num)
             for _ in range(up_num):
                 ps_id = next(self._node_id_iter)
                 task_id = next(task_id_iter)
