@@ -21,8 +21,6 @@ from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeResource
 from dlrover.python.master.scaler.base_scaler import ScalePlan, Scaler
 from dlrover.python.scheduler.ray import RayClient
-
-#  通过反射获取，而不是import包
 from dlrover.python.util.reflect_util import get_class
 
 
