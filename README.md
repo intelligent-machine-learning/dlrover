@@ -1,7 +1,7 @@
 # DLRover
 
 <div align="center">
-<img src="docs/figures/dlrover_logo.png" alt="Editor" width="200">
+<img src="docs/figures/dlrover_logo.png" alt="Editor" width="300">
 </div>
 
 <div id="top" align="center">
@@ -48,7 +48,7 @@ spec:
                 - "python -m model_zoo.tf_estimator.iris_dnn_elastic"
 ```
 
-### Fault Tolerance to Improve the Stable of Job.
+### Fault Tolerance to Improve the Stability of Job.
 
 DLRover can recover failed parameter servers and workers to
 resume training. Some failed nodes do not interrupt the training and hurt the convergence accuracy. The main error is
@@ -90,16 +90,23 @@ the waste of resources.
 <img src="docs/figures/daily-job-resource-util.png" alt="Editor" width="1000">
 </div>
 
+### Dynamic data sharding
+TODO...
+
+
+
 ### Integration to Offline and Online Deep Learning.
 
-DLRover can be integrated with offline training with batch data, and also supports online learning with real-time streaming data (training sink node inside Flink/Spark/Ray/... or a message queue like Kafka). [estimator example](docs/tutorial/estimator.md) provides a detailed example with `tf.estimator.Estimator`.
+With the data source transparency provided by dynamic data sharding, DLRover can be integrated with offline training which consumes batch data, and also supports online learning with real-time streaming data. (fed with a message queue like RocketMQ/Kafka/Pulsar/..., or executed as a training sink node inside Flink/Spark/Ray/...)
+
+By practice, DLRover is an ideal component to build an end-to-end industrial online learning system, [estimator.md](docs/tutorial/estimator.md) provides a detailed example implemented with `tf.estimator.Estimator`.
 
 ## What's Next?
 
 - Automatic Distributed training for GPU Synchronous jobs
   - data-parallel mode
   - hybrid-parallel mode
-  - adapted hyper parameters adjustment with dynamic resources.
+  - adapted hyper parameters adjustment with dynamic resources
 - Full stack solution for Online Deep Learning
 - ...
 
