@@ -24,11 +24,12 @@ from dlrover.python.master.node.job_manager import create_job_manager
 from dlrover.python.master.servicer import MasterServicer
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.master.stats.job_collector import JobMetricCollector
-from dlrover.python.tests.test_utils import MockJobArgs
+from dlrover.python.tests.test_utils import MockJobArgs, mock_k8s_client
 
 
 class MasterServicerTest(unittest.TestCase):
     def setUp(self) -> None:
+        mock_k8s_client()
         params = MockJobArgs()
         params.initilize()
         speed_monitor = SpeedMonitor()
