@@ -22,7 +22,7 @@ Install [minikube](https://kubernetes.io/docs/tasks/tools/) on your loptop.
 And you can start minikube by the command
 
 ```bash
-k8s start --vm-driver=docker --cpus 6 --memory 6144
+minikube start --vm-driver=docker --cpus 6 --memory 6144
 ```
 
 ### Run ElasticJob Controller
