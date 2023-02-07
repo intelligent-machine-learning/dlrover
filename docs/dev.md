@@ -47,7 +47,7 @@ make deploy IMG=easydl/elasticjob-controller:test
 ### Submit an ElasticJob.
 
 ```bash
-eval $(k8s docker-env)
+eval $(minikube docker-env)
 kubectl -n dlrover apply -f dlrover/go/operator/config/samples/elastic_v1alpha1_elasticjob.yaml
 ```
 
