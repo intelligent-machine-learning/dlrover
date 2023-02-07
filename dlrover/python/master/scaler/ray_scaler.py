@@ -1,4 +1,4 @@
-# Copyright 2022 The DLRover Authors. All rights reserved.
+# Copyright 2023 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -37,9 +37,9 @@ class ActorArgs:
         return getattr(self, key, default_value)
 
 
-def parse_type(name):
+def parse_type(name) -> str:
     name = name.lower()
-    node_type = None
+    node_type: str = ""
     if NodeType.PS in name:
         node_type = NodeType.PS
     elif NodeType.EVALUATOR in name:
@@ -49,13 +49,13 @@ def parse_type(name):
     return node_type
 
 
-def parse_index(name):
+def parse_index(name) -> int:
     """
     PsActor_1 split("_")[-1]
     TFSinkFunction-4|20 split("|").split("-")[-1]
     """
     node_type = parse_type(name)
-    node_index = None
+    node_index: int = 0
     if node_type == NodeType.PS:
         node_index = int(name.split("_")[-1])
     elif node_type == NodeType.EVALUATOR:
@@ -119,6 +119,7 @@ class ActorScaler(Scaler):
                 NodeStatus.SUCCEEDED,
             ]:
                 job_pods[actor_type].append(node)
+
         return job_pods
 
     def _scale_up_actors(
@@ -127,7 +128,9 @@ class ActorScaler(Scaler):
         plan: ScalePlan,
         cur_actors: List[Node],
     ):
+        print(cur_actors)
         v = plan.node_group_resources[type]
+        actor_name: str = ""
         if v.count > 0:
             context = {
                 "platform": "ray",
@@ -158,4 +161,6 @@ class ActorScaler(Scaler):
         plan: ScalePlan,
         cur_actors: List[Node],
     ):
-        pass
+        print(type)
+        print(plan)
+        print(cur_actors)

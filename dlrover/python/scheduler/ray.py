@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import threading
 import time
 
@@ -154,7 +155,8 @@ class RayJobArgs(JobArgs):
     def __init__(self, platform, namespace, job_name):
         super(RayJobArgs, self).__init__(platform, namespace, job_name)
         self.file_path = "{}.json".format(job_name)
-        self.file_path = "/home/dlrover/dlrover/python/tests/test.json"
+        foler_path = os.path.dirname(os.path.dirname(__file__))
+        self.file_path = os.path.join(foler_path, "tests/test.json")
         self.stats_backend = LocalFileStateBackend(self.file_path)
 
     def initilize(self):

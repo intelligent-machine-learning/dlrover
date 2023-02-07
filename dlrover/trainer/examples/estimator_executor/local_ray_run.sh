@@ -12,5 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 rm -rf log* eval/ export/  checkpoint  model.ckpt* events.out* -rf graph.pbtxt ps_address* 
+ray stop --force
+ray start --head --port=5001  --dashboard-port=5000
 export DLROVER_MASTER_ADDR="127.0.0.1:50001"
 python -m dlrover.python.master.main --namespace dlrover --platform ray --job_name elasticjob-sample-24 --port 50001
