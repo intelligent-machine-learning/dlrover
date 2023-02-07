@@ -1,7 +1,7 @@
 # DLRover
 
 <div align="center">
-<img src="docs/figures/dlrover_logo.png" alt="Editor" width="300">
+<img src="docs/figures/dlrover_logo.png" alt="Editor" width="350">
 </div>
 
 <div id="top" align="center">
