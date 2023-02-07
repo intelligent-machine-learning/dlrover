@@ -210,6 +210,11 @@ message NodeMeta {
   string gpu_type = 7;
 }
 
+message NodeEvent{
+  string event_type = 1;
+  node NodeMeta = 2; 
+}
+
 message RunningNodes { repeated NodeMeta nodes = 1; }
 
 message QueryTrainingStatusResponse { int32 status = 1; }
@@ -271,5 +276,6 @@ service Master {
       returns (google.protobuf.Empty);
 
   rpc report_prestop(ReportPreStopRequest) returns (google.protobuf.Empty);
-  rpc report_node_address(NodeMeta) returns (google.protobuf.empty)
+  rpc update_node_addr(NodeMeta) returns (google.protobuf.empty)
+  rpc update_node_event(NodeEvent) returns (google.protobuf.empty)
 }

@@ -353,6 +353,9 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         task_id = reqeuest.task_id
         server_addr = reqeuest.addr
         self._job_manager.update_node_service_addr(task_type, task_id, server_addr)
+    
+    def update_node_event(self, request, _):
+        pass 
 
     def query_ps_nodes(self, request, _):
         training_ps: List[Node] = self._job_manager.get_next_cluster_ps()
