@@ -210,9 +210,9 @@ message NodeMeta {
   string gpu_type = 7;
 }
 
-message NodeEvent{
+message NodeEvent {
   string event_type = 1;
-  NodeMeta node = 2; 
+  NodeMeta node = 2;
   string message = 3;
 }
 

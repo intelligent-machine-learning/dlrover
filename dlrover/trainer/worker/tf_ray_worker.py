@@ -15,6 +15,7 @@ import argparse
 import os
 import threading
 
+from dlrover.python.elastic_agent.master_client import GlobalMasterClient
 from dlrover.trainer.constants.tf_constants import TFConstants
 from dlrover.trainer.tensorflow.executor.estimator_executor import (
     EstimatorExecutor,
@@ -25,8 +26,9 @@ from dlrover.trainer.tensorflow.failover.tensorflow_failover import (
 from dlrover.trainer.tensorflow.util import common_util
 from dlrover.trainer.util.conf_util import get_conf
 from dlrover.trainer.util.log_util import default_logger as logger
-from dlrover.python.elastic_agent.master_client import GlobalMasterClient
+
 master_client = GlobalMasterClient.MASTER_CLIENT
+
 
 class TFRayWorker:
     """TFRayWorker"""
@@ -37,6 +39,7 @@ class TFRayWorker:
             args: result of parsed command line arguments
         """
         self._args = self.transform_args_to_dict(args)
+        logger.info(args)
         task_conf = get_conf(py_conf=self._args.get("conf"))
         self._task_conf = task_conf
         self.init_executor(task_conf)
@@ -73,21 +76,36 @@ class TFRayWorker:
             self.tensorflow_failover.start_failover_monitor()
 
     def get_ps_cluster(self):
-        while True:
-            ps_num = 0
-            ps_cluster = []
-            dir_list = os.listdir("./")
-            for file in dir_list:
-                if file.startswith("ps_address_"):
-                    ps_num += 1
-                    address = file.split("_")[-1]
-                    ps_cluster.append(address)
-            if ps_num == self._args.get("ps_num"):
-                break
+
+        if self._args.get("mock"):
+            while True:
+                ps_num = 0
+                ps_cluster = []
+                dir_list = os.listdir("./")
+                for file in dir_list:
+                    if file.startswith("ps_address_"):
+                        ps_num += 1
+                        address = file.split("_")[-1]
+                        ps_cluster.append(address)
+                if ps_num == self._args.get("ps_num"):
+                    break
+        else:
+            while True:
+                ps_nodes, _ = master_client.query_ps_nodes()
+                ps_cluster = [i.addr for i in ps_nodes if i.addr != ""]
+                if len(ps_cluster) == self._args.get("ps_num"):
+                    break
         return ps_cluster
 
     def report_ps_address(self, address):
-        master_client.update_node_addr(self.task_type, self.task_id, address)
+        if self._args.get("mock"):
+            file_name = "ps_address_{}".format(address)
+            with open(file_name, "w") as f:
+                f.write("")
+        else:
+            master_client.update_node_addr(
+                self.task_type, self.task_id, address
+            )
 
     def run(self):
         global_dict = common_util.GlobalDict()
@@ -96,7 +114,8 @@ class TFRayWorker:
         logger.info("RayWorker is running!")
         self.estimator.start_server()
         address = self.estimator.address
-        self.task_id, self.task_type = self.parse_worker_type_and_id()
+        task_id, task_type = self.parse_worker_type_and_id()
+        self.task_id, self.task_type = task_id, task_type
         self.estimator.task_type = task_type
 
         if task_type != "ps":

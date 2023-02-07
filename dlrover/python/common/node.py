@@ -199,7 +199,7 @@ class Node(object):
     def update_resource_usage(self, cpu, memory):
         self.used_resource.cpu = round(cpu, 2)
         self.used_resource.memory = memory
-    
+
     def update_service_address(self, service_addr):
         self.service_addr = service_addr
 

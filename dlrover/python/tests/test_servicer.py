@@ -24,14 +24,20 @@ from dlrover.python.master.node.job_manager import create_job_manager
 from dlrover.python.master.servicer import MasterServicer
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.master.stats.job_collector import JobMetricCollector
-from dlrover.python.tests.test_utils import MockJobArgs, mock_k8s_client
+from dlrover.python.tests.test_utils import (
+    MockK8sJobArgs,
+    MockRayJobArgs,
+    mock_k8s_client,
+)
 from dlrover.python.util.queue.queue import RayEventQueue
 
 ray_event_queue = RayEventQueue.singleton_instance()
+
+
 class MasterServicerTest(unittest.TestCase):
     def setUp(self) -> None:
         mock_k8s_client()
-        params = MockJobArgs()
+        params = MockK8sJobArgs()
         params.initilize()
         speed_monitor = SpeedMonitor()
         self.task_manager = TaskManager(False, speed_monitor)
@@ -156,6 +162,27 @@ class MasterServicerTest(unittest.TestCase):
             res.ps_nodes[0].addr, "test-edljob-ps-0.default.svc:2222"
         )
 
+
+class MasterServicerForRayTest(unittest.TestCase):
+    def setUp(self) -> None:
+        params = MockRayJobArgs()
+        params.initilize()
+        speed_monitor = SpeedMonitor()
+        self.task_manager = TaskManager(False, speed_monitor)
+        self.job_manager = create_job_manager(params, speed_monitor)
+        self.job_metric_collector = JobMetricCollector(
+            "1", "default", "local", "dlrover"
+        )
+        self.elastic_ps_service = ElasticPsService()
+        self.servicer = MasterServicer(
+            task_manager=self.task_manager,
+            job_manager=self.job_manager,
+            speed_monitor=speed_monitor,
+            rendezvous_server=None,
+            job_metric_collector=self.job_metric_collector,
+            elastic_ps_service=self.elastic_ps_service,
+        )
+
     def test_update_node_addr(self):
         request = elastic_training_pb2.NodeMeta()
         task_id = 1
@@ -166,10 +193,14 @@ class MasterServicerTest(unittest.TestCase):
         request.addr = "localhost:5001"
         self.job_manager._init_nodes()
         self.servicer.update_node_addr(request, None)
-        self.assertEqual(self.job_manager._job_nodes[task_type][task_id].service_addr,  addr)
-        import pdb 
-        pdb.set_trace()
+        self.assertEqual(
+            self.job_manager._job_nodes[task_type][task_id].service_addr, addr
+        )
+        for node in self.job_manager._job_nodes[NodeType.PS].values():
+            node.status = NodeStatus.RUNNING
         res = self.servicer.query_ps_nodes(request, None)
+        self.assertEqual(addr, res.ps_nodes[task_id].addr)
+        self.assertEqual("", res.ps_nodes[0].addr)
 
     def test_update_node_event(self):
         request = elastic_training_pb2.NodeEvent()
@@ -180,7 +211,5 @@ class MasterServicerTest(unittest.TestCase):
         request.event_type = "Deleted"
         request.message = "OOM"
         self.servicer.update_node_event(request, None)
-        event  = ray_event_queue.get()
+        event = ray_event_queue.get()
         event["message"] = "OOM"
- 
- 

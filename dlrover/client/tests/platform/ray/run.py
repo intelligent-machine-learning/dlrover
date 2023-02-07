@@ -56,8 +56,6 @@ class RayWorker:
         logging.info("getting o {}".format(ray.get(o)))
 
 
-
-
 if __name__ == "__main__":
     ray_worker = RayWorker()
     logging.error("aaaaaaaaaaa")

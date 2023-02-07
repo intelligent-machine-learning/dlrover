@@ -55,8 +55,10 @@ from dlrover.python.master.resource.optimizer import ResourcePlan
 from dlrover.python.master.scaler.base_scaler import ScalePlan, Scaler
 from dlrover.python.master.scaler.factory import new_job_scaler
 from dlrover.python.master.watcher.base_watcher import NodeEvent
-from dlrover.python.master.watcher.factory import new_node_watcher
-from dlrover.python.master.watcher.k8s_watcher import ScalePlanWatcher
+from dlrover.python.master.watcher.factory import (
+    new_node_watcher,
+    new_scale_plan_watcher,
+)
 from dlrover.python.scheduler.factory import new_elastic_job
 from dlrover.python.scheduler.job import ElasticJob, JobArgs
 
@@ -119,17 +121,11 @@ class JobManager(object):
         self._elastic_job: ElasticJob = job
         self._node_watcher = node_watcher
 
-        class ScalePlanWatcher:
-            def __init__(self, job_name, namespace):
-                self.job_name = job_name
-                self.namespace = namespace
-
-            def watch(self):
-                while True:
-                    yield None
-
-        self._scaler_watcher = ScalePlanWatcher(
-            job_args.namespace, job_args.job_name, job_args.job_uuid
+        self._scaler_watcher = new_scale_plan_watcher(
+            job_args.platform,
+            job_args.job_name,
+            job_args.namespace,
+            job_args.job_uuid,
         )
         self._scaler: Scaler = job_scaler
         self._job_optimizer = JobResourceOptimizer(

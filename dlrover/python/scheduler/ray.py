@@ -34,7 +34,7 @@ class RayWorker:  # pragma: no cover
     def exec_module(self):
         pass
 
-    def get_actor_address_and_port(self):
+    def get_node_service_addr(self):
         return None
 
 
@@ -147,7 +147,7 @@ class RayElasticJob(ElasticJob):
         return "pod-name"
 
     def get_node_service_addr(self, type, id):
-        pass
+        return ""
 
 
 class RayJobArgs(JobArgs):

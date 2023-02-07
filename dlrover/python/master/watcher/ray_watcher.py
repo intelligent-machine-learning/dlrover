@@ -65,6 +65,17 @@ def parse_type_id_from_actor_name(name):
     return node_type, node_index
 
 
+class RayScalePlanWatcher:
+    def __init__(self, job_name, namespace, job_uuid):
+        self.job_name = job_name
+        self.namespace = namespace
+        self.job_uuid = job_uuid
+
+    def watch(self):
+        while True:
+            yield None
+
+
 class ActorWatcher(NodeWatcher):
     """PodWatcher monitors all Pods of a k8s Job."""
 
