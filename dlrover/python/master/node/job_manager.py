@@ -119,7 +119,7 @@ class JobManager(object):
         self._elastic_job: ElasticJob = job
         self._node_watcher = node_watcher
         self._scaler_watcher = ScalePlanWatcher(
-            job_args.job_name, job_args.namespace
+            job_args.namespace, job_args.job_name, job_args.job_uuid
         )
         self._scaler: Scaler = job_scaler
         self._job_optimizer = JobResourceOptimizer(
@@ -595,17 +595,17 @@ class JobManager(object):
                     group.node_resource.cpu,
                     group.node_resource.memory,
                 )
-                scale_plan.node_group_resources[node_type] = copy.deepcopy(
-                    self._job_resource.get_node_group_resource(node_type)
-                )
+                group = self._job_resource.get_node_group_resource(node_type)
                 if node_type == NodeType.PS:
-                    self._ps_manager.adjust_ps(group)
+                    ps_plan = self._ps_manager.adjust_ps(group)
+                    scale_plan.merge(ps_plan)
                     self._speed_monitor.reset_running_speed_monitor()
                 elif node_type == NodeType.WORKER:
                     chief_num = len(self._job_nodes.get(NodeType.CHIEF, []))
                     worker_num = chief_num + group.count
                     self._speed_monitor.set_target_worker_num(worker_num)
-                    self._worker_manager.adjust_worker(group)
+                    worker_plan = self._worker_manager.adjust_worker(group)
+                    scale_plan.merge(worker_plan)
         if len(plan.node_resources) > 0:
             migration_plan = self._migrate_nodes(plan.node_resources)
             scale_plan.merge(migration_plan)

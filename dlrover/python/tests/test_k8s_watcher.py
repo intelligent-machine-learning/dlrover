@@ -108,7 +108,7 @@ class ScalePlanWatcherTest(unittest.TestCase):
         mock_k8s_client()
 
     def test_get_resource_plan_from_scale_plan(self):
-        watcher = ScalePlanWatcher("test", "default")
+        watcher = ScalePlanWatcher("test", "default", "1234")
         scale_plan = get_test_scale_plan()
         resource_plan: ResourcePlan = watcher._get_resoruce_plan_from_event(
             scale_plan

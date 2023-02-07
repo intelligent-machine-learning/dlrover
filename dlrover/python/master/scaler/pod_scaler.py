@@ -496,7 +496,6 @@ class PodScaler(Scaler):
             target_port=NODE_SERVICE_PORTS[pod_type],
             replica_type=pod_type,
             replica_index=id,
-            owner=self._job,
         )
         return self._k8s_client.patch_service(service_name, service)
 
