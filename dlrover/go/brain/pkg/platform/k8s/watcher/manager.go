@@ -23,15 +23,27 @@ import (
 	handlerimpl "github.com/intelligent-machine-learning/easydl/brain/pkg/platform/k8s/implementation/watchhandler"
 	watchercommon "github.com/intelligent-machine-learning/easydl/brain/pkg/platform/k8s/watcher/common"
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/api/v1alpha1"
+	"k8s.io/client-go/kubernetes"
 	k8smanager "sigs.k8s.io/controller-runtime/pkg/manager"
 	"sync"
 )
 
+const (
+	logName = "k8s-watcher"
+)
+
 // Manager is the struct of watcher manager
 type Manager struct {
-	conf                      *config.Config
-	handlerConf               *config.Config
-	handlerConfigManager      *config.Manager
+	watcherConf          *config.Config
+	watcherConfigManager *config.Manager
+
+	handlerConf          *config.Config
+	handlerConfigManager *config.Manager
+
+	dsManager *datastore.Manager
+
+	kubeClientSet kubernetes.Interface
+
 	watchHandlerRegisterFuncs map[string]handlerimpl.RegisterWatchHandlerFunc
 	managerMutex              *sync.Mutex
 	kubeWatcher               *watchercommon.KubeWatcher
@@ -45,12 +57,10 @@ func NewManager(conf *config.Config) (*Manager, error) {
 	configMapKey := conf.GetString(config.KubeWatcherConfigMapKey)
 	kubeClientSet := conf.GetKubeClientInterface()
 
-	configManager := config.NewManager(namespace, configMapName, configMapKey, kubeClientSet)
-
 	manager := &Manager{
-		conf:                      conf,
+		watcherConfigManager:      config.NewManager(namespace, configMapName, configMapKey, kubeClientSet),
+		kubeClientSet:             kubeClientSet,
 		watchHandlerRegisterFuncs: handlerimpl.GetRegisterWatchHandlerFuncs(),
-		handlerConfigManager:      configManager,
 		managerMutex:              &sync.Mutex{},
 	}
 	return manager, nil
@@ -63,50 +73,81 @@ func (manager *Manager) CleanUp() error {
 
 // Run starts the manager
 func (manager *Manager) Run(ctx context.Context, errReporter common.ErrorReporter, errHandler common.ErrorHandler) error {
-	err := manager.handlerConfigManager.Run(ctx, errReporter)
+	err := manager.watcherConfigManager.Run(ctx, errReporter)
 	if err != nil {
-		err = fmt.Errorf("failed to initialize watch handler config manager: %v", err)
+		err = fmt.Errorf("[%s] failed to initialize watch handler config manager: %v", logName, err)
 		log.Error(err)
 		return err
 	}
-	manager.handlerConf, err = manager.handlerConfigManager.GetConfig()
+	manager.watcherConf, err = manager.watcherConfigManager.GetConfig()
 	if err != nil {
-		log.Errorf("fail to get watch handler config: %v", err)
+		log.Errorf("[%s] fail to get watch handler config: %v", logName, err)
 		return err
 	}
+	log.Infof("[%s] k8s watcher config: %v", logName, manager.watcherConf)
 
 	opts := watchercommon.KubeWatchOptions{
 		Options: k8smanager.Options{
-			MetricsBindAddress:      manager.conf.GetString(config.KubeWatcherMetricsAddress),
-			LeaderElection:          manager.conf.GetBool(config.KubeWatcherEnableLeaderElect),
-			LeaderElectionID:        fmt.Sprintf("%s-k8sResWatchHandlerManager-leader", manager.conf.GetString(config.Namespace)),
-			LeaderElectionNamespace: manager.conf.GetString(config.Namespace),
-			Namespace:               manager.conf.GetString(config.Namespace),
+			MetricsBindAddress:      manager.watcherConf.GetString(config.KubeWatcherMetricsAddress),
+			LeaderElection:          manager.watcherConf.GetBool(config.KubeWatcherEnableLeaderElect),
+			LeaderElectionID:        fmt.Sprintf("%s-k8s-watcher-mananger-leader", manager.watcherConf.GetString(config.Namespace)),
+			LeaderElectionNamespace: manager.watcherConf.GetString(config.Namespace),
+			Namespace:               manager.watcherConf.GetString(config.Namespace),
 		},
 	}
 
 	manager.kubeWatcher, err = watchercommon.NewKubeWatcher(ctx, errHandler, opts)
 	if err != nil {
-		log.Errorf("Failed to new the kubeWatch with err: %v", err)
+		log.Errorf("[%s] failed to new the kubeWatch with err: %v", logName, err)
 		return err
 	}
 
 	// Start the kubeWatcher
 	if err = manager.kubeWatcher.Start(); err != nil {
-		log.Errorf("Failed to start the kubeWatch with err: %v", err)
+		log.Errorf("[%s] failed to start the kubeWatch with err: %v", logName, err)
 		return err
 	}
 
-	manager.registerWatchHandlers(ctx, errReporter)
+	dsConf := config.NewEmptyConfig()
+	dsConf.Set(config.KubeClientInterface, manager.kubeClientSet)
+	dsConf.Set(config.DataStoreConfigMapName, manager.watcherConf.GetString(config.DataStoreConfigMapName))
+	dsConf.Set(config.DataStoreConfigMapKey, manager.watcherConf.GetString(config.DataStoreConfigMapKey))
+	dsConf.Set(config.Namespace, manager.watcherConf.GetString(config.Namespace))
+
+	manager.dsManager = datastore.NewManager(dsConf)
+	err = manager.dsManager.Run(ctx, errReporter)
+	if err != nil {
+		log.Errorf("[%s] fail to run the data store manager: %v", logName, err)
+		return err
+	}
+
+	namespace := manager.watcherConf.GetString(config.Namespace)
+	configMapName := manager.watcherConf.GetString(config.KubeWatcherHandlerConfigMapName)
+	configMapKey := manager.watcherConf.GetString(config.KubeWatcherHandlerConfigMapKey)
+	kubeClientSet := manager.kubeClientSet
+	manager.handlerConfigManager = config.NewManager(namespace, configMapName, configMapKey, kubeClientSet)
+	err = manager.handlerConfigManager.Run(ctx, errReporter)
+	if err != nil {
+		log.Errorf("[%s] fail to run k8s watcher handler config manager: %v", logName, err)
+		return err
+	}
+
+	manager.handlerConf, err = manager.handlerConfigManager.GetConfig()
+	if err != nil {
+		log.Errorf("[%s] fail to get k8s watcher handler config: %v", logName, err)
+		return err
+	}
+
+	manager.registerWatchHandlers(ctx)
 	return nil
 }
 
 // Create and start a watch handler
-func (manager *Manager) createAndRegisterWatchHandler(ctx context.Context, dataStoreManager *datastore.Manager, name string, conf *config.Config) error {
+func (manager *Manager) createAndRegisterWatchHandler(name string, conf *config.Config) error {
 	dataStoreName := conf.GetString(config.DataStoreName)
-	dataStore, err := dataStoreManager.CreateDataStore(dataStoreName)
+	dataStore, err := manager.dsManager.CreateDataStore(dataStoreName)
 	if err != nil {
-		log.Errorf("fail to create data store %s for watcher handler %s: %v", dataStoreName, name, err)
+		log.Errorf("[%s] fail to create data store %s for watcher handler %s: %v", logName, dataStoreName, name, err)
 		return err
 	}
 	registerFunc, found := manager.watchHandlerRegisterFuncs[name]
@@ -124,17 +165,9 @@ func (manager *Manager) createAndRegisterWatchHandler(ctx context.Context, dataS
 }
 
 // Update watch handler according to the configuration
-func (manager *Manager) registerWatchHandlers(ctx context.Context, errReporter common.ErrorReporter) error {
-	log.Infof("Update watch handlers based on config: %v", manager.conf)
+func (manager *Manager) registerWatchHandlers(ctx context.Context) error {
 	manager.managerMutex.Lock()
 	defer manager.managerMutex.Unlock()
-
-	dsManager := datastore.NewManager(manager.conf)
-	err := dsManager.Run(ctx, errReporter)
-	if err != nil {
-		log.Errorf("fail to run the data store mananger: %v", err)
-		return err
-	}
 
 	manager.registerSchema()
 	watchHandlerNames := manager.handlerConf.GetKeys()
@@ -144,8 +177,9 @@ func (manager *Manager) registerWatchHandlers(ctx context.Context, errReporter c
 			log.Errorf("Fail to get the config for watch handler %s", watchHandlerName)
 			continue
 		}
+		log.Infof("watch handler %s config: %v", watchHandlerName, watchHandlerConfig)
 
-		if err = manager.createAndRegisterWatchHandler(ctx, dsManager, watchHandlerName, watchHandlerConfig); err != nil {
+		if err := manager.createAndRegisterWatchHandler(watchHandlerName, watchHandlerConfig); err != nil {
 			log.Errorf("Fail to create and register WatchHandler %s: %v", watchHandlerName, err)
 			continue
 		}

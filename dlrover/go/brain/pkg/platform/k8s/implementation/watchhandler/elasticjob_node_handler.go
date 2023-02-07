@@ -22,6 +22,7 @@ import (
 	handlerutils "github.com/intelligent-machine-learning/easydl/brain/pkg/platform/k8s/implementation/watchhandler/utils"
 	watchercommon "github.com/intelligent-machine-learning/easydl/brain/pkg/platform/k8s/watcher/common"
 	"k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"time"
 )
@@ -64,7 +65,11 @@ func registerElasticJobNodeHandler(kubeWatcher *watchercommon.KubeWatcher, name 
 
 // HandleCreateEvent handles create events
 func (handler *ElasticJobNodeHandler) HandleCreateEvent(object runtime.Object, event watchercommon.Event) error {
-	node := object.(*v1.Pod)
+	node := &v1.Pod{}
+	unstructObj := object.(*unstructured.Unstructured)
+
+	runtime.DefaultUnstructuredConverter.FromUnstructured(unstructObj.Object, node)
+
 	log.Infof("Job node %s is created", node.Name)
 
 	record := &mysql.JobNode{

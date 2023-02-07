@@ -83,7 +83,7 @@ func (optimizer *JobPSInitAdjustResourceOptimizer) Optimize(conf *optconfig.Opti
 	cond = &datastoreapi.Condition{
 		Type: common.TypeGetDataGetJob,
 		Extra: &mysql.JobCondition{
-			JobUUID: jobMeta.UUID,
+			UID: jobMeta.UUID,
 		},
 	}
 	job := &mysql.Job{}
@@ -106,7 +106,7 @@ func (optimizer *JobPSInitAdjustResourceOptimizer) Optimize(conf *optconfig.Opti
 	jobStatus := &common.JobStatus{}
 	err = json.Unmarshal([]byte(job.Status), jobStatus)
 	if err != nil {
-		log.Errorf("fail to unmarshal job status %s for %s: %v", job.Status, job.JobName, err)
+		log.Errorf("fail to unmarshal job status %s for %s: %v", job.Status, job.Name, err)
 	} else if jobStatus.IsOOM {
 		isOom = true
 	}

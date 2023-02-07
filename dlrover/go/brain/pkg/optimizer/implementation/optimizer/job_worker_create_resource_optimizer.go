@@ -65,7 +65,7 @@ func (optimizer *JobWorkerCreateResourceOptimizer) Optimize(conf *optconfig.Opti
 	cond := &datastoreapi.Condition{
 		Type: common.TypeGetDataGetJob,
 		Extra: &mysql.JobCondition{
-			JobUUID: jobMeta.UUID,
+			UID: jobMeta.UUID,
 		},
 	}
 	job := &mysql.Job{}
@@ -116,12 +116,12 @@ func (optimizer *JobWorkerCreateResourceOptimizer) Optimize(conf *optconfig.Opti
 		cond = &datastoreapi.Condition{
 			Type: common.TypeGetDataGetJobMetrics,
 			Extra: &mysql.JobMetricsCondition{
-				UID: historyJob.JobUUID,
+				UID: historyJob.UID,
 			},
 		}
 		err = optimizer.dataStore.GetData(cond, historyJobMetrics)
 		if err != nil {
-			log.Errorf("fail to get job metrics for %s: %v", historyJob.JobName, err)
+			log.Errorf("fail to get job metrics for %s: %v", historyJob.Name, err)
 			continue
 		}
 		dbHistoryJobsMetrics = append(dbHistoryJobsMetrics, historyJobMetrics)
@@ -151,7 +151,7 @@ func (optimizer *JobWorkerCreateResourceOptimizer) Optimize(conf *optconfig.Opti
 	jobStatus := &common.JobStatus{}
 	err = json.Unmarshal([]byte(job.Status), jobStatus)
 	if err != nil {
-		log.Warningf("fail to unmarshal status for %s with %s: %v", job.JobName, job.Status, err)
+		log.Warningf("fail to unmarshal status for %s with %s: %v", job.Name, job.Status, err)
 	} else {
 		oom = jobStatus.IsOOM
 	}

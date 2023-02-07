@@ -50,6 +50,10 @@ const (
 	KubeWatcherMetricsAddress = "kube-watcher.metrics-address"
 	// KubeWatcherEnableLeaderElect is key of if enable leader select of kube watcher
 	KubeWatcherEnableLeaderElect = "kube-watcher.leader-elect.enable"
+	// KubeWatcherHandlerConfigMapName is the name of kube watcher handler config map
+	KubeWatcherHandlerConfigMapName = "kube-watcher.handler.config-map.name"
+	// KubeWatcherHandlerConfigMapKey is the key of kube watcher handler config map
+	KubeWatcherHandlerConfigMapKey = "kube-watcher.handler.config-map.key"
 
 	// QueryBackwardTimePeriodInHour is the config key for query backward time period in hour
 	QueryBackwardTimePeriodInHour = "query.backward.time-period.hour"

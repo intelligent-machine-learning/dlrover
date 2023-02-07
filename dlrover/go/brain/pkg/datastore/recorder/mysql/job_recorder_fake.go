@@ -31,10 +31,10 @@ func NewJobFakeRecorder() JobRecorderInterface {
 }
 
 func canApplyJobCondition(c *JobCondition, job *Job) bool {
-	if len(c.JobUUID) > 0 && c.JobUUID != job.JobUUID {
+	if len(c.UID) > 0 && c.UID != job.UID {
 		return false
 	}
-	if len(c.JobName) > 0 && c.JobName != job.JobName {
+	if len(c.Name) > 0 && c.Name != job.Name {
 		return false
 	}
 	if len(c.Scenario) > 0 && c.Scenario != job.Scenario {
@@ -82,9 +82,9 @@ func (r *JobFakeRecorder) List(condition *JobCondition, jobs *[]*Job) error {
 
 // Upsert insert or update a row
 func (r *JobFakeRecorder) Upsert(job *Job) error {
-	if len(job.JobUUID) == 0 {
+	if len(job.UID) == 0 {
 		return errors.New("CID can not be empty")
 	}
-	r.records[job.JobUUID] = job
+	r.records[job.UID] = job
 	return nil
 }
