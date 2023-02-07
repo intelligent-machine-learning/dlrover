@@ -167,10 +167,12 @@ class MasterServicerTest(unittest.TestCase):
         self.job_manager._init_nodes()
         self.servicer.update_node_addr(request, None)
         self.assertEqual(self.job_manager._job_nodes[task_type][task_id].service_addr,  addr)
+        import pdb 
+        pdb.set_trace()
+        res = self.servicer.query_ps_nodes(request, None)
 
     def test_update_node_event(self):
         request = elastic_training_pb2.NodeEvent()
-
         task_id = 1
         task_type = NodeType.PS
         request.node.type = task_type

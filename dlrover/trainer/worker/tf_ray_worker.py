@@ -25,7 +25,8 @@ from dlrover.trainer.tensorflow.failover.tensorflow_failover import (
 from dlrover.trainer.tensorflow.util import common_util
 from dlrover.trainer.util.conf_util import get_conf
 from dlrover.trainer.util.log_util import default_logger as logger
-
+from dlrover.python.elastic_agent.master_client import GlobalMasterClient
+master_client = GlobalMasterClient.MASTER_CLIENT
 
 class TFRayWorker:
     """TFRayWorker"""
@@ -86,9 +87,7 @@ class TFRayWorker:
         return ps_cluster
 
     def report_ps_address(self, address):
-        file_name = "ps_address_{}".format(address)
-        with open(file_name, "w") as f:
-            f.write("")
+        master_client.update_node_addr(self.task_type, self.task_id, address)
 
     def run(self):
         global_dict = common_util.GlobalDict()
@@ -97,7 +96,7 @@ class TFRayWorker:
         logger.info("RayWorker is running!")
         self.estimator.start_server()
         address = self.estimator.address
-        task_id, task_type = self.parse_worker_type_and_id()
+        self.task_id, self.task_type = self.parse_worker_type_and_id()
         self.estimator.task_type = task_type
 
         if task_type != "ps":
