@@ -269,7 +269,15 @@ class MasterClient(object):
         request.version_type = version_type
         request.task_type = task_type
         return self._stub.get_cluster_version(request)
+    
+    def update_node_addr(self, task_type, task_id, node_addr):
+        request = elastic_training_pb2.NodeMeta()
+        request.id = task_id 
+        request.type = task_type
+        request.addr = node_addr
+        return self._stub.update_node_address(request)
 
+    
     @retry_grpc_request
     def update_cluster_version(
         self, version_type, version, task_type, task_id

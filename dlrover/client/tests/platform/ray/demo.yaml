@@ -1,6 +1,6 @@
 ---
 distributionStrategy: ParameterServerStrategy
-dashboardUrl: "localhost:5000"
+dashboardUrl: "host.docker.internal:8265"
 command: "python run.py"
 spec:
   replicaSpecs:

@@ -511,6 +511,10 @@ class JobManager(object):
         node = self._job_nodes[node_type][node_id]
         node.update_resource_usage(cpu, memory)
 
+    def update_node_service_addr(self, node_type, node_id, service_addr):
+        node = self._job_nodes[node_type][node_id]
+        node.update_service_address(service_addr)
+
     def get_cur_cluster_ps(self):
         """Get PS nodes in the current training cluster."""
         return self._ps_manager.get_training_ps_cluster()

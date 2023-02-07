@@ -44,18 +44,18 @@ class RayWorker:
         self.actor_names = []
 
     def schedule(self):
+        i = 1
+        actor_name = "actor{}".format(i)
+        self.actor_names.append(actor_name)
+        r = Run.options(name=actor_name).remote(i)
+        actor_id = ray.get_actor(actor_name)
+        logging.info("actor_id  {}".format(actor_id))
+        actor_id = ray.get_actor(actor_name)
+        o = r.run.remote()
+        logging.info("actor_id  {}".format(actor_id))
+        logging.info("getting o {}".format(ray.get(o)))
 
-        for i in range(3):
-            actor_name = "actor{}".format(i)
-            self.actor_names.append(actor_name)
-            r = Run.options(name=actor_name).remote(i)
-            actor_id = ray.get_actor(actor_name)
-            logging.error("actor_id  {}".format(actor_id))
-            o = r.run.remote()
-            logging.error("getting o {}".format(ray.get(o)))
 
-            actor_id = ray.get_actor("not_exist")
-            logging.error("actor_id  {}".format(actor_id))
 
 
 if __name__ == "__main__":

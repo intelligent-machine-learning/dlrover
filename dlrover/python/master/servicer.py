@@ -348,6 +348,12 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             )
         return empty_pb2.Empty()
 
+    def update_node_address(self, reqeuest, _):
+        task_type = reqeuest.task_type
+        task_id = reqeuest.task_id
+        server_addr = reqeuest.addr
+        self._job_manager.update_node_service_addr(task_type, task_id, server_addr)
+
     def query_ps_nodes(self, request, _):
         training_ps: List[Node] = self._job_manager.get_next_cluster_ps()
         ready = self._job_manager.ready_for_new_ps_cluster()
