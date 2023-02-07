@@ -279,7 +279,7 @@ class MasterClient(object):
 
 
     def update_node_event(self, task_type, task_id, event):
-        request = elastic_training_pb2.Event()
+        request = elastic_training_pb2.NodeEvent()
         return self._stub.update_node_event(request)
 
     

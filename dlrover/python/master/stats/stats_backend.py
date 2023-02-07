@@ -33,7 +33,7 @@ def parse_yaml_file(file_path):
 
 class LocalFileStateBackend:
     def __init__(self, file_path):
-        self.file_path = file_path
+        self.file_path = "/home/dlrover/python/tests/test.json"
         self.data = {}
 
     def load(self):

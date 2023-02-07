@@ -25,8 +25,9 @@ from dlrover.python.master.servicer import MasterServicer
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.master.stats.job_collector import JobMetricCollector
 from dlrover.python.tests.test_utils import MockJobArgs, mock_k8s_client
+from dlrover.python.util.queue.queue import RayEventQueue
 
-
+ray_event_queue = RayEventQueue.singleton_instance()
 class MasterServicerTest(unittest.TestCase):
     def setUp(self) -> None:
         mock_k8s_client()
@@ -154,3 +155,30 @@ class MasterServicerTest(unittest.TestCase):
         self.assertEqual(
             res.ps_nodes[0].addr, "test-edljob-ps-0.default.svc:2222"
         )
+
+    def test_update_node_addr(self):
+        request = elastic_training_pb2.NodeMeta()
+        task_id = 1
+        task_type = NodeType.PS
+        addr = "localhost:5001"
+        request.type = task_type
+        request.id = task_id
+        request.addr = "localhost:5001"
+        self.job_manager._init_nodes()
+        self.servicer.update_node_addr(request, None)
+        self.assertEqual(self.job_manager._job_nodes[task_type][task_id].service_addr,  addr)
+
+    def test_update_node_event(self):
+        request = elastic_training_pb2.NodeEvent()
+
+        task_id = 1
+        task_type = NodeType.PS
+        request.node.type = task_type
+        request.node.id = task_id
+        request.event_type = "Deleted"
+        request.message = "OOM"
+        self.servicer.update_node_event(request, None)
+        event  = ray_event_queue.get()
+        event["message"] = "OOM"
+ 
+ 

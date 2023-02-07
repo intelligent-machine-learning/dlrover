@@ -202,7 +202,7 @@ message QueryPsNodesResponse {
 
 message NodeMeta {
   string type = 1;
-  int32 id = 2
+  int32 id = 2;
   string addr = 3;
   int32 memory = 4;
   int32 cpu = 5;
@@ -212,7 +212,8 @@ message NodeMeta {
 
 message NodeEvent{
   string event_type = 1;
-  node NodeMeta = 2; 
+  NodeMeta node = 2; 
+  string message = 3;
 }
 
 message RunningNodes { repeated NodeMeta nodes = 1; }
@@ -276,6 +277,6 @@ service Master {
       returns (google.protobuf.Empty);
 
   rpc report_prestop(ReportPreStopRequest) returns (google.protobuf.Empty);
-  rpc update_node_addr(NodeMeta) returns (google.protobuf.empty)
-  rpc update_node_event(NodeEvent) returns (google.protobuf.empty)
+  rpc update_node_addr(NodeMeta) returns (google.protobuf.Empty);
+  rpc update_node_event(NodeEvent) returns (google.protobuf.Empty);
 }

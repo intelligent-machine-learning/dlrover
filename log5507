@@ -1,0 +1,3 @@
+[2023-02-07 06:14:21,381] [WARNING][deprecation.py:323:new_func] From /usr/local/lib/python3.6/site-packages/tensorflow_core/python/compat/v2_compat.py:68: disable_resource_variables (from tensorflow.python.ops.variable_scope) is deprecated and will be removed in a future version.
+Instructions for updating:
+non-resource variables are not supported in the long term

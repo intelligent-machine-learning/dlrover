@@ -31,10 +31,13 @@ from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.master.stats.job_collector import JobMetricCollector
 from dlrover.python.master.stats.training_metrics import OpStats, TensorStats
 from dlrover.python.master.watcher.base_watcher import Node
+from dlrover.python.util.queue.queue import RayEventQueue
+from dlrover.python.master.watcher.base_watcher import NodeEvent
+
 
 _dlrover_context = Context.singleton_instance()
 _DEFAULT_NUM_MINIBATCHES_PER_SHARD = 100
-
+ray_event_queue = RayEventQueue.singleton_instance()
 
 class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
     """Master service implementation"""
@@ -348,14 +351,21 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             )
         return empty_pb2.Empty()
 
-    def update_node_address(self, reqeuest, _):
-        task_type = reqeuest.task_type
-        task_id = reqeuest.task_id
+    def update_node_addr(self, reqeuest, _):
+ 
+        task_type = reqeuest.type
+        task_id = reqeuest.id
         server_addr = reqeuest.addr
         self._job_manager.update_node_service_addr(task_type, task_id, server_addr)
     
     def update_node_event(self, request, _):
-        pass 
+ 
+        event_type = request.event_type
+        message = request.message 
+        event = {"event_type":event_type, "id":request.node.id, "type":request.node.type}
+        ray_event_queue.put(event)
+           
+ 
 
     def query_ps_nodes(self, request, _):
         training_ps: List[Node] = self._job_manager.get_next_cluster_ps()

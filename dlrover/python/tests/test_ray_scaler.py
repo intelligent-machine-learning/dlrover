@@ -14,7 +14,7 @@
 import os
 import unittest
 
-from dlrover.python.master.scaler.ray_watcher import ActorWatcher
+from dlrover.python.master.watcher.ray_watcher import ActorWatcher
 
 
 class ActorWatcherTest(unittest.TestCase):
