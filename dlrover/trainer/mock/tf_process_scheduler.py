@@ -189,9 +189,6 @@ class TFProcessScheduler(BaseProcessScheduler):
         ps_process = self.start_ps_process()
         evaluator_process = self.start_evaluator_process()
         worker_process = self.start_worker_process()
-        import time
-
-        time.sleep(100)
         self.all_processes = {
             "chief_process": chief_process,
             "ps_process": ps_process,

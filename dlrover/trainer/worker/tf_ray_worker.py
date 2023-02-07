@@ -124,6 +124,8 @@ class TFRayWorker:
                 "cluster": {"ps": ps_cluster, task_type: [address]},
                 "task": {"type": task_type, "index": task_id},
             }
+            if task_type == "evaluator":
+                tf_config["cluster"]["chief"] = ["localhost:1001"]
             self.estimator.set_tf_config(tf_config)
         # upload server address
         # get_current_server address
