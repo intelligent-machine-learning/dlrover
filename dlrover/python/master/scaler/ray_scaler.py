@@ -15,13 +15,19 @@ import threading
 from typing import Dict, List
 
 import ray
+from type import Optional
 
-from dlrover.python.common.constants import NodeStatus, NodeType
+from dlrover.python.common.constants import NodeStatus
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeResource
 from dlrover.python.master.scaler.base_scaler import ScalePlan, Scaler
 from dlrover.python.scheduler.ray import RayClient
+from dlrover.python.util.actor_util.parse_actor import (
+    parse_type_id_from_actor_name,
+)
 from dlrover.python.util.reflect_util import get_class
+
+ray.init()
 
 
 class ActorArgs:
@@ -33,43 +39,6 @@ class ActorArgs:
 
     def get(self, key, default_value=None):
         return getattr(self, key, default_value)
-
-
-def parse_type(name) -> str:
-    name = name.lower()
-    node_type: str = ""
-    if NodeType.PS in name:
-        node_type = NodeType.PS
-    elif NodeType.EVALUATOR in name:
-        node_type = NodeType.EVALUATOR
-    elif NodeType.WORKER in name:
-        node_type = NodeType.WORKER
-    return node_type
-
-
-def parse_index(name) -> int:
-    """
-    PsActor_1 split("_")[-1]
-    TFSinkFunction-4|20 split("|").split("-")[-1]
-    """
-    node_type = parse_type(name)
-    node_index: int = 0
-    if node_type == NodeType.PS:
-        node_index = int(name.split("_")[-1])
-    elif node_type == NodeType.EVALUATOR:
-        node_index = 1
-    elif node_type == NodeType.WORKER:
-        node_index = int(name.split("|")[0].split("-")[-1])
-    return node_index
-
-
-def parse_type_id_from_actor_name(name):
-    node_type = parse_type(name)
-    node_index = parse_index(name)
-    return node_type, node_index
-
-
-ray.init()
 
 
 class ActorScaler(Scaler):
@@ -88,20 +57,26 @@ class ActorScaler(Scaler):
         self._plan = plan
         logger.info("Scale the job by plan %s", plan.toJSON())
         with self._lock:
+            logger.info("self._stats_alive_actors()")
             alive_actors = self._stats_alive_actors()
             for type, group_resource in plan.node_group_resources.items():
                 cur_actors = alive_actors.get(type)
-                cur_actors = []
+                logger.info("cur_actors {}".format(cur_actors))
                 if group_resource.count > len(alive_actors):
                     self._scale_up_actors(type, plan, cur_actors)
                 elif group_resource.count < len(alive_actors):
+                    logger.info(group_resource.count)
                     self._scale_down_actors(type, plan, cur_actors)
 
-    def _stats_alive_actors(self):
+    def _stats_alive_actors(self) -> Dict[str, List[Node]]:
+        logger.info("_stats_alive_actors")
         job_pods: Dict[str, List[Node]] = {}
         resource = NodeResource(1, 1024)  # to do 使用存储后端
         for name, status in self._ray_client.list_actor():
+            logger.info("{} {}".format(name, status))
             actor_type, actor_index = parse_type_id_from_actor_name(name)
+            if actor_type not in job_pods:
+                job_pods[actor_type] = []
             node = Node(
                 node_type=actor_type,
                 node_id=name,
@@ -117,14 +92,14 @@ class ActorScaler(Scaler):
                 NodeStatus.SUCCEEDED,
             ]:
                 job_pods[actor_type].append(node)
-
+            job_pods[actor_type].append(node)
         return job_pods
 
     def _scale_up_actors(
         self,
         type,
         plan: ScalePlan,
-        cur_actors: List[Node],
+        cur_actors: Optional[List[Node]],
     ):
         print(cur_actors)
         v = plan.node_group_resources[type]
@@ -157,8 +132,13 @@ class ActorScaler(Scaler):
         self,
         type,
         plan: ScalePlan,
-        cur_actors: List[Node],
+        cur_actors: Optional[List[Node]],
     ):
-        print(type)
-        print(plan)
-        print(cur_actors)
+        logger.info(ScalePlan)
+        logger.info(cur_actors)
+        logger.info(type)
+        if type == "ps":
+            actor_name = "PsActor_0"
+        elif type == "worker":
+            actor_name = "PythonWorker-0|1"
+        self._ray_client.delete_actor(actor_name)

@@ -10,6 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from dlrover.python.common.log import default_logger as logger
 
 
 class MemoryStore:
@@ -24,15 +25,25 @@ class MemoryStore:
         return self.__data_map.get(key, default_value)
 
     def put(self, key, value):
+        logger.info("putting key value {} and {}".format(key, value))
         self.__data_map[key] = value
 
     def delete(self, key):
         del self.__data_map[key]
 
-    def add_actor_name(self, actor_name):
-        actor_names = self.get("actor_names", [])
-        actor_names.append(actor_name)
+    def add_actor_name(self, actor_type, actor_id, actor_name):
+        logger.info("add actor name")
+        actor_names = self.get("actor_names", {})
+        actor_id_name_map = actor_names.get(actor_type, {})
+        logger.info(
+            "actor_type {} actor_id {} and actor_name {}".format(
+                actor_type, actor_id, actor_name
+            )
+        )
+        actor_id_name_map.update({actor_id: actor_name})
+        actor_names[actor_type] = actor_id_name_map
         self.put("actor_names", actor_names)
+        logger.info(actor_names)
         return True
 
     def remove_actor_name(self, actor_name):
@@ -41,6 +52,7 @@ class MemoryStore:
             actor_names.remove(actor_name)
 
         self.put("actor_names", actor_names)
+        logger.info("removing actor name")
         return True
 
     def do_checkpoint(self):

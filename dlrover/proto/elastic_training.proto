@@ -226,6 +226,8 @@ message ResourceConfig {
   int32 memory = 3; // Mi
 }
 
+message UpdateNodeAddrResponse { bool success = 2; }
+
 message ReportPreStopRequest { string worker_host = 1; }
 
 service Master {
@@ -277,6 +279,6 @@ service Master {
       returns (google.protobuf.Empty);
 
   rpc report_prestop(ReportPreStopRequest) returns (google.protobuf.Empty);
-  rpc update_node_addr(NodeMeta) returns (google.protobuf.Empty);
+  rpc update_node_addr(NodeMeta) returns (UpdateNodeAddrResponse);
   rpc update_node_event(NodeEvent) returns (google.protobuf.Empty);
 }

@@ -17,9 +17,13 @@ import time
 
 import ray
 
+from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import NodeGroupResource, NodeResource
 from dlrover.python.master.stats.stats_backend import LocalFileStateBackend
 from dlrover.python.scheduler.job import ElasticJob, JobArgs, NodeArgs
+from dlrover.python.util.actor_util.parse_actor import (
+    parse_type_id_from_actor_name,
+)
 from dlrover.python.util.state.store_mananger import StoreManager
 
 
@@ -47,6 +51,7 @@ class RayClient(object):
             jobname=jobname, namespace=namespace
         ).build_store_manager()
         self.store = self.store_manager.build_store()
+        self.actor_handle = {}
 
     def create_pg(self, resource):
         pass
@@ -63,23 +68,34 @@ class RayClient(object):
             .remote(*args, **kwargs)
         )
         time.sleep(3)
-        self.store.add_actor_name(actor_name)
+        # key i value name
+        # 删除的时候是index
+        #
+        actor_type, actor_id = parse_type_id_from_actor_name(actor_name)
+        self.store.add_actor_name(actor_type, actor_id, actor_name)
+        self.actor_handle[actor_name] = actor_handle
         return actor_handle
 
     def delete_actor(self, actor_name):
+        logger.info("kill actor hahahaha----")
         actor_handle = self.get_actor_handle(actor_name)
         if actor_handle is None:
             print("actor exited before killing")
         else:
             ray.kill(actor_handle, no_restart=True)
+            logger.info("kill actor {}".format(actor_name))
         self.store.remove_actor_name(actor_name)
         return
 
     def list_actor(self):
-        actor_names = self.store.get("actor_names", [])
-        for n in actor_names:
-            status = self.check_health_status(n)
-            yield n, status
+        actor_names = self.store.get("actor_names", {})
+        logger.info("list_actor {}".format(actor_names))
+        for actor_type, actor_id_name in actor_names.items():
+            if actor_id_name is not None:
+                for id, name in actor_id_name.items():
+                    status = self.check_health_status(name)
+
+                    yield name, status
 
     def get_actor_status(self, actor_name):
         """

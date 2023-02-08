@@ -11,7 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+# export PYTHONPATH=`pwd`
 rm -rf log* eval/ export/  checkpoint  model.ckpt* events.out* -rf graph.pbtxt ps_address* 
+pkill python
 ray stop --force
 ray start --head --port=5001  --dashboard-port=5000
 export DLROVER_MASTER_ADDR="127.0.0.1:50001"

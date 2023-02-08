@@ -14,6 +14,8 @@
 import queue
 import threading
 
+from dlrover.python.common.log import default_logger as logger
+
 
 class ConcurrentQueue:
     def __init__(self, capacity=-1):
@@ -70,6 +72,7 @@ class RayEventQueue:
         self.queue = ConcurrentQueue(capacity=1000)
 
     def put(self, value):
+        logger.info("putting value")
         return self.queue.put(value)
 
     def get(self):

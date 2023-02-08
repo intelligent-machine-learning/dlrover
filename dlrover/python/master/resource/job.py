@@ -121,6 +121,8 @@ class JobResource(JsonSerializable):
                     service_addr=service_create_fn(node_type, i),
                 )
             job_nodes[node_type] = group_nodes
+        logger.info("initiating job_node  ")
+        logger.info(job_nodes)
         return job_nodes
 
     def adjust_worker_for_estimator(self):

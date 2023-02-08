@@ -28,6 +28,7 @@ from dlrover.trainer.util.conf_util import get_conf
 from dlrover.trainer.util.log_util import default_logger as logger
 
 master_client = GlobalMasterClient.MASTER_CLIENT
+master_client.query_ps_nodes()
 
 
 class TFRayWorker:
@@ -43,6 +44,17 @@ class TFRayWorker:
         task_conf = get_conf(py_conf=self._args.get("conf"))
         self._task_conf = task_conf
         self.init_executor(task_conf)
+
+        def run():
+            while True:
+                import time
+
+                logger.info("I am alive")
+                time.sleep(10)
+
+        t = threading.Thread(target=run)
+        t.start()
+
         # self.run()
         if self._args.get("platform") == "ray":
             self.init_and_train()
@@ -62,7 +74,14 @@ class TFRayWorker:
         """
         ray remote 调用时同步等待，通过线程，异步启动训练线程
         """
-        t = threading.Thread(target=self.run)
+
+        def run():
+            try:
+                self.run()
+            except Exception as e:
+                logger.error(e)
+
+        t = threading.Thread(target=run)
         t.setDaemon(True)
         t.start()
 
@@ -91,10 +110,18 @@ class TFRayWorker:
                     break
         else:
             while True:
+                logger.info("trying to get node address")
                 ps_nodes, _ = master_client.query_ps_nodes()
+                logger.info("master_client id {}".format(id(master_client)))
+
+                logger.info("ps nodes is {}".format(ps_nodes))
                 ps_cluster = [i.addr for i in ps_nodes if i.addr != ""]
+                import time
+
+                time.sleep(10)
                 if len(ps_cluster) == self._args.get("ps_num"):
                     break
+        logger.info("getting node address")
         return ps_cluster
 
     def report_ps_address(self, address):
@@ -103,9 +130,17 @@ class TFRayWorker:
             with open(file_name, "w") as f:
                 f.write("")
         else:
-            master_client.update_node_addr(
+            logger.info("updating node address")
+            master_client = GlobalMasterClient.MASTER_CLIENT
+            ps_nodes, _ = master_client.query_ps_nodes()
+            logger.info("master_client id {}".format(id(master_client)))
+
+            logger.info("ps nodes is {}".format(ps_nodes))
+
+            res = master_client.update_node_addr(
                 self.task_type, self.task_id, address
             )
+            logger.info("updating ps address {}".format(res))
 
     def run(self):
         global_dict = common_util.GlobalDict()
@@ -128,13 +163,17 @@ class TFRayWorker:
                 tf_config["cluster"]["chief"] = ["localhost:1001"]
             self.estimator.set_tf_config(tf_config)
         # upload server address
-        # get_current_server address
+        logger.info("server started and begin train and evaluate")
         if self.estimator.task_type == TFConstants.PS():
             self.report_ps_address(address)
             logger.info("ps server join")
             self.estimator.server.join()
         else:
             self.estimator.train_and_evaluate()
+        logger.info("{} {}".format(self.task_type, self.task_id))
+        if self.task_id == 0 and self.task_type == "chief":
+            master_client.update_node_event(task_type, task_id, "data none")
+            logger.info("updating event")
 
     def health_check(self):
         return "OK"

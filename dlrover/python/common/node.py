@@ -146,7 +146,7 @@ class Node(object):
         self,
         node_type,
         node_id,
-        config_resource: NodeResource,
+        config_resource=None,
         name=None,
         status=NodeStatus.INITIAL,
         start_time=None,
@@ -251,3 +251,12 @@ class Node(object):
                 "Not support priority = {}, please set priority = "
                 "high/low/a fraction value.".format(priority)
             )
+
+    def __repr__(self):
+        return (
+            "rank_index:" + str(self.rank_index) + ";"
+            "type:" + str(self.type) + ";"
+            "status:" + str(self.status) + ";"
+            "addr:" + str(self.service_addr) + ";"
+            "is_released:" + str(self.is_released) + ";"
+        )
