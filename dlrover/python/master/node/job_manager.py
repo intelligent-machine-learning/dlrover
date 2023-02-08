@@ -226,10 +226,6 @@ class JobManager(object):
         logger.info("updateing ps_manager nodes")
 
         self._ps_manager.update_nodes(self._job_nodes.get(NodeType.PS, {}))
-        from dlrover.python.elastic_agent.master_client import (
-            GlobalMasterClient,
-        )
-
         self._chief_manager.update_nodes(
             self._job_nodes.get(NodeType.CHIEF, {})
         )
