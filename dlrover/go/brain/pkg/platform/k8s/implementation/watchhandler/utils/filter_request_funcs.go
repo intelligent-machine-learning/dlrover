@@ -17,12 +17,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// ElasticJobFilterFunc filters non elasticDL jobs
+// ElasticJobFilterFunc filters non DLRover jobs
 func ElasticJobFilterFunc(object metav1.Object) bool {
 	return true
 }
 
-// ElasticJobNodeFilterFunc filters non elasticDL job pods
+// ElasticJobNodeFilterFunc filters non DLRover job pods
 func ElasticJobNodeFilterFunc(object metav1.Object) bool {
 	return true
 }

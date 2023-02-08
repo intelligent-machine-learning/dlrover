@@ -22,7 +22,7 @@ NodeStateFlow = namedtuple(
 
 """
 The DAG for the state machine is in the issue
-https://github.com/sql-machine-learning/elasticdl/issues/2395#issue-753964852
+https://github.com/sql-machine-learning/dlrover/issues/2395#issue-753964852
 """
 NODE_STATE_FLOWS = [
     NodeStateFlow(

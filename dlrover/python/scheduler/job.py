@@ -26,10 +26,10 @@ class ElasticJob(metaclass=ABCMeta):
         job is in dlrover/go/elasticjob_operator/config/samples/
         elastic_v1alpha1_elasticjob.yaml
         Args:
-            image_name: Docker image path for ElasticDL pod.
-            namespace: The name of the Kubernetes namespace where ElasticDL
+            image_name: Docker image path for DLRover pod.
+            namespace: The name of the Kubernetes namespace where DLRover
                 pods will be created.
-            job_name: ElasticDL job name, should be unique in the namespace.
+            job_name: DLRover job name, should be unique in the namespace.
                 Used as pod name prefix and value for "elastic" label.
         """
         self._namespace = namespace

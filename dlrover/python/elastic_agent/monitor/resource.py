@@ -58,7 +58,7 @@ class ResourceMonitor(object):
     def __init__(self):
         """
         The monitor samples the used memory and cpu percent
-        reports the used memory and cpu percent to the ElasticDL master.
+        reports the used memory and cpu percent to the DLRover master.
         """
         self._total_cpu = psutil.cpu_count(logical=True)
         if os.getenv("DLROVER_MASTER_ADDR", ""):

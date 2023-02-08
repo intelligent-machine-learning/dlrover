@@ -68,7 +68,7 @@ class MasterClient(object):
 
             worker_id: int
             the unique and ordered worker ID assigned
-            by elasticdl command-line.
+            by dlrover command-line.
         """
         self._master_addr = master_addr
         self._channel = build_channel(master_addr)
@@ -103,11 +103,11 @@ class MasterClient(object):
 
         Args:
             dataset_name: string
-            the training phase, c.f. /elasticdl/proto/elasticdl.proto
+            the training phase, c.f. /dlrover/proto/dlrover.proto
 
         Returns:
             the task unit assigned by master,
-            c.f. /elasticdl/proto/elasticdl.proto
+            c.f. /dlrover/proto/dlrover.proto
         """
 
         req = elastic_training_pb2.GetTaskRequest()
@@ -367,7 +367,7 @@ class LocalMasterClient(object):
         Args:
             worker_id: int
             the unique and ordered worker ID assigned
-            by elasticdl command-line.
+            by dlrover command-line.
         """
         self._node_id = node_id
         self._num_minibatches_per_shard = 0
@@ -388,11 +388,11 @@ class LocalMasterClient(object):
 
         Args:
             dataset_name: string
-            the training phase, c.f. /elasticdl/proto/elasticdl.proto
+            the training phase, c.f. /dlrover/proto/dlrover.proto
 
         Returns:
             the task unit assigned by master,
-            c.f. /elasticdl/proto/elasticdl.proto
+            c.f. /dlrover/proto/dlrover.proto
         """
 
         shard = elastic_training_pb2.Shard()

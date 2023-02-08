@@ -1,4 +1,4 @@
-# Copyright 2020 The ElasticDL Authors. All rights reserved.
+# Copyright 2020 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -79,7 +79,7 @@ class BrainClient(object):
 
             job_name: string
             the unique and ordered worker ID assigned
-            by elasticdl command-line.
+            by dlrover command-line.
         """
         if brain_channel:
             self._brain_stub = brain_pb2_grpc.BrainStub(brain_channel)

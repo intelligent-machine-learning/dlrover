@@ -189,7 +189,7 @@ func persistTrainingHyperParams(client *mysql.Client, jobMetrics *mysql.JobMetri
 	if err != nil {
 		hyperParams = params
 	} else {
-		// ElasticDL may update training hyper parameters during training
+		// DLRover may update training hyper parameters during training
 		hyperParams.Update(params)
 	}
 	jsonVal, _ := json.Marshal(hyperParams)
@@ -211,7 +211,7 @@ func persistTrainingSetFeature(client *mysql.Client, jobMetrics *mysql.JobMetric
 	if err != nil {
 		trainingSet = params
 	} else {
-		// ElasticDL may update training dataset metrics during training
+		// DLRover may update training dataset metrics during training
 		trainingSet.Update(params)
 	}
 	jsonVal, _ := json.Marshal(trainingSet)
