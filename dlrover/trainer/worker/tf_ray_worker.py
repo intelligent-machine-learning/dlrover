@@ -14,6 +14,8 @@
 import argparse
 import os
 import threading
+import time
+import traceback
 
 from dlrover.python.elastic_agent.master_client import GlobalMasterClient
 from dlrover.trainer.constants.tf_constants import TFConstants
@@ -43,7 +45,8 @@ class TFRayWorker:
         task_conf = get_conf(py_conf=self._args.get("conf"))
         self._task_conf = task_conf
         self.init_executor(task_conf)
-        # self.run()
+        # if is not mock, the worker start training when it's constructed
+        # if mock, the worker is called in scheduler to start training
         if not self._args.get("mock"):
             self.init_and_train()
 
@@ -53,9 +56,8 @@ class TFRayWorker:
         return args
 
     def parse_worker_type_and_id(self):
-        task_id, task_type = self._args.get("task_id"), self._args.get(
-            "task_type"
-        )
+        task_id = self._args.get("task_id")
+        task_type = self._args.get("task_type")
         return task_id, task_type
 
     def init_and_train(self):
@@ -68,6 +70,10 @@ class TFRayWorker:
                 self.run()
             except Exception as e:
                 logger.error(e)
+                detail_trace_back = traceback.format_exc()
+                master_client.update_node_event(
+                    self.task_type, self.task_id, str(detail_trace_back)
+                )
 
         t = threading.Thread(target=run)
         t.setDaemon(True)
@@ -98,37 +104,42 @@ class TFRayWorker:
                     break
         else:
             while True:
-                logger.info("trying to get node address")
                 ps_nodes, _ = master_client.query_ps_nodes()
-                logger.info("master_client id {}".format(id(master_client)))
-
                 logger.info("ps nodes is {}".format(ps_nodes))
                 ps_cluster = [i.addr for i in ps_nodes if i.addr != ""]
-                import time
-
                 time.sleep(10)
                 if len(ps_cluster) == self._args.get("ps_num"):
+                    logger.info(
+                        "all ps started and their address are {}".format(
+                            ps_cluster
+                        )
+                    )
                     break
-        logger.info("getting node address")
+                logger.info(
+                    "waiting until all ps started and"
+                    "report their service_addr to dlrover master"
+                )
         return ps_cluster
 
     def report_ps_address(self, address):
         if self._args.get("mock"):
+            # if mock, the ps open a file and set
+            # the file name like ps_address_1.1.1.1:1001
             file_name = "ps_address_{}".format(address)
             with open(file_name, "w") as f:
                 f.write("")
         else:
-            logger.info("updating node address")
-            master_client = GlobalMasterClient.MASTER_CLIENT
+            # if not mock, the ps report its service_addr to dlrover master
             ps_nodes, _ = master_client.query_ps_nodes()
-            logger.info("master_client id {}".format(id(master_client)))
-
             logger.info("ps nodes is {}".format(ps_nodes))
-
             res = master_client.update_node_addr(
                 self.task_type, self.task_id, address
             )
-            logger.info("updating ps address {}".format(res))
+            logger.info(
+                "{}:{} updating ps address {}".format(
+                    self.task_type, self.task_id, res
+                )
+            )
 
     def run(self):
         global_dict = common_util.GlobalDict()
@@ -140,14 +151,19 @@ class TFRayWorker:
         task_id, task_type = self.parse_worker_type_and_id()
         self.task_id, self.task_type = task_id, task_type
         self.estimator.task_type = task_type
-
-        if task_type != "ps":
+        if task_type != TFConstants.PS():
             ps_cluster = self.get_ps_cluster()
             tf_config = {
-                "cluster": {"ps": ps_cluster, task_type: [address]},
+                "cluster": {
+                    TFConstants.PS(): ps_cluster,
+                    task_type: [address],
+                },
                 "task": {"type": task_type, "index": task_id},
             }
-            if task_type == "evaluator":
+            if task_type == TFConstants.Evaluator():
+                # This is a trick because tf would check the tf_config:
+                # tf_config with chief is valid.
+                # however evaluator doesn't need to know chief.
                 tf_config["cluster"]["chief"] = ["localhost:1001"]
             self.estimator.set_tf_config(tf_config)
         # upload server address
@@ -158,10 +174,11 @@ class TFRayWorker:
             self.estimator.server.join()
         else:
             self.estimator.train_and_evaluate()
-        logger.info("{} {}".format(self.task_type, self.task_id))
-        if self.task_id == 0 and self.task_type == "chief":
-            master_client.update_node_event(task_type, task_id, "data none")
-            logger.info("updating event")
+        if self.task_id == 0 and self.task_type == TFConstants.Chief():
+            logger.info("training finished since there is no data anymore")
+            master_client.update_node_event(
+                task_type, task_id, "train_success"
+            )
 
     def health_check(self):
         return "OK"

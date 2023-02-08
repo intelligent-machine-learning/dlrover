@@ -378,8 +378,6 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         }
         node = Node(request.node.type, request.node.id)
         event = NodeEvent("exit", node)
-
-        logger.info("new event")
         ray_event_queue.put(event)
         return empty_pb2.Empty()
 

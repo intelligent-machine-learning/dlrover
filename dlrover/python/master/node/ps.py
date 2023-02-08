@@ -65,26 +65,20 @@ class ParameterServerManager(TrainingNodeManager):
         self._init_training_ps_cluster()
 
     def _init_training_ps_cluster(self):
-        logger.info("training_ps_cluster")
         for node in self._nodes.values():
             logger.info(node)
             logger.info(
                 node.status
                 in [NodeStatus.INITIAL, NodeStatus.PENDING, NodeStatus.RUNNING]
             )
-            logger.info(node.id not in self._migrated_ps_nodes)
-            logger.info(not node.is_released)
             if (
                 node.id not in self._migrated_ps_nodes
                 and not node.is_released
                 and node.status
                 in [NodeStatus.INITIAL, NodeStatus.PENDING, NodeStatus.RUNNING]
             ):
-                logger.info("id of node is {}".format(id(node)))
-                logger.info("_init_training_ps_cluster(")
                 self._training_ps_cluster.append(node)
                 self._next_training_ps_cluster.append(node)
-        logger.info("after initing self._training_ps_cluster")
 
     def relaunch_node(self, node: Node):
         plan = ScalePlan()
@@ -188,14 +182,12 @@ class ParameterServerManager(TrainingNodeManager):
         """Get all running PS pods"""
         alive_ps = []
         for pod_info in self._nodes.values():
-            logger.info("""Get all running PS pods""")
-            logger.info(pod_info.type)
-            logger.info(pod_info.status)
             if (
                 pod_info.status == NodeStatus.RUNNING
                 and not pod_info.is_released
             ):
                 alive_ps.append(pod_info)
+        logger.info("alive_ps is {}".format(alive_ps))
         return alive_ps
 
     def get_next_training_ps_cluster(self):
@@ -257,10 +249,7 @@ class ParameterServerManager(TrainingNodeManager):
 
     def get_training_ps_cluster(self):
         """Get the ps nodes who are training."""
-        logger.info("self._training_ps_cluster")
-        logger.info(self._training_ps_cluster)
         if not self._training_ps_cluster:
-            logger.info("not self._training_ps_cluster")
             self._init_training_ps_cluster()
         training_ps: List[Node] = []
         for ps in self._training_ps_cluster:
@@ -271,7 +260,7 @@ class ParameterServerManager(TrainingNodeManager):
             )
             if not ps.is_released and ps.status != NodeStatus.FAILED:
                 training_ps.append(ps)
-        logger.info(training_ps)
+        logger.info("training_ps_cluster is {}".format(training_ps))
         return training_ps
 
     def get_ready_for_new_ps_cluster(self):

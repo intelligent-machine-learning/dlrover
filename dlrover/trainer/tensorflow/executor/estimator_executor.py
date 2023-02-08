@@ -59,15 +59,9 @@ class EstimatorExecutor(BaseExecutor):
         """
 
         super(EstimatorExecutor, self).__init__()
-        # 判断运行时环境K8s还是Ray
-        # 如果是K8s，需要从tf_config中获取数据
         self._task_conf = context
 
-        # 如果是ray，对于ps，直接启动任务，不需要parse
-        #           对于worker，等待ps信息ready后再启动
-
     def wait_for_tf_config(self):
-        # to do: 通过锁和信号量避免循环
         while os.environ.get("TF_CONFIG", None) is None:
             time.sleep(1)
 

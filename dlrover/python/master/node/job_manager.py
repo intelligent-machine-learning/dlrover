@@ -223,7 +223,6 @@ class JobManager(object):
             self._critical_worker_index,
         )
         update_nodes_priority(self._job_nodes)
-        logger.info("updateing ps_manager nodes")
 
         self._ps_manager.update_nodes(self._job_nodes.get(NodeType.PS, {}))
         self._chief_manager.update_nodes(

@@ -66,9 +66,9 @@ def execute(args):
             parsed_args=args,
         )
         # to do use constants
-        if "RAY" in platform:
+        if PlatformConstants.Ray() in platform:
             worker.set_start_subprocess(mock_ray_platform_subprocess)
-        elif "KUBERNETES" in platform:
+        elif PlatformConstants.Kubernetes() in platform:
             worker.set_start_subprocess(mock_k8s_platform_subprocess)
         else:
             raise Exception("e")

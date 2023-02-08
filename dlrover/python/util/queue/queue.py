@@ -72,11 +72,13 @@ class RayEventQueue:
         self.queue = ConcurrentQueue(capacity=1000)
 
     def put(self, value):
-        logger.info("putting value")
+        logger.info("putting {} into ray event queue".format(value))
         return self.queue.put(value)
 
     def get(self):
-        return self.queue.get()
+        value = self.queue.get()
+        logger.info("getting {} into ray event queue".format(value))
+        return value
 
     def size(self):
         return self.queue.size()

@@ -16,9 +16,9 @@ from typing import Dict, List, Optional
 
 import ray
 
-from dlrover.python.common.constants import NodeStatus
+from dlrover.python.common.constants import NodeStatus, NodeType
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.common.node import Node, NodeResource
+from dlrover.python.common.node import Node
 from dlrover.python.master.scaler.base_scaler import ScalePlan, Scaler
 from dlrover.python.scheduler.ray import RayClient
 from dlrover.python.util.actor_util.parse_actor import (
@@ -56,11 +56,9 @@ class ActorScaler(Scaler):
         self._plan = plan
         logger.info("Scale the job by plan %s", plan.toJSON())
         with self._lock:
-            logger.info("self._stats_alive_actors()")
             alive_actors = self._stats_alive_actors()
             for type, group_resource in plan.node_group_resources.items():
                 cur_actors = alive_actors.get(type)
-                logger.info("cur_actors {}".format(cur_actors))
                 if group_resource.count > len(alive_actors):
                     self._scale_up_actors(type, plan, cur_actors)
                 elif group_resource.count < len(alive_actors):
@@ -68,11 +66,11 @@ class ActorScaler(Scaler):
                     self._scale_down_actors(type, plan, cur_actors)
 
     def _stats_alive_actors(self) -> Dict[str, List[Node]]:
-        logger.info("_stats_alive_actors")
+
         job_pods: Dict[str, List[Node]] = {}
-        resource = NodeResource(1, 1024)  # to do 使用存储后端
+
         for name, status in self._ray_client.list_actor():
-            logger.info("{} {}".format(name, status))
+
             actor_type, actor_index = parse_type_id_from_actor_name(name)
             if actor_type not in job_pods:
                 job_pods[actor_type] = []
@@ -82,8 +80,7 @@ class ActorScaler(Scaler):
                 name=name,
                 rank_index=actor_index,
                 status=status,
-                start_time=None,  # to be decided，获取actor创建时间
-                config_resource=resource,  # to be decided，获取actor的创建时间
+                start_time=None,
             )
             if node.status in [
                 NodeStatus.PENDING,
@@ -112,7 +109,7 @@ class ActorScaler(Scaler):
                 "task_id": 0,
                 "task_type": type,
             }
-            if type == "ps":
+            if type == NodeType.PS:
                 actor_name = "PsActor_0"
             elif type == "chief":
                 actor_name = "PythonWorker-0|1"
@@ -134,10 +131,8 @@ class ActorScaler(Scaler):
         cur_actors: Optional[List[Node]],
     ):
         logger.info(ScalePlan)
-        logger.info(cur_actors)
-        logger.info(type)
-        if type == "ps":
+        if type == NodeType.PS:
             actor_name = "PsActor_0"
-        elif type == "worker":
+        elif type == NodeType.WORKER:
             actor_name = "PythonWorker-0|1"
         self._ray_client.delete_actor(actor_name)

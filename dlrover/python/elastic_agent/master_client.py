@@ -73,7 +73,7 @@ class MasterClient(object):
         """
         self._master_addr = master_addr
         self._channel = build_channel(master_addr)
-        logger.info("self._master_addr is {}".format(self._master_addr))
+        logger.info("master_addr is %s" % self._master_addr)
         self._stub = elastic_training_pb2_grpc.MasterStub(self._channel)
         self._node_id = node_id
         self._node_type = node_type
@@ -278,12 +278,6 @@ class MasterClient(object):
         request.id = task_id
         request.type = task_type
         request.addr = node_addr
-        request.memory = 1
-        request.cpu = 2
-        request.gpu = 3
-        request.gpu_type = ""
-
-        logger.info("master client update node_addr")
         res = self._stub.update_node_addr(request)
         return res
 
@@ -291,7 +285,7 @@ class MasterClient(object):
         request = elastic_training_pb2.NodeEvent()
         request.node.id = task_id
         request.node.type = task_type
-        request.message = "data consumed"
+        request.message = "train_success"
         request.event_type = "1"
         return self._stub.update_node_event(request)
 

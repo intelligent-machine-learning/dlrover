@@ -175,7 +175,6 @@ class BaseExecutor:
             config._task_id = self.task_id + 1
         config._task_type = self.task_type
         if self.task_type == TFConstants.Chief():
-            # config._task_type = "chief"
             config._task_type = TFConstants.Chief()
         config._num_ps_replicas = len(
             self.mini_cluster_spec.get(TFConstants.PS(), {})
