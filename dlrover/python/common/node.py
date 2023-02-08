@@ -137,7 +137,7 @@ class Node(object):
         critical: bool, if true, the job will fail if the node fails.
         max_relaunch_count: int, the maximum to relaunch a node.
         relaunchable: bool, whether to relaunch a node if it fails.
-        is_released: bool, whether to released the node.
+        is_released: bool, ture if the master deletes the node.
         exit_reason: str, the exited reason of a node.
         used_resource: the resource usage of the node.
     """
