@@ -14,7 +14,7 @@ $ kubectl create namespace dlrover
 To create MySQL DB as the store for ELRover
 
 ```shell
-$ cd dlrover/go/brain/manifests/minikube
+$ cd dlrover/go/brain/manifests/k8s
 $ kubectl apply -f mysql-pv.yaml
 $ kubectl apply -f mysql.yaml
 ```

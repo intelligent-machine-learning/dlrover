@@ -70,7 +70,7 @@ func (optimizer *JobPSCreateResourceOptimizer) Optimize(conf *optconfig.Optimize
 	cond := &datastoreapi.Condition{
 		Type: common.TypeGetDataGetJob,
 		Extra: &mysql.JobCondition{
-			JobUUID: jobMeta.UUID,
+			UID: jobMeta.UUID,
 		},
 	}
 	job := &mysql.Job{}
@@ -125,7 +125,7 @@ func (optimizer *JobPSCreateResourceOptimizer) Optimize(conf *optconfig.Optimize
 	cond.Extra = listJobCond
 	historyJobs := make([]*mysql.Job, 0)
 	if err := optimizer.dataStore.GetData(cond, &historyJobs); err != nil {
-		log.Errorf("Fail to list job for %s with %s: %v", job.JobName, job.Scenario, err)
+		log.Errorf("Fail to list job for %s with %s: %v", job.Name, job.Scenario, err)
 		return nil, err
 	}
 
@@ -136,18 +136,18 @@ func (optimizer *JobPSCreateResourceOptimizer) Optimize(conf *optconfig.Optimize
 
 	historyOptJobMetas := make([]*common.OptimizeJobMeta, 0)
 	for _, j := range historyJobs {
-		if j.JobUUID == jobMeta.UUID {
+		if j.UID == jobMeta.UUID {
 			continue
 		}
 		cond = &datastoreapi.Condition{
 			Type: common.TypeGetDataGetJobMetrics,
 			Extra: &mysql.JobMetricsCondition{
-				UID: j.JobUUID,
+				UID: j.UID,
 			},
 		}
 		metrics := &mysql.JobMetrics{}
 		if err := optimizer.dataStore.GetData(cond, metrics); err != nil {
-			log.Errorf("fail to get job metrics for %s: %v", j.JobName, err)
+			log.Errorf("fail to get job metrics for %s: %v", j.Name, err)
 			continue
 		}
 

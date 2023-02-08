@@ -74,6 +74,15 @@ func (r *WatchReconciler) Reconcile(req WatchRequest) (Result, error) {
 	obj := &unstructured.Unstructured{}
 	obj.SetGroupVersionKind(r.GVK)
 
+	//obj := &metav1.PartialObjectMetadata{}
+	//obj.SetGroupVersionKind(r.GVK)
+
+	//obj, err := r.Scheme.New(r.GVK)
+	//if err != nil {
+	//	log.Errorf("failed to new runtime scheme [GroupVersionKind:%s] with err:%v", r.GVK, err)
+	//	return Result{}, err
+	//}
+
 	// get the cache workerInfos
 	value, found := r.cacheObject.Load(req.UUID)
 	if !found {

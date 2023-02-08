@@ -51,19 +51,23 @@ func main() {
 		go errHandler.HandleError(ctx)
 	}
 
-	log.Infof("namespace=%s, cluster=%s, serviceConfigMapName=%s, serviceConfigMapKey=%s", mConfig.Namespace,
-		mConfig.Cluster, mConfig.ServiceConfigMapName, mConfig.ServiceConfigMapKey)
-	configManager := config.NewManager(mConfig.Namespace, mConfig.ServiceConfigMapName, mConfig.ServiceConfigMapKey, kubeClient)
-	err = configManager.Run(ctx, errHandler)
-	if err != nil {
-		log.Fatalf("Fail to run the config manager: %v", err)
-	}
+	log.Infof("namespace=%s, serviceConfigMapName=%s, serviceConfigMapKey=%s", mConfig.Namespace,
+		mConfig.ServiceConfigMapName, mConfig.ServiceConfigMapKey)
+	//configManager := config.NewManager(mConfig.Namespace, mConfig.ServiceConfigMapName, mConfig.ServiceConfigMapKey, kubeClient)
+	//err = configManager.Run(ctx, errHandler)
+	//if err != nil {
+	//	log.Fatalf("Fail to run the config manager: %v", err)
+	//}
+	//
+	//conf, err := configManager.GetConfig()
+	//if err != nil {
+	//	log.Fatalf("Fail to get config: %v", err)
+	//}
 
-	conf, err := configManager.GetConfig()
-	if err != nil {
-		log.Fatalf("Fail to get config: %v", err)
-	}
+	conf := config.NewEmptyConfig()
 	conf.Set(config.KubeClientInterface, kubeClient)
+	conf.Set(config.KubeWatcherConfigMapName, mConfig.ServiceConfigMapName)
+	conf.Set(config.KubeWatcherConfigMapKey, mConfig.ServiceConfigMapKey)
 	conf.Set(config.Namespace, mConfig.Namespace)
 
 	manager, err := k8swatcher.NewManager(conf)

@@ -52,19 +52,19 @@ func TestOptimizeJobPSCreateResource(t *testing.T) {
 
 	/////////////////////////////////////////////////////////////////////////
 	job := &mysql.Job{
-		JobUUID:  jobUUID,
-		JobName:  jobName,
+		UID:      jobUUID,
+		Name:     jobName,
 		Scenario: scenario,
 	}
 	job1 := &mysql.Job{
-		JobName:   jobName1,
-		JobUUID:   jobUUID1,
+		Name:      jobName1,
+		UID:       jobUUID1,
 		Scenario:  scenario,
 		CreatedAt: time.Now().Add(time.Duration(-10) * time.Minute),
 	}
 	job2 := &mysql.Job{
-		JobUUID:   jobUUID2,
-		JobName:   jobName2,
+		UID:       jobUUID2,
+		Name:      jobName2,
 		Scenario:  scenario,
 		CreatedAt: time.Now().Add(time.Duration(-10) * time.Minute),
 	}

@@ -43,9 +43,9 @@ func TestJobPSInitialResourceOptimizer(t *testing.T) {
 
 	////////////////////////////////////////////////////////////
 	job := &mysql.Job{
-		JobName: jobName,
-		JobUUID: jobUUID,
-		Status:  "",
+		Name:   jobName,
+		UID:    jobUUID,
+		Status: "",
 	}
 	dataStore.Client.JobRecorder.Upsert(job)
 
@@ -125,9 +125,9 @@ func TestJobPSResourceOptimizerForPSOom(t *testing.T) {
 	assert.NoError(t, err)
 
 	job := &mysql.Job{
-		JobName: jobName,
-		JobUUID: jobUUID,
-		Status:  string(statusStr),
+		Name:   jobName,
+		UID:    jobUUID,
+		Status: string(statusStr),
 	}
 	dataStore.Client.JobRecorder.Upsert(job)
 

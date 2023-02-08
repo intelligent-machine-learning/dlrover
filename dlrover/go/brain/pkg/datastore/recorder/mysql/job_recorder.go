@@ -24,16 +24,16 @@ const TableJob = "job"
 
 // JobCondition is the struct of sql condition for job table
 type JobCondition struct {
-	JobUUID        string
-	JobName        string
+	UID            string
+	Name           string
 	Scenario       string
 	CreatedAtRange *dbbase.TimeRange
 }
 
 // Job is the struct of job for mysql db
 type Job struct {
-	JobUUID    string
-	JobName    string
+	UID        string
+	Name       string
 	Scenario   string
 	CreatedAt  time.Time
 	StartedAt  time.Time
@@ -43,11 +43,11 @@ type Job struct {
 
 // Apply applies JobCondition
 func (c *JobCondition) Apply(session *xorm.Session) *xorm.Session {
-	if c.JobUUID != "" {
-		session.Where("job_uuid = ?", c.JobUUID)
+	if c.UID != "" {
+		session.Where("uid = ?", c.UID)
 	}
-	if c.JobName != "" {
-		session.Where("job_name = ?", c.JobName)
+	if c.Name != "" {
+		session.Where("name = ?", c.Name)
 	}
 	if c.Scenario != "" {
 		session.Where("scenario = ?", c.Scenario)

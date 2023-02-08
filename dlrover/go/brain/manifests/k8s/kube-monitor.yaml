@@ -1,0 +1,42 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: dlrover-kube-monitor
+  name: dlrover-kube-monitor
+  namespace: dlrover
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dlrover-kube-monitor
+  template:
+    metadata:
+      labels:
+        app: dlrover-kube-monitor
+      name: dlrover-kube-monitor
+      namespace: dlrover
+    spec:
+      serviceAccountName: dlrover-controller-manager
+      containers:
+        - command:
+            - /bin/bash
+            - -c
+            - (/root/k8smonitor -alsologtostderr --namespace dlrover
+              --serviceConfigMapName dlrover-kube-monitor
+              --serviceConfigMapKey config 2>&1) |
+              tee /root/logs/kube-monitor.log; exit ${PIPESTATUS[0]}
+          image: registry.cn-hangzhou.aliyuncs.com/dlrover/brain:test
+          imagePullPolicy: Always
+          name: dlrover-kube-monitor
+          ports:
+            - containerPort: 50001
+              protocol: TCP
+          resources:
+            limits:
+              cpu: 500m
+              memory: 128Mi
+            requests:
+              cpu: 500m
+              memory: 128Mi
