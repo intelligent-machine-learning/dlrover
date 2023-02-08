@@ -212,4 +212,4 @@ class MasterServicerForRayTest(unittest.TestCase):
         request.message = "OOM"
         self.servicer.update_node_event(request, None)
         event = ray_event_queue.get()
-        event["message"] = "OOM"
+        event.event_type = "OOM"

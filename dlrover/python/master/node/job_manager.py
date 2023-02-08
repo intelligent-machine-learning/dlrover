@@ -230,8 +230,6 @@ class JobManager(object):
             GlobalMasterClient,
         )
 
-        master_client = GlobalMasterClient.MASTER_CLIENT
-        master_client.query_ps_nodes()
         self._chief_manager.update_nodes(
             self._job_nodes.get(NodeType.CHIEF, {})
         )
