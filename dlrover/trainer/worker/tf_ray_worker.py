@@ -28,7 +28,7 @@ from dlrover.trainer.util.conf_util import get_conf
 from dlrover.trainer.util.log_util import default_logger as logger
 
 master_client = GlobalMasterClient.MASTER_CLIENT
-master_client.query_ps_nodes()
+ 
 
 
 class TFRayWorker:
@@ -44,20 +44,11 @@ class TFRayWorker:
         task_conf = get_conf(py_conf=self._args.get("conf"))
         self._task_conf = task_conf
         self.init_executor(task_conf)
-
-        def run():
-            while True:
-                import time
-
-                logger.info("I am alive")
-                time.sleep(10)
-
-        t = threading.Thread(target=run)
-        t.start()
-
         # self.run()
-        if self._args.get("platform") == "ray":
-            self.init_and_train()
+        if not self._args.get("mock") :
+             self.init_and_train()
+ 
+           
 
     def transform_args_to_dict(self, args):
         if isinstance(args, argparse.Namespace):

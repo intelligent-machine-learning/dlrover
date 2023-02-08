@@ -14,4 +14,5 @@ dlrover/proto/*.proto --python_out=. --grpc_python_out=. \
 && pip install ray['defult'] \
 && pip install deepctr \
 && export PYTHONPATH=`pwd` \
-&& cd dlrover/trainer/examples/estimator_executor && sh mock_k8s_run.sh"
+&& cd dlrover/trainer/examples/estimator_executor\
+&& unset DLROVER_MASTER_ADDR  && sh mock_k8s_run.sh"

@@ -15,7 +15,7 @@ import threading
 from typing import Dict, List
 
 import ray
-from type import Optional
+from typing import Optional
 
 from dlrover.python.common.constants import NodeStatus
 from dlrover.python.common.log import default_logger as logger
