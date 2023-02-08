@@ -19,34 +19,11 @@ DLRover automatically trains the Deep Learning model on the distributed cluster.
 ## Why DLRover?
 ### No Resource Configuration to Submit a Job.
 
-Users need not to set any resource configuration to submit a
-distributed training job. The following example is an ElasticJob on K8s.
-
-```yaml
-apiVersion: elastic.iml.github.io/v1alpha1
-kind: ElasticJob
-metadata:
-  name: dlrover-dnn-iris
-spec:
-  distributionStrategy: ParameterServerStrategy
-  replicaSpecs:
-    ps:
-      template:
-        spec:
-          containers:
-            - name: main
-              image: easydl/tf-estimator:iris_dnn_v0
-              command:
-                - "python -m model_zoo.tf_estimator.iris_dnn_elastic"
-    worker:
-      template:
-        spec:
-          containers:
-            - name: main
-              image: easydl/tf-estimator:iris_dnn_v0
-              command:
-                - "python -m model_zoo.tf_estimator.iris_dnn_elastic"
-```
+Compared with TFJob in Kubeflow, Users need not to set any resource configuration to submit a
+distributed training job. 
+<div align="center">
+<img src="docs/figures/dlrover_vs_tfjob.jpg" alt="Editor" width="600">
+</div>
 
 ### Fault Tolerance to Improve the Stability of Job.
 
