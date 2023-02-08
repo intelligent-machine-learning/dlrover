@@ -15,8 +15,6 @@ import logging
 import sys
 import typing
 
-from dlrover.trainer.util.log_util import default_logger as logger
-
 _DEFAULT_LOGGER = "dlrover.logger"
 
 _DEFAULT_FORMATTER = logging.Formatter(
@@ -42,4 +40,4 @@ def get_logger(name, level="INFO", handlers=None, update=False):
     return logger
 
 
-default_logger = logger
+default_logger = get_logger(_DEFAULT_LOGGER)
