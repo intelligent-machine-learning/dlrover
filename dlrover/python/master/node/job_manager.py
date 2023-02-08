@@ -541,7 +541,7 @@ class JobManager(object):
             "update_node_service_addr id of node is {}".format(id(node))
         )
         node.update_service_address(service_addr)
-        node.status = "RUNNING"
+        node.status = NodeStatus.RUNNING
         node.is_released = False
         logger.info("node status {}".format(node.status))
         self._job_nodes[node_type][node_id] = node

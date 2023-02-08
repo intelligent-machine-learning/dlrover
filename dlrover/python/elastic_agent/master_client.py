@@ -224,13 +224,12 @@ class MasterClient(object):
 
     @retry_grpc_request
     def report_used_resource(self, memory, cpu):
-        # request = elastic_training_pb2.ReportUsedResourceRequest()
-        # request.memory = memory
-        # request.cpu = cpu
-        # request.node_id = self._node_id
-        # request.node_type = self._node_type
-        # return self._stub.report_used_resource(request)
-        pass
+        request = elastic_training_pb2.ReportUsedResourceRequest()
+        request.memory = memory
+        request.cpu = cpu
+        request.node_id = self._node_id
+        request.node_type = self._node_type
+        return self._stub.report_used_resource(request)
 
     @retry_grpc_request
     def get_dataset_epoch(self, dataset_name):
@@ -305,6 +304,7 @@ class MasterClient(object):
         response = self._stub.query_ps_nodes(request)
         return response.ps_nodes, response.new_ps_ready
 
+    @retry_grpc_request
     def query_training_status(self):
         request = empty_pb2.Empty()
         response = self._stub.query_training_status(request)
@@ -499,9 +499,8 @@ def build_master_client(master_addr=None):
     worker_type = os.getenv(NodeEnv.WORKER_TYPE, "worker")
 
     if master_addr:
-        logger.info("global master client")
+        logger.info("getting global master client")
         master_client = MasterClient(master_addr, worker_id, worker_type)
-        logger.info("master_client id {}".format(id(master_client)))
     else:
         master_client = LocalMasterClient(worker_id)
     return master_client
