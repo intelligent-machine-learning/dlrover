@@ -32,10 +32,10 @@ class MemoryStore:
         del self.__data_map[key]
 
     def add_actor_name(self, actor_type, actor_id, actor_name):
-        logger.info("add actor name")
         actor_names = self.get("actor_names", {})
         actor_id_name_map = actor_names.get(actor_type, {})
         logger.info(
+            "adding actor name to backend store"
             "actor_type {} actor_id {} and actor_name {}".format(
                 actor_type, actor_id, actor_name
             )
@@ -47,12 +47,13 @@ class MemoryStore:
         return True
 
     def remove_actor_name(self, actor_name):
-        actor_names = self.get("actor_names", [])
-        if actor_name in actor_names:
-            actor_names.remove(actor_name)
-
+        actor_names = self.get("actor_names", {})
+        for actor_type, name_list in actor_names.items():
+            if actor_name in name_list:
+                name_list.remove(actor_name)
+                break
         self.put("actor_names", actor_names)
-        logger.info("removing actor name")
+        logger.info("removing actor name %s from backend store" % actor_name)
         return True
 
     def do_checkpoint(self):

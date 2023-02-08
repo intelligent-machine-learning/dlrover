@@ -67,6 +67,7 @@ class NodeStatus(object):
     PENDING = "Pending"
     INITIAL = "Initial"
     DELETED = "Deleted"
+    UNKNOWN = "Unknown"
 
 
 class NodeEventType(object):

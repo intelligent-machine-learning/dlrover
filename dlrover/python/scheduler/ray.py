@@ -17,6 +17,7 @@ import time
 
 import ray
 
+from dlrover.python.common.constants import NodeStatus
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import NodeGroupResource, NodeResource
 from dlrover.python.master.stats.stats_backend import LocalFileStateBackend
@@ -68,33 +69,28 @@ class RayClient(object):
             .remote(*args, **kwargs)
         )
         time.sleep(3)
-        # key i value name
-        # 删除的时候是index
-        #
         actor_type, actor_id = parse_type_id_from_actor_name(actor_name)
         self.store.add_actor_name(actor_type, actor_id, actor_name)
         self.actor_handle[actor_name] = actor_handle
         return actor_handle
 
     def delete_actor(self, actor_name):
-        logger.info("kill actor hahahaha----")
         actor_handle = self.get_actor_handle(actor_name)
         if actor_handle is None:
-            print("actor exited before killing")
+            logger.warning("actor exited before killing")
         else:
             ray.kill(actor_handle, no_restart=True)
-            logger.info("kill actor {}".format(actor_name))
+            logger.info("kill actor %s successfully." % actor_name)
         self.store.remove_actor_name(actor_name)
         return
 
     def list_actor(self):
         actor_names = self.store.get("actor_names", {})
-        logger.info("list_actor {}".format(actor_names))
+        logger.info("actor stored in backend are {}".format(actor_names))
         for actor_type, actor_id_name in actor_names.items():
             if actor_id_name is not None:
                 for id, name in actor_id_name.items():
                     status = self.check_health_status(name)
-
                     yield name, status
 
     def get_actor_status(self, actor_name):
@@ -117,13 +113,13 @@ class RayClient(object):
         res = None
         actor_handle = self.get_actor_handle(actor_name)
         if actor_handle is None:
-            status = "not exist"
+            status = NodeStatus.UNKNOWN
         else:
             res = self.remote_call_actor(actor_handle, "health_check", [], {})
         if res is not None:
-            status = "RUNNING"
+            status = NodeStatus.RUNNING
         else:
-            status = "FAILED"
+            status = NodeStatus.UNKNOWN
         return status
 
     def get_actor_handle(self, actor_name):
@@ -131,7 +127,7 @@ class RayClient(object):
         try:
             actor_handle = ray.get_actor(actor_name)
         except Exception as e:
-            print(e)  # to do: print -> logging
+            logger.warning(str(e))
         return actor_handle
 
     @classmethod
