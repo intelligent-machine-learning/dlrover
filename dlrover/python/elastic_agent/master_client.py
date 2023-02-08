@@ -461,7 +461,7 @@ class LocalMasterClient(object):
 
     def update_node_event(self, task_type, task_id, enent):
         return True
-        
+
     def report_dataset_shard_params(
         self,
         batch_size,

@@ -12,10 +12,9 @@
 # limitations under the License.
 
 import threading
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import ray
-from typing import Optional
 
 from dlrover.python.common.constants import NodeStatus
 from dlrover.python.common.log import default_logger as logger

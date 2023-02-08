@@ -30,7 +30,7 @@ class RayJobSubmitter(unittest.TestCase):
         current_directory = os.path.dirname(os.path.abspath(__file__))
         conf_path = os.path.join(current_directory, "demo.yaml")
         all_data = load_conf(conf_path)
-        self.assertEqual(all_data["dashboardUrl"], "localhost:5000")
+        self.assertEqual(all_data["dashboardUrl"], "host.docker.internal:8265")
 
     def test_submit_job(self):
         current_directory = os.path.dirname(os.path.abspath(__file__))
