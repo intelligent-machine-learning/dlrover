@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import copy
+import os
 import threading
 import time
 import traceback
@@ -311,10 +312,7 @@ class JobManager(object):
             "ps": ps_resource,
         }
         self._scaler.scale(plan=plan)
-        import os
-
         os._exit(0)
-        return
 
     def _process_event(self, event: NodeEvent):
         node_type = event.node.type
@@ -335,8 +333,6 @@ class JobManager(object):
 
         # For the given node id, check whether it meets
         # the state change condition
-        logger.info(" event.node.status ")
-
         if event.event_type == "exit":
             self.close_job()
         new_status = event.node.status

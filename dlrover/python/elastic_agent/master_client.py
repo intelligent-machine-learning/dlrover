@@ -280,6 +280,7 @@ class MasterClient(object):
         res = self._stub.update_node_addr(request)
         return res
 
+    @retry_grpc_request
     def update_node_event(self, task_type, task_id, event):
         request = elastic_training_pb2.NodeEvent()
         request.node.id = task_id
