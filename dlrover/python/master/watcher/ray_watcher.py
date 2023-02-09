@@ -15,7 +15,7 @@ from typing import List
 
 from dlrover.python.common.constants import NodeType
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.common.node import Node, NodeResource
+from dlrover.python.common.node import Node
 from dlrover.python.master.watcher.base_watcher import NodeWatcher
 from dlrover.python.scheduler.ray import RayClient
 from dlrover.python.util.queue.queue import RayEventQueue
@@ -78,7 +78,7 @@ class RayScalePlanWatcher:
 
 
 class ActorWatcher(NodeWatcher):
-    """PodWatcher monitors all Pods of a k8s Job."""
+    """ActorWatcher monitors all actors of a ray Job."""
 
     def __init__(self, job_name, namespace):
         self._job_name = job_name
@@ -87,10 +87,6 @@ class ActorWatcher(NodeWatcher):
         self.event_queue = RayEventQueue.singleton_instance()
 
     def watch(self):
-        """
-        监听各个actor的事件，维护一个dict，保存当前的actor的退出户
-        """
-        # 从后端加载actor的name信息
         while True:
             i = self.event_queue.get()
             event = parse_event(i)
@@ -98,26 +94,16 @@ class ActorWatcher(NodeWatcher):
             yield event
 
     def list(self) -> List[Node]:
-        # 从后端加载actor的name信息
-        # 依次查询actor
         nodes: List[Node] = []
-        # to do
-        # load actor names from file states backend or remote backend
-        resource = NodeResource(1, 1024)  # to do 使用存储后端
-        logger.info("watch list nodes")
-        #
         for name, status in self._ray_client.list_actor():
-
             actor_type, actor_index = parse_type_id_from_actor_name(name)
-            # 相当于 新建的 node
             node = Node(
                 node_type=actor_type,
                 node_id=actor_index,
                 name=actor_index,
                 rank_index=actor_index,
                 status=status,
-                start_time=None,  # to be decided，获取actor创建时间
-                config_resource=resource,  # to be decided，获取actor的创建时间
+                start_time=None,
             )
             nodes.append(node)
         return []

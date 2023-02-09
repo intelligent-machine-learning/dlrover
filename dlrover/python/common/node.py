@@ -146,7 +146,7 @@ class Node(object):
         self,
         node_type,
         node_id,
-        config_resource=None,
+        config_resource: NodeResource = NodeResource(0, 0),
         name=None,
         status=NodeStatus.INITIAL,
         start_time=None,

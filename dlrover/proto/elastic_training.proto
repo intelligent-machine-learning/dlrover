@@ -202,12 +202,12 @@ message QueryPsNodesResponse {
 
 message NodeMeta {
   string type = 1;
-  int32 id = 2;
-  string addr = 3;
-  int32 memory = 4;
-  int32 cpu = 5;
-  int32 gpu = 6;
-  string gpu_type = 7;
+  string addr = 2;
+  int32 memory = 3;
+  int32 cpu = 4;
+  int32 gpu = 5;
+  string gpu_type = 6;
+  int32 id = 7;
 }
 
 message NodeEvent {

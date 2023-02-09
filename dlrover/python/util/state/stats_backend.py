@@ -43,7 +43,7 @@ class LocalFileStateBackend:
         elif self.file_path.endswith("yaml"):
             data = parse_yaml_file(self.file_path)
         else:
-            print("error")  # to do: logging
+            raise Exception("fails to parse file %s" % self.file_path)
         self.data = data
         return data
 
