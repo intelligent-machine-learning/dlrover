@@ -68,11 +68,12 @@ the waste of resources.
 </div>
 
 ### Dynamic data sharding
+There are at two reasons why we need dynamic data sharding. The first one is
+that Dlrover needs to ensure the training data used to fit the model is processed as users expect. When workers recover from failure or are scaled, they may consume training data twice or miss some training data due to a lack of a global coordinator. With dynamic data sharding, Dlrover keep track of every worker's data consumption and try its best to ensurse that data is delievered exact once/at least once/at most once [streaming-data-splitter-and-manager.md](docs/design/streaming-data-splitter-and-manager.md). As a result, dynamic data sharding helps to eliminate uncertainties caused by ensuring data is consumed as users expect.
 
-Dynamic data sharding can mitigate the worker straggler and support
-the elasticity of data-parallism without re-partitioning dataset.
-DLRrover splits the training dataset into small shards
-by the sample index and place these shards into a TODO queue. After
+The second one is that dynamic data sharding reduces complexity for worker to deal with obtaining training data. As the [training-master.md](docs/design/training-master.md) indicates, worker only needs to ask for data shard from the Dlrover master without intracting with other worker to split data. 
+
+Dynamic data sharding can also mitigate the worker straggler. After
 a worker starts its training loop, it queries a shard from the TODO
 queue one by one. The fast worker will consumes more shards than
 the slow worker which is a straggler.
