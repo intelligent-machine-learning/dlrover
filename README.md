@@ -79,10 +79,6 @@ queue one by one. The fast worker will consumes more shards than
 the slow worker which is a straggler.
 
 
-<div align="center">
-<img src="docs/figures/dynamic-data-sharding.jpg" alt="Editor" width="500">
-</div>
-
 ### Integration to Offline and Online Deep Learning.
 
 With the data source transparency provided by dynamic data sharding, DLRover can be integrated with offline training which consumes batch data, and also supports online learning with real-time streaming data. (fed with a message queue like RocketMQ/Kafka/Pulsar/..., or executed as a training sink node inside Flink/Spark/Ray/...)
