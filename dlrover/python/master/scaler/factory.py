@@ -15,6 +15,7 @@ from dlrover.python.common.constants import PlatformType
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.scaler.elasticjob_scaler import ElasticJobScaler
 from dlrover.python.master.scaler.pod_scaler import PodScaler
+from dlrover.python.master.scaler.ray_scaler import ActorScaler
 
 
 def new_job_scaler(platform, job_name, namespace):
@@ -23,3 +24,5 @@ def new_job_scaler(platform, job_name, namespace):
         return ElasticJobScaler(job_name, namespace)
     elif platform == PlatformType.PY_KUBERNETES:
         return PodScaler(job_name, namespace)
+    elif platform == PlatformType.RAY:
+        return ActorScaler(job_name, namespace)

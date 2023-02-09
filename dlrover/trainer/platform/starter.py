@@ -15,10 +15,15 @@ import os
 
 from dlrover import trainer
 from dlrover.trainer.constants.platform_constants import PlatformConstants
-from dlrover.trainer.mock.tf_process_scheduler import TFProcessScheduler
+from dlrover.trainer.mock.tf_process_scheduler import (
+    TFProcessScheduler,
+    mock_k8s_platform_subprocess,
+    mock_ray_platform_subprocess,
+)
 from dlrover.trainer.util.args_util import get_parsed_args
 from dlrover.trainer.util.log_util import default_logger as logger
 from dlrover.trainer.worker.tf_kubernetes_worker import TFKubernetesWorker
+from dlrover.trainer.worker.tf_ray_worker import TFRayWorker
 
 
 def print_info(append_detail=False):
@@ -48,7 +53,9 @@ def execute(args):
     platform = args.platform.upper()
     if platform == PlatformConstants.Kubernetes():
         worker = TFKubernetesWorker(args)
-    elif platform in [PlatformConstants.Local()]:
+    if platform == PlatformConstants.Ray():
+        worker = TFRayWorker(args)
+    elif PlatformConstants.Local() in platform:
         # local mode, actually we use a scheduler
         logger.info("create ProcessScheduler with run_type = ProcessScheduler")
         worker = TFProcessScheduler(
@@ -58,6 +65,13 @@ def execute(args):
             conf=args.conf,
             parsed_args=args,
         )
+        # to do use constants
+        if PlatformConstants.Ray() in platform:
+            worker.set_start_subprocess(mock_ray_platform_subprocess)
+        elif PlatformConstants.Kubernetes() in platform:
+            worker.set_start_subprocess(mock_k8s_platform_subprocess)
+        else:
+            raise Exception("e")
 
     logger.info(
         "Running platform: %s, worker action: %s",

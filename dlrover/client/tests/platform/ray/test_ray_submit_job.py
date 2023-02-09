@@ -40,7 +40,7 @@ class RayJobSubmitter(unittest.TestCase):
         self.assertNotEqual(job_id, None)
         submitter.wait_until_finish(job_id)
 
-    def tearDown(self) -> None:
+    def tearDown(self):
         r = os.system("ray stop")
         self.assertEqual(r, 0)
 

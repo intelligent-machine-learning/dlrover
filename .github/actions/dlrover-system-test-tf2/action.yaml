@@ -13,6 +13,11 @@ dlrover/proto/*.proto --python_out=. --grpc_python_out=. \
 && pip install deepctr \
 && pip install h5py==3.7.0 \
 && pip install pyhocon tensorflow==2.11 \
-&& export PYTHONPATH=`pwd` && \
-cd dlrover/trainer/examples/estimator_executor && sh run.sh \
-&& cd - && cd dlrover/trainer/examples/deepfm && sh run.sh"
+&& pip install ray['defult'] \
+&& export PYTHONPATH=`pwd` \
+&& cd dlrover/trainer/examples/estimator_executor \
+&& sh mock_k8s_run.sh \
+&& unset DLROVER_MASTER_ADDR \
+&& sh mock_ray_run.sh \
+&& export DLROVER_MASTER_ADDR='127.0.0.1:50001' \
+&& sh local_ray_run.sh"

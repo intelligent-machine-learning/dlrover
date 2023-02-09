@@ -41,6 +41,12 @@ def add_platform_args(parser):
         "--conf", help="configuration for training", default=None
     )
 
+    parser.add_argument("--task_id", help="worker id", type=int)
+
+    parser.add_argument("--task_type", help="worker type", type=str)
+
+    parser.add_argument("--mock", type=bool)
+
     parser.add_argument(
         "--enable_auto_scaling",
         help="configuration for elastic training",
