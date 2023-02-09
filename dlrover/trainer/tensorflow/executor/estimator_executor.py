@@ -61,14 +61,16 @@ class EstimatorExecutor(BaseExecutor):
         self._task_conf = context
         self._initialize_estimator_related()
         self._prepare_env()
-        # prepare estimator class from user
-        self.gen_model_dir()
+
         self._prepare_estimator_class()
         self._prepare_estimator()
 
     def gen_model_dir(self):
         self._model_dir = self._task_conf.get(TFConstants.ModelDir.name)
-        if not os.path.exists(self._model_dir):
+        if (
+            not os.path.exists(self._model_dir)
+            and self.task_type == TFConstants.Chief()
+        ):
             os.makedirs(self._model_dir)
 
     def _initialize_estimator_related(self):
@@ -130,6 +132,7 @@ class EstimatorExecutor(BaseExecutor):
     def _prepare_estimator_config_and_params(self):
         """prepare estimator.RunConfig and set default estimator hooks"""
         config = self.get_config(self.cluster_spec)
+        self.gen_model_dir()
         config._model_dir = self._model_dir
         params = {}
         training_hooks = [GlobalStepHook()]
