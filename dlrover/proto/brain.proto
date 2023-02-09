@@ -90,7 +90,7 @@ enum MetricsType {
 }
 
 message JobMetrics {
-  string data_store = 1; // data_store_elasticdl
+  string data_store = 1;
   JobMeta job_meta = 2;
   MetricsType metrics_type = 3;
   oneof metrics {

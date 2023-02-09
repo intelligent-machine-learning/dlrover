@@ -773,7 +773,7 @@ type JobMetrics struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	DataStore   string      `protobuf:"bytes,1,opt,name=data_store,json=dataStore,proto3" json:"data_store,omitempty"` // data_store_elasticdl
+	DataStore   string      `protobuf:"bytes,1,opt,name=data_store,json=dataStore,proto3" json:"data_store,omitempty"`
 	JobMeta     *JobMeta    `protobuf:"bytes,2,opt,name=job_meta,json=jobMeta,proto3" json:"job_meta,omitempty"`
 	MetricsType MetricsType `protobuf:"varint,3,opt,name=metrics_type,json=metricsType,proto3,enum=brain.MetricsType" json:"metrics_type,omitempty"`
 	// Types that are assignable to Metrics:

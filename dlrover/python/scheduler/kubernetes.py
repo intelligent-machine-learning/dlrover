@@ -46,11 +46,11 @@ class k8sClient(object):
 
     def __init__(self, namespace):
         """
-        ElasticDL k8s client.
+        DLRover k8s client.
 
         Args:
-            image_name: Docker image path for ElasticDL pod.
-            namespace: The name of the Kubernetes namespace where ElasticDL
+            image_name: Docker image path for DLRover pod.
+            namespace: The name of the Kubernetes namespace where DLRover
                 pods will be created.
             event_callback: If not None, an event watcher will be created and
                 events passed to the callback.
@@ -278,10 +278,10 @@ class K8sElasticJob(ElasticJob):
         job is in dlrover/go/elasticjob_operator/config/samples/
         elastic_v1alpha1_elasticjob.yaml
         Args:
-            image_name: Docker image path for ElasticDL pod.
-            namespace: The name of the Kubernetes namespace where ElasticDL
+            image_name: Docker image path for DLRover pod.
+            namespace: The name of the Kubernetes namespace where DLRover
                 pods will be created.
-            job_name: ElasticDL job name, should be unique in the namespace.
+            job_name: DLRover job name, should be unique in the namespace.
                 Used as pod name prefix and value for "elastic" label.
         """
         self._k8s_client = k8sClient.singleton_instance(namespace)

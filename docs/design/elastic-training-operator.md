@@ -45,7 +45,7 @@ spec:
             spec:
             containers:
                 - name: main
-                image: elasticdl:iris_estimator
+                image: easydl/tf-estimator:iris_dnn_v0
                 command:
                     - python
                     - -m
@@ -61,7 +61,7 @@ spec:
             spec:
             containers:
                 - name: main
-                image: elasticdl:iris_estimator
+                image: easydl/tf-estimator:iris_dnn_v0
                 command:
                     - python
                     - -m
