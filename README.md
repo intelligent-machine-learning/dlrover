@@ -68,9 +68,19 @@ the waste of resources.
 </div>
 
 ### Dynamic data sharding
-TODO...
+
+Dynamic data sharding can mitigate the worker straggler and support
+the elasticity of data-parallism without re-partitioning dataset.
+DLRrover splits the training dataset into small shards
+by the sample index and place these shards into a TODO queue. After
+a worker starts its training loop, it queries a shard from the TODO
+queue one by one. The fast worker will consumes more shards than
+the slow worker which is a straggler.
 
 
+<div align="center">
+<img src="docs/figures/dynamic-data-sharding.jpg" alt="Editor" width="500">
+</div>
 
 ### Integration to Offline and Online Deep Learning.
 
