@@ -17,7 +17,7 @@ from dlrover.proto import brain_pb2, brain_pb2_grpc
 from dlrover.python.common.grpc import build_channel
 from dlrover.python.common.log import default_logger as logger
 
-DATA_STORE = "data_store_elasticdl"
+DATA_STORE = "data_store_elastic_job"
 OPTIMIZE_PROCESSOR = "running_training_job_optimize_processor"
 BASE_OPTIMIZE_PROCESSOR = "base_optimize_processor"
 
