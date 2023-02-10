@@ -68,7 +68,8 @@ class RayJobSubimitter:
         runtime_env = {"working_dir": self.run_options.get("workingDir", "./")}
         entrypoint = self.run_options.get("command")
         if self.run_options.get("requirements", None):
-            runtime_env["pip"] = self.run_options.get("requirements")
+            # runtime_env["pip"] = self.run_options.get("requirements")
+            1 == 1
         try:
             job_id: str = self._client.submit_job(
                 entrypoint=entrypoint,

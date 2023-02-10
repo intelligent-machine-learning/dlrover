@@ -67,6 +67,7 @@ class NodeStatus(object):
     PENDING = "Pending"
     INITIAL = "Initial"
     DELETED = "Deleted"
+    UNKNOWN = "Unknown"
 
 
 class NodeEventType(object):
@@ -173,7 +174,6 @@ class TrainingLoopStatus(object):
 
 class NodeEnv(object):
     RELAUNCHED_POD = "RELAUNCHED_POD"
-    ELASTICDL_ENABLED = "ELASTICDL_ENABLED"
     MASTER_ADDR = "DLROVER_MASTER_ADDR"
     WORKER_TYPE = "WORKER_TYPE"
     WORKER_ID = "WORKER_ID"

@@ -75,6 +75,10 @@ class Master(object):
         )
         self.elastic_ps_service = _create_elastic_ps_service_if_needed(args)
         self._master_server = self._create_master_grpc_service(port, args)
+        # Start the master GRPC server
+        logger.info("Starting master RPC server")
+        self._master_server.start()
+        logger.info("Master RPC server started")
         self._job_args = args
         self._stop_requested = False
         self._exit_code = 0
@@ -117,11 +121,6 @@ class Master(object):
             self.rendezvous_server.start()
         if self.job_manager:
             self.job_manager.start()
-
-        # Start the master GRPC server
-        logger.info("Starting master RPC server")
-        self._master_server.start()
-        logger.info("Master RPC server started")
 
     def _add_node_event_callback(self):
         """Add NodeEventCallbacks for the listeners of Pod events."""

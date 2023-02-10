@@ -168,7 +168,7 @@ class PodWatcher(NodeWatcher):
         return nodes
 
 
-class ScalePlanWatcher(object):
+class K8sScalePlanWatcher:
     """ScalePlanWatcher monitors the manual Scaler CRDs on the cluster.
     It generates a ResourcePlan by a Scaler CRD and notidy the
     JobManager to adjust job resource by the ResourcePlan.

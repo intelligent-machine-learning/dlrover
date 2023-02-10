@@ -11,7 +11,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import os
+import time
 
 import tensorflow as tf
 from tensorflow.python.estimator.exporter import BestExporter
@@ -57,8 +59,21 @@ class EstimatorExecutor(BaseExecutor):
         """
 
         super(EstimatorExecutor, self).__init__()
-        self.get_cluster_info_by_tf_config()
         self._task_conf = context
+
+    def wait_for_tf_config(self):
+        while os.environ.get("TF_CONFIG", None) is None:
+            time.sleep(1)
+
+    def set_tf_config(self, tf_config):
+        if not isinstance(tf_config, str):
+            tf_config = json.dumps(tf_config)
+        os.environ["TF_CONFIG"] = tf_config
+        self.prepare()
+
+    def prepare(self):
+
+        self.get_cluster_info_by_tf_config()
         self._initialize_estimator_related()
         self._prepare_env()
 

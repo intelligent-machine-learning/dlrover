@@ -207,6 +207,13 @@ message NodeMeta {
   int32 cpu = 4;
   int32 gpu = 5;
   string gpu_type = 6;
+  int32 id = 7;
+}
+
+message NodeEvent {
+  string event_type = 1;
+  NodeMeta node = 2;
+  string message = 3;
 }
 
 message RunningNodes { repeated NodeMeta nodes = 1; }
@@ -218,6 +225,8 @@ message ResourceConfig {
   int32 cpu = 2;
   int32 memory = 3; // Mi
 }
+
+message UpdateNodeAddrResponse { bool success = 2; }
 
 message ReportPreStopRequest { string worker_host = 1; }
 
@@ -270,4 +279,6 @@ service Master {
       returns (google.protobuf.Empty);
 
   rpc report_prestop(ReportPreStopRequest) returns (google.protobuf.Empty);
+  rpc update_node_addr(NodeMeta) returns (UpdateNodeAddrResponse);
+  rpc update_node_event(NodeEvent) returns (google.protobuf.Empty);
 }

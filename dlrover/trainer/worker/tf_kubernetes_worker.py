@@ -48,6 +48,7 @@ class TFKubernetesWorker:
     def run(self):
         global_dict = common_util.GlobalDict()
         global_dict["executor"] = self.estimator
+        self.estimator.prepare()
         self.start_failover_monitor()
         logger.info("KubernetesWorker is running!")
         self.estimator.start_server()

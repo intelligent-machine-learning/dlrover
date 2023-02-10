@@ -61,10 +61,37 @@ def _get_pod(name):
     return pod
 
 
-class MockJobArgs(JobArgs):
+class MockK8sJobArgs(JobArgs):
     def __init__(self):
-        super(MockJobArgs, self).__init__(
+        super(MockK8sJobArgs, self).__init__(
             PlatformType.KUBERNETES, "default", "test"
+        )
+
+    def initilize(self):
+        worker_resource = NodeGroupResource(3, NodeResource(1, 4096))
+        self.node_args[NodeType.WORKER] = NodeArgs(
+            worker_resource, True, 3, 0, ""
+        )
+
+        ps_resource = NodeGroupResource(3, NodeResource(1, 4096))
+        self.node_args[NodeType.PS] = NodeArgs(ps_resource, True, 1, 0, "all")
+
+        evaluator_resource = NodeGroupResource(1, NodeResource(1, 4096))
+        self.node_args[NodeType.EVALUATOR] = NodeArgs(
+            evaluator_resource, False, 1, 0, ""
+        )
+
+        chief_resource = NodeGroupResource(1, NodeResource(1, 4096))
+        self.node_args[NodeType.CHIEF] = NodeArgs(
+            chief_resource, True, 1, 0, ""
+        )
+        self.job_uuid = "11111"
+
+
+class MockRayJobArgs(JobArgs):
+    def __init__(self):
+        super(MockRayJobArgs, self).__init__(
+            PlatformType.RAY, "default", "test"
         )
 
     def initilize(self):

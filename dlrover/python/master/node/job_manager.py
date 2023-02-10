@@ -12,8 +12,10 @@
 # limitations under the License.
 
 import copy
+import os
 import threading
 import time
+import traceback
 from typing import Dict, List
 
 from dlrover.python.common.constants import (
@@ -26,7 +28,7 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.common.node import Node, NodeResource
+from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.event_callback import (
     ClusterContext,
@@ -55,8 +57,10 @@ from dlrover.python.master.resource.optimizer import ResourcePlan
 from dlrover.python.master.scaler.base_scaler import ScalePlan, Scaler
 from dlrover.python.master.scaler.factory import new_job_scaler
 from dlrover.python.master.watcher.base_watcher import NodeEvent
-from dlrover.python.master.watcher.factory import new_node_watcher
-from dlrover.python.master.watcher.k8s_watcher import ScalePlanWatcher
+from dlrover.python.master.watcher.factory import (
+    new_node_watcher,
+    new_scale_plan_watcher,
+)
 from dlrover.python.scheduler.factory import new_elastic_job
 from dlrover.python.scheduler.job import ElasticJob, JobArgs
 
@@ -118,8 +122,12 @@ class JobManager(object):
 
         self._elastic_job: ElasticJob = job
         self._node_watcher = node_watcher
-        self._scaler_watcher = ScalePlanWatcher(
-            job_args.namespace, job_args.job_name, job_args.job_uuid
+
+        self._scaler_watcher = new_scale_plan_watcher(
+            job_args.platform,
+            job_args.job_name,
+            job_args.namespace,
+            job_args.job_uuid,
         )
         self._scaler: Scaler = job_scaler
         self._job_optimizer = JobResourceOptimizer(
@@ -216,6 +224,7 @@ class JobManager(object):
             self._critical_worker_index,
         )
         update_nodes_priority(self._job_nodes)
+
         self._ps_manager.update_nodes(self._job_nodes.get(NodeType.PS, {}))
         self._chief_manager.update_nodes(
             self._job_nodes.get(NodeType.CHIEF, {})
@@ -231,6 +240,7 @@ class JobManager(object):
         logger.info("Start to monitor nodes")
         while True:
             nodes = self._node_watcher.list()
+            logger.info("nodes are {}".format(nodes))
             self._process_list_nodes(nodes)
             try:
                 if self._stop_monitor:
@@ -241,6 +251,8 @@ class JobManager(object):
                         self._process_event(event)
                     except Exception as e:
                         logger.warning(e)
+                        detail_trace_back = traceback.format_exc()
+                        logger.warning(detail_trace_back)
             except Exception as e:
                 logger.warning(e)
                 time.sleep(30)
@@ -289,12 +301,26 @@ class JobManager(object):
                         node_type,
                         node_id,
                     )
-                    node.is_released = True
+                    # node.is_released = True
+
+    def close_job(self):
+        plan = ScalePlan()
+        ps_resource = NodeGroupResource.new_empty()
+        worker_reource = NodeGroupResource.new_empty()
+        plan.node_group_resources = {
+            "worker": worker_reource,
+            "ps": ps_resource,
+        }
+        self._scaler.scale(plan=plan)
+        os._exit(0)
 
     def _process_event(self, event: NodeEvent):
         node_type = event.node.type
         node_id = event.node.id
+        logger.info("node event")
         if node_id not in self._job_nodes[node_type]:
+            logger.info("node_id is {}".format(node_id))
+            logger.info(event)
             self._job_nodes[node_type][node_id] = event.node
             return
         else:
@@ -307,6 +333,8 @@ class JobManager(object):
 
         # For the given node id, check whether it meets
         # the state change condition
+        if event.event_type == "exit":
+            self.close_job()
         new_status = event.node.status
         with self._lock:
             old_status = cur_node.status
@@ -501,8 +529,23 @@ class JobManager(object):
         node = self._job_nodes[node_type][node_id]
         node.update_resource_usage(cpu, memory)
 
+    def update_node_service_addr(self, node_type, node_id, service_addr):
+        logger.info("job nodes are {}".format(self._job_nodes))
+        logger.info(node_id)
+        node = self._job_nodes[node_type][node_id]
+        logger.info(
+            "update_node_service_addr id of node is {}".format(id(node))
+        )
+        node.update_service_address(service_addr)
+        node.status = NodeStatus.RUNNING
+        node.is_released = False
+        logger.info("node status {}".format(node.status))
+        self._job_nodes[node_type][node_id] = node
+        logger.info("job nodes are {}".format(self._job_nodes))
+
     def get_cur_cluster_ps(self):
         """Get PS nodes in the current training cluster."""
+        logger.info("job nodes are {}".format(self._job_nodes))
         return self._ps_manager.get_training_ps_cluster()
 
     def get_next_cluster_ps(self):

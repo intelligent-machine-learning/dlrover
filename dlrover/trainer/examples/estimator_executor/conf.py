@@ -22,11 +22,11 @@ def compare_fn(prev_eval_result, cur_eval_result):
 
 class TrainConf(object):
     classifier_class = MyEstimator
-    batch_size = 64
-    epoch = 1000
-    log_steps = 100
+    batch_size = 3
+    epoch = 1
+    log_steps = 10
     eval_steps = 10
-    save_steps = 500
+    save_steps = 10
 
     model_dir = "/nas"
     params = {

@@ -27,8 +27,8 @@ from dlrover.python.common.node import Node
 from dlrover.python.master.resource.optimizer import ResourcePlan
 from dlrover.python.master.watcher.base_watcher import NodeEvent
 from dlrover.python.master.watcher.k8s_watcher import (
+    K8sScalePlanWatcher,
     PodWatcher,
-    ScalePlanWatcher,
     _convert_pod_event_to_node_event,
     _get_pod_exit_reason,
 )
@@ -108,7 +108,7 @@ class ScalePlanWatcherTest(unittest.TestCase):
         mock_k8s_client()
 
     def test_get_resource_plan_from_scale_plan(self):
-        watcher = ScalePlanWatcher("test", "default", "1234")
+        watcher = K8sScalePlanWatcher("test", "default", "1234")
         scale_plan = get_test_scale_plan()
         resource_plan: ResourcePlan = watcher._get_resoruce_plan_from_event(
             scale_plan
