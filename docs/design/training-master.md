@@ -176,7 +176,7 @@ class PodWatcher(NodeWatcher):
                 stream = watch.Watch().stream(
                     self.client.list_namespaced_pod,
                     self.namespace,
-                    label_selector=ELASTICDL_JOB_KEY + "=" + self.job_name,
+                    label_selector=ELASTIC_JOB_KEY + "=" + self.job_name,
                     resource_version=resource_version,
                     timeout_seconds=60,
                 )
@@ -188,7 +188,7 @@ class PodWatcher(NodeWatcher):
     def list(self):
         pod_list = self.client.list_namespaced_pod(
             self.namespace,
-            label_selector=ELASTICDL_JOB_KEY + "=" + self.job_name,
+            label_selector=ELASTIC_JOB_KEY + "=" + self.job_name,
         )
         return pod_list
 ```
