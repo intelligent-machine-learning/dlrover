@@ -106,6 +106,7 @@ class PodScalerTest(unittest.TestCase):
         scaler._distribution_strategy = DistributionStrategy.PARAMETER_SERVER
         resource = NodeResource(4, 8192)
         scale_plan = ScalePlan()
+        self.assertTrue(scale_plan.empty())
         scale_plan.node_group_resources = {
             NodeType.WORKER: NodeGroupResource(5, resource),
             NodeType.CHIEF: NodeGroupResource(1, resource),
@@ -133,4 +134,5 @@ class PodScalerTest(unittest.TestCase):
             Node(NodeType.WORKER, 1, NodeResource(0, 0))
         )
         scaler.scale(scale_plan)
+        self.assertFalse(scale_plan.empty())
         self.assertEqual(len(scaler._initial_nodes), 2)

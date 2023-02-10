@@ -34,7 +34,11 @@ class ScalePlan(JsonSerializable):
         self.ps_addrs: List[str] = []
 
     def empty(self):
-        return len(self.node_group_resources) + len(self.node_resources) == 0
+        return (
+            not self.node_group_resources
+            and not self.launch_nodes
+            and not self.remove_nodes
+        )
 
     def merge(self, plan):
         self.node_group_resources.update(plan.node_group_resources)
