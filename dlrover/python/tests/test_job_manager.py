@@ -85,7 +85,7 @@ class NodeStatusFlowTest(unittest.TestCase):
         self.assertFalse(flow.should_relaunch)
 
 
-class JobConfigTest(unittest.TestCase):
+class JobManagerTest(unittest.TestCase):
     def setUp(self) -> None:
         mock_k8s_client()
 
