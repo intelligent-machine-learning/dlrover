@@ -101,6 +101,7 @@ class PSTrainingAutoScaler(JobAutoScaler):
         self._stop_autoscaling = False
         self._scaler = node_scaler
         self._job_nodes = job_nodes
+        self._chief_started = False
 
     def start_auto_scaling(self):
         """Start to auto-scale nodes to improve the training throughput."""
@@ -151,6 +152,7 @@ class PSTrainingAutoScaler(JobAutoScaler):
                     last_plan_time = time.time()
                 plan = self._skip_ps_plan_if_needed(plan)
                 self.execute_job_optimization_plan(plan)
+            self._cut_timeout_pending_node_cpu()
             time.sleep(30)
 
     def execute_job_optimization_plan(self, plan: ResourcePlan):
@@ -252,3 +254,12 @@ class PSTrainingAutoScaler(JobAutoScaler):
             scale_plan.merge(plan)
         logger.info("Migration plan = %s", scale_plan.toJSON())
         return scale_plan
+
+    def _cut_timeout_pending_node_cpu(self):
+        """Cut down CPU cores of pending pod at the job starts"""
+        if self._chief_started:
+            return
+        if _dlrover_context.auto_ps_enabled:
+            self._ps_manager.cut_pending_node_cpu()
+        if _dlrover_context.auto_worker_enabled:
+            self._worker_manager.cut_pending_node_cpu()

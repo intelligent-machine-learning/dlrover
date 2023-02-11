@@ -114,7 +114,6 @@ class JobManager(object):
         )
         self._use_ddp = job_args.use_ddp
         self._node_event_callbacks: List[NodeEventCallback] = []
-        self._chief_started = False
         self._stop_monitor = False
         self._speed_monitor: SpeedMonitor = speed_monitor
 
@@ -146,18 +145,9 @@ class JobManager(object):
         self._job_optimizer.init_job_resource(self._job_resource)
         self._adjust_worker_for_estimator()
         self._init_nodes()
+        self._init_job_auto_scaler()
         plan = self._create_initial_scale_plan()
         self._scaler.scale(plan)
-        self._job_autoscaler: JobAutoScaler = new_job_auto_scaler(
-            self._job_args.distribution_strategy,
-            self._job_resource,
-            self._job_nodes,
-            self._job_optimizer,
-            self._speed_monitor,
-            self._ps_manager,
-            self._worker_manager,
-            self._scaler,
-        )
         threading.Thread(
             target=self._monitor_nodes, name="node_monitor", daemon=True
         ).start()
@@ -246,6 +236,18 @@ class JobManager(object):
         )
         self._evaluator_manager.update_nodes(
             self._job_nodes.get(NodeType.EVALUATOR, {})
+        )
+
+    def _init_job_auto_scaler(self):
+        self._job_autoscaler: JobAutoScaler = new_job_auto_scaler(
+            self._job_args.distribution_strategy,
+            self._job_resource,
+            self._job_nodes,
+            self._job_optimizer,
+            self._speed_monitor,
+            self._ps_manager,
+            self._worker_manager,
+            self._scaler,
         )
 
     def _monitor_nodes(self):
@@ -596,15 +598,6 @@ class JobManager(object):
     def _set_ps_addrs_in_plan(self, plan: ScalePlan):
         ps_addrs = self._ps_manager.get_ps_addrs()
         plan.ps_addrs.extend(ps_addrs)
-
-    def cut_timeout_pending_node_cpu(self):
-        """Cut down CPU cores of pending pod at the job starts"""
-        if self._chief_started:
-            return
-        if _dlrover_context.auto_ps_enabled:
-            self._ps_manager.cut_pending_node_cpu()
-        if _dlrover_context.auto_worker_enabled:
-            self._worker_manager.cut_pending_node_cpu()
 
 
 def create_job_manager(args: JobArgs, speed_monitor) -> JobManager:

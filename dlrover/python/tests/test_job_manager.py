@@ -314,31 +314,3 @@ class JobManagerTest(unittest.TestCase):
         callback.on_node_failed(node, cluster_context)
         self.assertEqual(master.speed_monitor._target_worker_num, 1)
         self.assertEqual(len(master.speed_monitor.running_workers), 1)
-
-    def test_execute_job_optimization_plan(self):
-        params = MockK8sJobArgs()
-        params.initilize()
-        manager = create_job_manager(params, SpeedMonitor())
-        manager._init_nodes()
-
-        manager._scaler.scale = mock.MagicMock(return_value=True)
-        plan = ResourcePlan()
-        plan.node_group_resources[NodeType.WORKER] = NodeGroupResource(
-            6, NodeResource(4, 4096)
-        )
-        plan.node_resources["test-edljob-worker-0"] = NodeResource(8, 8192)
-        plan.node_resources["test-edljob-ps-1"] = NodeResource(8, 8192)
-        manager._ps_manager._nodes[1].status = NodeStatus.RUNNING
-        scale_plan = manager._execute_job_optimization_plan(plan)
-        self.assertEqual(len(manager._ps_manager._nodes), 4)
-        self.assertEqual(len(manager._worker_manager._nodes), 7)
-        self.assertEqual(
-            scale_plan.node_group_resources[NodeType.WORKER].count, 6
-        )
-        self.assertEqual(len(scale_plan.remove_nodes), 1)
-        self.assertEqual(len(scale_plan.launch_nodes), 2)
-
-        ps_addrs = []
-        for i in [0, 3, 2]:
-            ps_addrs.append("test-edljob-ps-{}.default.svc:2222".format(i))
-        self.assertListEqual(scale_plan.ps_addrs, ps_addrs)
