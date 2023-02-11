@@ -41,7 +41,6 @@ from dlrover.python.master.node.training_node import (
     update_nodes_priority,
 )
 from dlrover.python.master.resource.job import JobResource
-from dlrover.python.master.resource.optimizer import ResourcePlan
 from dlrover.python.master.watcher.base_watcher import Node, NodeEvent
 from dlrover.python.tests.test_utils import (
     MockK8sJobArgs,

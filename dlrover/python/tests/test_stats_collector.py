@@ -39,6 +39,7 @@ class StatsCollectorTest(unittest.TestCase):
 
         speed_monitor = SpeedMonitor()
         t = int(time.time())
+        speed_monitor.set_target_worker_num(1)
         speed_monitor.collect_global_step(100, t)
         speed_monitor.collect_global_step(1100, t + 10)
         speed_monitor.add_running_worker(NodeType.WORKER, 0)
