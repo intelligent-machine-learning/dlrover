@@ -1,22 +1,38 @@
+# Copyright 2023 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import threading
 import time
 from abc import ABCMeta, abstractmethod
 from typing import Dict
-from dlrover.python.common.log import default_logger as logger
+
+from dlrover.python.common.constants import (
+    DistributionStrategy,
+    NodeResourceLimit,
+    NodeType,
+)
 from dlrover.python.common.global_context import Context
+from dlrover.python.common.log import default_logger as logger
+from dlrover.python.common.node import Node, NodeResource
+from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
+from dlrover.python.master.node.ps import ParameterServerManager
+from dlrover.python.master.node.worker import WorkerManager
 from dlrover.python.master.resource.job import (
     JobResource,
     JobResourceOptimizer,
 )
-from dlrover.python.common.node import Node, NodeResource
-from dlrover.python.master.node.ps import ParameterServerManager
-from dlrover.python.master.node.worker import WorkerManager
-from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.resource.optimizer import ResourcePlan
 from dlrover.python.master.scaler.base_scaler import ScalePlan, Scaler
-from dlrover.python.common.constants import (
-    NodeType, NodeResourceLimit, DistributionStrategy
-)
 
 _dlrover_context = Context.singleton_instance()
 
@@ -29,7 +45,7 @@ def new_job_auto_scaler(
     speed_monitor: SpeedMonitor,
     ps_manager: ParameterServerManager,
     worker_manager: WorkerManager,
-    node_scaler: Scaler
+    node_scaler: Scaler,
 ):
     if job_strategy == DistributionStrategy.PARAMETER_SERVER:
         return PSTrainingAutoScaler(
@@ -66,6 +82,7 @@ class JobAutoScaler(metaclass=ABCMeta):
 
 class PSTrainingAutoScaler(JobAutoScaler):
     """AutoScale a Job using Async-SGD with ParamterServer strategy"""
+
     def __init__(
         self,
         job_resource: JobResource,
@@ -74,8 +91,7 @@ class PSTrainingAutoScaler(JobAutoScaler):
         speed_monitor: SpeedMonitor,
         ps_manager: ParameterServerManager,
         worker_manager: WorkerManager,
-        node_scaler: Scaler
-
+        node_scaler: Scaler,
     ) -> None:
         self._job_resource = job_resource
         self._job_optimizer = job_optimizer

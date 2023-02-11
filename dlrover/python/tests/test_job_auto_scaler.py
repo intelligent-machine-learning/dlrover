@@ -14,20 +14,13 @@
 import unittest
 from unittest import mock
 
-from dlrover.python.common.constants import (
-
-    NodeStatus,
-    NodeType,
-)
+from dlrover.python.common.constants import NodeStatus, NodeType
 from dlrover.python.common.node import NodeGroupResource, NodeResource
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
+from dlrover.python.master.node.job_auto_scaler import PSTrainingAutoScaler
 from dlrover.python.master.node.job_manager import create_job_manager
 from dlrover.python.master.resource.optimizer import ResourcePlan
-from dlrover.python.tests.test_utils import (
-    MockK8sJobArgs,
-    mock_k8s_client,
-)
-from dlrover.python.master.node.job_auto_scaler import PSTrainingAutoScaler
+from dlrover.python.tests.test_utils import MockK8sJobArgs, mock_k8s_client
 
 
 class JobAutoScalerTest(unittest.TestCase):

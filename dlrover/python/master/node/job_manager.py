@@ -34,8 +34,11 @@ from dlrover.python.master.node.event_callback import (
     ClusterContext,
     NodeEventCallback,
 )
+from dlrover.python.master.node.job_auto_scaler import (
+    JobAutoScaler,
+    new_job_auto_scaler,
+)
 from dlrover.python.master.node.ps import ParameterServerManager
-from dlrover.python.master.node.job_auto_scaler import new_job_auto_scaler, JobAutoScaler
 from dlrover.python.master.node.status_flow import (
     NodeStateFlow,
     get_node_state_flow,
