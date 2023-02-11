@@ -26,6 +26,8 @@ from dlrover.python.util.actor_util.parse_actor import (
 )
 from dlrover.python.util.reflect_util import get_class
 
+ray.init()
+
 
 class ActorArgs:
     def __init__(self, actor_name, executor, args=[], kargs={}):
@@ -46,7 +48,6 @@ class ActorScaler(Scaler):
         self._ray_client = RayClient.singleton_instance(namespace, job_name)
         self._namespace = namespace
         self._lock = threading.Lock()
-        ray.init()
 
     def _retry_to_get_job(self):
         pass
