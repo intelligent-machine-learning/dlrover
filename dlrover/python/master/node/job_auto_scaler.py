@@ -16,10 +16,7 @@ import time
 from abc import ABCMeta, abstractmethod
 from typing import Dict
 
-from dlrover.python.common.constants import (
-    DistributionStrategy,
-    NodeType,
-)
+from dlrover.python.common.constants import DistributionStrategy, NodeType
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeResource
