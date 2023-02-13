@@ -144,25 +144,31 @@ class PodWatcher(NodeWatcher):
     def list(self) -> List[Node]:
         nodes: List[Node] = []
         pod_list = self._k8s_client.list_namespaced_pod(self._job_selector)
-        if not pod_list or not pod_list.items:
+        if not pod_list:
             return nodes
+        if not pod_list.items:
+            return nodes
+        
+        replica_type_key = ElasticJobLabel.REPLICA_TYPE_KEY
+        replica_index_key = ElasticJobLabel.REPLICA_INDEX_KEY
+        rank_index_key = ElasticJobLabel.RANK_INDEX_KEY
 
         for pod in pod_list.items:
-            pod_type = pod.metadata.labels[ElasticJobLabel.REPLICA_TYPE_KEY]
-            pod_id = int(
-                pod.metadata.labels[ElasticJobLabel.REPLICA_INDEX_KEY]
-            )
+            pod_type = pod.metadata.labels[replica_type_key]
             if pod_type == NodeType.DLROVER_MASTER:
                 continue
-            task_id = int(pod.metadata.labels[ElasticJobLabel.RANK_INDEX_KEY])
+            pod_id = int(pod.metadata.labels[replica_index_key])
+            task_id = int(pod.metadata.labels[rank_index_key])
             resource = _parse_container_resource(pod.spec.containers[0])
+            status = pod.status.phase
+            start_time = _get_start_timestamp(pod.status)
             node = Node(
                 node_type=pod_type,
                 node_id=pod_id,
                 name=pod.metadata.name,
                 rank_index=task_id,
-                status=pod.status.phase,
-                start_time=_get_start_timestamp(pod.status),
+                status=status,
+                start_time=start_time,
                 config_resource=resource,
             )
             node.set_exit_reason(_get_pod_exit_reason(pod))

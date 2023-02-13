@@ -113,11 +113,11 @@ class PodScalerTest(unittest.TestCase):
             NodeType.PS: NodeGroupResource(2, resource),
         }
         scaler.scale(scale_plan)
-        self.assertEqual(len(scaler._initial_nodes), 3)
+        self.assertEqual(len(scaler._create_node_queue), 3)
 
         worker_ids = []
         chief_ids = []
-        for node in scaler._initial_nodes:
+        for node in scaler._create_node_queue:
             if node.type == NodeType.WORKER:
                 worker_ids.append(node.id)
             elif node.type == NodeType.CHIEF:
@@ -135,4 +135,4 @@ class PodScalerTest(unittest.TestCase):
         )
         scaler.scale(scale_plan)
         self.assertFalse(scale_plan.empty())
-        self.assertEqual(len(scaler._initial_nodes), 2)
+        self.assertEqual(len(scaler._create_node_queue), 2)
