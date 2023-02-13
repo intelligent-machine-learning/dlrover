@@ -99,6 +99,7 @@ class ExitCode(object):
     KILLED_CODE = 137
     TERMED_CODE = 143
     CORE_DUMP_ERROR_CODE = 134
+    OOM_CODE = 247
 
 
 class NodeResourceLimit(object):

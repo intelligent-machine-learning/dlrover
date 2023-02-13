@@ -47,21 +47,23 @@ def _get_pod_exit_reason(pod):
         and pod.status.container_statuses[0].state.terminated
     ):
         terminated = pod.status.container_statuses[0].state.terminated
-        if terminated.reason != "OOMKilled":
-            if (
-                terminated.exit_code == ExitCode.KILLED_CODE
-                or terminated.exit_code == ExitCode.TERMED_CODE
-            ):
-                return NodeExitReason.KILLED
-            elif terminated.exit_code in (
-                ExitCode.FATAL_ERROR_CODE,
-                ExitCode.CORE_DUMP_ERROR_CODE,
-            ):
-                return NodeExitReason.FATAL_ERROR
-            else:
-                return NodeExitReason.UNKNOWN_ERROR
-        else:
+        if (
+            terminated.reason == "OOMKilled"
+            or terminated.exit_code == ExitCode.OOM_CODE
+        ):
             return NodeExitReason.OOM
+        elif (
+            terminated.exit_code == ExitCode.KILLED_CODE
+            or terminated.exit_code == ExitCode.TERMED_CODE
+        ):
+            return NodeExitReason.KILLED
+        elif terminated.exit_code in (
+            ExitCode.FATAL_ERROR_CODE,
+            ExitCode.CORE_DUMP_ERROR_CODE,
+        ):
+            return NodeExitReason.FATAL_ERROR
+        else:
+            return NodeExitReason.UNKNOWN_ERROR
 
 
 def _convert_pod_event_to_node_event(event):
