@@ -18,7 +18,6 @@ from typing import Dict
 
 from dlrover.python.common.constants import (
     DistributionStrategy,
-    NodeResourceLimit,
     NodeType,
 )
 from dlrover.python.common.global_context import Context
