@@ -139,7 +139,7 @@ class JobMetricCollector(BaseMetricCollector):
         """Set runtime info by global step"""
         if (
             speed_monitor.running_speed == 0
-            or not speed_monitor.achieve_worker_target()
+            or not speed_monitor.all_worker_joined()
         ):
             return
         self._runtime_metric.clear()

@@ -142,7 +142,7 @@ class SpeedMonitor(object):
         """Reest the speed monitor"""
         self._global_step_records = []
 
-    def achieve_worker_target(self):
+    def all_worker_joined(self):
         return len(self._workers) == self._target_worker_num
 
     def worker_adjustment_finished(self):
