@@ -79,7 +79,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             > _dlrover_context.seconds_to_autoscale_worker
         ):
             logger.info("Start autoscale for non-training jobs")
-            self._job_manager.start_auto_scale()
+            self._job_manager.start_auto_scaling()
             self._start_autoscale = True
 
         if (
@@ -318,7 +318,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
                 "Start autoscale with %s stats samples",
                 sample_count,
             )
-            self._job_manager.start_auto_scale()
+            self._job_manager.start_auto_scaling()
             self._start_autoscale = True
 
     def get_cluster_version(self, request, _):

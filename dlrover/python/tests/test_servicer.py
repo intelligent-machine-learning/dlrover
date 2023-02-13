@@ -96,6 +96,7 @@ class MasterServicerTest(unittest.TestCase):
 
     def test_metric_service(self):
         self.job_manager._init_nodes()
+        self.job_manager._init_job_auto_scaler()
         request = elastic_training_pb2.ReportUsedResourceRequest()
         request.memory = 4096
         request.cpu = 2
@@ -122,6 +123,7 @@ class MasterServicerTest(unittest.TestCase):
         ps0.status = NodeStatus.RUNNING
         request = elastic_training_pb2.GlobalStepRecord()
         self.task_manager._speed_monitor.add_running_worker(NodeType.WORKER, 0)
+        self.task_manager._speed_monitor.set_target_worker_num(1)
         ts = int(time.time())
         request.timestamp = ts
         request.global_step = 100
