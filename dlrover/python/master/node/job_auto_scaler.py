@@ -101,13 +101,13 @@ class PSTrainingAutoScaler(JobAutoScaler):
         self._stop_autoscaling = False
         self._scaler = node_scaler
         self._job_nodes = job_nodes
-        self._chief_started = False
+        self._autoscaling_started = False
 
     def start_auto_scaling(self):
         """Start to auto-scale nodes to improve the training throughput."""
-        if not self._chief_started:
-            logger.info("Chief started!")
-            self._chief_started = True
+        if not self._autoscaling_started:
+            logger.info("AutoScaling started!")
+            self._autoscaling_started = True
             if self._job_resource.worker_num > 1:
                 plan = self._job_optimizer.optimize_worker_resource()
                 self.execute_job_optimization_plan(plan)
@@ -213,7 +213,7 @@ class PSTrainingAutoScaler(JobAutoScaler):
 
     def _cut_timeout_pending_node_cpu(self):
         """Cut down CPU cores of pending pod at the job starts"""
-        if self._chief_started:
+        if self._autoscaling_started:
             return
         if _dlrover_context.auto_ps_enabled:
             self._ps_manager.cut_pending_node_cpu()
