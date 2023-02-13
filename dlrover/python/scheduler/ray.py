@@ -48,6 +48,7 @@ class RayClient(object):
     _instance_lock = threading.Lock()
 
     def __init__(self, namespace, jobname):
+        ray.init()
         self.store_manager = StoreManager(
             jobname=jobname, namespace=namespace
         ).build_store_manager()

@@ -14,8 +14,6 @@
 import threading
 from typing import Dict, List, Optional
 
-import ray
-
 from dlrover.python.common.constants import NodeStatus, NodeType
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node
@@ -25,8 +23,6 @@ from dlrover.python.util.actor_util.parse_actor import (
     parse_type_id_from_actor_name,
 )
 from dlrover.python.util.reflect_util import get_class
-
-ray.init()
 
 
 class ActorArgs:
