@@ -333,10 +333,7 @@ class JobManager(object):
     def _process_event(self, event: NodeEvent):
         node_type = event.node.type
         node_id = event.node.id
-        logger.info("node event")
         if node_id not in self._job_nodes[node_type]:
-            logger.info("node_id is {}".format(node_id))
-            logger.info(event)
             self._job_nodes[node_type][node_id] = event.node
             return
         else:
