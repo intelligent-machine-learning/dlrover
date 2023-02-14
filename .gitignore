@@ -38,7 +38,6 @@ share/python-wheels/
 *.egg
 MANIFEST
 *.ckpt
-*manager
 dlrover/go/operator/bin/
 model_zoo/Dockerfile
 
