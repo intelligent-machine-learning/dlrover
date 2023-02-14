@@ -126,7 +126,7 @@ class PodScaler(Scaler):
 
         with self._lock:
             for type, group_resource in plan.node_group_resources.items():
-                cur_pods = job_pods.get(type, []) + self._get_uncreated_pods(
+                cur_pods = job_pods.get(type, []) + self._get_type_pod_in_queue(
                     type
                 )
                 if group_resource.count > len(cur_pods):
@@ -149,10 +149,12 @@ class PodScaler(Scaler):
             NodeType.WORKER,
             NodeType.EVALUATOR,
         ]:
-            cur_pods = job_pods.get(type, []) + self._get_uncreated_pods(type)
+            cur_pods = job_pods.get(type, []) + self._get_type_pod_in_queue(
+                type
+            )
             self._pod_stats[type] = len(cur_pods)
 
-    def _get_uncreated_pods(self, type):
+    def _get_type_pod_in_queue(self, type):
         pods = []
         for pod in self._create_node_queue:
             if pod.type == type:
