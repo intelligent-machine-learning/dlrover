@@ -126,9 +126,9 @@ class PodScaler(Scaler):
 
         with self._lock:
             for type, group_resource in plan.node_group_resources.items():
-                cur_pods = job_pods.get(type, []) + self._get_type_pod_in_queue(
-                    type
-                )
+                cur_pods = job_pods.get(
+                    type, []
+                ) + self._get_type_pod_in_queue(type)
                 if group_resource.count > len(cur_pods):
                     self._scale_up_pods(type, plan, cur_pods)
                 elif group_resource.count < len(cur_pods):

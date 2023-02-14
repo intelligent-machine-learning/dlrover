@@ -148,7 +148,7 @@ class PodWatcher(NodeWatcher):
             return nodes
         if not pod_list.items:
             return nodes
-        
+
         replica_type_key = ElasticJobLabel.REPLICA_TYPE_KEY
         replica_index_key = ElasticJobLabel.REPLICA_INDEX_KEY
         rank_index_key = ElasticJobLabel.RANK_INDEX_KEY
