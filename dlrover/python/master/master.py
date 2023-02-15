@@ -75,10 +75,6 @@ class Master(object):
         )
         self.elastic_ps_service = _create_elastic_ps_service_if_needed(args)
         self._master_server = self._create_master_grpc_service(port, args)
-        # Start the master GRPC server
-        logger.info("Starting master RPC server")
-        self._master_server.start()
-        logger.info("Master RPC server started")
         self._job_args = args
         self._stop_requested = False
         self._exit_code = 0
@@ -106,6 +102,11 @@ class Master(object):
         return collector
 
     def prepare(self):
+        # Start the master GRPC server
+        logger.info("Starting master RPC server")
+        self._master_server.start()
+        logger.info("Master RPC server started")
+
         # Composite the components
         if self.task_manager and self.job_manager:
             self.task_manager.set_task_timeout_callback(
