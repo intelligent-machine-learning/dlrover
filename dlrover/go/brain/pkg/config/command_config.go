@@ -26,6 +26,8 @@ const (
 	SpecServiceConfigMapKey = "serviceConfigMapKey"
 	// SpecNamespaceName is the spec name of namespace
 	SpecNamespaceName = "namespace"
+	// SpecServerPort is the port of the EasyDL server gRPC service
+	SpecServerPort = "port"
 )
 
 // Spec is the struct of configure specifications
@@ -40,6 +42,8 @@ type Spec struct {
 	ServiceConfigMapKey string
 	// Namespace is the namespace
 	Namespace string
+	// Port is the port of the EasyDL server gRPC service
+	Port string
 }
 
 // CommandConfig is the variable of type ConfigSpec
@@ -66,4 +70,9 @@ func init() {
 		SpecNamespaceName,
 		"",
 		"The namespace name used for k8s ConfigMap & LeaderElection")
+	flag.StringVar(
+		&CommandConfig.Port,
+		SpecServerPort,
+		":50001",
+		"Port of the EasyDL server gRPC service")
 }

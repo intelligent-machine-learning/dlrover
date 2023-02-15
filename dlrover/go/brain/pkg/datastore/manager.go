@@ -21,6 +21,7 @@ import (
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/config"
 	datastoreapi "github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/api"
 	dsimpl "github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/implementation"
+	"sync"
 )
 
 // Manager is the struct of data store manager
@@ -28,6 +29,7 @@ type Manager struct {
 	conf          *config.Config
 	configManager *config.Manager
 	dataStores    map[string]datastoreapi.DataStore
+	mutex         *sync.RWMutex
 }
 
 // NewManager creates a data store manager
@@ -41,6 +43,8 @@ func NewManager(conf *config.Config) *Manager {
 
 	return &Manager{
 		configManager: configManager,
+		dataStores:    make(map[string]datastoreapi.DataStore),
+		mutex:         &sync.RWMutex{},
 	}
 }
 
@@ -63,11 +67,24 @@ func (m *Manager) Run(ctx context.Context, errReporter common.ErrorReporter) err
 
 // CreateDataStore creates a data store for a given name
 func (m *Manager) CreateDataStore(name string) (datastoreapi.DataStore, error) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
+	if dataStore, found := m.dataStores[name]; found {
+		return dataStore, nil
+	}
+
 	conf := m.conf.GetConfig(name)
 	if conf == nil {
 		err := fmt.Errorf("There is no config for data store %s", name)
 		return nil, err
 	}
 
-	return dsimpl.CreateDataStore(name, conf)
+	dataStore, err := dsimpl.CreateDataStore(name, conf)
+	if err != nil {
+		log.Errorf("fail to create data store %s: %v", name, err)
+		return nil, err
+	}
+	m.dataStores[name] = dataStore
+	return dataStore, nil
 }
