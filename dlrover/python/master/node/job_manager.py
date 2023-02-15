@@ -254,7 +254,6 @@ class JobManager(object):
         logger.info("Start to monitor nodes")
         while True:
             nodes = self._node_watcher.list()
-            logger.info("nodes are {}".format(nodes))
             self._process_list_nodes(nodes)
             try:
                 if self._stop_monitor:

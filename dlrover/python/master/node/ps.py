@@ -187,7 +187,6 @@ class ParameterServerManager(TrainingNodeManager):
                 and not pod_info.is_released
             ):
                 alive_ps.append(pod_info)
-        logger.info("alive_ps is {}".format(alive_ps))
         return alive_ps
 
     def get_next_training_ps_cluster(self):
@@ -200,11 +199,6 @@ class ParameterServerManager(TrainingNodeManager):
 
         all_new_ps_ready = True
         for node in self._nodes.values():
-            logger.info(
-                "node.is_released {} and node.status {}".format(
-                    node.is_released, node.status
-                )
-            )
             if not node.is_released and node.status in [
                 NodeStatus.INITIAL,
                 NodeStatus.PENDING,
@@ -253,11 +247,6 @@ class ParameterServerManager(TrainingNodeManager):
             self._init_training_ps_cluster()
         training_ps: List[Node] = []
         for ps in self._training_ps_cluster:
-            logger.info(
-                "is released {} and status {}".format(
-                    ps.is_released, ps.status
-                )
-            )
             if not ps.is_released and ps.status != NodeStatus.FAILED:
                 training_ps.append(ps)
         logger.info("training_ps_cluster is {}".format(training_ps))
