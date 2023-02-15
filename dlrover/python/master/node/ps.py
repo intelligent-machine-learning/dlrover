@@ -187,7 +187,6 @@ class ParameterServerManager(TrainingNodeManager):
                 and not pod_info.is_released
             ):
                 alive_ps.append(pod_info)
-        logger.info("alive_ps is {}".format(alive_ps))
         return alive_ps
 
     def get_next_training_ps_cluster(self):
