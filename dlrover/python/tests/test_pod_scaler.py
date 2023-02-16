@@ -16,8 +16,12 @@ import unittest
 from dlrover.python.common.constants import DistributionStrategy, NodeType
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
 from dlrover.python.master.scaler.base_scaler import ScalePlan
-from dlrover.python.master.scaler.pod_scaler import PodScaler
+from dlrover.python.master.scaler.pod_scaler import PodScaler, new_tf_config
 from dlrover.python.tests.test_utils import mock_k8s_client
+
+
+def new_service_fn(node_type, node_id):
+    return str(node_type) + "_" + str(node_id)
 
 
 class PodScalerTest(unittest.TestCase):
@@ -136,3 +140,11 @@ class PodScalerTest(unittest.TestCase):
         scaler.scale(scale_plan)
         self.assertFalse(scale_plan.empty())
         self.assertEqual(len(scaler._create_node_queue), 2)
+
+    def test_new_tf_config(self):
+        pod_stats = {NodeType.WORKER: 1}
+
+        tf_config = new_tf_config(
+            pod_stats, new_service_fn, NodeType.WORKER, 0, []
+        )
+        self.assertDictEqual(tf_config, {'cluster': {'ps': [], 'worker': ['worker_0']}, 'task': {'type': 'worker', 'index': 0}})
