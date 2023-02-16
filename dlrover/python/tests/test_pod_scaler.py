@@ -147,4 +147,10 @@ class PodScalerTest(unittest.TestCase):
         tf_config = new_tf_config(
             pod_stats, new_service_fn, NodeType.WORKER, 0, []
         )
-        self.assertDictEqual(tf_config, {'cluster': {'ps': [], 'worker': ['worker_0']}, 'task': {'type': 'worker', 'index': 0}})
+        self.assertDictEqual(
+            tf_config,
+            {
+                "cluster": {"ps": [], "worker": ["worker_0"]},
+                "task": {"type": "worker", "index": 0},
+            },
+        )
