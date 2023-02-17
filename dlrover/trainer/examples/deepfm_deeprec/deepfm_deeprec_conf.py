@@ -24,6 +24,8 @@ class TrainConf(object):
     eval_steps = 10
     save_steps = 500
     model_dir = "./"
+    enable_incr_saved_model = True
+    checkpoint_incremental_save_secs = 800
 
     sparse_features = ["C" + str(i) for i in range(1, 27)]
     dense_features = ["I" + str(i) for i in range(1, 14)]

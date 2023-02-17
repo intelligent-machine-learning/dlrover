@@ -17,6 +17,7 @@ from tensorflow.python.client import session
 from tensorflow.python.framework import errors
 from tensorflow.python.training import monitored_session, session_manager
 from tensorflow.python.training.monitored_session import _WrappedSession
+from tensorflow_estimator.python.estimator.mode_keys import ModeKeys
 
 from dlrover.trainer.tensorflow.util import common_util
 from dlrover.trainer.tensorflow.util.tf_version_util import (
@@ -339,6 +340,33 @@ def prepare_session_115(
     return sess
 
 
+def export_saved_model(
+    self,
+    export_dir_base,
+    serving_input_receiver_fn,
+    assets_extra=None,
+    as_text=False,
+    checkpoint_path=None,
+    experimental_mode=ModeKeys.PREDICT,
+    save_incr_model=True,
+):
+    # pylint: enable=line-too-long
+    if not serving_input_receiver_fn:
+        raise ValueError("An input_receiver_fn must be defined.")
+
+    input_receiver_fn_map = {experimental_mode: serving_input_receiver_fn}
+
+    return self._export_all_saved_models(
+        export_dir_base,
+        input_receiver_fn_map,
+        assets_extra=assets_extra,
+        as_text=as_text,
+        checkpoint_path=checkpoint_path,
+        strip_default_attrs=True,
+        save_incr_model=save_incr_model,
+    )
+
+
 def hotpatch_for_dynet(failover_level=1):
     """Patch for tensorflow in order to"""
 
@@ -353,5 +381,6 @@ def hotpatch_for_dynet(failover_level=1):
         )
     if is_tf_115():
         session_manager.SessionManager.prepare_session = prepare_session_115
+
     if is_tf_113() or is_tf_2():
         session_manager.SessionManager.prepare_session = prepare_session_113
