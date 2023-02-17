@@ -157,13 +157,17 @@ class DeepFM(tf.estimator.Estimator):
             )
 
         if mode == tf.estimator.ModeKeys.EVAL:
-            _, auc_op = tf.metrics.auc(
-                labels=labels, predictions=probability, num_thresholds=1000
-            )
+
+            metrics = {
+                "auc": tf.metrics.auc(
+                    labels=labels, predictions=probability, num_thresholds=1000
+                )
+            }
+
             return tf.estimator.EstimatorSpec(
                 mode,
                 predictions=prediction,
-                eval_metric_ops=auc_op,
+                eval_metric_ops=metrics,
                 loss=loss,
             )
 
