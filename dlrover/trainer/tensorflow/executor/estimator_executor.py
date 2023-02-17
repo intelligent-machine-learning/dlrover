@@ -21,7 +21,7 @@ from tensorflow.python.ops import array_ops
 from tensorflow.python.training.basic_session_run_hooks import (
     CheckpointSaverHook,
 )
-from tensorflow_estimator.estimator import Estimator
+from tensorflow_estimator.python.estimator.estimator import Estimator
 
 from dlrover.trainer.constants.tf_constants import TFConstants
 from dlrover.trainer.tensorflow.executor.base_executor import BaseExecutor
