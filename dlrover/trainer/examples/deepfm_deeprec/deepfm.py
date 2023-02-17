@@ -19,7 +19,7 @@ tf.disable_v2_behavior()
 
 tf.logging.set_verbosity(tf.logging.INFO)
 
-# to do，放到conf中
+
 CONTINUOUS_COLUMNS = ["I" + str(i) for i in range(1, 14)]  # 1-13 inclusive
 CATEGORICAL_COLUMNS = ["C" + str(i) for i in range(1, 27)]  # 1-26 inclusive
 LABEL_COLUMN = ["label"]
