@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import tensorflow.compat.v1 as tf
+from tensorflow.python.ops import partitioned_variables
 
 from dlrover.trainer.util.log_util import default_logger as logger
 
@@ -27,6 +28,10 @@ TRAIN_DATA_COLUMNS = LABEL_COLUMN + CONTINUOUS_COLUMNS + CATEGORICAL_COLUMNS
 FEATURE_COLUMNS = CONTINUOUS_COLUMNS + CATEGORICAL_COLUMNS
 dnn_hidden_units = [1024, 256, 32]
 final_hidden_units = [128, 64]
+
+input_layer_partitioner = partitioned_variables.min_max_variable_partitioner(
+    max_partitions=12, min_slice_size=8
+)
 
 
 def build_feature_columns():
@@ -83,7 +88,8 @@ class DeepFM(tf.estimator.Estimator):
                 In this case, it is like Tensor.
         """
         wide_column, fm_column, deep_column = build_feature_columns()
-        input_layer_partitioner = None
+
+        # input_layer_partitioner = None
         with tf.variable_scope(
             "input_layer",
             partitioner=input_layer_partitioner,
@@ -125,7 +131,9 @@ class DeepFM(tf.estimator.Estimator):
         with tf.variable_scope("final_dnn"):
             for layer_id, num_hidden_units in enumerate(final_hidden_units):
                 with tf.variable_scope(
-                    layer_name + "_%d" % layer_id, reuse=tf.AUTO_REUSE
+                    layer_name + "_%d" % layer_id,
+                    partitioner=input_layer_partitioner,
+                    reuse=tf.AUTO_REUSE,
                 ) as dnn_layer_scope:
                     dnn_input = tf.layers.dense(
                         dnn_input,
@@ -172,6 +180,8 @@ class DeepFM(tf.estimator.Estimator):
             )
 
         if mode == tf.estimator.ModeKeys.TRAIN:
+            graph = tf.get_default_graph()
+            logger.info("graph def {}".format(graph.as_graph_def()))
             return tf.estimator.EstimatorSpec(
                 mode, predictions=prediction, loss=loss, train_op=train_op
             )
