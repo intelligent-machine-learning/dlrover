@@ -37,6 +37,7 @@ const (
 	initMasterIndex            = 0
 	defaultImagePullPolicy     = "IfNotPresent"
 	envMasterAddrKey           = "MASTER_ADDR"
+	envBrainServiceAddrKey     = "DLROVER_BRAIN_SERVICE_ADDR"
 
 	// ReplicaTypeTrainerMaster is the type for DLRover Master replica.
 	ReplicaTypeTrainerMaster commonv1.ReplicaType = "dlrover-master"
@@ -58,6 +59,9 @@ func (m *Manager) newJobMaster(
 	)
 	pod.Labels[common.LabelReplicaTypeKey] = string(ReplicaTypeTrainerMaster)
 	pod.Labels[common.LabelReplicaIndexKey] = fmt.Sprintf("%d", replicaIndex)
+	if job.Spec.BrainService != "" {
+		setBrainServiceIntoContainer(&pod.Spec.Containers[0], job.Spec.BrainService)
+	}
 	return pod
 }
 
@@ -194,6 +198,14 @@ func newMasterAddrEnvVar(jobName string) corev1.EnvVar {
 	}
 }
 
+func setBrainServiceIntoContainer(container *corev1.Container, serviceAddr string) {
+	envVar := corev1.EnvVar{
+		Name:  envBrainServiceAddrKey,
+		Value: serviceAddr,
+	}
+	container.Env = append(container.Env, envVar)
+}
+
 // StopRunningPods stops all running master Pods
 func (m *Manager) StopRunningPods(
 	client runtime_client.Client,
@@ -247,6 +259,11 @@ func NewMasterTemplateToJob(job *elasticv1alpha1.ElasticJob, masterImage string)
 		}
 		if mainContainer.ImagePullPolicy != "" {
 			podTemplate.Spec.Containers[0].ImagePullPolicy = mainContainer.ImagePullPolicy
+		}
+		if len(mainContainer.Env) > 0 {
+			podTemplate.Spec.Containers[0].Env = append(
+				podTemplate.Spec.Containers[0].Env, mainContainer.Env...,
+			)
 		}
 	}
 	job.Spec.ReplicaSpecs[ReplicaTypeTrainerMaster] = &elasticv1alpha1.ReplicaSpec{
