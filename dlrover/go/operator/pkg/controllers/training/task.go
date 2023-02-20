@@ -312,7 +312,7 @@ func (m *TaskManager) getPSClusterForPod(
 		if cluster.Worker == nil {
 			cluster.Worker = make(map[int]string)
 		}
-		cluster.Chief[podMeta.RankIndex] = podMeta.Service
+		cluster.Worker[podMeta.RankIndex] = podMeta.Service
 	}
 	if m.taskType == ReplicaTypeEvaluator {
 		if cluster.Evaluator == nil {
