@@ -15,10 +15,12 @@ import copy
 import threading
 from typing import Dict
 
+from dlrover.python.brain.client import GlobalEasydlClient
 from dlrover.python.common.constants import (
     JobOptStage,
     NodeResourceLimit,
     NodeType,
+    OptimizeMode,
     OptimizeWorkerPhase,
 )
 from dlrover.python.common.global_context import Context
@@ -38,15 +40,21 @@ _dlrover_context = Context.singleton_instance()
 
 
 def new_resource_optimizer(
-    optimizer: str, job_uuid, resoure_limits: ResourceLimits
+    optimize_mode: str, job_uuid, resoure_limits: ResourceLimits
 ):
-    logger.info("New  %s resource optimizer for job %s", optimizer, job_uuid)
-    if optimizer == BrainResoureOptimizer.name:
+    logger.info(
+        "New  %s resource optimizer for job %s", optimize_mode, job_uuid
+    )
+    if (
+        optimize_mode == OptimizeMode.CLUSTER
+        and GlobalEasydlClient.EASYDL_CLIENT
+    ):
         return BrainResoureOptimizer(job_uuid, resoure_limits)
-    elif optimizer == LocalOptimizer.name:
+    elif optimize_mode == OptimizeMode.SINGLE_JOB:
         return LocalOptimizer(job_uuid, resoure_limits)
     else:
-        logger.error("Not support %s optimizer", optimizer)
+        logger.error("Not support %s optimizer", optimize_mode)
+        return None
 
 
 class JobResource(JsonSerializable):
@@ -155,7 +163,7 @@ class JobResourceOptimizer(object):
         self,
         worker_resource: NodeGroupResource,
         ps_resource: NodeGroupResource,
-        optimizer: str,
+        optimize_mode: str,
         job_uuid="",
         resource_limits=ResourceLimits(),
     ):
@@ -164,7 +172,7 @@ class JobResourceOptimizer(object):
         self._original_worker_resource = copy.deepcopy(self._worker_resource)
         self._original_ps_resource = copy.deepcopy(self._ps_resource)
         self._resource_optimizer = new_resource_optimizer(
-            optimizer, job_uuid, resource_limits
+            optimize_mode, job_uuid, resource_limits
         )
         self._lock = threading.Lock()
         self.optimized_ps_mem = False

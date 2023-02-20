@@ -190,3 +190,9 @@ class DefaultResourceLimits(object):
     CPU_LIMIT = 100
     MEMORY_LIMIT = "102400Mi"  # 100Gi
     GPU_LIMIT = 4
+
+
+class OptimizeMode(object):
+    MANNUAL = "manunal"
+    SINGLE_JOB = "single-job"
+    CLUSTER = "cluster"

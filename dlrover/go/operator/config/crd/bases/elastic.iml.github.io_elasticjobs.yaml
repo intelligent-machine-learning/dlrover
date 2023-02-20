@@ -163,6 +163,10 @@ spec:
                 description: Envs specifies environment variables for Pods of the
                   job.
                 type: object
+              optimizeMode:
+                description: optimizeMode specifies the mode to optimize the job resoruce.
+                  Now, it support "mannual/single-job/cluster".
+                type: string
               replicaSpecs:
                 additionalProperties:
                   description: ReplicaSpec specifies the number and resources of replica.
