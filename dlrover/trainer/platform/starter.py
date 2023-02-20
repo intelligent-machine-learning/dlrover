@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import os
+import traceback
 
 from dlrover import trainer
 from dlrover.trainer.constants.platform_constants import PlatformConstants
@@ -66,12 +67,14 @@ def execute(args):
             parsed_args=args,
         )
         # to do use constants
+
         if PlatformConstants.Ray() in platform:
             worker.set_start_subprocess(mock_ray_platform_subprocess)
         elif PlatformConstants.Kubernetes() in platform:
             worker.set_start_subprocess(mock_k8s_platform_subprocess)
         else:
-            raise Exception("e")
+            detail_trace_back = traceback.format_exc()
+            logger.error(detail_trace_back)
 
     logger.info(
         "Running platform: %s, worker action: %s",

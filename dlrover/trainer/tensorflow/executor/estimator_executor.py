@@ -21,6 +21,7 @@ from tensorflow.python.ops import array_ops
 from tensorflow.python.training.basic_session_run_hooks import (
     CheckpointSaverHook,
 )
+from tensorflow_estimator.python.estimator.estimator import Estimator
 
 from dlrover.trainer.constants.tf_constants import TFConstants
 from dlrover.trainer.tensorflow.executor.base_executor import BaseExecutor
@@ -33,6 +34,8 @@ from dlrover.trainer.tensorflow.util.dataset_util import DatasetUtil
 from dlrover.trainer.tensorflow.util.estimator_util import (
     hook_estimator_call_model_fn,
 )
+from dlrover.trainer.tensorflow.util.tf_patch_util import export_saved_model
+from dlrover.trainer.tensorflow.util.tf_version_util import is_tf_115
 from dlrover.trainer.util.log_util import default_logger as logger
 from dlrover.trainer.util.reflect_util import get_class
 
@@ -79,6 +82,7 @@ class EstimatorExecutor(BaseExecutor):
 
         self._prepare_estimator_class()
         self._prepare_estimator()
+        self._prepare_incr_saved_model_checkpoint()
 
     def gen_model_dir(self):
         self._model_dir = self._task_conf.get(TFConstants.ModelDir.name)
@@ -167,10 +171,22 @@ class EstimatorExecutor(BaseExecutor):
             TFConstants.SaveSecs.name, TFConstants.SaveSecs()
         )
         logger.info("checkpoint hook %s", self._model_dir)
-        params[TFConstants.EstimatorTrainingChiefHooks.name] = [
-            CheckpointSaverHook(
-                self._model_dir, save_steps=save_steps, save_secs=save_secs
+        checkpoint_save_hook = CheckpointSaverHook(
+            self._model_dir, save_steps=save_steps, save_secs=save_secs
+        )
+        checkpoint_incremental_save_secs = self._task_conf.get(
+            TFConstants.CheckpointIncrementalSaveSecs.name, None
+        )
+        if is_tf_115() and checkpoint_incremental_save_secs:
+            checkpoint_save_hook = CheckpointSaverHook(
+                self._model_dir,
+                save_steps=save_steps,
+                save_secs=save_secs,
+                incremental_save_secs=checkpoint_incremental_save_secs,
             )
+
+        params[TFConstants.EstimatorTrainingChiefHooks.name] = [
+            checkpoint_save_hook
         ]
         train_set = self._task_conf.get(TFConstants.TrainSet.name)
         params["columns"] = train_set.columns
@@ -238,6 +254,11 @@ class EstimatorExecutor(BaseExecutor):
             start_delay_secs=5,
             exporters=[exporter],
         )
+
+    def _prepare_incr_saved_model_checkpoint(self):
+        # check whether tf is deeprec
+        if is_tf_115():
+            Estimator.export_saved_model = export_saved_model
 
     def train_and_evaluate(self):
         logger.info("starting train and evaluate")
