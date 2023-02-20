@@ -27,7 +27,7 @@ def add_params(parser):
     )
     parser.add_argument(
         "--platform",
-        default="pyk8s",
+        default="k8s",
         type=str,
         help="The name of platform",
     )

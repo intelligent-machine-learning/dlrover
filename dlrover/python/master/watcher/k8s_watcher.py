@@ -182,7 +182,7 @@ class K8sScalePlanWatcher:
     JobManager to adjust job resource by the ResourcePlan.
     """
 
-    def __init__(self, namespace, job_name, job_uid):
+    def __init__(self, job_name, namespace, job_uid):
         self._namespace = namespace
         self._job_name = job_name
         self._job_uid = job_uid

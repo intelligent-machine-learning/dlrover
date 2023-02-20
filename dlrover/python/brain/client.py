@@ -85,6 +85,10 @@ class BrainClient(object):
             self._brain_stub = brain_pb2_grpc.BrainStub(brain_channel)
         else:
             logger.warning("Cannot initialize brain channel")
+            self._brain_stub = None
+
+    def available(self):
+        return self._brain_stub is not None
 
     def report_metrics(self, job_metrics):
         """Report job metrics to administer service"""

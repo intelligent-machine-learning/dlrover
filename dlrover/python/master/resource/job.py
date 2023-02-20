@@ -47,7 +47,7 @@ def new_resource_optimizer(
     )
     if (
         optimize_mode == OptimizeMode.CLUSTER
-        and GlobalEasydlClient.EASYDL_CLIENT
+        and GlobalEasydlClient.EASYDL_CLIENT.available()
     ):
         return BrainResoureOptimizer(job_uuid, resoure_limits)
     elif optimize_mode == OptimizeMode.SINGLE_JOB:
