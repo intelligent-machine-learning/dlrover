@@ -134,7 +134,7 @@ class JobManager(object):
         self._job_optimizer = JobResourceOptimizer(
             self._job_resource.node_group_resources[NodeType.WORKER],
             self._job_resource.node_group_resources[NodeType.PS],
-            job_args.scaling_optimizer,
+            job_args.optimize_mode,
             job_args.job_uuid,
             job_args.resource_limits,
         )

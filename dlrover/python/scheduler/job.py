@@ -91,7 +91,7 @@ class JobArgs(JsonSerializable):
         self.job_uuid = ""
         self.user = ""
         self.cluster = ""
-        self.scaling_optimizer = "local"
+        self.optimize_mode = "single-job"
         self.use_ddp = False
         self.resource_limits = ResourceLimits()
 

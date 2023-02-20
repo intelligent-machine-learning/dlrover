@@ -62,8 +62,6 @@ def convert_plan_msg(plan_msg):
 class BrainResoureOptimizer(ResourceOptimizer):
     """Query resource plan from the brain service."""
 
-    name = "brain"
-
     def __init__(self, job_uuid, resource_limits):
         super(BrainResoureOptimizer, self).__init__(job_uuid, resource_limits)
         self._brain_client = GlobalEasydlClient.EASYDL_CLIENT

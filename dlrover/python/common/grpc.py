@@ -18,6 +18,8 @@ import grpc
 
 from dlrover.python.common.constants import GRPC
 
+TIMEOUT_SEC = 5
+
 
 def build_channel(addr):
     if not addr:
@@ -48,3 +50,11 @@ def find_free_port():
         s.bind(("", 0))
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         return s.getsockname()[1]
+
+
+def grpc_server_ready(channel) -> bool:
+    try:
+        grpc.channel_ready_future(channel).result(timeout=TIMEOUT_SEC)
+        return True
+    except grpc.FutureTimeoutError:
+        return False

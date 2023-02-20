@@ -39,6 +39,10 @@ type ElasticJobSpec struct {
 	// is 100 and the maximum of all Pods is 10Gi.
 	ResourceLimits map[string]string `json:"resourceLimits,omitempty"`
 
+	// optimizeMode specifies the mode to optimize the job resoruce.
+	// Now, it support "mannual/single-job/cluster".
+	OptimizeMode string `json:"optimizeMode,omitempty"`
+
 	// EnableElasticScheduling starts elasticity of Pods.
 	EnableElasticScheduling bool `json:"enableElasticScheduling,omitempty"`
 

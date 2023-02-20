@@ -17,7 +17,11 @@ import time
 
 from kubernetes import client, config
 
-from dlrover.python.common.constants import DefaultResourceLimits, NodeType
+from dlrover.python.common.constants import (
+    DefaultResourceLimits,
+    NodeType,
+    OptimizeMode,
+)
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import NodeGroupResource, NodeResource
 from dlrover.python.scheduler.job import ElasticJob, JobArgs, NodeArgs
@@ -320,6 +324,9 @@ class K8sJobArgs(JobArgs):
         )
         self.resource_limits.gpu_num = int(
             limit_config.get("gpu", DefaultResourceLimits.GPU_LIMIT)
+        )
+        self.optimize_mode = job["spec"].get(
+            "optimizeMode", OptimizeMode.SINGLE_JOB
         )
 
         for replica, spec in job["spec"]["replicaSpecs"].items():

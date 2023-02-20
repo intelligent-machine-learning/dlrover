@@ -14,7 +14,7 @@
 import os
 
 from dlrover.proto import brain_pb2, brain_pb2_grpc
-from dlrover.python.common.grpc import build_channel
+from dlrover.python.common.grpc import build_channel, grpc_server_ready
 from dlrover.python.common.log import default_logger as logger
 
 DATA_STORE = "data_store_elastic_job"
@@ -265,7 +265,11 @@ def build_easydl_client():
     """
     brain_addr = os.getenv(_ENV_BRAIN_ADDR_KEY, None)
     channel = build_channel(brain_addr)
-    return BrainClient(channel)
+    if channel and grpc_server_ready(channel):
+        return BrainClient(channel)
+    else:
+        logger.warning("The GRPC service of brain is not available.")
+        return BrainClient(None)
 
 
 class GlobalEasydlClient(object):
