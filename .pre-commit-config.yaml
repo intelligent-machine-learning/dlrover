@@ -61,14 +61,13 @@ repos:
         entry: python ./scripts/codestyle/copyright.py
         language: system
         files: \.(go|py|sh)$
-        # yamllint disable-line rule:line-length
-        exclude: (operator/api/v1alpha1/|operator/pkg/common/api/v1/|dlrover/go/brain/vendor)
+        exclude: \.(deepcopy.go|pb.go)$
   - repo: https://github.com/adrienverge/yamllint.git
     rev: v1.23.0
     hooks:
       - id: yamllint
         exclude:
-          (dlrover/python/tests/data|operator/config|dlrover/go/brain/vendor)
+          (dlrover/python/tests/data|operator/config)
   - repo: https://github.com/igorshubovych/markdownlint-cli
     rev: v0.23.1
     hooks:
