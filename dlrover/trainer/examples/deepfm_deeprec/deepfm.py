@@ -30,7 +30,7 @@ dnn_hidden_units = [1024, 256, 32]
 final_hidden_units = [128, 64]
 
 input_layer_partitioner = partitioned_variables.min_max_variable_partitioner(
-    max_partitions=12, min_slice_size=8
+    max_partitions=8, min_slice_size=8
 )
 
 
@@ -154,7 +154,7 @@ class DeepFM(tf.estimator.Estimator):
 
         loss = tf.losses.mean_squared_error(labels, prediction)
 
-        optimizer = tf.train.AdamAsyncOptimizer(
+        optimizer = tf.train.AdamOptimizer(
             learning_rate=0.01, beta1=0.9, beta2=0.999, epsilon=1e-8
         )
 
