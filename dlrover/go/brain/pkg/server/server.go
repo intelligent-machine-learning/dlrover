@@ -109,7 +109,7 @@ func (s *BrainServer) Optimize(ctx context.Context, in *pb.OptimizeRequest) (*pb
 
 // GetJobMetrics returns a job metrics
 func (s *BrainServer) GetJobMetrics(ctx context.Context, in *pb.JobMetricsRequest) (*pb.JobMetricsResponse, error) {
-	dataStore, err := s.getDataStore(defaultDataStoreName)
+	dataStore, err := s.dsManager.CreateDataStore(defaultDataStoreName)
 	if err != nil {
 		log.Errorf("fail to get data store %s", defaultDataStoreName)
 		return &pb.JobMetricsResponse{
