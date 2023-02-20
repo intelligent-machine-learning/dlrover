@@ -112,6 +112,9 @@ class JobResourceOptimizerTest(unittest.TestCase):
         self._job_optimizer = JobResourceOptimizer(
             worker_resource, ps_resource, OptimizeMode.CLUSTER, "aa0_uuid"
         )
+        self._job_optimizer._resource_optimizer = BrainResoureOptimizer(
+            "1111", ResourceLimits(100, 102400)
+        )
         resource_optimizer = self._job_optimizer._resource_optimizer
         resource_optimizer._brain_client = self._client
         _dlrover_context.auto_ps_enabled = True
@@ -128,6 +131,9 @@ class JobResourceOptimizerTest(unittest.TestCase):
         )
         self._job_optimizer = JobResourceOptimizer(
             worker_resource, ps_resource, OptimizeMode.CLUSTER, "aa0_uuid"
+        )
+        self._job_optimizer._resource_optimizer = BrainResoureOptimizer(
+            "1111", ResourceLimits(100, 102400)
         )
         resource_optimizer = self._job_optimizer._resource_optimizer
         resource_optimizer._brain_client = self._client
@@ -189,11 +195,14 @@ class JobResourceOptimizerTest(unittest.TestCase):
         self.assertEqual(ps.node_resource.memory, _MEMORY)
         self.assertEqual(ps.node_resource.cpu, 16)
 
-    def test_update_worker_resource_from_easydl(self):
+    def test_update_worker_resource_from_brain(self):
         worker_resource = NodeGroupResource(5, NodeResource(0, 0))
         ps_resource = NodeGroupResource(0, NodeResource(0, 0))
         job_optimizer = JobResourceOptimizer(
             worker_resource, ps_resource, OptimizeMode.CLUSTER, "aa0_uuid"
+        )
+        job_optimizer._resource_optimizer = BrainResoureOptimizer(
+            "1111", ResourceLimits(100, 102400)
         )
         job_optimizer._resource_optimizer._brain_client = self._client
         job_optimizer._init_job_resource_by_optimizer()
@@ -207,6 +216,9 @@ class JobResourceOptimizerTest(unittest.TestCase):
         ps_resource = NodeGroupResource(3, NodeResource(2, 1024))
         job_optimizer = JobResourceOptimizer(
             worker_resource, ps_resource, OptimizeMode.CLUSTER, "aa0_uuid"
+        )
+        job_optimizer._resource_optimizer = BrainResoureOptimizer(
+            "1111", ResourceLimits(100, 102400)
         )
 
         job_optimizer._resource_optimizer._brain_client = self._client

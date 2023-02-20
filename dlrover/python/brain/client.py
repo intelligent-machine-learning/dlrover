@@ -22,7 +22,7 @@ OPTIMIZE_PROCESSOR = "running_training_job_optimize_processor"
 BASE_OPTIMIZE_PROCESSOR = "base_optimize_processor"
 
 _ENV_BRAIN_ADDR_KEY = "DLROVER_BRAIN_SERVICE_ADDR"
-_DEFAULT_BRAIN_ADDR = "brain-processor.dlrover.svc.cluster.local:50001"
+_DEFAULT_BRAIN_ADDR = "brain.dlrover.svc.cluster.local:50001"
 
 
 def catch_exception(func):

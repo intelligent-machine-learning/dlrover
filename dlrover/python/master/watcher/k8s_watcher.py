@@ -263,6 +263,6 @@ class K8sScalePlanWatcher:
             group=ElasticJobApi.GROUP,
             version=ElasticJobApi.VERION,
             plural=ElasticJobApi.VERION,
-            name=scale_crd["meatadata"]["name"],
+            name=scale_crd["metadata"]["name"],
             body=scale_crd,
         )
