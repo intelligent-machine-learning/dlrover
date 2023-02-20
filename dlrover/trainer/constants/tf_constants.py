@@ -64,3 +64,7 @@ class TFConstants(object):
     EstimatorEvaluationHooks = Constant("evaluation_hooks")
     EnableAutoScaling = Constant("enable_auto_scaling")
     EnableDynamicSharding = Constant("enable_dynamic_sharding", True)
+    EnableIncrSavedModel = Constant("enable_incr_saved_model", False)
+    CheckpointIncrementalSaveSecs = Constant(
+        "checkpoint_incremental_save_secs", None
+    )

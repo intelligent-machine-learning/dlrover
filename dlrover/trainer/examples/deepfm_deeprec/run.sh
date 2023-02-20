@@ -12,4 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 rm -rf log* eval/ export/  checkpoint  model.ckpt* events.out* -rf graph.pbtxt
-python -m dlrover.trainer --platform=local_kubernetes --conf=deepfm_conf.TrainConf --ps_num=1 --worker_num=1  
+python -m dlrover.trainer --platform=local_kubernetes --conf=deepfm_deeprec_conf.TrainConf --ps_num=4 --worker_num=1
