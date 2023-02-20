@@ -258,11 +258,11 @@ class K8sScalePlanWatcher:
         ref_dict["kind"] = ElasticJobApi.ELASTICJOB_KIND
         ref_dict["name"] = self._job_name
         ref_dict["uid"] = self._job_uid
-        scale_crd["metadata"]["ownerReferences"] = ref_dict
+        scale_crd["metadata"]["ownerReferences"] = [ref_dict]
         self._k8s_client.patch_custom_resource(
             group=ElasticJobApi.GROUP,
             version=ElasticJobApi.VERION,
-            plural=ElasticJobApi.VERION,
+            plural=ElasticJobApi.SCALEPLAN_PLURAL,
             name=scale_crd["metadata"]["name"],
             body=scale_crd,
         )
