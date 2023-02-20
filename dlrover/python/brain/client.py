@@ -265,11 +265,11 @@ def build_easydl_client():
     """
     brain_addr = os.getenv(_ENV_BRAIN_ADDR_KEY, None)
     channel = build_channel(brain_addr)
-    if grpc_server_ready(channel):
+    if channel and grpc_server_ready(channel):
         return BrainClient(channel)
     else:
         logger.warning("The GRPC service of brain is not available.")
-        return None
+        return BrainClient(None)
 
 
 class GlobalEasydlClient(object):
