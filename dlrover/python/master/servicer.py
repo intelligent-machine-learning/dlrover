@@ -30,10 +30,12 @@ from dlrover.python.master.shard.dataset_splitter import new_dataset_splitter
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.master.stats.job_collector import JobMetricCollector
 from dlrover.python.master.stats.training_metrics import OpStats, TensorStats
-from dlrover.python.master.watcher.base_watcher import Node
+from dlrover.python.master.watcher.base_watcher import Node, NodeEvent
+from dlrover.python.util.queue.queue import RayEventQueue
 
 _dlrover_context = Context.singleton_instance()
 _DEFAULT_NUM_MINIBATCHES_PER_SHARD = 100
+ray_event_queue = RayEventQueue.singleton_instance()
 
 
 class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
@@ -77,7 +79,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             > _dlrover_context.seconds_to_autoscale_worker
         ):
             logger.info("Start autoscale for non-training jobs")
-            self._job_manager.start_auto_scale()
+            self._job_manager.start_auto_scaling()
             self._start_autoscale = True
 
         if (
@@ -316,7 +318,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
                 "Start autoscale with %s stats samples",
                 sample_count,
             )
-            self._job_manager.start_auto_scale()
+            self._job_manager.start_auto_scaling()
             self._start_autoscale = True
 
     def get_cluster_version(self, request, _):
@@ -348,8 +350,40 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             )
         return empty_pb2.Empty()
 
+    def update_node_addr(self, reqeuest, _):
+
+        task_type = reqeuest.type
+        task_id = reqeuest.id
+        server_addr = reqeuest.addr
+
+        logger.info("update node addr")
+        self._job_manager.update_node_service_addr(
+            task_type, task_id, server_addr
+        )
+
+        response = elastic_training_pb2.UpdateNodeAddrResponse()
+        response.success = True
+        logger.info(response)
+        return response
+
+    def update_node_event(self, request, _):
+
+        event_type = request.event_type
+        message = request.message
+        event = {
+            "event_type": event_type,
+            "message": message,
+            "id": request.node.id,
+            "type": request.node.type,
+        }
+        node = Node(request.node.type, request.node.id)
+        event = NodeEvent("exit", node)
+        ray_event_queue.put(event)
+        return empty_pb2.Empty()
+
     def query_ps_nodes(self, request, _):
-        training_ps: List[Node] = self._job_manager.get_next_cluster_ps()
+        training_ps: List[Node] = self._job_manager.get_cur_cluster_ps()
+        logger.info("training ps is {}".format(training_ps))
         ready = self._job_manager.ready_for_new_ps_cluster()
         res = elastic_training_pb2.QueryPsNodesResponse()
         for ps in training_ps:
@@ -358,7 +392,9 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             ps_meta.addr = ps.service_addr
             ps_meta.cpu = ps.config_resource.cpu
             ps_meta.memory = ps.config_resource.memory
+            logger.info("ps is {}".format(ps_meta.addr))
         res.new_ps_ready = ready
+
         return res
 
     def query_running_nodes(self, request, _):
@@ -425,4 +461,5 @@ def create_master_service(
     )
     server.add_insecure_port("[::]:{}".format(port))
     logger.info("The port of the master server is: %d", port)
+
     return server

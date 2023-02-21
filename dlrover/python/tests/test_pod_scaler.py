@@ -16,8 +16,12 @@ import unittest
 from dlrover.python.common.constants import DistributionStrategy, NodeType
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
 from dlrover.python.master.scaler.base_scaler import ScalePlan
-from dlrover.python.master.scaler.pod_scaler import PodScaler
+from dlrover.python.master.scaler.pod_scaler import PodScaler, new_tf_config
 from dlrover.python.tests.test_utils import mock_k8s_client
+
+
+def new_service_fn(node_type, node_id):
+    return str(node_type) + "_" + str(node_id)
 
 
 class PodScalerTest(unittest.TestCase):
@@ -106,17 +110,18 @@ class PodScalerTest(unittest.TestCase):
         scaler._distribution_strategy = DistributionStrategy.PARAMETER_SERVER
         resource = NodeResource(4, 8192)
         scale_plan = ScalePlan()
+        self.assertTrue(scale_plan.empty())
         scale_plan.node_group_resources = {
             NodeType.WORKER: NodeGroupResource(5, resource),
             NodeType.CHIEF: NodeGroupResource(1, resource),
             NodeType.PS: NodeGroupResource(2, resource),
         }
         scaler.scale(scale_plan)
-        self.assertEqual(len(scaler._initial_nodes), 3)
+        self.assertEqual(len(scaler._create_node_queue), 3)
 
         worker_ids = []
         chief_ids = []
-        for node in scaler._initial_nodes:
+        for node in scaler._create_node_queue:
             if node.type == NodeType.WORKER:
                 worker_ids.append(node.id)
             elif node.type == NodeType.CHIEF:
@@ -133,4 +138,19 @@ class PodScalerTest(unittest.TestCase):
             Node(NodeType.WORKER, 1, NodeResource(0, 0))
         )
         scaler.scale(scale_plan)
-        self.assertEqual(len(scaler._initial_nodes), 2)
+        self.assertFalse(scale_plan.empty())
+        self.assertEqual(len(scaler._create_node_queue), 2)
+
+    def test_new_tf_config(self):
+        pod_stats = {NodeType.WORKER: 1}
+
+        tf_config = new_tf_config(
+            pod_stats, new_service_fn, NodeType.WORKER, 0, []
+        )
+        self.assertDictEqual(
+            tf_config,
+            {
+                "cluster": {"ps": [], "worker": ["worker_0"]},
+                "task": {"type": "worker", "index": 0},
+            },
+        )

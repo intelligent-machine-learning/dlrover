@@ -41,6 +41,7 @@ def retry_grpc_request(func):
                     func.__name__,
                 )
                 execption = e
+                logger.error(e)
                 time.sleep(15)
         if execption:
             raise execption
@@ -68,10 +69,11 @@ class MasterClient(object):
 
             worker_id: int
             the unique and ordered worker ID assigned
-            by elasticdl command-line.
+            by dlrover command-line.
         """
         self._master_addr = master_addr
         self._channel = build_channel(master_addr)
+        logger.info("master_addr is %s" % self._master_addr)
         self._stub = elastic_training_pb2_grpc.MasterStub(self._channel)
         self._node_id = node_id
         self._node_type = node_type
@@ -103,11 +105,11 @@ class MasterClient(object):
 
         Args:
             dataset_name: string
-            the training phase, c.f. /elasticdl/proto/elasticdl.proto
+            the training phase, c.f. /dlrover/proto/dlrover.proto
 
         Returns:
             the task unit assigned by master,
-            c.f. /elasticdl/proto/elasticdl.proto
+            c.f. /dlrover/proto/dlrover.proto
         """
 
         req = elastic_training_pb2.GetTaskRequest()
@@ -270,6 +272,23 @@ class MasterClient(object):
         request.task_type = task_type
         return self._stub.get_cluster_version(request)
 
+    def update_node_addr(self, task_type, task_id, node_addr):
+        request = elastic_training_pb2.NodeMeta()
+        request.id = task_id
+        request.type = task_type
+        request.addr = node_addr
+        res = self._stub.update_node_addr(request)
+        return res
+
+    @retry_grpc_request
+    def update_node_event(self, task_type, task_id, event):
+        request = elastic_training_pb2.NodeEvent()
+        request.node.id = task_id
+        request.node.type = task_type
+        request.message = "train_success"
+        request.event_type = "1"
+        return self._stub.update_node_event(request)
+
     @retry_grpc_request
     def update_cluster_version(
         self, version_type, version, task_type, task_id
@@ -281,7 +300,6 @@ class MasterClient(object):
         request.task_type = task_type
         self._stub.update_cluster_version(request)
 
-    @retry_grpc_request
     def query_ps_nodes(self):
         request = empty_pb2.Empty()
         response = self._stub.query_ps_nodes(request)
@@ -367,7 +385,7 @@ class LocalMasterClient(object):
         Args:
             worker_id: int
             the unique and ordered worker ID assigned
-            by elasticdl command-line.
+            by dlrover command-line.
         """
         self._node_id = node_id
         self._num_minibatches_per_shard = 0
@@ -388,11 +406,11 @@ class LocalMasterClient(object):
 
         Args:
             dataset_name: string
-            the training phase, c.f. /elasticdl/proto/elasticdl.proto
+            the training phase, c.f. /dlrover/proto/dlrover.proto
 
         Returns:
             the task unit assigned by master,
-            c.f. /elasticdl/proto/elasticdl.proto
+            c.f. /dlrover/proto/dlrover.proto
         """
 
         shard = elastic_training_pb2.Shard()
@@ -434,6 +452,9 @@ class LocalMasterClient(object):
         return res
 
     def report_training_loop_status(self, status):
+        return True
+
+    def update_node_event(self, task_type, task_id, enent):
         return True
 
     def report_dataset_shard_params(
@@ -479,6 +500,7 @@ def build_master_client(master_addr=None):
     worker_type = os.getenv(NodeEnv.WORKER_TYPE, "worker")
 
     if master_addr:
+        logger.info("getting global master client")
         master_client = MasterClient(master_addr, worker_id, worker_type)
     else:
         master_client = LocalMasterClient(worker_id)

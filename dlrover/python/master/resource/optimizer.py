@@ -150,3 +150,25 @@ class ResourceOptimizer(metaclass=ABCMeta):
     def generate_resource_plan_with_optimizer(self, config={}) -> ResourcePlan:
         """Generate a resource plan by an optimizer"""
         pass
+
+
+class SimpleOptimizer(ResourceOptimizer):
+    def __init__(self, job_uuid, resource_limits: ResourceLimits):
+        self._job_uuid = job_uuid
+        self._resource_limits = resource_limits
+
+    def update_job_uuid(self, job_uuid):
+        self._job_uuid = job_uuid
+
+    def generate_opt_plan(self, stage, config={}) -> ResourcePlan:
+        """Generate a resource configuration plan"""
+        return ResourcePlan()
+
+    def generate_oom_recovery_plan(
+        self, oom_nodes, stage, config={}
+    ) -> ResourcePlan:
+        """Generate a recovery plan for OOM nodes"""
+        return ResourcePlan()
+
+    def generate_resource_plan_with_optimizer(self, config={}) -> ResourcePlan:
+        return ResourcePlan()

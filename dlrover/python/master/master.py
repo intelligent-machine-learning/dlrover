@@ -102,6 +102,11 @@ class Master(object):
         return collector
 
     def prepare(self):
+        # Start the master GRPC server
+        logger.info("Starting master RPC server")
+        self._master_server.start()
+        logger.info("Master RPC server started")
+
         # Composite the components
         if self.task_manager and self.job_manager:
             self.task_manager.set_task_timeout_callback(
@@ -117,11 +122,6 @@ class Master(object):
             self.rendezvous_server.start()
         if self.job_manager:
             self.job_manager.start()
-
-        # Start the master GRPC server
-        logger.info("Starting master RPC server")
-        self._master_server.start()
-        logger.info("Master RPC server started")
 
     def _add_node_event_callback(self):
         """Add NodeEventCallbacks for the listeners of Pod events."""

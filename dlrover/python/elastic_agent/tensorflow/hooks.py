@@ -61,7 +61,7 @@ def generate_model_stats():
 class ReportModelMetricHook(SessionRunHook):
     def __init__(self):
         """Report variables and operators in a model to
-        the ElasticDL master.
+        the DLRover master.
         """
         self._is_chief = False
         training_reporter.called_in_tf_hook = True

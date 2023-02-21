@@ -96,7 +96,7 @@ class PodScaler(Scaler):
             for replica, spec in self._job["spec"]["replicaSpecs"].items():
                 self._replica_template[replica] = PodTemplate(spec["template"])
 
-        self._initial_nodes: List[Node] = []
+        self._create_node_queue: List[Node] = []
         self._lock = threading.Lock()
         self._plan = ScalePlan()
         self._pod_stats: Dict[str, int] = {}
@@ -126,15 +126,15 @@ class PodScaler(Scaler):
 
         with self._lock:
             for type, group_resource in plan.node_group_resources.items():
-                cur_pods = job_pods.get(type, []) + self._get_initial_pods(
-                    type
-                )
+                cur_pods = job_pods.get(
+                    type, []
+                ) + self._get_type_pod_in_queue(type)
                 if group_resource.count > len(cur_pods):
                     self._scale_up_pods(type, plan, cur_pods)
                 elif group_resource.count < len(cur_pods):
                     self._scale_down_pods(type, plan, cur_pods)
             for node in plan.launch_nodes:
-                self._initial_nodes.append(node)
+                self._create_node_queue.append(node)
             for node in plan.remove_nodes:
                 removed = self._remove_not_create_pod(node.name)
                 if not removed:
@@ -149,24 +149,26 @@ class PodScaler(Scaler):
             NodeType.WORKER,
             NodeType.EVALUATOR,
         ]:
-            cur_pods = job_pods.get(type, []) + self._get_initial_pods(type)
+            cur_pods = job_pods.get(type, []) + self._get_type_pod_in_queue(
+                type
+            )
             self._pod_stats[type] = len(cur_pods)
 
-    def _get_initial_pods(self, type):
-        initial_pods = []
-        for pod in self._initial_nodes:
+    def _get_type_pod_in_queue(self, type):
+        pods = []
+        for pod in self._create_node_queue:
             if pod.type == type:
-                initial_pods.append(pod)
-        return initial_pods
+                pods.append(pod)
+        return pods
 
     def _remove_not_create_pod(self, pod_name):
         not_created_pod = None
-        for pod in self._initial_nodes:
+        for pod in self._create_node_queue:
             if pod_name == get_pod_name(self._job_name, pod.type, pod.id):
                 not_created_pod = pod
                 break
         if not_created_pod:
-            self._initial_nodes.remove(not_created_pod)
+            self._create_node_queue.remove(not_created_pod)
             return True
         return False
 
@@ -237,7 +239,7 @@ class PodScaler(Scaler):
                 name=get_pod_name(self._job_name, type, node_id),
                 service_addr=self.get_node_service_addr(type, node_id),
             )
-            self._initial_nodes.append(node)
+            self._create_node_queue.append(node)
 
     def _get_max_pod_id(self, pods: List[Node]):
         max_id = -1
@@ -256,12 +258,12 @@ class PodScaler(Scaler):
         down_num = len(cur_pods) - group_resource.count
 
         not_created_pods = []
-        for pending_pod in self._initial_nodes:
+        for pending_pod in self._create_node_queue:
             if pending_pod.type == type:
                 not_created_pods.append(pending_pod)
         while down_num > 0 and not_created_pods:
             pod = not_created_pods.pop()
-            self._initial_nodes.remove(pod)
+            self._create_node_queue.remove(pod)
             down_num -= 1
         cur_pods.sort(key=lambda x: x.id, reverse=True)
         for pod in cur_pods:
@@ -294,8 +296,8 @@ class PodScaler(Scaler):
     def _periodic_create_pod(self):
         while True:
             with self._lock:
-                while self._initial_nodes:
-                    node = self._initial_nodes.pop(0)
+                while self._create_node_queue:
+                    node = self._create_node_queue.pop(0)
                     succeed = False
                     if self._check_cluster_ready_for_pod(node):
                         pod = self._create_pod(
@@ -305,11 +307,11 @@ class PodScaler(Scaler):
                         )
                         succeed = self._k8s_client.create_pod(pod)
                     if not succeed:
-                        self._initial_nodes.insert(0, node)
+                        self._create_node_queue.insert(0, node)
                         break
                     service_ready = self._create_service_for_pod(node)
                     if not service_ready:
-                        self._initial_nodes.insert(0, node)
+                        self._create_node_queue.insert(0, node)
                         break
             time.sleep(3)
 

@@ -1,4 +1,4 @@
-# Copyright 2020 The ElasticDL Authors. All rights reserved.
+# Copyright 2020 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -14,14 +14,15 @@
 import os
 
 from dlrover.proto import brain_pb2, brain_pb2_grpc
-from dlrover.python.common.grpc import build_channel
+from dlrover.python.common.grpc import build_channel, grpc_server_ready
 from dlrover.python.common.log import default_logger as logger
 
-DATA_STORE = "data_store_elasticdl"
+DATA_STORE = "data_store_elastic_job"
 OPTIMIZE_PROCESSOR = "running_training_job_optimize_processor"
 BASE_OPTIMIZE_PROCESSOR = "base_optimize_processor"
 
-_ENV_BRAIN_ADDR_KEY = "EASYDL_BRAIN_SERVICE_ADDR"
+_ENV_BRAIN_ADDR_KEY = "DLROVER_BRAIN_SERVICE_ADDR"
+_DEFAULT_BRAIN_ADDR = "brain.dlrover.svc.cluster.local:50001"
 
 
 def catch_exception(func):
@@ -79,12 +80,16 @@ class BrainClient(object):
 
             job_name: string
             the unique and ordered worker ID assigned
-            by elasticdl command-line.
+            by dlrover command-line.
         """
         if brain_channel:
             self._brain_stub = brain_pb2_grpc.BrainStub(brain_channel)
         else:
             logger.warning("Cannot initialize brain channel")
+            self._brain_stub = None
+
+    def available(self):
+        return self._brain_stub is not None
 
     def report_metrics(self, job_metrics):
         """Report job metrics to administer service"""
@@ -263,9 +268,13 @@ def build_easydl_client():
         client = build_easydl_client()
         ```
     """
-    brain_addr = os.getenv(_ENV_BRAIN_ADDR_KEY, None)
+    brain_addr = os.getenv(_ENV_BRAIN_ADDR_KEY, _DEFAULT_BRAIN_ADDR)
     channel = build_channel(brain_addr)
-    return BrainClient(channel)
+    if channel and grpc_server_ready(channel):
+        return BrainClient(channel)
+    else:
+        logger.warning("The GRPC service of brain is not available.")
+        return BrainClient(None)
 
 
 class GlobalEasydlClient(object):

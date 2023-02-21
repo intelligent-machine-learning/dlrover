@@ -137,7 +137,7 @@ class Node(object):
         critical: bool, if true, the job will fail if the node fails.
         max_relaunch_count: int, the maximum to relaunch a node.
         relaunchable: bool, whether to relaunch a node if it fails.
-        is_released: bool, whether to released the node.
+        is_released: bool, ture if the master deletes the node.
         exit_reason: str, the exited reason of a node.
         used_resource: the resource usage of the node.
     """
@@ -146,7 +146,7 @@ class Node(object):
         self,
         node_type,
         node_id,
-        config_resource: NodeResource,
+        config_resource: NodeResource = NodeResource(0, 0),
         name=None,
         status=NodeStatus.INITIAL,
         start_time=None,
@@ -200,6 +200,9 @@ class Node(object):
         self.used_resource.cpu = round(cpu, 2)
         self.used_resource.memory = memory
 
+    def update_service_address(self, service_addr):
+        self.service_addr = service_addr
+
     def get_relaunch_node_info(self, new_id):
         new_node = copy.deepcopy(self)
         new_node.id = new_id
@@ -248,3 +251,12 @@ class Node(object):
                 "Not support priority = {}, please set priority = "
                 "high/low/a fraction value.".format(priority)
             )
+
+    def __repr__(self):
+        return (
+            "rank_index:" + str(self.rank_index) + ";"
+            "type:" + str(self.type) + ";"
+            "status:" + str(self.status) + ";"
+            "addr:" + str(self.service_addr) + ";"
+            "is_released:" + str(self.is_released) + ";"
+        )

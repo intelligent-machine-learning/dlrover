@@ -19,34 +19,11 @@ DLRover automatically trains the Deep Learning model on the distributed cluster.
 ## Why DLRover?
 ### No Resource Configuration to Submit a Job.
 
-Users need not to set any resource configuration to submit a
-distributed training job. The following example is an ElasticJob on K8s.
-
-```yaml
-apiVersion: elastic.iml.github.io/v1alpha1
-kind: ElasticJob
-metadata:
-  name: dlrover-dnn-iris
-spec:
-  distributionStrategy: ParameterServerStrategy
-  replicaSpecs:
-    ps:
-      template:
-        spec:
-          containers:
-            - name: main
-              image: easydl/tf-estimator:iris_dnn_v0
-              command:
-                - "python -m model_zoo.tf_estimator.iris_dnn_elastic"
-    worker:
-      template:
-        spec:
-          containers:
-            - name: main
-              image: easydl/tf-estimator:iris_dnn_v0
-              command:
-                - "python -m model_zoo.tf_estimator.iris_dnn_elastic"
-```
+Compared with TFJob in Kubeflow, Users need not to set any resource configuration to submit a
+distributed training job. 
+<div align="center">
+<img src="docs/figures/dlrover_vs_tfjob.jpg" alt="Editor" width="600">
+</div>
 
 ### Fault Tolerance to Improve the Stability of Job.
 
@@ -91,10 +68,12 @@ the waste of resources.
 </div>
 
 ### Dynamic data sharding
-TODO...
 
+There are at two reasons why we need dynamic data sharding. The first one is that Dlrover needs to ensure the training data used to fit the model is processed as users expect. When workers recover from failure or are scaled up/down, they may consume training data twice or miss some training data due to a lack of a global coordinator. With dynamic data sharding, DLrover keeps track of every worker's data consumption and try its best to ensurse that data is delievered exact once/at least once/at most once streaming-data-splitter-and-manager.md. As a result, dynamic data sharding helps to eliminate uncertainties by ensuring data is consumed as users expect.
 
+The second one is that dynamic data sharding reduces complexity for worker to deal with obtaining training data. As the training-master.md indicates, worker only needs to ask for data shard from the DLrover master without intracting with other worker to split data.
 
+Dynamic data sharding can also mitigate the worker straggler. After a worker starts its training loop, it queries a shard from the TODO queue one by one. The fast worker will consumes more shards than the slow worker which is a straggler.
 ### Integration to Offline and Online Deep Learning.
 
 With the data source transparency provided by dynamic data sharding, DLRover can be integrated with offline training which consumes batch data, and also supports online learning with real-time streaming data. (fed with a message queue like RocketMQ/Kafka/Pulsar/..., or executed as a training sink node inside Flink/Spark/Ray/...)

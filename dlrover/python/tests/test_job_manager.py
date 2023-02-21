@@ -41,10 +41,9 @@ from dlrover.python.master.node.training_node import (
     update_nodes_priority,
 )
 from dlrover.python.master.resource.job import JobResource
-from dlrover.python.master.resource.optimizer import ResourcePlan
 from dlrover.python.master.watcher.base_watcher import Node, NodeEvent
 from dlrover.python.tests.test_utils import (
-    MockJobArgs,
+    MockK8sJobArgs,
     create_task_manager,
     mock_k8s_client,
 )
@@ -85,7 +84,7 @@ class NodeStatusFlowTest(unittest.TestCase):
         self.assertFalse(flow.should_relaunch)
 
 
-class JobConfigTest(unittest.TestCase):
+class JobManagerTest(unittest.TestCase):
     def setUp(self) -> None:
         mock_k8s_client()
 
@@ -165,7 +164,7 @@ class JobConfigTest(unittest.TestCase):
         self.assertFalse(nodes[NodeType.WORKER][1].critical)
 
     def test_get_critical_worker_index(self):
-        params = MockJobArgs()
+        params = MockK8sJobArgs()
         params.initilize()
         critical_worker = get_critical_worker_index(params)
         self.assertDictEqual(critical_worker, {0: 3})
@@ -177,7 +176,7 @@ class JobConfigTest(unittest.TestCase):
         self.assertDictEqual(critical_worker, {0: 3, 1: 3, 2: 3})
 
     def test_create_job_manager(self):
-        params = MockJobArgs()
+        params = MockK8sJobArgs()
         params.initilize()
         manager = create_job_manager(params, SpeedMonitor())
         self.assertEqual(manager._ps_relaunch_max_num, 1)
@@ -225,7 +224,7 @@ class JobConfigTest(unittest.TestCase):
         dataset_name = "test"
         task_manager = create_task_manager()
         task_callback = TaskRescheduleCallback(task_manager)
-        params = MockJobArgs()
+        params = MockK8sJobArgs()
         params.initilize()
         manager = create_job_manager(params, SpeedMonitor())
         manager._init_nodes()
@@ -243,7 +242,7 @@ class JobConfigTest(unittest.TestCase):
         self.assertEqual(len(dataset.doing), 0)
 
     def test_create_initial_nodes(self):
-        params = MockJobArgs()
+        params = MockK8sJobArgs()
         params.initilize()
         manager = create_job_manager(params, SpeedMonitor())
         manager._init_nodes()
@@ -260,7 +259,7 @@ class JobConfigTest(unittest.TestCase):
         self.assertEqual(plan.node_group_resources[NodeType.WORKER].count, 3)
 
     def test_check_worker_status(self):
-        params = MockJobArgs()
+        params = MockK8sJobArgs()
         params.initilize()
         manager = create_job_manager(params, SpeedMonitor())
         manager._init_nodes()
@@ -290,7 +289,7 @@ class JobConfigTest(unittest.TestCase):
         self.assertTrue(manager.all_critical_node_completed())
 
     def test_tf_ps_node_handling(self):
-        params = MockJobArgs()
+        params = MockK8sJobArgs()
         params.initilize()
         master = Master(2222, params)
         master.job_manager._init_nodes()
@@ -314,31 +313,3 @@ class JobConfigTest(unittest.TestCase):
         callback.on_node_failed(node, cluster_context)
         self.assertEqual(master.speed_monitor._target_worker_num, 1)
         self.assertEqual(len(master.speed_monitor.running_workers), 1)
-
-    def test_execute_job_optimization_plan(self):
-        params = MockJobArgs()
-        params.initilize()
-        manager = create_job_manager(params, SpeedMonitor())
-        manager._init_nodes()
-
-        manager._scaler.scale = mock.MagicMock(return_value=True)
-        plan = ResourcePlan()
-        plan.node_group_resources[NodeType.WORKER] = NodeGroupResource(
-            6, NodeResource(4, 4096)
-        )
-        plan.node_resources["test-edljob-worker-0"] = NodeResource(8, 8192)
-        plan.node_resources["test-edljob-ps-1"] = NodeResource(8, 8192)
-        manager._ps_manager._nodes[1].status = NodeStatus.RUNNING
-        scale_plan = manager._execute_job_optimization_plan(plan)
-        self.assertEqual(len(manager._ps_manager._nodes), 4)
-        self.assertEqual(len(manager._worker_manager._nodes), 7)
-        self.assertEqual(
-            scale_plan.node_group_resources[NodeType.WORKER].count, 6
-        )
-        self.assertEqual(len(scale_plan.remove_nodes), 1)
-        self.assertEqual(len(scale_plan.launch_nodes), 2)
-
-        ps_addrs = []
-        for i in [0, 3, 2]:
-            ps_addrs.append("test-edljob-ps-{}.default.svc:2222".format(i))
-        self.assertListEqual(scale_plan.ps_addrs, ps_addrs)

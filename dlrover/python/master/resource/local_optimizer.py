@@ -53,7 +53,9 @@ class ProcessResourceRequirement(JsonSerializable):
 
 
 class LocalOptimizer(ResourceOptimizer):
-    name = "local"
+    """Local optimizer stores runtime statistics locally and optimize
+    the resource of a training job without cluster information.
+    """
 
     def __init__(self, job_uuid, resource_limits: ResourceLimits):
         self._job_uuid = job_uuid

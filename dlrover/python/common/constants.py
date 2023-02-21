@@ -67,6 +67,7 @@ class NodeStatus(object):
     PENDING = "Pending"
     INITIAL = "Initial"
     DELETED = "Deleted"
+    UNKNOWN = "Unknown"
 
 
 class NodeEventType(object):
@@ -98,6 +99,7 @@ class ExitCode(object):
     KILLED_CODE = 137
     TERMED_CODE = 143
     CORE_DUMP_ERROR_CODE = 134
+    OOM_CODE = 247
 
 
 class NodeResourceLimit(object):
@@ -173,7 +175,6 @@ class TrainingLoopStatus(object):
 
 class NodeEnv(object):
     RELAUNCHED_POD = "RELAUNCHED_POD"
-    ELASTICDL_ENABLED = "ELASTICDL_ENABLED"
     MASTER_ADDR = "DLROVER_MASTER_ADDR"
     WORKER_TYPE = "WORKER_TYPE"
     WORKER_ID = "WORKER_ID"
@@ -189,3 +190,9 @@ class DefaultResourceLimits(object):
     CPU_LIMIT = 100
     MEMORY_LIMIT = "102400Mi"  # 100Gi
     GPU_LIMIT = 4
+
+
+class OptimizeMode(object):
+    MANNUAL = "manunal"
+    SINGLE_JOB = "single-job"
+    CLUSTER = "cluster"

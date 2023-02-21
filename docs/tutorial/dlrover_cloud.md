@@ -53,3 +53,62 @@ deepctr-sample-edljob-chief-0              1/1     Running             0        
 deepctr-sample-edljob-ps-0                 1/1     Running             0          90s
 elasticjob-deepctr-sample-dlrover-master   1/1     Running             0          94s
 ```
+
+## Mannually Scale Nodes of a Job
+
+We can submit a ScalePlan CRD to scale up/down nodes of a job.
+In a ScalePlan, we need to set `metadata.labels` to specify
+which job to scale and `spec.manualScaling` to `True`.
+For example, the ScalePlan is to scale
+workers of the job `elasticjob-sample`.
+
+```yaml
+apiVersion: elastic.iml.github.io/v1alpha1
+kind: ScalePlan
+metadata:
+  name: scaleplan-sample
+  labels:
+    elasticjob-name: elasticjob-sample
+spec:
+  ownerJob: elasticjob-sample
+  replicaResourceSpecs:
+    worker:
+      replicas: 3
+      resource:
+        cpu: "0.5"
+        memory: 256Mi
+  manualScaling: True
+```
+
+We can scale PS nodes with the spec in ScalePlan like
+
+```yaml
+spec:
+  ownerJob: elasticjob-sample
+  replicaResourceSpecs:
+    ps:
+      replicas: 2
+      resource:
+        cpu: "0.5"
+        memory: 256Mi
+  manualScaling: True
+```
+
+or migrate a PS with more resource like
+
+```yaml
+apiVersion: elastic.iml.github.io/v1alpha1
+kind: ScalePlan
+metadata:
+  name: scaleplan-sample
+  labels:
+    elasticjob-name: elasticjob-sample
+spec:
+  ownerJob: elasticjob-sample
+  migratePods:
+    - name: elasticjob_sample-ps-0
+      resource:
+        cpu: 4
+        memory: "1024Mi"
+  manualScaling: True
+```

@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import inspect
+import os
 
 from pyhocon import ConfigFactory, ConfigMissingException, ConfigTree
 
@@ -191,6 +192,7 @@ class ConfigurationManagerInterface(metaclass=ConfigurationManagerMeta):
 def get_conf(py_conf=None):
     """Get `ConfigurationManager` from args"""
     logger.info(f"Entering get_conf, original py_conf is {py_conf}")
+    logger.info("current working director is %s" % os.getcwd())
     attribute_class = py_conf
     if py_conf:
         if isinstance(py_conf, str):

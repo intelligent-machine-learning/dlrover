@@ -1,4 +1,4 @@
-# Copyright 2020 The ElasticDL Authors. All rights reserved.
+# Copyright 2020 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -17,6 +17,8 @@ from contextlib import closing
 import grpc
 
 from dlrover.python.common.constants import GRPC
+
+TIMEOUT_SEC = 5
 
 
 def build_channel(addr):
@@ -48,3 +50,11 @@ def find_free_port():
         s.bind(("", 0))
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         return s.getsockname()[1]
+
+
+def grpc_server_ready(channel) -> bool:
+    try:
+        grpc.channel_ready_future(channel).result(timeout=TIMEOUT_SEC)
+        return True
+    except grpc.FutureTimeoutError:
+        return False

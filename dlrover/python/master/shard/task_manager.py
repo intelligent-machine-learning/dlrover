@@ -142,18 +142,27 @@ class TaskManager(object):
         """Recover doing tasks for a dead worker if needed"""
         for name, dataset in self._datasets.items():
             doing_tasks: Dict[int, DoingTask] = dataset.get_doing_tasks()
+            if not doing_tasks:
+                return
             ids = [
                 task_id
                 for task_id, doing_task in doing_tasks.items()
                 if doing_task.node_id == node_id
                 and doing_task.node_type == node_type
             ]
+            if not ids:
+                return
             request = elastic_training_pb2.ReportTaskResultRequest()
             for id in ids:
                 request.task_id = id
                 request.dataset_name = name
                 self.report_dataset_task(request, False)
-            logger.info("Recover tasks assigned to %s-%d", node_type, node_id)
+            logger.info(
+                "Recover tasks of dataset %s assigned to %s-%d",
+                name,
+                node_type,
+                node_id,
+            )
 
     def start(self):
         if self._worker_restart_timeout > 0:
@@ -219,21 +228,21 @@ class TaskManager(object):
                 return None
 
     def restore_dataset_from_checkpoint(self, checkpoint):
-        # try:
-        dataset_checkpoint = DatasetShardCheckpoint.from_json(checkpoint)
-        dataset = self._datasets.get(dataset_checkpoint.dataset_name, None)
-        if not dataset:
-            logger.error("No dataset for checkpoint %s", checkpoint)
+        try:
+            dataset_checkpoint = DatasetShardCheckpoint.from_json(checkpoint)
+            dataset = self._datasets.get(dataset_checkpoint.dataset_name, None)
+            if not dataset:
+                logger.error("No dataset for checkpoint %s", checkpoint)
 
-        dataset.restore_checkpoint(dataset_checkpoint)
-        logger.info(
-            "Restore %s dataset shards from checkpoint %s",
-            dataset_checkpoint.dataset_name,
-            checkpoint,
-        )
-        return True
-        # except Exception as e:
-        #     logger.error("Fail to restore shards from the checkpoint %s", e)
+            dataset.restore_checkpoint(dataset_checkpoint)
+            logger.info(
+                "Restore %s dataset shards from checkpoint %s",
+                dataset_checkpoint.dataset_name,
+                checkpoint,
+            )
+            return True
+        except Exception as e:
+            logger.error("Fail to restore shards from the checkpoint %s", e)
 
         return False
 

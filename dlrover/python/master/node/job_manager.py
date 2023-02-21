@@ -12,8 +12,10 @@
 # limitations under the License.
 
 import copy
+import os
 import threading
 import time
+import traceback
 from typing import Dict, List
 
 from dlrover.python.common.constants import (
@@ -26,11 +28,15 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.common.node import Node, NodeResource
+from dlrover.python.common.node import Node, NodeGroupResource
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.event_callback import (
     ClusterContext,
     NodeEventCallback,
+)
+from dlrover.python.master.node.job_auto_scaler import (
+    JobAutoScaler,
+    new_job_auto_scaler,
 )
 from dlrover.python.master.node.ps import ParameterServerManager
 from dlrover.python.master.node.status_flow import (
@@ -51,12 +57,13 @@ from dlrover.python.master.resource.job import (
     JobResource,
     JobResourceOptimizer,
 )
-from dlrover.python.master.resource.optimizer import ResourcePlan
 from dlrover.python.master.scaler.base_scaler import ScalePlan, Scaler
 from dlrover.python.master.scaler.factory import new_job_scaler
 from dlrover.python.master.watcher.base_watcher import NodeEvent
-from dlrover.python.master.watcher.factory import new_node_watcher
-from dlrover.python.master.watcher.k8s_watcher import ScalePlanWatcher
+from dlrover.python.master.watcher.factory import (
+    new_node_watcher,
+    new_scale_plan_watcher,
+)
 from dlrover.python.scheduler.factory import new_elastic_job
 from dlrover.python.scheduler.job import ElasticJob, JobArgs
 
@@ -101,14 +108,12 @@ class JobManager(object):
         )
         self._wait_pending_relaunch = wait_pending_relaunch
         self._start_launch_waiting_workers_time = time.time()
-        self._stop_launch_worker_for_ps = False
         self._critical_worker_index = critical_worker_index
         self._ps_relaunch_max_num = min(
             ps_restart_count, _MAX_POD_RELAUNCH_COUNT
         )
         self._use_ddp = job_args.use_ddp
         self._node_event_callbacks: List[NodeEventCallback] = []
-        self._chief_started = False
         self._stop_monitor = False
         self._speed_monitor: SpeedMonitor = speed_monitor
 
@@ -118,14 +123,18 @@ class JobManager(object):
 
         self._elastic_job: ElasticJob = job
         self._node_watcher = node_watcher
-        self._scaler_watcher = ScalePlanWatcher(
-            job_args.namespace, job_args.job_name, job_args.job_uuid
+
+        self._scaler_watcher = new_scale_plan_watcher(
+            job_args.platform,
+            job_args.job_name,
+            job_args.namespace,
+            job_args.job_uuid,
         )
         self._scaler: Scaler = job_scaler
         self._job_optimizer = JobResourceOptimizer(
             self._job_resource.node_group_resources[NodeType.WORKER],
             self._job_resource.node_group_resources[NodeType.PS],
-            job_args.scaling_optimizer,
+            job_args.optimize_mode,
             job_args.job_uuid,
             job_args.resource_limits,
         )
@@ -136,6 +145,7 @@ class JobManager(object):
         self._job_optimizer.init_job_resource(self._job_resource)
         self._adjust_worker_for_estimator()
         self._init_nodes()
+        self._init_job_auto_scaler()
         plan = self._create_initial_scale_plan()
         self._scaler.scale(plan)
         threading.Thread(
@@ -216,6 +226,7 @@ class JobManager(object):
             self._critical_worker_index,
         )
         update_nodes_priority(self._job_nodes)
+
         self._ps_manager.update_nodes(self._job_nodes.get(NodeType.PS, {}))
         self._chief_manager.update_nodes(
             self._job_nodes.get(NodeType.CHIEF, {})
@@ -225,6 +236,18 @@ class JobManager(object):
         )
         self._evaluator_manager.update_nodes(
             self._job_nodes.get(NodeType.EVALUATOR, {})
+        )
+
+    def _init_job_auto_scaler(self):
+        self._job_autoscaler: JobAutoScaler = new_job_auto_scaler(
+            self._job_args.distribution_strategy,
+            self._job_resource,
+            self._job_nodes,
+            self._job_optimizer,
+            self._speed_monitor,
+            self._ps_manager,
+            self._worker_manager,
+            self._scaler,
         )
 
     def _monitor_nodes(self):
@@ -241,6 +264,8 @@ class JobManager(object):
                         self._process_event(event)
                     except Exception as e:
                         logger.warning(e)
+                        detail_trace_back = traceback.format_exc()
+                        logger.warning(detail_trace_back)
             except Exception as e:
                 logger.warning(e)
                 time.sleep(30)
@@ -255,12 +280,18 @@ class JobManager(object):
                     break
                 for plan in self._scaler_watcher.watch():
                     try:
-                        self._execute_job_optimization_plan(plan)
+                        self._job_autoscaler.execute_job_optimization_plan(
+                            plan
+                        )
                     except Exception as e:
                         logger.warning(e)
+                        detail_trace_back = traceback.format_exc()
+                        logger.warning(detail_trace_back)
             except Exception as e:
                 logger.warning(e)
-                time.sleep(1)
+                detail_trace_back = traceback.format_exc()
+                logger.warning(detail_trace_back)
+                time.sleep(5)
 
     def _process_list_nodes(self, nodes: List[Node]):
         """Callback with node list by the list api of k8s."""
@@ -289,7 +320,18 @@ class JobManager(object):
                         node_type,
                         node_id,
                     )
-                    node.is_released = True
+                    # node.is_released = True
+
+    def close_job(self):
+        plan = ScalePlan()
+        ps_resource = NodeGroupResource.new_empty()
+        worker_reource = NodeGroupResource.new_empty()
+        plan.node_group_resources = {
+            "worker": worker_reource,
+            "ps": ps_resource,
+        }
+        self._scaler.scale(plan=plan)
+        os._exit(0)
 
     def _process_event(self, event: NodeEvent):
         node_type = event.node.type
@@ -307,6 +349,8 @@ class JobManager(object):
 
         # For the given node id, check whether it meets
         # the state change condition
+        if event.event_type == "exit":
+            self.close_job()
         new_status = event.node.status
         with self._lock:
             old_status = cur_node.status
@@ -501,8 +545,23 @@ class JobManager(object):
         node = self._job_nodes[node_type][node_id]
         node.update_resource_usage(cpu, memory)
 
+    def update_node_service_addr(self, node_type, node_id, service_addr):
+        logger.info("job nodes are {}".format(self._job_nodes))
+        logger.info(node_id)
+        node = self._job_nodes[node_type][node_id]
+        logger.info(
+            "update_node_service_addr id of node is {}".format(id(node))
+        )
+        node.update_service_address(service_addr)
+        node.status = NodeStatus.RUNNING
+        node.is_released = False
+        logger.info("node status {}".format(node.status))
+        self._job_nodes[node_type][node_id] = node
+        logger.info("job nodes are {}".format(self._job_nodes))
+
     def get_cur_cluster_ps(self):
         """Get PS nodes in the current training cluster."""
+        logger.info("job nodes are {}".format(self._job_nodes))
         return self._ps_manager.get_training_ps_cluster()
 
     def get_next_cluster_ps(self):
@@ -514,6 +573,7 @@ class JobManager(object):
 
     def remove_training_nodes(self):
         """Remove all PS and workers"""
+        self._job_autoscaler.stop_auto_scaling()
         plan = ScalePlan()
         training_nodes = list(
             self._job_nodes[NodeType.WORKER].values()
@@ -531,165 +591,13 @@ class JobManager(object):
                 plan.remove_nodes.append(node)
         self._scaler.scale(plan)
 
-    def start_auto_scale(self):
+    def start_auto_scaling(self):
         """Start to auto-scale nodes to improve the training throughput."""
-        if not self._chief_started:
-            logger.info("Chief started!")
-            self._chief_started = True
-            if self._job_resource.worker_num > 1:
-                plan = self._job_optimizer.optimize_worker_resource()
-                self._execute_job_optimization_plan(plan)
-            if (
-                not _dlrover_context.auto_ps_enabled
-                and not _dlrover_context.auto_worker_enabled
-            ):
-                return
-            if self._speed_monitor:
-                self._speed_monitor.set_target_worker_num(
-                    self._job_resource.worker_num
-                    + self._job_resource.chief_num
-                )
-                threading.Thread(
-                    target=self._periodic_optimize_running_resource,
-                    name="resource-autoscaler",
-                    daemon=True,
-                ).start()
-
-    def _periodic_optimize_running_resource(self):
-        """Adjust job resource periodically and stop adjustment
-        if there is a failed worker with the fatal error.
-        """
-        logger.info("Start to auto scale ")
-        last_plan_time = 0
-        opt_interval = _dlrover_context.seconds_interval_to_optimize
-        while True:
-            if self._stop_launch_worker_for_ps:
-                logger.info("Stop to autoscale the number of worker.")
-                break
-            if (
-                self._speed_monitor.worker_adjustment_finished()
-                # Control the interval to query plans
-                and time.time() - last_plan_time > opt_interval
-                and not self._ps_manager.exist_migrated_ps_nodes()
-            ):
-                plan = self._job_optimizer.get_job_resource_plan()
-                if plan:
-                    last_plan_time = time.time()
-                plan = self._skip_ps_plan_if_needed(plan)
-                self._execute_job_optimization_plan(plan)
-            time.sleep(30)
-
-    def _execute_job_optimization_plan(self, plan: ResourcePlan):
-        """Execute the optimization plan of the training job.
-        The plan may adjust the number of PS and workers or
-        adjust the cpu and memory of nodes.
-        """
-        scale_plan = ScalePlan()
-        if not plan or plan.empty():
-            return scale_plan
-        for node_type, group in plan.node_group_resources.items():
-            if group.count > 0:
-                self._job_resource.update_node_group_resource(
-                    node_type,
-                    group.count,
-                    group.node_resource.cpu,
-                    group.node_resource.memory,
-                )
-                group = self._job_resource.get_node_group_resource(node_type)
-                if node_type == NodeType.PS:
-                    ps_plan = self._ps_manager.adjust_ps(group)
-                    scale_plan.merge(ps_plan)
-                    self._speed_monitor.reset_running_speed_monitor()
-                elif node_type == NodeType.WORKER:
-                    chief_num = len(self._job_nodes.get(NodeType.CHIEF, []))
-                    worker_num = chief_num + group.count
-                    self._speed_monitor.set_target_worker_num(worker_num)
-                    worker_plan = self._worker_manager.adjust_worker(group)
-                    scale_plan.merge(worker_plan)
-        if len(plan.node_resources) > 0:
-            migration_plan = self._migrate_nodes(plan.node_resources)
-            scale_plan.merge(migration_plan)
-        self._set_ps_addrs_in_plan(scale_plan)
-        self._scaler.scale(scale_plan)
-        return scale_plan
-
-    def _skip_ps_plan_if_needed(self, plan: ResourcePlan):
-        """There is overhead to adjust the PS resource. So, the master
-        will skip adjusting PS if there is no remarkable change
-        of the PS resource.
-        """
-        if not plan or NodeType.PS not in plan.node_group_resources:
-            return plan
-        ps_resource = plan.node_group_resources[NodeType.PS]
-        ps_cpu = ps_resource.node_resource.cpu
-
-        if ps_resource.count > 0:
-            total_cpu = ps_resource.count * ps_cpu
-            cur_request_cpu = self._ps_manager.get_total_request_cpu()
-            threshold = _dlrover_context.seconds_huge_training_threshold
-            if self._speed_monitor.init_training_time > threshold:
-                logger.info(
-                    "Skip adjusting PS because the initial time %s"
-                    "of model is too long",
-                    self._speed_monitor.init_training_time,
-                )
-                del plan.node_group_resources[NodeType.PS]
-                return plan
-            elif (
-                total_cpu
-                < cur_request_cpu * NodeResourceLimit.PS_CPU_GROWTH_RATE
-                and total_cpu
-                > cur_request_cpu * NodeResourceLimit.PS_CPU_DECREASED_RATE
-            ):
-                logger.info(
-                    "Skip adjusting PS: the current CPU = %s,"
-                    "the target CPU = %s",
-                    cur_request_cpu,
-                    total_cpu,
-                )
-                del plan.node_group_resources[NodeType.PS]
-                return plan
-
-        ps_nodes = self._ps_manager.get_training_ps_cluster()
-        for ps in ps_nodes:
-            if ps_cpu > ps.config_resource.cpu:
-                plan.node_resources[ps.name].cpu = ps_cpu
-        return plan
-
-    def _migrate_nodes(self, node_resources):
-        workers: Dict[str, NodeResource] = {}
-        ps: Dict[str, NodeResource] = {}
-        for name, resource in node_resources.items():
-            type = name.split("-")[-2]
-            if type == NodeType.WORKER:
-                workers[name] = resource
-            elif type == NodeType.PS:
-                ps[name] = resource
-
-        scale_plan = ScalePlan()
-        if len(ps) > 0:
-            plan = self._ps_manager.migrate_parameter_servers(ps)
-            scale_plan.merge(plan)
-            self._speed_monitor.reset_running_speed_monitor()
-
-        if len(workers) > 0:
-            plan = self._worker_manager.migrate_workers(workers)
-            scale_plan.merge(plan)
-        logger.info("Migration plan = %s", scale_plan.toJSON())
-        return scale_plan
+        self._job_autoscaler.start_auto_scaling()
 
     def _set_ps_addrs_in_plan(self, plan: ScalePlan):
         ps_addrs = self._ps_manager.get_ps_addrs()
         plan.ps_addrs.extend(ps_addrs)
-
-    def cut_timeout_pending_node_cpu(self):
-        """Cut down CPU cores of pending pod at the job starts"""
-        if self._chief_started:
-            return
-        if _dlrover_context.auto_ps_enabled:
-            self._ps_manager.cut_pending_node_cpu()
-        if _dlrover_context.auto_worker_enabled:
-            self._worker_manager.cut_pending_node_cpu()
 
 
 def create_job_manager(args: JobArgs, speed_monitor) -> JobManager:
