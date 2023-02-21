@@ -11,4 +11,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package datastore
+package common
+
+const (
+	// JobPhaseRunning indicates job is running
+	JobPhaseRunning = "Running"
+	// JobPhaseError indicates job runs into errors
+	JobPhaseError = "Error"
+	// JobPhaseSucceeded indicates job completed successfully
+	JobPhaseSucceeded = "Succeeded"
+)

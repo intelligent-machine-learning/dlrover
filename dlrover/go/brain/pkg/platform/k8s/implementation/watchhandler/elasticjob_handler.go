@@ -19,6 +19,7 @@ import (
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/config"
 	datastoreapi "github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/api"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/recorder/mysql"
+	k8scommon "github.com/intelligent-machine-learning/easydl/brain/pkg/platform/k8s/common"
 	handlerutils "github.com/intelligent-machine-learning/easydl/brain/pkg/platform/k8s/implementation/watchhandler/utils"
 	watchercommon "github.com/intelligent-machine-learning/easydl/brain/pkg/platform/k8s/watcher/common"
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/api/v1alpha1"
@@ -85,7 +86,43 @@ func (handler *ElasticJobHandler) HandleCreateEvent(object runtime.Object, event
 
 // HandleUpdateEvent handles update events
 func (handler *ElasticJobHandler) HandleUpdateEvent(object runtime.Object, oldObject runtime.Object, event watchercommon.Event) error {
-	return nil
+	newJob := &elasticv1alpha1.ElasticJob{}
+	oldJob := &elasticv1alpha1.ElasticJob{}
+
+	unstructNewObj := object.(*unstructured.Unstructured)
+	unstructOldObj := oldObject.(*unstructured.Unstructured)
+
+	runtime.DefaultUnstructuredConverter.FromUnstructured(unstructOldObj.Object, oldJob)
+	runtime.DefaultUnstructuredConverter.FromUnstructured(unstructNewObj.Object, newJob)
+
+	jobUID := string(newJob.UID)
+
+	cond := &datastoreapi.Condition{
+		Type: common.TypeGetDataGetJob,
+		Extra: &mysql.JobCondition{
+			UID: jobUID,
+		},
+	}
+	record := &mysql.Job{}
+
+	err := handler.dataStore.GetData(cond, record)
+	if err != nil {
+		log.Errorf("fail to get job record for %s: %v", jobUID, err)
+		return err
+	}
+
+	if newJob.Status.Phase == k8scommon.JobPhaseRunning && record.StartedAt.IsZero() {
+		record.StartedAt = newJob.Status.StartTime.Time
+	}
+
+	if newJob.Status.Phase == k8scommon.JobPhaseSucceeded && record.FinishedAt.IsZero() {
+		record.FinishedAt = newJob.Status.CompletionTime.Time
+	}
+
+	upsertCond := &datastoreapi.Condition{
+		Type: common.TypeUpsertJob,
+	}
+	return handler.dataStore.PersistData(upsertCond, record, nil)
 }
 
 // HandleDeleteEvent handles delete events

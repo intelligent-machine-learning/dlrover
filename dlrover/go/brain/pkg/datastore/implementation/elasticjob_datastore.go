@@ -18,6 +18,7 @@ import (
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/common"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/config"
 	datastoreapi "github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/api"
+	dsimplutils "github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/implementation/utils"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/recorder/mysql"
 )
 
@@ -65,5 +66,5 @@ func (store *ElasticJobDataStore) PersistData(condition *datastoreapi.Condition,
 
 // GetData returns data for a given condition
 func (store *ElasticJobDataStore) GetData(condition *datastoreapi.Condition, data interface{}) error {
-	return nil
+	return dsimplutils.GetData(store.client, condition, data)
 }

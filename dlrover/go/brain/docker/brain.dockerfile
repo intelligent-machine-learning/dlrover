@@ -16,7 +16,8 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o k8smonitor \
     github.com/intelligent-machine-learning/easydl/brain/cmd/k8smonitor
 
 # Copy file into a thin image
-FROM easydl/easydl:7u2-common
+#FROM easydl/easydl:7u2-common
+FROM reg.docker.alibaba-inc.com/alipay/7u2-common:202202.0T
 WORKDIR /root/
 
 COPY --from=builder /go/src/github.com/intelligent-machine-learning/easydl/brain/brain .

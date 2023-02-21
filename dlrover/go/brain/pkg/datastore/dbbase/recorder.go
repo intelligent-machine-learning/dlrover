@@ -83,7 +83,7 @@ func (r *DatabaseRecorder) Get(row interface{}, condition Condition) error {
 	}
 	session := r.Table(r.TableName)
 	session = condition.Apply(session)
-	found, err := session.Desc("id").Get(row)
+	found, err := session.Get(row)
 	if err != nil {
 		log.Errorf("Failed to get %v of %+v: %v", r.TableName, condition, err)
 		return err

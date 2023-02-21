@@ -9,4 +9,3 @@ data:
     namespace: "dlrover"
     data-store.config-map.name: "dlrover-data-store"
     data-store.config-map.key: "datastore"
-    
