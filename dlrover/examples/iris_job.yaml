@@ -4,6 +4,7 @@ metadata:
   name: elasticjob-sample
 spec:
   distributionStrategy: ParameterServerStrategy
+  optimizeMode: cluster
   resourceLimits:
     cpu: "6"
     memory: "8192Mi"

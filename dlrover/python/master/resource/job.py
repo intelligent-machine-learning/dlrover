@@ -31,7 +31,10 @@ from dlrover.python.master.resource.brain_optimizer import (
     BrainResoureOptimizer,
 )
 from dlrover.python.master.resource.local_optimizer import LocalOptimizer
-from dlrover.python.master.resource.optimizer import ResourcePlan
+from dlrover.python.master.resource.optimizer import (
+    ResourcePlan,
+    SimpleOptimizer,
+)
 from dlrover.python.scheduler.job import ResourceLimits
 
 _WORKER_OPTIMIZE_PHASE = "optimizer.worker.optimize-phase"
@@ -45,16 +48,22 @@ def new_resource_optimizer(
     logger.info(
         "New  %s resource optimizer for job %s", optimize_mode, job_uuid
     )
-    if (
-        optimize_mode == OptimizeMode.CLUSTER
-        and GlobalEasydlClient.EASYDL_CLIENT
-    ):
-        return BrainResoureOptimizer(job_uuid, resoure_limits)
+    if optimize_mode == OptimizeMode.CLUSTER:
+        if GlobalEasydlClient.EASYDL_CLIENT.available():
+            return BrainResoureOptimizer(job_uuid, resoure_limits)
+        else:
+            logger.warning(
+                "Brain service is not available, use a local optimizer"
+            )
+            return LocalOptimizer(job_uuid, resoure_limits)
     elif optimize_mode == OptimizeMode.SINGLE_JOB:
         return LocalOptimizer(job_uuid, resoure_limits)
     else:
-        logger.error("Not support %s optimizer", optimize_mode)
-        return None
+        logger.warning(
+            "Not support optiimzem mode %s, use a simple optimizer",
+            optimize_mode,
+        )
+        return SimpleOptimizer(job_uuid, resoure_limits)
 
 
 class JobResource(JsonSerializable):

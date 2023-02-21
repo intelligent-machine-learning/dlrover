@@ -285,9 +285,13 @@ class JobManager(object):
                         )
                     except Exception as e:
                         logger.warning(e)
+                        detail_trace_back = traceback.format_exc()
+                        logger.warning(detail_trace_back)
             except Exception as e:
                 logger.warning(e)
-                time.sleep(1)
+                detail_trace_back = traceback.format_exc()
+                logger.warning(detail_trace_back)
+                time.sleep(5)
 
     def _process_list_nodes(self, nodes: List[Node]):
         """Callback with node list by the list api of k8s."""

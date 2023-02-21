@@ -182,7 +182,7 @@ class K8sScalePlanWatcher:
     JobManager to adjust job resource by the ResourcePlan.
     """
 
-    def __init__(self, namespace, job_name, job_uid):
+    def __init__(self, job_name, namespace, job_uid):
         self._namespace = namespace
         self._job_name = job_name
         self._job_uid = job_uid
@@ -258,11 +258,11 @@ class K8sScalePlanWatcher:
         ref_dict["kind"] = ElasticJobApi.ELASTICJOB_KIND
         ref_dict["name"] = self._job_name
         ref_dict["uid"] = self._job_uid
-        scale_crd["metadata"]["ownerReferences"] = ref_dict
+        scale_crd["metadata"]["ownerReferences"] = [ref_dict]
         self._k8s_client.patch_custom_resource(
             group=ElasticJobApi.GROUP,
             version=ElasticJobApi.VERION,
-            plural=ElasticJobApi.VERION,
-            name=scale_crd["meatadata"]["name"],
+            plural=ElasticJobApi.SCALEPLAN_PLURAL,
+            name=scale_crd["metadata"]["name"],
             body=scale_crd,
         )

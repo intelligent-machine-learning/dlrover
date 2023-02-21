@@ -21,7 +21,8 @@ DATA_STORE = "data_store_elastic_job"
 OPTIMIZE_PROCESSOR = "running_training_job_optimize_processor"
 BASE_OPTIMIZE_PROCESSOR = "base_optimize_processor"
 
-_ENV_BRAIN_ADDR_KEY = "EASYDL_BRAIN_SERVICE_ADDR"
+_ENV_BRAIN_ADDR_KEY = "DLROVER_BRAIN_SERVICE_ADDR"
+_DEFAULT_BRAIN_ADDR = "brain.dlrover.svc.cluster.local:50001"
 
 
 def catch_exception(func):
@@ -85,6 +86,10 @@ class BrainClient(object):
             self._brain_stub = brain_pb2_grpc.BrainStub(brain_channel)
         else:
             logger.warning("Cannot initialize brain channel")
+            self._brain_stub = None
+
+    def available(self):
+        return self._brain_stub is not None
 
     def report_metrics(self, job_metrics):
         """Report job metrics to administer service"""
@@ -263,7 +268,7 @@ def build_easydl_client():
         client = build_easydl_client()
         ```
     """
-    brain_addr = os.getenv(_ENV_BRAIN_ADDR_KEY, None)
+    brain_addr = os.getenv(_ENV_BRAIN_ADDR_KEY, _DEFAULT_BRAIN_ADDR)
     channel = build_channel(brain_addr)
     if channel and grpc_server_ready(channel):
         return BrainClient(channel)

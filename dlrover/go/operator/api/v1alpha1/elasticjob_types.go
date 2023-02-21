@@ -43,6 +43,10 @@ type ElasticJobSpec struct {
 	// Now, it support "mannual/single-job/cluster".
 	OptimizeMode string `json:"optimizeMode,omitempty"`
 
+	// BrainService specifies the address of Brain to optimize the job resource.
+	// It is only used when optimizeMode is cluster.
+	BrainService string `json:"brainService,omitempty"`
+
 	// EnableElasticScheduling starts elasticity of Pods.
 	EnableElasticScheduling bool `json:"enableElasticScheduling,omitempty"`
 
