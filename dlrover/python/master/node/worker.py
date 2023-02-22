@@ -123,8 +123,7 @@ class WorkerManager(TrainingNodeManager):
         self._max_relaunch_num = max_relaunch_num
         self._new_service_fn = new_service_fn
         self._use_ddp = use_ddp
-        worker = job_resource.get_node_group_resource(NodeType.WORKER)
-        self._task_id_iter = itertools.count(worker.count)
+        self._task_id_iter = itertools.count(len(self._nodes))
 
     def adjust_worker(self, worker_resource: NodeGroupResource):
         plan = ScalePlan()
