@@ -132,6 +132,7 @@ class JobResource(JsonSerializable):
                 group_nodes[i] = Node(
                     node_type=node_type,
                     node_id=i,
+                    rank_index=i,
                     name=new_node_name_fn(node_type, i),
                     config_resource=copy.deepcopy(config_resource),
                     max_relaunch_count=relaunch_on_worker_failure,
