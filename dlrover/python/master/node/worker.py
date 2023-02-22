@@ -12,7 +12,6 @@
 # limitations under the License.
 
 import copy
-import itertools
 from typing import Dict, List
 
 from dlrover.python.common.constants import NodeStatus, NodeType
@@ -123,7 +122,6 @@ class WorkerManager(TrainingNodeManager):
         self._max_relaunch_num = max_relaunch_num
         self._new_service_fn = new_service_fn
         self._use_ddp = use_ddp
-        self._task_id_iter = itertools.count(len(self._nodes))
 
     def adjust_worker(self, worker_resource: NodeGroupResource):
         plan = ScalePlan()
@@ -154,7 +152,7 @@ class WorkerManager(TrainingNodeManager):
         """Launch up_num workers."""
         for _ in range(up_num):
             worker_id = next(self._node_id_iter)
-            task_id = next(self._task_id_iter)
+            task_id = next(self._rank_id_iter)
             worker_resource = self._job_resource.get_node_group_resource(
                 NodeType.WORKER
             ).node_resource
@@ -168,6 +166,7 @@ class WorkerManager(TrainingNodeManager):
                 config_resource=copy.deepcopy(worker_resource),
                 service_addr=service_addr,
             )
+            logger.info("Create worker %s", self._nodes[worker_id])
 
     def _scale_down_workers(self, down_num, running_workers: List[Node]):
         """Remove down_num running workers"""

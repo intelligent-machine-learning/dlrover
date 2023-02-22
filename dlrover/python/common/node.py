@@ -254,6 +254,7 @@ class Node(object):
 
     def __repr__(self):
         return (
+            "name:" + str(self.name) + ";"
             "rank_index:" + str(self.rank_index) + ";"
             "type:" + str(self.type) + ";"
             "status:" + str(self.status) + ";"

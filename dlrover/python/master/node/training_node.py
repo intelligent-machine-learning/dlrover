@@ -154,10 +154,12 @@ class TrainingNodeManager(object):
         self._new_node_name_fn = new_node_name_fn
         self._lock = threading.Lock()
         self._node_id_iter = itertools.count(len(self._nodes))
+        self._rank_id_iter = itertools.count(len(self._nodes))
 
     def update_nodes(self, nodes):
         self._nodes = nodes
         self._node_id_iter = itertools.count(len(self._nodes))
+        self._rank_id_iter = itertools.count(len(self._nodes))
 
     def remove_node(self, node_id):
         plan = ScalePlan()
