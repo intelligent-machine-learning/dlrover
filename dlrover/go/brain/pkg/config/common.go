@@ -55,6 +55,11 @@ const (
 	// KubeWatcherHandlerConfigMapKey is the key of kube watcher handler config map
 	KubeWatcherHandlerConfigMapKey = "kube-watcher.handler.config-map.key"
 
+	// BrainServerConfigMapName is the name of brain server config map
+	BrainServerConfigMapName = "brain.server.config-map.name"
+	// BrainServerConfigMapKey is the name of brain server config key
+	BrainServerConfigMapKey = "brain.server.config-map.key"
+
 	// QueryBackwardTimePeriodInHour is the config key for query backward time period in hour
 	QueryBackwardTimePeriodInHour = "query.backward.time-period.hour"
 

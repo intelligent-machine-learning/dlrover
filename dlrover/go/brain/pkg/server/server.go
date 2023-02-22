@@ -16,6 +16,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	log "github.com/golang/glog"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/common"
@@ -25,36 +26,72 @@ import (
 	dsimpl "github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/implementation"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/recorder/mysql"
 	pb "github.com/intelligent-machine-learning/easydl/brain/pkg/proto"
+	"k8s.io/client-go/kubernetes"
 )
 
 const (
 	defaultDataStoreName = dsimpl.BaseDataStoreName
+	logName              = "brain-server"
 )
 
 // BrainServer is the interface of DLRover Brain
 type BrainServer struct {
 	pb.UnimplementedBrainServer
-	dsManager  *datastore.Manager
-	dataStores map[string]datastoreapi.DataStore
+
+	kubeClientSet kubernetes.Interface
+
+	conf          *config.Config
+	configManager *config.Manager
+
+	dsManager *datastore.Manager
 }
 
 // NewBrainServer creates an EasyDLServer instance
 func NewBrainServer(conf *config.Config) (*BrainServer, error) {
-	dsManager := datastore.NewManager(conf)
+	namespace := conf.GetString(config.Namespace)
+	configMapName := conf.GetString(config.BrainServerConfigMapName)
+	configMapKey := conf.GetString(config.BrainServerConfigMapKey)
+	kubeClientSet := conf.GetKubeClientInterface()
+
 	return &BrainServer{
-		dsManager:  dsManager,
-		dataStores: make(map[string]datastoreapi.DataStore),
+		configManager: config.NewManager(namespace, configMapName, configMapKey, kubeClientSet),
+		kubeClientSet: kubeClientSet,
 	}, nil
 }
 
 // Run starts the server
 func (s *BrainServer) Run(ctx context.Context, errReporter common.ErrorReporter) error {
+	err := s.configManager.Run(ctx, errReporter)
+	if err != nil {
+		err = fmt.Errorf("[%s] failed to initialize config manager: %v", logName, err)
+		log.Error(err)
+		return err
+	}
+	s.conf, err = s.configManager.GetConfig()
+	if err != nil {
+		log.Errorf("[%s] fail to get brain server config: %v", logName, err)
+		return err
+	}
+	log.Infof("[%s] brain server config: %v", logName, s.conf)
+
+	dsConf := config.NewEmptyConfig()
+	dsConf.Set(config.KubeClientInterface, s.kubeClientSet)
+	dsConf.Set(config.DataStoreConfigMapName, s.conf.GetString(config.DataStoreConfigMapName))
+	dsConf.Set(config.DataStoreConfigMapKey, s.conf.GetString(config.DataStoreConfigMapKey))
+	dsConf.Set(config.Namespace, s.conf.GetString(config.Namespace))
+
+	s.dsManager = datastore.NewManager(dsConf)
+	err = s.dsManager.Run(ctx, errReporter)
+	if err != nil {
+		log.Errorf("[%s] fail to run the data store manager: %v", logName, err)
+		return err
+	}
 	return s.dsManager.Run(ctx, errReporter)
 }
 
 // PersistMetrics persists job metrics to data store
 func (s *BrainServer) PersistMetrics(ctx context.Context, in *pb.JobMetrics) (*empty.Empty, error) {
-	dataStore, err := s.getDataStore(in.DataStore)
+	dataStore, err := s.dsManager.CreateDataStore(in.DataStore)
 	if err != nil {
 		return nil, err
 	}
@@ -65,18 +102,6 @@ func (s *BrainServer) PersistMetrics(ctx context.Context, in *pb.JobMetrics) (*e
 	return &empty.Empty{}, nil
 }
 
-func (s *BrainServer) getDataStore(name string) (datastoreapi.DataStore, error) {
-	_, found := s.dataStores[name]
-	if !found {
-		dataStore, err := s.dsManager.CreateDataStore(name)
-		if err != nil {
-			return nil, err
-		}
-		s.dataStores[name] = dataStore
-	}
-	return s.dataStores[name], nil
-}
-
 // Optimize returns the initial resource of a job.
 func (s *BrainServer) Optimize(ctx context.Context, in *pb.OptimizeRequest) (*pb.OptimizeResponse, error) {
 	return nil, nil
@@ -84,7 +109,7 @@ func (s *BrainServer) Optimize(ctx context.Context, in *pb.OptimizeRequest) (*pb
 
 // GetJobMetrics returns a job metrics
 func (s *BrainServer) GetJobMetrics(ctx context.Context, in *pb.JobMetricsRequest) (*pb.JobMetricsResponse, error) {
-	dataStore, err := s.getDataStore(defaultDataStoreName)
+	dataStore, err := s.dsManager.CreateDataStore(defaultDataStoreName)
 	if err != nil {
 		log.Errorf("fail to get data store %s", defaultDataStoreName)
 		return &pb.JobMetricsResponse{
