@@ -66,16 +66,14 @@ class ParameterServerManager(TrainingNodeManager):
 
     def _init_training_ps_cluster(self):
         for node in self._nodes.values():
-            logger.info(node)
-            logger.info(
-                node.status
-                in [NodeStatus.INITIAL, NodeStatus.PENDING, NodeStatus.RUNNING]
-            )
+            alive = node.status in [
+                NodeStatus.INITIAL, NodeStatus.PENDING, NodeStatus.RUNNING
+            ]
+            logger.info("PS : %s", node)
             if (
                 node.id not in self._migrated_ps_nodes
                 and not node.is_released
-                and node.status
-                in [NodeStatus.INITIAL, NodeStatus.PENDING, NodeStatus.RUNNING]
+                and alive
             ):
                 self._training_ps_cluster.append(node)
                 self._next_training_ps_cluster.append(node)
