@@ -23,7 +23,7 @@ spec:
               command:
                 - /bin/bash
                 - -c
-                - "python -m model_zoo.tf_estimator.iris_dnn_elastic; sleep 6000"
+                - "python -m model_zoo.tf_estimator.iris_dnn_elastic"
               # yamllint enable
     worker:
       replicas: 0
