@@ -67,7 +67,9 @@ class ParameterServerManager(TrainingNodeManager):
     def _init_training_ps_cluster(self):
         for node in self._nodes.values():
             alive = node.status in [
-                NodeStatus.INITIAL, NodeStatus.PENDING, NodeStatus.RUNNING
+                NodeStatus.INITIAL,
+                NodeStatus.PENDING,
+                NodeStatus.RUNNING,
             ]
             logger.info("PS : %s", node)
             if (

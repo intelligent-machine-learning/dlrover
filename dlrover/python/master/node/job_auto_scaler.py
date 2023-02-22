@@ -98,13 +98,7 @@ class PSTrainingAutoScaler(JobAutoScaler):
         self._scaler = node_scaler
         self._job_nodes = job_nodes
         self._autoscaling_started = False
-        self.init_target_worker_num()
-
-    def init_target_worker_num(self):
-        chief_num = len(self._job_nodes.get(NodeType.CHIEF, []))
-        worker_num = len(self._job_nodes.get(NodeType.WORKER, []))
-        target_num = chief_num + worker_num
-        self._speed_monitor.set_target_worker_num(target_num)
+        self._speed_monitor.set_target_worker_num(1)
 
     def start_auto_scaling(self):
         """Start to auto-scale nodes to improve the training throughput."""

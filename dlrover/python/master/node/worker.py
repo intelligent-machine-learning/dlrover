@@ -12,7 +12,6 @@
 # limitations under the License.
 
 import copy
-import itertools
 from typing import Dict, List
 
 from dlrover.python.common.constants import NodeStatus, NodeType
