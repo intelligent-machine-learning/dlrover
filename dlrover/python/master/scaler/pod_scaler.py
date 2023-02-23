@@ -94,6 +94,8 @@ class PodScaler(Scaler):
         )
         if "replicaSpecs" in self._job["spec"]:
             for replica, spec in self._job["spec"]["replicaSpecs"].items():
+                if replica == NodeType.DLROVER_MASTER:
+                    continue
                 self._replica_template[replica] = PodTemplate(spec["template"])
 
         self._create_node_queue: List[Node] = []
@@ -335,6 +337,9 @@ class PodScaler(Scaler):
 
         env.append(V1EnvVar(name=NodeEnv.WORKER_TYPE, value=node.type))
         env.append(V1EnvVar(name=NodeEnv.WORKER_ID, value=str(node.id)))
+        env.append(
+            V1EnvVar(name=NodeEnv.WORKER_NUM, value=str(pod_stats[node.type]))
+        )
         master_service = "elasticjob-{}-dlrover-master:50001".format(
             self._job_name
         )
