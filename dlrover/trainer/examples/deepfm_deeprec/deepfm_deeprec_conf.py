@@ -23,7 +23,7 @@ class TrainConf(object):
     log_steps = 100
     eval_steps = 10
     save_steps = 500
-    model_dir = "./"
+    model_dir = "/nas"
     enable_incr_saved_model = True
     checkpoint_incremental_save_secs = 800
 

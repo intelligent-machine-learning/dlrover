@@ -38,7 +38,8 @@ JOB_SUFFIX = "-edljob-"
 
 
 def parse_bool(s: str):
-    return s.lower() in ["true", "yes", "t", "y"]
+   return s.lower() in ["true", "yes", "t", "y"]
+   
 
 
 def get_pod_name(job_name, pod_type, node_id):
@@ -351,7 +352,8 @@ class K8sJobArgs(JobArgs):
                 NodeResource(cpu, memory, gpu_type, gpu_num, priority),
             )
             restart_count = int(spec.get("restartCount", 3))
-            auto_scale = parse_bool(str(spec.get("autoScale", "True")))
+            # to do  "autoScale" False bool 类型
+            auto_scale = parse_bool(str(spec.get("autoScale", "true")))
             restart_timeout = int(spec.get("restartTimeout", 0))
             critical_nodes = spec.get("criticalNodes", "")
             self.node_args[replica] = NodeArgs(
