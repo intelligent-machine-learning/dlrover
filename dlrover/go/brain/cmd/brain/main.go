@@ -75,7 +75,7 @@ func main() {
 
 	err = brainServer.Run(ctx, errHandler)
 	if err != nil {
-		log.Fatalf("Fail to run EasyDL server: %v", err)
+		log.Fatalf("Fail to run Brain server: %v", err)
 	}
 
 	pb.RegisterBrainServer(s, brainServer)

@@ -16,5 +16,5 @@ data:
       db.user: "root"
       db.password: "root"
       db.engine.type: "mysql"
-      db.url: "tcp(mysql:3306)/dlrover?parseTime=true&interpolateParams=true&loc=Local"
+      db.url: "tcp(mysql.dlrover.svc.cluster.local:3306)/dlrover?parseTime=true&interpolateParams=true&loc=Local"
   # yamllint enable

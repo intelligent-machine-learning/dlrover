@@ -2,10 +2,12 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: dlrover-bain-service
+  name: dlrover-brain-service
   namespace: dlrover
 data:
   config: |
     namespace: "dlrover"
     data-store.config-map.name: "dlrover-data-store"
     data-store.config-map.key: "datastore"
+    optimizer.config-map.name: "dlrover-brain-optimizers"
+    optimizer.config-map.key: "optimizers"
