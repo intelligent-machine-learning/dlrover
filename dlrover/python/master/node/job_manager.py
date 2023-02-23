@@ -428,11 +428,11 @@ class JobManager(object):
             and node.relaunchable
         )
         if should_relaunch:
+            if self._check_worker_memory_optimized(node):
+                # Worker may fail by core dump with insufficient memory.
+                self._job_optimizer.adjust_oom_worker_resource(node)
             if node.exit_reason == NodeExitReason.FATAL_ERROR:
-                if node.relaunch_count == 0 and not node.critical:
-                    # Worker may fail by core dump with insufficient memory.
-                    self._job_optimizer.adjust_oom_worker_resource(node)
-                else:
+                if node.relaunch_count > 0 or node.critical:
                     should_relaunch = False
             elif node.exit_reason == NodeExitReason.OOM:
                 mem = node.config_resource.memory
@@ -466,6 +466,18 @@ class JobManager(object):
             node.inc_relaunch_count()
 
         return should_relaunch
+
+    def _check_worker_memory_optimized(self, node: Node):
+        """Check whether the worker memory is optimized with the memory
+        workload of chief."""
+        if node.type != NodeType.WORKER:
+            return False
+        if len(self._job_nodes.get(NodeType.CHIEF, [])) > 0:
+            chief = self._job_nodes[NodeType.CHIEF][0]
+        else:
+            chief = self._job_nodes[NodeType.WORKER][0]
+        if node.config_resource.memory < chief.config_resource.memory:
+            return True
 
     def _relaunch_node(self, node: Node):
         logger.info("Relaunch node: {}".format(node.name))
