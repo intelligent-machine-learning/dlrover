@@ -158,6 +158,8 @@ class MasterServicerTest(unittest.TestCase):
         self.job_manager._init_nodes()
         for node in self.job_manager._job_nodes[NodeType.PS].values():
             node.status = NodeStatus.RUNNING
+        import pdb
+        pdb.set_trace()
         res = self.servicer.query_ps_nodes(request, None)
         self.assertEqual(len(res.ps_nodes), 3)
         self.assertEqual(
