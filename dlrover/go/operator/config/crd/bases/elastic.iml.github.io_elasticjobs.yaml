@@ -42,6 +42,10 @@ spec:
           spec:
             description: ElasticJobSpec defines the desired state of ElasticJob
             properties:
+              brainService:
+                description: BrainService specifies the address of Brain to optimize
+                  the job resource. It is only used when optimizeMode is cluster.
+                type: string
               distributionStrategy:
                 description: DistributionStrategy specifies the distribution strategy
                   of a job. Now, the strategy supports parameter-server and ring-allreduce.
