@@ -487,8 +487,10 @@ class JobManager(object):
             plan = self._ps_manager.relaunch_node(node)
         elif node.type == NodeType.EVALUATOR:
             plan = self._evaluator_manager.relaunch_node(node)
-        elif node.type == NodeType.CHIEF:
+        elif node.type == NodeType.CHIEF or node.type == NodeType.MASTER:
             plan = self._chief_manager.relaunch_node(node)
+        else:
+            logger.error("Not support node type %s", node.type)
         self._set_ps_addrs_in_plan(plan)
         self._scaler.scale(plan)
 
