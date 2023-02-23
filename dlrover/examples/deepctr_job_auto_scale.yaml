@@ -1,0 +1,84 @@
+---
+apiVersion: elastic.iml.github.io/v1alpha1
+kind: ElasticJob
+metadata:
+  name: deepctr-sample-auto-scaling-20
+spec:
+  distributionStrategy: ParameterServerStrategy
+  resourceLimits:
+    cpu: "15"
+    memory: "10000Mi"
+  replicaSpecs:
+    ps:
+      autoScale: False
+      replicas: 1
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: main
+              image: registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:v5
+              imagePullPolicy: Always
+              resources:
+                limits:
+                  cpu: "1"
+                  memory: 2Gi
+                requests:
+                  cpu: "1"
+                  memory: 2Gi
+              command:
+                - /bin/bash
+                - -c
+                - "pip install pyhocon \
+                  && cd /home/pai/lib/python3.6/site-packages/\
+                  dlrover/trainer/examples/deepfm_deeprec \
+                  && python -m dlrover.trainer.entry.local_entry \
+                  --platform=Kubernetes --conf=deepfm_deeprec_conf.TrainConf \
+                  --enable_auto_scaling=True"
+              volumeMounts:
+                - name: pvc-nas
+                  mountPath: /nas
+          volumes:
+            - name: pvc-nas
+              persistentVolumeClaim:
+                claimName: pvc-nas
+    worker:
+      autoScale: False
+      replicas: 1
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: main
+              image: registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:v5
+              imagePullPolicy: Always
+              resources:
+                limits:
+                  cpu: "1"
+                  memory: 2Gi
+                requests:
+                  cpu: "1"
+                  memory: 2Gi
+              command:
+                - /bin/bash
+                - -c
+                - "pip install pyhocon \
+                  && cd /home/pai/lib/python3.6/site-packages/\
+                  dlrover/trainer/examples/deepfm_deeprec \
+                  && python -m dlrover.trainer.entry.local_entry \
+                  --platform=Kubernetes --conf=deepfm_deeprec_conf.TrainConf \
+                  --enable_auto_scaling=True"
+              volumeMounts:
+                - name: pvc-nas
+                  mountPath: /nas
+          volumes:
+            - name: pvc-nas
+              persistentVolumeClaim:
+                claimName: pvc-nas
+    dlrover-master:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: main
+              imagePullPolicy: Always

@@ -180,8 +180,6 @@ class DeepFM(tf.estimator.Estimator):
             )
 
         if mode == tf.estimator.ModeKeys.TRAIN:
-            graph = tf.get_default_graph()
-            logger.info("graph def {}".format(graph.as_graph_def()))
             return tf.estimator.EstimatorSpec(
                 mode, predictions=prediction, loss=loss, train_op=train_op
             )
