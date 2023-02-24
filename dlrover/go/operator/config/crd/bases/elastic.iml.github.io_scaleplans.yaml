@@ -73,9 +73,6 @@ spec:
                       type: string
                   type: object
                 type: array
-              manualScaling:
-                description: ManualScaling specifies the ScalePlan created by users.
-                type: boolean
               migratePods:
                 description: MigratePods are Pods to be migrated to other Pods with
                   the new resource.

@@ -15,7 +15,7 @@ import time
 from abc import ABCMeta, abstractmethod
 from typing import Dict, List
 
-from dlrover.python.common.constants import ElasticJobApi
+from dlrover.python.common.constants import ElasticJobApi, ScalePlanLabel
 from dlrover.python.master.scaler.base_scaler import ScalePlan, Scaler
 from dlrover.python.scheduler.kubernetes import k8sClient
 
@@ -126,7 +126,7 @@ class ScalePlanCrd(BaseScaleSpec):
         self,
         api_version: str,
         kind: str,
-        metadata: Dict[str, str],
+        metadata,
         spec: ScaleSpec,
     ):
         self.api_version = api_version
@@ -252,4 +252,7 @@ class ElasticJobScaler(Scaler):
             )
             scale_crd.spec.remove_pods.append(pod_meta)
         scale_crd.spec.ps_hosts = plan.ps_addrs
+        scale_crd.metadata["labels"] = {
+            ScalePlanLabel.SCALE_TYPE_KEY: ScalePlanLabel.AUTO_SCALE
+        }
         return scale_crd

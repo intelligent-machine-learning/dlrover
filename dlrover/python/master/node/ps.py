@@ -132,7 +132,7 @@ class ParameterServerManager(TrainingNodeManager):
                 ps_resource = self._job_resource.get_node_group_resource(
                     NodeType.PS
                 ).node_resource
-                self._nodes[ps_id] = Node(
+                ps = Node(
                     NodeType.PS,
                     node_id=ps_id,
                     rank_index=task_id,
@@ -142,7 +142,9 @@ class ParameterServerManager(TrainingNodeManager):
                     critical=True,
                     service_addr=service_addr,
                 )
-                new_ps.append(self._nodes[ps_id])
+                self._nodes[ps_id] = ps
+                new_ps.append(ps)
+                logger.info("Create PS %s", ps)
         return new_ps
 
     def _scale_down_ps(self, down_num):
@@ -181,12 +183,9 @@ class ParameterServerManager(TrainingNodeManager):
     def _get_alive_ps(self) -> List[Node]:
         """Get all running PS pods"""
         alive_ps = []
-        for pod_info in self._nodes.values():
-            if (
-                pod_info.status == NodeStatus.RUNNING
-                and not pod_info.is_released
-            ):
-                alive_ps.append(pod_info)
+        for node in self._nodes.values():
+            if node.status == NodeStatus.RUNNING and not node.is_released:
+                alive_ps.append(node)
         return alive_ps
 
     def get_next_training_ps_cluster(self):

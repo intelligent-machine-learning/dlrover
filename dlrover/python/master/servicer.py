@@ -382,7 +382,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         return empty_pb2.Empty()
 
     def query_ps_nodes(self, request, _):
-        training_ps: List[Node] = self._job_manager.get_cur_cluster_ps()
+        training_ps: List[Node] = self._job_manager.get_next_cluster_ps()
         ready = self._job_manager.ready_for_new_ps_cluster()
         res = elastic_training_pb2.QueryPsNodesResponse()
         for ps in training_ps:
@@ -391,7 +391,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             ps_meta.addr = ps.service_addr
             ps_meta.cpu = int(ps.config_resource.cpu)
             ps_meta.memory = int(ps.config_resource.memory)
-            logger.info("ps is {}".format(ps_meta.addr))
+        logger.info("PS nodes : %s", ps_meta)
         res.new_ps_ready = ready
 
         return res

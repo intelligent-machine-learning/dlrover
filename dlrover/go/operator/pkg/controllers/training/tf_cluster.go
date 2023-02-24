@@ -41,8 +41,26 @@ type SparseClusterSpec struct {
 type SparseTFConfig struct {
 	// Cluster represents a TensorFlow ClusterSpec.
 	// See: https://www.tensorflow.org/api_docs/python/tf/train/ClusterSpec
-	Cluster SparseClusterSpec `json:"cluster"`
+	Cluster SparseClusterSpec `json:"sparseCluster"`
 	Task    TaskSpec          `json:"task"`
+}
+
+// ClusterSpec represents a cluster TensorFlow specification.
+// https://www.tensorflow.org/deploy/distributed#create_a_tftrainclusterspec_to_describe_the_cluster
+// It is a map from job names to network addresses.
+type ClusterSpec struct {
+	Worker    []string `json:"worker,omitempty"`
+	PS        []string `json:"ps"`
+	Chief     []string `json:"chief"`
+	Evaluator []string `json:"evaluator,omitempty"`
+}
+
+// TFConfig is a struct representing the distributed TensorFlow config.
+type TFConfig struct {
+	// Cluster represents a TensorFlow ClusterSpec.
+	// See: https://www.tensorflow.org/api_docs/python/tf/train/ClusterSpec
+	Cluster ClusterSpec `json:"cluster"`
+	Task    TaskSpec    `json:"task"`
 }
 
 // InsertTfConfigToEnv inserts TFConfig to envs
@@ -52,8 +70,9 @@ func InsertTfConfigToEnv(
 	taskType commonv1.ReplicaType,
 	rankIndex int,
 ) {
-	tfConfig := SparseTFConfig{
-		Cluster: cluster,
+	clusterSpec := convertSparseClusterToCluster(cluster)
+	tfConfig := TFConfig{
+		Cluster: *clusterSpec,
 		Task: TaskSpec{
 			Type:  taskType,
 			Index: rankIndex,
@@ -70,4 +89,19 @@ func InsertTfConfigToEnv(
 		return
 	}
 	container.Env = append(container.Env, tfConfigEnv)
+}
+
+func convertSparseClusterToCluster(sparseCluster SparseClusterSpec) *ClusterSpec {
+	clusterSpec := &ClusterSpec{}
+	for _, host := range sparseCluster.Worker {
+		clusterSpec.Worker = append(clusterSpec.Worker, host)
+	}
+	for _, host := range sparseCluster.Chief {
+		clusterSpec.Chief = append(clusterSpec.Chief, host)
+	}
+	for _, host := range sparseCluster.Evaluator {
+		clusterSpec.Evaluator = append(clusterSpec.Evaluator, host)
+	}
+	clusterSpec.PS = append(clusterSpec.PS, sparseCluster.PS...)
+	return clusterSpec
 }

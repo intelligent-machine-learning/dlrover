@@ -69,6 +69,7 @@ metadata:
   name: scaleplan-sample
   labels:
     elasticjob-name: elasticjob-sample
+    scale-type: manual
 spec:
   ownerJob: elasticjob-sample
   replicaResourceSpecs:
@@ -77,7 +78,6 @@ spec:
       resource:
         cpu: "0.5"
         memory: 256Mi
-  manualScaling: True
 ```
 
 We can scale PS nodes with the spec in ScalePlan like
@@ -91,7 +91,6 @@ spec:
       resource:
         cpu: "0.5"
         memory: 256Mi
-  manualScaling: True
 ```
 
 or migrate a PS with more resource like
@@ -110,5 +109,4 @@ spec:
       resource:
         cpu: 4
         memory: "1024Mi"
-  manualScaling: True
 ```
