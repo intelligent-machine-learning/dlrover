@@ -113,7 +113,6 @@ class ScaleSpec(BaseScaleSpec):
         for pod in self.remove_pods:
             spec["removePods"].append(pod.to_dict())
         spec["psHosts"] = self.ps_hosts
-        spec["manualScaling"] = self.manual_scaling
         return spec
 
 

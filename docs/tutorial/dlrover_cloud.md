@@ -58,7 +58,7 @@ elasticjob-deepctr-sample-dlrover-master   1/1     Running             0        
 
 We can submit a ScalePlan CRD to scale up/down nodes of a job.
 In a ScalePlan, we need to set `metadata.labels` to specify
-which job to scale and `spec.manualScaling` to `True`.
+which job to scale and `metadata.labels["scale-type"]` to "manual".
 For example, the ScalePlan is to scale
 workers of the job `elasticjob-sample`.
 
