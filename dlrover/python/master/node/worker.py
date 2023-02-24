@@ -137,13 +137,16 @@ class WorkerManager(TrainingNodeManager):
             )
         )
         alive_workers = []
+        completed_worker_num = 0
         for worker in self._nodes.values():
             if worker.status in ALIVE_STATUS:
                 alive_workers.append(worker)
+            elif worker.status in [NodeStatus.SUCCEEDED, NodeStatus.FINISHED]:
+                completed_worker_num += 1
         alive_num = len(alive_workers)
         with self._lock:
-            if num > alive_num:
-                self._scale_up_workers(num - alive_num)
+            if num > alive_num + completed_worker_num:
+                self._scale_up_workers(num - alive_num - completed_worker_num)
             elif num < alive_num:
                 self._scale_down_workers(alive_num - num, alive_workers)
         return plan
