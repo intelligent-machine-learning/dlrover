@@ -160,6 +160,7 @@ class ElasticJobScaler(Scaler):
         self._client = k8sClient.singleton_instance(namespace)
         self._namespace = namespace
         self._scaleplan_name = self._job_name + "-scaleplan"
+        self._scaleplan_index = 0
         self._job = self._retry_to_get_job()
         self._job_uid = self._job["metadata"]["uid"]
 
@@ -179,25 +180,21 @@ class ElasticJobScaler(Scaler):
 
     def scale(self, plan: ScalePlan):
         scale_plan_crd = self._generate_scale_plan_crd(plan)
-        self._client.delete_custom_resource(
-            group=ElasticJobApi.GROUP,
-            version=ElasticJobApi.VERION,
-            plural=ElasticJobApi.SCALEPLAN_PLURAL,
-            name=self._scaleplan_name,
-        )
         self._client.create_custom_resource(
             group=ElasticJobApi.GROUP,
             version=ElasticJobApi.VERION,
             plural=ElasticJobApi.SCALEPLAN_PLURAL,
             body=scale_plan_crd.to_dict(),
         )
+        self._scaleplan_index += 1
 
     def _generate_scale_plan_crd(self, plan: ScalePlan) -> ScalePlanCrd:
         api_version = ElasticJobApi.GROUP + "/" + ElasticJobApi.VERION
+        name = self._scaleplan_name + "-" + str(self._scaleplan_index)
         scale_crd = ScalePlanCrd(
             api_version=api_version,
             kind=ElasticJobApi.SCALEPLAN_KIND,
-            metadata={"name": self._scaleplan_name},
+            metadata={"name": name},
             spec=ScaleSpec(self._job_name),
         )
         scale_crd.set_owner_reference(

@@ -108,25 +108,7 @@ func (r *ElasticJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 func (r *ElasticJobReconciler) reconcileJobs(job *elasticv1alpha1.ElasticJob) (ctrl.Result, error) {
 	logger.Infof("jobName: %s, phase %s", job.Name, job.Status.Phase)
 
-	defer func() {
-		latestJob := &elasticv1alpha1.ElasticJob{}
-		err := r.Get(context.TODO(), types.NamespacedName{
-			Name:      job.Name,
-			Namespace: job.Namespace,
-		}, latestJob)
-		if err == nil {
-			if latestJob.ObjectMeta.ResourceVersion != job.ObjectMeta.ResourceVersion {
-				latestJob.Status = job.Status
-				job = latestJob
-			}
-		}
-		err = r.Status().Update(context.TODO(), job)
-		if err != nil {
-			logger.Warningf("Failed to update %s : %s, error: %v",
-				job.GetObjectKind().GroupVersionKind(),
-				job.GetName(), err)
-		}
-	}()
+	defer func() { updateElasticJobStatus(r.Client, job) }()
 
 	switch job.Status.Phase {
 	case "", commonv1.JobCreated:
@@ -227,6 +209,9 @@ func (r *ElasticJobReconciler) getJobScalePlan(job *elasticv1alpha1.ElasticJob) 
 
 func (r *ElasticJobReconciler) executeScaling(job *elasticv1alpha1.ElasticJob, scalePlan *elasticv1alpha1.ScalePlan) error {
 	for replicaType, replicaManager := range common.ReplicaManagers {
+		if replicaType == master.ReplicaTypeTrainerMaster {
+			continue
+		}
 		err := replicaManager.ReconcilePods(r.Client, job, scalePlan)
 		if err != nil {
 			r.Recorder.Eventf(
@@ -240,7 +225,16 @@ func (r *ElasticJobReconciler) executeScaling(job *elasticv1alpha1.ElasticJob, s
 			return err
 		}
 	}
-	return nil
+	err := r.updateScalePlanSucceeded(scalePlan)
+	return err
+}
+
+func (r *ElasticJobReconciler) updateScalePlanSucceeded(scalePlan *elasticv1alpha1.ScalePlan) error {
+	now := metav1.Now()
+	scalePlan.Status.Phase = commonv1.JobSucceeded
+	scalePlan.Status.FinishTime = &now
+	err := updateScalePlanStatus(r.Client, scalePlan)
+	return err
 }
 
 func (r *ElasticJobReconciler) handleFaultPods(job *elasticv1alpha1.ElasticJob) {
@@ -257,4 +251,25 @@ func (r *ElasticJobReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&corev1.Pod{}).
 		Owns(&corev1.Service{}).
 		Complete(r)
+}
+
+func updateElasticJobStatus(client client.Client, job *elasticv1alpha1.ElasticJob) error {
+	latestJob := &elasticv1alpha1.ElasticJob{}
+	err := client.Get(context.TODO(), types.NamespacedName{
+		Name:      job.Name,
+		Namespace: job.Namespace,
+	}, latestJob)
+	if err == nil {
+		if latestJob.ObjectMeta.ResourceVersion != job.ObjectMeta.ResourceVersion {
+			latestJob.Status = job.Status
+			job = latestJob
+		}
+	}
+	err = client.Status().Update(context.TODO(), job)
+	if err != nil {
+		logger.Warningf("Failed to update %s : %s, error: %v",
+			job.GetObjectKind().GroupVersionKind(),
+			job.GetName(), err)
+	}
+	return err
 }

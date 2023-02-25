@@ -24,6 +24,7 @@ import (
 	"github.com/go-logr/logr"
 	logger "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
@@ -81,9 +82,23 @@ func (r *ScalePlanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	if err := r.Get(context.TODO(), req.NamespacedName, scalePlan); err != nil {
 		return ctrl.Result{}, err
 	}
+	result, err := r.reconcileScalePlan(scalePlan)
+	return result, err
+}
+
+func (r *ScalePlanReconciler) reconcileScalePlan(
+	scalePlan *elasticv1alpha1.ScalePlan,
+) (ctrl.Result, error) {
+	defer func() { updateScalePlanStatus(r.Client, scalePlan) }()
+
 	scaleType, ok := scalePlan.Labels[scaleTypeKey]
 	if !ok || scaleType != autoScaleType {
 		return ctrl.Result{}, nil
+	}
+	if scalePlan.Status.Phase == "" {
+		now := metav1.Now()
+		scalePlan.Status.Phase = commonv1.JobCreated
+		scalePlan.Status.CreateTime = &now
 	}
 	job, err := r.getOwnerJob(scalePlan)
 	if err != nil {
@@ -113,20 +128,25 @@ func (r *ScalePlanReconciler) updateJobToScaling(
 	scalePlan *elasticv1alpha1.ScalePlan,
 	job *elasticv1alpha1.ElasticJob,
 	pollInterval time.Duration) (ctrl.Result, error) {
+	if scalePlan.Status.Phase == commonv1.JobScaling || scalePlan.Status.Phase == commonv1.JobSucceeded {
+		logger.Infof("Skip a succeeded ScalePlan %s", scalePlan.Name)
+		return ctrl.Result{}, nil
+	}
 	job.Status.ScalePlan = scalePlan.Name
 	for taskType, resourceSpec := range scalePlan.Spec.ReplicaResourceSpecs {
 		if job.Status.ReplicaStatuses[taskType].Initial == 0 {
 			job.Status.ReplicaStatuses[taskType].Initial = int32(resourceSpec.Replicas)
 		}
 	}
-	msg := fmt.Sprintf("ElasticJob %s is scaling by %s.", job.Name, scalePlan.Name)
+	msg := fmt.Sprintf("ElasticJob %s is scaling by %s with status %s.", job.Name, scalePlan.Name, scalePlan.Status.Phase)
 	logger.Infof(msg)
 	common.UpdateStatus(&job.Status, commonv1.JobScaling, common.JobScalingReason, msg)
-	err := r.Status().Update(context.Background(), job)
+	err := updateElasticJobStatus(r.Client, job)
 	if err != nil {
 		logger.Errorf("Failed to update job %s status to scaling with %s, err: %v", job.Name, scalePlan.Name, err)
 		return ctrl.Result{RequeueAfter: pollInterval}, err
 	}
+	scalePlan.Status.Phase = commonv1.JobScaling
 	return ctrl.Result{}, nil
 }
 
@@ -135,4 +155,27 @@ func (r *ScalePlanReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&elasticv1alpha1.ScalePlan{}).
 		Complete(r)
+}
+
+func updateScalePlanStatus(
+	client client.Client, scalePlan *elasticv1alpha1.ScalePlan,
+) error {
+	latestScalePlan := &elasticv1alpha1.ScalePlan{}
+	err := client.Get(context.TODO(), types.NamespacedName{
+		Name:      scalePlan.Name,
+		Namespace: scalePlan.Namespace,
+	}, latestScalePlan)
+	if err == nil {
+		if latestScalePlan.ObjectMeta.ResourceVersion != scalePlan.ObjectMeta.ResourceVersion {
+			latestScalePlan.Status = scalePlan.Status
+			scalePlan = latestScalePlan
+		}
+	}
+	err = client.Status().Update(context.TODO(), scalePlan)
+	if err != nil {
+		logger.Warningf("Failed to update %s : %s, error: %v",
+			scalePlan.GetObjectKind().GroupVersionKind(),
+			scalePlan.GetName(), err)
+	}
+	return err
 }
