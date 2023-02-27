@@ -116,4 +116,6 @@ class TensorflowFailover:
             "task": {"type": self.task_type, "index": self.task_id},
         }
         os.environ["TF_CONFIG"] = json.dumps(cluster)
-        logger.info("successfully refresh TF_CONFIFG %s"%os.environ["TF_CONFIG"])
+        logger.info(
+            "successfully refresh TF_CONFIFG %s" % os.environ["TF_CONFIG"]
+        )

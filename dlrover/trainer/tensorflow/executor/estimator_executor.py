@@ -21,6 +21,7 @@ from tensorflow.python.ops import array_ops
 from tensorflow.python.training.basic_session_run_hooks import (
     CheckpointSaverHook,
 )
+from tensorflow_estimator.python.estimator import early_stopping
 from tensorflow_estimator.python.estimator.estimator import Estimator
 
 from dlrover.trainer.constants.tf_constants import TFConstants
@@ -156,12 +157,27 @@ class EstimatorExecutor(BaseExecutor):
         params = {}
         training_hooks = [GlobalStepHook()]
         data_shard_client = self.train_dataset.reader.data_shard_client
+        # to do reset
+
+        def should_stop_fn():
+            logger.info("should_stop_fn is called")
+            return False
+
+        early_stopping_hook = early_stopping.make_early_stopping_hook(
+            self._tf_estimator,
+            should_stop_fn,
+            run_every_secs=1,
+            run_every_steps=20,
+        )
+
         if data_shard_client is not None:
             logger.info("appending ElasticDataShardReportHook")
             shard_report_hook = ElasticDataShardReportHook(data_shard_client)
             model_metric_report_hook = ReportModelMetricHook()
             training_hooks.append(shard_report_hook)
             training_hooks.append(model_metric_report_hook)
+            training_hooks.append(early_stopping_hook)
+
         params[TFConstants.EstimatorTrainingHooks.name] = training_hooks
 
         save_steps = self._task_conf.get(
