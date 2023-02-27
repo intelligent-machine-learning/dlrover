@@ -13,7 +13,6 @@
 
 from tensorflow.python.estimator.estimator import Estimator
 from tensorflow.python.training import basic_session_run_hooks
-from tensorflow_estimator.python.estimator import early_stopping
 
 from dlrover.trainer.constants.tf_constants import TFConstants
 from dlrover.trainer.tensorflow.util import common_util
@@ -21,17 +20,16 @@ from dlrover.trainer.util.log_util import default_logger as logger
 
 
 def after_run(self, run_context, run_values):
-    global_step = run_values.results + 1
-    if global_step >= self._last_step:
-
-        step = run_context.session.run(self._global_step_tensor)
-        should_stop = common_util.GlobalDict().get("should_stop", False)
-        if should_stop:
-            logger.info(
-                "should stop is %s from common_util.GlobalDict()" % should_stop
-            )
-        if step >= self._last_step or should_stop:
-            run_context.request_stop()
+    should_stop = common_util.GlobalDict().get("should_stop", False)
+    step = run_context.session.run(self._global_step_tensor)
+    if step >= 3:
+        should_stop = True
+    if should_stop:
+        logger.info(
+            "should stop is %s from common_util.GlobalDict()" % should_stop
+        )
+    if should_stop:
+        run_context.request_stop()
 
 
 basic_session_run_hooks.StopAtStepHook.after_run
@@ -84,6 +82,15 @@ def hook_estimator_call_model_fn(params=None):
                 TFConstants.EstimatorEvaluationHooks.name,
                 TFConstants.EstimatorPredictionHooks.name,
             ]
+            stop_at_step_hook = basic_session_run_hooks.StopAtStepHook(
+                num_steps=10
+            )
+            training_hooks = params.get(TFConstants.EstimatorTrainingHooks, [])
+            training_hooks.append(stop_at_step_hook)
+            import pdb
+
+            pdb.set_trace()
+            params[TFConstants.EstimatorTrainingHooks.name] = training_hooks
             for key in keys:
                 model_fn_results = append_hooks(model_fn_results, key, params)
         return model_fn_results

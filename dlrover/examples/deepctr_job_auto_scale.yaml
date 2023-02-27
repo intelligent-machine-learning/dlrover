@@ -17,7 +17,7 @@ spec:
           restartPolicy: Never
           containers:
             - name: main
-              image: registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:v6
+              image: registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:v8
               imagePullPolicy: Always
               resources:
                 limits:
@@ -50,7 +50,7 @@ spec:
           restartPolicy: Never
           containers:
             - name: main
-              image: registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:v6
+              image: registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:v8
               imagePullPolicy: Always
               resources:
                 limits:

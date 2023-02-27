@@ -6,7 +6,7 @@ metadata:
     elasticjob-name: deepctr-sample-auto-scaling-22
     scale-type: manual
 spec:
-  ownerJob: deepctr-sample-auto-scaling-20
+  ownerJob: deepctr-sample-auto-scaling-22
   replicaResourceSpecs:
     ps:
       replicas: 2
