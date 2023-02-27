@@ -119,3 +119,4 @@ class TensorflowFailover:
         logger.info(
             "successfully refresh TF_CONFIFG %s" % os.environ["TF_CONFIG"]
         )
+        common_util.GlobalDict()["should_stop"] = True

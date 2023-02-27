@@ -15,6 +15,7 @@ from tensorflow.python.estimator.estimator import Estimator
 from tensorflow_estimator.python.estimator import early_stopping
 
 from dlrover.trainer.constants.tf_constants import TFConstants
+from dlrover.trainer.tensorflow.util import common_util
 from dlrover.trainer.util.log_util import default_logger as logger
 
 
@@ -64,7 +65,8 @@ def hook_estimator_call_model_fn(params=None):
 
         def should_stop_fn():
             logger.info("should_stop_fn is called")
-            return False
+            should_stop = common_util.GlobalDict().get("should_stop", False)
+            return should_stop
 
         early_stopping_hook = early_stopping.make_early_stopping_hook(
             self, should_stop_fn, run_every_secs=10
