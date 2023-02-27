@@ -2,7 +2,7 @@
 apiVersion: elastic.iml.github.io/v1alpha1
 kind: ElasticJob
 metadata:
-  name: deepctr-sample-auto-scaling-22
+  name: deepctr-sample-auto-scaling-23
 spec:
   distributionStrategy: ParameterServerStrategy
   resourceLimits:
@@ -17,7 +17,7 @@ spec:
           restartPolicy: Never
           containers:
             - name: main
-              image: registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:v8
+              image: registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:v9
               imagePullPolicy: Always
               resources:
                 limits:
@@ -50,7 +50,7 @@ spec:
           restartPolicy: Never
           containers:
             - name: main
-              image: registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:v8
+              image: registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:v9
               imagePullPolicy: Always
               resources:
                 limits:

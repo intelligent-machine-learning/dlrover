@@ -16,14 +16,12 @@ from tensorflow.python.training import basic_session_run_hooks
 
 from dlrover.trainer.constants.tf_constants import TFConstants
 from dlrover.trainer.tensorflow.util import common_util
+from dlrover.trainer.tensorflow.util.tf_version_util import is_tf_115
 from dlrover.trainer.util.log_util import default_logger as logger
 
 
 def after_run(self, run_context, run_values):
     should_stop = common_util.GlobalDict().get("should_stop", False)
-    step = run_context.session.run(self._global_step_tensor)
-    if step >= 3:
-        should_stop = True
     if should_stop:
         logger.info(
             "should stop is %s from common_util.GlobalDict()" % should_stop
@@ -32,7 +30,65 @@ def after_run(self, run_context, run_values):
         run_context.request_stop()
 
 
-basic_session_run_hooks.StopAtStepHook.after_run
+basic_session_run_hooks.StopAtStepHook.after_run = after_run
+
+if is_tf_115():
+
+    def ck_after_run(self, run_context, run_values):
+        stale_global_step = run_values.results
+        should_save_checkpoint = common_util.GlobalDict().get(
+            "should_save_checkpoint", False
+        )
+        logger.info("should_save_checkpoint")
+        if (
+            self._timer.should_trigger_for_step(
+                stale_global_step + self._steps_per_run
+            )
+            or should_save_checkpoint
+        ):
+            # get the real value after train op.
+            global_step = run_context.session.run(self._global_step_tensor)
+            if (
+                self._timer.should_trigger_for_step(global_step)
+                or should_save_checkpoint
+            ):
+                self._timer.update_last_triggered_step(global_step)
+                if self._save(run_context.session, global_step):
+                    run_context.request_stop()
+        elif self._incremental_save:
+            if (
+                self._incremental_timer.should_trigger_for_step(
+                    stale_global_step + 1
+                )
+                or should_save_checkpoint
+            ):
+                global_step = run_context.session.run(self._global_step_tensor)
+                if (
+                    self._incremental_timer.should_trigger_for_step(
+                        global_step
+                    )
+                    or should_save_checkpoint
+                ):
+                    self._incremental_timer.update_last_triggered_step(
+                        global_step
+                    )
+                    logger.info(
+                        "Start Save incremental checkpoints for %d into %s.",
+                        global_step,
+                        self._incremental_save_path,
+                    )
+                    self._get_incr_saver().incremental_save(
+                        run_context.session,
+                        self._incremental_save_path,
+                        global_step=global_step,
+                    )
+                    logger.info(
+                        "Finish Save incremental checkpoints for %d into %s.",
+                        global_step,
+                        self._incremental_save_path,
+                    )
+
+    basic_session_run_hooks.CheckpointSaverHook.after_run = ck_after_run
 
 
 def append_hooks(estimator_spec, key, params):
@@ -87,10 +143,16 @@ def hook_estimator_call_model_fn(params=None):
             )
             training_hooks = params.get(TFConstants.EstimatorTrainingHooks, [])
             training_hooks.append(stop_at_step_hook)
-            import pdb
-
-            pdb.set_trace()
             params[TFConstants.EstimatorTrainingHooks.name] = training_hooks
+
+            chief_training_hooks = params.get(
+                TFConstants.EstimatorTrainingChiefHooks.name, []
+            )
+            chief_training_hooks.append(stop_at_step_hook)
+            params[
+                TFConstants.EstimatorTrainingChiefHooks.name
+            ] = chief_training_hooks
+
             for key in keys:
                 model_fn_results = append_hooks(model_fn_results, key, params)
         return model_fn_results
