@@ -21,6 +21,7 @@ from dlrover.python.common.constants import (
     ExitCode,
     NodeExitReason,
     NodeType,
+    ScalePlanLabel,
 )
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
@@ -187,7 +188,12 @@ class K8sScalePlanWatcher:
         self._job_name = job_name
         self._job_uid = job_uid
         self._k8s_client = k8sClient.singleton_instance(namespace)
-        self._job_selector = ElasticJobLabel.JOB_KEY + "=" + self._job_name
+        self._used_scaleplans = []
+        job_label = "{}={}".format(ElasticJobLabel.JOB_KEY, self._job_name)
+        type_label = "{}={}".format(
+            ScalePlanLabel.SCALE_TYPE_KEY, ScalePlanLabel.MANUAL_SCALE
+        )
+        self._job_selector = job_label + "," + type_label
 
     def watch(self):
         resource_version = None
@@ -205,13 +211,16 @@ class K8sScalePlanWatcher:
             for event in stream:
                 scaler_crd = event.get("object", None)
                 evt_type = event.get("type")
+                uid = scaler_crd["metadata"]["uid"]
                 if (
                     evt_type != "ADDED"
                     or not scaler_crd
                     or scaler_crd["kind"] != "ScalePlan"
+                    or uid in self._used_scaleplans
                 ):
                     logger.info("Ignore an event")
                     continue
+                self._used_scaleplans.append(uid)
                 resource_plan = self._get_resoruce_plan_from_event(scaler_crd)
                 self._set_owner_to_scaleplan(scaler_crd)
                 yield resource_plan
@@ -220,10 +229,6 @@ class K8sScalePlanWatcher:
 
     def _get_resoruce_plan_from_event(self, scaler_crd) -> ResourcePlan:
         resource_plan = ResourcePlan()
-        if not scaler_crd["spec"].get("manualScaling", False):
-            logger.info("Skip the Scaler which is not manual")
-            return resource_plan
-
         for replica, spec in (
             scaler_crd["spec"].get("replicaResourceSpecs", {}).items()
         ):

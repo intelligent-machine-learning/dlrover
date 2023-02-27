@@ -36,6 +36,11 @@ import (
 	commonv1 "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/pkg/common/api/v1"
 )
 
+const (
+	scaleTypeKey  = "scale-type"
+	autoScaleType = "auto"
+)
+
 // ScalePlanReconciler reconciles a scalePlan object
 type ScalePlanReconciler struct {
 	client.Client
@@ -76,7 +81,8 @@ func (r *ScalePlanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	if err := r.Get(context.TODO(), req.NamespacedName, scalePlan); err != nil {
 		return ctrl.Result{}, err
 	}
-	if scalePlan.Spec.ManualScaling {
+	scaleType, ok := scalePlan.Labels[scaleTypeKey]
+	if !ok || scaleType != autoScaleType {
 		return ctrl.Result{}, nil
 	}
 	job, err := r.getOwnerJob(scalePlan)
@@ -114,6 +120,7 @@ func (r *ScalePlanReconciler) updateJobToScaling(
 		}
 	}
 	msg := fmt.Sprintf("ElasticJob %s is scaling by %s.", job.Name, scalePlan.Name)
+	logger.Infof(msg)
 	common.UpdateStatus(&job.Status, commonv1.JobScaling, common.JobScalingReason, msg)
 	err := r.Status().Update(context.Background(), job)
 	if err != nil {

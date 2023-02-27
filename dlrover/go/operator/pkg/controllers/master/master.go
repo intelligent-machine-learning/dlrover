@@ -36,7 +36,7 @@ const (
 	masterServicePort          = 50001
 	initMasterIndex            = 0
 	defaultImagePullPolicy     = "IfNotPresent"
-	envMasterAddrKey           = "MASTER_ADDR"
+	envMasterAddrKey           = "DLROVER_MASTER_ADDR"
 	envBrainServiceAddrKey     = "DLROVER_BRAIN_SERVICE_ADDR"
 
 	// ReplicaTypeTrainerMaster is the type for DLRover Master replica.
