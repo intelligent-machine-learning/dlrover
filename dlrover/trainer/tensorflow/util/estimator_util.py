@@ -67,10 +67,7 @@ def hook_estimator_call_model_fn(params=None):
             return False
 
         early_stopping_hook = early_stopping.make_early_stopping_hook(
-            self,
-            should_stop_fn,
-            run_every_secs=1,
-            run_every_steps=20,
+            self, should_stop_fn, run_every_secs=10
         )
 
         model_fn_results = estimator_call_model_fn(*args, **kwargs)
