@@ -12,6 +12,7 @@
 # limitations under the License.
 
 from tensorflow.python.estimator.estimator import Estimator
+from tensorflow_estimator.python.estimator import early_stopping
 
 from dlrover.trainer.constants.tf_constants import TFConstants
 from dlrover.trainer.util.log_util import default_logger as logger
@@ -56,7 +57,24 @@ def hook_estimator_call_model_fn(params=None):
     estimator_call_model_fn = Estimator._call_model_fn
 
     def dlrover_call_model_fn(*args, **kwargs):
+        # self is estimator
+        self = args[0]
+
+        # to do reset
+
+        def should_stop_fn():
+            logger.info("should_stop_fn is called")
+            return False
+
+        early_stopping_hook = early_stopping.make_early_stopping_hook(
+            self,
+            should_stop_fn,
+            run_every_secs=1,
+            run_every_steps=20,
+        )
+
         model_fn_results = estimator_call_model_fn(*args, **kwargs)
+
         if params:
             keys = [
                 TFConstants.EstimatorTrainingChiefHooks.name,
@@ -64,6 +82,10 @@ def hook_estimator_call_model_fn(params=None):
                 TFConstants.EstimatorEvaluationHooks.name,
                 TFConstants.EstimatorPredictionHooks.name,
             ]
+            training_hooks = params.get(
+                TFConstants.EstimatorTrainingHooks.name, []
+            )
+            training_hooks.append(early_stopping_hook)
             for key in keys:
                 model_fn_results = append_hooks(model_fn_results, key, params)
         return model_fn_results
