@@ -39,7 +39,8 @@ if is_tf_115():
         should_save_checkpoint = common_util.GlobalDict().get(
             "should_save_checkpoint", False
         )
-        logger.info("should_save_checkpoint")
+        if should_save_checkpoint:
+            logger.info("should_save_checkpoint")
         if (
             self._timer.should_trigger_for_step(
                 stale_global_step + self._steps_per_run

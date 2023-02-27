@@ -10,6 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import threading
 
 from dlrover.trainer.constants.tf_constants import TFConstants
 from dlrover.trainer.tensorflow.executor.estimator_executor import (
@@ -45,6 +46,13 @@ class TFKubernetesWorker:
             self.tensorflow_failover = TensorflowFailover()
             self.tensorflow_failover.start_failover_monitor()
 
+    def run_ps(self):
+        logger.info("ps server join")
+        self.estimator.server.join()
+
+    def run_worker(self):
+        self.estimator.train_and_evaluate()
+
     def run(self):
         global_dict = common_util.GlobalDict()
         global_dict["executor"] = self.estimator
@@ -52,8 +60,19 @@ class TFKubernetesWorker:
         self.start_failover_monitor()
         logger.info("KubernetesWorker is running!")
         self.estimator.start_server()
-        if self.estimator.task_type == TFConstants.PS():
-            logger.info("ps server join")
-            self.estimator.server.join()
-        else:
-            self.estimator.train_and_evaluate()
+
+        while True:
+            if self.estimator.task_type == TFConstants.PS():
+                run_thread = threading.Thread(target=self.run_ps)
+            else:
+                run_thread = threading.Thread(target=self.run_worker)
+            run_thread.start()
+            run_thread.join()
+            global_dict = common_util.GlobalDict()
+            if not run_thread.is_alive() and global_dict.get(
+                "should_stop", False
+            ):
+                continue
+            else:
+                global_dict.clear()
+                break

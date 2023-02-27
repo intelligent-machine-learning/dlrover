@@ -119,5 +119,7 @@ class TensorflowFailover:
         logger.info(
             "successfully refresh TF_CONFIFG %s" % os.environ["TF_CONFIG"]
         )
-        common_util.GlobalDict()["should_save_checkpoint"] = True
-        common_util.GlobalDict()["should_stop"] = True
+        global_dict = common_util.GlobalDict()
+        global_dict["should_save_checkpoint"] = True
+        global_dict["should_stop"] = True
+        logger.info("global dict is %s" % global_dict)
