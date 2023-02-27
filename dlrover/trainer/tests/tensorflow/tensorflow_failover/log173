@@ -1,2 +1,0 @@
-[2023-02-23 06:17:46,662] [INFO][tensorflow_failover.py:24:__init__] initiating tensorflow_failover and failover level is 1
-[2023-02-23 06:17:46,663] [INFO][tensorflow_failover.py:85:ps_addresses_changed] prev address is ['web04-pod2.default.svc:5002'] and current address is ['web04-pod2.default.svc:5004']
