@@ -12,11 +12,29 @@
 # limitations under the License.
 
 from tensorflow.python.estimator.estimator import Estimator
+from tensorflow.python.training import basic_session_run_hooks
 from tensorflow_estimator.python.estimator import early_stopping
 
 from dlrover.trainer.constants.tf_constants import TFConstants
 from dlrover.trainer.tensorflow.util import common_util
 from dlrover.trainer.util.log_util import default_logger as logger
+
+
+def after_run(self, run_context, run_values):
+    global_step = run_values.results + 1
+    if global_step >= self._last_step:
+
+        step = run_context.session.run(self._global_step_tensor)
+        should_stop = common_util.GlobalDict().get("should_stop", False)
+        if should_stop:
+            logger.info(
+                "should stop is %s from common_util.GlobalDict()" % should_stop
+            )
+        if step >= self._last_step or should_stop:
+            run_context.request_stop()
+
+
+basic_session_run_hooks.StopAtStepHook.after_run
 
 
 def append_hooks(estimator_spec, key, params):
@@ -58,22 +76,7 @@ def hook_estimator_call_model_fn(params=None):
     estimator_call_model_fn = Estimator._call_model_fn
 
     def dlrover_call_model_fn(*args, **kwargs):
-        # self is estimator
-        self = args[0]
-
-        # to do reset
-
-        def should_stop_fn():
-            logger.info("should_stop_fn is called")
-            should_stop = common_util.GlobalDict().get("should_stop", False)
-            return should_stop
-
-        early_stopping_hook = early_stopping.make_early_stopping_hook(
-            self, should_stop_fn, run_every_secs=10
-        )
-
         model_fn_results = estimator_call_model_fn(*args, **kwargs)
-
         if params:
             keys = [
                 TFConstants.EstimatorTrainingChiefHooks.name,
@@ -81,10 +84,6 @@ def hook_estimator_call_model_fn(params=None):
                 TFConstants.EstimatorEvaluationHooks.name,
                 TFConstants.EstimatorPredictionHooks.name,
             ]
-            training_hooks = params.get(
-                TFConstants.EstimatorTrainingHooks.name, []
-            )
-            training_hooks.append(early_stopping_hook)
             for key in keys:
                 model_fn_results = append_hooks(model_fn_results, key, params)
         return model_fn_results
