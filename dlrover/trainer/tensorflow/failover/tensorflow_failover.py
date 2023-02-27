@@ -110,7 +110,7 @@ class TensorflowFailover:
         curr_ps_address = self.curr_ps_address
         cluster = {
             "cluster": {
-                self.task_type: {str(self.task_id): self._address},
+                self.task_type: [self._address],
                 "ps": curr_ps_address,
             },
             "task": {"type": self.task_type, "index": self.task_id},

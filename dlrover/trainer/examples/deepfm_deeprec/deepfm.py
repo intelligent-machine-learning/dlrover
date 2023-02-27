@@ -29,9 +29,7 @@ FEATURE_COLUMNS = CONTINUOUS_COLUMNS + CATEGORICAL_COLUMNS
 dnn_hidden_units = [1024, 256, 32]
 final_hidden_units = [128, 64]
 
-input_layer_partitioner = partitioned_variables.min_max_variable_partitioner(
-    max_partitions=8, min_slice_size=8
-)
+input_layer_partitioner = tf.fixed_size_partitioner(3, 0)
 
 
 def build_feature_columns():

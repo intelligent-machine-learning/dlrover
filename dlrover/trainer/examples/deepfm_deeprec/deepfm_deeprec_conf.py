@@ -18,7 +18,7 @@ from dlrover.trainer.tensorflow.util.column_info import Column
 
 class TrainConf(object):
     classifier_class = DeepFM
-    epoch = 1
+    epoch = 100
     batch_size = 64
     log_steps = 100
     eval_steps = 10

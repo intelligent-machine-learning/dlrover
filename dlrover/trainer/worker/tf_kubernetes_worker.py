@@ -35,9 +35,11 @@ class TFKubernetesWorker:
         self._args = args
         task_conf = get_conf(py_conf=args.conf)
         self._task_conf = task_conf
+        self.estimator_server_started = False
         self.init_executor(task_conf)
 
     def init_executor(self, task_conf):
+        logger.info("init_executor")
         self.estimator = EstimatorExecutor(task_conf)
 
     def start_failover_monitor(self):
@@ -54,25 +56,27 @@ class TFKubernetesWorker:
         self.estimator.train_and_evaluate()
 
     def run(self):
-        global_dict = common_util.GlobalDict()
-        global_dict["executor"] = self.estimator
-        self.estimator.prepare()
         self.start_failover_monitor()
         logger.info("KubernetesWorker is running!")
-        self.estimator.start_server()
-
         while True:
+            global_dict = common_util.GlobalDict()
+            global_dict["executor"] = self.estimator
+            self.estimator.prepare()
+            if not self.estimator_server_started:
+                self.estimator.start_server()
+                self.estimator_server_started = True
             if self.estimator.task_type == TFConstants.PS():
                 run_thread = threading.Thread(target=self.run_ps)
             else:
                 run_thread = threading.Thread(target=self.run_worker)
             run_thread.start()
             run_thread.join()
-            global_dict = common_util.GlobalDict()
             if not run_thread.is_alive() and global_dict.get(
                 "should_stop", False
             ):
+                logger.info("ps is migrating or scaling")
+                global_dict.clear()
+                self.init_executor(self._task_conf)
                 continue
             else:
-                global_dict.clear()
                 break
