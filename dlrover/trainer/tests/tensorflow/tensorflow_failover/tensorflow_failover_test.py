@@ -11,46 +11,60 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import os
 import unittest
-import json 
-from dlrover.trainer.tensorflow.failover.tensorflow_failover import TensorflowFailover
-from dlrover.trainer.tensorflow.failover.failover_client import FailoverClient
+
+from dlrover.trainer.tensorflow.failover.tensorflow_failover import (
+    TensorflowFailover,
+)
+
+
 class MockFailoverClient:
     def __init__(self, role):
-        self._role = role 
+        self._role = role
+
     def init_version(self):
-        return 
+        return
+
     def get_training_ps_addr(self):
         return ["web04-pod2.default.svc:5004"]
- 
 
 
 class TensorflowFailoverTest(unittest.TestCase):
-    
     def test_ps_address_changed(self):
-        cluster = {"cluster": { \
-            "ps": ["web04-pod2.default.svc:5002"],\
-            "chief":["p1.default.svc:5001"],\
-            "worker": ["web04-pod1.default.svc:5000"]},\
-            "task": {"type": "worker", "index": 0}}
-        os.environ[
-            "TF_CONFIG"
-        ] = json.dumps(cluster)
+        cluster = {
+            "cluster": {
+                "ps": ["web04-pod2.default.svc:5002"],
+                "chief": ["p1.default.svc:5001"],
+                "worker": ["web04-pod1.default.svc:5000"],
+            },
+            "task": {"type": "worker", "index": 0},
+        }
+        os.environ["TF_CONFIG"] = json.dumps(cluster)
         role = "worker:0"
-        tensorflow_failover = TensorflowFailover(failover_client=MockFailoverClient)
+        tensorflow_failover = TensorflowFailover(
+            failover_client=MockFailoverClient
+        )
         self.assertTrue(tensorflow_failover._role, role)
-        self.assertListEqual(tensorflow_failover.prev_address, cluster["cluster"]["ps"])
+        self.assertListEqual(
+            tensorflow_failover.curr_ps_address, cluster["cluster"]["ps"]
+        )
         ps_cluster, t = tensorflow_failover.ps_addresses_changed()
         self.assertEqual(t, "migrating")
         self.assertTrue(ps_cluster, ["web04-pod2.default.svc:5004"])
         tensorflow_failover.refresh_env()
-        self.assertTrue("web04-pod2.default.svc:5004" in os.environ["TF_CONFIG"])
+        self.assertTrue(
+            "web04-pod2.default.svc:5004" in os.environ["TF_CONFIG"]
+        )
         TF_CONFIG = json.loads(os.environ["TF_CONFIG"])
-        self.assertListEqual(TF_CONFIG["cluster"]["ps"],["web04-pod2.default.svc:5004"])
-    
+        self.assertListEqual(
+            TF_CONFIG["cluster"]["ps"], ["web04-pod2.default.svc:5004"]
+        )
+
     def test_refresh_env(self):
-        pass 
+        pass
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

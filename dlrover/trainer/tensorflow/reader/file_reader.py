@@ -73,7 +73,13 @@ class FileReader:
             self._data_nums = len(self.data)
 
     def iterator(self):
+        first_time = True
         while True:
+            if first_time is True:
+                logger.info(
+                    "trying to get data shard from master for the first time"
+                )
+                first_time = False
             shard = self.data_shard_client.fetch_shard()
             if not shard:
                 break

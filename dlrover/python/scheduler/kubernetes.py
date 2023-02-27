@@ -38,8 +38,7 @@ JOB_SUFFIX = "-edljob-"
 
 
 def parse_bool(s: str):
-   return s.lower() in ["true", "yes", "t", "y"]
-   
+    return s.lower() in ["true", "yes", "t", "y"]
 
 
 def get_pod_name(job_name, pod_type, node_id):

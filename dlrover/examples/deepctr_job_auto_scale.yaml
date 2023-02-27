@@ -2,7 +2,7 @@
 apiVersion: elastic.iml.github.io/v1alpha1
 kind: ElasticJob
 metadata:
-  name: deepctr-sample-auto-scaling-21
+  name: deepctr-sample-auto-scaling-22
 spec:
   distributionStrategy: ParameterServerStrategy
   resourceLimits:
@@ -55,10 +55,10 @@ spec:
               resources:
                 limits:
                   cpu: "1"
-                  memory: 2Gi
+                  memory: 4Gi
                 requests:
                   cpu: "1"
-                  memory: 2Gi
+                  memory: 4Gi
               command:
                 - /bin/bash
                 - -c
