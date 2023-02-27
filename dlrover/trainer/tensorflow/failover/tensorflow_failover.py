@@ -110,9 +110,10 @@ class TensorflowFailover:
         curr_ps_address = self.curr_ps_address
         cluster = {
             "cluster": {
-                "worker": {str(self.task_id): self._address},
+                self.task_type: {str(self.task_id): self._address},
                 "ps": curr_ps_address,
             },
             "task": {"type": self.task_type, "index": self.task_id},
         }
         os.environ["TF_CONFIG"] = json.dumps(cluster)
+        logger.info("successfully refresh TF_CONFIFG %s"%os.environ["TF_CONFIG"])
