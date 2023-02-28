@@ -537,7 +537,7 @@ class JobManager(object):
         else:
             logger.info("Delete worker %s", worker_id)
             plan = self._worker_manager.remove_node(worker_id)
-            logger.info("plan %s", plan)
+            logger.info("plan %s", plan.toJSON())
             self._scaler.scale(plan)
 
     def get_running_nodes(self):
