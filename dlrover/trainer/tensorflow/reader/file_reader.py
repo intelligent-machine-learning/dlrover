@@ -85,8 +85,8 @@ class FileReader:
             shard = self.data_shard_client.fetch_shard()
             if not shard:
                 break
-            for i in range(1, 200):
-                logger.info("shard is {}".format(shard))
+            logger.info("shard is {}".format(shard))
+            for i in range(shard.start, shard.end):
                 d = self.data[i]
                 d = d.strip()
                 dd = d.split(",")
