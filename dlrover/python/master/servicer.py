@@ -24,6 +24,7 @@ from dlrover.python.common.constants import GRPC, NodeType, TrainingLoopStatus
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
+from dlrover.python.master.elastic_training.sync_service import SyncService
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.job_manager import JobManager
 from dlrover.python.master.shard.dataset_splitter import new_dataset_splitter
@@ -49,6 +50,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         rendezvous_server=None,
         job_metric_collector=None,
         elastic_ps_service=None,
+        sync_service=None,
     ):
         # TODO: group params together into a single object.
         self._task_manager = task_manager
@@ -57,6 +59,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         self._rendezvous_server = rendezvous_server
         self._job_metric_collector: JobMetricCollector = job_metric_collector
         self._elastic_ps_service: ElasticPsService = elastic_ps_service
+        self._sync_service: SyncService = sync_service
         self._lock = threading.Lock()
         self._version = 0
         self._start_training_time = None
@@ -251,7 +254,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         return res
 
     def report_shard_checkpoint(self, request, _):
-        res = elastic_training_pb2.ReportShardCheckpointResponse()
+        res = elastic_training_pb2.Response()
         success = self._task_manager.restore_dataset_from_checkpoint(
             request.content
         )
@@ -361,7 +364,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             task_type, task_id, server_addr
         )
 
-        response = elastic_training_pb2.UpdateNodeAddrResponse()
+        response = elastic_training_pb2.Response()
         response.success = True
         logger.info(response)
         return response
@@ -423,6 +426,28 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         worker_host = request.worker_host
         self._rendezvous_server.report_prestop(worker_host)
         return empty_pb2.Empty()
+
+    def join_sync(self, request, _):
+        res = elastic_training_pb2.Response()
+        res.success = self._sync_service.join_sync(
+            request.sync_name, request.worker_id
+        )
+        return res
+
+    def sync_finished(self, request, _):
+        res = elastic_training_pb2.Response()
+        res.success = self._sync_service.sync_finished(request.sync_name)
+        return res
+
+    def barrier(self, request, _):
+        res = elastic_training_pb2.Response()
+        if request.notify:
+            res.success = self._sync_service.notify_barrier(
+                request.barrier_name
+            )
+        else:
+            res.success = self._sync_service.barrier(request.barrier_name)
+        return res
 
 
 def create_master_service(

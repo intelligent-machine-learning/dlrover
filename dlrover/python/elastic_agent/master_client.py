@@ -311,6 +311,26 @@ class MasterClient(object):
         response = self._stub.query_training_status(request)
         return response.status
 
+    @retry_grpc_request
+    def join_sync(self, sync_name):
+        request = elastic_training_pb2.SyncRequest()
+        request.sync_name = sync_name
+        request.worker_id = self._worker_id
+        return self._stub.join_sync(request)
+
+    @retry_grpc_request
+    def sync_finished(self, sync_name):
+        request = elastic_training_pb2.SyncRequest()
+        request.sync_name = sync_name
+        return self._stub.sync_finished(request)
+
+    @retry_grpc_request
+    def barrier(self, barrier_name, notify=False):
+        request = elastic_training_pb2.SyncRequest()
+        request.barrier_name = barrier_name
+        request.notify = notify
+        return self._stub.barrier(request)
+
     def report_prestop(self):
         req = elastic_training_pb2.ReportPreStopRequest()
         req.worker_host = self._host
