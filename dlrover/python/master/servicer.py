@@ -458,6 +458,7 @@ def create_master_service(
     rendezvous_server,
     job_metric_collector,
     elastic_ps_service,
+    sync_service,
 ) -> MasterServicer:
     """Create GRPC server"""
     logger.info("Creating master service")
@@ -478,6 +479,7 @@ def create_master_service(
         rendezvous_server=rendezvous_server,
         job_metric_collector=job_metric_collector,
         elastic_ps_service=elastic_ps_service,
+        sync_service=sync_service,
     )
 
     elastic_training_pb2_grpc.add_MasterServicer_to_server(

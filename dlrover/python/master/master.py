@@ -91,6 +91,7 @@ class Master(object):
             self.rendezvous_server,
             self.job_metric_collector,
             self.elastic_ps_service,
+            self.sync_service,
         )
 
     def _create_metric_collector_if_needed(self, params: JobArgs):
