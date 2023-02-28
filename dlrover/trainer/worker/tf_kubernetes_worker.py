@@ -72,7 +72,7 @@ class TFKubernetesWorker:
             run_thread.start()
             run_thread.join()
             if not run_thread.is_alive() and global_dict.get(
-               TFConstants.RelaunchForPs.name, TFConstants.RelaunchForPs()
+                TFConstants.RelaunchForPs.name, TFConstants.RelaunchForPs()
             ):
                 logger.info("ps is migrating or scaling")
                 global_dict.clear()
