@@ -14,18 +14,18 @@
 
 import threading
 import time
+from typing import Dict, List, Set, Tuple
 
-from typing import List, Dict, Tuple, Set
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.master.node.job_manager import JobManager
 from dlrover.python.common.node import Node
+from dlrover.python.master.node.job_manager import JobManager
 
 _WAIT_SYNC_TINEOUT = 3600
 
 
 class SyncService(object):
-    def __init__(self, job_manager: JobManager):
-        self._job_manager = job_manager
+    def __init__(self, job_manager):
+        self._job_manager: JobManager = job_manager
         self._sync_objs_target: Dict[str, List[Tuple[str, int]]] = {}
         self._finished_barriers: Set[str] = set()
         self._lock = threading.Lock()
