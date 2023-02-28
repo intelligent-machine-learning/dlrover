@@ -50,6 +50,9 @@ const (
 
 	// ServicePort is the port of service
 	ServicePort int = 2222
+
+	workerTypeEnvName = "WORKER_TYPE"
+	workerIDEnvName   = "WORKER_ID"
 )
 
 // TaskManager generates Pods for task in a distributed PS job.
@@ -214,6 +217,18 @@ func (m *TaskManager) newTask(
 	pod.Labels[common.LabelReplicaTypeKey] = string(m.taskType)
 	pod.Labels[common.LabelReplicaIndexKey] = fmt.Sprintf("%d", podMeta.ID)
 	pod.Labels[common.LabelRankIndexKey] = fmt.Sprintf("%d", podMeta.RankIndex)
+
+	container := &pod.Spec.Containers[0]
+	workerTypeEnv := corev1.EnvVar{
+		Name:  workerTypeEnvName,
+		Value: string(m.taskType),
+	}
+	container.Env = append(container.Env, workerTypeEnv)
+	workerIDEnv := corev1.EnvVar{
+		Name:  workerIDEnvName,
+		Value: fmt.Sprintf("%d", podMeta.ID),
+	}
+	container.Env = append(container.Env, workerIDEnv)
 	return pod
 }
 
