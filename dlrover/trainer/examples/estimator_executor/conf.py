@@ -41,6 +41,8 @@ class TrainConf(object):
 
     train_set = {
         "path": "fake://test.data",
+        "epoch": 1000,
+        "batch_size": 200,
         "columns": (
             Column.create(  # type: ignore
                 name="x",

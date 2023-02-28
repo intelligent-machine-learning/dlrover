@@ -2,7 +2,7 @@
 apiVersion: elastic.iml.github.io/v1alpha1
 kind: ElasticJob
 metadata:
-  name: deepctr-sample-auto-scaling-48
+  name: deepctr-sample-auto-scaling-103
 spec:
   distributionStrategy: ParameterServerStrategy
   resourceLimits:
@@ -45,7 +45,7 @@ spec:
                 claimName: pvc-nas
     worker:
       autoScale: False
-      replicas: 1
+      replicas: 2
       template:
         spec:
           restartPolicy: Never

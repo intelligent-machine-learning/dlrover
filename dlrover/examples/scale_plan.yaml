@@ -1,12 +1,12 @@
 apiVersion: elastic.iml.github.io/v1alpha1
 kind: ScalePlan
 metadata:
-  name: deepctr-sample-auto-scaling-48
+  name: deepctr-sample-auto-scaling-102
   labels:
-    elasticjob-name: deepctr-sample-auto-scaling-48
+    elasticjob-name: deepctr-sample-auto-scaling-101
     scale-type: manual
 spec:
-  ownerJob: deepctr-sample-auto-scaling-48
+  ownerJob: deepctr-sample-auto-scaling-101
   replicaResourceSpecs:
-    ps:
-      replicas: 2
+    worker:
+      replicas: 1

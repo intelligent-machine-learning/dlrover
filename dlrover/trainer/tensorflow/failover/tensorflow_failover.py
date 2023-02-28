@@ -61,6 +61,7 @@ class TensorflowFailover:
         self.task_id = int(self.task_id)
         self._is_chief = self.task_type == "chief" and self.task_id == 0
         self.curr_ps_address = TF_CONFIG["cluster"]["ps"]
+        logger.info("Initial ps address is %s" % self.curr_ps_address)
 
     def start_failover_monitor(self):
         if self._role and self.task_type not in ["evaluator", "ps"]:
@@ -71,13 +72,7 @@ class TensorflowFailover:
             logger.info("Successfully to start failover monitor!")
             while True:
                 ps_address_changed, _ = self.ps_addresses_changed()
-                prev_address = self.curr_ps_address
                 if ps_address_changed:
-                    logger.info(
-                        "prev address is {} and current address is {}".format(
-                            prev_address, self.curr_ps_address
-                        )
-                    )
                     self.refresh_env()
                 time.sleep(10)
 
@@ -99,6 +94,11 @@ class TensorflowFailover:
                 changed_type = "scaling"
             else:
                 changed_type = "migrating"
+            logger.info(
+                "ps address changed from {} to {}.".format(
+                    self.curr_ps_address, curr_address
+                )
+            )
             self.curr_ps_address = curr_address
             changed = True
         return changed, changed_type

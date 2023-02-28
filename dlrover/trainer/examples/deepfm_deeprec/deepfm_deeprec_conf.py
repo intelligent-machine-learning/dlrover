@@ -18,8 +18,6 @@ from dlrover.trainer.tensorflow.util.column_info import Column
 
 class TrainConf(object):
     classifier_class = DeepFM
-    epoch = 10000
-    batch_size = 2
     log_steps = 10
     model_dir = "/nas"
     enable_incr_saved_model = True
@@ -54,6 +52,8 @@ class TrainConf(object):
     train_set = {
         "path": "file://./data_kaggle_ad_ctr_train.csv",
         "columns": col,
+        "epoch": 10000,
+        "batch_size": 2,
     }
 
     eval_set = {
