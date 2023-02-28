@@ -99,39 +99,6 @@ class SyncService(object):
                 if len(self._sync_objs_target[sync_name]) == 0:
                     logger.info("Worker sync {} done.".format(sync_name))
 
-    def delete_worker_sync(self, sync_name, delete_all=False):
-        with self._lock:
-            if not delete_all:
-                if sync_name in self._sync_objs_target:
-                    del self._sync_objs_target[sync_name]
-                    logger.info("Worker sync {} deleted".format(sync_name))
-                if sync_name in self._finished_barriers:
-                    self._finished_barriers.remove(sync_name)
-                    logger.info(
-                        "Worker wait sync {} deleted".format(sync_name)
-                    )
-            if delete_all:
-                self._sync_objs_target = {}
-                self._finished_barriers = []
-                logger.info("All worker syncs deleted.")
-
-    def clear_worker_sync(self, sync_name, clear_all=False):
-        with self._lock:
-            if not clear_all:
-                if sync_name in self._sync_objs_target:
-                    self._sync_objs_target[sync_name] = []
-                    logger.info("Worker sync {} cleared".format(sync_name))
-                if sync_name in self._finished_barriers:
-                    self._finished_barriers.remove(sync_name)
-                    logger.info(
-                        "Worker wait sync {} deleted".format(sync_name)
-                    )
-            if clear_all:
-                for sync_name in self._sync_objs_target.keys():
-                    self._sync_objs_target[sync_name] = []
-                self._finished_barriers = []
-                logger.info("All worker syncs cleared")
-
     def delete_sync_timeout_worker(self):
         while True:
             timeout_syncs = []
