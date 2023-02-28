@@ -74,6 +74,7 @@ class TensorflowFailover:
                 ps_address_changed, _ = self.ps_addresses_changed()
                 if ps_address_changed:
                     self.refresh_env()
+                    break 
                 time.sleep(10)
 
         self.runner = threading.Thread(target=monitor_fun)
