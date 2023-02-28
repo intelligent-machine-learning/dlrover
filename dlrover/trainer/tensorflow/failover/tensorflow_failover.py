@@ -20,6 +20,7 @@ import os
 import threading
 import time
 
+from dlrover.trainer.constants.tf_constants import TFConstants
 from dlrover.trainer.tensorflow.failover.failover_client import FailoverClient
 from dlrover.trainer.tensorflow.util import common_util
 from dlrover.trainer.util.log_util import default_logger as logger
@@ -120,6 +121,7 @@ class TensorflowFailover:
             "successfully refresh TF_CONFIFG %s" % os.environ["TF_CONFIG"]
         )
         global_dict = common_util.GlobalDict()
-        global_dict["should_save_checkpoint"] = True
-        global_dict["should_stop"] = True
+        global_dict[TFConstants.SaveCheckpoint.name] = True
+        global_dict[TFConstants.RelaunchForPs.name] = True
         logger.info("global dict is %s" % global_dict)
+        self._failover_client.ready_for_ps_relaunch()

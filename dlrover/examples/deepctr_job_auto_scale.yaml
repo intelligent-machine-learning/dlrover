@@ -17,6 +17,7 @@ spec:
           restartPolicy: Never
           containers:
             - name: main
+              # yamllint disable-line rule:line-length
               image: registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:v11
               imagePullPolicy: Always
               resources:
@@ -50,6 +51,7 @@ spec:
           restartPolicy: Never
           containers:
             - name: main
+              # yamllint disable-line rule:line-length
               image: registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:v11
               imagePullPolicy: Always
               resources:

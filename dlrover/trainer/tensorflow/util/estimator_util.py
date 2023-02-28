@@ -21,12 +21,14 @@ from dlrover.trainer.util.log_util import default_logger as logger
 
 
 def after_run(self, run_context, run_values):
-    should_stop = common_util.GlobalDict().get("should_stop", False)
-    if should_stop:
+    relaunch_for_ps = common_util.GlobalDict().get(
+        TFConstants.RelaunchForPs.name, TFConstants.RelaunchForPs()
+    )
+    if relaunch_for_ps:
         logger.info(
-            "should stop is %s from common_util.GlobalDict()" % should_stop
+            "training thread should stop for due to ps migration/scaling"
         )
-    if should_stop:
+    if relaunch_for_ps:
         run_context.request_stop()
 
 
@@ -37,10 +39,10 @@ if is_tf_115():
     def ck_after_run(self, run_context, run_values):
         stale_global_step = run_values.results
         should_save_checkpoint = common_util.GlobalDict().get(
-            "should_save_checkpoint", False
+            TFConstants.SaveCheckpoint.name, TFConstants.SaveCheckpoint()
         )
         if should_save_checkpoint:
-            logger.info("should_save_checkpoint")
+            logger.info("training thread saves checkpoint before exit")
         if (
             self._timer.should_trigger_for_step(
                 stale_global_step + self._steps_per_run
