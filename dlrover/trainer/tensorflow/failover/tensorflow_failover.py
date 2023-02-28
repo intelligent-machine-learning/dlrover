@@ -124,4 +124,5 @@ class TensorflowFailover:
         global_dict[TFConstants.SaveCheckpoint.name] = True
         global_dict[TFConstants.RelaunchForPs.name] = True
         logger.info("global dict is %s" % global_dict)
-        self._failover_client.ready_for_ps_relaunch()
+        if self._is_chief:
+            self._failover_client.ready_for_ps_relaunch()
