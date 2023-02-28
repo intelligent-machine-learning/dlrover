@@ -82,6 +82,10 @@ func (r *ScalePlanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	if err := r.Get(context.TODO(), req.NamespacedName, scalePlan); err != nil {
 		return ctrl.Result{}, err
 	}
+	scaleType, ok := scalePlan.Labels[scaleTypeKey]
+	if !ok || scaleType != autoScaleType {
+		return ctrl.Result{}, nil
+	}
 	result, err := r.reconcileScalePlan(scalePlan)
 	return result, err
 }
@@ -90,11 +94,6 @@ func (r *ScalePlanReconciler) reconcileScalePlan(
 	scalePlan *elasticv1alpha1.ScalePlan,
 ) (ctrl.Result, error) {
 	defer func() { updateScalePlanStatus(r.Client, scalePlan) }()
-
-	scaleType, ok := scalePlan.Labels[scaleTypeKey]
-	if !ok || scaleType != autoScaleType {
-		return ctrl.Result{}, nil
-	}
 	if scalePlan.Status.Phase == "" {
 		now := metav1.Now()
 		scalePlan.Status.Phase = commonv1.JobCreated
