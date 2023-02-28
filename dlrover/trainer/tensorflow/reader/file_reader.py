@@ -56,6 +56,14 @@ class FileReader:
 
     def build_data_shard_client(self):
         if self.enable_dynamic_sharding is True:
+            logger.info(
+                "Build data shard client in file reader: \n \
+                            num_epochs {} \n\
+                            batch_size {} \n\
+                            data_nums {}".format(
+                    self._num_epochs, self._batch_size, self._data_nums
+                )
+            )
             self.data_shard_client = build_data_shard_service(
                 batch_size=self._batch_size,
                 num_epochs=self._num_epochs,
@@ -73,16 +81,10 @@ class FileReader:
             self._data_nums = len(self.data)
 
     def iterator(self):
-        first_time = True
         while True:
-            if first_time is True:
-                logger.info(
-                    "trying to get data shard from master for the first time"
-                )
-                first_time = False
             shard = self.data_shard_client.fetch_shard()
-            # if not shard:
-            #    break
+            if not shard:
+                break
             for i in range(1, 200):
                 logger.info("shard is {}".format(shard))
                 d = self.data[i]

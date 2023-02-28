@@ -18,7 +18,7 @@ from dlrover.trainer.tensorflow.util.column_info import Column
 
 class TrainConf(object):
     classifier_class = DeepFM
-    epoch = 100
+    epoch = 10000
     batch_size = 2
     log_steps = 10
     model_dir = "/nas"
