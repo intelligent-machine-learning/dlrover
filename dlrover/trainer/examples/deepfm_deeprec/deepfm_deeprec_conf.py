@@ -19,10 +19,8 @@ from dlrover.trainer.tensorflow.util.column_info import Column
 class TrainConf(object):
     classifier_class = DeepFM
     epoch = 100
-    batch_size = 64
-    log_steps = 100
-    eval_steps = 10
-    save_steps = 500
+    batch_size = 2
+    log_steps = 10
     model_dir = "/nas"
     enable_incr_saved_model = True
     checkpoint_incremental_save_secs = 800

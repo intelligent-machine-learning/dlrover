@@ -11,6 +11,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
+import os
+
 import tensorflow.compat.v1 as tf
 from tensorflow.python.ops import partitioned_variables
 
@@ -29,7 +32,13 @@ FEATURE_COLUMNS = CONTINUOUS_COLUMNS + CATEGORICAL_COLUMNS
 dnn_hidden_units = [1024, 256, 32]
 final_hidden_units = [128, 64]
 
-input_layer_partitioner = tf.fixed_size_partitioner(3, 0)
+TF_CONFIG = json.loads(os.environ["TF_CONFIG"])
+ps_cluster = TF_CONFIG.get("cluster").get("ps")
+ps_num = len(ps_cluster)
+
+input_layer_partitioner = partitioned_variables.fixed_size_partitioner(
+    ps_num, 0
+)
 
 
 def build_feature_columns():
