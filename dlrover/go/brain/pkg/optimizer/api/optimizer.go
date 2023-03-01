@@ -14,7 +14,9 @@
 package api
 
 import (
+	"context"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/common"
+	optimizercommon "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/common"
 	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/config"
 )
 
@@ -22,4 +24,8 @@ import (
 type Optimizer interface {
 	// Optimize generates optimization plan for a given job
 	Optimize(config *optconfig.OptimizerConfig, jobs []*common.JobMeta) ([]*common.OptimizePlan, error)
+}
+
+type OptimizeRequestProcessor interface {
+	Optimize(ctx context.Context, event *optimizercommon.OptimizeEvent) ([]*common.OptimizePlan, error)
 }

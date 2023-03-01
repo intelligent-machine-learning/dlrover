@@ -25,6 +25,7 @@ import (
 	datastoreapi "github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/api"
 	dsimpl "github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/implementation"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/recorder/mysql"
+	"github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer"
 	pb "github.com/intelligent-machine-learning/easydl/brain/pkg/proto"
 	"k8s.io/client-go/kubernetes"
 )
@@ -44,6 +45,7 @@ type BrainServer struct {
 	configManager *config.Manager
 
 	dsManager *datastore.Manager
+	manager   *optimizer.Manager
 }
 
 // NewBrainServer creates an EasyDLServer instance
@@ -56,6 +58,7 @@ func NewBrainServer(conf *config.Config) (*BrainServer, error) {
 	return &BrainServer{
 		configManager: config.NewManager(namespace, configMapName, configMapKey, kubeClientSet),
 		kubeClientSet: kubeClientSet,
+		manager:       optimizer.NewManager(conf),
 	}, nil
 }
 
@@ -81,12 +84,15 @@ func (s *BrainServer) Run(ctx context.Context, errReporter common.ErrorReporter)
 	dsConf.Set(config.Namespace, s.conf.GetString(config.Namespace))
 
 	s.dsManager = datastore.NewManager(dsConf)
-	err = s.dsManager.Run(ctx, errReporter)
-	if err != nil {
+	if err = s.dsManager.Run(ctx, errReporter); err != nil {
 		log.Errorf("[%s] fail to run the data store manager: %v", logName, err)
 		return err
 	}
-	return s.dsManager.Run(ctx, errReporter)
+	if err = s.manager.Run(ctx, errReporter); err != nil {
+		log.Errorf("[%s] fail to run the manager: %v", logName, err)
+		return err
+	}
+	return nil
 }
 
 // PersistMetrics persists job metrics to data store
@@ -104,7 +110,22 @@ func (s *BrainServer) PersistMetrics(ctx context.Context, in *pb.JobMetrics) (*e
 
 // Optimize returns the initial resource of a job.
 func (s *BrainServer) Optimize(ctx context.Context, in *pb.OptimizeRequest) (*pb.OptimizeResponse, error) {
-	return nil, nil
+	plans, err := s.manager.ProcessOptimizeRequest(ctx, in)
+	if err != nil {
+		log.Errorf("[%s] fail to process request %v: %v", logName, in, err)
+		return &pb.OptimizeResponse{
+			Response: &pb.Response{
+				Success: false,
+			},
+		}, err
+	}
+
+	return &pb.OptimizeResponse{
+		Response: &pb.Response{
+			Success: true,
+		},
+		JobOptimizePlans: plans,
+	}, nil
 }
 
 // GetJobMetrics returns a job metrics

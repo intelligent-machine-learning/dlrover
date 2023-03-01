@@ -18,6 +18,8 @@ import (
 	log "github.com/golang/glog"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/config"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/api"
+	optconfig "github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer/config"
+	pb "github.com/intelligent-machine-learning/easydl/brain/pkg/proto"
 	"sync"
 )
 
@@ -40,8 +42,7 @@ func registerNewConfigRetrieverFunc(name string, newFunc newConfigRetrieverFunc)
 	return nil
 }
 
-// CreateConfigRetriever creates a specified config retriever
-func CreateConfigRetriever(name string, conf *config.Config) (api.ConfigRetriever, error) {
+func createConfigRetriever(name string, conf *config.Config) (api.ConfigRetriever, error) {
 	locker.Lock()
 	defer locker.Unlock()
 
@@ -56,4 +57,41 @@ func CreateConfigRetriever(name string, conf *config.Config) (api.ConfigRetrieve
 		return nil, err
 	}
 	return retriever, nil
+}
+
+// Manager is the struct of config retriever manager
+type Manager struct {
+	conf       *config.Config
+	retrievers map[string]api.ConfigRetriever
+	locker     *sync.RWMutex
+}
+
+// NewConfigRetrieverManager returns a new config retriever manager
+func NewConfigRetrieverManager(conf *config.Config) *Manager {
+	return &Manager{
+		conf:       conf,
+		retrievers: make(map[string]api.ConfigRetriever),
+		locker:     &sync.RWMutex{},
+	}
+}
+
+// RetrieveOptimizerConfig retrieves optimizer config from pb optimize config
+func (m *Manager) RetrieveOptimizerConfig(conf *pb.OptimizeConfig) (*optconfig.OptimizerConfig, error) {
+	var err error
+	name := conf.OptimizerConfigRetriever
+
+	m.locker.RLock()
+	retriever, found := m.retrievers[name]
+	m.locker.RUnlock()
+
+	if !found {
+		retriever, err = createConfigRetriever(name, m.conf)
+		if err != nil {
+			return nil, err
+		}
+		m.locker.Lock()
+		m.retrievers[name] = retriever
+		m.locker.Unlock()
+	}
+	return retriever.Retrieve(conf)
 }
