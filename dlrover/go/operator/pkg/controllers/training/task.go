@@ -50,6 +50,9 @@ const (
 
 	// ServicePort is the port of service
 	ServicePort int = 2222
+
+	workerTypeEnvName = "WORKER_TYPE"
+	workerIDEnvName   = "WORKER_ID"
 )
 
 // TaskManager generates Pods for task in a distributed PS job.
@@ -105,6 +108,7 @@ func (m *TaskManager) ReconcilePods(
 	aliveNum := int(status.Active + status.Pending + status.Succeeded)
 	if resourceSpec, ok := scalePlan.Spec.ReplicaResourceSpecs[m.taskType]; ok {
 		diffNum := resourceSpec.Replicas - aliveNum
+		logger.Infof("Scale %s Pods with the number %d", m.taskType, diffNum)
 		if diffNum > 0 {
 			m.scaleUpReplicas(
 				client, job, scalePlan, &resourceSpec.Resource, diffNum,
@@ -116,6 +120,7 @@ func (m *TaskManager) ReconcilePods(
 	}
 	for _, podMeta := range scalePlan.Spec.CreatePods {
 		if podMeta.Type == m.taskType {
+			logger.Infof("Create %s Pod with metas %v", m.taskType, podMeta)
 			err := m.createPod(client, job, scalePlan, &podMeta)
 			if err != nil {
 				return err
@@ -212,6 +217,18 @@ func (m *TaskManager) newTask(
 	pod.Labels[common.LabelReplicaTypeKey] = string(m.taskType)
 	pod.Labels[common.LabelReplicaIndexKey] = fmt.Sprintf("%d", podMeta.ID)
 	pod.Labels[common.LabelRankIndexKey] = fmt.Sprintf("%d", podMeta.RankIndex)
+
+	container := &pod.Spec.Containers[0]
+	workerTypeEnv := corev1.EnvVar{
+		Name:  workerTypeEnvName,
+		Value: string(m.taskType),
+	}
+	container.Env = append(container.Env, workerTypeEnv)
+	workerIDEnv := corev1.EnvVar{
+		Name:  workerIDEnvName,
+		Value: fmt.Sprintf("%d", podMeta.ID),
+	}
+	container.Env = append(container.Env, workerIDEnv)
 	return pod
 }
 
@@ -280,19 +297,21 @@ func (m *TaskManager) getPSClusterForPod(
 ) SparseClusterSpec {
 	cluster := SparseClusterSpec{}
 	cluster.PS = scalePlan.Spec.PsHosts
+	chiefCount := 0
 	if status, ok := job.Status.ReplicaStatuses[ReplicaTypeChief]; ok {
-		cluster.Chief = make(map[int]string)
 		chiefManager := common.ReplicaManagers[ReplicaTypeChief].(*TaskManager)
-		taskCount := chiefManager.getTotalTaskCount(status)
-		if taskCount == 0 {
-			taskCount = int(status.Initial) + scalePlan.Spec.ReplicaResourceSpecs[ReplicaTypeChief].Replicas
-		}
-		chiefHosts := chiefManager.getAllTaskHosts(job.Name, taskCount, ServicePort)
-		if len(chiefHosts) == 1 {
-			cluster.Chief[0] = chiefHosts[0]
-		} else {
-			logger.Errorf("The number of chief is not 1")
-		}
+		chiefCount = chiefManager.getTotalTaskCount(status)
+	}
+	chiefManager := common.ReplicaManagers[ReplicaTypeChief].(*TaskManager)
+	if chiefCount == 0 {
+		chiefCount = scalePlan.Spec.ReplicaResourceSpecs[ReplicaTypeChief].Replicas
+	}
+	chiefHosts := chiefManager.getAllTaskHosts(job.Name, chiefCount, ServicePort)
+	cluster.Chief = make(map[int]string)
+	if len(chiefHosts) == 1 {
+		cluster.Chief[0] = chiefHosts[0]
+	} else {
+		logger.Errorf("The number of chief is not 1")
 	}
 	if m.taskType == ReplicaTypePS {
 		cluster.Worker = make(map[int]string)
@@ -312,7 +331,9 @@ func (m *TaskManager) getPSClusterForPod(
 		if cluster.Worker == nil {
 			cluster.Worker = make(map[int]string)
 		}
-		cluster.Worker[podMeta.RankIndex] = podMeta.Service
+		for i := 0; i <= podMeta.RankIndex; i++ {
+			cluster.Worker[i] = fmt.Sprintf("%s-%s-%d:%d", job.Name, ReplicaTypeWorker, i, ServicePort)
+		}
 	}
 	if m.taskType == ReplicaTypeEvaluator {
 		if cluster.Evaluator == nil {

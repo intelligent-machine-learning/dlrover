@@ -59,6 +59,12 @@ class ElasticJobLabel(object):
     RANK_INDEX_KEY = "rank-index"
 
 
+class ScalePlanLabel(object):
+    SCALE_TYPE_KEY = "scale-type"
+    MANUAL_SCALE = "manual"
+    AUTO_SCALE = "auto"
+
+
 class NodeStatus(object):
     SUCCEEDED = "Succeeded"
     FAILED = "Failed"

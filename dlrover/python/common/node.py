@@ -49,7 +49,7 @@ class NodeResource(JsonSerializable):
         self,
         cpu,
         memory,
-        gpu_type=None,
+        gpu_type="",
         gpu_num=0,
         priority="",
         **kwargs,

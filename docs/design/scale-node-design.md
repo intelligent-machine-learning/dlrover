@@ -203,9 +203,9 @@ metadata:
   name: scaleplan-sample
   labels:
     elasticjob-name: elasticjob-sample
+    scale-type: manual
 spec:
   ownerJob: elasticjob-sample
-  manualScaling: True
   replicaResourceSpecs:
     ps:
       replicas: 1

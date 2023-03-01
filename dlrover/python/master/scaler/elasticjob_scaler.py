@@ -15,7 +15,7 @@ import time
 from abc import ABCMeta, abstractmethod
 from typing import Dict, List
 
-from dlrover.python.common.constants import ElasticJobApi
+from dlrover.python.common.constants import ElasticJobApi, ScalePlanLabel
 from dlrover.python.master.scaler.base_scaler import ScalePlan, Scaler
 from dlrover.python.scheduler.kubernetes import k8sClient
 
@@ -113,7 +113,6 @@ class ScaleSpec(BaseScaleSpec):
         for pod in self.remove_pods:
             spec["removePods"].append(pod.to_dict())
         spec["psHosts"] = self.ps_hosts
-        spec["manualScaling"] = self.manual_scaling
         return spec
 
 
@@ -126,7 +125,7 @@ class ScalePlanCrd(BaseScaleSpec):
         self,
         api_version: str,
         kind: str,
-        metadata: Dict[str, str],
+        metadata,
         spec: ScaleSpec,
     ):
         self.api_version = api_version
@@ -161,6 +160,7 @@ class ElasticJobScaler(Scaler):
         self._client = k8sClient.singleton_instance(namespace)
         self._namespace = namespace
         self._scaleplan_name = self._job_name + "-scaleplan"
+        self._scaleplan_index = 0
         self._job = self._retry_to_get_job()
         self._job_uid = self._job["metadata"]["uid"]
 
@@ -180,25 +180,21 @@ class ElasticJobScaler(Scaler):
 
     def scale(self, plan: ScalePlan):
         scale_plan_crd = self._generate_scale_plan_crd(plan)
-        self._client.delete_custom_resource(
-            group=ElasticJobApi.GROUP,
-            version=ElasticJobApi.VERION,
-            plural=ElasticJobApi.SCALEPLAN_PLURAL,
-            name=self._scaleplan_name,
-        )
         self._client.create_custom_resource(
             group=ElasticJobApi.GROUP,
             version=ElasticJobApi.VERION,
             plural=ElasticJobApi.SCALEPLAN_PLURAL,
             body=scale_plan_crd.to_dict(),
         )
+        self._scaleplan_index += 1
 
     def _generate_scale_plan_crd(self, plan: ScalePlan) -> ScalePlanCrd:
         api_version = ElasticJobApi.GROUP + "/" + ElasticJobApi.VERION
+        name = self._scaleplan_name + "-" + str(self._scaleplan_index)
         scale_crd = ScalePlanCrd(
             api_version=api_version,
             kind=ElasticJobApi.SCALEPLAN_KIND,
-            metadata={"name": self._scaleplan_name},
+            metadata={"name": name},
             spec=ScaleSpec(self._job_name),
         )
         scale_crd.set_owner_reference(
@@ -252,4 +248,7 @@ class ElasticJobScaler(Scaler):
             )
             scale_crd.spec.remove_pods.append(pod_meta)
         scale_crd.spec.ps_hosts = plan.ps_addrs
+        scale_crd.metadata["labels"] = {
+            ScalePlanLabel.SCALE_TYPE_KEY: ScalePlanLabel.AUTO_SCALE
+        }
         return scale_crd

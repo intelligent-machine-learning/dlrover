@@ -150,6 +150,7 @@ message PodResource {
   float cpu = 2;    // The number of cores
   float gpu = 3;
   string gpu_type = 4;
+  string priority = 5;
 }
 
 message TaskGroupResource {

@@ -50,9 +50,6 @@ type ScaleSpec struct {
 	// PsHosts are hosts of PS Pods
 	PsHosts []string `json:"psHosts,omitempty"`
 
-	// ManualScaling specifies the ScalePlan created by users.
-	ManualScaling bool `json:"manualScaling,omitempty"`
-
 	// OwnerJob specifies a job to scale.
 	OwnerJob string `json:"ownerJob,omitempty"`
 }

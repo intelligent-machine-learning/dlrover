@@ -4,9 +4,8 @@ metadata:
   name: scaleplan-sample
   labels:
     elasticjob-name: elasticjob-sample
+    scale-type: manual
 spec:
-  ownerJob: elasticjob-sample
-  manualScaling: True
   replicaResourceSpecs:
     ps:
       replicas: 1
@@ -23,4 +22,3 @@ spec:
       resource:
         cpu: "2"
         memory: "512Mi"
-  manualScaling: True 

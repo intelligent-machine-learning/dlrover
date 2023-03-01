@@ -253,7 +253,6 @@ class MasterClient(object):
         op_msg.read_op_count = op_stats.read_op_count
         op_msg.input_fetch_dur = op_stats.input_fetch_dur
         op_msg.flops = op_stats.flops
-        op_msg.runtime_flops = int(op_stats.runtime_flops)
         op_msg.recv_op_count = op_stats.recv_op_count
         return self._stub.report_model_metric(metric_msg)
 
