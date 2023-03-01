@@ -52,8 +52,6 @@ class TensorflowFailover:
             task_type = TF_CONFIG["task"]["type"]
             task_id = TF_CONFIG["task"]["index"]
             self._role = task_type + ":" + str(task_id)
-            # address 有可能是两种，一种是稠密的，一种是sparse
-            # to adaption
             self._address = TF_CONFIG["cluster"][task_type][task_id]
         if self._role is None:
             return
