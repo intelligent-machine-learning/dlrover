@@ -99,8 +99,12 @@ class PodScalerTest(unittest.TestCase):
 
     def test_create_service(self):
         scaler = PodScaler("elasticjob-sample", "default")
-        service = scaler._create_service(
-            NodeType.WORKER, 0, "elasticjob-sample-edljob-worker-0"
+        service = scaler._create_service_obj(
+            name="elasticjob-sample-edljob-worker-0",
+            port="2222",
+            target_port="2222",
+            replica_type=NodeType.WORKER,
+            replica_index=0,
         )
         self.assertEqual(service.spec.selector["replica-index"], "0")
         self.assertEqual(service.spec.selector["replica-type"], "worker")
