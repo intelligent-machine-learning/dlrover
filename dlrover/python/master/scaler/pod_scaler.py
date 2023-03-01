@@ -447,8 +447,8 @@ class PodScaler(Scaler):
             replica_type=pod_type,
             replica_index=pod_id,
         )
-        self._k8s_client.create_service(service)
-        return service
+
+        return self._k8s_client.create_service(service)
 
     def _patch_service_with_retry(
         self, pod_type, new_id, service_name, retry_num=5
