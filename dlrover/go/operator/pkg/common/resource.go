@@ -166,8 +166,8 @@ func NewService(job *elasticv1alpha1.ElasticJob, name string, port int, selector
 			},
 		},
 		Spec: corev1.ServiceSpec{
-			Selector:  selector,
-			Type: corev1.ServiceTypeClusterIP,
+			Selector: selector,
+			Type:     corev1.ServiceTypeClusterIP,
 			Ports: []corev1.ServicePort{
 				{
 					Port: int32(port),
