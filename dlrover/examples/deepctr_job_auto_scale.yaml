@@ -2,7 +2,7 @@
 apiVersion: elastic.iml.github.io/v1alpha1
 kind: ElasticJob
 metadata:
-  name: deepctr-sample-auto-scaling-103
+  name: deepctr-sample-auto-scaling-114
 spec:
   distributionStrategy: ParameterServerStrategy
   resourceLimits:
@@ -23,15 +23,15 @@ spec:
               resources:
                 limits:
                   cpu: "1"
-                  memory: 2Gi
+                  memory: 4Gi
                 requests:
                   cpu: "1"
-                  memory: 2Gi
+                  memory: 4Gi
               command:
                 - /bin/bash
                 - -c
                 - "pip install pyhocon \
-                  && cd /home/pai/lib/python3.6/site-packages/\
+                  && cd /usr/local/lib/python3.8/dist-packages/\
                   dlrover/trainer/examples/deepfm_deeprec \
                   && python -m dlrover.trainer.entry.local_entry \
                   --platform=Kubernetes --conf=deepfm_deeprec_conf.TrainConf \
@@ -65,7 +65,7 @@ spec:
                 - /bin/bash
                 - -c
                 - "pip install pyhocon \
-                  && cd /home/pai/lib/python3.6/site-packages/\
+                  && cd /usr/local/lib/python3.8/dist-packages/\
                   dlrover/trainer/examples/deepfm_deeprec \
                   && python -m dlrover.trainer.entry.local_entry \
                   --platform=Kubernetes --conf=deepfm_deeprec_conf.TrainConf \
