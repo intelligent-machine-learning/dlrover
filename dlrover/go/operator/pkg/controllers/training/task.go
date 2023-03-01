@@ -76,6 +76,20 @@ func init() {
 	}
 }
 
+func newTaskName(jobName string, taskType string, taskIndex int) string {
+	return fmt.Sprintf("%s-edljob-%s-%d", jobName, taskType, taskIndex)
+}
+
+func newTaskServiceAddr(
+	jobName string,
+	taskType string,
+	taskIndex int,
+	port int,
+) string {
+	taskName := newTaskName(jobName, taskType, taskIndex)
+	return fmt.Sprintf("%s:%d", taskName, port)
+}
+
 // SyncJobState synchronize the job status by replicas
 func (m *TaskManager) SyncJobState(
 	client runtime_client.Client,
@@ -149,9 +163,11 @@ func (m *TaskManager) scaleUpReplicas(
 	status := m.getTaskStatus(job)
 	taskNum := m.getTotalTaskCount(status)
 	for i := taskNum; i < taskNum+upNum; i++ {
-		podService := m.newTaskServiceAddr(job.Name, i, ServicePort)
+		podService := newTaskServiceAddr(
+			job.Name, string(m.taskType), i, ServicePort,
+		)
 		podMeta := &elasticv1alpha1.PodMeta{
-			Name:      m.newTaskName(job.Name, i),
+			Name:      newTaskName(job.Name, string(m.taskType), i),
 			ID:        i,
 			RankIndex: i,
 			Type:      m.taskType,
@@ -232,18 +248,6 @@ func (m *TaskManager) newTask(
 	return pod
 }
 
-func (m *TaskManager) newTaskName(jobName string, taskIndex int) string {
-	return fmt.Sprintf("%s-edljob-%s-%d", jobName, string(m.taskType), taskIndex)
-}
-
-func (m *TaskManager) newTaskServiceAddr(
-	jobName string,
-	taskIndex int,
-	port int,
-) string {
-	return fmt.Sprintf("%s-edljob-%s-%d:%d", jobName, string(m.taskType), taskIndex, port)
-}
-
 func (m *TaskManager) getTaskStatus(
 	job *elasticv1alpha1.ElasticJob,
 ) *commonv1.ReplicaStatus {
@@ -282,7 +286,7 @@ func (m *TaskManager) getAllTaskHosts(
 ) []string {
 	hosts := []string{}
 	for i := 0; i < totalTaskCount; i++ {
-		serviceName := m.newTaskServiceAddr(jobName, i, port)
+		serviceName := newTaskServiceAddr(jobName, string(m.taskType), i, port)
 		hosts = append(hosts, serviceName)
 	}
 	return hosts
@@ -318,7 +322,9 @@ func (m *TaskManager) getPSClusterForPod(
 		taskCounts := m.getTaskCounts(job, scalePlan)
 		workerNum := taskCounts[ReplicaTypeWorker]
 		for i := 0; i < int(workerNum); i++ {
-			cluster.Worker[i] = fmt.Sprintf("%s-%s-%d:%d", job.Name, ReplicaTypeWorker, i, ServicePort)
+			cluster.Worker[i] = newTaskServiceAddr(
+				job.Name, string(ReplicaTypeWorker), i, ServicePort,
+			)
 		}
 	}
 	if m.taskType == ReplicaTypeChief {
@@ -332,7 +338,9 @@ func (m *TaskManager) getPSClusterForPod(
 			cluster.Worker = make(map[int]string)
 		}
 		for i := 0; i <= podMeta.RankIndex; i++ {
-			cluster.Worker[i] = fmt.Sprintf("%s-%s-%d:%d", job.Name, ReplicaTypeWorker, i, ServicePort)
+			cluster.Worker[i] = newTaskServiceAddr(
+				job.Name, string(ReplicaTypeWorker), i, ServicePort,
+			)
 		}
 	}
 	if m.taskType == ReplicaTypeEvaluator {
