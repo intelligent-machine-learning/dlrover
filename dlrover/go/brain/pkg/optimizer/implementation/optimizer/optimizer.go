@@ -107,7 +107,7 @@ func (m *Manager) Run(ctx context.Context, errReporter common.ErrorReporter) err
 	defer m.locker.Unlock()
 
 	m.optimizers = createOptimizers(m.conf, m.dsManager)
-	log.Infof("[%d] create optimizers: %v", loggerName, m.optimizers)
+	log.Infof("[%s] create optimizers: %v", loggerName, m.optimizers)
 	return nil
 }
 

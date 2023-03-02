@@ -26,6 +26,7 @@ type Optimizer interface {
 	Optimize(config *optconfig.OptimizerConfig, jobs []*common.JobMeta) ([]*common.OptimizePlan, error)
 }
 
+// OptimizeRequestProcessor is the interface of optimize request processor
 type OptimizeRequestProcessor interface {
 	Optimize(ctx context.Context, event *optimizercommon.OptimizeEvent) ([]*common.OptimizePlan, error)
 }
