@@ -127,8 +127,6 @@ message ReportTrainingLoopStatusRequest {
 
 message ShardCheckpoint { string content = 1; }
 
-message ReportShardCheckpointResponse { bool success = 1; }
-
 message ReportUsedResourceRequest {
   // Used memory with Byte
   int64 memory = 1;
@@ -226,9 +224,23 @@ message ResourceConfig {
   int32 memory = 3; // Mi
 }
 
-message UpdateNodeAddrResponse { bool success = 2; }
-
 message ReportPreStopRequest { string worker_host = 1; }
+
+message SyncRequest {
+  string sync_name = 1;
+  int32 worker_id = 2;
+  bool notify = 3;
+}
+
+message BarrierRequest {
+  string barrier_name = 1;
+  bool notify = 3;
+}
+
+message Response {
+  bool success = 1;
+  string reason = 2;
+}
 
 service Master {
   rpc reset_sync(DdpResetSyncRequest) returns (DdpResetSyncResponse);
@@ -243,24 +255,22 @@ service Master {
       returns (google.protobuf.Empty);
   rpc report_dataset_shard_params(ReportDatasetShardParamsRequest)
       returns (google.protobuf.Empty);
-
   rpc get_dataset_epoch(DatasetMeta) returns (GetDatasetEpochResponse);
-
-  // rpcs for supporting PS adjustment
-  rpc ready_for_ps_relaunch(google.protobuf.Empty)
-      returns (google.protobuf.Empty);
 
   // rpcs for saving and restoring data shard checkpoints
   rpc get_shard_checkpoint(DatasetMeta) returns (ShardCheckpoint);
-  rpc report_shard_checkpoint(ShardCheckpoint)
-      returns (ReportShardCheckpointResponse);
+  rpc report_shard_checkpoint(ShardCheckpoint) returns (Response);
 
+  // rpcs to report training metrics
   rpc report_used_resource(ReportUsedResourceRequest)
       returns (google.protobuf.Empty);
-
   rpc report_model_metric(ModelMetric) returns (google.protobuf.Empty);
   rpc report_global_step(GlobalStepRecord) returns (google.protobuf.Empty);
-  rpc query_running_nodes(google.protobuf.Empty) returns (RunningNodes);
+
+  // rpcs for worker sync
+  rpc join_sync(SyncRequest) returns (Response);
+  rpc sync_finished(SyncRequest) returns (Response);
+  rpc barrier(BarrierRequest) returns (Response);
 
   // rpc for elastic PS
   rpc get_cluster_version(GetClusterVersionRequest)
@@ -270,6 +280,9 @@ service Master {
   rpc query_ps_nodes(google.protobuf.Empty) returns (QueryPsNodesResponse);
   rpc query_training_status(google.protobuf.Empty)
       returns (QueryTrainingStatusResponse);
+  rpc query_running_nodes(google.protobuf.Empty) returns (RunningNodes);
+  rpc ready_for_ps_relaunch(google.protobuf.Empty)
+      returns (google.protobuf.Empty);
 
   // rpc for remote lock
   rpc init_remote_lock(InitRemoteLockRequest) returns (google.protobuf.Empty);
@@ -279,6 +292,6 @@ service Master {
       returns (google.protobuf.Empty);
 
   rpc report_prestop(ReportPreStopRequest) returns (google.protobuf.Empty);
-  rpc update_node_addr(NodeMeta) returns (UpdateNodeAddrResponse);
+  rpc update_node_addr(NodeMeta) returns (Response);
   rpc update_node_event(NodeEvent) returns (google.protobuf.Empty);
 }
