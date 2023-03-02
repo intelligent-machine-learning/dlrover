@@ -56,10 +56,10 @@ class TFKubernetesWorker:
         self.estimator.train_and_evaluate()
 
     def run(self):
-        self.start_failover_monitor()
         logger.info("KubernetesWorker is running!")
         while True:
             global_dict = common_util.GlobalDict()
+            self.start_failover_monitor()
             global_dict["executor"] = self.estimator
             self.estimator.prepare()
             if not self.estimator_server_started:
