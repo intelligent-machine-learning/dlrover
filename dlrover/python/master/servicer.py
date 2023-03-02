@@ -394,7 +394,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             ps_meta.addr = ps.service_addr
             ps_meta.cpu = int(ps.config_resource.cpu)
             ps_meta.memory = int(ps.config_resource.memory)
-        logger.info("PS nodes : %s", ps_meta)
+        logger.info("PS nodes : %s", res)
         res.new_ps_ready = ready
 
         return res

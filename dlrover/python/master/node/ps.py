@@ -111,6 +111,7 @@ class ParameterServerManager(TrainingNodeManager):
         )
         plan = ScalePlan()
         alive_num = len(self.get_training_ps_cluster())
+        logger.info("The current number of alive PS is %s", alive_num)
         if ps_resource.count > alive_num:
             new_ps = self._scale_up_ps(ps_resource.count - alive_num)
             plan.launch_nodes.extend(new_ps)
@@ -167,7 +168,11 @@ class ParameterServerManager(TrainingNodeManager):
     def process_after_ps_cluster_ready(self):
         self._ready_for_new_ps_cluster = True
         self._training_ps_cluster = []
+        logger.info("Process PS nodes after ps training is ready")
         self._training_ps_cluster.extend(self._next_training_ps_cluster)
+        logger.info(
+            "Update training PS cluster = %s", self._training_ps_cluster
+        )
         plan = ScalePlan()
         with self._lock:
             while self._pre_dropped_ps:
