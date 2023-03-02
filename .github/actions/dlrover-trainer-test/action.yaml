@@ -7,5 +7,8 @@ runs:
   args:
     - "/bin/bash"
     - "-c"
-    - "pip install pyhocon tensorflow==1.15.5 \
-       && python -m pytest dlrover/trainer/tests"
+    - "pip install tensorflow==1.15.5 kubernetes grpcio-tools psutil \
+    'ray[default]' pyhocon\
+    && python -m grpc_tools.protoc -I. \
+    dlrover/proto/*.proto --python_out=. --grpc_python_out=. \
+    && python -m pytest dlrover/trainer/tests"

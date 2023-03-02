@@ -11,6 +11,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
+import os
+
 import tensorflow.compat.v1 as tf
 from tensorflow.python.ops import partitioned_variables
 
@@ -29,8 +32,12 @@ FEATURE_COLUMNS = CONTINUOUS_COLUMNS + CATEGORICAL_COLUMNS
 dnn_hidden_units = [1024, 256, 32]
 final_hidden_units = [128, 64]
 
-input_layer_partitioner = partitioned_variables.min_max_variable_partitioner(
-    max_partitions=8, min_slice_size=8
+TF_CONFIG = json.loads(os.environ["TF_CONFIG"])
+ps_cluster = TF_CONFIG.get("cluster").get("ps")
+ps_num = len(ps_cluster)
+
+input_layer_partitioner = partitioned_variables.fixed_size_partitioner(
+    ps_num, 0
 )
 
 
@@ -180,8 +187,6 @@ class DeepFM(tf.estimator.Estimator):
             )
 
         if mode == tf.estimator.ModeKeys.TRAIN:
-            graph = tf.get_default_graph()
-            logger.info("graph def {}".format(graph.as_graph_def()))
             return tf.estimator.EstimatorSpec(
                 mode, predictions=prediction, loss=loss, train_op=train_op
             )
