@@ -13,6 +13,7 @@ DLRover: An Automatic Distributed Deep Learning System
 DLRover automatically trains the Deep Learning model on the distributed cluster. It helps model developers to focus on model arichtecture, without taking care of any engineering stuff, say, hardware acceleration, distributed running, etc. Now, it provides automated operation and maintenance for deep learning training jobs on K8s/Ray. Major features as
 
 - **Automatic Resource Optimization**, Automatically optimize the job resource to improve the training performance and resources utilization.
+- **Dynamic data sharding**, dynamic dispatch training data to each worker instead of dividing equally, faster worker more data.
 - **Fault-Tolerance**, single node failover without restarting the entire job.
 - **Auto-Scaling**, Automatically scale up/down resources at both node level and CPU/memory level.
 
@@ -82,11 +83,12 @@ By practice, DLRover is an ideal component to build an end-to-end industrial onl
 
 ## What's Next?
 
-- Automatic Distributed training for GPU Synchronous jobs
-  - data-parallel mode
+- Fine-grained automatic distributed training for GPU Synchronous jobs
   - hybrid-parallel mode
   - adapted hyper parameters adjustment with dynamic resources
+  - more strategies for Fine-grained scenarioes
 - Full stack solution for Online Deep Learning
+- High performance extension library for Tensorflow/Pytorch to speed up training
 - ...
 
 
