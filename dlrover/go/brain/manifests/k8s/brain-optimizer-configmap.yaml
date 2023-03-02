@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dlrover-brain-optimizers
+  namespace: dlrover
+data:
+  optimizers: |
+    job_ps_create_resource_optimizer:
+      data-store.name: "base_datastore"
+    job_ps_init_adjust_resource_optimizer:
+      data-store.name: "base_datastore"
+      optimizer.ps.initial.target-worker-count: 32
+    job_ps_running_resource_optimizer:
+      data-store.name: "base_datastore"
+      optimizer.ps.cpu.hot-adjust: 8
+      optimizer.ps.cpu.hot-threshold: 0.8
+      optimizer.ps.cpu.hot-target-worker-count: 32
+    job_worker_create_resource_optimizer:
+      data-store.name: "base_datastore"
+    job_worker_resource_optimizer:
+      data-store.name: "base_datastore"
+      optimizer.worker.memory.margin-percent: 0.6
+      optimizer.worker.cpu.margin-core: 0.0
+      optimizer.step.count.threshold: 5
+      optimizer.training-speed.less-percent: 0.2
+      optimizer.worker.max.count-per-step: 8
+      optimizer.ps.cpu.overload: 0.85
+      optimizer.ps.cpu.exhausted-threshold: 0.99
+      optimizer.worker.replica.decrease-count: 1
+      optimizer.worker.cpu-util.comp-count: 3
+      optimizer.worker.cpu.min: 2

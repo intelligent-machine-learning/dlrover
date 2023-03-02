@@ -29,12 +29,16 @@ import (
 
 // Manager is the struct to manage optimizers
 type Manager struct {
-	optimizers           map[string]optapi.Optimizer
-	dataStoreManager     *datastore.Manager
-	confRetrieverManager *ConfigRetrieverManager
-	optimizerConfig      *config.Config
-	configManager        *config.Manager
-	locker               *sync.RWMutex
+	conf *config.Config
+
+	optimizerConfig        *config.Config
+	optimizerConfigManager *config.Manager
+	optimizers             map[string]optapi.Optimizer
+
+	dataStoreManager       *datastore.Manager
+	configRetrieverManager *ConfigRetrieverManager
+
+	locker *sync.RWMutex
 }
 
 // NewManager creates a new OptimizerManager
@@ -47,28 +51,29 @@ func NewManager(conf *config.Config) *Manager {
 	configManager := config.NewManager(namespace, configMapName, configMapKey, kubeClientSet)
 
 	return &Manager{
-		configManager:        configManager,
-		dataStoreManager:     datastore.NewManager(conf),
-		confRetrieverManager: NewConfigRetrieverManager(conf),
-		locker:               &sync.RWMutex{},
+		conf:                   conf,
+		optimizerConfigManager: configManager,
+		configRetrieverManager: NewConfigRetrieverManager(conf),
+		dataStoreManager:       datastore.NewManager(conf),
+		locker:                 &sync.RWMutex{},
 	}
 }
 
 // Run starts the manager
 func (m *Manager) Run(ctx context.Context, errReporter common.ErrorReporter) error {
-	if err := m.configManager.Run(ctx, errReporter); err != nil {
+	if err := m.optimizerConfigManager.Run(ctx, errReporter); err != nil {
 		log.Errorf("[Optimizer Manager] fail to run optimizer config manager: %v", err)
 		return err
 	}
 
-	optimizerConfig, err := m.configManager.GetConfig()
+	optimizerConfig, err := m.optimizerConfigManager.GetConfig()
 	if err != nil {
 		log.Errorf("[Optimizer Manager] fail to get optimizer config: %v", err)
 		return err
 	}
 	m.optimizerConfig = optimizerConfig
 
-	m.configManager.RegisterConfigObserver("easydl-optimizers", m.OptimizersConfigUpdateNotify)
+	m.optimizerConfigManager.RegisterConfigObserver("dlrover-brain-optimizers", m.OptimizersConfigUpdateNotify)
 
 	err = m.dataStoreManager.Run(ctx, errReporter)
 	if err != nil {
@@ -94,7 +99,7 @@ func (m *Manager) Optimize(request *pb.OptimizeRequest) ([]*pb.JobOptimizePlan, 
 		return nil, err
 	}
 
-	optimizerConfig, err := m.confRetrieverManager.RetrieveOptimizerConfig(request.Config)
+	optimizerConfig, err := m.configRetrieverManager.RetrieveOptimizerConfig(request.Config)
 	if err != nil {
 		log.Errorf("Fail to retrieve optimizer config from %v: %v", request, err)
 		return nil, err

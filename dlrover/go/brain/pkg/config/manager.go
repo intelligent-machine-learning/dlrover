@@ -51,6 +51,7 @@ type Manager struct {
 
 // NewManager create an instance of config map manager by the specified opts of config manager.
 func NewManager(namespace string, configMapName string, configMapKey string, kubeClientSet kubernetes.Interface) *Manager {
+	log.Infof("Create config manager with namespace: %s, configMapName: %s, configMapKey: %s", namespace, configMapName, configMapKey)
 	return &Manager{
 		controller:      NewController(namespace, configMapName, kubeClientSet),
 		configmapKey:    configMapKey,

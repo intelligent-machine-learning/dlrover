@@ -25,6 +25,7 @@ import (
 	datastoreapi "github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/api"
 	dsimpl "github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/implementation"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/recorder/mysql"
+	"github.com/intelligent-machine-learning/easydl/brain/pkg/optimizer"
 	pb "github.com/intelligent-machine-learning/easydl/brain/pkg/proto"
 	"k8s.io/client-go/kubernetes"
 )
@@ -43,7 +44,8 @@ type BrainServer struct {
 	conf          *config.Config
 	configManager *config.Manager
 
-	dsManager *datastore.Manager
+	dsManager        *datastore.Manager
+	optimizerManager *optimizer.Manager
 }
 
 // NewBrainServer creates an EasyDLServer instance
@@ -72,21 +74,28 @@ func (s *BrainServer) Run(ctx context.Context, errReporter common.ErrorReporter)
 		log.Errorf("[%s] fail to get brain server config: %v", logName, err)
 		return err
 	}
+	s.conf.Set(config.KubeClientInterface, s.kubeClientSet)
 	log.Infof("[%s] brain server config: %v", logName, s.conf)
 
-	dsConf := config.NewEmptyConfig()
-	dsConf.Set(config.KubeClientInterface, s.kubeClientSet)
-	dsConf.Set(config.DataStoreConfigMapName, s.conf.GetString(config.DataStoreConfigMapName))
-	dsConf.Set(config.DataStoreConfigMapKey, s.conf.GetString(config.DataStoreConfigMapKey))
-	dsConf.Set(config.Namespace, s.conf.GetString(config.Namespace))
-
-	s.dsManager = datastore.NewManager(dsConf)
+	s.dsManager = datastore.NewManager(s.conf)
 	err = s.dsManager.Run(ctx, errReporter)
 	if err != nil {
 		log.Errorf("[%s] fail to run the data store manager: %v", logName, err)
 		return err
 	}
-	return s.dsManager.Run(ctx, errReporter)
+	err = s.dsManager.Run(ctx, errReporter)
+	if err != nil {
+		log.Errorf("[%s] fail to run data store manager: %v", logName, err)
+		return err
+	}
+
+	s.optimizerManager = optimizer.NewManager(s.conf)
+	err = s.optimizerManager.Run(ctx, errReporter)
+	if err != nil {
+		log.Errorf("[%s] fail to run the optimizer manager: %v", logName, err)
+		return err
+	}
+	return nil
 }
 
 // PersistMetrics persists job metrics to data store
@@ -104,6 +113,22 @@ func (s *BrainServer) PersistMetrics(ctx context.Context, in *pb.JobMetrics) (*e
 
 // Optimize returns the initial resource of a job.
 func (s *BrainServer) Optimize(ctx context.Context, in *pb.OptimizeRequest) (*pb.OptimizeResponse, error) {
+	log.Infof("Receive optimize request: %v", in)
+	plans, err := s.optimizerManager.Optimize(in)
+	if err != nil {
+		errReason := fmt.Sprintf("Fail to optimize request %v: %v", in, err)
+		log.Errorf(errReason)
+		return &pb.OptimizeResponse{
+			Response: &pb.Response{Success: false, Reason: errReason},
+		}, err
+	}
+
+	return &pb.OptimizeResponse{
+		Response: &pb.Response{
+			Success: true,
+		},
+		JobOptimizePlans: plans,
+	}, nil
 	return nil, nil
 }
 
