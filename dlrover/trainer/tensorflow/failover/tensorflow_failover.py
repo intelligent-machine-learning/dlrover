@@ -115,6 +115,9 @@ class TensorflowFailover:
             },
             "task": {"type": self.task_type, "index": self.task_id},
         }
+        # ValueError: If "cluster" is set in TF_CONFIG, it must have one "chief" node.
+        if not self._is_chief:
+            cluster.update({"chief":""})
         os.environ["TF_CONFIG"] = json.dumps(cluster)
         logger.info(
             "successfully refresh TF_CONFIFG %s" % os.environ["TF_CONFIG"]
@@ -123,5 +126,8 @@ class TensorflowFailover:
         global_dict[TFConstants.SaveCheckpoint.name] = True
         global_dict[TFConstants.RelaunchForPs.name] = True
         logger.info("global dict is %s" % global_dict)
+        self.notify_ps()
+        
+    def notify_ps(self):
         if self._is_chief:
             self._failover_client.ready_for_ps_relaunch()
