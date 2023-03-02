@@ -554,7 +554,11 @@ class JobManager(object):
         return workers
 
     def post_ps_ready(self):
-        self._ps_manager.process_after_ps_cluster_ready()
+        plan = self._ps_manager.process_after_ps_cluster_ready()
+        if not plan.empty():
+            self._scaler.scale(plan)
+        else:
+            logger.info("Skip an empty scaleplan")
 
     def stop(self):
         self._enable_relaunch_node = False

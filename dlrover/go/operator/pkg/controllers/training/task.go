@@ -151,7 +151,7 @@ func (m *TaskManager) ReconcilePods(
 	}
 	for _, podMeta := range scalePlan.Spec.RemovePods {
 		if podMeta.Type == m.taskType {
-			err := m.removePod(client, &podMeta)
+			err := m.removePod(client, &podMeta, job.Namespace)
 			if err != nil {
 				return err
 			}
@@ -431,9 +431,11 @@ func (m *TaskManager) createPod(
 func (m *TaskManager) removePod(
 	client runtime_client.Client,
 	podMeta *elasticv1alpha1.PodMeta,
+	namespace string,
 ) error {
 	pod := &corev1.Pod{}
 	pod.Name = podMeta.Name
+	pod.Namespace = namespace
 	return common.DeletePod(client, pod)
 }
 
