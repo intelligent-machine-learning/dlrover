@@ -213,7 +213,7 @@ func (m *Manager) StopRunningPods(
 ) error {
 	pod, err := m.getMasterPod(client, job)
 	if pod == nil {
-		logger.Warnf("Failed to get master, error : %v", err)
+		logger.Warnf("Job %s: Failed to get master, error : %v", job.Name, err)
 		return nil
 	}
 	if pod.Status.Phase == corev1.PodRunning || pod.Status.Phase == corev1.PodPending {

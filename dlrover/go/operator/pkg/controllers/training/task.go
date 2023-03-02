@@ -22,6 +22,7 @@ import (
 	master "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/pkg/controllers/master"
 	logger "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/api/errors"
 	runtime_client "sigs.k8s.io/controller-runtime/pkg/client"
 	"sort"
@@ -122,14 +123,20 @@ func (m *TaskManager) ReconcilePods(
 	aliveNum := int(status.Active + status.Pending + status.Succeeded)
 	if resourceSpec, ok := scalePlan.Spec.ReplicaResourceSpecs[m.taskType]; ok {
 		diffNum := resourceSpec.Replicas - aliveNum
-		logger.Infof("Scale %s Pods with the number %d", m.taskType, diffNum)
+		logger.Infof("Job %s: Scale %s Pods with the number %d", job.Name, m.taskType, diffNum)
 		if diffNum > 0 {
-			m.scaleUpReplicas(
+			err := m.scaleUpReplicas(
 				client, job, scalePlan, &resourceSpec.Resource, diffNum,
 			)
+			if err != nil {
+				return err
+			}
 		} else if diffNum < 0 {
 			diffNum = -1 * diffNum
-			m.scaleDownReplicas(client, job, diffNum)
+			err := m.scaleDownReplicas(client, job, diffNum)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	for _, podMeta := range scalePlan.Spec.CreatePods {
@@ -163,6 +170,7 @@ func (m *TaskManager) scaleUpReplicas(
 	status := m.getTaskStatus(job)
 	taskNum := m.getTotalTaskCount(status)
 	for i := taskNum; i < taskNum+upNum; i++ {
+		logger.Infof("Job %s: Create %d %s", job.Name, i, m.taskType)
 		podService := newTaskServiceAddr(
 			job.Name, string(m.taskType), i, ServicePort,
 		)
@@ -187,23 +195,29 @@ func (m *TaskManager) scaleDownReplicas(
 	job *elasticv1alpha1.ElasticJob,
 	downNum int,
 ) error {
+	logger.Infof("Job %s: Scale down %d %s Pods", job.Name, downNum, m.taskType)
 	pods, err := common.GetReplicaTypePods(client, job, m.taskType)
 	if errors.IsNotFound(err) {
 		logger.Warningf("No any worker found: %v", err)
 		return nil
 	}
-	alivePods := make(map[int]*corev1.Pod)
+	alivePods := make(map[int]corev1.Pod)
 	PodIDs := []int{}
 	for _, pod := range pods {
 		if pod.Status.Phase == corev1.PodRunning || pod.Status.Phase == corev1.PodPending {
 			PodID, _ := strconv.Atoi(pod.Labels[common.LabelReplicaIndexKey])
 			PodIDs = append(PodIDs, PodID)
-			alivePods[PodID] = &pod
+			alivePods[PodID] = pod
 		}
 	}
 	sort.Sort(sort.Reverse(sort.IntSlice(PodIDs)))
 	for i := 0; i < downNum; i++ {
-		common.DeletePod(client, alivePods[i])
+		pod := alivePods[PodIDs[i]]
+		logger.Infof("Delete Pod %s", pod.Name)
+		err := common.DeletePod(client, &pod)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -315,7 +329,7 @@ func (m *TaskManager) getPSClusterForPod(
 	if len(chiefHosts) == 1 {
 		cluster.Chief[0] = chiefHosts[0]
 	} else {
-		logger.Errorf("The number of chief is not 1")
+		logger.Errorf("Job %s: The number of chief is not 1", job.Name)
 	}
 	if m.taskType == ReplicaTypePS {
 		cluster.Worker = make(map[int]string)
@@ -389,12 +403,27 @@ func (m *TaskManager) createPod(
 	}
 	err := client.Create(context.Background(), pod)
 	if err != nil {
+		logger.Infof("Job %s: Fail to create Pod %s, %v", job.Name, pod.Name, err)
 		return err
 	}
 	service := m.newServiceForPod(job, podMeta)
-	err = client.Create(context.Background(), service)
+	existingService := &corev1.Service{}
+	err = client.Get(context.TODO(), types.NamespacedName{
+		Name:      service.Name,
+		Namespace: service.Namespace,
+	}, existingService)
 	if err != nil {
-		return err
+		err = client.Create(context.Background(), service)
+		if err != nil {
+			logger.Infof("Job %s: Fail to create service %s, %v", job.Name, service.Name, err)
+			return err
+		}
+	}else {
+		err = client.Update(context.Background(), service)
+		if err != nil {
+			logger.Infof("Job %s: Fail to update service %s, %v", job.Name, service.Name, err)
+			return err
+		}
 	}
 	return nil
 }

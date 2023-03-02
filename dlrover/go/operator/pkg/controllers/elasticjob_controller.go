@@ -127,12 +127,17 @@ func (r *ElasticJobReconciler) reconcileJobs(job *elasticv1alpha1.ElasticJob) (c
 	case commonv1.JobScaling:
 		scalePlan, err := r.getJobScalePlan(job)
 		if err != nil {
-			return ctrl.Result{RequeueAfter: defaultPollInterval}, err
+			logger.Errorf("Job %s: Fail to get scaleplan: %s", job.Name, err)
 		}
+		if scalePlan.Status.Phase != commonv1.JobPending {
+			logger.Infof("Job %s: Skip a %s scaleplan %s.", job.Name, scalePlan.Status.Phase, scalePlan.Name)
+			return ctrl.Result{}, nil
+		}
+		r.updateScalePlanScaling(scalePlan)
 		if scalePlan != nil {
 			err := r.executeScaling(job, scalePlan)
 			if err != nil {
-				return ctrl.Result{RequeueAfter: defaultPollInterval}, err
+				logger.Errorf("Job %s: Fail to execute scaleplan %s: %s", job.Name, scalePlan.Name, err)
 			}
 		}
 		r.syncJobStateByReplicas(job)
@@ -237,6 +242,12 @@ func (r *ElasticJobReconciler) updateScalePlanSucceeded(scalePlan *elasticv1alph
 	return err
 }
 
+func (r *ElasticJobReconciler) updateScalePlanScaling(scalePlan *elasticv1alpha1.ScalePlan) error {
+	scalePlan.Status.Phase = commonv1.JobScaling
+	err := updateScalePlanStatus(r.Client, scalePlan)
+	return err
+}
+
 func (r *ElasticJobReconciler) handleFaultPods(job *elasticv1alpha1.ElasticJob) {
 	for _, manager := range common.ReplicaManagers {
 		manager.HandleFaultPods(r.Client, job)
@@ -247,9 +258,7 @@ func (r *ElasticJobReconciler) handleFaultPods(job *elasticv1alpha1.ElasticJob) 
 func (r *ElasticJobReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&elasticv1alpha1.ElasticJob{}).
-		Owns(&elasticv1alpha1.ScalePlan{}).
 		Owns(&corev1.Pod{}).
-		Owns(&corev1.Service{}).
 		Complete(r)
 }
 
