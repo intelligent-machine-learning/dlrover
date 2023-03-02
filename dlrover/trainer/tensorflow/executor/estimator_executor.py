@@ -156,12 +156,14 @@ class EstimatorExecutor(BaseExecutor):
         params = {}
         training_hooks = [GlobalStepHook()]
         data_shard_client = self.train_dataset.reader.data_shard_client
+
         if data_shard_client is not None:
             logger.info("appending ElasticDataShardReportHook")
             shard_report_hook = ElasticDataShardReportHook(data_shard_client)
             model_metric_report_hook = ReportModelMetricHook()
             training_hooks.append(shard_report_hook)
             training_hooks.append(model_metric_report_hook)
+
         params[TFConstants.EstimatorTrainingHooks.name] = training_hooks
 
         save_steps = self._task_conf.get(

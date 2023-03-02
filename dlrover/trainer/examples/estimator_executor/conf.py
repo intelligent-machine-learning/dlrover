@@ -23,7 +23,7 @@ def compare_fn(prev_eval_result, cur_eval_result):
 class TrainConf(object):
     classifier_class = MyEstimator
     batch_size = 3
-    epoch = 1
+    epoch = 20
     log_steps = 10
     eval_steps = 10
     save_steps = 10
@@ -41,6 +41,8 @@ class TrainConf(object):
 
     train_set = {
         "path": "fake://test.data",
+        "epoch": 1000,
+        "batch_size": 200,
         "columns": (
             Column.create(  # type: ignore
                 name="x",

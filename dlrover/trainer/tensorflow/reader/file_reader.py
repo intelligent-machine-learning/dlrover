@@ -56,9 +56,17 @@ class FileReader:
 
     def build_data_shard_client(self):
         if self.enable_dynamic_sharding is True:
+            logger.info(
+                "Build data shard client in file reader: \n \
+                            num_epochs {} \n\
+                            batch_size {} \n\
+                            data_nums {}".format(
+                    self._num_epochs, self._batch_size, self._data_nums
+                )
+            )
             self.data_shard_client = build_data_shard_service(
                 batch_size=self._batch_size,
-                num_epochs=1,
+                num_epochs=self._num_epochs,
                 dataset_size=self._data_nums,
                 num_minibatches_per_shard=1,
                 dataset_name="iris_training_data",
@@ -77,8 +85,8 @@ class FileReader:
             shard = self.data_shard_client.fetch_shard()
             if not shard:
                 break
+            logger.info("shard is {}".format(shard))
             for i in range(shard.start, shard.end):
-                logger.info("shard is {}".format(shard))
                 d = self.data[i]
                 d = d.strip()
                 dd = d.split(",")

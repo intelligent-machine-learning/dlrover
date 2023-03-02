@@ -185,8 +185,8 @@ class TFProcessScheduler(BaseProcessScheduler):
 
     def run_process(self):
         self.prepare_cluster()
-        chief_process = self.start_chief_process()
         ps_process = self.start_ps_process()
+        chief_process = self.start_chief_process()
         evaluator_process = self.start_evaluator_process()
         worker_process = self.start_worker_process()
         self.all_processes = {

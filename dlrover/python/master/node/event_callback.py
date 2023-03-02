@@ -162,6 +162,7 @@ class TFPSNodeHandlingCallback(NodeEventCallback):
                     msg="All critical nodes completed",
                 )
         self._master.speed_monitor.remove_running_worker(node.type, node.id)
+        self._master.sync_service.remove_exited_worker_sync(node.type, node.id)
 
     @NodeEventCallback.log_callback_exception
     def on_node_failed(self, node: Node, cluster_context):
@@ -174,6 +175,7 @@ class TFPSNodeHandlingCallback(NodeEventCallback):
                 [(node.type, node.id)]
             )
         self._master.speed_monitor.remove_running_worker(node.type, node.id)
+        self._master.sync_service.remove_exited_worker_sync(node.type, node.id)
 
     @NodeEventCallback.log_callback_exception
     def on_node_deleted(self, node, cluster_context):
@@ -182,6 +184,7 @@ class TFPSNodeHandlingCallback(NodeEventCallback):
         if node.type == NodeType.PS:
             self._master.elastic_ps_service.inc_global_cluster_version()
         self._master.speed_monitor.remove_running_worker(node.type, node.id)
+        self._master.sync_service.remove_exited_worker_sync(node.type, node.id)
 
     def _stop_job_if_needed(self, node: Node):
         if node.critical and node.is_unrecoverable_failure():
