@@ -75,15 +75,9 @@ func (s *BrainServer) Run(ctx context.Context, errReporter common.ErrorReporter)
 		log.Errorf("[%s] fail to get brain server config: %v", logName, err)
 		return err
 	}
-	log.Infof("[%s] brain server config: %v", logName, s.conf)
+	s.conf.Set(config.KubeClientInterface, s.kubeClientSet)
 
-	dsConf := config.NewEmptyConfig()
-	dsConf.Set(config.KubeClientInterface, s.kubeClientSet)
-	dsConf.Set(config.DataStoreConfigMapName, s.conf.GetString(config.DataStoreConfigMapName))
-	dsConf.Set(config.DataStoreConfigMapKey, s.conf.GetString(config.DataStoreConfigMapKey))
-	dsConf.Set(config.Namespace, s.conf.GetString(config.Namespace))
-
-	s.dsManager = datastore.NewManager(dsConf)
+	s.dsManager = datastore.NewManager(s.conf)
 	if err = s.dsManager.Run(ctx, errReporter); err != nil {
 		log.Errorf("[%s] fail to run the data store manager: %v", logName, err)
 		return err
@@ -110,6 +104,7 @@ func (s *BrainServer) PersistMetrics(ctx context.Context, in *pb.JobMetrics) (*e
 
 // Optimize returns the initial resource of a job.
 func (s *BrainServer) Optimize(ctx context.Context, in *pb.OptimizeRequest) (*pb.OptimizeResponse, error) {
+	log.Infof("Receive optimize request: %v", in)
 	plans, err := s.manager.ProcessOptimizeRequest(ctx, in)
 	if err != nil {
 		log.Errorf("[%s] fail to process request %v: %v", logName, in, err)

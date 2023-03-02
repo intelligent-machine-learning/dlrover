@@ -150,4 +150,12 @@ class DatasetUtil(object):
             "columns": columns,
             "reader_fn": reader_fn,
         }
+
+        batch_size = data_set.get("batch_size", None)
+        epoch = data_set.get("epoch", None)
+        if batch_size is not None:
+            dataset_util_kwargs.update({"batch_size": batch_size})
+        if epoch is not None:
+            dataset_util_kwargs.update({"epoch": epoch})
+
         return DatasetUtil(**dataset_util_kwargs)

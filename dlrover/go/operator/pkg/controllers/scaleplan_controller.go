@@ -30,7 +30,9 @@ import (
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/api/v1alpha1"
 	common "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/pkg/common"
@@ -93,7 +95,7 @@ func (r *ScalePlanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 func (r *ScalePlanReconciler) reconcileScalePlan(
 	scalePlan *elasticv1alpha1.ScalePlan,
 ) (ctrl.Result, error) {
-	defer func() { updateScalePlanStatus(r.Client, scalePlan) }()
+	// defer func() { updateScalePlanStatus(r.Client, scalePlan) }()
 	if scalePlan.Status.Phase == "" {
 		now := metav1.Now()
 		scalePlan.Status.Phase = commonv1.JobCreated
@@ -127,8 +129,8 @@ func (r *ScalePlanReconciler) updateJobToScaling(
 	scalePlan *elasticv1alpha1.ScalePlan,
 	job *elasticv1alpha1.ElasticJob,
 	pollInterval time.Duration) (ctrl.Result, error) {
-	if scalePlan.Status.Phase == commonv1.JobScaling || scalePlan.Status.Phase == commonv1.JobSucceeded {
-		logger.Infof("Skip a succeeded ScalePlan %s", scalePlan.Name)
+	if scalePlan.Status.Phase != commonv1.JobCreated {
+		logger.Infof("Skip a %s ScalePlan %s", scalePlan.Status.Phase, scalePlan.Name)
 		return ctrl.Result{}, nil
 	}
 	job.Status.ScalePlan = scalePlan.Name
@@ -139,13 +141,18 @@ func (r *ScalePlanReconciler) updateJobToScaling(
 	}
 	msg := fmt.Sprintf("ElasticJob %s is scaling by %s with status %s.", job.Name, scalePlan.Name, scalePlan.Status.Phase)
 	logger.Infof(msg)
+	scalePlan.Status.Phase = commonv1.JobPending
+	err := updateScalePlanStatus(r.Client, scalePlan)
+	if err != nil {
+		return ctrl.Result{RequeueAfter: pollInterval}, err
+	}
 	common.UpdateStatus(&job.Status, commonv1.JobScaling, common.JobScalingReason, msg)
-	err := updateElasticJobStatus(r.Client, job)
+	err = updateElasticJobStatus(r.Client, job)
 	if err != nil {
 		logger.Errorf("Failed to update job %s status to scaling with %s, err: %v", job.Name, scalePlan.Name, err)
 		return ctrl.Result{RequeueAfter: pollInterval}, err
 	}
-	scalePlan.Status.Phase = commonv1.JobScaling
+
 	return ctrl.Result{}, nil
 }
 
@@ -153,7 +160,16 @@ func (r *ScalePlanReconciler) updateJobToScaling(
 func (r *ScalePlanReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&elasticv1alpha1.ScalePlan{}).
-		Complete(r)
+		WithEventFilter(predicate.Funcs{
+			DeleteFunc: func(e event.DeleteEvent) bool {
+				logger.Infof("Skip a delete event")
+				return false
+			},
+			UpdateFunc: func(e event.UpdateEvent) bool {
+				logger.Infof("Skip an update event")
+				return false
+			},
+		}).Complete(r)
 }
 
 func updateScalePlanStatus(

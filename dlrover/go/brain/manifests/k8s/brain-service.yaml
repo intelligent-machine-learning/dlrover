@@ -1,21 +1,36 @@
 ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: brain
+  namespace: dlrover
+spec:
+  type: NodePort
+  ports:
+    - port: 50001
+      protocol: TCP
+      targetPort: 50001
+  selector:
+    app: dlrover-brain
+
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    app: dlrover-brain-service
-  name: dlrover-brain-service
+    app: dlrover-brain
+  name: dlrover-brain
   namespace: dlrover
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: dlrover-brain-service
+      app: dlrover-brain
   template:
     metadata:
       labels:
-        app: dlrover-brain-service
-      name: dlrover-brain-service
+        app: dlrover-brain
+      name: dlrover-brain
       namespace: dlrover
     spec:
       serviceAccountName: dlrover-controller-manager
@@ -23,13 +38,13 @@ spec:
         - command:
             - /bin/bash
             - -c
-            - (/root/k8smonitor -alsologtostderr --namespace dlrover
-              --serviceConfigMapName dlrover-kube-monitor
+            - (/root/brain -alsologtostderr --namespace dlrover
+              --serviceConfigMapName dlrover-brain-service
               --serviceConfigMapKey config 2>&1) |
-              tee /root/logs/kube-monitor.log; exit ${PIPESTATUS[0]}
+              tee /root/logs/brain.log; exit ${PIPESTATUS[0]}
           image: registry.cn-hangzhou.aliyuncs.com/dlrover/brain:test
           imagePullPolicy: Always
-          name: dlrover-kube-monitor
+          name: dlrover-brain
           ports:
             - containerPort: 50001
               protocol: TCP

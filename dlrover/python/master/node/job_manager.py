@@ -548,7 +548,10 @@ class JobManager(object):
         return nodes
 
     def get_running_workers(self):
-        return self._worker_manager.get_running_nodes()
+        workers = self._worker_manager.get_running_nodes()
+        chiefs = self._chief_manager.get_running_nodes()
+        workers.extend(chiefs)
+        return workers
 
     def post_ps_ready(self):
         self._ps_manager.process_after_ps_cluster_ready()

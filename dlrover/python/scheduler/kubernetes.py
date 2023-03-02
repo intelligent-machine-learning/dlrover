@@ -351,7 +351,7 @@ class K8sJobArgs(JobArgs):
                 NodeResource(cpu, memory, gpu_type, gpu_num, priority),
             )
             restart_count = int(spec.get("restartCount", 3))
-            auto_scale = parse_bool(str(spec.get("autoScale", "True")))
+            auto_scale = parse_bool(str(spec.get("autoScale", "true")))
             restart_timeout = int(spec.get("restartTimeout", 0))
             critical_nodes = spec.get("criticalNodes", "")
             self.node_args[replica] = NodeArgs(

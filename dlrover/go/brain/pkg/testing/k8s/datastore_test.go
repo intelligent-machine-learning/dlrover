@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package minikube
+package k8s
 
 import (
 	"fmt"
@@ -19,15 +19,15 @@ import (
 	dsimpl "github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/implementation"
 	"github.com/intelligent-machine-learning/easydl/brain/pkg/datastore/recorder/mysql"
 	pb "github.com/intelligent-machine-learning/easydl/brain/pkg/proto"
+	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
 func TestDatastore(t *testing.T) {
-	//err := testMysqlConnection()
-	//assert.NoError(t, err)
-}
+	if !toRunDataStoreTest {
+		return
+	}
 
-func testMysqlConnection() error {
 	// run "k8s service mysql --url -n dlrover" to get the port number
 	port := "61680"
 	url := fmt.Sprintf("tcp(127.0.0.1:%s)/dlrover?parseTime=true&interpolateParams=true&loc=Local", port)
@@ -54,5 +54,6 @@ func testMysqlConnection() error {
 		},
 	}
 
-	return baseDatastore.PersistData(nil, jobMetrics, nil)
+	err := baseDatastore.PersistData(nil, jobMetrics, nil)
+	assert.NoError(t, err)
 }

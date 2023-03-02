@@ -101,7 +101,7 @@ class LocalOptimizer(ResourceOptimizer):
             self._resource_limits.cpu < 16
             and self._resource_limits.memory < 32 * 1024
         ):
-            # Set a little resource to test an elastic job on minikube.
+            # Set a little resource to test an elastic job on k8s.
             node_cpu = _MINIKUBE_INITIAL_NODE_CPU
             node_memory = _MINIKUBE_INITIAL_NODE_MEMORY
 
