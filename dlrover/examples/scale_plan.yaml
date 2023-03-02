@@ -9,4 +9,4 @@ spec:
   ownerJob: deepctr-auto-scaling-job
   replicaResourceSpecs:
     worker:
-      replicas: 4
+      replicas: 1

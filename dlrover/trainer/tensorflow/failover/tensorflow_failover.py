@@ -119,7 +119,7 @@ class TensorflowFailover:
         # it must have one "chief" node. However, worker
         # doesn't need to know chief's address
         if not self._is_chief:
-            cluster.update({"chief": ""})
+            cluster["cluster"].update({"chief": [""]})
         os.environ["TF_CONFIG"] = json.dumps(cluster)
         logger.info(
             "successfully refresh TF_CONFIFG %s" % os.environ["TF_CONFIG"]
