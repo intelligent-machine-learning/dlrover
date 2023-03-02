@@ -5,13 +5,14 @@ The document describes how to make contribution to EasyDL.
 ## Submit a PR
 
 - Fork EasyDL Repo to your owner namespace.
-- `git clone git@github.com:intelligent-machine-learning/easydl.git`
-- `cd easydl`
+- `git clone git@github.com:intelligent-machine-learning/dlrover.git`
+- `cd dlrover`
 - `git remote rename origin upstream`
-- `git remote add origin ${YOUR OWNER REPOT}`
+- `git remote add origin ${YOUR OWNER REPO}`
+- `git checkout -b {DEV-BRANCH}`
+- `git push -u origin {DEV-BRANCH}`
 
-Then, you can check out your developed branch, push the branch to origin,
-and create a PR on github.
+Then, you create a PR on github.
 
 
 ## Test ElasticJob on Minikube
