@@ -30,9 +30,9 @@ import (
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
-	"sigs.k8s.io/controller-runtime/pkg/event"
 
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/api/v1alpha1"
 	common "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/pkg/common"
@@ -152,7 +152,7 @@ func (r *ScalePlanReconciler) updateJobToScaling(
 		logger.Errorf("Failed to update job %s status to scaling with %s, err: %v", job.Name, scalePlan.Name, err)
 		return ctrl.Result{RequeueAfter: pollInterval}, err
 	}
-	
+
 	return ctrl.Result{}, nil
 }
 
@@ -161,15 +161,15 @@ func (r *ScalePlanReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&elasticv1alpha1.ScalePlan{}).
 		WithEventFilter(predicate.Funcs{
-            DeleteFunc: func(e event.DeleteEvent) bool {
+			DeleteFunc: func(e event.DeleteEvent) bool {
 				logger.Infof("Skip a delete event")
-                return false
-            },
+				return false
+			},
 			UpdateFunc: func(e event.UpdateEvent) bool {
 				logger.Infof("Skip an update event")
-                return false
-            },
-        }).Complete(r)
+				return false
+			},
+		}).Complete(r)
 }
 
 func updateScalePlanStatus(

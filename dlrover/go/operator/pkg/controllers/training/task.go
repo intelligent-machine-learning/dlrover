@@ -22,8 +22,8 @@ import (
 	master "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/pkg/controllers/master"
 	logger "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/types"
 	runtime_client "sigs.k8s.io/controller-runtime/pkg/client"
 	"sort"
 	"strconv"
@@ -418,7 +418,7 @@ func (m *TaskManager) createPod(
 			logger.Infof("Job %s: Fail to create service %s, %v", job.Name, service.Name, err)
 			return err
 		}
-	}else {
+	} else {
 		err = client.Update(context.Background(), service)
 		if err != nil {
 			logger.Infof("Job %s: Fail to update service %s, %v", job.Name, service.Name, err)
