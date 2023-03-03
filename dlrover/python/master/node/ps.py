@@ -317,14 +317,6 @@ class ParameterServerManager(TrainingNodeManager):
 
         resource = copy.deepcopy(original_pod.config_resource)
         rate = NodeResourceLimit.PS_CPU_GROWTH_RATE
-        if cpu <= resource.cpu * rate and memory <= resource.memory:
-            logger.info(
-                "Skip the PS %s with CPU=%s, memory=%s",
-                original_pod.name,
-                cpu,
-                memory,
-            )
-            return None
         with self._lock:
             self._ready_for_new_ps_cluster = False
             new_ps_id = next(self._node_id_iter)
