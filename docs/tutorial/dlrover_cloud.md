@@ -78,7 +78,7 @@ workers of the job `deepctr-auto-scaling-job`.
 apiVersion: elastic.iml.github.io/v1alpha1
 kind: ScalePlan
 metadata:
-  name: deepctr-auto-scaling-job
+  name: deepctr-auto-scaling-job1
   labels:
     elasticjob-name: deepctr-auto-scaling-job
     scale-type: manual
@@ -86,17 +86,18 @@ spec:
   ownerJob: deepctr-auto-scaling-job
   replicaResourceSpecs:
     worker:
-      replicas: 1
+      replicas: 3
 ```
-After scaling, there two ps nodes:
+After scaling, there three worker nodes:
 
 ``` bash
 NAME                                                 READY   STATUS    RESTARTS   AGE
-deepctr-auto-scaling-job-edljob-chief-0              1/1     Running   0          7m36s
-deepctr-auto-scaling-job-edljob-ps-0                 1/1     Running   0          7m36s
-elasticjob-deepctr-auto-scaling-job-dlrover-master   1/1     Running   0          7m43s
+deepctr-auto-scaling-job-edljob-chief-0              1/1     Running   0          14m
+deepctr-auto-scaling-job-edljob-ps-0                 1/1     Running   0          14m
+deepctr-auto-scaling-job-edljob-worker-0             1/1     Running   0          3s
+deepctr-auto-scaling-job-edljob-worker-1             1/1     Running   0          3s
+deepctr-auto-scaling-job-edljob-worker-2             1/1     Running   0          3s
 ```
-
 
 We can scale PS nodes with the spec in ScalePlan like
 
@@ -104,7 +105,7 @@ We can scale PS nodes with the spec in ScalePlan like
 apiVersion: elastic.iml.github.io/v1alpha1
 kind: ScalePlan
 metadata:
-  name: deepctr-auto-scaling-job
+  name: deepctr-auto-scaling-job2
   labels:
     elasticjob-name: deepctr-auto-scaling-job
     scale-type: manual
@@ -123,4 +124,42 @@ deepctr-auto-scaling-job-edljob-chief-0              1/1     Running   0        
 deepctr-auto-scaling-job-edljob-ps-0                 1/1     Running   0          7m36s
 deepctr-auto-scaling-job-edljob-ps-1                 1/1     Running   0          2m50s
 elasticjob-deepctr-auto-scaling-job-dlrover-master   1/1     Running   0          7m43s
+```
+
+
+We can migrate a PS with more resource like
+
+```yaml
+apiVersion: elastic.iml.github.io/v1alpha1
+kind: ScalePlan
+metadata:
+  name: deepctr-auto-scaling-job233
+  labels:
+    elasticjob-name: deepctr-auto-scaling-job
+    scale-type: manual
+spec:
+  ownerJob: deepctr-auto-scaling-job
+  migratePods:
+    - name: deepctr-auto-scaling-job-edljob-ps-1
+      resource:
+        cpu: "2"
+        memory: 4Gi
+```
+
+During migrating, a new ps node is started. When new ps is ready, master will inform workers to accept new ps.
+
+``` bash
+NAME                                                 READY   STATUS    RESTARTS   AGE
+deepctr-auto-scaling-job-edljob-chief-0              1/1     Running   0          22m
+deepctr-auto-scaling-job-edljob-ps-0                 1/1     Running   0          22m
+deepctr-auto-scaling-job-edljob-ps-1                 1/1     Running   0          17m
+deepctr-auto-scaling-job-edljob-ps-2                 0/1     Pending   0          73s
+```
+After migrating, new ps joins and the old ps exit:
+
+``` bash
+NAME                                                 READY   STATUS    RESTARTS   AGE
+deepctr-auto-scaling-job-edljob-chief-0              1/1     Running   0          22m
+deepctr-auto-scaling-job-edljob-ps-0                 1/1     Running   0          22m
+deepctr-auto-scaling-job-edljob-ps-2                 1/1     Running   0          20s
 ```

@@ -7,8 +7,9 @@ metadata:
     scale-type: manual
 spec:
   ownerJob: deepctr-auto-scaling-job
-  replicaResourceSpecs:
-    ps:
-      replicas: 2
-
+  migratePods:
+    - name: deepctr-auto-scaling-job-edljob-ps-1
+      resource:
+        cpu: "2"
+        memory: 4Gi
 
