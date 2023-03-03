@@ -8,5 +8,7 @@ metadata:
 spec:
   ownerJob: deepctr-auto-scaling-job
   replicaResourceSpecs:
-    worker:
-      replicas: 1
+    ps:
+      replicas: 2
+
+
