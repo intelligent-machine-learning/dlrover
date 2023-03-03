@@ -11,3 +11,5 @@ data:
     data-store.config-map.key: "datastore"
     optimizer.config-map.name: "dlrover-brain-optimizers"
     optimizer.config-map.key: "optimizers"
+    optimize-request-processor.config-map.name: "dlrover-brain-processors"
+    optimize-request-processor.config-map.key: "processors"

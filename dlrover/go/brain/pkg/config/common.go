@@ -138,4 +138,9 @@ const (
 	OptimizerWorkerOptimizePhaseInitial = "initial"
 	// OptimizerWorkerOptimizePhaseStable is the config value of stable optimize phase
 	OptimizerWorkerOptimizePhaseStable = "stable"
+
+	// OptimizeRequestProcessorConfigMapName is the name of optimize request processor config map
+	OptimizeRequestProcessorConfigMapName = "optimize-request-processor.config-map.name"
+	// OptimizeRequestProcessorConfigMapKey is the key of optimize request processor config map
+	OptimizeRequestProcessorConfigMapKey = "optimize-request-processor.config-map.key"
 )

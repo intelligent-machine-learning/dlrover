@@ -44,8 +44,8 @@ type BrainServer struct {
 	conf          *config.Config
 	configManager *config.Manager
 
-	dsManager        *datastore.Manager
-	optimizerManager *optimizer.Manager
+	dsManager *datastore.Manager
+	manager   *optimizer.Manager
 }
 
 // NewBrainServer creates an EasyDLServer instance
@@ -58,6 +58,7 @@ func NewBrainServer(conf *config.Config) (*BrainServer, error) {
 	return &BrainServer{
 		configManager: config.NewManager(namespace, configMapName, configMapKey, kubeClientSet),
 		kubeClientSet: kubeClientSet,
+		manager:       optimizer.NewManager(conf),
 	}, nil
 }
 
@@ -75,24 +76,14 @@ func (s *BrainServer) Run(ctx context.Context, errReporter common.ErrorReporter)
 		return err
 	}
 	s.conf.Set(config.KubeClientInterface, s.kubeClientSet)
-	log.Infof("[%s] brain server config: %v", logName, s.conf)
 
 	s.dsManager = datastore.NewManager(s.conf)
-	err = s.dsManager.Run(ctx, errReporter)
-	if err != nil {
+	if err = s.dsManager.Run(ctx, errReporter); err != nil {
 		log.Errorf("[%s] fail to run the data store manager: %v", logName, err)
 		return err
 	}
-	err = s.dsManager.Run(ctx, errReporter)
-	if err != nil {
-		log.Errorf("[%s] fail to run data store manager: %v", logName, err)
-		return err
-	}
-
-	s.optimizerManager = optimizer.NewManager(s.conf)
-	err = s.optimizerManager.Run(ctx, errReporter)
-	if err != nil {
-		log.Errorf("[%s] fail to run the optimizer manager: %v", logName, err)
+	if err = s.manager.Run(ctx, errReporter); err != nil {
+		log.Errorf("[%s] fail to run the manager: %v", logName, err)
 		return err
 	}
 	return nil
@@ -114,12 +105,13 @@ func (s *BrainServer) PersistMetrics(ctx context.Context, in *pb.JobMetrics) (*e
 // Optimize returns the initial resource of a job.
 func (s *BrainServer) Optimize(ctx context.Context, in *pb.OptimizeRequest) (*pb.OptimizeResponse, error) {
 	log.Infof("Receive optimize request: %v", in)
-	plans, err := s.optimizerManager.Optimize(in)
+	plans, err := s.manager.ProcessOptimizeRequest(ctx, in)
 	if err != nil {
-		errReason := fmt.Sprintf("Fail to optimize request %v: %v", in, err)
-		log.Errorf(errReason)
+		log.Errorf("[%s] fail to process request %v: %v", logName, in, err)
 		return &pb.OptimizeResponse{
-			Response: &pb.Response{Success: false, Reason: errReason},
+			Response: &pb.Response{
+				Success: false,
+			},
 		}, err
 	}
 
@@ -129,7 +121,6 @@ func (s *BrainServer) Optimize(ctx context.Context, in *pb.OptimizeRequest) (*pb
 		},
 		JobOptimizePlans: plans,
 	}, nil
-	return nil, nil
 }
 
 // GetJobMetrics returns a job metrics
