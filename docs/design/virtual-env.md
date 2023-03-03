@@ -8,7 +8,7 @@ critical to obtain the required DL models. Therefore, there is high demand for c
 reliable testing on DLRover before each update.
 
 DLRover consists of multiple components and those components coordinate with each
-other to train the DL models. Since DLRover can run quite different training jobs, e.g., Flink, 
+other to train the DL models. Since DLRover can run quite different training jobs, e.g.,  
 Tensorflow and PyTorch, for different DL models, the job relevant components 
 (e.g., operators) are quite different from each other. Unit tests indeed guarantee
 the function correctness of the single component. We still need to test the coordination
@@ -48,7 +48,7 @@ switched to virtual and a pre-chosen virtual system takes the control and start 
 train DL models.
 
 DLRover consists of four major components: Brain, Trainer, Store and Job Operator 
-(i.e., training framework related, like Tensorflow, Flink, PyTorch etc.). Each component
+(i.e., training framework related, like Tensorflow, PyTorch etc.). Each component
 has its own virtual environment. Note that two virtual DLRovers could share the same
 virtual components. For example, DLRover #1 and DLRover #2 could have different virtual 
 Trainers but use the same virtual Brain.
@@ -81,7 +81,19 @@ Each virtual Trainer has three major tasks:
 2. To convert optimization plans to ScalePlan and send to virtual operator.
 3. Based on ScalePlan, to simulate job's virtual status and persist relevant data to store.
 
+The simulator interface is as following:
 
+```go
+type JobStatus struct {
+	Speed float
+	...
+}
+
+type JobSimulator interface {
+	UpdateJob(plan *OptimizePlan) error
+	GetJobStatus() *JobStatus
+}
+```
 
 
  
