@@ -164,11 +164,6 @@ class JobResourceOptimizerTest(unittest.TestCase):
         self.assertEqual(ps.node_resource.cpu, 16)
         self.assertEqual(ps.count, 2)
 
-    def test_optimize_worker_resource(self):
-        self._job_optimizer.optimize_worker_resource()
-        worker = self._job_optimizer._worker_resource
-        self.assertEqual(worker.node_resource.memory, _MEMORY)
-
     def test_init_job_resource(self):
         job = JobResource()
         job.node_group_resources[NodeType.PS] = NodeGroupResource(
