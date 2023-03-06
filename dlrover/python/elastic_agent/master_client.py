@@ -317,8 +317,8 @@ class MasterClient(object):
         request.worker_id = self._node_id
         request.worker_type = self._node_type
         logger.info(
-            "join_sync {} {} {}".format(
-                sync_name, self._node_id, self._node_type
+            " {}:{} join sync {}".format(
+                self._node_id, self._node_type, sync_name
             )
         )
         return self._stub.join_sync(request)

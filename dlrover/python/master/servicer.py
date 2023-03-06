@@ -366,7 +366,6 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
 
         response = elastic_training_pb2.Response()
         response.success = True
-        response.reason = ""
         logger.info(response)
         return response
 
