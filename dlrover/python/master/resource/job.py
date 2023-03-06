@@ -224,24 +224,6 @@ class JobResourceOptimizer(object):
                 ps_resource.node_resource.memory,
             )
 
-    def optimize_worker_resource(self):
-        plan = self._get_worker_resource_at_init_phase()
-        if NodeType.WORKER in plan.node_group_resources:
-            worker_resource = self._check_ignore_original_worker_resource(
-                plan.node_group_resources[NodeType.WORKER]
-            )
-            self._worker_resource.update(
-                worker_resource.count,
-                worker_resource.node_resource.cpu,
-                worker_resource.node_resource.memory,
-            )
-        else:
-            logger.info("Use the default original worker resource.")
-            plan.node_group_resources[NodeType.WORKER] = copy.deepcopy(
-                self._worker_resource
-            )
-        return plan
-
     def get_worker_resource(self):
         return self._worker_resource
 
@@ -301,7 +283,15 @@ class JobResourceOptimizer(object):
                     new_resource.node_resource.memory,
                 )
         else:
-            self.optimize_worker_resource()
+            plan = self._get_worker_resource_at_init_phase()
+            if NodeType.WORKER in plan.node_group_resources:
+                new_resource = self._check_ignore_original_worker_resource(
+                    plan.node_group_resources[NodeType.WORKER]
+                )
+                self._worker_resource.node_resource.memory = max(
+                    self._worker_resource.node_resource.memory,
+                    new_resource.node_resource.memory,
+                )
         cur_mem *= NodeResourceLimit.INCREMENTAL_MEMORY_FACTOR
         node.config_resource.memory = int(
             max(

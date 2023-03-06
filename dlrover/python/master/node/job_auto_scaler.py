@@ -104,9 +104,6 @@ class PSTrainingAutoScaler(JobAutoScaler):
         if not self._autoscaling_started:
             logger.info("AutoScaling started!")
             self._autoscaling_started = True
-            if self._job_resource.worker_num > 1:
-                plan = self._job_optimizer.optimize_worker_resource()
-                self.execute_job_optimization_plan(plan)
             if (
                 not _dlrover_context.auto_ps_enabled
                 and not _dlrover_context.auto_worker_enabled
