@@ -25,7 +25,8 @@ from dlrover.trainer.util.log_util import default_logger as logger
 
 def after_run(self, run_context, run_values):
     task_type, _ = get_tf_config_task_type_and_index()
-    relaunch_for_ps = common_util.GlobalDict().get(
+    global_dict = common_util.GlobalDict()
+    relaunch_for_ps = global_dict.get(
         TFConstants.RelaunchForPs.name, TFConstants.RelaunchForPs()
     )
     if relaunch_for_ps:
@@ -42,13 +43,21 @@ def after_run(self, run_context, run_values):
                 worker should wait for cheif to save checkpoint"
             )
         run_context.request_stop()
-        # Only worker need to wait for cheif to do somethin before exit
-        # Chief doesn't need to wait.
         if task_type == TFConstants.Worker.name:
+            # Workers need to wait for cheif to do somethin before exit
             SyncClient().barrier("relauch_for_ps")
             logger.info(
                 "Training thread stopped because chief had saved checkpoint"
             )
+        else:
+            # Chief need to nofity workers
+            SyncClient().notify_barrier("relauch_for_ps")
+            logger.info(
+                "Checkpointed saved, cheif notify \
+                workers that they can stop training thread."
+            )
+            fail_over = global_dict["failover"]
+            fail_over._failover_client.ready_for_ps_relaunch()
 
 
 basic_session_run_hooks.StopAtStepHook.after_run = after_run
@@ -56,7 +65,8 @@ basic_session_run_hooks.StopAtStepHook.after_run = after_run
 
 def ck_after_run(self, run_context, run_values):
     stale_global_step = run_values.results
-    should_save_checkpoint = common_util.GlobalDict().get(
+    global_dict = common_util.GlobalDict()
+    should_save_checkpoint = global_dict.get(
         TFConstants.SaveCheckpoint.name, TFConstants.SaveCheckpoint()
     )
     if should_save_checkpoint:
@@ -71,6 +81,8 @@ def ck_after_run(self, run_context, run_values):
             "All workers have entered PreStopAtStep Hook \
                 and wait for cheif to save checkpoints"
         )
+        # chief can relaun ps
+        global_dict[TFConstants.RelaunchForPs.name] = True
     if (
         self._timer.should_trigger_for_step(
             stale_global_step + self._steps_per_run
@@ -114,12 +126,6 @@ def ck_after_run(self, run_context, run_values):
                     global_step,
                     self._incremental_save_path,
                 )
-    if should_save_checkpoint:
-        SyncClient().barrier("relauch_for_ps")
-        logger.info(
-            "Checkpointed saved, cheif notify \
-            workers that they can stop training thread."
-        )
 
 
 def append_hooks(estimator_spec, key, params):
