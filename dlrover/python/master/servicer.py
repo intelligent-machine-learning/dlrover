@@ -259,7 +259,6 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             request.content
         )
         res.success = success
-        res.reason = ""
         return res
 
     def report_used_resource(self, request, _):
@@ -434,13 +433,11 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         res.success = self._sync_service.join_sync(
             request.sync_name, request.worker_type, request.worker_id
         )
-        res.reason = ""
         return res
 
     def sync_finished(self, request, _):
         res = elastic_training_pb2.Response()
         res.success = self._sync_service.sync_finished(request.sync_name)
-        res.reason = ""
         return res
 
     def barrier(self, request, _):
@@ -451,7 +448,6 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             )
         else:
             res.success = self._sync_service.barrier(request.barrier_name)
-        res.reason = ""
         return res
 
 

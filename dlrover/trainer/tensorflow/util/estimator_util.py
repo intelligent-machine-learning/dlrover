@@ -157,13 +157,6 @@ def append_hooks(estimator_spec, key, params):
             key,
             [c.__class__.__name__ for c in hooks],
         )
-
-        logger.info(
-            "Appending hooks after deduplication: %s = %s",
-            [c.after_run.__code__ for c in hooks],
-            [c.__class__.__name__ for c in hooks],
-        )
-
         return estimator_spec._replace(**{key: hooks})
     else:
         return estimator_spec
