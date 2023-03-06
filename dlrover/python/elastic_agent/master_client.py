@@ -314,7 +314,8 @@ class MasterClient(object):
     def join_sync(self, sync_name):
         request = elastic_training_pb2.SyncRequest()
         request.sync_name = sync_name
-        request.worker_id = self._worker_id
+        request.worker_id = self._node_id
+        request.worker_type = self._node_type
         return self._stub.join_sync(request)
 
     @retry_grpc_request
