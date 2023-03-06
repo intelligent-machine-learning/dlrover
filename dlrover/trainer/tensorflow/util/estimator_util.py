@@ -14,6 +14,7 @@
 from tensorflow.python.estimator.estimator import Estimator
 from tensorflow.python.training import basic_session_run_hooks
 
+from dlrover.python.elastic_agent.sychronization.sync_client import SyncClient
 from dlrover.trainer.constants.tf_constants import TFConstants
 from dlrover.trainer.tensorflow.util import common_util
 from dlrover.trainer.tensorflow.util.tf_version_util import is_tf_115
@@ -29,7 +30,16 @@ def after_run(self, run_context, run_values):
             "training thread should stop for due to ps migration/scaling"
         )
     if relaunch_for_ps:
+        SyncClient().join_sync("relauch_for_ps")
+        logger.info(
+            "Before stopping training thread,  \
+            worker should wait for cheif to save checkpoint"
+        )
         run_context.request_stop()
+        SyncClient().barrier("relauch_for_ps")
+        logger.info(
+            "stop training thread, because chief have stopped checkpoint"
+        )
 
 
 basic_session_run_hooks.StopAtStepHook.after_run = after_run
@@ -42,7 +52,18 @@ if is_tf_115():
             TFConstants.SaveCheckpoint.name, TFConstants.SaveCheckpoint()
         )
         if should_save_checkpoint:
-            logger.info("training thread saves checkpoint before exit")
+            logger.info(
+                "Before saving checkpoint, cheif should wait for \
+                    worker to enter PreStopAtStep Hook."
+            )
+            SyncClient().join_sync("relauch_for_ps")
+            logger.info(
+                "All workers have entered PreStopAtStep Hook \
+                    and wait for cheif save checkpoints"
+            )
+
+        if should_save_checkpoint:
+            logger.info("chief needs to saves checkpoint before exit")
         if (
             self._timer.should_trigger_for_step(
                 stale_global_step + self._steps_per_run
@@ -90,6 +111,12 @@ if is_tf_115():
                         global_step,
                         self._incremental_save_path,
                     )
+        if should_save_checkpoint:
+            SyncClient().barrier("relauch_for_ps")
+            logger.info(
+                "Checkpointed saved, cheif notify \
+                workers that they can stop training thread"
+            )
 
     basic_session_run_hooks.CheckpointSaverHook.after_run = ck_after_run
 
