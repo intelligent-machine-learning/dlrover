@@ -182,11 +182,21 @@ class EstimatorExecutor(BaseExecutor):
         )
         if is_tf_115() and checkpoint_incremental_save_secs:
             CheckpointSaverHook.after_run = ck_after_run
+            logger.info(
+                "CheckpointSaverHook.after_run {}".format(
+                    CheckpointSaverHook.after_run.__code__
+                )
+            )
             checkpoint_save_hook = CheckpointSaverHook(
                 self._model_dir,
                 save_steps=save_steps,
                 save_secs=save_secs,
                 incremental_save_secs=checkpoint_incremental_save_secs,
+            )
+            logger.info(
+                "CheckpointSaverHook.after_run {}".format(
+                    checkpoint_save_hook.after_run.__code__
+                )
             )
 
         params[TFConstants.EstimatorTrainingChiefHooks.name] = [

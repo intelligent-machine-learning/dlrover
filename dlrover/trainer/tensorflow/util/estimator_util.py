@@ -115,7 +115,7 @@ def ck_after_run(self, run_context, run_values):
                     self._incremental_save_path,
                 )
     if should_save_checkpoint:
-        SyncClient().barrier("relauch_for_ps")
+        SyncClient().notify_barrier("relauch_for_ps")
         logger.info(
             "Checkpointed saved, cheif notify \
             workers that they can stop training thread."
@@ -151,6 +151,13 @@ def append_hooks(estimator_spec, key, params):
             key,
             [c.__class__.__name__ for c in hooks],
         )
+
+        logger.info(
+            "Appending hooks after deduplication: %s = %s",
+            [c.after_run.__code__ for c in hooks],
+            [c.__class__.__name__ for c in hooks],
+        )
+
         return estimator_spec._replace(**{key: hooks})
     else:
         return estimator_spec
