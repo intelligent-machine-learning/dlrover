@@ -65,6 +65,7 @@ class SyncService(object):
                 if len(self._sync_objs_target[sync_name]) == 0:
                     self._sync_start_time.pop(sync_name)
                     logger.info("Worker sync {} done.".format(sync_name))
+        return True
 
     def sync_finished(self, sync_name):
         with self._lock:

@@ -316,6 +316,11 @@ class MasterClient(object):
         request.sync_name = sync_name
         request.worker_id = self._node_id
         request.worker_type = self._node_type
+        logger.info(
+            "join_sync {} {} {}".format(
+                sync_name, self._node_id, self._node_type
+            )
+        )
         return self._stub.join_sync(request)
 
     @retry_grpc_request
@@ -326,7 +331,7 @@ class MasterClient(object):
 
     @retry_grpc_request
     def barrier(self, barrier_name, notify=False):
-        request = elastic_training_pb2.SyncRequest()
+        request = elastic_training_pb2.BarrierRequest()
         request.barrier_name = barrier_name
         request.notify = notify
         return self._stub.barrier(request)

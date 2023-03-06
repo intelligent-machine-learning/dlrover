@@ -8,7 +8,7 @@ metadata:
 spec:
   ownerJob: deepctr-auto-scaling-job
   migratePods:
-    - name: deepctr-auto-scaling-job-edljob-ps-1
+    - name: deepctr-auto-scaling-job-edljob-ps-0
       resource:
         cpu: "1"
         memory: 4Gi
