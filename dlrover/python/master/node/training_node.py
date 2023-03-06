@@ -191,6 +191,7 @@ class TrainingNodeManager(object):
                 rank_index=node.rank_index,
                 name=self._new_node_name_fn(node.type, new_id),
                 service_addr=node.service_addr,
+                relaunch_count=relaunch_node.relaunch_count,
             )
         )
         plan.remove_nodes.append(node)
