@@ -20,6 +20,10 @@ from tensorflow.core.protobuf import cluster_pb2
 from tensorflow.python.training import server_lib
 
 from dlrover.trainer.constants.tf_constants import TFConstants
+from dlrover.trainer.tensorflow.util.tf_env_util import (
+    get_tf_config,
+    get_tf_config_task_type_and_index,
+)
 from dlrover.trainer.util.log_util import default_logger as logger
 
 tf.disable_v2_behavior()
@@ -40,15 +44,7 @@ class BaseExecutor:
         self.role: str = ""
 
     def get_tf_config_from_env(self):
-        tf_config = json.loads(os.environ.get("TF_CONFIG") or "{}")
-        if not tf_config:
-            logger.error(
-                "TF_CONFIG should not be empty in distributed environment."
-            )
-            raise Exception(
-                "TF_CONFIG should not be empty in distributed environment."
-            )
-        return tf_config
+        return get_tf_config()
 
     def get_cluster_info_by_master(self):
         pass
@@ -63,8 +59,7 @@ class BaseExecutor:
          "task": {"type": "ps", "index": 0}}'
         """
         tf_config = self.get_tf_config_from_env()
-        task_type = tf_config["task"]["type"]
-        task_id = tf_config["task"]["index"]
+        task_type, task_id = get_tf_config_task_type_and_index()
         self.task_type = task_type
         self.task_id = task_id
         self.role = task_type + ":" + str(task_id)

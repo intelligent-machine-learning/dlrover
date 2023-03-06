@@ -23,6 +23,10 @@ import time
 from dlrover.trainer.constants.tf_constants import TFConstants
 from dlrover.trainer.tensorflow.failover.failover_client import FailoverClient
 from dlrover.trainer.tensorflow.util import common_util
+from dlrover.trainer.tensorflow.util.tf_env_util import (
+    get_tf_config,
+    get_tf_config_task_type_and_index,
+)
 from dlrover.trainer.util.log_util import default_logger as logger
 
 
@@ -46,13 +50,10 @@ class TensorflowFailover:
             self._failover_client.init_version()
 
     def init_for_dynet(self):
-        TF_CONFIG = os.getenv("TF_CONFIG")
-        if isinstance(TF_CONFIG, str):
-            TF_CONFIG = json.loads(TF_CONFIG)
-            task_type = TF_CONFIG["task"]["type"]
-            task_id = TF_CONFIG["task"]["index"]
-            self._role = task_type + ":" + str(task_id)
-            self._address = TF_CONFIG["cluster"][task_type][task_id]
+        TF_CONFIG = get_tf_config()
+        task_type, task_id = get_tf_config_task_type_and_index()
+        self._role = task_type + ":" + str(task_id)
+        self._address = TF_CONFIG["cluster"][task_type][task_id]
         if self._role is None:
             return
         self.task_type, self.task_id = self._role.split(":")
