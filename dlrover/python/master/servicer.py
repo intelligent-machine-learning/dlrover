@@ -430,7 +430,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
     def join_sync(self, request, _):
         res = elastic_training_pb2.Response()
         res.success = self._sync_service.join_sync(
-            request.sync_name, request.worker_id
+            request.sync_name, request.worker_type, request.worker_id
         )
         return res
 

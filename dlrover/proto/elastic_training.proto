@@ -230,6 +230,7 @@ message SyncRequest {
   string sync_name = 1;
   int32 worker_id = 2;
   bool notify = 3;
+  string worker_type = 4;
 }
 
 message BarrierRequest {
