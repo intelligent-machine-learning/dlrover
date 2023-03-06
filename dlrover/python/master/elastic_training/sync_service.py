@@ -83,6 +83,7 @@ class SyncService(object):
         with self._lock:
             self._finished_barriers.add(barrier_name)
             logger.info("Worker barrier {} notified".format(barrier_name))
+        return True
 
     def remove_exited_worker_sync(self, worker_type, worker_id):
         worker = (worker_type, worker_id)
