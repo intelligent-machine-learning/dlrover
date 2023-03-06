@@ -65,7 +65,8 @@ basic_session_run_hooks.StopAtStepHook.after_run = after_run
 
 def ck_after_run(self, run_context, run_values):
     stale_global_step = run_values.results
-    should_save_checkpoint = common_util.GlobalDict().get(
+    global_dict = common_util.GlobalDict()
+    should_save_checkpoint = global_dict.get(
         TFConstants.SaveCheckpoint.name, TFConstants.SaveCheckpoint()
     )
     if should_save_checkpoint:
@@ -80,7 +81,7 @@ def ck_after_run(self, run_context, run_values):
             "All workers have entered PreStopAtStep Hook \
                 and wait for cheif to save checkpoints"
         )
-        global_dict = common_util.GlobalDict()
+        # chief can relaun ps
         global_dict[TFConstants.RelaunchForPs.name] = True
     if (
         self._timer.should_trigger_for_step(
