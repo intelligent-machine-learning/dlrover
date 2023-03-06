@@ -188,11 +188,6 @@ class EstimatorExecutor(BaseExecutor):
                 save_secs=save_secs,
                 incremental_save_secs=checkpoint_incremental_save_secs,
             )
-            logger.info(
-                "CheckpointSaverHook.after_run {}".format(
-                    checkpoint_save_hook.after_run.__code__
-                )
-            )
 
         params[TFConstants.EstimatorTrainingChiefHooks.name] = [
             checkpoint_save_hook
