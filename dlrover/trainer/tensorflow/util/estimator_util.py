@@ -34,6 +34,8 @@ def after_run(self, run_context, run_values):
             "The training thread should stop for due to ps migration/scaling"
         )
     if relaunch_for_ps:
+        # Only worker need to wait for cheif to do somethin before exit
+        # Chief doesn't need to wait.
         if task_type == TFConstants.Worker.name:
             SyncClient().join_sync("relauch_for_ps")
             logger.info(
@@ -41,6 +43,8 @@ def after_run(self, run_context, run_values):
                 worker should wait for cheif to save checkpoint"
             )
         run_context.request_stop()
+        # Only worker need to wait for cheif to do somethin before exit
+        # Chief doesn't need to wait.
         if task_type == TFConstants.Worker.name:
             SyncClient().barrier("relauch_for_ps")
             logger.info(
@@ -62,16 +66,12 @@ if is_tf_115():
                 "Before saving checkpoint, cheif should wait for \
                     worker to enter PreStopAtStep Hook."
             )
+            # CheckpointSaveHook is a kind of chiefhook
+            # Only chief run the hook
             SyncClient().join_sync("relauch_for_ps")
             logger.info(
                 "All workers have entered PreStopAtStep Hook \
-                    and wait for cheif save checkpoints"
-            )
-
-        if should_save_checkpoint:
-            logger.info(
-                "Chief needs to saves checkpoint \
-                    before stopping training thread"
+                    and wait for cheif to save checkpoints"
             )
         if (
             self._timer.should_trigger_for_step(
