@@ -32,6 +32,7 @@ from dlrover.trainer.tensorflow.hooks.global_step_hook import GlobalStepHook
 from dlrover.trainer.tensorflow.util.data_mapping_util import data_mapping
 from dlrover.trainer.tensorflow.util.dataset_util import DatasetUtil
 from dlrover.trainer.tensorflow.util.estimator_util import (
+    ck_after_run,
     hook_estimator_call_model_fn,
 )
 from dlrover.trainer.tensorflow.util.tf_patch_util import export_saved_model
@@ -186,6 +187,7 @@ class EstimatorExecutor(BaseExecutor):
                 save_secs=save_secs,
                 incremental_save_secs=checkpoint_incremental_save_secs,
             )
+            checkpoint_save_hook.after_run = ck_after_run
 
         params[TFConstants.EstimatorTrainingChiefHooks.name] = [
             checkpoint_save_hook

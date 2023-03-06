@@ -41,6 +41,7 @@ def get_tf_config_task_type_and_index():
     task_index = task.get("index", None)
     if task_type is None or task_index is None:
         raise Exception(
-            "TF_CONFIG task type or index should not be empty in distributed environment."
+            "TF_CONFIG task type or index should\
+              not be empty in distributed environment."
         )
     return task_type, task_index

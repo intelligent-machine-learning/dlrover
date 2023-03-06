@@ -21,10 +21,10 @@ spec:
               imagePullPolicy: Always
               resources:
                 limits:
-                  cpu: "1"
+                  cpu: "0.5"
                   memory: 4Gi
                 requests:
-                  cpu: "1"
+                  cpu: "0.5"
                   memory: 4Gi
               command:
                 - /bin/bash
@@ -55,10 +55,10 @@ spec:
               imagePullPolicy: Always
               resources:
                 limits:
-                  cpu: "1"
+                  cpu: "0.5"
                   memory: 4Gi
                 requests:
-                  cpu: "1"
+                  cpu: "0.5"
                   memory: 4Gi
               command:
                 - /bin/bash

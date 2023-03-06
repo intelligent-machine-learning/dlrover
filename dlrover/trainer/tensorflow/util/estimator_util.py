@@ -20,7 +20,6 @@ from dlrover.trainer.tensorflow.util import common_util
 from dlrover.trainer.tensorflow.util.tf_env_util import (
     get_tf_config_task_type_and_index,
 )
-from dlrover.trainer.tensorflow.util.tf_version_util import is_tf_115
 from dlrover.trainer.util.log_util import default_logger as logger
 
 
@@ -54,80 +53,73 @@ def after_run(self, run_context, run_values):
 
 basic_session_run_hooks.StopAtStepHook.after_run = after_run
 
-if is_tf_115():
 
-    def ck_after_run(self, run_context, run_values):
-        stale_global_step = run_values.results
-        should_save_checkpoint = common_util.GlobalDict().get(
-            TFConstants.SaveCheckpoint.name, TFConstants.SaveCheckpoint()
+def ck_after_run(self, run_context, run_values):
+    stale_global_step = run_values.results
+    should_save_checkpoint = common_util.GlobalDict().get(
+        TFConstants.SaveCheckpoint.name, TFConstants.SaveCheckpoint()
+    )
+    if should_save_checkpoint:
+        logger.info(
+            "Before saving checkpoint, cheif should wait for \
+                worker to enter PreStopAtStep Hook."
         )
-        if should_save_checkpoint:
-            logger.info(
-                "Before saving checkpoint, cheif should wait for \
-                    worker to enter PreStopAtStep Hook."
-            )
-            # CheckpointSaveHook is a kind of chiefhook
-            # Only chief run the hook
-            SyncClient().join_sync("relauch_for_ps")
-            logger.info(
-                "All workers have entered PreStopAtStep Hook \
-                    and wait for cheif to save checkpoints"
-            )
+        # CheckpointSaveHook is a kind of chiefhook
+        # Only chief run the hook
+        SyncClient().join_sync("relauch_for_ps")
+        logger.info(
+            "All workers have entered PreStopAtStep Hook \
+                and wait for cheif to save checkpoints"
+        )
+    if (
+        self._timer.should_trigger_for_step(
+            stale_global_step + self._steps_per_run
+        )
+        or should_save_checkpoint
+    ):
+        # get the real value after train op.
+        global_step = run_context.session.run(self._global_step_tensor)
         if (
-            self._timer.should_trigger_for_step(
-                stale_global_step + self._steps_per_run
+            self._timer.should_trigger_for_step(global_step)
+            or should_save_checkpoint
+        ):
+            self._timer.update_last_triggered_step(global_step)
+            if self._save(run_context.session, global_step):
+                run_context.request_stop()
+    elif self._incremental_save:
+        if (
+            self._incremental_timer.should_trigger_for_step(
+                stale_global_step + 1
             )
             or should_save_checkpoint
         ):
-            # get the real value after train op.
             global_step = run_context.session.run(self._global_step_tensor)
             if (
-                self._timer.should_trigger_for_step(global_step)
+                self._incremental_timer.should_trigger_for_step(global_step)
                 or should_save_checkpoint
             ):
-                self._timer.update_last_triggered_step(global_step)
-                if self._save(run_context.session, global_step):
-                    run_context.request_stop()
-        elif self._incremental_save:
-            if (
-                self._incremental_timer.should_trigger_for_step(
-                    stale_global_step + 1
+                self._incremental_timer.update_last_triggered_step(global_step)
+                logger.info(
+                    "Start Save incremental checkpoints for %d into %s.",
+                    global_step,
+                    self._incremental_save_path,
                 )
-                or should_save_checkpoint
-            ):
-                global_step = run_context.session.run(self._global_step_tensor)
-                if (
-                    self._incremental_timer.should_trigger_for_step(
-                        global_step
-                    )
-                    or should_save_checkpoint
-                ):
-                    self._incremental_timer.update_last_triggered_step(
-                        global_step
-                    )
-                    logger.info(
-                        "Start Save incremental checkpoints for %d into %s.",
-                        global_step,
-                        self._incremental_save_path,
-                    )
-                    self._get_incr_saver().incremental_save(
-                        run_context.session,
-                        self._incremental_save_path,
-                        global_step=global_step,
-                    )
-                    logger.info(
-                        "Finish Save incremental checkpoints for %d into %s.",
-                        global_step,
-                        self._incremental_save_path,
-                    )
-        if should_save_checkpoint:
-            SyncClient().barrier("relauch_for_ps")
-            logger.info(
-                "Checkpointed saved, cheif notify \
-                workers that they can stop training thread."
-            )
-
-    basic_session_run_hooks.CheckpointSaverHook.after_run = ck_after_run
+                self._get_incr_saver().incremental_save(
+                    run_context.session,
+                    self._incremental_save_path,
+                    global_step=global_step,
+                )
+                logger.info(
+                    "Finish Save incremental checkpoints for %d into %s.",
+                    global_step,
+                    self._incremental_save_path,
+                )
+    if should_save_checkpoint:
+        SyncClient().barrier("relauch_for_ps")
+        logger.info(
+            "Checkpointed saved, cheif notify \
+            workers that they can stop training thread."
+        )
 
 
 def append_hooks(estimator_spec, key, params):

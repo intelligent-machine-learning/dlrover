@@ -10,5 +10,5 @@ spec:
   migratePods:
     - name: deepctr-auto-scaling-job-edljob-ps-1
       resource:
-        cpu: "2"
+        cpu: "1"
         memory: 4Gi
