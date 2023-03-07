@@ -14,6 +14,7 @@
 import threading
 import time
 from collections import OrderedDict
+from multiprocessing import SimpleQueue
 
 from dlrover.proto import elastic_training_pb2
 from dlrover.python.elastic_agent.master_client import GlobalMasterClient
@@ -25,23 +26,33 @@ training_reporter = TrainingProcessReporter()
 
 
 class ShardingClient(object):
+    """ShardingClient queries data shards from the DLRover master.
+    Args:
+        dataset_name: the name of dataset.
+        batch_size: the size of batch data.
+        num_epochs: the number of epochs.
+        dataset_size: the size of dataset.
+        shuffle: whether to shuffle shards.
+        task_type: Task type is the computation type like
+            elastic_training_pb2.TRAINING, elastic_training_pb2.EVALUATION.
+        num_minibatches_per_shard: the number of batch in each shard.
+        storage_type: the storage type of dataset. It is "text" if the
+            dataset is stored in a text file. It is "table" if the
+            dataset is stored in a table like MaxCompute and Hive.
+    """
+
     def __init__(
         self,
         dataset_name,
         batch_size,
-        num_epochs=None,
-        dataset_size=None,
+        num_epochs,
+        dataset_size,
         shuffle=False,
         task_type=elastic_training_pb2.TRAINING,
         num_minibatches_per_shard=0,
-        master_client=None,
         storage_type="",
     ):
-        self._mc = (
-            master_client
-            if master_client
-            else GlobalMasterClient.MASTER_CLIENT
-        )
+        self._mc = GlobalMasterClient.MASTER_CLIENT
         self._batch_size = batch_size
         self._num_epochs = num_epochs
         self._dataset_size = dataset_size
@@ -80,7 +91,7 @@ class ShardingClient(object):
     def get_current_task(self):
         return self._current_task
 
-    def get_task(self):
+    def get_task(self) -> elastic_training_pb2.Task:
         training_reporter.set_start_time()
         for _ in range(5):
             success, task = self._mc.get_task(self._dataset_name)
@@ -190,3 +201,102 @@ class ShardingClient(object):
     def get_current_epoch(self):
         res = self._mc.get_dataset_epoch(self._dataset_name)
         return res.epoch
+
+    def get_total_sample_num(self):
+        return self._dataset_size * self._num_epochs
+
+
+class IndexShardingClient(ShardingClient):
+    """ShardingClient queries data shards from the DLRover master
+    and generates the index of sample from the shard.
+    Users can read data from the disk by the sample index.
+    Args:
+        dataset_name: the name of dataset.
+        batch_size: the size of batch data.
+        num_epochs: the number of epochs.
+        dataset_size: the size of dataset.
+        shuffle: whether to shuffle shards.
+        task_type: Task type is the computation type like
+            elastic_training_pb2.TRAINING, elastic_training_pb2.EVALUATION.
+        num_minibatches_per_shard: the number of batch in each shard.
+        storage_type: the storage type of dataset. It is "text" if the
+            dataset is stored in a text file. It is "table" if the
+            dataset is stored in a table like MaxCompute and Hive.
+        num_workers: the number of worker processes to share the client
+            to get the sample index.
+    """
+
+    def __init__(
+        self,
+        dataset_name,
+        batch_size,
+        num_epochs,
+        dataset_size,
+        shuffle=False,
+        task_type=elastic_training_pb2.TRAINING,
+        num_minibatches_per_shard=0,
+        storage_type="",
+        num_workers=1,
+    ):
+        super(IndexShardingClient, self).__init__(
+            dataset_name,
+            batch_size,
+            num_epochs,
+            dataset_size,
+            shuffle,
+            task_type,
+            num_minibatches_per_shard,
+            storage_type,
+        )
+        self._num_workers = num_workers
+        self._sample_queue = SimpleQueue()
+        self._report_sharding_params()
+
+        threading.Thread(
+            target=self._fetch_sample_indices,
+            name="fetch_sample_indices",
+            daemon=True,
+        ).start()
+
+    def _fetch_sample_indices(self):
+        while True:
+            if self._sample_queue.empty():
+                task = self.get_task()
+                if not task or not task.shard:
+                    for _ in range(self._num_workers):
+                        self._sample_queue.put(None)
+                    break
+                ids = (
+                    task.shard.indices
+                    if task.shard.indices
+                    else list(range(task.shard.start, task.shard.end))
+                )
+                for i in ids:
+                    self._sample_queue.put(i)
+            else:
+                time.sleep(0.001)
+
+    def fetch_sample_index(self):
+        """Fetch an index of the sample. The function get an index
+        from a queue because there may be multiple sub-process to call
+        the function.
+        """
+        while True:
+            for _ in range(5):
+                index = self._sample_queue.get()
+                if index is not None:
+                    break
+                else:
+                    time.sleep(0.1)
+            if index is None:
+                raise StopIteration
+            return index
+
+    def clear_shard_queue(self):
+        self._sample_queue = SimpleQueue()
+
+    def restore_shard_from_checkpoint(self, shard_checkpoint):
+        # To avoid duplicate shards, drop all shards in the _shard_queue
+        # before restoring shard from checkpoint
+        self.clear_shard_queue()
+        super().restore_shard_from_checkpoint(shard_checkpoint)
