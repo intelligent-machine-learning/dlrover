@@ -263,7 +263,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
 
     def report_used_resource(self, request, _):
         cpu = request.cpu
-        memory = int(request.memory / 1024)  # Mi
+        memory = request.memory
         pod_id = request.node_id
         pod_type = request.node_type
         self._job_manager.update_node_resource_usage(

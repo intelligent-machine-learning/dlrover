@@ -49,8 +49,7 @@ def get_process_cpu_percent():
 def get_used_memory():
     """ "Get the used memory of the container"""
     mem = psutil.virtual_memory()
-    used_mem = mem.total - mem.available
-    return int(used_mem / 1024 / 1024)
+    return int(mem.used / 1024 / 1024)
 
 
 @singleton
