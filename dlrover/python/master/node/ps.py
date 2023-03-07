@@ -317,12 +317,11 @@ class ParameterServerManager(TrainingNodeManager):
             return
 
         resource = copy.deepcopy(original_pod.config_resource)
-        rate = NodeResourceLimit.PS_CPU_GROWTH_RATE
         with self._lock:
             self._ready_for_new_ps_cluster = False
             new_ps_id = next(self._node_id_iter)
-            resource.cpu = cpu if cpu > resource.cpu * rate else resource.cpu
-            resource.memory = memory if memory > 0 else resource.memory
+            resource.cpu = cpu
+            resource.memory = memory
             logger.info(
                 "resource memory = %s, cpu = %s", resource.memory, resource.cpu
             )
