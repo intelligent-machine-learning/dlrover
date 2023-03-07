@@ -17,7 +17,7 @@ spec:
           containers:
             - name: main
               # yamllint disable-line rule:line-length
-              image: registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:torch_test 
+              image: registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:torch_test
               imagePullPolicy: Always
               resources:
                 limits:
@@ -46,7 +46,7 @@ spec:
           containers:
             - name: main
               # yamllint disable-line rule:line-length
-              image: registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:torch_test 
+              image: registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:torch_test
               imagePullPolicy: Always
               resources:
                 limits:
@@ -58,6 +58,7 @@ spec:
               command:
                 - /bin/bash
                 - -c
+                # yamllint disable-line rule:line-length
                 - "cd /usr/local/lib/python3.8/site-packages/dlrover/trainer/examples/torch_linear_regression &&  python -m torch.distributed.launch --nproc_per_node=2 --nnodes=1 --node_rank=0 --master_addr='deepctr-auto-scaling-job-edljob-chief-0' --master_port=3333 model_ddp.py"
               volumeMounts:
                 - name: pvc-nas
@@ -74,4 +75,4 @@ spec:
             - name: main
               imagePullPolicy: Always
               # yamllint disable-line rule:line-length
-              image: registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:torch_test 
+              image: registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:torch_test
