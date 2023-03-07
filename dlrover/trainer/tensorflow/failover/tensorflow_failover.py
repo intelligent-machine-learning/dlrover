@@ -108,6 +108,8 @@ class TensorflowFailover:
         update TF_CONFIG, when the training thread restarts
         estimator will use the new TF_CONFIG
         """
+        global_dict = common_util.GlobalDict()
+        global_dict["failover"] = self
         curr_ps_address = self.curr_ps_address
         cluster = {
             "cluster": {
@@ -125,12 +127,16 @@ class TensorflowFailover:
         logger.info(
             "successfully refresh TF_CONFIFG %s" % os.environ["TF_CONFIG"]
         )
-        global_dict = common_util.GlobalDict()
-        global_dict[TFConstants.SaveCheckpoint.name] = True
-        global_dict[TFConstants.RelaunchForPs.name] = True
-        logger.info("global dict is %s" % global_dict)
-        self.notify_ps()
 
-    def notify_ps(self):
         if self._is_chief:
-            self._failover_client.ready_for_ps_relaunch()
+            # chief needs to do checkpoint and then
+            # set global_dict[TFConstants.SaveCheckpoint.name] = True
+            # In the checkpoint save hook,
+            # chief set global_dict[TFConstants.RelaunchForPs.name] = True
+            global_dict[TFConstants.SaveCheckpoint.name] = True
+        else:
+            # worker needs set
+            # global_dict[TFConstants.RelaunchForPs.name] = True
+            # and wait chief do checkpoints.
+            global_dict[TFConstants.RelaunchForPs.name] = True
+        logger.info("global dict is %s" % global_dict)

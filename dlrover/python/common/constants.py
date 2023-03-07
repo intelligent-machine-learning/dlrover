@@ -202,3 +202,7 @@ class OptimizeMode(object):
     MANNUAL = "manunal"
     SINGLE_JOB = "single-job"
     CLUSTER = "cluster"
+
+
+class MemoryUnit(object):
+    MB = 1024 * 1024

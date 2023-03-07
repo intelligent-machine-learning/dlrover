@@ -83,3 +83,5 @@ spec:
           containers:
             - name: main
               imagePullPolicy: Always
+              # yamllint disable-line rule:line-length
+              image: registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:v11

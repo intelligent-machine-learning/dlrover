@@ -13,7 +13,10 @@
 
 import math
 
+import grpc
+
 from dlrover.python.brain.client import GlobalEasydlClient
+from dlrover.python.common.constants import MemoryUnit
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import NodeGroupResource, NodeResource
 from dlrover.python.master.resource.optimizer import (
@@ -22,15 +25,14 @@ from dlrover.python.master.resource.optimizer import (
 )
 
 _BASE_CONFIG_RETRIEVER = "base_config_retriever"
-_MEMORY_MB = 1024 * 1024
 
 
 def catch_brain_optimization_exception(func):
     def wrapper(self, *args, **kwargs):
         try:
             return func(self, *args, **kwargs)
-        except Exception as e:
-            logger.debug("Fail to execute %s by %s", func.__name__, e)
+        except grpc.RpcError as e:
+            logger.warning("Fail to execute %s by %s", func.__name__, e)
             return ResourcePlan()
 
     return wrapper
@@ -46,7 +48,7 @@ def convert_plan_msg(plan_msg):
         return plan
     for type, group in plan_msg.resource.task_group_resources.items():
         count = group.count
-        memory = int(group.resource.memory / _MEMORY_MB)  # MiB
+        memory = int(group.resource.memory / MemoryUnit.MB)  # MiB
         cpu = math.ceil(group.resource.cpu)
         plan.node_group_resources[type] = NodeGroupResource(
             count, NodeResource(cpu, memory)
@@ -54,7 +56,7 @@ def convert_plan_msg(plan_msg):
 
     for name, resource in plan_msg.resource.pod_resources.items():
         cpu = int(resource.cpu)
-        memory = int(resource.memory / _MEMORY_MB)
+        memory = int(resource.memory / MemoryUnit.MB)
         plan.node_resources[name] = NodeResource(cpu, memory)
     return plan
 

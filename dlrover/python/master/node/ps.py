@@ -17,11 +17,7 @@ import itertools
 import threading
 from typing import Dict, List
 
-from dlrover.python.common.constants import (
-    NodeResourceLimit,
-    NodeStatus,
-    NodeType,
-)
+from dlrover.python.common.constants import NodeStatus, NodeType
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
 from dlrover.python.master.node.training_node import TrainingNodeManager
@@ -98,6 +94,7 @@ class ParameterServerManager(TrainingNodeManager):
                 rank_index=node.rank_index,
                 name=self._new_node_name_fn(node.type, new_id),
                 service_addr=node.service_addr,
+                relaunch_count=node.relaunch_count,
             )
         )
         return plan
@@ -316,12 +313,11 @@ class ParameterServerManager(TrainingNodeManager):
             return
 
         resource = copy.deepcopy(original_pod.config_resource)
-        rate = NodeResourceLimit.PS_CPU_GROWTH_RATE
         with self._lock:
             self._ready_for_new_ps_cluster = False
             new_ps_id = next(self._node_id_iter)
-            resource.cpu = cpu if cpu > resource.cpu * rate else resource.cpu
-            resource.memory = memory if memory > 0 else resource.memory
+            resource.cpu = cpu
+            resource.memory = memory
             logger.info(
                 "resource memory = %s, cpu = %s", resource.memory, resource.cpu
             )
