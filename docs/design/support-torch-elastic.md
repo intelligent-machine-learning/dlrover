@@ -8,13 +8,14 @@ training using `torch.distributed.elastic` in DLRover.
 With [Torch Distributed Elastic](https://pytorch.org/docs/stable/distributed.elastic.html)
 , PyTorch can react to worker membership changes or failures and
 restart worker processes. To run a job with elastic PyTorch on
-a distributed cluster, an elastic node scheduler is necessary
+a distributed cluster, an elastic node scheduler is required
 to launch or remove nodes. Now, [TorchX-Kubernetes](https://pytorch.org/torchx/latest/)
-supports to launch Pods on the Kubernetes with the min and max number
-of workers. However, the batch size of sync-SGD will vary with
+supports to launch Pods on the Kubernetes with the configuration of min and max number
+of workers. However, the batch size of sync-SGD is varying with
 the number of workers which may result in inconsistency of model accuracy.
-What's more, how many workers can maximize the training performance
-including throughput and model accuracy is difficult for users.
+What's more, it is difficult for users to figure out the number of workers
+that can maximize the training performance
+including throughput and model accuracy.
 
 Besides node scheduling, we need a data partition strategy to support
 the change of workers and recover training data of fault workers.
