@@ -1,7 +1,7 @@
 apiVersion: elastic.iml.github.io/v1alpha1
 kind: ElasticJob
 metadata:
-  name: deepctr-auto-scaling-job
+  name: deepctr-auto-scaling-job1
 spec:
   distributionStrategy: ParameterServerStrategy
   resourceLimits:
@@ -10,7 +10,7 @@ spec:
   replicaSpecs:
     ps:
       autoScale: False
-      replicas: 1
+      replicas: 0
       template:
         spec:
           restartPolicy: Never
