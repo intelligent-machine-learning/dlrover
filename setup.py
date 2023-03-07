@@ -19,7 +19,7 @@ with open("dlrover/requirements.txt") as f:
 
 setup(
     name="dlrover",
-    version="0.1.0rc0.dev6",
+    version="0.1.0",
     description="An Automatic Distributed Deep Learning Framework",
     long_description="DLRover helps model developers focus on model algorithm"
     " itself, without taking care of any engineering stuff,"
