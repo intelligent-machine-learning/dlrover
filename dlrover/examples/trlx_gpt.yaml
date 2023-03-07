@@ -17,7 +17,7 @@ spec:
           containers:
             - name: main
               # yamllint disable-line rule:line-length
-              image: registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:torch_test
+              image: registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:torch_test_v1
               imagePullPolicy: Always
               resources:
                 limits:
@@ -46,7 +46,7 @@ spec:
           containers:
             - name: main
               # yamllint disable-line rule:line-length
-              image: registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:torch_test
+              image: registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:torch_test_v1
               imagePullPolicy: Always
               resources:
                 limits:
