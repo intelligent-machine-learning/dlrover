@@ -429,17 +429,17 @@ class PodScaler(Scaler):
         return service_ready
 
     def _create_service_with_retry(
-        self, pod_type, pod_id, service_name, retry_num=5
+        self, pod_type, rank_id, service_name, retry_num=5
     ):
         for _ in range(retry_num):
-            succeed = self._create_service(pod_type, pod_id, service_name)
+            succeed = self._create_service(pod_type, rank_id, service_name)
             if succeed:
                 return succeed
             else:
                 time.sleep(5)
         return False
 
-    def _create_service(self, pod_type, pod_id, service_name):
+    def _create_service(self, pod_type, rank_id, service_name):
         # Use master pod as service owner so the service will not be
         #  deleted if the corresponding pod is deleted.
         service = self._create_service_obj(
@@ -447,7 +447,7 @@ class PodScaler(Scaler):
             port=NODE_SERVICE_PORTS[pod_type],
             target_port=NODE_SERVICE_PORTS[pod_type],
             replica_type=pod_type,
-            replica_index=pod_id,
+            rank_index=rank_id,
         )
 
         return self._k8s_client.create_service(service)
@@ -469,7 +469,7 @@ class PodScaler(Scaler):
         port,
         target_port,
         replica_type,
-        replica_index,
+        rank_index,
     ):
         labels = self._get_common_labels()
 
@@ -486,7 +486,7 @@ class PodScaler(Scaler):
         selector = {
             ElasticJobLabel.JOB_KEY: self._job_name,
             ElasticJobLabel.REPLICA_TYPE_KEY: replica_type,
-            ElasticJobLabel.REPLICA_INDEX_KEY: str(replica_index),
+            ElasticJobLabel.RANK_INDEX_KEY: str(rank_index),
         }
         spec = client.V1ServiceSpec(
             ports=[client.V1ServicePort(port=port, target_port=target_port)],
@@ -498,13 +498,13 @@ class PodScaler(Scaler):
         )
         return service
 
-    def _patch_service(self, pod_type, id, service_name):
+    def _patch_service(self, pod_type, rank_id, service_name):
         service = self._create_service_obj(
             name=service_name,
             port=NODE_SERVICE_PORTS[pod_type],
             target_port=NODE_SERVICE_PORTS[pod_type],
             replica_type=pod_type,
-            replica_index=id,
+            rank_index=rank_id,
         )
         return self._k8s_client.patch_service(service_name, service)
 

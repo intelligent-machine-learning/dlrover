@@ -104,7 +104,7 @@ class PodScalerTest(unittest.TestCase):
             port="2222",
             target_port="2222",
             replica_type=NodeType.WORKER,
-            replica_index=0,
+            rank_index=0,
         )
         self.assertEqual(service.spec.selector["replica-index"], "0")
         self.assertEqual(service.spec.selector["replica-type"], "worker")
