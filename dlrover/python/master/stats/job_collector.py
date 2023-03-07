@@ -17,6 +17,7 @@ import time
 from abc import ABCMeta, abstractmethod
 from typing import Dict, List
 
+from dlrover.python.common.constants import MemoryUnit
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.stats.reporter import JobMeta, StatsReporter
@@ -158,7 +159,7 @@ class JobMetricCollector(BaseMetricCollector):
             self.collect_custom_data()
         for node in running_nodes:
             node_sample = copy.deepcopy(node)
-            node_sample.used_resource.memory *= 1024
+            node_sample.used_resource.memory *= MemoryUnit.MB
             if (node.type, node.id) in speed_monitor.running_workers:
                 self._runtime_metric.running_nodes.append(node_sample)
             else:

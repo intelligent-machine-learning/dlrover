@@ -16,6 +16,7 @@ import unittest
 from dlrover.proto import brain_pb2
 from dlrover.python.brain.client import build_easydl_client
 from dlrover.python.common.constants import (
+    MemoryUnit,
     NodeResourceLimit,
     NodeType,
     OptimizeMode,
@@ -45,12 +46,12 @@ class MockStub(object):
         ].resource.task_group_resources
         group_resources[NodeType.WORKER].count = 5
         group_resources[NodeType.WORKER].resource.memory = (
-            _MEMORY * 1024 * 1024
+            _MEMORY * MemoryUnit.MB
         )
         group_resources[NodeType.WORKER].resource.cpu = 16
 
         group_resources[NodeType.PS].count = 2
-        group_resources[NodeType.PS].resource.memory = _MEMORY * 1024 * 1024
+        group_resources[NodeType.PS].resource.memory = _MEMORY * MemoryUnit.MB
         group_resources[NodeType.PS].resource.cpu = 16
         return res
 
