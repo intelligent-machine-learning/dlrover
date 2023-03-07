@@ -288,7 +288,7 @@ func (m *TaskManager) newServiceForPod(
 	port, _ := strconv.Atoi(strings.Split(podMeta.Service, ":")[1])
 	selector := make(map[string]string)
 	selector[common.LabelReplicaTypeKey] = string(m.taskType)
-	selector[common.LabelReplicaIndexKey] = fmt.Sprintf("%d", podMeta.ID)
+	selector[common.LabelRankIndexKey] = fmt.Sprintf("%d", podMeta.RankIndex)
 	service := common.NewService(job, name, port, selector)
 	return service
 }
