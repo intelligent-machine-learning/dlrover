@@ -58,12 +58,12 @@ func NewBrainServer(conf *config.Config) (*BrainServer, error) {
 	return &BrainServer{
 		configManager: config.NewManager(namespace, configMapName, configMapKey, kubeClientSet),
 		kubeClientSet: kubeClientSet,
-		manager:       optimizer.NewManager(conf),
 	}, nil
 }
 
 // Run starts the server
 func (s *BrainServer) Run(ctx context.Context, errReporter common.ErrorReporter) error {
+	log.Infof("start to run brain server")
 	err := s.configManager.Run(ctx, errReporter)
 	if err != nil {
 		err = fmt.Errorf("[%s] failed to initialize config manager: %v", logName, err)
@@ -82,6 +82,8 @@ func (s *BrainServer) Run(ctx context.Context, errReporter common.ErrorReporter)
 		log.Errorf("[%s] fail to run the data store manager: %v", logName, err)
 		return err
 	}
+
+	s.manager = optimizer.NewManager(s.conf)
 	if err = s.manager.Run(ctx, errReporter); err != nil {
 		log.Errorf("[%s] fail to run the manager: %v", logName, err)
 		return err
