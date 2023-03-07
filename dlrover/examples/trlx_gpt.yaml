@@ -1,0 +1,77 @@
+apiVersion: elastic.iml.github.io/v1alpha1
+kind: ElasticJob
+metadata:
+  name: deepctr-auto-scaling-job
+spec:
+  distributionStrategy: ParameterServerStrategy
+  resourceLimits:
+    cpu: "15"
+    memory: "10000Mi"
+  replicaSpecs:
+    ps:
+      autoScale: False
+      replicas: 0
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: main
+              # yamllint disable-line rule:line-length
+              image: registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:torch_test 
+              imagePullPolicy: Always
+              resources:
+                limits:
+                  cpu: "0.5"
+                  memory: 4Gi
+                requests:
+                  cpu: "0.5"
+                  memory: 4Gi
+              command:
+                - /bin/bash
+                - -c
+                - "cd /home/grounded_program_synthesis && python train_trlx.py"
+              volumeMounts:
+                - name: pvc-nas
+                  mountPath: /nas
+          volumes:
+            - name: pvc-nas
+              persistentVolumeClaim:
+                claimName: pvc-nas
+    worker:
+      autoScale: False
+      replicas: 1
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: main
+              # yamllint disable-line rule:line-length
+              image: registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:torch_test 
+              imagePullPolicy: Always
+              resources:
+                limits:
+                  cpu: "0.5"
+                  memory: 4Gi
+                requests:
+                  cpu: "0.5"
+                  memory: 4Gi
+              command:
+                - /bin/bash
+                - -c
+                - "cd /usr/local/lib/python3.8/site-packages/dlrover/trainer/examples/torch_linear_regression &&  python -m torch.distributed.launch --nproc_per_node=2 --nnodes=1 --node_rank=0 --master_addr='deepctr-auto-scaling-job-edljob-chief-0' --master_port=3333 model_ddp.py"
+              volumeMounts:
+                - name: pvc-nas
+                  mountPath: /nas
+          volumes:
+            - name: pvc-nas
+              persistentVolumeClaim:
+                claimName: pvc-nas
+    dlrover-master:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: main
+              imagePullPolicy: Always
+              # yamllint disable-line rule:line-length
+              image: registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:torch_test 
