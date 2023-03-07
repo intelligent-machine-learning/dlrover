@@ -106,7 +106,7 @@ class PodScalerTest(unittest.TestCase):
             replica_type=NodeType.WORKER,
             rank_index=0,
         )
-        self.assertEqual(service.spec.selector["replica-index"], "0")
+        self.assertEqual(service.spec.selector["rank-index"], "0")
         self.assertEqual(service.spec.selector["replica-type"], "worker")
 
     def test_scale(self):

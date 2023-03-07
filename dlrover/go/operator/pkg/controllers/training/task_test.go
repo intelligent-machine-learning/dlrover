@@ -187,7 +187,7 @@ func TestNewPodService(t *testing.T) {
 		chiefService.Spec.Selector[common.LabelReplicaTypeKey],
 		string(ReplicaTypeChief),
 	)
-	assert.Equal(t, chiefService.Spec.Selector[common.LabelReplicaIndexKey], "0")
+	assert.Equal(t, chiefService.Spec.Selector[common.LabelRankIndexKey], "0")
 
 	podMeta.Name = "test-training-edljob-worker-0"
 	podMeta.Type = ReplicaTypeWorker
@@ -200,5 +200,5 @@ func TestNewPodService(t *testing.T) {
 		workerService.Spec.Selector[common.LabelReplicaTypeKey],
 		string(ReplicaTypeWorker),
 	)
-	assert.Equal(t, workerService.Spec.Selector[common.LabelReplicaIndexKey], "0")
+	assert.Equal(t, workerService.Spec.Selector[common.LabelRankIndexKey], "0")
 }
