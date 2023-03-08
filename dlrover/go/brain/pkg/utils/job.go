@@ -282,7 +282,7 @@ func ConvertDBJobMetricsToJobMetrics(job *mysql.JobMetrics) *common.JobMetrics {
 		JobUUID:            job.UID,
 		HyperParamsFeature: job.HyperParamsFeature,
 		JobFeature:         job.JobFeature,
-		DataSetFeature:     job.DataSetFeature,
+		DatasetFeature:     job.DatasetFeature,
 		ModelFeature:       job.ModelFeature,
 		JobRuntime:         job.JobRuntime,
 		ExitReason:         job.ExitReason,

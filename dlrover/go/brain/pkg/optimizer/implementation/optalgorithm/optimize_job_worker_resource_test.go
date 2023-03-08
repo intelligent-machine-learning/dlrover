@@ -109,7 +109,7 @@ func TestOptimizeJobWorkerResource_AddReplica(t *testing.T) {
 		},
 		Metrics: &common.JobMetrics{
 			JobRuntime:         string(rtInfosStr),
-			DataSetFeature:     string(setFeatureStr),
+			DatasetFeature:     string(setFeatureStr),
 			HyperParamsFeature: string(hyperParamStr),
 		},
 	}
@@ -235,7 +235,7 @@ func TestOptimizeJobWorkerResource_AddReplica2(t *testing.T) {
 		},
 		Metrics: &common.JobMetrics{
 			JobRuntime:         string(rtInfosStr),
-			DataSetFeature:     string(setFeatureStr),
+			DatasetFeature:     string(setFeatureStr),
 			HyperParamsFeature: string(hyperParamStr),
 		},
 	}

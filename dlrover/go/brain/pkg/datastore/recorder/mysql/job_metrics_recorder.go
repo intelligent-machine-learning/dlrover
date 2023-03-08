@@ -31,7 +31,7 @@ type JobMetrics struct {
 	UID                string
 	HyperParamsFeature string
 	JobFeature         string
-	DataSetFeature     string
+	DatasetFeature     string
 	ModelFeature       string
 	JobRuntime         string
 	ExitReason         string

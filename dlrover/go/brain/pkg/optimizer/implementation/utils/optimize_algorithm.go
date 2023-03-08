@@ -172,7 +172,7 @@ func ComputePerStepTime(metrics *common.JobMetrics, speed float64) (float64, err
 	batchSize := float64(trainingHyperParam.BatchSize)
 
 	trainingDatasetFeature := &common.TrainingSetFeature{}
-	err = json.Unmarshal([]byte(metrics.DataSetFeature), trainingDatasetFeature)
+	err = json.Unmarshal([]byte(metrics.DatasetFeature), trainingDatasetFeature)
 	if err != nil {
 		log.Errorf("Fail to unmarshal dataset feature: %v", err)
 		return 0, err

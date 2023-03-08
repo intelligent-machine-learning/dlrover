@@ -110,7 +110,7 @@ func TestOptimizeJobPSResourceUtil(t *testing.T) {
 		},
 		Metrics: &common.JobMetrics{
 			JobRuntime:         string(runtimeStr),
-			DataSetFeature:     string(setFeatureStr),
+			DatasetFeature:     string(setFeatureStr),
 			HyperParamsFeature: string(hyperParamStr),
 		},
 	}

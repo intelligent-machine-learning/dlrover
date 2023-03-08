@@ -102,7 +102,7 @@ func TestJobWorkerResourceOptimizer(t *testing.T) {
 	jobMetrics := &mysql.JobMetrics{
 		UID:                jobUUID,
 		JobRuntime:         string(rtInfosStr),
-		DataSetFeature:     string(setFeatureStr),
+		DatasetFeature:     string(setFeatureStr),
 		HyperParamsFeature: string(hyperParamStr),
 	}
 	dataStore.Client.JobMetricsRecorder.Upsert(jobMetrics)
