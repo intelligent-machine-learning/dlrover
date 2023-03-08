@@ -187,6 +187,10 @@ class JobResourceOptimizer(metaclass=ABCMeta):
         """Adjust the resource configuration for OOM nodes"""
         pass
 
+    @abstractmethod
+    def get_config_resource(self) -> JobResource:
+        pass
+
 
 class PSJobResourceOptimizer(JobResourceOptimizer):
     """It generates resource configuration for a PS job."""
@@ -210,6 +214,14 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
         self.optimized_ps_mem = False
         self.optimize_worker_sampled = False
         self._job_stage = JobOptStage.CREATE
+
+    def get_config_resource(self):
+        job_config = JobResource()
+        worker_config = self._original_worker_resource
+        job_config.node_group_resources[NodeType.WORKER] = worker_config
+        ps_config = self._original_worker_resource
+        job_config.node_group_resources[NodeType.PS] = ps_config
+        return job_config
 
     def update_job_uuid(self, job_uuid):
         self._resource_optimizer.update_job_uuid(job_uuid)
@@ -497,3 +509,9 @@ class AllreduceJobResourceOptimizer(JobResourceOptimizer):
     def adjust_oom_resource(self, node: Node):
         """Adjust the resource configuration for OOM nodes"""
         node.config_resource.memory *= 2
+
+    def get_config_resource(self):
+        job_config = JobResource()
+        worker_config = self._original_worker_resource
+        job_config.node_group_resources[NodeType.WORKER] = worker_config
+        return job_config
