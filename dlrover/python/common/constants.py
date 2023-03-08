@@ -111,28 +111,28 @@ class ExitCode(object):
 class NodeResourceLimit(object):
     MAX_CPU_CORES = 32
     MIN_CPU_CORES = 4
-    MIN_MEMORY = 6144  # 6Gi
-    MAX_MEMORY = 65536  # 65536Mi, 64Gi
+    MIN_MEMORY = 6144  # unit MiB
+    MAX_MEMORY = 65536  # unit MiB
     MAX_WORKER_NUM = 60
     MAX_PS_NUM = 15
     INCREMENTAL_MEMORY_FACTOR = 2
-    HUGE_MEMORY_THRESHOLD = 102400  # 100Gi
+    HUGE_MEMORY_THRESHOLD = 102400  # unit MiB
     HUGE_CPU_THRESHOLD = 100
     WAIT_CHIEF_TIMEOUT_SECS = 1800  # 30min
     WAIT_DATA_SHARD_SERVICE_CREATION_SECS = 600  # 10min
     PS_CPU_GROWTH_RATE = 1.2
     PS_CPU_DECREASED_RATE = 0.5
-    MIN_VALID_MEMORY = 1024  # 1GB
+    MIN_VALID_MEMORY = 1024  # unit MiB
     MIN_VALID_CPU = 2
 
 
 class DefaultNodeResource(object):
     PS_NUM = 3
-    PS_MEMORY = 16384  # 16GB
+    PS_MEMORY = 16384  # unit MiB
     PS_CPU = 12
     WORKER_NUM = 5
     WORKER_CPU = 16
-    WORKER_MEMORY = 16384  # 16GB
+    WORKER_MEMORY = 16384  # unit MiB
 
 
 class ResourceOptimizerName(object):
@@ -194,7 +194,7 @@ class DatasetType(object):
 
 class DefaultResourceLimits(object):
     CPU_LIMIT = 100
-    MEMORY_LIMIT = "102400Mi"  # 100Gi
+    MEMORY_LIMIT = "102400Mi"
     GPU_LIMIT = 4
 
 
