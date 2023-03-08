@@ -137,10 +137,7 @@ class Master(object):
             self.job_manager.add_node_event_callback(
                 TaskRescheduleCallback(self.task_manager)
             )
-        if (
-            self._job_args.distribution_strategy
-            == DistributionStrategy.PS
-        ):
+        if self._job_args.distribution_strategy == DistributionStrategy.PS:
             self.job_manager.add_node_event_callback(
                 TFPSNodeHandlingCallback(self)
             )

@@ -15,12 +15,12 @@ import unittest
 from unittest import mock
 
 from dlrover.python.common.constants import (
+    DistributionStrategy,
     JobExitReason,
     NodeEventType,
     NodeExitReason,
     NodeStatus,
     NodeType,
-    DistributionStrategy,
 )
 from dlrover.python.common.node import NodeGroupResource, NodeResource
 from dlrover.python.master.master import Master

@@ -19,11 +19,11 @@ from kubernetes import client
 
 from dlrover.proto import elastic_training_pb2
 from dlrover.python.common.constants import (
+    DistributionStrategy,
     ElasticJobLabel,
     NodeStatus,
     NodeType,
     PlatformType,
-    DistributionStrategy,
 )
 from dlrover.python.common.node import NodeGroupResource, NodeResource
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor

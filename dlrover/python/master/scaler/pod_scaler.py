@@ -377,11 +377,7 @@ class PodScaler(Scaler):
         return pod
 
     def _patch_tf_config_into_env(self, pod, node: Node, pod_stats, ps_addrs):
-        if (
-            self._distribution_strategy
-            == DistributionStrategy.PS
-            and ps_addrs
-        ):
+        if self._distribution_strategy == DistributionStrategy.PS and ps_addrs:
             tf_config = new_tf_config(
                 pod_stats,
                 self.get_node_service_addr,

@@ -54,9 +54,9 @@ from dlrover.python.master.node.worker import (
     WorkerManager,
 )
 from dlrover.python.master.resource.job import (
+    AllreduceJobResourceOptimizer,
     JobResource,
     JobResourceOptimizer,
-    AllreduceJobResourceOptimizer
 )
 from dlrover.python.master.scaler.base_scaler import ScalePlan, Scaler
 from dlrover.python.master.scaler.factory import new_job_scaler
@@ -93,7 +93,7 @@ class JobManager(object):
 
         self._job_args = job_args
         self._ps_is_critical = False
-        if (job_args.distribution_strategy == DistributionStrategy.PS):
+        if job_args.distribution_strategy == DistributionStrategy.PS:
             self._ps_is_critical = (
                 job_args.node_args[NodeType.PS].critical_nodes == "all"
             )
@@ -104,9 +104,7 @@ class JobManager(object):
                 job_args.job_uuid,
                 job_args.resource_limits,
             )
-        elif (
-            job_args.distribution_strategy == DistributionStrategy.ALLREDUCE
-        ):
+        elif job_args.distribution_strategy == DistributionStrategy.ALLREDUCE:
             self._job_optimizer = AllreduceJobResourceOptimizer(
                 self._job_resource.node_group_resources[NodeType.WORKER],
                 job_args.job_uuid,
@@ -173,10 +171,7 @@ class JobManager(object):
         ).start()
 
     def _adjust_worker_for_estimator(self):
-        if (
-            self._job_args.distribution_strategy
-            == DistributionStrategy.PS
-        ):
+        if self._job_args.distribution_strategy == DistributionStrategy.PS:
             self._job_resource.adjust_worker_for_estimator()
 
     def _create_initial_scale_plan(self):
