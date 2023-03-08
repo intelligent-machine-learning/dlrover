@@ -51,7 +51,7 @@ def _create_rendezvous_server_if_needed(params: JobArgs):
 
 
 def _create_elastic_ps_service_if_needed(params: JobArgs):
-    if params.distribution_strategy == DistributionStrategy.PARAMETER_SERVER:
+    if params.distribution_strategy == DistributionStrategy.PS:
         return ElasticPsService()
     return None
 
@@ -139,7 +139,7 @@ class Master(object):
             )
         if (
             self._job_args.distribution_strategy
-            == DistributionStrategy.PARAMETER_SERVER
+            == DistributionStrategy.PS
         ):
             self.job_manager.add_node_event_callback(
                 TFPSNodeHandlingCallback(self)

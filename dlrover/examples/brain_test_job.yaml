@@ -4,7 +4,7 @@ metadata:
   name: brain-test-job
   namespace: dlrover
 spec:
-  distributionStrategy: ParameterServerStrategy
+  distributionStrategy: ParameterServer
   optimizeMode: cluster
   resourceLimits:
     cpu: "1"

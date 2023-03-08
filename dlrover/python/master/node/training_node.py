@@ -91,7 +91,7 @@ def get_critical_worker_index(params: JobArgs):
         # for default, worker0 is critical if PS strategy with custom training
         if (
             params.distribution_strategy
-            == DistributionStrategy.PARAMETER_SERVER
+            == DistributionStrategy.PS
         ):
             critical_worker_index[0] = worker_params.restart_count
     elif worker_params.critical_nodes == "all":

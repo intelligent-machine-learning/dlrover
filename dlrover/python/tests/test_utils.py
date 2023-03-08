@@ -23,6 +23,7 @@ from dlrover.python.common.constants import (
     NodeStatus,
     NodeType,
     PlatformType,
+    DistributionStrategy,
 )
 from dlrover.python.common.node import NodeGroupResource, NodeResource
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
@@ -86,6 +87,8 @@ class MockK8sJobArgs(JobArgs):
             chief_resource, True, 1, 0, ""
         )
         self.job_uuid = "11111"
+        self.distribution_strategy = DistributionStrategy.PS
+        print("sssfdsf======")
 
 
 class MockRayJobArgs(JobArgs):

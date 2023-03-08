@@ -43,13 +43,22 @@ def new_job_auto_scaler(
     worker_manager: WorkerManager,
     node_scaler: Scaler,
 ):
-    if job_strategy == DistributionStrategy.PARAMETER_SERVER:
+    if job_strategy == DistributionStrategy.PS:
         return PSTrainingAutoScaler(
             job_resource,
             job_nodes,
             job_optimizer,
             speed_monitor,
             ps_manager,
+            worker_manager,
+            node_scaler,
+        )
+    elif job_strategy == DistributionStrategy.ALLREDUCE:
+        return AllreduceTrainingAutoScaler(
+            job_resource,
+            job_nodes,
+            job_optimizer,
+            speed_monitor,
             worker_manager,
             node_scaler,
         )
@@ -212,3 +221,37 @@ class PSTrainingAutoScaler(JobAutoScaler):
             self._ps_manager.cut_pending_node_cpu()
         if _dlrover_context.auto_worker_enabled:
             self._worker_manager.cut_pending_node_cpu()
+
+
+class AllreduceTrainingAutoScaler(JobAutoScaler):
+    """AutoScale a Job using Async-SGD with ParamterServer strategy"""
+
+    def __init__(
+        self,
+        job_resource: JobResource,
+        job_nodes: Dict[str, Dict[int, Node]],
+        job_optimizer: JobResourceOptimizer,
+        speed_monitor: SpeedMonitor,
+        worker_manager: WorkerManager,
+        node_scaler: Scaler,
+    ) -> None:
+        self._job_resource = job_resource
+        self._job_optimizer = job_optimizer
+        self._speed_monitor = speed_monitor
+        self._worker_manager = worker_manager
+        self._stop_autoscaling = False
+        self._scaler = node_scaler
+        self._job_nodes = job_nodes
+        self._autoscaling_started = False
+
+    def start_auto_scaling(self):
+        """Start auto-scaling nodes of a job"""
+        pass
+
+    def stop_auto_scaling(self):
+        """Stop auto-scaling nodes of a job"""
+        pass
+
+    def execute_job_optimization_plan(self, plan: ResourcePlan):
+        """Scale nodes of a job by a ResourcePlan"""
+        pass

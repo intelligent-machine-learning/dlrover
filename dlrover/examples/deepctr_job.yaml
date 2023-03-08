@@ -4,7 +4,7 @@ kind: ElasticJob
 metadata:
   name: deepctr-sample
 spec:
-  distributionStrategy: ParameterServerStrategy
+  distributionStrategy: ParameterServer
   resourceLimits:
     cpu: "12"
     memory: "20000Mi"

@@ -3,7 +3,7 @@ kind: ElasticJob
 metadata:
   name: elasticjob-sample
 spec:
-  distributionStrategy: ParameterServerStrategy
+  distributionStrategy: ParameterServer
   resourceLimits:
     cpu: "6"
     memory: "8192Mi"

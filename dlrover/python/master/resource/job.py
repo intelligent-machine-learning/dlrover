@@ -167,7 +167,7 @@ class JobResource(JsonSerializable):
 
 
 class JobResourceOptimizer(object):
-    """It generates resource configuration for a job."""
+    """It generates resource configuration for a PS job."""
 
     def __init__(
         self,
@@ -444,3 +444,23 @@ class JobResourceOptimizer(object):
         if original_resource.cpu >= NodeResourceLimit.MIN_VALID_CPU:
             resource.node_resource.cpu = original_resource.cpu
         return resource
+
+
+class AllreduceJobResourceOptimizer(object):
+    """It generates resource configuration for a job."""
+
+    def __init__(
+        self,
+        worker_resource: NodeGroupResource,
+        job_uuid="",
+    ):
+        self._worker_resource = worker_resource
+        self._original_worker_resource = copy.deepcopy(self._worker_resource)
+        self._job_uuid = job_uuid
+        self._lock = threading.Lock()
+
+    def update_job_uuid(self, job_uuid):
+        pass
+
+    def init_job_resource(self, job_resource):
+        pass

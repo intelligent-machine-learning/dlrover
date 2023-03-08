@@ -56,6 +56,7 @@ from dlrover.python.master.node.worker import (
 from dlrover.python.master.resource.job import (
     JobResource,
     JobResourceOptimizer,
+    AllreduceJobResourceOptimizer
 )
 from dlrover.python.master.scaler.base_scaler import ScalePlan, Scaler
 from dlrover.python.master.scaler.factory import new_job_scaler
@@ -92,13 +93,31 @@ class JobManager(object):
 
         self._job_args = job_args
         self._ps_is_critical = False
-        if (
-            job_args.distribution_strategy
-            == DistributionStrategy.PARAMETER_SERVER
-        ):
+        if (job_args.distribution_strategy == DistributionStrategy.PS):
             self._ps_is_critical = (
                 job_args.node_args[NodeType.PS].critical_nodes == "all"
             )
+            self._job_optimizer = JobResourceOptimizer(
+                self._job_resource.node_group_resources[NodeType.WORKER],
+                self._job_resource.node_group_resources[NodeType.PS],
+                job_args.optimize_mode,
+                job_args.job_uuid,
+                job_args.resource_limits,
+            )
+        elif (
+            job_args.distribution_strategy == DistributionStrategy.ALLREDUCE
+        ):
+            self._job_optimizer = AllreduceJobResourceOptimizer(
+                self._job_resource.node_group_resources[NodeType.WORKER],
+                job_args.job_uuid,
+            )
+        else:
+            raise ValueError(
+                f"Distribution strategy {job_args.distribution_strategy} "
+                "is not supported. You can specify it with "
+                "ParameterServer/Allreduce."
+            )
+        logger.info("New job optimizer : %s", self._job_optimizer.__class__)
 
         worker_restart_count = node_restart_count.get(NodeType.WORKER, 0)
         ps_restart_count = node_restart_count.get(NodeType.PS, 0)
@@ -131,13 +150,6 @@ class JobManager(object):
             job_args.job_uuid,
         )
         self._scaler: Scaler = job_scaler
-        self._job_optimizer = JobResourceOptimizer(
-            self._job_resource.node_group_resources[NodeType.WORKER],
-            self._job_resource.node_group_resources[NodeType.PS],
-            job_args.optimize_mode,
-            job_args.job_uuid,
-            job_args.resource_limits,
-        )
         self._init_training_node_manager()
 
     def start(self):
@@ -163,7 +175,7 @@ class JobManager(object):
     def _adjust_worker_for_estimator(self):
         if (
             self._job_args.distribution_strategy
-            == DistributionStrategy.PARAMETER_SERVER
+            == DistributionStrategy.PS
         ):
             self._job_resource.adjust_worker_for_estimator()
 
@@ -251,6 +263,9 @@ class JobManager(object):
             self._ps_manager,
             self._worker_manager,
             self._scaler,
+        )
+        logger.info(
+            "Create job autoscaler: %s", self._job_autoscaler.__class__
         )
 
     def _monitor_nodes(self):
@@ -632,7 +647,7 @@ class JobManager(object):
 def create_job_manager(args: JobArgs, speed_monitor) -> JobManager:
     # relaunch on worker failure for PS or custom strategy
     if (
-        args.distribution_strategy != DistributionStrategy.PARAMETER_SERVER
+        args.distribution_strategy != DistributionStrategy.PS
         and args.distribution_strategy != DistributionStrategy.CUSTOM
     ):
         args.node_args[NodeType.WORKER].restart_count = 0

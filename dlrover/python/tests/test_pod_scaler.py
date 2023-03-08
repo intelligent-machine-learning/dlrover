@@ -32,7 +32,7 @@ class PodScalerTest(unittest.TestCase):
         scaler = PodScaler("elasticjob-sample", "default")
         self.assertEqual(
             scaler._distribution_strategy,
-            DistributionStrategy.PARAMETER_SERVER,
+            DistributionStrategy.PS,
         )
         worker_template = scaler._replica_template[NodeType.WORKER]
         self.assertEqual(
@@ -52,7 +52,7 @@ class PodScalerTest(unittest.TestCase):
 
     def test_create_pod(self):
         scaler = PodScaler("elasticjob-sample", "default")
-        scaler._distribution_strategy = DistributionStrategy.PARAMETER_SERVER
+        scaler._distribution_strategy = DistributionStrategy.PS
         resource = NodeResource(4, 8192)
         node = Node(NodeType.WORKER, 0, resource, rank_index=0)
         pod_stats = {
@@ -111,7 +111,7 @@ class PodScalerTest(unittest.TestCase):
 
     def test_scale(self):
         scaler = PodScaler("elasticjob-sample", "default")
-        scaler._distribution_strategy = DistributionStrategy.PARAMETER_SERVER
+        scaler._distribution_strategy = DistributionStrategy.PS
         resource = NodeResource(4, 8192)
         scale_plan = ScalePlan()
         self.assertTrue(scale_plan.empty())

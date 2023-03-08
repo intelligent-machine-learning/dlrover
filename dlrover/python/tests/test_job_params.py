@@ -31,7 +31,7 @@ class k8sJobArgsTest(unittest.TestCase):
         self.assertTrue(NodeType.PS in params.node_args)
         self.assertTrue(
             params.distribution_strategy
-            == DistributionStrategy.PARAMETER_SERVER
+            == DistributionStrategy.PS
         )
         worker_params = params.node_args[NodeType.WORKER]
         self.assertEqual(worker_params.restart_count, 3)
