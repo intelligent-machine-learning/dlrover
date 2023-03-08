@@ -14,7 +14,7 @@
 import unittest
 
 from dlrover.proto import brain_pb2
-from dlrover.python.brain.client import build_easydl_client
+from dlrover.python.brain.client import build_brain_client
 from dlrover.python.common.constants import (
     MemoryUnit,
     NodeResourceLimit,
@@ -59,7 +59,7 @@ class MockStub(object):
 class ResourceOptimizerTest(unittest.TestCase):
     def test_brain_optimizer(self):
         optimizer = BrainResoureOptimizer("1111", ResourceLimits(100, 102400))
-        optimizer._brain_client = build_easydl_client()
+        optimizer._brain_client = build_brain_client()
         optimizer._brain_client._brain_stub = MockStub()
         plan: ResourcePlan = optimizer.generate_opt_plan("", {})
         worker = plan.node_group_resources[NodeType.WORKER]
@@ -100,7 +100,7 @@ class ResourceOptimizerTest(unittest.TestCase):
 
 class JobResourceOptimizerTest(unittest.TestCase):
     def setUp(self):
-        self._client = build_easydl_client()
+        self._client = build_brain_client()
         self._client._brain_stub = MockStub()
         worker_resource = NodeGroupResource(
             0,

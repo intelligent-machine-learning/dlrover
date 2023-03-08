@@ -12,9 +12,13 @@
 # limitations under the License.
 
 import copy
+import json
 from abc import ABCMeta, abstractmethod
 from typing import List
 
+from dlrover.proto import brain_pb2
+from dlrover.python.brain.client import GlobalBrainClient
+from dlrover.python.common.constants import ReporterType
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import singleton
 from dlrover.python.master.stats.training_metrics import (
@@ -23,6 +27,8 @@ from dlrover.python.master.stats.training_metrics import (
     RuntimeMetric,
     TrainingHyperParams,
 )
+
+DATA_STORE = "data_store_elasticjob"
 
 
 class JobMeta(object):
@@ -34,9 +40,15 @@ class JobMeta(object):
         self.user = user
 
 
-class ReporterType(object):
-    LOCAL = "local"
-    DLROVER_BRAIN = "brain"
+def init_job_metrics_message(job_meta: JobMeta):
+    job_metrics = brain_pb2.JobMetrics()
+    job_metrics.data_store = DATA_STORE
+    job_metrics.job_meta.uuid = job_meta.uuid
+    job_metrics.job_meta.name = job_meta.name
+    job_metrics.job_meta.user = job_meta.user
+    job_metrics.job_meta.cluster = job_meta.cluster
+    job_metrics.job_meta.namespace = job_meta.namespace
+    return job_metrics
 
 
 class StatsReporter(metaclass=ABCMeta):
@@ -72,12 +84,15 @@ class StatsReporter(metaclass=ABCMeta):
         pass
 
     @classmethod
-    def new_stats_reporter(cls, job_meta, reporter_type=None):
-        if not reporter_type or reporter_type == ReporterType.LOCAL:
-            logger.info("New local stats reporter")
+    def new_stats_reporter(cls, job_meta, reporter=None):
+        if not reporter or reporter == ReporterType.LOCAL:
+            logger.info("New local stats reporter.")
             return LocalStatsReporter(job_meta)
+        elif reporter == ReporterType.DLROVER_BRAIN:
+            logger.info("New brain stats reporter.")
+            return BrainReporter(job_meta)
         else:
-            logger.warning("Not support stats collector %s", reporter_type)
+            logger.warning("Not support stats collector %s.", reporter)
 
 
 @singleton
@@ -115,3 +130,94 @@ class LocalStatsReporter(StatsReporter):
 
     def get_runtime_stats(self) -> List[RuntimeMetric]:
         return self._runtime_stats
+
+
+@singleton
+class BrainReporter(StatsReporter):
+    def __init__(self, job_meta: JobMeta) -> None:
+        super(BrainReporter, self).__init__(job_meta)
+        self._brain_client = GlobalBrainClient.BRAIN_CLIENT
+
+    def report_dataset_metric(self, dataset: DatasetMetric):
+        self._brain_client.report_training_set_metric(self._job_meta, dataset)
+
+    def report_training_hyper_params(self, params: TrainingHyperParams):
+        self._brain_client.report_training_hyper_params(self._job_meta, params)
+
+    def report_model_metrics(self, metric: ModelMetric):
+        """Report the model meta to EasyDL DB.
+        Args:
+            job_uuid: str, the unique id of the job which is usually
+                the uuid in the job yaml of k8s.
+            model size: int, the size of the NN model.
+            variable_count: int, the total count of variables in the model.
+            ops_count: int, the total count of ops in the model.
+        """
+        job_metrics = init_job_metrics_message(self._job_meta)
+        job_metrics.metrics_type = brain_pb2.MetricsType.Model_Feature
+        metrics = job_metrics.model_feature
+        metrics.total_variable_size = metric.tensor_stats.total_variable_size
+        metrics.variable_count = metric.tensor_stats.variable_count
+        metrics.op_count = metric.op_stats.op_count
+        self._brain_client.report_metrics(job_metrics)
+
+    def report_runtime_stats(self, stats: RuntimeMetric):
+        self._brain_client.report_node_runtime_stats(
+            self._job_meta, self._job_meta.namespace, stats
+        )
+
+    def report_job_type(self, job_type: str):
+        """Report the job type to EasyDL DB.
+        Args:
+            job_uuid: str, the unique id of the job which is usually
+                the uuid in the job yaml of k8s.
+            job_type: str, the type of training job like "alps", "atorch",
+                "penrose" and so on.
+        """
+        job_metrics = init_job_metrics_message(self._job_meta)
+        job_metrics.metrics_type = brain_pb2.MetricsType.Type
+        job_metrics.type = job_type
+        logger.info("Report job_type = %s", job_type)
+        self._brain_client.report_metrics(job_metrics)
+
+    def report_job_exit_reason(self, reason: str):
+        self._brain_client.report_job_exit_reason(self._job_meta, reason)
+
+    def report_customized_data(self, data):
+        """Report the job resource to EasyDL DB.
+        Args:
+            job_uuid: str, the unique id of the job which is usually
+                the uuid in the job yaml of k8s.
+            cutomized_data: A dictionary.
+        """
+        job_metrics = init_job_metrics_message(self._job_meta)
+        job_metrics.metrics_type = brain_pb2.MetricsType.Customized_Data
+        job_metrics.customized_data = json.dumps(data)
+        self._brain_client.report_metrics(job_metrics)
+
+    def report_job_meta(self):
+        """Report the job meta to EasyDL DB.
+        Args:
+            job_uuid: str, the unique id of the job which is usually
+                the uuid in the job yaml of k8s.
+            job_name: str, the name of training job.
+            user_id: the user id.
+        """
+        job_metrics = init_job_metrics_message(self._job_meta)
+        job_metrics.metrics_type = brain_pb2.MetricsType.Workflow_Feature
+        metrics = job_metrics.workflow_feature
+        metrics.job_name = self._job_meta.name
+        metrics.user_id = self._job_meta.user
+        self._brain_client.report_metrics(job_metrics)
+
+    def report_job_resource(self, job_resource):
+        """Report the job resource to EasyDL DB.
+        Args:
+            job_uuid: str, the unique id of the job which is usually
+                the uuid in the job yaml of k8s.
+            job_resource: dlrover.python.master.resource.JobResource instance.
+        """
+        job_metrics = init_job_metrics_message(self._job_meta)
+        job_metrics.metrics_type = brain_pb2.MetricsType.Resource
+        job_metrics.resource = job_resource.toJSON()
+        self._brain_client.report_metrics(job_metrics)
