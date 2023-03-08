@@ -204,5 +204,10 @@ class OptimizeMode(object):
     CLUSTER = "cluster"
 
 
+class ReporterType(object):
+    LOCAL = "local"
+    DLROVER_BRAIN = "brain"
+
+
 class MemoryUnit(object):
     MB = 1024 * 1024

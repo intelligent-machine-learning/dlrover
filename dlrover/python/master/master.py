@@ -18,6 +18,8 @@ from dlrover.python.common.constants import (
     DistributionStrategy,
     JobExitReason,
     NodeType,
+    OptimizeMode,
+    ReporterType,
 )
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
@@ -98,8 +100,11 @@ class Master(object):
         if not params.enable_dynamic_sharding:
             return None
         job_uuid = params.job_uuid
+        reporter = ReporterType.LOCAL
+        if params.optimize_mode == OptimizeMode.CLUSTER:
+            reporter = ReporterType.DLROVER_BRAIN
         collector = JobMetricCollector(
-            job_uuid, params.namespace, params.cluster, params.user
+            job_uuid, params.namespace, params.cluster, params.user, reporter
         )
         collector.collect_job_type(params.distribution_strategy)
         return collector

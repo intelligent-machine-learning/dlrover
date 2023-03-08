@@ -35,10 +35,10 @@ from dlrover.python.master.watcher.base_watcher import Node
 
 
 class BaseMetricCollector(metaclass=ABCMeta):
-    def __init__(self, job_meta: JobMeta, reporter_type=None):
+    def __init__(self, job_meta: JobMeta, reporter=None):
         self._job_meta = job_meta
         self._stats_reporter = StatsReporter.new_stats_reporter(
-            job_meta, reporter_type
+            job_meta, reporter
         )
 
     @classmethod
@@ -81,9 +81,9 @@ class JobMetricCollector(BaseMetricCollector):
     to EasyDL server.
     """
 
-    def __init__(self, job_uuid, namespace, cluster, user):
+    def __init__(self, job_uuid, namespace, cluster, user, reporter=None):
         job_meta = JobMeta(job_uuid, namespace, cluster, user)
-        super(JobMetricCollector, self).__init__(job_meta)
+        super(JobMetricCollector, self).__init__(job_meta, reporter=reporter)
         self._runtime_metric = RuntimeMetric([])
         self.dataset_metric = None
         self._flops = 0

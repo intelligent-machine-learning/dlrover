@@ -101,7 +101,7 @@ class BrainClient(object):
             ```
             import json
 
-            client = build_easydl_client()
+            client = build_brain_client()
             metrics_res = client.get_job_metrics("xxxx")
             metrics = json.loads(metrics_res.job_metrics)
             ```
@@ -258,14 +258,14 @@ class BrainClient(object):
         return None
 
 
-def build_easydl_client():
+def build_brain_client():
     """Build a client of the EasyDL server.
 
     Example:
         ```
         import os
         os.environ["EASYDL_BRAIN_SERVICE_ADDR"] = "xxx"
-        client = build_easydl_client()
+        client = build_brain_client()
         ```
     """
     brain_addr = os.getenv(_ENV_BRAIN_ADDR_KEY, _DEFAULT_BRAIN_ADDR)
@@ -277,5 +277,5 @@ def build_easydl_client():
         return BrainClient(None)
 
 
-class GlobalEasydlClient(object):
-    EASYDL_CLIENT = build_easydl_client()
+class GlobalBrainClient(object):
+    BRAIN_CLIENT = build_brain_client()

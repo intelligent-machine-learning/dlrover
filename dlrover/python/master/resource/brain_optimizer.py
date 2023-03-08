@@ -15,7 +15,7 @@ import math
 
 import grpc
 
-from dlrover.python.brain.client import GlobalEasydlClient
+from dlrover.python.brain.client import GlobalBrainClient
 from dlrover.python.common.constants import MemoryUnit
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import NodeGroupResource, NodeResource
@@ -66,7 +66,7 @@ class BrainResoureOptimizer(ResourceOptimizer):
 
     def __init__(self, job_uuid, resource_limits):
         super(BrainResoureOptimizer, self).__init__(job_uuid, resource_limits)
-        self._brain_client = GlobalEasydlClient.EASYDL_CLIENT
+        self._brain_client = GlobalBrainClient.BRAIN_CLIENT
 
     @catch_brain_optimization_exception
     def generate_opt_plan(self, stage, config={}) -> ResourcePlan:

@@ -15,7 +15,7 @@ import copy
 import threading
 from typing import Dict
 
-from dlrover.python.brain.client import GlobalEasydlClient
+from dlrover.python.brain.client import GlobalBrainClient
 from dlrover.python.common.constants import (
     JobOptStage,
     NodeResourceLimit,
@@ -49,7 +49,7 @@ def new_resource_optimizer(
         "New  %s resource optimizer for job %s", optimize_mode, job_uuid
     )
     if optimize_mode == OptimizeMode.CLUSTER:
-        if GlobalEasydlClient.EASYDL_CLIENT.available():
+        if GlobalBrainClient.BRAIN_CLIENT.available():
             return BrainResoureOptimizer(job_uuid, resoure_limits)
         else:
             logger.warning(
