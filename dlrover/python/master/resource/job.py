@@ -274,7 +274,7 @@ class JobResourceOptimizer(object):
             and self._job_stage == JobOptStage.WORKER_INITIAL
         ):
             plan = self._resource_optimizer.generate_oom_recovery_plan(
-                [node.name], JobOptStage.CREATE
+                [node], JobOptStage.CREATE
             )
             if plan and not plan.empty():
                 new_resource = plan.node_group_resources[NodeType.WORKER]
@@ -309,7 +309,7 @@ class JobResourceOptimizer(object):
     def adjust_oom_ps_resource(self, node: Node):
         """Adjust PS resource if there is a OOM PS"""
         plan = self._resource_optimizer.generate_oom_recovery_plan(
-            [node.name], JobOptStage.PS_INITIAL
+            [node], JobOptStage.PS_INITIAL
         )
         if plan and not plan.empty():
             ps = plan.node_group_resources[NodeType.PS]

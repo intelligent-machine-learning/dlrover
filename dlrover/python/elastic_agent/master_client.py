@@ -372,7 +372,7 @@ class LocalDataset(object):
         if self._records_per_shard <= 0:
             raise ValueError(
                 "records_per_shard {} can not be less than 1".format(
-                    self._record_per_shard
+                    self._records_per_shard
                 )
             )
         while start < self._dataset_size:
