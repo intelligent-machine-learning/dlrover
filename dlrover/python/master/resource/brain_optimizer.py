@@ -91,9 +91,9 @@ class BrainResoureOptimizer(ResourceOptimizer):
         return plan
 
     @catch_brain_optimization_exception
-    def generate_oom_recovery_plan(self, oom_pods, stage, config={}):
+    def generate_oom_recovery_plan(self, oom_nodes, stage, config={}):
         res = self._brain_client.get_oom_resource_plan(
-            oom_pods,
+            oom_nodes,
             self._job_uuid,
             stage,
             _BASE_CONFIG_RETRIEVER,

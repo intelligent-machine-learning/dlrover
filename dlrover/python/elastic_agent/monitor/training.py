@@ -50,7 +50,7 @@ class TrainingProcessReporter(object):
             self._start_time = timestamp
             self._resource_monitor.start_monitor_cpu()
             logger.info(
-                "Start training process reporter in TF hooks : %s",
+                "Start training process reporter in training hooks : %s",
                 self.called_in_tf_hook,
             )
 

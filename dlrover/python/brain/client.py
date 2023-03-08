@@ -225,7 +225,7 @@ class BrainClient(object):
         return self.request_optimization(request)
 
     def get_oom_resource_plan(
-        self, oom_pods, job_uuid, stage, opt_retriever, config={}
+        self, nodes, job_uuid, stage, opt_retriever, config={}
     ):
         request = brain_pb2.OptimizeRequest()
         request.type = stage
@@ -237,9 +237,9 @@ class BrainClient(object):
         request.jobs.add()
         job = request.jobs[0]
         job.uid = job_uuid
-        for pod_name in oom_pods:
-            job.state.pods[pod_name].is_oom = True
-            job.state.pods[pod_name].name = pod_name
+        for node in nodes:
+            job.state.pods[node.name].is_oom = True
+            job.state.pods[node.name].name = node.name
         return self.request_optimization(request)
 
     def report_job_exit_reason(self, job_meta, reason):
