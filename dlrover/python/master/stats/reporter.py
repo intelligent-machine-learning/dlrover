@@ -28,7 +28,7 @@ from dlrover.python.master.stats.training_metrics import (
     TrainingHyperParams,
 )
 
-DATA_STORE = "data_store_elasticjob"
+DATA_STORE = "base_datastore"
 
 
 class JobMeta(object):
@@ -135,7 +135,7 @@ class LocalStatsReporter(StatsReporter):
 @singleton
 class BrainReporter(StatsReporter):
     def __init__(self, job_meta: JobMeta) -> None:
-        super(BrainReporter, self).__init__(job_meta)
+        self._job_meta = job_meta
         self._brain_client = GlobalBrainClient.BRAIN_CLIENT
 
     def report_dataset_metric(self, dataset: DatasetMetric):
