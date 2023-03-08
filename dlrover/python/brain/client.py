@@ -17,12 +17,12 @@ from dlrover.proto import brain_pb2, brain_pb2_grpc
 from dlrover.python.common.grpc import build_channel, grpc_server_ready
 from dlrover.python.common.log import default_logger as logger
 
-DATA_STORE = "data_store_elastic_job"
-OPTIMIZE_PROCESSOR = "running_training_job_optimize_processor"
+DATA_STORE = "base_datastore"
+OPTIMIZE_PROCESSOR = "running_training_job_optimize_request_processor"
 BASE_OPTIMIZE_PROCESSOR = "base_optimize_processor"
 
 _ENV_BRAIN_ADDR_KEY = "DLROVER_BRAIN_SERVICE_ADDR"
-_DEFAULT_BRAIN_ADDR = "brain.dlrover.svc.cluster.local:50001"
+_DEFAULT_BRAIN_ADDR = "dlrover-brain.dlrover.svc.cluster.local:50001"
 
 
 def catch_exception(func):

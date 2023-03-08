@@ -55,7 +55,7 @@ type JobMetrics struct {
 	FinishedAt         time.Time
 	HyperParamsFeature string
 	JobFeature         string
-	DataSetFeature     string
+	DatasetFeature     string
 	ModelFeature       string
 	JobRuntime         string
 	ExitReason         string

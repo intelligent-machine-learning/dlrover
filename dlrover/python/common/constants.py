@@ -127,12 +127,12 @@ class NodeResourceLimit(object):
 
 
 class DefaultNodeResource(object):
-    PS_NUM = 3
-    PS_MEMORY = 16384  # 16GB
-    PS_CPU = 12
-    WORKER_NUM = 5
-    WORKER_CPU = 16
-    WORKER_MEMORY = 16384  # 16GB
+    PS_NUM = 1
+    PS_MEMORY = 8000  # MB
+    PS_CPU = 1
+    WORKER_NUM = 2
+    WORKER_CPU = 1
+    WORKER_MEMORY = 8000  # MB
 
 
 class ResourceOptimizerName(object):

@@ -119,7 +119,7 @@ func TestOptimizeJobPSInitialResource(t *testing.T) {
 		},
 		Metrics: &common.JobMetrics{
 			JobRuntime:         string(rtInfosStr),
-			DataSetFeature:     string(setFeatureStr),
+			DatasetFeature:     string(setFeatureStr),
 			HyperParamsFeature: string(hyperParamStr),
 			ModelFeature:       string(modelFeatureStr),
 		},
@@ -229,7 +229,7 @@ func TestOptimizeJobPSInitialResourceWithHotPS(t *testing.T) {
 		},
 		Metrics: &common.JobMetrics{
 			JobRuntime:         string(rtInfosStr),
-			DataSetFeature:     string(setFeatureStr),
+			DatasetFeature:     string(setFeatureStr),
 			HyperParamsFeature: string(hyperParamStr),
 			ModelFeature:       string(modelFeatureStr),
 		},

@@ -42,5 +42,5 @@ func (m *Manager) Run(ctx context.Context, errReporter common.ErrorReporter) err
 
 // ProcessOptimizeRequest processes optimize request
 func (m *Manager) ProcessOptimizeRequest(ctx context.Context, request *pb.OptimizeRequest) ([]*pb.JobOptimizePlan, error) {
-	return m.ProcessOptimizeRequest(ctx, request)
+	return m.processorManager.ProcessOptimizeRequest(ctx, request)
 }

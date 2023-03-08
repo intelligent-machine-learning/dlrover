@@ -207,7 +207,7 @@ func persistWorkflowFeature(client *mysql.Client, jobMetrics *mysql.JobMetrics, 
 
 func persistTrainingSetFeature(client *mysql.Client, jobMetrics *mysql.JobMetrics, params *common.TrainingSetFeature) error {
 	trainingSet := &common.TrainingSetFeature{}
-	err := json.Unmarshal([]byte(jobMetrics.DataSetFeature), trainingSet)
+	err := json.Unmarshal([]byte(jobMetrics.DatasetFeature), trainingSet)
 	if err != nil {
 		trainingSet = params
 	} else {
@@ -215,7 +215,7 @@ func persistTrainingSetFeature(client *mysql.Client, jobMetrics *mysql.JobMetric
 		trainingSet.Update(params)
 	}
 	jsonVal, _ := json.Marshal(trainingSet)
-	jobMetrics.DataSetFeature = string(jsonVal)
+	jobMetrics.DatasetFeature = string(jsonVal)
 	err = client.JobMetricsRecorder.Upsert(jobMetrics)
 	return err
 }
