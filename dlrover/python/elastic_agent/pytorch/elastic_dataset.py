@@ -18,11 +18,10 @@ from torch.utils.data import Dataset
 from dlrover.python.elastic_agent.sharding.client import IndexShardingClient
 
 
-def count_line(path):
+def read_txt(path):
     with open(path, "r") as fp:
-        for count, _ in enumerate(fp):
-            pass
-    return count
+        content = fp.readlines()
+        return content
 
 
 class ElasticDataset(Dataset, metaclass=ABCMeta):
@@ -40,8 +39,8 @@ class ElasticDataset(Dataset, metaclass=ABCMeta):
             epochs: int, the number of epoch.
             shuffle: bool, whether to shuffle samples in the dataset.
         """
-        dataset_size = count_line(path)
-
+        self.lines = read_txt(path)
+        dataset_size = len(self.lines)
         self._shard_client = IndexShardingClient(
             dataset_name=path,
             batch_size=batch_size,
@@ -57,6 +56,9 @@ class ElasticDataset(Dataset, metaclass=ABCMeta):
     def __getitem__(self, _):
         index = self._shard_client.fetch_sample_index()
         return self.read_sample(index)
+
+    def get_epoch(self):
+        self._shard_client.get_current_epoch()
 
     def report_batch_done(self, batch_size=None):
         """After updating models using the samples, the dataset need to
