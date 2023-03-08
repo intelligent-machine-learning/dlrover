@@ -13,6 +13,7 @@
 
 import copy
 import threading
+from abc import ABCMeta, abstractmethod
 from typing import Dict
 
 from dlrover.python.brain.client import GlobalBrainClient
@@ -166,7 +167,28 @@ class JobResource(JsonSerializable):
         logger.info("self = %s", self.toJSON())
 
 
-class JobResourceOptimizer(object):
+class JobResourceOptimizer(metacalss=ABCMeta):
+    @abstractmethod
+    def update_job_uuid(self, job_uuid):
+        pass
+
+    @abstractmethod
+    def init_job_resource(self, job_resource: JobResource):
+        """Initialize resource configuration for a job."""
+        pass
+
+    @abstractmethod
+    def get_job_resource_plan(self):
+        """Get resource plan for a job."""
+        pass
+
+    @abstractmethod
+    def adjust_oom_resource(self, node: Node):
+        """Adjust the resource configuration for OOM nodes"""
+        pass
+
+
+class PSJobResourceOptimizer(JobResourceOptimizer):
     """It generates resource configuration for a PS job."""
 
     def __init__(
@@ -224,9 +246,6 @@ class JobResourceOptimizer(object):
                 ps_resource.node_resource.memory,
             )
 
-    def get_worker_resource(self):
-        return self._worker_resource
-
     def init_job_resource(self, job_resource: JobResource):
         """Adjust the initial resource of typed pods by EasyDL.
         Args:
@@ -261,7 +280,13 @@ class JobResourceOptimizer(object):
         logger.info("Job resource = %s", job_resource.toJSON())
         return job_resource
 
-    def adjust_oom_worker_resource(self, node: Node):
+    def adjust_oom_resource(self, node):
+        if node.type == NodeType.PS:
+            self._adjust_oom_ps_resource(node)
+        else:
+            self._adjust_oom_worker_resource(node)
+
+    def _adjust_oom_worker_resource(self, node: Node):
         """Increment the memory to launch worker. The new memory
         is max(1.5 * memory, the memory set by users).
 
@@ -306,7 +331,7 @@ class JobResourceOptimizer(object):
             node.config_resource.memory,
         )
 
-    def adjust_oom_ps_resource(self, node: Node):
+    def _adjust_oom_ps_resource(self, node: Node):
         """Adjust PS resource if there is a OOM PS"""
         plan = self._resource_optimizer.generate_oom_recovery_plan(
             [node], JobOptStage.PS_INITIAL
@@ -446,7 +471,7 @@ class JobResourceOptimizer(object):
         return resource
 
 
-class AllreduceJobResourceOptimizer(object):
+class AllreduceJobResourceOptimizer(JobResourceOptimizer):
     """It generates resource configuration for a job."""
 
     def __init__(
@@ -462,5 +487,13 @@ class AllreduceJobResourceOptimizer(object):
     def update_job_uuid(self, job_uuid):
         pass
 
-    def init_job_resource(self, job_resource):
+    def init_job_resource(self, job_resource: JobResource):
         pass
+
+    def get_job_resource_plan(self):
+        """Get resource plan for a job."""
+        pass
+
+    def adjust_oom_resource(self, node: Node):
+        """Adjust the resource configuration for OOM nodes"""
+        node.config_resource.memory *= 2

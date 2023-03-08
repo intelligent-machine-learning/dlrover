@@ -57,6 +57,7 @@ from dlrover.python.master.resource.job import (
     AllreduceJobResourceOptimizer,
     JobResource,
     JobResourceOptimizer,
+    PSJobResourceOptimizer,
 )
 from dlrover.python.master.scaler.base_scaler import ScalePlan, Scaler
 from dlrover.python.master.scaler.factory import new_job_scaler
@@ -97,7 +98,7 @@ class JobManager(object):
             self._ps_is_critical = (
                 job_args.node_args[NodeType.PS].critical_nodes == "all"
             )
-            self._job_optimizer = JobResourceOptimizer(
+            self._job_optimizer: JobResourceOptimizer = PSJobResourceOptimizer(
                 self._job_resource.node_group_resources[NodeType.WORKER],
                 self._job_resource.node_group_resources[NodeType.PS],
                 job_args.optimize_mode,
@@ -105,9 +106,11 @@ class JobManager(object):
                 job_args.resource_limits,
             )
         elif job_args.distribution_strategy == DistributionStrategy.ALLREDUCE:
-            self._job_optimizer = AllreduceJobResourceOptimizer(
-                self._job_resource.node_group_resources[NodeType.WORKER],
-                job_args.job_uuid,
+            self._job_optimizer: JobResourceOptimizer = (
+                AllreduceJobResourceOptimizer(
+                    self._job_resource.node_group_resources[NodeType.WORKER],
+                    job_args.job_uuid,
+                )
             )
         else:
             raise ValueError(
@@ -440,7 +443,7 @@ class JobManager(object):
         if should_relaunch:
             if self._check_worker_memory_optimized(node):
                 # Worker may fail by core dump with insufficient memory.
-                self._job_optimizer.adjust_oom_worker_resource(node)
+                self._job_optimizer.adjust_oom_resource(node)
             if node.exit_reason == NodeExitReason.FATAL_ERROR:
                 if node.relaunch_count > 0 or node.critical:
                     should_relaunch = False
@@ -462,10 +465,7 @@ class JobManager(object):
                     )
                 else:
                     node.is_recovered_oom = True
-                    if node.type == NodeType.PS:
-                        self._job_optimizer.adjust_oom_ps_resource(node)
-                    else:
-                        self._job_optimizer.adjust_oom_worker_resource(node)
+                    self._job_optimizer.adjust_oom_resource(node)
             elif node.exit_reason != NodeExitReason.KILLED:
                 if node.relaunch_count > node.max_relaunch_count:
                     logger.warning(
