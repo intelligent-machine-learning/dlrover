@@ -167,7 +167,7 @@ class JobResource(JsonSerializable):
         logger.info("self = %s", self.toJSON())
 
 
-class JobResourceOptimizer(metacalss=ABCMeta):
+class JobResourceOptimizer(metaclass=ABCMeta):
     @abstractmethod
     def update_job_uuid(self, job_uuid):
         pass

@@ -98,7 +98,7 @@ class ResourceOptimizerTest(unittest.TestCase):
         self.assertEqual(ps.node_resource.memory, NodeResourceLimit.MAX_MEMORY)
 
 
-class JobResourceOptimizerTest(unittest.TestCase):
+class PSJobResourceOptimizerTest(unittest.TestCase):
     def setUp(self):
         self._client = build_brain_client()
         self._client._brain_stub = MockStub()
