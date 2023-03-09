@@ -17,7 +17,7 @@ import math
 import threading
 import time
 from collections import Counter
-from typing import Dict
+from typing import Dict, List
 
 from dlrover.python.common.constants import (
     DistributionStrategy,
@@ -276,6 +276,22 @@ class TrainingNodeManager(object):
             ]
         )
         return all_failed
+
+    def running_nodes_hanged(self) -> List[bool]:
+        cur_time = time.time()
+        node_hang = []
+        for _, node in self._nodes.items():
+            if node.status == NodeStatus.RUNNING:
+                hang = (
+                    node.start_hang_time > 0
+                    and cur_time - node.start_hang_time
+                    > NodeResourceLimit.MAX_HANG_TIMEOUT_SECS
+                )
+                time_array = time.localtime(node.start_hang_time)
+                date_time = time.strftime("%Y-%m-%d %H:%M:%S", time_array)
+                logger.warning("Node %s hangs at %s", node.name, date_time)
+                node_hang.append(hang)
+        return node_hang
 
     def _get_node_counter(self):
         with self._lock:

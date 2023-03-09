@@ -166,6 +166,14 @@ class Master(object):
                     break
 
                 if (
+                    self.job_manager.all_running_node_hanged()
+                    and self.task_manager.task_hanged()
+                ):
+                    logger.error("All nodes hangeds")
+                    self._exit_code = 1
+                    self._exit_reason = JobExitReason.UNKNOWN_ERROR
+
+                if (
                     self.task_manager
                     and self.task_manager.finished()
                     and (

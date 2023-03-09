@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import copy
+import time
 
 from kubernetes.utils.quantity import parse_quantity
 
@@ -175,6 +176,7 @@ class Node(object):
         self.exit_reason = None
         self.config_resource = config_resource
         self.used_resource = NodeResource(0.0, 0.0)
+        self.start_hang_time = 0
 
     def inc_relaunch_count(self):
         self.relaunch_count += 1
@@ -199,6 +201,10 @@ class Node(object):
     def update_resource_usage(self, cpu, memory):
         self.used_resource.cpu = round(cpu, 2)
         self.used_resource.memory = memory
+        if cpu < 0.1:
+            self.start_hang_time = time.time()
+        else:
+            self.start_hang_time = 0
 
     def update_service_address(self, service_addr):
         self.service_addr = service_addr

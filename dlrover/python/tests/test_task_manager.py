@@ -97,3 +97,11 @@ class TaskMangerTest(unittest.TestCase):
         task_manager.restore_dataset_from_checkpoint(checkpoint_str)
         self.assertEqual(dataset.todo[1].shard.start, 100)
         self.assertEqual(len(dataset.todo), 10)
+
+    def test_task_hang(self):
+        task_manager = create_task_manager()
+        dataset_name = "test"
+        dataset = task_manager.get_dataset(dataset_name)
+        dataset._latest_task_end_time = 3600
+        hang = task_manager.task_hanged()
+        self.assertTrue(hang)

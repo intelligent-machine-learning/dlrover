@@ -130,6 +130,7 @@ class BatchDatasetManager(DatasetManger):
         record_count = task.shard.end - task.shard.start
         batch_count = math.ceil(record_count / self._batch_size)
         self._completed_step += batch_count
+        self._latest_task_end_time = int(time.time())
 
     def get_completed_step(self):
         return self._completed_step
