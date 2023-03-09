@@ -199,3 +199,70 @@ class TFPSNodeHandlingCallback(NodeEventCallback):
                     )
                 ),
             )
+
+
+class AllReduceNodeHandlingCallback(NodeEventCallback):
+    def __init__(self, master):
+        super(AllReduceNodeHandlingCallback, self).__init__()
+        self._master = master
+
+    def get_job_exit_reason(self, node: Node):
+        if self._master.task_manager.training_started():
+            if node.type == NodeType.WORKER:
+                if node.exit_reason == NodeExitReason.OOM:
+                    return JobExitReason.WORKER_OOM
+                else:
+                    return JobExitReason.WORKER_ERROR
+            else:
+                return JobExitReason.UNKNOWN_ERROR
+        else:
+            return JobExitReason.CODE_ERROR
+
+    @NodeEventCallback.log_callback_exception
+    def on_node_started(self, node: Node, cluster_context):
+        if node.type == NodeType.WORKER and node.id == 0:
+            self._master.job_manager.start_auto_scaling()
+
+    @NodeEventCallback.log_callback_exception
+    def on_node_succeeded(self, node: Node, cluster_context: ClusterContext):
+        node.finish_time = datetime.now()  # type: ignore
+        job_manager = cluster_context.job_manager
+        if node.critical:
+            completed = job_manager.all_critical_node_completed()
+            if completed:
+                self._master.request_stop(
+                    success=True,
+                    reason=JobExitReason.SUCCEEDED,
+                    msg="All critical nodes completed",
+                )
+        self._master.speed_monitor.remove_running_worker(node.type, node.id)
+
+    @NodeEventCallback.log_callback_exception
+    def on_node_failed(self, node: Node, cluster_context):
+        node.finish_time = datetime.now()  # type: ignore
+        self._stop_job_if_needed(node)
+        if node.is_unrecoverable_failure():
+            self._master.speed_monitor.reduce_target_worker_num(
+                [(node.type, node.id)]
+            )
+        self._master.speed_monitor.remove_running_worker(node.type, node.id)
+
+    @NodeEventCallback.log_callback_exception
+    def on_node_deleted(self, node, cluster_context):
+        node.finish_time = datetime.now()  # type: ignore
+        self._stop_job_if_needed(node)
+        self._master.speed_monitor.remove_running_worker(node.type, node.id)
+
+    def _stop_job_if_needed(self, node: Node):
+        if node.critical and node.is_unrecoverable_failure():
+            job_exit_reason = self.get_job_exit_reason(node)
+            self._master.request_stop(
+                success=False,
+                reason=job_exit_reason,
+                msg=(
+                    "Critical node (type={}, id={}) is failed "
+                    "and {} relaunches have been exhausted.".format(
+                        node.type, node.id, node.max_relaunch_count
+                    )
+                ),
+            )

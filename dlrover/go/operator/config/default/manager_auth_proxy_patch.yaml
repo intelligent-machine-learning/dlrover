@@ -33,7 +33,7 @@ spec:
             cpu: 5m
             memory: 64Mi
       - name: manager
-        imagePullPolicy: Always
+        imagePullPolicy: IfNotPresent
         args:
         - "--health-probe-bind-address=:8081"
         - "--metrics-bind-address=127.0.0.1:8080"
