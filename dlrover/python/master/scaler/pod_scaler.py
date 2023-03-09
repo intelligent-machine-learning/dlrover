@@ -93,7 +93,7 @@ class PodScaler(Scaler):
             "distributionStrategy", None
         )
         worker_spec = self._job["spec"]["replicaSpecs"][NodeType.WORKER]
-        self._config_worker_num = worker_spec["replicas"]
+        self._config_worker_num = worker_spec.get("replicas", 0)
         if "replicaSpecs" in self._job["spec"]:
             for replica, spec in self._job["spec"]["replicaSpecs"].items():
                 if replica == NodeType.DLROVER_MASTER:
