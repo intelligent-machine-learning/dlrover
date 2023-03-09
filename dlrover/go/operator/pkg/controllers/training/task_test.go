@@ -146,7 +146,7 @@ func TestNewTaskPod(t *testing.T) {
 		pod.Spec.Containers[0].Resources.Requests.Cpu().AsApproximateFloat64(),
 		float64(1),
 	)
-	assert.Equal(t, len(pod.Spec.Containers[0].Env), 3)
+	assert.Equal(t, len(pod.Spec.Containers[0].Env), 4)
 	assert.Equal(t, pod.Spec.Containers[0].Env[0].Name, "DLROVER_MASTER_ADDR")
 	assert.Equal(
 		t,
