@@ -443,8 +443,7 @@ class JobManager(object):
                 # Worker may fail by core dump with insufficient memory.
                 self._job_optimizer.adjust_oom_resource(node)
             if node.exit_reason == NodeExitReason.FATAL_ERROR:
-                if node.relaunch_count > 0 or node.critical:
-                    should_relaunch = False
+                should_relaunch = False
             elif node.exit_reason == NodeExitReason.OOM:
                 mem = node.config_resource.memory
                 if mem > NodeResourceLimit.MAX_MEMORY:
