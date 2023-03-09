@@ -21,7 +21,7 @@ import (
 )
 
 // TaskSpec is the specification for a task (PS or worker) of the ElasticJob using
-// ParameterServerStrategy.
+// ParameterServer.
 type TaskSpec struct {
 	Type  commonv1.ReplicaType `json:"type"`
 	Index int                  `json:"index"`

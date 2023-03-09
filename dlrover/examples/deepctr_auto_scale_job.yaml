@@ -3,7 +3,7 @@ kind: ElasticJob
 metadata:
   name: deepctr-auto-scaling-job
 spec:
-  distributionStrategy: ParameterServerStrategy
+  distributionStrategy: ParameterServer
   resourceLimits:
     cpu: "15"
     memory: "10000Mi"

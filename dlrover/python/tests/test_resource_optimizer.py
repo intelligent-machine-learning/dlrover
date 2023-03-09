@@ -28,7 +28,7 @@ from dlrover.python.master.resource.brain_optimizer import (
 )
 from dlrover.python.master.resource.job import (
     JobResource,
-    JobResourceOptimizer,
+    PSJobResourceOptimizer,
     ResourceLimits,
 )
 from dlrover.python.master.resource.optimizer import ResourcePlan
@@ -98,7 +98,7 @@ class ResourceOptimizerTest(unittest.TestCase):
         self.assertEqual(ps.node_resource.memory, NodeResourceLimit.MAX_MEMORY)
 
 
-class JobResourceOptimizerTest(unittest.TestCase):
+class PSJobResourceOptimizerTest(unittest.TestCase):
     def setUp(self):
         self._client = build_brain_client()
         self._client._brain_stub = MockStub()
@@ -110,7 +110,7 @@ class JobResourceOptimizerTest(unittest.TestCase):
             0,
             NodeResource(0, 0),
         )
-        self._job_optimizer = JobResourceOptimizer(
+        self._job_optimizer = PSJobResourceOptimizer(
             worker_resource, ps_resource, OptimizeMode.CLUSTER, "aa0_uuid"
         )
         self._job_optimizer._resource_optimizer = BrainResoureOptimizer(
@@ -130,7 +130,7 @@ class JobResourceOptimizerTest(unittest.TestCase):
             1,
             NodeResource(4, 1024),
         )
-        self._job_optimizer = JobResourceOptimizer(
+        self._job_optimizer = PSJobResourceOptimizer(
             worker_resource, ps_resource, OptimizeMode.CLUSTER, "aa0_uuid"
         )
         self._job_optimizer._resource_optimizer = BrainResoureOptimizer(
@@ -194,7 +194,7 @@ class JobResourceOptimizerTest(unittest.TestCase):
     def test_update_worker_resource_from_brain(self):
         worker_resource = NodeGroupResource(5, NodeResource(0, 0))
         ps_resource = NodeGroupResource(0, NodeResource(0, 0))
-        job_optimizer = JobResourceOptimizer(
+        job_optimizer = PSJobResourceOptimizer(
             worker_resource, ps_resource, OptimizeMode.CLUSTER, "aa0_uuid"
         )
         job_optimizer._resource_optimizer = BrainResoureOptimizer(
@@ -210,7 +210,7 @@ class JobResourceOptimizerTest(unittest.TestCase):
     def test_adjust_oom_ps_resource(self):
         worker_resource = NodeGroupResource(10, NodeResource(1, 256))
         ps_resource = NodeGroupResource(3, NodeResource(2, 1024))
-        job_optimizer = JobResourceOptimizer(
+        job_optimizer = PSJobResourceOptimizer(
             worker_resource, ps_resource, OptimizeMode.CLUSTER, "aa0_uuid"
         )
         job_optimizer._resource_optimizer = BrainResoureOptimizer(
@@ -222,5 +222,5 @@ class JobResourceOptimizerTest(unittest.TestCase):
             "ps", 0, name="ps-0", config_resource=NodeResource(2, 1024)
         )
 
-        job_optimizer.adjust_oom_ps_resource(oom_ps)
+        job_optimizer._adjust_oom_ps_resource(oom_ps)
         self.assertEqual(oom_ps.config_resource.memory, 8192)

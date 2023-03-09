@@ -87,7 +87,7 @@ class JobArgs(JsonSerializable):
         self.node_args: Dict[str, NodeArgs] = {}
         self.enable_dynamic_sharding = True
         self.enable_elastic_scheduling = True
-        self.distribution_strategy = DistributionStrategy.PARAMETER_SERVER
+        self.distribution_strategy = DistributionStrategy.PS
         self.job_uuid = ""
         self.user = ""
         self.cluster = ""

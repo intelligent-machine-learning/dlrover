@@ -1,5 +1,5 @@
 ---
-distributionStrategy: ParameterServerStrategy
+distributionStrategy: ParameterServer
 dashboardUrl: "localhost:5000"
 command: "python run.py"
 spec:

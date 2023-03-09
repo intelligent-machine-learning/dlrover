@@ -19,6 +19,7 @@ from kubernetes import client
 
 from dlrover.proto import elastic_training_pb2
 from dlrover.python.common.constants import (
+    DistributionStrategy,
     ElasticJobLabel,
     NodeStatus,
     NodeType,
@@ -86,6 +87,8 @@ class MockK8sJobArgs(JobArgs):
             chief_resource, True, 1, 0, ""
         )
         self.job_uuid = "11111"
+        self.distribution_strategy = DistributionStrategy.PS
+        print("sssfdsf======")
 
 
 class MockRayJobArgs(JobArgs):

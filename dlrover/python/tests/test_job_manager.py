@@ -15,6 +15,7 @@ import unittest
 from unittest import mock
 
 from dlrover.python.common.constants import (
+    DistributionStrategy,
     JobExitReason,
     NodeEventType,
     NodeExitReason,
@@ -219,6 +220,20 @@ class JobManagerTest(unittest.TestCase):
         node.exit_reason = NodeExitReason.FATAL_ERROR
         should_relaunch = manager._should_relaunch(node, NODE_STATE_FLOWS[6])
         self.assertFalse(should_relaunch)
+
+    def test_create_allreduce_job_manager(self):
+        params = MockK8sJobArgs()
+        params.initilize()
+        params.distribution_strategy = DistributionStrategy.ALLREDUCE
+        params.node_args.pop(NodeType.PS)
+        params.node_args.pop(NodeType.CHIEF)
+        params.node_args.pop(NodeType.EVALUATOR)
+        manager = create_job_manager(params, SpeedMonitor())
+        manager._job_optimizer.init_job_resource(manager._job_resource)
+        manager._adjust_worker_for_estimator()
+        manager._init_nodes()
+        manager._init_job_auto_scaler()
+        self.assertEqual(len(manager._job_nodes[NodeType.WORKER]), 3)
 
     def test_recover_tasks_for_failed_workers(self):
         dataset_name = "test"

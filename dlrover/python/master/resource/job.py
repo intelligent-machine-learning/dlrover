@@ -13,6 +13,7 @@
 
 import copy
 import threading
+from abc import ABCMeta, abstractmethod
 from typing import Dict
 
 from dlrover.python.brain.client import GlobalBrainClient
@@ -166,8 +167,33 @@ class JobResource(JsonSerializable):
         logger.info("self = %s", self.toJSON())
 
 
-class JobResourceOptimizer(object):
-    """It generates resource configuration for a job."""
+class JobResourceOptimizer(metaclass=ABCMeta):
+    @abstractmethod
+    def update_job_uuid(self, job_uuid):
+        pass
+
+    @abstractmethod
+    def init_job_resource(self, job_resource: JobResource):
+        """Initialize resource configuration for a job."""
+        pass
+
+    @abstractmethod
+    def get_job_resource_plan(self):
+        """Get resource plan for a job."""
+        pass
+
+    @abstractmethod
+    def adjust_oom_resource(self, node: Node):
+        """Adjust the resource configuration for OOM nodes"""
+        pass
+
+    @abstractmethod
+    def get_config_resource(self) -> JobResource:
+        pass
+
+
+class PSJobResourceOptimizer(JobResourceOptimizer):
+    """It generates resource configuration for a PS job."""
 
     def __init__(
         self,
@@ -188,6 +214,14 @@ class JobResourceOptimizer(object):
         self.optimized_ps_mem = False
         self.optimize_worker_sampled = False
         self._job_stage = JobOptStage.CREATE
+
+    def get_config_resource(self):
+        job_config = JobResource()
+        worker_config = self._original_worker_resource
+        job_config.node_group_resources[NodeType.WORKER] = worker_config
+        ps_config = self._original_worker_resource
+        job_config.node_group_resources[NodeType.PS] = ps_config
+        return job_config
 
     def update_job_uuid(self, job_uuid):
         self._resource_optimizer.update_job_uuid(job_uuid)
@@ -224,9 +258,6 @@ class JobResourceOptimizer(object):
                 ps_resource.node_resource.memory,
             )
 
-    def get_worker_resource(self):
-        return self._worker_resource
-
     def init_job_resource(self, job_resource: JobResource):
         """Adjust the initial resource of typed pods by EasyDL.
         Args:
@@ -261,7 +292,13 @@ class JobResourceOptimizer(object):
         logger.info("Job resource = %s", job_resource.toJSON())
         return job_resource
 
-    def adjust_oom_worker_resource(self, node: Node):
+    def adjust_oom_resource(self, node):
+        if node.type == NodeType.PS:
+            self._adjust_oom_ps_resource(node)
+        else:
+            self._adjust_oom_worker_resource(node)
+
+    def _adjust_oom_worker_resource(self, node: Node):
         """Increment the memory to launch worker. The new memory
         is max(1.5 * memory, the memory set by users).
 
@@ -306,7 +343,7 @@ class JobResourceOptimizer(object):
             node.config_resource.memory,
         )
 
-    def adjust_oom_ps_resource(self, node: Node):
+    def _adjust_oom_ps_resource(self, node: Node):
         """Adjust PS resource if there is a OOM PS"""
         plan = self._resource_optimizer.generate_oom_recovery_plan(
             [node], JobOptStage.PS_INITIAL
@@ -444,3 +481,37 @@ class JobResourceOptimizer(object):
         if original_resource.cpu >= NodeResourceLimit.MIN_VALID_CPU:
             resource.node_resource.cpu = original_resource.cpu
         return resource
+
+
+class AllreduceJobResourceOptimizer(JobResourceOptimizer):
+    """It generates resource configuration for a job."""
+
+    def __init__(
+        self,
+        worker_resource: NodeGroupResource,
+        job_uuid="",
+    ):
+        self._worker_resource = worker_resource
+        self._original_worker_resource = copy.deepcopy(self._worker_resource)
+        self._job_uuid = job_uuid
+        self._lock = threading.Lock()
+
+    def update_job_uuid(self, job_uuid):
+        pass
+
+    def init_job_resource(self, job_resource: JobResource):
+        pass
+
+    def get_job_resource_plan(self):
+        """Get resource plan for a job."""
+        pass
+
+    def adjust_oom_resource(self, node: Node):
+        """Adjust the resource configuration for OOM nodes"""
+        node.config_resource.memory *= 2
+
+    def get_config_resource(self):
+        job_config = JobResource()
+        worker_config = self._original_worker_resource
+        job_config.node_group_resources[NodeType.WORKER] = worker_config
+        return job_config

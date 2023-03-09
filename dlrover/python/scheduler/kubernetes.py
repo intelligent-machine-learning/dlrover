@@ -361,6 +361,7 @@ class K8sJobArgs(JobArgs):
                 restart_timeout,
                 critical_nodes,
             )
+        logger.info("Job args = %s", self.__dict__)
 
     def _retry_to_get_job(self, k8s_client: k8sClient):
         for _ in range(3):
