@@ -26,7 +26,6 @@ from dlrover.python.common.constants import (
     NodeStatus,
     NodeType,
 )
-from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
@@ -70,7 +69,6 @@ from dlrover.python.scheduler.factory import new_elastic_job
 from dlrover.python.scheduler.job import ElasticJob, JobArgs
 
 _MAX_POD_RELAUNCH_COUNT = 5
-_dlrover_context = Context.singleton_instance()
 
 
 class JobManager(object):
