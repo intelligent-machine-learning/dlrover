@@ -292,9 +292,7 @@ class TrainingNodeManager(object):
                 )
                 time_array = time.localtime(node.start_hang_time)
                 date_time = time.strftime("%Y-%m-%d %H:%M:%S", time_array)
-                logger.warning(
-                    "Node %s hangs at %s", node.name, date_time
-                )
+                logger.warning("Node %s hangs at %s", node.name, date_time)
                 node_hang.append(hang)
         return node_hang
 
