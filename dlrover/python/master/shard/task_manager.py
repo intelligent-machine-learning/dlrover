@@ -134,6 +134,19 @@ class TaskManager(object):
             self._worker_start_task_time[doing_task.node_id] = time.time()
             return doing_task.task, doing_task.node_id
 
+    def task_hanged(self):
+        dataset_hang = []
+        for _, ds in self._datasets.items():
+            end_time = ds.get_latest_task_end_time()
+            hang = (
+                end_time > 0
+                and time.time() - end_time > _TASK_TIMEOUT_THRESHOLD_SECS
+            )
+            dataset_hang.append(hang)
+        if dataset_hang:
+            return all(dataset_hang)
+        return False
+
     def finished(self):
         """Return if all tasks are done"""
         if not self._datasets:

@@ -106,6 +106,10 @@ class DatasetManger(metaclass=ABCMeta):
         self._task_type = task_type
         self._batch_size = batch_size
         self._dataset_splitter = dataset_splitter
+        self._latest_task_end_time = 0
+
+    def get_latest_task_end_time(self):
+        return self._latest_task_end_time
 
     @abstractmethod
     def get_epoch(self):

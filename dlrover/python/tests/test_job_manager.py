@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import time
 import unittest
 from unittest import mock
 
@@ -313,3 +314,19 @@ class JobManagerTest(unittest.TestCase):
         callback.on_node_failed(node, cluster_context)
         self.assertEqual(master.speed_monitor._target_worker_num, 1)
         self.assertEqual(len(master.speed_monitor.running_workers), 1)
+
+    def test_all_running_node_hang(self):
+        params = MockK8sJobArgs()
+        params.initilize()
+        manager = create_job_manager(params, SpeedMonitor())
+        manager._init_nodes()
+
+        hang = manager.all_running_node_hanged()
+        self.assertFalse(hang)
+
+        for _, nodes in manager._job_nodes.items():
+            for _, node in nodes.items():
+                node.start_hang_time = time.time() - 3600 * 4
+                node.status = NodeStatus.RUNNING
+        hang = manager.all_running_node_hanged()
+        self.assertTrue(hang)
