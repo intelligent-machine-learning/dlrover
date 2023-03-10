@@ -125,16 +125,24 @@ class PodScaler(Scaler):
     def scale(self, plan: ScalePlan):
         """Scale in/out Pods by a ScalePlan."""
         self._plan = plan
-        job_pods = self._stats_alive_pods()
+        job_pods = self._list_job_pods()
         logger.info("Scale the job by plan %s", plan.toJSON())
 
         with self._lock:
             for type, group_resource in plan.node_group_resources.items():
-                cur_pods = job_pods.get(
-                    type, []
-                ) + self._get_type_pod_in_queue(type)
+                type_pods = job_pods.get(type, [])
+                max_pod_id = self._get_max_pod_id(type_pods)
+                normal_pods = []
+                for node in type_pods:
+                    if node.status in [
+                        NodeStatus.PENDING,
+                        NodeStatus.RUNNING,
+                        NodeStatus.SUCCEEDED,
+                    ]:
+                        normal_pods.append(node)
+                cur_pods = normal_pods + self._get_type_pod_in_queue(type)
                 if group_resource.count > len(cur_pods):
-                    self._scale_up_pods(type, plan, cur_pods)
+                    self._scale_up_pods(type, plan, cur_pods, max_pod_id)
                 elif group_resource.count < len(cur_pods):
                     self._scale_down_pods(type, plan, cur_pods)
             for node in plan.launch_nodes:
@@ -176,7 +184,7 @@ class PodScaler(Scaler):
             return True
         return False
 
-    def _stats_alive_pods(self):
+    def _list_job_pods(self):
         job_selector = ElasticJobLabel.JOB_KEY + "=" + self._job_name
         pod_list = self._k8s_client.list_namespaced_pod(job_selector)
         job_pods: Dict[str, List[Node]] = {}
@@ -198,12 +206,7 @@ class PodScaler(Scaler):
                 status=pod.status.phase,
                 config_resource=pod_resource,
             )
-            if node.status in [
-                NodeStatus.PENDING,
-                NodeStatus.RUNNING,
-                NodeStatus.SUCCEEDED,
-            ]:
-                job_pods[pod_type].append(node)
+            job_pods[pod_type].append(node)
         return job_pods
 
     def _get_pod_resource(self, pod):
@@ -224,6 +227,7 @@ class PodScaler(Scaler):
         type,
         plan: ScalePlan,
         cur_pods: List[Node],
+        max_pod_id,
     ):
         """The method will create a Node instances and push it into a queue.
         The thread to create Pods will periodicall create Pods by
@@ -231,9 +235,8 @@ class PodScaler(Scaler):
         cur_num = len(cur_pods)
         group_resource = plan.node_group_resources[type]
         up_num = group_resource.count - cur_num
-        max_id = self._get_max_pod_id(cur_pods)
         for i in range(up_num):
-            node_id = max_id + 1 + i
+            node_id = max_pod_id + 1 + i
             task_id = cur_num + i
             node = Node(
                 type,
