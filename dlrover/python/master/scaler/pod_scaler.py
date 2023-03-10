@@ -92,6 +92,8 @@ class PodScaler(Scaler):
         self._distribution_strategy = self._job["spec"].get(
             "distributionStrategy", None
         )
+        worker_spec = self._job["spec"]["replicaSpecs"][NodeType.WORKER]
+        self._config_worker_num = worker_spec.get("replicas", 0)
         if "replicaSpecs" in self._job["spec"]:
             for replica, spec in self._job["spec"]["replicaSpecs"].items():
                 if replica == NodeType.DLROVER_MASTER:
@@ -337,13 +339,36 @@ class PodScaler(Scaler):
 
         env.append(V1EnvVar(name=NodeEnv.WORKER_TYPE, value=node.type))
         env.append(V1EnvVar(name=NodeEnv.WORKER_ID, value=str(node.id)))
+
+        worker_num = self._config_worker_num
+        if pod_stats[node.type] > worker_num:
+            worker_num = pod_stats[node.type]
+        env.append(V1EnvVar(name=NodeEnv.WORKER_NUM, value=str(worker_num)))
         env.append(
-            V1EnvVar(name=NodeEnv.WORKER_NUM, value=str(pod_stats[node.type]))
+            V1EnvVar(name=NodeEnv.WORKER_RANK, value=str(node.rank_index))
         )
         master_service = "elasticjob-{}-dlrover-master:50001".format(
             self._job_name
         )
-        env.append(V1EnvVar(name=NodeEnv.MASTER_ADDR, value=master_service))
+        env.append(
+            V1EnvVar(name=NodeEnv.DLROVER_MASTER_ADDR, value=master_service)
+        )
+        if self._distribution_strategy == DistributionStrategy.ALLREDUCE:
+            torch_master_ip = self.get_first_worker_host()
+            if torch_master_ip:
+                env.append(
+                    V1EnvVar(name=NodeEnv.RDZV_ENDPOINT, value=torch_master_ip)
+                )
+            else:
+                node_ip_var = V1EnvVar(
+                    name=NodeEnv.RDZV_ENDPOINT,
+                    value_from=V1EnvVarSource(
+                        field_ref=V1ObjectFieldSelector(
+                            field_path="status.podIP"
+                        )
+                    ),
+                )
+                env.append(node_ip_var)
 
         node_type = node.type
         if node.type not in self._replica_template:
@@ -375,6 +400,12 @@ class PodScaler(Scaler):
         )
         self._patch_tf_config_into_env(pod, node, pod_stats, ps_addrs)
         return pod
+
+    def get_first_worker_host(self):
+        pod = self.get_typed_pod(NodeType.WORKER, 0)
+        if pod:
+            return pod.status.pod_ip
+        return ""
 
     def _patch_tf_config_into_env(self, pod, node: Node, pod_stats, ps_addrs):
         if self._distribution_strategy == DistributionStrategy.PS and ps_addrs:

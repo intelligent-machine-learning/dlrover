@@ -392,12 +392,12 @@ class JobManager(object):
                 self._pending_relaunch_count += 1
 
         logger.info(
-            "%s status change: %s to %s, by evt_type %s, phase %s",
+            "%s status change: %s to %s, by evt_type %s reason %s",
             cur_node.name,
             old_status,
             new_status,
             event.event_type,
-            new_status,
+            cur_node.exit_reason,
         )
 
         if should_relaunch:

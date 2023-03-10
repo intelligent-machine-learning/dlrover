@@ -500,11 +500,16 @@ class AllreduceJobResourceOptimizer(JobResourceOptimizer):
         pass
 
     def init_job_resource(self, job_resource: JobResource):
-        pass
+        """The job only launches the first worker at begining and
+        launches workers once the first worker is running"""
+        job_resource.node_group_resources[NodeType.WORKER].count = 1
 
     def get_job_resource_plan(self):
         """Get resource plan for a job."""
-        pass
+        plan = ResourcePlan()
+        worker_config = self._original_worker_resource
+        plan.node_group_resources[NodeType.WORKER] = worker_config
+        return plan
 
     def adjust_oom_resource(self, node: Node):
         """Adjust the resource configuration for OOM nodes"""

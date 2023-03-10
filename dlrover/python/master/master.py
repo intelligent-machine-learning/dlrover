@@ -26,6 +26,7 @@ from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
 from dlrover.python.master.elastic_training.sync_service import SyncService
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.event_callback import (
+    AllReduceNodeHandlingCallback,
     TaskRescheduleCallback,
     TFPSNodeHandlingCallback,
 )
@@ -137,9 +138,14 @@ class Master(object):
             self.job_manager.add_node_event_callback(
                 TaskRescheduleCallback(self.task_manager)
             )
-        if self._job_args.distribution_strategy == DistributionStrategy.PS:
+        strategy = self._job_args.distribution_strategy
+        if strategy == DistributionStrategy.PS:
             self.job_manager.add_node_event_callback(
                 TFPSNodeHandlingCallback(self)
+            )
+        elif strategy == DistributionStrategy.ALLREDUCE:
+            self.job_manager.add_node_event_callback(
+                AllReduceNodeHandlingCallback(self)
             )
 
     def run(self):

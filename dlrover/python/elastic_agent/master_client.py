@@ -73,7 +73,7 @@ class MasterClient(object):
         """
         self._master_addr = master_addr
         self._channel = build_channel(master_addr)
-        logger.info("master_addr is %s" % self._master_addr)
+        logger.info("dlrover master addr is %s" % self._master_addr)
         self._stub = elastic_training_pb2_grpc.MasterStub(self._channel)
         self._node_id = node_id
         self._node_type = node_type
@@ -233,7 +233,7 @@ class MasterClient(object):
 
     @retry_grpc_request
     def get_dataset_epoch(self, dataset_name):
-        request = elastic_training_pb2.GetDatasetEpochRequest()
+        request = elastic_training_pb2.DatasetMeta()
         request.dataset_name = dataset_name if dataset_name else ""
         return self._stub.get_dataset_epoch(request)
 
@@ -520,7 +520,7 @@ class LocalMasterClient(object):
 
 def build_master_client(master_addr=None):
     if master_addr is None:
-        master_addr = os.getenv(NodeEnv.MASTER_ADDR, "")
+        master_addr = os.getenv(NodeEnv.DLROVER_MASTER_ADDR, "")
     worker_id = int(os.getenv(NodeEnv.WORKER_ID, 0))
     worker_type = os.getenv(NodeEnv.WORKER_TYPE, "worker")
 

@@ -246,12 +246,34 @@ class AllreduceTrainingAutoScaler(JobAutoScaler):
 
     def start_auto_scaling(self):
         """Start auto-scaling nodes of a job"""
-        pass
+        plan = self._job_optimizer.get_job_resource_plan()
+        self.execute_job_optimization_plan(plan)
 
     def stop_auto_scaling(self):
         """Stop auto-scaling nodes of a job"""
         pass
 
     def execute_job_optimization_plan(self, plan: ResourcePlan):
-        """Scale nodes of a job by a ResourcePlan"""
-        pass
+        """Execute the optimization plan of the training job.
+        The plan may adjust the number of PS and workers or
+        adjust the cpu and memory of nodes.
+        """
+        scale_plan = ScalePlan()
+        if not plan or plan.empty():
+            return scale_plan
+        for node_type, group in plan.node_group_resources.items():
+            if node_type != NodeType.WORKER:
+                continue
+            if group.count > 0:
+                self._job_resource.update_node_group_resource(
+                    node_type,
+                    group.count,
+                    group.node_resource.cpu,
+                    group.node_resource.memory,
+                )
+                group = self._job_resource.get_node_group_resource(node_type)
+                self._speed_monitor.set_target_worker_num(group.count)
+                worker_plan = self._worker_manager.adjust_worker(group)
+                scale_plan.merge(worker_plan)
+        self._scaler.scale(scale_plan)
+        return scale_plan

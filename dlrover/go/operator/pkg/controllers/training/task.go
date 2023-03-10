@@ -54,6 +54,8 @@ const (
 
 	workerTypeEnvName = "WORKER_TYPE"
 	workerIDEnvName   = "WORKER_ID"
+	workerRankEnvName = "WORKER_RANK"
+	workerNumEnvName  = "WORKER_NUM"
 )
 
 // TaskManager generates Pods for task in a distributed PS job.
@@ -259,6 +261,18 @@ func (m *TaskManager) newTask(
 		Value: fmt.Sprintf("%d", podMeta.ID),
 	}
 	container.Env = append(container.Env, workerIDEnv)
+	rankIDEnv := corev1.EnvVar{
+		Name:  workerRankEnvName,
+		Value: fmt.Sprintf("%d", podMeta.RankIndex),
+	}
+	container.Env = append(container.Env, rankIDEnv)
+	if m.taskType == ReplicaTypeWorker {
+		workerNumEnv := corev1.EnvVar{
+			Name:  workerNumEnvName,
+			Value: fmt.Sprintf("%d", spec.Replicas),
+		}
+		container.Env = append(container.Env, workerNumEnv)
+	}
 	return pod
 }
 

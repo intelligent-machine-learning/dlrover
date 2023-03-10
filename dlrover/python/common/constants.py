@@ -182,10 +182,12 @@ class TrainingLoopStatus(object):
 
 class NodeEnv(object):
     RELAUNCHED_POD = "RELAUNCHED_POD"
-    MASTER_ADDR = "DLROVER_MASTER_ADDR"
+    DLROVER_MASTER_ADDR = "DLROVER_MASTER_ADDR"
     WORKER_TYPE = "WORKER_TYPE"
     WORKER_ID = "WORKER_ID"
     WORKER_NUM = "WORKER_NUM"
+    WORKER_RANK = "WORKER_RANK"
+    RDZV_ENDPOINT = "RDZV_ENDPOINT"
 
 
 class DatasetType(object):
