@@ -1,5 +1,5 @@
 ---
-distributionStrategy: ParameterServer
+distributionStrategy: ParameterServerStrategy
 dashboardUrl: "localhost:5000"
 rayActor: "RayWorker"
 command: "python run.py"

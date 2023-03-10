@@ -72,7 +72,7 @@ spec:
 
 The `spec.distributionStrategy` specifies the distribution strategy of
 a job. Now, `ElasticJob` supports `parameter_server` for [TensorFlow](https://www.tensorflow.org/tutorials/distribute/parameter_server_training)
-`ParameterServer` and `ring-allreduce` for [Horovod](https://horovod.readthedocs.io/en/stable/)
+`ParameterServerStrategy` and `ring-allreduce` for [Horovod](https://horovod.readthedocs.io/en/stable/)
 and PyTorch [DistributedDataParallel](DistributedDataParallel).
 
 Firstly, the `elastic-operator` only creates a trainer Pod

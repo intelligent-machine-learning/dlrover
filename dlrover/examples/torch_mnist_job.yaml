@@ -4,7 +4,7 @@ metadata:
   name: torch-mnist
   namespace: dlrover
 spec:
-  distributionStrategy: Allreduce
+  distributionStrategy: AllreduceStrategy
   optimizeMode: single-job
   replicaSpecs:
     worker:
