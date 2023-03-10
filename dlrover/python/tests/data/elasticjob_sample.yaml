@@ -4,7 +4,7 @@ metadata:
   name: elasticjob-sample
   uid: "111-222"
 spec:
-  distributionStrategy: ParameterServer
+  distributionStrategy: ParameterServerStrategy
   replicaSpecs:
     ps:
       restartCount: 3

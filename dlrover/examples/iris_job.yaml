@@ -4,7 +4,7 @@ metadata:
   name: elasticjob-sample
   namespace: dlrover
 spec:
-  distributionStrategy: ParameterServer
+  distributionStrategy: ParameterServerStrategy
   optimizeMode: cluster
   resourceLimits:
     cpu: "6"

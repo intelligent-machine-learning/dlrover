@@ -156,9 +156,9 @@ class OptimizeWorkerPhase(object):
 
 class DistributionStrategy(object):
     LOCAL = "Local"
-    PS = "ParameterServer"
-    ALLREDUCE = "Allreduce"
-    CUSTOM = "Custom"
+    PS = "ParameterServerStrategy"
+    ALLREDUCE = "AllreduceStrategy"
+    CUSTOM = "CustomStrategy"
 
 
 class PSClusterVersionType(object):

@@ -114,7 +114,7 @@ class JobManager(object):
             raise ValueError(
                 f"Distribution strategy {job_args.distribution_strategy} "
                 "is not supported. You can specify it with "
-                "ParameterServer/Allreduce."
+                "ParameterServerStrategy/AllreduceStrategy."
             )
         logger.info("New job optimizer : %s", self._job_optimizer.__class__)
 

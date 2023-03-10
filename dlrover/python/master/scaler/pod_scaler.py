@@ -88,6 +88,16 @@ class PodScaler(Scaler):
         self._k8s_client = k8sClient.singleton_instance(namespace)
         self._namespace = namespace
         self._replica_template: Dict[str, PodTemplate] = {}
+        self._create_node_queue: List[Node] = []
+        self._lock = threading.Lock()
+        self._plan = ScalePlan()
+        self._pod_stats: Dict[str, int] = {}
+        self._init_pod_config_by_job()
+        threading.Thread(
+            target=self._periodic_create_pod, name="pod-creater", daemon=True
+        ).start()
+
+    def _init_pod_config_by_job(self):
         self._job = self._retry_to_get_job()
         self._distribution_strategy = self._job["spec"].get(
             "distributionStrategy", None
@@ -99,14 +109,6 @@ class PodScaler(Scaler):
                 if replica == NodeType.DLROVER_MASTER:
                     continue
                 self._replica_template[replica] = PodTemplate(spec["template"])
-
-        self._create_node_queue: List[Node] = []
-        self._lock = threading.Lock()
-        self._plan = ScalePlan()
-        self._pod_stats: Dict[str, int] = {}
-        threading.Thread(
-            target=self._periodic_create_pod, name="pod-creater", daemon=True
-        ).start()
 
     def _retry_to_get_job(self):
         for _ in range(3):

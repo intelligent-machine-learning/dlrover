@@ -409,7 +409,7 @@ func (m *TaskManager) createPod(
 ) error {
 
 	pod := m.newTask(job, podMeta)
-	if job.Spec.DistributionStrategy == "ParameterServer" {
+	if job.Spec.DistributionStrategy == "ParameterServerStrategy" {
 		cluster := m.getPSClusterForPod(client, job, scalePlan, podMeta)
 		InsertTfConfigToEnv(
 			&pod.Spec.Containers[0], cluster, podMeta.Type, podMeta.RankIndex,
