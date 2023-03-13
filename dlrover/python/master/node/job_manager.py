@@ -194,21 +194,21 @@ class JobManager(object):
         self._chief_manager = ChiefManager(
             self._job_nodes.get(NodeType.CHIEF, {}),
             self._job_resource,
-            self._ps_relaunch_max_num,
+            self._relaunch_on_worker_failure,
             self._elastic_job.get_node_service_addr,
             self._elastic_job.get_node_name,
         )
         self._worker_manager = WorkerManager(
             self._job_nodes.get(NodeType.WORKER, {}),
             self._job_resource,
-            self._ps_relaunch_max_num,
+            self._relaunch_on_worker_failure,
             self._elastic_job.get_node_service_addr,
             self._elastic_job.get_node_name,
         )
         self._evaluator_manager = EvaluatorManager(
             self._job_nodes.get(NodeType.EVALUATOR, {}),
             self._job_resource,
-            self._ps_relaunch_max_num,
+            self._relaunch_on_worker_failure,
             self._elastic_job.get_node_service_addr,
             self._elastic_job.get_node_name,
         )
