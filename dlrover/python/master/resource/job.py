@@ -437,8 +437,8 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
     def _get_ps_resource_plan(self):
         optimizer_config = {}
         # The interval of changing PS should be long enough.
-        ps_change_interval = _dlrover_context.seconds_interval_to_change_ps
-        if time.time() - self._last_ps_change_time > ps_change_interval:
+        interval = _dlrover_context.seconds_interval_to_change_ps
+        if time.time() - self._last_ps_change_time > interval:
             plan = self._resource_optimizer.generate_opt_plan(
                 self._job_stage, optimizer_config
             )
