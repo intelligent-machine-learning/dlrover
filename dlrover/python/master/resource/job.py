@@ -11,9 +11,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import time
 import copy
 import threading
+import time
 from abc import ABCMeta, abstractmethod
 from typing import Dict
 
@@ -215,7 +215,7 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
         self.optimized_ps_mem = False
         self.optimize_worker_sampled = False
         self._job_stage = JobOptStage.CREATE
-        self._last_ps_change_time = 0
+        self._last_ps_change_time = 0.0
 
     def get_config_resource(self):
         job_config = JobResource()
