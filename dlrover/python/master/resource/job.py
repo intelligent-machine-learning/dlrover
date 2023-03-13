@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import time
 import copy
 import threading
 from abc import ABCMeta, abstractmethod
@@ -214,6 +215,7 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
         self.optimized_ps_mem = False
         self.optimize_worker_sampled = False
         self._job_stage = JobOptStage.CREATE
+        self._last_ps_change_time = 0
 
     def get_config_resource(self):
         job_config = JobResource()
@@ -368,6 +370,7 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
             node.name,
             node.config_resource.memory,
         )
+        self._last_ps_change_time = time.time()
 
     def get_job_resource_plan(self):
         plan = None
@@ -433,9 +436,16 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
 
     def _get_ps_resource_plan(self):
         optimizer_config = {}
-        plan = self._resource_optimizer.generate_opt_plan(
-            self._job_stage, optimizer_config
-        )
+        # The interval of changing PS should be long enough.
+        ps_change_interval = _dlrover_context.seconds_interval_to_change_ps
+        if time.time() - self._last_ps_change_time > ps_change_interval:
+            plan = self._resource_optimizer.generate_opt_plan(
+                self._job_stage, optimizer_config
+            )
+        else:
+            return ResourcePlan()
+        if not plan.empty():
+            self._last_ps_change_time = time.time()
         return plan
 
     def _verify_optimized_group_resource(self, plan: ResourcePlan, node_type):
