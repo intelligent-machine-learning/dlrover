@@ -439,7 +439,10 @@ class JobManager(object):
             and node.relaunchable
         )
         if should_relaunch:
-            if self._check_worker_memory_optimized(node):
+            if (
+                self._check_worker_memory_optimized(node)
+                or node.exit_reason == NodeExitReason.OOM
+            ):
                 # Worker may fail by core dump with insufficient memory.
                 self._job_optimizer.adjust_oom_resource(node)
             if node.exit_reason == NodeExitReason.FATAL_ERROR:
@@ -462,7 +465,6 @@ class JobManager(object):
                     )
                 else:
                     node.is_recovered_oom = True
-                    self._job_optimizer.adjust_oom_resource(node)
             elif node.exit_reason != NodeExitReason.KILLED:
                 if node.relaunch_count > node.max_relaunch_count:
                     logger.warning(
