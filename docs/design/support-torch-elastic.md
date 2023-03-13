@@ -115,18 +115,20 @@ master can reduce the frequency to build rendezvous and restart
 worker processes.
 
 ```Python
-class PytorchRendezvousService(object):
-    """PytorchRendezvousService runs on the DLRover master.
+class TorchRendezvousService(object):
+    """TorchRendezvousService runs on the DLRover master.
     The service can update the rendezvous states according to
     the node status. 
     """
-    def update_rendezvous(self, node):
-        """See base class."""
-        
-    def next_rendezvous(self):
-        """With DLRover master, the agent need not to
-        set its state to the master. Bacause the master
-        can set the state of the node according to the node status.
+    def set_state(self, state: _RendezvousState, token: Optional[Token]):
+        """Set the _RendezvousState into the store in the master."""
+        pass
+
+    def get_state(self) -> _RendezvousState:
+        """Return a new state only if len(_RendezvousState.participants)
+        + len(_RendezvousState.wait_list) is base 2. Then, we can
+        keep the fixed batch size by setting backward_passes_per_step
+        in the worker.
         """
         pass
 ```
@@ -139,6 +141,7 @@ class DlroverRendezvousBackend(RendezvousBackend):
     """
     def get_state(self) -> Optional[Tuple[bytes, Token]]:
         """See base class."""
+        pass
         
     def set_state(self):
         """With DLRover master, the agent need not to
