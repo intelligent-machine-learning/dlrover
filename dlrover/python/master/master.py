@@ -35,20 +35,7 @@ from dlrover.python.master.servicer import create_master_service
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.master.stats.job_collector import JobMetricCollector
 from dlrover.python.scheduler.job import JobArgs
-
-
-def _create_rendezvous_server_if_needed(params: JobArgs):
-    master_ip = os.getenv("MY_POD_IP", "localhost")
-    if params.use_ddp:
-        logger.info("call DDPRendezvousServer, master_ip:{}".format(master_ip))
-        return None
-    elif params.distribution_strategy != DistributionStrategy.ALLREDUCE:
-        return None
-    else:
-        logger.info(
-            "call HorovodRendezvousServer, master_ip:{}".format(master_ip)
-        )
-        return None
+from dlrover.python.master.elastic_training.rdzv_service import TorchRendezvousService
 
 
 def _create_elastic_ps_service_if_needed(params: JobArgs):
@@ -73,7 +60,7 @@ class Master(object):
             if args.enable_dynamic_sharding
             else None
         )
-        self.rendezvous_server = _create_rendezvous_server_if_needed(args)
+        self.rdzv_service = TorchRendezvousService()
         self.job_metric_collector = self._create_metric_collector_if_needed(
             args
         )
@@ -91,7 +78,7 @@ class Master(object):
             self.task_manager,
             self.job_manager,
             self.speed_monitor,
-            self.rendezvous_server,
+            self.rdzv_service,
             self.job_metric_collector,
             self.elastic_ps_service,
             self.sync_service,
@@ -127,8 +114,8 @@ class Master(object):
         # Start the components one by one
         if self.task_manager:
             self.task_manager.start()
-        if self.rendezvous_server:
-            self.rendezvous_server.start()
+        if self.rdzv_service:
+            self.rdzv_service.start()
         if self.job_manager:
             self.job_manager.start()
 

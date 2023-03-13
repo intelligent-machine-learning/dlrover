@@ -84,47 +84,6 @@ message DatasetMeta { string dataset_name = 1; }
 
 message GetDatasetEpochResponse { int32 epoch = 1; }
 
-message DdpResetSyncRequest {
-  string worker_host = 1;
-  int32 worker_local_process_id = 2;
-  int32 rendezvous_id = 3;
-}
-
-message DdpResetSyncResponse { bool reset = 1; }
-
-message DdpInitSyncRequest {
-  string worker_host = 1;
-  int32 worker_local_process_id = 2;
-  int32 rendezvous_id = 3;
-}
-
-message DdpInitSyncResponse { bool reset = 1; }
-
-message GetCommRankRequest {
-  string worker_host = 1;
-  int32 worker_local_process_id = 2;
-}
-
-message GetCommRankResponse {
-  int32 rank_id = 1;
-  int32 world_size = 2;
-  int32 rendezvous_id = 3;
-  int32 rendezvous_port = 4;
-  int32 local_rank = 5;
-  int32 local_size = 6;
-  int32 cross_rank = 7;
-  int32 cross_size = 8;
-  int32 master_port = 9;
-  string master_addr = 10;
-}
-
-message ReportTrainingLoopStatusRequest {
-  string worker_host = 1;
-  int32 status = 2;
-  int32 worker_local_process_id = 3;
-  int32 ddp_server_port = 4;
-}
-
 message ShardCheckpoint { string content = 1; }
 
 message ReportUsedResourceRequest {
@@ -237,19 +196,17 @@ message BarrierRequest {
   bool notify = 3;
 }
 
+message RendezvousState {
+    bytes state_bits = 1;
+    string token = 2;
+}
+
 message Response {
   bool success = 1;
   string reason = 2;
 }
 
 service Master {
-  rpc reset_sync(DdpResetSyncRequest) returns (DdpResetSyncResponse);
-  rpc barrier_sync(DdpInitSyncRequest) returns (DdpInitSyncResponse);
-  rpc get_comm_rank(GetCommRankRequest) returns (GetCommRankResponse);
-  rpc report_training_loop_status(ReportTrainingLoopStatusRequest)
-      returns (google.protobuf.Empty);
-
-  // TODO : Unify the above 3 PRCs with new ones.
   rpc get_task(GetTaskRequest) returns (Task);
   rpc report_task_result(ReportTaskResultRequest)
       returns (google.protobuf.Empty);
@@ -290,6 +247,10 @@ service Master {
       returns (AcquireRemoteLockResponse);
   rpc release_remote_lock(ReleaseRemoteLockRequest)
       returns (google.protobuf.Empty);
+
+  // rpc for torch elastic
+  rpc get_rdzv_state(google.protobuf.Empty) returns (RendezvousState);
+  rpc set_rdzv_state(RendezvousState) return (Response);
 
   rpc report_prestop(ReportPreStopRequest) returns (google.protobuf.Empty);
   rpc update_node_addr(NodeMeta) returns (Response);
