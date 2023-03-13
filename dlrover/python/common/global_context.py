@@ -18,12 +18,6 @@ from dlrover.python.common.constants import UserEnv
 from dlrover.python.common.log import default_logger as logger
 
 
-# TODO: Get configuration parameters from DLRover Brain
-def get_param_value_from_easydl(key_name, default_value, dtype=int):
-    value = default_value
-    return dtype(value)
-
-
 class ConfigKeys(object):
     TRAIN_SPEED_RECORD_NUM = "train_speed_record_num"
     SECONDS_TO_START_AUTOSCALE_WORKER = "seconds_to_start_autoscale_worker"
@@ -35,6 +29,7 @@ class ConfigKeys(object):
     SECONDS_TO_WAIT_PENDING_POD = "seconds_to_wait_pending_pod"
     SECONDS_HUGE_TRAINING_THRESHOLD = "seconds_huge_training_threshold"
     GLOBAL_STEP_COUNT_TO_AUTO_WORKER = "global_step_count_to_auto_worker"
+    SECONDS_TO_CHANGE_PS = "seconds_to_change_ps"
 
 
 class DefaultConfigValues(object):
@@ -48,56 +43,66 @@ class DefaultConfigValues(object):
     DEFAULT_SECONDS_TO_WAIT_PENDING_POD = 900  # 15min
     DEFAULT_SECONDS_HUGE_TRAINING_THRESHOLD = 1800  # 30min
     DEFALUT_GLOBAL_STEP_COUNT_TO_AUTO_WORKER = 5
+    DEFAULT_SECONDS_TO_CHANGE_PS = 3600  # 1h
 
 
 class Context(object):
     _instance_lock = threading.Lock()
 
     def __init__(self):
-        self.train_speed_record_num = get_param_value_from_easydl(
+        self.train_speed_record_num = self.get_param_value_from_brain(
             ConfigKeys.TRAIN_SPEED_RECORD_NUM,
             DefaultConfigValues.DEFAULT_TRAIN_SPEED_RECORD_NUM,
         )
-        self.seconds_to_autoscale_worker = get_param_value_from_easydl(
+        self.seconds_to_autoscale_worker = self.get_param_value_from_brain(
             ConfigKeys.SECONDS_TO_START_AUTOSCALE_WORKER,
             DefaultConfigValues.DEFAULT_SECENDS_TO_START_AUTOSCALE_WORKER,
         )
-        self.step_to_adjust_worker = get_param_value_from_easydl(
+        self.step_to_adjust_worker = self.get_param_value_from_brain(
             ConfigKeys.STEP_TO_ADJUST_WORKER,
             DefaultConfigValues.DEFAULT_STEP_TO_ADJUST_WORKER,
         )
-        self.optimize_worker_cpu_threshold = get_param_value_from_easydl(
+        self.optimize_worker_cpu_threshold = self.get_param_value_from_brain(
             ConfigKeys.OPTIMIZE_WORKER_CPU_THRESHOLD,
             DefaultConfigValues.DEFAULT_OPTIMIZED_WORKER_CPU_THRESHOLD,
         )
-        self.seconds_for_stable_worker_count = get_param_value_from_easydl(
+        self.seconds_for_stable_worker_count = self.get_param_value_from_brain(
             ConfigKeys.SECONDS_FOR_STABLE_WORKER_COUNT,
             DefaultConfigValues.DEFAULT_SECONDS_FOR_STABLE_WORKER_COUNT,
         )
-        self.seconds_interval_to_optimize = get_param_value_from_easydl(
+        self.seconds_interval_to_optimize = self.get_param_value_from_brain(
             ConfigKeys.SECONDS_INTERVAL_TO_OPTIMIZE,
             DefaultConfigValues.DEFAULT_SECONDS_INTERVAL_TO_OPTIMIZE,
         )
-        self.factor_to_cut_pending_cpu = get_param_value_from_easydl(
+        self.factor_to_cut_pending_cpu = self.get_param_value_from_brain(
             ConfigKeys.FACTOR_TO_CUT_PENDING_CPU,
             DefaultConfigValues.DEFAULT_FACTOR_TO_CUT_PENDING_CPU,
         )
-        self.seconds_to_wait_pending_pod = get_param_value_from_easydl(
+        self.seconds_to_wait_pending_pod = self.get_param_value_from_brain(
             ConfigKeys.SECONDS_TO_WAIT_PENDING_POD,
             DefaultConfigValues.DEFAULT_SECONDS_TO_WAIT_PENDING_POD,
         )
-        self.seconds_huge_training_threshold = get_param_value_from_easydl(
+        self.seconds_huge_training_threshold = self.get_param_value_from_brain(
             ConfigKeys.SECONDS_HUGE_TRAINING_THRESHOLD,
             DefaultConfigValues.DEFAULT_SECONDS_HUGE_TRAINING_THRESHOLD,
         )
-        self.sample_count_to_adjust_worker = get_param_value_from_easydl(
+        self.sample_count_to_adjust_worker = self.get_param_value_from_brain(
             ConfigKeys.GLOBAL_STEP_COUNT_TO_AUTO_WORKER,
             DefaultConfigValues.DEFALUT_GLOBAL_STEP_COUNT_TO_AUTO_WORKER,
+        )
+        self.seconds_interval_to_change_ps = self.get_param_value_from_brain(
+            ConfigKeys.SECONDS_TO_CHANGE_PS,
+            DefaultConfigValues.DEFAULT_SECONDS_TO_CHANGE_PS,
         )
         self.auto_worker_enabled = False
         self.auto_ps_enabled = False
         self.is_tfv1_ps = False
         self.print_config()
+
+    def get_param_value_from_brain(self, key_name, default_value, dtype=int):
+        """TODO: Get the configured value from Brain service."""
+        value = default_value
+        return dtype(value)
 
     def print_config(self):
         logger.info("DLRover global context = {}".format(self.__dict__))
