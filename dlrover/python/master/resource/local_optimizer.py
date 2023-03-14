@@ -14,7 +14,7 @@
 import math
 from typing import Dict, List
 
-from dlrover.python.common.constants import JobOptStage, NodeType
+from dlrover.python.common.constants import JobOptStage, NodeType, MemoryUnit
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
 from dlrover.python.common.serialize import JsonSerializable
@@ -32,6 +32,16 @@ _MAX_INITIAL_NODE_MEMORY = 8 * 1024  # 8Gi
 _MIN_NODE_CPU = 1
 _MIN_NODE_MEMORY = 1024
 _MIN_NODE_NUM = 5
+
+
+def convert_memory_to_mb(plan: ResourcePlan):
+    for _, group in plan.node_group_resources.items():
+        group.node_resource.memory = int(
+            group.node_resource.memory / MemoryUnit.MB
+        )
+    for _, node in plan.node_resources.items():
+        node.memory = int(node.memory/MemoryUnit.MB)
+    return plan
 
 
 class OptimizerParams(object):
@@ -72,8 +82,9 @@ class LocalOptimizer(ResourceOptimizer):
             plan = self._generate_ps_initial_resource()
         if stage == JobOptStage.RUNNING:
             plan = self._generate_job_running_resource()
+        plan = convert_memory_to_mb(plan)
         if plan.empty():
-            logger.info("Not support job stage %s", stage)
+            logger.info("No any resource plan for %s", stage)
         else:
             logger.info("plan of stage %s is %s", stage, plan.toJSON(indent=4))
         return plan
@@ -179,6 +190,7 @@ class LocalOptimizer(ResourceOptimizer):
                 cpu_util = node.used_resource.cpu / node.config_resource.cpu
                 max_ps_cpu_util = max(cpu_util, max_ps_cpu_util)
 
+        logger.info("max ps cpu util = %s", max_ps_cpu_util)
         sample_count = len(node_samples[NodeType.WORKER])
         if max_ps_cpu_util == 0 or sample_count == 0:
             logger.warning("No CPU utilization of PS")
@@ -291,21 +303,14 @@ class LocalOptimizer(ResourceOptimizer):
             if latest_worker_num == cur_worker_num:
                 node_used_resources[NodeType.WORKER].append(cur_worker_samples)
 
-        for ps_samples in node_used_resources[NodeType.PS]:
-            ps_resource = []
-            for ps in ps_samples:
-                ps_resource.append(
-                    (ps.used_resource.cpu, ps.used_resource.memory)
-                )
-            logger.info("PS resource samples = %s", ps_resource)
-
-        for ps_samples in node_used_resources[NodeType.WORKER]:
-            ps_resource = []
-            for ps in ps_samples:
-                ps_resource.append(
-                    (ps.used_resource.cpu, ps.used_resource.memory)
-                )
-            logger.info("worker resource samples = %s", ps_resource)
+        for node_type, resource_samples in node_used_resources.items():
+            for resource_samples in node_used_resources[NodeType.WORKER]:
+                node_resource = []
+                for node in resource_samples:
+                    node_resource.append(
+                        (node.id, node.used_resource.cpu, node.used_resource.memory)
+                    )
+                logger.info("%s resource samples = %s", node_type, node_resource)
         return node_used_resources
 
     def _compute_total_requested_resource(self, type):

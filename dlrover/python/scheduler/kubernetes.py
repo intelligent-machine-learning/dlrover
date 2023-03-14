@@ -319,7 +319,7 @@ class K8sJobArgs(JobArgs):
         self.resource_limits.cpu = NodeResource.convert_cpu_to_decimal(
             limit_config.get("cpu", DefaultResourceLimits.CPU_LIMIT)
         )
-        self.resource_limits.memory = NodeResource.convert_memory_to_mb(
+        self.resource_limits.memory = NodeResource.convert_memory_to_byte(
             limit_config.get("memory", DefaultResourceLimits.MEMORY_LIMIT)
         )
         self.resource_limits.gpu_num = int(
