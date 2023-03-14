@@ -178,7 +178,9 @@ def hook_estimator_call_model_fn(params=None):
             stop_at_step_hook = basic_session_run_hooks.StopAtStepHook(
                 num_steps=10
             )
-            training_hooks = params.get(TFConstants.EstimatorTrainingHooks.name, [])
+            training_hooks = params.get(
+                TFConstants.EstimatorTrainingHooks.name, []
+            )
             training_hooks.append(stop_at_step_hook)
             params[TFConstants.EstimatorTrainingHooks.name] = training_hooks
 
