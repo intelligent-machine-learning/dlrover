@@ -27,12 +27,11 @@ from dlrover.python.master.stats.training_metrics import RuntimeMetric
 from dlrover.python.scheduler.job import ResourceLimits
 
 _LATEST_SAMPLE_COUNT = 5
-_INITIAL_NODE_CPU = 16
-_INITIAL_NODE_MEMORY = 16 * 1024  # 16Gi
-_MINIKUBE_INITIAL_NODE_CPU = 1
-_MINIKUBE_INITIAL_NODE_MEMORY = 512  # 512Mi
+_MAX_INITIAL_NODE_CPU = 16
+_MAX_INITIAL_NODE_MEMORY = 8 * 1024  # 8Gi
 _MIN_NODE_CPU = 1
 _MIN_NODE_MEMORY = 1024
+_MIN_NODE_NUM = 5
 
 
 class OptimizerParams(object):
@@ -86,7 +85,9 @@ class LocalOptimizer(ResourceOptimizer):
         for node in oom_nodes:
             factor = self._opt_params.oom_memory_up_factor
             opt_memory = factor * node.config_resource.memory
-            plan.node_resources[node.name] = NodeResource(0, opt_memory)
+            plan.node_resources[node.name] = NodeResource(
+                node.config_resource.cpu, opt_memory
+            )
         return plan
 
     def generate_resource_plan_with_optimizer(self, config={}) -> ResourcePlan:
@@ -95,15 +96,10 @@ class LocalOptimizer(ResourceOptimizer):
 
     def _generate_job_create_resource(self):
         plan = ResourcePlan()
-        node_cpu = _INITIAL_NODE_CPU
-        node_memory = _INITIAL_NODE_MEMORY
-        if (
-            self._resource_limits.cpu < 16
-            and self._resource_limits.memory < 32 * 1024
-        ):
-            # Set a little resource to test an elastic job on k8s.
-            node_cpu = _MINIKUBE_INITIAL_NODE_CPU
-            node_memory = _MINIKUBE_INITIAL_NODE_MEMORY
+        node_cpu = math.ceil(self._resource_limits.cpu / _MIN_NODE_NUM)
+        node_cpu = min(node_cpu, _MAX_INITIAL_NODE_CPU)
+        node_memory = math.ceil(self._resource_limits.memory / _MIN_NODE_NUM)
+        node_memory = min(node_memory, _MAX_INITIAL_NODE_MEMORY)
 
         ps = NodeGroupResource(1, NodeResource(node_cpu, node_memory))
         worker = NodeGroupResource(1, NodeResource(node_cpu, node_memory))

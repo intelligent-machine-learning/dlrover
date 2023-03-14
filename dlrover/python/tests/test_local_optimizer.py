@@ -67,12 +67,12 @@ class LocalOptimizerTest(unittest.TestCase):
         plan = self._optimizer._generate_job_create_resource()
         worker = plan.node_group_resources[NodeType.WORKER]
         self.assertEqual(worker.count, 1)
-        self.assertEqual(worker.node_resource.cpu, 1)
-        self.assertEqual(worker.node_resource.memory, 512)
+        self.assertEqual(worker.node_resource.cpu, 2)
+        self.assertEqual(worker.node_resource.memory, 1639)
         ps = plan.node_group_resources[NodeType.PS]
         self.assertEqual(ps.count, 1)
-        self.assertEqual(ps.node_resource.cpu, 1)
-        self.assertEqual(ps.node_resource.memory, 512)
+        self.assertEqual(ps.node_resource.cpu, 2)
+        self.assertEqual(ps.node_resource.memory, 1639)
 
     def test_extract_node_resource(self):
         node_samples = self._optimizer._extract_node_resource()
