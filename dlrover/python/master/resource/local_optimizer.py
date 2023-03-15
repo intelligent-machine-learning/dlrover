@@ -304,9 +304,9 @@ class LocalOptimizer(ResourceOptimizer):
                 node_used_resources[NodeType.WORKER].append(cur_worker_samples)
 
         for node_type, resource_samples in node_used_resources.items():
-            for resource_samples in node_used_resources[NodeType.WORKER]:
+            for node_samples in resource_samples:
                 node_resource = []
-                for node in resource_samples:
+                for node in node_samples:
                     node_resource.append(
                         (
                             node.id,
