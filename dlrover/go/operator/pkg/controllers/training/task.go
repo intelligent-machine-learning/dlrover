@@ -329,16 +329,8 @@ func (m *TaskManager) getPSClusterForPod(
 ) SparseClusterSpec {
 	cluster := SparseClusterSpec{}
 	cluster.PS = scalePlan.Spec.PsHosts
-	chiefCount := 0
-	if status, ok := job.Status.ReplicaStatuses[ReplicaTypeChief]; ok {
-		chiefManager := common.ReplicaManagers[ReplicaTypeChief].(*TaskManager)
-		chiefCount = chiefManager.getTotalTaskCount(status)
-	}
 	chiefManager := common.ReplicaManagers[ReplicaTypeChief].(*TaskManager)
-	if chiefCount == 0 {
-		chiefCount = scalePlan.Spec.ReplicaResourceSpecs[ReplicaTypeChief].Replicas
-	}
-	chiefHosts := chiefManager.getAllTaskHosts(job.Name, chiefCount, ServicePort)
+	chiefHosts := chiefManager.getAllTaskHosts(job.Name, 1, ServicePort)
 	cluster.Chief = make(map[int]string)
 	if len(chiefHosts) == 1 {
 		cluster.Chief[0] = chiefHosts[0]

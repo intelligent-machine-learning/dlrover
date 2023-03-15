@@ -155,9 +155,15 @@ func TestNewTaskPod(t *testing.T) {
 	)
 
 	cluster := SparseClusterSpec{
-		Chief: map[int]string{0: "test-training-chief-0:2222"},
-		PS:    []string{"test-training-ps-0:3333"},
+		Chief:  map[int]string{0: "test-training-chief-0:2222"},
+		Worker: map[int]string{0: "test-training-worker-0:2222", 1: "test-training-worker-1:2222"},
+		PS:     []string{"test-training-ps-0:3333"},
 	}
+
+	clusterSpec := convertSparseClusterToCluster(cluster)
+	assert.Equal(t, clusterSpec.Worker[0], "test-training-worker-0:2222")
+	assert.Equal(t, clusterSpec.Worker[1], "test-training-worker-1:2222")
+
 	InsertTfConfigToEnv(&container, cluster, ReplicaTypeChief, 0)
 	tfConfig := SparseTFConfig{}
 	err := json.Unmarshal([]byte(container.Env[0].Value), &tfConfig)
