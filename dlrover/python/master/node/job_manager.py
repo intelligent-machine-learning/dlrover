@@ -92,7 +92,10 @@ class JobManager(object):
 
         self._job_args = job_args
         self._ps_is_critical = False
-        if job_args.distribution_strategy == DistributionStrategy.PS:
+        if (
+            job_args.distribution_strategy == DistributionStrategy.PS
+            or job_args.distribution_strategy == DistributionStrategy.CUSTOM
+        ):
             self._ps_is_critical = (
                 job_args.node_args[NodeType.PS].critical_nodes == "all"
             )
