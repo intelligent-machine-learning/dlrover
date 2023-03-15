@@ -14,7 +14,7 @@
 import math
 from typing import Dict, List
 
-from dlrover.python.common.constants import JobOptStage, NodeType, MemoryUnit
+from dlrover.python.common.constants import JobOptStage, MemoryUnit, NodeType
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
 from dlrover.python.common.serialize import JsonSerializable
@@ -40,7 +40,7 @@ def convert_memory_to_mb(plan: ResourcePlan):
             group.node_resource.memory / MemoryUnit.MB
         )
     for _, node in plan.node_resources.items():
-        node.memory = int(node.memory/MemoryUnit.MB)
+        node.memory = int(node.memory / MemoryUnit.MB)
     return plan
 
 
@@ -308,9 +308,15 @@ class LocalOptimizer(ResourceOptimizer):
                 node_resource = []
                 for node in resource_samples:
                     node_resource.append(
-                        (node.id, node.used_resource.cpu, node.used_resource.memory)
+                        (
+                            node.id,
+                            node.used_resource.cpu,
+                            node.used_resource.memory,
+                        )
                     )
-                logger.info("%s resource samples = %s", node_type, node_resource)
+                logger.info(
+                    "%s resource samples = %s", node_type, node_resource
+                )
         return node_used_resources
 
     def _compute_total_requested_resource(self, type):
