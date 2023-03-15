@@ -53,7 +53,7 @@ class TrainConf(object):
         "path": "file://./data_kaggle_ad_ctr_train.csv",
         "columns": col,
         "epoch": 10000,
-        "batch_size": 64,
+        "batch_size": 32,
     }
 
     eval_set = {

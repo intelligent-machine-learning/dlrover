@@ -20,7 +20,7 @@ def build_data_shard_service(
     num_epochs=1,
     dataset_size=1,
     num_minibatches_per_shard=1,
-    dataset_name="iris_training_data",
+    dataset_name="training_data",
 ):
     sharding_client = ShardingClient(
         dataset_name=dataset_name,
@@ -48,6 +48,7 @@ class FileReader:
         self.enable_dynamic_sharding = enable_dynamic_sharding
         self.data_shard_service = None
         self._file_handler = open(file_name, "r")
+        self._file_name = file_name
 
         self.count_data()
         self.data_shard_client = None
@@ -69,7 +70,7 @@ class FileReader:
                 num_epochs=self._num_epochs,
                 dataset_size=self._data_nums,
                 num_minibatches_per_shard=1,
-                dataset_name="iris_training_data",
+                dataset_name=self._file_name,
             )
 
     def count_data(self):
