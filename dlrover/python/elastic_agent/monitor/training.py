@@ -59,7 +59,7 @@ class TrainingProcessReporter(object):
             return
         try:
             timestamp = int(time.time())
-            if step > 0 and timestamp - self._last_timestamp > 15:
+            if step > 0 and timestamp - self._last_timestamp > 30:
                 self._resource_monitor.report_resource()
                 logger.info("Report global step = {}".format(step))
                 self._last_timestamp = timestamp

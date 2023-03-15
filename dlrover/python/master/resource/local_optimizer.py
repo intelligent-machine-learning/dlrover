@@ -52,6 +52,8 @@ class OptimizerParams(object):
         self.worker_memory_margin_percent = 0.5
         self.oom_memory_up_factor = 2
         self.node_max_cpu = 32
+        self.min_worker_speed_ratio = 0.2
+        self.max_ps_cpu_util = 0.95
 
 
 class ProcessResourceRequirement(JsonSerializable):
@@ -189,8 +191,16 @@ class LocalOptimizer(ResourceOptimizer):
             for node in nodes:
                 cpu_util = node.used_resource.cpu / node.config_resource.cpu
                 max_ps_cpu_util = max(cpu_util, max_ps_cpu_util)
-
         logger.info("max ps cpu util = %s", max_ps_cpu_util)
+
+        if max_ps_cpu_util > self._opt_params.max_ps_cpu_util:
+            return plan
+
+        worker_speed_ratio = self._compute_worker_speed_ratio()
+        logger.info("The speed ratio of worker = %s", max_ps_cpu_util)
+        if worker_speed_ratio < self._opt_params.min_worker_speed_ratio:
+            return plan
+
         sample_count = len(node_samples[NodeType.WORKER])
         if max_ps_cpu_util == 0 or sample_count == 0:
             logger.warning("No CPU utilization of PS")
@@ -231,6 +241,53 @@ class LocalOptimizer(ResourceOptimizer):
             opt_worker_num, NodeResource(opt_cpu, opt_memory)
         )
         return plan
+
+    def _compute_worker_speed_ratio(self):
+        stats = self._stats_collector.get_runtime_stats()
+        post_start_index = 0
+        for i in reversed(range(len(stats))):
+            if len(stats[i].running_nodes) != len(stats[-1].running_nodes):
+                break
+            post_start_index = i
+        post_worker_num, post_speed = self._compute_worker_speed(
+            stats, post_start_index, len(stats)
+        )
+        if post_start_index == 0:
+            return 1
+
+        pre_start_index = 0
+        pre_latest_stat = stats[post_start_index - 1]
+        for i in reversed(range(post_start_index)):
+            if len(stats[i].running_nodes) != len(
+                pre_latest_stat.running_nodes
+            ):
+                break
+            pre_start_index = i
+        pre_worker_num, pre_speed = self._compute_worker_speed(
+            stats, pre_start_index, post_start_index
+        )
+        if pre_worker_num == 0 or pre_speed == 0:
+            return 1
+
+        speed_diff = post_speed - pre_speed
+        worker_diff = post_worker_num - pre_worker_num
+        new_worker_avg_speed = speed_diff / worker_diff
+        old_worker_avg_speed = pre_speed / pre_worker_num
+        speed_ratio = new_worker_avg_speed / old_worker_avg_speed
+        return speed_ratio
+
+    def _compute_worker_speed(self, stats: List[RuntimeMetric], start, end):
+        if end == start:
+            return 0, 0
+        sum_speed = 0
+        for i in range(start, end):
+            sum_speed += stats[i].speed
+        avg_speed = sum_speed / (end - start)
+        worker_num = 0
+        for node in stats[start].running_nodes:
+            if node.type == NodeType.WORKER:
+                worker_num += 1
+        return worker_num, avg_speed
 
     def _optimize_hot_ps_cpu(self):
         node_samples = self._extract_node_resource()
