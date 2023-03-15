@@ -69,4 +69,3 @@ spec:
           containers:
             - name: main
               imagePullPolicy: Always
-  
