@@ -97,7 +97,11 @@ def train(args):
         elastic_controller: The controller for elastic training.
     """
     use_cuda = not args.no_cuda and torch.cuda.is_available()
-    dist.init_process_group("gloo")
+    print("Use cuda = f{use_cuda}")
+    if use_cuda:
+        dist.init_process_group("nccl")
+    else:
+        dist.init_process_group("gloo")
     rank = dist.get_rank()
     local_rank = os.environ["LOCAL_RANK"]
     print(f"rank {rank} is initialized local_rank = {local_rank}")

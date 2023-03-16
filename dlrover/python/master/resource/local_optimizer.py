@@ -267,7 +267,11 @@ class LocalOptimizer(ResourceOptimizer):
         pre_worker_num, pre_speed = self._compute_worker_speed(
             stats, pre_start_index, post_start_index
         )
-        if pre_worker_num == 0 or pre_speed == 0:
+        if (
+            pre_worker_num == 0
+            or pre_speed == 0
+            or pre_worker_num == post_worker_num
+        ):
             return 1
 
         speed_diff = post_speed - pre_speed
