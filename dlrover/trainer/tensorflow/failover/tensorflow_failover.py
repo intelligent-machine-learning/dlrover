@@ -54,7 +54,7 @@ class TensorflowFailover:
         logger.info("TF_CONFIG is {}".format(TF_CONFIG))
         task_type, task_id = get_tf_config_task_type_and_index()
         self._role = task_type + ":" + str(task_id)
-        if len(TF_CONFIG["cluster"][task_type])>1:
+        if len(TF_CONFIG["cluster"][task_type]) > 1:
             self._address = TF_CONFIG["cluster"][task_type][task_id]
         else:
             self._address = TF_CONFIG["cluster"][task_type][0]
