@@ -53,7 +53,12 @@ class TensorflowFailover:
         TF_CONFIG = get_tf_config()
         task_type, task_id = get_tf_config_task_type_and_index()
         self._role = task_type + ":" + str(task_id)
-        self._address = TF_CONFIG["cluster"][task_type][task_id]
+        
+        if len(TF_CONFIG["cluster"][task_type])>1:
+            self._address = TF_CONFIG["cluster"][task_type][task_id]
+        else:
+            self._address = TF_CONFIG["cluster"][task_type][0]
+
         if self._role is None:
             return
         self.task_type, self.task_id = self._role.split(":")
