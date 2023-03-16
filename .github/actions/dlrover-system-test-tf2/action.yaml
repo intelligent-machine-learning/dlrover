@@ -15,7 +15,7 @@ dlrover/proto/*.proto --python_out=. --grpc_python_out=. \
 && pip install pyhocon tensorflow==2.11 \
 && pip install ray['defult'] \
 && export PYTHONPATH=`pwd` \
-&& cd dlrover/trainer/examples/estimator_executor \
+&& cd model_zoo/tf_estimator/estimator_executor \
 && sh mock_k8s_run.sh \
 && unset DLROVER_MASTER_ADDR \
 && sh mock_ray_run.sh \
