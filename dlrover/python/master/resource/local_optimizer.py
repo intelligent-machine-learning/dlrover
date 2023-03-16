@@ -126,6 +126,7 @@ class LocalOptimizer(ResourceOptimizer):
         ps_cpu_requested = 0
         plan = ResourcePlan()
         if len(node_samples[NodeType.PS]) == 0:
+            logger.info("No any workload metrics for PS.")
             return plan
         for node in node_samples[NodeType.PS][0]:
             max_ps_memory = max(max_ps_memory, node.used_resource.memory)
