@@ -114,20 +114,9 @@ class TensorflowFailover:
         """
         global_dict = common_util.GlobalDict()
         global_dict["failover"] = self
-        curr_ps_address = self.curr_ps_address
-        cluster = {
-            "cluster": {
-                self.task_type: [self._address],
-                "ps": curr_ps_address,
-            },
-            "task": {"type": self.task_type, "index": self.task_id},
-        }
-        # ValueError: If "cluster" is set in TF_CONFIG,
-        # it must have one "chief" node. However, worker
-        # doesn't need to know chief's address
-        if not self._is_chief:
-            cluster["cluster"].update({"chief": [""]})
-        os.environ["TF_CONFIG"] = json.dumps(cluster)
+        tf_config = get_tf_config()
+        tf_config["cluster"]["ps"] = self.curr_ps_address
+        os.environ["TF_CONFIG"] = json.dumps(tf_config)
         logger.info(
             "successfully refresh TF_CONFIFG %s" % os.environ["TF_CONFIG"]
         )
