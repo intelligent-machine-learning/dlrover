@@ -2,6 +2,7 @@ apiVersion: elastic.iml.github.io/v1alpha1
 kind: ElasticJob
 metadata:
   name: deepctr-auto-scaling-job
+  namespace: dlrover
 spec:
   distributionStrategy: ParameterServerStrategy
   resourceLimits:
