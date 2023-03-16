@@ -234,7 +234,8 @@ class ParameterServerManager(TrainingNodeManager):
                 node.id in self._migrated_ps_nodes
                 and node.status == NodeStatus.RUNNING
             ):
-                self._pre_dropped_ps.append(node)
+                if node not in self._pre_dropped_ps:
+                    self._pre_dropped_ps.append(node)
 
     def get_total_request_cpu(self):
         total_cpu = 0

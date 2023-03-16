@@ -162,12 +162,12 @@ class JobManager(object):
         self._init_job_auto_scaler()
         plan = self._create_initial_scale_plan()
         self._scaler.scale(plan)
+        worker_num = 0
         if NodeType.WORKER in plan.node_group_resources:
-            worker_num = (
-                plan.node_group_resources[NodeType.WORKER].count
-                + plan.node_group_resources[NodeType.CHIEF].count
-            )
-            self._speed_monitor.set_target_worker_num(worker_num)
+            worker_num = plan.node_group_resources[NodeType.WORKER].count
+        if NodeType.CHIEF in plan.node_group_resources:
+            worker_num += plan.node_group_resources[NodeType.CHIEF].count
+        self._speed_monitor.set_target_worker_num(worker_num)
         threading.Thread(
             target=self._monitor_nodes, name="node_monitor", daemon=True
         ).start()
