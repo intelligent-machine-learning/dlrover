@@ -15,11 +15,11 @@ import time
 import unittest
 
 from dlrover.python.common.constants import NodeType
+from dlrover.python.common.node import Node, NodeResource
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.stats.job_collector import JobMetricCollector
 from dlrover.python.master.stats.reporter import JobMeta, LocalStatsReporter
 from dlrover.python.master.stats.training_metrics import RuntimeMetric
-from dlrover.python.master.watcher.base_watcher import Node
 
 
 class LocalStatsCollectorTest(unittest.TestCase):
@@ -27,9 +27,37 @@ class LocalStatsCollectorTest(unittest.TestCase):
         job_meta = JobMeta("1111")
         reporter = LocalStatsReporter(job_meta)
         reporter._runtime_stats = []
-        reporter.report_runtime_stats(RuntimeMetric([]))
-        reporter.report_runtime_stats(RuntimeMetric([]))
-        self.assertEqual(len(reporter._runtime_stats), 2)
+        ps = Node(
+            NodeType.PS,
+            0,
+            config_resource=NodeResource(4, 4096),
+            name="ps-0",
+        )
+        worker = Node(
+            NodeType.WORKER, 0, config_resource=NodeResource(6, 4096)
+        )
+        worker.used_resource = NodeResource(1, 2048)
+        ps.used_resource = NodeResource(1.0, 2048)
+        for i in range(3):
+            nodes = [ps]
+            for i in range(3):
+                nodes.append(worker)
+            step = i * 100 + 1
+            ts = i * 1000 + 1
+            m = RuntimeMetric(nodes, global_step=step, speed=12, timestamp=ts)
+            reporter.report_runtime_stats(m)
+        self.assertEqual(len(reporter._runtime_stats), 3)
+
+        for i in range(10):
+            nodes = [ps]
+            for i in range(4):
+                worker.used_resource = NodeResource(1, 2048)
+                nodes.append(worker)
+            step = i * 100 + 1
+            ts = i * 1000 + 1
+            m = RuntimeMetric(nodes, global_step=step, speed=12, timestamp=ts)
+            reporter.report_runtime_stats(m)
+        self.assertEqual(len(reporter._runtime_stats), 8)
 
 
 class StatsCollectorTest(unittest.TestCase):

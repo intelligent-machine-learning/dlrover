@@ -14,7 +14,7 @@
 import math
 from typing import Dict, List
 
-from dlrover.python.common.constants import JobOptStage, NodeType
+from dlrover.python.common.constants import JobOptStage, MemoryUnit, NodeType
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
 from dlrover.python.common.serialize import JsonSerializable
@@ -34,6 +34,16 @@ _MIN_NODE_MEMORY = 1024
 _MIN_NODE_NUM = 5
 
 
+def convert_memory_to_mb(plan: ResourcePlan):
+    for _, group in plan.node_group_resources.items():
+        group.node_resource.memory = int(
+            group.node_resource.memory / MemoryUnit.MB
+        )
+    for _, node in plan.node_resources.items():
+        node.memory = int(node.memory / MemoryUnit.MB)
+    return plan
+
+
 class OptimizerParams(object):
     def __init__(self):
         self.ps_cpu_overload_threshold = 0.9
@@ -42,6 +52,8 @@ class OptimizerParams(object):
         self.worker_memory_margin_percent = 0.5
         self.oom_memory_up_factor = 2
         self.node_max_cpu = 32
+        self.min_worker_speed_ratio = 0.2
+        self.max_ps_cpu_util = 0.95
 
 
 class ProcessResourceRequirement(JsonSerializable):
@@ -72,8 +84,9 @@ class LocalOptimizer(ResourceOptimizer):
             plan = self._generate_ps_initial_resource()
         if stage == JobOptStage.RUNNING:
             plan = self._generate_job_running_resource()
+        plan = convert_memory_to_mb(plan)
         if plan.empty():
-            logger.info("Not support job stage %s", stage)
+            logger.info("No any resource plan for %s", stage)
         else:
             logger.info("plan of stage %s is %s", stage, plan.toJSON(indent=4))
         return plan
@@ -113,6 +126,7 @@ class LocalOptimizer(ResourceOptimizer):
         ps_cpu_requested = 0
         plan = ResourcePlan()
         if len(node_samples[NodeType.PS]) == 0:
+            logger.info("No any workload metrics for PS.")
             return plan
         for node in node_samples[NodeType.PS][0]:
             max_ps_memory = max(max_ps_memory, node.used_resource.memory)
@@ -178,6 +192,15 @@ class LocalOptimizer(ResourceOptimizer):
             for node in nodes:
                 cpu_util = node.used_resource.cpu / node.config_resource.cpu
                 max_ps_cpu_util = max(cpu_util, max_ps_cpu_util)
+        logger.info("max ps cpu util = %s", max_ps_cpu_util)
+
+        if max_ps_cpu_util > self._opt_params.max_ps_cpu_util:
+            return plan
+
+        worker_speed_ratio = self._compute_worker_speed_ratio()
+        logger.info("The speed ratio of worker = %s", max_ps_cpu_util)
+        if worker_speed_ratio < self._opt_params.min_worker_speed_ratio:
+            return plan
 
         sample_count = len(node_samples[NodeType.WORKER])
         if max_ps_cpu_util == 0 or sample_count == 0:
@@ -219,6 +242,53 @@ class LocalOptimizer(ResourceOptimizer):
             opt_worker_num, NodeResource(opt_cpu, opt_memory)
         )
         return plan
+
+    def _compute_worker_speed_ratio(self):
+        stats = self._stats_collector.get_runtime_stats()
+        post_start_index = 0
+        for i in reversed(range(len(stats))):
+            if len(stats[i].running_nodes) != len(stats[-1].running_nodes):
+                break
+            post_start_index = i
+        post_worker_num, post_speed = self._compute_worker_speed(
+            stats, post_start_index, len(stats)
+        )
+        if post_start_index == 0:
+            return 1
+
+        pre_start_index = 0
+        pre_latest_stat = stats[post_start_index - 1]
+        for i in reversed(range(post_start_index)):
+            if len(stats[i].running_nodes) != len(
+                pre_latest_stat.running_nodes
+            ):
+                break
+            pre_start_index = i
+        pre_worker_num, pre_speed = self._compute_worker_speed(
+            stats, pre_start_index, post_start_index
+        )
+        if pre_worker_num == 0 or pre_speed == 0:
+            return 1
+
+        speed_diff = post_speed - pre_speed
+        worker_diff = post_worker_num - pre_worker_num
+        new_worker_avg_speed = speed_diff / worker_diff
+        old_worker_avg_speed = pre_speed / pre_worker_num
+        speed_ratio = new_worker_avg_speed / old_worker_avg_speed
+        return speed_ratio
+
+    def _compute_worker_speed(self, stats: List[RuntimeMetric], start, end):
+        if end == start:
+            return 0, 0
+        sum_speed = 0
+        for i in range(start, end):
+            sum_speed += stats[i].speed
+        avg_speed = sum_speed / (end - start)
+        worker_num = 0
+        for node in stats[start].running_nodes:
+            if node.type == NodeType.WORKER:
+                worker_num += 1
+        return worker_num, avg_speed
 
     def _optimize_hot_ps_cpu(self):
         node_samples = self._extract_node_resource()
@@ -291,21 +361,20 @@ class LocalOptimizer(ResourceOptimizer):
             if latest_worker_num == cur_worker_num:
                 node_used_resources[NodeType.WORKER].append(cur_worker_samples)
 
-        for ps_samples in node_used_resources[NodeType.PS]:
-            ps_resource = []
-            for ps in ps_samples:
-                ps_resource.append(
-                    (ps.used_resource.cpu, ps.used_resource.memory)
+        for node_type, resource_samples in node_used_resources.items():
+            for node_samples in resource_samples:
+                node_resource = []
+                for node in node_samples:
+                    node_resource.append(
+                        (
+                            node.id,
+                            node.used_resource.cpu,
+                            node.used_resource.memory,
+                        )
+                    )
+                logger.info(
+                    "%s resource samples = %s", node_type, node_resource
                 )
-            logger.info("PS resource samples = %s", ps_resource)
-
-        for ps_samples in node_used_resources[NodeType.WORKER]:
-            ps_resource = []
-            for ps in ps_samples:
-                ps_resource.append(
-                    (ps.used_resource.cpu, ps.used_resource.memory)
-                )
-            logger.info("worker resource samples = %s", ps_resource)
         return node_used_resources
 
     def _compute_total_requested_resource(self, type):

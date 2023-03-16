@@ -215,7 +215,7 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
         self.optimized_ps_mem = False
         self.optimize_worker_sampled = False
         self._job_stage = JobOptStage.CREATE
-        self._last_ps_change_time = time.time()
+        self._last_ps_change_time = 0.0
 
     def get_config_resource(self):
         job_config = JobResource()
@@ -439,6 +439,10 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
                 self._job_stage, optimizer_config
             )
         else:
+            logger.info(
+                "Skip optimizing PS, because the interval"
+                "to change ps is too short."
+            )
             return ResourcePlan()
         if not plan.empty():
             self._last_ps_change_time = time.time()

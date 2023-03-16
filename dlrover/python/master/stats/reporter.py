@@ -29,6 +29,7 @@ from dlrover.python.master.stats.training_metrics import (
 )
 
 DATA_STORE = "base_datastore"
+_MAX_SAMPLE_NUM_PER_STAT = 5
 
 
 class JobMeta(object):
@@ -118,6 +119,17 @@ class LocalStatsReporter(StatsReporter):
 
     def report_runtime_stats(self, stats: RuntimeMetric):
         self._runtime_stats.append(copy.deepcopy(stats))
+        latest_stat = self._runtime_stats[-1]
+        index = 0
+        for i, stat in enumerate(self._runtime_stats):
+            if len(stat.running_nodes) == len(latest_stat.running_nodes):
+                index = i
+                break
+        if len(self._runtime_stats) - index > _MAX_SAMPLE_NUM_PER_STAT:
+            new_stats = self._runtime_stats[0:index]
+            start_index = len(self._runtime_stats) - _MAX_SAMPLE_NUM_PER_STAT
+            new_stats.extend(self._runtime_stats[start_index:])
+            self._runtime_stats = new_stats
 
     def report_job_type(self, job_type: str):
         self._job_type = job_type

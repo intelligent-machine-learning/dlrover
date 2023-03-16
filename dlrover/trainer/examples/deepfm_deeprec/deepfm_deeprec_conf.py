@@ -52,8 +52,8 @@ class TrainConf(object):
     train_set = {
         "path": "file://./data_kaggle_ad_ctr_train.csv",
         "columns": col,
-        "epoch": 10,
-        "batch_size": 2,
+        "epoch": 10000,
+        "batch_size": 32,
     }
 
     eval_set = {

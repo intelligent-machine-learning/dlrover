@@ -1,25 +1,32 @@
----
 apiVersion: elastic.iml.github.io/v1alpha1
 kind: ElasticJob
 metadata:
-  name: deepctr-auto-scale
+  name: deepctr-auto-scaling-job
   namespace: dlrover
 spec:
   distributionStrategy: ParameterServerStrategy
   resourceLimits:
-    cpu: "10"
-    memory: "30000Mi"
+    cpu: "15"
+    memory: "10000Mi"
   replicaSpecs:
     ps:
-      autoScale: True
+      autoScale: False
+      replicas: 1
       template:
         spec:
           restartPolicy: Never
           containers:
             - name: main
               # yamllint disable-line rule:line-length
-              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:deeprec.v1
+              image: registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:v11
               imagePullPolicy: Always
+              resources:
+                limits:
+                  cpu: "0.5"
+                  memory: 4Gi
+                requests:
+                  cpu: "0.5"
+                  memory: 4Gi
               command:
                 - /bin/bash
                 - -c
@@ -37,15 +44,23 @@ spec:
               persistentVolumeClaim:
                 claimName: pvc-nas
     worker:
-      autoScale: True
+      autoScale: False
+      replicas: 1
       template:
         spec:
           restartPolicy: Never
           containers:
             - name: main
               # yamllint disable-line rule:line-length
-              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:deeprec.v1
+              image: registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:v11
               imagePullPolicy: Always
+              resources:
+                limits:
+                  cpu: "0.5"
+                  memory: 4Gi
+                requests:
+                  cpu: "0.5"
+                  memory: 4Gi
               command:
                 - /bin/bash
                 - -c
@@ -69,3 +84,5 @@ spec:
           containers:
             - name: main
               imagePullPolicy: Always
+              # yamllint disable-line rule:line-length
+              image: registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:v11
