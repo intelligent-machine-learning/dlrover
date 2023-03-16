@@ -70,3 +70,4 @@ class TFConstants(object):
     CheckpointIncrementalSaveSecs = Constant(
         "checkpoint_incremental_save_secs", None
     )
+    KeepCheckpointMax = Constant("keep_checkpoint_max", 5)
