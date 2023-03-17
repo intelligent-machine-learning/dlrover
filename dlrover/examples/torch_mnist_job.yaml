@@ -14,8 +14,8 @@ spec:
           restartPolicy: Never
           containers:
             - name: main
-              image: docker.io/easydl/dlrover-train:torch113-mnist
-              imagePullPolicy: IfNotPresent
+              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:torch113-mnist
+              imagePullPolicy: Always
               command:
                 - /bin/bash
                 - -c
@@ -31,4 +31,4 @@ spec:
           restartPolicy: Never
           containers:
             - name: main
-              imagePullPolicy: IfNotPresent
+              imagePullPolicy: Always
