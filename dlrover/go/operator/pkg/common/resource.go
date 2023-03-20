@@ -19,12 +19,12 @@ package common
 import (
 	"context"
 	"github.com/golang/glog"
-	"k8s.io/apimachinery/pkg/types"
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/api/v1alpha1"
 	commonv1 "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/pkg/common/api/v1"
 	logger "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	utilpointer "k8s.io/utils/pointer"
 	runtime_client "sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -134,7 +134,6 @@ func GetReplicaTypePods(
 	}
 	return podlist.Items, nil
 }
-
 
 // GetPod gets a Pod object
 func GetPod(

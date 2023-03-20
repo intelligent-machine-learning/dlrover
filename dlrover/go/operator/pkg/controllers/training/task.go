@@ -55,11 +55,11 @@ const (
 	// WorkerServicePort is the port of service
 	WorkerServicePort int = 3333
 
-	workerTypeEnvName = "WORKER_TYPE"
-	workerIDEnvName   = "WORKER_ID"
-	workerRankEnvName = "WORKER_RANK"
-	workerNumEnvName  = "WORKER_NUM"
-	rdzvEndpointEnvName     = "RDZV_ENDPOINT"
+	workerTypeEnvName   = "WORKER_TYPE"
+	workerIDEnvName     = "WORKER_ID"
+	workerRankEnvName   = "WORKER_RANK"
+	workerNumEnvName    = "WORKER_NUM"
+	rdzvEndpointEnvName = "RDZV_ENDPOINT"
 )
 
 // TaskManager generates Pods for task in a distributed PS job.
