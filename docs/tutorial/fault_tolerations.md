@@ -194,7 +194,7 @@ Events:
   Normal  Started         92s   kubelet            Started container main
 ```
 worker-0 对应pod的日志
-```
+```shell
 [2023-03-20 11:51:10,774] [INFO][session_manager.py:511:_try_run_local_init_op] Running local_init_op.
 [2023-03-20 11:51:11,302] [INFO][session_manager.py:513:_try_run_local_init_op] Done running local_init_op.
 [2023-03-20 11:51:14,279] [INFO][global_step_hook.py:39:before_run] global_step: 10488361
