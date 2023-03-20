@@ -152,7 +152,7 @@ def train(args):
 
     for batch_idx, (data, target) in enumerate(train_loader):
         model.train()
-        with elastic_trainer.scale():
+        with elastic_trainer.step():
             target = target.type(torch.LongTensor)
             data, target = data.to(device), target.to(device)
             output = model(data)

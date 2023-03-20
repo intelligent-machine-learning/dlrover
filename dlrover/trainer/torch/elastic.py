@@ -189,11 +189,18 @@ class ElasticTrainer(object):
         return optimizer, lr_scheduler
 
     @contextmanager
-    def scale(self):
+    def step(self, fix_total_batch_size=True):
         """
-        A context manager that will lightly wrap around and perform
-        gradient accumulation to keep the global batch size fixed
-        when the number of worker changes.
+        A context manager that will lightly wrap around and to keep
+        the global batch size fixed when the number of worker changes.
+
+        Args:
+            fix_total_batch_size (`bool`): Whether to keep the total
+            batch size fixed when the optimizer steps. If True,
+            the context manager will perform gradient accumulation and
+            synchronize gradients when the accumulated batch size if
+            equal to the global batch size.
+
         Example:
         ```python
         >>> from dlrover.trainer.torch.elastic import ElasticTrainer
@@ -202,7 +209,7 @@ class ElasticTrainer(object):
                 optimizer, scheduler
             )
         >>> for input, output in dataloader:
-        ...     with accelerator.scale():
+        ...     with elastic_trainer.step():
         ...         outputs = model(input)
         ...         loss = loss_func(outputs)
         ...         loss.backward()
@@ -213,7 +220,7 @@ class ElasticTrainer(object):
         """
         self._before_step()
         context = contextlib.nullcontext
-        if self.gradient_state.sync_gradients:
+        if self.gradient_state.sync_gradients and fix_total_batch_size:
             context = getattr(self.model, "no_sync", context)
 
         with context():
