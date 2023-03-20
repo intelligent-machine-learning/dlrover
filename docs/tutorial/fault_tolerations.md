@@ -3,11 +3,11 @@
 在任务运行过程中删除worker-i对应的pod，之后dlrover master会重新拉起一个pod。work-i对应的pod的名称会发生变化，新创建的pod的启动命令和被kill掉的pod的启动命令相同，启动后参与组网，并进行训练。期间其他worker不受影响。
 ### 启动作业
 首先，启动作业。为了避免自动扩容缩容的影响，选择人工配置扩容缩容策略。
-```python
+```shell
 kubectl apply -f deepctr_manual_scale_job.yaml -n dlrover
 ```
 当前有1个ps和3个worker。
-```python
+```shell
 NAME                                                 READY   STATUS    RESTARTS   AGE
 deepctr-auto-scaling-job-edljob-chief-0              1/1     Running   0          117s
 deepctr-auto-scaling-job-edljob-ps-0                 1/1     Running   0          117s
@@ -15,7 +15,7 @@ deepctr-auto-scaling-job-edljob-worker-0             1/1     Running   0        
 deepctr-auto-scaling-job-edljob-worker-1             1/1     Running   0          65s
 ```
 查看worker-0对应的pod的信息
-```python
+```shell
 Name:             deepctr-auto-scaling-job-edljob-worker-0
 Namespace:        dlrover
 Priority:         0
@@ -99,19 +99,19 @@ Events:
 ```
 ### 容错模拟
 为了模拟容错，需要主动删除worker-0对应的pod
-```python
+```shell
 kubectl delete pods -n dlrover deepctr-auto-scaling-job-edljob-worker-0
 pod "deepctr-auto-scaling-job-edljob-worker-0" deleted
 ```
 worker-0对应的新pod启动，完成准备工作后开始消费数据，进行训练。
-```python
+```shell
 deepctr-auto-scaling-job-edljob-chief-0              1/1     Running             0          4m24s
 deepctr-auto-scaling-job-edljob-ps-0                 1/1     Running             0          4m24s
 deepctr-auto-scaling-job-edljob-worker-1             1/1     Running             0          3m32s
 deepctr-auto-scaling-job-edljob-worker-2             0/1     ContainerCreating   0          2s
 ```
 查看worker-0对应的pod的信息
-```python
+```shell
 Name:             deepctr-auto-scaling-job-edljob-worker-2
 Namespace:        dlrover
 Priority:         0
@@ -204,7 +204,7 @@ worker-0 对应pod的日志
 ### 启动作业
 启动作业之后，可以查看当前运行的worker和ps。
 
-```python
+```shell
 NAME                                                 READY   STATUS    RESTARTS   AGE
 deepctr-auto-scaling-job-edljob-chief-0              1/1     Running   0          4m3s
 deepctr-auto-scaling-job-edljob-ps-0                 1/1     Running   0          4m3s
@@ -217,13 +217,13 @@ mysql-7d757854f-8l5k4                                1/1     Running   0        
 ```
 ### 容错模拟
 为了模拟容错，需要主动删除ps-0对应的pod，删除后worker的日志
-```python
+```shell
 [2023-03-20 15:04:34,350] [INFO][monitored_session.py:1336:run] An error was raised. This may be due to a preemption in a connected worker or parameter server. The current session will be closed and a new session will be created. This error may also occur due to a gRPC failure caused by high memory or network bandwidth usage in the parameter servers. If this error occurs repeatedly, try increasing the number of parameter servers assigned to the job. Error: From /job:ps/replica:0/task:1:
 RecvTensor expects a different device incarnation: 11288349594494262162 vs. 11542130100054943552. Your worker job ("/job:localhost/replica:0/task:0") was probably restarted. Check your worker job for the reason why it was restarted.
 ```
 
 当ps pod重新创建，ps server启动
-```python
+```shell
 NAME                                                 READY   STATUS    RESTARTS   AGE
 deepctr-auto-scaling-job-edljob-chief-0              1/1     Running   0          11m
 deepctr-auto-scaling-job-edljob-ps-1                 1/1     Running   0          8m55s
