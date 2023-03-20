@@ -129,7 +129,7 @@ func (r *ScalePlanReconciler) updateJobToScaling(
 	scalePlan *elasticv1alpha1.ScalePlan,
 	job *elasticv1alpha1.ElasticJob,
 	pollInterval time.Duration) (ctrl.Result, error) {
-	if scalePlan.Status.Phase != commonv1.JobCreated {
+	if scalePlan.Status.Phase != commonv1.JobCreated && scalePlan.Status.Phase != commonv1.JobPending {
 		logger.Infof("Skip a %s ScalePlan %s", scalePlan.Status.Phase, scalePlan.Name)
 		return ctrl.Result{}, nil
 	}
@@ -141,13 +141,16 @@ func (r *ScalePlanReconciler) updateJobToScaling(
 	}
 	msg := fmt.Sprintf("ElasticJob %s is scaling by %s with status %s.", job.Name, scalePlan.Name, scalePlan.Status.Phase)
 	logger.Infof(msg)
-	scalePlan.Status.Phase = commonv1.JobPending
-	err := updateScalePlanStatus(r.Client, scalePlan)
-	if err != nil {
-		return ctrl.Result{RequeueAfter: pollInterval}, err
+	if scalePlan.Status.Phase == commonv1.JobCreated {
+		scalePlan.Status.Phase = commonv1.JobPending
+		err := updateScalePlanStatus(r.Client, scalePlan)
+		if err != nil {
+			return ctrl.Result{RequeueAfter: pollInterval}, err
+		}
 	}
+
 	common.UpdateStatus(&job.Status, commonv1.JobScaling, common.JobScalingReason, msg)
-	err = updateElasticJobStatus(r.Client, job)
+	err := updateElasticJobStatus(r.Client, job)
 	if err != nil {
 		logger.Errorf("Failed to update job %s status to scaling with %s, err: %v", job.Name, scalePlan.Name, err)
 		return ctrl.Result{RequeueAfter: pollInterval}, err
