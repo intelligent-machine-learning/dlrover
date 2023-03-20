@@ -287,9 +287,10 @@ class TrainingNodeManager(object):
                     and cur_time - node.start_hang_time
                     > NodeResourceLimit.MAX_HANG_TIMEOUT_SECS
                 )
-                time_array = time.localtime(node.start_hang_time)
-                date_time = time.strftime("%Y-%m-%d %H:%M:%S", time_array)
-                logger.warning("Node %s hangs at %s", node.name, date_time)
+                if hang:
+                    time_array = time.localtime(node.start_hang_time)
+                    date_time = time.strftime("%Y-%m-%d %H:%M:%S", time_array)
+                    logger.warning("Node %s hangs at %s", node.name, date_time)
                 node_hang.append(hang)
         return node_hang
 
