@@ -135,7 +135,8 @@ def train(args):
 
     model = Net()
     optimizer = optim.SGD(model.parameters(), lr=args.learning_rate)
-    scheduler = StepLR(optimizer, step_size=1, gamma=0.5)
+    step_size = int(train_dataset.dataset_size / args.batch_size)
+    scheduler = StepLR(optimizer, step_size=step_size, gamma=0.5)
 
     if torch.cuda.is_available():
         rank = int(os.environ["LOCAL_RANK"])
@@ -161,7 +162,10 @@ def train(args):
             optimizer.zero_grad()
             print("loss = {}, step = {}".format(loss, batch_idx))
             scheduler.step()
-            if elastic_trainer.num_steps > 0 and elastic_trainer.num_steps % 10000 == 0:
+            if (
+                elastic_trainer.num_steps > 0
+                and elastic_trainer.num_steps % 10000 == 0
+            ):
                 test(model, device, test_loader)
 
 

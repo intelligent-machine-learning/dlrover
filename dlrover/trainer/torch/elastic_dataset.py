@@ -40,12 +40,12 @@ class ElasticDataset(Dataset, metaclass=ABCMeta):
             shuffle: bool, whether to shuffle samples in the dataset.
         """
         self.lines = read_txt(path)
-        dataset_size = len(self.lines)
+        self.dataset_size = len(self.lines)
         self._shard_client = IndexShardingClient(
             dataset_name=path,
             batch_size=batch_size,
             num_epochs=epochs,
-            dataset_size=dataset_size,
+            dataset_size=self.dataset_size,
             shuffle=shuffle,
             storage_type="text",
         )

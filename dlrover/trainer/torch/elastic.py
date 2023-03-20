@@ -12,15 +12,15 @@
 # limitations under the License.
 
 import contextlib
-from contextlib import contextmanager
 import os
+from contextlib import contextmanager
 from typing import Any, Dict
 
 import torch
 from torch.utils.data import DataLoader
 
-from dlrover.trainer.torch.elastic_dataset import ElasticDataset
 from dlrover.python.common.log import default_logger as logger
+from dlrover.trainer.torch.elastic_dataset import ElasticDataset
 
 
 class GradientState(object):
