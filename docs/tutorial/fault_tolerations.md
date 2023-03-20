@@ -232,7 +232,7 @@ deepctr-auto-scaling-job-edljob-worker-0             1/1     Running   0        
 deepctr-auto-scaling-job-edljob-worker-1             1/1     Running   0          9m39s
 ```
 worker会加载最近一次的checkpoint，并继续训练
-```python
+```shell
 [2023-03-20 15:04:34,100] [INFO][monitored_session.py:1336:run] An error was raised. This may be due to a preemption in a connected worker or parameter server. The current session will be closed and a new session will be created. This error may also occur due to a gRPC failure caused by high memory or network bandwidth usage in the parameter servers. If this error occurs repeatedly, try increasing the number of parameter servers assigned to the job. Error: 
 =====================
 Aborted: From /job:chief/replica:0/task:0:
