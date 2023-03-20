@@ -6,7 +6,7 @@
 ```python
 kubectl apply -f deepctr_manual_scale_job.yaml -n dlrover
 ```
-当前有1个ps和4个worker。
+当前有1个ps和3个worker。
 ```python
 NAME                                                 READY   STATUS    RESTARTS   AGE
 deepctr-auto-scaling-job-edljob-chief-0              1/1     Running   0          117s
