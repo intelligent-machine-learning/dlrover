@@ -62,7 +62,7 @@ Containers:
       WORKER_ID:            0
       WORKER_RANK:          0
       WORKER_NUM:           1
-      TF_CONFIG:            {"cluster":{"worker":["deepctr-auto-scaling-job-edljob-worker-0:2222"],"ps":["deepctr-auto-scaling-job-edljob-ps-0.dlrover.svc:2222"],"chief":["deepctr-auto-scaling-job-edljob-chief-0:2222"]},"task":{"type":"worker","index":0}}
+      TF_CONFIG:            {"cluster":{"worker":["deepctr-auto-scaling-job-edljob-worker-0:3333"],"ps":["deepctr-auto-scaling-job-edljob-ps-0.dlrover.svc:2222"],"chief":["deepctr-auto-scaling-job-edljob-chief-0:3333"]},"task":{"type":"worker","index":0}}
     Mounts:
       /nas from pvc-nas (rw)
       /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-jtpfw (ro)
