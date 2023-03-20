@@ -19,6 +19,7 @@ package common
 import (
 	"context"
 	"github.com/golang/glog"
+	"k8s.io/apimachinery/pkg/types"
 	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/api/v1alpha1"
 	commonv1 "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/pkg/common/api/v1"
 	logger "github.com/sirupsen/logrus"
@@ -132,6 +133,25 @@ func GetReplicaTypePods(
 		return nil, err
 	}
 	return podlist.Items, nil
+}
+
+
+// GetPod gets a Pod object
+func GetPod(
+	client runtime_client.Client,
+	namespace string,
+	name string,
+) (*corev1.Pod, error) {
+	pod := &corev1.Pod{}
+	err := client.Get(context.TODO(), types.NamespacedName{
+		Name:      name,
+		Namespace: namespace,
+	}, pod)
+	if err != nil {
+		logger.Warningf("Failed to get Pod : %s, error: %v", name, err)
+		return nil, err
+	}
+	return pod, nil
 }
 
 // GetReplicaStatus gets ReplicaStatus from ReplicaType Pods
