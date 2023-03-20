@@ -161,7 +161,7 @@ def train(args):
             optimizer.zero_grad()
             print("loss = {}, step = {}".format(loss, batch_idx))
             scheduler.step()
-            if elastic_trainer.num_steps % 10000 == 0:
+            if elastic_trainer.num_steps > 0 and elastic_trainer.num_steps % 10000 == 0:
                 test(model, device, test_loader)
 
 
@@ -171,6 +171,7 @@ def test(model, device, test_loader):
     correct = 0
     with torch.no_grad():
         for data, target in test_loader:
+            target = target.type(torch.LongTensor)
             data, target = data.to(device), target.to(device)
             output = model(data)
             test_loss += F.nll_loss(

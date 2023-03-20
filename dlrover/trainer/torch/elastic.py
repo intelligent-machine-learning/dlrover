@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import contextlib
+from contextlib import contextmanager
 import os
 from typing import Any, Dict
 
@@ -19,6 +20,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from dlrover.trainer.torch.elastic_dataset import ElasticDataset
+from dlrover.python.common.log import default_logger as logger
 
 
 class GradientState(object):
@@ -183,8 +185,10 @@ class ElasticTrainer(object):
     def prepare(self, optimizer, lr_scheduler):
         optimizer = _ElasticOptimizer(optimizer)
         lr_scheduler = _ElasticOptimizer(optimizer)
+        self._set_gradient_accumulation_steps()
         return optimizer, lr_scheduler
 
+    @contextmanager
     def scale(self):
         """
         A context manager that will lightly wrap around and perform
@@ -208,12 +212,11 @@ class ElasticTrainer(object):
         ```
         """
         self._before_step()
+        context = contextlib.nullcontext
         if self.gradient_state.sync_gradients:
-            context = contextlib.nullcontext
-        else:
             context = getattr(self.model, "no_sync", context)
 
-        with context(self.model):
+        with context():
             yield
             self._after_step()
 
@@ -224,11 +227,11 @@ class ElasticTrainer(object):
     def _before_step(self):
         """Sets the right `sync_gradients` and either resets
         or increases `self.step`"""
-        self._set_gradient_accumulation_steps()
         self.gradient_state.num_backward_steps += 1
         self.gradient_state.check_sync_gradient(
             self.gradient_accumulation_steps
         )
+        logger.info("Synced = %s", self.gradient_state.sync_gradients)
 
     def _after_step(self):
         if isinstance(self._dataset, ElasticDataset):
@@ -248,7 +251,11 @@ class ElasticTrainer(object):
 
         cur_world_size = int(os.getenv("WORLD_SIZE", 1))
         rank = int(os.getenv("RANK", 0))
-        self.gradient_accumulation_steps = max_worker_num / cur_world_size
+        self.gradient_accumulation_steps = int(max_worker_num / cur_world_size)
         remainder = max_worker_num % cur_world_size
         if rank < remainder:
             self.gradient_accumulation_steps += 1
+        logger.info(
+            "Gradient accumulation steps = %s",
+            self.gradient_accumulation_steps,
+        )
