@@ -218,9 +218,9 @@ class ElasticTrainer(object):
         ...         optimizer.zero_grad()
         ```
         """
-        self._before_step()
+        self._before_step(fix_total_batch_size)
         context = contextlib.nullcontext
-        if self.gradient_state.sync_gradients and fix_total_batch_size:
+        if self.gradient_state.sync_gradients:
             context = getattr(self.model, "no_sync", context)
 
         with context():
@@ -231,14 +231,16 @@ class ElasticTrainer(object):
     def num_steps(self):
         return self.gradient_state.num_steps
 
-    def _before_step(self):
+    def _before_step(self, fix_total_batch_size):
         """Sets the right `sync_gradients` and either resets
         or increases `self.step`"""
         self.gradient_state.num_backward_steps += 1
-        self.gradient_state.check_sync_gradient(
-            self.gradient_accumulation_steps
-        )
-        logger.info("Synced = %s", self.gradient_state.sync_gradients)
+        if not fix_total_batch_size:
+            self.gradient_state.sync_gradients = True
+        else:
+            self.gradient_state.check_sync_gradient(
+                self.gradient_accumulation_steps
+            )
 
     def _after_step(self):
         if isinstance(self._dataset, ElasticDataset):
