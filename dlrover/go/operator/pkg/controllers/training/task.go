@@ -49,8 +49,11 @@ const (
 	// EnvTfConfigName is the environment variable name of TensorFlow cluster spec.
 	EnvTfConfigName = "TF_CONFIG"
 
-	// ServicePort is the port of service
-	ServicePort int = 2222
+	// PSServicePort is the port of service
+	PSServicePort int = 2222
+
+	// WorkerServicePort is the port of service
+	WorkerServicePort int = 3333
 
 	workerTypeEnvName = "WORKER_TYPE"
 	workerIDEnvName   = "WORKER_ID"
@@ -173,8 +176,12 @@ func (m *TaskManager) scaleUpReplicas(
 	taskNum := m.getTotalTaskCount(status)
 	for i := taskNum; i < taskNum+upNum; i++ {
 		logger.Infof("Job %s: Create %d %s", job.Name, i, m.taskType)
+		port := WorkerServicePort
+		if m.taskType == ReplicaTypePS {
+			port = PSServicePort
+		}
 		podService := newTaskServiceAddr(
-			job.Name, string(m.taskType), i, ServicePort,
+			job.Name, string(m.taskType), i, port,
 		)
 		podMeta := &elasticv1alpha1.PodMeta{
 			Name:      newTaskName(job.Name, string(m.taskType), i),
@@ -330,7 +337,7 @@ func (m *TaskManager) getPSClusterForPod(
 	cluster := SparseClusterSpec{}
 	cluster.PS = scalePlan.Spec.PsHosts
 	chiefManager := common.ReplicaManagers[ReplicaTypeChief].(*TaskManager)
-	chiefHosts := chiefManager.getAllTaskHosts(job.Name, 1, ServicePort)
+	chiefHosts := chiefManager.getAllTaskHosts(job.Name, 1, WorkerServicePort)
 	cluster.Chief = make(map[int]string)
 	if len(chiefHosts) == 1 {
 		cluster.Chief[0] = chiefHosts[0]
@@ -343,7 +350,7 @@ func (m *TaskManager) getPSClusterForPod(
 		workerNum := taskCounts[ReplicaTypeWorker]
 		for i := 0; i < int(workerNum); i++ {
 			cluster.Worker[i] = newTaskServiceAddr(
-				job.Name, string(ReplicaTypeWorker), i, ServicePort,
+				job.Name, string(ReplicaTypeWorker), i, WorkerServicePort,
 			)
 		}
 	}
@@ -359,7 +366,7 @@ func (m *TaskManager) getPSClusterForPod(
 		}
 		for i := 0; i <= podMeta.RankIndex; i++ {
 			cluster.Worker[i] = newTaskServiceAddr(
-				job.Name, string(ReplicaTypeWorker), i, ServicePort,
+				job.Name, string(ReplicaTypeWorker), i, WorkerServicePort,
 			)
 		}
 	}
