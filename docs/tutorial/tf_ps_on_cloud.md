@@ -39,7 +39,7 @@ kubectl -n dlrover get elasticjob deepctr-auto-scaling-job
 
 ```bash
 NAME                       PHASE     AGE
-deepctr-auto-scaling-job   Running   2m20s
+deepctr-auto-scaling-job   Running   20s
 ```
 
 - Check the Pod status
