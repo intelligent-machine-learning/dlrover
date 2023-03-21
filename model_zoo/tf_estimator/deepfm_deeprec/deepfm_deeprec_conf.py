@@ -22,6 +22,7 @@ class TrainConf(object):
     model_dir = "/nas"
     enable_incr_saved_model = True
     checkpoint_incremental_save_secs = 800
+    keep_checkpoint_max = 10
 
     sparse_features = ["C" + str(i) for i in range(1, 27)]
     dense_features = ["I" + str(i) for i in range(1, 14)]
@@ -52,8 +53,8 @@ class TrainConf(object):
     train_set = {
         "path": "file://./data_kaggle_ad_ctr_train.csv",
         "columns": col,
-        "epoch": 10,
-        "batch_size": 2,
+        "epoch": 100000,
+        "batch_size": 32,
     }
 
     eval_set = {

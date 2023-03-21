@@ -49,13 +49,17 @@ const (
 	// EnvTfConfigName is the environment variable name of TensorFlow cluster spec.
 	EnvTfConfigName = "TF_CONFIG"
 
-	// ServicePort is the port of service
-	ServicePort int = 2222
+	// PSServicePort is the port of service
+	PSServicePort int = 2222
 
-	workerTypeEnvName = "WORKER_TYPE"
-	workerIDEnvName   = "WORKER_ID"
-	workerRankEnvName = "WORKER_RANK"
-	workerNumEnvName  = "WORKER_NUM"
+	// WorkerServicePort is the port of service
+	WorkerServicePort int = 3333
+
+	workerTypeEnvName   = "WORKER_TYPE"
+	workerIDEnvName     = "WORKER_ID"
+	workerRankEnvName   = "WORKER_RANK"
+	workerNumEnvName    = "WORKER_NUM"
+	rdzvEndpointEnvName = "RDZV_ENDPOINT"
 )
 
 // TaskManager generates Pods for task in a distributed PS job.
@@ -173,8 +177,12 @@ func (m *TaskManager) scaleUpReplicas(
 	taskNum := m.getTotalTaskCount(status)
 	for i := taskNum; i < taskNum+upNum; i++ {
 		logger.Infof("Job %s: Create %d %s", job.Name, i, m.taskType)
+		port := WorkerServicePort
+		if m.taskType == ReplicaTypePS {
+			port = PSServicePort
+		}
 		podService := newTaskServiceAddr(
-			job.Name, string(m.taskType), i, ServicePort,
+			job.Name, string(m.taskType), i, port,
 		)
 		podMeta := &elasticv1alpha1.PodMeta{
 			Name:      newTaskName(job.Name, string(m.taskType), i),
@@ -276,6 +284,27 @@ func (m *TaskManager) newTask(
 	return pod
 }
 
+func (m *TaskManager) setAllreduceEnv(
+	client runtime_client.Client,
+	job *elasticv1alpha1.ElasticJob,
+	container *corev1.Container,
+) error {
+	worker0, err := common.GetPod(client, job.Namespace, "worker-0")
+	rdzvEndpointEnv := corev1.EnvVar{Name: rdzvEndpointEnvName}
+	if err != nil {
+		rdzvEndpointEnv.ValueFrom = &corev1.EnvVarSource{
+			FieldRef: &corev1.ObjectFieldSelector{
+				APIVersion: "v1",
+				FieldPath:  "status.podIP",
+			},
+		}
+	} else {
+		rdzvEndpointEnv.Value = worker0.Status.PodIP
+	}
+	container.Env = append(container.Env, rdzvEndpointEnv)
+	return nil
+}
+
 func (m *TaskManager) getTaskStatus(
 	job *elasticv1alpha1.ElasticJob,
 ) *commonv1.ReplicaStatus {
@@ -329,16 +358,8 @@ func (m *TaskManager) getPSClusterForPod(
 ) SparseClusterSpec {
 	cluster := SparseClusterSpec{}
 	cluster.PS = scalePlan.Spec.PsHosts
-	chiefCount := 0
-	if status, ok := job.Status.ReplicaStatuses[ReplicaTypeChief]; ok {
-		chiefManager := common.ReplicaManagers[ReplicaTypeChief].(*TaskManager)
-		chiefCount = chiefManager.getTotalTaskCount(status)
-	}
 	chiefManager := common.ReplicaManagers[ReplicaTypeChief].(*TaskManager)
-	if chiefCount == 0 {
-		chiefCount = scalePlan.Spec.ReplicaResourceSpecs[ReplicaTypeChief].Replicas
-	}
-	chiefHosts := chiefManager.getAllTaskHosts(job.Name, chiefCount, ServicePort)
+	chiefHosts := chiefManager.getAllTaskHosts(job.Name, 1, WorkerServicePort)
 	cluster.Chief = make(map[int]string)
 	if len(chiefHosts) == 1 {
 		cluster.Chief[0] = chiefHosts[0]
@@ -351,7 +372,7 @@ func (m *TaskManager) getPSClusterForPod(
 		workerNum := taskCounts[ReplicaTypeWorker]
 		for i := 0; i < int(workerNum); i++ {
 			cluster.Worker[i] = newTaskServiceAddr(
-				job.Name, string(ReplicaTypeWorker), i, ServicePort,
+				job.Name, string(ReplicaTypeWorker), i, WorkerServicePort,
 			)
 		}
 	}
@@ -367,7 +388,7 @@ func (m *TaskManager) getPSClusterForPod(
 		}
 		for i := 0; i <= podMeta.RankIndex; i++ {
 			cluster.Worker[i] = newTaskServiceAddr(
-				job.Name, string(ReplicaTypeWorker), i, ServicePort,
+				job.Name, string(ReplicaTypeWorker), i, WorkerServicePort,
 			)
 		}
 	}
@@ -414,6 +435,8 @@ func (m *TaskManager) createPod(
 		InsertTfConfigToEnv(
 			&pod.Spec.Containers[0], cluster, podMeta.Type, podMeta.RankIndex,
 		)
+	} else if job.Spec.DistributionStrategy != "AllreduceStrategy" {
+		m.setAllreduceEnv(client, job, &pod.Spec.Containers[0])
 	}
 	err := client.Create(context.Background(), pod)
 	if err != nil {

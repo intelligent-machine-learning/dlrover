@@ -13,6 +13,7 @@
 
 import copy
 import threading
+import time
 from abc import ABCMeta, abstractmethod
 from typing import Dict
 
@@ -214,6 +215,7 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
         self.optimized_ps_mem = False
         self.optimize_worker_sampled = False
         self._job_stage = JobOptStage.CREATE
+        self._last_ps_change_time = 0.0
 
     def get_config_resource(self):
         job_config = JobResource()
@@ -368,6 +370,7 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
             node.name,
             node.config_resource.memory,
         )
+        self._last_ps_change_time = time.time()
 
     def get_job_resource_plan(self):
         plan = None
@@ -401,8 +404,7 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
             plan = self._get_worker_resource_at_stable_phase()
         return plan
 
-    def _get_worker_resource_at_init_phase(self):
-        optimizer_config = {}
+    def _get_worker_resource_at_init_phase(self, optimizer_config={}):
         optimizer_config[_WORKER_OPTIMIZE_PHASE] = OptimizeWorkerPhase.INITIAL
         plan = self._resource_optimizer.generate_opt_plan(
             JobOptStage.WORKER_INITIAL, optimizer_config
@@ -411,8 +413,7 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
             logger.info("No any plan to initialize the number of worker")
         return plan
 
-    def _get_worker_resource_at_sample_phase(self):
-        optimizer_config = {}
+    def _get_worker_resource_at_sample_phase(self, optimizer_config={}):
         optimizer_config[_WORKER_OPTIMIZE_PHASE] = OptimizeWorkerPhase.SAMPLE
         plan = self._resource_optimizer.generate_opt_plan(
             JobOptStage.WORKER_INITIAL, optimizer_config
@@ -421,8 +422,7 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
             return
         return plan
 
-    def _get_worker_resource_at_stable_phase(self):
-        optimizer_config = {}
+    def _get_worker_resource_at_stable_phase(self, optimizer_config={}):
         optimizer_config[_WORKER_OPTIMIZE_PHASE] = OptimizeWorkerPhase.STABLE
         plan = self._resource_optimizer.generate_opt_plan(
             JobOptStage.WORKER_INITIAL, optimizer_config
@@ -431,11 +431,21 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
             return
         return plan
 
-    def _get_ps_resource_plan(self):
-        optimizer_config = {}
-        plan = self._resource_optimizer.generate_opt_plan(
-            self._job_stage, optimizer_config
-        )
+    def _get_ps_resource_plan(self, optimizer_config={}):
+        # The interval of changing PS should be long enough.
+        interval = _dlrover_context.seconds_interval_to_change_ps
+        if time.time() - self._last_ps_change_time > interval:
+            plan = self._resource_optimizer.generate_opt_plan(
+                self._job_stage, optimizer_config
+            )
+        else:
+            logger.info(
+                "Skip optimizing PS, because the interval"
+                "to change ps is too short."
+            )
+            return ResourcePlan()
+        if not plan.empty():
+            self._last_ps_change_time = time.time()
         return plan
 
     def _verify_optimized_group_resource(self, plan: ResourcePlan, node_type):

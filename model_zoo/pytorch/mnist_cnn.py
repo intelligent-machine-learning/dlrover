@@ -87,6 +87,18 @@ def cleanup():
     dist.destroy_process_group()
 
 
+def setup(use_cuda):
+    print(f"Use cuda = {use_cuda}")
+    os.environ["MASTER_ADDR"] = os.environ["RDZV_ENDPOINT"]
+    if use_cuda:
+        dist.init_process_group("nccl")
+    else:
+        dist.init_process_group("gloo")
+    rank = dist.get_rank()
+    local_rank = os.environ["LOCAL_RANK"]
+    print(f"rank {rank} is initialized local_rank = {local_rank}")
+
+
 def train(args):
     """The function to run the training loop.
     Args:
@@ -97,10 +109,7 @@ def train(args):
         elastic_controller: The controller for elastic training.
     """
     use_cuda = not args.no_cuda and torch.cuda.is_available()
-    dist.init_process_group("gloo")
-    rank = dist.get_rank()
-    local_rank = os.environ["LOCAL_RANK"]
-    print(f"rank {rank} is initialized local_rank = {local_rank}")
+    setup(use_cuda)
     device = torch.device("cuda" if use_cuda else "cpu")
 
     train_dataset = ElasticMnistDataset(

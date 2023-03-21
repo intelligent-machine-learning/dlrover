@@ -139,8 +139,10 @@ class SpeedMonitor(object):
         return self._workers
 
     def reset_running_speed_monitor(self):
-        """Reest the speed monitor"""
+        """Reset the speed monitor by clearing the record of global records
+        and running workers."""
         self._global_step_records = []
+        self._workers = set()
 
     def all_worker_joined(self):
         return len(self._workers) == self._target_worker_num

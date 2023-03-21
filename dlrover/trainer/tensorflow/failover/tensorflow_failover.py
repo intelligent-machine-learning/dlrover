@@ -51,9 +51,13 @@ class TensorflowFailover:
 
     def init_for_dynet(self):
         TF_CONFIG = get_tf_config()
+        logger.info("TF_CONFIG is {}".format(TF_CONFIG))
         task_type, task_id = get_tf_config_task_type_and_index()
         self._role = task_type + ":" + str(task_id)
-        self._address = TF_CONFIG["cluster"][task_type][task_id]
+        if len(TF_CONFIG["cluster"][task_type]) > 1:
+            self._address = TF_CONFIG["cluster"][task_type][task_id]
+        else:
+            self._address = TF_CONFIG["cluster"][task_type][0]
         if self._role is None:
             return
         self.task_type, self.task_id = self._role.split(":")
@@ -110,20 +114,9 @@ class TensorflowFailover:
         """
         global_dict = common_util.GlobalDict()
         global_dict["failover"] = self
-        curr_ps_address = self.curr_ps_address
-        cluster = {
-            "cluster": {
-                self.task_type: [self._address],
-                "ps": curr_ps_address,
-            },
-            "task": {"type": self.task_type, "index": self.task_id},
-        }
-        # ValueError: If "cluster" is set in TF_CONFIG,
-        # it must have one "chief" node. However, worker
-        # doesn't need to know chief's address
-        if not self._is_chief:
-            cluster["cluster"].update({"chief": [""]})
-        os.environ["TF_CONFIG"] = json.dumps(cluster)
+        tf_config = get_tf_config()
+        tf_config["cluster"]["ps"] = self.curr_ps_address
+        os.environ["TF_CONFIG"] = json.dumps(tf_config)
         logger.info(
             "successfully refresh TF_CONFIFG %s" % os.environ["TF_CONFIG"]
         )

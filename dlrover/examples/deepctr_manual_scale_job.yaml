@@ -1,17 +1,17 @@
----
 apiVersion: elastic.iml.github.io/v1alpha1
 kind: ElasticJob
 metadata:
-  name: deepctr-auto-scale
+  name: deepctr-manual-scaling
   namespace: dlrover
 spec:
   distributionStrategy: ParameterServerStrategy
   resourceLimits:
     cpu: "15"
-    memory: "30000Mi"
+    memory: "10000Mi"
   replicaSpecs:
     ps:
-      autoScale: True
+      autoScale: False
+      replicas: 1
       template:
         spec:
           restartPolicy: Never
@@ -20,6 +20,13 @@ spec:
               # yamllint disable-line rule:line-length
               image: registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:v11
               imagePullPolicy: Always
+              resources:
+                limits:
+                  cpu: "0.5"
+                  memory: 4Gi
+                requests:
+                  cpu: "0.5"
+                  memory: 4Gi
               command:
                 - /bin/bash
                 - -c
@@ -36,7 +43,8 @@ spec:
               persistentVolumeClaim:
                 claimName: pvc-nas
     worker:
-      autoScale: True
+      autoScale: False
+      replicas: 1
       template:
         spec:
           restartPolicy: Never
@@ -45,6 +53,13 @@ spec:
               # yamllint disable-line rule:line-length
               image: registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:v11
               imagePullPolicy: Always
+              resources:
+                limits:
+                  cpu: "0.5"
+                  memory: 4Gi
+                requests:
+                  cpu: "0.5"
+                  memory: 4Gi
               command:
                 - /bin/bash
                 - -c
@@ -67,3 +82,5 @@ spec:
           containers:
             - name: main
               imagePullPolicy: Always
+              # yamllint disable-line rule:line-length
+              image: registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:v11

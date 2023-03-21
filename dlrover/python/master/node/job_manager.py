@@ -92,7 +92,10 @@ class JobManager(object):
 
         self._job_args = job_args
         self._ps_is_critical = False
-        if job_args.distribution_strategy == DistributionStrategy.PS:
+        if (
+            job_args.distribution_strategy == DistributionStrategy.PS
+            or job_args.distribution_strategy == DistributionStrategy.CUSTOM
+        ):
             self._ps_is_critical = (
                 job_args.node_args[NodeType.PS].critical_nodes == "all"
             )
@@ -159,9 +162,12 @@ class JobManager(object):
         self._init_job_auto_scaler()
         plan = self._create_initial_scale_plan()
         self._scaler.scale(plan)
+        worker_num = 0
         if NodeType.WORKER in plan.node_group_resources:
             worker_num = plan.node_group_resources[NodeType.WORKER].count
-            self._speed_monitor.set_target_worker_num(worker_num)
+        if NodeType.CHIEF in plan.node_group_resources:
+            worker_num += plan.node_group_resources[NodeType.CHIEF].count
+        self._speed_monitor.set_target_worker_num(worker_num)
         threading.Thread(
             target=self._monitor_nodes, name="node_monitor", daemon=True
         ).start()
@@ -439,7 +445,10 @@ class JobManager(object):
             and node.relaunchable
         )
         if should_relaunch:
-            if self._check_worker_memory_optimized(node):
+            if (
+                self._check_worker_memory_optimized(node)
+                or node.exit_reason == NodeExitReason.OOM
+            ):
                 # Worker may fail by core dump with insufficient memory.
                 self._job_optimizer.adjust_oom_resource(node)
             if node.exit_reason == NodeExitReason.FATAL_ERROR:
@@ -462,7 +471,6 @@ class JobManager(object):
                     )
                 else:
                     node.is_recovered_oom = True
-                    self._job_optimizer.adjust_oom_resource(node)
             elif node.exit_reason != NodeExitReason.KILLED:
                 if node.relaunch_count > node.max_relaunch_count:
                     logger.warning(

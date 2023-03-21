@@ -96,6 +96,10 @@ class NodeResource(JsonSerializable):
         return int(parse_quantity(memory) / 1024 / 1024)
 
     @classmethod
+    def convert_memory_to_byte(cls, memory: str):
+        return parse_quantity(memory)
+
+    @classmethod
     def convert_cpu_to_decimal(cls, cpu: str):
         return round(float(parse_quantity(cpu)), 1)
 

@@ -15,12 +15,12 @@ from dlrover.python.elastic_agent.sharding.client import ShardingClient
 from dlrover.trainer.util.log_util import default_logger as logger
 
 
-def build_data_shard_service(
+def build_sharding_client(
     batch_size=1,
     num_epochs=1,
     dataset_size=1,
     num_minibatches_per_shard=1,
-    dataset_name="iris_training_data",
+    dataset_name="training_data",
 ):
     sharding_client = ShardingClient(
         dataset_name=dataset_name,
@@ -48,13 +48,14 @@ class FileReader:
         self.enable_dynamic_sharding = enable_dynamic_sharding
         self.data_shard_service = None
         self._file_handler = open(file_name, "r")
+        self._file_name = file_name
 
         self.count_data()
         self.data_shard_client = None
         self._consumed_data = 0
-        self.build_data_shard_client()
+        self.build_sharding_client()
 
-    def build_data_shard_client(self):
+    def build_sharding_client(self):
         if self.enable_dynamic_sharding is True:
             logger.info(
                 "Build data shard client in file reader: \n \
@@ -64,12 +65,12 @@ class FileReader:
                     self._num_epochs, self._batch_size, self._data_nums
                 )
             )
-            self.data_shard_client = build_data_shard_service(
+            self.data_shard_client = build_sharding_client(
                 batch_size=self._batch_size,
                 num_epochs=self._num_epochs,
                 dataset_size=self._data_nums,
-                num_minibatches_per_shard=1,
-                dataset_name="iris_training_data",
+                num_minibatches_per_shard=2,
+                dataset_name=self._file_name,
             )
 
     def count_data(self):

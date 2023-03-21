@@ -154,6 +154,9 @@ class EstimatorExecutor(BaseExecutor):
         config = self.get_config(self.cluster_spec)
         self.gen_model_dir()
         config._model_dir = self._model_dir
+        config._keep_checkpoint_max = self._task_conf.get(
+            TFConstants.KeepCheckpointMax.name, TFConstants.KeepCheckpointMax()
+        )
         params = {}
         training_hooks = [GlobalStepHook()]
         data_shard_client = self.train_dataset.reader.data_shard_client

@@ -93,8 +93,8 @@ func InsertTfConfigToEnv(
 
 func convertSparseClusterToCluster(sparseCluster SparseClusterSpec) *ClusterSpec {
 	clusterSpec := &ClusterSpec{}
-	for _, host := range sparseCluster.Worker {
-		clusterSpec.Worker = append(clusterSpec.Worker, host)
+	for i := 0; i < len(sparseCluster.Worker); i++ {
+		clusterSpec.Worker = append(clusterSpec.Worker, sparseCluster.Worker[i])
 	}
 	for _, host := range sparseCluster.Chief {
 		clusterSpec.Chief = append(clusterSpec.Chief, host)

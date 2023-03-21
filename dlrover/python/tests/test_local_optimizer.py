@@ -67,12 +67,12 @@ class LocalOptimizerTest(unittest.TestCase):
         plan = self._optimizer._generate_job_create_resource()
         worker = plan.node_group_resources[NodeType.WORKER]
         self.assertEqual(worker.count, 1)
-        self.assertEqual(worker.node_resource.cpu, 1)
-        self.assertEqual(worker.node_resource.memory, 512)
+        self.assertEqual(worker.node_resource.cpu, 2)
+        self.assertEqual(worker.node_resource.memory, 1639)
         ps = plan.node_group_resources[NodeType.PS]
         self.assertEqual(ps.count, 1)
-        self.assertEqual(ps.node_resource.cpu, 1)
-        self.assertEqual(ps.node_resource.memory, 512)
+        self.assertEqual(ps.node_resource.cpu, 2)
+        self.assertEqual(ps.node_resource.memory, 1639)
 
     def test_extract_node_resource(self):
         node_samples = self._optimizer._extract_node_resource()
@@ -171,3 +171,71 @@ class LocalOptimizerTest(unittest.TestCase):
         self.assertEqual(worker_resource.count, 10)
         self.assertEqual(worker_resource.node_resource.cpu, 1.0)
         self.assertEqual(worker_resource.node_resource.memory, 2048 * 1.5)
+
+    def test_compute_worker_speed_ratio(self):
+        for i in range(10, 15):
+            nodes = []
+            ps = Node(
+                NodeType.PS,
+                0,
+                config_resource=NodeResource(4, 4096),
+                name="ps-0",
+            )
+            ps.used_resource = NodeResource(1.0, 2048)
+            nodes.append(ps)
+
+            ps = Node(
+                NodeType.PS,
+                1,
+                config_resource=NodeResource(4, 4096),
+                name="ps-1",
+            )
+            ps.used_resource = NodeResource(0.3, 2048)
+            nodes.append(ps)
+
+            for i in range(3):
+                worker = Node(
+                    NodeType.WORKER, i, config_resource=NodeResource(6, 4096)
+                )
+                worker.used_resource = NodeResource(1, 2048)
+                nodes.append(worker)
+            step = i * 100 + 1
+            ts = i * 1000 + 1
+            m = RuntimeMetric(nodes, global_step=step, speed=12, timestamp=ts)
+            self._optimizer._stats_collector.report_runtime_stats(m)
+        ratio = self._optimizer._compute_worker_speed_ratio()
+        self.assertEqual(ratio, 1)
+
+        for i in range(15, 20):
+            nodes = []
+            ps = Node(
+                NodeType.PS,
+                0,
+                config_resource=NodeResource(4, 4096),
+                name="ps-0",
+            )
+            ps.used_resource = NodeResource(1.0, 2048)
+            nodes.append(ps)
+
+            ps = Node(
+                NodeType.PS,
+                1,
+                config_resource=NodeResource(4, 4096),
+                name="ps-1",
+            )
+            ps.used_resource = NodeResource(0.3, 2048)
+            nodes.append(ps)
+
+            for i in range(4):
+                worker = Node(
+                    NodeType.WORKER, i, config_resource=NodeResource(6, 4096)
+                )
+                worker.used_resource = NodeResource(1, 2048)
+                nodes.append(worker)
+            step = i * 100 + 1
+            ts = i * 1000 + 1
+            m = RuntimeMetric(nodes, global_step=step, speed=15, timestamp=ts)
+            self._optimizer._stats_collector.report_runtime_stats(m)
+
+        ratio = self._optimizer._compute_worker_speed_ratio()
+        self.assertEqual(ratio, 0.75)
