@@ -94,4 +94,4 @@ By practice, DLRover is an ideal component to build an end-to-end industrial onl
 
 ## Quick Start
 
-[Train a TensorFlow Estimator on Aliyun ACK](docs/tutorial/dlrover_cloud.md)
+[Train a TensorFlow Estimator on Aliyun ACK](docs/tutorial/ps_on_cloud.md)
