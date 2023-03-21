@@ -1,7 +1,7 @@
 # PS Training Using DLRover on Public Cloud
 
-This document explains how to run a DLRover elastic job with on a public cloud,
-namely, Alibaba Cloud Container Service for Kubernetes(ACK).
+This document explains how to run a DLRover elastic job for PS training
+with on a public cloud, namely, Alibaba Cloud Container Service for Kubernetes(ACK).
 
 ## Preliminary
 
