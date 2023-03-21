@@ -18,6 +18,7 @@ from typing import Any, Dict
 
 import torch
 from torch.utils.data import DataLoader
+import torch.distributed as dist
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.trainer.torch.elastic_dataset import ElasticDataset
@@ -265,8 +266,10 @@ class ElasticTrainer(object):
         if max_worker_num == 0:
             self.gradient_accumulation_steps = 1
 
-        cur_world_size = int(os.getenv("WORLD_SIZE", 1))
-        rank = int(os.getenv("RANK", 0))
+        cur_world_size, rank = 1, 0
+        if dist.is_initialized():
+            cur_world_size = dist.get_world_size()
+            rank = dist.get_rank()
         self.gradient_accumulation_steps = int(max_worker_num / cur_world_size)
         remainder = max_worker_num % cur_world_size
         if rank < remainder:
