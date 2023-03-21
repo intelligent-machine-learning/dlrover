@@ -24,6 +24,7 @@ import (
 	logger "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	utilpointer "k8s.io/utils/pointer"
 	runtime_client "sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -132,6 +133,24 @@ func GetReplicaTypePods(
 		return nil, err
 	}
 	return podlist.Items, nil
+}
+
+// GetPod gets a Pod object
+func GetPod(
+	client runtime_client.Client,
+	namespace string,
+	name string,
+) (*corev1.Pod, error) {
+	pod := &corev1.Pod{}
+	err := client.Get(context.TODO(), types.NamespacedName{
+		Name:      name,
+		Namespace: namespace,
+	}, pod)
+	if err != nil {
+		logger.Warningf("Failed to get Pod : %s, error: %v", name, err)
+		return nil, err
+	}
+	return pod, nil
 }
 
 // GetReplicaStatus gets ReplicaStatus from ReplicaType Pods
