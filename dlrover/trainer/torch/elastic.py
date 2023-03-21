@@ -33,7 +33,8 @@ class GradientState(object):
             being synchronized across all processes.
         - *num_backward_steps** (`int`) -- The number of step to perform
             backward to compute gradients.
-        - *num_steps** (`int`) -- The number of step to update gradients.
+        - *num_steps** (`int`) -- The number of step to sync gradients and
+            update model parameters by gradients.
     """
 
     _shared_state: Dict[str, Any] = {}
@@ -46,7 +47,7 @@ class GradientState(object):
             self.num_steps = 0
 
     def check_sync_gradient(self, gradient_accumulation_steps):
-        """Check wether to synchronize gradients accross all processes."""
+        """Check whether to synchronize gradients accross all processes."""
         if self.num_backward_steps % gradient_accumulation_steps == 0:
             self.sync_gradients = True
         else:
@@ -121,7 +122,7 @@ class _ElasticOptimizer(torch.optim.Optimizer):
 
 class _ElasticLRScheduler(object):
     """A wrapper around a learning rate scheduler that will only
-    step after the gradients are sychronizec across all processes and
+    step after the gradients are sychronizing across all processes and
     the optimizer steps."""
 
     def __init__(
@@ -182,11 +183,17 @@ class ElasticTrainer(object):
         self.gradient_state = GradientState()
         self.gradient_accumulation_steps = 1
 
-    def prepare(self, optimizer, lr_scheduler):
-        optimizer = _ElasticOptimizer(optimizer)
-        lr_scheduler = _ElasticOptimizer(optimizer)
+    def prepare(self, optimizer, lr_scheduler=None):
+        """
+        Prepare optimizer and learning rate scheduler in elastic training.
+        """
         self._set_gradient_accumulation_steps()
-        return optimizer, lr_scheduler
+        optimizer = _ElasticOptimizer(optimizer)
+        if lr_scheduler:
+            lr_scheduler = _ElasticLRScheduler(lr_scheduler)
+            return optimizer, lr_scheduler
+        else:
+            return optimizer
 
     @contextmanager
     def step(self, fix_total_batch_size=True):
