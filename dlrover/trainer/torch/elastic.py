@@ -17,8 +17,8 @@ from contextlib import contextmanager
 from typing import Any, Dict
 
 import torch
-from torch.utils.data import DataLoader
 import torch.distributed as dist
+from torch.utils.data import DataLoader
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.trainer.torch.elastic_dataset import ElasticDataset
