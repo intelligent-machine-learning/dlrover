@@ -315,16 +315,32 @@ class MasterClient(object):
         response = self._stub.query_running_nodes(request)
         return response.nodes
 
-    def get_rdzv_state(self):
-        request = empty_pb2.Empty()
+    def get_rdzv_state(self, key):
+        request = elastic_training_pb2.RendezvousState()
+        request.rdzv_key = key
         res = self._stub.get_rdzv_state(request)
         return res.state_bits, res.token
 
-    def set_rdzv_state(self, state_bits, token):
+    def set_rdzv_state(self, key, state_bits, token):
         request = elastic_training_pb2.RendezvousState()
+        request.redzv_key = key
         request.state_bits = state_bits
         request.token = token
-        self._stub.set_rdzv_state(request)
+        response = self._stub.set_rdzv_state(request)
+        return response.success
+
+    def kv_store_set(self, key, value):
+        request = elastic_training_pb2.KeyValuePair()
+        request.key = key
+        request.value = value
+        response = self._stub.kv_store_set(request)
+        return response.success
+
+    def kv_store_get(self, key):
+        request = elastic_training_pb2.KeyValuePair()
+        request.key = key
+        response = self._stub.kv_store_get(request)
+        return response.value
 
 
 class LocalDataset(object):

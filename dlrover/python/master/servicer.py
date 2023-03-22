@@ -24,6 +24,12 @@ from dlrover.python.common.constants import GRPC, NodeType, TrainingLoopStatus
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
+from dlrover.python.master.elastic_training.kv_store_service import (
+    KVStoreService,
+)
+from dlrover.python.master.elastic_training.rdzv_service import (
+    TorchRendezvousService,
+)
 from dlrover.python.master.elastic_training.sync_service import SyncService
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.job_manager import JobManager
@@ -33,7 +39,6 @@ from dlrover.python.master.stats.job_collector import JobMetricCollector
 from dlrover.python.master.stats.training_metrics import OpStats, TensorStats
 from dlrover.python.master.watcher.base_watcher import Node, NodeEvent
 from dlrover.python.util.queue.queue import RayEventQueue
-from dlrover.python.master.elastic_training.rdzv_service import TorchRendezvousService
 
 _dlrover_context = Context.singleton_instance()
 _DEFAULT_NUM_MINIBATCHES_PER_SHARD = 100
@@ -65,6 +70,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         self._version = 0
         self._start_training_time = None
         self._start_autoscale = False
+        self._kv_store_service = KVStoreService()
 
     def get_model_version(self):
         return self._version
@@ -376,16 +382,31 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         return res
 
     def get_rdzv_state(self, request, _):
+        rdzv_key = request.rdzv_key
         res = elastic_training_pb2.RendezvousState()
-        state_bits, token = self._rdzv_serivce.get_state()
+        state_bits, token = self._rdzv_serivce.get_state(rdzv_key)
         res.state_bits = state_bits
         res.token = token
         return res
 
     def set_rdzv_state(self, request, _):
-        self._rdzv_serivce.set_state(request.state_bits, request.token)
+        succeed = self._rdzv_serivce.set_state(
+            request.state_bits, request.token
+        )
+        res = elastic_training_pb2.Response()
+        res.success = succeed
+        return res
+
+    def kv_store_set(self, request, _):
+        self._kv_store_service.set(request.key, request.value)
         res = elastic_training_pb2.Response()
         res.success = True
+        return res
+
+    def kv_store_get(self, request, _):
+        res = elastic_training_pb2.KeyValuePair()
+        res.key = request.key
+        res.value = self._kv_store_service.get(request.key)
         return res
 
 

@@ -90,20 +90,26 @@ class TorchRendezvousService(object):
 
     def __init__(self):
         self._lock = Lock()
-        self._latest_state = _RendezvousState()
-        self._completed_state = _RendezvousState()
+        self._latest_states: Dict[str, _RendezvousState] = {}
+        self._completed_states: Dict[str, _RendezvousState] = {}
+        self._token = -1
 
-    def set_state(self, state_bits: bytes, token: Optional[Any]):
+    def set_state(self, key, state_bits: bytes, token: Optional[Any]):
         """Set the _RendezvousState into the store in the master.
         Returns:
             A tuple of the serialized rendezvous state, its fencing token, and
             a boolean value indicating whether our set attempt succeeded.
         """
         with self._lock:
-            self._latest_state = pickle.loads(state_bits)
-            self._token = token
+            cur_state = self._latest_states.get(key, _RendezvousState())
+            cur_state_bits = pickle.dumps(cur_state)
+            if cur_state_bits == state_bits:
+                return False
+            self._latest_states[key] = pickle.loads(state_bits)
+            self._token += 1
+            return True
 
-    def get_state(self) -> Optional[Tuple[bytes, Any]]:
+    def get_state(self, key) -> Optional[Tuple[bytes, Any]]:
         """Return a new state only if len(_RendezvousState.participants)
         + len(_RendezvousState.wait_list) is base 2. Then, we can
         keep the fixed batch size by setting backward_passes_per_step
@@ -112,9 +118,16 @@ class TorchRendezvousService(object):
             A tuple of the encoded rendezvous state and its fencing token or
             ``None`` if no state is found in the backend.
         """
-        num_nodes_ready = len(self._latest_state.wait_list) + len(
-            self._latest_state.participants
+        completed_state_bits = "".encode()
+        if key not in self._latest_states:
+            return completed_state_bits, self._token
+        cur_state = self._latest_states[key]
+        num_nodes_ready = len(cur_state.wait_list) + len(
+            cur_state.participants
         )
+
         if base2(num_nodes_ready):
-            self._completed_state = self._latest_state
-        return pickle.dumps(self._completed_state), self._token
+            self._completed_states[key] = cur_state
+            completed_state = self._completed_states[key]
+            completed_state_bits = pickle.dumps(completed_state)
+        return completed_state_bits, self._token
