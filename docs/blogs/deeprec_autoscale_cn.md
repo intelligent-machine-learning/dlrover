@@ -233,3 +233,4 @@ dlrover-auto-scale-edljob-worker-1            1/1     Running   0          3m19s
 dlrover-auto-scale-edljob-worker-2            1/1     Running   0          3m19s
 elasticjob-torch-mnist-dlrover-master         1/1     Running   0          6m24s
 ```
+
