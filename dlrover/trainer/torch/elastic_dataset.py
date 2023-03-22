@@ -40,12 +40,12 @@ class ElasticDataset(Dataset, metaclass=ABCMeta):
             shuffle: bool, whether to shuffle samples in the dataset.
         """
         self.lines = read_txt(path)
-        dataset_size = len(self.lines)
+        self.dataset_size = len(self.lines)
         self._shard_client = IndexShardingClient(
             dataset_name=path,
             batch_size=batch_size,
             num_epochs=epochs,
-            dataset_size=dataset_size,
+            dataset_size=self.dataset_size,
             shuffle=shuffle,
             storage_type="text",
         )
@@ -64,6 +64,9 @@ class ElasticDataset(Dataset, metaclass=ABCMeta):
         """After updating models using the samples, the dataset need to
         report the batch completion."""
         self._shard_client.report_batch_done(batch_size)
+
+    def end_shard(self):
+        return self._shard_client.no_more_data
 
     @abstractmethod
     def read_sample(self, index):
