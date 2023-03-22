@@ -5,8 +5,7 @@
 1）训练样本量大，需要分布式训练提升训练速度；
 2）模型稀疏，即模型结构中离散特征计算逻辑占比较高。
 稀疏模型一般包含很大的 embedding 表，所以此类模型往往采用 Parameter Server 架构的异步分布式训练。
-[DeepRec](https://github.com/alibaba/DeepRec) 针对这类模型提供了包括动态弹性特征等Embedding功能，
-以及在分布式、Runtime、算子优化、图优化、编译优化等训练及推理场景的性能优化。
+[DeepRec](https://github.com/alibaba/DeepRec) 是阿里巴巴集团开源的面向推荐场景的高性能深度学习框架，针对稀疏模型在分布式、图优化、算子、Runtime等方面进行了深度的性能优化，同时提供了搜索、推荐、广告场景下特有的动态弹性特征，动态弹性维度，自适应EmbeddingVariable、增量模型导出及加载等一系列功能。
 
 越来越多的公司为了节省成本开始在云上训练 AI 模型。通常，用户在云上提交一个分布式训练作业需要给作业配置资源，
 包括节点的数量和每个节点的资源（CPU & memory 等）。资源是影响训练性能的一个重要因素。
@@ -190,7 +189,7 @@ master 会将对应的 shard 会重新放入 TODO 队列。
 扩充 PS 后，训练框架需要对 embedding 重新 partition，从而让 embedding 参数重新均分分布到新的 PS 节点集合上。
 
 为解决上述问题，DeepRec 新设计了一套支持动态 Embedding 语义的 EmbeddingVariable，
-在特征无损训练的同时以最经济的方式使用内存资源，使得超大规模特征的模型更容易增量上线。具体可以参考[DeepRec](https://github.com/alibaba/DeepRec)。
+在特征无损训练的同时以最经济的方式使用内存资源。具体可以参考[DeepRec](https://github.com/alibaba/DeepRec)。
 
 
 #### 基于 checkpoint 的 PS 弹性扩缩容
@@ -233,3 +232,4 @@ dlrover-auto-scale-edljob-worker-1            1/1     Running   0          3m19s
 dlrover-auto-scale-edljob-worker-2            1/1     Running   0          3m19s
 elasticjob-torch-mnist-dlrover-master         1/1     Running   0          6m24s
 ```
+
