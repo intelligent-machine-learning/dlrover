@@ -25,7 +25,8 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader
 
-from dlrover.python.elastic_agent.pytorch.elastic_dataset import ElasticDataset
+from dlrover.trainer.torch.elastic import ElasticTrainer
+from dlrover.trainer.torch.elastic_dataset import ElasticDataset
 
 
 class ElasticMnistDataset(ElasticDataset):
@@ -134,7 +135,8 @@ def train(args):
 
     model = Net()
     optimizer = optim.SGD(model.parameters(), lr=args.learning_rate)
-    scheduler = StepLR(optimizer, step_size=1, gamma=0.5)
+    step_size = int(train_dataset.dataset_size / args.batch_size)
+    scheduler = StepLR(optimizer, step_size=step_size, gamma=0.5)
 
     if torch.cuda.is_available():
         rank = int(os.environ["LOCAL_RANK"])
@@ -145,30 +147,26 @@ def train(args):
     else:
         model = DDP(model)
 
-    epoch = 0
+    elastic_trainer = ElasticTrainer(model, train_loader)
+    optimizer, scheduler = elastic_trainer.prepare(optimizer, scheduler)
+
     for batch_idx, (data, target) in enumerate(train_loader):
         model.train()
-        target = target.type(torch.LongTensor)
-        data, target = data.to(device), target.to(device)
-        loss = train_one_batch(model, optimizer, data, target)
-        print("loss = {}, step = {}".format(loss, batch_idx))
-        new_epoch = train_dataset.get_epoch()
-        if new_epoch and new_epoch > epoch:
-            epoch = new_epoch
-            # Set epoch of the scheduler
-            scheduler.last_epoch = epoch - 1
+        with elastic_trainer.step():
+            target = target.type(torch.LongTensor)
+            data, target = data.to(device), target.to(device)
+            output = model(data)
+            loss = F.nll_loss(output, target)
+            loss.backward()
+            optimizer.step()
+            optimizer.zero_grad()
+            print("loss = {}, step = {}".format(loss, batch_idx))
             scheduler.step()
-            test(model, device, test_loader)
-        train_dataset.report_batch_done()
-
-
-def train_one_batch(model, optimizer, data, target):
-    optimizer.zero_grad()
-    output = model(data)
-    loss = F.nll_loss(output, target)
-    loss.backward()
-    optimizer.step()
-    return loss
+            if (
+                elastic_trainer.num_steps > 0
+                and elastic_trainer.num_steps % 10000 == 0
+            ):
+                test(model, device, test_loader)
 
 
 def test(model, device, test_loader):
@@ -177,6 +175,7 @@ def test(model, device, test_loader):
     correct = 0
     with torch.no_grad():
         for data, target in test_loader:
+            target = target.type(torch.LongTensor)
             data, target = data.to(device), target.to(device)
             output = model(data)
             test_loss += F.nll_loss(
