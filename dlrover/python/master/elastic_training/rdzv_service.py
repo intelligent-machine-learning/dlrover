@@ -94,6 +94,9 @@ class TorchRendezvousService(object):
         self._completed_states: Dict[str, _RendezvousState] = {}
         self._token = -1
 
+    def start(self):
+        pass
+
     def set_state(self, key, state_bits: bytes, token: Optional[Any]):
         """Set the _RendezvousState into the store in the master.
         Returns:
