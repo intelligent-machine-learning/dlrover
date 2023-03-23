@@ -411,6 +411,9 @@ class LocalMasterClient(object):
         self._num_minibatches_per_shard = 0
         self._datasets: Dict[str, LocalDataset] = {}
         self._task_type = None
+        self._kv_store: Dict[str, str] = {}
+        self._rdzv_states: Dict[str, bytes] = {}
+        self._rdzv_tokens: Dict[str, int] = {}
 
     def reset_dataset(self, dataset_name):
         """Reset a dataset
@@ -496,6 +499,25 @@ class LocalMasterClient(object):
 
     def report_used_resource(self, memory, cpu):
         return empty_pb2.Empty()
+
+    def get_rdzv_state(self, key):
+        state_bits = self._rdzv_states[key]
+        token = self._rdzv_tokens[key]
+        return state_bits, token
+
+    def set_rdzv_state(self, key, state_bits, token):
+        if state_bits == self._rdzv_states.get(key, None):
+            return False
+        self._rdzv_states[key] = state_bits
+        self._rdzv_tokens[key] = token
+        return True
+
+    def kv_store_set(self, key, value):
+        self._kv_store[key] = value
+        return True
+
+    def kv_store_get(self, key):
+        return self._kv_store.get(key, "")
 
 
 def build_master_client(master_addr=None):

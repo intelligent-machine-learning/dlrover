@@ -31,7 +31,7 @@ from dlrover.python.elastic_agent.master_client import (
     GlobalMasterClient,
     MasterClient,
 )
-from dlrover.python.elastic_agent.troch.master_kv_store import MasterKVStore
+from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
 
 
 class DlroverRendezvousBackend(RendezvousBackend):
@@ -48,15 +48,12 @@ class DlroverRendezvousBackend(RendezvousBackend):
     _client: MasterClient
     _key: str
 
-    def __init__(
-        self,
-        run_id: str,
-    ) -> None:
+    def __init__(self, run_id: str, key_prefix) -> None:
         if not run_id:
             raise ValueError("The run id must be a non-empty string.")
 
         self._client = GlobalMasterClient.MASTER_CLIENT
-        self._key = "torch.rendezvous." + run_id
+        self._key = key_prefix + run_id
 
     @property
     def name(self) -> str:
@@ -73,8 +70,8 @@ class DlroverRendezvousBackend(RendezvousBackend):
                 "See inner exception for details."
             ) from exc
 
-        token = result[1]
         new_state = self._decode_state(result[0])
+        token = result[1]
         return new_state, token
 
     def set_state(
@@ -87,8 +84,6 @@ class DlroverRendezvousBackend(RendezvousBackend):
             result = self.get_state()
             if result is not None:
                 tmp = *result, False
-                # Python 3.6 does not support tuple unpacking in return
-                # statements.
                 return tmp
             return None
 
@@ -114,7 +109,7 @@ class DlroverRendezvousBackend(RendezvousBackend):
 
         return state, token, succeed
 
-    def _decode_state(self, result) -> Tuple[bytes, Token]:
+    def _decode_state(self, result) -> bytes:
         base64_state = result.encode()
 
         try:
@@ -130,31 +125,12 @@ class DlroverRendezvousBackend(RendezvousBackend):
 def create_backend(
     params: RendezvousParameters,
 ) -> Tuple[DlroverRendezvousBackend, Store]:
-    """Creates a new :py:class:`EtcdRendezvousBackend` from the specified
+    """Creates a new :py:class:`DlroverRendezvousBackend` from the specified
     parameters.
-
-    +--------------+-----------------------------------------------------------+
-    | Parameter    | Description                                               |
-    +==============+===========================================================+
-    | read_timeout | The read timeout, in seconds, for etcd operations.        |
-    |              | Defaults to 60 seconds.                                   |
-    +--------------+-----------------------------------------------------------+
-    | protocol     | The protocol to use to communicate with etcd. Valid       |
-    |              | values are "http" and "https". Defaults to "http".        |
-    +--------------+-----------------------------------------------------------+
-    | ssl_cert     | The path to the SSL client certificate to use along with  |
-    |              | HTTPS. Defaults to ``None``.                              |
-    +--------------+-----------------------------------------------------------+
-    | ssl_cert_key | The path to the private key of the SSL client certificate |
-    |              | to use along with HTTPS. Defaults to ``None``.            |
-    +--------------+-----------------------------------------------------------+
-    | ca_cert      | The path to the rool SSL authority certificate. Defaults  |
-    |              | to ``None``.                                              |
-    +--------------+-----------------------------------------------------------+
     """
 
     backend = DlroverRendezvousBackend(
-        params.run_id, key_prefix="/torch/elastic/rendezvous"
+        params.run_id, key_prefix="torch.elastic.rendezvous."
     )
 
     store = MasterKVStore("/torch/elastic/store")

@@ -14,7 +14,7 @@
 import threading
 import time
 from concurrent import futures
-from typing import List
+from typing import List, Optional
 
 import grpc
 from google.protobuf import empty_pb2
@@ -53,7 +53,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         task_manager: TaskManager,
         job_manager: JobManager,
         speed_monitor: SpeedMonitor,
-        rdzv_service: TorchRendezvousService,
+        rdzv_service: Optional[TorchRendezvousService],
         job_metric_collector=None,
         elastic_ps_service=None,
         sync_service=None,

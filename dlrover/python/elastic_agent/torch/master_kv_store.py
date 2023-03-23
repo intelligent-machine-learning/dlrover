@@ -50,7 +50,7 @@ class MasterKVStore(Store):
         Write a key/value pair into ``MasterKVStore``.
         Both key and value may be either Python ``str`` or ``bytes``.
         """
-        key = (self.prefix + self._encode(key),)
+        key = self.prefix + self._encode(key)
         value = self._encode(value)
         self.client.kv_store_set(key, value)
 
@@ -86,7 +86,7 @@ class MasterKVStore(Store):
         Returns:
              the new (incremented) value
         """
-        b64_key = self._encode(key)
+        b64_key = self.prefix + self._encode(key)
         value = self.client.kv_store_get(b64_key)
         if value:
             value = int(self._decode(value)) + num
@@ -154,6 +154,7 @@ class MasterKVStore(Store):
         all the keys are published or timeout occurs.
         """
         timeout = override_timeout if override_timeout else self.timeout
+        print(timeout)
         deadline = time.time() + timeout.total_seconds()
 
         kvs: Dict[str, str] = {}
