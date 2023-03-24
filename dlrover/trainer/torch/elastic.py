@@ -228,7 +228,7 @@ class ElasticTrainer(object):
         """
         self._before_step(fix_total_batch_size)
         context = contextlib.nullcontext
-        if self.gradient_state.sync_gradients:
+        if not self.gradient_state.sync_gradients:
             context = getattr(self.model, "no_sync", context)
 
         with context():
@@ -275,6 +275,8 @@ class ElasticTrainer(object):
         if rank < remainder:
             self.gradient_accumulation_steps += 1
         logger.info(
-            "Gradient accumulation steps = %s",
+            "Rank = %s, World size = %s, Gradient accumulation steps = %s",
+            rank,
+            cur_world_size,
             self.gradient_accumulation_steps,
         )
