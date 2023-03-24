@@ -383,15 +383,20 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
 
     def get_rdzv_state(self, request, _):
         rdzv_key = request.rdzv_key
-        res = elastic_training_pb2.RendezvousState()
         state_bits, token = self._rdzv_serivce.get_state(rdzv_key)
+        res = elastic_training_pb2.RendezvousState()
+        res.rdzv_key = rdzv_key
         res.state_bits = state_bits
         res.token = token
         return res
 
     def set_rdzv_state(self, request, _):
         succeed = self._rdzv_serivce.set_state(
-            request.state_bits, request.token
+            request.rdzv_key,
+            request.state_bits,
+            request.token,
+            request.participant_num,
+            request.wait_num,
         )
         res = elastic_training_pb2.Response()
         res.success = succeed

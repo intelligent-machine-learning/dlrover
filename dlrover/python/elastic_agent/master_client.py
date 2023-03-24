@@ -321,11 +321,15 @@ class MasterClient(object):
         res = self._stub.get_rdzv_state(request)
         return res.state_bits, res.token
 
-    def set_rdzv_state(self, key, state_bits, token):
+    def set_rdzv_state(
+        self, key, state_bits, token, participant_num, wait_num
+    ):
         request = elastic_training_pb2.RendezvousState()
-        request.redzv_key = key
+        request.rdzv_key = key
         request.state_bits = state_bits
         request.token = token
+        request.participant_num = participant_num
+        request.wait_num = wait_num
         response = self._stub.set_rdzv_state(request)
         return response.success
 
@@ -505,7 +509,7 @@ class LocalMasterClient(object):
         token = self._rdzv_tokens[key]
         return state_bits, token
 
-    def set_rdzv_state(self, key, state_bits, token):
+    def set_rdzv_state(self, key, state_bits, token, paricipant_num, wait_num):
         if state_bits == self._rdzv_states.get(key, None):
             return False
         self._rdzv_states[key] = state_bits

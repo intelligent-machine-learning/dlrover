@@ -19,6 +19,7 @@ from typing import Dict, Optional
 from torch.distributed import Store
 
 from dlrover.python.elastic_agent.master_client import GlobalMasterClient
+from dlrover.python.common.log import default_logger as logger
 
 
 class MasterKVStore(Store):
@@ -50,8 +51,8 @@ class MasterKVStore(Store):
         Write a key/value pair into ``MasterKVStore``.
         Both key and value may be either Python ``str`` or ``bytes``.
         """
-        key = self.prefix + self._encode(key)
-        value = self._encode(value)
+        logger.info("Set kv store key = %s, value = %s", key, value)
+        key = self.prefix + key
         self.client.kv_store_set(key, value)
 
     def get(self, key) -> bytes:
@@ -67,15 +68,17 @@ class MasterKVStore(Store):
         Raises:
             LookupError - If key still not published after timeout
         """
-        b64_key = self.prefix + self._encode(key)
-        value = self.client.kv_store_get(b64_key)
+        key = self.prefix + key
+        kvs = self._try_wait_get([key])
+        value = kvs[key]
+        logger.info("Get kv store key = %s, value = %s", key, value)
 
-        if value is None:
+        if value == b'':
             raise LookupError(
                 f"Key {key} not found in the store of job master"
             )
 
-        return self._decode(value)
+        return value
 
     def add(self, key, num: int) -> int:
         """
@@ -86,15 +89,15 @@ class MasterKVStore(Store):
         Returns:
              the new (incremented) value
         """
-        b64_key = self.prefix + self._encode(key)
-        value = self.client.kv_store_get(b64_key)
+        key = self.prefix + key
+        value = self.client.kv_store_get(key)
         if value:
-            value = int(self._decode(value)) + num
+            value = int(value) + num
         else:
             value = num
 
-        value_str = self._encode(str(value))
-        self.client.kv_store_set(b64_key, value_str)
+        value_bits = str(value).encode()
+        self.client.kv_store_set(key, value_bits)
         return value
 
     def wait(
@@ -106,8 +109,8 @@ class MasterKVStore(Store):
         Raises:
             LookupError - if timeout occurs
         """
-        b64_keys = [self.prefix + self._encode(key) for key in keys]
-        kvs = self._try_wait_get(b64_keys, override_timeout)
+        keys = [self.prefix + key for key in keys]
+        kvs = self._try_wait_get(keys, override_timeout)
         if kvs is None:
             raise LookupError(
                 "Timeout while waiting for keys in KVStore of master"
@@ -117,55 +120,31 @@ class MasterKVStore(Store):
         """
         Check if all of the keys are immediately present (without waiting).
         """
-        b64_keys = [self.prefix + self._encode(key) for key in keys]
+        keys = [self.prefix + key for key in keys]
         kvs = self._try_wait_get(
-            b64_keys,
+            keys,
             override_timeout=datetime.timedelta(microseconds=1),
         )
         return kvs is not None
 
-    def _encode(self, value) -> str:
-        """
-        Encode key/value data in base64, so we can store arbitrary binary data
-        in MasterKVStore. Input can be `str` or `bytes`.
-        In case of `str`, utf-8 encoding is assumed.
-        """
-        if type(value) == bytes:
-            return b64encode(value).decode()
-        elif type(value) == str:
-            return b64encode(value.encode()).decode()
-        raise ValueError("Value must be of type str or bytes")
-
-    def _decode(self, value) -> bytes:
-        """
-        Decode a base64 string (of type `str` or `bytes`).
-        Return type is `bytes`, which is more convenient with
-        the Store interface.
-        """
-        if type(value) == bytes:
-            return b64decode(value)
-        elif type(value) == str:
-            return b64decode(value.encode())
-        raise ValueError("Value must be of type str or bytes")
-
-    def _try_wait_get(self, b64_keys, override_timeout=None):
+    def _try_wait_get(self, keys, override_timeout=None):
         """
         Get all of the (base64-encoded) etcd keys at once, or wait until
         all the keys are published or timeout occurs.
         """
         timeout = override_timeout if override_timeout else self.timeout
-        print(timeout)
+        logger.info("timeout = %s", timeout)
         deadline = time.time() + timeout.total_seconds()
 
         kvs: Dict[str, str] = {}
         while True:
-            for b64_key in b64_keys:
-                if b64_key not in kvs:
-                    value = self.client.kv_store_get(b64_key)
-                    if value:
-                        kvs[b64_key] = value
+            for key in keys:
+                if key not in kvs:
+                    value = self.client.kv_store_get(key)
+                    if value != b'':
+                        kvs[key] = value
 
-            if len(kvs) == len(b64_keys):
+            if len(kvs) == len(keys):
                 return kvs
 
             watch_timeout = deadline - time.time()

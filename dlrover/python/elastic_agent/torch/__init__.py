@@ -10,27 +10,3 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-
-from torch.distributed.elastic.rendezvous.api import (
-    rendezvous_handler_registry,
-    RendezvousHandler,
-    RendezvousParameters,
-)
-
-from dlrover.python.elastic_agent.torch.rdzv_backend import create_backend
-from torch.distributed.elastic.rendezvous.dynamic_rendezvous import (
-    create_handler,
-)
-
-
-def _create_dlrover_master_handler(
-    params: RendezvousParameters,
-) -> RendezvousHandler:
-    backend, store = create_backend(params)
-    return create_handler(store, backend, params)
-
-
-rendezvous_handler_registry.register(
-    "dlrover-master", _create_dlrover_master_handler,
-)

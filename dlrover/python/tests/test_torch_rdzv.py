@@ -12,11 +12,19 @@
 # limitations under the License.
 
 import datetime
+import pickle
 import unittest
+
+from torch.distributed.elastic.rendezvous.dynamic_rendezvous import (
+    _RendezvousState,
+)
 
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
 from dlrover.python.elastic_agent.torch.rdzv_backend import (
     DlroverRendezvousBackend,
+)
+from dlrover.python.master.elastic_training.rdzv_service import (
+    TorchRendezvousService,
 )
 
 
@@ -45,7 +53,7 @@ class DlroverRendezvousBackendTest(unittest.TestCase):
             "test-rdzv",
             "torch.elastic.redzv.",
         )
-        state_bits = "rdzv-state".encode()
+        state_bits = pickle.dumps(_RendezvousState())
         new_state, token, success = rdzv_backend.set_state(state_bits, 1)
         self.assertEqual(new_state, state_bits)
         self.assertTrue(success)
@@ -54,3 +62,15 @@ class DlroverRendezvousBackendTest(unittest.TestCase):
         new_state, token = rdzv_backend.get_state()
         self.assertEqual(new_state, state_bits)
         self.assertEqual(token, 1)
+
+
+class RdzvServiceTest(unittest.TestCase):
+    def test_rdzv_service(self):
+        rdzv_svc = TorchRendezvousService()
+        rdzv_key = "test-rdzv-0"
+        state = pickle.dumps("aaaaa")
+        state_bits = pickle.dumps(state)
+        rdzv_svc.set_state(rdzv_key, state_bits, 1, 1, 0)
+        new_state_bits, token = rdzv_svc.get_state(rdzv_key)
+        self.assertEqual(new_state_bits, state_bits)
+        self.assertEqual(token, 0)

@@ -11,27 +11,88 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import binascii
-from base64 import b64decode, b64encode
-from typing import Optional, Tuple
+import pickle
+from datetime import datetime
+from typing import Dict, Optional, Set, Tuple
 
 import grpc
 from torch.distributed import Store
 from torch.distributed.elastic.rendezvous.api import (
     RendezvousConnectionError,
     RendezvousParameters,
-    RendezvousStateError,
 )
 from torch.distributed.elastic.rendezvous.dynamic_rendezvous import (
     RendezvousBackend,
     Token,
 )
 
+from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.master_client import (
     GlobalMasterClient,
     MasterClient,
 )
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
+
+
+class _NodeDesc:
+    """Describes a node in the rendezvous.
+
+    Attributes:
+        addr:
+            The FQDN of the node or user specified local node address.
+        pid:
+            The id of the process in which the rendezvous handler runs.
+        local_id:
+            A process-wide unique id.
+    """
+
+    addr: str
+    pid: int
+    local_id: int
+
+    def __repr__(self) -> str:
+        return f"{self.addr}_{self.pid}_{self.local_id}"
+
+
+class RendezvousState:
+    """Holds the state of a rendezvous.
+
+    Attributes:
+        round:
+            The current round of the rendezvous.
+        complete:
+            A boolean value indicating whether the current round of the
+            rendezvous is complete.
+        deadline:
+            The time at which the current round of the rendezvous will be
+            considered complete if it is still waiting for nodes to join.
+        closed:
+            A boolean value indicating whether the rendezvous is closed.
+        participants:
+            A dictionary of the participants and their corresponding ranks.
+        wait_list:
+            A set of nodes that are waiting to participate in the next round of
+            the rendezvous.
+        last_heartbeats:
+            A dictionary containing each node's last heartbeat time.
+    """
+
+    round: int
+    complete: bool
+    deadline: Optional[datetime]
+    closed: bool
+    participants: Dict[_NodeDesc, int]
+    wait_list: Set[_NodeDesc]
+    last_heartbeats: Dict[_NodeDesc, datetime]
+
+    def __init__(self) -> None:
+        self.round = 0
+        self.complete = False
+        self.deadline = None
+        self.closed = False
+        self.participants = {}
+        self.wait_list = set()
+        self.last_heartbeats = {}
 
 
 class DlroverRendezvousBackend(RendezvousBackend):
@@ -70,15 +131,18 @@ class DlroverRendezvousBackend(RendezvousBackend):
                 "See inner exception for details."
             ) from exc
 
-        new_state = self._decode_state(result[0])
+        new_state_bits = result[0]
         token = result[1]
-        return new_state, token
+        if new_state_bits == pickle.dumps(""):
+            return None
+        rdzv_state = pickle.loads(new_state_bits)
+        logger.info("Get state = %s, token = %s", rdzv_state.__dict__, token)
+        return new_state_bits, token
 
     def set_state(
         self, state: bytes, token: Optional[Token] = None
     ) -> Optional[Tuple[bytes, Token, bool]]:
         """See base class."""
-        base64_state = b64encode(state).decode()
 
         def get_state():
             result = self.get_state()
@@ -92,9 +156,19 @@ class DlroverRendezvousBackend(RendezvousBackend):
                 token = int(token)
             except ValueError:
                 return get_state()
+        else:
+            token = 0
         try:
+            rdzv_state = pickle.loads(state)
+            logger.info("Set state = %s, token = %s", rdzv_state.__dict__, token)
+            participant_num = len(rdzv_state.participants)
+            wait_num = len(rdzv_state.wait_list)
             succeed = self._client.set_rdzv_state(
-                self._key, base64_state, token
+                self._key,
+                state,
+                token,
+                participant_num,
+                wait_num,
             )
 
         except grpc.RpcError as exc:
@@ -108,18 +182,6 @@ class DlroverRendezvousBackend(RendezvousBackend):
             return get_state()
 
         return state, token, succeed
-
-    def _decode_state(self, result) -> bytes:
-        base64_state = result.encode()
-
-        try:
-            state = b64decode(base64_state)
-        except binascii.Error as exc:
-            raise RendezvousStateError(
-                "The state object is corrupt. See inner exception for details."
-            ) from exc
-
-        return state
 
 
 def create_backend(
