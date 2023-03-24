@@ -289,7 +289,8 @@ func (m *TaskManager) setAllreduceEnv(
 	job *elasticv1alpha1.ElasticJob,
 	container *corev1.Container,
 ) error {
-	worker0, err := common.GetPod(client, job.Namespace, "worker-0")
+	worker0Name := newTaskName(job.Name, string(m.taskType), 0)
+	worker0, err := common.GetPod(client, job.Namespace, worker0Name)
 	rdzvEndpointEnv := corev1.EnvVar{Name: rdzvEndpointEnvName}
 	if err != nil {
 		rdzvEndpointEnv.ValueFrom = &corev1.EnvVarSource{
@@ -435,7 +436,7 @@ func (m *TaskManager) createPod(
 		InsertTfConfigToEnv(
 			&pod.Spec.Containers[0], cluster, podMeta.Type, podMeta.RankIndex,
 		)
-	} else if job.Spec.DistributionStrategy != "AllreduceStrategy" {
+	} else if job.Spec.DistributionStrategy == "AllreduceStrategy" {
 		m.setAllreduceEnv(client, job, &pod.Spec.Containers[0])
 	}
 	err := client.Create(context.Background(), pod)
