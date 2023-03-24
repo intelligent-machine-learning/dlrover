@@ -18,7 +18,7 @@ spec:
           containers:
             - name: main
               # yamllint disable-line rule:line-length
-              image: registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:v11
+              image: registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:v0.1.0
               imagePullPolicy: Always
               command:
                 - /bin/bash
@@ -43,7 +43,7 @@ spec:
           containers:
             - name: main
               # yamllint disable-line rule:line-length
-              image: registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:v11
+              image: registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:v0.1.0
               imagePullPolicy: Always
               command:
                 - /bin/bash
