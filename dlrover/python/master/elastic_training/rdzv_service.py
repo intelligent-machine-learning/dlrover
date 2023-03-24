@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pickle
 from threading import Lock
 from typing import Any, Dict, Optional, Tuple
 
@@ -24,8 +23,8 @@ def base2(n):
 
 class RendezvousState(object):
     def __init__(self) -> None:
-        self.latest_state_bits: Optional[bytes] = None
-        self.completed_state_bits: Optional[bytes] = None
+        self.latest_state_bits = b""
+        self.completed_state_bits = b""
         self.participant_num = 0
         self.wait_num = 0
 
@@ -83,7 +82,7 @@ class TorchRendezvousService(object):
             ``None`` if no state is found in the backend.
         """
         with self._lock:
-            completed_state_bits = pickle.dumps("")
+            completed_state_bits = b""
             if key not in self._rdzv_states:
                 return completed_state_bits, self._token
 

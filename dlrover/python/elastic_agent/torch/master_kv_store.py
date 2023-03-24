@@ -69,7 +69,7 @@ class MasterKVStore(Store):
         kvs = self._try_wait_get([key])
         value = kvs[key]
 
-        if value == b'':
+        if value == b"":
             raise LookupError(
                 f"Key {key} not found in the store of job master"
             )
@@ -136,7 +136,7 @@ class MasterKVStore(Store):
             for key in keys:
                 if key not in kvs:
                     value = self.client.kv_store_get(key)
-                    if value != b'':
+                    if value != b"":
                         kvs[key] = value
 
             if len(kvs) == len(keys):

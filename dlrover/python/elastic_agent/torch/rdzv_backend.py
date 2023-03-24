@@ -132,9 +132,8 @@ class DlroverRendezvousBackend(RendezvousBackend):
 
         new_state_bits = result[0]
         token = result[1]
-        if new_state_bits == pickle.dumps(""):
+        if new_state_bits == b"":
             return None
-        rdzv_state = pickle.loads(new_state_bits)
         return new_state_bits, token
 
     def set_state(
