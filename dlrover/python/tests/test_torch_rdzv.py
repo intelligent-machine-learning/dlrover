@@ -34,10 +34,10 @@ class MasterKVStoreTest(unittest.TestCase):
         key = "key0"
         kv_store.set(key, "1")
         value = kv_store.get(key)
-        self.assertEqual(int(value.decode()), 1)
+        self.assertEqual(int(value), 1)
         kv_store.add(key, 2)
         value = kv_store.get(key)
-        self.assertEqual(int(value.decode()), 3)
+        self.assertEqual(int(value), 3)
         kv_store.wait([key])
         try:
             kv_store.wait(
