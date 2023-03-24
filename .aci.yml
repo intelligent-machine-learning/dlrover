@@ -1,0 +1,24 @@
+version: "1.5"
+
+stages:
+  - 构建&发布到测试库
+agent:
+  docker:
+    image: reg.docker.alibaba-inc.com/elasticdl/elasticdl:dev_aci
+onlyExecuteLastPipeline: true #同一个分支只执行一个ci
+
+only:
+  triggerType:
+    - push
+  targetBranch:
+    - master
+
+build_elasticdl_dev:
+  stage: 构建&发布到测试库
+  id: build
+  component: pypi-artifact-uploader
+  inputs:
+    buildImage: reg.docker.alibaba-inc.com/elasticdl/elasticdl:dev_aci
+    registry: "https://artifacts.antgroup-inc.cn/artifact/repositories/simple-dev" # yamllint disable-line rule:line-length
+    workdir: ./
+    buildCmd: "make -f dlrover/Makefile && python setup.py bdist_wheel"
