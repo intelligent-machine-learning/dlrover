@@ -78,3 +78,6 @@ elasticjob-sample-edljob-ps-0         1/1     Running   0          2m42s
 elasticjob-sample-edljob-worker-0     1/1     Running   0          2m42s
 elasticjob-sample-edljob-worker-1     1/1     Running   0          2m42s
 ```
+
+### 6. Create a release
+Change pip version and docker image tag when creating a new release.
