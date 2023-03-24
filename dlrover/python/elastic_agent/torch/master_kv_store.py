@@ -13,13 +13,11 @@
 
 import datetime
 import time
-from base64 import b64decode, b64encode
 from typing import Dict, Optional
 
 from torch.distributed import Store
 
 from dlrover.python.elastic_agent.master_client import GlobalMasterClient
-from dlrover.python.common.log import default_logger as logger
 
 
 class MasterKVStore(Store):
@@ -51,7 +49,6 @@ class MasterKVStore(Store):
         Write a key/value pair into ``MasterKVStore``.
         Both key and value may be either Python ``str`` or ``bytes``.
         """
-        logger.info("Set kv store key = %s, value = %s", key, value)
         key = self.prefix + key
         self.client.kv_store_set(key, value)
 
@@ -71,7 +68,6 @@ class MasterKVStore(Store):
         key = self.prefix + key
         kvs = self._try_wait_get([key])
         value = kvs[key]
-        logger.info("Get kv store key = %s, value = %s", key, value)
 
         if value == b'':
             raise LookupError(
@@ -133,7 +129,6 @@ class MasterKVStore(Store):
         all the keys are published or timeout occurs.
         """
         timeout = override_timeout if override_timeout else self.timeout
-        logger.info("timeout = %s", timeout)
         deadline = time.time() + timeout.total_seconds()
 
         kvs: Dict[str, str] = {}

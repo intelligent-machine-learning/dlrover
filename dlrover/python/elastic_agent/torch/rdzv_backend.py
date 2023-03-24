@@ -26,7 +26,6 @@ from torch.distributed.elastic.rendezvous.dynamic_rendezvous import (
     Token,
 )
 
-from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.master_client import (
     GlobalMasterClient,
     MasterClient,
@@ -136,7 +135,6 @@ class DlroverRendezvousBackend(RendezvousBackend):
         if new_state_bits == pickle.dumps(""):
             return None
         rdzv_state = pickle.loads(new_state_bits)
-        logger.info("Get state = %s, token = %s", rdzv_state.__dict__, token)
         return new_state_bits, token
 
     def set_state(
@@ -160,7 +158,6 @@ class DlroverRendezvousBackend(RendezvousBackend):
             token = 0
         try:
             rdzv_state = pickle.loads(state)
-            logger.info("Set state = %s, token = %s", rdzv_state.__dict__, token)
             participant_num = len(rdzv_state.participants)
             wait_num = len(rdzv_state.wait_list)
             succeed = self._client.set_rdzv_state(

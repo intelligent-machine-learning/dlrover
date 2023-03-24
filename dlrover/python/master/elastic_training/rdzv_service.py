@@ -13,7 +13,7 @@
 
 import pickle
 from threading import Lock
-from typing import Any, Dict, Optional, Set, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from dlrover.python.common.log import default_logger as logger
 
@@ -94,5 +94,4 @@ class TorchRendezvousService(object):
             if base2(num_nodes_ready):
                 rdzv_state.completed_state_bits = rdzv_state.latest_state_bits
                 completed_state_bits = rdzv_state.completed_state_bits
-            logger.info("Completed state bits = %s, token = %s", completed_state_bits, self._token)
             return completed_state_bits, self._token
