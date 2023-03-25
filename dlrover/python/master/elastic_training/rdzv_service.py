@@ -12,7 +12,7 @@
 # limitations under the License.
 
 from threading import Lock
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from dlrover.python.common.log import default_logger as logger
 
@@ -25,8 +25,8 @@ class RendezvousState(object):
     def __init__(self) -> None:
         self.latest_state_bits = b""
         self.completed_state_bits = b""
-        self.participants = {}
-        self.wait_list = {}
+        self.participants: Dict[str, int] = {}
+        self.wait_list: List[str] = []
 
 
 class TorchRendezvousService(object):
