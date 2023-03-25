@@ -1,0 +1,35 @@
+apiVersion: elastic.iml.github.io/v1alpha1
+kind: ElasticJob
+metadata:
+  name: torch-mnist
+  namespace: dlrover
+spec:
+  distributionStrategy: AllreduceStrategy
+  optimizeMode: single-job
+  replicaSpecs:
+    worker:
+      replicas: 2
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: main
+              # yamllint disable-line rule:line-length
+              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:torch113-mnist
+              imagePullPolicy: Always
+              command:
+                - /bin/bash
+                - -c
+                - "python -m dlrover.python.elastic_agent.torch.prepare \
+                && torchrun --nnodes=1:$WORKER_NUM --nproc_per_node=1
+                --max_restarts=3 --rdzv_backend=dlrover-master \
+                model_zoo/pytorch/mnist_cnn.py \
+                --training_data /data/mnist_png/training/elastic_ds.txt \
+                --validation_data /data/mnist_png/testing/elastic_ds.txt"
+    dlrover-master:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: main
+              imagePullPolicy: Always
