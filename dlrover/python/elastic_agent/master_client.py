@@ -149,38 +149,6 @@ class MasterClient(object):
         return self._stub.report_task_result(request)
 
     @retry_grpc_request
-    def reset_sync(self, rendezvous_id):
-        req = elastic_training_pb2.DdpResetSyncRequest()
-        req.rendezvous_id = rendezvous_id
-        req.worker_host = self._host
-        req.worker_local_process_id = self._worker_local_process_id
-        return self._stub.reset_sync(req)
-
-    @retry_grpc_request
-    def barrier_sync(self, rendezvous_id):
-        req = elastic_training_pb2.DdpInitSyncRequest()
-        req.rendezvous_id = rendezvous_id
-        req.worker_host = self._host
-        req.worker_local_process_id = self._worker_local_process_id
-        return self._stub.barrier_sync(req)
-
-    @retry_grpc_request
-    def get_comm_rank(self):
-        req = elastic_training_pb2.GetCommRankRequest()
-        req.worker_host = self._host
-        req.worker_local_process_id = self._worker_local_process_id
-        return self._stub.get_comm_rank(req)
-
-    @retry_grpc_request
-    def report_training_loop_status(self, status):
-        req = elastic_training_pb2.ReportTrainingLoopStatusRequest()
-        req.worker_host = self._host
-        req.worker_local_process_id = self._worker_local_process_id
-        req.status = status
-        req.ddp_server_port = self._ddp_server_port
-        return self._stub.report_training_loop_status(req)
-
-    @retry_grpc_request
     def report_dataset_shard_params(
         self,
         batch_size,
@@ -347,6 +315,48 @@ class MasterClient(object):
         response = self._stub.query_running_nodes(request)
         return response.nodes
 
+    def get_rdzv_state(self, key):
+        request = elastic_training_pb2.RendezvousState()
+        request.rdzv_key = key
+        res = self._stub.get_rdzv_state(request)
+        return res.state_bits, res.token
+
+    def set_rdzv_state(self, key, state_bits, token, participants, wait_list):
+        """Set RendezvousState into the master store.
+
+        Args:
+            The aguments are same as
+            `torch.distributed.elastic.rendezvous.
+            dynamic_rendezvous._RendezvousState`
+        """
+        request = elastic_training_pb2.RendezvousState()
+        request.rdzv_key = key
+        request.state_bits = state_bits
+        request.token = token
+        for node, rank in participants.items():
+            node_name = "{}".format(node)
+            request.participants[node_name] = rank
+
+        for node in wait_list:
+            node_name = "{}".format(node)
+            request.wait_list.append(node_name)
+
+        response = self._stub.set_rdzv_state(request)
+        return response.success
+
+    def kv_store_set(self, key, value):
+        request = elastic_training_pb2.KeyValuePair()
+        request.key = key
+        request.value = value
+        response = self._stub.kv_store_set(request)
+        return response.success
+
+    def kv_store_get(self, key):
+        request = elastic_training_pb2.KeyValuePair()
+        request.key = key
+        response = self._stub.kv_store_get(request)
+        return response.value
+
 
 class LocalDataset(object):
     def __init__(
@@ -416,6 +426,9 @@ class LocalMasterClient(object):
         self._num_minibatches_per_shard = 0
         self._datasets: Dict[str, LocalDataset] = {}
         self._task_type = None
+        self._kv_store: Dict[str, str] = {}
+        self._rdzv_states: Dict[str, bytes] = {}
+        self._rdzv_tokens: Dict[str, int] = {}
 
     def reset_dataset(self, dataset_name):
         """Reset a dataset
@@ -464,21 +477,6 @@ class LocalMasterClient(object):
         """
         return empty_pb2.Empty()
 
-    def get_comm_rank(self):
-        res = elastic_training_pb2.GetCommRankResponse()
-        res.rank_id = 0
-        res.world_size = 1
-        res.rendezvous_id = 0
-        res.rendezvous_port = 12345
-        res.local_rank = 0
-        res.local_size = 1
-        res.cross_rank = 0
-        res.cross_size = 1
-        return res
-
-    def report_training_loop_status(self, status):
-        return True
-
     def update_node_event(self, task_type, task_id, enent):
         return True
 
@@ -516,6 +514,25 @@ class LocalMasterClient(object):
 
     def report_used_resource(self, memory, cpu):
         return empty_pb2.Empty()
+
+    def get_rdzv_state(self, key):
+        state_bits = self._rdzv_states[key]
+        token = self._rdzv_tokens[key]
+        return state_bits, token
+
+    def set_rdzv_state(self, key, state_bits, token, paricipant_num, wait_num):
+        if state_bits == self._rdzv_states.get(key, None):
+            return False
+        self._rdzv_states[key] = state_bits
+        self._rdzv_tokens[key] = token
+        return True
+
+    def kv_store_set(self, key, value):
+        self._kv_store[key] = value
+        return True
+
+    def kv_store_get(self, key):
+        return self._kv_store.get(key, "")
 
 
 def build_master_client(master_addr=None):

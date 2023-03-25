@@ -90,7 +90,7 @@ def cleanup():
 
 def setup(use_cuda):
     print(f"Use cuda = {use_cuda}")
-    os.environ["MASTER_ADDR"] = os.environ["RDZV_ENDPOINT"]
+    ElasticTrainer.setup()
     if use_cuda:
         dist.init_process_group("nccl")
     else:

@@ -14,7 +14,7 @@
 import threading
 import time
 from concurrent import futures
-from typing import List
+from typing import List, Optional
 
 import grpc
 from google.protobuf import empty_pb2
@@ -24,6 +24,12 @@ from dlrover.python.common.constants import GRPC, NodeType, TrainingLoopStatus
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
+from dlrover.python.master.elastic_training.kv_store_service import (
+    KVStoreService,
+)
+from dlrover.python.master.elastic_training.rdzv_service import (
+    TorchRendezvousService,
+)
 from dlrover.python.master.elastic_training.sync_service import SyncService
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.job_manager import JobManager
@@ -47,7 +53,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         task_manager: TaskManager,
         job_manager: JobManager,
         speed_monitor: SpeedMonitor,
-        rendezvous_server=None,
+        rdzv_service: Optional[TorchRendezvousService],
         job_metric_collector=None,
         elastic_ps_service=None,
         sync_service=None,
@@ -56,7 +62,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         self._task_manager = task_manager
         self._job_manager = job_manager
         self._speed_monitor = speed_monitor
-        self._rendezvous_server = rendezvous_server
+        self._rdzv_serivce = rdzv_service
         self._job_metric_collector: JobMetricCollector = job_metric_collector
         self._elastic_ps_service: ElasticPsService = elastic_ps_service
         self._sync_service: SyncService = sync_service
@@ -64,6 +70,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         self._version = 0
         self._start_training_time = None
         self._start_autoscale = False
+        self._kv_store_service = KVStoreService()
 
     def get_model_version(self):
         return self._version
@@ -120,7 +127,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             # we are trying to pop and invoke the callback.
             # Then the master tells the worker to wait
             # in case of new tasks later.
-            if self._rendezvous_server:
+            if self._rdzv_serivce:
                 # If there is no more task, master only send wait task to
                 # the last worker and other workers exit.
                 if len(self._job_manager.get_running_workers()) == 1:
@@ -162,81 +169,6 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
                 self._job_metric_collector.collect_training_hyper_params(
                     request.num_epochs, request.batch_size
                 )
-        return empty_pb2.Empty()
-
-    def reset_sync(self, request, _):
-        rendezvous_id = request.rendezvous_id
-        worker_host = request.worker_host
-        worker_local_process_id = request.worker_local_process_id
-        res = elastic_training_pb2.DdpResetSyncResponse()
-        res.reset = self._rendezvous_server.reset_sync(
-            worker_host,
-            worker_local_process_id,
-            rendezvous_id,
-        )
-        return res
-
-    def barrier_sync(self, request, _):
-        rendezvous_id = request.rendezvous_id
-        worker_host = request.worker_host
-        worker_local_process_id = request.worker_local_process_id
-        res = elastic_training_pb2.DdpInitSyncResponse()
-        res.reset = self._rendezvous_server.barrier_sync(
-            worker_host,
-            worker_local_process_id,
-            rendezvous_id,
-        )
-        return res
-
-    def get_comm_rank(self, request, _):
-        worker_host = request.worker_host
-        worker_local_process_id = request.worker_local_process_id
-
-        res = elastic_training_pb2.GetCommRankResponse()
-        host_rank_info = self._rendezvous_server.get_worker_host_rank(
-            worker_host, worker_local_process_id
-        )
-        if host_rank_info[0] == "horovod":
-            res.rank_id = host_rank_info[1]
-            res.local_rank = host_rank_info[2]
-            res.local_size = host_rank_info[3]
-            res.cross_rank = host_rank_info[4]
-            res.cross_size = host_rank_info[5]
-            res.rendezvous_port = self._rendezvous_server.get_rendezvous_port()
-        elif host_rank_info[0] == "DDP":
-            res.rank_id = host_rank_info[1]
-            res.local_rank = host_rank_info[2]
-            res.local_size = host_rank_info[3]
-            res.master_addr = str(host_rank_info[4])
-            res.master_port = host_rank_info[5]
-        res.world_size = self._rendezvous_server.get_size()
-        res.rendezvous_id = self._rendezvous_server.get_rendezvous_id()
-        return res
-
-    def report_training_loop_status(self, request, _):
-        training_loop_status = request.status
-        worker_local_process_id = request.worker_local_process_id
-        worker_host = request.worker_host
-        ddp_server_port = request.ddp_server_port
-
-        if not self._rendezvous_server:
-            logger.warning("The rendezvous server does not exit")
-            return empty_pb2.Empty()
-
-        logger.info(
-            "Servicer get ddp_server_port:{} "
-            "from host:{} id:{}".format(
-                ddp_server_port, worker_host, worker_local_process_id
-            )
-        )
-        if training_loop_status == TrainingLoopStatus.START:
-            self._rendezvous_server.add_process(
-                worker_host, worker_local_process_id, ddp_server_port
-            )
-        if training_loop_status == TrainingLoopStatus.END:
-            self._rendezvous_server.remove_process(
-                worker_host, worker_local_process_id
-            )
         return empty_pb2.Empty()
 
     def ready_for_ps_relaunch(self, request, _):
@@ -424,7 +356,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
 
     def report_prestop(self, request, _):
         worker_host = request.worker_host
-        self._rendezvous_server.report_prestop(worker_host)
+        self._rdzv_serivce.report_prestop(worker_host)
         return empty_pb2.Empty()
 
     def join_sync(self, request, _):
@@ -449,13 +381,46 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             res.success = self._sync_service.barrier(request.barrier_name)
         return res
 
+    def get_rdzv_state(self, request, _):
+        rdzv_key = request.rdzv_key
+        state_bits, token = self._rdzv_serivce.get_state(rdzv_key)
+        res = elastic_training_pb2.RendezvousState()
+        res.rdzv_key = rdzv_key
+        res.state_bits = state_bits
+        res.token = token
+        return res
+
+    def set_rdzv_state(self, request, _):
+        succeed = self._rdzv_serivce.set_state(
+            request.rdzv_key,
+            request.state_bits,
+            request.token,
+            request.participants,
+            request.wait_list,
+        )
+        res = elastic_training_pb2.Response()
+        res.success = succeed
+        return res
+
+    def kv_store_set(self, request, _):
+        self._kv_store_service.set(request.key, request.value)
+        res = elastic_training_pb2.Response()
+        res.success = True
+        return res
+
+    def kv_store_get(self, request, _):
+        res = elastic_training_pb2.KeyValuePair()
+        res.key = request.key
+        res.value = self._kv_store_service.get(request.key)
+        return res
+
 
 def create_master_service(
     port,
     task_manager,
     job_manager,
     speed_monitor,
-    rendezvous_server,
+    rdzv_service,
     job_metric_collector,
     elastic_ps_service,
     sync_service,
@@ -476,7 +441,7 @@ def create_master_service(
         task_manager=task_manager,
         job_manager=job_manager,
         speed_monitor=speed_monitor,
-        rendezvous_server=rendezvous_server,
+        rdzv_service=rdzv_service,
         job_metric_collector=job_metric_collector,
         elastic_ps_service=elastic_ps_service,
         sync_service=sync_service,
