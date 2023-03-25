@@ -321,15 +321,26 @@ class MasterClient(object):
         res = self._stub.get_rdzv_state(request)
         return res.state_bits, res.token
 
-    def set_rdzv_state(
-        self, key, state_bits, token, participant_num, wait_num
-    ):
+    def set_rdzv_state(self, key, state_bits, token, participants, wait_list):
+        """Set RendezvousState into the master store.
+
+        Args:
+            The aguments are same as
+            `torch.distributed.elastic.rendezvous.
+            dynamic_rendezvous._RendezvousState`
+        """
         request = elastic_training_pb2.RendezvousState()
         request.rdzv_key = key
         request.state_bits = state_bits
         request.token = token
-        request.participant_num = participant_num
-        request.wait_num = wait_num
+        for node, rank in participants.items():
+            node_name = "{}".format(node)
+            request.participants[node_name] = rank
+
+        for node in wait_list:
+            node_name = "{}".format(node)
+            request.wait_list.append(node_name)
+
         response = self._stub.set_rdzv_state(request)
         return response.success
 

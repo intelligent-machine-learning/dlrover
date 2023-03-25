@@ -200,8 +200,8 @@ message RendezvousState {
   string rdzv_key = 1;
   bytes state_bits = 2;
   int32 token = 3;
-  int32 participant_num = 4;
-  int32 wait_num = 5;
+  map<string, int32> participants = 4;
+  repeated string wait_list = 5;
 }
 
 message KeyValuePair {
