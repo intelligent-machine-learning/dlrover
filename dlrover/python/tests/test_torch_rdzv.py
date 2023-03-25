@@ -70,7 +70,9 @@ class RdzvServiceTest(unittest.TestCase):
         rdzv_key = "test-rdzv-0"
         state = pickle.dumps("aaaaa")
         state_bits = pickle.dumps(state)
-        rdzv_svc.set_state(rdzv_key, state_bits, 1, 1, 0)
+        participants = {"worker-0": 0}
+        wait_list = ["worker-1"]
+        rdzv_svc.set_state(rdzv_key, state_bits, 1, participants, wait_list)
         new_state_bits, token = rdzv_svc.get_state(rdzv_key)
         self.assertEqual(new_state_bits, state_bits)
         self.assertEqual(token, 0)

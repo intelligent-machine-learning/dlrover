@@ -12,7 +12,7 @@
 # limitations under the License.
 
 from threading import Lock
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from dlrover.python.common.log import default_logger as logger
 
@@ -25,8 +25,8 @@ class RendezvousState(object):
     def __init__(self) -> None:
         self.latest_state_bits = b""
         self.completed_state_bits = b""
-        self.participant_num = 0
-        self.wait_num = 0
+        self.participants: Dict[str, int] = {}
+        self.wait_list: List[str] = []
 
 
 class TorchRendezvousService(object):
@@ -48,8 +48,8 @@ class TorchRendezvousService(object):
         key,
         state_bits: bytes,
         token: Optional[Any],
-        participant_num,
-        wait_num,
+        participants,
+        wait_list,
     ):
         """Set the _RendezvousState into the store in the master.
         Returns:
@@ -62,13 +62,13 @@ class TorchRendezvousService(object):
                 return False
             logger.info(
                 "wait list = %s, participants = %s",
-                wait_num,
-                participant_num,
+                wait_list,
+                participants,
             )
             rdzv_state = self._rdzv_states[key]
             rdzv_state.latest_state_bits = state_bits
-            rdzv_state.participant_num = participant_num
-            rdzv_state.wait_num = wait_num
+            rdzv_state.participants = participants
+            rdzv_state.wait_list = wait_list
             self._token += 1
             return True
 
@@ -87,8 +87,10 @@ class TorchRendezvousService(object):
                 return completed_state_bits, self._token
 
             rdzv_state = self._rdzv_states[key]
+            participant_num = len(rdzv_state.participants)
+            wait_num = len(rdzv_state.wait_list)
 
-            num_nodes_ready = rdzv_state.participant_num + rdzv_state.wait_num
+            num_nodes_ready = participant_num + wait_num
 
             if base2(num_nodes_ready):
                 rdzv_state.completed_state_bits = rdzv_state.latest_state_bits

@@ -21,6 +21,7 @@ import torch.distributed as dist
 from torch.utils.data import DataLoader
 
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.elastic_agent.master_client import GlobalMasterClient
 from dlrover.trainer.torch.elastic_dataset import ElasticDataset
 
 
@@ -228,7 +229,7 @@ class ElasticTrainer(object):
         """
         self._before_step(fix_total_batch_size)
         context = contextlib.nullcontext
-        if self.gradient_state.sync_gradients:
+        if not self.gradient_state.sync_gradients:
             context = getattr(self.model, "no_sync", context)
 
         with context():
@@ -275,6 +276,16 @@ class ElasticTrainer(object):
         if rank < remainder:
             self.gradient_accumulation_steps += 1
         logger.info(
-            "Gradient accumulation steps = %s",
+            "Rank = %s, World size = %s, Gradient accumulation steps = %s",
+            rank,
+            cur_world_size,
             self.gradient_accumulation_steps,
         )
+
+    @classmethod
+    def setup(cls):
+        """Setup MASTER_ADDR as the ip of pod with rank=0."""
+        master_client = GlobalMasterClient.MASTER_CLIENT
+        master_addr = master_client.kv_store_get("MASTER_ADDR")
+        master_addr = master_addr.decode()
+        os.environ["MASTER_ADDR"] = master_addr
