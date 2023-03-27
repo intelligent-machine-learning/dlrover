@@ -11,9 +11,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from deepfm import DeepFM
-
 from dlrover.trainer.tensorflow.util.column_info import Column
+from model_zoo.tf_estimator.criteo_deeprec.deepctr import DeepFM
 
 
 class TrainConf(object):
