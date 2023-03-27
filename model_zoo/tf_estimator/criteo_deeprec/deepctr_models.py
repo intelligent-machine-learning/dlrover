@@ -18,7 +18,7 @@ import tensorflow.compat.v1 as tf
 import tensorflow.keras.backend as K
 
 from dlrover.trainer.util.log_util import default_logger as logger
-from model_zoo.tf_estimator.layers import DNN, FM, Discretization, Normalizer
+from layers import DNN, FM, Discretization, Normalizer, Hashing
 
 tf.disable_v2_behavior()
 tf.logging.set_verbosity(tf.logging.INFO)
@@ -44,7 +44,7 @@ class NumericStats(object):
         self.bucketize_values = bucketize_values
 
 
-_FEATURE_STATS = {
+_NUMERIC_FEATURE_STATS = {
     "I1": NumericStats(3.6, 14.5, [0.0, 1.0, 2.0, 3.0, 5.0, 9.0]),
     "I2": NumericStats(
         86.7, 328.6, [-1.0, 0.0, 1.0, 2.0, 7.0, 19.0, 48.0, 163.0]
@@ -85,6 +85,9 @@ _FEATURE_STATS = {
 }
 
 
+_CATEGORY_FEATURE_STATS = {'C1': 1036, 'C2': 530, 'C3': 169550, 'C4': 71524, 'C5': 241, 'C6': 15, 'C7': 10025, 'C8': 458, 'C9': 3, 'C10': 22960, 'C11': 4469, 'C12': 144780, 'C13': 3034, 'C14': 26, 'C15': 7577, 'C16': 113860, 'C17': 10, 'C18': 3440, 'C19': 1678, 'C20': 3, 'C21': 130892, 'C22': 11, 'C23': 14, 'C24': 27189, 'C25': 65, 'C26': 20188}
+
+
 class WideAndDeep(tf.estimator.Estimator):
     """Wide and Deep"""
 
@@ -113,6 +116,7 @@ class WideAndDeep(tf.estimator.Estimator):
         else:
             K.set_learning_phase(0)
 
+        features = reshape_features(features)
         dense_tensor, categroy_tensors = transform_feature(features)
 
         linear_logits = lookup_embedding_func(
@@ -157,7 +161,7 @@ class WideAndDeep(tf.estimator.Estimator):
 
         logits = tf.reduce_sum(concat_input, 1, keepdims=True)
         probs = tf.reshape(tf.sigmoid(logits), shape=(-1,))
-        return build_estimator(logits, probs, labels[LABEL_COLUMN], mode)
+        return build_estimator(logits, probs, labels, mode)
 
 
 class DeepFM(tf.estimator.Estimator):
@@ -187,7 +191,7 @@ class DeepFM(tf.estimator.Estimator):
             K.set_learning_phase(1)
         else:
             K.set_learning_phase(0)
-
+        features = reshape_features(features)
         dense_tensor, categroy_tensors = transform_feature(features)
 
         linear_logits = lookup_embedding_func(
@@ -235,7 +239,7 @@ class DeepFM(tf.estimator.Estimator):
 
         logits = tf.reduce_sum(concat_input, 1, keepdims=True)
         probs = tf.reshape(tf.sigmoid(logits), shape=(-1,))
-        return build_estimator(logits, probs, labels[LABEL_COLUMN], mode)
+        return build_estimator(logits, probs, labels, mode)
 
 
 class xDeepFM(tf.estimator.Estimator):
@@ -266,6 +270,7 @@ class xDeepFM(tf.estimator.Estimator):
         else:
             K.set_learning_phase(0)
 
+        features = reshape_features(features)
         dense_tensor, categroy_tensors = transform_feature(features)
 
         linear_logits = lookup_embedding_func(
@@ -334,7 +339,14 @@ class xDeepFM(tf.estimator.Estimator):
         logits = tf.reduce_sum(concat_input, 1, keepdims=True)
         probs = tf.reshape(tf.sigmoid(logits), shape=(-1,))
 
-        return build_estimator(logits, probs, labels[LABEL_COLUMN], mode)
+        return build_estimator(logits, probs, labels, mode)
+
+
+def reshape_features(features):
+    input_tensors = {}
+    for name, tensor in features.items():
+        input_tensors[name] = tf.reshape(tensor, (-1, 1))
+    return input_tensors
 
 
 def build_estimator(logits, probs, labels, mode):
@@ -352,6 +364,7 @@ def build_estimator(logits, probs, labels, mode):
             export_outputs=export_outputs,
         )
 
+    labels = tf.cast(labels, tf.float32)
     loss = tf.reduce_mean(
         tf.nn.sigmoid_cross_entropy_with_logits(labels=labels, logits=logits)
     )
@@ -387,15 +400,11 @@ def transform_feature(inputs):
     """
 
     standardized_outputs = []
-    for feature in _FEATURE_STATS.keys():
-        feature_value = inputs[feature]
-        numeric_result = tf.strings.to_number(
-            feature_value, out_type=tf.float32
-        )
+    for feature in _NUMERIC_FEATURE_STATS.keys():
         standardized_result = Normalizer(
-            subtractor=_FEATURE_STATS[feature].avg,
-            divisor=_FEATURE_STATS[feature].stddev,
-        )(numeric_result)
+            subtractor=_NUMERIC_FEATURE_STATS[feature].avg,
+            divisor=_NUMERIC_FEATURE_STATS[feature].stddev,
+        )(inputs[feature])
         standardized_outputs.append(standardized_result)
 
     numerical_tensor = (
@@ -403,16 +412,17 @@ def transform_feature(inputs):
     )
 
     category_tensors = {}
-    for feature in _FEATURE_STATS.keys():
-        feature_value = inputs[feature]
-        input_tensor = tf.strings.to_number(feature_value, out_type=tf.float32)
+    for feature in _NUMERIC_FEATURE_STATS.keys():
         discretize_layer = Discretization(
-            bins=_FEATURE_STATS[feature].bucketize_values
+            bins=_NUMERIC_FEATURE_STATS[feature].bucketize_values
         )
-        category_tensors[feature] = discretize_layer(input_tensor)
+        category_tensors[feature] = discretize_layer(inputs[feature])
 
     for feature in CATEGORICAL_COLUMNS:
-        category_tensors[feature] = inputs[feature]
+        num_bins = _CATEGORY_FEATURE_STATS[feature]
+        hash_layer = Hashing(num_bins=num_bins)
+        hash_output = hash_layer(inputs[feature])
+        category_tensors[feature] = hash_output
 
     return numerical_tensor, category_tensors
 
@@ -431,17 +441,15 @@ def lookup_embedding_func(input_tensors, embedding_dim):
 
     embeddings = []
     for name, tensor in input_tensors.items():
-        if name in CATEGORICAL_COLUMNS:
-            key_dtype = tf.string
-        else:
-            key_dtype = tf.int64
-
+        var_name = name + "_embedding_" + str(embedding_dim)
+        
         var = tf.get_embedding_variable(
-            name,
+            var_name,
             embedding_dim=embedding_dim,
-            key_dtype=key_dtype,
+            key_dtype=tf.int64,
             initializer=tf.ones_initializer(tf.float32),
             partitioner=tf.fixed_size_partitioner(num_shards=ps_num),
+            ev_option=tf.EmbeddingVariableOption(),
         )
 
         embedding = tf.nn.embedding_lookup(var, tensor)

@@ -31,9 +31,9 @@ spec:
                 - /bin/bash
                 - -c
                 - "pip install pyhocon \
-                  && cd /home/model_zoo/tf_estimator/deepfm_deeprec \
+                  && cd /home/model_zoo/tf_estimator/criteo_deeprec \
                   && python -m dlrover.trainer.entry.local_entry \
-                  --platform=Kubernetes --conf=deepfm_deeprec_conf.TrainConf \
+                  --platform=Kubernetes --conf=train_conf.TrainConf \
                   --enable_auto_scaling=True"
               volumeMounts:
                 - name: pvc-nas
