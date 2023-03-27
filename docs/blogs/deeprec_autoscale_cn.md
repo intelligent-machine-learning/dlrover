@@ -236,5 +236,6 @@ elasticjob-torch-mnist-dlrover-master         1/1     Running   0          6m24s
 ## 后续计划
 
 DLRover 支持了 PS 异步训练的自动扩缩容来提升训练速度。下一步我们将针对 DeepRec
-的同步训练提供自动扩缩容功能，从而提升同步训练的吞吐和GPU集群的利用率。
+的同步训练提供自动扩缩容功能。除了搜推广场景，DLRover 也将探索 foundation model
+的分布式训练的自动扩缩容，以提升预训练大模型的训练效率和降低训练成本。
 
