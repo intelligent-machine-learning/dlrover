@@ -16,9 +16,9 @@ import os
 
 import tensorflow.compat.v1 as tf
 import tensorflow.keras.backend as K
+from layers import DNN, FM, Discretization, Hashing, Normalizer
 
 from dlrover.trainer.util.log_util import default_logger as logger
-from layers import DNN, FM, Discretization, Normalizer, Hashing
 
 tf.disable_v2_behavior()
 tf.logging.set_verbosity(tf.logging.INFO)
@@ -85,7 +85,34 @@ _NUMERIC_FEATURE_STATS = {
 }
 
 
-_CATEGORY_FEATURE_STATS = {'C1': 1036, 'C2': 530, 'C3': 169550, 'C4': 71524, 'C5': 241, 'C6': 15, 'C7': 10025, 'C8': 458, 'C9': 3, 'C10': 22960, 'C11': 4469, 'C12': 144780, 'C13': 3034, 'C14': 26, 'C15': 7577, 'C16': 113860, 'C17': 10, 'C18': 3440, 'C19': 1678, 'C20': 3, 'C21': 130892, 'C22': 11, 'C23': 14, 'C24': 27189, 'C25': 65, 'C26': 20188}
+_CATEGORY_FEATURE_STATS = {
+    "C1": 1036,
+    "C2": 530,
+    "C3": 169550,
+    "C4": 71524,
+    "C5": 241,
+    "C6": 15,
+    "C7": 10025,
+    "C8": 458,
+    "C9": 3,
+    "C10": 22960,
+    "C11": 4469,
+    "C12": 144780,
+    "C13": 3034,
+    "C14": 26,
+    "C15": 7577,
+    "C16": 113860,
+    "C17": 10,
+    "C18": 3440,
+    "C19": 1678,
+    "C20": 3,
+    "C21": 130892,
+    "C22": 11,
+    "C23": 14,
+    "C24": 27189,
+    "C25": 65,
+    "C26": 20188,
+}
 
 
 class WideAndDeep(tf.estimator.Estimator):
@@ -442,7 +469,7 @@ def lookup_embedding_func(input_tensors, embedding_dim):
     embeddings = []
     for name, tensor in input_tensors.items():
         var_name = name + "_embedding_" + str(embedding_dim)
-        
+
         var = tf.get_embedding_variable(
             var_name,
             embedding_dim=embedding_dim,

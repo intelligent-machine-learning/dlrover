@@ -11,8 +11,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dlrover.trainer.tensorflow.util.column_info import Column
 from deepctr_models import DeepFM
+
+from dlrover.trainer.tensorflow.util.column_info import Column
 
 
 class TrainConf(object):
