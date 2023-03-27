@@ -207,7 +207,7 @@ worker-0 会根据新的 PS 集合来构造计算图，更新 session，重新�
 然后通知新的 PS 加载 checkpoint。最后 worker-0 通知所有的 worker 连接新的 PS 开始训练。
 
 
-## ACK 上验证 DLRover 自动扩缩容
+## 阿里云 ACK 上验证 DLRover 自动扩缩容
 
 为了验证自动扩缩容的可行性，我们在阿里云的 ACK 上创建了一个小的 Kubernetes 集群。
 然后我们针对 CRITEO 广告点击预测数据集开发了一个 DeepFM 模型，
@@ -232,4 +232,10 @@ dlrover-auto-scale-edljob-worker-1            1/1     Running   0          3m19s
 dlrover-auto-scale-edljob-worker-2            1/1     Running   0          3m19s
 elasticjob-torch-mnist-dlrover-master         1/1     Running   0          6m24s
 ```
+
+## 后续计划
+
+DLRover 支持了 PS 异步训练的自动扩缩容来提升训练速度。下一步我们将针对 DeepRec
+的同步训练提供自动扩缩容功能。除了搜推广场景，DLRover 也将探索 foundation model
+的分布式训练的自动扩缩容，以提升预训练大模型的训练效率和降低训练成本。
 
