@@ -18,15 +18,15 @@ spec:
           containers:
             - name: main
               # yamllint disable-line rule:line-length
-              image: registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:v0.1.0
+              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:deeprec_criteo_v1
               imagePullPolicy: Always
               command:
                 - /bin/bash
                 - -c
                 - "pip install pyhocon \
-                  && cd /home/model_zoo/tf_estimator/deepfm_deeprec \
+                  && cd /home/model_zoo/tf_estimator/criteo_deeprec \
                   && python -m dlrover.trainer.entry.local_entry \
-                  --platform=Kubernetes --conf=deepfm_deeprec_conf.TrainConf \
+                  --platform=Kubernetes --conf=train_conf.TrainConf \
                   --enable_auto_scaling=True"
               volumeMounts:
                 - name: pvc-nas
@@ -43,15 +43,15 @@ spec:
           containers:
             - name: main
               # yamllint disable-line rule:line-length
-              image: registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:v0.1.0
+              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:deeprec_criteo_v1
               imagePullPolicy: Always
               command:
                 - /bin/bash
                 - -c
                 - "pip install pyhocon \
-                  && cd /home/model_zoo/tf_estimator/deepfm_deeprec \
+                  && cd /home/model_zoo/tf_estimator/criteo_deeprec \
                   && python -m dlrover.trainer.entry.local_entry \
-                  --platform=Kubernetes --conf=deepfm_deeprec_conf.TrainConf \
+                  --platform=Kubernetes --conf=train_conf.TrainConf \
                   --enable_auto_scaling=True"
               volumeMounts:
                 - name: pvc-nas

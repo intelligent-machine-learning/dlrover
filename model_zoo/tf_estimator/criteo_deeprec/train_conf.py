@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from deepfm import DeepFM
+from deepctr_models import DeepFM
 
 from dlrover.trainer.tensorflow.util.column_info import Column
 
@@ -19,7 +19,7 @@ from dlrover.trainer.tensorflow.util.column_info import Column
 class TrainConf(object):
     classifier_class = DeepFM
     log_steps = 10
-    model_dir = "/nas"
+    model_dir = "/nas/deepctr"
     enable_incr_saved_model = True
     checkpoint_incremental_save_secs = 800
     keep_checkpoint_max = 10
