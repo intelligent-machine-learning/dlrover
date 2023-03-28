@@ -45,7 +45,7 @@ torch-mnist   Running   19h
 - Check the Pod status
 
 ```bash
-kubectl -n dlrover get pods -l elasticjob-name=deepctr-auto-scaling-job
+kubectl -n dlrover get pods -l elasticjob-name=torch-mnist
 ```
 
 ```bash
