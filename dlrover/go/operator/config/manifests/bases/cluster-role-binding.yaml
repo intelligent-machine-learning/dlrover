@@ -1,0 +1,25 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: dlrover-manager-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: dlrover-manager-role
+subjects:
+- kind: ServiceAccount
+  name: dlrover-controller-manager
+  namespace: dlrover
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: dlrover-proxy-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: dlrover-proxy-role
+subjects:
+- kind: ServiceAccount
+  name: dlrover-controller-manager
+  namespace: dlrover
