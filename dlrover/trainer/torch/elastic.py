@@ -287,5 +287,9 @@ class ElasticTrainer(object):
         """Setup MASTER_ADDR as the ip of pod with rank=0."""
         master_client = GlobalMasterClient.MASTER_CLIENT
         master_addr = master_client.kv_store_get("MASTER_ADDR")
-        master_addr = master_addr.decode()
-        os.environ["MASTER_ADDR"] = master_addr
+        if master_addr:
+            master_addr = master_addr.decode()
+        else:
+            master_addr = os.getenv("RDZV_ENDPOINT", "")
+        if master_addr:
+            os.environ["MASTER_ADDR"] = master_addr
