@@ -120,9 +120,12 @@ class TensorStats(object):
 class OpStats(object):
     """TensorStats contains OP statistics of a deep learning model"""
 
-    def __init__(self, op_count, update_op_count, input_fetch_dur, flops):
+    def __init__(
+        self, op_count, update_op_count, read_op_count, input_fetch_dur, flops
+    ):
         self.op_count = op_count
         self.update_op_count = update_op_count
+        self.read_op_count = read_op_count
         self.input_fetch_dur = input_fetch_dur
         self.flops = flops
 
