@@ -1,4 +1,4 @@
-# Depoloy dlrover job controller on Minikube cluster
+# Deploy dlrover job controller on Minikube cluster
 
 Here we would like to introuce how to depoly dlrover job controller on minikube cluster step by step.
 
@@ -14,7 +14,12 @@ $ kubectl create namespace dlrover
 ## 3. Deploy Dlrover Job Controller With Kubectl
 
 ```bash
+# deploy from local directory
 $ kubectl apply -k /dlrover/go/config/manifests/bases
+
+# deploy from remote repo
+$ deployment="git@github.com:intelligent-machine-learning/dlrover/dlrover/go/operator/config/manifests/bases/?ref=master"
+$ kubectl apply -k $deployment
 ```
 
 Check controller.
