@@ -219,6 +219,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             op_stats = OpStats(
                 op_count=request.op_stats.op_count,
                 update_op_count=request.op_stats.update_op_count,
+                read_op_count=request.op_stats.read_op_count,
                 input_fetch_dur=request.op_stats.input_fetch_dur,
                 flops=request.op_stats.flops,
             )

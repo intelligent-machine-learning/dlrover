@@ -14,7 +14,7 @@ on a public cloud, namely, Alibaba Cloud Container Service for Kubernetes(ACK).
 1. Deploy the controller on the cluster.
 
 ```bash
-make deploy IMG=easydl/elasticjob-controller:v0.1.1
+make deploy IMG=easydl/elasticjob-controller:test
 ```
 
 2. Grant permission for the DLRover master to Access CRDs.
@@ -28,7 +28,7 @@ kubectl -n dlrover apply -f dlrover/go/operator/config/rbac/default_role.yaml
 - Submit a job to train a CNN model with MNIST dataset.
 
 ```bash
-kubectl -n dlrover apply -f dlrover/examples/torch_mnist_job.yaml
+kubectl -n dlrover apply -f dlrover/examples/torch_mnist_master_backend_job.yaml
 ```
 
 - Check the job status
@@ -45,7 +45,7 @@ torch-mnist   Running   19h
 - Check the Pod status
 
 ```bash
-kubectl -n dlrover get pods -l elasticjob-name=deepctr-auto-scaling-job
+kubectl -n dlrover get pods -l elasticjob-name=torch-mnist
 ```
 
 ```bash

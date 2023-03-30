@@ -4,8 +4,8 @@
 如今，深度学习已广泛应用在搜索、广告、推荐等业务中，这类业务场景普遍有两个特点：
 1）训练样本量大，需要分布式训练提升训练速度；
 2）模型稀疏，即模型结构中离散特征计算逻辑占比较高。
-稀疏模型一般包含很大的 embedding 表，所以此类模型往往采用 Parameter Server 架构的异步分布式训练。
-[DeepRec](https://github.com/alibaba/DeepRec) 是阿里巴巴集团开源的面向推荐场景的高性能深度学习框架，针对稀疏模型在分布式、图优化、算子、Runtime等方面进行了深度的性能优化，同时提供了搜索、推荐、广告场景下特有的动态弹性特征，动态弹性维度，自适应EmbeddingVariable、增量模型导出及加载等一系列功能。
+
+[DeepRec](https://github.com/alibaba/DeepRec) 是阿里云机器学习平台PAI开源的面向推荐场景的高性能深度学习框架，针对稀疏模型在分布式、图优化、算子、Runtime等方面进行了深度的性能优化，同时提供了搜索、推荐、广告场景下特有的动态弹性特征，动态弹性维度，自适应EmbeddingVariable、增量模型导出及加载等一系列功能。
 
 越来越多的公司为了节省成本开始在云上训练 AI 模型。通常，用户在云上提交一个分布式训练作业需要给作业配置资源，
 包括节点的数量和每个节点的资源（CPU & memory 等）。资源是影响训练性能的一个重要因素。
@@ -207,7 +207,7 @@ worker-0 会根据新的 PS 集合来构造计算图，更新 session，重新�
 然后通知新的 PS 加载 checkpoint。最后 worker-0 通知所有的 worker 连接新的 PS 开始训练。
 
 
-## ACK 上验证 DLRover 自动扩缩容
+## 阿里云 ACK 上验证 DLRover 自动扩缩容
 
 为了验证自动扩缩容的可行性，我们在阿里云的 ACK 上创建了一个小的 Kubernetes 集群。
 然后我们针对 CRITEO 广告点击预测数据集开发了一个 DeepFM 模型，
@@ -232,4 +232,10 @@ dlrover-auto-scale-edljob-worker-1            1/1     Running   0          3m19s
 dlrover-auto-scale-edljob-worker-2            1/1     Running   0          3m19s
 elasticjob-torch-mnist-dlrover-master         1/1     Running   0          6m24s
 ```
+
+## 后续计划
+
+DLRover 支持了 PS 异步训练的自动扩缩容来提升训练速度。下一步我们将针对 DeepRec
+的同步训练提供自动扩缩容功能。除了搜推广场景，DLRover 也将探索 foundation model
+的分布式训练的自动扩缩容，以提升预训练大模型的训练效率和降低训练成本。
 
