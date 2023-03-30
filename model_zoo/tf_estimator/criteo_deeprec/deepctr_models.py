@@ -124,7 +124,7 @@ class WideAndDeep(tf.estimator.Estimator):
         logger.info("model_dir is %s", config)
         run_config = config
 
-        super(DeepFM, self).__init__(
+        super(WideAndDeep, self).__init__(
             self.model_fn,
             model_dir=model_dir,
             config=run_config,
@@ -278,7 +278,7 @@ class xDeepFM(tf.estimator.Estimator):
         logger.info("model_dir is %s", config)
         run_config = config
 
-        super(DeepFM, self).__init__(
+        super(xDeepFM, self).__init__(
             self.model_fn,
             model_dir=model_dir,
             config=run_config,
