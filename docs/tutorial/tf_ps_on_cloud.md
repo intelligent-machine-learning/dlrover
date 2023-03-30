@@ -113,6 +113,7 @@ workers of the job `deepctr-manual-scaling`.
 apiVersion: elastic.iml.github.io/v1alpha1
 kind: ScalePlan
 metadata:
+  namespace: dlrover
   name: deepctr-manual-scaling-plan-0
   labels:
     elasticjob-name: deepctr-manual-scaling
@@ -134,12 +135,13 @@ deepctr-manual-scaling-edljob-worker-1             1/1     Running   0          
 deepctr-manual-scaling-edljob-worker-2             1/1     Running   0          3s
 ```
 
-We can scale PS nodes with the spec in ScalePlan like
+We can scale up PS nodes with the spec in ScalePlan like
 
 ```yaml
 apiVersion: elastic.iml.github.io/v1alpha1
 kind: ScalePlan
 metadata:
+  namespace: dlrover
   name: deepctr-manual-scaling-plan-1
   labels:
     elasticjob-name: deepctr-auto-scaling
@@ -161,6 +163,33 @@ deepctr-auto-scaling-edljob-ps-1                 1/1     Running   0          2m
 elasticjob-deepctr-auto-scaling-dlrover-master   1/1     Running   0          7m43s
 ```
 
+We can scale down PS nodes with the spec in ScalePlan like
+
+```yaml
+apiVersion: elastic.iml.github.io/v1alpha1
+kind: ScalePlan
+metadata:
+  namespace: dlrover
+  name: deepctr-manual-scaling-plan-2
+  labels:
+    elasticjob-name: deepctr-auto-scaling
+    scale-type: manual
+spec:
+  ownerJob: deepctr-auto-scaling
+  replicaResourceSpecs:
+    ps:
+      replicas: 1
+```
+
+After scaling, there two ps nodes:
+
+``` bash
+NAME                                             READY   STATUS    RESTARTS   AGE
+deepctr-auto-scaling-edljob-chief-0              1/1     Running   0          9m30s
+deepctr-auto-scaling-edljob-ps-0                 1/1     Running   0          9m30s
+elasticjob-deepctr-auto-scaling-dlrover-master   1/1     Running   0          9m47s
+```
+
 
 We can migrate a PS with more resource like
 
@@ -168,14 +197,15 @@ We can migrate a PS with more resource like
 apiVersion: elastic.iml.github.io/v1alpha1
 kind: ScalePlan
 metadata:
-  name: deepctr-manual-scaling-plan-2
+  namespace: dlrover
+  name: deepctr-manual-scaling-plan-3
   labels:
     elasticjob-name: deepctr-auto-scaling
     scale-type: manual
 spec:
   ownerJob: deepctr-auto-scaling
   migratePods:
-    - name: deepctr-auto-scaling-edljob-ps-1
+    - name: deepctr-auto-scaling-edljob-ps-0
       resource:
         cpu: "2"
         memory: 4Gi
@@ -187,14 +217,11 @@ During migrating, a new ps node is started. When new ps is ready, master will in
 NAME                                             READY   STATUS    RESTARTS   AGE
 deepctr-auto-scaling-edljob-chief-0              1/1     Running   0          22m
 deepctr-auto-scaling-edljob-ps-0                 1/1     Running   0          22m
-deepctr-auto-scaling-edljob-ps-1                 1/1     Running   0          17m
-deepctr-auto-scaling-edljob-ps-2                 0/1     Pending   0          73s
 ```
 After migrating, new ps joins and the old ps exit:
 
 ``` bash
 NAME                                             READY   STATUS    RESTARTS   AGE
 deepctr-auto-scaling-edljob-chief-0              1/1     Running   0          22m
-deepctr-auto-scaling-edljob-ps-0                 1/1     Running   0          22m
 deepctr-auto-scaling-edljob-ps-2                 1/1     Running   0          20s
 ```
