@@ -15,7 +15,7 @@ $ kubectl create namespace dlrover
 
 ```bash
 # deploy from local directory
-$ kubectl apply -k /dlrover/go/config/manifests/bases
+$ kubectl apply -k dlrover/go/operator/config/manifests/bases
 
 # deploy from remote repo
 $ deployment="git@github.com:intelligent-machine-learning/dlrover/dlrover/go/operator/config/manifests/bases/?ref=master"
