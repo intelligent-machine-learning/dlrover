@@ -28,7 +28,7 @@ kubectl -n dlrover apply -f dlrover/go/operator/config/rbac/default_role.yaml
 - Submit a job to train a CNN model with MNIST dataset.
 
 ```bash
-kubectl -n dlrover apply -f dlrover/examples/torch_mnist_job.yaml
+kubectl -n dlrover apply -f dlrover/examples/torch_mnist_master_backend_job.yaml
 ```
 
 - Check the job status
