@@ -92,5 +92,4 @@ class ElasticReader(metaclass=ABCMeta):
                 break
             logger.info("shard is {}".format(shard))
             for d in self.read_data_by_index_range(shard.start, shard.end):
-                assert len(d) == 40
                 yield d
