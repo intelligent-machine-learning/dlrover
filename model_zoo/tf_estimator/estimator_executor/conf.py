@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#  define your own custome reader
+
 import numpy as np
 from MyEstimator import MyEstimator
 
@@ -20,6 +20,7 @@ from dlrover.trainer.tensorflow.util.column_info import Column
 from dlrover.trainer.tensorflow.util.reader_util import reader_registery
 
 
+#  define your own custome reader
 def build_data_shard_service(
     batch_size=1,
     num_epochs=1,
