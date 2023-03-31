@@ -41,6 +41,7 @@ class DatasetUtil(object):
         self._epoch = epoch
         scheme, path = path_util.parse_uri(path)
         self.path = path
+        self.initialize_reader(scheme, path)
 
     def initialize_reader(self, scheme, path):
         reader_type = scheme.spilt(":")[-1]
@@ -50,7 +51,7 @@ class DatasetUtil(object):
             "batch_size": self._batch_size,
             "num_epochs": self._epoch,
         }
-        self._reader_fn = Reader(**kwargs)
+        self.reader = Reader(**kwargs)
 
     def make_dataset(self):
         def reader_fn():
