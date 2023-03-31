@@ -1,13 +1,12 @@
 # Add Custom Reader for TF Estimator in DLrover
 In some case, the reader provided by DLrover trainer doesn't satisfy user's need.
-User need to develop custom and register it to the 'reader_registery'.capitalize
+User need to develop custom and register it to the `reader_registery`.
 
-Here is an example, 
 
 ## Define Reader Class
 Arguments in the `__init__` method are path, num_epochs, batch_size  and enable_dynamic_sharding.
 As for some specific parameter, it can be defined as `python class attribute`.
-The key funcion is `iterator`. During training, `iterator` will be called to get train data.
+The key funcion is `iterator` and `count_data`. `count_data` is used for konwing how many dataset are there before training. During training, `iterator` will be called to get train data.
 
 
     
