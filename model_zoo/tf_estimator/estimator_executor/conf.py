@@ -18,7 +18,9 @@ from MyEstimator import MyEstimator
 from dlrover.python.elastic_agent.sharding.client import ShardingClient
 from dlrover.trainer.tensorflow.util.column_info import Column
 from dlrover.trainer.tensorflow.util.reader_util import reader_registery
-
+from dlrover.trainer.tensorflow.reader.base_reader import (   
+    ElasticReader,
+)
 
 #  define your own custome reader
 def build_data_shard_service(
@@ -38,7 +40,7 @@ def build_data_shard_service(
     return sharding_client
 
 
-class FakeReader:
+class FakeReader(ElasticReader):
     def __init__(
         self,
         path=None,
@@ -46,25 +48,13 @@ class FakeReader:
         batch_size=64,
         enable_dynamic_sharding=True,
     ):
-
-        self._num_epochs = num_epochs
-        self._batch_size = batch_size
-        self.enable_dynamic_sharding = enable_dynamic_sharding
-        self.data_shard_service = None
-        self.count_data()
-        self.data_shard_client = None
-        self._consumed_data = 0
-        self.build_data_shard_client()
-
-    def build_data_shard_client(self):
-        if self.enable_dynamic_sharding is True:
-            self.data_shard_client = build_data_shard_service(
-                batch_size=self._batch_size,
-                num_epochs=1,
-                dataset_size=self._data_nums,
-                num_minibatches_per_shard=1,
-                dataset_name="iris_training_data",
-            )
+ 
+        super().__init__(
+            path=path,
+            num_epochs=num_epochs,
+            batch_size=batch_size,
+            enable_dynamic_sharding=enable_dynamic_sharding,
+        )
 
     def count_data(self):
         self._data_nums = 10000
