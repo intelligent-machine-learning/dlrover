@@ -36,7 +36,7 @@ def build_sharding_client(
 class FileReader:
     def __init__(
         self,
-        file_name,
+        path=None,
         num_epochs=1,
         batch_size=64,
         enable_dynamic_sharding=True,
@@ -48,8 +48,8 @@ class FileReader:
         self._skip_header = skip_header
         self.enable_dynamic_sharding = enable_dynamic_sharding
         self.data_shard_service = None
-        self._file_handler = open(file_name, "r")
-        self._file_name = file_name
+        self._file_handler = open(path, "r")
+        self._file_name = path
 
         self.count_data()
         self.data_shard_client = None

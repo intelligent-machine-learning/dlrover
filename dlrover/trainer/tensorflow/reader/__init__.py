@@ -10,9 +10,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from dlrover.trainer.tensorflow.reader.fake_reader import (  # noqa: F401
-    FakeReader,
-)
 from dlrover.trainer.tensorflow.reader.file_reader import (  # noqa: F401
     FileReader,
 )
