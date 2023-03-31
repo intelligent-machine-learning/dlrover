@@ -11,13 +11,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from dlrover.trainer.tensorflow.reader.base_reader import (  # noqa: F401
-    BaseReader,
+    ElasticReader,
 )
 from dlrover.trainer.tensorflow.util.reader_util import reader_registery
 from dlrover.trainer.util.log_util import default_logger as logger
 
 
-class FileReader(BaseReader):
+class FileReader(ElasticReader):
     def __init__(
         self,
         path=None,
