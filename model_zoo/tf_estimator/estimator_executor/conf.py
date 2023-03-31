@@ -16,11 +16,9 @@ import numpy as np
 from MyEstimator import MyEstimator
 
 from dlrover.python.elastic_agent.sharding.client import ShardingClient
+from dlrover.trainer.tensorflow.reader.base_reader import ElasticReader
 from dlrover.trainer.tensorflow.util.column_info import Column
-from dlrover.trainer.tensorflow.util.reader_util import reader_registery
-from dlrover.trainer.tensorflow.reader.base_reader import (   
-    ElasticReader,
-)
+
 
 #  define your own custome reader
 def build_data_shard_service(
@@ -41,51 +39,21 @@ def build_data_shard_service(
 
 
 class FakeReader(ElasticReader):
-    def __init__(
-        self,
-        path=None,
-        num_epochs=1,
-        batch_size=64,
-        enable_dynamic_sharding=True,
-    ):
- 
-        super().__init__(
-            path=path,
-            num_epochs=num_epochs,
-            batch_size=batch_size,
-            enable_dynamic_sharding=enable_dynamic_sharding,
-        )
+    def __init__(self, path=None):
+        self.count = 1
+        super().__init__(path=path)
 
     def count_data(self):
-        self._data_nums = 10000
+        self._data_nums = 10
 
-    def get_default_shard(self):
-        return 1
-
-    def _read_data(self):
-        shard = None
-        if self.data_shard_client is not None:
-            shard = self.data_shard_client.fetch_shard()
-        data = self.get_data_by_shard(shard)
-        if shard is None:
-            data = None
+    def read_data_by_index_range(self, start_index, end_index):
+        data = []
+        for i in range(start_index, end_index):
+            x = np.random.randint(1, 1000)
+            y = 2 * x + np.random.randint(1, 5)
+            d = "{},{}".format(x, y)
+            data.append(d)
         return data
-
-    def get_data_by_shard(self, shard):
-        x = np.random.randint(1, 1000)
-        y = 2 * x + np.random.randint(1, 5)
-        return "{},{}".format(x, y)
-
-    def iterator(self):
-        while True:
-            data = self._read_data()
-            if data is None:
-                break
-            yield data
-
-
-# register reader
-reader_registery.register_reader("fake", FakeReader)
 
 
 def compare_fn(prev_eval_result, cur_eval_result):
@@ -112,9 +80,9 @@ class TrainConf(object):
     }
 
     train_set = {
-        "path": "fake://test.data",
-        "epoch": 1000,
-        "batch_size": 200,
+        "reader": FakeReader("fake://test.data"),
+        "epoch": 10,
+        "batch_size": 20,
         "columns": (
             Column.create(  # type: ignore
                 name="x",
@@ -128,5 +96,7 @@ class TrainConf(object):
             ),
         ),
     }
-
-    eval_set = {"path": "fake://eval.data", "columns": train_set["columns"]}
+    eval_set = {
+        "reader": FakeReader("fake://eval.data"),
+        "columns": train_set["columns"],
+    }

@@ -13,28 +13,15 @@
 from dlrover.trainer.tensorflow.reader.base_reader import (  # noqa: F401
     ElasticReader,
 )
-from dlrover.trainer.tensorflow.util.reader_util import reader_registery
-from dlrover.trainer.util.log_util import default_logger as logger
 
 
 class FileReader(ElasticReader):
-    def __init__(
-        self,
-        path=None,
-        num_epochs=1,
-        batch_size=64,
-        enable_dynamic_sharding=True,
-        skip_header=True,
-    ):
+    def __init__(self, path=None, skip_header=True):
         self._skip_header = skip_header
         self._file_handler = open(path, "r")
         self._file_name = path
-        self._consumed_data = 0
         super().__init__(
             path=path,
-            num_epochs=num_epochs,
-            batch_size=batch_size,
-            enable_dynamic_sharding=enable_dynamic_sharding,
         )
 
     def count_data(self):
@@ -45,22 +32,15 @@ class FileReader(ElasticReader):
         else:
             self._data_nums = len(self.data)
 
-    def iterator(self):
-        while True:
-            shard = self.data_shard_client.fetch_shard()
-            if not shard:
-                break
-            logger.info("shard is {}".format(shard))
-            for i in range(shard.start, shard.end):
-                d = self.data[i]
-                d = d.strip()
-                dd = d.split(",")
-                assert len(dd) == 40
-                yield d
+    def read_data_by_index_range(self, start_index, end_index):
+        data = []
+        for i in range(start_index, end_index):
+            d = self.data[i]
+            d = d.strip()
+            dd = d.split(",")
+            data.append(dd)
+        return data
 
     def __del__(self):
         if self._file_handler is not None:
             self._file_handler.close()
-
-
-reader_registery.register_reader("file", FileReader)

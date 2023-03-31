@@ -38,18 +38,25 @@ class ElasticReader(metaclass=ABCMeta):
     def __init__(
         self,
         path=None,
-        num_epochs=1,
-        batch_size=64,
-        enable_dynamic_sharding=True,
     ):
         self.path = path
+        self.enable_dynamic_sharding = True
+        self.num_minibatches_per_shard = 10
+
+    def set_path(self, path):
+        self.path = path
+
+    def set_num_epochs(self, num_epochs):
         self._num_epochs = num_epochs
+
+    def set_batch_size(self, batch_size):
         self._batch_size = batch_size
+
+    def set_enable_dynamic_sharding(self, enable_dynamic_sharding):
         self.enable_dynamic_sharding = enable_dynamic_sharding
-        self.data_shard_service = None
-        self.data_shard_client = None
-        self._data_nums = None
-        self.build_sharding_client()
+
+    def set_num_minibatches_per_shard(self, num_minibatches_per_shard):
+        self.num_minibatches_per_shard = num_minibatches_per_shard
 
     def build_sharding_client(self):
         self.count_data()
@@ -71,9 +78,19 @@ class ElasticReader(metaclass=ABCMeta):
             )
 
     @abstractmethod
-    def count_data(self):
+    def read_data_by_index_range(self, start_index, end_index):
         pass
 
     @abstractmethod
-    def iterator(self):
+    def count_data(self):
         pass
+
+    def iterator(self):
+        while True:
+            shard = self.data_shard_client.fetch_shard()
+            if not shard:
+                break
+            logger.info("shard is {}".format(shard))
+            data = self.read_data_by_index_range(shard.start, shard.end)
+            for d in data:
+                yield d

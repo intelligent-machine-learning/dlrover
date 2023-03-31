@@ -17,9 +17,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.python.ops import parsing_ops
 
-from dlrover.trainer.tensorflow.util import path_util
 from dlrover.trainer.tensorflow.util.column_info import Column
-from dlrover.trainer.tensorflow.util.reader_util import reader_registery
 from dlrover.trainer.util.log_util import default_logger as logger
 
 
@@ -28,7 +26,7 @@ class DatasetUtil(object):
 
     def __init__(
         self,
-        path=None,
+        reader=None,
         columns: List[Column] = [],
         reader_fn: Any = None,
         schema=None,
@@ -39,20 +37,13 @@ class DatasetUtil(object):
         self.columns = columns
         self._batch_size = batch_size
         self._epoch = epoch
-        scheme, path = path_util.parse_uri(path)
-        self.path = path
-        self.initialize_reader(scheme, path)
+        self.reader = reader
+        self.set_reader()
 
-    def initialize_reader(self, scheme, path):
-        reader_type = scheme.split(":")[0]
-        logger.info("reader_type is %s" % reader_type)
-        Reader = reader_registery.get_reader(reader_name=reader_type)
-        kwargs = {
-            "path": path,
-            "batch_size": self._batch_size,
-            "num_epochs": self._epoch,
-        }
-        self.reader = Reader(**kwargs)
+    def set_reader(self):
+        self.reader.set_batch_size(self._batch_size)
+        self.reader.set_num_epochs(self._epoch)
+        self.reader.build_sharding_client()
 
     def make_dataset(self):
         def reader_fn():
@@ -143,11 +134,11 @@ class DatasetUtil(object):
             options: other keyword arguments
         """
 
-        path = data_set.get("path")
+        path = data_set.get("reader")
         columns = data_set.get("columns")
         reader_fn = data_set.get("reader_fn")
         dataset_util_kwargs = {
-            "path": path,
+            "reader": path,
             "columns": columns,
             "reader_fn": reader_fn,
         }
