@@ -36,8 +36,7 @@ class FileReader(ElasticReader):
         for i in range(start_index, end_index):
             d = self.data[i]
             d = d.strip()
-            dd = d.split(",")
-            yield dd
+            yield d
 
     def __del__(self):
         if self._file_handler is not None:
