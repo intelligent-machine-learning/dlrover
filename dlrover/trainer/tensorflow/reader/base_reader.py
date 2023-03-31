@@ -39,12 +39,12 @@ class ElasticReader(metaclass=ABCMeta):
         self,
         path=None,
     ):
-        self.path = path
+        self._path = path
         self.enable_dynamic_sharding = True
         self.num_minibatches_per_shard = 10
 
     def set_path(self, path):
-        self.path = path
+        self._path = path
 
     def set_num_epochs(self, num_epochs):
         self._num_epochs = num_epochs
@@ -53,10 +53,10 @@ class ElasticReader(metaclass=ABCMeta):
         self._batch_size = batch_size
 
     def set_enable_dynamic_sharding(self, enable_dynamic_sharding):
-        self.enable_dynamic_sharding = enable_dynamic_sharding
+        self._enable_dynamic_sharding = enable_dynamic_sharding
 
     def set_num_minibatches_per_shard(self, num_minibatches_per_shard):
-        self.num_minibatches_per_shard = num_minibatches_per_shard
+        self._num_minibatches_per_shard = num_minibatches_per_shard
 
     def build_sharding_client(self):
         self.count_data()
@@ -74,7 +74,7 @@ class ElasticReader(metaclass=ABCMeta):
                 num_epochs=self._num_epochs,
                 dataset_size=self._data_nums,
                 num_minibatches_per_shard=2,
-                dataset_name=self.path,
+                dataset_name=self._path,
             )
 
     @abstractmethod
@@ -91,6 +91,6 @@ class ElasticReader(metaclass=ABCMeta):
             if not shard:
                 break
             logger.info("shard is {}".format(shard))
-            data = self.read_data_by_index_range(shard.start, shard.end)
-            for d in data:
+            for d in self.read_data_by_index_range(shard.start, shard.end):
+                assert len(d) == 40
                 yield d

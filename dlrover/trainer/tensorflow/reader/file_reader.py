@@ -33,13 +33,11 @@ class FileReader(ElasticReader):
             self._data_nums = len(self.data)
 
     def read_data_by_index_range(self, start_index, end_index):
-        data = []
         for i in range(start_index, end_index):
             d = self.data[i]
             d = d.strip()
             dd = d.split(",")
-            data.append(dd)
-        return data
+            yield dd
 
     def __del__(self):
         if self._file_handler is not None:
