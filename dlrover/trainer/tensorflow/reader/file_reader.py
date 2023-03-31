@@ -100,4 +100,4 @@ class FileReader:
             self._file_handler.close()
 
 
-reader_registery.reader_registry("file", FileReader)
+reader_registery.register_reader("file", FileReader)

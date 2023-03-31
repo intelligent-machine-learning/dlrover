@@ -13,7 +13,6 @@
 
 import unittest
 
-from dlrover.trainer.constants.tf_constants import TFConstants
 from dlrover.trainer.tensorflow.util.reader_util import reader_registery
 
 
@@ -22,6 +21,7 @@ class ReaderRegister(unittest.TestCase):
         class TestReader:
             def __init__(self):
                 self.a = 1
+
         reader_registery.register_reader("test_reader", TestReader)
         Reader = reader_registery.get_reader("test_reader")
         reader = Reader()
@@ -31,7 +31,6 @@ class ReaderRegister(unittest.TestCase):
         reader_registery.unregister_reader("test_reader")
         Reader = reader_registery.get_reader("test_reader")
         self.assertEqual(Reader, None)
- 
 
 
 if __name__ == "__main__":

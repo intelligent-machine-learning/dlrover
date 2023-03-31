@@ -89,4 +89,4 @@ class FakeReader:
             yield data
 
 
-reader_registery.reader_registry("fake", FakeReader)
+reader_registery.register_reader("fake", FakeReader)
