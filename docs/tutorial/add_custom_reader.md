@@ -1,78 +1,68 @@
 # Add Custom Reader for TF Estimator in DLrover
 In some case, the reader provided by DLrover trainer doesn't satisfy user's need.
-User need to develop custom and register it to the `reader_registery`.
+User need to develop custom reader and set it in the conf.
 
 
-## Define Reader Class
-Arguments in the `__init__` method are path, num_epochs, batch_size  and enable_dynamic_sharding.
-As for some specific parameter, it can be defined as `python class attribute`.
-The key funcion is `iterator` and `count_data`. `count_data` is used for konwing how many dataset are there before training. During training, `iterator` will be called to get train data.
-
+## Add Custom Elastic Reader for TF Estimator in DLrover
+### Define Elastic Reader Class
+One necessary arguments in the `__init__` method is path.
+The key funcion is `read_data_by_index_range` and `count_data`. `count_data` is used for konwing how many dataset are there before training. During training, `read_data_by_index_range` will be called to get train data.
 
     
 ```python
-from dlrover.trainer.tensorflow.reader.base_reader import (  # noqa: F401
-    ElasticReader,
-)
-class CustomReader(BaseReader):
-    sepeicif_param = "1"
+from dlrover.trainer.tensorflow.reader.base_reader import ElasticReader
+class FakeReader(ElasticReader):
+    def __init__(self, path=None):
+        self.count = 1
+        super().__init__(path=path)
 
+    def count_data(self):
+        self._data_nums = 10
+
+    def read_data_by_index_range(self, start_index, end_index):
+        data = []
+        for i in range(start_index, end_index):
+            x = np.random.randint(1, 1000)
+            y = 2 * x + np.random.randint(1, 5)
+            d = "{},{}".format(x, y)
+            data.append(d)
+        return data
+```
+
+### Set Reader Conf file
+you need to initial you reader and set it in the conf. Here is an example  
+
+```python
+eval_set = {"reader": FakeReader("./eval.data"), "columns": train_set["columns"]}
+```
+
+## Add Custom Non Elastic Reader for TF Estimator in DLrover
+
+### Define Reader Class
+
+The key funcion is `iterator`.  During training, `iterator` will be called to get train data.
+
+```python
+class Reader:
     def __init__(
         self,
         path=None,
-        num_epochs=1,
-        batch_size=64,
-        enable_dynamic_sharding=True,
+        batch_size=None
     ):
-        
-        # your custome code 
-        # your custome code
-        super().__init__(path=path,
-                         num_epochs=num_epochs,
-                         batch_size=batch_size, 
-                         enable_dynamic_sharding=enable_dynamic_sharding)
-    def count_data(self):
-        '''
-        Count how many training datas are there
-        '''
-        # your custome code 
-        self._data_nums = 1000
+        pass
 
-    def _read_data(self):
-        '''
-        Read data from data source.
-        '''
-        data = None
-        # your custom code
-        if self.data_shard_client is not None:
-            shard = self.data_shard_client.fetch_shard()
-            start_index, end_index = shard.start, shard.end
-            # your custom code, read data from start_index to end_index
-            # data = read_data(start_index, end_index)
-            data =  
-        else:
-            # you can sequentially read data without getting shard from dlrover master
-            data = 
-        return data 
+    def get_data(self):
+        # you custom code
 
     def iterator(self):
         while True:
-            data = self._read_data()
-            if data is None:
-                break
-            yield data
+            data = self.get_data()
+            for d in data:
+                yield d
 ```
 
-## Register The Reader Class 
-Register the Reader to the registery, `custome_reader` is the key and `CustomReader` is the reader Class.
+### Set Reader Conf file
+you need to initial you reader and set it in the conf. Here is an example  
 ```python
-from dlrover.trainer.tensorflow.util.reader_util import reader_registery
-reader_registery.register_reader("custome_reader", CustomReader)
-```
-
-
-## Set reader type and path in Conf file
-you need to set path for dataset. Here is an example `custome_reader://eval.data`. `custome_reader` is the key to get reader class and `//eval.data` is the path of the custom file system.
-```python
-eval_set = {"path": "custome_reader://eval.data", "columns": train_set["columns"]}
+eval_set = {"reader": FakeReader("./eval.data"), "columns": train_set["columns"]}
 ```

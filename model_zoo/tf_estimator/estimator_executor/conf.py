@@ -15,27 +15,10 @@
 import numpy as np
 from MyEstimator import MyEstimator
 
-from dlrover.python.elastic_agent.sharding.client import ShardingClient
 from dlrover.trainer.tensorflow.reader.base_reader import ElasticReader
 from dlrover.trainer.tensorflow.util.column_info import Column
 
-
 #  define your own custome reader
-def build_data_shard_service(
-    batch_size=1,
-    num_epochs=1,
-    dataset_size=1,
-    num_minibatches_per_shard=1,
-    dataset_name="iris_training_data",
-):
-    sharding_client = ShardingClient(
-        dataset_name=dataset_name,
-        batch_size=batch_size,
-        num_epochs=num_epochs,
-        dataset_size=dataset_size,
-        num_minibatches_per_shard=num_minibatches_per_shard,
-    )
-    return sharding_client
 
 
 class FakeReader(ElasticReader):

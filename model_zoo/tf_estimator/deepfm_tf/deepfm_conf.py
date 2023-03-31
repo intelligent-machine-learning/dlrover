@@ -20,7 +20,7 @@ from dlrover.trainer.tensorflow.util.column_info import Column
 class TrainConf(object):
     classifier_class = DeepFMAdaptor
     epoch = 1
-    batch_size = 64
+    batch_size = 2
     log_steps = 100
     eval_steps = 10
     save_steps = 500

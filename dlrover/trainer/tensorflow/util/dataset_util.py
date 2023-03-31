@@ -17,6 +17,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.python.ops import parsing_ops
 
+from dlrover.trainer.tensorflow.reader.base_reader import ElasticReader
 from dlrover.trainer.tensorflow.util.column_info import Column
 from dlrover.trainer.util.log_util import default_logger as logger
 
@@ -41,9 +42,10 @@ class DatasetUtil(object):
         self.set_reader()
 
     def set_reader(self):
-        self.reader.set_batch_size(self._batch_size)
-        self.reader.set_num_epochs(self._epoch)
-        self.reader.build_sharding_client()
+        if isinstance(self.reader, ElasticReader):
+            self.reader.set_batch_size(self._batch_size)
+            self.reader.set_num_epochs(self._epoch)
+            self.reader.build_sharding_client()
 
     def make_dataset(self):
         def reader_fn():
