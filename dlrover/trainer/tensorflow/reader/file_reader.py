@@ -12,6 +12,7 @@
 # limitations under the License.
 
 from dlrover.python.elastic_agent.sharding.client import ShardingClient
+from dlrover.trainer.tensorflow.util.reader_util import reader_registery
 from dlrover.trainer.util.log_util import default_logger as logger
 
 
@@ -97,3 +98,6 @@ class FileReader:
     def __del__(self):
         if self._file_handler is not None:
             self._file_handler.close()
+
+
+reader_registery.reader_registry("file", FileReader)

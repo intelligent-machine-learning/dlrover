@@ -13,6 +13,7 @@
 import numpy as np
 
 from dlrover.python.elastic_agent.sharding.client import ShardingClient
+from dlrover.trainer.tensorflow.util.reader_util import reader_registery
 
 
 def build_data_shard_service(
@@ -34,7 +35,11 @@ def build_data_shard_service(
 
 class FakeReader:
     def __init__(
-        self, num_epochs=1, batch_size=64, enable_dynamic_sharding=True
+        self,
+        path=None,
+        num_epochs=1,
+        batch_size=64,
+        enable_dynamic_sharding=True,
     ):
 
         self._num_epochs = num_epochs
@@ -82,3 +87,6 @@ class FakeReader:
             if data is None:
                 break
             yield data
+
+
+reader_registery.reader_registry("fake", FakeReader)

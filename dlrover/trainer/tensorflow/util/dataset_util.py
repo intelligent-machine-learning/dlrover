@@ -17,11 +17,9 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.python.ops import parsing_ops
 
-from dlrover.trainer.constants.tf_constants import TFConstants
-from dlrover.trainer.tensorflow.reader.fake_reader import FakeReader
-from dlrover.trainer.tensorflow.reader.file_reader import FileReader
 from dlrover.trainer.tensorflow.util import path_util
 from dlrover.trainer.tensorflow.util.column_info import Column
+from dlrover.trainer.tensorflow.util.reader_util import reader_registery
 from dlrover.trainer.util.log_util import default_logger as logger
 
 
@@ -43,15 +41,16 @@ class DatasetUtil(object):
         self._epoch = epoch
         scheme, path = path_util.parse_uri(path)
         self.path = path
-        if scheme == TFConstants.FILE_SCHEME():
-            self.reader = FileReader(
-                self.path, batch_size=self._batch_size, num_epochs=self._epoch
-            )
-        elif scheme == TFConstants.FAKE_SCHEME():
-            self.reader = FakeReader()  # type: ignore
 
-        if reader_fn is not None:
-            self.reader = reader_fn
+    def initialize_reader(self, scheme, path):
+        reader_type = scheme.spilt(":")[-1]
+        Reader = reader_registery.get_reader(reader_name=reader_type)
+        kwargs = {
+            "path": path,
+            "batch_size": self._batch_size,
+            "num_epochs": self._epoch,
+        }
+        self._reader_fn = Reader(**kwargs)
 
     def make_dataset(self):
         def reader_fn():
