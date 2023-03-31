@@ -44,7 +44,7 @@ class DatasetUtil(object):
         self.initialize_reader(scheme, path)
 
     def initialize_reader(self, scheme, path):
-        reader_type = scheme.spilt(":")[-1]
+        reader_type = scheme.split(":")[-1]
         Reader = reader_registery.get_reader(reader_name=reader_type)
         kwargs = {
             "path": path,
