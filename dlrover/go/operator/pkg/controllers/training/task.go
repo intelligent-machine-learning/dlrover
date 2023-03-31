@@ -440,7 +440,7 @@ func (m *TaskManager) createPod(
 		m.setAllreduceEnv(client, job, &pod.Spec.Containers[0])
 	}
 	err := client.Create(context.Background(), pod)
-	if errors.IsAlreadyExists(err){
+	if errors.IsAlreadyExists(err) {
 		logger.Infof("Pod %s is already exists.", pod.Name)
 		return nil
 	} else if err != nil {
@@ -449,7 +449,7 @@ func (m *TaskManager) createPod(
 	}
 	service := m.newServiceForPod(job, podMeta)
 	err = client.Create(context.Background(), service)
-	if errors.IsAlreadyExists(err){
+	if errors.IsAlreadyExists(err) {
 		err = client.Update(context.Background(), service)
 		if err != nil {
 			logger.Infof("Job %s: Fail to update service %s, %v", job.Name, service.Name, err)
