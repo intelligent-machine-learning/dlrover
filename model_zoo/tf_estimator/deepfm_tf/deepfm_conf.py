@@ -54,11 +54,11 @@ class TrainConf(object):
 
     col = dense_col + sparse_col
     train_set = {
-        "reader": FileReader("file://./data_kaggle_ad_ctr_train.csv"),
+        "reader": FileReader("./data_kaggle_ad_ctr_train.csv"),
         "columns": col,
     }
 
     eval_set = {
-        "path": FileReader("file://./data_kaggle_ad_ctr_train.csv"),
+        "reader": FileReader("./data_kaggle_ad_ctr_train.csv"),
         "columns": train_set["columns"],
     }

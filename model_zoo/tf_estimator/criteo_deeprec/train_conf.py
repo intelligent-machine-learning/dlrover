@@ -13,6 +13,7 @@
 
 from deepctr_models import DeepFM
 
+from dlrover.trainer.tensorflow.reader.file_reader import FileReader
 from dlrover.trainer.tensorflow.util.column_info import Column
 
 
@@ -51,13 +52,13 @@ class TrainConf(object):
 
     col = dense_col + sparse_col
     train_set = {
-        "path": "file://./data_kaggle_ad_ctr_train.csv",
+        "reader": FileReader("./data_kaggle_ad_ctr_train.csv"),
         "columns": col,
         "epoch": 100000,
         "batch_size": 32,
     }
 
     eval_set = {
-        "path": "file://./data_kaggle_ad_ctr_train.csv",
+        "reader": FileReader("./data_kaggle_ad_ctr_train.csv"),
         "columns": train_set["columns"],
     }
