@@ -1,0 +1,14 @@
+---
+name: dlrover-trainer-test-criteo-deeprec
+description: run pytest to execute python test cases of dlrover-trainer
+runs:
+  using: 'docker'
+  image: "registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:v1"
+  args:
+    - "/bin/bash"
+    - "-c"
+    - " python -m grpc_tools.protoc -I. \
+dlrover/proto/*.proto --python_out=. --grpc_python_out=. \
+&& export PYTHONPATH=`pwd` \
+&& cd model_zoo/tf_estimator/criteo_deeprec\
+&& unset DLROVER_MASTER_ADDR  && sh run.sh"
