@@ -34,7 +34,7 @@ class FakeReader(ElasticReader):
         for i in range(start_index, end_index):
             x = np.random.randint(1, 1000)
             y = 2 * x + np.random.randint(1, 5)
-            d = "{},{}".format(x, y)
+            d = "{}\t{}".format(x, y)
             data.append(d)
         return data
 
@@ -65,6 +65,7 @@ class TrainConf(object):
     train_set = {
         "reader": FakeReader("fake://test.data"),
         "epoch": 10,
+        "field_delim": "\t",
         "batch_size": 20,
         "columns": (
             Column.create(  # type: ignore
@@ -82,4 +83,5 @@ class TrainConf(object):
     eval_set = {
         "reader": FakeReader("fake://eval.data"),
         "columns": train_set["columns"],
+        "field_delim": "\t",
     }

@@ -33,12 +33,14 @@ class DatasetUtil(object):
         schema=None,
         batch_size=64,
         epoch=10,
+        field_delim=",",
     ):
 
         self.columns = columns
         self._batch_size = batch_size
         self._epoch = epoch
         self.reader = reader
+        self.field_delim = field_delim
         self.set_reader()
 
     def set_reader(self):
@@ -87,7 +89,9 @@ class DatasetUtil(object):
 
         def parse_csv(value):
             columns = parsing_ops.decode_csv(
-                value, record_defaults=default_columns_types, field_delim=","
+                value,
+                record_defaults=default_columns_types,
+                field_delim=self.field_delim,
             )
             features = dict(zip(default_columns_names, columns))
             labels = features.pop(self._label_column_name)
@@ -139,10 +143,12 @@ class DatasetUtil(object):
         path = data_set.get("reader")
         columns = data_set.get("columns")
         reader_fn = data_set.get("reader_fn")
+        field_delim = data_set.get("field_delim", ",")
         dataset_util_kwargs = {
             "reader": path,
             "columns": columns,
             "reader_fn": reader_fn,
+            "field_delim": field_delim,
         }
 
         batch_size = data_set.get("batch_size", None)
