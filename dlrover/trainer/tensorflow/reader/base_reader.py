@@ -70,8 +70,10 @@ class ElasticReader(metaclass=ABCMeta):
                 dataset_name=self.path,
             )
 
+    @abstractmethod
     def count_data(self):
         pass
 
+    @abstractmethod
     def iterator(self):
         pass
