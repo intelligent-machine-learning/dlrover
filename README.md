@@ -96,6 +96,6 @@ Please refer to the [DEVELOPMENT](docs/developer_guide.md)
 
 ## Quick Start
 
-[Train a TensorFlow Estimator on Aliyun ACK](docs/tutorial/ps_on_cloud.md)
+[Train a TensorFlow Estimator on Aliyun ACK](docs/tutorial/tf_ps_on_cloud.md)
 
 [Train a PyTorch Model on Aliyun ACK](docs/tutorial/torch_allreduce_on_cloud.md)
