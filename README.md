@@ -91,6 +91,8 @@ By practice, DLRover is an ideal component to build an end-to-end industrial onl
 - High performance extension library for Tensorflow/Pytorch to speed up training
 - ...
 
+## Contributing
+Please refer to the [DEVELOPMENT](docs/developer_guide.md)
 
 ## Quick Start
 
