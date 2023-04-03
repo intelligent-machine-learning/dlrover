@@ -13,6 +13,7 @@
 
 import datetime
 import pickle
+import time
 import unittest
 
 from torch.distributed.elastic.rendezvous.dynamic_rendezvous import (
@@ -72,7 +73,18 @@ class RdzvServiceTest(unittest.TestCase):
         state_bits = pickle.dumps(state)
         participants = {"worker-0": 0}
         wait_list = ["worker-1"]
-        rdzv_svc.set_state(rdzv_key, state_bits, 1, participants, wait_list)
-        new_state_bits, token = rdzv_svc.get_state(rdzv_key)
+        host = "worker-0"
+        rdzv_svc._participants = ["worker-0", "worker-1"]
+        rdzv_svc.set_state(
+            rdzv_key, state_bits, 1, participants, wait_list, host
+        )
+        new_state_bits, token = rdzv_svc.get_state(host, rdzv_key)
         self.assertEqual(new_state_bits, state_bits)
         self.assertEqual(token, 0)
+
+    def test_scale_down_worker_base2(self):
+        rdzv_svc = TorchRendezvousService()
+        rdzv_svc._alive_workers = ["worker-0", "worker-1", "worker-2"]
+        rdzv_svc._scale_down_ts = int(time.time()) - 400
+        rdzv_svc._scale_down_worker_base2()
+        self.assertEqual(rdzv_svc._participants, ["worker-0", "worker-1"])

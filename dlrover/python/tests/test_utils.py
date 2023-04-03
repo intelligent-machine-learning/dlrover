@@ -62,9 +62,9 @@ def _get_pod(name):
     return pod
 
 
-class MockK8sJobArgs(JobArgs):
+class MockK8sPSJobArgs(JobArgs):
     def __init__(self):
-        super(MockK8sJobArgs, self).__init__(
+        super(MockK8sPSJobArgs, self).__init__(
             PlatformType.KUBERNETES, "default", "test"
         )
 
@@ -88,7 +88,23 @@ class MockK8sJobArgs(JobArgs):
         )
         self.job_uuid = "11111"
         self.distribution_strategy = DistributionStrategy.PS
-        print("sssfdsf======")
+
+
+class MockK8sAllreduceJobArgs(JobArgs):
+    def __init__(self):
+        super(MockK8sAllreduceJobArgs, self).__init__(
+            PlatformType.KUBERNETES, "default", "test"
+        )
+
+    def initilize(self):
+        worker_resource = NodeGroupResource(
+            16, NodeResource(1, 4096, "a100", 8)
+        )
+        self.node_args[NodeType.WORKER] = NodeArgs(
+            worker_resource, True, 3, 0, ""
+        )
+        self.job_uuid = "11111"
+        self.distribution_strategy = DistributionStrategy.ALLREDUCE
 
 
 class MockRayJobArgs(JobArgs):

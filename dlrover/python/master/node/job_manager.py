@@ -652,6 +652,12 @@ class JobManager(object):
             return all(node_hang)
         return False
 
+    def remove_not_participated_workers(self, participated_workers):
+        plan = self._worker_manager.remove_not_participated_workers(
+            participated_workers
+        )
+        self._scaler.scale(plan)
+
 
 def create_job_manager(args: JobArgs, speed_monitor) -> JobManager:
     # relaunch on worker failure for PS or custom strategy

@@ -242,3 +242,12 @@ class WorkerManager(TrainingNodeManager):
             plan.launch_nodes.append(new_node)
             plan.remove_nodes.append(old_node)
         return plan
+
+    def remove_not_participated_workers(self, participated_workers):
+        """Remove workers which do not participate in the training."""
+        plan = ScalePlan()
+        for worker_id, worker in self._nodes.items():
+            if worker.name not in participated_workers:
+                p = self.remove_node(worker_id)
+                plan.merge(p)
+        return plan

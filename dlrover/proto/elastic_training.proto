@@ -202,6 +202,7 @@ message RendezvousState {
   int32 token = 3;
   map<string, int32> participants = 4;
   repeated string wait_list = 5;
+  string host_name = 6;
 }
 
 message KeyValuePair {

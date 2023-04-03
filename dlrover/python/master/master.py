@@ -188,6 +188,10 @@ class Master(object):
 
         return self._exit_code
 
+    def adjust_worker_for_allreduce(self):
+        workers = self.rdzv_service.get_participants()
+        self.job_manager.remove_not_participated_workers(workers)
+
     def stop(self):
         """
         Stop all the components.
