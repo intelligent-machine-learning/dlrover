@@ -23,7 +23,6 @@ import (
 	logger "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/types"
 	runtime_client "sigs.k8s.io/controller-runtime/pkg/client"
 	"sort"
 	"strconv"
@@ -440,28 +439,24 @@ func (m *TaskManager) createPod(
 		m.setAllreduceEnv(client, job, &pod.Spec.Containers[0])
 	}
 	err := client.Create(context.Background(), pod)
-	if err != nil {
+	if errors.IsAlreadyExists(err) {
+		logger.Infof("Pod %s is already exists.", pod.Name)
+		return nil
+	} else if err != nil {
 		logger.Infof("Job %s: Fail to create Pod %s, %v", job.Name, pod.Name, err)
 		return err
 	}
 	service := m.newServiceForPod(job, podMeta)
-	existingService := &corev1.Service{}
-	err = client.Get(context.TODO(), types.NamespacedName{
-		Name:      service.Name,
-		Namespace: service.Namespace,
-	}, existingService)
-	if err != nil {
-		err = client.Create(context.Background(), service)
-		if err != nil {
-			logger.Infof("Job %s: Fail to create service %s, %v", job.Name, service.Name, err)
-			return err
-		}
-	} else {
+	err = client.Create(context.Background(), service)
+	if errors.IsAlreadyExists(err) {
 		err = client.Update(context.Background(), service)
 		if err != nil {
 			logger.Infof("Job %s: Fail to update service %s, %v", job.Name, service.Name, err)
 			return err
 		}
+	} else if err != nil {
+		logger.Infof("Job %s: Fail to create service %s, %v", job.Name, service.Name, err)
+		return err
 	}
 	return nil
 }

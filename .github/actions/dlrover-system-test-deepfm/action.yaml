@@ -1,5 +1,5 @@
 ---
-name: dlrover-system-test-deeprec
+name: dlrover-system-test-deepfm_tf
 description: run pytest to execute python test cases of dlrover-trainer
 runs:
   using: 'docker'
@@ -9,6 +9,7 @@ runs:
     - "-c"
     - " python -m grpc_tools.protoc -I. \
 dlrover/proto/*.proto --python_out=. --grpc_python_out=. \
+&& pip install deepctr \
 && export PYTHONPATH=`pwd` \
-&& cd model_zoo/tf_estimator/criteo_deeprec\
+&& cd model_zoo/tf_estimator/deepfm_tf\
 && unset DLROVER_MASTER_ADDR  && sh run.sh"
