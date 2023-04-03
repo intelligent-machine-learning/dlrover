@@ -8,14 +8,14 @@ spec:
   optimizeMode: single-job
   replicaSpecs:
     worker:
-      replicas: 2
+      replicas: 4
       template:
         spec:
           restartPolicy: Never
           containers:
             - name: main
               # yamllint disable-line rule:line-length
-              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:torch113-mnist
+              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:torch113-mnist-test
               imagePullPolicy: Always
               command:
                 - /bin/bash
@@ -26,6 +26,13 @@ spec:
                 model_zoo/pytorch/mnist_cnn.py \
                 --training_data /data/mnist_png/training/elastic_ds.txt \
                 --validation_data /data/mnist_png/testing/elastic_ds.txt"
+              resources:
+                limits:
+                  cpu: "1"
+                  memory: 2Gi
+                requests:
+                  cpu: "1"
+                  memory: 2Gi
     dlrover-master:
       template:
         spec:

@@ -399,6 +399,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             request.token,
             request.participants,
             request.wait_list,
+            request.host_name,
         )
         res = elastic_training_pb2.Response()
         res.success = succeed

@@ -47,8 +47,13 @@ class TorchRendezvousService(object):
 
     def add_alive_worker(self, worker: Node):
         self._alive_workers.append(worker.name)
-        if base2(self._alive_workers):
+        if base2(len(self._alive_workers)):
             self._participants = self._alive_workers
+        logger.info(
+            "Alive workers = %s, participants = %s",
+            self._alive_workers,
+            self._participants,
+        )
 
     def remove_alive_worker(self, worker: Node):
         self._alive_workers.remove(worker.name)
@@ -75,6 +80,11 @@ class TorchRendezvousService(object):
             A tuple of the serialized rendezvous state, its fencing token, and
             a boolean value indicating whether our set attempt succeeded.
         """
+        logger.info(
+            "Host %s set states with participants = %s",
+            host_name,
+            self._participants,
+        )
         if host_name not in self._participants:
             return False
         with self._lock:
@@ -105,6 +115,11 @@ class TorchRendezvousService(object):
         """
         with self._lock:
             self._scale_down_worker_base2()
+            logger.info(
+                "Host %s get states with participants = %s",
+                worker_name,
+                self._participants,
+            )
             completed_state_bits = b""
             if (
                 key not in self._rdzv_states
@@ -113,14 +128,8 @@ class TorchRendezvousService(object):
                 return completed_state_bits, self._token
 
             rdzv_state = self._rdzv_states[key]
-            participant_num = len(rdzv_state.participants)
-            wait_num = len(rdzv_state.wait_list)
-
-            num_nodes_ready = participant_num + wait_num
-
-            if base2(num_nodes_ready):
-                rdzv_state.completed_state_bits = rdzv_state.latest_state_bits
-                completed_state_bits = rdzv_state.completed_state_bits
+            rdzv_state.completed_state_bits = rdzv_state.latest_state_bits
+            completed_state_bits = rdzv_state.completed_state_bits
             return completed_state_bits, self._token
 
     def _scale_down_worker_base2(self):
