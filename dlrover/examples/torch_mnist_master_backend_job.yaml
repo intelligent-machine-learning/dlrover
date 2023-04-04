@@ -8,14 +8,14 @@ spec:
   optimizeMode: single-job
   replicaSpecs:
     worker:
-      replicas: 4
+      replicas: 2
       template:
         spec:
           restartPolicy: Never
           containers:
             - name: main
               # yamllint disable-line rule:line-length
-              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:torch113-mnist-test
+              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:torch113-mnist
               imagePullPolicy: Always
               command:
                 - /bin/bash
