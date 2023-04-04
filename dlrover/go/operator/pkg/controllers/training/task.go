@@ -202,7 +202,7 @@ func (m *TaskManager) getMaxReplicaID(
 	job *elasticv1alpha1.ElasticJob,
 ) int {
 	pods, err := common.GetReplicaTypePods(client, job, m.taskType)
-	if err == nil {
+	if err != nil {
 		return -1
 	}
 	maxID := -1
