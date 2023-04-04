@@ -495,7 +495,10 @@ class JobManager(object):
 
     def _relaunch_node(self, node: Node):
         if node.type == NodeType.WORKER:
-            if self._job_args.distribution_strategy == DistributionStrategy.ALLREDUCE:
+            if (
+                self._job_args.distribution_strategy
+                == DistributionStrategy.ALLREDUCE
+            ):
                 return
             plan = self._worker_manager.relaunch_node(node)
         elif node.type == NodeType.PS:
@@ -654,9 +657,7 @@ class JobManager(object):
         return False
 
     def remove_not_participated_workers(self, workers):
-        plan = self._worker_manager.remove_not_participated_workers(
-            workers
-        )
+        plan = self._worker_manager.remove_not_participated_workers(workers)
         self._scaler.scale(plan)
 
 

@@ -18,7 +18,6 @@ from typing import Any, Dict, List, Optional, Tuple
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node
 
-
 _WAIT_REALUNCH_FAILED_WORKER_SECS = 120
 
 

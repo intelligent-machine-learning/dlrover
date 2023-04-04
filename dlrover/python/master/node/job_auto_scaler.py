@@ -12,7 +12,6 @@
 # limitations under the License.
 
 import copy
-import sys
 import threading
 import time
 from abc import ABCMeta, abstractmethod
@@ -35,6 +34,7 @@ from dlrover.python.master.resource.job import (
 )
 from dlrover.python.master.resource.optimizer import ResourcePlan
 from dlrover.python.master.scaler.base_scaler import ScalePlan, Scaler
+from dlrover.python.master.cluster.quota import UnlimitedQuotaChecker
 
 _dlrover_context = Context.singleton_instance()
 
@@ -249,16 +249,18 @@ class AllreduceTrainingAutoScaler(JobAutoScaler):
         self._scaler = node_scaler
         self._workers = job_nodes[NodeType.WORKER]
         self._autoscaling_started = False
+        self._resource_checker = UnlimitedQuotaChecker()
 
     def start_auto_scaling(self):
         """Start auto-scaling nodes of a job"""
-        plan = self._job_optimizer.get_job_resource_plan()
-        self.execute_job_optimization_plan(plan)
-        threading.Thread(
-            target=self._periodic_adjust_worker,
-            name="allreduce-autoscaler",
-            daemon=True,
-        ).start()
+        if not self._autoscaling_started:
+            plan = self._job_optimizer.get_job_resource_plan()
+            self.execute_job_optimization_plan(plan)
+            threading.Thread(
+                target=self._periodic_adjust_worker,
+                name="allreduce-autoscaler",
+                daemon=True,
+            ).start()
 
     def _periodic_adjust_worker(self):
         """Adjust the number of worker according to the available number
@@ -291,9 +293,9 @@ class AllreduceTrainingAutoScaler(JobAutoScaler):
         worker_num = worker_resource.count
         alive_worker_num = self._get_alive_worker_num()
         while worker_num > alive_worker_num:
-            required_worker_num = worker_num - alive_worker_num
-            available_worker_num = self._get_available_worker_on_cluster()
-            if available_worker_num > required_worker_num:
+            required_num = worker_num - alive_worker_num
+            available_num = self._resource_checker.get_avaliable_worker_num()
+            if available_num > required_num:
                 return worker_num
             else:
                 worker_num = worker_num >> 1
@@ -305,11 +307,6 @@ class AllreduceTrainingAutoScaler(JobAutoScaler):
             if worker.status in [NodeStatus.RUNNING, NodeStatus.PENDING]:
                 worker_num += 1
         return worker_num
-
-    def _get_available_worker_on_cluster(self):
-        """Get the available resource quota on the cluster."""
-        # return sys.maxsize
-        return 0
 
     def stop_auto_scaling(self):
         """Stop auto-scaling nodes of a job"""
