@@ -17,6 +17,9 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node
+from dlrover.python.master.elastic_training.kv_store_service import (
+    KVStoreService,
+)
 
 _WAIT_REALUNCH_FAILED_WORKER_SECS = 120
 
@@ -40,6 +43,7 @@ class TorchRendezvousService(object):
     """
 
     def __init__(self):
+        self.kv_store = KVStoreService()
         self._lock = Lock()
         self._rdzv_states: Dict[str, RendezvousState] = {}
         self._token = -1
@@ -58,11 +62,13 @@ class TorchRendezvousService(object):
             self._alive_workers,
             self._participants,
         )
+        self.kv_store.clear()
 
     def remove_alive_worker(self, worker: Node):
         self._alive_workers.remove(worker.name)
         self._scale_down_ts = int(time.time())
         self._participants = []
+        self.kv_store.clear()
 
     def get_released_workers(self):
         released_workers = self._released_workers

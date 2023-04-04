@@ -27,3 +27,6 @@ class KVStoreService(object):
     def get(self, key):
         with self._lock:
             return self._store.get(key, b"")
+
+    def clear(self):
+        self._store.clear()

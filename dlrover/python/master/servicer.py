@@ -70,7 +70,6 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         self._version = 0
         self._start_training_time = None
         self._start_autoscale = False
-        self._kv_store_service = KVStoreService()
 
     def get_model_version(self):
         return self._version
@@ -406,7 +405,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         return res
 
     def kv_store_set(self, request, _):
-        self._kv_store_service.set(request.key, request.value)
+        self._rdzv_serivce.kv_store.set(request.key, request.value)
         res = elastic_training_pb2.Response()
         res.success = True
         return res
@@ -414,7 +413,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
     def kv_store_get(self, request, _):
         res = elastic_training_pb2.KeyValuePair()
         res.key = request.key
-        res.value = self._kv_store_service.get(request.key)
+        res.value = self._rdzv_serivce.kv_store.get(request.key)
         return res
 
 
