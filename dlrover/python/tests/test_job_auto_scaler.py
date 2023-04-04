@@ -105,7 +105,8 @@ class AllreduceAutoScalerTest(unittest.TestCase):
             if i > 3:
                 worker.status = NodeStatus.FAILED
 
-        auto_scaler._get_available_worker_on_cluster = mock.MagicMock(
+        checker = auto_scaler._resource_checker
+        checker.get_avaliable_worker_num = mock.MagicMock(
             return_value=8
         )
         ava_num = auto_scaler._get_available_worker_num()
