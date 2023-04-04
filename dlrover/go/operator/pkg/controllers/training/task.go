@@ -172,9 +172,8 @@ func (m *TaskManager) scaleUpReplicas(
 	resource *corev1.ResourceList,
 	upNum int,
 ) error {
-	status := m.getTaskStatus(job)
-	taskNum := m.getTotalTaskCount(status)
-	for i := taskNum; i < taskNum+upNum; i++ {
+	startTaskID := m.getMaxReplicaID(client, job)
+	for i := startTaskID + 1; i < startTaskID+upNum; i++ {
 		logger.Infof("Job %s: Create %d %s", job.Name, i, m.taskType)
 		port := WorkerServicePort
 		if m.taskType == ReplicaTypePS {
@@ -197,6 +196,23 @@ func (m *TaskManager) scaleUpReplicas(
 		}
 	}
 	return nil
+}
+func (m *TaskManager) getMaxReplicaID(
+	client runtime_client.Client,
+	job *elasticv1alpha1.ElasticJob,
+) int {
+	pods, err := common.GetReplicaTypePods(client, job, m.taskType)
+	if err == nil {
+		return 0
+	}
+	maxID := -1
+	for _, pod := range pods {
+		PodID, _ := strconv.Atoi(pod.Labels[common.LabelReplicaIndexKey])
+		if PodID > maxID {
+			maxID = PodID
+		}
+	}
+	return maxID
 }
 
 func (m *TaskManager) scaleDownReplicas(
