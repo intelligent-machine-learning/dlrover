@@ -25,6 +25,7 @@ from dlrover.python.common.constants import (
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeResource
+from dlrover.python.master.cluster.quota import UnlimitedQuotaChecker
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.ps import ParameterServerManager
 from dlrover.python.master.node.worker import WorkerManager
@@ -34,7 +35,6 @@ from dlrover.python.master.resource.job import (
 )
 from dlrover.python.master.resource.optimizer import ResourcePlan
 from dlrover.python.master.scaler.base_scaler import ScalePlan, Scaler
-from dlrover.python.master.cluster.quota import UnlimitedQuotaChecker
 
 _dlrover_context = Context.singleton_instance()
 
@@ -271,10 +271,10 @@ class AllreduceTrainingAutoScaler(JobAutoScaler):
         with the optimizer to keep the total batch size fixed.
         """
         while True:
+            time.sleep(30)
             available_num = self._get_available_worker_num()
             alive_num = self._get_alive_worker_num()
             if available_num <= alive_num:
-                time.sleep(30)
                 continue
             worker_resource = copy.deepcopy(
                 self._job_resource.node_group_resources[NodeType.WORKER]
@@ -282,7 +282,6 @@ class AllreduceTrainingAutoScaler(JobAutoScaler):
             worker_resource.count = available_num
             plan = self._worker_manager.adjust_worker(worker_resource)
             self._scaler.scale(plan)
-            time.sleep(30)
 
     def _get_available_worker_num(self):
         """
@@ -305,7 +304,11 @@ class AllreduceTrainingAutoScaler(JobAutoScaler):
     def _get_alive_worker_num(self):
         worker_num = 0
         for _, worker in self._workers.items():
-            if worker.status in [NodeStatus.RUNNING, NodeStatus.PENDING]:
+            if worker.status in [
+                NodeStatus.RUNNING,
+                NodeStatus.PENDING,
+                NodeStatus.INITIAL,
+            ]:
                 worker_num += 1
         return worker_num
 
