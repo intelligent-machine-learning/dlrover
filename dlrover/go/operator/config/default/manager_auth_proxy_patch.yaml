@@ -38,4 +38,4 @@ spec:
         - "--health-probe-bind-address=:8081"
         - "--metrics-bind-address=127.0.0.1:8080"
         - "--leader-elect"
-        - "--master-image=registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:test"
+        - "--master-image=registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:master"
