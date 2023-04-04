@@ -2,7 +2,7 @@ import sys
 from abc import ABCMeta, abstractmethod
 
 
-class QuotaChecker(meta=ABCMeta):
+class QuotaChecker(metaclass=ABCMeta):
 
     @abstractmethod
     def get_avaliable_worker_num(self):

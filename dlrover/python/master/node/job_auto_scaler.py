@@ -282,6 +282,7 @@ class AllreduceTrainingAutoScaler(JobAutoScaler):
             worker_resource.count = available_num
             plan = self._worker_manager.adjust_worker(worker_resource)
             self._scaler.scale(plan)
+            time.sleep(30)
 
     def _get_available_worker_num(self):
         """
