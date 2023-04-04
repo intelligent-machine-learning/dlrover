@@ -197,6 +197,7 @@ func (m *TaskManager) scaleUpReplicas(
 	}
 	return nil
 }
+
 func (m *TaskManager) getMaxReplicaID(
 	client runtime_client.Client,
 	job *elasticv1alpha1.ElasticJob,
