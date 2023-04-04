@@ -308,7 +308,8 @@ class AllreduceTrainingAutoScaler(JobAutoScaler):
 
     def _get_available_worker_on_cluster(self):
         """Get the available resource quota on the cluster."""
-        return sys.maxsize
+        # return sys.maxsize
+        return 0
 
     def stop_auto_scaling(self):
         """Stop auto-scaling nodes of a job"""

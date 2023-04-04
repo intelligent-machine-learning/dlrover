@@ -19,6 +19,9 @@ from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node
 
 
+_WAIT_REALUNCH_FAILED_WORKER_SECS = 120
+
+
 def base2(n):
     return (n & (n - 1) == 0) and n != 0
 
@@ -44,11 +47,13 @@ class TorchRendezvousService(object):
         self._alive_workers = []
         self._participants = []
         self._scale_down_ts = 0
+        self._released_workers = []
 
     def add_alive_worker(self, worker: Node):
         self._alive_workers.append(worker.name)
         if base2(len(self._alive_workers)):
             self._participants = self._alive_workers
+        self._alive_workers = sorted(self._alive_workers)
         logger.info(
             "Alive workers = %s, participants = %s",
             self._alive_workers,
@@ -60,8 +65,10 @@ class TorchRendezvousService(object):
         self._scale_down_ts = int(time.time())
         self._participants = []
 
-    def get_participants(self):
-        return self._participants
+    def get_released_workers(self):
+        released_workers = self._released_workers
+        self._released_workers = []
+        return released_workers
 
     def start(self):
         pass
@@ -80,11 +87,6 @@ class TorchRendezvousService(object):
             A tuple of the serialized rendezvous state, its fencing token, and
             a boolean value indicating whether our set attempt succeeded.
         """
-        logger.info(
-            "Host %s set states with participants = %s",
-            host_name,
-            self._participants,
-        )
         if host_name not in self._participants:
             return False
         with self._lock:
@@ -92,11 +94,6 @@ class TorchRendezvousService(object):
             self._rdzv_states.setdefault(key, RendezvousState())
             if self._rdzv_states[key].latest_state_bits == state_bits:
                 return False
-            logger.info(
-                "wait list = %s, participants = %s",
-                wait_list,
-                participants,
-            )
             rdzv_state = self._rdzv_states[key]
             rdzv_state.latest_state_bits = state_bits
             rdzv_state.participants = participants
@@ -115,11 +112,6 @@ class TorchRendezvousService(object):
         """
         with self._lock:
             self._scale_down_worker_base2()
-            logger.info(
-                "Host %s get states with participants = %s",
-                worker_name,
-                self._participants,
-            )
             completed_state_bits = b""
             if (
                 key not in self._rdzv_states
@@ -142,6 +134,14 @@ class TorchRendezvousService(object):
                 worker_num = worker_num >> 1
                 n += 1
             target_worker_num = pow(2, n - 1)
-            if now - self._scale_down_ts > 300:
+            if now - self._scale_down_ts > _WAIT_REALUNCH_FAILED_WORKER_SECS:
                 self._participants = self._alive_workers[:target_worker_num]
                 self._scale_down_ts = 0
+                for worker in self._alive_workers:
+                    if worker not in self._participants:
+                        self._released_workers.append(worker)
+                logger.info(
+                    "Release workers %s and particaipants are %s",
+                    self._released_workers,
+                    self._participants,
+                )

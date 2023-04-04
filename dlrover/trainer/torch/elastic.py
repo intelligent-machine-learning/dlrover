@@ -293,3 +293,4 @@ class ElasticTrainer(object):
             master_addr = os.getenv("RDZV_ENDPOINT", "")
         if master_addr:
             os.environ["MASTER_ADDR"] = master_addr
+        logger.info("MASTER_ADDR=%s", os.environ["MASTER_ADDR"])
