@@ -24,7 +24,9 @@ class ElasticJobScalerTest(unittest.TestCase):
     def test_generate_scaler_crd_by_plan(self):
         mock_k8s_client()
         plan = ScalePlan()
-        node_resource = NodeResource(10, 4096)
+        node_resource = NodeResource(
+            10, 4096, gpu_type="nvidia.com/gpu", gpu_num=1
+        )
         plan.launch_nodes.append(
             Node(
                 NodeType.WORKER,
@@ -57,7 +59,11 @@ class ElasticJobScalerTest(unittest.TestCase):
             "replicaResourceSpecs": {
                 "worker": {
                     "replicas": 1,
-                    "resource": {"cpu": "10", "memory": "4096Mi"},
+                    "resource": {
+                        "cpu": "10",
+                        "memory": "4096Mi",
+                        "nvidia.com/gpu": "1",
+                    },
                 }
             },
             "createPods": [
