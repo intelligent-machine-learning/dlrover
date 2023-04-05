@@ -17,6 +17,11 @@ spec:
               # yamllint disable-line rule:line-length
               image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:torch113-mnist
               imagePullPolicy: Always
+              resources:
+                requests:
+                  nvidia.com/gpu: 1 
+                limits:
+                  nvidia.com/gpu: 1 # requesting 1 GPU
               command:
                 - /bin/bash
                 - -c
@@ -26,6 +31,10 @@ spec:
                 model_zoo/pytorch/mnist_cnn.py \
                 --training_data /data/mnist_png/training/elastic_ds.txt \
                 --validation_data /data/mnist_png/testing/elastic_ds.txt"
+          tolerations:
+          - key: nvidia.com/gpu
+            operator: Exists
+            effect: NoSchedule
     dlrover-master:
       template:
         spec:
