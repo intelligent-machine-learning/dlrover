@@ -80,6 +80,7 @@ class MasterClient(object):
         self._host = os.getenv("MY_POD_IP", "localhost")
         self._worker_local_process_id = int(os.getenv("LOCAL_RANK", 0))
         self._ddp_server_port = self.find_free_port()
+        self._host_name = socket.gethostname()
 
     def __del__(self):
         self._channel.close()
@@ -318,6 +319,7 @@ class MasterClient(object):
     def get_rdzv_state(self, key):
         request = elastic_training_pb2.RendezvousState()
         request.rdzv_key = key
+        request.host_name = self._host_name
         res = self._stub.get_rdzv_state(request)
         return res.state_bits, res.token
 
@@ -333,6 +335,7 @@ class MasterClient(object):
         request.rdzv_key = key
         request.state_bits = state_bits
         request.token = token
+        request.host_name = self._host_name
         for node, rank in participants.items():
             node_name = "{}".format(node)
             request.participants[node_name] = rank

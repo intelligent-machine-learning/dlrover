@@ -25,7 +25,7 @@ from dlrover.python.master.servicer import MasterServicer
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.master.stats.job_collector import JobMetricCollector
 from dlrover.python.tests.test_utils import (
-    MockK8sJobArgs,
+    MockK8sPSJobArgs,
     MockRayJobArgs,
     mock_k8s_client,
 )
@@ -37,7 +37,7 @@ ray_event_queue = RayEventQueue.singleton_instance()
 class MasterServicerTest(unittest.TestCase):
     def setUp(self) -> None:
         mock_k8s_client()
-        params = MockK8sJobArgs()
+        params = MockK8sPSJobArgs()
         params.initilize()
         speed_monitor = SpeedMonitor()
         self.task_manager = TaskManager(False, speed_monitor)
