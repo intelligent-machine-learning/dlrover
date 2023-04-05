@@ -46,8 +46,7 @@ class ContainerResourceSpec(BaseScaleSpec):
         spec["cpu"] = str(self.cpu)
         spec["memory"] = "{}Mi".format(self.memory)
         if self.gpu_type:
-            spec["gpu_type"] = self.gpu_type
-            spec["gpu_num"] = str(self.gpu_num)
+            spec[self.gpu_type] = str(self.gpu_num)
         return spec
 
 
