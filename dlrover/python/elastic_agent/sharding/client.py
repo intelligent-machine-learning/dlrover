@@ -27,6 +27,8 @@ from dlrover.python.elastic_agent.monitor.training import (
 
 training_reporter = TrainingProcessReporter()
 
+_DEFAULT_MINI_BATCH_NUM_PER_SHARD = 10
+
 
 class ShardingClient(object):
     """ShardingClient queries data shards from the DLRover master.
@@ -52,7 +54,7 @@ class ShardingClient(object):
         dataset_size,
         shuffle=False,
         task_type=elastic_training_pb2.TRAINING,
-        num_minibatches_per_shard=10,
+        num_minibatches_per_shard=_DEFAULT_MINI_BATCH_NUM_PER_SHARD,
         storage_type="",
     ):
         self._mc = GlobalMasterClient.MASTER_CLIENT
@@ -254,7 +256,7 @@ class IndexShardingClient(ShardingClient):
         dataset_size,
         shuffle=False,
         task_type=elastic_training_pb2.TRAINING,
-        num_minibatches_per_shard=10,
+        num_minibatches_per_shard=_DEFAULT_MINI_BATCH_NUM_PER_SHARD,
         storage_type="",
         num_workers=1,
     ):
