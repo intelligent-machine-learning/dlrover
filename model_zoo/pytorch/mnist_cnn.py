@@ -118,6 +118,7 @@ def train(args):
         batch_size=args.batch_size,
         epochs=args.num_epochs,
         shuffle=args.shuffle,
+        checkpoint_path="./dataset.ckpt",
     )
     train_loader = DataLoader(
         dataset=train_dataset, batch_size=args.batch_size, num_workers=2
@@ -149,8 +150,9 @@ def train(args):
 
     elastic_trainer = ElasticTrainer(model, train_loader)
     optimizer, scheduler = elastic_trainer.prepare(optimizer, scheduler)
+    load_checkpoint(model, optimizer)
 
-    for batch_idx, (data, target) in enumerate(train_loader):
+    for _, (data, target) in enumerate(train_loader):
         model.train()
         with elastic_trainer.step():
             target = target.type(torch.LongTensor)
@@ -160,13 +162,37 @@ def train(args):
             loss.backward()
             optimizer.step()
             optimizer.zero_grad()
-            print("loss = {}, step = {}".format(loss, batch_idx))
+            print(
+                "loss = {}, step = {}".format(loss, elastic_trainer.num_steps)
+            )
             scheduler.step()
+            if (
+                elastic_trainer.num_steps > 0
+                and elastic_trainer.num_steps % 200 == 0
+            ):
+                save_checkpoint(model, optimizer, train_dataset)
             if (
                 elastic_trainer.num_steps > 0
                 and elastic_trainer.num_steps % 10000 == 0
             ):
                 test(model, device, test_loader)
+
+
+def save_checkpoint(model, optimizer, dataset: ElasticDataset):
+    model_checkpoint = {
+        "model_state_dict": model.state_dict(),
+        "optimizer_state_dict": optimizer.state_dict(),
+    }
+    torch.save(model_checkpoint, "model.pt")
+    dataset.save_checkpoint()
+
+
+def load_checkpoint(model, optimizer):
+    if not os.path.exists("model.pt"):
+        return
+    checkpoint = torch.load("model.pt")
+    model.load_state_dict(checkpoint["model_state_dict"])
+    optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
 
 def test(model, device, test_loader):
@@ -200,9 +226,9 @@ def test(model, device, test_loader):
 
 def arg_parser():
     parser = argparse.ArgumentParser(description="Process training parameters")
-    parser.add_argument("--batch_size", type=int, default=8, required=False)
+    parser.add_argument("--batch_size", type=int, default=32, required=False)
     parser.add_argument("--num_epochs", type=int, default=1, required=False)
-    parser.add_argument("--shuffle", type=bool, default=False, required=False)
+    parser.add_argument("--shuffle", type=bool, default=True, required=False)
     parser.add_argument(
         "--learning_rate", type=float, default=0.1, required=False
     )

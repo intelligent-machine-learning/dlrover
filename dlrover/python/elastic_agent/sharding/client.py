@@ -74,7 +74,6 @@ class ShardingClient(object):
         self._max_shard_count = sys.maxsize
         self._shard_count = 0
         self._report_sharding_params()
-        self._compute_shard_count_for_sync()
 
     def _report_sharding_params(self):
         if self._num_epochs and self._dataset_size:
@@ -114,6 +113,7 @@ class ShardingClient(object):
                 if len(self._pending_tasks) == 1:
                     self._current_task = task
             self._shard_count += 1
+            logger.info("shard count = %s", self._shard_count)
             return task
         return None
 
@@ -216,12 +216,14 @@ class ShardingClient(object):
     def get_total_sample_num(self):
         return self._dataset_size * self._num_epochs
 
-    def _compute_shard_count_for_sync(self):
+    def set_max_shard_count(self):
         world_size = int(os.getenv("WORLD_SIZE", 0))
         if world_size:
-            shard_size = self._num_minibatches_per_shard * self._batch_size
-            total_size = self._dataset_size * self._num_epochs
-            total_shard_count = total_size // shard_size
+            total_shard_count = self._mc.get_dataset_shard_num(
+                self._dataset_name
+            )
+            if total_shard_count == 0:
+                return
             self._max_shard_count = total_shard_count // world_size
             logger.info(
                 "The max number of shards is %s", self._max_shard_count
@@ -315,5 +317,5 @@ class IndexShardingClient(ShardingClient):
     def restore_shard_from_checkpoint(self, shard_checkpoint):
         # To avoid duplicate shards, drop all shards in the _shard_queue
         # before restoring shard from checkpoint
-        self.clear_shard_queue()
+        # self.clear_shard_queue()
         super().restore_shard_from_checkpoint(shard_checkpoint)

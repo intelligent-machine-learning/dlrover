@@ -131,8 +131,10 @@ class TaskManager(object):
                     )
                 )
             success, doing_task = dataset.report_task_status(task_id, success)
-            self._worker_start_task_time[doing_task.node_id] = time.time()
-            return doing_task.task, doing_task.node_id
+            if success:
+                self._worker_start_task_time[doing_task.node_id] = time.time()
+                return doing_task.task, doing_task.node_id
+            return None, None
 
     def task_hanged(self):
         dataset_hang = []
@@ -252,9 +254,9 @@ class TaskManager(object):
 
             dataset.restore_checkpoint(dataset_checkpoint)
             logger.info(
-                "Restore %s dataset shards from checkpoint %s",
+                "Restore %s dataset with %s shards from checkpoint",
                 dataset_checkpoint.dataset_name,
-                checkpoint,
+                len(dataset.todo) + len(dataset.doing),
             )
             return True
         except Exception as e:

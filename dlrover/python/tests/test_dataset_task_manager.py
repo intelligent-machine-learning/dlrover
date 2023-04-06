@@ -21,6 +21,7 @@ from dlrover.python.master.shard.dataset_splitter import (
     PartitionOffsets,
     StreamingDatasetSplitter,
     TableDatasetSplitter,
+    TextDatasetSplitter,
 )
 from dlrover.python.master.shard.streaming_dataset_manager import (
     StreamingDatasetManager,
@@ -53,6 +54,49 @@ class BatchDatasetTaskMangerTest(unittest.TestCase):
             task_manager.report_task_status(task.task_id, True)
         self.assertTrue(task_manager.completed())
         self.assertEqual(task_manager.get_completed_step(), 1000)
+
+    def test_shard_checkpoint_without_shuffle(self):
+        splitter = TextDatasetSplitter(
+            dataset_name="test",
+            dataset_size=10000,
+            shard_size=100,
+            num_epochs=1,
+        )
+        ds_manager = BatchDatasetManager(TaskType.TRAINING, 10, splitter)
+        worker_id = 0
+        task = ds_manager.get_task(NodeType.WORKER, worker_id)
+        self.assertEqual(task.task_id, 0)
+        self.assertEqual(len(ds_manager.todo), 99)
+        self.assertEqual(len(ds_manager.doing), 1)
+        self.assertFalse(ds_manager.completed())
+        checkpoint = ds_manager.checkpoint()
+        self.assertListEqual(checkpoint.todo[0], [100, 200, []])
+        ds_manager.restore_checkpoint(checkpoint)
+        self.assertEqual(ds_manager.todo[0].shard.start, 0)
+        self.assertEqual(ds_manager.todo[0].shard.end, 100)
+        self.assertEqual(ds_manager.todo[0].shard.record_indices, [])
+
+    def test_shard_checkpoint_with_shuffle(self):
+        splitter = TextDatasetSplitter(
+            dataset_name="test",
+            dataset_size=10000,
+            shard_size=100,
+            num_epochs=1,
+            shuffle=True,
+        )
+        ds_manager = BatchDatasetManager(TaskType.TRAINING, 10, splitter)
+        worker_id = 0
+        task = ds_manager.get_task(NodeType.WORKER, worker_id)
+        self.assertEqual(task.task_id, 0)
+        self.assertEqual(len(ds_manager.todo), 99)
+        self.assertEqual(len(ds_manager.doing), 1)
+        self.assertFalse(ds_manager.completed())
+        checkpoint = ds_manager.checkpoint()
+        self.assertEqual(len(checkpoint.todo[0][-1]), 100)
+        ds_manager.restore_checkpoint(checkpoint)
+        self.assertEqual(ds_manager.todo[0].shard.start, 0)
+        self.assertEqual(ds_manager.todo[0].shard.end, 100)
+        self.assertEqual(len(ds_manager.todo[0].shard.record_indices), 100)
 
 
 class StreamingDatasetTaskMangerTest(unittest.TestCase):

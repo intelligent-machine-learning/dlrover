@@ -11,11 +11,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from abc import ABCMeta, abstractmethod
 
+import torch.distributed as dist
 from torch.utils.data import Dataset
 
 from dlrover.python.elastic_agent.sharding.client import IndexShardingClient
+
+
+def get_rank():
+    rank = 0
+    if dist.is_initialized():
+        rank = dist.get_rank()
+    return rank
 
 
 def read_txt(path):
@@ -25,7 +34,9 @@ def read_txt(path):
 
 
 class ElasticDataset(Dataset, metaclass=ABCMeta):
-    def __init__(self, path, batch_size, epochs, shuffle):
+    def __init__(
+        self, path, batch_size, epochs, shuffle, checkpoint_path="dataset.ckpt"
+    ):
         """Using ElasticDataset, the node can read samples without
         duplicates with other nodes in an epoch. DLRover master
         will dispatch the index of sample in a dataset to one node.
@@ -38,9 +49,12 @@ class ElasticDataset(Dataset, metaclass=ABCMeta):
                 in a trainer process.
             epochs: int, the number of epoch.
             shuffle: bool, whether to shuffle samples in the dataset.
+            checkpoint_path: the path to save the checkpoint of shards
+                int the dataset.
         """
         self.lines = read_txt(path)
         self.dataset_size = len(self.lines)
+        self._checkpoint_path = checkpoint_path
         self._shard_client = IndexShardingClient(
             dataset_name=path,
             batch_size=batch_size,
@@ -49,6 +63,7 @@ class ElasticDataset(Dataset, metaclass=ABCMeta):
             shuffle=shuffle,
             storage_type="text",
         )
+        self.load_checkpoint()
 
     def __len__(self):
         return self._shard_client.get_total_sample_num()
@@ -64,6 +79,32 @@ class ElasticDataset(Dataset, metaclass=ABCMeta):
         """After updating models using the samples, the dataset need to
         report the batch completion."""
         self._shard_client.report_batch_done(batch_size)
+
+    def save_checkpoint(self):
+        """
+        Checkpoint the shards which are not completed from the
+        DLRover job master.
+        """
+        rank = get_rank()
+        if rank != 0 or not self._checkpoint_path:
+            return
+        checkpoint = self._shard_client.get_shard_checkpoint()
+        with open(self._checkpoint_path, "w") as f:
+            f.write(checkpoint)
+
+    def load_checkpoint(self):
+        """
+        Restore the uncompleted shards from a checkpoint. The shard
+        client will send uncompleted shards to the DLRover job master.
+        The master will assign those shards to workers to restore training.
+        """
+        rank = get_rank()
+        if rank == 0 and os.path.exists(self._checkpoint_path):
+            with open(self._checkpoint_path, "r") as f:
+                content = f.read()
+                self._shard_client.restore_shard_from_checkpoint(content)
+        dist.barrier()  # Wait rank-0 to report checkpoint.
+        self._shard_client.set_max_shard_count()
 
     @abstractmethod
     def read_sample(self, index):

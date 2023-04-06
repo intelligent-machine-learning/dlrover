@@ -100,7 +100,7 @@ class BatchDatasetManager(DatasetManger):
         self.todo.extend(tasks)
 
     def report_task_status(self, task_id, success):
-        doing_task = self.doing.pop(task_id)
+        doing_task = self.doing.pop(task_id, None)
         if not doing_task:
             logger.warning(
                 "Unknown task_id: %d of dataset %s"
@@ -116,9 +116,11 @@ class BatchDatasetManager(DatasetManger):
         else:
             self._update_completed_step(doing_task.task)
             logger.info(
-                "Task:%d completed, %d remaining tasks for Dataset %s",
+                "Task:%d completed, %d doing tasks and %d todo "
+                "tasks of dataset %s",
                 task_id,
-                len(self.todo) + len(self.doing),
+                len(self.doing),
+                len(self.todo),
                 self._dataset_splitter.dataset_name,
             )
             task_completed_time = time.time() - doing_task.start_time
@@ -155,12 +157,16 @@ class BatchDatasetManager(DatasetManger):
     def checkpoint(self):
         todo_shards = []
         for task in self.todo:
-            todo_shards.append([task.shard.start, task.shard.end])
+            todo_shards.append(
+                [task.shard.start, task.shard.end, task.shard.record_indices]
+            )
 
         doing_shards = []
         for task_id in self.doing:
             task = self.doing[task_id].task
-            doing_shards.append([task.shard.start, task.shard.end])
+            doing_shards.append(
+                [task.shard.start, task.shard.end, task.shard.record_indices]
+            )
 
         return DatasetShardCheckpoint(
             dataset_name=self._dataset_splitter.dataset_name,
@@ -173,11 +179,13 @@ class BatchDatasetManager(DatasetManger):
         """Restore the task manager from a checkpoint"""
         self._dataset_splitter.epoch = checkpoint.epoch
         self.todo = []
+        self.doing = {}
         for shard_indices in checkpoint.doing + checkpoint.todo:
             shard = Shard(
                 name=self._dataset_splitter.dataset_name,
                 start=shard_indices[0],
                 end=shard_indices[1],
+                record_indices=shard_indices[2],
             )
             self.todo.append(
                 Task(
@@ -187,3 +195,4 @@ class BatchDatasetManager(DatasetManger):
                 )
             )
             self._task_id += 1
+        logger.info("Restore %s todo tasks", len(self.todo))
