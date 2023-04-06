@@ -5,10 +5,11 @@ Here we would like to introuce how to depoly dlrover job controller on minikube 
 ## 1.Preliminary
 - Make sure you have [minikube](https://kubernetes.io/docs/tasks/tools/)  installed and run ``minikube start``
 
-## 2. Create Namespace
+## 2. Create Namespace & Switch Namespace
 
 ```bash
 $ kubectl create namespace dlrover
+$ kubectl config set-context $(kubectl config current-context) --namespace=dlrover
 ```
 
 ## 3. Deploy Dlrover Job Controller With Kubectl
@@ -38,7 +39,7 @@ kubectl -n dlrover apply -f dlrover/go/operator/config/rbac/default_role.yaml
 ## 3. Grant Permission for the DLRover Master to Access CRDs
 
 ```bash
-kubectl apply -f dlrover/go/operator/config/rbac/default_role.yaml 
+kubectl -n dlrover apply -f dlrover/go/operator/config/rbac/default_role.yaml 
 ```
 
 ## 4. Test Your Controller by Submitting A Mnist Training Job

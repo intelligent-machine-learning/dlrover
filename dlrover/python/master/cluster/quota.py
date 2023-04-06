@@ -10,4 +10,20 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from dlrover.trainer.tensorflow.reader import *  # noqa: F401,F403
+
+import sys
+from abc import ABCMeta, abstractmethod
+
+
+class QuotaChecker(metaclass=ABCMeta):
+    @abstractmethod
+    def get_avaliable_worker_num(self):
+        pass
+
+
+class UnlimitedQuotaChecker(QuotaChecker):
+    """No resource limits."""
+
+    def get_avaliable_worker_num(self):
+        """Assume there is always enough resource."""
+        return sys.maxsize

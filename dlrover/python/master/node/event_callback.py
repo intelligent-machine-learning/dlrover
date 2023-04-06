@@ -20,6 +20,10 @@ from dlrover.python.common.constants import (
     NodeType,
 )
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.master.elastic_training.rdzv_service import (
+    TorchRendezvousService,
+)
+from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.watcher.base_watcher import Node
 
 
@@ -205,6 +209,8 @@ class AllReduceNodeHandlingCallback(NodeEventCallback):
     def __init__(self, master):
         super(AllReduceNodeHandlingCallback, self).__init__()
         self._master = master
+        self._speed_monitor: SpeedMonitor = self._master.speed_monitor
+        self._rdzv_service: TorchRendezvousService = self._master.rdzv_service
 
     def get_job_exit_reason(self, node: Node):
         if self._master.task_manager.training_started():
@@ -222,6 +228,7 @@ class AllReduceNodeHandlingCallback(NodeEventCallback):
     def on_node_started(self, node: Node, cluster_context):
         if node.type == NodeType.WORKER and node.id == 0:
             self._master.job_manager.start_auto_scaling()
+        self._rdzv_service.add_alive_worker(node)
 
     @NodeEventCallback.log_callback_exception
     def on_node_succeeded(self, node: Node, cluster_context: ClusterContext):
@@ -235,7 +242,7 @@ class AllReduceNodeHandlingCallback(NodeEventCallback):
                     reason=JobExitReason.SUCCEEDED,
                     msg="All critical nodes completed",
                 )
-        self._master.speed_monitor.remove_running_worker(node.type, node.id)
+        self._speed_monitor.remove_running_worker(node.type, node.id)
 
     @NodeEventCallback.log_callback_exception
     def on_node_failed(self, node: Node, cluster_context):
@@ -245,13 +252,15 @@ class AllReduceNodeHandlingCallback(NodeEventCallback):
             self._master.speed_monitor.reduce_target_worker_num(
                 [(node.type, node.id)]
             )
-        self._master.speed_monitor.remove_running_worker(node.type, node.id)
+        self._speed_monitor.remove_running_worker(node.type, node.id)
+        self._rdzv_service.remove_alive_worker(node)
 
     @NodeEventCallback.log_callback_exception
     def on_node_deleted(self, node, cluster_context):
         node.finish_time = datetime.now()  # type: ignore
         self._stop_job_if_needed(node)
-        self._master.speed_monitor.remove_running_worker(node.type, node.id)
+        self._speed_monitor.remove_running_worker(node.type, node.id)
+        self._rdzv_service.remove_alive_worker(node)
 
     def _stop_job_if_needed(self, node: Node):
         if node.critical and node.is_unrecoverable_failure():

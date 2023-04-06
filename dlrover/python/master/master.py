@@ -145,6 +145,7 @@ class Master(object):
             while True:
                 if self._stop_requested:
                     break
+                self._remove_not_participated_workers()
                 if self.job_manager and self.job_manager.all_workers_exited():
                     if self.job_manager.all_workers_failed():
                         logger.error("All workers failed")
@@ -187,6 +188,12 @@ class Master(object):
             self.stop()
 
         return self._exit_code
+
+    def _remove_not_participated_workers(self):
+        """Remove workers who do not participate training."""
+        workers = self.rdzv_service.get_released_workers()
+        if workers:
+            self.job_manager.remove_not_participated_workers(workers)
 
     def stop(self):
         """

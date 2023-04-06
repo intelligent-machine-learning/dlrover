@@ -26,6 +26,13 @@ spec:
                 model_zoo/pytorch/mnist_cnn.py \
                 --training_data /data/mnist_png/training/elastic_ds.txt \
                 --validation_data /data/mnist_png/testing/elastic_ds.txt"
+              resources:
+                limits:
+                  cpu: "1"
+                  memory: 2Gi
+                requests:
+                  cpu: "1"
+                  memory: 2Gi
     dlrover-master:
       template:
         spec:

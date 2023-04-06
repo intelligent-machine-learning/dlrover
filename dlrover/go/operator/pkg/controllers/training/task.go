@@ -23,11 +23,11 @@ import (
 	logger "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/types"
 	runtime_client "sigs.k8s.io/controller-runtime/pkg/client"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
@@ -125,8 +125,7 @@ func (m *TaskManager) ReconcilePods(
 	job *elasticv1alpha1.ElasticJob,
 	scalePlan *elasticv1alpha1.ScalePlan,
 ) error {
-	status := m.getTaskStatus(job)
-	aliveNum := int(status.Active + status.Pending + status.Succeeded)
+	aliveNum := m.getAlivePodNum(client, job)
 	if resourceSpec, ok := scalePlan.Spec.ReplicaResourceSpecs[m.taskType]; ok {
 		diffNum := resourceSpec.Replicas - aliveNum
 		logger.Infof("Job %s: Scale %s Pods with the number %d", job.Name, m.taskType, diffNum)
@@ -173,9 +172,8 @@ func (m *TaskManager) scaleUpReplicas(
 	resource *corev1.ResourceList,
 	upNum int,
 ) error {
-	status := m.getTaskStatus(job)
-	taskNum := m.getTotalTaskCount(status)
-	for i := taskNum; i < taskNum+upNum; i++ {
+	startTaskID := m.getMaxReplicaID(client, job) + 1
+	for i := startTaskID; i < startTaskID+upNum; i++ {
 		logger.Infof("Job %s: Create %d %s", job.Name, i, m.taskType)
 		port := WorkerServicePort
 		if m.taskType == ReplicaTypePS {
@@ -198,6 +196,46 @@ func (m *TaskManager) scaleUpReplicas(
 		}
 	}
 	return nil
+}
+
+func (m *TaskManager) getAlivePodNum(
+	client runtime_client.Client,
+	job *elasticv1alpha1.ElasticJob,
+) int {
+	aliveCount := 0
+	for i := 0; i < 3; i++ {
+		pods, err := common.GetReplicaTypePods(client, job, m.taskType)
+		if err == nil {
+			for _, pod := range pods {
+				phase := pod.Status.Phase
+				if phase == corev1.PodRunning || phase == corev1.PodPending || phase == corev1.PodSucceeded {
+					aliveCount = aliveCount + 1
+				}
+			}
+			break
+		} else {
+			time.Sleep(200 * time.Millisecond)
+		}
+	}
+	return aliveCount
+}
+
+func (m *TaskManager) getMaxReplicaID(
+	client runtime_client.Client,
+	job *elasticv1alpha1.ElasticJob,
+) int {
+	pods, err := common.GetReplicaTypePods(client, job, m.taskType)
+	if err != nil {
+		return -1
+	}
+	maxID := -1
+	for _, pod := range pods {
+		PodID, _ := strconv.Atoi(pod.Labels[common.LabelReplicaIndexKey])
+		if PodID > maxID {
+			maxID = PodID
+		}
+	}
+	return maxID
 }
 
 func (m *TaskManager) scaleDownReplicas(
@@ -440,28 +478,24 @@ func (m *TaskManager) createPod(
 		m.setAllreduceEnv(client, job, &pod.Spec.Containers[0])
 	}
 	err := client.Create(context.Background(), pod)
-	if err != nil {
+	if errors.IsAlreadyExists(err) {
+		logger.Infof("Pod %s is already exists.", pod.Name)
+		return nil
+	} else if err != nil {
 		logger.Infof("Job %s: Fail to create Pod %s, %v", job.Name, pod.Name, err)
 		return err
 	}
 	service := m.newServiceForPod(job, podMeta)
-	existingService := &corev1.Service{}
-	err = client.Get(context.TODO(), types.NamespacedName{
-		Name:      service.Name,
-		Namespace: service.Namespace,
-	}, existingService)
-	if err != nil {
-		err = client.Create(context.Background(), service)
-		if err != nil {
-			logger.Infof("Job %s: Fail to create service %s, %v", job.Name, service.Name, err)
-			return err
-		}
-	} else {
+	err = client.Create(context.Background(), service)
+	if errors.IsAlreadyExists(err) {
 		err = client.Update(context.Background(), service)
 		if err != nil {
 			logger.Infof("Job %s: Fail to update service %s, %v", job.Name, service.Name, err)
 			return err
 		}
+	} else if err != nil {
+		logger.Infof("Job %s: Fail to create service %s, %v", job.Name, service.Name, err)
+		return err
 	}
 	return nil
 }

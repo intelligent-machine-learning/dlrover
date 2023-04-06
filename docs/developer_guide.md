@@ -76,7 +76,7 @@ make run
 - Deploy the controller.
 
 ```bash
-make deploy IMG=easydl/elasticjob-controller:test
+make deploy IMG=easydl/elasticjob-controller:master
 ```
 
 ### 3. Grant Permission for the DLRover Master to Access CRDs

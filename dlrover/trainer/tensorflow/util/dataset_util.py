@@ -17,10 +17,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.python.ops import parsing_ops
 
-from dlrover.trainer.constants.tf_constants import TFConstants
-from dlrover.trainer.tensorflow.reader.fake_reader import FakeReader
-from dlrover.trainer.tensorflow.reader.file_reader import FileReader
-from dlrover.trainer.tensorflow.util import path_util
+from dlrover.trainer.tensorflow.reader.base_reader import ElasticReader
 from dlrover.trainer.tensorflow.util.column_info import Column
 from dlrover.trainer.util.log_util import default_logger as logger
 
@@ -30,28 +27,27 @@ class DatasetUtil(object):
 
     def __init__(
         self,
-        path=None,
+        reader=None,
         columns: List[Column] = [],
         reader_fn: Any = None,
         schema=None,
         batch_size=64,
         epoch=10,
+        field_delim=",",
     ):
 
         self.columns = columns
         self._batch_size = batch_size
         self._epoch = epoch
-        scheme, path = path_util.parse_uri(path)
-        self.path = path
-        if scheme == TFConstants.FILE_SCHEME():
-            self.reader = FileReader(
-                self.path, batch_size=self._batch_size, num_epochs=self._epoch
-            )
-        elif scheme == TFConstants.FAKE_SCHEME():
-            self.reader = FakeReader()  # type: ignore
+        self.reader = reader
+        self.field_delim = field_delim
+        self.set_reader()
 
-        if reader_fn is not None:
-            self.reader = reader_fn
+    def set_reader(self):
+        if isinstance(self.reader, ElasticReader):
+            self.reader.set_batch_size(self._batch_size)
+            self.reader.set_num_epochs(self._epoch)
+            self.reader.build_sharding_client()
 
     def make_dataset(self):
         def reader_fn():
@@ -93,7 +89,9 @@ class DatasetUtil(object):
 
         def parse_csv(value):
             columns = parsing_ops.decode_csv(
-                value, record_defaults=default_columns_types, field_delim=","
+                value,
+                record_defaults=default_columns_types,
+                field_delim=self.field_delim,
             )
             features = dict(zip(default_columns_names, columns))
             labels = features.pop(self._label_column_name)
@@ -142,13 +140,15 @@ class DatasetUtil(object):
             options: other keyword arguments
         """
 
-        path = data_set.get("path")
+        path = data_set.get("reader")
         columns = data_set.get("columns")
         reader_fn = data_set.get("reader_fn")
+        field_delim = data_set.get("field_delim", ",")
         dataset_util_kwargs = {
-            "path": path,
+            "reader": path,
             "columns": columns,
             "reader_fn": reader_fn,
+            "field_delim": field_delim,
         }
 
         batch_size = data_set.get("batch_size", None)

@@ -11,9 +11,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
+import numpy as np
 from MyEstimator import MyEstimator
 
+from dlrover.trainer.tensorflow.reader.base_reader import ElasticReader
 from dlrover.trainer.tensorflow.util.column_info import Column
+
+#  define your own custome reader
+
+
+class FakeReader(ElasticReader):
+    def __init__(self, path=None):
+        self.count = 1
+        super().__init__(path=path)
+
+    def count_data(self):
+        self._data_nums = 10
+
+    def read_data_by_index_range(self, start_index, end_index):
+        data = []
+        for i in range(start_index, end_index):
+            x = np.random.randint(1, 1000)
+            y = 2 * x + np.random.randint(1, 5)
+            d = "{}\t{}".format(x, y)
+            data.append(d)
+        return data
 
 
 def compare_fn(prev_eval_result, cur_eval_result):
@@ -40,9 +63,10 @@ class TrainConf(object):
     }
 
     train_set = {
-        "path": "fake://test.data",
-        "epoch": 1000,
-        "batch_size": 200,
+        "reader": FakeReader("fake://test.data"),
+        "epoch": 10,
+        "field_delim": "\t",
+        "batch_size": 20,
         "columns": (
             Column.create(  # type: ignore
                 name="x",
@@ -56,5 +80,8 @@ class TrainConf(object):
             ),
         ),
     }
-
-    eval_set = {"path": "fake://eval.data", "columns": train_set["columns"]}
+    eval_set = {
+        "reader": FakeReader("fake://eval.data"),
+        "columns": train_set["columns"],
+        "field_delim": "\t",
+    }

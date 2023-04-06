@@ -133,7 +133,6 @@ class JobManager(object):
         self._ps_relaunch_max_num = min(
             ps_restart_count, _MAX_POD_RELAUNCH_COUNT
         )
-        self._use_ddp = job_args.use_ddp
         self._node_event_callbacks: List[NodeEventCallback] = []
         self._stop_monitor = False
         self._speed_monitor: SpeedMonitor = speed_monitor
@@ -340,7 +339,7 @@ class JobManager(object):
                         node_type,
                         node_id,
                     )
-                    # node.is_released = True
+                    node.is_released = True
 
     def close_job(self):
         plan = ScalePlan()
@@ -495,8 +494,12 @@ class JobManager(object):
             return True
 
     def _relaunch_node(self, node: Node):
-        logger.info("Relaunch node: {}".format(node.name))
         if node.type == NodeType.WORKER:
+            if (
+                self._job_args.distribution_strategy
+                == DistributionStrategy.ALLREDUCE
+            ):
+                return
             plan = self._worker_manager.relaunch_node(node)
         elif node.type == NodeType.PS:
             plan = self._ps_manager.relaunch_node(node)
@@ -506,6 +509,7 @@ class JobManager(object):
             plan = self._chief_manager.relaunch_node(node)
         else:
             logger.error("Not support node type %s", node.type)
+        logger.info("Relaunch node: {}".format(node.name))
         self._set_ps_addrs_in_plan(plan)
         self._scaler.scale(plan)
 
@@ -651,6 +655,10 @@ class JobManager(object):
         if node_hang:
             return all(node_hang)
         return False
+
+    def remove_not_participated_workers(self, workers):
+        plan = self._worker_manager.remove_not_participated_workers(workers)
+        self._scaler.scale(plan)
 
 
 def create_job_manager(args: JobArgs, speed_monitor) -> JobManager:

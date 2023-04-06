@@ -17,10 +17,17 @@ from unittest import mock
 from dlrover.python.common.constants import NodeStatus, NodeType
 from dlrover.python.common.node import NodeGroupResource, NodeResource
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
-from dlrover.python.master.node.job_auto_scaler import PSTrainingAutoScaler
+from dlrover.python.master.node.job_auto_scaler import (
+    AllreduceTrainingAutoScaler,
+    PSTrainingAutoScaler,
+)
 from dlrover.python.master.node.job_manager import create_job_manager
 from dlrover.python.master.resource.optimizer import ResourcePlan
-from dlrover.python.tests.test_utils import MockK8sJobArgs, mock_k8s_client
+from dlrover.python.tests.test_utils import (
+    MockK8sAllreduceJobArgs,
+    MockK8sPSJobArgs,
+    mock_k8s_client,
+)
 
 
 class JobAutoScalerTest(unittest.TestCase):
@@ -28,7 +35,7 @@ class JobAutoScalerTest(unittest.TestCase):
         mock_k8s_client()
 
     def test_execute_job_optimization_plan(self):
-        params = MockK8sJobArgs()
+        params = MockK8sPSJobArgs()
         params.initilize()
         manager = create_job_manager(params, SpeedMonitor())
         manager._init_nodes()
@@ -64,3 +71,41 @@ class JobAutoScalerTest(unittest.TestCase):
         for i in [0, 3, 2]:
             ps_addrs.append("test-edljob-ps-{}.default.svc:2222".format(i))
         self.assertListEqual(scale_plan.ps_addrs, ps_addrs)
+
+
+class AllreduceAutoScalerTest(unittest.TestCase):
+    def setUp(self) -> None:
+        mock_k8s_client()
+
+    def test_execute_job_optimization_plan(self):
+        params = MockK8sAllreduceJobArgs()
+        params.initilize()
+        manager = create_job_manager(params, SpeedMonitor())
+        manager._init_nodes()
+
+        for worker in manager._job_nodes[NodeType.WORKER].values():
+            worker.status = NodeStatus.RUNNING
+
+        manager._scaler.scale = mock.MagicMock(return_value=True)
+
+        auto_scaler = AllreduceTrainingAutoScaler(
+            manager._job_resource,
+            manager._job_nodes,
+            manager._job_optimizer,
+            manager._speed_monitor,
+            manager._worker_manager,
+            manager._scaler,
+        )
+        alive_num = auto_scaler._get_alive_worker_num()
+        self.assertEqual(alive_num, 16)
+        ava_num = auto_scaler._get_available_worker_num()
+        self.assertEqual(ava_num, 16)
+
+        for i, worker in manager._job_nodes[NodeType.WORKER].items():
+            if i > 3:
+                worker.status = NodeStatus.FAILED
+
+        checker = auto_scaler._resource_checker
+        checker.get_avaliable_worker_num = mock.MagicMock(return_value=8)
+        ava_num = auto_scaler._get_available_worker_num()
+        self.assertEqual(ava_num, 8)
