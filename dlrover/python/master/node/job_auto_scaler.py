@@ -308,6 +308,7 @@ class AllreduceTrainingAutoScaler(JobAutoScaler):
                 NodeStatus.RUNNING,
                 NodeStatus.PENDING,
                 NodeStatus.INITIAL,
+                NodeStatus.SUCCEEDED,
             ]:
                 worker_num += 1
         return worker_num

@@ -65,9 +65,6 @@ class ElasticDataset(Dataset, metaclass=ABCMeta):
         report the batch completion."""
         self._shard_client.report_batch_done(batch_size)
 
-    def end_shard(self):
-        return self._shard_client.no_more_data
-
     @abstractmethod
     def read_sample(self, index):
         """Implement to read sample data by the index."""

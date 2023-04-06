@@ -11,18 +11,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+import sys
 import threading
 import time
 from collections import OrderedDict
 from multiprocessing import SimpleQueue
 
 from dlrover.proto import elastic_training_pb2
+from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.master_client import GlobalMasterClient
 from dlrover.python.elastic_agent.monitor.training import (
     TrainingProcessReporter,
 )
 
 training_reporter = TrainingProcessReporter()
+
+_DEFAULT_MINI_BATCH_NUM_PER_SHARD = 10
 
 
 class ShardingClient(object):
@@ -49,7 +54,7 @@ class ShardingClient(object):
         dataset_size,
         shuffle=False,
         task_type=elastic_training_pb2.TRAINING,
-        num_minibatches_per_shard=0,
+        num_minibatches_per_shard=_DEFAULT_MINI_BATCH_NUM_PER_SHARD,
         storage_type="",
     ):
         self._mc = GlobalMasterClient.MASTER_CLIENT
@@ -66,7 +71,10 @@ class ShardingClient(object):
         self._pending_tasks = OrderedDict()
         self._dataset_name = dataset_name
         self._batch_count = 0
+        self._max_shard_count = sys.maxsize
+        self._shard_count = 0
         self._report_sharding_params()
+        self._compute_shard_count_for_sync()
 
     def _report_sharding_params(self):
         if self._num_epochs and self._dataset_size:
@@ -93,6 +101,8 @@ class ShardingClient(object):
 
     def get_task(self) -> elastic_training_pb2.Task:
         training_reporter.set_start_time()
+        if self._shard_count >= self._max_shard_count:
+            return None
         for _ in range(5):
             success, task = self._mc.get_task(self._dataset_name)
             if success:
@@ -103,6 +113,7 @@ class ShardingClient(object):
                 self._pending_tasks[task.task_id] = task
                 if len(self._pending_tasks) == 1:
                     self._current_task = task
+            self._shard_count += 1
             return task
         return None
 
@@ -205,6 +216,17 @@ class ShardingClient(object):
     def get_total_sample_num(self):
         return self._dataset_size * self._num_epochs
 
+    def _compute_shard_count_for_sync(self):
+        world_size = int(os.getenv("WORLD_SIZE", 0))
+        if world_size:
+            shard_size = self._num_minibatches_per_shard * self._batch_size
+            total_size = self._dataset_size * self._num_epochs
+            total_shard_count = total_size // shard_size
+            self._max_shard_count = total_shard_count // world_size
+            logger.info(
+                "The max number of shards is %s", self._max_shard_count
+            )
+
 
 class IndexShardingClient(ShardingClient):
     """ShardingClient queries data shards from the DLRover master
@@ -234,7 +256,7 @@ class IndexShardingClient(ShardingClient):
         dataset_size,
         shuffle=False,
         task_type=elastic_training_pb2.TRAINING,
-        num_minibatches_per_shard=0,
+        num_minibatches_per_shard=_DEFAULT_MINI_BATCH_NUM_PER_SHARD,
         storage_type="",
         num_workers=1,
     ):
@@ -253,17 +275,17 @@ class IndexShardingClient(ShardingClient):
         self._report_sharding_params()
 
         threading.Thread(
-            target=self._fetch_sample_indices,
+            target=self._prefetch_sample_indices,
             name="fetch_sample_indices",
             daemon=True,
         ).start()
 
-    def _fetch_sample_indices(self):
+    def _prefetch_sample_indices(self):
         while True:
             if self._sample_queue.empty():
                 task = self.get_task()
                 if not task or not task.shard:
-                    for _ in range(self._num_workers):
+                    for _ in range(128):
                         self._sample_queue.put(None)
                     break
                 ids = (
@@ -281,16 +303,11 @@ class IndexShardingClient(ShardingClient):
         from a queue because there may be multiple sub-process to call
         the function.
         """
-        while True:
-            for _ in range(5):
-                index = self._sample_queue.get()
-                if index is not None:
-                    break
-                else:
-                    time.sleep(0.1)
-            if index is None:
-                raise StopIteration
-            return index
+        index = self._sample_queue.get()
+        if index is None:
+            logger.info("No more data.")
+            raise StopIteration()
+        return index
 
     def clear_shard_queue(self):
         self._sample_queue = SimpleQueue()
