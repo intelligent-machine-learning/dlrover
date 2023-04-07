@@ -35,7 +35,7 @@ def read_txt(path):
 
 class ElasticDataset(Dataset, metaclass=ABCMeta):
     def __init__(
-        self, path, batch_size, epochs, shuffle, checkpoint_path="dataset.ckpt"
+        self, path, batch_size, epochs, shuffle, checkpoint_path=""
     ):
         """Using ElasticDataset, the node can read samples without
         duplicates with other nodes in an epoch. DLRover master

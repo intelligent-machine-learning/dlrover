@@ -30,7 +30,7 @@ from dlrover.trainer.torch.elastic_dataset import ElasticDataset
 
 
 class ElasticMnistDataset(ElasticDataset):
-    def __init__(self, path, batch_size, epochs, shuffle):
+    def __init__(self, path, batch_size, epochs, shuffle, checkpoint_path):
         """The dataset supports elastic training.
 
         Args:
@@ -46,6 +46,7 @@ class ElasticMnistDataset(ElasticDataset):
             batch_size,
             epochs,
             shuffle,
+            checkpoint_path,
         )
 
     def read_sample(self, index):
@@ -118,7 +119,7 @@ def train(args):
         batch_size=args.batch_size,
         epochs=args.num_epochs,
         shuffle=args.shuffle,
-        checkpoint_path="./dataset.ckpt",
+        checkpoint_path="./train_dataset.ckpt",
     )
     train_loader = DataLoader(
         dataset=train_dataset, batch_size=args.batch_size, num_workers=2
@@ -129,6 +130,7 @@ def train(args):
         batch_size=args.batch_size,
         epochs=1,
         shuffle=False,
+        checkpoint_path="./test_dataset.ckpt",
     )
     test_loader = DataLoader(
         dataset=test_dataset, batch_size=args.batch_size, num_workers=2
