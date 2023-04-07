@@ -41,8 +41,76 @@ Running the operator locally (as opposed to deploying it on a K8s cluster) is co
 
 ### 1. Preliminary
 
+#### Minikube Install
+
 Install [minikube](https://kubernetes.io/docs/tasks/tools/) on your loptop.
-(To enable GPU support follow the doc to install [containerd](https://github.com/containerd/containerd/blob/main/docs/getting-started.md) and [NVIDIA Container Toolkit](https://github.com/NVIDIA/nvidia-docker) then enable [k8s-device-plugin](https://github.com/NVIDIA/k8s-device-plugin#preparing-your-gpu-nodes) and test your GPU by the official [gpu-pod](https://github.com/NVIDIA/k8s-device-plugin#running-gpu-jobs))
+
+#### Minikube with GPU Support
+
+To enable GPU support follow the doc to install [containerd](https://github.com/containerd/containerd/blob/main/docs/getting-started.md) and [NVIDIA Container Toolkit](https://github.com/NVIDIA/nvidia-docker) then enable [k8s-device-plugin](https://github.com/NVIDIA/k8s-device-plugin#preparing-your-gpu-nodes) and test your GPU by the official [gpu-pod](https://github.com/NVIDIA/k8s-device-plugin#running-gpu-jobs)
+
+It is highly recommended to have more than one GPU resource in your workspace. However, there is still a workaround to divide your singie GPU resource into multiple ones. For this, enable [shared-access-to-gpus with CUDA Time-Slicing](https://github.com/NVIDIA/k8s-device-plugin#shared-access-to-gpus-with-cuda-time-slicing) to get more GPU resources. Then test your GPU resources by
+
+```bash
+$ kubectl get nodes -ojson | jq .items[].status.capacity
+>
+{
+  "cpu": "8",
+  "ephemeral-storage": "229336240Ki",
+  "hugepages-1Gi": "0",
+  "hugepages-2Mi": "0",
+  "memory": "32596536Ki",
+  "nvidia.com/gpu": "2", # create one more gpu resource on your laptop
+  "pods": "110"
+}
+```
+
+Deploy this deployment to test your GPU resources.
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-gpu
+spec:
+  replicas: 2 # replace this to your amount of GPU resources
+  selector:
+    matchLabels:
+      app: test-gpu
+  template:
+    metadata:
+      labels:
+        app: test-gpu
+    spec:
+      containers:
+        - name: cuda-container
+          image: nvcr.io/nvidia/k8s/cuda-sample:vectoradd-cuda10.2
+          resources:
+            limits:
+              nvidia.com/gpu: 1 # requesting 1 GPU
+      tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
+```
+
+```bash
+NAME                                          READY   STATUS      RESTARTS      AGE
+dlrover-controller-manager-6c464d59f8-np7tg   2/2     Running     0             55m
+test-gpu-59c9677b99-qtxbv                     0/1     Completed   2 (24s ago)   27s
+test-gpu-59c9677b99-sxd6n                     0/1     Completed   2 (24s ago)   27s
+
+$ kubectl logs test-gpu-59c9677b99-qtxbv
+>
+[Vector addition of 50000 elements]
+Copy input data from the host memory to the CUDA device
+CUDA kernel launch with 196 blocks of 256 threads
+Copy output data from the CUDA device to the host memory
+Test PASSED
+Done
+```
+
+#### Start Your Minikube
 
 After preparing your minikube cluster you can start minikube with the command:
 
