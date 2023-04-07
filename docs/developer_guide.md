@@ -49,7 +49,18 @@ Install [minikube](https://kubernetes.io/docs/tasks/tools/) on your loptop.
 
 To enable GPU support follow the doc to install [containerd](https://github.com/containerd/containerd/blob/main/docs/getting-started.md) and [NVIDIA Container Toolkit](https://github.com/NVIDIA/nvidia-docker) then enable [k8s-device-plugin](https://github.com/NVIDIA/k8s-device-plugin#preparing-your-gpu-nodes) and test your GPU by the official [gpu-pod](https://github.com/NVIDIA/k8s-device-plugin#running-gpu-jobs)
 
-It is highly recommended to have more than one GPU resource in your workspace. However, there is still a workaround to divide your singie GPU resource into multiple ones. For this, enable [shared-access-to-gpus with CUDA Time-Slicing](https://github.com/NVIDIA/k8s-device-plugin#shared-access-to-gpus-with-cuda-time-slicing) to get more GPU resources. Then test your GPU resources by
+It is highly recommended to have more than one GPU resource in your workspace. However, there is still a workaround to divide your singie GPU resource into multiple ones. For this, enable [shared-access-to-gpus with CUDA Time-Slicing](https://github.com/NVIDIA/k8s-device-plugin#shared-access-to-gpus-with-cuda-time-slicing) to get more GPU resources.
+Check the doc and modify your ``nvidia-k8s-device-plugin`` or simply update the plugin by ``helm`` with the command
+
+```bash
+$ helm upgrade -i nvdp nvdp/nvidia-device-plugin \
+    --version=0.13.0 \
+    --namespace nvidia-device-plugin \
+    --create-namespace \
+    --set-file config.map.config=./dlrover/go/operator/config/gpu
+```
+
+Then test your GPU resources by
 
 ```bash
 $ kubectl get nodes -ojson | jq .items[].status.capacity
