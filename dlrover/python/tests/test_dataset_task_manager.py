@@ -70,11 +70,11 @@ class BatchDatasetTaskMangerTest(unittest.TestCase):
         self.assertEqual(len(ds_manager.doing), 1)
         self.assertFalse(ds_manager.completed())
         checkpoint = ds_manager.checkpoint()
-        self.assertListEqual(checkpoint.todo[0], [100, 200, []])
+        self.assertListEqual(checkpoint.todo[0], [100, 200])
         ds_manager.restore_checkpoint(checkpoint)
         self.assertEqual(ds_manager.todo[0].shard.start, 0)
         self.assertEqual(ds_manager.todo[0].shard.end, 100)
-        self.assertEqual(ds_manager.todo[0].shard.record_indices, [])
+        self.assertEqual(ds_manager.todo[0].shard.record_indices, None)
 
     def test_shard_checkpoint_with_shuffle(self):
         splitter = TextDatasetSplitter(
