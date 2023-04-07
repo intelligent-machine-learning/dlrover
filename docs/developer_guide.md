@@ -36,15 +36,22 @@ go mod vendor
 ```
 
 ## Running the Operator Locally
+
 Running the operator locally (as opposed to deploying it on a K8s cluster) is convenient for debugging/development.
 
 ### 1. Preliminary
 
 Install [minikube](https://kubernetes.io/docs/tasks/tools/) on your loptop.
-And you can start minikube by the command
+(To enable GPU support follow the doc to install [containerd](https://github.com/containerd/containerd/blob/main/docs/getting-started.md) and [NVIDIA Container Toolkit](https://github.com/NVIDIA/nvidia-docker) then enable [k8s-device-plugin](https://github.com/NVIDIA/k8s-device-plugin#preparing-your-gpu-nodes) and test your GPU by the official [gpu-pod](https://github.com/NVIDIA/k8s-device-plugin#running-gpu-jobs))
+
+After preparing your minikube cluster you can start minikube with the command:
 
 ```bash
 minikube start --vm-driver=docker --cpus 6 --memory 6144
+
+# If you wish to run minikube with GPUs, recommended commands are as follows.(root privilege requried)
+
+minikube start --driver=none --container-runtime='containerd' --apiserver-ips 127.0.0.1 --apiserver-name localhost --cpus 6 --memory 6144
 ```
 
 ### Configure KUBECONFIG and KUBEFLOW_NAMESPACE
@@ -58,7 +65,6 @@ export KUBEFLOW_NAMESPACE=$(your_namespace)
 ```
 
 - KUBEFLOW_NAMESPACE is used when deployed on Kubernetes, we use this variable to create other resources (e.g. the resource lock) internal in the same namespace. It is optional, use `default` namespace if not set.
-
 
 ### 2. Run ElasticJob Controller
 
@@ -114,6 +120,7 @@ elasticjob-sample-edljob-worker-1     1/1     Running   0          2m42s
 ```
 
 ### 6. Create a release
+
 Change pip version and docker image tag when creating a new release.
 
 ## Go version

@@ -31,10 +31,15 @@ spec:
                 model_zoo/pytorch/mnist_cnn.py \
                 --training_data /data/mnist_png/training/elastic_ds.txt \
                 --validation_data /data/mnist_png/testing/elastic_ds.txt"
-          tolerations:
-          - key: nvidia.com/gpu
-            operator: Exists
-            effect: NoSchedule
+              resources:
+                limits:
+                  cpu: "1"
+                  memory: 2Gi
+                  nvidia.com/gpu: 1
+                requests:
+                  cpu: "1"
+                  memory: 2Gi
+                  nvidia.com/gpu: 1
     dlrover-master:
       template:
         spec:
