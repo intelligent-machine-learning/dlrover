@@ -47,9 +47,20 @@ Install [minikube](https://kubernetes.io/docs/tasks/tools/) on your loptop.
 
 #### Minikube with GPU Support
 
-To enable GPU support follow the doc to install [containerd](https://github.com/containerd/containerd/blob/main/docs/getting-started.md) and [NVIDIA Container Toolkit](https://github.com/NVIDIA/nvidia-docker) then enable [k8s-device-plugin](https://github.com/NVIDIA/k8s-device-plugin#preparing-your-gpu-nodes) and test your GPU by the official [gpu-pod](https://github.com/NVIDIA/k8s-device-plugin#running-gpu-jobs)
+To enable GPU support, follow the doc as follows:
 
-It is highly recommended to have more than one GPU resource in your workspace. However, there is still a workaround to divide your singie GPU resource into multiple ones. For this, enable [shared-access-to-gpus with CUDA Time-Slicing](https://github.com/NVIDIA/k8s-device-plugin#shared-access-to-gpus-with-cuda-time-slicing) to get more GPU resources.
+- install [containerd](https://github.com/containerd/containerd/blob/main/docs/getting-started.md)
+and [NVIDIA Container Toolkit](https://github.com/NVIDIA/nvidia-docker)
+- Enable [k8s-device-plugin](https://github.com/NVIDIA/k8s-device-plugin#preparing-your-gpu-nodes)
+
+- Test your GPU by the official [gpu-pod](https://github.com/NVIDIA/k8s-device-plugin#running-gpu-jobs)
+
+It is highly recommended to have more than one GPU resource in your workspace.
+
+However, there is still a workaround to divide your singie GPU resource into multiple ones.
+
+For this, enable [shared-access-to-gpus with CUDA Time-Slicing](https://github.com/NVIDIA/k8s-device-plugin#shared-access-to-gpus-with-cuda-time-slicing) to get more GPU resources.
+
 Check the doc and modify your ``nvidia-k8s-device-plugin`` or simply update the plugin by ``helm`` with the command
 
 ```bash
