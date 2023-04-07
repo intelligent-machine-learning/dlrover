@@ -157,16 +157,18 @@ class BatchDatasetManager(DatasetManger):
     def checkpoint(self):
         todo_shards = []
         for task in self.todo:
-            todo_shards.append(
-                [task.shard.start, task.shard.end, task.shard.record_indices]
-            )
+            shard = [task.shard.start, task.shard.end]
+            if task.shard.record_indices:
+                shard.append(task.shard.record_indices)
+            todo_shards.append(shard)
 
         doing_shards = []
         for task_id in self.doing:
             task = self.doing[task_id].task
-            doing_shards.append(
-                [task.shard.start, task.shard.end, task.shard.record_indices]
-            )
+            shard = [task.shard.start, task.shard.end]
+            if task.shard.record_indices:
+                shard.append(task.shard.record_indices)
+            doing_shards.append(shard)
 
         return DatasetShardCheckpoint(
             dataset_name=self._dataset_splitter.dataset_name,
@@ -181,11 +183,14 @@ class BatchDatasetManager(DatasetManger):
         self.todo = []
         self.doing = {}
         for shard_indices in checkpoint.doing + checkpoint.todo:
+            record_indices = None
+            if len(shard_indices) > 2:
+                record_indices = shard_indices[2]
             shard = Shard(
                 name=self._dataset_splitter.dataset_name,
                 start=shard_indices[0],
                 end=shard_indices[1],
-                record_indices=shard_indices[2],
+                record_indices=record_indices,
             )
             self.todo.append(
                 Task(

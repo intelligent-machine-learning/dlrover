@@ -106,7 +106,7 @@ class TextDatasetSplitterTest(unittest.TestCase):
         self.assertEqual(len(shards), 100)
         self.assertEqual(shards[0].start, 0)
         self.assertEqual(shards[0].end, 10)
-        self.assertListEqual(shards[0].record_indices, list(range(10)))
+        self.assertListEqual(shards[0].record_indices, [])
         self.assertEqual(shards[0].name, "test")
         self.assertEqual(splitter.epoch, 1)
 
