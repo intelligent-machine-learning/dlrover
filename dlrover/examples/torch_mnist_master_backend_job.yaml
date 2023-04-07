@@ -17,20 +17,15 @@ spec:
               # yamllint disable-line rule:line-length
               image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:torch113-mnist
               imagePullPolicy: Always
-              resources:
-                requests:
-                  nvidia.com/gpu: 1 
-                limits:
-                  nvidia.com/gpu: 1 # requesting 1 GPU
               command:
                 - /bin/bash
                 - -c
                 - "python -m dlrover.python.elastic_agent.torch.prepare \
-                && torchrun --nnodes=1:$WORKER_NUM --nproc_per_node=1
-                --max_restarts=3 --rdzv_backend=dlrover-master \
-                model_zoo/pytorch/mnist_cnn.py \
-                --training_data /data/mnist_png/training/elastic_ds.txt \
-                --validation_data /data/mnist_png/testing/elastic_ds.txt"
+                  && torchrun --nnodes=1:$WORKER_NUM --nproc_per_node=1
+                  --max_restarts=3 --rdzv_backend=dlrover-master \
+                  model_zoo/pytorch/mnist_cnn.py \
+                  --training_data /data/mnist_png/training/elastic_ds.txt \
+                  --validation_data /data/mnist_png/testing/elastic_ds.txt"
               resources:
                 limits:
                   cpu: "1"
