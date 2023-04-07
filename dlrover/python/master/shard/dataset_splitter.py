@@ -125,6 +125,11 @@ class DatasetSplitter(metaclass=ABCMeta):
         """Check wether to finish the configured epochs"""
         return self.epoch >= self._num_epochs
 
+    def get_shard_count(self) -> int:
+        remain_epoch = self._num_epochs - self.epoch
+        shard_count_per_epoch = self._dataset_size // self._shard_size
+        return shard_count_per_epoch * remain_epoch
+
 
 class TableDatasetSplitter(DatasetSplitter):
     """TableDatasetSplitter split a dataset stored in a table like Hive or
@@ -290,9 +295,12 @@ class TextDatasetSplitter(DatasetSplitter):
                 shard_start_idx + self._shard_size,
                 end_idx,
             )
-            size = shard_end_idx - shard_start_idx
-            shard_indices = record_indices[0:size]
-            record_indices = record_indices[size:]
+            if self._shuffle:
+                size = shard_end_idx - shard_start_idx
+                shard_indices = record_indices[0:size]
+                record_indices = record_indices[size:]
+            else:
+                shard_indices = []
             shards.append(
                 Shard(
                     name=self._dataset_name,

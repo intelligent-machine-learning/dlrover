@@ -254,6 +254,7 @@ class AllreduceTrainingAutoScaler(JobAutoScaler):
     def start_auto_scaling(self):
         """Start auto-scaling nodes of a job"""
         if not self._autoscaling_started:
+            self._autoscaling_started = True
             plan = self._job_optimizer.get_job_resource_plan()
             self.execute_job_optimization_plan(plan)
             threading.Thread(
