@@ -30,11 +30,9 @@ spec:
                 limits:
                   cpu: "1"
                   memory: 2Gi
-                  nvidia.com/gpu: 1
                 requests:
                   cpu: "1"
                   memory: 2Gi
-                  nvidia.com/gpu: 1
     dlrover-master:
       template:
         spec:
