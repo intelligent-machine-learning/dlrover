@@ -27,6 +27,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
@@ -124,8 +125,7 @@ func (m *TaskManager) ReconcilePods(
 	job *elasticv1alpha1.ElasticJob,
 	scalePlan *elasticv1alpha1.ScalePlan,
 ) error {
-	status := m.getTaskStatus(job)
-	aliveNum := int(status.Active + status.Pending + status.Succeeded)
+	aliveNum := m.getAlivePodNum(client, job)
 	if resourceSpec, ok := scalePlan.Spec.ReplicaResourceSpecs[m.taskType]; ok {
 		diffNum := resourceSpec.Replicas - aliveNum
 		logger.Infof("Job %s: Scale %s Pods with the number %d", job.Name, m.taskType, diffNum)
@@ -172,9 +172,8 @@ func (m *TaskManager) scaleUpReplicas(
 	resource *corev1.ResourceList,
 	upNum int,
 ) error {
-	status := m.getTaskStatus(job)
-	taskNum := m.getTotalTaskCount(status)
-	for i := taskNum; i < taskNum+upNum; i++ {
+	startTaskID := m.getMaxReplicaID(client, job) + 1
+	for i := startTaskID; i < startTaskID+upNum; i++ {
 		logger.Infof("Job %s: Create %d %s", job.Name, i, m.taskType)
 		port := WorkerServicePort
 		if m.taskType == ReplicaTypePS {
@@ -197,6 +196,46 @@ func (m *TaskManager) scaleUpReplicas(
 		}
 	}
 	return nil
+}
+
+func (m *TaskManager) getAlivePodNum(
+	client runtime_client.Client,
+	job *elasticv1alpha1.ElasticJob,
+) int {
+	aliveCount := 0
+	for i := 0; i < 3; i++ {
+		pods, err := common.GetReplicaTypePods(client, job, m.taskType)
+		if err == nil {
+			for _, pod := range pods {
+				phase := pod.Status.Phase
+				if phase == corev1.PodRunning || phase == corev1.PodPending || phase == corev1.PodSucceeded {
+					aliveCount = aliveCount + 1
+				}
+			}
+			break
+		} else {
+			time.Sleep(200 * time.Millisecond)
+		}
+	}
+	return aliveCount
+}
+
+func (m *TaskManager) getMaxReplicaID(
+	client runtime_client.Client,
+	job *elasticv1alpha1.ElasticJob,
+) int {
+	pods, err := common.GetReplicaTypePods(client, job, m.taskType)
+	if err != nil {
+		return -1
+	}
+	maxID := -1
+	for _, pod := range pods {
+		PodID, _ := strconv.Atoi(pod.Labels[common.LabelReplicaIndexKey])
+		if PodID > maxID {
+			maxID = PodID
+		}
+	}
+	return maxID
 }
 
 func (m *TaskManager) scaleDownReplicas(

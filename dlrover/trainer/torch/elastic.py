@@ -13,6 +13,8 @@
 
 import contextlib
 import os
+import socket
+import time
 from contextlib import contextmanager
 from typing import Any, Dict
 
@@ -23,6 +25,15 @@ from torch.utils.data import DataLoader
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.master_client import GlobalMasterClient
 from dlrover.trainer.torch.elastic_dataset import ElasticDataset
+
+_MASTER_ADDR_KEY = "MASTER_ADDR"
+
+
+def get_rank():
+    rank = 0
+    if dist.is_initialized():
+        rank = dist.get_rank()
+    return rank
 
 
 class GradientState(object):
@@ -257,11 +268,6 @@ class ElasticTrainer(object):
         if self.gradient_state.sync_gradients:
             self.gradient_state.num_steps += 1
 
-    def _do_checkpoint(self):
-        """The job master of DLRover will notify the worker to do chekpoint
-        before it changes workers."""
-        pass
-
     def _set_gradient_accumulation_steps(self):
         max_worker_num = int(os.getenv("WORKER_NUM", 0))
         if max_worker_num == 0:
@@ -286,10 +292,21 @@ class ElasticTrainer(object):
     def setup(cls):
         """Setup MASTER_ADDR as the ip of pod with rank=0."""
         master_client = GlobalMasterClient.MASTER_CLIENT
-        master_addr = master_client.kv_store_get("MASTER_ADDR")
-        if master_addr:
-            master_addr = master_addr.decode()
-        else:
-            master_addr = os.getenv("RDZV_ENDPOINT", "")
-        if master_addr:
-            os.environ["MASTER_ADDR"] = master_addr
+        rank = os.getenv("RANK", None)
+        master_addr = os.getenv("RDZV_ENDPOINT", "")
+        if rank is not None:
+            if int(rank) == 0:
+                host_name = socket.gethostname()
+                local_ip = socket.gethostbyname(host_name)
+                master_client.kv_store_set(_MASTER_ADDR_KEY, local_ip.encode())
+                logger.info("Broadcast master addr %s", local_ip)
+
+            for _ in range(20):
+                master_addr = master_client.kv_store_get(_MASTER_ADDR_KEY)
+                if master_addr:
+                    master_addr = master_addr.decode()
+                    break
+                logger.info("Wait rank 0 to broadcast the MASTER_ADDR.")
+                time.sleep(3)
+        os.environ["MASTER_ADDR"] = master_addr
+        logger.info("MASTER_ADDR=%s", os.environ["MASTER_ADDR"])

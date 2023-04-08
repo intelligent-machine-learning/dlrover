@@ -11,10 +11,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import time
 from threading import Lock
 from typing import Any, Dict, List, Optional, Tuple
 
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.common.node import Node
+from dlrover.python.master.elastic_training.kv_store_service import (
+    KVStoreService,
+)
+
+_WAIT_REALUNCH_FAILED_WORKER_SECS = 120
 
 
 def base2(n):
@@ -36,9 +43,37 @@ class TorchRendezvousService(object):
     """
 
     def __init__(self):
+        self.kv_store = KVStoreService()
         self._lock = Lock()
         self._rdzv_states: Dict[str, RendezvousState] = {}
         self._token = -1
+        self._alive_workers = []
+        self._participants = []
+        self._scale_down_ts = 0
+        self._released_workers = []
+
+    def add_alive_worker(self, worker: Node):
+        self._alive_workers.append(worker.name)
+        if base2(len(self._alive_workers)):
+            self._participants = self._alive_workers
+        self._alive_workers = sorted(self._alive_workers)
+        logger.info(
+            "Alive workers = %s, participants = %s",
+            self._alive_workers,
+            self._participants,
+        )
+        self.kv_store.clear()
+
+    def remove_alive_worker(self, worker: Node):
+        self._alive_workers.remove(worker.name)
+        self._scale_down_ts = int(time.time())
+        self._participants = []
+        self.kv_store.clear()
+
+    def get_released_workers(self):
+        released_workers = self._released_workers
+        self._released_workers = []
+        return released_workers
 
     def start(self):
         pass
@@ -50,21 +85,20 @@ class TorchRendezvousService(object):
         token: Optional[Any],
         participants,
         wait_list,
+        host_name,
     ):
         """Set the _RendezvousState into the store in the master.
         Returns:
             A tuple of the serialized rendezvous state, its fencing token, and
             a boolean value indicating whether our set attempt succeeded.
         """
+        if host_name not in self._participants:
+            return False
         with self._lock:
+            self._scale_down_worker_base2()
             self._rdzv_states.setdefault(key, RendezvousState())
             if self._rdzv_states[key].latest_state_bits == state_bits:
                 return False
-            logger.info(
-                "wait list = %s, participants = %s",
-                wait_list,
-                participants,
-            )
             rdzv_state = self._rdzv_states[key]
             rdzv_state.latest_state_bits = state_bits
             rdzv_state.participants = participants
@@ -72,27 +106,47 @@ class TorchRendezvousService(object):
             self._token += 1
             return True
 
-    def get_state(self, key) -> Optional[Tuple[bytes, Any]]:
+    def get_state(self, worker_name, key) -> Optional[Tuple[bytes, Any]]:
         """Return a new state only if len(_RendezvousState.participants)
         + len(_RendezvousState.wait_list) is base 2. Then, we can
         keep the fixed batch size by setting backward_passes_per_step
         in the worker.
         Returns:
             A tuple of the encoded rendezvous state and its fencing token or
-            ``None`` if no state is found in the backend.
+            `None` if no state is found in the backend.
         """
         with self._lock:
+            self._scale_down_worker_base2()
             completed_state_bits = b""
-            if key not in self._rdzv_states:
+            if (
+                key not in self._rdzv_states
+                or worker_name not in self._participants
+            ):
                 return completed_state_bits, self._token
 
             rdzv_state = self._rdzv_states[key]
-            participant_num = len(rdzv_state.participants)
-            wait_num = len(rdzv_state.wait_list)
-
-            num_nodes_ready = participant_num + wait_num
-
-            if base2(num_nodes_ready):
-                rdzv_state.completed_state_bits = rdzv_state.latest_state_bits
-                completed_state_bits = rdzv_state.completed_state_bits
+            rdzv_state.completed_state_bits = rdzv_state.latest_state_bits
+            completed_state_bits = rdzv_state.completed_state_bits
             return completed_state_bits, self._token
+
+    def _scale_down_worker_base2(self):
+        """Scale down the number of worker base2 like 1,2,4,8,...."""
+        if not self._participants and self._scale_down_ts > 0:
+            now = int(time.time())
+            worker_num = len(self._alive_workers)
+            n = 0
+            while worker_num > 0:
+                worker_num = worker_num >> 1
+                n += 1
+            target_worker_num = pow(2, n - 1)
+            if now - self._scale_down_ts > _WAIT_REALUNCH_FAILED_WORKER_SECS:
+                self._participants = self._alive_workers[:target_worker_num]
+                self._scale_down_ts = 0
+                for worker in self._alive_workers:
+                    if worker not in self._participants:
+                        self._released_workers.append(worker)
+                logger.info(
+                    "Release workers %s and particaipants are %s",
+                    self._released_workers,
+                    self._participants,
+                )

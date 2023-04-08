@@ -11,22 +11,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from threading import Lock
-from typing import Dict
+import sys
+from abc import ABCMeta, abstractmethod
 
 
-class KVStoreService(object):
-    def __init__(self):
-        self._lock = Lock()
-        self._store: Dict[str, bytes] = {}
+class QuotaChecker(metaclass=ABCMeta):
+    @abstractmethod
+    def get_avaliable_worker_num(self):
+        pass
 
-    def set(self, key, value):
-        with self._lock:
-            self._store[key] = value
 
-    def get(self, key):
-        with self._lock:
-            return self._store.get(key, b"")
+class UnlimitedQuotaChecker(QuotaChecker):
+    """No resource limits."""
 
-    def clear(self):
-        self._store.clear()
+    def get_avaliable_worker_num(self):
+        """Assume there is always enough resource."""
+        return sys.maxsize

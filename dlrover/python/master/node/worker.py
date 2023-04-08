@@ -103,7 +103,6 @@ class WorkerManager(TrainingNodeManager):
         max_relaunch_num,
         new_service_fn,
         new_node_name_fn,
-        use_ddp=False,
     ):
         """
         Args:
@@ -121,7 +120,6 @@ class WorkerManager(TrainingNodeManager):
         self._job_resource = job_resource
         self._max_relaunch_num = max_relaunch_num
         self._new_service_fn = new_service_fn
-        self._use_ddp = use_ddp
 
     def adjust_worker(self, worker_resource: NodeGroupResource):
         plan = ScalePlan()
@@ -241,4 +239,14 @@ class WorkerManager(TrainingNodeManager):
             self._nodes[node_id] = new_node
             plan.launch_nodes.append(new_node)
             plan.remove_nodes.append(old_node)
+        return plan
+
+    def remove_not_participated_workers(self, workers):
+        """Remove workers which do not participate in the training."""
+        plan = ScalePlan()
+        for worker_id, worker in self._nodes.items():
+            if worker.name in workers:
+                p = self.remove_node(worker_id)
+                if p:
+                    plan.merge(p)
         return plan

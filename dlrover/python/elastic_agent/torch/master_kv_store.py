@@ -67,6 +67,8 @@ class MasterKVStore(Store):
         """
         key = self.prefix + key
         kvs = self._try_wait_get([key])
+        if not kvs:
+            return b""
         value = kvs[key]
 
         if value == b"":

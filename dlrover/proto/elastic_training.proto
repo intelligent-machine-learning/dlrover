@@ -80,7 +80,10 @@ message ReportDatasetShardParamsRequest {
   string storage_type = 8;
 }
 
-message DatasetMeta { string dataset_name = 1; }
+message DatasetMeta {
+  string dataset_name = 1;
+  int32 shard_num = 2;
+}
 
 message GetDatasetEpochResponse { int32 epoch = 1; }
 
@@ -202,6 +205,7 @@ message RendezvousState {
   int32 token = 3;
   map<string, int32> participants = 4;
   repeated string wait_list = 5;
+  string host_name = 6;
 }
 
 message KeyValuePair {
@@ -221,6 +225,7 @@ service Master {
   rpc report_dataset_shard_params(ReportDatasetShardParamsRequest)
       returns (google.protobuf.Empty);
   rpc get_dataset_epoch(DatasetMeta) returns (GetDatasetEpochResponse);
+  rpc get_dataset_shard_num(DatasetMeta) returns (DatasetMeta);
 
   // rpcs for saving and restoring data shard checkpoints
   rpc get_shard_checkpoint(DatasetMeta) returns (ShardCheckpoint);
