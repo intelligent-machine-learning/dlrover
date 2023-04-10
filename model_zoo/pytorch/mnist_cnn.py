@@ -34,12 +34,15 @@ class ElasticMnistDataset(ElasticDataset):
         """The dataset supports elastic training.
 
         Args:
-            images: A list with tuples like (image_path, label_index).
-            For example, we can use `torchvision.datasets.ImageFolder`
-            to get the list.
-            data_shard_service: If we want to use elastic training, we
-            need to use the `data_shard_service` of the elastic controller
-            in elasticai_api.
+            path: str, the path of dataset meta file. For example, if the image
+                is stored in a folder. The meta file should be a
+                text file where each line is the absolute path of a image.
+            batch_size: int, the size of batch samples to compute gradients
+                in a trainer process.
+            epochs: int, the number of epoch.
+            shuffle: bool, whether to shuffle samples in the dataset.
+            checkpoint_path: the path to save the checkpoint of shards
+                int the dataset.
         """
         super(ElasticMnistDataset, self).__init__(
             path,
