@@ -6,9 +6,9 @@ of native PyTorch training codes. We have provided the
 [CNN example](../../model_zoo/pytorch/mnist_cnn.py) to show how to
 train a CNN model with the MNIST dataset.
 
-### Develop a Torch Model with DLRover. 
+## Develop a Torch Model with DLRover. 
 
-## Setup the Environment Using ElasticTrainer
+### Setup the Environment Using ElasticTrainer
 
 Users need to set up the environment by `ElasticTrainer`. The `ElasticTrainer`
 will set the IP of rank-0 into `MASTER_ADDR`, because the node with rank-0
@@ -20,7 +20,7 @@ from dlrover.trainer.torch.elastic import ElasticTrainer
 ElasticTrainer.setup()
 ```
 
-## Develop the ElasticDataset.
+### Develop the ElasticDataset.
 
 Firstly, users need to write the path of the sample into a `Text` file.
 The path can be a location path of a file or a linke to download
@@ -78,7 +78,7 @@ class ElasticMnistDataset(ElasticDataset):
         pass
 ```
 
-## Wrap the Training Step using ElasticTrainer
+### Wrap the Training Step using ElasticTrainer
 
 To keep the total batch size fixed during elastic training,
 users need to create an `ElasticTrainer` to wrap the model, optimizer
@@ -124,9 +124,9 @@ for _, (data, target) in enumerate(train_loader):
             dataset.save_checkpoint()
 ```
 
-### Submit an ElasticJob on the Kubernetes to Train the model.
+## Submit an ElasticJob on the Kubernetes to Train the model.
 
-## Build the Image with the Model.
+### Build the Image with the Model.
 
 ```dockerfile
 ROM python:3.8.14 as base
@@ -141,7 +141,7 @@ RUN pip install dlrover -U
 COPY ./model_zoo ./model_zoo
 ```
 
-## Run the Training code with torchrun.
+### Run the Training code with torchrun.
 
 If we want to use the DLRover job master as the rendezvous backend,
 we need to execute `python -m dlrover.python.elastic_agent.torch.prepare`
