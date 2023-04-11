@@ -10,9 +10,11 @@ train a CNN model with the MNIST dataset.
 
 ### Setup the Environment Using ElasticTrainer
 
-Users need to set up the environment through `ElasticTrainer`. The `ElasticTrainer`
-will set the IP of the node with rank-0 into `MASTER_ADDR`,
-because the node with rank-0 will change during elasticity.
+Users need to set up the environment through `ElasticTrainer`. 
+
+The `ElasticTrainer` will mark the rank-0 node as PyTorch MASTER
+and the node's IP as `MASTER_ADDR`. Note that, the ranks of all nodes
+are not fixed during elasticity and the rank-0 node is always marked as MASTER.
 
 ```python
 from dlrover.trainer.torch.elastic import ElasticTrainer
