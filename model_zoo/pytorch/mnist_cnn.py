@@ -30,22 +30,26 @@ from dlrover.trainer.torch.elastic_dataset import ElasticDataset
 
 
 class ElasticMnistDataset(ElasticDataset):
-    def __init__(self, path, batch_size, epochs, shuffle):
+    def __init__(self, path, batch_size, epochs, shuffle, checkpoint_path):
         """The dataset supports elastic training.
 
         Args:
-            images: A list with tuples like (image_path, label_index).
-            For example, we can use `torchvision.datasets.ImageFolder`
-            to get the list.
-            data_shard_service: If we want to use elastic training, we
-            need to use the `data_shard_service` of the elastic controller
-            in elasticai_api.
+            path: str, the path of dataset meta file. For example, if the image
+                is stored in a folder. The meta file should be a
+                text file where each line is the absolute path of a image.
+            batch_size: int, the size of batch samples to compute gradients
+                in a trainer process.
+            epochs: int, the number of epoch.
+            shuffle: bool, whether to shuffle samples in the dataset.
+            checkpoint_path: the path to save the checkpoint of shards
+                int the dataset.
         """
         super(ElasticMnistDataset, self).__init__(
             path,
             batch_size,
             epochs,
             shuffle,
+            checkpoint_path,
         )
 
     def read_sample(self, index):
@@ -118,6 +122,7 @@ def train(args):
         batch_size=args.batch_size,
         epochs=args.num_epochs,
         shuffle=args.shuffle,
+        checkpoint_path="./train_dataset.ckpt",
     )
     train_loader = DataLoader(
         dataset=train_dataset, batch_size=args.batch_size, num_workers=2
@@ -128,6 +133,7 @@ def train(args):
         batch_size=args.batch_size,
         epochs=1,
         shuffle=False,
+        checkpoint_path="./test_dataset.ckpt",
     )
     test_loader = DataLoader(
         dataset=test_dataset, batch_size=args.batch_size, num_workers=2
@@ -149,8 +155,9 @@ def train(args):
 
     elastic_trainer = ElasticTrainer(model, train_loader)
     optimizer, scheduler = elastic_trainer.prepare(optimizer, scheduler)
+    load_checkpoint(model, optimizer)
 
-    for batch_idx, (data, target) in enumerate(train_loader):
+    for _, (data, target) in enumerate(train_loader):
         model.train()
         with elastic_trainer.step():
             target = target.type(torch.LongTensor)
@@ -160,13 +167,37 @@ def train(args):
             loss.backward()
             optimizer.step()
             optimizer.zero_grad()
-            print("loss = {}, step = {}".format(loss, batch_idx))
+            print(
+                "loss = {}, step = {}".format(loss, elastic_trainer.num_steps)
+            )
             scheduler.step()
+            if (
+                elastic_trainer.num_steps > 0
+                and elastic_trainer.num_steps % 200 == 0
+            ):
+                save_checkpoint(model, optimizer, train_dataset)
             if (
                 elastic_trainer.num_steps > 0
                 and elastic_trainer.num_steps % 10000 == 0
             ):
                 test(model, device, test_loader)
+
+
+def save_checkpoint(model, optimizer, dataset: ElasticDataset):
+    model_checkpoint = {
+        "model_state_dict": model.state_dict(),
+        "optimizer_state_dict": optimizer.state_dict(),
+    }
+    torch.save(model_checkpoint, "model.pt")
+    dataset.save_checkpoint()
+
+
+def load_checkpoint(model, optimizer):
+    if not os.path.exists("model.pt"):
+        return
+    checkpoint = torch.load("model.pt")
+    model.load_state_dict(checkpoint["model_state_dict"])
+    optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
 
 def test(model, device, test_loader):
@@ -200,9 +231,9 @@ def test(model, device, test_loader):
 
 def arg_parser():
     parser = argparse.ArgumentParser(description="Process training parameters")
-    parser.add_argument("--batch_size", type=int, default=8, required=False)
+    parser.add_argument("--batch_size", type=int, default=32, required=False)
     parser.add_argument("--num_epochs", type=int, default=1, required=False)
-    parser.add_argument("--shuffle", type=bool, default=False, required=False)
+    parser.add_argument("--shuffle", type=bool, default=True, required=False)
     parser.add_argument(
         "--learning_rate", type=float, default=0.1, required=False
     )

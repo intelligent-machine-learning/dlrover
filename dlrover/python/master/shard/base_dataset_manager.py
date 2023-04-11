@@ -111,6 +111,10 @@ class DatasetManger(metaclass=ABCMeta):
     def get_latest_task_end_time(self):
         return self._latest_task_end_time
 
+    def get_task_count(self):
+        epoch_task_count = self._dataset_splitter.get_shard_count()
+        return len(self.todo) + epoch_task_count
+
     @abstractmethod
     def get_epoch(self):
         """Get the training epoch"""

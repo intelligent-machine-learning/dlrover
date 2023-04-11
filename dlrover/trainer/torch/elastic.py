@@ -29,6 +29,13 @@ from dlrover.trainer.torch.elastic_dataset import ElasticDataset
 _MASTER_ADDR_KEY = "MASTER_ADDR"
 
 
+def get_rank():
+    rank = 0
+    if dist.is_initialized():
+        rank = dist.get_rank()
+    return rank
+
+
 class GradientState(object):
     """
     Singleton class that has information related to gradient
@@ -260,11 +267,6 @@ class ElasticTrainer(object):
             self._dataset.report_batch_done()
         if self.gradient_state.sync_gradients:
             self.gradient_state.num_steps += 1
-
-    def _do_checkpoint(self):
-        """The job master of DLRover will notify the worker to do chekpoint
-        before it changes workers."""
-        pass
 
     def _set_gradient_accumulation_steps(self):
         max_worker_num = int(os.getenv("WORKER_NUM", 0))

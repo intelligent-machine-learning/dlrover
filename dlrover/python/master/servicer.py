@@ -90,6 +90,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
 
         if (
             self._job_metric_collector
+            and task
             and task.task_type == elastic_training_pb2.PREDICTION
         ):
             self._collect_runtime_stats()
@@ -349,6 +350,13 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             res.status = TrainingLoopStatus.START
         else:
             res.status = TrainingLoopStatus.PENDING
+        return res
+
+    def get_dataset_shard_num(self, request, _):
+        res = elastic_training_pb2.DatasetMeta()
+        dataset = self._task_manager.get_dataset(request.dataset_name)
+        res.dataset_name = request.dataset_name
+        res.shard_num = dataset.get_task_count()
         return res
 
     def report_prestop(self, request, _):

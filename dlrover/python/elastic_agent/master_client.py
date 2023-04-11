@@ -42,7 +42,7 @@ def retry_grpc_request(func):
                 )
                 execption = e
                 logger.error(e)
-                time.sleep(15)
+                time.sleep(5)
         if execption:
             raise execption
 
@@ -280,6 +280,13 @@ class MasterClient(object):
         return response.status
 
     @retry_grpc_request
+    def get_dataset_shard_num(self, dataset_name):
+        request = elastic_training_pb2.DatasetMeta()
+        request.dataset_name = dataset_name
+        response = self._stub.get_dataset_shard_num(request)
+        return response.shard_num
+
+    @retry_grpc_request
     def join_sync(self, sync_name):
         request = elastic_training_pb2.SyncRequest()
         request.sync_name = sync_name
@@ -316,6 +323,7 @@ class MasterClient(object):
         response = self._stub.query_running_nodes(request)
         return response.nodes
 
+    @retry_grpc_request
     def get_rdzv_state(self, key):
         request = elastic_training_pb2.RendezvousState()
         request.rdzv_key = key
@@ -323,6 +331,7 @@ class MasterClient(object):
         res = self._stub.get_rdzv_state(request)
         return res.state_bits, res.token
 
+    @retry_grpc_request
     def set_rdzv_state(self, key, state_bits, token, participants, wait_list):
         """Set RendezvousState into the master store.
 
@@ -347,6 +356,7 @@ class MasterClient(object):
         response = self._stub.set_rdzv_state(request)
         return response.success
 
+    @retry_grpc_request
     def kv_store_set(self, key, value):
         request = elastic_training_pb2.KeyValuePair()
         request.key = key
@@ -354,6 +364,7 @@ class MasterClient(object):
         response = self._stub.kv_store_set(request)
         return response.success
 
+    @retry_grpc_request
     def kv_store_get(self, key):
         request = elastic_training_pb2.KeyValuePair()
         request.key = key
