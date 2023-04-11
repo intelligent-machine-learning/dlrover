@@ -246,7 +246,7 @@ class PodScaler(Scaler):
                 copy.deepcopy(group_resource.node_resource),
                 rank_index=task_id,
                 name=get_pod_name(self._job_name, type, node_id),
-                service_addr=self.get_node_service_addr(type, node_id),
+                service_addr=self.get_node_service_addr(type, task_id),
             )
             self._create_node_queue.append(node)
 
