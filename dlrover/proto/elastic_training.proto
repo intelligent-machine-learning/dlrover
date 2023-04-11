@@ -158,6 +158,7 @@ message GlobalStepRecord {
 message QueryPsNodesResponse {
   repeated NodeMeta ps_nodes = 1;
   bool new_ps_ready = 2;
+  bool ps_failure = 3;
 }
 
 message NodeMeta {
