@@ -157,7 +157,13 @@ When the job is launched, `dlrover.trainer.estimator_executor` parses the conf a
 
  ### Build an Image with Models.
 
- We need to copy the directory of model into the image and the docker file is
+You can install dlrover in your image.
+
+```bash
+pip install dlrover[tensorflow] - U
+```
+
+Or you also can build your image from the dlrover base image.
 
 ```dockerfile
 FROM registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:deeprec_criteo_v1

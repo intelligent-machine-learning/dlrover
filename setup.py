@@ -14,7 +14,6 @@
 from setuptools import find_packages, setup
 
 install_requires = [
-    "grpcio==1.34.1",
     "grpcio-tools==1.34.1",
     "protobuf>=3.15.3,<4.0dev",
     "psutil",
@@ -22,7 +21,7 @@ install_requires = [
 ]
 
 
-extra_requires = {
+extra_require = {
     "master": ["kubernetes", "ray"],
     "tensorflow": ["tensorflow"],
     "torch": ["torch"],
@@ -42,7 +41,7 @@ setup(
     author="Ant Group",
     url="https://github.com/intelligent-machine-learning/dlrover",
     install_requires=install_requires,
-    extra_requires=extra_requires,
+    extras_require=extra_require,
     python_requires=">=3.5",
     packages=find_packages(
         exclude=[
