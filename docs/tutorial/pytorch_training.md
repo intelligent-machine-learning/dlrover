@@ -10,9 +10,9 @@ train a CNN model with the MNIST dataset.
 
 ### Setup the Environment Using ElasticTrainer
 
-Users need to set up the environment by `ElasticTrainer`. The `ElasticTrainer`
-will set the IP of rank-0 into `MASTER_ADDR`, because the node with rank-0
-will change during elasticity.
+Users need to set up the environment through `ElasticTrainer`. The `ElasticTrainer`
+will set the IP of the node with rank-0 into `MASTER_ADDR`,
+because the node with rank-0 will change during elasticity.
 
 ```python
 from dlrover.trainer.torch.elastic import ElasticTrainer
@@ -22,7 +22,7 @@ ElasticTrainer.setup()
 
 ### Develop the ElasticDataset.
 
-Firstly, users need to write the path of the sample into a `Text` file.
+At first, users need to write the path of the sample into a `Text` file.
 The path can be a location path of a file or a linke to download
 the sample data from a remote storage. For example, we can create a Text
 file to storage the location path and lable of MNIST dataset.
@@ -39,7 +39,7 @@ file to storage the location path and lable of MNIST dataset.
 /data/mnist_png/training/8/7101.png,8
 ```
 
-Then, we can develop a dataset to support elastic training
+Then, we create a dataset to support elastic training
 using the Text file.
 
 ```python
@@ -84,6 +84,10 @@ To keep the total batch size fixed during elastic training,
 users need to create an `ElasticTrainer` to wrap the model, optimizer
 and scheduler. `ElasticTrainer` can keep the total batch size
 fixed by accumulating gradients if the number of worker decreases.
+For example, there are only 4 workers and the user set 8 workers,
+each worker will accumulate gradients with 2 micro-batches before
+synchronizing gradients. The number of micro-batch to update gradient
+is also 8.
 
 ```python
 model = Net()
@@ -127,6 +131,13 @@ for _, (data, target) in enumerate(train_loader):
 ## Submit an ElasticJob on the Kubernetes to Train the model.
 
 ### Build the Image with the Model.
+
+You can install dlrover in your image like
+
+```bash
+pip install dlrover[torch] -U
+```
+or build your image with the dockerfile.
 
 ```dockerfile
 ROM python:3.8.14 as base
