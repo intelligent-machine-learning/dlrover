@@ -13,8 +13,19 @@
 
 from setuptools import find_packages, setup
 
-with open("dlrover/requirements.txt") as f:
-    required_deps = f.read().splitlines()
+install_requires = [
+    "grpcio-tools==1.34.1",
+    "protobuf>=3.15.3,<4.0dev",
+    "psutil",
+    "urllib3<1.27,>=1.21.1",
+]
+
+
+extra_require = {
+    "master": ["kubernetes", "ray"],
+    "tensorflow": ["tensorflow"],
+    "torch": ["torch"],
+}
 
 
 setup(
@@ -29,7 +40,8 @@ setup(
     long_description_content_type="text/markdown",
     author="Ant Group",
     url="https://github.com/intelligent-machine-learning/dlrover",
-    install_requires=required_deps,
+    install_requires=install_requires,
+    extras_require=extra_require,
     python_requires=">=3.5",
     packages=find_packages(
         exclude=[
@@ -41,7 +53,6 @@ setup(
             "proto/*",
             "docker/*",
             "Makefile",
-            "requirements.txt",
         ]
     },
 )

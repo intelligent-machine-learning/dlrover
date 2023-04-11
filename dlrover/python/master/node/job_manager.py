@@ -617,7 +617,12 @@ class JobManager(object):
         return self._ps_manager.get_next_training_ps_cluster()
 
     def ready_for_new_ps_cluster(self):
+        """Check whether ps cluster is used to training"""
         return self._ps_manager.get_ready_for_new_ps_cluster()
+
+    def has_ps_failure(self):
+        """Check whether ther is PS failure"""
+        return self._ps_manager.has_ps_failure()
 
     def remove_training_nodes(self):
         """Remove all PS and workers"""

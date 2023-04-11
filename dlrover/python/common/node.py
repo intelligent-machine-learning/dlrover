@@ -145,6 +145,7 @@ class Node(object):
         is_released: bool, ture if the master deletes the node.
         exit_reason: str, the exited reason of a node.
         used_resource: the resource usage of the node.
+        init_time: the timestamp to initialize the node object.
     """
 
     def __init__(
@@ -181,6 +182,7 @@ class Node(object):
         self.config_resource = config_resource
         self.used_resource = NodeResource(0.0, 0.0)
         self.start_hang_time = 0
+        self.init_time = time.time()
 
     def inc_relaunch_count(self):
         self.relaunch_count += 1
@@ -221,6 +223,7 @@ class Node(object):
         new_node.start_time = None
         new_node.is_released = False
         new_node.relaunchable = True
+        new_node.init_time = time.time()
         return new_node
 
     def is_unrecoverable_failure(self):
@@ -261,6 +264,14 @@ class Node(object):
                 "Not support priority = {}, please set priority = "
                 "high/low/a fraction value.".format(priority)
             )
+
+    def timeout(self, timeout):
+        now = time.time()
+        if (
+            now - self.init_time > timeout
+            and self.status == NodeStatus.INITIAL
+        ):
+            return True
 
     def __repr__(self):
         return (

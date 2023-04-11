@@ -158,3 +158,22 @@ class PodScalerTest(unittest.TestCase):
                 "task": {"type": "worker", "index": 0},
             },
         )
+
+    def test_scale_up_pods(self):
+        scaler = PodScaler("elasticjob-sample", "default")
+        scaler._distribution_strategy = DistributionStrategy.PS
+        resource = NodeResource(4, 8192)
+        scale_plan = ScalePlan()
+        self.assertTrue(scale_plan.empty())
+        scale_plan.node_group_resources = {
+            NodeType.WORKER: NodeGroupResource(5, resource),
+            NodeType.CHIEF: NodeGroupResource(1, resource),
+            NodeType.PS: NodeGroupResource(2, resource),
+        }
+        cur_nodes = [Node(NodeType.WORKER, 1, rank_index=0)]
+        scaler._scale_up_pods(NodeType.WORKER, scale_plan, cur_nodes, 1)
+        self.assertEqual(len(scaler._create_node_queue), 4)
+        self.assertEqual(
+            scaler._create_node_queue[0].service_addr,
+            "elasticjob-sample-edljob-worker-1.default.svc:3333",
+        )

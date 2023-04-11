@@ -154,3 +154,34 @@ class PSManagerTest(unittest.TestCase):
         self.assertEqual(
             training_ps[0].service_addr, "test-edljob-ps-2.default.svc:2222"
         )
+
+    def test_parameter_server_failure(self):
+        job_nodes = self._job_resource.init_job_node_meta(
+            1,
+            self._elastic_job.get_node_service_addr,
+            self._elastic_job.get_node_name,
+        )
+        ps_manager = ParameterServerManager(
+            job_nodes[NodeType.PS],
+            self._job_resource,
+            3,
+            self._elastic_job.get_node_service_addr,
+            self._elastic_job.get_node_name,
+        )
+        for node in ps_manager._nodes.values():
+            node.status = NodeStatus.RUNNING
+        ps_failure = ps_manager.has_ps_failure()
+        self.assertFalse(ps_failure)
+        latest_ps_index = len(ps_manager._nodes) - 1
+        ps = ps_manager._nodes[latest_ps_index]
+        ps_manager._ps_cluster_changed = True
+        ps.status = NodeStatus.INITIAL
+        ps.init_time -= 600
+        ps_failure = ps_manager.has_ps_failure()
+        self.assertTrue(ps_failure)
+        cluster = ps_manager.get_next_training_ps_cluster()
+        self.assertEqual(len(cluster), 1)
+        self.assertEqual(
+            cluster[0].service_addr,
+            "test-edljob-ps-0.default.svc:2222",
+        )

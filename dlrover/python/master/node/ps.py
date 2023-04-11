@@ -18,11 +18,14 @@ import threading
 from typing import Dict, List
 
 from dlrover.python.common.constants import NodeStatus, NodeType
+from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
 from dlrover.python.master.node.training_node import TrainingNodeManager
 from dlrover.python.master.resource.job import JobResource
 from dlrover.python.master.scaler.base_scaler import ScalePlan
+
+_dlrover_ctx = Context.singleton_instance()
 
 
 class ParameterServerManager(TrainingNodeManager):
@@ -53,7 +56,7 @@ class ParameterServerManager(TrainingNodeManager):
         self._new_service_fn = new_service_fn
         self._pre_dropped_ps: List[Node] = []
         self._lock = threading.Lock()
-        self._ready_for_new_ps_cluster = False
+        self._ps_cluster_changed = True
         self._migrated_ps_nodes: Dict[int, Node] = {}
         self._next_training_ps_cluster: List[Node] = []
         self._training_ps_cluster: List[Node] = []
@@ -97,6 +100,7 @@ class ParameterServerManager(TrainingNodeManager):
                 relaunch_count=node.relaunch_count,
             )
         )
+        self._ps_cluster_changed = True
         return plan
 
     def adjust_ps(self, ps_resource: NodeGroupResource):
@@ -120,7 +124,7 @@ class ParameterServerManager(TrainingNodeManager):
         logger.info("Scale up ps with the number %s", up_num)
         new_ps = []
         with self._lock:
-            self._ready_for_new_ps_cluster = False
+            self._ps_cluster_changed = True
             alive_num = len(self.get_training_ps_cluster())
             task_id_iter = itertools.count(alive_num)
             for _ in range(up_num):
@@ -148,7 +152,7 @@ class ParameterServerManager(TrainingNodeManager):
     def _scale_down_ps(self, down_num):
         with self._lock:
             self._pre_dropped_ps = []
-            self._ready_for_new_ps_cluster = False
+            self._ps_cluster_changed = True
             new_ps_num = self._job_resource.ps_num - down_num
             self._job_resource.update_node_group_resource(
                 NodeType.PS, new_ps_num, 0, 0
@@ -163,7 +167,7 @@ class ParameterServerManager(TrainingNodeManager):
         logger.info("Scale down PS %s", dropped_ps)
 
     def process_after_ps_cluster_ready(self):
-        self._ready_for_new_ps_cluster = True
+        self._ps_cluster_changed = False
         self._training_ps_cluster = []
         logger.info("Process PS nodes after ps training is ready")
         self._training_ps_cluster.extend(self._next_training_ps_cluster)
@@ -195,20 +199,35 @@ class ParameterServerManager(TrainingNodeManager):
         After rescaling PS, it should return the new PS set until
         all new PS are running. Otherwise, it returns the old PS set.
         """
-        if self._ready_for_new_ps_cluster:
+        if not self._ps_cluster_changed:
             return self._next_training_ps_cluster
 
         all_new_ps_ready = True
         for node in self._nodes.values():
-            if not node.is_released and node.status in [
-                NodeStatus.INITIAL,
-                NodeStatus.PENDING,
-            ]:
+            if self._wait_ps_node(node):
                 all_new_ps_ready = False
                 break
         if all_new_ps_ready:
             self._next_training_ps_cluster = self._get_all_non_migrated_ps()
         return self._next_training_ps_cluster
+
+    def _wait_ps_node(self, node: Node):
+        """Whether to wait the PS node is running"""
+        return (
+            not node.is_released
+            and not node.timeout(_dlrover_ctx.seconds_to_wait_failed_ps)
+            and node.status in [NodeStatus.INITIAL, NodeStatus.PENDING]
+        )
+
+    def has_ps_failure(self):
+        """
+        Check whether there is PS failure and the master does not relaunch
+        the failed PS node.
+        """
+        for node in self._nodes.values():
+            if node.timeout(_dlrover_ctx.seconds_to_wait_failed_ps):
+                return True
+        return False
 
     def _get_all_non_migrated_ps(self):
         """Get all running PS pods without migrated PS nodes for training"""
@@ -255,7 +274,7 @@ class ParameterServerManager(TrainingNodeManager):
         return training_ps
 
     def get_ready_for_new_ps_cluster(self):
-        return self._ready_for_new_ps_cluster
+        return not self._ps_cluster_changed
 
     def get_ps_addrs(self):
         """Get the address list of ps services"""
@@ -315,7 +334,7 @@ class ParameterServerManager(TrainingNodeManager):
 
         resource = copy.deepcopy(original_pod.config_resource)
         with self._lock:
-            self._ready_for_new_ps_cluster = False
+            self._ps_cluster_changed = True
             new_ps_id = next(self._node_id_iter)
             resource.cpu = cpu
             resource.memory = memory

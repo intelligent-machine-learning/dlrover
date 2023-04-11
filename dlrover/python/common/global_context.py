@@ -30,6 +30,7 @@ class ConfigKeys(object):
     SECONDS_HUGE_TRAINING_THRESHOLD = "seconds_huge_training_threshold"
     GLOBAL_STEP_COUNT_TO_AUTO_WORKER = "global_step_count_to_auto_worker"
     SECONDS_TO_CHANGE_PS = "seconds_to_change_ps"
+    SECONDS_TO_WAIT_FAILED_PS = "seconds_to_wait_failed_ps"
 
 
 class DefaultConfigValues(object):
@@ -44,6 +45,7 @@ class DefaultConfigValues(object):
     DEFAULT_SECONDS_HUGE_TRAINING_THRESHOLD = 1800  # 30min
     DEFALUT_GLOBAL_STEP_COUNT_TO_AUTO_WORKER = 5
     DEFAULT_SECONDS_TO_CHANGE_PS = 3600  # 1h
+    DEFAULT_SECONDS_TO_WAIT_FAILED_PS = 600  # 10min
 
 
 class Context(object):
@@ -93,6 +95,10 @@ class Context(object):
         self.seconds_interval_to_change_ps = self.get_param_value_from_brain(
             ConfigKeys.SECONDS_TO_CHANGE_PS,
             DefaultConfigValues.DEFAULT_SECONDS_TO_CHANGE_PS,
+        )
+        self.seconds_to_wait_failed_ps = self.get_param_value_from_brain(
+            ConfigKeys.SECONDS_TO_WAIT_FAILED_PS,
+            DefaultConfigValues.DEFAULT_SECONDS_TO_WAIT_FAILED_PS,
         )
         self.auto_worker_enabled = False
         self.auto_ps_enabled = False

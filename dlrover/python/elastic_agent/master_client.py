@@ -271,7 +271,7 @@ class MasterClient(object):
     def query_ps_nodes(self):
         request = empty_pb2.Empty()
         response = self._stub.query_ps_nodes(request)
-        return response.ps_nodes, response.new_ps_ready
+        return response.ps_nodes, response.ps_failure
 
     @retry_grpc_request
     def query_training_status(self):

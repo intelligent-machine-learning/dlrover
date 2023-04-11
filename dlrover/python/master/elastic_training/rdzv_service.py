@@ -65,7 +65,8 @@ class TorchRendezvousService(object):
         self.kv_store.clear()
 
     def remove_alive_worker(self, worker: Node):
-        self._alive_workers.remove(worker.name)
+        if worker.name in self._alive_workers:
+            self._alive_workers.remove(worker.name)
         self._scale_down_ts = int(time.time())
         self._participants = []
         self.kv_store.clear()
