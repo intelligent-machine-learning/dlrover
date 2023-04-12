@@ -57,59 +57,19 @@ and [NVIDIA Container Toolkit](https://github.com/NVIDIA/nvidia-docker)
 
 It is highly recommended to have more than one GPU resource in your workspace.
 
-However, there is still a workaround to divide your single GPU resource into multiple ones.
+However, there is still a workaround to divide your singie GPU resource into multiple ones.
 
 For this, enable [shared-access-to-gpus with CUDA Time-Slicing](https://github.com/NVIDIA/k8s-device-plugin#shared-access-to-gpus-with-cuda-time-slicing) to get more GPU resources.
 
-Check the doc and modify your ``nvidia-k8s-device-plugin`` or simply update the plugin by ``helm`` with the command (make sure start you minikube or something else before these steps)
+Check the doc and modify your ``nvidia-k8s-device-plugin`` or simply update the plugin by ``helm`` with the command ([See more details about getting GPU resources](https://github.com/ChenhuiHu/DLRover-Supplementary-Description-/blob/main/Obtain%20more%20GPU%20resources%20on%20a%20single%20machine.md))
 
-1. Add the NVIDIA Helm repository:
-
-   ```bash
-   $ helm repo add nvdp https://nvidia.github.io/k8s-device-plugin
-   ```
-
-   This will add a repository named `nvdp` to your Helm configuration.
-
-2. Update the Helm repository index:
-
-   ```bash
-   $ helm repo update
-   ```
-
-   Update the repository index to ensure you have the latest chart versions and information.
-
-3. Verify if the `nvidia-device-plugin` chart is in the repository:
-
-   ```bash
-   $ helm search repo nvdp
-   ```
-
-   This will display all Helm charts in the `nvdp` repository, including `nvidia-device-plugin`.
-
-4. Install or upgrade the `nvidia-device-plugin` Helm chart:
-
-   Install:
-
-   ```bash
-   $ helm install nvdp nvdp/nvidia-device-plugin \
-       --version=0.13.0 \
-       --namespace nvidia-device-plugin \
-       --create-namespace \
-       --set-file config.map.config=./dlrover/go/operator/config/gpu/nvidia-device-plugin-gpu-shared.yaml
-   ```
-
-   Or upgrade (if already installed):
-
-   ```bash
-   $ helm upgrade -i nvdp nvdp/nvidia-device-plugin \
-       --version=0.13.0 \
-       --namespace nvidia-device-plugin \
-       --create-namespace \
-       --set-file config.map.config=./dlrover/go/operator/config/gpu/nvidia-device-plugin-gpu-shared.yaml
-   ```
-
-
+```bash
+$ helm upgrade -i nvdp nvdp/nvidia-device-plugin \
+    --version=0.13.0 \
+    --namespace nvidia-device-plugin \
+    --create-namespace \
+    --set-file config.map.config=./dlrover/go/operator/config/gpu/nvidia-device-plugin-gpu-shared.yaml
+```
 
 Then test your GPU resources by
 
