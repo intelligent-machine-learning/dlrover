@@ -12,12 +12,13 @@
 # limitations under the License.
 
 import time
-
+from tensorflow.python.framework import errors
 from tensorflow.python.client import session
 from tensorflow.python.framework import errors
 from tensorflow.python.training import monitored_session, session_manager
 from tensorflow.python.training.monitored_session import _WrappedSession
 from tensorflow_estimator.python.estimator.mode_keys import ModeKeys
+from tensorflow.python.training.monitored_session import _RecoverableSession
 
 from dlrover.trainer.tensorflow.util import common_util
 from dlrover.trainer.tensorflow.util.tf_version_util import (
@@ -232,6 +233,35 @@ def prepare_session_113(
     global_dict["sess"] = sess
     return sess
 
+_PREEMPTION_ERRORS = (errors.AbortedError, errors.UnavailableError)
+
+def run(self, fetches, feed_dict=None, options=None, run_metadata=None):
+    while True:
+      global_dict = common_util.GlobalDict()
+      if global_dict.get("exit_recoverable_session",False):
+          break
+      try:
+        if not self._sess:
+          self._sess = self._create_session()
+        return self._sess.run(
+            fetches,
+            feed_dict=feed_dict,
+            options=options,
+            run_metadata=run_metadata)
+      except _PREEMPTION_ERRORS as e:
+        logging.info(
+            'An error was raised. This may be due to a preemption in '
+            'a connected worker or parameter server. The current '
+            'session will be closed and a new session will be '
+            'created. This error may also occur due to a gRPC failure '
+            'caused by high memory or network bandwidth usage in the '
+            'parameter servers. If this error occurs repeatedly, try '
+            'increasing the number of parameter servers assigned to '
+            'the job. Error: %s', e)
+        self.close()
+        self._sess = None
+
+
 
 def prepare_session_115(
     self,
@@ -381,6 +411,8 @@ def hotpatch_for_dynet(failover_level=1):
         )
     if is_tf_115():
         session_manager.SessionManager.prepare_session = prepare_session_115
+        _RecoverableSession.run = run
 
     if is_tf_113() or is_tf_2():
         session_manager.SessionManager.prepare_session = prepare_session_113
+
