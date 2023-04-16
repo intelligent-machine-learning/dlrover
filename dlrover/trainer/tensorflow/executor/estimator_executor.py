@@ -161,6 +161,7 @@ class EstimatorExecutor(BaseExecutor):
         training_hooks = [GlobalStepHook()]
         data_shard_client = self.train_dataset.reader.data_shard_client
 
+        
         if data_shard_client is not None:
             logger.info("appending ElasticDataShardReportHook")
             shard_report_hook = ElasticDataShardReportHook(data_shard_client)

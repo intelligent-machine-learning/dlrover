@@ -71,3 +71,4 @@ class TFConstants(object):
         "checkpoint_incremental_save_secs", None
     )
     KeepCheckpointMax = Constant("keep_checkpoint_max", 5)
+    DataShardClient = Constant("data_shard_client", None)
