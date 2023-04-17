@@ -1,10 +1,10 @@
-# Introduction to develop EasyDL
+# Introduction to develop DLRover
 
-The document describes how to make contribution to EasyDL.
+The document describes how to make contribution to DLRover.
 
 ## Submit a PR
 
-- Fork EasyDL Repo to your owner namespace.
+- Fork DLRover Repo to your owner namespace.
 - `git clone git@github.com:intelligent-machine-learning/dlrover.git`
 - `cd dlrover`
 - `git remote rename origin upstream`
@@ -47,17 +47,17 @@ Install [minikube](https://kubernetes.io/docs/tasks/tools/) on your loptop.
 
 #### Minikube with GPU Support
 
-To enable GPU support, follow the doc as follows:
+To enable GPU support, follow the docs as follows:
 
-- install [containerd](https://github.com/containerd/containerd/blob/main/docs/getting-started.md)
+- Install [cri-dockerd](https://github.com/Mirantis/cri-dockerd)
 and [NVIDIA Container Toolkit](https://github.com/NVIDIA/nvidia-docker)
 - Enable [k8s-device-plugin](https://github.com/NVIDIA/k8s-device-plugin#preparing-your-gpu-nodes)
 
 - Test your GPU by the official [gpu-pod](https://github.com/NVIDIA/k8s-device-plugin#running-gpu-jobs)
 
-It is highly recommended to have more than one GPU resource in your workspace.
+It is highly recommended to have more than one GPU resources in your workspace.
 
-However, there is still a workaround to divide your singie GPU resource into multiple ones.
+However, there is still a workaround to divide your single GPU resource into multiple ones.
 
 For this, enable [shared-access-to-gpus with CUDA Time-Slicing](https://github.com/NVIDIA/k8s-device-plugin#shared-access-to-gpus-with-cuda-time-slicing) to get more GPU resources.
 
@@ -74,7 +74,7 @@ $ helm upgrade -i nvdp nvdp/nvidia-device-plugin \
 Then test your GPU resources by
 
 ```bash
-$ kubectl get nodes -ojson | jq .items[].status.capacity
+$ kubectl get nodes -ojson | jq '.items[].status.capacity'
 >
 {
   "cpu": "8",
@@ -87,7 +87,7 @@ $ kubectl get nodes -ojson | jq .items[].status.capacity
 }
 ```
 
-Deploy this deployment to test your GPU resources.
+Create this deployment to test your GPU resources.
 
 ```yaml
 apiVersion: apps/v1
