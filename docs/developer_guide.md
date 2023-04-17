@@ -61,14 +61,14 @@ However, there is still a workaround to divide your singie GPU resource into mul
 
 For this, enable [shared-access-to-gpus with CUDA Time-Slicing](https://github.com/NVIDIA/k8s-device-plugin#shared-access-to-gpus-with-cuda-time-slicing) to get more GPU resources.
 
-Check the doc and modify your ``nvidia-k8s-device-plugin`` or simply update the plugin by ``helm`` with the command
+Check the doc and modify your ``nvidia-k8s-device-plugin`` or simply update the plugin by ``helm`` with the command ([See more details about getting GPU resources](https://github.com/ChenhuiHu/DLRover-Supplementary-Description-/blob/main/Obtain%20more%20GPU%20resources%20on%20a%20single%20machine.md))
 
 ```bash
 $ helm upgrade -i nvdp nvdp/nvidia-device-plugin \
     --version=0.13.0 \
     --namespace nvidia-device-plugin \
     --create-namespace \
-    --set-file config.map.config=./dlrover/go/operator/config/gpu
+    --set-file config.map.config=./dlrover/go/operator/config/gpu/nvidia-device-plugin-gpu-shared.yaml
 ```
 
 Then test your GPU resources by
