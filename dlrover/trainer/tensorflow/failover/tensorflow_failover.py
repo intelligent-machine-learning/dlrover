@@ -77,7 +77,7 @@ class TensorflowFailover:
                 ps_address_changed, change_type = self.ps_addresses_changed()
                 if ps_address_changed:
                     self.refresh_env()
-                    if change_type=="ps_failure":
+                    if change_type == "ps_failure":
                         self.exit_from_recoverable_session()
                     else:
                         self.info_cheif_do_checkpoints()
@@ -107,7 +107,7 @@ class TensorflowFailover:
                     self.curr_ps_address, curr_address
                 )
             )
-            if ps_failure == True:
+            if ps_failure is True:
                 changed_type = "ps_failure"
             self.curr_ps_address = curr_address
             changed = True
@@ -126,6 +126,7 @@ class TensorflowFailover:
         logger.info(
             "successfully refresh TF_CONFIFG %s" % os.environ["TF_CONFIG"]
         )
+
     def exit_from_recoverable_session(self):
         global_dict = common_util.GlobalDict()
         global_dict["exit_recoverable_session"] = True

@@ -11,9 +11,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
+
 from tensorflow.python.estimator.estimator import Estimator
 from tensorflow.python.training import basic_session_run_hooks
-import json
+
 from dlrover.python.elastic_agent.sychronization.sync_client import SyncClient
 from dlrover.trainer.constants.tf_constants import TFConstants
 from dlrover.trainer.tensorflow.util import common_util
@@ -103,7 +105,9 @@ def ck_after_run(self, run_context, run_values):
             if self._save(run_context.session, global_step):
                 run_context.request_stop()
             if data_shard_checkpoint is not None:
-                data_shard_checkpoint = data_shard_client.get_shard_checkpoint()
+                data_shard_checkpoint = (
+                    data_shard_client.get_shard_checkpoint()
+                )
     elif self._incremental_save:
         if (
             self._incremental_timer.should_trigger_for_step(
@@ -133,11 +137,18 @@ def ck_after_run(self, run_context, run_values):
                     self._incremental_save_path,
                 )
                 if data_shard_checkpoint is not None:
-                    data_shard_checkpoint = data_shard_client.get_shard_checkpoint()
+                    data_shard_checkpoint = (
+                        data_shard_client.get_shard_checkpoint()
+                    )
     if data_shard_checkpoint is not None:
-        logger.info("data_shard_checkpoint for global step {} is {}".format(global_step, data_shard_checkpoint))
-        with open("data_shard_checkpoint.json","w") as f:
+        logger.info(
+            "data_shard_checkpoint for global step {} is {}".format(
+                global_step, data_shard_checkpoint
+            )
+        )
+        with open("data_shard_checkpoint.json", "w") as f:
             json.dump(data_shard_checkpoint, f)
+
 
 def append_hooks(estimator_spec, key, params):
     old = getattr(estimator_spec, key) or []
