@@ -245,7 +245,7 @@ _PREEMPTION_ERRORS = (errors.AbortedError, errors.UnavailableError)
 def run(self, fetches, feed_dict=None, options=None, run_metadata=None):
     while True:
         global_dict = common_util.GlobalDict()
-        if global_dict.get("exit_recoverable_session", False):
+        if global_dict.get(TFConstants.ExitRecoverableSession.name, False):
             break
         try:
             if not self._sess:

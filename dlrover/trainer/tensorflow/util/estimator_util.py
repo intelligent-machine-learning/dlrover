@@ -156,7 +156,7 @@ def ck_after_run(self, run_context, run_values):
                 global_step, data_shard_checkpoint
             )
         )
-        with open("data_shard_checkpoint.json", "w") as f:
+        with open(TFConstants.DataShardCheckpoint(), "w") as f:
             json.dump(data_shard_checkpoint, f)
 
 

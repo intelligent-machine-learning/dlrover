@@ -72,3 +72,8 @@ class TFConstants(object):
     )
     KeepCheckpointMax = Constant("keep_checkpoint_max", 5)
     DataShardClient = Constant("data_shard_client", None)
+    ExitRecoverableSession = Constant("exit_recoverable_session", None)
+    DataShardCheckpoint = Constant("data_shard_checkpoint", "data_shard_checkpoint.json")
+    
+
+    

@@ -129,7 +129,7 @@ class TensorflowFailover:
 
     def exit_from_recoverable_session(self):
         global_dict = common_util.GlobalDict()
-        global_dict["exit_recoverable_session"] = True
+        global_dict[TFConstants.ExitRecoverableSession.name] = True
 
     def info_cheif_do_checkpoints(self):
         global_dict = common_util.GlobalDict()
