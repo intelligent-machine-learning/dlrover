@@ -66,13 +66,22 @@ basic_session_run_hooks.StopAtStepHook.after_run = after_run
 
 
 def ck_after_run(self, run_context, run_values):
+    logger.info("save checkpoint session hook runs")
+
     stale_global_step = run_values.results
     global_dict = common_util.GlobalDict()
+    print(global_dict)
     should_save_checkpoint = global_dict.get(
         TFConstants.SaveCheckpoint.name, TFConstants.SaveCheckpoint()
     )
     data_shard_client = global_dict.get(
         TFConstants.DataShardClient.name, TFConstants.DataShardClient()
+    )
+    logger.info("data shard client is {}".format(data_shard_client))
+    logger.info(
+        "data_shard_client is {}".format(
+            data_shard_client.get_shard_checkpoint()
+        )
     )
     data_shard_checkpoint = None
     if should_save_checkpoint:
@@ -140,6 +149,7 @@ def ck_after_run(self, run_context, run_values):
                     data_shard_checkpoint = (
                         data_shard_client.get_shard_checkpoint()
                     )
+    logger.info("data_shard_checkpoint is {}".format(data_shard_checkpoint))
     if data_shard_checkpoint is not None:
         logger.info(
             "data_shard_checkpoint for global step {} is {}".format(

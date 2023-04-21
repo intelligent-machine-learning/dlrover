@@ -29,6 +29,7 @@ from dlrover.trainer.tensorflow.hooks.elastic_data_shard_report_hook import (
     ElasticDataShardReportHook,
 )
 from dlrover.trainer.tensorflow.hooks.global_step_hook import GlobalStepHook
+from dlrover.trainer.tensorflow.util import common_util
 from dlrover.trainer.tensorflow.util.data_mapping_util import data_mapping
 from dlrover.trainer.tensorflow.util.dataset_util import DatasetUtil
 from dlrover.trainer.tensorflow.util.estimator_util import (
@@ -162,7 +163,10 @@ class EstimatorExecutor(BaseExecutor):
         data_shard_client = self.train_dataset.reader.data_shard_client
 
         if data_shard_client is not None:
+            global_dict = common_util.GlobalDict()
+            global_dict[TFConstants.DataShardClient.name] = data_shard_client
             logger.info("appending ElasticDataShardReportHook")
+            print(global_dict)
             shard_report_hook = ElasticDataShardReportHook(data_shard_client)
             model_metric_report_hook = ReportModelMetricHook()
             training_hooks.append(shard_report_hook)
