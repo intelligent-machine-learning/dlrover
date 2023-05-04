@@ -183,8 +183,10 @@ class k8sClient(object):
                 body=client.V1DeleteOptions(),
             )
             return True
-        except Exception as e:
-            logger.warning(e)
+        except client.ApiException as e:
+            if e.reason == "Not Found":
+                return True
+            logger.warning("Exception when removing pod %s: %s\n" % (name, e))
             return False
 
     def patch_labels_to_pod(self, name, labels_dict):
