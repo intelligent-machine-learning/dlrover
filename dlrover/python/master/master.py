@@ -147,13 +147,16 @@ class Master(object):
                     break
                 self._remove_not_participated_workers()
                 if self.job_manager and self.job_manager.all_workers_exited():
+                    if self.job_manager.pending_without_workers():
+                        time.sleep(30)
+                        continue
                     if self.job_manager.all_workers_failed():
                         logger.error("All workers failed")
                         self._exit_code = 1
                         self._exit_reason = JobExitReason.UNKNOWN_ERROR
-                        break
-
-                    if self.task_manager and not self.task_manager.finished():
+                    elif (
+                        self.task_manager and not self.task_manager.finished()
+                    ):
                         logger.warning(
                             "All workers exited but there also are "
                             "unfinished tasks",

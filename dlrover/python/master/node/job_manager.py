@@ -665,6 +665,16 @@ class JobManager(object):
         plan = self._worker_manager.remove_not_participated_workers(workers)
         self._scaler.scale(plan)
 
+    def pending_without_workers(self):
+        """Check whether to wait for evicted workers."""
+        if (
+            self._worker_manager.has_failed_worker()
+            or self._worker_manager.all_worker_restart_failed()
+        ):
+            return False
+        else:
+            return True
+
 
 def create_job_manager(args: JobArgs, speed_monitor) -> JobManager:
     # relaunch on worker failure for PS or custom strategy
