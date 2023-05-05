@@ -17,7 +17,7 @@ performance. More resource may not result in higher throughput. Using parameter
 server to training a job, we need to take account of the computation
 and communication capability of parameter servers when configuring
 workers. Using allreduce architecture, we need to take
-account of the increasing comunication cost with more workers.
+account of the increasing communication cost with more workers.
 It is difficult to configure the appropriate resource with different models.
 
 Model developers (users) have to learn more rather than model training 
@@ -25,7 +25,7 @@ algorithms when they are using those jobs to train their models. To
 run a training job, those users have to specify the required resources for their 
 this job. Then the Kubernetes cluster can allocate the required resources and 
 start the job. Unfortunately, we found it is quite an ineffective way
-to ask the usersto take care of the resource configuration.
+to ask the users to take care of the resource configuration.
 At first, users are usually the 
 experts on model design but not training jobs and Kubernetes cluster. It is 
 not an easy task for them to have the optimal configuration in the first place.
@@ -101,7 +101,7 @@ to workers. Meanwhile, the Cluster Monitor is monitoring
 each job's running status (e.g., resource workload of each node) and
 cluster status (e.g., idle resources). Those data will be reported to Brain periodically and 
 Brain persists the data into database. Then based on the job’s running status, 
-EasyDL Brain picks up appropriate algorithms to
+DLRover Brain picks up appropriate algorithms to
 generate new resource plans and informs Elastic Trainer to
 start resources adjustment.
 
@@ -165,8 +165,7 @@ Then Data Shard Manager deletes the finished shard from the DOING queue.
 
 1. Worker elasticity. In asynchronous SGD, each PS updates parameters with gradients
 from a worker independently and does not synchronize with other workers.
-Thus, Elastic Trainer can add or remove workers without influencing other workers. A
-fter a new worker starts, it connects to all PS and queries shards from Data Shard Manager
+Thus, Elastic Trainer can add or remove workers without influencing other workers. After a new worker starts, it connects to all PS and queries shards from Data Shard Manager
 and consume shards to compute gradients. If a worker is terminated,
 Data Shard Manager moves uncompleted shards of this worker back to the TODO queue from the DOING queue.
 Later the shard can be dispatched to another workers.
@@ -224,7 +223,7 @@ otherwise, $𝑚_𝑖 =⌊𝑁/𝑁_0⌋$ .
 #### Fault Tolerance
 
 Parameter servers and workers can fail at any time. Thus the trainer will checkpoint
-the parameters periodically. When a parameter server failed, the trainer starts
+the parameters periodically. When a parameter server fail, the trainer starts
 another parameter server and resume the checkpointing. For worker failure, 
 the trainer just starts a worker and let the work picks up a shard for computation.
 
@@ -246,7 +245,7 @@ includes three components.
 
 When a training job is created, the corresponding administor is also created 
 in the brain. This administor will administer the job during the job's whole
-lifetime. When to initializ the job or observe a performance issue in the job,
+lifetime. When to initialize the job or observe a performance issue in the job,
 the administor will create an optimize event for a new resource plan.
 
 #### Optimize Processor
@@ -261,7 +260,7 @@ Then we can have the optimal resource plans.
 #### Algorithm Executor
 
 After the optimize processor decides the algorithm for the job, the algorithm 
-executor executes the algorithm and generate the resource plan.
+executor executes the algorithm and generates the resource plan.
 
 ### Cluster Monitor
 
