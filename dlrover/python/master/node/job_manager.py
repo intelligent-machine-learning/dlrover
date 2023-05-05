@@ -665,7 +665,7 @@ class JobManager(object):
         plan = self._worker_manager.remove_not_participated_workers(workers)
         self._scaler.scale(plan)
 
-    def pending_without_workers(self):
+    def pend_without_workers(self):
         """Check whether to wait for evicted workers."""
         if (
             self._worker_manager.has_failed_worker()

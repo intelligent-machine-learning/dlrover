@@ -147,7 +147,7 @@ class Master(object):
                     break
                 self._remove_not_participated_workers()
                 if self.job_manager and self.job_manager.all_workers_exited():
-                    if self.job_manager.pending_without_workers():
+                    if self.job_manager.pend_without_workers():
                         time.sleep(30)
                         continue
                     if self.job_manager.all_workers_failed():
