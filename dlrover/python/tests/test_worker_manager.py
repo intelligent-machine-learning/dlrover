@@ -139,10 +139,10 @@ class WorkerManagerTest(unittest.TestCase):
         failed = worker_manager.has_failed_worker()
         self.assertFalse(failed)
 
-        failed = worker_manager.wait_worker_restart()
-        self.assertFalse(failed)
+        wait = worker_manager.wait_worker_restart()
+        self.assertTrue(wait)
         for node in worker_manager._nodes.values():
             node.relaunch_count = node.max_relaunch_count
 
-        failed = worker_manager.wait_worker_restart()
-        self.assertTrue(failed)
+        wait = worker_manager.wait_worker_restart()
+        self.assertFalse(wait)
