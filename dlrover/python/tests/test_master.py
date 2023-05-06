@@ -16,11 +16,12 @@ import unittest
 from dlrover.python.common.constants import JobExitReason, NodeStatus, NodeType
 from dlrover.python.master.master import Master
 from dlrover.python.master.shard.dataset_splitter import new_dataset_splitter
-from dlrover.python.tests.test_utils import MockK8sPSJobArgs
+from dlrover.python.tests.test_utils import MockK8sPSJobArgs, mock_k8s_client
 
 
 class MasterTest(unittest.TestCase):
     def setUp(self) -> None:
+        mock_k8s_client()
         params = MockK8sPSJobArgs()
         params.initilize()
         self.master = Master(2222, params)

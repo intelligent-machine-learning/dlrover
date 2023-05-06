@@ -265,9 +265,12 @@ class WorkerManager(TrainingNodeManager):
                 return True
         return False
 
-    def all_worker_restart_failed(self):
+    def wait_worker_restart(self):
         """Check whether there are workers tha have remaining retries."""
         for worker in self._nodes.values():
-            if worker.relaunch_count < worker.max_relaunch_count:
-                return False
-        return True
+            if (
+                worker.exit_reason == NodeExitReason.KILLED
+                and worker.relaunch_count < worker.max_relaunch_count
+            ):
+                return True
+        return False

@@ -667,13 +667,12 @@ class JobManager(object):
 
     def pend_without_workers(self):
         """Check whether to wait for evicted workers."""
-        if (
-            self._worker_manager.has_failed_worker()
-            or self._worker_manager.all_worker_restart_failed()
-        ):
+        if self._worker_manager.has_failed_worker():
             return False
-        else:
+        elif self._worker_manager.wait_worker_restart():
             return True
+        else:
+            return False
 
 
 def create_job_manager(args: JobArgs, speed_monitor) -> JobManager:
