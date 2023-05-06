@@ -14,7 +14,11 @@
 import copy
 from typing import Dict, List
 
-from dlrover.python.common.constants import NodeStatus, NodeType
+from dlrover.python.common.constants import (
+    NodeExitReason,
+    NodeStatus,
+    NodeType,
+)
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
 from dlrover.python.master.node.training_node import (
@@ -250,3 +254,23 @@ class WorkerManager(TrainingNodeManager):
                 if p:
                     plan.merge(p)
         return plan
+
+    def has_failed_worker(self):
+        """Check whether there is failed worker except evicted workers."""
+        for worker in self._nodes.values():
+            if worker.exit_reason in [
+                NodeExitReason.FATAL_ERROR,
+                NodeExitReason.UNKNOWN_ERROR,
+            ]:
+                return True
+        return False
+
+    def wait_worker_restart(self):
+        """Check whether there are workers tha have remaining retries."""
+        for worker in self._nodes.values():
+            if (
+                worker.exit_reason == NodeExitReason.KILLED
+                and worker.relaunch_count < worker.max_relaunch_count
+            ):
+                return True
+        return False

@@ -14,7 +14,12 @@
 import unittest
 from datetime import datetime, timedelta
 
-from dlrover.python.common.constants import NodeStatus, NodeType, PlatformType
+from dlrover.python.common.constants import (
+    NodeExitReason,
+    NodeStatus,
+    NodeType,
+    PlatformType,
+)
 from dlrover.python.common.node import NodeGroupResource, NodeResource
 from dlrover.python.master.node.worker import WorkerManager
 from dlrover.python.master.resource.job import JobResource
@@ -114,3 +119,30 @@ class WorkerManagerTest(unittest.TestCase):
             node.create_time = datetime.now() + timedelta(days=-1)
         plan = worker_manager.cut_pending_node_cpu()
         self.assertEqual(len(plan.launch_nodes), 5)
+
+    def test_pending_without_workers(self):
+        worker_manager = WorkerManager(
+            self._job_nodes[NodeType.WORKER],
+            self._job_resource,
+            3,
+            self._elastic_job.get_node_service_addr,
+            self._elastic_job.get_node_name,
+        )
+        for node in worker_manager._nodes.values():
+            node.status = NodeStatus.FAILED
+            node.exit_reason = NodeExitReason.FATAL_ERROR
+        failed = worker_manager.has_failed_worker()
+        self.assertTrue(failed)
+
+        for node in worker_manager._nodes.values():
+            node.exit_reason = NodeExitReason.KILLED
+        failed = worker_manager.has_failed_worker()
+        self.assertFalse(failed)
+
+        wait = worker_manager.wait_worker_restart()
+        self.assertTrue(wait)
+        for node in worker_manager._nodes.values():
+            node.relaunch_count = node.max_relaunch_count
+
+        wait = worker_manager.wait_worker_restart()
+        self.assertFalse(wait)
