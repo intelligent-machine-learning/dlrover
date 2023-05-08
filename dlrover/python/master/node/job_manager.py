@@ -676,13 +676,6 @@ class JobManager(object):
 
 
 def create_job_manager(args: JobArgs, speed_monitor) -> JobManager:
-    # relaunch on worker failure for PS or custom strategy
-    if (
-        args.distribution_strategy != DistributionStrategy.PS
-        and args.distribution_strategy != DistributionStrategy.CUSTOM
-    ):
-        args.node_args[NodeType.WORKER].restart_count = 0
-
     critical_worker_index = get_critical_worker_index(args)
     # Custom distribution strategy does not exit if there are pending nodes
     wait_pending_relaunch = (
