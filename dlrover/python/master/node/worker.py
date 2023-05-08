@@ -14,7 +14,11 @@
 import copy
 from typing import Dict, List
 
-from dlrover.python.common.constants import NodeStatus, NodeType
+from dlrover.python.common.constants import (
+    NodeExitReason,
+    NodeStatus,
+    NodeType,
+)
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
 from dlrover.python.master.node.training_node import (
@@ -123,9 +127,6 @@ class WorkerManager(TrainingNodeManager):
 
     def adjust_worker(self, worker_resource: NodeGroupResource):
         plan = ScalePlan()
-        plan.node_group_resources[NodeType.WORKER] = copy.deepcopy(
-            worker_resource
-        )
         num = worker_resource.count
         logger.info(
             "Adjust worker resource to {}, {}, {}".format(
@@ -144,13 +145,16 @@ class WorkerManager(TrainingNodeManager):
         alive_num = len(alive_workers)
         with self._lock:
             if num > alive_num + completed_worker_num:
-                self._scale_up_workers(num - alive_num - completed_worker_num)
+                plan = self._scale_up_workers(
+                    num - alive_num - completed_worker_num
+                )
             elif num < alive_num:
-                self._scale_down_workers(alive_num - num, alive_workers)
+                plan = self._scale_down_workers(alive_num - num, alive_workers)
         return plan
 
     def _scale_up_workers(self, up_num):
         """Launch up_num workers."""
+        plan = ScalePlan()
         for _ in range(up_num):
             worker_id = next(self._node_id_iter)
             task_id = next(self._rank_id_iter)
@@ -158,7 +162,7 @@ class WorkerManager(TrainingNodeManager):
                 NodeType.WORKER
             ).node_resource
             service_addr = self._new_service_fn(NodeType.WORKER, task_id)
-            self._nodes[worker_id] = Node(
+            new_node = Node(
                 NodeType.WORKER,
                 node_id=worker_id,
                 rank_index=task_id,
@@ -167,10 +171,14 @@ class WorkerManager(TrainingNodeManager):
                 config_resource=copy.deepcopy(worker_resource),
                 service_addr=service_addr,
             )
+            self._nodes[worker_id] = new_node
             logger.info("Create worker %s", self._nodes[worker_id])
+            plan.launch_nodes.append(new_node)
+        return plan
 
     def _scale_down_workers(self, down_num, running_workers: List[Node]):
         """Remove down_num running workers"""
+        plan = ScalePlan()
         for worker in reversed(running_workers):
             if down_num <= 0:
                 break
@@ -178,6 +186,8 @@ class WorkerManager(TrainingNodeManager):
                 worker.relaunchable = False
                 worker.is_released = True
                 down_num -= 1
+                plan.remove_nodes.append(worker)
+        return plan
 
     def delete_exited_workers(self):
         """Delete failed, succeed, finished workers."""
@@ -250,3 +260,23 @@ class WorkerManager(TrainingNodeManager):
                 if p:
                     plan.merge(p)
         return plan
+
+    def has_failed_worker(self):
+        """Check whether there is failed worker except evicted workers."""
+        for worker in self._nodes.values():
+            if worker.exit_reason in [
+                NodeExitReason.FATAL_ERROR,
+                NodeExitReason.UNKNOWN_ERROR,
+            ]:
+                return True
+        return False
+
+    def wait_worker_restart(self):
+        """Check whether there are workers tha have remaining retries."""
+        for worker in self._nodes.values():
+            if (
+                worker.exit_reason == NodeExitReason.KILLED
+                and worker.relaunch_count < worker.max_relaunch_count
+            ):
+                return True
+        return False

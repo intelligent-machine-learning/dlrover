@@ -61,11 +61,8 @@ class JobAutoScalerTest(unittest.TestCase):
         scale_plan = auto_scaler.execute_job_optimization_plan(plan)
         self.assertEqual(len(manager._ps_manager._nodes), 4)
         self.assertEqual(len(manager._worker_manager._nodes), 7)
-        self.assertEqual(
-            scale_plan.node_group_resources[NodeType.WORKER].count, 6
-        )
         self.assertEqual(len(scale_plan.remove_nodes), 1)
-        self.assertEqual(len(scale_plan.launch_nodes), 2)
+        self.assertEqual(len(scale_plan.launch_nodes), 5)
 
         ps_addrs = []
         for i in [0, 3, 2]:

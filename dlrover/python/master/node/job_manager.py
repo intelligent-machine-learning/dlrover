@@ -495,11 +495,6 @@ class JobManager(object):
 
     def _relaunch_node(self, node: Node):
         if node.type == NodeType.WORKER:
-            if (
-                self._job_args.distribution_strategy
-                == DistributionStrategy.ALLREDUCE
-            ):
-                return
             plan = self._worker_manager.relaunch_node(node)
         elif node.type == NodeType.PS:
             plan = self._ps_manager.relaunch_node(node)
@@ -665,15 +660,17 @@ class JobManager(object):
         plan = self._worker_manager.remove_not_participated_workers(workers)
         self._scaler.scale(plan)
 
+    def pend_without_workers(self):
+        """Check whether to wait for evicted workers."""
+        if self._worker_manager.has_failed_worker():
+            return False
+        elif self._worker_manager.wait_worker_restart():
+            return True
+        else:
+            return False
+
 
 def create_job_manager(args: JobArgs, speed_monitor) -> JobManager:
-    # relaunch on worker failure for PS or custom strategy
-    if (
-        args.distribution_strategy != DistributionStrategy.PS
-        and args.distribution_strategy != DistributionStrategy.CUSTOM
-    ):
-        args.node_args[NodeType.WORKER].restart_count = 0
-
     critical_worker_index = get_critical_worker_index(args)
     # Custom distribution strategy does not exit if there are pending nodes
     wait_pending_relaunch = (
