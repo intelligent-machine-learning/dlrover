@@ -186,7 +186,7 @@ class WorkerManager(TrainingNodeManager):
                 worker.relaunchable = False
                 worker.is_released = True
                 down_num -= 1
-                plan.remove_nodes(worker)
+                plan.remove_nodes.append(worker)
         return plan
 
     def delete_exited_workers(self):
