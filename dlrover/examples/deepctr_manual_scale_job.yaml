@@ -11,7 +11,7 @@ spec:
   replicaSpecs:
     ps:
       autoScale: False
-      replicas: 3
+      replicas: 2
       template:
         spec:
           restartPolicy: Never
@@ -30,8 +30,7 @@ spec:
               command:
                 - /bin/bash
                 - -c
-                - "pip install pyhocon \
-                  && cd /home/model_zoo/tf_estimator/criteo_deeprec \
+                - "cd /home/model_zoo/tf_estimator/criteo_deeprec \
                   && python -m dlrover.trainer.entry.local_entry \
                   --platform=Kubernetes --conf=train_conf.TrainConf \
                   --enable_auto_scaling=True"
@@ -44,7 +43,7 @@ spec:
                 claimName: pvc-nas
     worker:
       autoScale: False
-      replicas: 3
+      replicas: 2
       template:
         spec:
           restartPolicy: Never
@@ -63,8 +62,7 @@ spec:
               command:
                 - /bin/bash
                 - -c
-                - "pip install pyhocon \
-                  && cd /home/model_zoo/tf_estimator/criteo_deeprec \
+                - "cd /home/model_zoo/tf_estimator/criteo_deeprec \
                   && python -m dlrover.trainer.entry.local_entry \
                   --platform=Kubernetes --conf=train_conf.TrainConf \
                   --enable_auto_scaling=True"
@@ -81,6 +79,5 @@ spec:
           restartPolicy: Never
           containers:
             - name: main
+              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:test 
               imagePullPolicy: Always
-              # yamllint disable-line rule:line-length
-              image: registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:v11

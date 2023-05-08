@@ -17,20 +17,23 @@ from dlrover.trainer.tensorflow.reader.base_reader import (  # noqa: F401
 
 class FileReader(ElasticReader):
     def __init__(self, path=None, skip_header=True):
+        print("FileReader is initiating path is {}".format(path))
         self._skip_header = skip_header
         self._file_handler = open(path, "r")
+        self.data = self._file_handler.readlines()
         self._file_name = path
         super().__init__(
             path=path,
         )
+        self._data_nums = None
 
     def count_data(self):
-        self.data = self._file_handler.readlines()
-        if self._skip_header:
-            self._data_nums = len(self.data) - 1
-            self.data = self.data[1:]
-        else:
-            self._data_nums = len(self.data)
+        if self._data_nums is None:
+            if self._skip_header:
+                self._data_nums = len(self.data) - 1
+                self.data = self.data[1:]
+            else:
+                self._data_nums = len(self.data)
 
     def read_data_by_index_range(self, start_index, end_index):
         for i in range(start_index, end_index):

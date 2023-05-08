@@ -209,6 +209,7 @@ class EstimatorExecutor(BaseExecutor):
     def _prepare_train_dataset(self):
         """prepare_train_dataset"""
         train_set = self._task_conf.get(TFConstants.TrainSet.name)
+        logger.info("Prepare training dataset with {}".format(train_set))
         self.train_dataset = DatasetUtil.create(train_set)
 
     def _prepare_eval_dataset(self):

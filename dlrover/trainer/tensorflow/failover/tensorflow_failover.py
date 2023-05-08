@@ -74,6 +74,7 @@ class TensorflowFailover:
         def monitor_fun():
             logger.info("Successfully to start failover monitor!")
             while True:
+                logger.info("querying master for ps cluster info")
                 ps_address_changed, change_type = self.ps_addresses_changed()
                 if ps_address_changed:
                     self.refresh_env()
