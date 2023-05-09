@@ -286,6 +286,7 @@ class ParameterServerManager(TrainingNodeManager):
                 and not ps.is_released
                 and ps.status
                 in [NodeStatus.INITIAL, NodeStatus.PENDING, NodeStatus.RUNNING]
+                and not ps.timeout(_dlrover_ctx.seconds_to_wait_failed_ps)
             ):
                 ps_addrs[ps.rank_index] = ps.service_addr
         ps_addrs = collections.OrderedDict(sorted(ps_addrs.items()))
