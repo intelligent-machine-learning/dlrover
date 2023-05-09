@@ -77,12 +77,6 @@ def ck_after_run(self, run_context, run_values):
     data_shard_client = global_dict.get(
         TFConstants.DataShardClient.name, TFConstants.DataShardClient()
     )
-    logger.info("data shard client is {}".format(data_shard_client))
-    logger.info(
-        "data_shard_client is {}".format(
-            data_shard_client.get_shard_checkpoint()
-        )
-    )
     data_shard_checkpoint = None
     if should_save_checkpoint:
         logger.info(

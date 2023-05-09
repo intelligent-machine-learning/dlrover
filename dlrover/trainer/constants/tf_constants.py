@@ -66,6 +66,7 @@ class TFConstants(object):
     EnableDynamicSharding = Constant("enable_dynamic_sharding", True)
     EnableIncrSavedModel = Constant("enable_incr_saved_model", False)
     RelaunchForPs = Constant("relaunch_for_ps", False)
+    RelaunchForFailure = Constant("relaunch_for_failure", False)
     SaveCheckpoint = Constant("save_checkpoint_for_ps", False)
     CheckpointIncrementalSaveSecs = Constant(
         "checkpoint_incremental_save_secs", None

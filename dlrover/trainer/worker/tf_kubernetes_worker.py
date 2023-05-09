@@ -69,12 +69,21 @@ class TFKubernetesWorker:
                 run_thread = threading.Thread(target=self.run_ps)
             else:
                 run_thread = threading.Thread(target=self.run_worker)
+                self.tensorflow_failover.set_training_thread(run_thread)
             run_thread.start()
             run_thread.join()
-            if not run_thread.is_alive() and global_dict.get(
-                TFConstants.RelaunchForPs.name, TFConstants.RelaunchForPs()
-            ):
-                logger.info("ps is migrating or scaling")
+            if not run_thread.is_alive():
+                if global_dict.get(
+                    TFConstants.RelaunchForPs.name, TFConstants.RelaunchForPs()
+                ):
+                    logger.info("ps is migrating or scaling")
+                elif global_dict.get(
+                    TFConstants.RelaunchForFailure.name,
+                    TFConstants.RelaunchForFailure(),
+                ):
+                    logger.info(
+                        "worker encounters ps failure and restart thread"
+                    )
                 global_dict.clear()
                 self.init_executor(self._task_conf)
                 continue

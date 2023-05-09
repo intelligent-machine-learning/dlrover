@@ -17,7 +17,6 @@ from dlrover.trainer.tensorflow.reader.base_reader import (  # noqa: F401
 
 class FileReader(ElasticReader):
     def __init__(self, path=None, skip_header=True):
-        print("FileReader is initiating path is {}".format(path))
         self._skip_header = skip_header
         self._file_handler = open(path, "r")
         self.data = self._file_handler.readlines()

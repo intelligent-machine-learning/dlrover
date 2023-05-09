@@ -166,7 +166,6 @@ class EstimatorExecutor(BaseExecutor):
             global_dict = common_util.GlobalDict()
             global_dict[TFConstants.DataShardClient.name] = data_shard_client
             logger.info("appending ElasticDataShardReportHook")
-            print(global_dict)
             shard_report_hook = ElasticDataShardReportHook(data_shard_client)
             model_metric_report_hook = ReportModelMetricHook()
             training_hooks.append(shard_report_hook)

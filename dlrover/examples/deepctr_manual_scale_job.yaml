@@ -79,5 +79,5 @@ spec:
           restartPolicy: Never
           containers:
             - name: main
-              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:test 
+              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:test
               imagePullPolicy: Always

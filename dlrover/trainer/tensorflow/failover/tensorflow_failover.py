@@ -98,6 +98,7 @@ class TensorflowFailover:
         changed = False
         changed_type = None
         curr_address, ps_failure = self._failover_client.get_training_ps_addr()
+        logger.info("ps_failure is  {}".format(ps_failure))
         if "".join(curr_address) != "".join(self.curr_ps_address):
             if len(curr_address) != len(self.curr_ps_address):
                 changed_type = "scaling"
@@ -129,8 +130,14 @@ class TensorflowFailover:
         )
 
     def exit_from_recoverable_session(self):
+        logger.info("exit_from_recoverable_session")
+        # TODO: when encountering ps failure, session will be hanged.
+        os._exit(2)
+
+    def set_training_thread(self, training_thread):
         global_dict = common_util.GlobalDict()
-        global_dict[TFConstants.ExitRecoverableSession.name] = True
+        global_dict[TFConstants.RelaunchForFailure.name] = True
+        self.training_thread = training_thread
 
     def info_cheif_do_checkpoints(self):
         global_dict = common_util.GlobalDict()
