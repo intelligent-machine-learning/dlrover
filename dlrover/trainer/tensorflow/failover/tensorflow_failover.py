@@ -103,12 +103,15 @@ class TensorflowFailover:
             else:
                 changed_type = "migrating"
             logger.info(
-                "ps address changed from {} to {}. And ps_failure is {}.".format(
-                    self.curr_ps_address, curr_address, ps_failure
+                "ps address changed from {} to {}.".format(
+                    self.curr_ps_address, curr_address
                 )
             )
             if ps_failure is True:
                 changed_type = "ps_failure"
+                logger.warning(
+                    "ps failure happens, worker pod is going to exit"
+                )
             self.curr_ps_address = curr_address
             changed = True
         return changed, changed_type
