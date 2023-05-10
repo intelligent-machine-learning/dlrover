@@ -29,6 +29,9 @@ from dlrover.trainer.torch.elastic import ElasticTrainer
 from dlrover.trainer.torch.elastic_dataset import ElasticDataset
 
 
+CHEKPOINT_PATH = "model.pt"
+
+
 def build_data_meta(folder):
     dataset_meta = []
     for d in os.listdir(folder):
@@ -126,6 +129,7 @@ def train(args):
     use_cuda = not args.no_cuda and torch.cuda.is_available()
     setup(use_cuda)
     device = torch.device("cuda" if use_cuda else "cpu")
+    checkpoint = load_checkpoint(CHEKPOINT_PATH)
 
     train_dataset = ElasticMnistDataset(
         path=args.training_data,
@@ -134,6 +138,8 @@ def train(args):
         shuffle=args.shuffle,
         checkpoint_path="./train_dataset.ckpt",
     )
+    if checkpoint:
+        train_dataset.load_state_dict(checkpoint["train_shards"])
     train_loader = DataLoader(
         dataset=train_dataset, batch_size=args.batch_size, num_workers=2
     )
@@ -165,7 +171,9 @@ def train(args):
 
     elastic_trainer = ElasticTrainer(model, train_loader)
     optimizer, scheduler = elastic_trainer.prepare(optimizer, scheduler)
-    load_checkpoint(model, optimizer)
+    if checkpoint:
+        model.load_state_dict(checkpoint["model_state_dict"])
+        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
     for _, (data, target) in enumerate(train_loader):
         model.train()
@@ -185,7 +193,9 @@ def train(args):
                 elastic_trainer.num_steps > 0
                 and elastic_trainer.num_steps % 200 == 0
             ):
-                save_checkpoint(model, optimizer, train_dataset)
+                save_checkpoint(
+                    CHEKPOINT_PATH, model, optimizer, train_dataset
+                )
             if (
                 elastic_trainer.num_steps > 0
                 and elastic_trainer.num_steps % 10000 == 0
@@ -193,21 +203,21 @@ def train(args):
                 test(model, device, test_loader)
 
 
-def save_checkpoint(model, optimizer, dataset: ElasticDataset):
-    model_checkpoint = {
+def save_checkpoint(path, model, optimizer, dataset: ElasticDataset):
+    print("Save checkpoint.")
+    checkpoint = {
         "model_state_dict": model.state_dict(),
         "optimizer_state_dict": optimizer.state_dict(),
+        "train_shards": dataset.state_dict(),
     }
-    torch.save(model_checkpoint, "model.pt")
-    dataset.save_checkpoint()
+    torch.save(checkpoint, path)
 
 
-def load_checkpoint(model, optimizer):
-    if not os.path.exists("model.pt"):
-        return
-    checkpoint = torch.load("model.pt")
-    model.load_state_dict(checkpoint["model_state_dict"])
-    optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+def load_checkpoint(path):
+    if not os.path.exists(path):
+        return {}
+    checkpoint = torch.load(path)
+    return checkpoint
 
 
 def test(model, device, test_loader):

@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import time
 from abc import ABCMeta, abstractmethod
 
@@ -26,12 +25,6 @@ def get_rank():
     if dist.is_initialized():
         rank = dist.get_rank()
     return rank
-
-
-def read_txt(path):
-    with open(path, "r") as fp:
-        content = fp.readlines()
-        return content
 
 
 class ElasticDataset(Dataset, metaclass=ABCMeta):
@@ -70,7 +63,6 @@ class ElasticDataset(Dataset, metaclass=ABCMeta):
             shuffle=shuffle,
             storage_type="text",
         )
-        self.load_checkpoint()
 
     def __len__(self):
         return self._shard_client.get_total_sample_num()
@@ -87,29 +79,26 @@ class ElasticDataset(Dataset, metaclass=ABCMeta):
         report the batch completion."""
         self._shard_client.report_batch_done(batch_size)
 
-    def save_checkpoint(self):
+    def state_dict(self):
         """
         Checkpoint the shards which are not completed from the
         DLRover job master.
         """
         rank = get_rank()
-        if rank != 0 or not self._checkpoint_path:
+        if rank != 0:
             return
-        checkpoint = self._shard_client.get_shard_checkpoint()
-        with open(self._checkpoint_path, "w") as f:
-            f.write(checkpoint)
+        shards = self._shard_client.get_shard_checkpoint()
+        return {"shards": shards}
 
-    def load_checkpoint(self):
+    def load_state_dict(self, state):
         """
         Restore the uncompleted shards from a checkpoint. The shard
         client will send uncompleted shards to the DLRover job master.
         The master will assign those shards to workers to restore training.
         """
         rank = get_rank()
-        if rank == 0 and os.path.exists(self._checkpoint_path):
-            with open(self._checkpoint_path, "r") as f:
-                content = f.read()
-                self._shard_client.restore_shard_from_checkpoint(content)
+        if rank == 0:
+            self._shard_client.restore_shard_from_checkpoint(state["shards"])
         dist.barrier()  # Wait rank-0 to report checkpoint.
         self._shard_client.set_max_shard_count()
 
