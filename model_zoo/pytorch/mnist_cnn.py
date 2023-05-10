@@ -28,7 +28,6 @@ from torch.utils.data import DataLoader
 from dlrover.trainer.torch.elastic import ElasticTrainer
 from dlrover.trainer.torch.elastic_dataset import ElasticDataset
 
-
 CHEKPOINT_PATH = "model.pt"
 
 
