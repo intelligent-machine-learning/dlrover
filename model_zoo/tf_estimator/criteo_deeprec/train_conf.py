@@ -54,7 +54,7 @@ class TrainConf(object):
     train_set = {
         "reader": FileReader("./data_kaggle_ad_ctr_train.csv"),
         "columns": col,
-        "epoch": 100000,
+        "epoch": 10,
         "batch_size": 32,
     }
 

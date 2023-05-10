@@ -85,8 +85,8 @@ class TFKubernetesWorker:
                     logger.info(
                         "worker encounters ps failure and restart thread"
                     )
+                else:
+                    break
                 global_dict.clear()
                 self.init_executor(self._task_conf)
                 continue
-            else:
-                break
