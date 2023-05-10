@@ -264,10 +264,7 @@ class WorkerManager(TrainingNodeManager):
     def has_failed_worker(self):
         """Check whether there is failed worker except evicted workers."""
         for worker in self._nodes.values():
-            if worker.exit_reason in [
-                NodeExitReason.FATAL_ERROR,
-                NodeExitReason.UNKNOWN_ERROR,
-            ]:
+            if worker.exit_reason == NodeExitReason.FATAL_ERROR:
                 return True
         return False
 
