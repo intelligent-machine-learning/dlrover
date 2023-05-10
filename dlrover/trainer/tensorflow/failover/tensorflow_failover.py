@@ -97,15 +97,14 @@ class TensorflowFailover:
         changed = False
         changed_type = None
         curr_address, ps_failure = self._failover_client.get_training_ps_addr()
-        logger.info("ps_failure is  {}".format(ps_failure))
         if "".join(curr_address) != "".join(self.curr_ps_address):
             if len(curr_address) != len(self.curr_ps_address):
                 changed_type = "scaling"
             else:
                 changed_type = "migrating"
             logger.info(
-                "ps address changed from {} to {}.".format(
-                    self.curr_ps_address, curr_address
+                "ps address changed from {} to {}. And ps_failure is {}.".format(
+                    self.curr_ps_address, curr_address, ps_failure
                 )
             )
             if ps_failure is True:
