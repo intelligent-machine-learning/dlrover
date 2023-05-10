@@ -34,7 +34,6 @@ class ElasticDataset(Dataset, metaclass=ABCMeta):
         batch_size,
         epochs,
         shuffle,
-        checkpoint_path="",
         name=None,
     ):
         """Using ElasticDataset, the node can read samples without
@@ -47,12 +46,9 @@ class ElasticDataset(Dataset, metaclass=ABCMeta):
                 in a trainer process.
             epochs: int, the number of epoch.
             shuffle: bool, whether to shuffle samples in the dataset.
-            checkpoint_path: the path to save the checkpoint of shards
-                int the dataset.
             name: str, the name of dataset.
         """
         self.dataset_size = dataset_size
-        self._checkpoint_path = checkpoint_path
         if not name:
             name = "dlrover-ds-" + str(time.time())
         self._shard_client = IndexShardingClient(

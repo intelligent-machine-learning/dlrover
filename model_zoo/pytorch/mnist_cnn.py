@@ -45,7 +45,7 @@ def build_data_meta(folder):
 
 
 class ElasticMnistDataset(ElasticDataset):
-    def __init__(self, path, batch_size, epochs, shuffle, checkpoint_path):
+    def __init__(self, path, batch_size, epochs, shuffle):
         """The dataset supports elastic training.
 
         Args:
@@ -54,8 +54,6 @@ class ElasticMnistDataset(ElasticDataset):
                 in a trainer process.
             epochs: int, the number of epoch.
             shuffle: bool, whether to shuffle samples in the dataset.
-            checkpoint_path: the path to save the checkpoint of shards
-                int the dataset.
         """
         self.data_meta = build_data_meta(path)
         super(ElasticMnistDataset, self).__init__(
@@ -63,7 +61,6 @@ class ElasticMnistDataset(ElasticDataset):
             batch_size,
             epochs,
             shuffle,
-            checkpoint_path,
         )
 
     def read_sample(self, index):
@@ -136,7 +133,6 @@ def train(args):
         batch_size=args.batch_size,
         epochs=args.num_epochs,
         shuffle=args.shuffle,
-        checkpoint_path="./train_dataset.ckpt",
     )
     if checkpoint:
         train_dataset.load_state_dict(checkpoint["train_shards"])
@@ -149,7 +145,6 @@ def train(args):
         batch_size=args.batch_size,
         epochs=1,
         shuffle=False,
-        checkpoint_path="./test_dataset.ckpt",
     )
     test_loader = DataLoader(
         dataset=test_dataset, batch_size=args.batch_size, num_workers=2
