@@ -143,7 +143,6 @@ def ck_after_run(self, run_context, run_values):
                     data_shard_checkpoint = (
                         data_shard_client.get_shard_checkpoint()
                     )
-    logger.info("data_shard_checkpoint is {}".format(data_shard_checkpoint))
     if data_shard_checkpoint is not None:
         logger.info(
             "data_shard_checkpoint for global step {} is {}".format(

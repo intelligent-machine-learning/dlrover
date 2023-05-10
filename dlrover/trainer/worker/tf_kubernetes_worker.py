@@ -69,7 +69,8 @@ class TFKubernetesWorker:
                 run_thread = threading.Thread(target=self.run_ps)
             else:
                 run_thread = threading.Thread(target=self.run_worker)
-                self.tensorflow_failover.set_training_thread(run_thread)
+                if hasattr(self, "tensorflow_failover"):
+                    self.tensorflow_failover.set_training_thread(run_thread)
             run_thread.start()
             run_thread.join()
             if not run_thread.is_alive():

@@ -74,7 +74,6 @@ class TensorflowFailover:
         def monitor_fun():
             logger.info("Successfully to start failover monitor!")
             while True:
-                logger.info("querying master for ps cluster info")
                 ps_address_changed, change_type = self.ps_addresses_changed()
                 if ps_address_changed:
                     self.refresh_env()
@@ -132,6 +131,7 @@ class TensorflowFailover:
     def exit_from_recoverable_session(self):
         logger.info("exit_from_recoverable_session")
         # TODO: when encountering ps failure, session will be hanged.
+        # we need to add grpc timeout
         os._exit(2)
 
     def set_training_thread(self, training_thread):
