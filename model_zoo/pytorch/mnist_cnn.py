@@ -29,14 +29,24 @@ from dlrover.trainer.torch.elastic import ElasticTrainer
 from dlrover.trainer.torch.elastic_dataset import ElasticDataset
 
 
+def build_data_meta(folder):
+    dataset_meta = []
+    for d in os.listdir(folder):
+        dir_path = os.path.join(folder, d)
+        if os.path.isdir(dir_path):
+            for f in os.listdir(dir_path):
+                if f.endswith(".png"):
+                    file_path = os.path.join(dir_path, f)
+                    dataset_meta.append([file_path, d])
+    return dataset_meta
+
+
 class ElasticMnistDataset(ElasticDataset):
     def __init__(self, path, batch_size, epochs, shuffle, checkpoint_path):
         """The dataset supports elastic training.
 
         Args:
-            path: str, the path of dataset meta file. For example, if the image
-                is stored in a folder. The meta file should be a
-                text file where each line is the absolute path of a image.
+            dataset_size: the number of samples in the dataset.
             batch_size: int, the size of batch samples to compute gradients
                 in a trainer process.
             epochs: int, the number of epoch.
@@ -44,8 +54,9 @@ class ElasticMnistDataset(ElasticDataset):
             checkpoint_path: the path to save the checkpoint of shards
                 int the dataset.
         """
+        self.data_meta = build_data_meta(path)
         super(ElasticMnistDataset, self).__init__(
-            path,
+            len(self.data_meta),
             batch_size,
             epochs,
             shuffle,
@@ -53,8 +64,7 @@ class ElasticMnistDataset(ElasticDataset):
         )
 
     def read_sample(self, index):
-        image_meta = self.lines[index]
-        image_path, label = image_meta.split(",")
+        image_path, label = self.data_meta[index]
         image = cv2.imread(image_path)
         image = np.array(image / 255.0, np.float32)
         image = image.reshape(3, 28, 28)

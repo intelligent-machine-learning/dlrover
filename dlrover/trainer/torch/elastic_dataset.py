@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import os
+import time
 from abc import ABCMeta, abstractmethod
 
 import torch.distributed as dist
@@ -34,27 +35,35 @@ def read_txt(path):
 
 
 class ElasticDataset(Dataset, metaclass=ABCMeta):
-    def __init__(self, path, batch_size, epochs, shuffle, checkpoint_path=""):
+    def __init__(
+        self,
+        dataset_size,
+        batch_size,
+        epochs,
+        shuffle,
+        checkpoint_path="",
+        name=None,
+    ):
         """Using ElasticDataset, the node can read samples without
         duplicates with other nodes in an epoch. DLRover master
         will dispatch the index of sample in a dataset to one node.
 
         Args:
-            path: str, the path of dataset meta file. For example, if the image
-                is stored in a folder. The meta file should be a
-                text file where each line is the absolute path of a image.
+            dataset_size: the number of samples in the dataset.
             batch_size: int, the size of batch samples to compute gradients
                 in a trainer process.
             epochs: int, the number of epoch.
             shuffle: bool, whether to shuffle samples in the dataset.
             checkpoint_path: the path to save the checkpoint of shards
                 int the dataset.
+            name: str, the name of dataset.
         """
-        self.lines = read_txt(path)
-        self.dataset_size = len(self.lines)
+        self.dataset_size = dataset_size
         self._checkpoint_path = checkpoint_path
+        if not name:
+            name = "dlrover-ds-" + str(time.time())
         self._shard_client = IndexShardingClient(
-            dataset_name=path,
+            dataset_name=name,
             batch_size=batch_size,
             num_epochs=epochs,
             dataset_size=self.dataset_size,
