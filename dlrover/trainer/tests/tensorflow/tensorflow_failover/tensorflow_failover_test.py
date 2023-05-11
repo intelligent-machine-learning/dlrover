@@ -28,7 +28,7 @@ class MockFailoverClient:
         return
 
     def get_training_ps_addr(self):
-        return ["web04-pod2.default.svc:5004"]
+        return ["web04-pod2.default.svc:5004"], False
 
 
 class TensorflowFailoverTest(unittest.TestCase):

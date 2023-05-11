@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import time
 
 from tensorflow.python.client import session
@@ -19,6 +20,7 @@ from tensorflow.python.training import monitored_session, session_manager
 from tensorflow.python.training.monitored_session import _WrappedSession
 from tensorflow_estimator.python.estimator.mode_keys import ModeKeys
 
+from dlrover.trainer.constants.tf_constants import TFConstants
 from dlrover.trainer.tensorflow.util import common_util
 from dlrover.trainer.tensorflow.util.tf_version_util import (
     is_tf_2,
@@ -304,6 +306,17 @@ def prepare_session_115(
         max_wait_secs=max_wait_secs,
         config=config,
     )
+    global_dict = common_util.GlobalDict()
+    if is_loaded_from_checkpoint:
+        data_shard_client = global_dict.get(
+            TFConstants.DataShardClient.name, TFConstants.DataShardClient()
+        )
+        if data_shard_client is not None:
+            with open("data_shard_checkpoint.json", "r") as f:
+                data_shard_checkpoint = json.load(f)
+                data_shard_client.restore_shard_from_checkpoint(
+                    data_shard_checkpoint
+                )
     if not is_loaded_from_checkpoint:
         if init_op is None and not init_fn and self._local_init_op is None:
             raise RuntimeError(

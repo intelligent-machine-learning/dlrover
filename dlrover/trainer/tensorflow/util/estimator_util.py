@@ -11,6 +11,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
+
 from tensorflow.python.estimator.estimator import Estimator
 from tensorflow.python.training import basic_session_run_hooks
 
@@ -64,11 +66,18 @@ basic_session_run_hooks.StopAtStepHook.after_run = after_run
 
 
 def ck_after_run(self, run_context, run_values):
+    logger.info("save checkpoint session hook runs")
+
     stale_global_step = run_values.results
     global_dict = common_util.GlobalDict()
+    print(global_dict)
     should_save_checkpoint = global_dict.get(
         TFConstants.SaveCheckpoint.name, TFConstants.SaveCheckpoint()
     )
+    data_shard_client = global_dict.get(
+        TFConstants.DataShardClient.name, TFConstants.DataShardClient()
+    )
+    data_shard_checkpoint = None
     if should_save_checkpoint:
         logger.info(
             "Before saving checkpoint, cheif should wait for \
@@ -98,6 +107,10 @@ def ck_after_run(self, run_context, run_values):
             self._timer.update_last_triggered_step(global_step)
             if self._save(run_context.session, global_step):
                 run_context.request_stop()
+            if data_shard_checkpoint is not None:
+                data_shard_checkpoint = (
+                    data_shard_client.get_shard_checkpoint()
+                )
     elif self._incremental_save:
         if (
             self._incremental_timer.should_trigger_for_step(
@@ -126,6 +139,18 @@ def ck_after_run(self, run_context, run_values):
                     global_step,
                     self._incremental_save_path,
                 )
+                if data_shard_checkpoint is not None:
+                    data_shard_checkpoint = (
+                        data_shard_client.get_shard_checkpoint()
+                    )
+    if data_shard_checkpoint is not None:
+        logger.info(
+            "data_shard_checkpoint for global step {} is {}".format(
+                global_step, data_shard_checkpoint
+            )
+        )
+        with open(TFConstants.DataShardCheckpoint(), "w") as f:
+            json.dump(data_shard_checkpoint, f)
 
 
 def append_hooks(estimator_spec, key, params):
