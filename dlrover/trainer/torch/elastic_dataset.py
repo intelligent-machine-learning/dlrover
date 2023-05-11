@@ -28,6 +28,28 @@ def get_rank():
 
 
 class ElasticDataset(Dataset, metaclass=ABCMeta):
+    """Using ElasticDataset, the node can read samples without
+    duplicates with other nodes in an epoch. DLRover master
+    will dispatch the index of sample in a dataset to one node.
+    Users need to implement the read_sample to read data by the
+    sample index.
+
+    Example:
+    >>> dataset = ElasticDataset(1000, 32, 2, True)
+    >>> state = dataset.state_dict()  # checkpoint
+    >>> dataset.load_state_dict(state)
+    >>> data_loader = DataLoader(
+    >>>     dataset=dataset, batch_size=args.batch_size, num_workers=2,
+    >>> )
+
+    Args:
+        dataset_size: the number of samples in the dataset.
+        batch_size: int, the size of batch samples to compute gradients
+            in a trainer process.
+        epochs: int, the number of epoch.
+        shuffle: bool, whether to shuffle samples in the dataset.
+        name: str, the name of dataset.
+    """
     def __init__(
         self,
         dataset_size,
@@ -37,28 +59,6 @@ class ElasticDataset(Dataset, metaclass=ABCMeta):
         name=None,
         num_minibatches_per_shard=2,
     ):
-        """Using ElasticDataset, the node can read samples without
-        duplicates with other nodes in an epoch. DLRover master
-        will dispatch the index of sample in a dataset to one node.
-        Users need to implement the read_sample to read data by the
-        sample index.
-
-        Example:
-        >>> dataset = ElasticDataset(1000, 32, 2, True)
-        >>> state = dataset.state_dict()  # checkpoint
-        >>> dataset.load_state_dict(state)
-        >>> data_loader = DataLoader(
-        >>>     dataset=dataset, batch_size=args.batch_size, num_workers=2,
-        >>> )
-
-        Args:
-            dataset_size: the number of samples in the dataset.
-            batch_size: int, the size of batch samples to compute gradients
-                in a trainer process.
-            epochs: int, the number of epoch.
-            shuffle: bool, whether to shuffle samples in the dataset.
-            name: str, the name of dataset.
-        """
         self.dataset_size = dataset_size
         if not name:
             name = "dlrover-ds-" + str(time.time())
