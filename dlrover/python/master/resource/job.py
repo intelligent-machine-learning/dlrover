@@ -332,6 +332,7 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
                     new_resource.node_resource.memory,
                 )
         cur_mem *= NodeResourceLimit.INCREMENTAL_MEMORY_FACTOR
+        cur_mem = min(cur_mem, NodeResourceLimit.MAX_MEMORY)
         node.config_resource.memory = int(
             max(
                 self._worker_resource.node_resource.memory,
