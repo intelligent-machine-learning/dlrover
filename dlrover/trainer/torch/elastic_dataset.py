@@ -50,6 +50,7 @@ class ElasticDataset(Dataset, metaclass=ABCMeta):
         shuffle: bool, whether to shuffle samples in the dataset.
         name: str, the name of dataset.
     """
+
     def __init__(
         self,
         dataset_size,
