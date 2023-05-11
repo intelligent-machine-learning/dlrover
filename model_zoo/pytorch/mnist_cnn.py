@@ -32,6 +32,24 @@ CHEKPOINT_PATH = "model.pt"
 
 
 def build_data_meta(folder):
+    """Save the path of sample into a list and we can get the path
+    by the index of sample.
+
+    The directory structure of mnist is
+    |- root
+      |- 0
+        |- 1.png
+        |- 21.png
+      |- 1
+        |- 3.png
+        |- 6.png
+    the meta is a list [
+        ("root/0/1.png", 0),
+        ("root/0/21.png", 0),
+        ("root/3.png", 1),
+        ("root/1/6.png", 1),
+    ]
+    """
     dataset_meta = []
     for d in os.listdir(folder):
         dir_path = os.path.join(folder, d)
