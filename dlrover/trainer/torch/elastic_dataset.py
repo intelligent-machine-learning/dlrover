@@ -40,6 +40,8 @@ class ElasticDataset(Dataset, metaclass=ABCMeta):
         """Using ElasticDataset, the node can read samples without
         duplicates with other nodes in an epoch. DLRover master
         will dispatch the index of sample in a dataset to one node.
+        Users need to implement the read_sample to read data by the
+        sample index.
 
         Args:
             dataset_size: the number of samples in the dataset.
