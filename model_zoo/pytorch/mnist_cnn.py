@@ -28,33 +28,52 @@ from torch.utils.data import DataLoader
 from dlrover.trainer.torch.elastic import ElasticTrainer
 from dlrover.trainer.torch.elastic_dataset import ElasticDataset
 
+CHEKPOINT_PATH = "model.pt"
+
+
+def build_data_meta(folder):
+    """Save the path of sample into a list and we can get the path
+    by the index of sample.
+
+    The directory structure of mnist is
+    |- root
+      |- 0
+        |- 1.png
+        |- 21.png
+      |- 1
+        |- 3.png
+        |- 6.png
+    the meta is a list [
+        ("root/0/1.png", 0),
+        ("root/0/21.png", 0),
+        ("root/3.png", 1),
+        ("root/1/6.png", 1),
+    ]
+    """
+    dataset_meta = []
+    for d in os.listdir(folder):
+        dir_path = os.path.join(folder, d)
+        if os.path.isdir(dir_path):
+            for f in os.listdir(dir_path):
+                if f.endswith(".png"):
+                    file_path = os.path.join(dir_path, f)
+                    dataset_meta.append([file_path, d])
+    return dataset_meta
+
 
 class ElasticMnistDataset(ElasticDataset):
-    def __init__(self, path, batch_size, epochs, shuffle, checkpoint_path):
-        """The dataset supports elastic training.
-
-        Args:
-            path: str, the path of dataset meta file. For example, if the image
-                is stored in a folder. The meta file should be a
-                text file where each line is the absolute path of a image.
-            batch_size: int, the size of batch samples to compute gradients
-                in a trainer process.
-            epochs: int, the number of epoch.
-            shuffle: bool, whether to shuffle samples in the dataset.
-            checkpoint_path: the path to save the checkpoint of shards
-                int the dataset.
-        """
+    def __init__(self, path, batch_size, epochs, shuffle):
+        """The dataset supports elastic training."""
+        self.data_meta = build_data_meta(path)
         super(ElasticMnistDataset, self).__init__(
-            path,
+            len(self.data_meta),
             batch_size,
             epochs,
             shuffle,
-            checkpoint_path,
         )
 
     def read_sample(self, index):
-        image_meta = self.lines[index]
-        image_path, label = image_meta.split(",")
+        image_path, label = self.data_meta[index]
         image = cv2.imread(image_path)
         image = np.array(image / 255.0, np.float32)
         image = image.reshape(3, 28, 28)
@@ -116,14 +135,16 @@ def train(args):
     use_cuda = not args.no_cuda and torch.cuda.is_available()
     setup(use_cuda)
     device = torch.device("cuda" if use_cuda else "cpu")
+    checkpoint = load_checkpoint(CHEKPOINT_PATH)
 
     train_dataset = ElasticMnistDataset(
         path=args.training_data,
         batch_size=args.batch_size,
         epochs=args.num_epochs,
         shuffle=args.shuffle,
-        checkpoint_path="./train_dataset.ckpt",
     )
+    if checkpoint:
+        train_dataset.load_state_dict(checkpoint.get("train_shards", {}))
     train_loader = DataLoader(
         dataset=train_dataset, batch_size=args.batch_size, num_workers=2
     )
@@ -133,7 +154,6 @@ def train(args):
         batch_size=args.batch_size,
         epochs=1,
         shuffle=False,
-        checkpoint_path="./test_dataset.ckpt",
     )
     test_loader = DataLoader(
         dataset=test_dataset, batch_size=args.batch_size, num_workers=2
@@ -155,7 +175,9 @@ def train(args):
 
     elastic_trainer = ElasticTrainer(model, train_loader)
     optimizer, scheduler = elastic_trainer.prepare(optimizer, scheduler)
-    load_checkpoint(model, optimizer)
+    if checkpoint:
+        model.load_state_dict(checkpoint.get("model_state_dict", {}))
+        optimizer.load_state_dict(checkpoint.get("optimizer_state_dict", {}))
 
     for _, (data, target) in enumerate(train_loader):
         model.train()
@@ -175,7 +197,9 @@ def train(args):
                 elastic_trainer.num_steps > 0
                 and elastic_trainer.num_steps % 200 == 0
             ):
-                save_checkpoint(model, optimizer, train_dataset)
+                save_checkpoint(
+                    CHEKPOINT_PATH, model, optimizer, train_dataset
+                )
             if (
                 elastic_trainer.num_steps > 0
                 and elastic_trainer.num_steps % 10000 == 0
@@ -183,21 +207,21 @@ def train(args):
                 test(model, device, test_loader)
 
 
-def save_checkpoint(model, optimizer, dataset: ElasticDataset):
-    model_checkpoint = {
+def save_checkpoint(path, model, optimizer, dataset: ElasticDataset):
+    print("Save checkpoint.")
+    checkpoint = {
         "model_state_dict": model.state_dict(),
         "optimizer_state_dict": optimizer.state_dict(),
+        "train_shards": dataset.state_dict(),
     }
-    torch.save(model_checkpoint, "model.pt")
-    dataset.save_checkpoint()
+    torch.save(checkpoint, path)
 
 
-def load_checkpoint(model, optimizer):
-    if not os.path.exists("model.pt"):
-        return
-    checkpoint = torch.load("model.pt")
-    model.load_state_dict(checkpoint["model_state_dict"])
-    optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+def load_checkpoint(path):
+    if not os.path.exists(path):
+        return {}
+    checkpoint = torch.load(path)
+    return checkpoint
 
 
 def test(model, device, test_loader):

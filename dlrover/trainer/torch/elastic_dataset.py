@@ -11,8 +11,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
+import time
 from abc import ABCMeta, abstractmethod
+from typing import Dict
 
 import torch.distributed as dist
 from torch.utils.data import Dataset
@@ -27,41 +28,51 @@ def get_rank():
     return rank
 
 
-def read_txt(path):
-    with open(path, "r") as fp:
-        content = fp.readlines()
-        return content
-
-
 class ElasticDataset(Dataset, metaclass=ABCMeta):
-    def __init__(self, path, batch_size, epochs, shuffle, checkpoint_path=""):
-        """Using ElasticDataset, the node can read samples without
-        duplicates with other nodes in an epoch. DLRover master
-        will dispatch the index of sample in a dataset to one node.
+    """Using ElasticDataset, the node can read samples without
+    duplicates with other nodes in an epoch. DLRover master
+    will dispatch the index of sample in a dataset to one node.
+    Users need to implement the read_sample to read data by the
+    sample index.
 
-        Args:
-            path: str, the path of dataset meta file. For example, if the image
-                is stored in a folder. The meta file should be a
-                text file where each line is the absolute path of a image.
-            batch_size: int, the size of batch samples to compute gradients
-                in a trainer process.
-            epochs: int, the number of epoch.
-            shuffle: bool, whether to shuffle samples in the dataset.
-            checkpoint_path: the path to save the checkpoint of shards
-                int the dataset.
-        """
-        self.lines = read_txt(path)
-        self.dataset_size = len(self.lines)
-        self._checkpoint_path = checkpoint_path
+    Example:
+    >>> dataset = ElasticDataset(1000, 32, 2, True)
+    >>> state = dataset.state_dict()  # checkpoint
+    >>> dataset.load_state_dict(state)
+    >>> data_loader = DataLoader(
+    >>>     dataset=dataset, batch_size=args.batch_size, num_workers=2,
+    >>> )
+
+    Args:
+        dataset_size: the number of samples in the dataset.
+        batch_size: int, the size of batch samples to compute gradients
+            in a trainer process.
+        epochs: int, the number of epoch.
+        shuffle: bool, whether to shuffle samples in the dataset.
+        name: str, the name of dataset.
+    """
+
+    def __init__(
+        self,
+        dataset_size,
+        batch_size,
+        epochs,
+        shuffle,
+        name=None,
+        num_minibatches_per_shard=2,
+    ):
+        self.dataset_size = dataset_size
+        if not name:
+            name = "dlrover-ds-" + str(time.time())
         self._shard_client = IndexShardingClient(
-            dataset_name=path,
+            dataset_name=name,
             batch_size=batch_size,
             num_epochs=epochs,
             dataset_size=self.dataset_size,
             shuffle=shuffle,
             storage_type="text",
+            num_minibatches_per_shard=num_minibatches_per_shard,
         )
-        self.load_checkpoint()
 
     def __len__(self):
         return self._shard_client.get_total_sample_num()
@@ -78,29 +89,28 @@ class ElasticDataset(Dataset, metaclass=ABCMeta):
         report the batch completion."""
         self._shard_client.report_batch_done(batch_size)
 
-    def save_checkpoint(self):
+    def state_dict(self):
         """
         Checkpoint the shards which are not completed from the
         DLRover job master.
         """
         rank = get_rank()
-        if rank != 0 or not self._checkpoint_path:
+        if rank != 0:
             return
-        checkpoint = self._shard_client.get_shard_checkpoint()
-        with open(self._checkpoint_path, "w") as f:
-            f.write(checkpoint)
+        shards = self._shard_client.get_shard_checkpoint()
+        return {"shards": shards}
 
-    def load_checkpoint(self):
+    def load_state_dict(self, state: Dict[str, str]):
         """
         Restore the uncompleted shards from a checkpoint. The shard
         client will send uncompleted shards to the DLRover job master.
         The master will assign those shards to workers to restore training.
         """
         rank = get_rank()
-        if rank == 0 and os.path.exists(self._checkpoint_path):
-            with open(self._checkpoint_path, "r") as f:
-                content = f.read()
-                self._shard_client.restore_shard_from_checkpoint(content)
+        if rank == 0 and state:
+            shards = state.get("shards", "")
+            if shards:
+                self._shard_client.restore_shard_from_checkpoint(shards)
         dist.barrier()  # Wait rank-0 to report checkpoint.
         self._shard_client.set_max_shard_count()
 
