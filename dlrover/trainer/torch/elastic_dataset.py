@@ -43,6 +43,14 @@ class ElasticDataset(Dataset, metaclass=ABCMeta):
         Users need to implement the read_sample to read data by the
         sample index.
 
+        Example:
+        >>> dataset = ElasticDataset(1000, 32, 2, True)
+        >>> state = dataset.state_dict()  # checkpoint
+        >>> dataset.load_state_dict(state)
+        >>> data_loader = DataLoader(
+        >>>     dataset=dataset, batch_size=args.batch_size, num_workers=2,
+        >>> )
+
         Args:
             dataset_size: the number of samples in the dataset.
             batch_size: int, the size of batch samples to compute gradients
