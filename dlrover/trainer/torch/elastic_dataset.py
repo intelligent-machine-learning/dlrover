@@ -35,6 +35,7 @@ class ElasticDataset(Dataset, metaclass=ABCMeta):
         epochs,
         shuffle,
         name=None,
+        num_minibatches_per_shard=2,
     ):
         """Using ElasticDataset, the node can read samples without
         duplicates with other nodes in an epoch. DLRover master
@@ -58,6 +59,7 @@ class ElasticDataset(Dataset, metaclass=ABCMeta):
             dataset_size=self.dataset_size,
             shuffle=shuffle,
             storage_type="text",
+            num_minibatches_per_shard=num_minibatches_per_shard,
         )
 
     def __len__(self):
