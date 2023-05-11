@@ -63,15 +63,7 @@ def build_data_meta(folder):
 
 class ElasticMnistDataset(ElasticDataset):
     def __init__(self, path, batch_size, epochs, shuffle):
-        """The dataset supports elastic training.
-
-        Args:
-            dataset_size: the number of samples in the dataset.
-            batch_size: int, the size of batch samples to compute gradients
-                in a trainer process.
-            epochs: int, the number of epoch.
-            shuffle: bool, whether to shuffle samples in the dataset.
-        """
+        """The dataset supports elastic training."""
         self.data_meta = build_data_meta(path)
         super(ElasticMnistDataset, self).__init__(
             len(self.data_meta),
