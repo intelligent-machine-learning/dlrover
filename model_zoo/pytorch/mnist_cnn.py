@@ -144,7 +144,7 @@ def train(args):
         shuffle=args.shuffle,
     )
     if checkpoint:
-        train_dataset.load_state_dict(checkpoint["train_shards"])
+        train_dataset.load_state_dict(checkpoint.get("train_shards", {}))
     train_loader = DataLoader(
         dataset=train_dataset, batch_size=args.batch_size, num_workers=2
     )
@@ -176,8 +176,8 @@ def train(args):
     elastic_trainer = ElasticTrainer(model, train_loader)
     optimizer, scheduler = elastic_trainer.prepare(optimizer, scheduler)
     if checkpoint:
-        model.load_state_dict(checkpoint["model_state_dict"])
-        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        model.load_state_dict(checkpoint.get("model_state_dict", {}))
+        optimizer.load_state_dict(checkpoint.get("optimizer_state_dict", {}))
 
     for _, (data, target) in enumerate(train_loader):
         model.train()

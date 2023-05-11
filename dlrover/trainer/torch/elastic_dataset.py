@@ -13,6 +13,7 @@
 
 import time
 from abc import ABCMeta, abstractmethod
+from typing import Dict
 
 import torch.distributed as dist
 from torch.utils.data import Dataset
@@ -99,15 +100,17 @@ class ElasticDataset(Dataset, metaclass=ABCMeta):
         shards = self._shard_client.get_shard_checkpoint()
         return {"shards": shards}
 
-    def load_state_dict(self, state):
+    def load_state_dict(self, state: Dict[str, str]):
         """
         Restore the uncompleted shards from a checkpoint. The shard
         client will send uncompleted shards to the DLRover job master.
         The master will assign those shards to workers to restore training.
         """
         rank = get_rank()
-        if rank == 0:
-            self._shard_client.restore_shard_from_checkpoint(state["shards"])
+        if rank == 0 and state:
+            shards = state.get("shards", "")
+            if shards:
+                self._shard_client.restore_shard_from_checkpoint(shards)
         dist.barrier()  # Wait rank-0 to report checkpoint.
         self._shard_client.set_max_shard_count()
 
