@@ -16,6 +16,7 @@ from typing import Dict, List
 
 from dlrover.python.common.constants import (
     NodeExitReason,
+    NodeResourceLimit,
     NodeStatus,
     NodeType,
 )
