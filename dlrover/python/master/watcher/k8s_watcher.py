@@ -64,6 +64,8 @@ def _get_pod_exit_reason(pod):
         ):
             return NodeExitReason.FATAL_ERROR
         else:
+            if terminated.exit_code in (ExitCode.GPU_DRIVER_ERROR, ExitCode.GPU_POD_RESIDUE):
+                logger.info("Possible error found in GPU. Kill this node and launch a new one.")
             return NodeExitReason.UNKNOWN_ERROR
 
 
