@@ -66,8 +66,8 @@ class FailoverClient:
         logger.info("successfully set local version: %s.", version)
 
     def get_training_ps_addr(self):
-        ps_nodes, _ = self._client.get_all_ps_nodes()
-        return [n.addr for n in ps_nodes]
+        ps_nodes, ps_failure = self._client.get_all_ps_nodes()
+        return [n.addr for n in ps_nodes], ps_failure
 
     def init_version(self, version=0):
         logger.info("initiating local and global version")

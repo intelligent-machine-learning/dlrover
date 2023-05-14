@@ -24,8 +24,8 @@ spec:
                 --max_restarts=3 \
                 --rdzv_backend=c10d --rdzv_endpoint=$RDZV_ENDPOINT:2222 \
                 model_zoo/pytorch/mnist_cnn.py \
-                --training_data /data/mnist_png/training/elastic_ds.txt \
-                --validation_data /data/mnist_png/testing/elastic_ds.txt"
+                --training_data /data/mnist_png/training/ \
+                --validation_data /data/mnist_png/testing/ "
     dlrover-master:
       template:
         spec:

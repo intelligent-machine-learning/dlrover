@@ -74,9 +74,13 @@ class TensorflowFailover:
         def monitor_fun():
             logger.info("Successfully to start failover monitor!")
             while True:
-                ps_address_changed, _ = self.ps_addresses_changed()
+                ps_address_changed, change_type = self.ps_addresses_changed()
                 if ps_address_changed:
                     self.refresh_env()
+                    if change_type == "ps_failure":
+                        self.exit_from_recoverable_session()
+                    else:
+                        self.info_cheif_do_checkpoints()
                     break
                 time.sleep(10)
 
@@ -92,7 +96,7 @@ class TensorflowFailover:
         """
         changed = False
         changed_type = None
-        curr_address = self._failover_client.get_training_ps_addr()
+        curr_address, ps_failure = self._failover_client.get_training_ps_addr()
         if "".join(curr_address) != "".join(self.curr_ps_address):
             if len(curr_address) != len(self.curr_ps_address):
                 changed_type = "scaling"
@@ -103,6 +107,11 @@ class TensorflowFailover:
                     self.curr_ps_address, curr_address
                 )
             )
+            if ps_failure is True:
+                changed_type = "ps_failure"
+                logger.warning(
+                    "ps failure happens, worker pod is going to exit"
+                )
             self.curr_ps_address = curr_address
             changed = True
         return changed, changed_type
@@ -121,6 +130,19 @@ class TensorflowFailover:
             "successfully refresh TF_CONFIFG %s" % os.environ["TF_CONFIG"]
         )
 
+    def exit_from_recoverable_session(self):
+        logger.info("exit_from_recoverable_session")
+        # TODO: when encountering ps failure, session will be hanged.
+        # we need to add grpc timeout
+        os._exit(2)
+
+    def set_training_thread(self, training_thread):
+        global_dict = common_util.GlobalDict()
+        global_dict[TFConstants.RelaunchForFailure.name] = True
+        self.training_thread = training_thread
+
+    def info_cheif_do_checkpoints(self):
+        global_dict = common_util.GlobalDict()
         if self._is_chief:
             # chief needs to do checkpoint and then
             # set global_dict[TFConstants.SaveCheckpoint.name] = True

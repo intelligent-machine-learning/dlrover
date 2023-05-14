@@ -106,6 +106,8 @@ class ExitCode(object):
     TERMED_CODE = 143
     CORE_DUMP_ERROR_CODE = 134
     OOM_CODE = 247
+    GPU_DRIVER_ERROR = 201
+    GPU_POD_RESIDUE = 202
 
 
 class NodeResourceLimit(object):
