@@ -170,11 +170,28 @@ def train(args):
     else:
         model = DDP(model)
 
-    elastic_trainer = ElasticTrainer(model)
-    optimizer, scheduler = elastic_trainer.prepare(optimizer, scheduler)
     if checkpoint:
         model.load_state_dict(checkpoint.get("model_state_dict", {}))
         optimizer.load_state_dict(checkpoint.get("optimizer_state_dict", {}))
+
+    if args.fixed_batch_size:
+        train_with_fixed_batch_size(
+            model, optimizer, scheduler, train_loader, test_loader, device
+        )
+    else:
+        train_with_elastic_batch_size(
+            model, optimizer, scheduler, train_loader, test_loader, device
+        )
+
+
+def train_with_fixed_batch_size(
+    model, optimizer, scheduler, train_loader, test_loader, device
+):
+    """
+    The global batch size will not change if the number of workers changes.
+    """
+    elastic_trainer = ElasticTrainer(model)
+    optimizer, scheduler = elastic_trainer.prepare(optimizer, scheduler)
 
     epoch = 0
     for _, (data, target) in enumerate(train_loader):
@@ -187,7 +204,7 @@ def train(args):
             loss.backward()
             optimizer.step()
             optimizer.zero_grad()
-            train_dataset.step()  # Samples of a step are completed.
+            train_loader.dataset.step()  # Record the batch samples completed.
             print(
                 "loss = {}, step = {}".format(loss, elastic_trainer.num_steps)
             )
@@ -196,13 +213,41 @@ def train(args):
                 and elastic_trainer.num_steps % 200 == 0
             ):
                 save_checkpoint(
-                    CHEKPOINT_PATH, model, optimizer, train_dataset
+                    CHEKPOINT_PATH, model, optimizer, train_loader.dataset
                 )
-            dataset_epoch = train_dataset.get_epoch()
+            dataset_epoch = train_loader.dataset.get_epoch()
             if dataset_epoch > epoch:
                 epoch = dataset_epoch
                 scheduler.step()
                 test(model, device, test_loader)
+    test(model, device, test_loader)
+
+
+def train_with_elastic_batch_size(
+    model, optimizer, scheduler, train_loader, test_loader, device
+):
+    """The global batch size will change if the number of worker changes."""
+    epoch = 0
+    for step, (data, target) in enumerate(train_loader):
+        model.train()
+        target = target.type(torch.LongTensor)
+        data, target = data.to(device), target.to(device)
+        output = model(data)
+        loss = F.nll_loss(output, target)
+        loss.backward()
+        optimizer.step()
+        optimizer.zero_grad()
+        train_loader.dataset.step()  # Record the batch samples completed.
+        print("loss = {}, step = {}".format(loss, step))
+        if step > 0 and step % 200 == 0:
+            save_checkpoint(
+                CHEKPOINT_PATH, model, optimizer, train_loader.dataset
+            )
+        dataset_epoch = train_loader.dataset.get_epoch()
+        if dataset_epoch > epoch:
+            epoch = dataset_epoch
+            scheduler.step()
+            test(model, device, test_loader)
     test(model, device, test_loader)
 
 
@@ -258,6 +303,9 @@ def arg_parser():
     parser.add_argument("--batch_size", type=int, default=32, required=False)
     parser.add_argument("--num_epochs", type=int, default=1, required=False)
     parser.add_argument("--shuffle", type=bool, default=True, required=False)
+    parser.add_argument(
+        "--fixed-batch-size", type=bool, default=True, required=False
+    )
     parser.add_argument(
         "--learning_rate", type=float, default=0.1, required=False
     )
