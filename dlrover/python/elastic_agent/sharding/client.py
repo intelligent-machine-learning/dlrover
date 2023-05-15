@@ -20,7 +20,7 @@ from multiprocessing import SimpleQueue
 
 from dlrover.proto import elastic_training_pb2
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.elastic_agent.master_client import GlobalMasterClient
+from dlrover.python.elastic_agent.master_client import build_master_client
 from dlrover.python.elastic_agent.monitor.training import (
     TrainingProcessReporter,
 )
@@ -57,7 +57,7 @@ class ShardingClient(object):
         num_minibatches_per_shard=_DEFAULT_MINI_BATCH_NUM_PER_SHARD,
         storage_type="",
     ):
-        self._mc = GlobalMasterClient.MASTER_CLIENT
+        self._mc = build_master_client()
         self._batch_size = batch_size
         self._num_epochs = num_epochs
         self._dataset_size = dataset_size
@@ -113,7 +113,6 @@ class ShardingClient(object):
                 if len(self._pending_tasks) == 1:
                     self._current_task = task
             self._shard_count += 1
-            logger.info("shard count = %s", self._shard_count)
             return task
         return None
 
@@ -211,7 +210,7 @@ class ShardingClient(object):
 
     def get_current_epoch(self):
         res = self._mc.get_dataset_epoch(self._dataset_name)
-        return res.epoch
+        return res.epoch - 1
 
     def get_total_sample_num(self):
         return self._dataset_size * self._num_epochs

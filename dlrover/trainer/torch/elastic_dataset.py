@@ -82,7 +82,7 @@ class ElasticDataset(Dataset, metaclass=ABCMeta):
         return self.read_sample(index)
 
     def get_epoch(self):
-        self._shard_client.get_current_epoch()
+        return self._shard_client.get_current_epoch()
 
     def step(self):
         """After updating models using the samples, the dataset need to
