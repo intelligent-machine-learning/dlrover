@@ -132,7 +132,7 @@ class MasterClient(object):
             res = elastic_training_pb2.Task()
         return success, res
 
-    # @retry_grpc_request
+    @retry_grpc_request
     def report_task_result(self, dataset_name, task_id, err_msg):
         """Report task result to master.
 

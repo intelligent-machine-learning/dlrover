@@ -264,7 +264,7 @@ class ElasticTrainer(object):
 
     def _after_step(self):
         if isinstance(self._dataset, ElasticDataset):
-            self._dataset.report_batch_done()
+            self._dataset.step()
         if self.gradient_state.sync_gradients:
             self.gradient_state.num_steps += 1
 
