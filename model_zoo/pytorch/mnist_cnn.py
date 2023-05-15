@@ -304,7 +304,7 @@ def arg_parser():
     parser.add_argument("--num_epochs", type=int, default=1, required=False)
     parser.add_argument("--shuffle", type=bool, default=True, required=False)
     parser.add_argument(
-        "--fixed-batch-size", type=bool, default=True, required=False
+        "--fixed_batch_size", type=bool, default=True, required=False
     )
     parser.add_argument(
         "--learning_rate", type=float, default=0.1, required=False
