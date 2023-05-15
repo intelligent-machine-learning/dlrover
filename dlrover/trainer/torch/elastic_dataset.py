@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import time
 from abc import ABCMeta, abstractmethod
 from typing import Dict
 
@@ -54,21 +53,18 @@ class ElasticDataset(Dataset, metaclass=ABCMeta):
 
     def __init__(
         self,
+        name,
         dataset_size,
         batch_size,
         epochs,
         shuffle,
-        name=None,
         num_minibatches_per_shard=2,
     ):
-        self.dataset_size = dataset_size
-        if not name:
-            name = "dlrover-ds-" + str(time.time())
         self._shard_client = IndexShardingClient(
             dataset_name=name,
             batch_size=batch_size,
             num_epochs=epochs,
-            dataset_size=self.dataset_size,
+            dataset_size=dataset_size,
             shuffle=shuffle,
             storage_type="text",
             num_minibatches_per_shard=num_minibatches_per_shard,

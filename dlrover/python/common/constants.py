@@ -190,6 +190,7 @@ class NodeEnv(object):
     WORKER_NUM = "WORKER_NUM"
     WORKER_RANK = "WORKER_RANK"
     RDZV_ENDPOINT = "RDZV_ENDPOINT"
+    GRPC_ENABLE_FORK = "GRPC_ENABLE_FORK_SUPPORT"
 
 
 class DatasetType(object):
