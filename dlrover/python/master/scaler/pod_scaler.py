@@ -345,6 +345,10 @@ class PodScaler(Scaler):
         env.append(V1EnvVar(name=NodeEnv.WORKER_TYPE, value=node.type))
         env.append(V1EnvVar(name=NodeEnv.WORKER_ID, value=str(node.id)))
 
+        # A deadlock can happen when pthread_atfork handler is running.
+        # For detail https://chromium.googlesource.com/external/github.com/grpc/grpc/+/refs/tags/v1.19.0-pre1/doc/fork_support.md  # noqa: E501
+        env.append(V1EnvVar(name=NodeEnv.GRPC_ENABLE_FORK, value="False"))
+
         worker_num = self._config_worker_num
         if pod_stats[node.type] > worker_num:
             worker_num = pod_stats[node.type]

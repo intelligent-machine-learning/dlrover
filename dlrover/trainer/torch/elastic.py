@@ -20,11 +20,9 @@ from typing import Any, Dict
 
 import torch
 import torch.distributed as dist
-from torch.utils.data import DataLoader
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.master_client import GlobalMasterClient
-from dlrover.trainer.torch.elastic_dataset import ElasticDataset
 
 _MASTER_ADDR_KEY = "MASTER_ADDR"
 
@@ -173,8 +171,6 @@ class ElasticTrainer(object):
 
     Args:
         model (`torch.nn.Module`): PyTorch Module.
-        optimizer (`torch.nn.Optimizer`): PyTorch Optimizer.
-        dataloader: ElasticDataset in DLRover.
 
     **Available attributes:**
         - **step** -- the number of local step on the process.
@@ -188,11 +184,9 @@ class ElasticTrainer(object):
             size fixed by adjusting the gradient_accumulation_steps.
     """
 
-    def __init__(self, model, dataloader: DataLoader):
+    def __init__(self, model):
         self.model = model
         self.optimizer = None
-        self.dataloader = dataloader
-        self._dataset = dataloader.dataset
         self.gradient_state = GradientState()
         self.gradient_accumulation_steps = 1
 
@@ -263,8 +257,6 @@ class ElasticTrainer(object):
             )
 
     def _after_step(self):
-        if isinstance(self._dataset, ElasticDataset):
-            self._dataset.step()
         if self.gradient_state.sync_gradients:
             self.gradient_state.num_steps += 1
 
