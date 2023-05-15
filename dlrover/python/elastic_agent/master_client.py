@@ -41,9 +41,9 @@ def retry_grpc_request(func):
                     func.__name__,
                 )
                 execption = e
-                logger.error(e)
                 time.sleep(5)
         if execption:
+            logger.error(execption)
             raise execption
 
     return wrapper
@@ -120,19 +120,22 @@ class MasterClient(object):
 
         success = False
         res = None
+        exception = None
         for _ in range(10):
             try:
                 res = self._stub.get_task(req)
                 success = True
                 break
             except Exception as e:
-                logger.warning(e)
+                exception = e
                 time.sleep(15)
+        if not success:
+            logger.warning(exception)
         if not res:
             res = elastic_training_pb2.Task()
         return success, res
 
-    # @retry_grpc_request
+    @retry_grpc_request
     def report_task_result(self, dataset_name, task_id, err_msg):
         """Report task result to master.
 
@@ -550,6 +553,7 @@ class LocalMasterClient(object):
 
 
 def build_master_client(master_addr=None):
+    logger.info("Build master client")
     if master_addr is None:
         master_addr = os.getenv(NodeEnv.DLROVER_MASTER_ADDR, "")
     worker_id = int(os.getenv(NodeEnv.WORKER_ID, 0))

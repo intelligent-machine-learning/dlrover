@@ -113,7 +113,6 @@ class ShardingClient(object):
                 if len(self._pending_tasks) == 1:
                     self._current_task = task
             self._shard_count += 1
-            logger.info("shard count = %s", self._shard_count)
             return task
         return None
 
@@ -211,7 +210,7 @@ class ShardingClient(object):
 
     def get_current_epoch(self):
         res = self._mc.get_dataset_epoch(self._dataset_name)
-        return res.epoch
+        return res.epoch - 1
 
     def get_total_sample_num(self):
         return self._dataset_size * self._num_epochs
