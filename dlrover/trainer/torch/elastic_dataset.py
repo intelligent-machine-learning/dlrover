@@ -84,10 +84,10 @@ class ElasticDataset(Dataset, metaclass=ABCMeta):
     def get_epoch(self):
         self._shard_client.get_current_epoch()
 
-    def report_batch_done(self, batch_size=None):
+    def step(self):
         """After updating models using the samples, the dataset need to
         report the batch completion."""
-        self._shard_client.report_batch_done(batch_size)
+        self._shard_client.report_batch_done()
 
     def state_dict(self):
         """
