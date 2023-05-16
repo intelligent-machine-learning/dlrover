@@ -45,6 +45,26 @@ def get_pod_name(job_name, pod_type, node_id):
     return "%s-%s" % (job_name + JOB_SUFFIX + pod_type, str(node_id))
 
 
+def retry_k8s_request(func):
+    def wrapper(self, *args, **kwargs):
+        retry = kwargs.get("retry", 5)
+        execption = None
+        for _ in range(retry):
+            try:
+                return func(self, *args, **kwargs)
+            except client.rest.ApiException as e:
+                execption = e
+                time.sleep(3)
+            except Exception as e:
+                execption = e
+                break
+        if execption:
+            logger.error(execption)
+            return None
+
+    return wrapper
+
+
 class k8sClient(object):
     _instance_lock = threading.Lock()
 
@@ -78,47 +98,34 @@ class k8sClient(object):
         self.api_instance = client.CustomObjectsApi()
         self._namespace = namespace
 
+    @retry_k8s_request
     def list_namespaced_pod(self, label_selector):
-        try:
-            pod_list = self.client.list_namespaced_pod(
-                self._namespace,
-                label_selector=label_selector,
-            )
-            return pod_list
-        except Exception as e:
-            logger.warning(e)
-        return None
+        pod_list = self.client.list_namespaced_pod(
+            self._namespace,
+            label_selector=label_selector,
+        )
+        return pod_list
 
+    @retry_k8s_request
     def create_custom_resource(self, group, version, plural, body):
-        try:
-            self.api_instance.create_namespaced_custom_object(
-                group=group,
-                version=version,
-                namespace=self._namespace,
-                plural=plural,
-                body=body,
-            )
-        except client.rest.ApiException as e:
-            logger.error(
-                "Exception when calling CustomObjectsApi->",
-                "create_namespaced_custom_object: %s" % e,
-            )
+        self.api_instance.create_namespaced_custom_object(
+            group=group,
+            version=version,
+            namespace=self._namespace,
+            plural=plural,
+            body=body,
+        )
 
+    @retry_k8s_request
     def patch_custom_resource(self, group, version, plural, name, body):
-        try:
-            self.api_instance.patch_namespaced_custom_object(
-                group=group,
-                version=version,
-                namespace=self._namespace,
-                plural=plural,
-                name=name,
-                body=body,
-            )
-        except client.rest.ApiException as e:
-            logger.error(
-                "Exception when calling CustomObjectsApi->",
-                "replace_namespaced_custom_object: %s" % e,
-            )
+        self.api_instance.patch_namespaced_custom_object(
+            group=group,
+            version=version,
+            namespace=self._namespace,
+            plural=plural,
+            name=name,
+            body=body,
+        )
 
     def delete_custom_resource(self, group, version, plural, name):
         try:
@@ -132,29 +139,23 @@ class k8sClient(object):
         except client.rest.ApiException:
             logger.error("Fail to delete %s", name)
 
+    @retry_k8s_request
     def get_custom_resource(self, name, group, version, plural):
-        try:
-            crd_object = self.api_instance.get_namespaced_custom_object(
-                namespace=self._namespace,
-                name=name,
-                group=group,
-                version=version,
-                plural=plural,
-            )
-            return crd_object
-        except client.ApiException as e:
-            logger.warning("Exception when getting custom object: %s\n" % e)
-            return None
+        crd_object = self.api_instance.get_namespaced_custom_object(
+            namespace=self._namespace,
+            name=name,
+            group=group,
+            version=version,
+            plural=plural,
+        )
+        return crd_object
 
+    @retry_k8s_request
     def get_configmap(self, name):
-        try:
-            configmap = self.client.read_namespaced_config_map(
-                namespace=self._namespace, name=name
-            )
-            return configmap
-        except client.ApiException as e:
-            logger.warning("Exception when getting configmap: %s\n" % e)
-            return None
+        configmap = self.client.read_namespaced_config_map(
+            namespace=self._namespace, name=name
+        )
+        return configmap
 
     def create_pod(self, pod):
         try:
@@ -166,14 +167,11 @@ class k8sClient(object):
             )
             return False
 
+    @retry_k8s_request
     def get_pod(self, name):
-        try:
-            return self.client.read_namespaced_pod(
-                namespace=self._namespace, name=name
-            )
-        except client.ApiException as e:
-            logger.warning("Exception when reading pod %s: %s\n" % (name, e))
-            return None
+        return self.client.read_namespaced_pod(
+            namespace=self._namespace, name=name
+        )
 
     def delete_pod(self, name):
         try:
@@ -189,27 +187,19 @@ class k8sClient(object):
             logger.warning("Exception when removing pod %s: %s\n" % (name, e))
             return False
 
+    @retry_k8s_request
     def patch_labels_to_pod(self, name, labels_dict):
         body = {"metadata": {"labels": labels_dict}}
-        try:
-            return self.client.patch_namespaced_pod(
-                name=name, namespace=self._namespace, body=body
-            )
-        except client.ApiException as e:
-            logger.warning("Exception when patching labels to pod: %s\n" % e)
-            return None
+        return self.client.patch_namespaced_pod(
+            name=name, namespace=self._namespace, body=body
+        )
 
+    @retry_k8s_request
     def patch_annotations_to_pod(self, name, annotations):
         body = {"metadata": {"annotations": annotations}}
-        try:
-            return self.client.patch_namespaced_pod(
-                name=name, namespace=self._namespace, body=body
-            )
-        except client.ApiException as e:
-            logger.warning(
-                "Exception when patching annotations to pod: %s\n" % e
-            )
-            return None
+        return self.client.patch_namespaced_pod(
+            name=name, namespace=self._namespace, body=body
+        )
 
     def create_service(self, service):
         try:
@@ -234,15 +224,13 @@ class k8sClient(object):
             )
             return False
 
+    @retry_k8s_request
     def get_service(self, name):
-        try:
-            return self.client.read_namespaced_service(
-                # worker service has the same name as pod name
-                name=name,
-                namespace=self._namespace,
-            )
-        except client.ApiException:
-            return None
+        return self.client.read_namespaced_service(
+            # worker service has the same name as pod name
+            name=name,
+            namespace=self._namespace,
+        )
 
     def create_pvc(self, pvc):
         try:
