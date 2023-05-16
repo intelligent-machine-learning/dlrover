@@ -217,3 +217,7 @@ class ReporterType(object):
 
 class MemoryUnit(object):
     MB = 1024 * 1024
+
+
+class k8sAPIExceptionReason(object):
+    NOT_FOUND = "Not Found"

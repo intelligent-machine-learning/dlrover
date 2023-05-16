@@ -21,7 +21,7 @@ from dlrover.python.common.constants import (
     DefaultResourceLimits,
     NodeType,
     OptimizeMode,
-    k8sAPIExceptionReasion,
+    k8sAPIExceptionReason,
 )
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import NodeGroupResource, NodeResource
@@ -54,7 +54,7 @@ def retry_k8s_request(func):
             try:
                 return func(self, *args, **kwargs)
             except client.rest.ApiException as e:
-                if e.reason == k8sAPIExceptionReasion.NOT_FOUND:
+                if e.reason == k8sAPIExceptionReason.NOT_FOUND:
                     return None
                 execption = e
                 time.sleep(3)
@@ -140,7 +140,7 @@ class k8sClient(object):
                 name=name,
             )
         except client.rest.ApiException as e:
-            if e.reason != k8sAPIExceptionReasion.NOT_FOUND:
+            if e.reason != k8sAPIExceptionReason.NOT_FOUND:
                 logger.error("Fail to delete %s", name)
 
     @retry_k8s_request
@@ -186,7 +186,7 @@ class k8sClient(object):
             )
             return True
         except client.ApiException as e:
-            if e.reason == k8sAPIExceptionReasion.NOT_FOUND:
+            if e.reason == k8sAPIExceptionReason.NOT_FOUND:
                 return True
             logger.warning("Exception when removing pod %s: %s\n" % (name, e))
             return False
