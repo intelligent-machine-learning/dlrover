@@ -113,8 +113,8 @@ def cleanup():
     dist.destroy_process_group()
 
 
-def setup(use_cuda):
-    print(f"Use cuda = {use_cuda}")
+def setup():
+    use_cuda = torch.cuda.is_available()
     ElasticTrainer.setup()
     if use_cuda:
         dist.init_process_group("nccl")
@@ -134,9 +134,7 @@ def train(args):
         pass a torch.utils.data.DataLoader.
         elastic_controller: The controller for elastic training.
     """
-    use_cuda = not args.no_cuda and torch.cuda.is_available()
-    setup(use_cuda)
-    device = torch.device("cuda" if use_cuda else "cpu")
+    setup()
     checkpoint = load_checkpoint(CHEKPOINT_PATH)
 
     train_dataset = ElasticMnistDataset(
@@ -174,26 +172,56 @@ def train(args):
         model.load_state_dict(checkpoint.get("model_state_dict", {}))
         optimizer.load_state_dict(checkpoint.get("optimizer_state_dict", {}))
 
+    epochs = args.num_epochs
     if args.fixed_batch_size:
+        worker_num = int(os.getenv("WORKER_NUM"))
+        steps_per_epoch = train_dataset.dataset_size // (
+            args.batch_size * worker_num
+        )
         train_with_fixed_batch_size(
-            model, optimizer, scheduler, train_loader, test_loader, device
+            model,
+            optimizer,
+            scheduler,
+            train_loader,
+            test_loader,
+            epochs,
+            steps_per_epoch,
         )
     else:
+        worker_num = dist.get_world_size()
+        steps_per_epoch = train_dataset.dataset_size // (
+            args.batch_size * worker_num
+        )
         train_with_elastic_batch_size(
-            model, optimizer, scheduler, train_loader, test_loader, device
+            model,
+            optimizer,
+            scheduler,
+            train_loader,
+            test_loader,
+            epochs,
+            steps_per_epoch,
         )
 
 
 def train_with_fixed_batch_size(
-    model, optimizer, scheduler, train_loader, test_loader, device
+    model,
+    optimizer,
+    scheduler,
+    train_loader,
+    test_loader,
+    epochs,
+    steps_per_epoch,
 ):
     """
     The global batch size will not change if the number of workers changes.
     """
+    print("Steps per epoch is {}".format(steps_per_epoch))
     elastic_trainer = ElasticTrainer(model)
     optimizer, scheduler = elastic_trainer.prepare(optimizer, scheduler)
 
     epoch = 0
+    use_cuda = torch.cuda.is_available()
+    device = torch.device("cuda" if use_cuda else "cpu")
     for _, (data, target) in enumerate(train_loader):
         model.train()
         with elastic_trainer.step():
@@ -215,19 +243,28 @@ def train_with_fixed_batch_size(
                 save_checkpoint(
                     CHEKPOINT_PATH, model, optimizer, train_loader.dataset
                 )
-            dataset_epoch = train_loader.dataset.get_epoch()
-            if dataset_epoch > epoch:
-                epoch = dataset_epoch
+            new_epoch = elastic_trainer.num_steps // steps_per_epoch
+            if new_epoch > epoch:
+                epoch = new_epoch
                 scheduler.step()
                 test(model, device, test_loader)
-    test(model, device, test_loader)
+            if epoch >= epochs:
+                break
 
 
 def train_with_elastic_batch_size(
-    model, optimizer, scheduler, train_loader, test_loader, device
+    model,
+    optimizer,
+    scheduler,
+    train_loader,
+    test_loader,
+    epochs,
+    steps_per_epoch,
 ):
     """The global batch size will change if the number of worker changes."""
     epoch = 0
+    use_cuda = torch.cuda.is_available()
+    device = torch.device("cuda" if use_cuda else "cpu")
     for step, (data, target) in enumerate(train_loader):
         model.train()
         target = target.type(torch.LongTensor)
@@ -243,11 +280,13 @@ def train_with_elastic_batch_size(
             save_checkpoint(
                 CHEKPOINT_PATH, model, optimizer, train_loader.dataset
             )
-        dataset_epoch = train_loader.dataset.get_epoch()
-        if dataset_epoch > epoch:
-            epoch = dataset_epoch
+        new_epoch = step // steps_per_epoch
+        if new_epoch > epoch:
+            epoch = new_epoch
             scheduler.step()
             test(model, device, test_loader)
+        if epoch >= epochs:
+            break
     test(model, device, test_loader)
 
 
