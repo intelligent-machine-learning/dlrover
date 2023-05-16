@@ -218,7 +218,7 @@ class ElasticTrainer(object):
         Example:
         ```python
         >>> from dlrover.trainer.torch.elastic import ElasticTrainer
-        >>> elastic_trainer = ElasticTrainer(model, dataloader)
+        >>> elastic_trainer = ElasticTrainer(model)
         >>> optimizer, scheduler = elastic_trainer.prepare(
                 optimizer, scheduler
             )

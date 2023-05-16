@@ -60,6 +60,7 @@ class ElasticDataset(Dataset, metaclass=ABCMeta):
         shuffle,
         num_minibatches_per_shard=2,
     ):
+        self.dataset_size = dataset_size
         self._shard_client = IndexShardingClient(
             dataset_name=name,
             batch_size=batch_size,
