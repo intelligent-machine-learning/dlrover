@@ -314,6 +314,8 @@ class JobManager(object):
 
     def _process_list_nodes(self, nodes: List[Node]):
         """Callback with node list by the list api of k8s."""
+        if not nodes:
+            return
         exist_nodes: Dict[str, List[int]] = {}
         for node_type in self._job_nodes.keys():
             exist_nodes[node_type] = []
