@@ -62,7 +62,7 @@ def retry_k8s_request(func):
                 execption = e
                 break
         if execption:
-            logger.error(execption)
+            logger.error("Fail to execute %s: %s", func.__name__, execption)
             return None
 
     return wrapper
