@@ -227,7 +227,6 @@ class k8sClient(object):
     @retry_k8s_request
     def get_service(self, name):
         return self.client.read_namespaced_service(
-            # worker service has the same name as pod name
             name=name,
             namespace=self._namespace,
         )
