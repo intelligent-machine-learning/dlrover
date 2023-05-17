@@ -21,6 +21,7 @@ from dlrover.python.common.constants import (
     DefaultResourceLimits,
     NodeType,
     OptimizeMode,
+    k8sAPIExceptionReason,
 )
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import NodeGroupResource, NodeResource
@@ -53,13 +54,15 @@ def retry_k8s_request(func):
             try:
                 return func(self, *args, **kwargs)
             except client.rest.ApiException as e:
+                if e.reason == k8sAPIExceptionReason.NOT_FOUND:
+                    return None
                 execption = e
                 time.sleep(3)
             except Exception as e:
                 execption = e
                 break
         if execption:
-            logger.error(execption)
+            logger.error("Fail to execute %s: %s", func.__name__, execption)
             return None
 
     return wrapper
@@ -136,8 +139,9 @@ class k8sClient(object):
                 plural=plural,
                 name=name,
             )
-        except client.rest.ApiException:
-            logger.error("Fail to delete %s", name)
+        except client.rest.ApiException as e:
+            if e.reason != k8sAPIExceptionReason.NOT_FOUND:
+                logger.error("Fail to delete %s", name)
 
     @retry_k8s_request
     def get_custom_resource(self, name, group, version, plural):
@@ -182,7 +186,7 @@ class k8sClient(object):
             )
             return True
         except client.ApiException as e:
-            if e.reason == "Not Found":
+            if e.reason == k8sAPIExceptionReason.NOT_FOUND:
                 return True
             logger.warning("Exception when removing pod %s: %s\n" % (name, e))
             return False
