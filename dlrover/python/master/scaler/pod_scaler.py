@@ -383,9 +383,7 @@ class PodScaler(Scaler):
             V1EnvVar(
                 name=NodeEnv.POD_NAME,
                 value_from=V1EnvVarSource(
-                    field_ref=V1ObjectFieldSelector(
-                        field_path="metadata.name"
-                    )
+                    field_ref=V1ObjectFieldSelector(field_path="metadata.name")
                 ),
             )
         )
