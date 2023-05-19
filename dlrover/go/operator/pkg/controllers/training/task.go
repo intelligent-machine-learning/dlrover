@@ -318,6 +318,7 @@ func (m *TaskManager) newTask(
 		Name:  grpcEnableFork,
 		Value: "False",
 	}
+	container.Env = append(container.Env, grpcEnableForkEnv)
 	podNameEnv := corev1.EnvVar{Name: podName}
 	podNameEnv.ValueFrom = &corev1.EnvVarSource{
 		FieldRef: &corev1.ObjectFieldSelector{
@@ -325,7 +326,7 @@ func (m *TaskManager) newTask(
 			FieldPath:  "metadata.name",
 		},
 	}
-	container.Env = append(container.Env, grpcEnableForkEnv)
+	container.Env = append(container.Env, podNameEnv)
 	if m.taskType == ReplicaTypeWorker {
 		workerNumEnv := corev1.EnvVar{
 			Name:  workerNumEnvName,

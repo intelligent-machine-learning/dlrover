@@ -265,6 +265,7 @@ def train_with_elastic_batch_size(
     epoch = 0
     use_cuda = torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
+    model = model.to(device)
     for step, (data, target) in enumerate(train_loader):
         model.train()
         target = target.type(torch.LongTensor)
@@ -313,6 +314,7 @@ def test(model, device, test_loader):
     test_loss = 0
     correct = 0
     with torch.no_grad():
+        model = model.to(device)
         for data, target in test_loader:
             target = target.type(torch.LongTensor)
             data, target = data.to(device), target.to(device)
