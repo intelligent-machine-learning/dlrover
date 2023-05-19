@@ -61,6 +61,7 @@ const (
 	workerNumEnvName    = "WORKER_NUM"
 	rdzvEndpointEnvName = "RDZV_ENDPOINT"
 	grpcEnableFork      = "GRPC_ENABLE_FORK_SUPPORT"
+	podName             = "POD_NAME"
 )
 
 // TaskManager generates Pods for task in a distributed PS job.
@@ -316,6 +317,13 @@ func (m *TaskManager) newTask(
 	grpcEnableForkEnv := corev1.EnvVar{
 		Name:  grpcEnableFork,
 		Value: "False",
+	}
+	podNameEnv := corev1.EnvVar{Name: podName}
+	podNameEnv.ValueFrom = &corev1.EnvVarSource{
+		FieldRef: &corev1.ObjectFieldSelector{
+			APIVersion: "v1",
+			FieldPath:  "metadata.name",
+		},
 	}
 	container.Env = append(container.Env, grpcEnableForkEnv)
 	if m.taskType == ReplicaTypeWorker {

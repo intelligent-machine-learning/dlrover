@@ -379,6 +379,17 @@ class PodScaler(Scaler):
                 )
                 env.append(node_ip_var)
 
+        env.append(
+            V1EnvVar(
+                name=NodeEnv.POD_NAME,
+                value_from=V1EnvVarSource(
+                    field_ref=V1ObjectFieldSelector(
+                        field_path="metadata.name"
+                    )
+                ),
+            )
+        )
+
         node_type = node.type
         if node.type not in self._replica_template:
             if node.type in [NodeType.CHIEF, NodeType.EVALUATOR]:
