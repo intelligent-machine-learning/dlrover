@@ -1,8 +1,4 @@
-# ATorch介绍
-![版本](https://hitu.alipay.com/badge/tnpm?title=ATorch&value=0.1.4)
-![Python支持](https://hitu.alipay.com/badge/tnpm?title=Python&value=3.8)
-
-ATorch Introduction
+# ATorch Introduction
 
 ATorch is an extension library of PyTorch developed by Ant Financial. It provides efficient and easy-to-use model training and optimization capabilities. The design principle is to minimally invade the native PyTorch programming style, and through API interfaces, provide performance optimizations in aspects such as IO/preprocessing, computation, and communication (including automatic optimization), as well as support for large model training.
 
