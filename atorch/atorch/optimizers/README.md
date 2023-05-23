@@ -31,7 +31,7 @@ from atorch.optimizers.utils import enable_running_stats, disable_running_stats
 
 model = YourModel()
 base_optimizer = torch.optim.SGD(model.parameters(), lr=0.001) # initialize the base optimizer
-optimizer = WeightedSAM(model, base_optimizer, rho=0.05, gamma=0.88, adaptive=False, decouple=True, max_norm=None)
+optimizer = WeightedSAM(model, base_optimizer, rho=0.05, gamma=0.9, adaptive=False, decouple=True, max_norm=None)
 ...
 # 1. two-step method
 for input, output in data:

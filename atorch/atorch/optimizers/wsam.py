@@ -12,7 +12,7 @@ class WeightedSAM(torch.optim.Optimizer):
         model (DistributedDataParallel): DDP model is recommended to make `model.no_sync` to work
         base_optimizer (Optimizer): initialized base optimizer
         rho (float, optional): search radius of the inner maximization problem (default: 0.05)
-        gamma (float, optional): weighted factor gamma/(1-gamma) of the sharpness term (default: 0.88)
+        gamma (float, optional): weighted factor gamma/(1-gamma) of the sharpness term (default: 0.9)
         sam_eps (float, optional): term added to the denominator of WSAM to improve
             numerical stability (default: 1e-12)
         adaptive (boolean, optional): whether to incorprate adaptive SAM (default: False)
@@ -26,7 +26,7 @@ class WeightedSAM(torch.optim.Optimizer):
         model,
         base_optimizer,
         rho=0.05,
-        gamma=0.88,
+        gamma=0.9,
         sam_eps=1e-12,
         adaptive=False,
         decouple=True,
