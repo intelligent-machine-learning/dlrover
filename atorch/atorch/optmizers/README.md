@@ -30,7 +30,7 @@ from atorch.optimizers.utils import enable_running_stats, disable_running_stats
 ...
 
 model = YourModel()
-base_optimizer = torch.optim.SGD(model.parameters(), lr=0.001)
+base_optimizer = torch.optim.SGD(model.parameters(), lr=0.001) # initialize the base optimizer
 optimizer = WeightedSAM(model, base_optimizer, rho=0.05, gamma=0.88)
 ...
 # 1. two-step method
