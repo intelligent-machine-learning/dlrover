@@ -63,7 +63,7 @@ for input, output in data:
 
 ## Extra Notes
 
-- **Regulatization mode**: For a decoupled update of the sharpness term, it is recommended to use `mode=after`, which is the same as in the original SAM paper.
+- **Regulatization mode**: It is recommended to perform a decoupled update of the sharpness term, as used in our paper.
 - **Gradient clipping**: To ensure training stability, if `max_norm` is not `None`, WSAM will clip gradient norm in both steps.
 - **Gradient sync**: This implementation synchronizes gradients correctly, corresponding to the m-sharpness used in the SAM paper.
 - **Rho selection**: If you try to reproduce ViT results from [this paper](https://arxiv.org/abs/2106.01548), use a larger rho when having less GPUs. For more information, see this related link.

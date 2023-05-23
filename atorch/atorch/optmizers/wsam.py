@@ -16,8 +16,7 @@ class WeightedSAM(torch.optim.Optimizer):
         sam_eps (float, optional): term added to the denominator of WSAM to improve
             numerical stability (default: 1e-12)
         adaptive (boolean, optional): whether to incorprate adaptive SAM (default: False)
-        mode (str, optional): when to perform sharpness regularization,
-            'before' or 'after' base optimizer step, resulting in a couple or decouple update (default: 'after')
+        decouple (boolean, optional): whether to perform a decoupled sharpness regularization (default: True)
         max_norm (float, optional): max norm of the gradients (default: None)
     reference: Sharpness-Aware Minimization Revisited: Weighted Sharpness as a Regularization Term, KDD'23
     """
@@ -30,7 +29,7 @@ class WeightedSAM(torch.optim.Optimizer):
         gamma=0.88,
         sam_eps=1e-12,
         adaptive=False,
-        mode="after",
+        decouple=True,
         max_norm=1.0,
         **kwargs,
     ):
@@ -38,7 +37,7 @@ class WeightedSAM(torch.optim.Optimizer):
 
         self.model = model
         self.base_optimizer = base_optimizer
-        self.mode = mode
+        self.decouple = decouple
         self.max_norm = max_norm
         alpha = gamma / (1 - gamma)
         defaults = dict(
@@ -94,7 +93,7 @@ class WeightedSAM(torch.optim.Optimizer):
             for p in group["params"]:
                 if p.grad is None:
                     continue
-                if self.mode == "before":
+                if not self.decouple:
                     p.grad.mul_(group["alpha"]).add_(
                         self.state[p]["grad"], alpha=1.0 - group["alpha"]
                     )
@@ -107,7 +106,7 @@ class WeightedSAM(torch.optim.Optimizer):
 
         self.base_optimizer.step()  # do the actual "sharpness-aware" update
 
-        if self.mode == "after":
+        if self.decouple:
             for group in self.param_groups:
                 for p in group["params"]:
                     if p.grad is None:
