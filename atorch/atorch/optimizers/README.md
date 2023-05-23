@@ -68,7 +68,7 @@ for input, output in data:
 - **Gradient sync**: This implementation synchronizes gradients correctly, corresponding to the m-sharpness used in the SAM paper.
 - **Rho selection**: If you try to reproduce ViT results from [this paper](https://arxiv.org/abs/2106.01548), use a larger rho when having less GPUs. For more information, see this related link.
 
-<div style="display: none;">
+<!--
 ## Citation
 
 ```text
@@ -81,4 +81,4 @@ year={2023},
 url={https://openreview.net/forum?id=V9MTso2JW1}
 }
 ```
-</div>
+-->
