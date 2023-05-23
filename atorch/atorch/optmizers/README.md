@@ -72,7 +72,7 @@ for input, output in data:
 
 ```text
 @inproceedings{
-zhuang2022surrogate,
+yue2023wsam,
 title={Sharpness-Aware Minimization Revisited: Weighted Sharpness as a Regularization Term},
 author={Yun and Yue, Jiadi and Jiang, Zhiling and Ye, Gao and Ning, Yongchao and Liu, Ke and Zhang},
 booktitle={Proceedings of the 29th ACM SIGKDD Conference on Knowledge Discovery \& Data Mining},
