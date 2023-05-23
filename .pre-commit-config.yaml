@@ -1,4 +1,5 @@
 ---
+exclude: ^atorch/
 repos:
   - repo: https://github.com/asottile/seed-isort-config
     rev: v1.9.1
@@ -12,7 +13,7 @@ repos:
     rev: 22.3.0
     hooks:
       - id: black
-        args: [--line-length=120]
+        args: [--line-length=79]
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v2.2.3
     hooks:
