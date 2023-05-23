@@ -102,7 +102,6 @@ class WeightedSAM(torch.optim.Optimizer):
                         p.grad.detach().clone() - self.state[p]["grad"]
                     )
                     p.grad.mul_(0.0).add_(self.state[p]["grad"], alpha=1.0)
-                    # p.grad = self.state[p]["grad"]
 
         self.base_optimizer.step()  # do the actual "sharpness-aware" update
 
