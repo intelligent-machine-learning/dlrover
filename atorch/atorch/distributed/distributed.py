@@ -601,7 +601,7 @@ def init_distributed(
             logger.error("Failed to init_process_group")
             return False
     else:
-        #if backend == "accl":
+        # if backend == "accl":
         #    try:
         #        # noqa: F401
         #        import torch_accl

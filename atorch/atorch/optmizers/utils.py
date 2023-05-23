@@ -1,7 +1,5 @@
-import torch
-import torch.nn as nn
-
 import contextlib
+import torch.nn as nn
 
 
 def disable_running_stats(model):
