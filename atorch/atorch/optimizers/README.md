@@ -2,7 +2,7 @@
 <h3 align="center"><b>Weighted Sharpness as
 a Regularization Term</b></h3>
 
-We present PyTorch code for [Sharpness-Aware Minimization Revisited: Weighted Sharpness as a Regularization Term](https://openreview.net/forum?id=V9MTso2JW1), KDD'23. The code is based on <https://github.com/davda54/sam>.
+We present PyTorch code for [Sharpness-Aware Minimization Revisited: Weighted Sharpness as a Regularization Term](https://openreview.net/forum?id=V9MTso2JW1), KDD'23 (in press). The code is based on <https://github.com/davda54/sam>.
 
 Deep Neural Networks (DNNs) generalization is known to be closely related to the flatness of minima, leading to the development of Sharpness-Aware Minimization (SAM) for seeking flatter minima and better generalization.
 We propose a more general method, called WSAM, by incorporating sharpness as a regularization term.
@@ -68,6 +68,7 @@ for input, output in data:
 - **Gradient sync**: This implementation synchronizes gradients correctly, corresponding to the m-sharpness used in the SAM paper.
 - **Rho selection**: If you try to reproduce ViT results from [this paper](https://arxiv.org/abs/2106.01548), use a larger rho when having less GPUs. For more information, see this related link.
 
+<div style="display: none;">
 ## Citation
 
 ```text
@@ -80,3 +81,4 @@ year={2023},
 url={https://openreview.net/forum?id=V9MTso2JW1}
 }
 ```
+</div>
