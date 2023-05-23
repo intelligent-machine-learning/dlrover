@@ -1,0 +1,28 @@
+##############################################################################
+# default versions
+# PYTHON_VERSION=3.8
+# TORCH_VERSION=2.0.0
+# CUDA_VERSON=11.7
+##############################################################################
+
+ARG BASE_IMAGE=ubuntu:20.04
+ARG PYTHON_VERSION=3.8
+ARG ADMINPW
+
+FROM ${BASE_IMAGE} as base
+
+USER root
+RUN echo "admin:${ADMINPW}" | chpasswd
+WORKDIR /root
+
+ENV BASH_ENV /root/.bashrc
+ENV LANGUAGE zh_cn
+ENV LC_ALL zh_CN.UTF-8
+ENV SHELL /bin/bash
+
+RUN mkdir -p ~/.pip && \
+    echo -e "\n\
+    [global]\n\
+    index-url = https://artifacts.antgroup-inc.cn/simple/\n\
+    trusted-host = artifacts.antgroup-inc.cn mirrors.aliyun.com\n\
+    " | sed 's/^ \+//g' > ~/.pip/pip.conf
