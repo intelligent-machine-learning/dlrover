@@ -601,13 +601,13 @@ def init_distributed(
             logger.error("Failed to init_process_group")
             return False
     else:
-        if backend == "accl":
-            try:
-                # noqa: F401
-                import torch_accl
-            except ImportError:
-                logger.error("import torch_accl failed")
-                return False
+        #if backend == "accl":
+        #    try:
+        #        # noqa: F401
+        #        import torch_accl
+        #    except ImportError:
+        #        logger.error("import torch_accl failed")
+        #        return False
         ddp_group_size = world_size() - coworker_size()
         if rank() < ddp_group_size:
             # init with init_process_group using env
