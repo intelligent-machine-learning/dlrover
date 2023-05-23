@@ -1,0 +1,57 @@
+##############################################################################
+# cd atorch
+# sudo docker build -f tools/docker/Dockerfile-aci --network=host -t "reg.docker.alibaba-inc.com/atorch/aci-base:xxx" ./
+##############################################################################
+
+FROM reg.docker.alibaba-inc.com/alipay/7u2-common:202202.0T as base
+
+USER root
+WORKDIR /root
+
+ENV BASH_ENV /root/.bashrc
+ENV LANGUAGE zh_cn
+ENV LC_ALL zh_CN.UTF-8
+ENV SHELL /bin/bash
+
+RUN mkdir -p ~/.pip && \
+    echo -e "\n\
+    [global]\n\
+    index-url = https://artifacts.antgroup-inc.cn/simple/\n\
+    trusted-host = artifacts.antgroup-inc.cn mirrors.aliyun.com\n\
+    " | sed 's/^ \+//g' > ~/.pip/pip.conf
+
+##############################################################################
+# conda, python, osscmd, gcc6
+##############################################################################
+FROM base as util-base
+ARG PYTHON_VERSION=3.8
+ARG CONDA_PATH=/opt/conda
+ENV PATH ${CONDA_PATH}/bin:$PATH
+
+RUN cd ~/ && \
+    wget https://mirrors.tuna.tsinghua.edu.cn/anaconda/miniconda/Miniconda3-latest-Linux-x86_64.sh --no-check-certificate -O miniconda-install.sh && \
+    chmod +x miniconda-install.sh && \
+    ~/miniconda-install.sh -b -p ${CONDA_PATH} && \
+    rm ~/miniconda-install.sh && \
+    conda install -y python=${PYTHON_VERSION} conda-build numpy ipython cmake && \
+    conda clean -ya && \
+    pip install osscmd aistudio-common elasticai_api tensorboardX pyyaml typeguard pytest pyodps && \
+    yum install alios7u-2_24-gcc-8-repo -y && \
+    pip install pre-commit==2.19.0 && \
+    # torch/testing/_internal/common_utils.py need expecttest
+    pip install expecttest==0.1.3 && \
+    yum install gcc -y
+
+FROM util-base as aci-base
+
+RUN wget -O ./torch-1.12.1+cu113-cp38-cp38-linux_x86_64.whl http://alps-common.oss-cn-hangzhou-zmf.aliyuncs.com/users/junshi/torch-1.12.1%2Bcu113-cp38-cp38-linux_x86_64.whl && \
+    wget -O ./torchvision-0.13.1+cu113-cp38-cp38-linux_x86_64.whl http://alps-common.oss-cn-hangzhou-zmf.aliyuncs.com/users/junshi/torchvision-0.13.1%2Bcu113-cp38-cp38-linux_x86_64.whl && \
+    wget -O ./torchaudio-0.12.1+cu113-cp38-cp38-linux_x86_64.whl http://alps-common.oss-cn-hangzhou-zmf.aliyuncs.com/users/junshi/torchaudio-0.12.1%2Bcu113-cp38-cp38-linux_x86_64.whl && \
+    pip install ./torch-1.12.1+cu113-cp38-cp38-linux_x86_64.whl ./torchvision-0.13.1+cu113-cp38-cp38-linux_x86_64.whl ./torchaudio-0.12.1+cu113-cp38-cp38-linux_x86_64.whl && \
+    rm -rf ./torch*-cp38-linux_x86_64.whl
+
+COPY atorch/requirements-aci.txt ./
+RUN pip install -r requirements-aci.txt
+
+COPY .pre-commit-config-internal.yaml ./
+RUN git init . && pre-commit install-hooks -c .pre-commit-config-internal.yaml
