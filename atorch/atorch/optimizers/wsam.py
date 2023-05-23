@@ -30,7 +30,7 @@ class WeightedSAM(torch.optim.Optimizer):
         sam_eps=1e-12,
         adaptive=False,
         decouple=True,
-        max_norm=1.0,
+        max_norm=None,
         **kwargs,
     ):
         assert rho >= 0.0, f"Invalid rho, should be non-negative: {rho}"
