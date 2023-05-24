@@ -265,6 +265,8 @@ class ElasticTrainer(object):
         if max_worker_num == 0:
             self.gradient_accumulation_steps = 1
 
+        local_size = int(os.environ.get("LOCAL_WORLD_SIZE", 1))
+        max_worker_num *= local_size
         cur_world_size, rank = 1, 0
         if dist.is_initialized():
             cur_world_size = dist.get_world_size()

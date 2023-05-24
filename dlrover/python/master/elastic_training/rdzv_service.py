@@ -94,6 +94,11 @@ class TorchRendezvousService(object):
             a boolean value indicating whether our set attempt succeeded.
         """
         if host_name not in self._participants:
+            logger.info(
+                "Host %s is not in participants %s",
+                host_name,
+                self._participants,
+            )
             return False
         with self._lock:
             self._scale_down_worker_base2()

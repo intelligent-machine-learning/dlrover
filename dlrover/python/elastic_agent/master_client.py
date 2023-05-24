@@ -80,7 +80,7 @@ class MasterClient(object):
         self._host = os.getenv("MY_POD_IP", "localhost")
         self._worker_local_process_id = int(os.getenv("LOCAL_RANK", 0))
         self._ddp_server_port = self.find_free_port()
-        self._host_name = socket.gethostname()
+        self._host_name = os.getenv("POD_NAME", "")
 
     def __del__(self):
         self._channel.close()
