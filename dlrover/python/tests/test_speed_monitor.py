@@ -39,4 +39,5 @@ class SpeedMonitorTest(unittest.TestCase):
         monitor.set_worker_start_eval_time(0)
         time.sleep(0.1)
         monitor.update_worker_eval_time(0)
-        self.assertTrue(monitor._worker_eval_times[0].eval_time > 0.1)
+        eval_time = monitor.get_worker_eval_time(0)
+        self.assertTrue(eval_time > 0.1)

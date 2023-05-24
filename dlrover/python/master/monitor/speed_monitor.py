@@ -162,6 +162,15 @@ class SpeedMonitor(object):
                 eval_time.eval_time += time.time() - eval_time.start_eval
                 eval_time.start_eval = 0
 
+    def get_worker_eval_time(self, worker_id):
+        if worker_id in self._worker_eval_times:
+            eval = self._worker_eval_times[worker_id]
+            if eval.start_eval > 0:
+                eval.eval_time += time.time() - eval.start_eval
+                eval.start_eval = 0
+            return eval.eval_time
+        return 0
+
     def all_worker_joined(self):
         return len(self._workers) == self._target_worker_num
 

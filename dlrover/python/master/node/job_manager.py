@@ -567,6 +567,10 @@ class JobManager(object):
                     node.critical = False
                     node.is_released = True
                     node.relaunchable = False
+            for node in self._job_nodes[NodeType.WORKER].values():
+                node.eval_time = self._speed_monitor.get_worker_eval_time(
+                    node.id
+                )
         self._stop_monitor = True
 
     def update_node_resource_usage(self, node_type, node_id, cpu, memory):

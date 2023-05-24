@@ -183,6 +183,7 @@ class Node(object):
         self.used_resource = NodeResource(0.0, 0.0)
         self.start_hang_time = 0
         self.init_time = time.time()
+        self.eval_time = 0
 
     def inc_relaunch_count(self):
         self.relaunch_count += 1
