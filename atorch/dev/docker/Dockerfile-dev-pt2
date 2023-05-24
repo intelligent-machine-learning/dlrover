@@ -1,0 +1,38 @@
+##############################################################################
+# default versions
+# PYTHON_VERSION=3.8
+# TORCH_VERSION=2.0.0
+# CUDA_VERSON=11.7
+##############################################################################
+FROM ubuntu:18.04 as base
+
+ARG PYTHON_VERSION=3.8
+ARG ADMINPW
+
+USER root
+WORKDIR /root
+
+ENV BASH_ENV /root/.bashrc
+ENV LANGUAGE zh_cn
+ENV LC_ALL zh_CN.UTF-8
+ENV SHELL /bin/bash
+
+##############################################################################
+# conda, python, osscmd, ossutil64, pangu, gcc6, libaio-devel, nfs, pyodps
+# grpc, elasticdl, elasticdl_client, elasticai_api, easydl_sdk
+# ca certs pybind11
+##############################################################################
+FROM base as util-base
+ARG PYTHON_VERSION=3.8
+ARG CONDA_PATH=/opt/conda
+ENV PATH ${CONDA_PATH}/bin:$PATH
+ARG CA_PATH=/etc/ssl/certs/ca-bundle.crt
+
+RUN cd ~/ && \
+    apt-get update && apt-get install -y wget && \
+    wget https://mirrors.tuna.tsinghua.edu.cn/anaconda/miniconda/Miniconda3-latest-Linux-x86_64.sh --no-check-certificate -O miniconda-install.sh && \
+    chmod +x miniconda-install.sh && \
+    ~/miniconda-install.sh -b -p ${CONDA_PATH} && \
+    rm ~/miniconda-install.sh && \
+    conda install -y python=${PYTHON_VERSION} conda-build pyyaml numpy==1.23.5 ipython && \
+    conda clean -ya
