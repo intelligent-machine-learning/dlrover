@@ -110,7 +110,7 @@ class TaskManager(object):
                     self._speed_monitor.set_worker_start_eval_time()
                 if task.task_type == elastic_training_pb2.TRAINING:
                     self._speed_monitor.add_running_worker(node_type, node_id)
-                    self._speed_monitor.update_worker_eval_time()
+                    self._speed_monitor.update_worker_eval_time(node_id)
                 self._worker_start_task_time[node_id] = time.time()
                 return task
             else:
