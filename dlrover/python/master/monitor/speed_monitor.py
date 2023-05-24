@@ -12,7 +12,7 @@
 # limitations under the License.
 
 import time
-from typing import List, Set, Tuple
+from typing import List, Set, Tuple, Dict
 
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
@@ -34,6 +34,12 @@ class GlobalStepRecord(object):
         self.worker_num = worker_num
 
 
+class EvaluationTime(object):
+    def __init__(self):
+        self.start_eval = 0
+        self.eval_time = 0
+
+
 class SpeedMonitor(object):
     """Monitor the training speed by the number of batch per second"""
 
@@ -46,6 +52,7 @@ class SpeedMonitor(object):
         self._init_time = time.time()
         self._start_training_time = None
         self._sample_count = 0
+        self._worker_eval_times: Dict[int, EvaluationTime] = {}
 
     def set_target_worker_num(self, worker_num):
         """Set the target number of workers"""
@@ -143,6 +150,17 @@ class SpeedMonitor(object):
         and running workers."""
         self._global_step_records = []
         self._workers = set()
+
+    def set_worker_start_eval_time(self, worker_id):
+        self._worker_eval_times.setdefault(worker_id, EvaluationTime())
+        self._worker_eval_times[worker_id].start_eval = time.time()
+
+    def update_worker_eval_time(self, worker_id):
+        if worker_id in self._worker_eval_times:
+            eval_time = self._worker_eval_times[worker_id]
+            if eval_time.start_eval > 0:
+                eval_time.eval_time += time.time() - eval_time.start_eval
+                eval_time.start_eval = 0 
 
     def all_worker_joined(self):
         return len(self._workers) == self._target_worker_num

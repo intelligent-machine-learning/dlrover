@@ -12,13 +12,14 @@
 # limitations under the License.
 
 import unittest
+import time
 
 from dlrover.python.common.constants import NodeType
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 
 
 class SpeedMonitorTest(unittest.TestCase):
-    def test_speed_monitor(self):
+    def test_monitor_running_workers(self):
         monitor = SpeedMonitor()
         monitor.set_target_worker_num(2)
         monitor.add_running_worker(NodeType.WORKER, 0)
@@ -32,3 +33,10 @@ class SpeedMonitorTest(unittest.TestCase):
         monitor.remove_running_worker(NodeType.WORKER, 1)
         monitor.collect_global_step(18001, 601)
         self.assertFalse(monitor.worker_adjustment_finished())
+
+    def test_monitor_eval_time(self):
+        monitor = SpeedMonitor()
+        monitor.set_worker_start_eval_time(0)
+        time.sleep(0.1)
+        monitor.update_worker_eval_time(0)
+        self.assertTrue(monitor._worker_eval_times[0].eval_time > 0.1)
