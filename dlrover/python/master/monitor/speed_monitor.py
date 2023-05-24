@@ -12,7 +12,7 @@
 # limitations under the License.
 
 import time
-from typing import List, Set, Tuple, Dict
+from typing import Dict, List, Set, Tuple
 
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
@@ -160,7 +160,7 @@ class SpeedMonitor(object):
             eval_time = self._worker_eval_times[worker_id]
             if eval_time.start_eval > 0:
                 eval_time.eval_time += time.time() - eval_time.start_eval
-                eval_time.start_eval = 0 
+                eval_time.start_eval = 0
 
     def all_worker_joined(self):
         return len(self._workers) == self._target_worker_num
