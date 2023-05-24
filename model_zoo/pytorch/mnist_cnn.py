@@ -313,6 +313,7 @@ def test(model, device, test_loader):
     test_loss = 0
     correct = 0
     with torch.no_grad():
+        model = model.to(device)
         for data, target in test_loader:
             target = target.type(torch.LongTensor)
             data, target = data.to(device), target.to(device)
