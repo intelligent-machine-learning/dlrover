@@ -107,7 +107,7 @@ class TaskManager(object):
                         "Reset speed monitor if the worker starts evaluation"
                     )
                     self._speed_monitor.reset_running_speed_monitor()
-                    self._speed_monitor.set_worker_start_eval_time()
+                    self._speed_monitor.set_worker_start_eval_time(node_id)
                 if task.task_type == elastic_training_pb2.TRAINING:
                     self._speed_monitor.add_running_worker(node_type, node_id)
                     self._speed_monitor.update_worker_eval_time(node_id)
