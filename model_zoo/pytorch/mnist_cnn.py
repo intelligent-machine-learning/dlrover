@@ -86,7 +86,7 @@ def train(args):
     checkpoint = load_checkpoint(CHEKPOINT_PATH)
 
     train_data = torchvision.datasets.ImageFolder(
-        path=args.training_data,
+        root=args.training_data,
         transform=transforms.ToTensor(),
     )
     #  Setup sampler for elastic training.
@@ -99,7 +99,7 @@ def train(args):
     )
 
     test_dataset = torchvision.datasets.ImageFolder(
-        args.validation_data,
+        root=args.validation_data,
         transform=torchvision.transforms.ToTensor(),
     )
     test_loader = DataLoader(dataset=test_dataset, batch_size=args.batch_size)
