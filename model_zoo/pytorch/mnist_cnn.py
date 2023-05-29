@@ -83,7 +83,6 @@ def train(args):
         elastic_controller: The controller for elastic training.
     """
     setup()
-    checkpoint = load_checkpoint(CHEKPOINT_PATH)
 
     train_data = torchvision.datasets.ImageFolder(
         root=args.training_data,
@@ -118,6 +117,7 @@ def train(args):
     optimizer = optim.SGD(model.parameters(), lr=args.learning_rate)
     scheduler = StepLR(optimizer, step_size=1, gamma=0.5)
 
+    checkpoint = load_checkpoint(CHEKPOINT_PATH)
     if checkpoint:
         model.load_state_dict(checkpoint.get("model", {}))
         optimizer.load_state_dict(checkpoint.get("optimizer", {}))
