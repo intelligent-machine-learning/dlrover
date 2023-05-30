@@ -66,6 +66,7 @@ def setup():
     ElasticTrainer.setup()
     if use_cuda:
         dist.init_process_group("nccl")
+        torch.cuda.set_device(int(os.environ["LOCAL_RANK"]))
     else:
         dist.init_process_group("gloo")
     rank = dist.get_rank()
@@ -106,11 +107,12 @@ def train(args):
     model = Net()
 
     if torch.cuda.is_available():
-        rank = int(os.environ["LOCAL_RANK"])
-        print(f"Running basic DDP example on rank {rank}.")
+        local_rank = int(os.environ["LOCAL_RANK"])
+        print(f"Running basic DDP example on local rank {local_rank}.")
         # create model and move it to GPU with id rank
-        model = model.to(rank)
-        model = DDP(model, device_ids=[rank])
+        model = model.to(local_rank)
+        model = DDP(model, device_ids=[local_rank])
+        print(f"Model device {model.device}")
     else:
         model = DDP(model)
 
@@ -164,6 +166,7 @@ def train_with_fixed_batch_size(
     device = torch.device("cuda" if use_cuda else "cpu")
     start_epoch = train_loader.sampler.epoch
     for epoch in range(start_epoch, epochs):
+        elastic_trainer.reset()
         for _, (data, target) in enumerate(train_loader):
             model.train()
             with elastic_trainer.step():
@@ -175,7 +178,8 @@ def train_with_fixed_batch_size(
                 optimizer.step()
                 optimizer.zero_grad()
                 train_step = elastic_trainer.num_steps
-                print("loss = {}, step = {}".format(loss, train_step))
+                if train_step % 20 == 0:
+                    print("loss = {}, step = {}".format(loss, train_step))
 
                 if train_step > 0 and train_step % 200 == 0:
                     print("Save checkpoint.")
@@ -215,7 +219,8 @@ def train_with_elastic_batch_size(
             loss.backward()
             optimizer.step()
             optimizer.zero_grad()
-            print("loss = {}, step = {}".format(loss, step))
+            if step % 20 == 0:
+                print("loss = {}, step = {}".format(loss, step))
             if step > 0 and step % 200 == 0:
                 print("Save checkpoint.")
                 checkpoint = {
@@ -275,7 +280,7 @@ def arg_parser():
     parser.add_argument("--num_epochs", type=int, default=1, required=False)
     parser.add_argument("--shuffle", type=bool, default=True, required=False)
     parser.add_argument(
-        "--fixed_batch_size", type=bool, default=True, required=False
+        "--fixed_batch_size", type=bool, default=False, required=False
     )
     parser.add_argument(
         "--learning_rate", type=float, default=0.1, required=False
