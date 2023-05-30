@@ -14,8 +14,6 @@
 import argparse
 import os
 
-import cv2
-import numpy as np
 import torch
 import torch.distributed as dist
 import torch.nn as nn
@@ -25,62 +23,12 @@ import torchvision
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader
+from torchvision import transforms
 
 from dlrover.trainer.torch.elastic import ElasticTrainer
-from dlrover.trainer.torch.elastic_dataset import ElasticDataset
+from dlrover.trainer.torch.elastic_sampler import ElasticDistributedSampler
 
 CHEKPOINT_PATH = "model.pt"
-
-
-def build_data_meta(folder):
-    """Save the path of sample into a list and we can get the path
-    by the index of sample.
-
-    The directory structure of mnist is
-    |- root
-      |- 0
-        |- 1.png
-        |- 21.png
-      |- 1
-        |- 3.png
-        |- 6.png
-    the meta is a list [
-        ("root/0/1.png", 0),
-        ("root/0/21.png", 0),
-        ("root/3.png", 1),
-        ("root/1/6.png", 1),
-    ]
-    """
-    dataset_meta = []
-    for d in os.listdir(folder):
-        dir_path = os.path.join(folder, d)
-        if os.path.isdir(dir_path):
-            for f in os.listdir(dir_path):
-                if f.endswith(".png"):
-                    file_path = os.path.join(dir_path, f)
-                    dataset_meta.append([file_path, d])
-    return dataset_meta
-
-
-class ElasticMnistDataset(ElasticDataset):
-    def __init__(self, path, batch_size, epochs, shuffle):
-        """The dataset supports elastic training."""
-        self.data_meta = build_data_meta(path)
-        super(ElasticMnistDataset, self).__init__(
-            name="mnist-train",
-            dataset_size=len(self.data_meta),
-            batch_size=batch_size,
-            epochs=epochs,
-            shuffle=shuffle,
-        )
-
-    def read_sample(self, index):
-        image_path, label = self.data_meta[index]
-        image = cv2.imread(image_path)
-        image = np.array(image / 255.0, np.float32)
-        image = image.reshape(3, 28, 28)
-        label = float(label)
-        return image, label
 
 
 class Net(nn.Module):
@@ -137,27 +85,26 @@ def train(args):
     setup()
     checkpoint = load_checkpoint(CHEKPOINT_PATH)
 
-    train_dataset = ElasticMnistDataset(
-        path=args.training_data,
-        batch_size=args.batch_size,
-        epochs=args.num_epochs,
-        shuffle=args.shuffle,
+    train_data = torchvision.datasets.ImageFolder(
+        root=args.training_data,
+        transform=transforms.ToTensor(),
     )
-    if checkpoint:
-        train_dataset.load_state_dict(checkpoint.get("train_shards", {}))
+    #  Setup sampler for elastic training.
+    sampler = ElasticDistributedSampler(dataset=train_data)
     train_loader = DataLoader(
-        dataset=train_dataset, batch_size=args.batch_size, num_workers=2
+        dataset=train_data,
+        batch_size=args.batch_size,
+        num_workers=2,
+        sampler=sampler,
     )
 
     test_dataset = torchvision.datasets.ImageFolder(
-        args.validation_data,
+        root=args.validation_data,
         transform=torchvision.transforms.ToTensor(),
     )
     test_loader = DataLoader(dataset=test_dataset, batch_size=args.batch_size)
 
     model = Net()
-    optimizer = optim.SGD(model.parameters(), lr=args.learning_rate)
-    scheduler = StepLR(optimizer, step_size=1, gamma=0.5)
 
     if torch.cuda.is_available():
         rank = int(os.environ["LOCAL_RANK"])
@@ -168,16 +115,17 @@ def train(args):
     else:
         model = DDP(model)
 
+    optimizer = optim.SGD(model.parameters(), lr=args.learning_rate)
+    scheduler = StepLR(optimizer, step_size=1, gamma=0.5)
+
     if checkpoint:
-        model.load_state_dict(checkpoint.get("model_state_dict", {}))
-        optimizer.load_state_dict(checkpoint.get("optimizer_state_dict", {}))
+        model.load_state_dict(checkpoint.get("model", {}))
+        optimizer.load_state_dict(checkpoint.get("optimizer", {}))
+        #  Restore sampler from checkpoint.
+        train_loader.sampler.load_state_dict(checkpoint.get("sampler", {}))
 
     epochs = args.num_epochs
     if args.fixed_batch_size:
-        worker_num = int(os.getenv("WORKER_NUM"))
-        steps_per_epoch = train_dataset.dataset_size // (
-            args.batch_size * worker_num
-        )
         train_with_fixed_batch_size(
             model,
             optimizer,
@@ -185,13 +133,8 @@ def train(args):
             train_loader,
             test_loader,
             epochs,
-            steps_per_epoch,
         )
     else:
-        worker_num = dist.get_world_size()
-        steps_per_epoch = train_dataset.dataset_size // (
-            args.batch_size * worker_num
-        )
         train_with_elastic_batch_size(
             model,
             optimizer,
@@ -199,7 +142,6 @@ def train(args):
             train_loader,
             test_loader,
             epochs,
-            steps_per_epoch,
         )
 
 
@@ -210,46 +152,44 @@ def train_with_fixed_batch_size(
     train_loader,
     test_loader,
     epochs,
-    steps_per_epoch,
 ):
     """
     The global batch size will not change if the number of workers changes.
     """
-    print("Steps per epoch is {}".format(steps_per_epoch))
     elastic_trainer = ElasticTrainer(model)
     optimizer, scheduler = elastic_trainer.prepare(optimizer, scheduler)
 
     epoch = 0
     use_cuda = torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
-    for _, (data, target) in enumerate(train_loader):
-        model.train()
-        with elastic_trainer.step():
-            target = target.type(torch.LongTensor)
-            data, target = data.to(device), target.to(device)
-            output = model(data)
-            loss = F.nll_loss(output, target)
-            loss.backward()
-            optimizer.step()
-            optimizer.zero_grad()
-            train_loader.dataset.step()  # Record the batch samples completed.
-            print(
-                "loss = {}, step = {}".format(loss, elastic_trainer.num_steps)
-            )
-            if (
-                elastic_trainer.num_steps > 0
-                and elastic_trainer.num_steps % 200 == 0
-            ):
-                save_checkpoint(
-                    CHEKPOINT_PATH, model, optimizer, train_loader.dataset
-                )
-            new_epoch = elastic_trainer.num_steps // steps_per_epoch
-            if new_epoch > epoch:
-                epoch = new_epoch
-                scheduler.step()
-                test(model, device, test_loader)
-            if epoch >= epochs:
-                break
+    start_epoch = train_loader.sampler.epoch
+    for epoch in range(start_epoch, epochs):
+        for _, (data, target) in enumerate(train_loader):
+            model.train()
+            with elastic_trainer.step():
+                target = target.type(torch.LongTensor)
+                data, target = data.to(device), target.to(device)
+                output = model(data)
+                loss = F.nll_loss(output, target)
+                loss.backward()
+                optimizer.step()
+                optimizer.zero_grad()
+                train_step = elastic_trainer.num_steps
+                print("loss = {}, step = {}".format(loss, train_step))
+
+                if train_step > 0 and train_step % 200 == 0:
+                    print("Save checkpoint.")
+                    checkpoint = {
+                        "model": model.state_dict(),
+                        "optimizer": optimizer.state_dict(),
+                        "sampler": train_loader.sampler.state_dict(
+                            train_step, train_loader.batch_size
+                        ),  # Checkpoint sampler
+                    }
+                    torch.save(checkpoint, CHEKPOINT_PATH)
+        scheduler.step()
+        print("Test model after epoch {}".format(epoch))
+        test(model, device, test_loader)
 
 
 def train_with_elastic_batch_size(
@@ -259,45 +199,36 @@ def train_with_elastic_batch_size(
     train_loader,
     test_loader,
     epochs,
-    steps_per_epoch,
 ):
     """The global batch size will change if the number of worker changes."""
-    epoch = 0
     use_cuda = torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
-    for step, (data, target) in enumerate(train_loader):
-        model.train()
-        target = target.type(torch.LongTensor)
-        data, target = data.to(device), target.to(device)
-        output = model(data)
-        loss = F.nll_loss(output, target)
-        loss.backward()
-        optimizer.step()
-        optimizer.zero_grad()
-        train_loader.dataset.step()  # Record the batch samples completed.
-        print("loss = {}, step = {}".format(loss, step))
-        if step > 0 and step % 200 == 0:
-            save_checkpoint(
-                CHEKPOINT_PATH, model, optimizer, train_loader.dataset
-            )
-        new_epoch = step // steps_per_epoch
-        if new_epoch > epoch:
-            epoch = new_epoch
-            scheduler.step()
-            test(model, device, test_loader)
-        if epoch >= epochs:
-            break
-    test(model, device, test_loader)
-
-
-def save_checkpoint(path, model, optimizer, dataset: ElasticDataset):
-    print("Save checkpoint.")
-    checkpoint = {
-        "model_state_dict": model.state_dict(),
-        "optimizer_state_dict": optimizer.state_dict(),
-        "train_shards": dataset.state_dict(),
-    }
-    torch.save(checkpoint, path)
+    start_epoch = train_loader.sampler.epoch
+    for epoch in range(start_epoch, epochs):
+        train_loader.sampler.set_epoch(epoch)
+        for step, (data, target) in enumerate(train_loader):
+            model.train()
+            target = target.type(torch.LongTensor)
+            data, target = data.to(device), target.to(device)
+            output = model(data)
+            loss = F.nll_loss(output, target)
+            loss.backward()
+            optimizer.step()
+            optimizer.zero_grad()
+            print("loss = {}, step = {}".format(loss, step))
+            if step > 0 and step % 200 == 0:
+                print("Save checkpoint.")
+                checkpoint = {
+                    "model": model.state_dict(),
+                    "optimizer": optimizer.state_dict(),
+                    "sampler": train_loader.sampler.state_dict(
+                        step, train_loader.batch_size
+                    ),  # Checkpoint sampler
+                }
+                torch.save(checkpoint, CHEKPOINT_PATH)
+        scheduler.step()
+        print("Test model after epoch {}".format(epoch))
+        test(model, device, test_loader)
 
 
 def load_checkpoint(path):

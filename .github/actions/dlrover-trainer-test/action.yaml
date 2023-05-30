@@ -8,7 +8,7 @@ runs:
     - "/bin/bash"
     - "-c"
     - "pip install tensorflow==1.15.5 kubernetes grpcio-tools psutil \
-    'ray[default]' pyhocon\
+    'ray[default]' pyhocon torch\
     && python -m grpc_tools.protoc -I. \
     dlrover/proto/*.proto --python_out=. --grpc_python_out=. \
     && python -m pytest dlrover/trainer/tests"

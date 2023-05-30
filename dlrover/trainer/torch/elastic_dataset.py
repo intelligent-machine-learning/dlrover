@@ -18,13 +18,7 @@ import torch.distributed as dist
 from torch.utils.data import Dataset
 
 from dlrover.python.elastic_agent.sharding.client import IndexShardingClient
-
-
-def get_rank():
-    rank = 0
-    if dist.is_initialized():
-        rank = dist.get_rank()
-    return rank
+from dlrover.trainer.torch.utils import get_rank
 
 
 class ElasticDataset(Dataset, metaclass=ABCMeta):

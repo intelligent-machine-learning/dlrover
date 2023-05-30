@@ -1,38 +1,57 @@
 ##############################################################################
+# base image: 20.04
 # default versions
 # PYTHON_VERSION=3.8
 # TORCH_VERSION=2.0.0
 # CUDA_VERSON=11.7
 ##############################################################################
-FROM ubuntu:18.04 as base
+FROM pytorch/pytorch:2.0.0-cuda11.7-cudnn8-devel as base
 
 ARG PYTHON_VERSION=3.8
-ARG ADMINPW
 
 USER root
 WORKDIR /root
 
 ENV BASH_ENV /root/.bashrc
 ENV LANGUAGE zh_cn
-ENV LC_ALL zh_CN.UTF-8
 ENV SHELL /bin/bash
+COPY dev/docker/pip.conf ~/.pip/pip.conf
+
+RUN sed -i s@/archive.ubuntu.com/@/mirrors.aliyun.com/@g /etc/apt/sources.list
+RUN sed -i s@/security.ubuntu.com/@/mirrors.aliyun.com/@g /etc/apt/sources.list
+RUN apt-get clean
 
 ##############################################################################
-# conda, python, osscmd, ossutil64, pangu, gcc6, libaio-devel, nfs, pyodps
-# grpc, elasticdl, elasticdl_client, elasticai_api, easydl_sdk
-# ca certs pybind11
+# conda and other utils
 ##############################################################################
 FROM base as util-base
 ARG PYTHON_VERSION=3.8
-ARG CONDA_PATH=/opt/conda
-ENV PATH ${CONDA_PATH}/bin:$PATH
-ARG CA_PATH=/etc/ssl/certs/ca-bundle.crt
 
 RUN cd ~/ && \
     apt-get update && apt-get install -y wget && \
     wget https://mirrors.tuna.tsinghua.edu.cn/anaconda/miniconda/Miniconda3-latest-Linux-x86_64.sh --no-check-certificate -O miniconda-install.sh && \
-    chmod +x miniconda-install.sh && \
-    ~/miniconda-install.sh -b -p ${CONDA_PATH} && \
-    rm ~/miniconda-install.sh && \
-    conda install -y python=${PYTHON_VERSION} conda-build pyyaml numpy==1.23.5 ipython && \
-    conda clean -ya
+    chmod +x miniconda-install.sh
+
+##############################################################################
+# rdma, cuda compat
+##############################################################################
+FROM util-base as torch-base
+
+COPY dev/docker/handle_driver_compat.sh ./
+
+RUN echo "/usr/local/cuda/lib" >> /etc/ld.so.conf.d/nvidia.conf && \
+    echo "/usr/local/cuda/lib64" >> /etc/ld.so.conf.d/nvidia.conf && \
+    echo "/usr/lib64" >> /etc/ld.so.conf.d/nvidia.conf && \
+    echo "ldconfig > /dev/null 2>&1 " >> /etc/bashrc && \
+    apt-get install -y build-essential libnl-3-dev libgl1-mesa-dev && \
+    apt-get clean all && \
+    cat handle_driver_compat.sh >> /etc/bashrc && \
+    rm -rf handle_driver_compat.sh
+
+##############################################################################
+# atorch install
+##############################################################################
+COPY atorch/requirements.txt ./
+RUN pip install -r requirements.txt && \
+    rm -f ./requirements.txt && \
+    pip install pre-commit
