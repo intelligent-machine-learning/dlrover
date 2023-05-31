@@ -350,7 +350,7 @@ class PodScaler(Scaler):
         env.append(V1EnvVar(name=NodeEnv.GRPC_ENABLE_FORK, value="False"))
 
         worker_num = self._config_worker_num
-        if pod_stats[node.type] > worker_num:
+        if worker_num == 0:
             worker_num = pod_stats[node.type]
         env.append(V1EnvVar(name=NodeEnv.WORKER_NUM, value=str(worker_num)))
         env.append(
