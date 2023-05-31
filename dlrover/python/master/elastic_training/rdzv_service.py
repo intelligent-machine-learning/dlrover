@@ -42,25 +42,19 @@ class TorchRendezvousService(object):
         self._rdzv_states: Dict[str, RendezvousState] = {}
         self._token = -1
         self._alive_workers = []
-        self._participants = []
         self._scale_down_ts = 0
         self._released_workers = []
 
     def add_alive_worker(self, worker: Node):
         self._alive_workers.append(worker.name)
         self._alive_workers = sorted(self._alive_workers)
-        logger.info(
-            "Alive workers = %s, participants = %s",
-            self._alive_workers,
-            self._participants,
-        )
+        logger.info("Alive workers = %s", self._alive_workers)
         self.kv_store.clear()
 
     def remove_alive_worker(self, worker: Node):
         if worker.name in self._alive_workers:
             self._alive_workers.remove(worker.name)
         self._scale_down_ts = int(time.time())
-        self._participants = []
         self.kv_store.clear()
 
     def get_released_workers(self):
@@ -85,11 +79,11 @@ class TorchRendezvousService(object):
             A tuple of the serialized rendezvous state, its fencing token, and
             a boolean value indicating whether our set attempt succeeded.
         """
-        if host_name not in self._participants:
+        if host_name not in self._alive_workers:
             logger.info(
-                "Host %s is not in participants %s",
+                "Host %s is not in alive worker %s",
                 host_name,
-                self._participants,
+                self._alive_workers,
             )
             return False
         with self._lock:

@@ -73,7 +73,7 @@ class RdzvServiceTest(unittest.TestCase):
         participants = {"worker-0": 0}
         wait_list = ["worker-1"]
         host = "worker-0"
-        rdzv_svc._participants = ["worker-0", "worker-1"]
+        rdzv_svc._alive_workers = ["worker-0", "worker-1"]
         rdzv_svc.set_state(
             rdzv_key, state_bits, 1, participants, wait_list, host
         )
