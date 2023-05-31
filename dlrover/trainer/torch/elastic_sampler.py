@@ -14,6 +14,7 @@ import math
 from typing import Dict, Iterator, Optional, TypeVar
 
 import torch
+import torch.distributed as dist
 from torch.utils.data import Dataset, DistributedSampler
 
 from dlrover.python.common.log import default_logger as logger
@@ -36,6 +37,10 @@ class ElasticDistributedSampler(DistributedSampler):
         seed: int = 0,
         drop_last: bool = False,
     ) -> None:
+        if not dist.is_initialized():
+            rank = 0 if not rank else rank
+            num_replicas = 1 if not num_replicas else num_replicas
+
         super(ElasticDistributedSampler, self).__init__(
             dataset,
             num_replicas,
