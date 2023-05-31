@@ -31,6 +31,12 @@ from dlrover.trainer.torch.elastic_sampler import ElasticDistributedSampler
 CHEKPOINT_PATH = "model.pt"
 
 
+def log_rank0(msg):
+    local_rank = int(os.environ.get("LOCAL_RANK", 0))
+    if local_rank == 0:
+        print(msg)
+
+
 class Net(nn.Module):
     def __init__(self):
         super(Net, self).__init__()
@@ -220,9 +226,9 @@ def train_with_elastic_batch_size(
             optimizer.step()
             optimizer.zero_grad()
             if step % 20 == 0:
-                print("loss = {}, step = {}".format(loss, step))
+                log_rank0("loss = {}, step = {}".format(loss, step))
             if step > 0 and step % 200 == 0:
-                print("Save checkpoint.")
+                log_rank0("Save checkpoint.")
                 checkpoint = {
                     "model": model.state_dict(),
                     "optimizer": optimizer.state_dict(),
@@ -232,7 +238,7 @@ def train_with_elastic_batch_size(
                 }
                 torch.save(checkpoint, CHEKPOINT_PATH)
         scheduler.step()
-        print("Test model after epoch {}".format(epoch))
+        log_rank0("Test model after epoch {}".format(epoch))
         test(model, device, test_loader)
 
 
@@ -244,7 +250,7 @@ def load_checkpoint(path):
 
 
 def test(model, device, test_loader):
-    print("Test the model ...")
+    log_rank0("Test the model ...")
     model.eval()
     test_loss = 0
     correct = 0
@@ -264,7 +270,7 @@ def test(model, device, test_loader):
 
     test_loss /= len(test_loader.dataset)
 
-    print(
+    log_rank0(
         "\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n".format(
             test_loss,
             correct,
