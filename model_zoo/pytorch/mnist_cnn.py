@@ -31,6 +31,12 @@ from dlrover.trainer.torch.elastic_sampler import ElasticDistributedSampler
 CHEKPOINT_PATH = "model.pt"
 
 
+def log_rank0(msg):
+    local_rank = int(os.environ.get("LOCAL_RANK", 0))
+    if local_rank == 0:
+        print(msg)
+
+
 class Net(nn.Module):
     def __init__(self):
         super(Net, self).__init__()
@@ -66,6 +72,7 @@ def setup():
     ElasticTrainer.setup()
     if use_cuda:
         dist.init_process_group("nccl")
+        torch.cuda.set_device(int(os.environ["LOCAL_RANK"]))
     else:
         dist.init_process_group("gloo")
     rank = dist.get_rank()
@@ -83,7 +90,6 @@ def train(args):
         elastic_controller: The controller for elastic training.
     """
     setup()
-    checkpoint = load_checkpoint(CHEKPOINT_PATH)
 
     train_data = torchvision.datasets.ImageFolder(
         root=args.training_data,
@@ -107,17 +113,19 @@ def train(args):
     model = Net()
 
     if torch.cuda.is_available():
-        rank = int(os.environ["LOCAL_RANK"])
-        print(f"Running basic DDP example on rank {rank}.")
+        local_rank = int(os.environ["LOCAL_RANK"])
+        print(f"Running basic DDP example on local rank {local_rank}.")
         # create model and move it to GPU with id rank
-        model = model.to(rank)
-        model = DDP(model, device_ids=[rank])
+        model = model.to(local_rank)
+        model = DDP(model, device_ids=[local_rank])
+        print(f"Model device {model.device}")
     else:
         model = DDP(model)
 
     optimizer = optim.SGD(model.parameters(), lr=args.learning_rate)
     scheduler = StepLR(optimizer, step_size=1, gamma=0.5)
 
+    checkpoint = load_checkpoint(CHEKPOINT_PATH)
     if checkpoint:
         model.load_state_dict(checkpoint.get("model", {}))
         optimizer.load_state_dict(checkpoint.get("optimizer", {}))
@@ -164,6 +172,7 @@ def train_with_fixed_batch_size(
     device = torch.device("cuda" if use_cuda else "cpu")
     start_epoch = train_loader.sampler.epoch
     for epoch in range(start_epoch, epochs):
+        elastic_trainer.reset()
         for _, (data, target) in enumerate(train_loader):
             model.train()
             with elastic_trainer.step():
@@ -175,7 +184,8 @@ def train_with_fixed_batch_size(
                 optimizer.step()
                 optimizer.zero_grad()
                 train_step = elastic_trainer.num_steps
-                print("loss = {}, step = {}".format(loss, train_step))
+                if train_step % 20 == 0:
+                    print("loss = {}, step = {}".format(loss, train_step))
 
                 if train_step > 0 and train_step % 200 == 0:
                     print("Save checkpoint.")
@@ -215,9 +225,10 @@ def train_with_elastic_batch_size(
             loss.backward()
             optimizer.step()
             optimizer.zero_grad()
-            print("loss = {}, step = {}".format(loss, step))
+            if step % 20 == 0:
+                log_rank0("loss = {}, step = {}".format(loss, step))
             if step > 0 and step % 200 == 0:
-                print("Save checkpoint.")
+                log_rank0("Save checkpoint.")
                 checkpoint = {
                     "model": model.state_dict(),
                     "optimizer": optimizer.state_dict(),
@@ -227,7 +238,7 @@ def train_with_elastic_batch_size(
                 }
                 torch.save(checkpoint, CHEKPOINT_PATH)
         scheduler.step()
-        print("Test model after epoch {}".format(epoch))
+        log_rank0("Test model after epoch {}".format(epoch))
         test(model, device, test_loader)
 
 
@@ -239,7 +250,7 @@ def load_checkpoint(path):
 
 
 def test(model, device, test_loader):
-    print("Test the model ...")
+    log_rank0("Test the model ...")
     model.eval()
     test_loss = 0
     correct = 0
@@ -259,7 +270,7 @@ def test(model, device, test_loader):
 
     test_loss /= len(test_loader.dataset)
 
-    print(
+    log_rank0(
         "\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n".format(
             test_loss,
             correct,
@@ -275,7 +286,7 @@ def arg_parser():
     parser.add_argument("--num_epochs", type=int, default=1, required=False)
     parser.add_argument("--shuffle", type=bool, default=True, required=False)
     parser.add_argument(
-        "--fixed_batch_size", type=bool, default=True, required=False
+        "--fixed_batch_size", type=bool, default=False, required=False
     )
     parser.add_argument(
         "--learning_rate", type=float, default=0.1, required=False

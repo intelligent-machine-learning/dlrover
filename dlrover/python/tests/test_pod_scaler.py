@@ -64,6 +64,7 @@ class PodScalerTest(unittest.TestCase):
             "elasticjob-sample-edljob-ps-0",
             "elasticjob-sample-edljob-ps-1",
         ]
+        scaler._config_worker_num = 2
         pod = scaler._create_pod(node, pod_stats, ps_addrs)
         self.assertEqual(
             pod.metadata.name, "elasticjob-sample-edljob-worker-0"
@@ -76,6 +77,8 @@ class PodScalerTest(unittest.TestCase):
             """{"type": "worker", "index": 0}"""
             in main_container.env[-1].value
         )
+        self.assertEqual(main_container.env[5].name, "WORKER_NUM")
+        self.assertEqual(main_container.env[5].value, "2")
         node = Node(NodeType.CHIEF, 0, resource, rank_index=0)
         pod = scaler._create_pod(node, pod_stats, ps_addrs)
         main_container = pod.spec.containers[0]

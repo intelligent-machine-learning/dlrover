@@ -21,12 +21,6 @@ from dlrover.python.master.elastic_training.kv_store_service import (
     KVStoreService,
 )
 
-_WAIT_REALUNCH_FAILED_WORKER_SECS = 120
-
-
-def base2(n):
-    return (n & (n - 1) == 0) and n != 0
-
 
 class RendezvousState(object):
     def __init__(self) -> None:
@@ -48,27 +42,19 @@ class TorchRendezvousService(object):
         self._rdzv_states: Dict[str, RendezvousState] = {}
         self._token = -1
         self._alive_workers = []
-        self._participants = []
         self._scale_down_ts = 0
         self._released_workers = []
 
     def add_alive_worker(self, worker: Node):
         self._alive_workers.append(worker.name)
-        if base2(len(self._alive_workers)):
-            self._participants = self._alive_workers
         self._alive_workers = sorted(self._alive_workers)
-        logger.info(
-            "Alive workers = %s, participants = %s",
-            self._alive_workers,
-            self._participants,
-        )
+        logger.info("Alive workers = %s", self._alive_workers)
         self.kv_store.clear()
 
     def remove_alive_worker(self, worker: Node):
         if worker.name in self._alive_workers:
             self._alive_workers.remove(worker.name)
         self._scale_down_ts = int(time.time())
-        self._participants = []
         self.kv_store.clear()
 
     def get_released_workers(self):
@@ -93,18 +79,17 @@ class TorchRendezvousService(object):
             A tuple of the serialized rendezvous state, its fencing token, and
             a boolean value indicating whether our set attempt succeeded.
         """
-        if host_name not in self._participants:
+        if host_name not in self._alive_workers:
             logger.info(
-                "Host %s is not in participants %s",
+                "Host %s is not in alive worker %s",
                 host_name,
-                self._participants,
+                self._alive_workers,
             )
             return False
         with self._lock:
-            self._scale_down_worker_base2()
             self._rdzv_states.setdefault(key, RendezvousState())
             if self._rdzv_states[key].latest_state_bits == state_bits:
-                return False
+                return True
             rdzv_state = self._rdzv_states[key]
             rdzv_state.latest_state_bits = state_bits
             rdzv_state.participants = participants
@@ -122,37 +107,11 @@ class TorchRendezvousService(object):
             `None` if no state is found in the backend.
         """
         with self._lock:
-            self._scale_down_worker_base2()
             completed_state_bits = b""
-            if (
-                key not in self._rdzv_states
-                or worker_name not in self._participants
-            ):
+            if key not in self._rdzv_states:
                 return completed_state_bits, self._token
 
             rdzv_state = self._rdzv_states[key]
             rdzv_state.completed_state_bits = rdzv_state.latest_state_bits
             completed_state_bits = rdzv_state.completed_state_bits
             return completed_state_bits, self._token
-
-    def _scale_down_worker_base2(self):
-        """Scale down the number of worker base2 like 1,2,4,8,...."""
-        if not self._participants and self._scale_down_ts > 0:
-            now = int(time.time())
-            worker_num = len(self._alive_workers)
-            n = 0
-            while worker_num > 0:
-                worker_num = worker_num >> 1
-                n += 1
-            target_worker_num = pow(2, n - 1)
-            if now - self._scale_down_ts > _WAIT_REALUNCH_FAILED_WORKER_SECS:
-                self._participants = self._alive_workers[:target_worker_num]
-                self._scale_down_ts = 0
-                for worker in self._alive_workers:
-                    if worker not in self._participants:
-                        self._released_workers.append(worker)
-                logger.info(
-                    "Release workers %s and particaipants are %s",
-                    self._released_workers,
-                    self._participants,
-                )

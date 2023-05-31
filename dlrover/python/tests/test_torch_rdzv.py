@@ -19,8 +19,6 @@ from torch.distributed.elastic.rendezvous.dynamic_rendezvous import (
     _RendezvousState,
 )
 
-from dlrover.python.common.constants import NodeType
-from dlrover.python.common.node import Node
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
 from dlrover.python.elastic_agent.torch.rdzv_backend import (
     DlroverRendezvousBackend,
@@ -75,22 +73,9 @@ class RdzvServiceTest(unittest.TestCase):
         participants = {"worker-0": 0}
         wait_list = ["worker-1"]
         host = "worker-0"
-        rdzv_svc._participants = ["worker-0", "worker-1"]
+        rdzv_svc._alive_workers = ["worker-0", "worker-1"]
         rdzv_svc.set_state(
             rdzv_key, state_bits, 1, participants, wait_list, host
         )
-        new_state_bits, token = rdzv_svc.get_state(host, rdzv_key)
+        new_state_bits, _ = rdzv_svc.get_state(host, rdzv_key)
         self.assertEqual(new_state_bits, state_bits)
-        self.assertEqual(token, 0)
-
-    def test_scale_down_worker_base2(self):
-        rdzv_svc = TorchRendezvousService()
-        worker0 = Node(NodeType.WORKER, 0, name="worker-0")
-        rdzv_svc.add_alive_worker(worker0)
-        self.assertListEqual(rdzv_svc._participants, ["worker-0"])
-        rdzv_svc._alive_workers = ["worker-0", "worker-1", "worker-2"]
-        worker2 = Node(NodeType.WORKER, 0, name="worker-2")
-        rdzv_svc.remove_alive_worker(worker2)
-        rdzv_svc._scale_down_ts -= 400
-        rdzv_svc._scale_down_worker_base2()
-        self.assertEqual(rdzv_svc._participants, ["worker-0", "worker-1"])
