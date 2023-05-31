@@ -14,7 +14,10 @@ import math
 from typing import Dict, Iterator, Optional, TypeVar
 
 import torch
+import torch.distributed as dist
 from torch.utils.data import Dataset, DistributedSampler
+
+from dlrover.python.common.log import default_logger as logger
 
 T_co = TypeVar("T_co", covariant=True)
 
@@ -34,6 +37,10 @@ class ElasticDistributedSampler(DistributedSampler):
         seed: int = 0,
         drop_last: bool = False,
     ) -> None:
+        if not dist.is_initialized():
+            rank = 0 if not rank else rank
+            num_replicas = 1 if not num_replicas else num_replicas
+
         super(ElasticDistributedSampler, self).__init__(
             dataset,
             num_replicas,
@@ -99,4 +106,12 @@ class ElasticDistributedSampler(DistributedSampler):
         self.completed_num = int(state.get("completed_num", 0))
         self.num_samples = int(
             (self.total_size - self.completed_num) / self.num_replicas
+        )
+        if self.completed_num > self.total_size:
+            self.completed_num = self.completed_num % self.total_size
+        logger.info(
+            "Load epoch = %s, completed num = %s, num_samples = %s",
+            self.epoch,
+            self.completed_num,
+            self.num_samples,
         )

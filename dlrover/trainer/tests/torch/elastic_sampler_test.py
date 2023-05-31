@@ -21,7 +21,7 @@ from dlrover.trainer.torch.elastic_sampler import ElasticDistributedSampler
 
 class SimpleDataset(Dataset):
     def __init__(self):
-        self.data = np.arange(0, 100)
+        self.data = np.arange(0, 60000)
 
     def __len__(self):
         return len(self.data)
@@ -43,8 +43,8 @@ class ElasticDistributedSamplerTest(unittest.TestCase):
         step = 0
         sampler_state = None
         for i, v in enumerate(sampler):
-            if i % 8 == 0:
-                step = i / 8
+            if i % batch_size == 0:
+                step = i / batch_size
             if step == 4:
                 sampler_state = sampler.state_dict(step, batch_size)
                 break

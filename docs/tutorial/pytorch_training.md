@@ -8,6 +8,10 @@ train a CNN model with the MNIST dataset.
 
 ## Develop a Torch Model with DLRover. 
 
+Using elastic training of DLRover, users only need to set the
+`ElasticDistributedSampler` into their training `DataLoader`
+and checkpoint the sampler when checkpointing the model.
+
 ### Setup the Environment Using ElasticTrainer
 
 Users need to set up the environment through `ElasticTrainer`. 
@@ -22,65 +26,57 @@ from dlrover.trainer.torch.elastic import ElasticTrainer
 ElasticTrainer.setup()
 ```
 
-### Develop the ElasticDataset.
+### Setup ElasticDistributedSampler into the Dataloader.
 
-At first, users need to write the path of the sample into a `Text` file.
-The path can be a location path of a file or a linke to download
-the sample data from a remote storage. For example, we can create a Text
-file to storage the location path and lable of MNIST dataset.
 
-```text
-/data/mnist_png/training/9/37211.png,9
-/data/mnist_png/training/9/51194.png,9
-/data/mnist_png/training/9/374.png,9
-/data/mnist_png/training/1/29669.png,1
-/data/mnist_png/training/1/19782.png,1
-/data/mnist_png/training/1/42786.png,1
-/data/mnist_png/training/8/41017.png,8
-/data/mnist_png/training/8/13037.png,8
-/data/mnist_png/training/8/7101.png,8
+```Python
+from dlrover.trainer.torch.elastic_sampler import ElasticDistributedSampler
+
+train_data = torchvision.datasets.ImageFolder(
+    root="mnist/training/",
+    transform=transforms.ToTensor(),
+)
+#  Setup sampler for elastic training.
+sampler = ElasticDistributedSampler(dataset=train_data)
+train_loader = DataLoader(
+    dataset=train_data,
+    batch_size=32,
+    num_workers=2,
+    sampler=sampler,
+)
+```
+
+### Save and Restore Checkpoint of  ElasticDistributedSampler
+
+Checkpoint `ElasticDistributedSampler` when checkpointing
+the model.
+
+```python
+checkpoint = {
+    "model": model.state_dict(),
+    "optimizer": optimizer.state_dict(),
+    "sampler": train_loader.sampler.state_dict(
+        step, train_loader.batch_size
+    ),  # Checkpoint sampler
+}
+torch.save(checkpoint, CHEKPOINT_PATH)
+```
+
+Restore `ElasticDistributedSampler` when restoring the model
+from a checkpoint file.
+
+```Python
+checkpoint = load_checkpoint(CHEKPOINT_PATH)
+model.load_state_dict(checkpoint.get("model", {}))
+optimizer.load_state_dict(checkpoint.get("optimizer", {}))
+#  Restore sampler from checkpoint.
+train_loader.sampler.load_state_dict(checkpoint.get("sampler", {})
 ```
 
 Then, we create a dataset to support elastic training
 using the Text file.
 
-```python
-from dlrover.trainer.torch.elastic_dataset import ElasticDataset
-
-
-class ElasticMnistDataset(ElasticDataset):
-    def __init__(self, path, batch_size, epochs, shuffle, checkpoint_path):
-        """The dataset supports elastic training.
-
-        Args:
-            path: str, the path of dataset meta file. For example, if the image
-                is stored in a folder. The meta file should be a
-                text file where each line is the absolute path of a image.
-            batch_size: int, the size of batch samples to compute gradients
-                in a trainer process.
-            epochs: int, the number of epoch.
-            shuffle: bool, whether to shuffle samples in the dataset.
-            checkpoint_path: the path to save the checkpoint of shards
-                int the dataset.
-        """
-        super(ElasticMnistDataset, self).__init__(
-            path,
-            batch_size,
-            epochs,
-            shuffle,
-            checkpoint_path,
-        )
-
-    def read_sample(self, index):
-        """
-        Read the sample by the index. Users can get the location
-        path by the index from the text file and write codes
-        to read sample data.
-        """
-        pass
-```
-
-### Wrap the Training Step using ElasticTrainer
+### Wrap the Training Step using ElasticTrainer to Fix Batch Size
 
 To keep the total batch size fixed during elastic training,
 users need to create an `ElasticTrainer` to wrap the model, optimizer
@@ -121,13 +117,13 @@ for _, (data, target) in enumerate(train_loader):
          # Save checkpoint periodically.
         if elastic_trainer.num_steps % 200 == 0:
             model_checkpoint = {
-                "model_state_dict": model.state_dict(),
-                "optimizer_state_dict": optimizer.state_dict(),
+                "model": model.state_dict(),
+                "optimizer": optimizer.state_dict(),
+                "sampler": train_loader.sampler.state_dict(
+                        train_step, train_loader.batch_size
+                    ),  # Checkpoint sampler
             }
             torch.save(model_checkpoint, "model.pt")
-
-            # Checkpoint the dataset when checkpointing the model.
-            dataset.save_checkpoint()
 ```
 
 ## Submit an ElasticJob on the Kubernetes to Train the model.

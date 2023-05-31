@@ -241,6 +241,9 @@ class ElasticTrainer(object):
             yield
             self._after_step()
 
+    def reset(self):
+        self.gradient_state.num_steps = 0
+
     @property
     def num_steps(self):
         return self.gradient_state.num_steps
