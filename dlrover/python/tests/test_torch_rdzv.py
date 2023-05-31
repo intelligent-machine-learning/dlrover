@@ -19,8 +19,6 @@ from torch.distributed.elastic.rendezvous.dynamic_rendezvous import (
     _RendezvousState,
 )
 
-from dlrover.python.common.constants import NodeType
-from dlrover.python.common.node import Node
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
 from dlrover.python.elastic_agent.torch.rdzv_backend import (
     DlroverRendezvousBackend,
