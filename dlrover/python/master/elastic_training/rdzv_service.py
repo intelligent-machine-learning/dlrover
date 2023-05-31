@@ -95,7 +95,7 @@ class TorchRendezvousService(object):
         with self._lock:
             self._rdzv_states.setdefault(key, RendezvousState())
             if self._rdzv_states[key].latest_state_bits == state_bits:
-                return False
+                return True
             rdzv_state = self._rdzv_states[key]
             rdzv_state.latest_state_bits = state_bits
             rdzv_state.participants = participants
