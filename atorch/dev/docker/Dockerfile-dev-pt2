@@ -13,7 +13,6 @@ USER root
 WORKDIR /root
 
 ENV BASH_ENV /root/.bashrc
-ENV LANGUAGE zh_cn
 ENV SHELL /bin/bash
 COPY dev/docker/pip.conf ~/.pip/pip.conf
 
