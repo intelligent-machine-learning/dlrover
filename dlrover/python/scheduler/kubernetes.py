@@ -99,6 +99,7 @@ class k8sClient(object):
 
         self.client = client.CoreV1Api()
         self.api_instance = client.CustomObjectsApi()
+        self.api_client = client.ApiClient()
         self._namespace = namespace
 
     @retry_k8s_request
