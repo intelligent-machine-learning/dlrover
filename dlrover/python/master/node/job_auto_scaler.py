@@ -250,6 +250,7 @@ class AllreduceTrainingAutoScaler(JobAutoScaler):
         self._workers = job_nodes[NodeType.WORKER]
         self._autoscaling_started = False
         self._resource_checker = UnlimitedQuotaChecker()
+        self._schedule_worker_base2 = False
 
     def start_auto_scaling(self):
         """Start auto-scaling nodes of a job"""
@@ -257,11 +258,12 @@ class AllreduceTrainingAutoScaler(JobAutoScaler):
             self._autoscaling_started = True
             plan = self._job_optimizer.get_job_resource_plan()
             self.execute_job_optimization_plan(plan)
-            threading.Thread(
-                target=self._periodic_adjust_worker,
-                name="allreduce-autoscaler",
-                daemon=True,
-            ).start()
+            if self._schedule_worker_base2:
+                threading.Thread(
+                    target=self._periodic_adjust_worker,
+                    name="allreduce-autoscaler",
+                    daemon=True,
+                ).start()
 
     def _periodic_adjust_worker(self):
         """Adjust the number of worker according to the available number
