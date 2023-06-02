@@ -18,8 +18,8 @@ import grpc
 from torch.distributed import Store
 from torch.distributed.elastic.rendezvous.api import (
     RendezvousConnectionError,
-    RendezvousParameters,
     RendezvousHandler,
+    RendezvousParameters,
 )
 from torch.distributed.elastic.rendezvous.dynamic_rendezvous import (
     RendezvousBackend,
@@ -27,7 +27,6 @@ from torch.distributed.elastic.rendezvous.dynamic_rendezvous import (
     create_handler,
 )
 from torch.distributed.elastic.rendezvous.registry import handler_registry
-
 
 from dlrover.python.elastic_agent.master_client import (
     GlobalMasterClient,
