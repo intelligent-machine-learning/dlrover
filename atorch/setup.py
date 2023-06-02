@@ -20,6 +20,7 @@ setup(
     # 0.4.2,require python3.7
     install_requires=required_deps,
     package_data={"": ["*.so"]},
-    cmdclass=cmdclass, data_files=["atorch/requirements.txt", "bin/build_proto.sh", "atorch/protos/coworker.proto"],
+    cmdclass=cmdclass,
+    # data_files=["atorch/requirements.txt", "bin/build_proto.sh", "atorch/protos/coworker.proto"],
     data_files=["atorch/requirements.txt"],
 )
