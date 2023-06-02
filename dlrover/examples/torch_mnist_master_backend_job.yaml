@@ -22,7 +22,7 @@ spec:
                 - -c
                 - "torchrun --nnodes=$WORKER_NUM --nproc_per_node=1 
                   --max_restarts=3 --rdzv_backend=dlrover-master \
-                  model_zoo/pytorch/mnist_cnn.py --num_epochs 2 --fixed_batch_size False \
+                  model_zoo/pytorch/mnist_cnn.py --num_epochs 2 \
                   --training_data /data/mnist_png/training/ \
                   --validation_data /data/mnist_png/testing/"
               resources:
