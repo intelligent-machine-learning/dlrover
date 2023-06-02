@@ -19,11 +19,15 @@ from torch.distributed import Store
 from torch.distributed.elastic.rendezvous.api import (
     RendezvousConnectionError,
     RendezvousParameters,
+    RendezvousHandler,
 )
 from torch.distributed.elastic.rendezvous.dynamic_rendezvous import (
     RendezvousBackend,
     Token,
+    create_handler,
 )
+from torch.distributed.elastic.rendezvous.registry import handler_registry
+
 
 from dlrover.python.elastic_agent.master_client import (
     GlobalMasterClient,
@@ -130,3 +134,18 @@ def create_backend(
     store = MasterKVStore("/torch/elastic/store")
 
     return backend, store
+
+
+def _create_dlrover_master_handler(
+    params: RendezvousParameters,
+) -> RendezvousHandler:
+
+    backend, store = create_backend(params)
+    return create_handler(store, backend, params)
+
+
+def register_dlrover_backend():
+    handler_registry.register(
+        "dlrover-master",
+        _create_dlrover_master_handler,
+    )
