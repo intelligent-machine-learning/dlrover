@@ -16,11 +16,10 @@ setup(
     description="A pytorch extension for efficient deep learning.",
     author="Ant Group",
     python_requires=">=3.5",
-    packages=find_packages(),
+    packages=find_packages(exclude=["*test*"]),
     # 0.4.2,require python3.7
     install_requires=required_deps,
     package_data={"": ["*.so"]},
-    cmdclass=cmdclass,
-    # data_files=["atorch/requirements.txt", "bin/build_proto.sh", "atorch/protos/coworker.proto"],
+    cmdclass=cmdclass, data_files=["atorch/requirements.txt", "bin/build_proto.sh", "atorch/protos/coworker.proto"],
     data_files=["atorch/requirements.txt"],
 )
