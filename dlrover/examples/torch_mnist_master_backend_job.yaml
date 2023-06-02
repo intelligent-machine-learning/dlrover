@@ -20,10 +20,9 @@ spec:
               command:
                 - /bin/bash
                 - -c
-                - "python -m dlrover.python.elastic_agent.torch.prepare \
-                  && torchrun --nnodes=1:$WORKER_NUM --nproc_per_node=1
+                - "torchrun --nnodes=$WORKER_NUM --nproc_per_node=1 
                   --max_restarts=3 --rdzv_backend=dlrover-master \
-                  model_zoo/pytorch/mnist_cnn.py \
+                  model_zoo/pytorch/mnist_cnn.py --num_epochs 2 --fixed_batch_size False \
                   --training_data /data/mnist_png/training/ \
                   --validation_data /data/mnist_png/testing/"
               resources:
