@@ -9,4 +9,4 @@ runs:
     - "-c"
     - "pip install pytest \
 && cd atorch \
-&& PYTHONPATH=. pytest atorch/tests"
+&& sh dev/scripts/pre-commit.sh"
