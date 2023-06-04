@@ -42,7 +42,7 @@ RUN echo "/usr/local/cuda/lib" >> /etc/ld.so.conf.d/nvidia.conf && \
     echo "/usr/local/cuda/lib64" >> /etc/ld.so.conf.d/nvidia.conf && \
     echo "/usr/lib64" >> /etc/ld.so.conf.d/nvidia.conf && \
     echo "ldconfig > /dev/null 2>&1 " >> /etc/bashrc && \
-    apt-get install -y build-essential libnl-3-dev libgl1-mesa-dev && \
+    apt-get install -y build-essential libnl-3-dev libgl1-mesa-dev git && \
     apt-get clean all && \
     cat handle_driver_compat.sh >> /etc/bashrc && \
     rm -rf handle_driver_compat.sh

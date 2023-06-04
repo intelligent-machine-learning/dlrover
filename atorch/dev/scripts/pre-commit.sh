@@ -1,5 +1,6 @@
 #!/bin/sh
 
+apt-get install git -y
 pip install pre-commit==2.21.0
 
 Config=.pre-commit-config.yaml
