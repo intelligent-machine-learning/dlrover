@@ -76,4 +76,4 @@ jobs:
       # This step checks out a copy of your repository.
       - uses: actions/checkout@v3
       # This step references the directory that contains the action.
-      - uses: ./.github/actions/ atorch-python-test
+      - uses: ./.github/actions/atorch-python-test
