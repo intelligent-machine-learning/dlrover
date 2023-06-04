@@ -155,6 +155,10 @@ class DistributedTest(unittest.TestCase):
     def test_two_process_init_distributed(self):
         run_multi_process_init_distributed(get_test_code("gloo"))
 
+@unittest.skipIf(
+    not torch.cuda.is_available(),
+    "No gpu available for cuda and nccl tests",
+)
 class DistributedCudaTest(unittest.TestCase):
     def test_init_distributed_nccl(self):
         res = init_distributed("nccl")
@@ -167,6 +171,10 @@ class DistributedCudaTest(unittest.TestCase):
     def test_two_process_init_distributed(self):
         run_multi_process_init_distributed(get_test_code("nccl", kargs="set_cuda_device_using_local_rank=True"))
 
+@unittest.skipIf(
+    not torch.cuda.is_available(),
+    "No gpu available for cuda and nccl tests",
+)
 class ParallelGroupTest(unittest.TestCase):
     def test_ranks_generation(self):
         dmp_sizes = [
