@@ -52,5 +52,5 @@ RUN echo "/usr/local/cuda/lib" >> /etc/ld.so.conf.d/nvidia.conf && \
 ##############################################################################
 COPY atorch/requirements.txt ./
 RUN pip install -r requirements.txt && \
-    rm -f ./requirements.txt && \
-    pip install pre-commit
+    pip install pre-commit grpcio grpcio-tools && \
+    rm -f ./requirements.txt
