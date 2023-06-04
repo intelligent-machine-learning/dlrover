@@ -1,7 +1,9 @@
-import setuptools.command.build_py
+from typing import Dict
+
 from setuptools import find_packages, setup
 
-cmdclass = {}
+cmdclass: Dict[type, type] = {}
+
 
 def fetch_requirements(path):
     with open(path, "r") as fd:

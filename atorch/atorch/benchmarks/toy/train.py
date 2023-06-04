@@ -1,17 +1,16 @@
-import torch
-import atorch
 import random
+from argparse import ArgumentParser
 
+import torch
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.data.distributed import DistributedSampler
 
-from argparse import ArgumentParser
+import atorch
+
 
 def parse_args():
-    parser = ArgumentParser(
-        description="training arguments"
-    )
+    parser = ArgumentParser(description="training arguments")
 
     parser.add_argument(
         "--epoch",
@@ -35,15 +34,16 @@ def parse_args():
     )
 
     parser.add_argument(
-        '--use_gpu',
+        "--use_gpu",
         nargs="?",
         const=not True,
         default=True,
         type=lambda x: x.lower() in ["true", "yes", "t", "y"],
-        help="if use gpu"
+        help="if use gpu",
     )
 
     return parser.parse_args()
+
 
 class CustomDataset(Dataset):
     def __init__(self, data_size):
@@ -58,8 +58,9 @@ class CustomDataset(Dataset):
         x = torch.tensor([random.random()])
         return x, self.a * x + self.b
 
+
 class MyModel(torch.nn.Module):
-    def __init__(self ):
+    def __init__(self):
         super(MyModel, self).__init__()
         self.linear = torch.nn.Linear(1, 1)
 
@@ -79,16 +80,10 @@ def main(args):
     else:
         raise Exception("Fail to init distribute")
 
-
     # create dataloader for DDP
     dataset = CustomDataset(args.data_size)
     sampler = DistributedSampler(dataset)
-    dataloader = DataLoader(
-        dataset,
-        sampler=sampler,
-        num_workers=2,
-        batch_size=args.batch_size
-    )
+    dataloader = DataLoader(dataset, sampler=sampler, num_workers=2, batch_size=args.batch_size)
 
     # model
     model = MyModel()
@@ -100,11 +95,7 @@ def main(args):
         device_ids = None
         output_device = None
 
-    model = DDP(
-        model,
-        device_ids=device_ids,
-        output_device=output_device
-    )
+    model = DDP(model, device_ids=device_ids, output_device=output_device)
 
     # loss func
     loss_func = torch.nn.MSELoss()
@@ -125,6 +116,7 @@ def main(args):
             optimizer.step()
             optimizer.zero_grad()
         print("Finish epoch {}/{}".format(epoch + 1, args.epoch))
+
 
 if __name__ == "__main__":
     args = parse_args()
