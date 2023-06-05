@@ -15,7 +15,7 @@ then
     echo "============================== Hello Atorch ================================="
     echo "|                                                                            |"
     echo "| Please check above error message.                                          |"
-    echo "| You can run sh dev/scripts/pre-commit.sh locally                         |"
+    echo "| You can run sh dev/scripts/pre-commit.sh locally                           |"
     echo "|                                                                            |"
     echo "============================== Hello Atorch ================================="
     exit ${STATUS}
