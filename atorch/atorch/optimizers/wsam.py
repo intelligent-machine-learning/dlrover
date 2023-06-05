@@ -1,7 +1,9 @@
-import torch
 import logging
+
+import torch
 import torch.distributed as dist
-from atorch.optimizers.utils import enable_running_stats, disable_running_stats
+
+from atorch.optimizers.utils import disable_running_stats, enable_running_stats
 
 logger = logging.getLogger(__name__)
 
@@ -40,9 +42,7 @@ class WeightedSAM(torch.optim.Optimizer):
         self.decouple = decouple
         self.max_norm = max_norm
         alpha = gamma / (1 - gamma)
-        defaults = dict(
-            rho=rho, alpha=alpha, sam_eps=sam_eps, adaptive=adaptive, **kwargs
-        )
+        defaults = dict(rho=rho, alpha=alpha, sam_eps=sam_eps, adaptive=adaptive, **kwargs)
         defaults.update(self.base_optimizer.defaults)
         super(WeightedSAM, self).__init__(self.base_optimizer.param_groups, defaults)
 
@@ -55,11 +55,7 @@ class WeightedSAM(torch.optim.Optimizer):
             for p in group["params"]:
                 if p.grad is None:
                     continue
-                e_w = (
-                    (torch.pow(p, 2) if group["adaptive"] else 1.0)
-                    * p.grad
-                    * scale.to(p)
-                )
+                e_w = (torch.pow(p, 2) if group["adaptive"] else 1.0) * p.grad * scale.to(p)
                 p.add_(e_w, alpha=1.0)  # climb to the local maximum "w + e(w)"
                 self.state[p]["e_w"] = e_w
                 if torch.distributed.is_initialized():
@@ -82,9 +78,7 @@ class WeightedSAM(torch.optim.Optimizer):
                     continue
                 if torch.distributed.is_initialized():
                     dist.all_reduce(p.grad, op=dist.ReduceOp.AVG)
-                p.add_(
-                    self.state[p]["e_w"], alpha=-1.0
-                )  # get back to "w" from "w + e(w)"
+                p.add_(self.state[p]["e_w"], alpha=-1.0)  # get back to "w" from "w + e(w)"
 
         if self.max_norm is not None:
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.max_norm)
@@ -94,13 +88,9 @@ class WeightedSAM(torch.optim.Optimizer):
                 if p.grad is None:
                     continue
                 if not self.decouple:
-                    p.grad.mul_(group["alpha"]).add_(
-                        self.state[p]["grad"], alpha=1.0 - group["alpha"]
-                    )
+                    p.grad.mul_(group["alpha"]).add_(self.state[p]["grad"], alpha=1.0 - group["alpha"])
                 else:
-                    self.state[p]["sharpness"] = (
-                        p.grad.detach().clone() - self.state[p]["grad"]
-                    )
+                    self.state[p]["sharpness"] = p.grad.detach().clone() - self.state[p]["grad"]
                     p.grad.mul_(0.0).add_(self.state[p]["grad"], alpha=1.0)
 
         self.base_optimizer.step()  # do the actual "sharpness-aware" update
@@ -110,21 +100,15 @@ class WeightedSAM(torch.optim.Optimizer):
                 for p in group["params"]:
                     if p.grad is None:
                         continue
-                    p.add_(
-                        self.state[p]["sharpness"], alpha=-group["lr"] * group["alpha"]
-                    )
+                    p.add_(self.state[p]["sharpness"], alpha=-group["lr"] * group["alpha"])
 
         if zero_grad:
             self.zero_grad()
 
     @torch.no_grad()
     def step(self, closure=None):
-        assert (
-            closure is not None
-        ), "Sharpness Aware Minimization requires closure, but it was not provided"
-        closure = torch.enable_grad()(
-            closure
-        )  # the closure should do a full forward-backward pass
+        assert closure is not None, "Sharpness Aware Minimization requires closure, but it was not provided"
+        closure = torch.enable_grad()(closure)  # the closure should do a full forward-backward pass
 
         enable_running_stats(self.model)
         loss = closure()
@@ -143,9 +127,7 @@ class WeightedSAM(torch.optim.Optimizer):
         norm = torch.norm(
             torch.stack(
                 [
-                    ((torch.abs(p) if group["adaptive"] else 1.0) * p.grad)
-                    .norm(p=2)
-                    .to(shared_device)
+                    ((torch.abs(p) if group["adaptive"] else 1.0) * p.grad).norm(p=2).to(shared_device)
                     for group in self.param_groups
                     for p in group["params"]
                     if p.grad is not None
