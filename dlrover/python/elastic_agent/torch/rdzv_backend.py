@@ -59,7 +59,7 @@ class DlroverRendezvousBackend(RendezvousBackend):
     @property
     def name(self) -> str:
         """See base class."""
-        return "dlrover-master"
+        return "dlrover_master"
 
     def get_state(self) -> Optional[Tuple[bytes, Token]]:
         """See base class."""
@@ -145,6 +145,6 @@ def _create_dlrover_master_handler(
 
 def register_dlrover_backend():
     handler_registry.register(
-        "dlrover-master",
+        "dlrover_master",
         _create_dlrover_master_handler,
     )
