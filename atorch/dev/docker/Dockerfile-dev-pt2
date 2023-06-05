@@ -27,7 +27,7 @@ FROM base as util-base
 ARG PYTHON_VERSION=3.8
 
 RUN cd ~/ && \
-    apt-get update && apt-get install -y wget git && \
+    apt-get update && apt-get install -y wget git vim && \
     wget https://mirrors.tuna.tsinghua.edu.cn/anaconda/miniconda/Miniconda3-latest-Linux-x86_64.sh --no-check-certificate -O miniconda-install.sh && \
     chmod +x miniconda-install.sh
 
