@@ -1,0 +1,13 @@
+---
+name: atorch-pre-commit
+description: run pre-commit to check codes for atorch
+runs:
+  using: 'docker'
+  image: "easydl/atorch:iml"
+  args:
+    - "/bin/bash"
+    - "-c"
+    - "pip install pytest \
+&& apt-get install git -y \
+&& cd atorch \
+&& sh dev/scripts/pre-commit.sh"
