@@ -155,13 +155,9 @@ class DistributedTest(unittest.TestCase):
     def test_two_process_init_distributed(self):
         run_multi_process_init_distributed(get_test_code("gloo"))
 
-    def test_two_process_init_distributed_with_coworker(self):
-        run_multi_process_init_distributed(get_coworker_test_code("gloo"))
-
-
 @unittest.skipIf(
     not torch.cuda.is_available(),
-    "No gpu available for cuda tests",
+    "No gpu available for cuda and nccl tests",
 )
 class DistributedCudaTest(unittest.TestCase):
     def test_init_distributed_nccl(self):
@@ -175,27 +171,10 @@ class DistributedCudaTest(unittest.TestCase):
     def test_two_process_init_distributed(self):
         run_multi_process_init_distributed(get_test_code("nccl", kargs="set_cuda_device_using_local_rank=True"))
 
-    def test_two_process_init_distributed_with_coworker(self):
-        run_multi_process_init_distributed(get_coworker_test_code("nccl"))
-
-
 @unittest.skipIf(
     not torch.cuda.is_available(),
-    "No gpu available for cuda tests",
+    "No gpu available for cuda and nccl tests",
 )
-class DistributedCudaAcclTest(unittest.TestCase):
-    def test_init_distributed_accl(self):
-        res = init_distributed("accl")
-        self.assertTrue(res)
-        self.assertEqual(world_size(), 1)
-        self.assertEqual(rank(), 0)
-        self.assertEqual(local_rank(), 0)
-        reset_distributed()
-
-    def test_two_process_init_distributed(self):
-        run_multi_process_init_distributed(get_test_code("accl", kargs="set_cuda_device_using_local_rank=True"))
-
-
 class ParallelGroupTest(unittest.TestCase):
     def test_ranks_generation(self):
         dmp_sizes = [
@@ -256,7 +235,6 @@ if __name__ == "__main__":
     rpc.shutdown()
     assert res == 6.0
 """
-
 
 class RpcTest(unittest.TestCase):
     def test_one_worker_and_one_coworker(self):

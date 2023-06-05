@@ -55,4 +55,7 @@ setup(
             "Makefile",
         ]
     },
+    entry_points={
+        "console_scripts": ["torchrun=dlrover.trainer.torch.main:main"]
+    },
 )

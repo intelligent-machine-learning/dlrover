@@ -13,7 +13,6 @@ USER root
 WORKDIR /root
 
 ENV BASH_ENV /root/.bashrc
-ENV LANGUAGE zh_cn
 ENV SHELL /bin/bash
 COPY dev/docker/pip.conf ~/.pip/pip.conf
 
@@ -53,5 +52,5 @@ RUN echo "/usr/local/cuda/lib" >> /etc/ld.so.conf.d/nvidia.conf && \
 ##############################################################################
 COPY atorch/requirements.txt ./
 RUN pip install -r requirements.txt && \
-    rm -f ./requirements.txt && \
-    pip install pre-commit
+    pip install pre-commit grpcio grpcio-tools && \
+    rm -f ./requirements.txt

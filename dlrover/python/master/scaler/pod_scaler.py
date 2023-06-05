@@ -37,6 +37,11 @@ from dlrover.python.scheduler.kubernetes import (
 )
 
 
+class FakeKubeResponse:
+    def __init__(self, obj):
+        self.data = json.dumps(obj)
+
+
 def append_pod_ip_to_env(env):
     pod_ip_var = V1EnvVar(
         name="MY_POD_IP",
@@ -58,23 +63,6 @@ def append_pod_ip_to_env(env):
     return env
 
 
-class PodTemplate(object):
-    """PodTemplate is the template of replica in a job"""
-
-    def __init__(self, template):
-        self.spec = template["spec"]
-        self.restart_policy = self.spec["restartPolicy"]
-        self.main_container = self.spec["containers"][0]
-        self.name = self.main_container["name"]
-        self.image = self.main_container["image"]
-        self.command = self.main_container["command"]
-        self.args = self.main_container.get("args", [])
-        self.image_pull_policy = self.main_container.get(
-            "imagePullPolicy", "Always"
-        )
-        self.volumes = self.spec.get("volumes", [])
-
-
 class PodScaler(Scaler):
     """PodScaler launches or removes Pods using Kubernetes Python APIs
     by a ScalePlan. After PodScaler receives a ScalePlan, it will
@@ -87,7 +75,7 @@ class PodScaler(Scaler):
         super(PodScaler, self).__init__(job_name)
         self._k8s_client = k8sClient.singleton_instance(namespace)
         self._namespace = namespace
-        self._replica_template: Dict[str, PodTemplate] = {}
+        self._replica_template: Dict[str, client.V1Pod] = {}
         self._create_node_queue: List[Node] = []
         self._lock = threading.Lock()
         self._plan = ScalePlan()
@@ -96,6 +84,8 @@ class PodScaler(Scaler):
         threading.Thread(
             target=self._periodic_create_pod, name="pod-creater", daemon=True
         ).start()
+        self.api_client = client.ApiClient()
+        self._k8s_client.api_instance
 
     def _init_pod_config_by_job(self):
         self._job = self._retry_to_get_job()
@@ -108,7 +98,12 @@ class PodScaler(Scaler):
             for replica, spec in self._job["spec"]["replicaSpecs"].items():
                 if replica == NodeType.DLROVER_MASTER:
                     continue
-                self._replica_template[replica] = PodTemplate(spec["template"])
+                pod = spec["template"]
+                pod["apiVesion"] = "v1"
+                pod["kind"] = "Pod"
+                res = FakeKubeResponse(pod)
+                v1pod = self._k8s_client.api_client.deserialize(res, "V1Pod")
+                self._replica_template[replica] = v1pod
 
     def _retry_to_get_job(self):
         for _ in range(3):
@@ -556,7 +551,7 @@ class PodScaler(Scaler):
     def _create_pod_obj(
         self,
         name,
-        pod_template: PodTemplate,
+        pod_template: client.V1Pod,
         resource_requests: Dict[str, float],
         resource_limits: Dict[str, float],
         lifecycle,
@@ -565,65 +560,24 @@ class PodScaler(Scaler):
         labels,
         termination_period=None,
     ):
+        pod = copy.deepcopy(pod_template)
+        main_container: client.V1Container = pod.spec.containers[0]
         resource_limits = (
             resource_limits if len(resource_limits) > 0 else resource_requests
         )
-
-        volume_mounts = []
-        mounts_conf = pod_template.main_container.get("volumeMounts", [])
-        for mounts in mounts_conf:
-            volume_mounts.append(
-                client.V1VolumeMount(
-                    name=mounts["name"],
-                    mount_path=mounts["mountPath"],
-                    sub_path=mounts.get("sub_path", None),
-                )
-            )
-        container = client.V1Container(
-            name="main",
-            image=pod_template.image,
-            command=pod_template.command,
-            args=pod_template.args,
-            resources=client.V1ResourceRequirements(
-                requests=resource_requests,
-                limits=resource_limits,
-            ),
-            image_pull_policy=pod_template.image_pull_policy,
-            env=env,
-            lifecycle=lifecycle,
-            volume_mounts=volume_mounts,
+        main_container.resources = client.V1ResourceRequirements(
+            requests=resource_requests,
+            limits=resource_limits,
         )
-
-        volumes = []
-        for volume in pod_template.volumes:
-            pvc_volume_source = client.V1PersistentVolumeClaimVolumeSource(
-                claim_name=volume["persistentVolumeClaim"]["claimName"],
-                read_only=False,
-            )
-            volume = client.V1Volume(
-                name=volume["name"], persistent_volume_claim=pvc_volume_source
-            )
-            volumes.append(volume)
-
-        # Pod
-        spec = client.V1PodSpec(
-            containers=[container],
-            restart_policy=pod_template.restart_policy,
-            priority_class_name=priority,
-            termination_grace_period_seconds=termination_period,
-            volumes=volumes,
-        )
-
-        pod = client.V1Pod(
-            api_version="v1",
-            kind="Pod",
-            spec=spec,
-            metadata=client.V1ObjectMeta(
-                name=name,
-                labels=labels,
-                owner_references=[self._create_job_owner_reference()],
-                namespace=self._namespace,
-            ),
+        main_container.env = env
+        main_container.lifecycle = lifecycle
+        pod.spec.priority_class_name = priority
+        pod.spec.termination_grace_period_seconds = termination_period
+        pod.metadata = client.V1ObjectMeta(
+            name=name,
+            labels=labels,
+            owner_references=[self._create_job_owner_reference()],
+            namespace=self._namespace,
         )
         return pod
 

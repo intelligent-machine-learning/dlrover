@@ -34,13 +34,14 @@ class PodScalerTest(unittest.TestCase):
             scaler._distribution_strategy,
             DistributionStrategy.PS,
         )
-        worker_template = scaler._replica_template[NodeType.WORKER]
+        worker_pod = scaler._replica_template[NodeType.WORKER]
+        main_container = worker_pod.spec.containers[0]
         self.assertEqual(
-            worker_template.image, "dlrover/elasticjob:iris_estimator"
+            main_container.image, "dlrover/elasticjob:iris_estimator"
         )
-        self.assertEqual(worker_template.restart_policy, "Never")
+        self.assertEqual(worker_pod.spec.restart_policy, "Never")
         self.assertListEqual(
-            worker_template.command,
+            main_container.command,
             [
                 "python",
                 "-m",
