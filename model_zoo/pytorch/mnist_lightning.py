@@ -93,6 +93,7 @@ class MNISTDataModule(pl.LightningDataModule):
         self.batch_size = batch_size
         self.shuffle = shuffle
         self.global_step = 0
+        super().__init__()
 
     def setup(self, stage):
         # transforms for images
