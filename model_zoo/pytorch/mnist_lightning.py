@@ -21,8 +21,8 @@ from torch.nn import functional as F
 from torch.utils.data import DataLoader
 from torchvision import transforms
 
-from dlrover.trainer.torch.elastic_sampler import ElasticDistributedSampler
 from dlrover.trainer.torch.elastic import setup_master_addr
+from dlrover.trainer.torch.elastic_sampler import ElasticDistributedSampler
 
 
 class UpdateDataStepCallback(pl.Callback):
