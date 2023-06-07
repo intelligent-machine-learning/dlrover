@@ -22,16 +22,21 @@ import torch
 import torch.distributed as dist
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.elastic_agent.master_client import GlobalMasterClient
+from dlrover.python.elastic_agent.master_client import (
+    GlobalMasterClient,
+    LocalMasterClient,
+)
 
 _MASTER_ADDR_KEY = "MASTER_ADDR"
 
 
-def setup_master_addr():
+def set_master_addr():
     """Dynamically setup MASTER_ADDR as the ip of pod with rank=0 because
     the pod with rank-0 may change in an elastic training job.
     """
     master_client = GlobalMasterClient.MASTER_CLIENT
+    if isinstance(master_client, LocalMasterClient):
+        return
     rank = os.getenv("RANK", None)
     master_addr = os.getenv("RDZV_ENDPOINT", "")
     if rank is not None:
