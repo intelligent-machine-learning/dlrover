@@ -14,16 +14,18 @@ and checkpoint the sampler when checkpointing the model.
 
 ### Setup the Environment Using ElasticTrainer
 
-Users need to set up the environment through `ElasticTrainer`. 
+Users need to set up the environment through `setup_master_addr`
+because the pod with rank-0 in an elastic training job may
+changes.
 
-The `ElasticTrainer` will mark the rank-0 node as PyTorch MASTER
+The `setup_master_addr` will mark the rank-0 node as PyTorch MASTER
 and the node's IP as `MASTER_ADDR`. Note that, the ranks of all nodes
 are not fixed during elasticity and the rank-0 node is always marked as MASTER.
 
 ```python
-from dlrover.trainer.torch.elastic import ElasticTrainer
+from dlrover.trainer.torch.elastic import setup_master_addr
 
-ElasticTrainer.setup()
+setup_master_addr()
 ```
 
 ### Setup ElasticDistributedSampler into the Dataloader.
