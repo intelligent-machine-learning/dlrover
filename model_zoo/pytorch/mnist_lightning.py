@@ -21,7 +21,7 @@ from torch.nn import functional as F
 from torch.utils.data import DataLoader
 from torchvision import transforms
 
-from dlrover.trainer.torch.elastic import setup_master_addr
+from dlrover.trainer.torch.elastic import set_master_addr
 from dlrover.trainer.torch.elastic_sampler import ElasticDistributedSampler
 
 
@@ -139,7 +139,7 @@ class MNISTDataModule(pl.LightningDataModule):
 
 
 def train(args):
-    setup_master_addr()
+    set_master_addr()
     data_module = MNISTDataModule(
         args.training_data, args.validation_data, args.batch_size, args.shuffle
     )

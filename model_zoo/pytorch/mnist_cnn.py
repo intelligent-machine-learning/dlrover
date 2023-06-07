@@ -25,7 +25,7 @@ from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader
 from torchvision import transforms
 
-from dlrover.trainer.torch.elastic import ElasticTrainer, setup_master_addr
+from dlrover.trainer.torch.elastic import ElasticTrainer, set_master_addr
 from dlrover.trainer.torch.elastic_sampler import ElasticDistributedSampler
 
 CHEKPOINT_PATH = "model.pt"
@@ -69,7 +69,7 @@ def cleanup():
 
 def setup():
     use_cuda = torch.cuda.is_available()
-    setup_master_addr()
+    set_master_addr()
     if use_cuda:
         dist.init_process_group("nccl")
         torch.cuda.set_device(int(os.environ["LOCAL_RANK"]))

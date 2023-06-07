@@ -553,14 +553,13 @@ class LocalMasterClient(object):
 
 
 def build_master_client(master_addr=None):
-    logger.info("Build master client")
     if master_addr is None:
         master_addr = os.getenv(NodeEnv.DLROVER_MASTER_ADDR, "")
     worker_id = int(os.getenv(NodeEnv.WORKER_ID, 0))
     worker_type = os.getenv(NodeEnv.WORKER_TYPE, "worker")
 
     if master_addr:
-        logger.info("getting global master client")
+        logger.info("Build master client to connect with the DLRover master.")
         master_client = MasterClient(master_addr, worker_id, worker_type)
     else:
         master_client = LocalMasterClient(worker_id)
