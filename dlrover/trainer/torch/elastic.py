@@ -53,8 +53,9 @@ def set_master_addr():
                 break
             logger.info("Wait rank 0 to broadcast the MASTER_ADDR.")
             time.sleep(3)
-    os.environ["MASTER_ADDR"] = master_addr
-    logger.info("MASTER_ADDR=%s", os.environ["MASTER_ADDR"])
+    if master_addr:
+        os.environ["MASTER_ADDR"] = master_addr
+        logger.info("MASTER_ADDR=%s", os.environ["MASTER_ADDR"])
 
 
 def get_rank():
