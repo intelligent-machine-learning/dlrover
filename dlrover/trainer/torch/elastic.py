@@ -28,6 +28,16 @@ from dlrover.python.elastic_agent.master_client import (
 )
 
 _MASTER_ADDR_KEY = "MASTER_ADDR"
+_MASTER_PORT_KEY = "MASTER_PORT"
+
+
+def find_free_port() -> int:
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.bind(("localhost", 0))
+    sockname = sock.getsockname()
+    sock.close()
+    return sockname[1]
 
 
 def set_master_addr():
@@ -43,19 +53,23 @@ def set_master_addr():
         if int(rank) == 0:
             host_name = socket.gethostname()
             local_ip = socket.gethostbyname(host_name)
+            port = find_free_port()
             master_client.kv_store_set(_MASTER_ADDR_KEY, local_ip.encode())
-            logger.info("Broadcast master addr %s", local_ip)
+            master_client.kv_store_get(_MASTER_PORT_KEY, str(port).encode())
+            logger.info("Broadcast master addr %s port %s", local_ip, port)
 
         for _ in range(20):
             master_addr = master_client.kv_store_get(_MASTER_ADDR_KEY)
+            master_port = master_client.kv_store_get(_MASTER_PORT_KEY)
             if master_addr:
                 master_addr = master_addr.decode()
                 break
             logger.info("Wait rank 0 to broadcast the MASTER_ADDR.")
             time.sleep(3)
-    if master_addr:
-        os.environ["MASTER_ADDR"] = master_addr
-        logger.info("MASTER_ADDR=%s", os.environ["MASTER_ADDR"])
+    if master_addr and master_port:
+        os.environ[_MASTER_ADDR_KEY] = master_addr
+        os.environ[_MASTER_PORT_KEY] = master_port
+        logger.info("MASTER_ADDR=%s MASTER_PORT", master_addr, master_port)
 
 
 def get_rank():
