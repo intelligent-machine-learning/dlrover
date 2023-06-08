@@ -69,7 +69,7 @@ def set_master_addr():
     if master_addr and master_port:
         os.environ[_MASTER_ADDR_KEY] = master_addr
         os.environ[_MASTER_PORT_KEY] = master_port
-        logger.info("MASTER_ADDR=%s MASTER_PORT", master_addr, master_port)
+        logger.info("MASTER_ADDR=%s MASTER_PORT=%s", master_addr, master_port)
 
 
 def get_rank():
