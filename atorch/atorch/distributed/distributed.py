@@ -120,6 +120,13 @@ def parallel_group_size(name):
     return None
 
 
+def is_distributed():
+    if world_size() is not None and world_size() > 1:
+        return True
+    else:
+        return False
+
+
 def backend():
     return _DistributedContext.BACKEND
 
@@ -181,7 +188,7 @@ def _get_data_info_server():
     return _CoworkerContext.DATA_INFO_SERVER
 
 
-def _check_env(elastic_or_fault_tolerant=False):
+def _check_env():
     local_rank = os.getenv("LOCAL_RANK")
     if not local_rank:
         logger.warning("LOCAL_RANK env not set. Set as 0")
@@ -208,13 +215,16 @@ def _check_env(elastic_or_fault_tolerant=False):
         logger.warning("MASTER_PORT env not set. Set as {}".format(port))
         os.environ["MASTER_PORT"] = str(port)
 
-    if not elastic_or_fault_tolerant:
-        nproc_per_node = os.getenv("NPROC_PER_NODE")
+    # atorch.distributed.launch will set `NPROC_PER_NODE` env;
+    nproc_per_node = os.getenv("NPROC_PER_NODE")
+    if not nproc_per_node:
+        # atorch.distributed.run will set `LOCAL_WORLD_SIZE` env
+        nproc_per_node = os.getenv("LOCAL_WORLD_SIZE")
         if not nproc_per_node:
             logger.warning("NPROC_PER_NODE env not set. Set as 1")
             os.environ["NPROC_PER_NODE"] = "1"
-    else:
-        os.environ["NPROC_PER_NODE"] = os.getenv("LOCAL_WORLD_SIZE")
+        else:
+            os.environ["NPROC_PER_NODE"] = nproc_per_node
 
     master_port2 = os.getenv("MASTER_PORT2")
     if not master_port2:
@@ -259,25 +269,6 @@ def get_pg_ranks(slicing_dim, rank_order):
     return pg_ranks
 
 
-def pair_data_group_with_pipe_stage_id():
-    if _prefix_pg_name("pipe") in _DistributedContext.PARALLEL_GROUPS_AND_RANKS:
-        # any pipe ranks suffices as we are only matching groups with groups
-        _, pipe_ranks = _DistributedContext.PARALLEL_GROUPS_AND_RANKS[_prefix_pg_name("pipe")][0]
-        stage_to_data_group = {}
-        data_group_name = "zero" if _prefix_pg_name("zero") in _DistributedContext.PARALLEL_GROUPS_AND_RANKS else "data"
-        for data_group, data_ranks in _DistributedContext.PARALLEL_GROUPS_AND_RANKS[_prefix_pg_name(data_group_name)]:
-            common_ranks = list(set(data_ranks) & set(pipe_ranks))
-            if len(common_ranks) > 1 or len(common_ranks) == 0:
-                logger.warning("gpu not correctly partitioned")
-            else:
-                stage_id = pipe_ranks.index(common_ranks[0])
-                stage_to_data_group[stage_id] = data_group
-        return stage_to_data_group
-    else:
-        logger.warning("Not using pipe, cannot generate mapping between stage and data group")
-        return None
-
-
 def create_parallel_group(parallel_config):
     """
     Create additional groups for mixed parallel when needed.
@@ -293,9 +284,12 @@ def create_parallel_group(parallel_config):
     slicing_dim = parallel_config[0]
     rank_order = parallel_config[1]
     assert len(slicing_dim) > 0, "parallel_config should not be empty"
-    assert world_size() == np.prod(
-        [p[1] for p in slicing_dim]
-    ), "Multiplication of parallel_config  sizes should equal to world_size"
+    multiplication = np.prod([p[1] for p in slicing_dim])
+    if world_size() != multiplication:
+        raise ValueError(
+            f"Multiplication of parallel_config sizes({multiplication}) should equal to world_size({world_size()}). "
+            f"Please check your parallel_config: {parallel_config}"
+        )
     if rank_order is None:
         rank_order = list(range(world_size()))
 
@@ -557,8 +551,8 @@ def init_distributed(
     Initializes the distributed contexts. Support DDP.
 
     Arguments:
-        backend (str): The backend to use. Supports 'nccl', 'gloo', 'accl'.
-        coworker_num_per_node: if > 0, some processes in a node are used for coworker.
+        backend (str): The backend to use. Support 'nccl', 'gloo', 'accl'.
+        coworker_num_per_node (int): if > 0, some processes in a node are used for coworker.
         elastic_or_fault_tolerant (bool): If True, supports elastic training or fault-tolerant training.
         set_cuda_device_using_local_rank (bool):
            If True, set cuda device using local rank.
@@ -567,13 +561,36 @@ def init_distributed(
     """
 
     backend = backend.lower()
-    if backend not in ["nccl", "gloo", "accl"]:
-        logger.error("Invalid backend {}".format(backend))
+    backend_choices = ["nccl", "gloo", "accl"]
+    if backend not in backend_choices:
+        logger.error("Invalid backend {}. Only support {}".format(backend, backend_choices))
         return False
+
+    if backend in ["nccl", "accl"]:
+        if not torch.cuda.is_available():
+            logger.error(
+                f"torch.cuda.is_available() returns False. Cannot find any GPUs. If using {backend}"
+                " as the communication backend, a GPU must exists. Using gloo to communicate in cpu"
+                " context."
+            )
+            return False
+        if backend == "nccl":
+            try:
+                torch.cuda.nccl.version()
+            except Exception as e:
+                logger.error(f"Failed to get nccl version. {str(e)}")
+                return False
+        elif backend == "accl":
+            try:
+                # noqa: F401
+                import torch_accl  # noqa: F401
+            except ImportError:
+                logger.error("import torch_accl failed")
+                return False
 
     _DistributedContext.BACKEND = backend
 
-    _check_env(elastic_or_fault_tolerant=elastic_or_fault_tolerant)
+    _check_env()
 
     # init local_rank, rank, world_size, coworker_size from env
     _DistributedContext.LOCAL_RANK = int(os.getenv("LOCAL_RANK"))
@@ -601,13 +618,6 @@ def init_distributed(
             logger.error("Failed to init_process_group")
             return False
     else:
-        # if backend == "accl":
-        #    try:
-        #        # noqa: F401
-        #        import torch_accl
-        #    except ImportError:
-        #        logger.error("import torch_accl failed")
-        #        return False
         ddp_group_size = world_size() - coworker_size()
         if rank() < ddp_group_size:
             # init with init_process_group using env
