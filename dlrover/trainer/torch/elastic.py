@@ -21,40 +21,69 @@ from typing import Any, Dict
 import torch
 import torch.distributed as dist
 
+from dlrover.python.common.constants import NodeEnv
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.elastic_agent.master_client import (
-    GlobalMasterClient,
-    LocalMasterClient,
-)
+from dlrover.python.elastic_agent.master_client import GlobalMasterClient
 
 _MASTER_ADDR_KEY = "MASTER_ADDR"
+_MASTER_PORT_KEY = "MASTER_PORT"
+_MASTER_ENDPOINT_KEY = "MASTER_ENDPOINT"
 
 
-def set_master_addr():
+def find_free_port() -> int:
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.bind(("localhost", 0))
+    sockname = sock.getsockname()
+    sock.close()
+    return sockname[1]
+
+
+def set_master_addr(timeout=120):
     """Dynamically setup MASTER_ADDR as the ip of pod with rank=0 because
     the pod with rank-0 may change in an elastic training job.
+    Args:
+        timeout: timeout to wait the rank-0 node broadcase MASTER_ADDR,
+            default 120s.
     """
-    master_client = GlobalMasterClient.MASTER_CLIENT
-    if isinstance(master_client, LocalMasterClient):
+    if NodeEnv.DLROVER_MASTER_ADDR not in os.environ:
         return
+    master_client = GlobalMasterClient.MASTER_CLIENT
     rank = os.getenv("RANK", None)
-    master_addr = os.getenv("RDZV_ENDPOINT", "")
+    rdzv_endpoint = os.getenv("RDZV_ENDPOINT", "")
     if rank is not None:
-        if int(rank) == 0:
+        if rank == "0":
             host_name = socket.gethostname()
             local_ip = socket.gethostbyname(host_name)
-            master_client.kv_store_set(_MASTER_ADDR_KEY, local_ip.encode())
-            logger.info("Broadcast master addr %s", local_ip)
+            port = find_free_port()
+            endpoint = ":".join([local_ip, str(port)])
+            master_client.kv_store_set(_MASTER_ENDPOINT_KEY, endpoint.encode())
+            logger.info("Broadcast master endpoint %s", endpoint)
 
-        for _ in range(20):
-            master_addr = master_client.kv_store_get(_MASTER_ADDR_KEY)
-            if master_addr:
-                master_addr = master_addr.decode()
+        start_time = time.time()
+        while True:
+            endpoint = master_client.kv_store_get(_MASTER_ENDPOINT_KEY)
+            if endpoint:
+                endpoint = endpoint.decode()
                 break
-            logger.info("Wait rank 0 to broadcast the MASTER_ADDR.")
+            if time.time() - start_time > timeout:
+                logger.warning(
+                    "Timeout %s to wait rank 0 to broadcast MASTER_ADDR",
+                    timeout,
+                )
+                break
+            logger.info("Wait rank 0 to broadcast the master endpoint.")
             time.sleep(3)
-    os.environ["MASTER_ADDR"] = master_addr
-    logger.info("MASTER_ADDR=%s", os.environ["MASTER_ADDR"])
+    if endpoint:
+        os.environ[_MASTER_ADDR_KEY] = endpoint.split(":")[0]
+        os.environ[_MASTER_PORT_KEY] = endpoint.split(":")[1]
+    elif rdzv_endpoint:
+        os.environ[_MASTER_ADDR_KEY] = rdzv_endpoint
+    logger.info(
+        "MASTER_ADDR=%s MASTER_PORT=%s",
+        os.environ[_MASTER_ADDR_KEY],
+        os.environ[_MASTER_PORT_KEY],
+    )
 
 
 def get_rank():
