@@ -39,9 +39,12 @@ def find_free_port() -> int:
     return sockname[1]
 
 
-def set_master_addr():
+def set_master_addr(timeout=120):
     """Dynamically setup MASTER_ADDR as the ip of pod with rank=0 because
     the pod with rank-0 may change in an elastic training job.
+    Args:
+        timeout: timeout to wait the rank-0 node broadcase MASTER_ADDR,
+            default 120s.
     """
     if NodeEnv.DLROVER_MASTER_ADDR not in os.environ:
         return
@@ -57,10 +60,17 @@ def set_master_addr():
             master_client.kv_store_set(_MASTER_ENDPOINT_KEY, endpoint.encode())
             logger.info("Broadcast master endpoint %s", endpoint)
 
-        for _ in range(20):
+        start_time = time.time()
+        while True:
             endpoint = master_client.kv_store_get(_MASTER_ENDPOINT_KEY)
             if endpoint:
                 endpoint = endpoint.decode()
+                break
+            if time.time() - start_time > timeout:
+                logger.warning(
+                    "Timeout %s to wait rank 0 to broadcast MASTER_ADDR",
+                    timeout,
+                )
                 break
             logger.info("Wait rank 0 to broadcast the master endpoint.")
             time.sleep(3)
