@@ -1,6 +1,7 @@
 ---
-exclude: ^atorch/
-exclude: ^tfplus/
+exclude: 
+- ^atorch/
+- ^tfplus/
 repos:
   - repo: https://github.com/pre-commit/mirrors-isort
     rev: v5.10.1
