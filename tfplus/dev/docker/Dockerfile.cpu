@@ -1,5 +1,9 @@
 FROM tensorflow/tensorflow:2.12.0 as base
 
+ENV BASH_ENV /root/.bashrc
+ENV SHELL /bin/bash
+COPY dev/docker/pip.conf ~/.pip/pip.conf
+
 ARG BAZEL_VERSION=3.7.2
 ARG BAZEL_OS=linux
 #ARG BAZEL_LINK_BASE=http://aivolvo-dev.cn-hangzhou-alipay-b.oss-cdn.aliyun-inc.com/common/bazel
@@ -17,8 +21,7 @@ RUN /bin/bash -c "python -m pip install \
     pytest-cov\
     pylint-quotes==0.2.1\
     cpplint \
-    isort==4.2.5 \
-    -i https://pypi.antfin-inc.com/simple \
+    isort==4.2.5
     "
 
 ENV TFPLUS_DATAPATH=bazel-bin
