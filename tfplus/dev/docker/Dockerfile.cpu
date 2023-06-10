@@ -1,0 +1,26 @@
+FROM tensorflow/tensorflow:2.12.0 as base
+
+ARG BAZEL_VERSION=3.7.2
+ARG BAZEL_OS=linux
+#ARG BAZEL_LINK_BASE=http://aivolvo-dev.cn-hangzhou-alipay-b.oss-cdn.aliyun-inc.com/common/bazel
+ARG BAZEL_LINK_BASE=https://github.com/bazelbuild/bazel/releases/download
+
+RUN apt-get install -y unzip
+
+RUN curl -sL ${BAZEL_LINK_BASE}/${BAZEL_VERSION}/bazel-${BAZEL_VERSION}-installer-${BAZEL_OS}-x86_64.sh -o bazel-install.sh && \
+    bash -x bazel-install.sh && \
+    rm bazel-install.sh
+
+RUN /bin/bash -c "python -m pip install \
+    pytest \
+    pylint==2.3.0 \
+    pytest-cov\
+    pylint-quotes==0.2.1\
+    cpplint \
+    isort==4.2.5 \
+    -i https://pypi.antfin-inc.com/simple \
+    "
+
+ENV TFPLUS_DATAPATH=bazel-bin
+
+
