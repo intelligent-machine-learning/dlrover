@@ -1,8 +1,7 @@
-"""demo test"""
-#!/usr/bin/env python
-# coding: utf-8
+# Copyright 2023 tfplus.
 
 import unittest
+
 from tfplus.python.demo import print_localtime
 
 

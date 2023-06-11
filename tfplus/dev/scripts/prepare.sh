@@ -2,22 +2,7 @@
 TYPE=$1
 [ -z ${TYPE} ] && TYPE=release
 
-install() {
-    package=$2
-    [ -z ${package} ] && package=$1
-    python -c "import ${package}"
-    if [ $? -ne 0 ]
-    then
-        pip install $1
-    fi
-}
-
-install_fix() {
-    pip install $1
-}
-
-
-install pre-commit pre_commit
+pip install pre-commit==2.21.0
 
 if [ ${TYPE} != "precommit" ]
 then
@@ -29,7 +14,6 @@ then
     popd
 
     \rm -rf build dist
-
     pip install pytest -I
     pip install pytest-xdist -I
     pip install coverage -I
@@ -39,5 +23,3 @@ then
     pip install --force-reinstall -U tensorflow
     popd
 fi
-
-pip list

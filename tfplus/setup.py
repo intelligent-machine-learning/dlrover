@@ -1,13 +1,12 @@
 """Setup for pip package."""
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
+from __future__ import absolute_import, division, print_function
 
 import fnmatch
 import os
 import shutil
 import sys
 import tempfile
+
 from setuptools import sandbox
 
 content = """
@@ -83,8 +82,8 @@ setup(
 """
 
 package_info = {}
-with open("tfplus/version.py", encoding='utf-8') as fd:
-    exec(compile(fd.read(), "<string>", "exec")) # pylint: disable=exec-used
+with open("tfplus/version.py", encoding="utf-8") as fd:
+    exec(compile(fd.read(), "<string>", "exec"))  # pylint: disable=exec-used
 
 extras_require = {
     # "xx": ["xx==0.5.6"],
@@ -95,40 +94,47 @@ print(f"setup.py - create {rootpath} and copy tfplus")
 shutil.copytree("tfplus", os.path.join(rootpath, "tfplus"))
 
 print(f"setup.py - create {rootpath}/MANIFEST.in")
-with open(os.path.join(rootpath, "MANIFEST.in"), "w", encoding='utf-8') as f:
+with open(os.path.join(rootpath, "MANIFEST.in"), "w", encoding="utf-8") as f:
     f.write("recursive-include tfplus *.so")
 
 package_name = package_info["package_name"]
 package_version = package_info["version"]
-print(f"setup.py - create {rootpath}/setup.py, project_name = '{package_name}' and __version__ = {package_version}") # pylint: disable=line-too-long
-with open(os.path.join(rootpath, "setup.py"), "w", encoding='utf-8') as f:
-    f.write(content.format(package_info["package_name"],
-                           package_info["version"],
-                           package_info["author"],
-                           package_info["description"],
-                           package_info["url"]))
+print(
+    f"setup.py - create {rootpath}/setup.py, project_name = '{package_name}' and __version__ = {package_version}"
+)  # pylint: disable=line-too-long
+with open(os.path.join(rootpath, "setup.py"), "w", encoding="utf-8") as f:
+    f.write(
+        content.format(
+            package_info["package_name"],
+            package_info["version"],
+            package_info["author"],
+            package_info["description"],
+            package_info["url"],
+        )
+    )
 
-datapath = os.environ.get('TFPLUS_DATAPATH') or "bazel-bin"
+datapath = os.environ.get("TFPLUS_DATAPATH") or "bazel-bin"
 
 if datapath is not None:
     for rootname, _, filenames in os.walk(os.path.join(datapath, "tfplus")):
-        if (not fnmatch.fnmatch(rootname, "*test*")
-                and not fnmatch.fnmatch(rootname, "*runfiles*")):
+        if not fnmatch.fnmatch(rootname, "*test*") and not fnmatch.fnmatch(rootname, "*runfiles*"):
             for filename in fnmatch.filter(filenames, "*.so"):
                 src = os.path.join(rootname, filename)
                 dst = os.path.join(
                     rootpath,
-                    os.path.relpath(os.path.join(rootname, filename), datapath))
+                    os.path.relpath(os.path.join(rootname, filename), datapath),
+                )
                 print(f"setup.py - copy {src} to {dst}")
                 shutil.copyfile(src, dst)
 
 for rootname, _, filenames in os.walk(os.path.join(datapath, "tfplus")):
-    if (not fnmatch.fnmatch(rootname, "*test*")
-            and not fnmatch.fnmatch(rootname, "*runfiles*")):
+    if not fnmatch.fnmatch(rootname, "*test*") and not fnmatch.fnmatch(rootname, "*runfiles*"):
         for filename in fnmatch.filter(filenames, "*.py"):
             src = os.path.join(rootname, filename)
-            dst = os.path.join(rootpath, os.path.relpath(
-                os.path.join(rootname, filename), datapath))
+            dst = os.path.join(
+                rootpath,
+                os.path.relpath(os.path.join(rootname, filename), datapath),
+            )
             print(f"setup.py - copy {src} to {dst}")
             shutil.copyfile(src, dst)
 

@@ -3,13 +3,12 @@
   Demo ops.
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
+from __future__ import absolute_import, division, print_function
 
 from tfplus.python.common import _load_library
 
 demo_ops = _load_library("_demo.so")
+
 
 def print_localtime():
     """
@@ -17,6 +16,7 @@ def print_localtime():
     Args:
     """
     return demo_ops.print_localtime()
+
 
 if __name__ == "__main__":
     print_localtime()

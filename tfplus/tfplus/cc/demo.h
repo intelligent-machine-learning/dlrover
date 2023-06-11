@@ -1,7 +1,7 @@
 // Copyright 2023 tfplus.
 
-#ifndef _V_TFPLUS_CC_DEMO_H_
-#define _V_TFPLUS_CC_DEMO_H_
+#ifndef TFPLUS_TFPLUS_CC_DEMO_H_
+#define TFPLUS_TFPLUS_CC_DEMO_H_
 
 namespace tfplus {
 
@@ -19,4 +19,4 @@ extern "C" {
     }
 }
 
-#endif  // _V_TFPLUS_CC_DEMO_H_
+#endif  // TFPLUS_TFPLUS_CC_DEMO_H_

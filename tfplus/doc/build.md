@@ -44,6 +44,9 @@ python setup.py bdist_wheel
 # Run python tests, must install tfplus first
 pip install -U dist/*.whl
 pytest tests
+
+# check pre-commit
+sh dev/scripts/pre-commit.sh
 ```
 
 A package file `dist/tfplus-*.whl` will be generated. It can be installed in local docker and uploaded to oss.
