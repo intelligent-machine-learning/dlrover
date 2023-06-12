@@ -7,6 +7,5 @@ runs:
   args:
     - "/bin/bash"
     - "-c"
-    - "pip install pytest \
-&& cd tfplus \
-&& PYTHONPATH=. pytest tfplus/tests"
+    - "cd tfplus \
+&& sh dev/scripts/build_and_test.sh"
