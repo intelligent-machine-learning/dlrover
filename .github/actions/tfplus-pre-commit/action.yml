@@ -1,0 +1,11 @@
+---
+name: tfplus-pre-commit
+description: run pre-commit to check codes for tfplus
+runs:
+  using: 'docker'
+  image: "easydl/tfplus:tf212_dev"
+  args:
+    - "/bin/bash"
+    - "-c"
+    - "cd tfplus \
+&& sh dev/scripts/pre-commit.sh"

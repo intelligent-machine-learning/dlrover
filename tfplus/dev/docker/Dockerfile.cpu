@@ -1,0 +1,53 @@
+##############################################################################
+# base image: tensorflow:2.12.0
+# default versions
+# PYTHON_VERSION=3.8
+# TF_VERSION=2.12.0
+##############################################################################
+
+FROM tensorflow/tensorflow:2.12.0 as base
+
+USER root
+WORKDIR /root
+
+ENV BASH_ENV /root/.bashrc
+ENV SHELL /bin/bash
+COPY dev/docker/pip.conf ~/.pip/pip.conf
+
+RUN echo "deb http://mirrors.aliyun.com/ubuntu/ $(lsb_release -cs) main restricted universe multiverse" > /etc/apt/sources.list && \
+    echo "deb http://mirrors.aliyun.com/ubuntu/ $(lsb_release -cs)-security main restricted universe multiverse" >> /etc/apt/sources.list && \
+    echo "deb http://mirrors.aliyun.com/ubuntu/ $(lsb_release -cs)-updates main restricted universe multiverse" >> /etc/apt/sources.list && \
+    echo "deb http://mirrors.aliyun.com/ubuntu/ $(lsb_release -cs)-proposed main restricted universe multiverse" >> /etc/apt/sources.list && \
+    echo "deb http://mirrors.aliyun.com/ubuntu/ $(lsb_release -cs)-backports main restricted universe multiverse" >> /etc/apt/sources.list
+
+RUN apt-get update
+
+##############################################################################
+# bazel and other tools
+##############################################################################
+FROM base as util-base
+
+RUN cd ~/ && \
+    apt-get install -y wget git vim unzip && \
+    apt-get clean
+
+ARG BAZEL_VERSION=3.7.2
+ARG BAZEL_OS=linux
+#ARG BAZEL_LINK_BASE=http://aivolvo-dev.cn-hangzhou-alipay-b.oss-cdn.aliyun-inc.com/common/bazel
+ARG BAZEL_LINK_BASE=https://github.com/bazelbuild/bazel/releases/download
+
+# COPY dev/scripts/bazel-3.7.2-installer-linux-x86_64.sh bazel-install.sh
+RUN wget ${BAZEL_LINK_BASE}/${BAZEL_VERSION}/bazel-${BAZEL_VERSION}-installer-${BAZEL_OS}-x86_64.sh -O bazel-install.sh
+RUN /bin/bash -x bazel-install.sh && \
+    rm bazel-install.sh
+
+##############################################################################
+# tfplus requirements
+##############################################################################
+RUN pip install pytest \
+    pylint==2.17.4 \
+    cpplint==1.6.1
+
+ENV TFPLUS_DATAPATH=bazel-bin
+
+
