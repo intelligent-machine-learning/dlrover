@@ -382,7 +382,7 @@ class MasterClient(object):
         request = elastic_training_pb2.NodeMeta()
         request.id = self._node_id
         request.type = self._node_type
-        request.rank = rank
+        request.rank = int(rank)
         self._stub.update_node_status(request)
 
 
