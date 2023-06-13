@@ -9,6 +9,6 @@ runs:
     - "-c"
     - "pip install pytest fairscale==0.4.1\
 && echo -e 'import math\ninf = math.inf\nnan = math.nan\nstring_classes = \
-(str, bytes)' > /opt/conda/lib/python3.8/site-packages/torch/_six.py \
+(str, bytes)' > /opt/conda/lib/python3.10/site-packages/torch/_six.py \
 && cd atorch \
 && PYTHONPATH=. pytest atorch/tests"
