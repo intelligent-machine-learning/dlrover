@@ -999,9 +999,17 @@ class MultiheadAttentionFA(FlashMHA):
     def forward(self, query, key, value, key_padding_mask=None, need_weights=True, attn_mask=None):
         assert attn_mask is None, "FlashMHA prefers key_padding_mask"
 
-        # need_weights asserted False in FlashMHA, key_padding_mask bool value in opposite
+        # need_weights asserted False in FlashMHA
         need_weights = False
-        key_padding_mask = None if key_padding_mask is None else ~key_padding_mask
+        # torch 2.0+ F._canonical_mask compat
+        if key_padding_mask is not None:
+            if torch.is_floating_point(key_padding_mask):
+                key_padding_mask = key_padding_mask == 0
+            elif key_padding_mask.dtype == torch.bool:
+                # key_padding_mask bool value in opposite
+                key_padding_mask = ~key_padding_mask
+            else:
+                raise ValueError(f"key_padding_mask in {key_padding_mask.dtype}, not float/bool")
 
         if not self.batch_first:
             query = query.transpose(1, 0)
