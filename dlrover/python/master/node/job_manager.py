@@ -578,18 +578,15 @@ class JobManager(object):
         node.update_resource_usage(cpu, memory)
 
     def update_node_service_addr(self, node_type, node_id, service_addr):
-        logger.info("job nodes are {}".format(self._job_nodes))
-        logger.info(node_id)
         node = self._job_nodes[node_type][node_id]
-        logger.info(
-            "update_node_service_addr id of node is {}".format(id(node))
-        )
         node.update_service_address(service_addr)
         node.status = NodeStatus.RUNNING
         node.is_released = False
-        logger.info("node status {}".format(node.status))
         self._job_nodes[node_type][node_id] = node
-        logger.info("job nodes are {}".format(self._job_nodes))
+
+    def log_rank_zero_node(self, node_type, node_id, node_rank):
+        node = self._job_nodes[node_type][node_id]
+        logger.info("Rank %s: %s", node_rank, node.name)
 
     def get_cur_cluster_ps(self):
         """Get PS nodes in the current training cluster."""

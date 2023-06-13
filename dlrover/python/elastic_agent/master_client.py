@@ -248,7 +248,8 @@ class MasterClient(object):
         request.id = task_id
         request.type = task_type
         request.addr = node_addr
-        res = self._stub.update_node_addr(request)
+        request.rank = -1
+        res = self._stub.update_node_status(request)
         return res
 
     @retry_grpc_request
@@ -373,6 +374,16 @@ class MasterClient(object):
         request.key = key
         response = self._stub.kv_store_get(request)
         return response.value
+
+    @retry_grpc_request
+    def report_node_status(self, rank):
+        if rank is None:
+            return
+        request = elastic_training_pb2.NodeMeta()
+        request.id = self._node_id
+        request.type = self._node_type
+        request.rank = rank
+        self._stub.update_node_status(request)
 
 
 class LocalDataset(object):

@@ -283,20 +283,23 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             )
         return empty_pb2.Empty()
 
-    def update_node_addr(self, reqeuest, _):
+    def update_node_status(self, request, _):
+        node_type = request.type
+        node_id = request.id
+        server_addr = request.addr
 
-        task_type = reqeuest.type
-        task_id = reqeuest.id
-        server_addr = reqeuest.addr
-
-        logger.info("update node addr")
         self._job_manager.update_node_service_addr(
-            task_type, task_id, server_addr
+            node_type, node_id, server_addr
         )
+
+        node_rank = request.rank
+        if node_rank >= 0:
+            self._job_manager.log_rank_zero_node(
+                node_type, node_id, node_rank
+            )
 
         response = elastic_training_pb2.Response()
         response.success = True
-        logger.info(response)
         return response
 
     def update_node_event(self, request, _):

@@ -169,6 +169,7 @@ message NodeMeta {
   int32 gpu = 5;
   string gpu_type = 6;
   int32 id = 7;
+  int32 rank = 8;
 }
 
 message NodeEvent {
@@ -269,6 +270,6 @@ service Master {
   rpc kv_store_get(KeyValuePair) returns (KeyValuePair);
 
   rpc report_prestop(ReportPreStopRequest) returns (google.protobuf.Empty);
-  rpc update_node_addr(NodeMeta) returns (Response);
+  rpc update_node_status(NodeMeta) returns (Response);
   rpc update_node_event(NodeEvent) returns (google.protobuf.Empty);
 }
