@@ -562,6 +562,10 @@ class LocalMasterClient(object):
     def kv_store_get(self, key):
         return self._kv_store.get(key, "")
 
+    def report_node_status(self, rank):
+        logger.info(f"Report rank {rank}")
+        return
+
 
 def build_master_client(master_addr=None):
     if master_addr is None:
