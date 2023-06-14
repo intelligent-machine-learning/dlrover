@@ -1,0 +1,11 @@
+---
+name: tfplus-python-test
+description: run pytest to execute python test cases of tfplus python
+runs:
+  using: 'docker'
+  image: "easydl/tfplus:tf212_dev"
+  args:
+    - "/bin/bash"
+    - "-c"
+    - "cd tfplus \
+&& sh dev/scripts/build_and_test.sh"

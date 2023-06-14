@@ -1,0 +1,61 @@
+workspace(name = "org_tfplus")
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+load("//third_party/tf:tf_configure.bzl", "tf_configure")
+
+http_archive(
+    name = "com_google_googletest",
+    sha256 = "bc1cc26d1120f5a7e9eb450751c0b24160734e46a02823a573f3c6b6c0a574a7",
+    strip_prefix = "googletest-e2c06aa2497e330bab1c1a03d02f7c5096eb5b0b",
+    urls = [
+        "https://storage.googleapis.com/mirror.tensorflow.org/github.com/google/googletest/archive/e2c06aa2497e330bab1c1a03d02f7c5096eb5b0b.zip",
+        "https://github.com/google/googletest/archive/e2c06aa2497e330bab1c1a03d02f7c5096eb5b0b.zip",
+    ],
+)
+
+# tf_http_archive(
+#     name = "curl",
+#     build_file = "//third_party:curl.BUILD",
+#     sha256 = "370b11201349816287fb0ccc995e420277fbfcaf76206e309b3f60f0eda090c2",
+#     strip_prefix = "curl-7.79.1",
+#     system_build_file = "//third_party/systemlibs:curl.BUILD",
+#     urls = [
+#         "https://storage.googleapis.com/mirror.tensorflow.org/curl.haxx.se/download/curl-7.79.1.tar.gz",
+#         "https://curl.haxx.se/download/curl-7.79.1.tar.gz",
+#     ],
+# )
+#
+# http_archive(
+#     name = "com_github_madler_zlib",
+#     build_file = "//third_party:zlib.BUILD",
+#     sha256 = "c3e5e9fdd5004dcb542feda5ee4f0ff0744628baf8ed2dd5d66f8ca1197cb1a1",
+#     strip_prefix = "zlib-1.2.11",
+#     urls = [
+#         "https://mirror.bazel.build/zlib.net/zlib-1.2.11.tar.gz",
+#         "https://zlib.net/zlib-1.2.11.tar.gz",
+#     ],
+# )
+
+# tf_http_archive(
+#     name = "zlib",
+#     build_file = "//third_party:zlib.BUILD",
+#     sha256 = "c3e5e9fdd5004dcb542feda5ee4f0ff0744628baf8ed2dd5d66f8ca1197cb1a1",
+#     strip_prefix = "zlib-1.2.11",
+#     system_build_file = "//third_party/systemlibs:zlib.BUILD",
+#     urls = [
+#         "https://storage.googleapis.com/mirror.tensorflow.org/zlib.net/zlib-1.2.11.tar.gz",
+#         "https://zlib.net/zlib-1.2.11.tar.gz",
+#     ],
+# )
+
+http_archive(
+    name = "rules_python",
+    sha256 = "48f7e716f4098b85296ad93f5a133baf712968c13fbc2fdf3a6136158fe86eac",
+    strip_prefix = "rules_python-0.1.0",
+    urls = [
+        "https://github.com/bazelbuild/rules_python/archive/0.1.0.tar.gz",
+        ],
+)
+
+tf_configure(
+    name = "local_config_tf",
+)

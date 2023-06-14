@@ -1,0 +1,43 @@
+---
+repos:
+  - repo: https://github.com/pre-commit/mirrors-isort
+    rev: v5.10.1
+    hooks:
+      - id: isort
+        args: [--settings-path, tfplus/]
+  - repo: https://github.com/psf/black
+    rev: 22.6.0
+    hooks:
+      - id: black
+        args: 
+          - --line-length=120
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v2.4.0
+    hooks:
+      - id: flake8
+        exclude: __init__.py$
+        args: [
+          "--max-line-length=120", 
+        ]
+  - repo: local
+    hooks:
+      - id: cpplint
+        name: cpplint
+        description: Check C++ code style using cpplint.py.
+        entry: cpplint
+        language: python
+        args:
+          - --recursive
+          - tfplus/
+  # - repo: https://github.com/pre-commit/mirrors-pylint
+  - repo: local
+    # rev: v2.17.4
+    hooks:
+      - id: pylint
+        name: pylint
+        entry: pylint
+        language: python
+        args: [
+          "--rcfile=tfplus/.pylint", # Link to your config file
+          "--load-plugins=pylint.extensions.docparams", # Load an extension
+        ]
