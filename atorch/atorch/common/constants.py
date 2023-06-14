@@ -36,11 +36,13 @@ class AnalyserConstants(object):
     DYNAMIC_MEMORY_MB = "dynamic_memory_mb"
     TRANSFORMER_SEQUENCE_LENGTH = "transformer_sequence_length"
     SUBMODULE_TYPES = "submodule_types"
+    OPT_CONFIG_SUBMODULE_NAMES = "opt_config_submodule_names"
     PROFILE_DIR = "/home/admin/profile"
     PROF_FILE_NAME = "aprof.txt"
     TIMELINE_FILE_NAME = "aprof.json"
     TIMELINE_SIGNAL_FILE_NAME = "aprof.done"
     PROF_SIGNAL_FILE_NAME = "aprof_txt.done"
+    GPU_UTILIZATION = "gpu_utility"
 
 
 class AutoAccelerateExtraArgs(Enum):
