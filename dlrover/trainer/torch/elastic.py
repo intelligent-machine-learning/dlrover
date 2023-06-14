@@ -76,6 +76,7 @@ def set_master_addr(timeout=120):
         os.environ[_MASTER_ADDR_KEY] = endpoint
     elif rdzv_endpoint:
         os.environ[_MASTER_ADDR_KEY] = rdzv_endpoint
+    master_client.report_node_status(rank)
     logger.info(
         "MASTER_ADDR=%s MASTER_PORT=%s",
         os.environ[_MASTER_ADDR_KEY],
