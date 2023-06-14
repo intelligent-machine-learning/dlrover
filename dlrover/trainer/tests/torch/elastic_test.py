@@ -20,6 +20,7 @@ from dlrover.trainer.torch.elastic import set_master_addr
 class ElasticSetupTest(unittest.TestCase):
     def test_set_master_addr(self):
         os.environ["RANK"] = "0"
+        os.environ["MASTER_PORT"] = "1234"
         os.environ["DLROVER_MASTER_ADDR"] = "localhost:1234"
         set_master_addr()
         self.assertTrue(os.environ["MASTER_ADDR"] != "")
