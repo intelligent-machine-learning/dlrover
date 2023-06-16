@@ -55,10 +55,8 @@ def set_master_addr(timeout=120):
         if rank == "0":
             host_name = socket.gethostname()
             local_ip = socket.gethostbyname(host_name)
-            port = find_free_port()
-            endpoint = ":".join([local_ip, str(port)])
-            master_client.kv_store_set(_MASTER_ENDPOINT_KEY, endpoint.encode())
-            logger.info("Broadcast master endpoint %s", endpoint)
+            master_client.kv_store_set(_MASTER_ENDPOINT_KEY, local_ip.encode())
+            logger.info("Broadcast master endpoint %s", local_ip)
 
         start_time = time.time()
         while True:
@@ -75,10 +73,10 @@ def set_master_addr(timeout=120):
             logger.info("Wait rank 0 to broadcast the master endpoint.")
             time.sleep(3)
     if endpoint:
-        os.environ[_MASTER_ADDR_KEY] = endpoint.split(":")[0]
-        os.environ[_MASTER_PORT_KEY] = endpoint.split(":")[1]
+        os.environ[_MASTER_ADDR_KEY] = endpoint
     elif rdzv_endpoint:
         os.environ[_MASTER_ADDR_KEY] = rdzv_endpoint
+    master_client.report_node_status(rank)
     logger.info(
         "MASTER_ADDR=%s MASTER_PORT=%s",
         os.environ[_MASTER_ADDR_KEY],

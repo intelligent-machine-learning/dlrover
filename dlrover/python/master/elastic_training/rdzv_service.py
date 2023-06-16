@@ -48,7 +48,7 @@ class TorchRendezvousService(object):
     def add_alive_worker(self, worker: Node):
         self._alive_workers.append(worker.name)
         self._alive_workers = sorted(self._alive_workers)
-        logger.info("Alive workers = %s", self._alive_workers)
+        logger.info(f"Add alive worker {worker.name} to Rendezvous.")
         self.kv_store.clear()
 
     def remove_alive_worker(self, worker: Node):
