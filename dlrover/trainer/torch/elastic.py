@@ -76,7 +76,11 @@ def set_master_addr(timeout=120):
         os.environ[_MASTER_ADDR_KEY] = endpoint
     elif rdzv_endpoint:
         os.environ[_MASTER_ADDR_KEY] = rdzv_endpoint
-    master_client.report_node_status(rank)
+    group_rank = os.getenv("GROUP_RANK", None)
+    local_rank = os.getenv("LOCAL_RANK", None)
+    if local_rank == "0" and group_rank is not None:
+        # Only one process to report node status.
+        master_client.report_node_status(group_rank)
     logger.info(
         "MASTER_ADDR=%s MASTER_PORT=%s",
         os.environ[_MASTER_ADDR_KEY],
