@@ -13,10 +13,7 @@
 
 import unittest
 
-from dlrover.python.common.grpc import (
-    find_free_port,
-    find_free_port_in_range,
-)
+from dlrover.python.common.grpc import find_free_port, find_free_port_in_range
 
 
 class GRPCUtilTest(unittest.TestCase):

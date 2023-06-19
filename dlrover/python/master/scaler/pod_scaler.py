@@ -27,6 +27,7 @@ from dlrover.python.common.constants import (
     NodeStatus,
     NodeType,
 )
+from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeResource
 from dlrover.python.master.scaler.base_scaler import ScalePlan, Scaler
@@ -35,7 +36,6 @@ from dlrover.python.scheduler.kubernetes import (
     get_pod_name,
     k8sClient,
 )
-from dlrover.python.common.global_context import Context
 
 _dlrover_context = Context.singleton_instance()
 

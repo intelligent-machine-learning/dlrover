@@ -15,8 +15,8 @@ import os
 import threading
 
 from dlrover.python.common.constants import UserEnv
-from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.grpc import find_free_port_in_range
+from dlrover.python.common.log import default_logger as logger
 
 
 class ConfigKeys(object):
@@ -111,9 +111,7 @@ class Context(object):
         if port > 0:
             self.master_port = port
         else:
-            self.master_port = find_free_port_in_range(
-                50001, 65535
-            )
+            self.master_port = find_free_port_in_range(50001, 65535)
 
     def get_param_value_from_brain(self, key_name, default_value, dtype=int):
         """TODO: Get the configured value from Brain service."""
