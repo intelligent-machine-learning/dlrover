@@ -105,6 +105,7 @@ class Context(object):
         self.auto_ps_enabled = False
         self.is_tfv1_ps = False
         self.master_port = 0
+        self.relaunch_error = False
         self.print_config()
 
     def config_master_port(self, port=0):
