@@ -17,6 +17,7 @@ from contextlib import closing
 import grpc
 
 from dlrover.python.common.constants import GRPC
+from dlrover.python.common.log import default_logger as logger
 
 TIMEOUT_SEC = 5
 
@@ -45,11 +46,20 @@ def build_channel(addr):
     return channel
 
 
-def find_free_port():
+def find_free_port(port=0):
     with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
-        s.bind(("", 0))
+        s.bind(("", port))
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         return s.getsockname()[1]
+
+
+def find_free_port_in_range(start, end):
+    for i in range(start, end):
+        try:
+            return find_free_port(i)
+        except OSError as e:
+            logger.info("Socket creation attempt failed.", exc_info=e)
+    return RuntimeError(f"Fail to find a free port in [{start}, {end})")
 
 
 def grpc_server_ready(channel) -> bool:

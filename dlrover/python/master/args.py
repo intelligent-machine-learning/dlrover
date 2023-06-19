@@ -76,7 +76,7 @@ def _build_master_args_parser():
     parser = argparse.ArgumentParser(description="Training Master")
     parser.add_argument(
         "--port",
-        default=50001,
+        default=0,
         type=pos_int,
         help="The listening port of master",
     )
