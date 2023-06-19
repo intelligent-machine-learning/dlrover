@@ -26,6 +26,7 @@ from dlrover.python.common.constants import (
     NodeStatus,
     NodeType,
 )
+from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
@@ -67,6 +68,8 @@ from dlrover.python.master.watcher.factory import (
 )
 from dlrover.python.scheduler.factory import new_elastic_job
 from dlrover.python.scheduler.job import ElasticJob, JobArgs
+
+_dlrover_context = Context.singleton_instance()
 
 _MAX_POD_RELAUNCH_COUNT = 5
 
@@ -446,7 +449,10 @@ class JobManager(object):
             and node.relaunchable
         )
         if should_relaunch:
-            if node.exit_reason == NodeExitReason.FATAL_ERROR:
+            if (
+                node.exit_reason == NodeExitReason.FATAL_ERROR
+                and not _dlrover_context.relaunch_error
+            ):
                 should_relaunch = False
             elif node.exit_reason == NodeExitReason.OOM:
                 mem = node.config_resource.memory
