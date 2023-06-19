@@ -35,6 +35,9 @@ from dlrover.python.scheduler.kubernetes import (
     get_pod_name,
     k8sClient,
 )
+from dlrover.python.common.global_context import Context
+
+_dlrover_context = Context.singleton_instance()
 
 
 class FakeKubeResponse:
@@ -351,8 +354,8 @@ class PodScaler(Scaler):
         env.append(
             V1EnvVar(name=NodeEnv.WORKER_RANK, value=str(node.rank_index))
         )
-        master_service = "elasticjob-{}-dlrover-master:50001".format(
-            self._job_name
+        master_service = "elasticjob-{}-dlrover-master:{}".format(
+            self._job_name, _dlrover_context.master_port
         )
         env.append(
             V1EnvVar(name=NodeEnv.DLROVER_MASTER_ADDR, value=master_service)
