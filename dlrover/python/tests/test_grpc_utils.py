@@ -20,7 +20,7 @@ class GRPCUtilTest(unittest.TestCase):
     def test_find_free_port(self):
         port = find_free_port()
         self.assertTrue(port > 0)
-        find_free_port_in_range(50001, 65535)
+        port = find_free_port_in_range(50001, 65535)
         self.assertTrue(port > 50000)
 
 
