@@ -1,43 +1,45 @@
-
 import time
+import uuid
 from typing import Any, Callable, Dict, List, Optional, Union
-from torch.distributed.elastic.agent.server.local_elastic_agent import LocalElasticAgent
+
+import torch.distributed.elastic.rendezvous.registry as rdzv_registry
+import torch.distributed.elastic.timer as timer
+from torch.distributed.elastic import events, metrics
 from torch.distributed.elastic.agent.server.api import (
-    RunResult,
     DEFAULT_ROLE,
+    RunResult,
     WorkerSpec,
     WorkerState,
 )
-import torch.distributed.elastic.timer as timer
-from torch.distributed.elastic.utils.logging import get_logger
+from torch.distributed.elastic.agent.server.local_elastic_agent import (
+    LocalElasticAgent,
+)
 from torch.distributed.elastic.metrics import put_metric
 from torch.distributed.elastic.multiprocessing import (
-    ProcessFailure,
     PContext,
+    ProcessFailure,
+    SignalException,
 )
-import uuid
-
-import torch.distributed.elastic.rendezvous.registry as rdzv_registry
-from torch.distributed.elastic import events, metrics
-from torch.distributed.elastic.multiprocessing import SignalException
-from torch.distributed.elastic.multiprocessing.errors import ChildFailedError
+from torch.distributed.elastic.multiprocessing.errors import (
+    ChildFailedError,
+    record,
+)
 from torch.distributed.elastic.rendezvous import RendezvousParameters
+from torch.distributed.elastic.utils.logging import get_logger
 from torch.distributed.launcher.api import (
     LaunchConfig,
     _get_addr_and_port,
     _get_entrypoint_name,
 )
-from torch.distributed.run import parse_args, config_from_args
-from torch.distributed.elastic.multiprocessing.errors import record
+from torch.distributed.run import config_from_args, parse_args
 
-__all__ = ['LaunchConfig', 'elastic_launch', 'launch_agent']
+__all__ = ["LaunchConfig", "elastic_launch", "launch_agent"]
 
 
 logger = get_logger()
 
 
 class ErrorDetectElasticAgent(LocalElasticAgent):
-
     def __init__(
         self,
         spec: WorkerSpec,
@@ -74,7 +76,9 @@ class ErrorDetectElasticAgent(LocalElasticAgent):
             self._worker_group.state = state
             failures = run_result.failures
 
-            put_metric(f"workers.{role}.remaining_restarts", self._remaining_restarts)
+            put_metric(
+                f"workers.{role}.remaining_restarts", self._remaining_restarts
+            )
             put_metric(f"workers.{role}.{state.name.lower()}", 1)
 
             if state == WorkerState.SUCCEEDED:
@@ -85,7 +89,9 @@ class ErrorDetectElasticAgent(LocalElasticAgent):
                 self._exit_barrier()
                 return run_result
             elif state in {WorkerState.UNHEALTHY, WorkerState.FAILED}:
-                if self._remaining_restarts > 0 and is_recovered_error(failures):
+                if self._remaining_restarts > 0 and is_recovered_error(
+                    failures
+                ):
                     logger.info(
                         f"[{role}] Worker group {state.name}. "
                         f"{self._remaining_restarts}/{spec.max_restarts} attempts left;"
@@ -138,7 +144,9 @@ def launch_agent(
 ) -> Dict[int, Any]:
     if not config.run_id:
         run_id = str(uuid.uuid4().int)
-        logger.warning(f"config has no run_id, generated a random run_id: {run_id}")
+        logger.warning(
+            f"config has no run_id, generated a random run_id: {run_id}"
+        )
         config.run_id = run_id
 
     entrypoint_name = _get_entrypoint_name(entrypoint, args)
