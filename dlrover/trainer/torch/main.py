@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dlrover.trainer.torch.elastic_run import main
+from torch.distributed.run import main
 
 from dlrover.python.elastic_agent.torch.rdzv_backend import (
     register_dlrover_backend,
