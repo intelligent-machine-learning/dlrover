@@ -61,8 +61,9 @@ class ResourceMonitor(object):
         reports the used memory and cpu percent to the DLRover master.
         """
         self._total_cpu = psutil.cpu_count(logical=True)
-        if os.getenv(NodeEnv.DLROVER_MASTER_ADDR, "") and os.getenv(
-            NodeEnv.AUTO_MONITOR_WORKLOAD, ""
+        if (
+            os.getenv(NodeEnv.DLROVER_MASTER_ADDR, "")
+            and os.getenv(NodeEnv.AUTO_MONITOR_WORKLOAD, "") == "true"
         ):
             threading.Thread(
                 target=self._monitor_resource,
