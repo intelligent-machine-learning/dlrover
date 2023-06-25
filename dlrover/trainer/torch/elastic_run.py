@@ -53,14 +53,14 @@ __all__ = ["LaunchConfig", "elastic_launch", "launch_agent"]
 logger = get_logger()
 
 
-class ErrorDetectElasticAgent(LocalElasticAgent):
+class DLRoverElasticAgent(LocalElasticAgent):
     """
     An implementation of :py:class:`torchelastic.agent.server.ElasticAgent`
     that handles host-local workers.
     This agent is deployed per host and is configured to spawn ``n`` workers.
     When using GPUs, ``n`` maps to the number of GPUs available on the host.
 
-    The local agent select to fail or relaunch subprocesses according to the
+    The agent select to fail or relaunch subprocesses according to the
     failed reason of subprocess. Now, if the exitcode is not 1, the agent
     will fail and the DLRover will relaunch the node. Because, we find
     the exitcode is 1 if the hardware breakdowns.
@@ -225,7 +225,7 @@ def launch_agent(
         local_addr=config.local_addr,
     )
 
-    agent = ErrorDetectElasticAgent(
+    agent = DLRoverElasticAgent(
         spec=spec, start_method=config.start_method, log_dir=config.log_dir
     )
 
