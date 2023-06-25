@@ -23,6 +23,7 @@ from torch.distributed.elastic.agent.server.api import (
     RunResult,
     WorkerSpec,
     WorkerState,
+    WorkerGroup,
 )
 from torch.distributed.elastic.agent.server.local_elastic_agent import (
     LocalElasticAgent,
@@ -53,6 +54,18 @@ logger = get_logger()
 
 
 class ErrorDetectElasticAgent(LocalElasticAgent):
+    """
+    An implementation of :py:class:`torchelastic.agent.server.ElasticAgent`
+    that handles host-local workers.
+    This agent is deployed per host and is configured to spawn ``n`` workers.
+    When using GPUs, ``n`` maps to the number of GPUs available on the host.
+
+    The local agent select to fail or relaunch subprocesses according to the
+    failed reason of subprocess. Now, if the exitcode is not 1, the agent
+    will fail and the DLRover will relaunch the node. Because, we find
+    the exitcode is 1 if the hardware breakdowns.
+    """
+
     def __init__(
         self,
         spec: WorkerSpec,
@@ -66,6 +79,7 @@ class ErrorDetectElasticAgent(LocalElasticAgent):
         rdzv_run_id = spec.rdzv_handler.get_run_id()
         self._log_dir = self._make_log_dir(log_dir, rdzv_run_id)
         self._worker_watchdog: Optional[timer.FileTimerServer] = None
+        self._reamining_fo_count: int = self._remaining_restarts
 
     def _invoke_run(self, role: str = DEFAULT_ROLE) -> RunResult:
         # NOTE: currently only works for a single role
@@ -74,7 +88,8 @@ class ErrorDetectElasticAgent(LocalElasticAgent):
         role = spec.role
 
         logger.info(
-            f"[{role}] starting workers for entrypoint: {spec.get_entrypoint_name()}"
+            f"[{role}] starting workers for entrypoint: "
+            f"{spec.get_entrypoint_name()}"
         )
 
         self._initialize_workers(self._worker_group)
@@ -97,25 +112,25 @@ class ErrorDetectElasticAgent(LocalElasticAgent):
             if state == WorkerState.SUCCEEDED:
                 logger.info(
                     f"[{role}] worker group successfully finished."
-                    f" Waiting {self._exit_barrier_timeout} seconds for other agents to finish."
+                    f" Waiting {self._exit_barrier_timeout} seconds "
+                    "for other agents to finish."
                 )
                 self._exit_barrier()
                 return run_result
             elif state in {WorkerState.UNHEALTHY, WorkerState.FAILED}:
-                if self._remaining_restarts > 0 and is_recovered_error(
+                if self._reamining_fo_count > 0 and is_recovered_error(
                     failures
                 ):
                     logger.info(
                         f"[{role}] Worker group {state.name}. "
-                        f"{self._remaining_restarts}/{spec.max_restarts} attempts left;"
-                        f" will restart worker group"
+                        f"{self._remaining_restarts}/{spec.max_restarts}"
+                        f" attempts left; will restart worker group"
                     )
-                    self._remaining_restarts -= 1
+                    self._reamining_fo_count -= 1
                     self._restart_workers(self._worker_group)
                 else:
                     self._stop_workers(self._worker_group)
                     self._worker_group.state = WorkerState.FAILED
-                    self._exit_barrier()
                     return run_result
             elif state == WorkerState.HEALTHY:
                 # membership changes do not count as retries
@@ -131,21 +146,21 @@ class ErrorDetectElasticAgent(LocalElasticAgent):
             else:
                 raise Exception(f"[{role}] Worker group in {state.name} state")
 
+    def _restart_workers(self, worker_group: WorkerGroup):
+        self._remaining_restarts -= 1
+        super()._restart_workers(worker_group)
+
+    def should_shutdown_rdzv(self):
+        return self._reamining_fo_count == 0
+
 
 def is_recovered_error(failures: Dict[int, ProcessFailure]):
     for local_rank, failure in failures.items():
-        error_file = failure.error_file
         exitcode = failure.exitcode
-        with open(error_file, "r") as f:
-            errors = f.readlines()
-            err_start_num = 0
-            for num, line in enumerate(errors):
-                if "Traceback" in line:
-                    err_start_num = num
-                    break
-            err_msg = "\n".join(errors[err_start_num:])
         if exitcode != 1:
-            logger.error(f"local_rank {local_rank} fails with {err_msg}")
+            logger.error(
+                f"local_rank {local_rank} fails with exitcode {exitcode}"
+            )
             return False
     return True
 
@@ -216,7 +231,8 @@ def launch_agent(
         metrics.initialize_metrics(metrics.MetricsConfig(config.metrics_cfg))
 
         result = agent.run()
-        # records that agent.run() has succeeded NOT that workers have succeeded
+        # records that agent.run() has succeeded NOT
+        # that workers have succeeded
         events.record(agent.get_event_succeeded())
 
         if result.is_failed():
@@ -231,6 +247,8 @@ def launch_agent(
 
         return result.return_values
     except ChildFailedError:
+        if not agent.should_shutdown_rdzv():
+            shutdown_rdzv = False
         raise
     except SignalException:
         # when the agent dies with a signal do NOT shutdown the rdzv_handler
@@ -249,9 +267,11 @@ def launch_agent(
 
 class elastic_launch:
     """
-    Launches an torchelastic agent on the container that invoked the entrypoint.
+    Launches an torchelastic agent on the container
+    that invoked the entrypoint.
 
-        1. Pass the ``entrypoint`` arguments as non ``kwargs`` (e.g. no named parameters)/
+        1. Pass the ``entrypoint`` arguments as non ``kwargs``
+            (e.g. no named parameters)/
            ``entrypoint`` can be a function or a command.
         2. The return value is a map of each worker's output mapped
            by their respective global rank.
