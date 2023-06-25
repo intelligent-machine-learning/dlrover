@@ -118,7 +118,7 @@ class ErrorDetectElasticAgent(LocalElasticAgent):
                 self._exit_barrier()
                 return run_result
             elif state in {WorkerState.UNHEALTHY, WorkerState.FAILED}:
-                if self._reamining_fo_count > 0 and is_recovered_error(
+                if self._reamining_fo_count > 0 and is_recoverable_error(
                     failures
                 ):
                     logger.info(
@@ -154,10 +154,13 @@ class ErrorDetectElasticAgent(LocalElasticAgent):
         return self._reamining_fo_count == 0
 
 
-def is_recovered_error(failures: Dict[int, ProcessFailure]):
+def is_recoverable_error(failures: Dict[int, ProcessFailure]):
     for local_rank, failure in failures.items():
         exitcode = failure.exitcode
-        if exitcode != 1:
+        # The exitcode = -6 if the hardware breakdowns. We cannot
+        # restore the training by restarting processes
+        # if the hardwars breakdowns.
+        if exitcode == -6:
             logger.error(
                 f"local_rank {local_rank} fails with exitcode {exitcode}"
             )
