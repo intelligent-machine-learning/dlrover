@@ -21,9 +21,9 @@ from torch.distributed.elastic import events, metrics
 from torch.distributed.elastic.agent.server.api import (
     DEFAULT_ROLE,
     RunResult,
+    WorkerGroup,
     WorkerSpec,
     WorkerState,
-    WorkerGroup,
 )
 from torch.distributed.elastic.agent.server.local_elastic_agent import (
     LocalElasticAgent,
