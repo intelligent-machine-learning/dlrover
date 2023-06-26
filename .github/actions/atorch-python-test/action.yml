@@ -11,4 +11,5 @@ runs:
 && echo -e 'import math\ninf = math.inf\nnan = math.nan\nstring_classes = \
 (str, bytes)' > /opt/conda/lib/python3.10/site-packages/torch/_six.py \
 && cd atorch \
+&& sh bin/build_proto.sh \
 && PYTHONPATH=. pytest atorch/tests"
