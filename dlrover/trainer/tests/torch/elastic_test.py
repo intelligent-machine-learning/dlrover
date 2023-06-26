@@ -14,10 +14,7 @@
 import os
 import unittest
 
-from torch.distributed.elastic.multiprocessing import ProcessFailure
-
 from dlrover.trainer.torch.elastic import set_master_addr
-from dlrover.trainer.torch.elastic_run import is_recoverable_error
 
 
 class ElasticSetupTest(unittest.TestCase):
@@ -28,9 +25,3 @@ class ElasticSetupTest(unittest.TestCase):
         set_master_addr()
         self.assertTrue(os.environ["MASTER_ADDR"] != "")
         self.assertTrue(os.environ["MASTER_PORT"] != "")
-
-    def test_elastic_run(self):
-        failures = {}
-        failures[0] = ProcessFailure(0, 0, 1, "")
-        recoverable = is_recoverable_error(failures)
-        self.assertTrue(recoverable)

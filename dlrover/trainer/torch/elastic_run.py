@@ -29,16 +29,13 @@ from torch.distributed.elastic.agent.server.local_elastic_agent import (
     LocalElasticAgent,
 )
 from torch.distributed.elastic.metrics import put_metric
-from torch.distributed.elastic.multiprocessing import (
-    PContext,
-    ProcessFailure,
-    SignalException,
-)
+from torch.distributed.elastic.multiprocessing import PContext, SignalException
 from torch.distributed.elastic.multiprocessing.errors import (
     ChildFailedError,
     record,
 )
 from torch.distributed.elastic.rendezvous import RendezvousParameters
+from torch.distributed.elastic.rendezvous.api import RendezvousHandler
 from torch.distributed.elastic.utils.logging import get_logger
 from torch.distributed.launcher.api import (
     LaunchConfig,
@@ -76,8 +73,7 @@ class DLRoverElasticAgent(LocalElasticAgent):
         super().__init__(spec, exit_barrier_timeout)
         self._start_method = start_method
         self._pcontext: Optional[PContext] = None
-        rdzv_run_id = spec.rdzv_handler.get_run_id()
-        self._log_dir = self._make_log_dir(log_dir, rdzv_run_id)
+        self._log_dir = log_dir
         self._worker_watchdog: Optional[timer.FileTimerServer] = None
         self._reamining_fo_count: int = self._remaining_restarts
 
@@ -118,9 +114,8 @@ class DLRoverElasticAgent(LocalElasticAgent):
                 self._exit_barrier()
                 return run_result
             elif state in {WorkerState.UNHEALTHY, WorkerState.FAILED}:
-                if self._reamining_fo_count > 0 and is_recoverable_error(
-                    failures
-                ):
+                logger.warning(f"Worker failures = {failures}")
+                if self._reamining_fo_count > 0:
                     logger.info(
                         f"[{role}] Worker group {state.name}. "
                         f"{self._remaining_restarts}/{spec.max_restarts}"
@@ -134,14 +129,7 @@ class DLRoverElasticAgent(LocalElasticAgent):
                     return run_result
             elif state == WorkerState.HEALTHY:
                 # membership changes do not count as retries
-                num_nodes_waiting = rdzv_handler.num_nodes_waiting()
-                group_rank = self._worker_group.group_rank
-                if num_nodes_waiting > 0:
-                    logger.info(
-                        f"[{role}] Detected {num_nodes_waiting} "
-                        f"new nodes from group_rank={group_rank}; "
-                        f"will restart worker group"
-                    )
+                if self._membership_changed(role, rdzv_handler):
                     self._restart_workers(self._worker_group)
             else:
                 raise Exception(f"[{role}] Worker group in {state.name} state")
@@ -153,19 +141,23 @@ class DLRoverElasticAgent(LocalElasticAgent):
     def should_shutdown_rdzv(self):
         return self._reamining_fo_count == 0
 
+    def _membership_changed(self, role, rdzv_handler: RendezvousHandler):
+        # Timeout may happen when to query TCPStore.
+        try:
+            num_nodes_waiting = rdzv_handler.num_nodes_waiting()
+        except Exception as e:
+            logger.warning("Fail to call num_node_waiting.", e)
+            num_nodes_waiting = 0
 
-def is_recoverable_error(failures: Dict[int, ProcessFailure]):
-    for local_rank, failure in failures.items():
-        exitcode = failure.exitcode
-        # The exitcode = -6 if the hardware breakdowns. We cannot
-        # restore the training by restarting processes
-        # if the hardwars breakdowns.
-        if exitcode == -6:
-            logger.error(
-                f"local_rank {local_rank} fails with exitcode {exitcode}"
+        group_rank = self._worker_group.group_rank
+        if num_nodes_waiting > 0:
+            logger.info(
+                f"[{role}] Detected {num_nodes_waiting} "
+                f"new nodes from group_rank={group_rank}; "
+                f"will restart worker group"
             )
-            return False
-    return True
+            return True
+        return False
 
 
 def launch_agent(
