@@ -1,8 +1,14 @@
-from typing import Dict
-
+import setuptools.command.build_py
 from setuptools import find_packages, setup
 
-cmdclass: Dict[type, type] = {}
+
+class build_proto(setuptools.command.build_py.build_py):
+    def run(self):
+        try:
+            self.spawn(["sh", "bin/build_proto.sh"])
+        except RuntimeError as e:
+            self.warn(f"build proto error:{e}")
+        super().run()
 
 
 def fetch_requirements(path):
@@ -11,6 +17,9 @@ def fetch_requirements(path):
 
 
 required_deps = fetch_requirements("atorch/requirements.txt")
+
+cmdclass = {}
+cmdclass["build_py"] = build_proto
 
 setup(
     name="atorch",
