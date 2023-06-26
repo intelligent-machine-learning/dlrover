@@ -119,9 +119,7 @@ class DLRoverElasticAgent(LocalElasticAgent):
                 return run_result
             elif state in {WorkerState.UNHEALTHY, WorkerState.FAILED}:
                 logger.warning(f"Worker failures = {failures}")
-                if self._reamining_fo_count > 0 and is_recoverable_error(
-                    failures
-                ):
+                if self._reamining_fo_count > 0:
                     logger.info(
                         f"[{role}] Worker group {state.name}. "
                         f"{self._remaining_restarts}/{spec.max_restarts}"
@@ -164,20 +162,6 @@ class DLRoverElasticAgent(LocalElasticAgent):
             )
             return True
         return False
-
-
-def is_recoverable_error(failures: Dict[int, ProcessFailure]):
-    for _, failure in failures.items():
-        exitcode = failure.exitcode
-        # The exitcode = -6 if the hardware breakdowns. We cannot
-        # restore the training by restarting processes
-        # if the hardwars breakdowns.
-        error_msg = failure.error_file_data["message"]
-        if isinstance(error_msg, dict):
-            error_msg = error_msg.get("message", "")
-        if exitcode == -6:
-            return False
-    return True
 
 
 def launch_agent(
