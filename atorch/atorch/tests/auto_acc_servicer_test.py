@@ -15,15 +15,10 @@ import pickle
 import unittest
 from unittest import mock
 
-from atorch.protos import acceleration_pb2
 from atorch.auto.engine.acceleration_engine import AccelerationEngine
 from atorch.auto.engine.servicer import AutoAccelerationService
-from atorch.auto.engine.task import (
-    Task,
-    TaskProcessMode,
-    TaskStatus,
-    TaskType,
-)
+from atorch.auto.engine.task import Task, TaskProcessMode, TaskStatus, TaskType
+from atorch.protos import acceleration_pb2
 
 
 class AccelerationServiceTest(unittest.TestCase):
@@ -53,16 +48,12 @@ class AccelerationServiceTest(unittest.TestCase):
             time_limit=5,
         )
         self.servicer._executor.get_task = mock.MagicMock(return_value=task)
-        protobuf_task = self.servicer.get_task(
-            acceleration_pb2.GetAutoAccelerationTaskRequest(), None
-        )
+        protobuf_task = self.servicer.get_task(acceleration_pb2.GetAutoAccelerationTaskRequest(), None)
         self.assertEqual(protobuf_task.task_id, task_id)
         self.assertEqual(protobuf_task.task_type, task_type)
         self.assertEqual(protobuf_task.process_mode, process_mode)
         self.assertEqual(protobuf_task.time_limit, 5)
-        for method_tuple, method_proto in zip(
-            optimization_methods, protobuf_task.strategy.opt
-        ):
+        for method_tuple, method_proto in zip(optimization_methods, protobuf_task.strategy.opt):
             self.assertEqual(method_tuple[0], method_proto.name)
             self.assertEqual(method_tuple[1], method_proto.config)
             self.assertEqual(method_tuple[2], method_proto.tunable)
@@ -82,15 +73,14 @@ class AccelerationServiceTest(unittest.TestCase):
             time_limit=30,
         )
         self.servicer._executor.get_task = mock.MagicMock(return_value=task)
-        protobuf_task = self.servicer.get_task(
-            acceleration_pb2.GetAutoAccelerationTaskRequest(), None
-        )
+        protobuf_task = self.servicer.get_task(acceleration_pb2.GetAutoAccelerationTaskRequest(), None)
         self.assertEqual(protobuf_task.task_id, task_id)
         self.assertEqual(protobuf_task.task_type, task_type)
         self.assertEqual(protobuf_task.process_mode, process_mode)
         self.assertEqual(protobuf_task.time_limit, 30)
         self.assertEqual(
-            list(protobuf_task.analysis_method.names), methods,
+            list(protobuf_task.analysis_method.names),
+            methods,
         )
 
     def test_get_parallel_group_info_task(self):
@@ -111,9 +101,7 @@ class AccelerationServiceTest(unittest.TestCase):
             task_status=task_status,
         )
         self.servicer._executor.get_task = mock.MagicMock(return_value=task)
-        protobuf_task = self.servicer.get_task(
-            acceleration_pb2.GetAutoAccelerationTaskRequest(), None
-        )
+        protobuf_task = self.servicer.get_task(acceleration_pb2.GetAutoAccelerationTaskRequest(), None)
         self.assertEqual(protobuf_task.task_id, task_id)
         self.assertEqual(protobuf_task.task_type, task_type)
         self.assertEqual(protobuf_task.process_mode, process_mode)
@@ -124,11 +112,12 @@ class AccelerationServiceTest(unittest.TestCase):
         )
 
     def test_report_strategy_result(self):
-        self.servicer._executor.report_task_result = mock.MagicMock(
-            return_value=None
-        )
+        self.servicer._executor.report_task_result = mock.MagicMock(return_value=None)
         task_result = acceleration_pb2.AutoAccelerationTaskResult(
-            task_id=0, process_id=0, status=True, task_type="ANALYSE",
+            task_id=0,
+            process_id=0,
+            status=True,
+            task_type="ANALYSE",
         )
         task_result.model_meta = pickle.dumps({"num_elements": 10})
         self.servicer.report_task_result(task_result, None)

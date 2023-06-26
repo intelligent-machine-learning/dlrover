@@ -16,11 +16,11 @@ import pickle
 from concurrent import futures
 
 import grpc
-from atorch.protos import acceleration_pb2, acceleration_pb2_grpc
 from google.protobuf import empty_pb2
 
 from atorch.auto.engine.task import TaskType
 from atorch.common.log_utils import default_logger as logger
+from atorch.protos import acceleration_pb2, acceleration_pb2_grpc
 
 
 def create_acceleration_service(port, executor, pool_size=None):

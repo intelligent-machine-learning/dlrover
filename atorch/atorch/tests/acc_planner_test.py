@@ -15,13 +15,9 @@ import pickle
 import unittest
 
 from atorch.auto.engine.analyser_result import AnalyserResult
-from atorch.auto.engine.optimization_method import (
-    OptimizationMethodLibrary,
-)
+from atorch.auto.engine.optimization_method import OptimizationMethodLibrary
 from atorch.auto.engine.planner import Planner, PlannerStage
-from atorch.auto.engine.sg_algo.sg_algo_lib import (
-    StrategyGenerationAlgorithmLibrary,
-)
+from atorch.auto.engine.sg_algo.sg_algo_lib import StrategyGenerationAlgorithmLibrary
 from atorch.auto.engine.strategy import StrategyInfoCollection
 
 

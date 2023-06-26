@@ -34,9 +34,7 @@ class TestExecutor(unittest.TestCase):
     def test_executor(self):
         device_context = {"node_num": 1, "nproc_per_node": 2}
 
-        executor = AccelerationEngine.create_executor(
-            device_context=device_context
-        )
+        executor = AccelerationEngine.create_executor(device_context=device_context)
 
         process_running = [True for _ in range(2)]
         while any(process_running):
@@ -45,10 +43,7 @@ class TestExecutor(unittest.TestCase):
                 if status:
                     task = executor.get_task(idx)
                     tasks.append((task, idx))
-                    if (
-                        task.task_type == TaskType.FINISH
-                        or task.task_type == TaskType.FAIL
-                    ):
+                    if task.task_type == TaskType.FINISH or task.task_type == TaskType.FAIL:
                         self.assertTrue(task.task_type != TaskType.FAIL)
                         process_running[idx] = False
             process_task(tasks, executor)

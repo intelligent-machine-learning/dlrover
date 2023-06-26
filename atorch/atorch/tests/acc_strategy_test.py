@@ -13,13 +13,8 @@
 
 import unittest
 
-from atorch.auto.engine.optimization_method import (
-    OptimizationMethodLibrary,
-)
-from atorch.auto.engine.strategy import (
-    StrategyInfoCollection,
-    StrategyStatus,
-)
+from atorch.auto.engine.optimization_method import OptimizationMethodLibrary
+from atorch.auto.engine.strategy import StrategyInfoCollection, StrategyStatus
 from atorch.auto.engine.task import TaskType
 
 

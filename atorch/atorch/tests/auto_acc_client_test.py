@@ -15,8 +15,8 @@ import pickle
 import unittest
 from unittest import mock
 
-from atorch.protos import acceleration_pb2
 from atorch.auto.engine.client import GlobalAutoAccelerationClient
+from atorch.protos import acceleration_pb2
 
 
 class AutoAccelerationClient(unittest.TestCase):
@@ -119,11 +119,7 @@ class AutoAccelerationClient(unittest.TestCase):
             self.assertEqual(method[2], info[2])
 
     def test_report_more_than_one_result(self):
-        self.client._stub.report_task_result = mock.MagicMock(
-            return_value=None
-        )
-        self.client.report_task_result(
-            0, "TUNE", True, [("method", pickle.dumps({}), False)]
-        )
+        self.client._stub.report_task_result = mock.MagicMock(return_value=None)
+        self.client.report_task_result(0, "TUNE", True, [("method", pickle.dumps({}), False)])
         self.client.report_task_result(0, "DRYRUN", True, pickle.dumps({}))
         self.client.report_task_result(0, "ANALYSE", True, pickle.dumps({}))

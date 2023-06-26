@@ -1,38 +1,39 @@
+import os
 import unittest
-from string import Template
 
 import torch
 
-from atorch.auto.dry_runner.dry_runner import get_dryrunner
-from atorch.tests.test_utils import run_multi_process_init_distributed
-from atorch.tests.toy_module import create_model_context
-
-code_template = Template(
-    """
 import atorch
-from atorch.auto.model_context import ModelContext
 from atorch.auto.dry_runner.dry_runner import get_dryrunner
+from atorch.tests.test_utils import run_multi_process_init_distributed, start_coverage, stop_coverage
 from atorch.tests.toy_module import create_model_context
-from atorch.auto.accelerate import run_task
-import torch
 
-if __name__ == "__main__":
-    res = atorch.init_distributed("$backend", set_cuda_device_using_local_rank=True, $kargs)
+
+def two_process_profile_func():
+    if torch.cuda.is_available():
+        backend = "nccl"
+    else:
+        backend = "gloo"
+    data_size = 16
+    batch_size = 2
+    warmup_step_num = 0
+    profile_step_num = 4
+
+    res = atorch.init_distributed(backend, set_cuda_device_using_local_rank=True)
     if not res:
         raise Exception("init failed")
-    model_context = create_model_context(data_size=$data_size, batch_size=$batch_size)
+    model_context = create_model_context(data_size=data_size, batch_size=batch_size)
     if torch.cuda.is_available():
         model_context.model.to("cuda")
     dry_runner = get_dryrunner()
     model_context.update_dataloader()
     model_context.update_optim()
-    status, result = dry_runner.profile(model_context, warmup_step_num=$warmup_step_num,
-                                        profile_step_num=$profile_step_num)
+    status, result = dry_runner.profile(
+        model_context, warmup_step_num=warmup_step_num, profile_step_num=profile_step_num
+    )
     assert status
     assert result is not None
     atorch.reset_distributed()
-"""
-)
 
 
 class DryRunnerTest(unittest.TestCase):
@@ -55,22 +56,12 @@ class DryRunnerTest(unittest.TestCase):
         self.assertTrue(not status)
 
     def test_two_process_profile(self):
-        if torch.cuda.is_available():
-            backend = "nccl"
-        else:
-            backend = "gloo"
-        data_size = 16
-        batch_size = 2
-        kargs = ""
-        warmup_step_num = 0
-        profile_step_num = 4
+        code_path = os.path.abspath(__file__)
+        run_multi_process_init_distributed(nproc=2, training_script=code_path)
 
-        codes = code_template.substitute(
-            backend=backend,
-            kargs=kargs,
-            data_size=data_size,
-            batch_size=batch_size,
-            warmup_step_num=warmup_step_num,
-            profile_step_num=profile_step_num,
-        )
-        run_multi_process_init_distributed(codes, nproc=2)
+
+if __name__ == "__main__":
+    cov_status = start_coverage()
+    two_process_profile_func()
+    if cov_status:
+        stop_coverage()
