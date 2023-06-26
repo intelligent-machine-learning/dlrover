@@ -148,6 +148,7 @@ class DLRoverElasticAgent(LocalElasticAgent):
         return self._reamining_fo_count == 0
 
     def _membership_changed(self, role, rdzv_handler: RendezvousHandler):
+        # Timeout may happen when to query TCPStore.
         try:
             num_nodes_waiting = rdzv_handler.num_nodes_waiting()
         except Exception as e:
