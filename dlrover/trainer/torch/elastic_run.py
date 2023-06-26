@@ -77,8 +77,7 @@ class DLRoverElasticAgent(LocalElasticAgent):
         super().__init__(spec, exit_barrier_timeout)
         self._start_method = start_method
         self._pcontext: Optional[PContext] = None
-        rdzv_run_id = spec.rdzv_handler.get_run_id()
-        self._log_dir = self._make_log_dir(log_dir, rdzv_run_id)
+        self._log_dir = log_dir
         self._worker_watchdog: Optional[timer.FileTimerServer] = None
         self._reamining_fo_count: int = self._remaining_restarts
 
