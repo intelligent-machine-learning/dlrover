@@ -31,7 +31,6 @@ from torch.distributed.elastic.agent.server.local_elastic_agent import (
 from torch.distributed.elastic.metrics import put_metric
 from torch.distributed.elastic.multiprocessing import (
     PContext,
-    ProcessFailure,
     SignalException,
 )
 from torch.distributed.elastic.multiprocessing.errors import (
