@@ -39,6 +39,7 @@ from torch.distributed.elastic.multiprocessing.errors import (
     record,
 )
 from torch.distributed.elastic.rendezvous import RendezvousParameters
+from torch.distributed.elastic.rendezvous.api import RendezvousHandler
 from torch.distributed.elastic.utils.logging import get_logger
 from torch.distributed.launcher.api import (
     LaunchConfig,
@@ -118,6 +119,7 @@ class DLRoverElasticAgent(LocalElasticAgent):
                 self._exit_barrier()
                 return run_result
             elif state in {WorkerState.UNHEALTHY, WorkerState.FAILED}:
+                logger.warning(f"Worker failures = {failures}")
                 if self._reamining_fo_count > 0 and is_recoverable_error(
                     failures
                 ):
@@ -134,14 +136,7 @@ class DLRoverElasticAgent(LocalElasticAgent):
                     return run_result
             elif state == WorkerState.HEALTHY:
                 # membership changes do not count as retries
-                num_nodes_waiting = rdzv_handler.num_nodes_waiting()
-                group_rank = self._worker_group.group_rank
-                if num_nodes_waiting > 0:
-                    logger.info(
-                        f"[{role}] Detected {num_nodes_waiting} "
-                        f"new nodes from group_rank={group_rank}; "
-                        f"will restart worker group"
-                    )
+                if self._membership_changed(role, rdzv_handler):
                     self._restart_workers(self._worker_group)
             else:
                 raise Exception(f"[{role}] Worker group in {state.name} state")
@@ -153,17 +148,34 @@ class DLRoverElasticAgent(LocalElasticAgent):
     def should_shutdown_rdzv(self):
         return self._reamining_fo_count == 0
 
+    def _membership_changed(self, role, rdzv_handler: RendezvousHandler):
+        try:
+            num_nodes_waiting = rdzv_handler.num_nodes_waiting()
+        except Exception as e:
+            logger.warning("Fail to call num_node_waiting.", e)
+            num_nodes_waiting = 0
+
+        group_rank = self._worker_group.group_rank
+        if num_nodes_waiting > 0:
+            logger.info(
+                f"[{role}] Detected {num_nodes_waiting} "
+                f"new nodes from group_rank={group_rank}; "
+                f"will restart worker group"
+            )
+            return True
+        return False
+
 
 def is_recoverable_error(failures: Dict[int, ProcessFailure]):
-    for local_rank, failure in failures.items():
+    for _, failure in failures.items():
         exitcode = failure.exitcode
         # The exitcode = -6 if the hardware breakdowns. We cannot
         # restore the training by restarting processes
         # if the hardwars breakdowns.
+        error_msg = failure.error_file_data["message"]
+        if isinstance(error_msg, dict):
+            error_msg = error_msg.get("message", "")
         if exitcode == -6:
-            logger.error(
-                f"local_rank {local_rank} fails with exitcode {exitcode}"
-            )
             return False
     return True
 
