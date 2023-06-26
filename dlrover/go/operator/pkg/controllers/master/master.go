@@ -225,7 +225,7 @@ func (m *Manager) StopRunningPods(
 // NewMasterTemplateToJob sets configurations to the master template of a job.
 func NewMasterTemplateToJob(job *elasticv1alpha1.ElasticJob, masterImage string) {
 	command := masterCommand + fmt.Sprintf(
-		" --platform k8s --namespace %s --job_name %s --port %d",
+		" --platform pyk8s --namespace %s --job_name %s --port %d",
 		job.Namespace, job.Name, masterServicePort,
 	)
 	container := corev1.Container{
