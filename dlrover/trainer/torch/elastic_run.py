@@ -29,10 +29,7 @@ from torch.distributed.elastic.agent.server.local_elastic_agent import (
     LocalElasticAgent,
 )
 from torch.distributed.elastic.metrics import put_metric
-from torch.distributed.elastic.multiprocessing import (
-    PContext,
-    SignalException,
-)
+from torch.distributed.elastic.multiprocessing import PContext, SignalException
 from torch.distributed.elastic.multiprocessing.errors import (
     ChildFailedError,
     record,
