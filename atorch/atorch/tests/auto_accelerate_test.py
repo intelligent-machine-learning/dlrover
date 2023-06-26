@@ -407,7 +407,7 @@ class LoadSaveStrategyTest(unittest.TestCase):
         )
         removed_items = strategy.remove_distributed_method(opt_lib)
         self.assertEqual(len(strategy), 3)
-        self.assertEqual(len(removed_items), 0)
+        self.assertTrue(removed_items is None)
 
     def test_load_save_with_api(self):
         run_dist_code("save_load")
