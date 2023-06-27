@@ -60,7 +60,7 @@ class MasterRendezvousHandler(RendezvousHandler):
     def __init__(self, node_id, rdzv_params: RendezvousParameters):
         self._node_id = node_id
         self._rdzv_params = rdzv_params
-        self.join_timeout = rdzv_params.get("join_timeout", 1800)
+        self.join_timeout = rdzv_params.get("join_timeout", 600)
         self._client = GlobalMasterClient.MASTER_CLIENT
         self._store = MasterKVStore("dlrover-elastic", timedelta(seconds=60))
         lastcall_timeout = rdzv_params.get("lastcall_timeout", 60)
@@ -99,7 +99,7 @@ class MasterRendezvousHandler(RendezvousHandler):
                 break
             if time.time() - start_join > self.join_timeout:
                 raise TimeoutError(
-                    f"Timeout {self.join_timeout} to complete next rendezous."
+                    f"Timeout {self.join_timeout}s to complete next rendezous."
                 )
             time.sleep(3)
         rank = list(world.keys()).index(self._node_id)

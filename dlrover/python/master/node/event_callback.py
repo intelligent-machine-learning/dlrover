@@ -228,7 +228,7 @@ class AllReduceNodeHandlingCallback(NodeEventCallback):
     def on_node_started(self, node: Node, cluster_context):
         if node.type == NodeType.WORKER and node.id == 0:
             self._master.job_manager.start_auto_scaling()
-        self._rdzv_manager.add_alive_worker(node)
+        self._rdzv_manager.add_alive_node(node)
 
     @NodeEventCallback.log_callback_exception
     def on_node_succeeded(self, node: Node, cluster_context: ClusterContext):
@@ -253,14 +253,14 @@ class AllReduceNodeHandlingCallback(NodeEventCallback):
                 [(node.type, node.id)]
             )
         self._speed_monitor.remove_running_worker(node.type, node.id)
-        self._rdzv_manager.remove_alive_worker(node)
+        self._rdzv_manager.remove_alive_node(node)
 
     @NodeEventCallback.log_callback_exception
     def on_node_deleted(self, node, cluster_context):
         node.finish_time = datetime.now()  # type: ignore
         self._stop_job_if_needed(node)
         self._speed_monitor.remove_running_worker(node.type, node.id)
-        self._rdzv_manager.remove_alive_worker(node)
+        self._rdzv_manager.remove_alive_node(node)
 
     def _stop_job_if_needed(self, node: Node):
         if node.critical and node.is_unrecoverable_failure():

@@ -66,14 +66,14 @@ class RendezvousManager(object):
         self._rdzv_params.max_nodes = max_ndoes
         self._rdzv_params.waiting_timeout = waiting_timeout
 
-    def add_alive_worker(self, worker: Node):
-        self._alive_nodes.add(worker.id)
-        logger.info(f"Add alive worker {worker.name} to Rendezvous.")
+    def add_alive_node(self, node: Node):
+        self._alive_nodes.add(node.id)
+        logger.info(f"Add alive worker {node.name} to Rendezvous.")
 
-    def remove_alive_worker(self, worker: Node):
-        if worker.name in self._alive_nodes:
-            self._alive_nodes.remove(worker.id)
-            logger.info(f"Remove exited worker {worker.name} from Rendezvous.")
+    def remove_alive_node(self, node: Node):
+        if node.id in self._alive_nodes:
+            self._alive_nodes.remove(node.id)
+            logger.info(f"Remove exited worker {node.name} from Rendezvous.")
 
     def get_released_workers(self):
         return []
@@ -100,7 +100,7 @@ class RendezvousManager(object):
                 self._waiting_nodes = dict()
                 self._lastcall_time = 0
                 logger.info(
-                    f"Completed round {self._rdzv_round}"
+                    f"Completed {self._rdzv_round} round "
                     f"rendezvous {self._rdzv_nodes}"
                 )
                 self._rdzv_round += 1
