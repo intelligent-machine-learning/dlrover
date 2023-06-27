@@ -45,10 +45,7 @@ from torch.distributed.elastic.multiprocessing.errors import (
 from torch.distributed.elastic.rendezvous import RendezvousParameters
 from torch.distributed.elastic.rendezvous.api import RendezvousHandler
 from torch.distributed.elastic.utils.logging import get_logger
-from torch.distributed.launcher.api import (
-    LaunchConfig,
-    _get_entrypoint_name,
-)
+from torch.distributed.launcher.api import LaunchConfig, _get_entrypoint_name
 from torch.distributed.run import config_from_args, parse_args
 
 from dlrover.python.common.constants import NodeEnv
