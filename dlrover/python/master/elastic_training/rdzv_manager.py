@@ -79,11 +79,10 @@ class RendezvousManager(object):
         return []
 
     def get_comm_world(self):
-        if self._rdzv_nodes:
-            return self._rdzv_nodes
-
-        rdzv_completed = False
         with self._lock:
+            rdzv_completed = False
+            if self._rdzv_nodes:
+                return self._rdzv_nodes
             if len(self._waiting_nodes) == self._rdzv_params.max_nodes:
                 rdzv_completed = True
             else:
