@@ -59,6 +59,7 @@ class RendezvousManager(object):
         self._rdzv_nodes = {}
         self._lastcall_time = 0
         self._rdzv_params = RendezvousParameters(0, 0)
+        self._rdzv_round = 0
 
     def update_rdzv_params(self, min_nodes, max_ndoes, waiting_timeout):
         self._rdzv_params.min_nodes = min_nodes
@@ -100,8 +101,10 @@ class RendezvousManager(object):
                 self._waiting_nodes = dict()
                 self._lastcall_time = 0
                 logger.info(
-                    f"Completed rendezvous with workers {self._rdzv_nodes}"
+                    f"Completed round {self._rdzv_round}"
+                    f"rendezvous {self._rdzv_nodes}"
                 )
+                self._rdzv_round += 1
 
             return self._rdzv_nodes
 
@@ -114,6 +117,7 @@ class RendezvousManager(object):
             if len(self._waiting_nodes) >= self._rdzv_params.min_nodes:
                 if self._lastcall_time == 0:
                     self._lastcall_time = time.time()
+        return self._rdzv_round
 
     def num_nodes_waiting(self):
         with self._lock:

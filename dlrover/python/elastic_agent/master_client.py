@@ -339,7 +339,7 @@ class MasterClient(object):
         request.id = node_id
         request.local_world_size = local_world_size
         response = self._stub.join_rendezvous(request)
-        return response.success
+        return response.round
 
     @retry_grpc_request
     def get_comm_world(self):

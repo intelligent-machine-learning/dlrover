@@ -205,6 +205,7 @@ message BarrierRequest {
 message RendezvousState {
   map<int32, int32> world = 1;
   int32 waiting_num = 2;
+  int32 round = 3;
 }
 
 message RendezvousParams {
@@ -268,7 +269,7 @@ service Master {
 
   // rpc for torch elastic
   rpc get_comm_world(google.protobuf.Empty) returns (RendezvousState);
-  rpc join_rendezvous(NodeMeta) returns (Response);
+  rpc join_rendezvous(NodeMeta) returns (RendezvousState);
   rpc num_nodes_waiting(google.protobuf.Empty) returns (RendezvousState);
   rpc report_rdzv_params(RendezvousParams) returns (Response);
   rpc kv_store_set(KeyValuePair) returns (Response);

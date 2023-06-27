@@ -21,6 +21,7 @@ from datetime import timedelta
 from typing import Any, Callable, Dict, List, Optional, Union
 
 import torch.distributed.elastic.timer as timer
+from torch.distributed import PrefixStore, Store
 from torch.distributed.elastic import events, metrics
 from torch.distributed.elastic.agent.server.api import (
     DEFAULT_ROLE,
@@ -44,22 +45,20 @@ from torch.distributed.elastic.multiprocessing.errors import (
 )
 from torch.distributed.elastic.rendezvous import RendezvousParameters
 from torch.distributed.elastic.rendezvous.api import RendezvousHandler
-from torch.distributed.elastic.utils.logging import get_logger
 from torch.distributed.launcher.api import LaunchConfig, _get_entrypoint_name
 from torch.distributed.run import config_from_args, parse_args
 
 from dlrover.python.common.constants import NodeEnv
+from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.master_client import GlobalMasterClient
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
 
 __all__ = ["LaunchConfig", "elastic_launch", "launch_agent"]
 
 
-logger = get_logger()
-
-
 class MasterRendezvousHandler(RendezvousHandler):
-    def __init__(self, rdzv_params: RendezvousParameters):
+    def __init__(self, node_id, rdzv_params: RendezvousParameters):
+        self._node_id = node_id
         self._rdzv_params = rdzv_params
         self.join_timeout = rdzv_params.get("join_timeout", 1800)
         self._client = GlobalMasterClient.MASTER_CLIENT
@@ -81,21 +80,41 @@ class MasterRendezvousHandler(RendezvousHandler):
         """Marks the rendezvous as closed."""
         pass
 
-    def join_rendezvous(self, node_id, local_world_size):
-        self._client.join_rendezvous(node_id, local_world_size)
+    def join_rendezvous(self, local_world_size):
+        round = self._client.join_rendezvous(self._node_id, local_world_size)
+        return round
 
-    def next_rendezvous(self):
+    def next_rendezvous(self, round):
         start_join = time.time()
+        node_name = os.getenv("POD_NAME", "")
+        msg = (
+            f"The node node_name attempts to join the next round "
+            f"of the rendezvous '{self._rdzv_params.run_id}'."
+        )
+        logger.info(msg)
         while True:
             world = self._client.get_comm_world()
             world = dict(sorted(world.items()))
             if world:
-                return self._store, world
+                break
             if time.time() - start_join > self.join_timeout:
                 raise TimeoutError(
                     f"Timeout {self.join_timeout} to complete next rendezous."
                 )
             time.sleep(3)
+        rank = list(world.keys()).index(self._node_id)
+        world_size = len(world)
+        logger.info(
+            f"The node{node_name} has joined round {round} of "
+            f"the rendezvous as rank {rank} in a world of size "
+            f"{world_size}."
+        )
+        store = self._get_store(round)
+        return store, world
+
+    def _get_store(self, round) -> Store:
+        key_prefix = f"torch.rendezvous.{self._rdzv_params.run_id}.{round}"
+        return PrefixStore(key_prefix, self._store)
 
     def num_nodes_waiting(self) -> int:
         return self._client.num_nodes_waiting()
@@ -138,6 +157,7 @@ class DLRoverElasticAgent(LocalElasticAgent):
 
     def __init__(
         self,
+        node_id,
         spec: WorkerSpec,
         start_method="spawn",
         exit_barrier_timeout: float = 300,
@@ -149,7 +169,7 @@ class DLRoverElasticAgent(LocalElasticAgent):
         self._log_dir = log_dir or tempfile.mkdtemp(prefix="torchelastic_")
         self._worker_watchdog: Optional[timer.FileTimerServer] = None
         self._reamining_fo_count: int = self._remaining_restarts
-        self._node_id = int(os.getenv(NodeEnv.WORKER_ID, 0))
+        self._node_id = node_id
 
     @prof
     def _rendezvous(self, worker_group: WorkerGroup) -> None:
@@ -160,8 +180,8 @@ class DLRoverElasticAgent(LocalElasticAgent):
         """
 
         spec = worker_group.spec
-        spec.rdzv_handler.join_rendezvous(self._node_id, spec.local_world_size)
-        store, world = spec.rdzv_handler.next_rendezvous()
+        round = spec.rdzv_handler.join_rendezvous(spec.local_world_size)
+        store, world = spec.rdzv_handler.next_rendezvous(round)
         group_world_size = len(world)
         group_rank = list(world.keys()).index(self._node_id)
         self._store = store
@@ -357,6 +377,7 @@ def launch_agent(
         config.run_id = run_id
 
     entrypoint_name = _get_entrypoint_name(entrypoint, args)
+    node_id = int(os.getenv(NodeEnv.WORKER_ID, 0))
 
     logger.info(
         f"Starting elastic_operator with launch configs:\n"
@@ -393,7 +414,7 @@ def launch_agent(
         local_world_size=config.nproc_per_node,
         entrypoint=entrypoint,
         args=tuple(args),
-        rdzv_handler=MasterRendezvousHandler(rdzv_parameters),
+        rdzv_handler=MasterRendezvousHandler(node_id, rdzv_parameters),
         max_restarts=config.max_restarts,
         monitor_interval=config.monitor_interval,
         redirects=config.redirects,
@@ -403,7 +424,10 @@ def launch_agent(
     )
 
     agent = DLRoverElasticAgent(
-        spec=spec, start_method=config.start_method, log_dir=config.log_dir
+        node_id=node_id,
+        spec=spec,
+        start_method=config.start_method,
+        log_dir=config.log_dir,
     )
 
     shutdown_rdzv = True

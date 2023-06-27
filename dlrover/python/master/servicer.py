@@ -395,11 +395,11 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         return res
 
     def join_rendezvous(self, request, _):
-        self._rdzv_manager.join_rendezvous(
+        round = self._rdzv_manager.join_rendezvous(
             request.id, request.local_world_size
         )
-        res = elastic_training_pb2.Response()
-        res.success = True
+        res = elastic_training_pb2.RendezvousState()
+        res.round = round
         return res
 
     def num_nodes_waiting(self, request, _):
