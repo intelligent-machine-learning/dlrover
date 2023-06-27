@@ -61,7 +61,7 @@ class ProcessError:
     local_rank: int
     exitcode: int
     message: str
-    datetime: datetime
+    datetime: Any
 
 
 class DLRoverElasticAgent(LocalElasticAgent):
