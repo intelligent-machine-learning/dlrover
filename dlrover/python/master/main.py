@@ -34,7 +34,6 @@ def update_context(job_args: JobArgs):
 
 
 def run(args):
-    args.relaunch_error = True
     job_args = new_job_args(args.platform, args.job_name, args.namespace)
     job_args.initilize()
     logger.info("Job args : %s", job_args.toJSON())
