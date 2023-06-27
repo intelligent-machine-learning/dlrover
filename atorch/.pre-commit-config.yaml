@@ -14,7 +14,7 @@ repos:
     rev: v2.4.0
     hooks:
       - id: flake8
-        exclude: __init__.py$
+        exclude: __init__.py|_pb2.py|_pb2_grpc.py
         args: [
           "--max-line-length=120", 
         ]
@@ -22,4 +22,5 @@ repos:
     rev: v0.900
     hooks:
       - id: mypy
-        args: [--ignore-missing-imports, --follow-imports=skip]
+        exclude: _pb2.py|_pb2_grpc.py|auto/engine/servicer.py
+        args: [--ignore-missing-imports, --follow-imports=skip, --namespace-packages]

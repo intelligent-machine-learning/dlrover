@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+package proto;
+
+import "google/protobuf/empty.proto";
+
+message GetAutoAccelerationTaskRequest {
+  int32 process_id = 1;
+}
+
+message OptimizationMethod {
+  string name = 1;
+  bytes config = 2;
+  bool tunable = 3;
+}
+
+message Strategy {
+  repeated OptimizationMethod opt = 1;
+}
+
+message AnalysisMethod {
+  repeated string names = 1;
+}
+
+message AutoAccelerationTask {
+  int32 task_id = 1;
+  string task_type = 2;
+  string process_mode = 3;
+  oneof task_info {
+    Strategy strategy = 4;
+    AnalysisMethod analysis_method = 5;
+    bytes parallel_group_info = 6;
+  }
+  int32 time_limit = 7;
+}
+
+message AutoAccelerationTaskResult {
+  int32 task_id = 1;
+  int32 process_id = 2;
+  bool status = 3;
+  oneof result {
+    Strategy strategy = 4;
+    bytes model_meta = 5;
+    bytes dryrun_result = 6;
+  }
+  string task_type = 7;
+}
+
+service AutoAccelerationService {
+  rpc get_task(GetAutoAccelerationTaskRequest) returns (AutoAccelerationTask);
+  rpc report_task_result(AutoAccelerationTaskResult)
+      returns (google.protobuf.Empty);
+}
