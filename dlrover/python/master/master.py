@@ -115,8 +115,6 @@ class Master(object):
         # Start the components one by one
         if self.task_manager:
             self.task_manager.start()
-        if self.rdzv_manager:
-            self.rdzv_manager.start()
         if self.job_manager:
             self.job_manager.start()
 

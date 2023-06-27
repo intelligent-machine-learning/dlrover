@@ -76,6 +76,9 @@ class RendezvousManager(object):
             self._alive_nodes.remove(worker.id)
             logger.info(f"Remove exited worker {worker.name} from Rendezvous.")
 
+    def get_released_workers(self):
+        return []
+
     def get_comm_world(self):
         if self._rdzv_nodes:
             return self._rdzv_nodes

@@ -11,8 +11,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import time
 import datetime
+import time
 import unittest
 
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
@@ -53,7 +53,7 @@ class RendezvousManagerTest(unittest.TestCase):
         world = rdzv_manager.get_comm_world()
         self.assertEqual(len(rdzv_manager._waiting_nodes), 0)
         self.assertEqual(len(rdzv_manager._rdzv_nodes), 3)
-        self.assertDictEqual(world, {0: 8, 1: 8, 2:8})
+        self.assertDictEqual(world, {0: 8, 1: 8, 2: 8})
 
     def test_min_nodes(self):
         rdzv_manager = RendezvousManager()
