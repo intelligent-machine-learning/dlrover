@@ -221,8 +221,8 @@ message Response {
 }
 
 message NodeFailure {
-    int32 node_id = 1;
-    string error_data = 2;
+  int32 node_id = 1;
+  string error_data = 2;
 }
 
 service Master {
