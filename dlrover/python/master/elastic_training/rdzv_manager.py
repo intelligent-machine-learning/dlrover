@@ -12,9 +12,9 @@
 # limitations under the License.
 
 import time
+from collections import OrderedDict
 from threading import Lock
 from typing import Dict
-from collections import OrderedDict
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node
@@ -27,20 +27,21 @@ class RendezvousParameters(object):
             The minimum number of nodes to admit to the rendezvous.
         max_nodes:
             The maximum number of nodes to admit to the rendezvous.
-        wait_timeout:
+        waiting_timeout:
             An additional wait amount before completing the rendezvous once
             the rendezvous has the minimum number of required participants.
             Default 30s,
     """
+
     def __init__(
         self,
         min_nodes: int,
         max_nodes: int,
-        wait_timeout=30,
+        waiting_timeout=30,
     ):
         self.min_nodes = min_nodes
         self.max_nodes = max_nodes
-        self.wait_timeout = wait_timeout
+        self.waiting_timeout = waiting_timeout
 
 
 class RendezvousManager(object):
@@ -60,12 +61,10 @@ class RendezvousManager(object):
         self._lastcall_time = 0
         self._rdzv_params = RendezvousParameters(0, 0)
 
-    def update_rdzv_params(
-        self, min_nodes, max_ndoes, wait_timeout
-    ):
+    def update_rdzv_params(self, min_nodes, max_ndoes, waiting_timeout):
         self._rdzv_params.min_nodes = min_nodes
         self._rdzv_params.max_nodes = max_ndoes
-        self._rdzv_params.wait_timeout = wait_timeout
+        self._rdzv_params.waiting_timeout = waiting_timeout
 
     def add_alive_worker(self, worker: Node):
         self._alive_nodes.add(worker.id)
@@ -88,11 +87,11 @@ class RendezvousManager(object):
             else:
                 waiting_num = len(self._waiting_nodes)
                 alive_num = len(self._alive_nodes)
-                waitting_time = time.time() - self._lastcall_time
+                waiting_time = time.time() - self._lastcall_time
                 rdzv_completed = (
                     waiting_num == self._rdzv_params.min_nodes
                     and waiting_num == alive_num
-                    and waitting_time >= self._rdzv_params.wait_timeout
+                    and waiting_time >= self._rdzv_params.waiting_timeout
                 )
 
             if rdzv_completed:

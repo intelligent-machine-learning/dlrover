@@ -24,10 +24,12 @@ from dlrover.python.common.constants import GRPC, NodeType, TrainingLoopStatus
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
+from dlrover.python.master.elastic_training.kv_store_service import (
+    KVStoreService,
+)
 from dlrover.python.master.elastic_training.rdzv_manager import (
     RendezvousManager,
 )
-from dlrover.python.master.elastic_training.kv_store_service import KVStoreService
 from dlrover.python.master.elastic_training.sync_service import SyncService
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.job_manager import JobManager
@@ -398,7 +400,9 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         return res
 
     def join_rendezvous(self, request, _):
-        self._rdzv_manager.join_rendezvous(request.id, request.worker_num)
+        self._rdzv_manager.join_rendezvous(
+            request.id, request.local_world_size
+        )
         res = elastic_training_pb2.Response()
         res.success = True
         return res
@@ -407,6 +411,16 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         waiting_num = self._rdzv_manager.num_nodes_waiting()
         res = elastic_training_pb2.RendezvousState()
         res.waiting_num = waiting_num
+        return res
+
+    def report_rdzv_params(self, request, _):
+        self._rdzv_manager.update_rdzv_params(
+            min_nodes=request.min_nodes,
+            max_ndoes=request.max_nodes,
+            waiting_timeout=request.waiting_timeout,
+        )
+        res = elastic_training_pb2.Response()
+        res.success = True
         return res
 
     def kv_store_set(self, request, _):
