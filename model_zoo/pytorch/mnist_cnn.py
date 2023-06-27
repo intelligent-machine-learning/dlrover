@@ -72,10 +72,10 @@ def cleanup():
 def setup():
     use_cuda = torch.cuda.is_available()
     if use_cuda:
-        dist.init_process_group("nccl", timeout=timedelta(seconds=900))
+        dist.init_process_group("nccl", timeout=timedelta(seconds=120))
         torch.cuda.set_device(int(os.environ["LOCAL_RANK"]))
     else:
-        dist.init_process_group("gloo", timeout=timedelta(seconds=900))
+        dist.init_process_group("gloo", timeout=timedelta(seconds=120))
     rank = dist.get_rank()
     local_rank = os.environ["LOCAL_RANK"]
     print(f"rank {rank} is initialized local_rank = {local_rank}")
