@@ -81,10 +81,19 @@ class MasterRendezvousHandler(RendezvousHandler):
         pass
 
     def join_rendezvous(self, local_world_size):
+        """The node join a rendezvous by sending its
+        ID and local world size.
+        """
         round = self._client.join_rendezvous(self._node_id, local_world_size)
         return round
 
     def next_rendezvous(self, round):
+        """The node agent construct the next rendezvous by quering the
+        world from the master. The master marks the rendezvous completed
+        and send the world to all node agents if all nodes join
+        the rendezvous. The agent can infer its rank from the world by
+        its node ID.
+        """
         start_join = time.time()
         node_name = os.getenv("POD_NAME", "")
         msg = (
