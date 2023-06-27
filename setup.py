@@ -30,7 +30,7 @@ extra_require = {
 
 setup(
     name="dlrover",
-    version="0.2.0rc0.dev0",
+    version="0.3.0",
     description="An Automatic Distributed Deep Learning Framework",
     long_description="DLRover helps model developers focus on model algorithm"
     " itself, without taking care of any engineering stuff,"
@@ -56,6 +56,6 @@ setup(
         ]
     },
     entry_points={
-        "console_scripts": ["torchrun=dlrover.trainer.torch.main:main"]
+        "console_scripts": ["dlrover-run=dlrover.trainer.torch.main:main"]
     },
 )

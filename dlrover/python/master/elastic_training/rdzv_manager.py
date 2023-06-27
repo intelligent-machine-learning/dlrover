@@ -12,7 +12,6 @@
 # limitations under the License.
 
 import time
-from collections import OrderedDict
 from threading import Lock
 from typing import Dict
 
@@ -57,7 +56,7 @@ class RendezvousManager(object):
         self._scale_down_ts = 0
         self._released_workers = []
         self._waiting_nodes: Dict[int, int] = {}
-        self._rdzv_nodes = []
+        self._rdzv_nodes = {}
         self._lastcall_time = 0
         self._rdzv_params = RendezvousParameters(0, 0)
 
@@ -68,7 +67,6 @@ class RendezvousManager(object):
 
     def add_alive_worker(self, worker: Node):
         self._alive_nodes.add(worker.id)
-        self._alive_nodes = sorted(self._alive_nodes)
         logger.info(f"Add alive worker {worker.name} to Rendezvous.")
 
     def remove_alive_worker(self, worker: Node):
@@ -98,9 +96,7 @@ class RendezvousManager(object):
                 )
 
             if rdzv_completed:
-                self._rdzv_nodes = OrderedDict(
-                    sorted(self._waiting_nodes.items())
-                )
+                self._rdzv_nodes = dict(sorted(self._waiting_nodes.items()))
                 self._waiting_nodes = dict()
                 self._lastcall_time = 0
                 logger.info(
@@ -114,7 +110,7 @@ class RendezvousManager(object):
             if node_id in self._waiting_nodes:
                 return
             self._waiting_nodes[node_id] = worker_num
-            self._rdzv_nodes = []
+            self._rdzv_nodes = {}
             if len(self._waiting_nodes) >= self._rdzv_params.min_nodes:
                 if self._lastcall_time == 0:
                     self._lastcall_time = time.time()

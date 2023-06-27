@@ -295,11 +295,6 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         self._job_manager.update_node_service_addr(
             node_type, node_id, server_addr
         )
-
-        node_rank = request.rank
-        if node_rank >= 0:
-            self._job_manager.log_rank_zero_node(node_type, node_id, node_rank)
-
         response = elastic_training_pb2.Response()
         response.success = True
         return response
