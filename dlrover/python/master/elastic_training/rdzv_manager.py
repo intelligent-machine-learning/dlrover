@@ -114,7 +114,7 @@ class RendezvousManager(object):
                 alive_num = len(self._alive_nodes)
                 waiting_time = time.time() - self._lastcall_time
                 rdzv_completed = (
-                    waiting_num == self._rdzv_params.min_nodes
+                    waiting_num >= self._rdzv_params.min_nodes
                     and waiting_num == alive_num
                     and waiting_time >= self._rdzv_params.waiting_timeout
                 )

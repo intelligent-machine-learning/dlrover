@@ -88,11 +88,11 @@ class MasterRendezvousHandler(RendezvousHandler):
         return round
 
     def next_rendezvous(self, round):
-        """The node agent construct the next rendezvous by quering the
-        world from the master. The master marks the rendezvous completed
-        and send the world to all node agents if all nodes join
-        the rendezvous. The agent can infer its rank from the world by
-        its node ID.
+        """The handler will peroidically query the world from the master until
+        the world is not empty. The world is a dictionary like
+        like {0: 8, 1: 8, 2: 8} where the key is the node ID and the value is
+        the local world size. The handler can get its rank by the position
+        of it node ID in the world.
         """
         start_join = time.time()
         node_name = os.getenv("POD_NAME", "")
@@ -255,9 +255,11 @@ class DLRoverElasticAgent(LocalElasticAgent):
 
         role_infos: List[_RoleInstanceInfo] = []
         nodes = list(world.keys())
-        for i, worker_num in world.items():
+        for i, local_world_size in world.items():
             group_rank = nodes.index(i)
-            role_info = _RoleInstanceInfo(spec.role, group_rank, worker_num)
+            role_info = _RoleInstanceInfo(
+                spec.role, group_rank, local_world_size
+            )
             role_infos.append(role_info)
         group_rank = nodes.index(node_id)
         my_role_info = role_infos[group_rank]
