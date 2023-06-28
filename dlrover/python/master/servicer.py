@@ -424,7 +424,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         return res
 
     def report_failure(self, request, _):
-        logger.info(f"Node {request.node_id} fails: {request.error_data}")
+        with self._lock:
+            logger.info(f"Node {request.node_id} fails: {request.error_data}")
         res = elastic_training_pb2.Response()
         res.success = True
         return res
