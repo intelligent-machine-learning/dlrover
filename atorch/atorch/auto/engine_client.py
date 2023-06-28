@@ -1,10 +1,6 @@
 import pickle
 
-try:
-    from easydl.python.acceleration.client import build_auto_acc_client
-except ImportError:
-    build_auto_acc_client = None
-
+from atorch.auto.engine.client import build_auto_acc_client
 from atorch.auto.strategy import Strategy
 from atorch.auto.task import Task
 from atorch.common.log_utils import default_logger as logger

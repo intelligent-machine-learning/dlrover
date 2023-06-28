@@ -17,7 +17,9 @@ import socket
 import tempfile
 import time
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta
+import json
+from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Union
 
 import torch.distributed.elastic.timer as timer
@@ -41,6 +43,7 @@ from torch.distributed.elastic.metrics.api import prof
 from torch.distributed.elastic.multiprocessing import PContext, SignalException
 from torch.distributed.elastic.multiprocessing.errors import (
     ChildFailedError,
+    ProcessFailure,
     record,
 )
 from torch.distributed.elastic.rendezvous import RendezvousParameters
@@ -151,6 +154,14 @@ class MasterRendezvousHandler(RendezvousHandler):
         pass
 
 
+@dataclass
+class ProcessError:
+    local_rank: int
+    exitcode: int
+    message: str
+    datetime: Any
+
+
 class DLRoverElasticAgent(LocalElasticAgent):
     """
     An implementation of :py:class:`torchelastic.agent.server.ElasticAgent`
@@ -179,6 +190,7 @@ class DLRoverElasticAgent(LocalElasticAgent):
         self._worker_watchdog: Optional[timer.FileTimerServer] = None
         self._reamining_fo_count: int = self._remaining_restarts
         self._node_id = node_id
+        self._client = GlobalMasterClient.MASTER_CLIENT
 
     @prof
     def _rendezvous(self, worker_group: WorkerGroup) -> None:
@@ -313,7 +325,6 @@ class DLRoverElasticAgent(LocalElasticAgent):
             run_result = self._monitor_workers(self._worker_group)
             state = run_result.state
             self._worker_group.state = state
-            failures = run_result.failures
 
             put_metric(
                 f"workers.{role}.remaining_restarts", self._remaining_restarts
@@ -329,7 +340,7 @@ class DLRoverElasticAgent(LocalElasticAgent):
                 self._exit_barrier()
                 return run_result
             elif state in {WorkerState.UNHEALTHY, WorkerState.FAILED}:
-                logger.warning(f"Worker failures = {failures}")
+                self._report_failure_to_master(run_result.failures)
                 if self._reamining_fo_count > 0:
                     logger.info(
                         f"[{role}] Worker group {state.name}. "
@@ -348,6 +359,17 @@ class DLRoverElasticAgent(LocalElasticAgent):
                     self._restart_workers(self._worker_group)
             else:
                 raise Exception(f"[{role}] Worker group in {state.name} state")
+
+    def _report_failure_to_master(self, failures: Dict[int, ProcessFailure]):
+        errors = {}
+        for rank, failure in failures.items():
+            dt = str(datetime.utcfromtimestamp(int(failure.timestamp)))
+            error = ProcessError(
+                failure.local_rank, failure.exitcode, failure.message, dt
+            )
+            errors[rank] = error.__dict__
+        error_data = json.dumps(errors)
+        self._client.report_failures(error_data)
 
     def _restart_workers(self, worker_group: WorkerGroup):
         self._remaining_restarts -= 1

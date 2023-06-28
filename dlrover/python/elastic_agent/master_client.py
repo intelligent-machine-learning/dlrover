@@ -381,6 +381,12 @@ class MasterClient(object):
         request.rank = int(rank)
         self._stub.update_node_status(request)
 
+    def report_failures(self, error_data):
+        request = elastic_training_pb2.NodeFailure()
+        request.node_id = self._node_id
+        request.error_data = error_data
+        self._stub.report_failure(request)
+
 
 class LocalDataset(object):
     def __init__(

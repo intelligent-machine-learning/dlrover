@@ -3,6 +3,7 @@ import gc
 import os
 import pickle
 import time
+import traceback
 from copy import deepcopy
 
 import torch
@@ -11,6 +12,7 @@ from atorch.auto.analyser.analyser import get_analyser
 from atorch.auto.auto_accelerate_context import AutoAccelerateContext
 from atorch.auto.device_context import get_device_context
 from atorch.auto.dry_runner.dry_runner import get_dryrunner
+from atorch.auto.engine.acceleration_engine import AccelerationEngine
 from atorch.auto.engine_client import EngineClient
 from atorch.auto.model_context import ModelContext
 from atorch.auto.opt_lib.optimization_library import SEMIAUTO_STRATEGIES, OptimizationLibrary
@@ -28,12 +30,6 @@ from atorch.distributed.distributed import (
     rank,
 )
 from atorch.utils.meta_model_utils import deepcopy_checkpoint_name, reload_meta_module
-
-try:
-    from easydl.python.acceleration.acceleration_engine import AccelerationEngine
-except ImportError:
-    AccelerationEngine = None
-import traceback
 
 
 def model_transform(
