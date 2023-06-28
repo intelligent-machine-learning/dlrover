@@ -220,6 +220,11 @@ message Response {
   string reason = 2;
 }
 
+message NodeFailure {
+  int32 node_id = 1;
+  string error_data = 2;
+}
+
 service Master {
   rpc get_task(GetTaskRequest) returns (Task);
   rpc report_task_result(ReportTaskResultRequest)
@@ -268,6 +273,7 @@ service Master {
   rpc set_rdzv_state(RendezvousState) returns (Response);
   rpc kv_store_set(KeyValuePair) returns (Response);
   rpc kv_store_get(KeyValuePair) returns (KeyValuePair);
+  rpc report_failure(NodeFailure) returns (Response);
 
   rpc report_prestop(ReportPreStopRequest) returns (google.protobuf.Empty);
   rpc update_node_status(NodeMeta) returns (Response);

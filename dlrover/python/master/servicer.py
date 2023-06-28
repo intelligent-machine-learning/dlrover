@@ -423,6 +423,13 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         res.value = self._rdzv_serivce.kv_store.get(request.key)
         return res
 
+    def report_failure(self, request, _):
+        with self._lock:
+            logger.info(f"Node {request.node_id} fails: {request.error_data}")
+        res = elastic_training_pb2.Response()
+        res.success = True
+        return res
+
 
 def create_master_service(
     port,
