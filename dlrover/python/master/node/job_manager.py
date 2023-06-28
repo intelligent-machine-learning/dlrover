@@ -590,10 +590,6 @@ class JobManager(object):
         node.is_released = False
         self._job_nodes[node_type][node_id] = node
 
-    def log_rank_zero_node(self, node_type, node_id, node_rank):
-        node = self._job_nodes[node_type][node_id]
-        logger.info("Rank %s: %s", node_rank, node.name)
-
     def get_cur_cluster_ps(self):
         """Get PS nodes in the current training cluster."""
         logger.info("job nodes are {}".format(self._job_nodes))

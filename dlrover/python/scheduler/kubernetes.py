@@ -60,7 +60,7 @@ def retry_k8s_request(func):
                 time.sleep(3)
             except Exception as e:
                 execption = e
-                break
+                time.sleep(3)
         if execption:
             logger.error("Fail to execute %s: %s", func.__name__, execption)
             return None

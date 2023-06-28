@@ -14,20 +14,13 @@
 import contextlib
 import os
 import socket
-import time
 from contextlib import contextmanager
 from typing import Any, Dict
 
 import torch
 import torch.distributed as dist
 
-from dlrover.python.common.constants import NodeEnv
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.elastic_agent.master_client import GlobalMasterClient
-
-_MASTER_ADDR_KEY = "MASTER_ADDR"
-_MASTER_PORT_KEY = "MASTER_PORT"
-_MASTER_ENDPOINT_KEY = "MASTER_ENDPOINT"
 
 
 def find_free_port() -> int:
@@ -37,55 +30,6 @@ def find_free_port() -> int:
     sockname = sock.getsockname()
     sock.close()
     return sockname[1]
-
-
-def set_master_addr(timeout=120):
-    """Dynamically setup MASTER_ADDR as the ip of pod with rank=0 because
-    the pod with rank-0 may change in an elastic training job.
-    Args:
-        timeout: timeout to wait the rank-0 node broadcase MASTER_ADDR,
-            default 120s.
-    """
-    if NodeEnv.DLROVER_MASTER_ADDR not in os.environ:
-        return
-    master_client = GlobalMasterClient.MASTER_CLIENT
-    rank = os.getenv("RANK", None)
-    rdzv_endpoint = os.getenv("RDZV_ENDPOINT", "")
-    if rank is not None:
-        if rank == "0":
-            host_name = socket.gethostname()
-            local_ip = socket.gethostbyname(host_name)
-            master_client.kv_store_set(_MASTER_ENDPOINT_KEY, local_ip.encode())
-            logger.info("Broadcast master endpoint %s", local_ip)
-
-        start_time = time.time()
-        while True:
-            endpoint = master_client.kv_store_get(_MASTER_ENDPOINT_KEY)
-            if endpoint:
-                endpoint = endpoint.decode()
-                break
-            if time.time() - start_time > timeout:
-                logger.warning(
-                    "Timeout %s to wait rank 0 to broadcast MASTER_ADDR",
-                    timeout,
-                )
-                break
-            logger.info("Wait rank 0 to broadcast the master endpoint.")
-            time.sleep(3)
-    if endpoint:
-        os.environ[_MASTER_ADDR_KEY] = endpoint
-    elif rdzv_endpoint:
-        os.environ[_MASTER_ADDR_KEY] = rdzv_endpoint
-    group_rank = os.getenv("GROUP_RANK", None)
-    local_rank = os.getenv("LOCAL_RANK", None)
-    if local_rank == "0" and group_rank is not None:
-        # Only one process to report node status.
-        master_client.report_node_status(group_rank)
-    logger.info(
-        "MASTER_ADDR=%s MASTER_PORT=%s",
-        os.environ[_MASTER_ADDR_KEY],
-        os.environ[_MASTER_PORT_KEY],
-    )
 
 
 def get_rank():
