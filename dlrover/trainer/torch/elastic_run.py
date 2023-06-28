@@ -11,27 +11,35 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import functools
 import json
+import os
+import socket
+import tempfile
 import time
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, List, Optional, Union
 
-import torch.distributed.elastic.rendezvous.registry as rdzv_registry
 import torch.distributed.elastic.timer as timer
+from torch.distributed import PrefixStore, Store
 from torch.distributed.elastic import events, metrics
 from torch.distributed.elastic.agent.server.api import (
     DEFAULT_ROLE,
     RunResult,
+    Worker,
     WorkerGroup,
     WorkerSpec,
     WorkerState,
+    _get_fq_hostname,
+    _RoleInstanceInfo,
 )
 from torch.distributed.elastic.agent.server.local_elastic_agent import (
     LocalElasticAgent,
 )
 from torch.distributed.elastic.metrics import put_metric
+from torch.distributed.elastic.metrics.api import prof
 from torch.distributed.elastic.multiprocessing import PContext, SignalException
 from torch.distributed.elastic.multiprocessing.errors import (
     ChildFailedError,
@@ -40,20 +48,110 @@ from torch.distributed.elastic.multiprocessing.errors import (
 )
 from torch.distributed.elastic.rendezvous import RendezvousParameters
 from torch.distributed.elastic.rendezvous.api import RendezvousHandler
-from torch.distributed.elastic.utils.logging import get_logger
-from torch.distributed.launcher.api import (
-    LaunchConfig,
-    _get_addr_and_port,
-    _get_entrypoint_name,
-)
+from torch.distributed.launcher.api import LaunchConfig, _get_entrypoint_name
 from torch.distributed.run import config_from_args, parse_args
 
+from dlrover.python.common.constants import NodeEnv
+from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.master_client import GlobalMasterClient
+from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
 
 __all__ = ["LaunchConfig", "elastic_launch", "launch_agent"]
 
 
-logger = get_logger()
+class MasterRendezvousHandler(RendezvousHandler):
+    def __init__(self, node_id, rdzv_params: RendezvousParameters):
+        self._node_id = node_id
+        self._rdzv_params = rdzv_params
+        self.join_timeout = rdzv_params.get("join_timeout", 600)
+        self._client = GlobalMasterClient.MASTER_CLIENT
+        self._store = MasterKVStore("dlrover-elastic", timedelta(seconds=60))
+        lastcall_timeout = rdzv_params.get("lastcall_timeout", 60)
+        self._client.report_rdzv_params(
+            rdzv_params.min_nodes,
+            rdzv_params.max_nodes,
+            lastcall_timeout,
+        )
+
+    def get_backend(self) -> str:
+        return "dlrover-master"
+
+    def is_closed(self) -> bool:
+        return False
+
+    def set_closed(self):
+        """Marks the rendezvous as closed."""
+        pass
+
+    def join_rendezvous(self, local_world_size):
+        """The node join a rendezvous by sending its
+        ID and local world size.
+        """
+        round = self._client.join_rendezvous(self._node_id, local_world_size)
+        return round
+
+    def next_rendezvous(self, round):
+        """The handler will peroidically query the world from the master until
+        the world is not empty. The world is a dictionary like
+        like {0: 8, 1: 8, 2: 8} where the key is the node ID and the value is
+        the local world size. The handler can get its rank by the position
+        of it node ID in the world.
+        """
+        start_join = time.time()
+        node_name = os.getenv("POD_NAME", "")
+        msg = (
+            f"The node node_name attempts to join the next round "
+            f"of the rendezvous '{self._rdzv_params.run_id}'."
+        )
+        logger.info(msg)
+        while True:
+            world = self._client.get_comm_world()
+            world = dict(sorted(world.items()))
+            if world:
+                break
+            if time.time() - start_join > self.join_timeout:
+                raise TimeoutError(
+                    f"Timeout {self.join_timeout}s to complete next rendezous."
+                )
+            time.sleep(3)
+        rank = list(world.keys()).index(self._node_id)
+        world_size = len(world)
+        logger.info(
+            f"The node{node_name} has joined round {round} of "
+            f"the rendezvous as rank {rank} in a world of size "
+            f"{world_size}."
+        )
+        store = self._get_store(round)
+        return store, world
+
+    def _get_store(self, round) -> Store:
+        key_prefix = f"torch.rendezvous.{self._rdzv_params.run_id}.{round}"
+        return PrefixStore(key_prefix, self._store)
+
+    def num_nodes_waiting(self) -> int:
+        return self._client.num_nodes_waiting()
+
+    def get_run_id(self) -> str:
+        """Returns the run id of the rendezvous.
+
+        The run id is a user-defined id that uniquely identifies an instance of
+        a distributed application. It typically maps to a job id and is used to
+        allow nodes to join the correct distributed application.
+        """
+        return self._rdzv_params.run_id
+
+    def shutdown(self) -> bool:
+        """Closes all resources that were open for the rendezvous.
+
+        Example::
+
+            rdzv_handler = ...
+            try:
+                store, rank, world_size = rdzv_handler.next_rendezvous()
+            finally:
+                rdzv_handler.shutdown()
+        """
+        pass
 
 
 @dataclass
@@ -79,6 +177,7 @@ class DLRoverElasticAgent(LocalElasticAgent):
 
     def __init__(
         self,
+        node_id,
         spec: WorkerSpec,
         start_method="spawn",
         exit_barrier_timeout: float = 300,
@@ -87,10 +186,123 @@ class DLRoverElasticAgent(LocalElasticAgent):
         super().__init__(spec, exit_barrier_timeout)
         self._start_method = start_method
         self._pcontext: Optional[PContext] = None
-        self._log_dir = log_dir
+        self._log_dir = log_dir or tempfile.mkdtemp(prefix="torchelastic_")
         self._worker_watchdog: Optional[timer.FileTimerServer] = None
         self._reamining_fo_count: int = self._remaining_restarts
+        self._node_id = node_id
         self._client = GlobalMasterClient.MASTER_CLIENT
+
+    @prof
+    def _rendezvous(self, worker_group: WorkerGroup) -> None:
+        r"""
+        Runs rendezvous for the workers specified by worker spec.
+        Assigns workers a new global rank and world size.
+        Updates the rendezvous store for the worker group.
+        """
+
+        spec = worker_group.spec
+        round = spec.rdzv_handler.join_rendezvous(spec.local_world_size)
+        store, world = spec.rdzv_handler.next_rendezvous(round)
+        group_world_size = len(world)
+        group_rank = list(world.keys()).index(self._node_id)
+        self._store = store
+
+        workers = self._assign_worker_ranks(self._node_id, world, spec)
+        worker_group.workers = workers
+        worker_group.store = store
+        worker_group.group_rank = group_rank
+        worker_group.group_world_size = group_world_size
+
+        if group_rank == 0:
+            self._set_master_addr_port(
+                store,
+                spec.master_addr,
+                spec.master_port,
+                spec.local_addr,
+            )
+
+        master_addr, master_port = self._get_master_addr_port(store)
+        restart_count = spec.max_restarts - self._remaining_restarts
+
+        logger.info(
+            f"[{spec.role}] Rendezvous complete for workers. Result:\n"
+            f"  restart_count={restart_count}\n"
+            f"  master_addr={master_addr}\n"
+            f"  master_port={master_port}\n"
+            f"  group_rank={group_rank}\n"
+            f"  group_world_size={group_world_size}\n"
+            f"  local_ranks={[worker.local_rank for worker in workers]}\n"
+            f"  role_ranks={[worker.role_rank for worker in workers]}\n"
+            f"  global_ranks={[worker.global_rank for worker in workers]}\n"
+            f"  role_world_sizes="
+            f"{[worker.role_world_size for worker in workers]}\n"
+            f"  global_world_sizes="
+            f"{[worker.world_size for worker in workers]}\n"
+        )
+
+    # pyre-fixme[56]: Pyre was not able to infer the type of the decorator
+    #  `torch.distributed.elastic.metrics.prof`.
+    @prof
+    def _assign_worker_ranks(
+        self, node_id, world, spec: WorkerSpec
+    ) -> List[Worker]:
+        """
+        Determines proper ranks for worker processes. The rank assignment
+        is done according to the following algorithm:
+
+        1. Each agent writes its configuration(group_rank, group_world_size
+           , num_workers) to the common store.
+        2. Each agent retrieves configuration for all agents
+           and performs two level sort using role and rank.
+        3. Determine the global rank: the global rank of workers for the
+           current agent is the offset of  infos array up to group_rank
+           of the agent. The offset is computed as a sum of local_world_size
+           of all agents that have rank less than the group_rank.
+           The workers would have the ranks: [offset, offset+local_world_size)
+        4. Determine the role rank: The role rank is determined using the
+           algorithms in the point 3 with the exception that the offset is
+           done from the first agent that has the same role as current one
+           and has the minimum group rank.
+        """
+
+        role_infos: List[_RoleInstanceInfo] = []
+        nodes = list(world.keys())
+        for i, local_world_size in world.items():
+            group_rank = nodes.index(i)
+            role_info = _RoleInstanceInfo(
+                spec.role, group_rank, local_world_size
+            )
+            role_infos.append(role_info)
+        group_rank = nodes.index(node_id)
+        my_role_info = role_infos[group_rank]
+        worker_world_size, worker_global_ranks = self._get_ranks(
+            role_infos, group_rank
+        )
+        role_infos = sorted(
+            role_infos, key=functools.cmp_to_key(_RoleInstanceInfo.compare)
+        )
+        role_start_idx, role_end_idx = _RoleInstanceInfo.find_role_boundaries(
+            role_infos, my_role_info.role
+        )
+        role_pos = next(
+            idx
+            for idx, role_info in enumerate(role_infos)
+            if _RoleInstanceInfo.compare(role_info, my_role_info) == 0
+        )
+        role_world_size, role_ranks = self._get_ranks(
+            role_infos, role_pos, role_start_idx, role_end_idx + 1
+        )
+        workers = []
+        for ind in range(spec.local_world_size):
+            worker = Worker(
+                local_rank=ind,
+                global_rank=worker_global_ranks[ind],
+                role_rank=role_ranks[ind],
+                world_size=worker_world_size,
+                role_world_size=role_world_size,
+            )
+            workers.append(worker)
+        return workers
 
     def _invoke_run(self, role: str = DEFAULT_ROLE) -> RunResult:
         # NOTE: currently only works for a single role
@@ -198,6 +410,7 @@ def launch_agent(
         config.run_id = run_id
 
     entrypoint_name = _get_entrypoint_name(entrypoint, args)
+    node_id = int(os.getenv(NodeEnv.WORKER_ID, 0))
 
     logger.info(
         f"Starting elastic_operator with launch configs:\n"
@@ -225,25 +438,29 @@ def launch_agent(
         **config.rdzv_configs,
     )
 
-    master_addr, master_port = _get_addr_and_port(rdzv_parameters)
+    master_addr = os.environ.get(
+        "MY_POD_IP", socket.gethostbyname(_get_fq_hostname())
+    )
 
     spec = WorkerSpec(
         role=config.role,
         local_world_size=config.nproc_per_node,
         entrypoint=entrypoint,
         args=tuple(args),
-        rdzv_handler=rdzv_registry.get_rendezvous_handler(rdzv_parameters),
+        rdzv_handler=MasterRendezvousHandler(node_id, rdzv_parameters),
         max_restarts=config.max_restarts,
         monitor_interval=config.monitor_interval,
         redirects=config.redirects,
         tee=config.tee,
         master_addr=master_addr,
-        master_port=master_port,
         local_addr=config.local_addr,
     )
 
     agent = DLRoverElasticAgent(
-        spec=spec, start_method=config.start_method, log_dir=config.log_dir
+        node_id=node_id,
+        spec=spec,
+        start_method=config.start_method,
+        log_dir=config.log_dir,
     )
 
     shutdown_rdzv = True

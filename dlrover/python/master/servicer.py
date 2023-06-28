@@ -24,8 +24,11 @@ from dlrover.python.common.constants import GRPC, NodeType, TrainingLoopStatus
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
-from dlrover.python.master.elastic_training.rdzv_service import (
-    TorchRendezvousService,
+from dlrover.python.master.elastic_training.kv_store_service import (
+    KVStoreService,
+)
+from dlrover.python.master.elastic_training.rdzv_manager import (
+    RendezvousManager,
 )
 from dlrover.python.master.elastic_training.sync_service import SyncService
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
@@ -50,7 +53,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         task_manager: TaskManager,
         job_manager: JobManager,
         speed_monitor: SpeedMonitor,
-        rdzv_service: Optional[TorchRendezvousService],
+        rdzv_manager: Optional[RendezvousManager],
         job_metric_collector=None,
         elastic_ps_service=None,
         sync_service=None,
@@ -59,7 +62,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         self._task_manager = task_manager
         self._job_manager = job_manager
         self._speed_monitor = speed_monitor
-        self._rdzv_serivce = rdzv_service
+        self._rdzv_manager = rdzv_manager
+        self._kv_store = KVStoreService()
         self._job_metric_collector: JobMetricCollector = job_metric_collector
         self._elastic_ps_service: ElasticPsService = elastic_ps_service
         self._sync_service: SyncService = sync_service
@@ -124,7 +128,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             # we are trying to pop and invoke the callback.
             # Then the master tells the worker to wait
             # in case of new tasks later.
-            if self._rdzv_serivce:
+            if self._rdzv_manager:
                 # If there is no more task, master only send wait task to
                 # the last worker and other workers exit.
                 if len(self._job_manager.get_running_workers()) == 1:
@@ -291,11 +295,6 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         self._job_manager.update_node_service_addr(
             node_type, node_id, server_addr
         )
-
-        node_rank = request.rank
-        if node_rank >= 0:
-            self._job_manager.log_rank_zero_node(node_type, node_id, node_rank)
-
         response = elastic_training_pb2.Response()
         response.success = True
         return response
@@ -363,7 +362,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
 
     def report_prestop(self, request, _):
         worker_host = request.worker_host
-        self._rdzv_serivce.report_prestop(worker_host)
+        self._rdzv_manager.report_prestop(worker_host)
         return empty_pb2.Empty()
 
     def join_sync(self, request, _):
@@ -388,31 +387,39 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             res.success = self._sync_service.barrier(request.barrier_name)
         return res
 
-    def get_rdzv_state(self, request, _):
-        rdzv_key = request.rdzv_key
-        worker_name = request.host_name
-        state_bits, token = self._rdzv_serivce.get_state(worker_name, rdzv_key)
+    def get_comm_world(self, request, _):
+        nodes = self._rdzv_manager.get_comm_world()
         res = elastic_training_pb2.RendezvousState()
-        res.rdzv_key = rdzv_key
-        res.state_bits = state_bits
-        res.token = token
+        for node_id, worker_num in nodes.items():
+            res.world[node_id] = worker_num
         return res
 
-    def set_rdzv_state(self, request, _):
-        succeed = self._rdzv_serivce.set_state(
-            request.rdzv_key,
-            request.state_bits,
-            request.token,
-            request.participants,
-            request.wait_list,
-            request.host_name,
+    def join_rendezvous(self, request, _):
+        round = self._rdzv_manager.join_rendezvous(
+            request.id, request.local_world_size
+        )
+        res = elastic_training_pb2.RendezvousState()
+        res.round = round
+        return res
+
+    def num_nodes_waiting(self, request, _):
+        waiting_num = self._rdzv_manager.num_nodes_waiting()
+        res = elastic_training_pb2.RendezvousState()
+        res.waiting_num = waiting_num
+        return res
+
+    def report_rdzv_params(self, request, _):
+        self._rdzv_manager.update_rdzv_params(
+            min_nodes=request.min_nodes,
+            max_ndoes=request.max_nodes,
+            waiting_timeout=request.waiting_timeout,
         )
         res = elastic_training_pb2.Response()
-        res.success = succeed
+        res.success = True
         return res
 
     def kv_store_set(self, request, _):
-        self._rdzv_serivce.kv_store.set(request.key, request.value)
+        self._kv_store.set(request.key, request.value)
         res = elastic_training_pb2.Response()
         res.success = True
         return res
@@ -420,7 +427,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
     def kv_store_get(self, request, _):
         res = elastic_training_pb2.KeyValuePair()
         res.key = request.key
-        res.value = self._rdzv_serivce.kv_store.get(request.key)
+        res.value = self._kv_store.get(request.key)
         return res
 
     def report_failure(self, request, _):
@@ -457,7 +464,7 @@ def create_master_service(
         task_manager=task_manager,
         job_manager=job_manager,
         speed_monitor=speed_monitor,
-        rdzv_service=rdzv_service,
+        rdzv_manager=rdzv_service,
         job_metric_collector=job_metric_collector,
         elastic_ps_service=elastic_ps_service,
         sync_service=sync_service,

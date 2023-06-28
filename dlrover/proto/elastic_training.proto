@@ -170,6 +170,7 @@ message NodeMeta {
   string gpu_type = 6;
   int32 id = 7;
   int32 rank = 8;
+  int32 local_world_size = 9;
 }
 
 message NodeEvent {
@@ -202,12 +203,15 @@ message BarrierRequest {
 }
 
 message RendezvousState {
-  string rdzv_key = 1;
-  bytes state_bits = 2;
-  int32 token = 3;
-  map<string, int32> participants = 4;
-  repeated string wait_list = 5;
-  string host_name = 6;
+  map<int32, int32> world = 1;
+  int32 waiting_num = 2;
+  int32 round = 3;
+}
+
+message RendezvousParams {
+  int32 min_nodes = 1;
+  int32 max_nodes = 2;
+  int32 waiting_timeout = 3;
 }
 
 message KeyValuePair {
@@ -269,8 +273,10 @@ service Master {
       returns (google.protobuf.Empty);
 
   // rpc for torch elastic
-  rpc get_rdzv_state(RendezvousState) returns (RendezvousState);
-  rpc set_rdzv_state(RendezvousState) returns (Response);
+  rpc get_comm_world(google.protobuf.Empty) returns (RendezvousState);
+  rpc join_rendezvous(NodeMeta) returns (RendezvousState);
+  rpc num_nodes_waiting(google.protobuf.Empty) returns (RendezvousState);
+  rpc report_rdzv_params(RendezvousParams) returns (Response);
   rpc kv_store_set(KeyValuePair) returns (Response);
   rpc kv_store_get(KeyValuePair) returns (KeyValuePair);
   rpc report_failure(NodeFailure) returns (Response);

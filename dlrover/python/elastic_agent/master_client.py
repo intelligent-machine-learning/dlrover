@@ -328,36 +328,32 @@ class MasterClient(object):
         return response.nodes
 
     @retry_grpc_request
-    def get_rdzv_state(self, key):
-        request = elastic_training_pb2.RendezvousState()
-        request.rdzv_key = key
-        request.host_name = self._host_name
-        res = self._stub.get_rdzv_state(request)
-        return res.state_bits, res.token
+    def num_nodes_waiting(self):
+        request = empty_pb2.Empty()
+        response = self._stub.num_nodes_waiting(request)
+        return response.waiting_num
 
     @retry_grpc_request
-    def set_rdzv_state(self, key, state_bits, token, participants, wait_list):
-        """Set RendezvousState into the master store.
+    def join_rendezvous(self, node_id, local_world_size):
+        request = elastic_training_pb2.NodeMeta()
+        request.id = node_id
+        request.local_world_size = local_world_size
+        response = self._stub.join_rendezvous(request)
+        return response.round
 
-        Args:
-            The aguments are same as
-            `torch.distributed.elastic.rendezvous.
-            dynamic_rendezvous._RendezvousState`
-        """
-        request = elastic_training_pb2.RendezvousState()
-        request.rdzv_key = key
-        request.state_bits = state_bits
-        request.token = token
-        request.host_name = self._host_name
-        for node, rank in participants.items():
-            node_name = "{}".format(node)
-            request.participants[node_name] = rank
+    @retry_grpc_request
+    def get_comm_world(self):
+        request = empty_pb2.Empty()
+        response = self._stub.get_comm_world(request)
+        return response.world
 
-        for node in wait_list:
-            node_name = "{}".format(node)
-            request.wait_list.append(node_name)
-
-        response = self._stub.set_rdzv_state(request)
+    @retry_grpc_request
+    def report_rdzv_params(self, min_nodes, max_nodes, waiting_timeout):
+        request = elastic_training_pb2.RendezvousParams()
+        request.min_nodes = min_nodes
+        request.max_nodes = max_nodes
+        request.waiting_timeout = waiting_timeout
+        response = self._stub.report_rdzv_params(request)
         return response.success
 
     @retry_grpc_request
@@ -548,18 +544,6 @@ class LocalMasterClient(object):
 
     def report_used_resource(self, memory, cpu):
         return empty_pb2.Empty()
-
-    def get_rdzv_state(self, key):
-        state_bits = self._rdzv_states[key]
-        token = self._rdzv_tokens[key]
-        return state_bits, token
-
-    def set_rdzv_state(self, key, state_bits, token, paricipant_num, wait_num):
-        if state_bits == self._rdzv_states.get(key, None):
-            return False
-        self._rdzv_states[key] = state_bits
-        self._rdzv_tokens[key] = token
-        return True
 
     def kv_store_set(self, key, value):
         self._kv_store[key] = value
