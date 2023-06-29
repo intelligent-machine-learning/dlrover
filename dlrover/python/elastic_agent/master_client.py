@@ -328,31 +328,28 @@ class MasterClient(object):
         return response.nodes
 
     @retry_grpc_request
-    def num_nodes_waiting(self):
-        request = empty_pb2.Empty()
+    def num_nodes_waiting(self, rdzv_name):
+        request = elastic_training_pb2.RendezvousRequest()
+        request.rdzv_name = rdzv_name
         response = self._stub.num_nodes_waiting(request)
         return response.waiting_num
 
     @retry_grpc_request
-    def join_rendezvous(
-        self, node_id, local_world_size, rdzv_name="", round=0
-    ):
+    def join_rendezvous(self, node_id, local_world_size, rdzv_name=""):
         request = elastic_training_pb2.RendezvousRequest()
         request.node_id = node_id
         request.local_world_size = local_world_size
-        request.round = round
         request.rdzv_name = rdzv_name
         response = self._stub.join_rendezvous(request)
         return response.round
 
     @retry_grpc_request
-    def get_comm_world(self, rdzv_name, node_id, round):
+    def get_comm_world(self, rdzv_name, node_id):
         request = elastic_training_pb2.RendezvousRequest()
         request.node_id = node_id
-        request.round = round
         request.rdzv_name = rdzv_name
         response = self._stub.get_comm_world(request)
-        return response.world
+        return response.group, response.world
 
     @retry_grpc_request
     def network_check_success(self, node_id):
@@ -364,7 +361,7 @@ class MasterClient(object):
     @retry_grpc_request
     def report_network_check_result(self, node_id, result):
         request = elastic_training_pb2.NodeMeta()
-        request.node_id = node_id
+        request.id = node_id
         request.normal = result
         response = self._stub.report_network_check_result(request)
         return response.success
@@ -577,7 +574,7 @@ class LocalMasterClient(object):
         return 0
 
     def get_comm_world(self, *args, **kwarg):
-        return self._rdzv_nodes
+        return 0, self._rdzv_nodes
 
     def network_check_success(self, node_id):
         return True

@@ -14,7 +14,7 @@
 import time
 from abc import ABCMeta, abstractmethod
 from threading import Lock
-from typing import Dict
+from typing import Dict, List
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node
@@ -35,12 +35,12 @@ class RendezvousManager(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def get_comm_world(self):
+    def get_comm_world(self, node_id):
         """Get communication world of all alive nodes."""
         pass
 
     @abstractmethod
-    def join_rendezvous(self, node_id: int, local_world_size: int):
+    def join_rendezvous(self, node_id, local_world_size):
         """The node joins a rond rendezvous."""
         pass
 
@@ -126,7 +126,7 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
     def get_released_workers(self):
         return []
 
-    def get_comm_world(self):
+    def get_comm_world(self, node_id):
         """Return the communication world if a round rendezvous is completed.
         The rendezvous is completed if one of the following conditions
         is satisfied:
@@ -142,7 +142,7 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
         with self._lock:
             rdzv_completed = False
             if self._rdzv_nodes:
-                return self._rdzv_nodes
+                return 0, self._rdzv_nodes
             if len(self._waiting_nodes) == self._rdzv_params.max_nodes:
                 rdzv_completed = True
             else:
@@ -165,9 +165,9 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
                 )
                 self._rdzv_round += 1
 
-            return self._rdzv_nodes
+            return 0, self._rdzv_nodes
 
-    def join_rendezvous(self, node_id, local_world_size, round=0):
+    def join_rendezvous(self, node_id, local_world_size):
         """The node joins the current rond rendezvous.
         Args:
             node_id: the node ID which is unique in an ElasticJob of DLrover.
@@ -197,7 +197,7 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
         return
 
 
-class NcclCheckRendezvousManager(RendezvousManager):
+class NetworkCheckRendezvousManager(RendezvousManager):
     """NcclCheckRendezvousManager runs on the DLRover master. The manager
     add workers into a waiting list and completes a rendezvous
     if the number of workers in the wait list is beyond the minimum
@@ -223,6 +223,7 @@ class NcclCheckRendezvousManager(RendezvousManager):
         self._rdzv_params = RendezvousParameters(0, 0)
         self._rdzv_round = 0
         self._node_status: Dict[int, bool] = {}
+        self._node_groups: List[Dict[int, int]] = []
 
     def update_rdzv_params(self, min_nodes, max_ndoes, waiting_timeout):
         """Update rendezvous parameters"""
@@ -244,7 +245,7 @@ class NcclCheckRendezvousManager(RendezvousManager):
     def get_released_workers(self):
         return []
 
-    def get_comm_world(self, node_id, rdzv_round):
+    def get_comm_world(self, node_id):
         """Return the communication world if a round rendezvous is completed.
         The rendezvous is completed if one of the following conditions
         is satisfied:
@@ -259,35 +260,45 @@ class NcclCheckRendezvousManager(RendezvousManager):
         """
         with self._lock:
             rdzv_completed = False
-            if self._rdzv_nodes:
-                node_groups = self._group_nodes(rdzv_round)
-                for group in node_groups:
-                    if node_id in group:
-                        return group
-            if len(self._waiting_nodes) == self._rdzv_params.max_nodes:
-                rdzv_completed = True
-            else:
-                waiting_num = len(self._waiting_nodes)
-                alive_num = len(self._alive_nodes)
-                waiting_time = time.time() - self._lastcall_time
-                rdzv_completed = (
-                    waiting_num >= self._rdzv_params.min_nodes
-                    and waiting_num == alive_num
-                    and waiting_time >= self._rdzv_params.waiting_timeout
-                )
+            if not self._node_groups:
+                if len(self._waiting_nodes) == self._rdzv_params.max_nodes:
+                    rdzv_completed = True
+                else:
+                    waiting_num = len(self._waiting_nodes)
+                    alive_num = len(self._alive_nodes)
+                    waiting_time = time.time() - self._lastcall_time
+                    rdzv_completed = (
+                        waiting_num >= self._rdzv_params.min_nodes
+                        and waiting_num == alive_num
+                        and waiting_time >= self._rdzv_params.waiting_timeout
+                    )
 
-            if rdzv_completed:
-                self._rdzv_nodes = dict(sorted(self._waiting_nodes.items()))
-                self._waiting_nodes = dict()
-                self._lastcall_time = 0
-                logger.info(
-                    f"Completed {self._rdzv_round} round "
-                    f"rendezvous {self._rdzv_nodes}"
-                )
-                node_groups = self._group_nodes(rdzv_round)
-            return {}
+                if rdzv_completed:
+                    self._rdzv_nodes = dict(
+                        sorted(self._waiting_nodes.items())
+                    )
+                    self._waiting_nodes = dict()
+                    self._lastcall_time = 0
+                    logger.info(
+                        f"Completed {self._rdzv_round} round "
+                        f"rendezvous {self._rdzv_nodes}"
+                    )
+                    self._node_groups = self._group_nodes(self._rdzv_round)
+                    logger.info(
+                        f"Round {self._rdzv_round} "
+                        f"node group: {self._node_groups}"
+                    )
+                    if self._rdzv_round % 3 == 0:
+                        self._node_status = {}
+                    self._rdzv_round += 1
+
+            for i, group in enumerate(self._node_groups):
+                if node_id in group:
+                    return i, group
+            return 0, {}
 
     def _group_nodes(self, round):
+        round = round % 3
         node_groups = []
         if round == 0:
             node_groups.append(self._rdzv_nodes)
@@ -310,18 +321,28 @@ class NcclCheckRendezvousManager(RendezvousManager):
                 f"Normal nodes: {normal_nodes}.\n"
                 f"Abnormal nodes: {abnormal_nodes}"
             )
-            for i, node_id in enumerate(abnormal_nodes):
+            if len(abnormal_nodes) <= len(normal_nodes):
+                for i, node_id in enumerate(abnormal_nodes):
+                    group = {}
+                    group[node_id] = self._rdzv_nodes[node_id]
+                    group[normal_nodes[i]] = self._rdzv_nodes[node_id]
+                    node_groups.append(group)
                 group = {}
-                group[node_id] = self._rdzv_nodes[node_id]
-                group[normal_nodes[i]] = self._rdzv_nodes[node_id]
-                node_groups.append(group)
+                for node_id in normal_nodes[len(abnormal_nodes) :]:
+                    group[node_id] = self._rdzv_nodes[node_id]
+                if group:
+                    node_groups.append(group)
         return node_groups
 
     def report_network_check_result(self, node_id: int, normal: bool):
         self._node_status.setdefault(node_id, False)
         self._node_status[node_id] = self._node_status[node_id] or normal
 
-    def join_rendezvous(self, node_id, local_world_size, round=0):
+    def join_rendezvous(
+        self,
+        node_id,
+        local_world_size,
+    ):
         """The node joins the current rond rendezvous.
         Args:
             node_id: the node ID which is unique in an ElasticJob of DLrover.
@@ -335,13 +356,19 @@ class NcclCheckRendezvousManager(RendezvousManager):
                 return
             self._waiting_nodes[node_id] = local_world_size
             self._rdzv_nodes = {}
+            self._node_groups = []
             if len(self._waiting_nodes) >= self._rdzv_params.min_nodes:
                 if self._lastcall_time == 0:
                     self._lastcall_time = time.time()
-        return round
+        return self._rdzv_round
 
     def num_nodes_waiting(self):
         return 0
 
     def network_check_success(self):
-        return self._node_status and all(list(self._node_status.values()))
+        with self._lock:
+            success = self._node_status and all(
+                list(self._node_status.values())
+            )
+            self._rdzv_round = 0
+            return success

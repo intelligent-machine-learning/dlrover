@@ -17,7 +17,7 @@ import unittest
 from dlrover.python.common.node import Node
 from dlrover.python.master.elastic_training.rdzv_manager import (
     ElasticTrainingRendezvousManager,
-    NcclCheckRendezvousManager,
+    NetworkCheckRendezvousManager,
 )
 
 
@@ -60,7 +60,7 @@ class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
 
 class NcclCheckRendezvousManagerTest(unittest.TestCase):
     def test_nccl_rdzv(self):
-        rdzv_manager = NcclCheckRendezvousManager()
+        rdzv_manager = NetworkCheckRendezvousManager()
         rdzv_manager.update_rdzv_params(4, 4, 60)
         rdzv_manager._alive_nodes = [0, 1, 2]
         rdzv_manager.join_rendezvous(0, 8)

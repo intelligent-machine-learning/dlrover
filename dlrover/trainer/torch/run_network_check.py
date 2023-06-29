@@ -21,32 +21,35 @@ import torch.distributed as dist
 from dlrover.python.common.log import default_logger as logger
 
 
-def bm_all_gather(shape):
+def bm_all_gather(shape, use_cuda):
     world_size = dist.get_world_size()
     local_rank = int(os.environ["LOCAL_RANK"])
-    data = torch.randn(shape, dtype=torch.float32).to(f"cuda:{local_rank}")
+    device = torch.device(f"cuda:{local_rank}" if use_cuda else "cpu")
+    logger.info("device = %s", device)
+    data = torch.randn(shape, dtype=torch.float32).to(device)
     tensor_list = [
-        torch.zeros_like(data).to(f"cuda:{local_rank}")
-        for _ in range(world_size)
+        torch.zeros_like(data).to(device) for _ in range(world_size)
     ]
     start = int(time.time())
     for _ in range(10):
         dist.all_gather(tensor_list, data)
     end = time.time()
     if local_rank == 0:
-        logger.info(f"Networker test cost {end - start}s")
+        logger.info(f"Networker check costs {end - start}s")
 
 
-def main():
+def main(use_cuda):
     shape = 1 << 20
-    bm_all_gather(shape)
+    bm_all_gather(shape, use_cuda)
 
 
 if __name__ == "__main__":
-    use_cuda = torch.cuda.is_available()
-    if use_cuda:
-        dist.init_process_group("nccl", timeout=timedelta(seconds=60))
-    else:
-        dist.init_process_group("gloo", timeout=timedelta(seconds=60))
-    main()
-    dist.destroy_process_group()
+    try:
+        use_cuda = torch.cuda.is_available()
+        if use_cuda:
+            dist.init_process_group("nccl", timeout=timedelta(seconds=60))
+        else:
+            dist.init_process_group("gloo", timeout=timedelta(seconds=60))
+        main(use_cuda)
+    finally:
+        dist.destroy_process_group()

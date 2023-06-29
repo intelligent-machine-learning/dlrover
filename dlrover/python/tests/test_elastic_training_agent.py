@@ -17,6 +17,7 @@ from torch.distributed.elastic.agent.server.api import WorkerSpec
 from torch.distributed.elastic.rendezvous import RendezvousParameters
 from torch.distributed.launcher.api import LaunchConfig
 
+from dlrover.python.common.constants import RendezvousName
 from dlrover.python.elastic_agent.torch.training import (
     ElasticTrainingAgent,
     MasterRendezvousHandler,
@@ -45,7 +46,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         node_id = 0
 
         self.rdzv_handler = MasterRendezvousHandler(
-            "elastic-training",
+            RendezvousName.ELASTIC_TRAINING,
             node_id,
             rdzv_parameters,
         )
@@ -68,6 +69,8 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         node_id = 0
         agent = ElasticTrainingAgent(
             node_id=node_id,
+            config=self.config,
+            entrypoint="python",
             spec=self.spec,
             start_method=self.config.start_method,
             log_dir=self.config.log_dir,
@@ -78,7 +81,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         self.assertDictEqual(world, {0: 8, 1: 8})
 
         worker_group = agent._worker_group
-        agent._rendezvous(agent._worker_group, 0)
+        agent._rendezvous(agent._worker_group)
         self.assertEqual(len(worker_group.workers), 8)
         self.assertEqual(worker_group.group_rank, 0)
         self.assertEqual(worker_group.group_world_size, 2)
@@ -94,6 +97,8 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         node_id = 1
         agent = ElasticTrainingAgent(
             node_id=node_id,
+            config=self.config,
+            entrypoint="python",
             spec=self.spec,
             start_method=self.config.start_method,
             log_dir=self.config.log_dir,
@@ -106,7 +111,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         _, world = self.rdzv_handler.next_rendezvous(0)
         self.assertDictEqual(world, {0: 8, 1: 8})
         worker_group = agent._worker_group
-        agent._rendezvous(agent._worker_group, 0)
+        agent._rendezvous(agent._worker_group)
         self.assertEqual(len(worker_group.workers), 8)
         self.assertEqual(worker_group.group_rank, 1)
         self.assertEqual(worker_group.group_world_size, 2)

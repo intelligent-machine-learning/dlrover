@@ -223,3 +223,8 @@ class MemoryUnit(object):
 
 class k8sAPIExceptionReason(object):
     NOT_FOUND = "Not Found"
+
+
+class RendezvousName(object):
+    ELASTIC_TRAINING = "elastic-training"
+    NETWORK_CHECK = "network-check"
