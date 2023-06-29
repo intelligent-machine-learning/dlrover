@@ -25,7 +25,6 @@ def bm_all_gather(shape, use_cuda):
     world_size = dist.get_world_size()
     local_rank = int(os.environ["LOCAL_RANK"])
     device = torch.device(f"cuda:{local_rank}" if use_cuda else "cpu")
-    logger.info("device = %s", device)
     data = torch.randn(shape, dtype=torch.float32).to(device)
     tensor_list = [
         torch.zeros_like(data).to(device) for _ in range(world_size)

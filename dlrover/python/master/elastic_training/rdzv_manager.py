@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
 import time
 from abc import ABCMeta, abstractmethod
 from threading import Lock
@@ -321,17 +322,18 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                 f"Normal nodes: {normal_nodes}.\n"
                 f"Abnormal nodes: {abnormal_nodes}"
             )
-            if len(abnormal_nodes) <= len(normal_nodes):
-                for i, node_id in enumerate(abnormal_nodes):
-                    group = {}
-                    group[node_id] = self._rdzv_nodes[node_id]
-                    group[normal_nodes[i]] = self._rdzv_nodes[node_id]
-                    node_groups.append(group)
+            if len(abnormal_nodes) > len(normal_nodes):
+                return node_groups
+            for i, node_id in enumerate(abnormal_nodes):
                 group = {}
-                for node_id in normal_nodes[len(abnormal_nodes) :]:
-                    group[node_id] = self._rdzv_nodes[node_id]
-                if group:
-                    node_groups.append(group)
+                group[node_id] = self._rdzv_nodes[node_id]
+                group[normal_nodes[i]] = self._rdzv_nodes[node_id]
+                node_groups.append(group)
+            group = {}
+            for node_id in normal_nodes[len(abnormal_nodes) :]:  # noqa: E203
+                group[node_id] = self._rdzv_nodes[node_id]
+            if group:
+                node_groups.append(group)
         return node_groups
 
     def report_network_check_result(self, node_id: int, normal: bool):
@@ -370,5 +372,5 @@ class NetworkCheckRendezvousManager(RendezvousManager):
             success = self._node_status and all(
                 list(self._node_status.values())
             )
-            self._rdzv_round = 0
+            self._rdzv_round = math.ceil(self._rdzv_round/3) * 3
             return success
