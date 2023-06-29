@@ -12,11 +12,47 @@
 # limitations under the License.
 
 import time
+from abc import ABCMeta, abstractmethod
 from threading import Lock
 from typing import Dict
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node
+
+
+class RendezvousManager(metaclass=ABCMeta):
+    def update_rdzv_params(self, min_nodes, max_ndoes, waiting_timeout):
+        """Update rendezvous parameters"""
+
+    @abstractmethod
+    def add_alive_node(self, node: Node):
+        """When a node is running, the master will add it to alive list."""
+        pass
+
+    @abstractmethod
+    def remove_alive_node(self, node: Node):
+        """When a node is exited, the master will remove it from alive list."""
+        pass
+
+    @abstractmethod
+    def get_comm_world(self):
+        """Get communication world of all alive nodes."""
+        pass
+
+    @abstractmethod
+    def join_rendezvous(self, node_id: int, local_world_size: int):
+        """The node joins a rond rendezvous."""
+        pass
+
+    @abstractmethod
+    def report_nccl_check_result(self, node_id: int, normal: bool):
+        """The node updates its status"""
+        pass
+
+    @abstractmethod
+    def num_nodes_waiting(self):
+        """Get the number of waiting nodes."""
+        pass
 
 
 class RendezvousParameters(object):
@@ -43,8 +79,8 @@ class RendezvousParameters(object):
         self.waiting_timeout = waiting_timeout
 
 
-class RendezvousManager(object):
-    """RendezvousManager runs on the DLRover master. The manager
+class ElasticTrainingRendezvousManager(RendezvousManager):
+    """ElasticTrainingRendezvousManager runs on the DLRover master. The manager
     add workers into a waiting list and completes a rendezvous
     if the number of workers in the wait list is beyond the minimum
     nodes.
@@ -156,3 +192,157 @@ class RendezvousManager(object):
         """
         with self._lock:
             return len(self._waiting_nodes)
+
+    def report_nccl_check_result(self, node_id, normal):
+        return
+
+
+class NcclCheckRendezvousManager(RendezvousManager):
+    """NcclCheckRendezvousManager runs on the DLRover master. The manager
+    add workers into a waiting list and completes a rendezvous
+    if the number of workers in the wait list is beyond the minimum
+    nodes.
+
+    The node report its ID and local_world_size to the manager.
+    The manager will add the node into a waiting list to join the rendezvous
+    and freeze the rendezvous if the size of waiting list is equal
+    the max nodes or is bigger than the min nodes. Then the node will
+    periodically query the world which contains
+    all nodes like {0: 8, 1: 8, 2:8}. The key in the world dictionary
+    is the node ID and the value is the local world size. In an
+    Elasticjob of DLRover, the node has an unique node ID.
+    """
+
+    def __init__(self):
+        self._lock = Lock()
+        self._alive_nodes = set()
+        self._released_workers = []
+        self._waiting_nodes: Dict[int, int] = {}
+        self._rdzv_nodes = {}
+        self._lastcall_time = 0
+        self._rdzv_params = RendezvousParameters(0, 0)
+        self._rdzv_round = 0
+        self._node_status: Dict[int, bool] = {}
+
+    def update_rdzv_params(self, min_nodes, max_ndoes, waiting_timeout):
+        """Update rendezvous parameters"""
+        self._rdzv_params.min_nodes = min_nodes
+        self._rdzv_params.max_nodes = max_ndoes
+        self._rdzv_params.waiting_timeout = waiting_timeout
+
+    def add_alive_node(self, node: Node):
+        """When a node is running, the master will add it to alive list."""
+        self._alive_nodes.add(node.id)
+        logger.info(f"Add alive worker {node.name} to Rendezvous.")
+
+    def remove_alive_node(self, node: Node):
+        """When a node is exited, the master will remove it from alive list."""
+        if node.id in self._alive_nodes:
+            self._alive_nodes.remove(node.id)
+            logger.info(f"Remove exited worker {node.name} from Rendezvous.")
+
+    def get_released_workers(self):
+        return []
+
+    def get_comm_world(self, node_id, rdzv_round):
+        """Return the communication world if a round rendezvous is completed.
+        The rendezvous is completed if one of the following conditions
+        is satisfied:
+        1. The size of waiting node list is equal to the max_nodes.
+        2. The size of waiting node list is bigger than the min_nodes and
+            equal to the size of alive node list. What's more, no more worker
+            join the rendezvous in waiting_timeout.
+
+        Returns:
+            world: Dict like {0: 8, 1: 8, 2: 8} where the key is the node ID
+            and the value is the local world size of the node.
+        """
+        with self._lock:
+            rdzv_completed = False
+            if self._rdzv_nodes:
+                node_groups = self._group_nodes(rdzv_round)
+                for group in node_groups:
+                    if node_id in group:
+                        return group
+            if len(self._waiting_nodes) == self._rdzv_params.max_nodes:
+                rdzv_completed = True
+            else:
+                waiting_num = len(self._waiting_nodes)
+                alive_num = len(self._alive_nodes)
+                waiting_time = time.time() - self._lastcall_time
+                rdzv_completed = (
+                    waiting_num >= self._rdzv_params.min_nodes
+                    and waiting_num == alive_num
+                    and waiting_time >= self._rdzv_params.waiting_timeout
+                )
+
+            if rdzv_completed:
+                self._rdzv_nodes = dict(sorted(self._waiting_nodes.items()))
+                self._waiting_nodes = dict()
+                self._lastcall_time = 0
+                logger.info(
+                    f"Completed {self._rdzv_round} round "
+                    f"rendezvous {self._rdzv_nodes}"
+                )
+                self._rdzv_round += 1
+                node_groups = self._group_nodes(rdzv_round)
+            return {}
+
+    def _group_nodes(self, round):
+        node_groups = []
+        if round == 0:
+            node_groups.append(self._rdzv_nodes)
+        elif round == 1:
+            group = {}
+            for node_id, local_world_size in self._rdzv_nodes.items():
+                group[node_id] = local_world_size
+                if len(group) == 2:
+                    node_groups.append(group)
+                    group = {}
+        elif round == 2:
+            abnormal_nodes = []
+            normal_nodes = []
+            for node_id, status in self._node_status.items():
+                if status:
+                    normal_nodes.append(node_id)
+                else:
+                    abnormal_nodes.append(node_id)
+            logger.info(
+                f"Normal nodes: {normal_nodes}.\n"
+                f"Abnormal nodes: {abnormal_nodes}"
+            )
+            for i, node_id in enumerate(abnormal_nodes):
+                group = {}
+                group[node_id] = self._rdzv_nodes[node_id]
+                group[normal_nodes[i]] = self._rdzv_nodes[node_id]
+                node_groups.append(group)
+        return node_groups
+
+    def report_nccl_check_result(self, node_id: int, normal: bool):
+        self._node_status.setdefault(node_id, False)
+        self._node_status[node_id] = self._node_status[node_id] or normal
+
+    def join_rendezvous(self, node_id, local_world_size):
+        """The node joins the current rond rendezvous.
+        Args:
+            node_id: the node ID which is unique in an ElasticJob of DLrover.
+            local_world_size: the local world size of a node.
+
+        Returns:
+            int: the number of rendezvous round.
+        """
+        with self._lock:
+            if node_id in self._waiting_nodes:
+                return
+            self._waiting_nodes[node_id] = local_world_size
+            self._rdzv_nodes = {}
+            if len(self._waiting_nodes) >= self._rdzv_params.min_nodes:
+                if self._lastcall_time == 0:
+                    self._lastcall_time = time.time()
+        return self._rdzv_round
+
+    def num_nodes_waiting(self):
+        return 0
+
+    def nccl_check_success(self):
+        return self._node_status and all(list(self._node_status.values()))

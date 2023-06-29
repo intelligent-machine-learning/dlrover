@@ -23,7 +23,7 @@ from dlrover.python.common.constants import (
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
 from dlrover.python.master.elastic_training.rdzv_manager import (
-    RendezvousManager,
+    ElasticTrainingRendezvousManager,
 )
 from dlrover.python.master.elastic_training.sync_service import SyncService
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
@@ -61,7 +61,7 @@ class Master(object):
             if args.enable_dynamic_sharding
             else None
         )
-        self.rdzv_manager = RendezvousManager()
+        self.rdzv_manager = ElasticTrainingRendezvousManager()
         self.job_metric_collector = self._create_metric_collector_if_needed(
             args
         )

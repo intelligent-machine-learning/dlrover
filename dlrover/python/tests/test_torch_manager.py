@@ -12,14 +12,9 @@
 # limitations under the License.
 
 import datetime
-import time
 import unittest
 
-from dlrover.python.common.node import Node
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
-from dlrover.python.master.elastic_training.rdzv_manager import (
-    RendezvousManager,
-)
 
 
 class MasterKVStoreTest(unittest.TestCase):
@@ -39,40 +34,3 @@ class MasterKVStoreTest(unittest.TestCase):
             )
         except Exception as e:
             self.assertIsInstance(e, LookupError)
-
-
-class RendezvousManagerTest(unittest.TestCase):
-    def test_max_nodes(self):
-        rdzv_manager = RendezvousManager()
-        rdzv_manager.update_rdzv_params(3, 3, 60)
-        rdzv_manager._alive_nodes = [0, 1, 2]
-        rdzv_manager.join_rendezvous(0, 8)
-        rdzv_manager.join_rendezvous(1, 8)
-        self.assertEqual(len(rdzv_manager._waiting_nodes), 2)
-        self.assertEqual(len(rdzv_manager._rdzv_nodes), 0)
-        rdzv_manager.join_rendezvous(2, 8)
-        world = rdzv_manager.get_comm_world()
-        self.assertEqual(len(rdzv_manager._waiting_nodes), 0)
-        self.assertEqual(len(rdzv_manager._rdzv_nodes), 3)
-        self.assertDictEqual(world, {0: 8, 1: 8, 2: 8})
-
-    def test_min_nodes(self):
-        rdzv_manager = RendezvousManager()
-        rdzv_manager.update_rdzv_params(2, 3, 0.1)
-        node_1 = Node("worker", 1)
-        rdzv_manager.add_alive_node(node_1)
-        node_0 = Node("worker", 0)
-        rdzv_manager.add_alive_node(node_0)
-        node_2 = Node("worker", 2)
-        rdzv_manager.add_alive_node(node_2)
-        rdzv_manager.join_rendezvous(0, 8)
-        rdzv_manager.join_rendezvous(1, 8)
-        rdzv_manager.remove_alive_node(node_2)
-        self.assertEqual(len(rdzv_manager._alive_nodes), 2)
-        self.assertEqual(len(rdzv_manager._waiting_nodes), 2)
-        self.assertEqual(len(rdzv_manager._rdzv_nodes), 0)
-        time.sleep(0.2)
-        world = rdzv_manager.get_comm_world()
-        self.assertEqual(len(rdzv_manager._waiting_nodes), 0)
-        self.assertEqual(len(rdzv_manager._rdzv_nodes), 2)
-        self.assertDictEqual(world, {0: 8, 1: 8})

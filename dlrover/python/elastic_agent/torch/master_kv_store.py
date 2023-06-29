@@ -17,6 +17,7 @@ from typing import Dict, Optional
 
 from torch.distributed import Store
 
+from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.master_client import GlobalMasterClient
 
 
@@ -140,6 +141,8 @@ class MasterKVStore(Store):
                     value = self.client.kv_store_get(key)
                     if value != b"":
                         kvs[key] = value
+
+            logger.info("key = %s, kvs = %s", key, kvs)
 
             if len(kvs) == len(keys):
                 return kvs

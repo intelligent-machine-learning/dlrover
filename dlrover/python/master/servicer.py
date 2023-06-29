@@ -28,7 +28,8 @@ from dlrover.python.master.elastic_training.kv_store_service import (
     KVStoreService,
 )
 from dlrover.python.master.elastic_training.rdzv_manager import (
-    RendezvousManager,
+    ElasticTrainingRendezvousManager,
+    NcclCheckRendezvousManager,
 )
 from dlrover.python.master.elastic_training.sync_service import SyncService
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
@@ -53,7 +54,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         task_manager: TaskManager,
         job_manager: JobManager,
         speed_monitor: SpeedMonitor,
-        rdzv_manager: Optional[RendezvousManager],
+        rdzv_manager: Optional[ElasticTrainingRendezvousManager],
         job_metric_collector=None,
         elastic_ps_service=None,
         sync_service=None,
@@ -63,6 +64,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         self._job_manager = job_manager
         self._speed_monitor = speed_monitor
         self._rdzv_manager = rdzv_manager
+        self._nccl_check_rdzv_manager = NcclCheckRendezvousManager()
         self._kv_store = KVStoreService()
         self._job_metric_collector: JobMetricCollector = job_metric_collector
         self._elastic_ps_service: ElasticPsService = elastic_ps_service
@@ -388,15 +390,23 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         return res
 
     def get_comm_world(self, request, _):
-        nodes = self._rdzv_manager.get_comm_world()
+        if request.rdzv_name == "nccl-check":
+            rdzv_manager = self._nccl_check_rdzv_manager
+        else:
+            rdzv_manager = self._rdzv_manager
+        nodes = rdzv_manager.get_comm_world(request.node_id, request.round)
         res = elastic_training_pb2.RendezvousState()
         for node_id, worker_num in nodes.items():
             res.world[node_id] = worker_num
         return res
 
     def join_rendezvous(self, request, _):
-        round = self._rdzv_manager.join_rendezvous(
-            request.id, request.local_world_size
+        if request.rdzv_name == "nccl-check":
+            rdzv_manager = self._nccl_check_rdzv_manager
+        else:
+            rdzv_manager = self._rdzv_manager
+        round = rdzv_manager.join_rendezvous(
+            request.node_id, request.local_world_size
         )
         res = elastic_training_pb2.RendezvousState()
         res.round = round
@@ -434,6 +444,21 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         with self._lock:
             logger.info(f"Node {request.node_id} fails: {request.error_data}")
         res = elastic_training_pb2.Response()
+        res.success = True
+        return res
+
+    def nccl_check_success(self, request, _):
+        res = elastic_training_pb2.Response()
+        success = self._nccl_check_rdzv_manager.nccl_check_success()
+        res.success = success
+        return res
+
+    def report_nccl_check_result(self, request, _):
+        res = elastic_training_pb2.Response()
+        node_id = request.id
+        self._nccl_check_rdzv_manager.report_nccl_check_result(
+            node_id, request.normal
+        )
         res.success = True
         return res
 
