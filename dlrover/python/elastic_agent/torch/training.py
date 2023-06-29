@@ -194,9 +194,13 @@ class ElasticTrainingAgent(LocalElasticAgent):
         self._reamining_fo_count: int = self._remaining_restarts
         self._node_id = node_id
         self._client = GlobalMasterClient.MASTER_CLIENT
+        self._round = 0
+
+    def set_rdzv_round(self, round):
+        self._round = round
 
     @prof
-    def _rendezvous(self, worker_group: WorkerGroup, round: int) -> None:
+    def _rendezvous(self, worker_group: WorkerGroup) -> None:
         r"""
         Runs rendezvous for the workers specified by worker spec.
         Assigns workers a new global rank and world size.
@@ -204,7 +208,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
         """
 
         spec = worker_group.spec
-        round = spec.rdzv_handler.join_rendezvous(round, spec.local_world_size)
+        round = spec.rdzv_handler.join_rendezvous(
+            self._round, spec.local_world_size
+        )
         store, world = spec.rdzv_handler.next_rendezvous(round)
         group_world_size = len(world)
         group_rank = list(world.keys()).index(self._node_id)

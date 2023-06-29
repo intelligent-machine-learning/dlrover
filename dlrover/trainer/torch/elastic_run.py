@@ -11,15 +11,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import uuid
 from typing import Callable, Union
+import copy
 
 from torch.distributed.elastic.multiprocessing.errors import record
 from torch.distributed.launcher.api import LaunchConfig
-from torch.distributed.run import config_from_args, parse_args
+from torch.distributed.run import config_from_args, get_args_parser
+from torch.distributed.argparse_util import check_env
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.torch.training import launch_agent
+from dlrover.python.elastic_agent.torch.network import network_check
+
+
+def parse_args(args):
+    parser = get_args_parser()
+    parser.add_argument(
+        "--network-check",
+        action=check_env,
+        help="Whether to check network before starting training process.",
+    )
+    return parser.parse_args(args)
 
 
 class elastic_launch:
@@ -78,13 +92,33 @@ def run(args):
         )
 
     config, cmd, cmd_args = config_from_args(args)
+    if args.network_check:
+        run_network_check(args)
     elastic_launch(
         config=config,
         entrypoint=cmd,
     )(*cmd_args)
 
 
+def run_network_check(args):
+    args = copy.deepcopy(args)
+    check_module = "dlrover.trainer.torch.run_network_check"
+    args.module = True
+    args.training_script = check_module
+    args.training_script_args = []
+    config, cmd, cmd_args = config_from_args(args)
+    result = network_check(config=config, entrypoint=cmd, args=list(cmd_args))
+    if not result:
+        logger.error("Network is breakdown.")
+        os._exit(201)
+
+
 @record
 def main(args=None):
     args = parse_args(args)
+    print(args)
     run(args)
+
+
+if __name__ == "__main__":
+    main()

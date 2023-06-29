@@ -64,7 +64,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         self._job_manager = job_manager
         self._speed_monitor = speed_monitor
         self._rdzv_manager = rdzv_manager
-        self._nccl_check_rdzv_manager = NcclCheckRendezvousManager()
+        self._network_check_rdzv_manager = NcclCheckRendezvousManager()
         self._kv_store = KVStoreService()
         self._job_metric_collector: JobMetricCollector = job_metric_collector
         self._elastic_ps_service: ElasticPsService = elastic_ps_service
@@ -390,8 +390,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         return res
 
     def get_comm_world(self, request, _):
-        if request.rdzv_name == "nccl-check":
-            rdzv_manager = self._nccl_check_rdzv_manager
+        if request.rdzv_name == "network-check":
+            rdzv_manager = self._network_check_rdzv_manager
         else:
             rdzv_manager = self._rdzv_manager
         nodes = rdzv_manager.get_comm_world(request.node_id, request.round)
@@ -401,8 +401,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         return res
 
     def join_rendezvous(self, request, _):
-        if request.rdzv_name == "nccl-check":
-            rdzv_manager = self._nccl_check_rdzv_manager
+        if request.rdzv_name == "network-check":
+            rdzv_manager = self._network_check_rdzv_manager
         else:
             rdzv_manager = self._rdzv_manager
         round = rdzv_manager.join_rendezvous(
@@ -447,16 +447,16 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         res.success = True
         return res
 
-    def nccl_check_success(self, request, _):
+    def network_check_success(self, request, _):
         res = elastic_training_pb2.Response()
-        success = self._nccl_check_rdzv_manager.nccl_check_success()
+        success = self._network_check_rdzv_manager.network_check_success()
         res.success = success
         return res
 
-    def report_nccl_check_result(self, request, _):
+    def report_network_check_result(self, request, _):
         res = elastic_training_pb2.Response()
         node_id = request.id
-        self._nccl_check_rdzv_manager.report_nccl_check_result(
+        self._network_check_rdzv_manager.report_network_check_result(
             node_id, request.normal
         )
         res.success = True

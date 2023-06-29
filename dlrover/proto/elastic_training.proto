@@ -287,8 +287,8 @@ service Master {
   rpc kv_store_set(KeyValuePair) returns (Response);
   rpc kv_store_get(KeyValuePair) returns (KeyValuePair);
   rpc report_failure(NodeFailure) returns (Response);
-  rpc nccl_check_success(RendezvousRequest) returns (Response);
-  rpc report_nccl_check_result(NodeMeta) returns (Response);
+  rpc network_check_success(RendezvousRequest) returns (Response);
+  rpc report_network_check_result(NodeMeta) returns (Response);
 
   rpc report_prestop(ReportPreStopRequest) returns (google.protobuf.Empty);
   rpc update_node_status(NodeMeta) returns (Response);

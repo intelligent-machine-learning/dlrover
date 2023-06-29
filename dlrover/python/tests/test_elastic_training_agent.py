@@ -50,12 +50,11 @@ class ElasticTrainingAgentTest(unittest.TestCase):
             rdzv_parameters,
         )
 
-        args = []
         self.spec = WorkerSpec(
             role=self.config.role,
             local_world_size=self.config.nproc_per_node,
             entrypoint="python --version",
-            args=tuple(args),
+            args=tuple([]),
             rdzv_handler=self.rdzv_handler,
             max_restarts=self.config.max_restarts,
             monitor_interval=self.config.monitor_interval,

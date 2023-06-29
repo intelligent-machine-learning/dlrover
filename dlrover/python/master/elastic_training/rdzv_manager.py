@@ -45,7 +45,7 @@ class RendezvousManager(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def report_nccl_check_result(self, node_id: int, normal: bool):
+    def report_network_check_result(self, node_id: int, normal: bool):
         """The node updates its status"""
         pass
 
@@ -193,7 +193,7 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
         with self._lock:
             return len(self._waiting_nodes)
 
-    def report_nccl_check_result(self, node_id, normal):
+    def report_network_check_result(self, node_id, normal):
         return
 
 
@@ -318,7 +318,7 @@ class NcclCheckRendezvousManager(RendezvousManager):
                 node_groups.append(group)
         return node_groups
 
-    def report_nccl_check_result(self, node_id: int, normal: bool):
+    def report_network_check_result(self, node_id: int, normal: bool):
         self._node_status.setdefault(node_id, False)
         self._node_status[node_id] = self._node_status[node_id] or normal
 
@@ -344,5 +344,5 @@ class NcclCheckRendezvousManager(RendezvousManager):
     def num_nodes_waiting(self):
         return 0
 
-    def nccl_check_success(self):
+    def network_check_success(self):
         return self._node_status and all(list(self._node_status.values()))

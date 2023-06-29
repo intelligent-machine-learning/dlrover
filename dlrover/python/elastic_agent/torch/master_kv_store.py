@@ -142,8 +142,6 @@ class MasterKVStore(Store):
                     if value != b"":
                         kvs[key] = value
 
-            logger.info("key = %s, kvs = %s", key, kvs)
-
             if len(kvs) == len(keys):
                 return kvs
 

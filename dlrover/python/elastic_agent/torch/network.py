@@ -27,7 +27,6 @@ from torch.distributed.elastic.agent.server.api import (
     WorkerState,
     _get_fq_hostname,
 )
-from torch.distributed.elastic.metrics.api import prof
 from torch.distributed.elastic.multiprocessing import PContext
 from torch.distributed.elastic.rendezvous import RendezvousParameters
 from torch.distributed.launcher.api import LaunchConfig, _get_entrypoint_name
@@ -62,7 +61,9 @@ class NcclCheckElasticAgent(ElasticTrainingAgent):
         exit_barrier_timeout: float = 300,
         log_dir: Optional[str] = None,
     ):
-        super().__init__(spec, exit_barrier_timeout)
+        super().__init__(
+            node_id, spec, start_method, exit_barrier_timeout, log_dir
+        )
         self._start_method = start_method
         self._pcontext: Optional[PContext] = None
         self._log_dir = log_dir or tempfile.mkdtemp(prefix="torchelastic_")
@@ -70,40 +71,6 @@ class NcclCheckElasticAgent(ElasticTrainingAgent):
         self._reamining_fo_count: int = self._remaining_restarts
         self._node_id = node_id
         self._client = GlobalMasterClient.MASTER_CLIENT
-
-    # pyre-fixme[56]: Pyre was not able to infer the type of the decorator
-    #  `torch.distributed.elastic.metrics.prof`.
-    @prof
-    def _initialize_workers(
-        self, worker_group: WorkerGroup, round: int
-    ) -> None:
-        r"""
-        Starts a fresh set of workers for the worker_group.
-        Essentially a rendezvous followed by a start_workers.
-
-        The caller should first call ``_stop_workers()`` to stop running
-        workers prior to calling this method.
-
-        Optimistically sets the state of the worker group that
-        just started as ``HEALTHY`` and delegates the actual monitoring
-        of state to ``_monitor_workers()`` method
-        """
-        role = worker_group.spec.role
-        logger.info(f"[{role}] Rendezvous'ing worker group")
-
-        # TODO after stopping workers, wait at least monitor_interval*2 for
-        # workers on different nodes to fail on a collective op before waiting
-        # on the rdzv barrier, this way we ensure that nodes enter rdzv
-        # at around the same time and reduce false positive rdzv timeout errors
-        self._rendezvous(worker_group, round)
-
-        logger.info(f"[{role}] Starting worker group")
-        worker_ids = self._start_workers(worker_group)
-        for local_rank, w_id in worker_ids.items():
-            worker = worker_group.workers[local_rank]
-            worker.id = w_id
-
-        worker_group.state = WorkerState.HEALTHY
 
     def run(self, role: str = DEFAULT_ROLE) -> bool:
         spec = self._worker_group.spec
@@ -114,14 +81,15 @@ class NcclCheckElasticAgent(ElasticTrainingAgent):
             f"{spec.get_entrypoint_name()}"
         )
         for i in range(3):
-            self._run_nccl_check(i, spec.monitor_interval)
-            success = self._client.nccl_check_success(self._node_id)
+            self.set_rdzv_round(i)
+            self._run_network_check(spec.monitor_interval)
+            success = self._client.network_check_success(self._node_id)
             if success:
                 return success
         return False
 
-    def _run_nccl_check(self, round, monitor_interval):
-        self._initialize_workers(self._worker_group, round)
+    def _run_network_check(self, monitor_interval):
+        self._initialize_workers(self._worker_group)
 
         while True:
             assert self._worker_group.state != WorkerState.INIT
@@ -131,14 +99,14 @@ class NcclCheckElasticAgent(ElasticTrainingAgent):
             self._worker_group.state = state
 
             if state == WorkerState.SUCCEEDED:
-                self._client.report_nccl_check_result(self._node_id, True)
+                self._client.report_network_check_result(self._node_id, True)
                 break
             elif state in {WorkerState.UNHEALTHY, WorkerState.FAILED}:
-                self._client.report_nccl_check_result(self._node_id, False)
+                self._client.report_network_check_result(self._node_id, False)
                 break
 
 
-def ncck_check(
+def network_check(
     config: LaunchConfig,
     entrypoint: Union[Callable, str, None],
     args: List[Any],
@@ -184,7 +152,7 @@ def ncck_check(
     )
 
     rdzv_handler = MasterRendezvousHandler(
-        "nccl-check",
+        "network-check",
         node_id,
         rdzv_parameters,
     )
