@@ -406,7 +406,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         else:
             rdzv_manager = self._rdzv_manager
         round = rdzv_manager.join_rendezvous(
-            request.node_id, request.local_world_size
+            request.node_id, request.local_world_size, request.round
         )
         res = elastic_training_pb2.RendezvousState()
         res.round = round

@@ -603,6 +603,7 @@ class LocalMasterClient(object):
     def report_failures(self, error_data):
         return True
 
+
 def build_master_client(master_addr=None):
     if master_addr is None:
         master_addr = os.getenv(NodeEnv.DLROVER_MASTER_ADDR, "")

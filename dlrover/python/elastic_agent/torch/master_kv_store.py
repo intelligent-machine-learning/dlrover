@@ -17,7 +17,6 @@ from typing import Dict, Optional
 
 from torch.distributed import Store
 
-from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.master_client import GlobalMasterClient
 
 

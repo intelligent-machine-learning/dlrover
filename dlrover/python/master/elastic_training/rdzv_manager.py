@@ -167,7 +167,7 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
 
             return self._rdzv_nodes
 
-    def join_rendezvous(self, node_id, local_world_size):
+    def join_rendezvous(self, node_id, local_world_size, round=0):
         """The node joins the current rond rendezvous.
         Args:
             node_id: the node ID which is unique in an ElasticJob of DLrover.
@@ -284,7 +284,6 @@ class NcclCheckRendezvousManager(RendezvousManager):
                     f"Completed {self._rdzv_round} round "
                     f"rendezvous {self._rdzv_nodes}"
                 )
-                self._rdzv_round += 1
                 node_groups = self._group_nodes(rdzv_round)
             return {}
 
@@ -322,7 +321,7 @@ class NcclCheckRendezvousManager(RendezvousManager):
         self._node_status.setdefault(node_id, False)
         self._node_status[node_id] = self._node_status[node_id] or normal
 
-    def join_rendezvous(self, node_id, local_world_size):
+    def join_rendezvous(self, node_id, local_world_size, round=0):
         """The node joins the current rond rendezvous.
         Args:
             node_id: the node ID which is unique in an ElasticJob of DLrover.
@@ -339,7 +338,7 @@ class NcclCheckRendezvousManager(RendezvousManager):
             if len(self._waiting_nodes) >= self._rdzv_params.min_nodes:
                 if self._lastcall_time == 0:
                     self._lastcall_time = time.time()
-        return self._rdzv_round
+        return round
 
     def num_nodes_waiting(self):
         return 0

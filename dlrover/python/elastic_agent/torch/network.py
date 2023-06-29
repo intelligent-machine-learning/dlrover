@@ -22,7 +22,6 @@ import torch.distributed.elastic.timer as timer
 from torch.distributed.elastic import metrics
 from torch.distributed.elastic.agent.server.api import (
     DEFAULT_ROLE,
-    WorkerGroup,
     WorkerSpec,
     WorkerState,
     _get_fq_hostname,
