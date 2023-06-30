@@ -30,3 +30,10 @@ class KVStoreService(object):
 
     def clear(self):
         self._store.clear()
+
+    def delete(self, key):
+        with self._lock:
+            if key == "all":
+                self.clear()
+            else:
+                self._store.pop(key)

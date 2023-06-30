@@ -192,7 +192,7 @@ class TrainingNodeManager(object):
                 relaunch_count=relaunch_node.relaunch_count,
             )
         )
-        plan.remove_nodes.append(node)
+        # plan.remove_nodes.append(node)
         return plan
 
     def cut_pending_node_cpu(self):

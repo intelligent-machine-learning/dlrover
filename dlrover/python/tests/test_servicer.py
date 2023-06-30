@@ -50,7 +50,7 @@ class MasterServicerTest(unittest.TestCase):
             task_manager=self.task_manager,
             job_manager=self.job_manager,
             speed_monitor=speed_monitor,
-            rdzv_manager=None,
+            rdzv_managers={},
             job_metric_collector=self.job_metric_collector,
             elastic_ps_service=self.elastic_ps_service,
         )
@@ -180,7 +180,7 @@ class MasterServicerForRayTest(unittest.TestCase):
             task_manager=self.task_manager,
             job_manager=self.job_manager,
             speed_monitor=speed_monitor,
-            rdzv_manager=None,
+            rdzv_managers={},
             job_metric_collector=self.job_metric_collector,
             elastic_ps_service=self.elastic_ps_service,
         )
