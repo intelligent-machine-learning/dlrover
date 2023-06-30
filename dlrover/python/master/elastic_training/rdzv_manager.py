@@ -17,7 +17,6 @@ from abc import ABCMeta, abstractmethod
 from threading import Lock
 from typing import Dict, List
 
-from dlrover.python.common.constants import NodeStatus
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node
 

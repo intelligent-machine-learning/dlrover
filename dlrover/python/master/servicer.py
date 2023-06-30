@@ -298,9 +298,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             )
             if net_rdzv_manager:
                 succeed = request.status == NodeStatus.SUCCEEDED
-                net_rdzv_manager.report_network_check_result(
-                    node_id, succeed
-                )
+                net_rdzv_manager.report_network_check_result(node_id, succeed)
 
         if request.status == NodeStatus.BREAKDOWN:
             self._job_manager.remove_breakdown_node(node_type, node_id)
