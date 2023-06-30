@@ -22,6 +22,16 @@ from dlrover.python.common.node import Node
 
 
 class RendezvousManager(metaclass=ABCMeta):
+    def __init__(self):
+        self._lock = Lock()
+        self._alive_nodes = set()
+        self._released_workers = []
+        self._waiting_nodes: Dict[int, int] = {}
+        self._rdzv_nodes = {}
+        self._lastcall_time = 0
+        self._rdzv_params = RendezvousParameters(0, 0)
+        self._rdzv_round = 0
+
     def update_rdzv_params(self, min_nodes, max_ndoes, waiting_timeout):
         """Update rendezvous parameters"""
 
@@ -95,17 +105,8 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
     is the node ID and the value is the local world size. In an
     Elasticjob of DLRover, the node has an unique node ID.
     """
-
     def __init__(self):
-        self._lock = Lock()
-        self._alive_nodes = set()
-        self._scale_down_ts = 0
-        self._released_workers = []
-        self._waiting_nodes: Dict[int, int] = {}
-        self._rdzv_nodes = {}
-        self._lastcall_time = 0
-        self._rdzv_params = RendezvousParameters(0, 0)
-        self._rdzv_round = 0
+        super().__init__()
 
     def update_rdzv_params(self, min_nodes, max_ndoes, waiting_timeout):
         """Update rendezvous parameters"""
@@ -215,16 +216,8 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         If the result is {0:True, 1:False, 2:False, 3:True}, the network of
         node-1 if not available.
     """
-
     def __init__(self):
-        self._lock = Lock()
-        self._alive_nodes = set()
-        self._released_workers = []
-        self._waiting_nodes: Dict[int, int] = {}
-        self._rdzv_nodes = {}
-        self._lastcall_time = 0
-        self._rdzv_params = RendezvousParameters(0, 0)
-        self._rdzv_round = 0
+        super().__init__()
         self._node_status: Dict[int, bool] = {}
         self._node_groups: List[Dict[int, int]] = []
 
