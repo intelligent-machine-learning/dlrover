@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
 import time
 import unittest
 
@@ -19,6 +20,27 @@ from dlrover.python.master.elastic_training.rdzv_manager import (
     ElasticTrainingRendezvousManager,
     NetworkCheckRendezvousManager,
 )
+from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
+
+
+class MasterKVStoreTest(unittest.TestCase):
+    def test_kv_store_api(self):
+        kv_store = MasterKVStore("dlrover/torch/test")
+        key = "key0"
+        kv_store.set(key, "1")
+        value = kv_store.get(key)
+        self.assertEqual(int(value), 1)
+        kv_store.add(key, 2)
+        value = kv_store.get(key)
+        self.assertEqual(int(value), 3)
+        kv_store.wait([key])
+        try:
+            kv_store.wait(
+                ["aa"], override_timeout=datetime.timedelta(seconds=0.01)
+            )
+        except Exception as e:
+            self.assertIsInstance(e, LookupError)
+
 
 
 class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
