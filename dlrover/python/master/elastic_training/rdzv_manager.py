@@ -118,7 +118,9 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
     def add_alive_node(self, node: Node):
         """When a node is running, the master will add it to alive list."""
         self._alive_nodes.add(node.id)
-        logger.info(f"Add alive worker {node.name} to Rendezvous.")
+        logger.info(
+            f"Add alive worker {node.name} to elastic training rendezvous."
+        )
 
     def remove_alive_node(self, node: Node):
         """When a node is exited, the master will remove it from alive list."""
@@ -232,7 +234,9 @@ class NetworkCheckRendezvousManager(RendezvousManager):
     def add_alive_node(self, node: Node):
         """When a node is running, the master will add it to alive list."""
         self._alive_nodes.add(node.id)
-        logger.info(f"Add alive worker {node.name} to Rendezvous.")
+        logger.info(
+            f"Add alive worker {node.name} to network check rendezvous."
+        )
 
     def remove_alive_node(self, node: Node):
         """When a node is exited, the master will remove it from alive list."""

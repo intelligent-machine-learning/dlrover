@@ -34,7 +34,7 @@ def bm_all_gather(shape, use_cuda):
         dist.all_gather(tensor_list, data)
     end = time.time()
     if local_rank == 0:
-        logger.info(f"Networker check costs {end - start}s")
+        logger.info(f"Test allgather costs {end - start}s")
 
 
 def main(use_cuda):

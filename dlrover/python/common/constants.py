@@ -232,4 +232,4 @@ class RendezvousName(object):
 
 
 class NodeErrorMessage(object):
-    NETWORKER_ERROR = "Networker is breakdown"
+    NETWORKER_ERROR = "Network is breakdown"
