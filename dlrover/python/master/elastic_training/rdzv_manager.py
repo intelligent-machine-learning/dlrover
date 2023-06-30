@@ -199,19 +199,21 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
 
 
 class NetworkCheckRendezvousManager(RendezvousManager):
-    """NcclCheckRendezvousManager runs on the DLRover master. The manager
-    add workers into a waiting list and completes a rendezvous
-    if the number of workers in the wait list is beyond the minimum
-    nodes.
-
-    The node report its ID and local_world_size to the manager.
-    The manager will add the node into a waiting list to join the rendezvous
-    and freeze the rendezvous if the size of waiting list is equal
-    the max nodes or is bigger than the min nodes. Then the node will
-    periodically query the world which contains
-    all nodes like {0: 8, 1: 8, 2:8}. The key in the world dictionary
-    is the node ID and the value is the local world size. In an
-    Elasticjob of DLRover, the node has an unique node ID.
+    """NcclCheckRendezvousManager runs on the DLRover master. The task
+    to check network contains 3 round to execute allgather on all nodes.
+    We show the detail to check network assuming there are 4 nodes.
+    Round 1: all nodes join a communication world {0:8, 1:8, 2:8, 3:8}
+        where the key is the node id and the value is the local world size
+        of the node. The check passes if allgather of all nodes is succeed. 
+        Otherwise, the round 2 starts.
+    Round 2: the manager splits nodes into groups and each group contains
+        two nodes, like [{0:8, 1:8},{2:8, 3:8}]. The node in each group will
+        execute allgather independently and report its result to the manager.
+        For example, the result is {0:False, 1:False, 2:True, 3:True}.
+    Round 3: the manager will group the abnormal node with a normal node like
+        [{0:8, 2:8}, {1:8, 2:8}]. Then, the node executes allgather again.
+        If the result is {0:True, 1:False, 2:False, 3:True}, the network of
+        node-1 if not available.
     """
 
     def __init__(self):
@@ -248,16 +250,7 @@ class NetworkCheckRendezvousManager(RendezvousManager):
 
     def get_comm_world(self, node_id):
         """Return the communication world if a round rendezvous is completed.
-        The rendezvous is completed if one of the following conditions
-        is satisfied:
-        1. The size of waiting node list is equal to the max_nodes.
-        2. The size of waiting node list is bigger than the min_nodes and
-            equal to the size of alive node list. What's more, no more worker
-            join the rendezvous in waiting_timeout.
-
-        Returns:
-            world: Dict like {0: 8, 1: 8, 2: 8} where the key is the node ID
-            and the value is the local world size of the node.
+        The rendezvous is completed if one of the following conditions.
         """
         with self._lock:
             rdzv_completed = False
@@ -299,6 +292,13 @@ class NetworkCheckRendezvousManager(RendezvousManager):
             return 0, {}
 
     def _group_nodes(self, round):
+        """Group nodes into goups.
+        Round 0: group all nodes into a group like {0:8, 1:8, 2:8, 3:8}.
+        Round 1: Split nodes into groups and each group contains
+            two nodes, like [{0:8, 1:8},{2:8, 3:8}].
+        Round 1: group the abnormal node with a normal node like
+            [{0:8, 2:8}, {1:8, 2:8}].
+        """
         round = round % 3
         node_groups = []
         if round == 0:
@@ -368,6 +368,9 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         return 0
 
     def network_check_success(self):
+        """Check the network task is succeed. Each task contains 3 rounds
+        allgather. If succeed, the round should be set to the multiples of 3.
+        """
         with self._lock:
             success = self._node_status and all(
                 list(self._node_status.values())
