@@ -561,7 +561,6 @@ class NcclCheckElasticAgent(ElasticTrainingAgent):
         )
         self._log_dir = log_dir or tempfile.mkdtemp(prefix="network_check_")
         self._max_check_round = 3
-        self._node_id = int(os.getenv(NodeEnv.WORKER_ID, "0"))
 
     def run(self, role: str = DEFAULT_ROLE) -> bool:
         spec = self._worker_group.spec

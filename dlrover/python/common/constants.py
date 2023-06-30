@@ -53,10 +53,10 @@ class NodeType(object):
 
 class ElasticJobLabel(object):
     APP_NAME = "dlrover"
-    JOB_KEY = "elasticjob-name"
-    REPLICA_TYPE_KEY = "dlrover/replica-type"
-    REPLICA_INDEX_KEY = "dlrover/replica-index"
-    RANK_INDEX_KEY = "dlrover/rank-index"
+    JOB_KEY = "elasticjob.dlrover/name"
+    REPLICA_TYPE_KEY = "elasticjob.dlrover/replica-type"
+    REPLICA_INDEX_KEY = "elasticjob.dlrover/replica-index"
+    RANK_INDEX_KEY = "elasticjob.dlrover/rank-index"
 
 
 class ScalePlanLabel(object):
