@@ -233,7 +233,8 @@ message Response {
 
 message NodeFailure {
   int32 node_id = 1;
-  string error_data = 2;
+  string node_type = 2;
+  string error_data = 3;
 }
 
 service Master {
