@@ -105,6 +105,7 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
     is the node ID and the value is the local world size. In an
     Elasticjob of DLRover, the node has an unique node ID.
     """
+
     def __init__(self):
         super().__init__()
 
@@ -205,7 +206,7 @@ class NetworkCheckRendezvousManager(RendezvousManager):
     We show the detail to check network assuming there are 4 nodes.
     Round 1: all nodes join a communication world {0:8, 1:8, 2:8, 3:8}
         where the key is the node id and the value is the local world size
-        of the node. The check passes if allgather of all nodes is succeed. 
+        of the node. The check passes if allgather of all nodes is succeed.
         Otherwise, the round 2 starts.
     Round 2: the manager splits nodes into groups and each group contains
         two nodes, like [{0:8, 1:8},{2:8, 3:8}]. The node in each group will
@@ -216,6 +217,7 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         If the result is {0:True, 1:False, 2:False, 3:True}, the network of
         node-1 if not available.
     """
+
     def __init__(self):
         super().__init__()
         self._node_status: Dict[int, bool] = {}
@@ -358,7 +360,8 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         return self._rdzv_round
 
     def num_nodes_waiting(self):
-        return 0
+        with self._lock:
+            return len(self._waiting_nodes)
 
     def network_check_success(self):
         """Check the network task is succeed. Each task contains 3 rounds

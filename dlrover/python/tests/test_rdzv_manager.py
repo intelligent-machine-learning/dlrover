@@ -16,11 +16,11 @@ import time
 import unittest
 
 from dlrover.python.common.node import Node
+from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
 from dlrover.python.master.elastic_training.rdzv_manager import (
     ElasticTrainingRendezvousManager,
     NetworkCheckRendezvousManager,
 )
-from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
 
 
 class MasterKVStoreTest(unittest.TestCase):
@@ -40,7 +40,6 @@ class MasterKVStoreTest(unittest.TestCase):
             )
         except Exception as e:
             self.assertIsInstance(e, LookupError)
-
 
 
 class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
