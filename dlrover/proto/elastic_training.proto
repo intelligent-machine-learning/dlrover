@@ -170,7 +170,7 @@ message NodeMeta {
   string gpu_type = 6;
   int32 id = 7;
   int32 rank = 8;
-  int32 local_world_size = 9;
+  string status = 9;
 }
 
 message NodeEvent {
@@ -206,6 +206,13 @@ message RendezvousState {
   map<int32, int32> world = 1;
   int32 waiting_num = 2;
   int32 round = 3;
+  int32 group = 4;
+}
+
+message RendezvousRequest {
+  int32 node_id = 1;
+  int32 local_world_size = 2;
+  string rdzv_name = 4;
 }
 
 message RendezvousParams {
@@ -273,13 +280,14 @@ service Master {
       returns (google.protobuf.Empty);
 
   // rpc for torch elastic
-  rpc get_comm_world(google.protobuf.Empty) returns (RendezvousState);
-  rpc join_rendezvous(NodeMeta) returns (RendezvousState);
-  rpc num_nodes_waiting(google.protobuf.Empty) returns (RendezvousState);
+  rpc get_comm_world(RendezvousRequest) returns (RendezvousState);
+  rpc join_rendezvous(RendezvousRequest) returns (RendezvousState);
+  rpc num_nodes_waiting(RendezvousRequest) returns (RendezvousState);
   rpc report_rdzv_params(RendezvousParams) returns (Response);
   rpc kv_store_set(KeyValuePair) returns (Response);
   rpc kv_store_get(KeyValuePair) returns (KeyValuePair);
   rpc report_failure(NodeFailure) returns (Response);
+  rpc network_check_success(RendezvousRequest) returns (Response);
 
   rpc report_prestop(ReportPreStopRequest) returns (google.protobuf.Empty);
   rpc update_node_status(NodeMeta) returns (Response);

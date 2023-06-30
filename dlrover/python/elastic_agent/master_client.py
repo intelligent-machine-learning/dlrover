@@ -328,24 +328,35 @@ class MasterClient(object):
         return response.nodes
 
     @retry_grpc_request
-    def num_nodes_waiting(self):
-        request = empty_pb2.Empty()
+    def num_nodes_waiting(self, rdzv_name):
+        request = elastic_training_pb2.RendezvousRequest()
+        request.rdzv_name = rdzv_name
         response = self._stub.num_nodes_waiting(request)
         return response.waiting_num
 
     @retry_grpc_request
-    def join_rendezvous(self, node_id, local_world_size):
-        request = elastic_training_pb2.NodeMeta()
-        request.id = node_id
+    def join_rendezvous(self, node_id, local_world_size, rdzv_name=""):
+        request = elastic_training_pb2.RendezvousRequest()
+        request.node_id = node_id
         request.local_world_size = local_world_size
+        request.rdzv_name = rdzv_name
         response = self._stub.join_rendezvous(request)
         return response.round
 
     @retry_grpc_request
-    def get_comm_world(self):
-        request = empty_pb2.Empty()
+    def get_comm_world(self, rdzv_name, node_id):
+        request = elastic_training_pb2.RendezvousRequest()
+        request.node_id = node_id
+        request.rdzv_name = rdzv_name
         response = self._stub.get_comm_world(request)
-        return response.world
+        return response.group, response.world
+
+    @retry_grpc_request
+    def network_check_success(self, node_id):
+        request = elastic_training_pb2.RendezvousRequest()
+        request.node_id = node_id
+        response = self._stub.network_check_success(request)
+        return response.success
 
     @retry_grpc_request
     def report_rdzv_params(self, min_nodes, max_nodes, waiting_timeout):
@@ -372,15 +383,14 @@ class MasterClient(object):
         return response.value
 
     @retry_grpc_request
-    def report_node_status(self, rank):
-        if rank is None:
-            return
+    def report_node_status(self, status):
         request = elastic_training_pb2.NodeMeta()
         request.id = self._node_id
         request.type = self._node_type
-        request.rank = int(rank)
+        request.status = status
         self._stub.update_node_status(request)
 
+    @retry_grpc_request
     def report_failures(self, error_data):
         request = elastic_training_pb2.NodeFailure()
         request.node_id = self._node_id
@@ -457,8 +467,7 @@ class LocalMasterClient(object):
         self._datasets: Dict[str, LocalDataset] = {}
         self._task_type = None
         self._kv_store: Dict[str, str] = {}
-        self._rdzv_states: Dict[str, bytes] = {}
-        self._rdzv_tokens: Dict[str, int] = {}
+        self._rdzv_nodes: Dict[int, int] = {}
 
     def reset_dataset(self, dataset_name):
         """Reset a dataset
@@ -545,16 +554,37 @@ class LocalMasterClient(object):
     def report_used_resource(self, memory, cpu):
         return empty_pb2.Empty()
 
+    def num_nodes_waiting(self):
+        return 0
+
+    def join_rendezvous(
+        self, node_id, local_world_size, rdzv_name="", round=0
+    ):
+        self._rdzv_nodes[node_id] = local_world_size
+        return 0
+
+    def get_comm_world(self, *args, **kwarg):
+        return 0, self._rdzv_nodes
+
+    def network_check_success(self, node_id):
+        return True
+
+    def report_node_status(self, normal):
+        return True
+
+    def report_rdzv_params(self, min_nodes, max_nodes, waiting_timeout):
+        return True
+
     def kv_store_set(self, key, value):
         self._kv_store[key] = value
+        logger.info(self._kv_store)
         return True
 
     def kv_store_get(self, key):
-        return self._kv_store.get(key, "")
+        return self._kv_store.get(key, "".encode())
 
-    def report_node_status(self, rank):
-        logger.info(f"Report rank {rank}")
-        return
+    def report_failures(self, error_data):
+        return True
 
 
 def build_master_client(master_addr=None):

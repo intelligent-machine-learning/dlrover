@@ -18,12 +18,14 @@ from dlrover.python.common.constants import (
     JobExitReason,
     NodeType,
     OptimizeMode,
+    RendezvousName,
     ReporterType,
 )
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
 from dlrover.python.master.elastic_training.rdzv_manager import (
-    RendezvousManager,
+    ElasticTrainingRendezvousManager,
+    NetworkCheckRendezvousManager,
 )
 from dlrover.python.master.elastic_training.sync_service import SyncService
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
@@ -61,7 +63,11 @@ class Master(object):
             if args.enable_dynamic_sharding
             else None
         )
-        self.rdzv_manager = RendezvousManager()
+        elastic_training = RendezvousName.ELASTIC_TRAINING
+        self.rdzv_managers = {
+            elastic_training: ElasticTrainingRendezvousManager(),
+            RendezvousName.NETWORK_CHECK: NetworkCheckRendezvousManager(),
+        }
         self.job_metric_collector = self._create_metric_collector_if_needed(
             args
         )
@@ -79,7 +85,7 @@ class Master(object):
             self.task_manager,
             self.job_manager,
             self.speed_monitor,
-            self.rdzv_manager,
+            self.rdzv_managers,
             self.job_metric_collector,
             self.elastic_ps_service,
             self.sync_service,
@@ -192,7 +198,8 @@ class Master(object):
 
     def _remove_not_participated_workers(self):
         """Remove workers who do not participate training."""
-        workers = self.rdzv_manager.get_released_workers()
+        et_manager = self.rdzv_managers[RendezvousName.ELASTIC_TRAINING]
+        workers = et_manager.get_released_workers()
         if workers:
             self.job_manager.remove_not_participated_workers(workers)
 
