@@ -34,7 +34,6 @@ RUN /install-protobuf.bash && rm /install-protobuf.bash
 
 # Install Pre-commit
 RUN pip install pre-commit pytest -i https://mirrors.aliyun.com/pypi/simple/
-RUN  pip install torch kubernetes grpcio-tools psutil ray[default] pyhocon
 
 # Configure envtest for integration tests of kubebuilder
 ENV KUBEBUILDER_CONTROLPLANE_START_TIMEOUT 60s
