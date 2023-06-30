@@ -75,7 +75,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
             start_method=self.config.start_method,
             log_dir=self.config.log_dir,
         )
-        self.rdzv_handler.join_rendezvous(0, 8)
+        self.rdzv_handler.join_rendezvous(8)
         self.rdzv_handler._client.join_rendezvous(1, 8)
         _, world = self.rdzv_handler.next_rendezvous(0)
         self.assertDictEqual(world, {0: 8, 1: 8})
@@ -103,7 +103,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
             start_method=self.config.start_method,
             log_dir=self.config.log_dir,
         )
-        store = self.rdzv_handler._get_store(round=0)
+        store = self.rdzv_handler._get_store(round=0, group=0)
         store.set("MASTER_ADDR", "127.0.0.1".encode())
         store.set("MASTER_PORT", "12345".encode())
         self.rdzv_handler._client.join_rendezvous(1, 8)
