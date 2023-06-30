@@ -1,4 +1,4 @@
-FROM python:3.6.15
+FROM python:3.8.14
 ARG EXTRA_PYPI_INDEX=https://pypi.org/simple
 
 # Allows for log messages by `print` in Python to be immediately dumped
@@ -34,6 +34,7 @@ RUN /install-protobuf.bash && rm /install-protobuf.bash
 
 # Install Pre-commit
 RUN pip install pre-commit pytest -i https://mirrors.aliyun.com/pypi/simple/
+RUN  pip install torch kubernetes grpcio-tools psutil ray[default] pyhocon
 
 # Configure envtest for integration tests of kubebuilder
 ENV KUBEBUILDER_CONTROLPLANE_START_TIMEOUT 60s
