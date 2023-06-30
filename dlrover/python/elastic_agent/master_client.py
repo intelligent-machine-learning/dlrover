@@ -359,14 +359,6 @@ class MasterClient(object):
         return response.success
 
     @retry_grpc_request
-    def report_network_check_result(self, node_id, result):
-        request = elastic_training_pb2.NodeMeta()
-        request.id = node_id
-        request.normal = result
-        response = self._stub.report_network_check_result(request)
-        return response.success
-
-    @retry_grpc_request
     def report_rdzv_params(self, min_nodes, max_nodes, waiting_timeout):
         request = elastic_training_pb2.RendezvousParams()
         request.min_nodes = min_nodes
@@ -391,13 +383,11 @@ class MasterClient(object):
         return response.value
 
     @retry_grpc_request
-    def report_node_status(self, rank):
-        if rank is None:
-            return
+    def report_node_status(self, status):
         request = elastic_training_pb2.NodeMeta()
         request.id = self._node_id
         request.type = self._node_type
-        request.rank = int(rank)
+        request.status = status
         self._stub.update_node_status(request)
 
     @retry_grpc_request
@@ -579,7 +569,7 @@ class LocalMasterClient(object):
     def network_check_success(self, node_id):
         return True
 
-    def report_network_check_result(self, node_id, result):
+    def report_node_status(self, normal):
         return True
 
     def report_rdzv_params(self, min_nodes, max_nodes, waiting_timeout):
@@ -592,10 +582,6 @@ class LocalMasterClient(object):
 
     def kv_store_get(self, key):
         return self._kv_store.get(key, "".encode())
-
-    def report_node_status(self, rank):
-        logger.info(f"Report rank {rank}")
-        return
 
     def report_failures(self, error_data):
         return True

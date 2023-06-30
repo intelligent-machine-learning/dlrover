@@ -170,7 +170,7 @@ message NodeMeta {
   string gpu_type = 6;
   int32 id = 7;
   int32 rank = 8;
-  bool normal = 9;
+  string status = 9;
 }
 
 message NodeEvent {
@@ -288,7 +288,6 @@ service Master {
   rpc kv_store_get(KeyValuePair) returns (KeyValuePair);
   rpc report_failure(NodeFailure) returns (Response);
   rpc network_check_success(RendezvousRequest) returns (Response);
-  rpc report_network_check_result(NodeMeta) returns (Response);
 
   rpc report_prestop(ReportPreStopRequest) returns (google.protobuf.Empty);
   rpc update_node_status(NodeMeta) returns (Response);

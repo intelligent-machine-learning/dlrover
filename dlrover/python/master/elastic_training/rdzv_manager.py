@@ -17,6 +17,7 @@ from abc import ABCMeta, abstractmethod
 from threading import Lock
 from typing import Dict, List
 
+from dlrover.python.common.constants import NodeStatus
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node
 
@@ -331,9 +332,10 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                 node_groups.append(group)
         return node_groups
 
-    def report_network_check_result(self, node_id: int, normal: bool):
+    def report_network_check_result(self, node_id: int, status):
+        succeed = status == NodeStatus.SUCCEEDED
         self._node_status.setdefault(node_id, False)
-        self._node_status[node_id] = self._node_status[node_id] or normal
+        self._node_status[node_id] = self._node_status[node_id] or succeed
 
     def join_rendezvous(
         self,

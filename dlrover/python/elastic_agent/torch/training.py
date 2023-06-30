@@ -49,7 +49,7 @@ from torch.distributed.elastic.rendezvous import RendezvousParameters
 from torch.distributed.elastic.rendezvous.api import RendezvousHandler
 from torch.distributed.launcher.api import LaunchConfig, _get_entrypoint_name
 
-from dlrover.python.common.constants import NodeEnv, RendezvousName
+from dlrover.python.common.constants import NodeEnv, NodeStatus, RendezvousName
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.master_client import GlobalMasterClient
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
@@ -524,14 +524,20 @@ def launch_agent(
 class NcclCheckElasticAgent(ElasticTrainingAgent):
     """
     An implementation of :py:class:`torchelastic.agent.server.ElasticAgent`
-    that handles host-local workers.
-    This agent is deployed per host and is configured to spawn ``n`` workers.
-    When using GPUs, ``n`` maps to the number of GPUs available on the host.
-
-    The agent select to fail or relaunch subprocesses according to the
-    failed reason of subprocess. Now, if the exitcode is not 1, the agent
-    will fail and the DLRover will relaunch the node. Because, we find
-    the exitcode is 1 if the hardware breakdowns.
+    that handles host-local workers. This agent will run 3 round allgather
+    to check network. We show the detail with 4 nodes to check network.
+    Round 1: all nodes join a communication world {0:8, 1:8, 2:8, 3:8}
+        where the key is the node id and the value is the local world size
+        of the node. The check passes if allgather of all nodes is succeed.
+        Otherwise, the round 2 starts.
+    Round 2: the manager splits nodes into groups and each group contains
+        two nodes, like [{0:8, 1:8},{2:8, 3:8}]. The node in each group will
+        execute allgather independently and report its result to the manager.
+        For example, the result is {0:False, 1:False, 2:True, 3:True}.
+    Round 3: the manager will group the abnormal node with a normal node like
+        [{0:8, 2:8}, {1:8, 2:8}]. Then, the node executes allgather again.
+        If the result is {0:True, 1:False, 2:False, 3:True}, the network of
+        node-1 if not available.
     """
 
     def __init__(
@@ -574,7 +580,8 @@ class NcclCheckElasticAgent(ElasticTrainingAgent):
         for i in range(self._max_check_round):
             result = self._run_network_check(spec.monitor_interval)
             logger.info(f"Network check round {i} is {result}")
-            self._client.report_network_check_result(self._node_id, result)
+            status = NodeStatus.SUCCEEDED if result else NodeStatus.FAILED
+            self._client.report_node_status(status)
             success = success or result
             network_ready = self._client.network_check_success(self._node_id)
             self._stop_workers(self._worker_group)
@@ -582,6 +589,7 @@ class NcclCheckElasticAgent(ElasticTrainingAgent):
                 return True
             time.sleep(1)
         if not success:
+            self._client.report_node_status(NodeStatus.BREAKDOWN)
             raise RuntimeError("The node network is breakdown.")
         return False
 

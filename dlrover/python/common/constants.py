@@ -74,6 +74,7 @@ class NodeStatus(object):
     INITIAL = "Initial"
     DELETED = "Deleted"
     UNKNOWN = "Unknown"
+    BREAKDOWN = "Breakdown"
 
 
 class NodeEventType(object):
