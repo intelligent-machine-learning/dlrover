@@ -70,10 +70,10 @@ class MasterRendezvousHandler(RendezvousHandler):
         self._name = name
         self._node_id = node_id
         self._rdzv_params = rdzv_params
-        self.join_timeout = rdzv_params.get("join_timeout", 600)
+        self.join_timeout = int(rdzv_params.get("join_timeout", 600))
         self._client = GlobalMasterClient.MASTER_CLIENT
         self._store = MasterKVStore(self._name, timedelta(seconds=60))
-        lastcall_timeout = rdzv_params.get("lastcall_timeout", 60)
+        lastcall_timeout = int(rdzv_params.get("lastcall_timeout", 60))
         self._client.report_rdzv_params(
             rdzv_params.min_nodes,
             rdzv_params.max_nodes,
