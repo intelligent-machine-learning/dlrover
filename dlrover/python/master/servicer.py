@@ -22,11 +22,11 @@ from google.protobuf import empty_pb2
 from dlrover.proto import elastic_training_pb2, elastic_training_pb2_grpc
 from dlrover.python.common.constants import (
     GRPC,
+    NodeErrorMessage,
     NodeStatus,
     NodeType,
     RendezvousName,
     TrainingLoopStatus,
-    NodeErrorMessage,
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
