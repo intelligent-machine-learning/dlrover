@@ -372,5 +372,6 @@ class NetworkCheckRendezvousManager(RendezvousManager):
             success = self._node_status and all(
                 list(self._node_status.values())
             )
-            self._rdzv_round = math.ceil(self._rdzv_round / 3) * 3
+            if success:
+                self._rdzv_round = math.ceil(self._rdzv_round / 3) * 3
             return success
