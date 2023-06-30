@@ -7,7 +7,7 @@ runs:
   args:
     - "/bin/bash"
     - "-c"
-    - "pip install torch kubernetes grpcio-tools psutil \
+    - "pip install torch==2.0.1 kubernetes grpcio-tools psutil \
 'ray[default]' pyhocon\
 && python -m grpc_tools.protoc -I. \
 dlrover/proto/*.proto --python_out=. --grpc_python_out=. \
