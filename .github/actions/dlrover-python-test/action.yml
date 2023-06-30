@@ -3,7 +3,7 @@ name: dlrover-python-test
 description: run pytest to execute python test cases of dlrover python
 runs:
   using: 'docker'
-  image: "easydl/easydl:ci"
+  image: "easydl/dlrover:ci"
   args:
     - "/bin/bash"
     - "-c"

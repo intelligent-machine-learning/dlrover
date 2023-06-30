@@ -657,6 +657,10 @@ class JobManager(object):
         else:
             return False
 
+    def remove_breakdown_node(self, node_type, node_id):
+        node = self._job_nodes[node_type][node_id]
+        logger.warning(f"Node {node.name} is breakdown.")
+
 
 def create_job_manager(args: JobArgs, speed_monitor) -> JobManager:
     critical_worker_index = get_critical_worker_index(args)

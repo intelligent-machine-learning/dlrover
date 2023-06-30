@@ -22,6 +22,7 @@ from google.protobuf import empty_pb2
 from dlrover.proto import elastic_training_pb2, elastic_training_pb2_grpc
 from dlrover.python.common.constants import (
     GRPC,
+    NodeStatus,
     NodeType,
     RendezvousName,
     TrainingLoopStatus,
@@ -286,9 +287,22 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         node_id = request.id
         server_addr = request.addr
 
-        self._job_manager.update_node_service_addr(
-            node_type, node_id, server_addr
-        )
+        if server_addr:
+            self._job_manager.update_node_service_addr(
+                node_type, node_id, server_addr
+            )
+        node_status = request.status
+        if node_status in [NodeStatus.SUCCEEDED, NodeStatus.FAILED]:
+            net_rdzv_manager = self._rdzv_managers.get(
+                RendezvousName.NETWORK_CHECK, None
+            )
+            if net_rdzv_manager:
+                succeed = request.status == NodeStatus.SUCCEEDED
+                net_rdzv_manager.report_network_check_result(node_id, succeed)
+
+        if request.status == NodeStatus.BREAKDOWN:
+            self._job_manager.remove_breakdown_node(node_type, node_id)
+
         response = elastic_training_pb2.Response()
         response.success = True
         return response
@@ -439,14 +453,6 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         net_rdzv_manager = self._rdzv_managers[RendezvousName.NETWORK_CHECK]
         success = net_rdzv_manager.network_check_success()
         res.success = success
-        return res
-
-    def report_network_check_result(self, request, _):
-        res = elastic_training_pb2.Response()
-        node_id = request.id
-        net_rdzv_manager = self._rdzv_managers[RendezvousName.NETWORK_CHECK]
-        net_rdzv_manager.report_network_check_result(node_id, request.normal)
-        res.success = True
         return res
 
 

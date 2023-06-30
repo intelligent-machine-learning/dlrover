@@ -1,4 +1,4 @@
-FROM python:3.6.15
+FROM python:3.8.14
 ARG EXTRA_PYPI_INDEX=https://pypi.org/simple
 
 # Allows for log messages by `print` in Python to be immediately dumped

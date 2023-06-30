@@ -112,7 +112,6 @@ class NcclCheckRendezvousManagerTest(unittest.TestCase):
             round = rdzv_manager.join_rendezvous(i, 8)
         self.assertEqual(round, 2)
         group, world = rdzv_manager.get_comm_world(3)
-        print(rdzv_manager._rdzv_round, rdzv_manager._node_groups)
         self.assertDictEqual(world, {0: 8, 3: 8})
         rdzv_manager.report_network_check_result(3, True)
         self.assertTrue(rdzv_manager.network_check_success())
