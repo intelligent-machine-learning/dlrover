@@ -297,8 +297,9 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
                 RendezvousName.NETWORK_CHECK, None
             )
             if net_rdzv_manager:
+                succeed = request.status == NodeStatus.SUCCEEDED
                 net_rdzv_manager.report_network_check_result(
-                    node_id, request.status
+                    node_id, succeed
                 )
 
         if request.status == NodeStatus.BREAKDOWN:

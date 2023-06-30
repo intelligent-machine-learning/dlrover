@@ -332,8 +332,7 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                 node_groups.append(group)
         return node_groups
 
-    def report_network_check_result(self, node_id: int, status):
-        succeed = status == NodeStatus.SUCCEEDED
+    def report_network_check_result(self, node_id: int, succeed):
         self._node_status.setdefault(node_id, False)
         self._node_status[node_id] = self._node_status[node_id] or succeed
 
