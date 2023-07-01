@@ -335,26 +335,25 @@ class MasterClient(object):
         return response.waiting_num
 
     @retry_grpc_request
-    def join_rendezvous(self, node_id, local_world_size, rdzv_name=""):
+    def join_rendezvous(self, rank_id, local_world_size, rdzv_name=""):
         request = elastic_training_pb2.RendezvousRequest()
-        request.node_id = node_id
+        request.node_id = rank_id
         request.local_world_size = local_world_size
         request.rdzv_name = rdzv_name
         response = self._stub.join_rendezvous(request)
         return response.round
 
     @retry_grpc_request
-    def get_comm_world(self, rdzv_name, node_id):
+    def get_comm_world(self, rdzv_name, rank_id):
         request = elastic_training_pb2.RendezvousRequest()
-        request.node_id = node_id
+        request.node_id = rank_id
         request.rdzv_name = rdzv_name
         response = self._stub.get_comm_world(request)
         return response.group, response.world
 
     @retry_grpc_request
-    def network_check_success(self, node_id):
+    def network_check_success(self):
         request = elastic_training_pb2.RendezvousRequest()
-        request.node_id = node_id
         response = self._stub.network_check_success(request)
         return response.success
 
@@ -383,9 +382,9 @@ class MasterClient(object):
         return response.value
 
     @retry_grpc_request
-    def report_node_status(self, status):
+    def report_node_status(self, rank_id, status):
         request = elastic_training_pb2.NodeMeta()
-        request.id = self._node_id
+        request.id = rank_id
         request.type = self._node_type
         request.status = status
         self._stub.update_node_status(request)
@@ -394,6 +393,7 @@ class MasterClient(object):
     def report_failures(self, error_data):
         request = elastic_training_pb2.NodeFailure()
         request.node_id = self._node_id
+        request.node_type = self._node_type
         request.error_data = error_data
         self._stub.report_failure(request)
 

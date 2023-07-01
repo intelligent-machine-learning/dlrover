@@ -34,11 +34,11 @@ const (
 	labelJobName = "elasticjob-name"
 	appName      = "dlrover"
 	// LabelReplicaTypeKey is the key of ReplicaType in labels
-	LabelReplicaTypeKey = "replica-type"
+	LabelReplicaTypeKey = "elasticjob.dlrover/replica-type"
 	// LabelReplicaIndexKey is the key of ReplicaIndex in labels
-	LabelReplicaIndexKey = "replica-index"
+	LabelReplicaIndexKey = "elasticjob.dlrover/replica-index"
 	// LabelRankIndexKey is the key of rankIndex.
-	LabelRankIndexKey = "rank-index"
+	LabelRankIndexKey = "elasticjob.dlrover/rank-index"
 )
 
 // ReplicaManagers contains the manager for each ReplicaType
