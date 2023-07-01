@@ -68,7 +68,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
     def test_rank0_rendzevous(self):
         node_id = 0
         agent = ElasticTrainingAgent(
-            node_id=node_id,
+            rank_id=node_id,
             config=self.config,
             entrypoint="python",
             spec=self.spec,
@@ -96,7 +96,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
     def test_rank1_rendzevous(self):
         node_id = 1
         agent = ElasticTrainingAgent(
-            node_id=node_id,
+            rank_id=node_id,
             config=self.config,
             entrypoint="python",
             spec=self.spec,

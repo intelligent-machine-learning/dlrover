@@ -49,7 +49,12 @@ from torch.distributed.elastic.rendezvous import RendezvousParameters
 from torch.distributed.elastic.rendezvous.api import RendezvousHandler
 from torch.distributed.launcher.api import LaunchConfig, _get_entrypoint_name
 
-from dlrover.python.common.constants import NodeEnv, NodeStatus, RendezvousName
+from dlrover.python.common.constants import (
+    NodeEnv,
+    NodeErrorMessage,
+    NodeStatus,
+    RendezvousName,
+)
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.master_client import GlobalMasterClient
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
@@ -66,9 +71,9 @@ class ProcessError:
 
 
 class MasterRendezvousHandler(RendezvousHandler):
-    def __init__(self, name, node_id, rdzv_params: RendezvousParameters):
+    def __init__(self, name, rank_id, rdzv_params: RendezvousParameters):
         self._name = name
-        self._node_id = node_id
+        self._rank_id = rank_id
         self._rdzv_params = rdzv_params
         self.join_timeout = int(rdzv_params.get("join_timeout", 600))
         self._client = GlobalMasterClient.MASTER_CLIENT
@@ -95,7 +100,7 @@ class MasterRendezvousHandler(RendezvousHandler):
         ID and local world size.
         """
         round = self._client.join_rendezvous(
-            self._node_id, local_world_size, rdzv_name=self._name
+            self._rank_id, local_world_size, rdzv_name=self._name
         )
         return round
 
@@ -115,7 +120,7 @@ class MasterRendezvousHandler(RendezvousHandler):
         logger.info(msg)
         while True:
             group, world = self._client.get_comm_world(
-                self._name, self._node_id
+                self._name, self._rank_id
             )
             world = dict(sorted(world.items()))
             if world:
@@ -125,7 +130,7 @@ class MasterRendezvousHandler(RendezvousHandler):
                     f"Timeout {self.join_timeout}s to complete next rendezous."
                 )
             time.sleep(3)
-        rank = list(world.keys()).index(self._node_id)
+        rank = list(world.keys()).index(self._rank_id)
         world_size = len(world)
         logger.info(
             f"The node{node_name} has joined round {round} of "
@@ -180,7 +185,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
     def __init__(
         self,
-        node_id,
+        rank_id,
         config,
         entrypoint,
         spec: WorkerSpec,
@@ -189,7 +194,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         log_dir: Optional[str] = None,
     ):
         super().__init__(spec, exit_barrier_timeout)
-        self._node_id = node_id
+        self._rank_id = rank_id
         self._config = config
         self._entrypoint = entrypoint
         self._start_method = start_method
@@ -212,9 +217,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
         store, world = spec.rdzv_handler.next_rendezvous(round)
         self._store = store
         group_world_size = len(world)
-        group_rank = list(world.keys()).index(self._node_id)
+        group_rank = list(world.keys()).index(self._rank_id)
 
-        workers = self._assign_worker_ranks(self._node_id, world, spec)
+        workers = self._assign_worker_ranks(self._rank_id, world, spec)
         worker_group.workers = workers
         worker_group.store = store
         worker_group.group_rank = group_rank
@@ -422,7 +427,7 @@ def launch_agent(
         config.run_id = run_id
 
     entrypoint_name = _get_entrypoint_name(entrypoint, args)
-    node_id = int(os.getenv(NodeEnv.WORKER_ID, 0))
+    rank_id = int(os.getenv(NodeEnv.WORKER_RANK, 0))
 
     logger.info(
         f"Starting elastic_operator with launch configs:\n"
@@ -456,7 +461,7 @@ def launch_agent(
 
     rdzv_handler = MasterRendezvousHandler(
         RendezvousName.ELASTIC_TRAINING,
-        node_id,
+        rank_id,
         rdzv_parameters,
     )
     spec = WorkerSpec(
@@ -474,7 +479,7 @@ def launch_agent(
     )
 
     agent = ElasticTrainingAgent(
-        node_id=node_id,
+        rank_id=rank_id,
         config=config,
         entrypoint=entrypoint,
         spec=spec,
@@ -542,7 +547,7 @@ class NcclCheckElasticAgent(ElasticTrainingAgent):
 
     def __init__(
         self,
-        node_id,
+        rank_id,
         config,
         entrypoint,
         spec: WorkerSpec,
@@ -551,7 +556,7 @@ class NcclCheckElasticAgent(ElasticTrainingAgent):
         log_dir: Optional[str] = None,
     ):
         super().__init__(
-            node_id,
+            rank_id,
             config,
             entrypoint,
             spec,
@@ -559,13 +564,7 @@ class NcclCheckElasticAgent(ElasticTrainingAgent):
             exit_barrier_timeout,
             log_dir,
         )
-        self._start_method = start_method
-        self._pcontext: Optional[PContext] = None
-        self._log_dir = log_dir or tempfile.mkdtemp(prefix="torchelastic_")
-        self._worker_watchdog: Optional[timer.FileTimerServer] = None
-        self._reamining_fo_count: int = self._remaining_restarts
-        self._node_id = node_id
-        self._client = GlobalMasterClient.MASTER_CLIENT
+        self._log_dir = log_dir or tempfile.mkdtemp(prefix="network_check_")
         self._max_check_round = 3
 
     def run(self, role: str = DEFAULT_ROLE) -> bool:
@@ -581,15 +580,15 @@ class NcclCheckElasticAgent(ElasticTrainingAgent):
             result = self._run_network_check(spec.monitor_interval)
             logger.info(f"Network check round {i} is {result}")
             status = NodeStatus.SUCCEEDED if result else NodeStatus.FAILED
-            self._client.report_node_status(status)
+            self._client.report_node_status(self._rank_id, status)
             success = success or result
-            network_ready = self._client.network_check_success(self._node_id)
+            network_ready = self._client.network_check_success()
             self._stop_workers(self._worker_group)
             if network_ready:
                 return True
             time.sleep(1)
         if not success:
-            self._client.report_node_status(NodeStatus.BREAKDOWN)
+            self._client.report_failures(NodeErrorMessage.NETWORKER_ERROR)
             raise RuntimeError("The node network is breakdown.")
         return False
 
@@ -622,7 +621,7 @@ def network_check(
         config.run_id = run_id
 
     entrypoint_name = _get_entrypoint_name(entrypoint, args)
-    node_id = int(os.getenv(NodeEnv.WORKER_ID, 0))
+    rank_id = int(os.getenv(NodeEnv.WORKER_RANK, 0))
 
     logger.info(
         f"Starting elastic_operator with launch configs:\n"
@@ -655,7 +654,7 @@ def network_check(
     )
     rdzv_handler = MasterRendezvousHandler(
         RendezvousName.NETWORK_CHECK,
-        node_id,
+        rank_id,
         rdzv_parameters,
     )
     spec = WorkerSpec(
@@ -670,7 +669,7 @@ def network_check(
     )
 
     agent = NcclCheckElasticAgent(
-        node_id=node_id,
+        rank_id=rank_id,
         config=config,
         entrypoint=entrypoint,
         spec=spec,

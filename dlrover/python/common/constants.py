@@ -53,10 +53,10 @@ class NodeType(object):
 
 class ElasticJobLabel(object):
     APP_NAME = "dlrover"
-    JOB_KEY = "elasticjob-name"
-    REPLICA_TYPE_KEY = "replica-type"
-    REPLICA_INDEX_KEY = "replica-index"
-    RANK_INDEX_KEY = "rank-index"
+    JOB_KEY = "elasticjob.dlrover/name"
+    REPLICA_TYPE_KEY = "elasticjob.dlrover/replica-type"
+    REPLICA_INDEX_KEY = "elasticjob.dlrover/replica-index"
+    RANK_INDEX_KEY = "elasticjob.dlrover/rank-index"
 
 
 class ScalePlanLabel(object):
@@ -229,3 +229,7 @@ class k8sAPIExceptionReason(object):
 class RendezvousName(object):
     ELASTIC_TRAINING = "elastic-training"
     NETWORK_CHECK = "network-check"
+
+
+class NodeErrorMessage(object):
+    NETWORKER_ERROR = "Network is breakdown"
