@@ -44,6 +44,22 @@ class ShardingClient(object):
         storage_type: the storage type of dataset. It is "text" if the
             dataset is stored in a text file. It is "table" if the
             dataset is stored in a table like MaxCompute and Hive.
+    Example:
+        batch_size = 64
+        client = ShardingClient(
+            datset_name="test",
+            batch_size=batch_size,
+            num_epochs=1,
+            dataset_size=10000,
+        )
+        while True:
+            shard = client.fetch_shard()
+            if not shard:
+                break
+            for i in range(shard.start, shard.end):
+                print(i)
+                if i % batch_size == 0:
+                    client.report_batch_done()
     """
 
     def __init__(
