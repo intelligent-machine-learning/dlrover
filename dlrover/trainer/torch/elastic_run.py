@@ -89,7 +89,10 @@ def run(args):
         )
 
     config, cmd, cmd_args = config_from_args(args)
-    config.network_check = args.network_check
+    if hasattr(args, "network_check"):
+        config.network_check = args.network_check
+    else:
+        config.network_check = False
     elastic_launch(
         config=config,
         entrypoint=cmd,
