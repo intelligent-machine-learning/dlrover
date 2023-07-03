@@ -146,6 +146,7 @@ class Node(object):
         exit_reason: str, the exited reason of a node.
         used_resource: the resource usage of the node.
         init_time: the timestamp to initialize the node object.
+        node_name: the name of the machine where the node is placed.
     """
 
     def __init__(
@@ -162,6 +163,7 @@ class Node(object):
         max_relaunch_count=0,
         relaunchable=True,
         service_addr=None,
+        node_name=None,
     ):
         self.type = node_type
         self.id = node_id
@@ -184,6 +186,7 @@ class Node(object):
         self.start_hang_time = 0
         self.init_time = time.time()
         self.eval_time = 0
+        self.node_name = node_name
 
     def inc_relaunch_count(self):
         self.relaunch_count += 1
@@ -193,6 +196,7 @@ class Node(object):
         name=None,
         start_time=None,
         create_time=None,
+        node_name=None,
     ):
         if name is not None:
             self.name = name
@@ -200,6 +204,8 @@ class Node(object):
             self.start_time = start_time
         if create_time is not None:
             self.create_time = create_time
+        if node_name:
+            self.node_name = node_name
 
     def update_status(self, status=None):
         if status is not None:
