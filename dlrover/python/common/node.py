@@ -163,6 +163,7 @@ class Node(object):
         max_relaunch_count=0,
         relaunchable=True,
         service_addr=None,
+        node_name=None,
     ):
         self.type = node_type
         self.id = node_id
@@ -185,7 +186,7 @@ class Node(object):
         self.start_hang_time = 0
         self.init_time = time.time()
         self.eval_time = 0
-        self.node_name = None
+        self.node_name = node_name
 
     def inc_relaunch_count(self):
         self.relaunch_count += 1

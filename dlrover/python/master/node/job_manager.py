@@ -371,7 +371,6 @@ class JobManager(object):
                 create_time=event.node.create_time,
                 node_name=event.node.node_name,
             )
-            logger.info("Node name = %s", cur_node.node_name)
 
         # For the given node id, check whether it meets
         # the state change condition
