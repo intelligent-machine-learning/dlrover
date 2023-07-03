@@ -31,7 +31,7 @@ import (
 
 const (
 	labelAppName = "app"
-	labelJobName = "elasticjob-name"
+	labelJobName = "elasticjob.dlrover/name"
 	appName      = "dlrover"
 	// LabelReplicaTypeKey is the key of ReplicaType in labels
 	LabelReplicaTypeKey = "elasticjob.dlrover/replica-type"

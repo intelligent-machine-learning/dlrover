@@ -29,6 +29,10 @@ from dlrover.python.common.constants import (
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource
+from dlrover.python.master.monitor.error_monitor import (
+    ErrorLogMonitor,
+    ErrorMonitor,
+)
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.event_callback import (
     ClusterContext,
@@ -84,6 +88,7 @@ class JobManager(object):
         job=None,
         node_watcher=None,
         job_scaler=None,
+        error_monitor=None,
     ):
         self._job_resource = JobResource()
         node_restart_count: Dict[str, int] = {}
@@ -139,6 +144,7 @@ class JobManager(object):
         self._node_event_callbacks: List[NodeEventCallback] = []
         self._stop_monitor = False
         self._speed_monitor: SpeedMonitor = speed_monitor
+        self._error_monitor: ErrorMonitor = error_monitor
 
         # Protects followed variables, which are accessed from event_cb.
         self._lock = threading.Lock()
@@ -369,6 +375,7 @@ class JobManager(object):
                 name=event.node.name,
                 start_time=event.node.start_time,
                 create_time=event.node.create_time,
+                node_name=event.node.node_name,
             )
 
         # For the given node id, check whether it meets
@@ -657,9 +664,16 @@ class JobManager(object):
         else:
             return False
 
-    def remove_breakdown_node(self, node_type, node_id):
+    def handle_training_failure(
+        self, node_type, node_id, restart_count, error_data
+    ):
         node = self._job_nodes[node_type][node_id]
-        logger.warning(f"Node {node.name} is breakdown.")
+        if restart_count >= 0:
+            self._error_monitor.handle_process_error(
+                node, restart_count, error_data
+            )
+        else:
+            self._error_monitor.handle_node_error(node, error_data)
 
 
 def create_job_manager(args: JobArgs, speed_monitor) -> JobManager:
@@ -683,4 +697,5 @@ def create_job_manager(args: JobArgs, speed_monitor) -> JobManager:
         job=elastic_job,
         node_watcher=node_watcher,
         job_scaler=job_scaler,
+        error_monitor=ErrorLogMonitor(),
     )

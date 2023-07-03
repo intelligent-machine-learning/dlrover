@@ -390,11 +390,12 @@ class MasterClient(object):
         self._stub.update_node_status(request)
 
     @retry_grpc_request
-    def report_failures(self, error_data):
+    def report_failures(self, error_data, restart_count=-1):
         request = elastic_training_pb2.NodeFailure()
         request.node_id = self._node_id
         request.node_type = self._node_type
         request.error_data = error_data
+        request.restart_count = restart_count
         self._stub.report_failure(request)
 
 
@@ -583,7 +584,7 @@ class LocalMasterClient(object):
     def kv_store_get(self, key):
         return self._kv_store.get(key, "".encode())
 
-    def report_failures(self, error_data):
+    def report_failures(self, error_data, restart_count=-1):
         return True
 
 
