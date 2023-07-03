@@ -201,7 +201,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         self._pcontext: Optional[PContext] = None
         self._log_dir = log_dir or tempfile.mkdtemp(prefix="torchelastic_")
         self._worker_watchdog: Optional[timer.FileTimerServer] = None
-        self._reamining_fo_count: int = self._remaining_restarts
+        self._restart_count = 0
         self._client = GlobalMasterClient.MASTER_CLIENT
 
     @prof
@@ -234,11 +234,10 @@ class ElasticTrainingAgent(LocalElasticAgent):
             )
 
         master_addr, master_port = self._get_master_addr_port(store)
-        restart_count = spec.max_restarts - self._remaining_restarts
 
         logger.info(
             f"[{spec.role}] Rendezvous complete for workers. Result:\n"
-            f"  restart_count={restart_count}\n"
+            f"  restart_count={self._restart_count}\n"
             f"  master_addr={master_addr}\n"
             f"  master_port={master_port}\n"
             f"  group_rank={group_rank}\n"
@@ -358,13 +357,13 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 return run_result
             elif state in {WorkerState.UNHEALTHY, WorkerState.FAILED}:
                 self._report_failure_to_master(run_result.failures)
-                if self._reamining_fo_count > 0:
+                if self._remaining_restarts > 0:
                     logger.info(
                         f"[{role}] Worker group {state.name}. "
                         f"{self._remaining_restarts}/{spec.max_restarts}"
                         f" attempts left; will restart worker group"
                     )
-                    self._reamining_fo_count -= 1
+                    self._remaining_restarts -= 1
                     self._restart_workers(self._worker_group)
                 else:
                     self._stop_workers(self._worker_group)
@@ -386,14 +385,11 @@ class ElasticTrainingAgent(LocalElasticAgent):
             )
             errors[rank] = error.__dict__
         error_data = json.dumps(errors)
-        self._client.report_failures(error_data)
+        self._client.report_failures(error_data, self._restart_count)
 
     def _restart_workers(self, worker_group: WorkerGroup):
-        self._remaining_restarts -= 1
+        self._restart_count += 1
         super()._restart_workers(worker_group)
-
-    def should_shutdown_rdzv(self):
-        return self._reamining_fo_count == 0
 
     def _membership_changed(self, role, rdzv_handler: RendezvousHandler):
         # Timeout may happen when to query TCPStore.
@@ -508,8 +504,6 @@ def launch_agent(
 
         return result.return_values
     except ChildFailedError:
-        if not agent.should_shutdown_rdzv():
-            shutdown_rdzv = False
         raise
     except SignalException:
         # when the agent dies with a signal do NOT shutdown the rdzv_handler

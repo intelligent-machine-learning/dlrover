@@ -235,6 +235,7 @@ message NodeFailure {
   int32 node_id = 1;
   string node_type = 2;
   string error_data = 3;
+  int32 restart_count = 4;
 }
 
 service Master {
