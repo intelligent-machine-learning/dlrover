@@ -582,6 +582,11 @@ class NcclCheckElasticAgent(ElasticTrainingAgent):
             self._stop_workers(self._worker_group)
             if network_ready:
                 return True
+            elif i == 0 and self._worker_group.group_world_size <= 2:
+                logger.error(
+                    "Fail to check network when there are only 2 nodes."
+                )
+                raise RuntimeError("The node network is breakdown.")
             time.sleep(1)
         if not success:
             self._client.report_failures(NodeErrorMessage.NETWORKER_ERROR)
