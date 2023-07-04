@@ -45,9 +45,10 @@ class ErrorLogMonitor(ErrorMonitor):
         if restart_count not in self._restart_errors:
             self._restart_errors[restart_count] = error_data
             logger.error(
-                f"{node.type}-{node.id} {restart_count} fails: {error_data}"
+                f"{node.type}-{node.id} on {node.node_name} "
+                f"restart {restart_count} fails: {error_data}"
             )
 
     def handle_node_error(self, node: Node, error_data: str):
         if error_data == NodeErrorMessage.NETWORKER_ERROR:
-            logger.error(f"{node.name} is breakdown.")
+            logger.error(f"{node.name} on {node.node_name} is breakdown.")

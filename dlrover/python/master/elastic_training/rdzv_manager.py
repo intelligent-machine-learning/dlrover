@@ -166,7 +166,7 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
                 self._lastcall_time = 0
                 logger.info(
                     f"Completed {self._rdzv_round} round "
-                    f"rendezvous {self._rdzv_nodes}"
+                    f"rendezvous of elastic training is {self._rdzv_nodes}"
                 )
                 self._rdzv_round += 1
 
@@ -274,7 +274,7 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                     self._lastcall_time = 0
                     logger.info(
                         f"Completed {self._rdzv_round} round "
-                        f"rendezvous {self._rdzv_nodes}"
+                        f"rendezvous of network check is {self._rdzv_nodes}"
                     )
                     self._node_groups = self._group_nodes(self._rdzv_round)
                     logger.info(
