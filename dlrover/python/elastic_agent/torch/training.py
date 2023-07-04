@@ -202,6 +202,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         self._log_dir = log_dir or tempfile.mkdtemp(prefix="torchelastic_")
         self._worker_watchdog: Optional[timer.FileTimerServer] = None
         self._restart_count = 0
+        self._remaining_failovers = self._remaining_restarts
         self._client = GlobalMasterClient.MASTER_CLIENT
 
     @prof
@@ -343,7 +344,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
             self._worker_group.state = state
 
             put_metric(
-                f"workers.{role}.remaining_restarts", self._remaining_restarts
+                f"workers.{role}.remaining_restarts", self._remaining_failovers
             )
             put_metric(f"workers.{role}.{state.name.lower()}", 1)
 
@@ -357,13 +358,13 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 return run_result
             elif state in {WorkerState.UNHEALTHY, WorkerState.FAILED}:
                 self._report_failure_to_master(run_result.failures)
-                if self._remaining_restarts > 0:
+                if self._remaining_failovers > 0:
                     logger.info(
                         f"[{role}] Worker group {state.name}. "
-                        f"{self._remaining_restarts}/{spec.max_restarts}"
+                        f"{self._remaining_failovers}/{spec.max_restarts}"
                         f" attempts left; will restart worker group"
                     )
-                    self._remaining_restarts -= 1
+                    self._remaining_failovers -= 1
                     self._restart_workers(self._worker_group)
                 else:
                     self._stop_workers(self._worker_group)
@@ -379,7 +380,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
     def _report_failure_to_master(self, failures: Dict[int, ProcessFailure]):
         errors = {}
         for rank, failure in failures.items():
-            dt = str(datetime.utcfromtimestamp(int(failure.timestamp)))
+            dt = str(datetime.fromtimestamp(int(failure.timestamp)))
             error = ProcessError(
                 failure.local_rank, failure.exitcode, failure.message, dt
             )
@@ -389,6 +390,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
     def _restart_workers(self, worker_group: WorkerGroup):
         self._restart_count += 1
+        self._remaining_restarts -= 1
         super()._restart_workers(worker_group)
 
     def _membership_changed(self, role, rdzv_handler: RendezvousHandler):
@@ -580,6 +582,11 @@ class NcclCheckElasticAgent(ElasticTrainingAgent):
             self._stop_workers(self._worker_group)
             if network_ready:
                 return True
+            elif i == 0 and self._worker_group.group_world_size <= 2:
+                logger.error(
+                    "Fail to check network when there are only 2 nodes."
+                )
+                raise RuntimeError("The node network is breakdown.")
             time.sleep(1)
         if not success:
             self._client.report_failures(NodeErrorMessage.NETWORKER_ERROR)
