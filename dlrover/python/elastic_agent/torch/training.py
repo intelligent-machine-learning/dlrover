@@ -380,7 +380,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
     def _report_failure_to_master(self, failures: Dict[int, ProcessFailure]):
         errors = {}
         for rank, failure in failures.items():
-            dt = str(datetime.utcfromtimestamp(int(failure.timestamp)))
+            dt = str(datetime.fromtimestamp(int(failure.timestamp)))
             error = ProcessError(
                 failure.local_rank, failure.exitcode, failure.message, dt
             )
