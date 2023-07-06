@@ -52,3 +52,4 @@ if __name__ == "__main__":
         main(use_cuda)
     finally:
         dist.destroy_process_group()
+    logger.info("Finish testing allgather.")

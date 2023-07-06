@@ -695,7 +695,7 @@ def run_network_check(config, entrypoint):
             config=config, entrypoint=entrypoint, args=cmd_args
         )
         if success:
-            logger.error("Network check pass.")
+            logger.info("Network check pass.")
             return success
         else:
             logger.error(
