@@ -375,7 +375,7 @@ class JobManager(object):
                 name=event.node.name,
                 start_time=event.node.start_time,
                 create_time=event.node.create_time,
-                node_name=event.node.node_name,
+                host_name=event.node.host_name,
             )
 
         # For the given node id, check whether it meets
