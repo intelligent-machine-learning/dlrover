@@ -352,7 +352,7 @@ class MasterClient(object):
         return response.group, response.world
 
     @retry_grpc_request
-    def network_check_success(self, timeout=120):
+    def network_check_success(self, timeout=180):
         request = elastic_training_pb2.RendezvousRequest()
         start = time.time()
         while True:
