@@ -235,3 +235,8 @@ class RendezvousName(object):
 
 class NodeErrorMessage(object):
     NETWORKER_ERROR = "Network is breakdown"
+
+
+class NetworkFailureReason(object):
+    NODE_FAILURE = "Node Failure"
+    WAITING_NODE = "Waiting node"
