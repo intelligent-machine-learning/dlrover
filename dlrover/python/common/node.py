@@ -234,10 +234,14 @@ class Node(object):
         return new_node
 
     def is_unrecoverable_failure(self):
+        cpu_memory_overload = (
+            self.config_resource.gpu_num == 0
+            and self.config_resource.memory >= NodeResourceLimit.MAX_MEMORY
+        )
         if (
             self.relaunch_count >= self.max_relaunch_count
             or self.exit_reason == NodeExitReason.FATAL_ERROR
-            or self.config_resource.memory >= NodeResourceLimit.MAX_MEMORY
+            or cpu_memory_overload
         ):
             return True
         return False
