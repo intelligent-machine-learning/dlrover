@@ -259,7 +259,7 @@ class AllReduceNodeHandlingCallback(NodeEventCallback):
         self._speed_monitor.remove_running_worker(node.type, node.id)
         if node.exit_reason == NodeExitReason.HARDWARE_ERROR:
             self._master.job_manager.handle_training_failure(
-                node.type, node.id, NodeExitReason.HARDWARE_ERROR
+                node.type, node.id, error_data=NodeExitReason.HARDWARE_ERROR
             )
         for manager in self._rdzv_managers.values():
             manager.add_alive_node(node)
