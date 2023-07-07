@@ -17,6 +17,7 @@ import time
 
 import psutil
 
+from dlrover.python.common.constants import NodeEnv
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import singleton
 from dlrover.python.elastic_agent.master_client import GlobalMasterClient
@@ -60,7 +61,10 @@ class ResourceMonitor(object):
         reports the used memory and cpu percent to the DLRover master.
         """
         self._total_cpu = psutil.cpu_count(logical=True)
-        if os.getenv("DLROVER_MASTER_ADDR", ""):
+        if (
+            os.getenv(NodeEnv.DLROVER_MASTER_ADDR, "")
+            and os.getenv(NodeEnv.AUTO_MONITOR_WORKLOAD, "") == "true"
+        ):
             threading.Thread(
                 target=self._monitor_resource,
                 name="monitor_resource",

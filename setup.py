@@ -56,6 +56,6 @@ setup(
         ]
     },
     entry_points={
-        "console_scripts": ["torchrun=dlrover.trainer.torch.main:main"]
+        "console_scripts": ["dlrover-run=dlrover.trainer.torch.main:main"]
     },
 )

@@ -1,11 +1,6 @@
 from enum import Enum
 
 
-class ZeroEnv(object):
-    ZERO_BACKEND_FAIRSCALE = "fairscale"
-    ZERO_BECKEND_DEEPSPEED = "deepspeed"
-
-
 class GrpcEnv(object):
     """
     The default message size of grpc is 4 MB, which is too small to send
@@ -54,3 +49,14 @@ class AutoAccelerateExtraArgs(Enum):
     @classmethod
     def all(cls):
         return [variable.value for variable in list(cls)]
+
+
+class GPUCapability:
+    """
+    TFLOPS of GPU
+    """
+
+    TFLOPS = {
+        "FP16": {"NVIDIA A100-SXM4-80GB": 312, "Tesla V100-SXM2-32GB": 125},
+        "FP32": {"NVIDIA A100-SXM4-80GB": 19.5, "Tesla V100-SXM2-32GB": 15.7},
+    }

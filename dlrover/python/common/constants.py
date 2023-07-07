@@ -53,10 +53,10 @@ class NodeType(object):
 
 class ElasticJobLabel(object):
     APP_NAME = "dlrover"
-    JOB_KEY = "elasticjob-name"
-    REPLICA_TYPE_KEY = "replica-type"
-    REPLICA_INDEX_KEY = "replica-index"
-    RANK_INDEX_KEY = "rank-index"
+    JOB_KEY = "elasticjob.dlrover/name"
+    REPLICA_TYPE_KEY = "elasticjob.dlrover/replica-type"
+    REPLICA_INDEX_KEY = "elasticjob.dlrover/replica-index"
+    RANK_INDEX_KEY = "elasticjob.dlrover/rank-index"
 
 
 class ScalePlanLabel(object):
@@ -74,6 +74,7 @@ class NodeStatus(object):
     INITIAL = "Initial"
     DELETED = "Deleted"
     UNKNOWN = "Unknown"
+    BREAKDOWN = "Breakdown"
 
 
 class NodeEventType(object):
@@ -192,6 +193,7 @@ class NodeEnv(object):
     RDZV_ENDPOINT = "RDZV_ENDPOINT"
     GRPC_ENABLE_FORK = "GRPC_ENABLE_FORK_SUPPORT"
     POD_NAME = "POD_NAME"
+    AUTO_MONITOR_WORKLOAD = "AUTO_MONITOR_WORKLOAD"
 
 
 class DatasetType(object):
@@ -222,3 +224,12 @@ class MemoryUnit(object):
 
 class k8sAPIExceptionReason(object):
     NOT_FOUND = "Not Found"
+
+
+class RendezvousName(object):
+    ELASTIC_TRAINING = "elastic-training"
+    NETWORK_CHECK = "network-check"
+
+
+class NodeErrorMessage(object):
+    NETWORKER_ERROR = "Network is breakdown"

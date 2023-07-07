@@ -31,6 +31,14 @@ def add_params(parser):
         type=str,
         help="The name of platform",
     )
+    parser.add_argument(
+        "--relaunch_error",  # should be in "--foo" format
+        nargs="?",
+        const=not False,
+        default=False,
+        type=lambda x: x.lower() in ["true", "yes", "t", "y"],
+        help=help,
+    )
 
 
 def print_args(args, exclude_args=[], groups=None):
@@ -76,7 +84,7 @@ def _build_master_args_parser():
     parser = argparse.ArgumentParser(description="Training Master")
     parser.add_argument(
         "--port",
-        default=50001,
+        default=0,
         type=pos_int,
         help="The listening port of master",
     )

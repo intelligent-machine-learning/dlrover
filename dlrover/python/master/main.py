@@ -37,8 +37,10 @@ def run(args):
     job_args = new_job_args(args.platform, args.job_name, args.namespace)
     job_args.initilize()
     logger.info("Job args : %s", job_args.toJSON())
+    _dlrover_context.config_master_port(port=args.port)
+    _dlrover_context.relaunch_error = args.relaunch_error
     update_context(job_args)
-    master = Master(args.port, job_args)
+    master = Master(_dlrover_context.master_port, job_args)
     master.prepare()
     return master.run()
 

@@ -13,6 +13,7 @@
 
 import argparse
 import os
+from datetime import timedelta
 
 import torch
 import torch.distributed as dist
@@ -20,12 +21,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import torchvision
+from torch.distributed.elastic.multiprocessing.errors import record
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader
 from torchvision import transforms
 
-from dlrover.trainer.torch.elastic import ElasticTrainer, set_master_addr
+from dlrover.trainer.torch.elastic import ElasticTrainer
 from dlrover.trainer.torch.elastic_sampler import ElasticDistributedSampler
 
 CHEKPOINT_PATH = "model.pt"
@@ -69,17 +71,17 @@ def cleanup():
 
 def setup():
     use_cuda = torch.cuda.is_available()
-    set_master_addr()
     if use_cuda:
-        dist.init_process_group("nccl")
+        dist.init_process_group("nccl", timeout=timedelta(seconds=120))
         torch.cuda.set_device(int(os.environ["LOCAL_RANK"]))
     else:
-        dist.init_process_group("gloo")
+        dist.init_process_group("gloo", timeout=timedelta(seconds=120))
     rank = dist.get_rank()
     local_rank = os.environ["LOCAL_RANK"]
     print(f"rank {rank} is initialized local_rank = {local_rank}")
 
 
+@record
 def train(args):
     """The function to run the training loop.
     Args:

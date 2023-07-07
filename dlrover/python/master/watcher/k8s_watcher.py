@@ -94,6 +94,7 @@ def _convert_pod_event_to_node_event(event):
     rank = int(evt_obj.metadata.labels[ElasticJobLabel.RANK_INDEX_KEY])
     pod_id = int(evt_obj.metadata.labels[ElasticJobLabel.REPLICA_INDEX_KEY])
     pod_name = evt_obj.metadata.name
+    node_name = evt_obj.spec.node_name
 
     resource = _parse_container_resource(evt_obj.spec.containers[0])
     node = Node(
@@ -104,6 +105,7 @@ def _convert_pod_event_to_node_event(event):
         status=evt_obj.status.phase,
         start_time=_get_start_timestamp(evt_obj.status),
         config_resource=resource,
+        node_name=node_name,
     )
     node.set_exit_reason(_get_pod_exit_reason(evt_obj))
     node_event = NodeEvent(event_type=evt_type, node=node)
