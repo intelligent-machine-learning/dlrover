@@ -46,9 +46,10 @@ if __name__ == "__main__":
     try:
         use_cuda = torch.cuda.is_available()
         if use_cuda:
-            dist.init_process_group("nccl", timeout=timedelta(seconds=60))
+            dist.init_process_group("nccl", timeout=timedelta(seconds=180))
         else:
-            dist.init_process_group("gloo", timeout=timedelta(seconds=60))
+            dist.init_process_group("gloo", timeout=timedelta(seconds=180))
         main(use_cuda)
     finally:
         dist.destroy_process_group()
+    logger.info("Finish testing allgather.")

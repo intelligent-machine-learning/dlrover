@@ -594,9 +594,9 @@ class NcclCheckElasticAgent(ElasticTrainingAgent):
             raise RuntimeError("The node network is breakdown.")
         return False
 
-    def _run_network_check(self, monitor_interval):
+    def _run_network_check(self, monitor_interval, timeout=180):
         self._initialize_workers(self._worker_group)
-
+        start = time.time()
         while True:
             assert self._worker_group.state != WorkerState.INIT
             time.sleep(monitor_interval)
@@ -604,6 +604,9 @@ class NcclCheckElasticAgent(ElasticTrainingAgent):
             state = run_result.state
             self._worker_group.state = state
             if state == WorkerState.HEALTHY:
+                if time.time() - start > timeout:
+                    logger.error(f"Timeout {timeout} to check network.")
+                    return False
                 continue
             return state == WorkerState.SUCCEEDED
 
@@ -695,7 +698,7 @@ def run_network_check(config, entrypoint):
             config=config, entrypoint=entrypoint, args=cmd_args
         )
         if success:
-            logger.error("Network check pass.")
+            logger.info("Network check pass.")
             return success
         else:
             logger.error(
