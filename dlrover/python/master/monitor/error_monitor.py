@@ -14,7 +14,6 @@
 from abc import ABCMeta, abstractmethod
 from typing import Dict
 
-from dlrover.python.common.constants import NodeErrorMessage
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node
 
@@ -50,5 +49,7 @@ class ErrorLogMonitor(ErrorMonitor):
             )
 
     def handle_node_error(self, node: Node, error_data: str):
-        if error_data == NodeErrorMessage.NETWORKER_ERROR:
-            logger.error(f"{node.name} on {node.node_name} is breakdown.")
+        logger.error(
+            f"{node.name} on {node.node_name} is breakdown."
+            f"Reason: {error_data}"
+        )

@@ -665,8 +665,9 @@ class JobManager(object):
             return False
 
     def handle_training_failure(
-        self, node_type, node_id, restart_count, error_data
+        self, node_type, node_id, restart_count=-1, error_data=""
     ):
+        """Process the training failure reported by the node."""
         node = self._job_nodes[node_type][node_id]
         if restart_count >= 0:
             self._error_monitor.handle_process_error(

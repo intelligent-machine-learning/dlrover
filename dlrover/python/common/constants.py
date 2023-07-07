@@ -87,6 +87,7 @@ class NodeExitReason(object):
     OOM = "OOMKilled"
     FATAL_ERROR = "Error"
     UNKNOWN_ERROR = "UnknownError"
+    HARDWARE_ERROR = "HardwareError"
 
 
 class JobExitReason(object):
@@ -109,6 +110,7 @@ class ExitCode(object):
     OOM_CODE = 247
     GPU_DRIVER_ERROR = 201
     GPU_POD_RESIDUE = 202
+    GPU_INFOROM_CORRUPTED = 14
 
 
 class NodeResourceLimit(object):
