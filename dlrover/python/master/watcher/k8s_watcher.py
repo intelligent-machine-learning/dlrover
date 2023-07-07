@@ -51,14 +51,9 @@ def _get_pod_exit_reason(pod):
         pod_name = pod.metadata.name
         exit_code = terminated.exit_code
         logger.warning(f"Pod {pod_name} exits with exitcode {exit_code}")
-        if (
-            terminated.reason == "OOMKilled" or exit_code == ExitCode.OOM_CODE
-        ):
+        if terminated.reason == "OOMKilled" or exit_code == ExitCode.OOM_CODE:
             return NodeExitReason.OOM
-        elif (
-            exit_code == ExitCode.KILLED_CODE
-            or exit_code == ExitCode.TERMED_CODE
-        ):
+        elif exit_code in [ExitCode.KILLED_CODE, ExitCode.TERMED_CODE]:
             return NodeExitReason.KILLED
         elif exit_code in (
             ExitCode.FATAL_ERROR_CODE,
