@@ -48,30 +48,34 @@ def _get_pod_exit_reason(pod):
         and pod.status.container_statuses[0].state.terminated
     ):
         terminated = pod.status.container_statuses[0].state.terminated
+        pod_name = pod.metadata.name
+        exit_code = terminated.exit_code
+        logger.warning(f"Pod {pod_name} exits with exitcode {exit_code}")
         if (
-            terminated.reason == "OOMKilled"
-            or terminated.exit_code == ExitCode.OOM_CODE
+            terminated.reason == "OOMKilled" or exit_code == ExitCode.OOM_CODE
         ):
             return NodeExitReason.OOM
         elif (
-            terminated.exit_code == ExitCode.KILLED_CODE
-            or terminated.exit_code == ExitCode.TERMED_CODE
+            exit_code == ExitCode.KILLED_CODE
+            or exit_code == ExitCode.TERMED_CODE
         ):
             return NodeExitReason.KILLED
-        elif terminated.exit_code in (
+        elif exit_code in (
             ExitCode.FATAL_ERROR_CODE,
             ExitCode.CORE_DUMP_ERROR_CODE,
         ):
             return NodeExitReason.FATAL_ERROR
         else:
-            if terminated.exit_code in (
+            if exit_code in (
                 ExitCode.GPU_DRIVER_ERROR,
                 ExitCode.GPU_POD_RESIDUE,
+                ExitCode.GPU_INFOROM_CORRUPTED,
             ):
                 logger.info(
                     "Possible error found in GPU. Kill this node and launch a"
                     " new one."
                 )
+                return NodeExitReason.HARDWARE_ERROR
             return NodeExitReason.UNKNOWN_ERROR
 
 
