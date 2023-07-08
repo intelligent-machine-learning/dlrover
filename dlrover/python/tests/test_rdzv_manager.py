@@ -15,6 +15,7 @@ import datetime
 import time
 import unittest
 
+from dlrover.python.common.constants import NetworkFailureReason
 from dlrover.python.common.node import Node
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
 from dlrover.python.master.elastic_training.rdzv_manager import (
@@ -103,15 +104,20 @@ class NcclCheckRendezvousManagerTest(unittest.TestCase):
         group, world = rdzv_manager.get_comm_world(2)
         self.assertDictEqual(world, {2: 8, 3: 8})
         self.assertEqual(group, 1)
-        rdzv_manager.report_network_check_result(0, True)
-        rdzv_manager.report_network_check_result(1, True)
-        rdzv_manager.report_network_check_result(2, True)
+        for i in range(3):
+            rdzv_manager.report_network_check_result(i, True)
         rdzv_manager.report_network_check_result(3, False)
-        self.assertFalse(rdzv_manager.network_check_success())
+        success, _ = rdzv_manager.network_check_success()
+        self.assertFalse(success)
         for i in range(4):
             round = rdzv_manager.join_rendezvous(i, 8)
         self.assertEqual(round, 2)
         group, world = rdzv_manager.get_comm_world(3)
         self.assertDictEqual(world, {0: 8, 3: 8})
+        _, reason = rdzv_manager.network_check_success()
+        self.assertEqual(reason, NetworkFailureReason.WAITING_NODE)
+        for i in range(3):
+            rdzv_manager.report_network_check_result(i, True)
         rdzv_manager.report_network_check_result(3, True)
-        self.assertTrue(rdzv_manager.network_check_success())
+        success, _ = rdzv_manager.network_check_success()
+        self.assertTrue(success)

@@ -21,7 +21,7 @@ from typing import Dict
 from google.protobuf import empty_pb2
 
 from dlrover.proto import elastic_training_pb2, elastic_training_pb2_grpc
-from dlrover.python.common.constants import NodeEnv
+from dlrover.python.common.constants import NetworkFailureReason, NodeEnv
 from dlrover.python.common.grpc import build_channel
 from dlrover.python.common.log import default_logger as logger
 
@@ -352,9 +352,18 @@ class MasterClient(object):
         return response.group, response.world
 
     @retry_grpc_request
-    def network_check_success(self):
+    def network_check_success(self, timeout=180):
         request = elastic_training_pb2.RendezvousRequest()
-        response = self._stub.network_check_success(request)
+        start = time.time()
+        while True:
+            response = self._stub.network_check_success(request)
+            if (
+                response.reason == NetworkFailureReason.WAITING_NODE
+                and time.time() - start < timeout
+            ):
+                time.sleep(3)
+                continue
+            break
         return response.success
 
     @retry_grpc_request

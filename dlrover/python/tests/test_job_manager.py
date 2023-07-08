@@ -315,6 +315,7 @@ class JobManagerTest(unittest.TestCase):
         callback = TFPSNodeHandlingCallback(master)
 
         node = Node(NodeType.PS, 0, None)
+        node.config_resource = NodeResource(1, 10240)
         node.exit_reason = NodeExitReason.OOM
         reason = callback.get_job_exit_reason(node)
         self.assertEqual(reason, JobExitReason.PS_OOM_ERROR)

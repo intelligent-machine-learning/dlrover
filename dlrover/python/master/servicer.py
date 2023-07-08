@@ -452,8 +452,9 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
     def network_check_success(self, request, _):
         res = elastic_training_pb2.Response()
         net_rdzv_manager = self._rdzv_managers[RendezvousName.NETWORK_CHECK]
-        success = net_rdzv_manager.network_check_success()
+        success, reason = net_rdzv_manager.network_check_success()
         res.success = success
+        res.reason = reason
         return res
 
 
