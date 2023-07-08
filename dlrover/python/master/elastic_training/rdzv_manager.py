@@ -17,6 +17,7 @@ from abc import ABCMeta, abstractmethod
 from threading import Lock
 from typing import Dict, List
 
+from dlrover.python.common.constants import NetworkFailureReason
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node
 
@@ -223,6 +224,7 @@ class NetworkCheckRendezvousManager(RendezvousManager):
     def __init__(self):
         super().__init__()
         self._node_status: Dict[int, bool] = {}
+        self._reported_nodes = set()
         self._node_groups: List[Dict[int, int]] = []
 
     def update_rdzv_params(self, min_nodes, max_ndoes, waiting_timeout):
@@ -283,6 +285,7 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                     )
                     if self._rdzv_round % 3 == 0:
                         self._node_status = {}
+                    self._reported_nodes = set()
                     self._rdzv_round += 1
 
             for i, group in enumerate(self._node_groups):
@@ -336,6 +339,7 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         return node_groups
 
     def report_network_check_result(self, node_id: int, succeed):
+        self._reported_nodes.add(node_id)
         self._node_status.setdefault(node_id, False)
         self._node_status[node_id] = self._node_status[node_id] or succeed
 
@@ -372,9 +376,16 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         allgather. If succeed, the round should be set to the multiples of 3.
         """
         with self._lock:
-            success = self._node_status and all(
-                list(self._node_status.values())
-            )
-            if success:
-                self._rdzv_round = math.ceil(self._rdzv_round / 3) * 3
-            return success
+            reason = ""
+            success = False
+            if len(self._reported_nodes) < len(self._rdzv_nodes):
+                reason = NetworkFailureReason.WAITING_NODE
+            else:
+                success = self._node_status and all(
+                    list(self._node_status.values())
+                )
+                if success:
+                    self._rdzv_round = math.ceil(self._rdzv_round / 3) * 3
+                else:
+                    reason = NetworkFailureReason.NODE_FAILURE
+            return success, reason
