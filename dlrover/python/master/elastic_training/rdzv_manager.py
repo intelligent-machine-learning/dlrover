@@ -342,6 +342,11 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         self._reported_nodes.add(node_id)
         self._node_status.setdefault(node_id, False)
         self._node_status[node_id] = self._node_status[node_id] or succeed
+        if len(self._reported_nodes) == len(self._rdzv_nodes):
+            logger.info(
+                f"The {self._rdzv_round} network status of node "
+                f"group is {self._node_status}."
+            )
 
     def join_rendezvous(
         self,
