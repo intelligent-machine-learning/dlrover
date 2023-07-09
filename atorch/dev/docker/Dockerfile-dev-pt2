@@ -48,6 +48,30 @@ RUN echo "/usr/local/cuda/lib" >> /etc/ld.so.conf.d/nvidia.conf && \
     rm -rf handle_driver_compat.sh
 
 ##############################################################################
+# apex, flash-attention, fastmoe
+# Apex: 623315a5d1b47b0addf00bbfd15017e5605750bc
+# aistudio
+##############################################################################
+FROM util-base as atorch-fa-base
+ENV USE_NCCL=1
+ARG TORCH_CUDA_ARCH_LIST="6.0 7.0 7.5 8.0 8.6+PTX"
+# RUN yum install libnccl-2.16.2-1+cuda11.0 libnccl-devel-2.16.2-1+cuda11.0 -y && \
+RUN pip install https://dlrover.oss-cn-beijing.aliyuncs.com/atorch/libs/fastmoe.tar.gz
+RUN pip install dm-tree setuptools packaging && \
+    wget -O apex.zip https://dlrover.oss-cn-beijing.aliyuncs.com/atorch/libs/apex-master.zip && \
+    apt-get install -y unzip && \
+    unzip apex.zip -d ./ && \
+    cd ./apex-master && \
+    MAKEFLAGS="-j$(nproc)" MAX_JOBS=16 \
+    pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./ && \
+    cd .. && rm -rf apex*
+RUN pip install https://dlrover.oss-cn-beijing.aliyuncs.com/atorch/libs/flash_attn-0.2.6.post1-cp310-cp310-linux_x86_64.whl && \
+    wget -O catapult.tar.gz https://dlrover.oss-cn-beijing.aliyuncs.com/atorch/libs/catapult.tar.gz && \
+    mkdir -p /home/admin/profile/ && \
+    tar -zxf catapult.tar.gz -C /home/admin/profile/ && \
+    rm -f catapult.tar.gz
+
+##############################################################################
 # atorch install
 ##############################################################################
 COPY atorch/requirements.txt ./

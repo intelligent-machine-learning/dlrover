@@ -45,3 +45,15 @@ def stop_coverage():
     global ut_cov
     ut_cov.stop()
     ut_cov.save()
+
+
+def skip_if_old_gpu():
+    if torch.cuda.device_count() > 0:
+        old_devices = ["P100", "V100", "M40", "A10", "T4"]
+        device_name = torch.cuda.get_device_name(0)
+        for device in old_devices:
+            if device in device_name:
+                return True
+        return False
+    else:
+        return True
