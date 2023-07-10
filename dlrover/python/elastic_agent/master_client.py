@@ -367,11 +367,14 @@ class MasterClient(object):
         return response.success
 
     @retry_grpc_request
-    def report_rdzv_params(self, min_nodes, max_nodes, waiting_timeout):
+    def report_rdzv_params(
+        self, min_nodes, max_nodes, waiting_timeout, node_unit
+    ):
         request = elastic_training_pb2.RendezvousParams()
         request.min_nodes = min_nodes
         request.max_nodes = max_nodes
         request.waiting_timeout = waiting_timeout
+        request.node_unit = node_unit
         response = self._stub.report_rdzv_params(request)
         return response.success
 
@@ -582,7 +585,9 @@ class LocalMasterClient(object):
     def report_node_status(self, normal):
         return True
 
-    def report_rdzv_params(self, min_nodes, max_nodes, waiting_timeout):
+    def report_rdzv_params(
+        self, min_nodes, max_nodes, waiting_timeout, node_unit
+    ):
         return True
 
     def kv_store_set(self, key, value):

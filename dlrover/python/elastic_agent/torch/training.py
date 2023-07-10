@@ -79,11 +79,13 @@ class MasterRendezvousHandler(RendezvousHandler):
         self._client = GlobalMasterClient.MASTER_CLIENT
         self._store = MasterKVStore(self._name, timedelta(seconds=60))
         lastcall_timeout = int(rdzv_params.get("lastcall_timeout", 60))
+        node_unit = int(rdzv_params.get("node_unit", "1"))
         if self._rank_id == 0:
             self._client.report_rdzv_params(
                 rdzv_params.min_nodes,
                 rdzv_params.max_nodes,
                 lastcall_timeout,
+                node_unit,
             )
 
     def get_backend(self) -> str:

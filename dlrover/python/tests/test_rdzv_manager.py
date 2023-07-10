@@ -79,6 +79,26 @@ class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
         self.assertEqual(len(rdzv_manager._rdzv_nodes), 2)
         self.assertDictEqual(world, {0: 8, 1: 8})
 
+    def test_min_nodes_with_unit(self):
+        rdzv_manager = ElasticTrainingRendezvousManager()
+        rdzv_manager._worker_num_unit = 4
+        rdzv_manager.update_rdzv_params(2, 3, 0.1)
+        for i in range(10):
+            node = Node("worker", i)
+            rdzv_manager.add_alive_node(node)
+            rdzv_manager.join_rendezvous(i, 8)
+        self.assertEqual(len(rdzv_manager._alive_nodes), 10)
+        self.assertEqual(len(rdzv_manager._waiting_nodes), 10)
+        self.assertEqual(len(rdzv_manager._rdzv_nodes), 0)
+        time.sleep(0.2)
+        _, world = rdzv_manager.get_comm_world(1)
+        self.assertEqual(len(rdzv_manager._waiting_nodes), 0)
+        self.assertEqual(len(rdzv_manager._rdzv_nodes), 8)
+        expected_world = {i: 8 for i in range(8)}
+        self.assertDictEqual(world, expected_world)
+        _, world = rdzv_manager.get_comm_world(9)
+        self.assertDictEqual(world, {})
+
 
 class NcclCheckRendezvousManagerTest(unittest.TestCase):
     def test_network_check_rdzv(self):

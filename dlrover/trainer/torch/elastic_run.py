@@ -14,7 +14,7 @@
 import uuid
 from typing import Callable, Union
 
-from torch.distributed.argparse_util import check_env
+from torch.distributed.argparse_util import check_env, env
 from torch.distributed.elastic.multiprocessing.errors import record
 from torch.distributed.launcher.api import LaunchConfig
 from torch.distributed.run import config_from_args, get_args_parser
@@ -27,8 +27,18 @@ def parse_args(args):
     parser = get_args_parser()
     parser.add_argument(
         "--network-check",
+        "--network_check",
         action=check_env,
         help="Whether to check network before starting training process.",
+    )
+    parser.add_argument(
+        "--node_unit",
+        "--node-unit",
+        type=int,
+        action=env,
+        default=1,
+        help="The number unit of nodes to schedule. The scheduled number of "
+        "nodes should be a multiple of node_unit.",
     )
     return parser.parse_args(args)
 
@@ -89,10 +99,12 @@ def run(args):
         )
 
     config, cmd, cmd_args = config_from_args(args)
+    setattr(config, "network_check", False)
+    setattr(config, "node_unit", 1)
     if hasattr(args, "network_check"):
         config.network_check = args.network_check
-    else:
-        config.network_check = False
+    if hasattr(args, "node_unit"):
+        config.rdzv_configs["node_unit"] = args.node_unit
     elastic_launch(
         config=config,
         entrypoint=cmd,

@@ -109,12 +109,24 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
 
     def __init__(self):
         super().__init__()
+        self._worker_num_unit = 1
 
-    def update_rdzv_params(self, min_nodes, max_ndoes, waiting_timeout):
-        """Update rendezvous parameters"""
+    def update_rdzv_params(
+        self, min_nodes, max_ndoes, waiting_timeout, worker_unit=1
+    ):
+        """Update rendezvous parameters
+        Args:
+            min_nodes: The minimum number of nodes.
+            max_nodes: THe maximum number of nodes.
+            waiting_timeout: the time to wait more workers.
+            worker_unit: the number unit of workers to build the communication
+                world. This is, the number of nodes in a world should be
+                a multiple of worker_unit.
+        """
         self._rdzv_params.min_nodes = min_nodes
         self._rdzv_params.max_nodes = max_ndoes
         self._rdzv_params.waiting_timeout = waiting_timeout
+        self._worker_num_unit = worker_unit
 
     def add_alive_node(self, node: Node):
         """When a node is running, the master will add it to alive list."""
@@ -147,31 +159,41 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
         """
         with self._lock:
             rdzv_completed = False
-            if self._rdzv_nodes:
-                return 0, self._rdzv_nodes
-            if len(self._waiting_nodes) == self._rdzv_params.max_nodes:
-                rdzv_completed = True
-            else:
+            if not self._rdzv_nodes:
                 waiting_num = len(self._waiting_nodes)
-                alive_num = len(self._alive_nodes)
-                waiting_time = time.time() - self._lastcall_time
-                rdzv_completed = (
-                    waiting_num >= self._rdzv_params.min_nodes
-                    and waiting_num == alive_num
-                    and waiting_time >= self._rdzv_params.waiting_timeout
-                )
+                if len(self._waiting_nodes) == self._rdzv_params.max_nodes:
+                    rdzv_completed = True
+                else:
+                    alive_num = len(self._alive_nodes)
+                    waiting_time = time.time() - self._lastcall_time
+                    if (
+                        waiting_num >= self._rdzv_params.min_nodes
+                        and waiting_num == alive_num
+                        and waiting_time >= self._rdzv_params.waiting_timeout
+                    ):
+                        rdzv_completed = True
+                        waiting_num = (
+                            waiting_num // self._worker_num_unit
+                        ) * self._worker_num_unit
 
-            if rdzv_completed:
-                self._rdzv_nodes = dict(sorted(self._waiting_nodes.items()))
-                self._waiting_nodes = dict()
-                self._lastcall_time = 0
-                logger.info(
-                    f"Completed {self._rdzv_round} round "
-                    f"rendezvous of elastic training is {self._rdzv_nodes}"
-                )
-                self._rdzv_round += 1
+                if rdzv_completed:
+                    node_ids = sorted(self._waiting_nodes.keys())[
+                        0:waiting_num
+                    ]
+                    self._rdzv_nodes = {}
+                    for i in node_ids:
+                        self._rdzv_nodes[i] = self._waiting_nodes[i]
+                    self._waiting_nodes = dict()
+                    self._lastcall_time = 0
+                    logger.info(
+                        f"Completed {self._rdzv_round} round "
+                        f"rendezvous of elastic training is {self._rdzv_nodes}"
+                    )
+                    self._rdzv_round += 1
 
-            return 0, self._rdzv_nodes
+            if node_id not in self._rdzv_nodes:
+                return self._rdzv_round, {}
+            return self._rdzv_round, self._rdzv_nodes
 
     def join_rendezvous(self, node_id, local_world_size):
         """The node joins the current rond rendezvous.
