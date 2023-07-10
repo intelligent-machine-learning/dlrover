@@ -33,7 +33,9 @@ class RendezvousManager(metaclass=ABCMeta):
         self._rdzv_params = RendezvousParameters(0, 0)
         self._rdzv_round = 0
 
-    def update_rdzv_params(self, min_nodes, max_ndoes, waiting_timeout):
+    def update_rdzv_params(
+        self, min_nodes, max_ndoes, waiting_timeout, node_unit
+    ):
         """Update rendezvous parameters"""
 
     @abstractmethod
@@ -109,10 +111,10 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
 
     def __init__(self):
         super().__init__()
-        self._worker_num_unit = 1
+        self._node_unit = 1
 
     def update_rdzv_params(
-        self, min_nodes, max_ndoes, waiting_timeout, worker_unit=1
+        self, min_nodes, max_ndoes, waiting_timeout, node_unit=1
     ):
         """Update rendezvous parameters
         Args:
@@ -126,7 +128,7 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
         self._rdzv_params.min_nodes = min_nodes
         self._rdzv_params.max_nodes = max_ndoes
         self._rdzv_params.waiting_timeout = waiting_timeout
-        self._worker_num_unit = worker_unit
+        self._node_unit = node_unit
 
     def add_alive_node(self, node: Node):
         """When a node is running, the master will add it to alive list."""
@@ -173,8 +175,8 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
                     ):
                         rdzv_completed = True
                         waiting_num = (
-                            waiting_num // self._worker_num_unit
-                        ) * self._worker_num_unit
+                            waiting_num // self._node_unit
+                        ) * self._node_unit
 
                 if rdzv_completed:
                     node_ids = sorted(self._waiting_nodes.keys())[

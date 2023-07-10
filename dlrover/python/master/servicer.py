@@ -421,6 +421,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
                 min_nodes=request.min_nodes,
                 max_ndoes=request.max_nodes,
                 waiting_timeout=request.waiting_timeout,
+                node_unit=request.node_unit,
             )
         res = elastic_training_pb2.Response()
         res.success = True
