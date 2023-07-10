@@ -81,10 +81,9 @@ class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
 
     def test_min_nodes_with_unit(self):
         rdzv_manager = ElasticTrainingRendezvousManager()
-        rdzv_manager._node_unit = 4
-        rdzv_manager.update_rdzv_params(2, 3, 0.1)
+        rdzv_manager.update_rdzv_params(8, 12, 0.1, 4)
         for i in range(10):
-            node = Node("worker", i)
+            node = Node("worker", i, name=f"worker-{i}")
             rdzv_manager.add_alive_node(node)
             rdzv_manager.join_rendezvous(i, 8)
         self.assertEqual(len(rdzv_manager._alive_nodes), 10)
