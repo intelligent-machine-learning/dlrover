@@ -16,7 +16,7 @@ class HalfOptimization(Optimization):
 
     def tune(self, model_context, config=None, strategy=None, apply_transform=True, time_limit=None):
         if apply_transform:
-            model_context = self.transform(model_context, config, apply_wrapper=False)
+            model_context = self.transform(model_context, config)
         return True, config, model_context
 
     def transform(self, model_context, config="fp16"):
@@ -27,7 +27,7 @@ class HalfOptimization(Optimization):
     def apply_wrapper(model_context, wrapper_name, wrapper_config=None):
         # wrapper_config should be one of "fp16", "bf16".
         if wrapper_config not in ("fp16", "bf16"):
-            logger.error("Invalid config for half optimization. Should be fp16 or bf16 but get ", wrapper_config)
+            logger.error("Invalid config for half optimization. Should be fp16 or bf16 but get %s", wrapper_config)
         dtype = torch.float16 if wrapper_config == "fp16" else torch.bfloat16
         model_context.model = model_context.model.to(dtype)
         return model_context
