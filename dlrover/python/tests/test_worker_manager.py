@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import unittest
+import copy
 from datetime import datetime, timedelta
 
 from dlrover.python.common.constants import (
@@ -146,3 +147,32 @@ class WorkerManagerTest(unittest.TestCase):
 
         wait = worker_manager.wait_worker_restart()
         self.assertFalse(wait)
+
+    def test_all_worker_exited(self):
+        job_nodes = copy.deepcopy(self._job_nodes)
+        worker = job_nodes[NodeType.WORKER][0]
+        worker.max_relaunch_count = 1
+        worker.critical = True
+        worker.config_resource.priority = "low"
+
+        worker_manager = WorkerManager(
+            {0: worker},
+            self._job_resource,
+            1,
+            self._elastic_job.get_node_service_addr,
+            self._elastic_job.get_node_name,
+        )
+        worker.status = NodeStatus.FAILED
+        worker.exit_reason = NodeExitReason.KILLED
+        worker_manager.relaunch_node(worker)
+        self.assertTrue(worker_manager._nodes[1].critical)
+        worker_manager._nodes[1].status = NodeStatus.PENDING
+        all_worker_exited = worker_manager.all_nodes_exited()
+        self.assertFalse(all_worker_exited)
+
+        worker.config_resource.priority = ""
+        worker.is_released = False
+        self.assertTrue(worker_manager._nodes[1].critical)
+        worker_manager._nodes[1].status = NodeStatus.PENDING
+        all_worker_exited = worker_manager.all_nodes_exited()
+        self.assertTrue(all_worker_exited)

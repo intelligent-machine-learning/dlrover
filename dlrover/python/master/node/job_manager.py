@@ -502,7 +502,6 @@ class JobManager(object):
             plan = self._chief_manager.relaunch_node(node)
         else:
             logger.error("Not support node type %s", node.type)
-        logger.info("Relaunch node: {}".format(node.name))
         self._set_ps_addrs_in_plan(plan)
         self._scaler.scale(plan)
 
