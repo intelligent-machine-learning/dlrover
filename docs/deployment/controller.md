@@ -5,11 +5,10 @@ Here, we introduce how to deploy the dlrover job controller directly on a Kubern
 ## 1. Preliminary
 - Ensure you have [Kubernetes](https://kubernetes.io/docs/home/) installed. If you prefer to use Minikube for testing purposes, make sure to have [Minikube](https://minikube.sigs.k8s.io/docs/start/) installed and run `minikube start`.
 
-## 2. Create Namespace & Switch Namespace
+## 2. Create Namespace
 
 ```bash
 $ kubectl create namespace dlrover
-$ kubectl config set-context $(kubectl config current-context) --namespace=dlrover
 ```
 
 ## 3. Deploy Dlrover Job Controller With Kubectl
@@ -34,7 +33,7 @@ NAME                                              READY   STATUS    RESTARTS   A
 pod/dlrover-controller-manager-7dccdf6c4d-grmks   2/2     Running   0          6m46s
 ```
 
-## 3. Test Your Controller by Submitting A Mnist Training Job
+## 4. Test Your Controller by Submitting A Mnist Training Job
 
 ```bash
 kubectl -n dlrover apply -f dlrover/examples/torch_mnist_master_backend_job.yaml
