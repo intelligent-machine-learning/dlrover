@@ -18,6 +18,13 @@ DLRover automatically trains the Deep Learning model on the distributed cluster.
 - **Auto-Scaling**, Automatically scale up/down resources at both node level and CPU/memory level.
 
 ## Why DLRover?
+
+<div align="center">
+   <a href="https://www.bilibili.com/video/BV1Nk4y1N7fx/?vd_source=603516da01339dc75fb908e1cce180c7">
+   <img src="docs/figures/dlrover-cover.jpg" width="700" />
+   </a>
+</div>
+
 ### No Resource Configuration to Submit a Job.
 
 Compared with TFJob in Kubeflow, Users need not to set any resource configuration to submit a
