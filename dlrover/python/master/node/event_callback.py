@@ -256,21 +256,19 @@ class AllReduceNodeHandlingCallback(NodeEventCallback):
             self._master.speed_monitor.reduce_target_worker_num(
                 [(node.type, node.id)]
             )
-        self._speed_monitor.remove_running_worker(node.type, node.id)
         if node.exit_reason == NodeExitReason.HARDWARE_ERROR:
             self._master.job_manager.handle_training_failure(
                 node.type, node.id, error_data=NodeExitReason.HARDWARE_ERROR
             )
         for manager in self._rdzv_managers.values():
-            manager.add_alive_node(node)
+            manager.remove_alive_node(node)
 
     @NodeEventCallback.log_callback_exception
     def on_node_deleted(self, node, cluster_context):
         node.finish_time = datetime.now()  # type: ignore
         self._stop_job_if_needed(node)
-        self._speed_monitor.remove_running_worker(node.type, node.id)
         for manager in self._rdzv_managers.values():
-            manager.add_alive_node(node)
+            manager.remove_alive_node(node)
 
     def _stop_job_if_needed(self, node: Node):
         if node.critical and node.is_unrecoverable_failure():

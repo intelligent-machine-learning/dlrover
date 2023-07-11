@@ -286,10 +286,11 @@ class Node(object):
 
     def __repr__(self):
         return (
-            "name:" + str(self.name) + ";"
-            "rank_index:" + str(self.rank_index) + ";"
-            "type:" + str(self.type) + ";"
-            "status:" + str(self.status) + ";"
-            "addr:" + str(self.service_addr) + ";"
-            "is_released:" + str(self.is_released) + ";"
+            f"name:{self.name};"
+            f"rank_index:{self.rank_index};"
+            f"type:{self.type};"
+            f"status:{self.status};"
+            f"addr:{self.service_addr};"
+            f"is_released:{self.is_released};"
+            f"priroity:{self.config_resource.priority}"
         )
