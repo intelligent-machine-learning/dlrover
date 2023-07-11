@@ -40,6 +40,20 @@ NODE_STATE_FLOWS = [
         should_relaunch=False,
     ),
     NodeStateFlow(
+        from_status=NodeStatus.INITIAL,
+        to_status=NodeStatus.FAILED,
+        event_type=["ADDED", "MODIFIED"],
+        phase="Failed",
+        should_relaunch=True,
+    ),
+    NodeStateFlow(
+        from_status=NodeStatus.INITIAL,
+        to_status=NodeStatus.DELETED,
+        event_type=["DELETED"],
+        phase=None,
+        should_relaunch=True,
+    ),
+    NodeStateFlow(
         from_status=NodeStatus.PENDING,
         to_status=NodeStatus.RUNNING,
         event_type=["ADDED", "MODIFIED"],
