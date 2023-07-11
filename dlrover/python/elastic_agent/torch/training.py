@@ -361,8 +361,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 return run_result
             elif state in {WorkerState.UNHEALTHY, WorkerState.FAILED}:
                 self._report_failure_to_master(run_result.failures)
-                has_fatal_error = self._has_fatal_error(run_result)
-                if not has_fatal_error and self._remaining_failovers > 0:
+                if self._remaining_failovers > 0:
                     logger.info(
                         f"[{role}] Worker group {state.name}. "
                         f"{self._remaining_failovers}/{spec.max_restarts}"
@@ -371,7 +370,6 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     self._remaining_failovers -= 1
                     self._restart_workers(self._worker_group)
                 else:
-                    logger.info("Cannot restart workers with fatal error.")
                     self._stop_workers(self._worker_group)
                     self._worker_group.state = WorkerState.FAILED
                     return run_result
@@ -381,14 +379,6 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     self._restart_workers(self._worker_group)
             else:
                 raise Exception(f"[{role}] Worker group in {state.name} state")
-
-    def _has_fatal_error(self, run_result: RunResult):
-        """The error with exitcode 1 is the Python exception and we cannot
-        recover it by restarting workers."""
-        for pfailure in run_result.failures.values():
-            if pfailure.exitcode == 1:
-                return True
-        return False
 
     def _report_failure_to_master(self, failures: Dict[int, ProcessFailure]):
         errors = {}

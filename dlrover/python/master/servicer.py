@@ -395,8 +395,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         group, nodes = rdzv_manager.get_comm_world(request.node_id)
         res = elastic_training_pb2.RendezvousState()
         res.group = group
-        for node_id, worker_num in nodes.items():
-            res.world[node_id] = worker_num
+        for rank_id, worker_num in nodes.items():
+            res.world[rank_id] = worker_num
         return res
 
     def join_rendezvous(self, request, _):

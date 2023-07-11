@@ -201,9 +201,9 @@ class Master(object):
     def _remove_not_participated_workers(self):
         """Remove workers who do not participate training."""
         for manager in self.rdzv_managers.values():
-            workers = manager.not_joined_rdzv_nodes()
-            if workers:
-                self.job_manager.remove_not_joined_rdzv_workers(workers)
+            ranks = manager.not_joined_rdzv_nodes()
+            if ranks:
+                self.job_manager.remove_not_joined_rdzv_workers(ranks)
 
     def stop(self):
         """

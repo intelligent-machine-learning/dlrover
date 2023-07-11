@@ -61,6 +61,7 @@ class RendezvousManager(metaclass=ABCMeta):
         self._rdzv_round = 0
         self._node_unit = 1
         self._name = ""
+        self._latest_rdzv_nodes = []
 
     def add_alive_node(self, node: Node):
         """When a node is running, the master will add it to alive list."""
@@ -77,6 +78,7 @@ class RendezvousManager(metaclass=ABCMeta):
                 f"Remove exited worker {node.name} from "
                 f"{self._name} rendezvous."
             )
+            self._waiting_nodes.pop(node.rank_index, 0)
 
     def update_rdzv_params(
         self, min_nodes, max_ndoes, waiting_timeout, node_unit
@@ -102,9 +104,6 @@ class RendezvousManager(metaclass=ABCMeta):
             rdzv_completed = True
         else:
             waiting_time = time.time() - self._lastcall_time
-            logger.info(
-                f"Waiting time {waiting_time}, waitint num {waiting_num}"
-            )
             if (
                 waiting_num >= self._rdzv_params.min_nodes
                 and waiting_time >= self._rdzv_params.waiting_timeout
@@ -119,6 +118,7 @@ class RendezvousManager(metaclass=ABCMeta):
             self._rdzv_nodes = {}
             for i in node_ids:
                 self._rdzv_nodes[i] = self._waiting_nodes[i]
+            self._latest_rdzv_nodes = list(self._rdzv_nodes.keys())
             self._waiting_nodes = dict()
             self._lastcall_time = 0
             logger.info(
@@ -138,7 +138,7 @@ class RendezvousManager(metaclass=ABCMeta):
 
     def join_rendezvous(
         self,
-        node_id,
+        rank_id,
         local_world_size,
     ):
         """The node joins the current rond rendezvous.
@@ -150,28 +150,40 @@ class RendezvousManager(metaclass=ABCMeta):
             int: the number of rendezvous round.
         """
         with self._lock:
-            if node_id in self._waiting_nodes:
+            if rank_id in self._waiting_nodes:
                 return
-            self._waiting_nodes[node_id] = local_world_size
+            self._waiting_nodes[rank_id] = local_world_size
+            logger.info(f"{self._name} waiting nodes: {self._waiting_nodes}")
             self._rdzv_nodes = {}
-            if len(self._waiting_nodes) >= self._rdzv_params.min_nodes:
-                if self._lastcall_time == 0:
-                    self._lastcall_time = time.time()
+            self._lastcall_time = time.time()
         return self._rdzv_round
 
     def num_nodes_waiting(self):
         """The elastic agent will restart training processes if it
-        find the number of waiting nodes is not zero. The manager notify
-        workers to restart processes only when the number of nodes is
-        a multiple of node unit.
+        find the number of waiting nodes is not zero. The manager
+        will notify all nodes to restart training processes immediately if
+        ab existing node re-joins the next round rendezvous.
+        If there are new nodes, the master notifies all nodes to re-join
+        the next round rendezvous only when the number of waiting nodes
+        is bigger than the number unit of nodes.
         """
         with self._lock:
-            if len(self._alive_nodes) % self._node_unit == 0:
+            if self._has_node_restart():
+                return len(self._waiting_nodes)
+            elif len(self._waiting_nodes) >= self._node_unit:
                 return len(self._waiting_nodes)
             return 0
 
+    def _has_node_restart(self):
+        """The node will restart training processes if it
+        re-joins the rendezvous."""
+        for rank_id in self._waiting_nodes.keys():
+            if rank_id in self._latest_rdzv_nodes:
+                return True
+        return False
+
     @abstractmethod
-    def get_comm_world(self, node_id):
+    def get_comm_world(self, rank_id):
         """Get communication world of all alive nodes."""
         pass
 
@@ -201,7 +213,7 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
         super().__init__()
         self._name = RendezvousName.ELASTIC_TRAINING
 
-    def get_comm_world(self, node_id):
+    def get_comm_world(self, rank_id):
         """Return the communication world if a round rendezvous is completed.
         The rendezvous is completed if one of the following conditions
         is satisfied:
@@ -220,7 +232,7 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
                 if rdzv_completed:
                     self._rdzv_round += 1
 
-            if node_id not in self._rdzv_nodes:
+            if rank_id not in self._rdzv_nodes:
                 return self._rdzv_round, {}
             return self._rdzv_round, self._rdzv_nodes
 
@@ -253,7 +265,7 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         self._reported_nodes = set()
         self._node_groups: List[Dict[int, int]] = []
 
-    def get_comm_world(self, node_id):
+    def get_comm_world(self, rank_id):
         """Return the communication world if a round rendezvous is completed.
         The rendezvous is completed if one of the following conditions.
         """
@@ -272,7 +284,7 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                     self._rdzv_round += 1
 
             for i, group in enumerate(self._node_groups):
-                if node_id in group:
+                if rank_id in group:
                     return i, group
             return 0, {}
 
@@ -333,19 +345,19 @@ class NetworkCheckRendezvousManager(RendezvousManager):
 
     def join_rendezvous(
         self,
-        node_id,
+        rank_id,
         local_world_size,
     ):
         """The node joins the current rond rendezvous.
         Args:
-            node_id: the node ID which is unique in an ElasticJob of DLrover.
+            rank_id: the node ID which is unique in an ElasticJob of DLrover.
             local_world_size: the local world size of a node.
 
         Returns:
             int: the number of rendezvous round.
         """
         self._node_groups = []
-        return super().join_rendezvous(node_id, local_world_size)
+        return super().join_rendezvous(rank_id, local_world_size)
 
     def network_check_success(self):
         """Check the network task is succeed. Each task contains 3 rounds
