@@ -292,5 +292,5 @@ class Node(object):
             f"status:{self.status};"
             f"addr:{self.service_addr};"
             f"is_released:{self.is_released};"
-            f"priroity:{self.config_resource.priority}" 
+            f"priroity:{self.config_resource.priority}"
         )
