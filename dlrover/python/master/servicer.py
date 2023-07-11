@@ -409,8 +409,10 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         return res
 
     def num_nodes_waiting(self, request, _):
-        rdzv_manager = self._rdzv_managers[request.rdzv_name]
-        waiting_num = rdzv_manager.num_nodes_waiting()
+        waiting_num = 0
+        for rdzv_manager in self._rdzv_managers.values():
+            num = rdzv_manager.num_nodes_waiting()
+            waiting_num = max(num, waiting_num)
         res = elastic_training_pb2.RendezvousState()
         res.waiting_num = waiting_num
         return res

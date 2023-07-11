@@ -650,8 +650,8 @@ class JobManager(object):
             return all(node_hang)
         return False
 
-    def remove_not_participated_workers(self, workers):
-        plan = self._worker_manager.remove_not_participated_workers(workers)
+    def remove_not_joined_rdzv_workers(self, workers):
+        plan = self._worker_manager.remove_not_joined_rdzv_workers(workers)
         self._scaler.scale(plan)
 
     def pend_without_workers(self):

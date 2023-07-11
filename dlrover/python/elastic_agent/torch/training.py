@@ -320,7 +320,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         return workers
 
     def _initialize_workers(self, worker_group):
-        if self._config.network_check and self._restart_count == 0:
+        if self._config.network_check:
             run_network_check(self._config, self._entrypoint)
         super()._initialize_workers(worker_group)
 

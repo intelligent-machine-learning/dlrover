@@ -251,12 +251,13 @@ class WorkerManager(TrainingNodeManager):
             plan.remove_nodes.append(old_node)
         return plan
 
-    def remove_not_participated_workers(self, workers):
+    def remove_not_joined_rdzv_workers(self, workers: List[int]):
         """Remove workers which do not participate in the training."""
         plan = ScalePlan()
-        for worker_id, worker in self._nodes.items():
-            if worker.name in workers:
+        for worker_id in self._nodes.keys():
+            if worker_id in workers:
                 p = self.remove_node(worker_id)
+                self._nodes[worker_id].relaunchable = False
                 if p:
                     plan.merge(p)
         return plan
