@@ -418,6 +418,10 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         return res
 
     def report_rdzv_params(self, request, _):
+        # Enable auto-scaling workers if elasticity is enabled.
+        _dlrover_context.auto_worker_enabled = (
+            request.max_nodes > request.min_nodes
+        )
         for manager in self._rdzv_managers.values():
             manager.update_rdzv_params(
                 min_nodes=request.min_nodes,
@@ -425,6 +429,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
                 waiting_timeout=request.waiting_timeout,
                 node_unit=request.node_unit,
             )
+        self._job_manager.update_allreduce_node_unit(request.node_unit)
         res = elastic_training_pb2.Response()
         res.success = True
         return res

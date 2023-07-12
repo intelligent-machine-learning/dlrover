@@ -677,6 +677,10 @@ class JobManager(object):
         else:
             self._error_monitor.handle_node_error(node, error_data)
 
+    def update_allreduce_node_unit(self, node_unit):
+        if isinstance(self._job_optimizer, AllreduceJobResourceOptimizer):
+            self._job_optimizer.set_node_unit(node_unit)
+
 
 def create_job_manager(args: JobArgs, speed_monitor) -> JobManager:
     critical_worker_index = get_critical_worker_index(args)
