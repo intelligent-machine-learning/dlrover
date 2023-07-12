@@ -1,29 +1,28 @@
-# Deploy dlrover job controller on Minikube cluster
+# Deploy dlrover job controller on a Kubernetes cluster
 
-Here we would like to introuce how to depoly dlrover job controller on minikube cluster step by step.
+Here, we introduce how to deploy the dlrover job controller directly on a Kubernetes cluster step by step. Minikube is optional and primarily used for testing.
 
-## 1.Preliminary
-- Make sure you have [minikube](https://kubernetes.io/docs/tasks/tools/)  installed and run ``minikube start``
+## 1. Preliminary
+- Ensure you have [Kubernetes](https://kubernetes.io/docs/home/) installed. If you prefer to use Minikube for testing purposes, make sure to have [Minikube](https://minikube.sigs.k8s.io/docs/start/) installed and run `minikube start`.
 
-## 2. Create Namespace & Switch Namespace
+## 2. Create Namespace
 
 ```bash
 $ kubectl create namespace dlrover
-$ kubectl config set-context $(kubectl config current-context) --namespace=dlrover
 ```
 
 ## 3. Deploy Dlrover Job Controller With Kubectl
 
 ```bash
 # deploy from local directory
-$ kubectl apply -k dlrover/go/operator/config/manifests/bases
+$ kubectl -n dlrover apply -k dlrover/go/operator/config/manifests/bases
 
 # deploy from remote repo
 $ deployment="git@github.com:intelligent-machine-learning/dlrover/dlrover/go/operator/config/manifests/bases/?ref=master"
-$ kubectl apply -k $deployment
+$ kubectl -n dlrover apply -k $deployment
 ```
 
-Check controller.
+To verify the controller has been deployed, run the command below. The output should show the dlrover-controller-manager pod is running.
 
 ```bash
 kubectl -n dlrover get pods
@@ -32,14 +31,6 @@ kubectl -n dlrover get pods
 ```
 NAME                                              READY   STATUS    RESTARTS   AGE
 pod/dlrover-controller-manager-7dccdf6c4d-grmks   2/2     Running   0          6m46s
-```
-
-kubectl -n dlrover apply -f dlrover/go/operator/config/rbac/default_role.yaml
-
-## 3. Grant Permission for the DLRover Master to Access CRDs
-
-```bash
-kubectl -n dlrover apply -f dlrover/go/operator/config/rbac/default_role.yaml 
 ```
 
 ## 4. Test Your Controller by Submitting A Mnist Training Job

@@ -5,6 +5,7 @@ resources:
 - role-binding.yaml
 - cluster-role.yaml
 - cluster-role-binding.yaml
+- default-role.yaml
 - crd.yaml
 - deployment.yaml
 - service-account.yaml
