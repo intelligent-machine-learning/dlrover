@@ -66,17 +66,17 @@ class NodeStatusFlowTest(unittest.TestCase):
         flow: NodeStateFlow = get_node_state_flow(
             NodeStatus.PENDING, NodeEventType.MODIFIED, NodeStatus.RUNNING
         )
-        self.assertEqual(flow, NODE_STATE_FLOWS[2])
+        self.assertEqual(flow, NODE_STATE_FLOWS[4])
 
         flow = get_node_state_flow(
             NodeStatus.RUNNING, NodeEventType.MODIFIED, NodeStatus.SUCCEEDED
         )
-        self.assertEqual(flow, NODE_STATE_FLOWS[5])
+        self.assertEqual(flow, NODE_STATE_FLOWS[7])
 
         flow = get_node_state_flow(
             NodeStatus.RUNNING, NodeEventType.DELETED, NodeStatus.DELETED
         )
-        self.assertEqual(flow, NODE_STATE_FLOWS[8])
+        self.assertEqual(flow, NODE_STATE_FLOWS[10])
         self.assertTrue(flow.should_relaunch)
 
         flow = get_node_state_flow(
@@ -256,7 +256,7 @@ class JobManagerTest(unittest.TestCase):
             status=NodeStatus.RUNNING,
             config_resource=NodeResource(1, 4096),
         )
-        manager._process_node_events(NODE_STATE_FLOWS[7], node)
+        manager._process_node_events(NODE_STATE_FLOWS[9], node)
         self.assertEqual(len(dataset.doing), 0)
 
     def test_create_initial_nodes(self):
