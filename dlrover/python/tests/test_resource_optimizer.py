@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import unittest
+from unittest import mock
 
 from dlrover.proto import brain_pb2
 from dlrover.python.brain.client import build_brain_client
@@ -27,6 +28,7 @@ from dlrover.python.master.resource.brain_optimizer import (
     BrainResoureOptimizer,
 )
 from dlrover.python.master.resource.job import (
+    AllreduceJobResourceOptimizer,
     JobResource,
     PSJobResourceOptimizer,
     ResourceLimits,
@@ -224,3 +226,27 @@ class PSJobResourceOptimizerTest(unittest.TestCase):
 
         job_optimizer._adjust_oom_ps_resource(oom_ps)
         self.assertEqual(oom_ps.config_resource.memory, 8192)
+
+
+class AllreduceResourceOptimizerTest(unittest.TestCase):
+    def test_free_node_plan(self):
+        worker_resource = NodeGroupResource(8, NodeResource(1, 256))
+        self._optimizer = AllreduceJobResourceOptimizer(
+            worker_resource, "test-job"
+        )
+        self._optimizer.set_alive_node_num(4)
+        self._optimizer.set_node_unit(4)
+        self._optimizer._get_free_gpu_node = mock.MagicMock(return_value=4)
+        plan: ResourcePlan = self._optimizer.get_job_resource_plan()
+        worker_plan = plan.node_group_resources[NodeType.WORKER]
+        self.assertEqual(worker_plan.count, 8)
+
+        self._optimizer._get_free_gpu_node = mock.MagicMock(return_value=3)
+        plan: ResourcePlan = self._optimizer.get_job_resource_plan()
+        worker_plan = plan.node_group_resources[NodeType.WORKER]
+        self.assertEqual(worker_plan.count, 4)
+
+        self._optimizer.set_node_unit(1)
+        plan: ResourcePlan = self._optimizer.get_job_resource_plan()
+        worker_plan = plan.node_group_resources[NodeType.WORKER]
+        self.assertEqual(worker_plan.count, 7)

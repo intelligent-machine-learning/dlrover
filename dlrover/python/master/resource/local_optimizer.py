@@ -63,8 +63,8 @@ class ProcessResourceRequirement(JsonSerializable):
         self.worker_memory = worker_memory
 
 
-class LocalOptimizer(ResourceOptimizer):
-    """Local optimizer stores runtime statistics locally and optimize
+class PSLocalOptimizer(ResourceOptimizer):
+    """PS Local optimizer stores runtime statistics locally and optimize
     the resource of a training job without cluster information.
     """
 

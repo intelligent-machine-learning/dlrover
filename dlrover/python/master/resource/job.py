@@ -32,7 +32,7 @@ from dlrover.python.common.serialize import JsonSerializable
 from dlrover.python.master.resource.brain_optimizer import (
     BrainResoureOptimizer,
 )
-from dlrover.python.master.resource.local_optimizer import LocalOptimizer
+from dlrover.python.master.resource.local_optimizer import PSLocalOptimizer
 from dlrover.python.master.resource.optimizer import (
     ResourcePlan,
     SimpleOptimizer,
@@ -44,7 +44,7 @@ _WORKER_OPTIMIZE_PHASE = "optimizer.worker.optimize-phase"
 _dlrover_context = Context.singleton_instance()
 
 
-def new_resource_optimizer(
+def new_ps_resource_optimizer(
     optimize_mode: str, job_uuid, resoure_limits: ResourceLimits
 ):
     logger.info(
@@ -57,9 +57,9 @@ def new_resource_optimizer(
             logger.warning(
                 "Brain service is not available, use a local optimizer"
             )
-            return LocalOptimizer(job_uuid, resoure_limits)
+            return PSLocalOptimizer(job_uuid, resoure_limits)
     elif optimize_mode == OptimizeMode.SINGLE_JOB:
-        return LocalOptimizer(job_uuid, resoure_limits)
+        return PSLocalOptimizer(job_uuid, resoure_limits)
     else:
         logger.warning(
             "Not support optiimzem mode %s, use a simple optimizer",
@@ -179,7 +179,7 @@ class JobResourceOptimizer(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def get_job_resource_plan(self):
+    def get_job_resource_plan(self) -> ResourcePlan:
         """Get resource plan for a job."""
         pass
 
@@ -208,7 +208,7 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
         self._ps_resource = ps_resource
         self._original_worker_resource = copy.deepcopy(self._worker_resource)
         self._original_ps_resource = copy.deepcopy(self._ps_resource)
-        self._resource_optimizer = new_resource_optimizer(
+        self._resource_optimizer = new_ps_resource_optimizer(
             optimize_mode, job_uuid, resource_limits
         )
         self._lock = threading.Lock()
@@ -506,21 +506,31 @@ class AllreduceJobResourceOptimizer(JobResourceOptimizer):
         self._original_worker_resource = copy.deepcopy(self._worker_resource)
         self._job_uuid = job_uuid
         self._lock = threading.Lock()
+        self._node_unit = 1
+        self._alive_node_num = 0
 
     def update_job_uuid(self, job_uuid):
         pass
 
     def init_job_resource(self, job_resource: JobResource):
-        """The job only launches the first worker at begining and
-        launches workers once the first worker is running"""
-        job_resource.node_group_resources[NodeType.WORKER].count = 1
+        pass
 
-    def get_job_resource_plan(self):
-        """Get resource plan for a job."""
+    def get_job_resource_plan(self) -> ResourcePlan:
+        """Check wether there are free nodes in the cluster."""
         plan = ResourcePlan()
-        worker_config = self._original_worker_resource
+        worker_config = copy.deepcopy(self._original_worker_resource)
+        max_node_num = self._original_worker_resource.count
+        request_num = max_node_num - self._alive_node_num
+        free_num = self._get_free_gpu_node()
+        free_num = (free_num // self._node_unit) * self._node_unit
+        new_num = min(free_num, request_num)
+        worker_config.count = self._alive_node_num + new_num
         plan.node_group_resources[NodeType.WORKER] = worker_config
         return plan
+
+    # TODO: implement the function to query the number free GPU nodes.
+    def _get_free_gpu_node(self):
+        return 0
 
     def adjust_oom_resource(self, node: Node):
         """Adjust the resource configuration for OOM nodes"""
@@ -531,3 +541,9 @@ class AllreduceJobResourceOptimizer(JobResourceOptimizer):
         worker_config = self._original_worker_resource
         job_config.node_group_resources[NodeType.WORKER] = worker_config
         return job_config
+
+    def set_node_unit(self, node_unit):
+        self._node_unit = node_unit
+
+    def set_alive_node_num(self, node_num):
+        self._alive_node_num = node_num
