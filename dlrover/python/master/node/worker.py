@@ -251,12 +251,16 @@ class WorkerManager(TrainingNodeManager):
             plan.remove_nodes.append(old_node)
         return plan
 
-    def remove_not_participated_workers(self, workers):
-        """Remove workers which do not participate in the training."""
+    def remove_not_joined_rdzv_workers(self, worker_ranks: List[int]):
+        """Remove workers which do not participate in the training.
+        Args:
+            worker_ranks: The rank of worker which does not join rendezvous.
+        """
         plan = ScalePlan()
-        for worker_id, worker in self._nodes.items():
-            if worker.name in workers:
-                p = self.remove_node(worker_id)
+        for node_id, node in self._nodes.items():
+            if node.rank_index in worker_ranks:
+                p = self.remove_node(node.id)
+                self._nodes[node_id].relaunchable = False
                 if p:
                     plan.merge(p)
         return plan

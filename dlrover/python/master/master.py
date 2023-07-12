@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import time
+from typing import Dict
 
 from dlrover.python.common.constants import (
     DistributionStrategy,
@@ -26,6 +27,7 @@ from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
 from dlrover.python.master.elastic_training.rdzv_manager import (
     ElasticTrainingRendezvousManager,
     NetworkCheckRendezvousManager,
+    RendezvousManager,
 )
 from dlrover.python.master.elastic_training.sync_service import SyncService
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
@@ -64,7 +66,7 @@ class Master(object):
             else None
         )
         elastic_training = RendezvousName.ELASTIC_TRAINING
-        self.rdzv_managers = {
+        self.rdzv_managers: Dict[str, RendezvousManager] = {
             elastic_training: ElasticTrainingRendezvousManager(),
             RendezvousName.NETWORK_CHECK: NetworkCheckRendezvousManager(),
         }
@@ -198,10 +200,10 @@ class Master(object):
 
     def _remove_not_participated_workers(self):
         """Remove workers who do not participate training."""
-        et_manager = self.rdzv_managers[RendezvousName.ELASTIC_TRAINING]
-        workers = et_manager.get_released_workers()
-        if workers:
-            self.job_manager.remove_not_participated_workers(workers)
+        for manager in self.rdzv_managers.values():
+            ranks = manager.not_joined_rdzv_nodes()
+            if ranks:
+                self.job_manager.remove_not_joined_rdzv_workers(ranks)
 
     def stop(self):
         """
