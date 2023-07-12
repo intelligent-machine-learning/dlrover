@@ -45,7 +45,7 @@ kubectl -n dlrover apply -f dlrover/go/operator/config/rbac/default_role.yaml
 ## 4. Test Your Controller by Submitting A Mnist Training Job
 
 ```bash
-kubectl -n dlrover apply -f dlrover/examples/torch_mnist_master_backend_job.yaml
+kubectl -n dlrover apply -f dlrover/examples/torch_mnist.yaml
 ```
 
 Check traning nodes.
