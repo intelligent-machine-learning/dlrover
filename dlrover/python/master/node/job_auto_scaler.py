@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
 import threading
 import time
 from abc import ABCMeta, abstractmethod
@@ -267,10 +266,8 @@ class AllreduceTrainingAutoScaler(JobAutoScaler):
         while True:
             time.sleep(self._scale_interval)
             alive_num = self._get_alive_worker_num()
-            plan: ResourcePlan = self._job_optimizer.get_job_resource_plan(
-                alive_num
-            )
-            logger.info(f"Plan : {plan.toJSON()}")
+            self._job_optimizer.set_alive_node_num(alive_num)
+            plan = self._job_optimizer.get_job_resource_plan()
             new_worker_num = plan.node_group_resources[NodeType.WORKER].count
             if new_worker_num <= alive_num:
                 continue

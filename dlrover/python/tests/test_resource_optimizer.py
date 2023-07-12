@@ -234,18 +234,19 @@ class AllreduceResourceOptimizerTest(unittest.TestCase):
         self._optimizer = AllreduceJobResourceOptimizer(
             worker_resource, "test-job"
         )
+        self._optimizer.set_alive_node_num(4)
         self._optimizer.set_node_unit(4)
         self._optimizer._get_free_gpu_node = mock.MagicMock(return_value=4)
-        plan: ResourcePlan = self._optimizer.get_job_resource_plan(4)
+        plan: ResourcePlan = self._optimizer.get_job_resource_plan()
         worker_plan = plan.node_group_resources[NodeType.WORKER]
         self.assertEqual(worker_plan.count, 8)
 
         self._optimizer._get_free_gpu_node = mock.MagicMock(return_value=3)
-        plan: ResourcePlan = self._optimizer.get_job_resource_plan(4)
+        plan: ResourcePlan = self._optimizer.get_job_resource_plan()
         worker_plan = plan.node_group_resources[NodeType.WORKER]
         self.assertEqual(worker_plan.count, 4)
 
         self._optimizer.set_node_unit(1)
-        plan: ResourcePlan = self._optimizer.get_job_resource_plan(4)
+        plan: ResourcePlan = self._optimizer.get_job_resource_plan()
         worker_plan = plan.node_group_resources[NodeType.WORKER]
         self.assertEqual(worker_plan.count, 7)

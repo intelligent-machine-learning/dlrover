@@ -373,7 +373,7 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
         )
         self._last_ps_change_time = time.time()
 
-    def get_job_resource_plan(self) -> ResourcePlan:
+    def get_job_resource_plan(self):
         plan = None
         if self._job_stage == JobOptStage.WORKER_INITIAL:
             plan = self._get_worker_resource_at_init_phase()
@@ -507,24 +507,24 @@ class AllreduceJobResourceOptimizer(JobResourceOptimizer):
         self._job_uuid = job_uuid
         self._lock = threading.Lock()
         self._node_unit = 1
+        self._alive_node_num = 0
 
     def update_job_uuid(self, job_uuid):
         pass
 
     def init_job_resource(self, job_resource: JobResource):
-        """The job only launches the first worker at begining and
-        launches workers once the first worker is running"""
-        job_resource.node_group_resources[NodeType.WORKER].count = 4
+        pass
 
-    def get_job_resource_plan(self, alive_worker_num) -> ResourcePlan:
+    def get_job_resource_plan(self) -> ResourcePlan:
         """Check wether there are free nodes in the cluster."""
         plan = ResourcePlan()
         worker_config = copy.deepcopy(self._original_worker_resource)
-        request_num = self._original_worker_resource.count - alive_worker_num
+        max_node_num = self._original_worker_resource.count
+        request_num = max_node_num - self._alive_node_num
         free_num = self._get_free_gpu_node()
         free_num = (free_num // self._node_unit) * self._node_unit
         new_num = min(free_num, request_num)
-        worker_config.count = alive_worker_num + new_num
+        worker_config.count = self._alive_node_num + new_num
         plan.node_group_resources[NodeType.WORKER] = worker_config
         return plan
 
@@ -544,3 +544,6 @@ class AllreduceJobResourceOptimizer(JobResourceOptimizer):
 
     def set_node_unit(self, node_unit):
         self._node_unit = node_unit
+
+    def set_alive_node_num(self, node_num):
+        self._alive_node_num = node_num
