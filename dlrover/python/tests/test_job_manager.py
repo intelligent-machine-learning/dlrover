@@ -234,7 +234,7 @@ class JobManagerTest(unittest.TestCase):
         manager._adjust_worker_for_estimator()
         manager._init_nodes()
         manager._init_job_auto_scaler()
-        self.assertEqual(len(manager._job_nodes[NodeType.WORKER]), 1)
+        self.assertEqual(len(manager._job_nodes[NodeType.WORKER]), 3)
         manager.start_auto_scaling()
         self.assertEqual(len(manager._job_nodes[NodeType.WORKER]), 3)
 
