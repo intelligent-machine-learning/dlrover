@@ -8,24 +8,30 @@ spec:
   optimizeMode: single-job
   replicaSpecs:
     worker:
-      replicas: 2
+      replicas: 4
       template:
         spec:
           restartPolicy: Never
           containers:
             - name: main
               # yamllint disable-line rule:line-length
-              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:torch113-mnist
+              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:torch201-mnist-test
               imagePullPolicy: Always
               command:
                 - /bin/bash
                 - -c
-                - "torchrun --nnodes=1:$WORKER_NUM --nproc_per_node=1
-                --max_restarts=3 \
-                --rdzv_backend=c10d --rdzv_endpoint=$RDZV_ENDPOINT:2222 \
-                model_zoo/pytorch/mnist_cnn.py \
-                --training_data /data/mnist_png/training/ \
-                --validation_data /data/mnist_png/testing/ "
+                - "dlrover-run --nnodes=$WORKER_NUM \
+                  --nproc_per_node=2 --max_restarts=3  \
+                  model_zoo/pytorch/mnist_cnn.py --num_epochs 2 \
+                  --training_data /data/mnist_png/training/ \
+                  --validation_data /data/mnist_png/testing/"
+              resources:
+                limits:
+                  cpu: "1"
+                  memory: 2Gi
+                requests:
+                  cpu: "1"
+                  memory: 2Gi
     dlrover-master:
       template:
         spec:

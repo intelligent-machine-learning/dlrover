@@ -650,8 +650,10 @@ class JobManager(object):
             return all(node_hang)
         return False
 
-    def remove_not_participated_workers(self, workers):
-        plan = self._worker_manager.remove_not_participated_workers(workers)
+    def remove_not_joined_rdzv_workers(self, worker_ranks):
+        plan = self._worker_manager.remove_not_joined_rdzv_workers(
+            worker_ranks
+        )
         self._scaler.scale(plan)
 
     def pend_without_workers(self):
@@ -674,6 +676,10 @@ class JobManager(object):
             )
         else:
             self._error_monitor.handle_node_error(node, error_data)
+
+    def update_allreduce_node_unit(self, node_unit):
+        if isinstance(self._job_optimizer, AllreduceJobResourceOptimizer):
+            self._job_optimizer.set_node_unit(node_unit)
 
 
 def create_job_manager(args: JobArgs, speed_monitor) -> JobManager:

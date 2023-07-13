@@ -79,11 +79,13 @@ class MasterRendezvousHandler(RendezvousHandler):
         self._client = GlobalMasterClient.MASTER_CLIENT
         self._store = MasterKVStore(self._name, timedelta(seconds=60))
         lastcall_timeout = int(rdzv_params.get("lastcall_timeout", 60))
+        node_unit = int(rdzv_params.get("node_unit", "1"))
         if self._rank_id == 0:
             self._client.report_rdzv_params(
                 rdzv_params.min_nodes,
                 rdzv_params.max_nodes,
                 lastcall_timeout,
+                node_unit,
             )
 
     def get_backend(self) -> str:
@@ -318,7 +320,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         return workers
 
     def _initialize_workers(self, worker_group):
-        if self._config.network_check and self._restart_count == 0:
+        if self._config.network_check:
             run_network_check(self._config, self._entrypoint)
         super()._initialize_workers(worker_group)
 
@@ -359,8 +361,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 return run_result
             elif state in {WorkerState.UNHEALTHY, WorkerState.FAILED}:
                 self._report_failure_to_master(run_result.failures)
-                has_fatal_error = self._has_fatal_error(run_result)
-                if not has_fatal_error and self._remaining_failovers > 0:
+                if self._remaining_failovers > 0:
                     logger.info(
                         f"[{role}] Worker group {state.name}. "
                         f"{self._remaining_failovers}/{spec.max_restarts}"
@@ -369,7 +370,6 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     self._remaining_failovers -= 1
                     self._restart_workers(self._worker_group)
                 else:
-                    logger.info("Cannot restart workers with fatal error.")
                     self._stop_workers(self._worker_group)
                     self._worker_group.state = WorkerState.FAILED
                     return run_result
@@ -379,14 +379,6 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     self._restart_workers(self._worker_group)
             else:
                 raise Exception(f"[{role}] Worker group in {state.name} state")
-
-    def _has_fatal_error(self, run_result: RunResult):
-        """The error with exitcode 1 is the Python exception and we cannot
-        recover it by restarting workers."""
-        for pfailure in run_result.failures.values():
-            if pfailure.exitcode == 1:
-                return True
-        return False
 
     def _report_failure_to_master(self, failures: Dict[int, ProcessFailure]):
         errors = {}

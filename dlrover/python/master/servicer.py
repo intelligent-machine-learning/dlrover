@@ -395,8 +395,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         group, nodes = rdzv_manager.get_comm_world(request.node_id)
         res = elastic_training_pb2.RendezvousState()
         res.group = group
-        for node_id, worker_num in nodes.items():
-            res.world[node_id] = worker_num
+        for rank_id, worker_num in nodes.items():
+            res.world[rank_id] = worker_num
         return res
 
     def join_rendezvous(self, request, _):
@@ -409,19 +409,27 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         return res
 
     def num_nodes_waiting(self, request, _):
-        rdzv_manager = self._rdzv_managers[request.rdzv_name]
-        waiting_num = rdzv_manager.num_nodes_waiting()
+        waiting_num = 0
+        for rdzv_manager in self._rdzv_managers.values():
+            num = rdzv_manager.num_nodes_waiting()
+            waiting_num = max(num, waiting_num)
         res = elastic_training_pb2.RendezvousState()
         res.waiting_num = waiting_num
         return res
 
     def report_rdzv_params(self, request, _):
+        # Enable auto-scaling workers if elasticity is enabled.
+        _dlrover_context.auto_worker_enabled = (
+            request.max_nodes > request.min_nodes
+        )
         for manager in self._rdzv_managers.values():
             manager.update_rdzv_params(
                 min_nodes=request.min_nodes,
                 max_ndoes=request.max_nodes,
                 waiting_timeout=request.waiting_timeout,
+                node_unit=request.node_unit,
             )
+        self._job_manager.update_allreduce_node_unit(request.node_unit)
         res = elastic_training_pb2.Response()
         res.success = True
         return res

@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
 import threading
 import time
 from abc import ABCMeta, abstractmethod
@@ -25,7 +24,6 @@ from dlrover.python.common.constants import (
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeResource
-from dlrover.python.master.cluster.quota import UnlimitedQuotaChecker
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.ps import ParameterServerManager
 from dlrover.python.master.node.worker import WorkerManager
@@ -249,16 +247,13 @@ class AllreduceTrainingAutoScaler(JobAutoScaler):
         self._scaler = node_scaler
         self._workers = job_nodes[NodeType.WORKER]
         self._autoscaling_started = False
-        self._resource_checker = UnlimitedQuotaChecker()
-        self._schedule_worker_base2 = False
+        self._scale_interval = 30
 
     def start_auto_scaling(self):
         """Start auto-scaling nodes of a job"""
         if not self._autoscaling_started:
             self._autoscaling_started = True
-            plan = self._job_optimizer.get_job_resource_plan()
-            self.execute_job_optimization_plan(plan)
-            if self._schedule_worker_base2:
+            if _dlrover_context.auto_worker_enabled:
                 threading.Thread(
                     target=self._periodic_adjust_worker,
                     name="allreduce-autoscaler",
@@ -266,43 +261,17 @@ class AllreduceTrainingAutoScaler(JobAutoScaler):
                 ).start()
 
     def _periodic_adjust_worker(self):
-        """Adjust the number of worker according to the available number
-        of workers.
-        For example: There are 4 alive workers and the configured number of
-        worker is 16. However, the available number of worker in the cluster
-        if 5. The auto-scaler will scale worker count to 8 not 9 to collaborate
-        with the optimizer to keep the total batch size fixed.
-        """
+        """Periodicaly adjust the number of worker."""
+        logger.info("Start to auto scale the number of workers.")
         while True:
-            time.sleep(30)
-            available_num = self._get_available_worker_num()
+            time.sleep(self._scale_interval)
             alive_num = self._get_alive_worker_num()
-            if available_num <= alive_num:
+            self._job_optimizer.set_alive_node_num(alive_num)
+            plan = self._job_optimizer.get_job_resource_plan()
+            new_worker_num = plan.node_group_resources[NodeType.WORKER].count
+            if new_worker_num <= alive_num:
                 continue
-            worker_resource = copy.deepcopy(
-                self._job_resource.node_group_resources[NodeType.WORKER]
-            )
-            worker_resource.count = available_num
-            plan = self._worker_manager.adjust_worker(worker_resource)
-            self._scaler.scale(plan)
-
-    def _get_available_worker_num(self):
-        """
-        Get the number of available GPU to scale up.
-        """
-        worker_resource = self._job_resource.node_group_resources[
-            NodeType.WORKER
-        ]
-        worker_num = worker_resource.count
-        alive_worker_num = self._get_alive_worker_num()
-        while worker_num > alive_worker_num:
-            required_num = worker_num - alive_worker_num
-            available_num = self._resource_checker.get_avaliable_worker_num()
-            if available_num > required_num:
-                return worker_num
-            else:
-                worker_num = worker_num >> 1
-        return alive_worker_num
+            self.execute_job_optimization_plan(plan)
 
     def _get_alive_worker_num(self):
         worker_num = 0

@@ -219,6 +219,7 @@ message RendezvousParams {
   int32 min_nodes = 1;
   int32 max_nodes = 2;
   int32 waiting_timeout = 3;
+  int32 node_unit = 4;
 }
 
 message KeyValuePair {
