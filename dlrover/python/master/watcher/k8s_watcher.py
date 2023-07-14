@@ -104,7 +104,7 @@ def _convert_pod_event_to_node_event(event):
         start_time=_get_start_timestamp(evt_obj.status),
         config_resource=resource,
         host_name=host_name,
-        host_ip=host_ip
+        host_ip=host_ip,
     )
     node.set_exit_reason(_get_pod_exit_reason(evt_obj))
     node_event = NodeEvent(event_type=evt_type, node=node)
