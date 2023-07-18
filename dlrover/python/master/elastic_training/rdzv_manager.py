@@ -123,7 +123,7 @@ class RendezvousManager(metaclass=ABCMeta):
             self._lastcall_time = 0
             logger.info(
                 f"Completed {self._rdzv_round} round "
-                f"rendezvous of elastic training is {self._rdzv_nodes}"
+                f"rendezvous of {self._name} is {self._rdzv_nodes}"
             )
         return rdzv_completed
 
@@ -344,8 +344,8 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         self._node_status[node_id] = self._node_status[node_id] or succeed
         if len(self._reported_nodes) == len(self._rdzv_nodes):
             logger.info(
-                f"The {self._rdzv_round} network status of node "
-                f"group is {self._node_status}."
+                f"The node normal status of {self._rdzv_round} check "
+                f"is {self._node_status}."
             )
 
     def join_rendezvous(
