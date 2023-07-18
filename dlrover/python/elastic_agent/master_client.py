@@ -567,7 +567,7 @@ class LocalMasterClient(object):
     def report_used_resource(self, memory, cpu):
         return empty_pb2.Empty()
 
-    def num_nodes_waiting(self):
+    def num_nodes_waiting(self, rdzv_name=""):
         return 0
 
     def join_rendezvous(
