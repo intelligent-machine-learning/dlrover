@@ -147,6 +147,7 @@ class Node(object):
         used_resource: the resource usage of the node.
         init_time: the timestamp to initialize the node object.
         host_name: the name of the host where the node is placed.
+        host_ip: the ip of host node.
     """
 
     def __init__(
@@ -164,6 +165,7 @@ class Node(object):
         relaunchable=True,
         service_addr=None,
         host_name=None,
+        host_ip=None,
     ):
         self.type = node_type
         self.id = node_id
@@ -187,6 +189,7 @@ class Node(object):
         self.init_time = time.time()
         self.eval_time = 0
         self.host_name = host_name
+        self.host_ip = host_ip
 
     def inc_relaunch_count(self):
         self.relaunch_count += 1
@@ -197,6 +200,7 @@ class Node(object):
         start_time=None,
         create_time=None,
         host_name=None,
+        host_ip=None,
     ):
         if name is not None:
             self.name = name
@@ -206,6 +210,8 @@ class Node(object):
             self.create_time = create_time
         if host_name:
             self.host_name = host_name
+        if host_ip:
+            self.host_ip = host_ip
 
     def update_status(self, status=None):
         if status is not None:

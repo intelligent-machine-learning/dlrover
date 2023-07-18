@@ -297,7 +297,7 @@ class NetworkCheckRendezvousManager(RendezvousManager):
             [{0:8, 2:8}, {1:8, 2:8}].
         """
         round = round % 3
-        node_groups = []
+        node_groups: List[Dict[int, int]] = []
         if round == 0:
             node_groups.append(self._rdzv_nodes)
         elif round == 1:
@@ -307,6 +307,11 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                 if len(group) == 2:
                     node_groups.append(group)
                     group = {}
+            if len(group) == 1:
+                if len(node_groups) > 0:
+                    node_groups[-1].update(group)
+                else:
+                    node_groups.append(group)
         elif round == 2:
             abnormal_nodes = []
             normal_nodes = []
