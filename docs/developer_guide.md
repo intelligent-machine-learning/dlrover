@@ -12,7 +12,15 @@ The document describes how to make contribution to DLRover.
 - `git checkout -b {DEV-BRANCH}`
 - `git push -u origin {DEV-BRANCH}`
 
-Then, you create a PR on github.
+Then, you create a PR on github. If you has modified codes of the repo,
+you need to execute `pre-commit` to check codestyle and unittest cases
+by the following steps.
+
+`docker run -v `pwd`:/dlrover -it easydl/dlrover:ci /bin/bash`
+`cd /dlrover`
+`pre-commit run -a`
+`python -m pytest dlrover/python/tests`
+`python -m pytest dlrover/trainer/tests`
 
 ## Requirements
 
@@ -181,17 +189,29 @@ make deploy IMG=easydl/elasticjob-controller:master
 kubectl apply -f dlrover/go/operator/config/rbac/default_role.yaml 
 ```
 
-### 4. Build the Image of DLRover Master
+### 4. Build the Image 
+
+**Build the master image with codes.**
 
 ```bash
-docker build -t easydl/dlrover-master:test -f docker/Dockerfile.
+docker build -t easydl/dlrover-master:test -f docker/Dockerfile .
 ```
 
-### 5. Submit an ElasticJob.
+**Build the training image of PyTorch models.**
+
+```bash
+docker build -t easydl/dlrover-master:test -f docker/pytorch/mnist.dockerfile .
+```
+
+### 5. Submit an ElasticJob to test your images.
+
+We can set the training image of the line 18 and the master image
+of line 42 in the debug job `dlrover/examples/torch_debug_job.yaml`.
+Then, we can submit a job with the above images.
 
 ```bash
 eval $(minikube docker-env)
-kubectl -n dlrover apply -f dlrover/go/operator/config/samples/elastic_v1alpha1_elasticjob.yaml
+kubectl -n dlrover apply -f dlrover/examples/torch_debug_job.yaml
 ```
 
 Check traning nodes.
@@ -201,12 +221,11 @@ kubectl -n dlrover get pods
 ```
 
 ```
-NAME                                  READY   STATUS    RESTARTS   AGE
-elasticjob-elasticjob-sample-master   1/1     Running   0          2m47s
-elasticjob-sample-edljob-chief-0      1/1     Running   0          2m42s
-elasticjob-sample-edljob-ps-0         1/1     Running   0          2m42s
-elasticjob-sample-edljob-worker-0     1/1     Running   0          2m42s
-elasticjob-sample-edljob-worker-1     1/1     Running   0          2m42s
+NAME                            READY   STATUS    RESTARTS   AGE
+elasticjob-torch-mnist-master   1/1     Running   0          2m47s
+torch-mnist-edljob-chief-0      1/1     Running   0          2m42s
+torch-mnist-edljob-worker-0     1/1     Running   0          2m42s
+torch-mnist-edljob-worker-1     1/1     Running   0          2m42s
 ```
 
 ### 6. Create a release
