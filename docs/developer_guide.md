@@ -16,7 +16,7 @@ Then, you create a PR on github. If you has modified codes of the repo,
 you need to execute `pre-commit` to check codestyle and unittest cases
 by the following steps.
 
-- `docker run -v `pwd`:/dlrover -it easydl/dlrover:ci /bin/bash`
+- ```docker run -v `pwd`:/dlrover -it easydl/dlrover:ci /bin/bash```
 - `cd /dlrover`
 - `pre-commit run -a`
 - `python -m pytest dlrover/python/tests`
