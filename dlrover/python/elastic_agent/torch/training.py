@@ -133,19 +133,23 @@ class MasterRendezvousHandler(RendezvousHandler):
             group, world = self._client.get_comm_world(
                 self._name, self._rank_id
             )
-            world = dict(sorted(world.items()))
             if world:
-                break
-            if time.time() - start_join > self.join_timeout:
+                if self._rank_id in world:
+                    break
+                else:
+                    logger.info(
+                        "The node is not in the world "
+                        "and waits for more nodes."
+                    )
+                    time.sleep(60)
+                    start_join = time.time()
+                    continue
+            elif time.time() - start_join > self.join_timeout:
                 raise TimeoutError(
                     f"Timeout {self.join_timeout}s to complete next rendezous."
                 )
             time.sleep(3)
-        if self._rank_id not in world:
-            logger.info(
-                "The node is not in the world and waits for pending nodes."
-            )
-            return None, None
+        world = dict(sorted(world.items()))
         rank = list(world.keys()).index(self._rank_id)
         world_size = len(world)
         logger.info(
@@ -231,9 +235,6 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
         spec = worker_group.spec
         store, world = spec.rdzv_handler.next_rendezvous()
-        if not world:
-            store, world = self._wait_next_rendezvous(spec)
-
         self._store = store
         group_world_size = len(world)
         group_rank = list(world.keys()).index(self._rank_id)
@@ -269,19 +270,6 @@ class ElasticTrainingAgent(LocalElasticAgent):
             f"  global_world_sizes="
             f"{[worker.world_size for worker in workers]}\n"
         )
-
-    def _wait_next_rendezvous(self, spec: WorkerSpec):
-        """The agent may not join the current rendezvous because
-        nodes are not enough. For example, a job has 8 Pods but
-        one is pending. The number of nodes in a rendezvous must be the even
-        number. Then, the Pod-7 should wait for the pending Pod.
-        """
-        while True:
-            if spec.rdzv_handler.num_nodes_waiting():
-                store, world = spec.rdzv_handler.next_rendezvous()
-                if world:
-                    return store, world
-            time.sleep(180)
 
     # pyre-fixme[56]: Pyre was not able to infer the type of the decorator
     #  `torch.distributed.elastic.metrics.prof`.
