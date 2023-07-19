@@ -352,7 +352,7 @@ class MasterClient(object):
         return response.group, response.world
 
     @retry_grpc_request
-    def network_check_success(self, timeout=180):
+    def network_check_success(self, timeout=300):
         request = elastic_training_pb2.RendezvousRequest()
         start = time.time()
         while True:
@@ -361,7 +361,7 @@ class MasterClient(object):
                 response.reason == NetworkFailureReason.WAITING_NODE
                 and time.time() - start < timeout
             ):
-                time.sleep(3)
+                time.sleep(5)
                 continue
             break
         return response.success
