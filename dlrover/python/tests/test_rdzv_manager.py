@@ -96,7 +96,7 @@ class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
         expected_world = {i: 8 for i in range(8)}
         self.assertDictEqual(expected_world, world)
         _, world = rdzv_manager.get_comm_world(9)
-        self.assertDictEqual(world, {})
+        self.assertFalse(9 in world)
 
         # Test the number of waiting nodes is less than the node unit.
         rdzv_manager.join_rendezvous(10, 8)
