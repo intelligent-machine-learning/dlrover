@@ -119,7 +119,10 @@ class RendezvousManager(metaclass=ABCMeta):
             for i in node_ids:
                 self._rdzv_nodes[i] = self._waiting_nodes[i]
             self._latest_rdzv_nodes = list(self._rdzv_nodes.keys())
-            self._waiting_nodes = dict()
+            self._waiting_nodes = dict(
+                set(self._waiting_nodes.items())
+                - set(self._rdzv_nodes.items())
+            )
             self._lastcall_time = 0
             logger.info(
                 f"Completed {self._rdzv_round} round "
