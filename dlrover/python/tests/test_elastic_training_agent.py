@@ -76,7 +76,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
             start_method=self.config.start_method,
             log_dir=self.config.log_dir,
         )
-        self.rdzv_handler._join_rendezvous(8)
+        self.rdzv_handler._join_rendezvous()
         self.rdzv_handler._client.join_rendezvous(1, 8)
         _, world = self.rdzv_handler.next_rendezvous()
         self.assertDictEqual(world, {0: 8, 1: 8})
