@@ -247,7 +247,7 @@ class AllreduceTrainingAutoScaler(JobAutoScaler):
         self._scaler = node_scaler
         self._workers = job_nodes[NodeType.WORKER]
         self._autoscaling_started = False
-        self._scale_interval = 30
+        self._scale_interval = 1800
 
     def start_auto_scaling(self):
         """Start auto-scaling nodes of a job"""

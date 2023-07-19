@@ -151,7 +151,6 @@ class Master(object):
             while True:
                 if self._stop_requested:
                     break
-                self._remove_not_participated_workers()
                 if self.job_manager and self.job_manager.all_workers_exited():
                     if self.job_manager.pend_without_workers():
                         time.sleep(30)

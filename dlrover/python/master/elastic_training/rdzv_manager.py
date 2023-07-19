@@ -162,7 +162,7 @@ class RendezvousManager(metaclass=ABCMeta):
         """The elastic agent will restart training processes if it
         find the number of waiting nodes is not zero. The manager
         will notify all nodes to restart training processes immediately if
-        ab existing node re-joins the next round rendezvous.
+        an existing node re-joins the next round rendezvous.
         If there are new nodes, the master notifies all nodes to re-join
         the next round rendezvous only when the number of waiting nodes
         is bigger than the number unit of nodes.
@@ -231,9 +231,6 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
                 rdzv_completed = self._check_rdzv_completed()
                 if rdzv_completed:
                     self._rdzv_round += 1
-
-            if rank_id not in self._rdzv_nodes:
-                return self._rdzv_round, {}
             return self._rdzv_round, self._rdzv_nodes
 
     def report_network_check_result(self, node_id, normal):
@@ -286,7 +283,7 @@ class NetworkCheckRendezvousManager(RendezvousManager):
             for i, group in enumerate(self._node_groups):
                 if rank_id in group:
                     return i, group
-            return 0, {}
+            return 0, self._rdzv_nodes
 
     def _group_nodes(self, round):
         """Group nodes into goups.
