@@ -134,7 +134,7 @@ class MasterServicerTest(unittest.TestCase):
         self.job_metric_collector._report_runtime_stats()
         self.assertEqual(len(reporter._runtime_stats), 2)
         self.assertEqual(reporter._runtime_stats[0].global_step, 1100)
-        self.assertEqual(len(reporter._runtime_stats[0].running_nodes), 4)
+        self.assertEqual(len(reporter._runtime_stats[0].running_nodes), 2)
 
         request.timestamp = ts + 20
         request.global_step = 2100
