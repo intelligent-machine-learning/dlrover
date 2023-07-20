@@ -242,17 +242,13 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
 
 class NetworkCheckRendezvousManager(RendezvousManager):
     """NcclCheckRendezvousManager runs on the DLRover master. The task
-    to check network contains 3 round to execute allgather on all nodes.
+    to check network contains 2 round to execute allgather on all nodes.
     We show the detail to check network assuming there are 4 nodes.
-    Round 1: all nodes join a communication world {0:8, 1:8, 2:8, 3:8}
-        where the key is the node id and the value is the local world size
-        of the node. The check passes if allgather of all nodes is succeed.
-        Otherwise, the round 2 starts.
-    Round 2: the manager splits nodes into groups and each group contains
+    Round 0: the manager splits nodes into groups and each group contains
         two nodes, like [{0:8, 1:8},{2:8, 3:8}]. The node in each group will
         execute allgather independently and report its result to the manager.
         For example, the result is {0:False, 1:False, 2:True, 3:True}.
-    Round 3: the manager will group the abnormal node with a normal node like
+    Round 1: the manager will group the abnormal node with a normal node like
         [{0:8, 2:8}, {1:8, 2:8}]. Then, the node executes allgather again.
         If the result is {0:True, 1:False, 2:False, 3:True}, the network of
         node-1 if not available.
@@ -278,7 +274,7 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                         f"Round {self._rdzv_round} "
                         f"node group: {self._node_groups}"
                     )
-                    if self._rdzv_round % 3 == 0:
+                    if self._rdzv_round % 2 == 0:
                         self._node_status = {}
                     self._reported_nodes = set()
                     self._rdzv_round += 1
@@ -296,11 +292,9 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         Round 1: group the abnormal node with a normal node like
             [{0:8, 2:8}, {1:8, 2:8}].
         """
-        round = round % 3
+        round = round % 2
         node_groups: List[Dict[int, int]] = []
         if round == 0:
-            node_groups.append(self._rdzv_nodes)
-        elif round == 1:
             group = {}
             for node_id, local_world_size in self._rdzv_nodes.items():
                 group[node_id] = local_world_size
@@ -312,7 +306,7 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                     node_groups[-1].update(group)
                 else:
                     node_groups.append(group)
-        elif round == 2:
+        elif round == 1:
             abnormal_nodes = []
             normal_nodes = []
             for node_id, status in self._node_status.items():
@@ -378,7 +372,7 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                     list(self._node_status.values())
                 )
                 if success:
-                    self._rdzv_round = math.ceil(self._rdzv_round / 3) * 3
+                    self._rdzv_round = math.ceil(self._rdzv_round / 2) * 2
                 else:
                     reason = NetworkFailureReason.NODE_FAILURE
             return success, reason

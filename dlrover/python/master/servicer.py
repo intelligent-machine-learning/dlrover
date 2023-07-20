@@ -328,7 +328,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             ps_meta = res.ps_nodes.add()
             ps_meta.type = NodeType.PS
             ps_meta.addr = ps.service_addr
-            ps_meta.cpu = int(ps.config_resource.cpu)
+            ps_meta.cpu = ps.config_resource.cpu
             ps_meta.memory = int(ps.config_resource.memory)
         logger.info("PS nodes : %s", res)
         res.new_ps_ready = ready
@@ -336,7 +336,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         return res
 
     def query_running_nodes(self, request, _):
-        nodes: List[Node] = self._job_manager.get_all_running_nodes()
+        nodes: List[Node] = self._job_manager.get_running_nodes()
         res = elastic_training_pb2.RunningNodes()
         for node in nodes:
             meta = elastic_training_pb2.NodeMeta()

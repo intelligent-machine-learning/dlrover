@@ -564,7 +564,6 @@ class NcclCheckElasticAgent(ElasticTrainingAgent):
             log_dir,
         )
         self._log_dir = log_dir or tempfile.mkdtemp(prefix="network_check_")
-        self._max_check_round = 3
 
     def run(self, role: str = DEFAULT_ROLE) -> bool:
         spec = self._worker_group.spec
@@ -575,7 +574,7 @@ class NcclCheckElasticAgent(ElasticTrainingAgent):
             f"{spec.get_entrypoint_name()}"
         )
         success = False
-        for i in range(self._max_check_round):
+        for i in range(2):
             result = self._run_network_check(spec.monitor_interval)
             logger.info(f"Network check round {i} is {result}")
             status = NodeStatus.SUCCEEDED if result else NodeStatus.FAILED
@@ -585,11 +584,13 @@ class NcclCheckElasticAgent(ElasticTrainingAgent):
             self._stop_workers(self._worker_group)
             if network_ready:
                 return True
-            elif i == 0 and self._worker_group.group_world_size <= 2:
-                logger.error(
-                    "Fail to check network when there are only 2 nodes."
-                )
-                raise RuntimeError("The node network is breakdown.")
+            else:
+                total_worker_num = len(self._client.get_running_nodes())
+                if total_worker_num <= 2:
+                    logger.error(
+                        "Fail to check network when there are only 2 nodes."
+                    )
+                    raise RuntimeError("The node network is breakdown.")
             time.sleep(1)
         if not success:
             self._client.report_failures(NodeErrorMessage.NETWORKER_ERROR)

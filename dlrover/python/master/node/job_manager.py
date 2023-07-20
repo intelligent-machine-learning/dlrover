@@ -556,7 +556,7 @@ class JobManager(object):
         nodes = self._chief_manager.get_running_nodes()
         nodes.extend(self._worker_manager.get_running_nodes())
         nodes.extend(self._evaluator_manager.get_running_nodes())
-        nodes.extend(self._ps_manager.get_training_ps_cluster())
+        nodes.extend(self._ps_manager.get_running_nodes())
         return nodes
 
     def get_running_workers(self):
