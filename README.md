@@ -52,8 +52,8 @@ install  packages on all nodes.
 |  Step to restore training |  Failure without DLRover  |     Node failure with DLRover     |    Process failure with DLRover   |
 |:-------------------------:|:-------------------------:|:---------------------------------:|:---------------------------------:|
 |       Restore action      |        Restart Job        |        Restart failed nodes       |      Restart training process     |
-|  Schedule node, pull image and install packages   | Max time of all nodes |       The time of new nodes       |                 No                |
-| Node health check         |            No             | The time to execute a simple allgtather task | The time to execute a allgtather simple task |
+|  Schedule node, pull image and install packages   |  All nodes |       Only new nodes      |                 No                |
+| Node health check         |            No             | All nodes execute a simple allgtather task | All nodes execute a allgtather simple task |
 | Build communication world |            Yes            |                Yes                |                Yes                |
 |   Start training process  |            Yes            |                Yes                |                Yes                |
 |     Restore checkpoint    |            Yes            |                Yes                |                Yes                |
@@ -67,7 +67,7 @@ can reduce the overhead to restore the training.
 |             Step to restore training            |  Failure without DLRover  |   PS failure with DLRover  | Worker failure with DLRover |
 |:-----------------------------------------------:|:-------------------------:|:--------------------------:|:---------------------------:|
 |                  Restore action                 |        Restart Job        |      Restart failed PS     |    Restart failed workers   |
-| <div style="width: 150pt"> Schedule node, pull image    and install packages | The max time of all nodes | The time of only new nodes |  The time of only new nodes |
+| Schedule node, pull image and install packages | All nodes               |         Only new PS        |     Only new workers        |
 |                  Start session                  |         all nodes         |          all nodes         |       Only new workers      |
 |                 Initialize Graph                |            Yes            |             Yes            |       Only new workers      |
 |                Restore checkpoint               |            Yes            |             Yes            |              No             |
