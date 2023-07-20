@@ -55,7 +55,7 @@ install  packages on all nodes.
 |       Schedule node       | The max time of all nodes |       The time of new nodes       |                 No                |
 |         Pull image        | The max time of all nodes |       The time of new nodes       |                 No                |
 |      Install packages     | The max time of all nodes |       The time of news nodes      |                 No                |
-| Node health check         |            No             | <div style="width: 150pt">  The time to execute a simple allgtather task | <div style="width: 150pt"> The time to execute a allgtather simple task |
+| Node health check         |            No             | The time to execute a simple allgtather task | The time to execute a allgtather simple task |
 | Build communication world |            Yes            |                Yes                |                Yes                |
 |   Start training process  |            Yes            |                Yes                |                Yes                |
 |     Restore checkpoint    |            Yes            |                Yes                |                Yes                |
