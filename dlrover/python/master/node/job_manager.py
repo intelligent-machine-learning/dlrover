@@ -205,7 +205,7 @@ class JobManager(object):
             self._elastic_job.get_node_service_addr,
             self._elastic_job.get_node_name,
         )
-        
+
         chief_nodes = self._job_nodes.get(NodeType.CHIEF, {})
         if not chief_nodes:
             chief_nodes = self._job_nodes.get(NodeType.MASTER, {})
