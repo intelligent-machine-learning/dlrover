@@ -35,6 +35,29 @@ distributed training job.
 
 ### Fault Tolerance to Improve the Stability of Job.
 
+DLRover can restore the training when the process fails without stopping the
+training job. 
+
+#### Fault Tolerance of PyTorch Distributed Training.
+
+DLRover supports fault tolerance of the process failure and the node failure
+to restore trainig. Compared with restarting a new job, DLRover can
+reduce the overhead to schedule all Pods, pull image and
+install  packages on all nodes.  
+
+|  Step to restore training |  Failure without DLRover  |     Node failure with DLRover     |    Process failure with DLRover   |
+|:-------------------------:|:-------------------------:|:---------------------------------:|:---------------------------------:|
+|       Restore action      |        Restart Job        |        Restart failed nodes       |      Restart training process     |
+|       Schedule node       | The max time of all nodes |       The time of new nodes       |                 No                |
+|         Pull image        | The max time of all nodes |       The time of new nodes       |                 No                |
+|      Install packages     | The max time of all nodes |       The time of news nodes      |                 No                |
+| Node health check         | No                        | The time to execute a simple task | The time to execute a simple task |
+| Build communication world |            Yes            |                Yes                |                Yes                |
+|   Start training process  |            Yes            |                Yes                |                Yes                |
+|     Restore checkpoint    |            Yes            |                Yes                |                Yes                |
+
+#### Fault Tolerance of TensorFlow PS Distributed Training.
+
 DLRover can recover failed parameter servers and workers to
 resume training. Some failed nodes do not interrupt the training and hurt the convergence accuracy. The main error is
 OOM of node due to user's insufficient memory configuration.
