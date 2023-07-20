@@ -52,9 +52,7 @@ install  packages on all nodes.
 |  Step to restore training |  Failure without DLRover  |     Node failure with DLRover     |    Process failure with DLRover   |
 |:-------------------------:|:-------------------------:|:---------------------------------:|:---------------------------------:|
 |       Restore action      |        Restart Job        |        Restart failed nodes       |      Restart training process     |
-|       Schedule node       | The max time of all nodes |       The time of new nodes       |                 No                |
-|         Pull image        | The max time of all nodes |       The time of new nodes       |                 No                |
-|      Install packages     | The max time of all nodes |       The time of news nodes      |                 No                |
+|  Schedule node, pull image and install packages   | Max time of all nodes |       The time of new nodes       |                 No                |
 | Node health check         |            No             | The time to execute a simple allgtather task | The time to execute a allgtather simple task |
 | Build communication world |            Yes            |                Yes                |                Yes                |
 |   Start training process  |            Yes            |                Yes                |                Yes                |
