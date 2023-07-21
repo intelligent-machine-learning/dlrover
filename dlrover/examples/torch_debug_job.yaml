@@ -1,7 +1,7 @@
 apiVersion: elastic.iml.github.io/v1alpha1
 kind: ElasticJob
 metadata:
-  name: torch-mnist
+  name: torch-mnist-debug
   namespace: dlrover
 spec:
   distributionStrategy: AllreduceStrategy
@@ -15,8 +15,8 @@ spec:
           containers:
             - name: main
               # yamllint disable-line rule:line-length
-              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:torch201-mnist-test
-              imagePullPolicy: Always
+              image: easydl/dlrover-train:test
+              imagePullPolicy: Never
               command:
                 - /bin/bash
                 - -c
@@ -38,5 +38,5 @@ spec:
           restartPolicy: Never
           containers:
             - name: main
-              imagePullPolicy: Always
-              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:test
+              imagePullPolicy: Never
+              image: easydl/dlrover-master:test

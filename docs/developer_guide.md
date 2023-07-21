@@ -200,7 +200,7 @@ docker build -t easydl/dlrover-master:test -f docker/Dockerfile .
 **Build the training image of PyTorch models.**
 
 ```bash
-docker build -t easydl/dlrover-master:test -f docker/pytorch/mnist.dockerfile .
+docker build -t easydl/dlrover-train:test -f docker/pytorch/mnist.dockerfile .
 ```
 
 ### 5. Submit an ElasticJob to test your images.
