@@ -260,6 +260,7 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         self._node_status: Dict[int, bool] = {}
         self._reported_nodes = set()
         self._node_groups: List[Dict[int, int]] = []
+        self._check_round = 2
 
     def get_comm_world(self, rank_id):
         """Return the communication world if a round rendezvous is completed.
@@ -292,7 +293,7 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         Round 1: group the abnormal node with a normal node like
             [{0:8, 2:8}, {1:8, 2:8}].
         """
-        round = round % 2
+        round = round % self._check_round
         node_groups: List[Dict[int, int]] = []
         if round == 0:
             group = {}
@@ -372,7 +373,10 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                     list(self._node_status.values())
                 )
                 if success:
-                    self._rdzv_round = math.ceil(self._rdzv_round / 2) * 2
+                    self._rdzv_round = (
+                        math.ceil(self._rdzv_round / self._check_round)
+                        * self._check_round
+                    )
                 else:
                     reason = NetworkFailureReason.NODE_FAILURE
             return success, reason
