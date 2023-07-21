@@ -71,10 +71,17 @@ class ProcessError:
 
 
 class MasterRendezvousHandler(RendezvousHandler):
-    def __init__(self, name, rank_id, rdzv_params: RendezvousParameters):
+    def __init__(
+        self,
+        name,
+        rank_id,
+        rdzv_params: RendezvousParameters,
+        local_world_size,
+    ):
         self._name = name
         self._rank_id = rank_id
         self._rdzv_params = rdzv_params
+        self._local_world_size = local_world_size
         self.join_timeout = int(rdzv_params.get("join_timeout", 600))
         self._client = GlobalMasterClient.MASTER_CLIENT
         self._store = MasterKVStore(self._name, timedelta(seconds=60))
@@ -98,16 +105,16 @@ class MasterRendezvousHandler(RendezvousHandler):
         """Marks the rendezvous as closed."""
         pass
 
-    def join_rendezvous(self, local_world_size):
+    def _join_rendezvous(self):
         """The node join a rendezvous by sending its
         ID and local world size.
         """
         round = self._client.join_rendezvous(
-            self._rank_id, local_world_size, rdzv_name=self._name
+            self._rank_id, self._local_world_size, rdzv_name=self._name
         )
         return round
 
-    def next_rendezvous(self, round):
+    def next_rendezvous(self):
         """The handler will peroidically query the world from the master until
         the world is not empty. The world is a dictionary like
         like {0: 8, 1: 8, 2: 8} where the key is the node ID and the value is
@@ -121,18 +128,28 @@ class MasterRendezvousHandler(RendezvousHandler):
             f"rendezvous '{self._name}' with timeout {self.join_timeout}."
         )
         logger.info(msg)
+        round = self._join_rendezvous()
         while True:
             group, world = self._client.get_comm_world(
                 self._name, self._rank_id
             )
-            world = dict(sorted(world.items()))
             if world:
-                break
-            if time.time() - start_join > self.join_timeout:
+                if self._rank_id in world:
+                    break
+                else:
+                    logger.info(
+                        "The node is not in the world "
+                        "and waits for more nodes."
+                    )
+                    time.sleep(60)
+                    start_join = time.time()
+                    continue
+            elif time.time() - start_join > self.join_timeout:
                 raise TimeoutError(
                     f"Timeout {self.join_timeout}s to complete next rendezous."
                 )
             time.sleep(3)
+        world = dict(sorted(world.items()))
         rank = list(world.keys()).index(self._rank_id)
         world_size = len(world)
         logger.info(
@@ -217,8 +234,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         """
 
         spec = worker_group.spec
-        round = spec.rdzv_handler.join_rendezvous(spec.local_world_size)
-        store, world = spec.rdzv_handler.next_rendezvous(round)
+        store, world = spec.rdzv_handler.next_rendezvous()
         self._store = store
         group_world_size = len(world)
         group_rank = list(world.keys()).index(self._rank_id)
@@ -464,6 +480,7 @@ def launch_agent(
         RendezvousName.ELASTIC_TRAINING,
         rank_id,
         rdzv_parameters,
+        local_world_size=config.nproc_per_node,
     )
     spec = WorkerSpec(
         role=config.role,
@@ -663,6 +680,7 @@ def network_check(
         RendezvousName.NETWORK_CHECK,
         rank_id,
         rdzv_parameters,
+        local_world_size=config.nproc_per_node,
     )
     spec = WorkerSpec(
         role=config.role,
