@@ -525,23 +525,21 @@ def launch_agent(
             spec.rdzv_handler.shutdown()
 
 
-class NcclCheckElasticAgent(ElasticTrainingAgent):
+class NetworkCheckElasticAgent(ElasticTrainingAgent):
     """
     An implementation of :py:class:`torchelastic.agent.server.ElasticAgent`
-    that handles host-local workers. This agent will run 3 round allgather
-    to check network. We show the detail with 4 nodes to check network.
-    Round 1: all nodes join a communication world {0:8, 1:8, 2:8, 3:8}
-        where the key is the node id and the value is the local world size
-        of the node. The check passes if allgather of all nodes is succeed.
-        Otherwise, the round 2 starts.
-    Round 2: the manager splits nodes into groups and each group contains
-        two nodes, like [{0:8, 1:8},{2:8, 3:8}]. The node in each group will
-        execute allgather independently and report its result to the manager.
-        For example, the result is {0:False, 1:False, 2:True, 3:True}.
-    Round 3: the manager will group the abnormal node with a normal node like
-        [{0:8, 2:8}, {1:8, 2:8}]. Then, the node executes allgather again.
-        If the result is {0:True, 1:False, 2:False, 3:True}, the network of
-        node-1 if not available.
+    that handles host-local workers. This agent will run 2 rounds allgather
+    to check network available. 
+    Round 0: the job master splits nodes into groups and each group contains
+        two nodes. The node in each group will execute an allgather task and
+        report its result to the master. For example, a job has 4 nodes and
+        groups are [{0, 1}, {2, 3}]. Assuming that the allgather task in the
+        1st group fails, the result is {0:False, 1:False, 2:True, 3:True} 
+        where the node 0, 1 are abnormal.
+    Round 1: the master will group the abnormal node with a normal node like
+        [{0, 2}, {1, 3}]. Then, the node executes an allgather task again.
+        If the result is {0:True, 1:False, 2:False, 3:True}, the node-1
+        breakdowns.
     """
 
     def __init__(
@@ -564,6 +562,7 @@ class NcclCheckElasticAgent(ElasticTrainingAgent):
             log_dir,
         )
         self._log_dir = log_dir or tempfile.mkdtemp(prefix="network_check_")
+        self._check_round = 2
 
     def run(self, role: str = DEFAULT_ROLE) -> bool:
         spec = self._worker_group.spec
@@ -574,7 +573,7 @@ class NcclCheckElasticAgent(ElasticTrainingAgent):
             f"{spec.get_entrypoint_name()}"
         )
         success = False
-        for i in range(2):
+        for i in range(self._check_round):
             result = self._run_network_check(spec.monitor_interval)
             logger.info(f"Network check round {i} is {result}")
             status = NodeStatus.SUCCEEDED if result else NodeStatus.FAILED
@@ -586,6 +585,9 @@ class NcclCheckElasticAgent(ElasticTrainingAgent):
                 return True
             else:
                 total_worker_num = len(self._client.get_running_nodes())
+                # If the number of nodes <= 2, we cannot determine which node
+                # breakdowns because there is no normal node in the job to
+                # execute allgather tasks with the two nodes.
                 if total_worker_num <= 2:
                     logger.error(
                         "Fail to check network when there are only 2 nodes."
@@ -676,7 +678,7 @@ def network_check(
         master_addr=master_addr,
     )
 
-    agent = NcclCheckElasticAgent(
+    agent = NetworkCheckElasticAgent(
         rank_id=rank_id,
         config=config,
         entrypoint=entrypoint,
