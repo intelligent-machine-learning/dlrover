@@ -529,12 +529,12 @@ class NetworkCheckElasticAgent(ElasticTrainingAgent):
     """
     An implementation of :py:class:`torchelastic.agent.server.ElasticAgent`
     that handles host-local workers. This agent will run 2 rounds allgather
-    to check network available. 
+    to check network available.
     Round 0: the job master splits nodes into groups and each group contains
         two nodes. The node in each group will execute an allgather task and
         report its result to the master. For example, a job has 4 nodes and
         groups are [{0, 1}, {2, 3}]. Assuming that the allgather task in the
-        1st group fails, the result is {0:False, 1:False, 2:True, 3:True} 
+        1st group fails, the result is {0:False, 1:False, 2:True, 3:True}
         where the node 0, 1 are abnormal.
     Round 1: the master will group the abnormal node with a normal node like
         [{0, 2}, {1, 3}]. Then, the node executes an allgather task again.
