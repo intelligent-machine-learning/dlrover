@@ -31,64 +31,9 @@ from dlrover.trainer.torch.elastic_sampler import ElasticDistributedSampler
 
 from model import GPTConfig, GPT
 
-# -----------------------------------------------------------------------------
-# default config values designed to train a babyGPT on a test dataset shakespeare_char
-# I/O
-out_dir = 'out'
-eval_interval = 2000
-log_interval = 1
-eval_iters = 200
-eval_only = False # if True, script exits right after the first eval
-always_save_checkpoint = True # if True, always save a checkpoint after each eval
-init_from = 'scratch' # 'scratch' or 'resume' or 'gpt2*'
-# wandb logging
-wandb_log = False # disabled by default
-wandb_project = 'owt'
-wandb_run_name = 'gpt2' # 'run' + str(time.time())
-# data
-dataset = 'nanogpt'
-gradient_accumulation_steps = 1 # used to simulate larger batch sizes
-batch_size = 12 # if gradient_accumulation_steps > 1, this is the micro-batch size
-block_size = 1024
-# model
-n_layer = 6
-n_head = 6
-n_embd = 384
-dropout = 0.0 # for pretraining 0 is good, for finetuning try 0.1+
-bias = False # do we use bias inside LayerNorm and Linear layers?
-# adamw optimizer
-learning_rate = 6e-4 # max learning rate
-max_iters = 10 # total number of training iterations
-weight_decay = 1e-1
-beta1 = 0.9
-beta2 = 0.95
-grad_clip = 1.0 # clip gradients at this value, or disable if == 0.0
-# learning rate decay settings
-decay_lr = True # whether to decay the learning rate
-warmup_iters = 0 # how many steps to warm up for
-lr_decay_iters = 10 # should be ~= max_iters per Chinchilla
-min_lr = 6e-5 # minimum learning rate, should be ~= learning_rate/10 per Chinchilla
-# DDP settings
-# backend = 'nccl' # 'nccl', 'gloo', etc.
-backend = 'gloo'
-# system
-device = 'cpu' # examples: 'cpu', 'cuda', 'cuda:0', 'cuda:1' etc., or try 'mps' on macbooks
-dtype = 'bfloat16' if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else 'float16' # 'float32', 'bfloat16', or 'float16', the latter will auto implement a GradScaler
-compile = False # use PyTorch 2.0 to compile the model to be faster
-# -----------------------------------------------------------------------------
-# torch.manual_seed(1337 + seed_offset)
-torch.backends.cuda.matmul.allow_tf32 = True # allow tf32 on matmul
-torch.backends.cudnn.allow_tf32 = True # allow tf32 on cudnn
-device_type = 'cuda' if 'cuda' in device else 'cpu' # for later use in torch.autocast
-# # note: float16 data type will automatically use a GradScaler
-ptdtype = {'float32': torch.float32, 'bfloat16': torch.bfloat16, 'float16': torch.float16}[dtype]
-device_type = 'cpu'
-ctx = nullcontext() if device_type == 'cpu' else torch.amp.autocast(device_type=device_type, dtype=ptdtype)
-# -----------------------------------------------------------------------------
-iter_num = 0
-best_val_loss = 1e9
-# -----------------------------------------------------------------------------
 
+local_rank = None
+master_process = False
 
 def get_data_loader(data_dir):
     # poor man's data loader
@@ -106,7 +51,7 @@ def get_data_loader(data_dir):
     return train_data, val_data, meta_vocab_size
 
 
-def get_batch(split,train_data,val_data):
+def get_batch(split,train_data,val_data, device_type='cpu',device='cpu', batch_size=12, block_size=128):
     data = train_data if split == 'train' else val_data
     ix = torch.randint(len(data) - block_size, (batch_size,))
     x = torch.stack([torch.from_numpy((data[i:i+block_size]).astype(np.int64)) for i in ix])
@@ -118,7 +63,13 @@ def get_batch(split,train_data,val_data):
         x, y = x.to(device), y.to(device)
     return x, y
 
-def gpt_init(meta_vocab_size=None):
+def gpt_init(meta_vocab_size=None,args=None):
+    n_layer = args.n_layer
+    n_head = args.n_head
+    n_embd = args.n_embd
+    block_size = args.block_size
+    bias = args.bias
+    dropout = args.dropout
     # model init
     model_args = dict(n_layer=n_layer, n_head=n_head, n_embd=n_embd, block_size=block_size,
                     bias=bias, vocab_size=None, dropout=dropout) # start with model_args from command line
@@ -134,7 +85,11 @@ def gpt_init(meta_vocab_size=None):
 
 
 # learning rate decay scheduler (cosine with warmup)
-def get_lr(it):
+def get_lr(it,args):
+    learning_rate = args.learning_rate
+    warmup_iters = args.warmup_iters
+    lr_decay_iters = args.lr_decay_iters
+    min_lr = args.min_lr
     # 1) linear warmup for warmup_iters steps
     if it < warmup_iters:
         return learning_rate * it / warmup_iters
@@ -147,33 +102,71 @@ def get_lr(it):
     coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio)) # coeff ranges 0..1
     return min_lr + coeff * (learning_rate - min_lr)
 
-def setup():
-    use_cuda = torch.cuda.is_available()
+def log_rank0(msg):
+    local_rank = int(os.environ.get("LOCAL_RANK", 0))
+    if local_rank == 0:
+        print(msg)
+
+
+def setup(args):
+
+    global local_rank, master_process
+
+    use_cuda = torch.cuda.is_available() and args.device != 'cpu'
     if use_cuda:
         dist.init_process_group("nccl", timeout=timedelta(seconds=120))
-        torch.cuda.set_device(int(os.environ["LOCAL_RANK"]))
     else:
         dist.init_process_group("gloo", timeout=timedelta(seconds=120))
     rank = dist.get_rank()
-    local_rank = os.environ["LOCAL_RANK"]
+    local_rank = int(os.environ["LOCAL_RANK"])
     print(f"rank {rank} is initialized local_rank = {local_rank}")
+    world_size = int(os.environ['WORLD_SIZE'])
+    master_process = rank == 0 # this process will do logging, checkpointing etc.
+    seed_offset = rank # each process gets a different seed
+    torch.manual_seed(1337 + seed_offset)
+    torch.backends.cuda.matmul.allow_tf32 = True # allow tf32 on matmul
+    torch.backends.cudnn.allow_tf32 = True # allow tf32 on cudnn
+    
 
 def cleanup():
     dist.destroy_process_group()
 
-def train(args):
+def train():
 
-    global iter_num, best_val_loss
+    global local_rank
+
+    args = arg_parser()
+    setup(args)
+    world_size = int(os.environ['WORLD_SIZE'])
+    gradient_accumulation_steps = args.gradient_accumulation_steps
+    batch_size = args.batch_size
+    block_size = args.block_size
+    assert gradient_accumulation_steps % world_size == 0
+    gradient_accumulation_steps //= world_size
+    tokens_per_iter = gradient_accumulation_steps * world_size * batch_size * block_size
+    log_rank0(f"tokens per iteration will be: {tokens_per_iter:,}")
+    # data
     train_data, val_data, meta_vocab_size = get_data_loader(args.data_dir)
-    setup()
-    model = gpt_init(meta_vocab_size)
-
+    device = f'cuda:{local_rank}'
+    torch.cuda.set_device(device)
+    device_type = 'cuda' if 'cuda' in device else 'cpu' # for later use in torch.autocast
+    # note: float16 data type will automatically use a GradScaler
+    dtype = 'bfloat16' if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else 'float16' # 'float32', 'bfloat16', or 'float16', the latter will auto implement a GradScaler
+    ptdtype = {'float32': torch.float32, 'bfloat16': torch.bfloat16, 'float16': torch.float16}[dtype]
+    ctx = nullcontext() if device_type == 'cpu' else torch.amp.autocast(device_type=device_type, dtype=ptdtype)
+    model = gpt_init(meta_vocab_size,args=args)
     scaler = torch.cuda.amp.GradScaler(enabled=(dtype == 'float16'))
+    model = model.to(device)
     # optimizer
-    optimizer = model.configure_optimizers(weight_decay, learning_rate, (beta1, beta2), device_type)
+    print(f"creating optimizer...{model.parameters()}")
+    optimizer = model.configure_optimizers(
+        weight_decay=args.weight_decay,
+        learning_rate=args.learning_rate,
+        betas=(args.beta1, args.beta2),
+        device_type=device_type,
+    )
     
-    
-    if torch.cuda.is_available():
+    if torch.cuda.is_available() and device_type == 'cuda':
         local_rank = int(os.environ["LOCAL_RANK"])
         print(f"Running basic DDP example on local rank {local_rank}.")
         # create model and move it to GPU with id rank
@@ -181,20 +174,31 @@ def train(args):
         model = DDP(model, device_ids=[local_rank])
         print(f"Model device {model.device}")
     else:
+        local_rank = int(os.environ["LOCAL_RANK"])
+        print(f"Running basic CPU example on device {device}.")
+        model = model.to(device)
         model = DDP(model)
+        print(f"Model device {model.device}")
 
     # compile the model
-    if compile:
+    if compile == 'True':
         print("compiling the model... (takes a ~minute)")
         unoptimized_model = model
         model = torch.compile(model) # requires PyTorch 2.0
 
     # training loop
-    X, Y = get_batch('train',train_data, val_data) # fetch the very first batch
+    X, Y = get_batch('train',train_data, val_data, device_type) # fetch the very first batch
     total_time = 0.0
     local_iter_num = 0 # number of iterations in the lifetime of this process
     raw_model = model.module # unwrap DDP container if needed
     running_mfu = -1.0
+    iter_num = 0
+    best_val_loss = 1e9
+    decay_lr = args.decay_lr
+    max_iters = args.max_iters
+    log_interval = args.log_interval
+    grad_clip = args.grad_clip
+    learning_rate = args.learning_rate
 
     while True:
 
@@ -211,7 +215,7 @@ def train(args):
                 logits, loss = model(X, Y)
                 loss = loss / gradient_accumulation_steps # scale the loss to account for gradient accumulation
             # immediately async prefetch next batch while model is doing the forward pass on the GPU
-            X, Y = get_batch('train',train_data, val_data)
+            X, Y = get_batch('train',train_data, val_data, device_type)
             # backward pass, with gradient scaling if training in fp16
             scaler.scale(loss).backward()
         # clip the gradient
@@ -246,12 +250,49 @@ def train(args):
 
 def arg_parser():
     parser = argparse.ArgumentParser(description="Process training parameters")
+
+    # Data settings
     parser.add_argument("--data_dir", type=str, required=True)
-    return parser
+    parser.add_argument("--out_dir", type=str, default="out", required=False)
+    parser.add_argument("--eval_interval", type=int, default=2000, required=False)
+    parser.add_argument("--log_interval", type=int, default=1, required=False)
+    parser.add_argument("--eval_iters", type=int, default=200, required=False)
+    parser.add_argument("--eval_only", action="store_true", required=False)
+    parser.add_argument("--always_save_checkpoint", action="store_true", required=False)
+    parser.add_argument("--batch_size", type=int, default=12, required=False)
+    parser.add_argument("--block_size", type=int, default=1024, required=False)
+
+    # Model settings
+    parser.add_argument("--n_layer", type=int, default=6, required=False)
+    parser.add_argument("--n_head", type=int, default=6, required=False)
+    parser.add_argument("--n_embd", type=int, default=384, required=False)
+    parser.add_argument("--dropout", type=float, default=0.0, required=False)
+    parser.add_argument("--bias", action="store_true", required=False)
+
+    # Optimizer settings
+    parser.add_argument("--learning_rate", type=float, default=6e-4, required=False)
+    parser.add_argument("--max_iters", type=int, default=10, required=False)
+    parser.add_argument("--weight_decay", type=float, default=1e-1, required=False)
+    parser.add_argument("--beta1", type=float, default=0.9, required=False)
+    parser.add_argument("--beta2", type=float, default=0.95, required=False)
+    parser.add_argument("--grad_clip", type=float, default=1.0, required=False)
+    parser.add_argument("--gradient_accumulation_steps", type=int, default=1, required=False)
+
+    # Learning rate decay settings
+    parser.add_argument("--decay_lr", action="store_true", required=False)
+    parser.add_argument("--warmup_iters", type=int, default=0, required=False)
+    parser.add_argument("--lr_decay_iters", type=int, default=10, required=False)
+    parser.add_argument("--min_lr", type=float, default=6e-5, required=False)
+
+    # System settings
+    parser.add_argument("--device", type=str, default="cpu", required=False)
+    parser.add_argument("--compile", type=str, default="False", required=False)
+
+    args = parser.parse_args()
+    
+    return args
 
 
 if __name__ == "__main__":
-    parser = arg_parser()
-    args = parser.parse_args()
-    train(args)
+    train()
     cleanup()
