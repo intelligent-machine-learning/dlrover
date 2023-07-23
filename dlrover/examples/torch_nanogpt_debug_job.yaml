@@ -1,7 +1,7 @@
 apiVersion: elastic.iml.github.io/v1alpha1
 kind: ElasticJob
 metadata:
-  name: torch-nanogpt
+  name: torch-nanogpt-debug
   namespace: dlrover
 spec:
   distributionStrategy: AllreduceStrategy
