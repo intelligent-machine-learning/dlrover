@@ -12,25 +12,23 @@
 # limitations under the License.
 
 
-import os
-import time
-import math
-import pickle
 import argparse
+import math
+import os
+import pickle
+import time
 from contextlib import nullcontext
+from datetime import timedelta
 
 import numpy as np
 import torch
 import torch.distributed as dist
-from datetime import timedelta
+from model import GPT, GPTConfig
+from torch.distributed import destroy_process_group, init_process_group
 from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.distributed import init_process_group, destroy_process_group
 
 from dlrover.trainer.torch.elastic import ElasticTrainer
 from dlrover.trainer.torch.elastic_sampler import ElasticDistributedSampler
-
-from model import GPTConfig, GPT
-
 
 local_rank = None
 master_process = False
@@ -42,7 +40,9 @@ def get_data_loader(data_dir):
     train_data = np.memmap(
         os.path.join(data_dir, "train.bin"), dtype=np.uint16, mode="r"
     )
-    val_data = np.memmap(os.path.join(data_dir, "val.bin"), dtype=np.uint16, mode="r")
+    val_data = np.memmap(
+        os.path.join(data_dir, "val.bin"), dtype=np.uint16, mode="r"
+    )
     # attempt to derive vocab_size from the dataset
     meta_path = os.path.join(data_dir, "meta.pkl")
     meta_vocab_size = None
@@ -66,11 +66,16 @@ def get_batch(
     data = train_data if split == "train" else val_data
     ix = torch.randint(len(data) - block_size, (batch_size,))
     x = torch.stack(
-        [torch.from_numpy((data[i : i + block_size]).astype(np.int64)) for i in ix]
+        [
+            torch.from_numpy((data[i : i + block_size]).astype(np.int64))
+            for i in ix
+        ]
     )
     y = torch.stack(
         [
-            torch.from_numpy((data[i + 1 : i + 1 + block_size]).astype(np.int64))
+            torch.from_numpy(
+                (data[i + 1 : i + 1 + block_size]).astype(np.int64)
+            )
             for i in ix
         ]
     )
@@ -109,7 +114,9 @@ def gpt_init(meta_vocab_size=None, args=None):
         print(
             "defaulting to vocab_size of GPT-2 to 50304 (50257 rounded up for efficiency)"
         )
-    model_args["vocab_size"] = meta_vocab_size if meta_vocab_size is not None else 50304
+    model_args["vocab_size"] = (
+        meta_vocab_size if meta_vocab_size is not None else 50304
+    )
     gptconf = GPTConfig(**model_args)
     return GPT(gptconf)
 
@@ -151,7 +158,9 @@ def setup(args):
     local_rank = int(os.environ["LOCAL_RANK"])
     print(f"rank {rank} is initialized local_rank = {local_rank}")
     world_size = int(os.environ["WORLD_SIZE"])
-    master_process = rank == 0  # this process will do logging, checkpointing etc.
+    master_process = (
+        rank == 0
+    )  # this process will do logging, checkpointing etc.
     seed_offset = rank  # each process gets a different seed
     torch.manual_seed(1337 + seed_offset)
     torch.backends.cuda.matmul.allow_tf32 = True  # allow tf32 on matmul
@@ -173,7 +182,9 @@ def train():
     block_size = args.block_size
     assert gradient_accumulation_steps % world_size == 0
     gradient_accumulation_steps //= world_size
-    tokens_per_iter = gradient_accumulation_steps * world_size * batch_size * block_size
+    tokens_per_iter = (
+        gradient_accumulation_steps * world_size * batch_size * block_size
+    )
     log_rank0(f"tokens per iteration will be: {tokens_per_iter:,}")
     # data
     train_data, val_data, meta_vocab_size = get_data_loader(args.data_dir)
@@ -289,7 +300,9 @@ def train():
                     batch_size * gradient_accumulation_steps, dt
                 )
                 running_mfu = (
-                    mfu if running_mfu == -1.0 else 0.9 * running_mfu + 0.1 * mfu
+                    mfu
+                    if running_mfu == -1.0
+                    else 0.9 * running_mfu + 0.1 * mfu
                 )
             print(
                 f"iter {iter_num}: loss {lossf:.4f}, time {dt*1000:.2f}ms, mfu {running_mfu*100:.2f}%, lr {lr:.2e}, total time {total_time:.2f}s"
@@ -308,11 +321,15 @@ def arg_parser():
     # Data settings
     parser.add_argument("--data_dir", type=str, required=True)
     parser.add_argument("--out_dir", type=str, default="out", required=False)
-    parser.add_argument("--eval_interval", type=int, default=2000, required=False)
+    parser.add_argument(
+        "--eval_interval", type=int, default=2000, required=False
+    )
     parser.add_argument("--log_interval", type=int, default=1, required=False)
     parser.add_argument("--eval_iters", type=int, default=200, required=False)
     parser.add_argument("--eval_only", action="store_true", required=False)
-    parser.add_argument("--always_save_checkpoint", action="store_true", required=False)
+    parser.add_argument(
+        "--always_save_checkpoint", action="store_true", required=False
+    )
     parser.add_argument("--batch_size", type=int, default=12, required=False)
     parser.add_argument("--block_size", type=int, default=1024, required=False)
 
@@ -324,9 +341,13 @@ def arg_parser():
     parser.add_argument("--bias", action="store_true", required=False)
 
     # Optimizer settings
-    parser.add_argument("--learning_rate", type=float, default=6e-4, required=False)
+    parser.add_argument(
+        "--learning_rate", type=float, default=6e-4, required=False
+    )
     parser.add_argument("--max_iters", type=int, default=10, required=False)
-    parser.add_argument("--weight_decay", type=float, default=1e-1, required=False)
+    parser.add_argument(
+        "--weight_decay", type=float, default=1e-1, required=False
+    )
     parser.add_argument("--beta1", type=float, default=0.9, required=False)
     parser.add_argument("--beta2", type=float, default=0.95, required=False)
     parser.add_argument("--grad_clip", type=float, default=1.0, required=False)
@@ -337,7 +358,9 @@ def arg_parser():
     # Learning rate decay settings
     parser.add_argument("--decay_lr", action="store_true", required=False)
     parser.add_argument("--warmup_iters", type=int, default=0, required=False)
-    parser.add_argument("--lr_decay_iters", type=int, default=10, required=False)
+    parser.add_argument(
+        "--lr_decay_iters", type=int, default=10, required=False
+    )
     parser.add_argument("--min_lr", type=float, default=6e-5, required=False)
 
     # System settings
