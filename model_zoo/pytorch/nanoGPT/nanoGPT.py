@@ -17,7 +17,7 @@ import math
 import os
 import pickle
 import time
-from contextlib import nullcontext
+import contextlib
 from datetime import timedelta
 
 import numpy as np
@@ -206,7 +206,7 @@ def train():
         "float16": torch.float16,
     }[dtype]
     ctx = (
-        nullcontext()
+        contextlib.nullcontext()
         if device_type == "cpu"
         else torch.amp.autocast(device_type=device_type, dtype=ptdtype)
     )
