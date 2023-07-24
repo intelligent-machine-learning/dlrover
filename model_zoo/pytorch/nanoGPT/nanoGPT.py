@@ -13,11 +13,11 @@
 
 
 import argparse
+import contextlib
 import math
 import os
 import pickle
 import time
-import contextlib
 from datetime import timedelta
 
 import numpy as np
