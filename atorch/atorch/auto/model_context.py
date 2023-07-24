@@ -27,7 +27,6 @@ from atorch.distributed.distributed import (
     rank,
 )
 from atorch.utils.graph_transform_utils import map_aggregate
-from atorch.utils.version import torch_version
 
 try:
     from pippy.IR import LossWrapper
@@ -463,7 +462,7 @@ class ModelContext(object):
         fairscale_zero2_wrapper_exist = "zero2" in self.post_wrappers
         fsdp_wrapper_exist = "fsdp" in self.pre_wrappers or "zero2" in self.pre_wrappers
         tensor_parallel_wrapper_exist = "tp" in self.pre_wrappers
-        ckpt_wrapper_exist = "checkpoint" in self.post_wrappers
+        # ckpt_wrapper_exist = "checkpoint" in self.post_wrappers
 
         # remove ddp wrapper when using zero2
         if ddp_wrapper_exist and (fairscale_zero2_wrapper_exist or fsdp_wrapper_exist):
