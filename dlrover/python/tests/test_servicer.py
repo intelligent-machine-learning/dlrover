@@ -38,10 +38,10 @@ class MasterServicerTest(unittest.TestCase):
     def setUp(self) -> None:
         mock_k8s_client()
         params = MockK8sPSJobArgs()
+        params.initilize()
         worker_resource = params.node_args[NodeType.WORKER].group_resource
         worker_resource.node_resource.gpu_num = 1
         worker_resource.node_resource.gpu_type = "a100"
-        params.initilize()
         speed_monitor = SpeedMonitor()
         self.task_manager = TaskManager(False, speed_monitor)
         self.job_manager = create_job_manager(params, speed_monitor)
