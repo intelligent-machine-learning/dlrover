@@ -125,6 +125,46 @@ With the data source transparency provided by dynamic data sharding, DLRover can
 
 By practice, DLRover is an ideal component to build an end-to-end industrial online learning system, [estimator.md](docs/tutorial/estimator.md) provides a detailed example implemented with `tf.estimator.Estimator`.
 
+## How to Use DLRover to Train Your Models?
+
+Firstly, the user need to deploy the DLRover elasticjob controller in a kubernetes
+cluster by followding the [tutorial](docs/deployment/controller.md).
+
+### Train a PyTorch Model.
+
+Only by 2 steps, the user can use DLRover to run the training script which 
+`torchrun` or `torch.distributed.run` can run.
+
+- Install dlrover[torch] in the training image with the command 
+
+```bash
+pip install dlrover[torch]
+```
+
+- Use `dlrover-run` to run the training script. 
+
+```bash
+dlrover-run
+    --nnodes=$NUM_NODES
+    --nproc_per_node=$$NUM_TRAINERS
+    train_scripts.py
+```
+
+- Set the image and command in an ElasticJob yaml file to submit a job.
+We can refer to the example [torch_mnist_job.yaml](dlrover/examples/torch_mnist_job.yaml)
+to make an ElasticJob yaml.
+
+### Train a TensorFlow Model
+
+We can use DLRover to train a TensorFlow by the following steps:
+
+- Use TensorFlow estimator to develop the TensorFlow model.
+- Define the input of `tf.dataset` in a training configuration of DLRover.
+- Define your reader to read samples from the dataset file.
+
+We can refer to the [estimator.md](docs/tutorial/estimator.md) to train
+a model with DLRover.
+
 ## What's Next?
 
 - Fine-grained automatic distributed training for GPU Synchronous jobs
