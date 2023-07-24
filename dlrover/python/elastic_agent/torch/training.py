@@ -71,10 +71,17 @@ class ProcessError:
 
 
 class MasterRendezvousHandler(RendezvousHandler):
-    def __init__(self, name, rank_id, rdzv_params: RendezvousParameters):
+    def __init__(
+        self,
+        name,
+        rank_id,
+        rdzv_params: RendezvousParameters,
+        local_world_size,
+    ):
         self._name = name
         self._rank_id = rank_id
         self._rdzv_params = rdzv_params
+        self._local_world_size = local_world_size
         self.join_timeout = int(rdzv_params.get("join_timeout", 600))
         self._client = GlobalMasterClient.MASTER_CLIENT
         self._store = MasterKVStore(self._name, timedelta(seconds=60))
@@ -98,16 +105,16 @@ class MasterRendezvousHandler(RendezvousHandler):
         """Marks the rendezvous as closed."""
         pass
 
-    def join_rendezvous(self, local_world_size):
+    def _join_rendezvous(self):
         """The node join a rendezvous by sending its
         ID and local world size.
         """
         round = self._client.join_rendezvous(
-            self._rank_id, local_world_size, rdzv_name=self._name
+            self._rank_id, self._local_world_size, rdzv_name=self._name
         )
         return round
 
-    def next_rendezvous(self, round):
+    def next_rendezvous(self):
         """The handler will peroidically query the world from the master until
         the world is not empty. The world is a dictionary like
         like {0: 8, 1: 8, 2: 8} where the key is the node ID and the value is
@@ -121,18 +128,28 @@ class MasterRendezvousHandler(RendezvousHandler):
             f"rendezvous '{self._name}' with timeout {self.join_timeout}."
         )
         logger.info(msg)
+        round = self._join_rendezvous()
         while True:
             group, world = self._client.get_comm_world(
                 self._name, self._rank_id
             )
-            world = dict(sorted(world.items()))
             if world:
-                break
-            if time.time() - start_join > self.join_timeout:
+                if self._rank_id in world:
+                    break
+                else:
+                    logger.info(
+                        "The node is not in the world "
+                        "and waits for more nodes."
+                    )
+                    time.sleep(60)
+                    start_join = time.time()
+                    continue
+            elif time.time() - start_join > self.join_timeout:
                 raise TimeoutError(
                     f"Timeout {self.join_timeout}s to complete next rendezous."
                 )
             time.sleep(3)
+        world = dict(sorted(world.items()))
         rank = list(world.keys()).index(self._rank_id)
         world_size = len(world)
         logger.info(
@@ -217,8 +234,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         """
 
         spec = worker_group.spec
-        round = spec.rdzv_handler.join_rendezvous(spec.local_world_size)
-        store, world = spec.rdzv_handler.next_rendezvous(round)
+        store, world = spec.rdzv_handler.next_rendezvous()
         self._store = store
         group_world_size = len(world)
         group_rank = list(world.keys()).index(self._rank_id)
@@ -464,6 +480,7 @@ def launch_agent(
         RendezvousName.ELASTIC_TRAINING,
         rank_id,
         rdzv_parameters,
+        local_world_size=config.nproc_per_node,
     )
     spec = WorkerSpec(
         role=config.role,
@@ -525,23 +542,21 @@ def launch_agent(
             spec.rdzv_handler.shutdown()
 
 
-class NcclCheckElasticAgent(ElasticTrainingAgent):
+class NetworkCheckElasticAgent(ElasticTrainingAgent):
     """
     An implementation of :py:class:`torchelastic.agent.server.ElasticAgent`
-    that handles host-local workers. This agent will run 3 round allgather
-    to check network. We show the detail with 4 nodes to check network.
-    Round 1: all nodes join a communication world {0:8, 1:8, 2:8, 3:8}
-        where the key is the node id and the value is the local world size
-        of the node. The check passes if allgather of all nodes is succeed.
-        Otherwise, the round 2 starts.
-    Round 2: the manager splits nodes into groups and each group contains
-        two nodes, like [{0:8, 1:8},{2:8, 3:8}]. The node in each group will
-        execute allgather independently and report its result to the manager.
-        For example, the result is {0:False, 1:False, 2:True, 3:True}.
-    Round 3: the manager will group the abnormal node with a normal node like
-        [{0:8, 2:8}, {1:8, 2:8}]. Then, the node executes allgather again.
-        If the result is {0:True, 1:False, 2:False, 3:True}, the network of
-        node-1 if not available.
+    that handles host-local workers. This agent will run 2 rounds allgather
+    to check network available.
+    Round 0: the job master splits nodes into groups and each group contains
+        two nodes. The node in each group will execute an allgather task and
+        report its result to the master. For example, a job has 4 nodes and
+        groups are [{0, 1}, {2, 3}]. Assuming that the allgather task in the
+        1st group fails, the result is {0:False, 1:False, 2:True, 3:True}
+        where the node 0, 1 are abnormal.
+    Round 1: the master will group the abnormal node with a normal node like
+        [{0, 2}, {1, 3}]. Then, the node executes an allgather task again.
+        If the result is {0:True, 1:False, 2:False, 3:True}, the node-1
+        breakdowns.
     """
 
     def __init__(
@@ -564,7 +579,7 @@ class NcclCheckElasticAgent(ElasticTrainingAgent):
             log_dir,
         )
         self._log_dir = log_dir or tempfile.mkdtemp(prefix="network_check_")
-        self._max_check_round = 3
+        self._check_round = 2
 
     def run(self, role: str = DEFAULT_ROLE) -> bool:
         spec = self._worker_group.spec
@@ -575,7 +590,7 @@ class NcclCheckElasticAgent(ElasticTrainingAgent):
             f"{spec.get_entrypoint_name()}"
         )
         success = False
-        for i in range(self._max_check_round):
+        for i in range(self._check_round):
             result = self._run_network_check(spec.monitor_interval)
             logger.info(f"Network check round {i} is {result}")
             status = NodeStatus.SUCCEEDED if result else NodeStatus.FAILED
@@ -585,11 +600,16 @@ class NcclCheckElasticAgent(ElasticTrainingAgent):
             self._stop_workers(self._worker_group)
             if network_ready:
                 return True
-            elif i == 0 and self._worker_group.group_world_size <= 2:
-                logger.error(
-                    "Fail to check network when there are only 2 nodes."
-                )
-                raise RuntimeError("The node network is breakdown.")
+            else:
+                total_worker_num = len(self._client.get_running_nodes())
+                # If the number of nodes <= 2, we cannot determine which node
+                # breakdowns because there is no normal node in the job to
+                # execute allgather tasks with the two nodes.
+                if total_worker_num <= 2:
+                    logger.error(
+                        "Fail to check network when there are only 2 nodes."
+                    )
+                    raise RuntimeError("The node network is breakdown.")
             time.sleep(1)
         if not success:
             self._client.report_failures(NodeErrorMessage.NETWORKER_ERROR)
@@ -663,6 +683,7 @@ def network_check(
         RendezvousName.NETWORK_CHECK,
         rank_id,
         rdzv_parameters,
+        local_world_size=config.nproc_per_node,
     )
     spec = WorkerSpec(
         role=config.role,
@@ -675,7 +696,7 @@ def network_check(
         master_addr=master_addr,
     )
 
-    agent = NcclCheckElasticAgent(
+    agent = NetworkCheckElasticAgent(
         rank_id=rank_id,
         config=config,
         entrypoint=entrypoint,

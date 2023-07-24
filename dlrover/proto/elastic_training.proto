@@ -165,7 +165,7 @@ message NodeMeta {
   string type = 1;
   string addr = 2;
   int32 memory = 3;
-  int32 cpu = 4;
+  float cpu = 4;
   int32 gpu = 5;
   string gpu_type = 6;
   int32 id = 7;
