@@ -158,7 +158,7 @@ class TaskManager(object):
     def recover_tasks(self, node_type, node_id):
         """Recover doing tasks for a dead worker if needed"""
         for name, dataset in self._datasets.items():
-            doing_tasks = dataset.doing.copy()
+            doing_tasks = dataset.doing
             if not doing_tasks:
                 return
             ids = [
