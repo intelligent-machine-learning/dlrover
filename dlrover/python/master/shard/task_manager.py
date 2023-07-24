@@ -27,7 +27,6 @@ from dlrover.python.master.shard.base_dataset_manager import (
 )
 from dlrover.python.master.shard.batch_dataset_manager import (
     BatchDatasetManager,
-    DoingTask,
 )
 from dlrover.python.master.shard.dataset_splitter import DatasetSplitter
 
@@ -63,10 +62,8 @@ class TaskManager(object):
         task_type=elastic_training_pb2.NONE,
     ):
         logger.info(
-            "New %s dataset with batch size = %s, dataset size = %s",
-            dataset_name,
-            batch_size,
-            dataset_size,
+            f"New {task_type} dataset {dataset_name} with, "
+            f"batch size = {batch_size} dataset size = {dataset_size}"
         )
 
         with self._lock:
@@ -161,7 +158,7 @@ class TaskManager(object):
     def recover_tasks(self, node_type, node_id):
         """Recover doing tasks for a dead worker if needed"""
         for name, dataset in self._datasets.items():
-            doing_tasks: Dict[int, DoingTask] = dataset.get_doing_tasks()
+            doing_tasks = dataset.doing.copy()
             if not doing_tasks:
                 return
             ids = [
@@ -173,12 +170,15 @@ class TaskManager(object):
             if not ids:
                 return
             request = elastic_training_pb2.ReportTaskResultRequest()
+            recover_tasks = []
             for id in ids:
                 request.task_id = id
                 request.dataset_name = name
+                recover_tasks.append(id)
                 self.report_dataset_task(request, False)
             logger.info(
-                "Recover tasks of dataset %s assigned to %s-%d",
+                "Recover tasks %s of dataset %s assigned to %s-%d",
+                recover_tasks,
                 name,
                 node_type,
                 node_id,
@@ -204,7 +204,7 @@ class TaskManager(object):
 
     def _check_and_reassign_timeout_tasks(self):
         """Check whether there are timeout tasks periodically."""
-        logger.info("Start the thread to monitor timeout tasks")
+        logger.info("Start the thread to monitor timeout tasks.")
         while True:
             for _, dataset in self._datasets.items():
                 doing_tasks = dataset.doing.copy()
@@ -226,6 +226,9 @@ class TaskManager(object):
                             "worker %d timeout with task %d, relaunch it",
                             doing_task.node_id,
                             task_id,
+                        )
+                        self.recover_tasks(
+                            doing_task.node_type, doing_task.node_id
                         )
                         self._invoke_task_timeout_callback(doing_task.node_id)
                         break
