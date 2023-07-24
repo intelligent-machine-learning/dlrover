@@ -24,11 +24,7 @@ import numpy as np
 import torch
 import torch.distributed as dist
 from model import GPT, GPTConfig
-from torch.distributed import destroy_process_group, init_process_group
 from torch.nn.parallel import DistributedDataParallel as DDP
-
-from dlrover.trainer.torch.elastic import ElasticTrainer
-from dlrover.trainer.torch.elastic_sampler import ElasticDistributedSampler
 
 local_rank = None
 master_process = False
@@ -80,7 +76,8 @@ def get_batch(
         ]
     )
     if device_type == "cuda":
-        # pin arrays x,y, which allows us to move them to GPU asynchronously (non_blocking=True)
+        # pin arrays x,y, which allows us to move them
+        # to GPU asynchronously (non_blocking=True)
         x, y = x.pin_memory().to(device, non_blocking=True), y.pin_memory().to(
             device, non_blocking=True
         )
@@ -112,7 +109,8 @@ def gpt_init(meta_vocab_size=None, args=None):
     # determine the vocab size we'll use for from-scratch training
     if meta_vocab_size is None:
         print(
-            "defaulting to vocab_size of GPT-2 to 50304 (50257 rounded up for efficiency)"
+            "defaulting to vocab_size of GPT-2 to 50304 "
+            "(50257 rounded up for efficiency)"
         )
     model_args["vocab_size"] = (
         meta_vocab_size if meta_vocab_size is not None else 50304
@@ -157,10 +155,8 @@ def setup(args):
     rank = dist.get_rank()
     local_rank = int(os.environ["LOCAL_RANK"])
     print(f"rank {rank} is initialized local_rank = {local_rank}")
-    world_size = int(os.environ["WORLD_SIZE"])
-    master_process = (
-        rank == 0
-    )  # this process will do logging, checkpointing etc.
+    # this process will do logging, checkpointing etc.
+    master_process = rank == 0
     seed_offset = rank  # each process gets a different seed
     torch.manual_seed(1337 + seed_offset)
     torch.backends.cuda.matmul.allow_tf32 = True  # allow tf32 on matmul
@@ -198,7 +194,8 @@ def train():
         "bfloat16"
         if torch.cuda.is_available() and torch.cuda.is_bf16_supported()
         else "float16"
-    )  # 'float32', 'bfloat16', or 'float16', the latter will auto implement a GradScaler
+    )  # 'float32', 'bfloat16', or 'float16', the latter will
+    # auto implement a GradScaler
     ptdtype = {
         "float32": torch.float32,
         "bfloat16": torch.bfloat16,
@@ -238,7 +235,6 @@ def train():
     # compile the model
     if compile == "True":
         print("compiling the model... (takes a ~minute)")
-        unoptimized_model = model
         model = torch.compile(model)  # requires PyTorch 2.0
 
     # training loop
@@ -250,7 +246,6 @@ def train():
     raw_model = model.module  # unwrap DDP container if needed
     running_mfu = -1.0
     iter_num = 0
-    best_val_loss = 1e9
     decay_lr = args.decay_lr
     max_iters = args.max_iters
     log_interval = args.log_interval
@@ -264,7 +259,8 @@ def train():
             param_group["lr"] = lr
 
         t0 = time.time()
-        # forward backward update, with optional gradient accumulation to simulate larger batch size
+        # forward backward update, with optional gradient accumulation
+        #  to simulate larger batch size
         # and using the GradScaler if data type is float16
         for micro_step in range(gradient_accumulation_steps):
             with ctx:
@@ -272,7 +268,8 @@ def train():
                 loss = (
                     loss / gradient_accumulation_steps
                 )  # scale the loss to account for gradient accumulation
-            # immediately async prefetch next batch while model is doing the forward pass on the GPU
+            # immediately async prefetch next batch while model
+            # is doing the forward pass on the GPU
             X, Y = get_batch("train", train_data, val_data, device_type)
             # backward pass, with gradient scaling if training in fp16
             scaler.scale(loss).backward()
@@ -283,7 +280,8 @@ def train():
         # step the optimizer and scaler if training in fp16
         scaler.step(optimizer)
         scaler.update()
-        # flush the gradients as soon as we can, no need for this memory anymore
+        # flush the gradients as soon as we can,
+        # no need for this memory anymore
         optimizer.zero_grad(set_to_none=True)
 
         # timing and logging
@@ -293,7 +291,8 @@ def train():
 
         if iter_num % log_interval == 0:
             # get loss as float. note: this is a CPU-GPU sync point
-            # scale up to undo the division above, approximating the true total loss (exact would have been a sum)
+            # scale up to undo the division above, approximating
+            # the true total loss (exact would have been a sum)
             lossf = loss.item() * gradient_accumulation_steps
             if local_iter_num >= 5:  # let the training loop settle a bit
                 mfu = raw_model.estimate_mfu(
@@ -305,7 +304,9 @@ def train():
                     else 0.9 * running_mfu + 0.1 * mfu
                 )
             print(
-                f"iter {iter_num}: loss {lossf:.4f}, time {dt*1000:.2f}ms, mfu {running_mfu*100:.2f}%, lr {lr:.2e}, total time {total_time:.2f}s"
+                f"iter {iter_num}: loss {lossf:.4f}, time {dt*1000:.2f}ms, "
+                f"mfu {running_mfu*100:.2f}%, lr {lr:.2e}, "
+                f"total time {total_time:.2f}s"
             )
         iter_num += 1
         local_iter_num += 1
