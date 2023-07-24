@@ -12,10 +12,10 @@ DLRover: An Automatic Distributed Deep Learning System
 
 DLRover automatically trains the Deep Learning model on the distributed cluster. It helps model developers to focus on model arichtecture, without taking care of any engineering stuff, say, hardware acceleration, distributed running, etc. Now, it provides automated operation and maintenance for deep learning training jobs on K8s/Ray. Major features as
 
-- **Automatic Resource Optimization**, Automatically optimize the job resource to improve the training performance and resources utilization.
-- **Dynamic data sharding**, dynamic dispatch training data to each worker instead of dividing equally, faster worker more data.
 - **Fault-Tolerance**, single node failover without restarting the entire job.
 - **Auto-Scaling**, Automatically scale up/down resources at both node level and CPU/memory level.
+- **Dynamic data sharding**, dynamic dispatch training data to each worker instead of dividing equally, faster worker more data.
+- **Automatic Resource Optimization**, Automatically optimize the job resource to improve the training performance and resources utilization.
 
 ## Why DLRover?
 
@@ -23,14 +23,6 @@ DLRover automatically trains the Deep Learning model on the distributed cluster.
    <a href="https://www.bilibili.com/video/BV1Nk4y1N7fx/?vd_source=603516da01339dc75fb908e1cce180c7">
    <img src="docs/figures/dlrover-cover.jpg" width="700" />
    </a>
-</div>
-
-### No Resource Configuration to Submit a Job.
-
-Compared with TFJob in Kubeflow, Users need not to set any resource configuration to submit a
-distributed training job. 
-<div align="center">
-<img src="docs/figures/dlrover_vs_tfjob.jpg" alt="Editor" width="600">
 </div>
 
 ### Fault Tolerance to Improve the Stability of Job.
@@ -82,6 +74,15 @@ Except for the failed job resulting from code errors, the rate of completed jobs
 <img src="docs/figures/job-complete-rate.png" alt="Editor" width="600">
 </div>
 
+
+### No Resource Configuration to Submit a Job.
+
+Compared with TFJob in Kubeflow, Users need not to set any resource configuration to submit a
+distributed training job. 
+<div align="center">
+<img src="docs/figures/dlrover_vs_tfjob.jpg" alt="Editor" width="600">
+</div>
+
 ### Auto-Scaling to Improve Training Performance.
 
 DLRover automatically scales up/down resources (for parameter servers or workers) at the runtime of a training job.
@@ -97,9 +98,7 @@ and shorten the job competion time (JCT).
 <img src="docs/figures/exp-jct-deepctr.png" alt="Editor" width="600">
 </div>
 
-
-
-### Auto-Scaling to improve Resource Utilization.
+### Auto-Scaling to Improve Resource Utilization.
 
 Different model training requires different resources. Users prefer to
 configure their jobs with over-provision resources to 
@@ -112,13 +111,15 @@ the waste of resources.
 <img src="docs/figures/daily-job-resource-util.png" alt="Editor" width="1000">
 </div>
 
-### Dynamic data sharding
+### Dynamic Data Sharding For Elasticity and Fault-tolerance.
 
-There are at two reasons why we need dynamic data sharding. The first one is that Dlrover needs to ensure the training data used to fit the model is processed as users expect. When workers recover from failure or are scaled up/down, they may consume training data twice or miss some training data due to a lack of a global coordinator. With dynamic data sharding, DLrover keeps track of every worker's data consumption and try its best to ensurse that data is delievered exact once/at least once/at most once streaming-data-splitter-and-manager.md. As a result, dynamic data sharding helps to eliminate uncertainties by ensuring data is consumed as users expect.
+Dynamic data sharding splits the dataset into many small shards and each shard only
+contains a few batch of samples. The worker will get a shard only when it using up
+samples of the last one. With the dynaic sharding, DLRover can
 
-The second one is that dynamic data sharding reduces complexity for worker to deal with obtaining training data. As the training-master.md indicates, worker only needs to ask for data shard from the DLrover master without interacting with other worker to split data.
+- recover the shard if the worker fails before using up samples of the shard.
+- mitigate the worker straggler by assigning more shards to the fast worker.
 
-Dynamic data sharding can also mitigate the worker straggler. After a worker starts its training loop, it queries a shard from the TODO queue one by one. The fast worker will consumes more shards than the slow worker which is a straggler.
 ### Integration to Offline and Online Deep Learning.
 
 With the data source transparency provided by dynamic data sharding, DLRover can be integrated with offline training which consumes batch data, and also supports online learning with real-time streaming data. (fed with a message queue like RocketMQ/Kafka/Pulsar/..., or executed as a training sink node inside Flink/Spark/Ray/...)
