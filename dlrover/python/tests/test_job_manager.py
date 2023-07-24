@@ -244,7 +244,6 @@ class JobManagerTest(unittest.TestCase):
         ds_name_0 = "test-0"
         ds_name_1 = "test-1"
         task_manager = create_task_manager(ds_name_0)
-
         splitter = new_dataset_splitter(
             False,
             100,

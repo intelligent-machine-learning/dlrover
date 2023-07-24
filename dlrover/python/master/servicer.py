@@ -346,7 +346,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             meta.memory = node.config_resource.memory
             if node.config_resource.gpu_type:
                 meta.gpu_type = node.config_resource.gpu_type
-                meta.gpu_num = node.config_resource.gpu_num
+                meta.gpu = node.config_resource.gpu_num
             res.nodes.append(meta)
         return res
 
