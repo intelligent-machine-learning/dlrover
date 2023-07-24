@@ -130,9 +130,8 @@ class AGD(Optimizer):
                     z.data.addcdiv_(exp_avg, denom, value=-lr_adjust)
                     z.data.mul_(1. / (1. + weight_decay * lr_adjust))
                     lr_adjust2 = 2 * lr_adjust
-                    tao = 1. / (lr_adjust + lr_adjust2 + lr_adjust * \
-                                lr_adjust2 * weight_decay)
-                    p.data.mul_(lr_adjust * tao)
-                    p.data.addcdiv_(exp_avg, denom, value=-lr_adjust * tao * lr_adjust2)
-                    p.data.add_(z, alpha=lr_adjust2 * tao)
+                    tao = 1. / (3. + lr_adjust2 * weight_decay)
+                    p.data.mul_(tao)
+                    p.data.addcdiv_(exp_avg, denom, value=-tao * lr_adjust2)
+                    p.data.add_(z, alpha=2 * tao)
         return loss
