@@ -39,9 +39,13 @@ class MasterServicerTest(unittest.TestCase):
         mock_k8s_client()
         params = MockK8sPSJobArgs()
         params.initilize()
+        worker_resource = params.node_args[NodeType.WORKER].group_resource
+        worker_resource.node_resource.gpu_num = 1
+        worker_resource.node_resource.gpu_type = "a100"
         speed_monitor = SpeedMonitor()
         self.task_manager = TaskManager(False, speed_monitor)
         self.job_manager = create_job_manager(params, speed_monitor)
+        self.job_manager._init_nodes()
         self.job_metric_collector = JobMetricCollector(
             "1", "default", "local", "dlrover"
         )
@@ -54,6 +58,13 @@ class MasterServicerTest(unittest.TestCase):
             job_metric_collector=self.job_metric_collector,
             elastic_ps_service=self.elastic_ps_service,
         )
+
+    def test_query_running_nodes(self):
+        req = empty_pb2.Empty()
+        workers = self.job_manager._job_nodes[NodeType.WORKER]
+        workers[0].status = NodeStatus.RUNNING
+        res = self.servicer.query_running_nodes(req, None)
+        self.assertEqual(len(res.nodes), 1)
 
     def test_dataset_service(self):
         request = elastic_training_pb2.ReportDatasetShardParamsRequest()
@@ -134,7 +145,7 @@ class MasterServicerTest(unittest.TestCase):
         self.job_metric_collector._report_runtime_stats()
         self.assertEqual(len(reporter._runtime_stats), 2)
         self.assertEqual(reporter._runtime_stats[0].global_step, 1100)
-        self.assertEqual(len(reporter._runtime_stats[0].running_nodes), 4)
+        self.assertEqual(len(reporter._runtime_stats[0].running_nodes), 2)
 
         request.timestamp = ts + 20
         request.global_step = 2100

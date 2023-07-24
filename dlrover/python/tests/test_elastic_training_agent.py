@@ -49,6 +49,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
             RendezvousName.ELASTIC_TRAINING,
             node_id,
             rdzv_parameters,
+            local_world_size=self.config.nproc_per_node,
         )
 
         self.spec = WorkerSpec(
@@ -75,9 +76,9 @@ class ElasticTrainingAgentTest(unittest.TestCase):
             start_method=self.config.start_method,
             log_dir=self.config.log_dir,
         )
-        self.rdzv_handler.join_rendezvous(8)
+        self.rdzv_handler._join_rendezvous()
         self.rdzv_handler._client.join_rendezvous(1, 8)
-        _, world = self.rdzv_handler.next_rendezvous(0)
+        _, world = self.rdzv_handler.next_rendezvous()
         self.assertDictEqual(world, {0: 8, 1: 8})
 
         worker_group = agent._worker_group
@@ -108,7 +109,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         store.set("MASTER_PORT", "12345".encode())
         self.rdzv_handler._client.join_rendezvous(1, 8)
         self.rdzv_handler._client.join_rendezvous(0, 8)
-        _, world = self.rdzv_handler.next_rendezvous(0)
+        _, world = self.rdzv_handler.next_rendezvous()
         self.assertDictEqual(world, {0: 8, 1: 8})
         worker_group = agent._worker_group
         agent._rendezvous(agent._worker_group)

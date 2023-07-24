@@ -35,9 +35,46 @@ distributed training job.
 
 ### Fault Tolerance to Improve the Stability of Job.
 
+DLRover can restore the training when the process fails without stopping the
+training job. The actions to restore training in DLRover are:
+
+1. Diagnose the failure reason.
+2. Restart the process not the node due to software errors.
+3. Restart the failed nodes due to hardward errors.
+
+#### Fault Tolerance of PyTorch Distributed Training.
+
+DLRover supports fault tolerance of the process failure and the node failure
+to restore trainig. Compared with restarting a new job, DLRover can
+reduce the overhead to schedule all Pods, pull image and
+install  packages on all nodes.  
+
+|  Step to restore training |  Failure without DLRover  |     Node failure with DLRover     |    Process failure with DLRover   |
+|:-------------------------:|:-------------------------:|:---------------------------------:|:---------------------------------:|
+|       Restore action      |        Restart Job        |        Restart failed nodes       |      Restart training process     |
+|  Schedule node, pull image and install packages   |  All nodes |       Only new nodes      |                 No                |
+| Node health check         |            No             | All nodes execute a simple allgtather task | All nodes execute a allgtather simple task |
+| Build communication world |            Yes            |                Yes                |                Yes                |
+|   Start training process  |            Yes            |                Yes                |                Yes                |
+|     Restore checkpoint    |            Yes            |                Yes                |                Yes                |
+
+#### Fault Tolerance of TensorFlow PS Distributed Training.
+
 DLRover can recover failed parameter servers and workers to
-resume training. Some failed nodes do not interrupt the training and hurt the convergence accuracy. The main error is
-OOM of node due to user's insufficient memory configuration.
+resume training. Compared with manual restarting jobs, DLRover
+can reduce the overhead to restore the training.
+
+|             Step to restore training            |  Failure without DLRover  |   PS failure with DLRover  | Worker failure with DLRover |
+|:-----------------------------------------------:|:-------------------------:|:--------------------------:|:---------------------------:|
+|                  Restore action                 |        Restart Job        |      Restart failed PS     |    Restart failed workers   |
+| Schedule node, pull image and install packages | All nodes               |         Only new PS        |     Only new workers        |
+|                  Start session                  |         all nodes         |          all nodes         |       Only new workers      |
+|                 Initialize Graph                |            Yes            |             Yes            |       Only new workers      |
+|                Restore checkpoint               |            Yes            |             Yes            |              No             |
+
+
+What's more, DLRover also can automatic diagnose the reason of failure. For example,
+the OOM is the common error due to user's insufficient memory configuration.
 DLRover can automatically launch a Pod with more memory to recover the OOM node. In AntGroup, DLRover manages hundreds of DL training jobs every day on the customized Kubernetes cluster in AntGroup.
 Except for the failed job resulting from code errors, the rate of completed jobs raise 89% with tf-operator in KubeFlow to 95%. Other unrecoverable failure reasons of a job are data error, NaN loss of the model, network breakdown, and so on.
 

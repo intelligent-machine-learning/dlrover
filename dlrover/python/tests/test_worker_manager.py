@@ -20,8 +20,8 @@ from dlrover.python.common.constants import (
     NodeType,
     PlatformType,
 )
-from dlrover.python.common.node import NodeGroupResource, NodeResource
-from dlrover.python.master.node.worker import WorkerManager
+from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
+from dlrover.python.master.node.worker import ChiefManager, WorkerManager
 from dlrover.python.master.resource.job import JobResource
 from dlrover.python.scheduler.factory import new_elastic_job
 from dlrover.python.tests.test_utils import mock_k8s_client
@@ -105,6 +105,23 @@ class WorkerManagerTest(unittest.TestCase):
         )
         self.assertEqual(plan.launch_nodes[0].config_resource.cpu, 16)
         self.assertEqual(worker_manager._nodes[5].id, 5)
+
+    def test_relaunch_chief_node(self):
+        tf_master_node = Node(
+            NodeType.MASTER,
+            node_id=0,
+            config_resource=NodeResource(cpu=16, memory=10240),
+        )
+        manager = ChiefManager(
+            {0: tf_master_node},
+            self._job_resource,
+            3,
+            self._elastic_job.get_node_service_addr,
+            self._elastic_job.get_node_name,
+        )
+        plan = manager.relaunch_node(tf_master_node)
+        self.assertEqual(plan.launch_nodes[0].config_resource.cpu, 16)
+        self.assertEqual(manager._nodes[1].id, 1)
 
     def test_cut_pending_node_cpu(self):
         worker_manager = WorkerManager(

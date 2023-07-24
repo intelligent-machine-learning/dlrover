@@ -15,6 +15,7 @@ import time
 import unittest
 from unittest import mock
 
+from dlrover.proto import elastic_training_pb2
 from dlrover.python.common.constants import (
     DistributionStrategy,
     JobExitReason,
@@ -48,6 +49,7 @@ from dlrover.python.tests.test_utils import (
     MockK8sPSJobArgs,
     create_task_manager,
     mock_k8s_client,
+    new_dataset_splitter,
 )
 
 _MOCK_JOB_UUID = "11111"
@@ -239,8 +241,25 @@ class JobManagerTest(unittest.TestCase):
         self.assertEqual(len(manager._job_nodes[NodeType.WORKER]), 3)
 
     def test_recover_tasks_for_failed_workers(self):
-        dataset_name = "test"
-        task_manager = create_task_manager()
+        ds_name_0 = "test-0"
+        ds_name_1 = "test-1"
+        task_manager = create_task_manager(ds_name_0)
+        splitter = new_dataset_splitter(
+            False,
+            100,
+            1000,
+            1,
+            ds_name_1,
+            "table",
+        )
+        task_manager.new_dataset(
+            batch_size=10,
+            dataset_size=1000,
+            dataset_name=ds_name_1,
+            dataset_splitter=splitter,
+            task_type=elastic_training_pb2.EVALUATION,
+        )
+
         task_callback = TaskRescheduleCallback(task_manager)
         params = MockK8sPSJobArgs()
         params.initilize()
@@ -248,8 +267,10 @@ class JobManagerTest(unittest.TestCase):
         manager._init_nodes()
         manager.add_node_event_callback(task_callback)
 
-        dataset = task_manager.get_dataset(dataset_name)
-        task_manager.get_dataset_task(NodeType.WORKER, 0, dataset_name)
+        dataset_0 = task_manager.get_dataset(ds_name_0)
+        dataset_1 = task_manager.get_dataset(ds_name_1)
+        task_manager.get_dataset_task(NodeType.WORKER, 0, ds_name_0)
+        task_manager.get_dataset_task(NodeType.WORKER, 0, ds_name_1)
         node = Node(
             node_type=NodeType.WORKER,
             node_id=0,
@@ -257,7 +278,8 @@ class JobManagerTest(unittest.TestCase):
             config_resource=NodeResource(1, 4096),
         )
         manager._process_node_events(NODE_STATE_FLOWS[9], node)
-        self.assertEqual(len(dataset.doing), 0)
+        self.assertEqual(len(dataset_0.doing), 0)
+        self.assertEqual(len(dataset_1.doing), 0)
 
     def test_create_initial_nodes(self):
         params = MockK8sPSJobArgs()
