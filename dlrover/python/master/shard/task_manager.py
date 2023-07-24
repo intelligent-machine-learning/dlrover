@@ -227,9 +227,7 @@ class TaskManager(object):
                             doing_task.node_id,
                             task_id,
                         )
-                        self.recover_tasks(
-                            doing_task.node_type, doing_task.node_id
-                        )
+                        dataset.report_task_status(task_id, success=False)
                         self._invoke_task_timeout_callback(doing_task.node_id)
                         break
             time.sleep(30)
