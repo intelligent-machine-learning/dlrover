@@ -284,6 +284,14 @@ def parse_args(args=None):
         action="store_true",
         help="Use coworker with elasticdl's dynamic data sharding",
     )
+    parser.add_argument(
+        "--rank_log_dir",
+        type=str,
+        default="",
+        help="Log dir for each rank, format is path,mode. path is dir to dump log"
+        "(if path is not exists, create it).mode is wb or ab, wb is overwrite, ab"
+        "is append",
+    )
     # positional
     parser.add_argument(
         "training_script",
@@ -321,7 +329,11 @@ def wait_master_available(hostname, timeout=1800):
 
 
 def cleanup(processes):
-    for process in processes:
+    for process, stdout, stderr in processes:
+        if stdout is not None:
+            stdout.close()
+        if stderr is not None:
+            stderr.close()
         if process.poll() is None:
             process.terminate()
 
@@ -331,7 +343,7 @@ def check_process_loop(processes):
     while running:
         running_process_ids = []
         failed_processes = []
-        for idx, process in enumerate(processes):
+        for idx, (process, stdout, stderr) in enumerate(processes):
             return_code = process.poll()
             if return_code is None:
                 running_process_ids.append(idx)
@@ -342,7 +354,7 @@ def check_process_loop(processes):
         running = len(running_process_ids) > 0
         if len(failed_processes) > 0:
             for idx in running_process_ids:
-                processes[idx].terminate()
+                processes[idx][0].terminate()
             print("subprocess failed with LOCAL_RANK, return code: " + str(failed_processes))
             # use the first failed process return code as exit code
             exit_code = failed_processes[0][1]
@@ -465,10 +477,33 @@ def main(args):
             cmd.append("--local_rank={}".format(local_rank))
 
         cmd.extend(args.training_script_args)
+        stdout = None
+        stderr = None
+        universal_newlines = False
+        if args.rank_log_dir:
+            split = args.rank_log_dir.split(",")
+            mode = "wb"
+            path = None
+            if len(split) > 2:
+                raise ValueError(f"wrong rank_log_dir, format is --rank_log_dir=/tmp/,a, your is {args.rank_log_dir}")
+            elif len(split) == 1:
+                path = split[0]
+            else:
+                path, mode = split
+            from pathlib import Path
+
+            log_dir = Path(path)
+            if log_dir.exists() and not log_dir.is_dir():
+                raise ValueError("rank_log_dir must be dir")
+            log_dir.mkdir(parents=True, exist_ok=True)
+            stdout = open(f"{path}/{dist_rank}.stdout", mode)
+            stderr = open(f"{path}/{dist_rank}.stderr", mode)
 
         if is_gpu_pod or use_elastic_dataloader is False:
-            process = subprocess.Popen(cmd, env=current_env)
-            processes.append(process)
+            process = subprocess.Popen(
+                cmd, env=current_env, stdout=stdout, stderr=stderr, universal_newlines=universal_newlines
+            )
+            processes.append((process, stdout, stderr))
         else:
             is_coworker0 = args.nproc_per_node * worker_size == dist_rank
             if is_coworker0:
@@ -500,8 +535,10 @@ def main(args):
                 ip_and_port = get_ip_address() + ":" + str(free_port)
                 store.set(str(dist_rank), ip_and_port)
             else:
-                process = subprocess.Popen(cmd, env=current_env)
-                processes.append(process)
+                process = subprocess.Popen(
+                    cmd, env=current_env, stdout=stdout, stderr=stderr, universal_newlines=universal_newlines
+                )
+                processes.append((process, stdout, stderr))
 
     # terminate running subprocess to avoid zombie subprocess.
     atexit.register(cleanup, processes)

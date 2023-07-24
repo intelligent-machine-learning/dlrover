@@ -20,6 +20,9 @@ class Strategy(object):
     def add_opt(self, opt):
         self.opt_list.append(opt)
 
+    def opt_names(self):
+        return [opt[0] for opt in self.opt_list]
+
     def is_tunable(self):
         for item in self.opt_list:
             if item[2]:

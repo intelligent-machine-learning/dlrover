@@ -1,4 +1,5 @@
 import collections
+import sys
 from functools import partialmethod, wraps
 
 import torch
@@ -18,7 +19,6 @@ else:
 
 try:
     from apex.amp import _amp_state
-    from apex.amp.lists import functional_overrides, tensor_overrides, torch_overrides
 
     from atorch.amp import initialize, scale_loss
 
@@ -33,7 +33,7 @@ from atorch.distributed.distributed import local_rank
 
 
 class AmpApexOptimization(Optimization):
-    funcs_before_overrided_by_apex_amp = None
+    activated = False
 
     def __init__(self, name):
         super().__init__(name, "amp", False)
@@ -61,51 +61,37 @@ class AmpApexOptimization(Optimization):
 
     @staticmethod
     def reset():
-        if AmpApexOptimization.funcs_before_overrided_by_apex_amp is None:
+        if AmpApexOptimization.activated is False:
             return
         # reset apex _amp_state
         if _amp_state is not None and hasattr(_amp_state, "opt_properties"):
             if _amp_state.opt_properties.enabled is True:
                 _amp_state.opt_properties.enabled = False
-            elif _amp_state.opt_properties.opt_level is not None:
+            if _amp_state.opt_properties.opt_level is not None:
                 _amp_state.opt_properties.opt_level = None
-        # reset funcs overrided by apex
-        for module, cached_original_funcs in AmpApexOptimization.funcs_before_overrided_by_apex_amp.items():
-            for func_name, original_func in cached_original_funcs:
-                setattr(module, func_name, original_func)
+            if _amp_state.opt_properties.cast_model_type is not None:
+                _amp_state.opt_properties.cast_model_type is None
+            if _amp_state.opt_properties.patch_torch_functions is True:
+                _amp_state.opt_properties.patch_torch_functions = False
+            if _amp_state.opt_properties.keep_batchnorm_fp32 is not None:
+                _amp_state.opt_properties.keep_batchnorm_fp32 = None
+            if _amp_state.opt_properties.master_weights is not None:
+                _amp_state.opt_properties.master_weights = None
+            if _amp_state.opt_properties.loss_scale is not None:
+                _amp_state.opt_properties.loss_scale = 1.0
+            if _amp_state.min_loss_scale is not None:
+                _amp_state.min_loss_scale = None
+            if _amp_state.max_loss_scale is not None:
+                _amp_state.max_loss_scale = 2.0**24
+            # reset funcs overrided by apex
+            _amp_state.handle._deactivate()
+        AmpApexOptimization.activated = False
 
     @staticmethod
-    def _cache_funcs_overrided_by_apex():
-        """Cache all functions in the apex amp whitelists to the class variable `funcs_before_overrided_by_apex_amp`.
-        The format is:
-        {
-            torch.nn.functional: [("func_name0", original_func0), ("func_name1", original_func1), ...],
-            torch.Tensor: [("func_name0", original_func0), ("func_name1", original_func1), ...],
-            torch: [("func_name0", original_func0), ("func_name1", original_func1), ...],
-        }
-        """
-        if AmpApexOptimization.funcs_before_overrided_by_apex_amp is not None:
+    def activate_apex_amp():
+        if AmpApexOptimization.activated is True:
             return
-        module_funcs_names = {}
-        for module in (functional_overrides, tensor_overrides, torch_overrides):
-            overrided_func_names = []
-            if hasattr(module, "FP16_FUNCS"):
-                overrided_func_names.extend(module.FP16_FUNCS)
-            if hasattr(module, "FP32_FUNCS"):
-                overrided_func_names.extend(module.FP32_FUNCS)
-            if hasattr(module, "BANNED_FUNCS"):
-                overrided_func_names.append(module.BANNED_FUNCS[0][0])
-            if hasattr(module, "CASTS"):
-                overrided_func_names.extend(module.CASTS)
-            if hasattr(module, "SEQUENCE_CASTS"):
-                overrided_func_names.extend(module.SEQUENCE_CASTS)
-            original_funcs_before_overriding = []
-            for func_name in overrided_func_names:
-                original_func = getattr(module.MODULE, func_name, None)
-                if original_func is not None:
-                    original_funcs_before_overriding.append((func_name, original_func))
-            module_funcs_names[module.MODULE] = original_funcs_before_overriding
-        AmpApexOptimization.funcs_before_overrided_by_apex_amp = module_funcs_names
+        AmpApexOptimization.activated = True
 
 
 class AmpApexO1Optimization(AmpApexOptimization):
@@ -115,9 +101,13 @@ class AmpApexO1Optimization(AmpApexOptimization):
     def transform(self, model_context, config=None, apply_wrapper=False):
         if not _amp_apex_is_available or not torch.cuda.is_available():
             return model_context
-        if _amp_state is not None and hasattr(_amp_state, "opt_properties") and _amp_state.opt_properties.enabled:
+        if (
+            _amp_state is not None
+            and hasattr(_amp_state, "opt_properties")
+            and _amp_state.opt_properties.enabled is True
+        ):
             raise RuntimeError("Cannot use amp_apex optimization multiple times.")
-        self._cache_funcs_overrided_by_apex()
+        self.activate_apex_amp()
         config = {"opt_level": "O1", "loss_scale": "dynamic"}
         model_context.add_wrapper("amp_apex_o1", AmpApexO1Optimization.apply_wrapper, config, is_pre_wrapper=False)
         return model_context
@@ -140,7 +130,7 @@ class AmpApexO2Optimization(AmpApexOptimization):
             return model_context
         if _amp_state is not None and hasattr(_amp_state, "opt_properties") and _amp_state.opt_properties.enabled:
             raise RuntimeError("Cannot use amp_apex optimization multiple times.")
-        self._cache_funcs_overrided_by_apex()
+        self.activate_apex_amp()
         config = {"opt_level": "O2", "loss_scale": "dynamic"}
         model_context.add_wrapper("amp_apex_o2", AmpApexO2Optimization.apply_wrapper, config, is_pre_wrapper=False)
         return model_context
@@ -223,6 +213,7 @@ class AmpNativeOptimization(Optimization):
                     config["dtype"] = torch.float16
                 else:
                     config["dtype"] = torch.bfloat16
+                    config.setdefault("skip_if_nonfinite", False)
             elif half_dtype in ("fp16", torch.float16, None):
                 config["dtype"] = torch.float16
             else:
@@ -239,12 +230,20 @@ class AmpNativeOptimization(Optimization):
     def apply_wrapper(model_context, wrapper_name, wrapper_config=None):
         if wrapper_name == "amp_native":
             model = model_context.model
+            skip_if_nonfinite = (
+                wrapper_config.pop("skip_if_nonfinite") if "skip_if_nonfinite" in wrapper_config else False
+            )
             model.forward = autocast(**wrapper_config)(model.forward)
-            if wrapper_config["dtype"] == torch.bfloat16:
+            if hasattr(model, "generate") and callable(getattr(model, "generate")):
+                model.generate = autocast(**wrapper_config)(model.generate)
+            loss_func = model_context.loss_func
+
+            if wrapper_config["dtype"] == torch.bfloat16 and not skip_if_nonfinite:
                 # bfloat16 does not need loss or gradient scaling
+                if loss_func is not None:
+                    model_context.loss_func = autocast(**wrapper_config)(loss_func)
                 return
             optimizer = model_context.optim
-            loss_func = model_context.loss_func
             parallel_group_data = parallel_group("data")
             parallel_group_zero = parallel_group("zero")
             if parallel_group_zero is not None and parallel_group_data is not None:
@@ -253,6 +252,12 @@ class AmpNativeOptimization(Optimization):
                 grad_scaler = ShardedGradScaler(process_group=parallel_group_data)
             else:
                 grad_scaler = GradScaler()
+            if wrapper_config["dtype"] == torch.bfloat16 and skip_if_nonfinite:
+                # Bf16 does not need loss scaling. We only need GradScaler's inf checking.
+                grad_scaler._init_scale = 1.0
+                grad_scaler._growth_factor = 1.0
+                grad_scaler._backoff_factor = 1.0
+                grad_scaler._growth_interval = sys.maxsize
             if optimizer is not None and loss_func is not None:
                 if not hasattr(AutoAccelerateContext, "amp_native_grad_scaler"):
                     AutoAccelerateContext.add_ac_attr(

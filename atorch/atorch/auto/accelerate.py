@@ -341,7 +341,7 @@ def adjust_strategy(strategy, device_context, finetune_strategy, opt_lib):
     if not is_distributed():
         removed_names = strategy.remove_distributed_method(opt_lib)
         if removed_names is not None:
-            logger.info("These distributed optimization methods are ignored in non-distributed case: ", removed_names)
+            logger.info("These distributed optimization methods are ignored in non-distributed case: %s", removed_names)
 
     # reset config for tunable method if finetune_strategy
     if finetune_strategy:
@@ -352,19 +352,37 @@ def adjust_strategy(strategy, device_context, finetune_strategy, opt_lib):
 
 
 def record_user_defined_half_precision_dtype(strategy):
+    str_dtype_map = {"fp16": torch.float16, "bf16": torch.bfloat16}
     for opt in strategy.opt_list:
         opt_name, config = opt[0], opt[1]
         if opt_name in ("amp_native", "half"):
             if opt_name == "amp_native":
-                dtype = torch.float16 if config is None else config.get("dtype", torch.float16)
+                if config is not None:
+                    dtype = config.get("dtype")
+                    if dtype is None:
+                        dtype = torch.float16
+                    elif dtype in str_dtype_map:
+                        dtype = str_dtype_map[dtype]
+                    elif dtype not in str_dtype_map and dtype not in [torch.float16, torch.bfloat16]:
+                        raise ValueError(
+                            "'amp_native' optimization only support 'fp16', 'bf16', "
+                            f"torch.float16 and torch.bfloat16, but got {dtype}"
+                        )
+                else:
+                    dtype = torch.float16
             elif opt_name == "half":
-                dtype = torch.float16 if config is None else {"fp16": torch.float16, "bf16": torch.bfloat16}[config]
-            if (
-                hasattr(AutoAccelerateContext, "half_precision_dtype")
-                and AutoAccelerateContext.counter in AutoAccelerateContext.half_precision_dtype
-            ):
-                if dtype != AutoAccelerateContext.half_precision_dtype[AutoAccelerateContext.counter]:
-                    raise ValueError("'amp_native' and 'half' cannot be configured at the same time.")
+                if config is not None:
+                    dtype = str_dtype_map.get(config)
+                    if dtype is None:
+                        raise ValueError(f"'half' optimization only support 'fp16' and 'bf16', but got {dtype}")
+                else:
+                    dtype = torch.float16
+            if hasattr(AutoAccelerateContext, "half_precision_dtype"):
+                if AutoAccelerateContext.counter not in AutoAccelerateContext.half_precision_dtype:
+                    AutoAccelerateContext.half_precision_dtype[AutoAccelerateContext.counter] = dtype
+                else:
+                    if dtype != AutoAccelerateContext.half_precision_dtype[AutoAccelerateContext.counter]:
+                        raise ValueError("'amp_native' and 'half' cannot be configured at the same time.")
             else:
                 AutoAccelerateContext.add_ac_attr("half_precision_dtype", {AutoAccelerateContext.counter: dtype})
 
@@ -445,9 +463,6 @@ def auto_accelerate(
               None if status is False.
     - best_strategy: the best strategy if status is True, otherwise None.
     """
-    # from atorch.modules.distributed_modules.modules_registry import _register_custom_operators
-
-    # _register_custom_operators()
     extra_args = create_extra_args_for_auto_accelerate(**kargs)
     AutoAccelerateContext.counter += 1
     model_context = ModelContext(
@@ -529,7 +544,12 @@ def auto_accelerate(
                 save_strategy(strategy, save_strategy_to_file)
             status, result = run_finish_task(model_context, strategy, opt_lib)
             assert status
+            if strategy is not None:
+                AutoAccelerateContext.add_ac_attr(
+                    "strategy_opt_names", {AutoAccelerateContext.counter: strategy.opt_names()}
+                )
             logger.info(f"Load strategy successfully and ready for use.\n{strategy}")
+            setattr(result.model, "_auto_acc_ctx_counter", AutoAccelerateContext.counter)
             return True, assemble_result(result), strategy
     else:
         if (dataset is None and extra_args.get("sample_batch") is None) or optim_func is None:
@@ -575,6 +595,11 @@ def auto_accelerate(
                 del engine
             if task.type == "FINISH":
                 assert status is True
+                if task.strategy is not None:
+                    AutoAccelerateContext.add_ac_attr(
+                        "strategy_opt_names", {AutoAccelerateContext.counter: task.strategy.opt_names()}
+                    )
+                setattr(result.model, "_auto_acc_ctx_counter", AutoAccelerateContext.counter)
                 logger.info(f"auto_accelerate finished!\n{task.strategy}")
                 return True, assemble_result(result), task.strategy
             else:
