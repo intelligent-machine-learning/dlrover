@@ -64,7 +64,7 @@ class MasterServicerTest(unittest.TestCase):
         workers = self.job_manager._job_nodes[NodeType.WORKER]
         workers[0].status = NodeStatus.RUNNING
         res = self.servicer.query_running_nodes(req, None)
-        self.assertEqual(len(res.nodes), 0)
+        self.assertEqual(len(res.nodes), 1)
 
     def test_dataset_service(self):
         request = elastic_training_pb2.ReportDatasetShardParamsRequest()
