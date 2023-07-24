@@ -63,14 +63,18 @@ def get_batch(
     ix = torch.randint(len(data) - block_size, (batch_size,))
     x = torch.stack(
         [
-            torch.from_numpy((data[i: i + block_size]).astype(np.int64))
+            torch.from_numpy(
+                (data[i : i + block_size]).astype(np.int64)  # noqa: E203 E501
+            )
             for i in ix
         ]
     )
     y = torch.stack(
         [
             torch.from_numpy(
-                (data[i + 1: i + 1 + block_size]).astype(np.int64)
+                (data[i + 1 : i + 1 + block_size]).astype(  # noqa: E203 E501
+                    np.int64
+                )
             )
             for i in ix
         ]

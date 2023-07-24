@@ -454,7 +454,7 @@ class GPT(nn.Module):
             idx_cond = (
                 idx
                 if idx.size(1) <= self.config.block_size
-                else idx[:, -self.config.block_size:]
+                else idx[:, -self.config.block_size :]  # noqa: E203
             )
             # forward the model to get the logits for the index in the
             # sequence
