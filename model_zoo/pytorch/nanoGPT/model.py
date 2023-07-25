@@ -49,19 +49,19 @@ class CausalSelfAttention(nn.Module):
     def __init__(self, config):
         super().__init__()
         assert config.n_embd % config.n_head == 0
-        # key, query, value projections for all heads, but in a batch
+        # Key, query, value projections for all heads, but in a batch
         self.c_attn = nn.Linear(
             config.n_embd, 3 * config.n_embd, bias=config.bias
         )
-        # output projection
+        # Output projection
         self.c_proj = nn.Linear(config.n_embd, config.n_embd, bias=config.bias)
-        # regularization
+        # Regularization
         self.attn_dropout = nn.Dropout(config.dropout)
         self.resid_dropout = nn.Dropout(config.dropout)
         self.n_head = config.n_head
         self.n_embd = config.n_embd
         self.dropout = config.dropout
-        # flash attention make GPU go brrrrr but support is only in
+        # Flash attention make GPU go brrrrr but support is only in
         # PyTorch >= 2.0
         self.flash = hasattr(
             torch.nn.functional, "scaled_dot_product_attention"
@@ -87,9 +87,9 @@ class CausalSelfAttention(nn.Module):
             C,
         ) = (
             x.size()
-        )  # batch size, sequence length, embedding dimensionality (n_embd)
+        )  # Batch size, sequence length, embedding dimensionality (n_embd)
 
-        # calculate query, key, values for all heads in batch and move
+        # Calculate query, key, values for all heads in batch and move
         # head forward to be the batch dim
         q, k, v = self.c_attn(x).split(self.n_embd, dim=2)
         k = k.view(B, T, self.n_head, C // self.n_head).transpose(
@@ -102,10 +102,10 @@ class CausalSelfAttention(nn.Module):
             1, 2
         )  # (B, nh, T, hs)
 
-        # causal self-attention; Self-attend: (B, nh, T, hs) x (B, nh,
+        # Causal self-attention; Self-attend: (B, nh, T, hs) x (B, nh,
         # hs, T) -> (B, nh, T, T)
         if self.flash:
-            # efficient attention using Flash Attention CUDA kernels
+            # Efficient attention using Flash Attention CUDA kernels
             y = torch.nn.functional.scaled_dot_product_attention(
                 q,
                 k,
@@ -115,7 +115,7 @@ class CausalSelfAttention(nn.Module):
                 is_causal=True,
             )
         else:
-            # manual implementation of attention
+            # Manual implementation of attention
             att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
             att = att.masked_fill(self.bias[:, :, :T, :T] == 0, float("-inf"))
             att = F.softmax(att, dim=-1)
@@ -123,9 +123,9 @@ class CausalSelfAttention(nn.Module):
             y = att @ v  # (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
         y = (
             y.transpose(1, 2).contiguous().view(B, T, C)
-        )  # re-assemble all head outputs side by side
+        )  # Re-assemble all head outputs side by side
 
-        # output projection
+        # Output projection
         y = self.resid_dropout(self.c_proj(y))
         return y
 
@@ -198,7 +198,7 @@ class GPT(nn.Module):
             )
         )
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
-        # with weight tying when using torch.compile() some warnings get
+        # With weight tying when using torch.compile() some warnings get
         # generated: "UserWarning: functional_call was passed multiple
         # values for tied weights. This behavior is deprecated and will
         # be an error in future versions" not 100% sure what this is, so
@@ -207,9 +207,9 @@ class GPT(nn.Module):
             self.lm_head.weight
         )  # https://paperswithcode.com/method/weight-tying
 
-        # init all weights
+        # Init all weights
         self.apply(self._init_weights)
-        # apply special scaled init to the residual projections, per
+        # Apply special scaled init to the residual projections, per
         # GPT-2 paper
         for pn, p in self.named_parameters():
             if pn.endswith("c_proj.weight"):
@@ -217,7 +217,7 @@ class GPT(nn.Module):
                     p, mean=0.0, std=0.02 / math.sqrt(2 * config.n_layer)
                 )
 
-        # report number of parameters
+        # Report number of parameters
         print("number of parameters: %.2fM" % (self.get_num_params() / 1e6,))
 
     def get_num_params(self, non_embedding=True):
@@ -250,10 +250,10 @@ class GPT(nn.Module):
         )
         pos = torch.arange(0, t, dtype=torch.long, device=device)  # shape (t)
 
-        # forward the GPT model itself token embeddings of shape (b, t,
+        # Forward the GPT model itself token embeddings of shape (b, t,
         # n_embd)
         tok_emb = self.transformer.wte(idx)
-        # position embeddings of shape (t, n_embd)
+        # Position embeddings of shape (t, n_embd)
         pos_emb = self.transformer.wpe(pos)
         x = self.transformer.drop(tok_emb + pos_emb)
         for block in self.transformer.h:
@@ -261,7 +261,7 @@ class GPT(nn.Module):
         x = self.transformer.ln_f(x)
 
         if targets is not None:
-            # if we are given some desired targets also calculate the
+            # If we are given some desired targets also calculate the
             # loss
             logits = self.lm_head(x)
             loss = F.cross_entropy(
@@ -270,17 +270,17 @@ class GPT(nn.Module):
                 ignore_index=-1,
             )
         else:
-            # inference-time mini-optimization: only forward the lm_head
+            # Inference-time mini-optimization: only forward the lm_head
             # on the very last position
             logits = self.lm_head(
                 x[:, [-1], :]
-            )  # note: using list [-1] to preserve the time dim
+            )  # Note: using list [-1] to preserve the time dim
             loss = None
 
         return logits, loss
 
     def crop_block_size(self, block_size):
-        # model surgery to decrease the block size if necessary e.g. we
+        # Model surgery to decrease the block size if necessary e.g. we
         # may load the GPT2 pretrained model checkpoint (block size
         # 1024) but want to use a smaller block size for some smaller,
         # simpler model
@@ -299,7 +299,7 @@ class GPT(nn.Module):
     def from_pretrained(cls, model_type, override_args=None):
         assert model_type in {"gpt2", "gpt2-medium", "gpt2-large", "gpt2-xl"}
         override_args = override_args or {}  # default to empty dict
-        # only dropout can be overridden see more notes below
+        # Only dropout can be overridden see more notes below
         assert all(k == "dropout" for k in override_args)
         from transformers import GPT2LMHeadModel
 
@@ -316,44 +316,44 @@ class GPT(nn.Module):
             "gpt2-xl": dict(n_layer=48, n_head=25, n_embd=1600),
         }[model_type]
         print("forcing vocab_size=50257, block_size=1024, bias=True")
-        # always 50257 for GPT model checkpoints
+        # Always 50257 for GPT model checkpoints
         config_args["vocab_size"] = 50257
-        # always 1024 for GPT model checkpoints
+        # Always 1024 for GPT model checkpoints
         config_args["block_size"] = 1024
         config_args["bias"] = True  # always True for GPT model checkpoints
-        # we can override the dropout rate, if desired
+        # We can override the dropout rate, if desired
         if "dropout" in override_args:
             print(f"overriding dropout rate to {override_args['dropout']}")
             config_args["dropout"] = override_args["dropout"]
-        # create a from-scratch initialized minGPT model
+        # Create a from-scratch initialized minGPT model
         config = GPTConfig(**config_args)
         model = GPT(config)
         sd = model.state_dict()
         sd_keys = sd.keys()
         sd_keys = [
             k for k in sd_keys if not k.endswith(".attn.bias")
-        ]  # discard this mask / buffer, not a param
+        ]  # Discard this mask / buffer, not a param
 
-        # init a huggingface/transformers model
+        # Init a huggingface/transformers model
         model_hf = GPT2LMHeadModel.from_pretrained(model_type)
         sd_hf = model_hf.state_dict()
 
-        # copy while ensuring all of the parameters are aligned and
-        # match in names and shapes
+        # Copy while ensuring all of the parameters are aligned and
+        # Match in names and shapes
         sd_keys_hf = sd_hf.keys()
         sd_keys_hf = [
             k for k in sd_keys_hf if not k.endswith(".attn.masked_bias")
-        ]  # ignore these, just a buffer
+        ]  # Ignore these, just a buffer
         sd_keys_hf = [
             k for k in sd_keys_hf if not k.endswith(".attn.bias")
-        ]  # same, just the mask (buffer)
+        ]  # Same, just the mask (buffer)
         transposed = [
             "attn.c_attn.weight",
             "attn.c_proj.weight",
             "mlp.c_fc.weight",
             "mlp.c_proj.weight",
         ]
-        # basically the openai checkpoints use a "Conv1D" module, but we
+        # Basically the openai checkpoints use a "Conv1D" module, but we
         # only want to use a vanilla Linear this means that we have to
         # transpose these weights when we import them
         assert len(sd_keys_hf) == len(
@@ -377,11 +377,11 @@ class GPT(nn.Module):
     def configure_optimizers(
         self, weight_decay, learning_rate, betas, device_type
     ):
-        # start with all of the candidate parameters
+        # Start with all of the candidate parameters
         param_dict = {pn: p for pn, p in self.named_parameters()}
-        # filter out those that do not require grad
+        # Filter out those that do not require grad
         param_dict = {pn: p for pn, p in param_dict.items() if p.requires_grad}
-        # create optim groups. Any parameters that is 2D will be weight
+        # Create optim groups. Any parameters that is 2D will be weight
         # decayed, otherwise no. i.e. all weight tensors in matmuls +
         # embeddings decay, all biases and layernorms don't.
         decay_params = [p for n, p in param_dict.items() if p.dim() >= 2]
@@ -419,7 +419,7 @@ class GPT(nn.Module):
         estimate model flops utilization (MFU) in units of A100 bfloat16
         peak FLOPS
         """
-        # first estimate the number of flops we do per iteration. see
+        # First estimate the number of flops we do per iteration. see
         # PaLM paper Appendix B as ref: https://arxiv.org/abs/2204.02311
         N = self.get_num_params()
         cfg = self.config
@@ -432,7 +432,7 @@ class GPT(nn.Module):
         flops_per_token = 6 * N + 12 * L * H * Q * T
         flops_per_fwdbwd = flops_per_token * T
         flops_per_iter = flops_per_fwdbwd * fwdbwd_per_iter
-        # express our flops throughput as ratio of A100 bfloat16 peak
+        # Express our flops throughput as ratio of A100 bfloat16 peak
         # flops
         flops_achieved = flops_per_iter * (1.0 / dt)  # per second
         flops_promised = 312e12  # A100 GPU bfloat16 peak flops is 312 TFLOPS
@@ -449,29 +449,29 @@ class GPT(nn.Module):
         for this.
         """
         for _ in range(max_new_tokens):
-            # if the sequence context is growing too long we must crop
+            # If the sequence context is growing too long we must crop
             # it at block_size
             idx_cond = (
                 idx
                 if idx.size(1) <= self.config.block_size
                 else idx[:, -self.config.block_size :]  # noqa: E203
             )
-            # forward the model to get the logits for the index in the
+            # Forward the model to get the logits for the index in the
             # sequence
             logits, _ = self(idx_cond)
-            # pluck the logits at the final step and scale by desired
+            # Pluck the logits at the final step and scale by desired
             # temperature
             logits = logits[:, -1, :] / temperature
-            # optionally crop the logits to only the top k options
+            # Optionally crop the logits to only the top k options
             if top_k is not None:
                 v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
                 logits[logits < v[:, [-1]]] = -float("Inf")
-            # apply softmax to convert logits to (normalized)
+            # Apply softmax to convert logits to (normalized)
             # probabilities
             probs = F.softmax(logits, dim=-1)
-            # sample from the distribution
+            # Sample from the distribution
             idx_next = torch.multinomial(probs, num_samples=1)
-            # append sampled index to the running sequence and continue
+            # Append sampled index to the running sequence and continue
             idx = torch.cat((idx, idx_next), dim=1)
 
         return idx

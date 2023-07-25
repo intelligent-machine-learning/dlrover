@@ -31,15 +31,13 @@ master_process = False
 
 
 def get_data_loader(data_dir):
-    # poor man's data loader
-    # data_dir = os.path.join('/data', dataset)
     train_data = np.memmap(
         os.path.join(data_dir, "train.bin"), dtype=np.uint16, mode="r"
     )
     val_data = np.memmap(
         os.path.join(data_dir, "val.bin"), dtype=np.uint16, mode="r"
     )
-    # attempt to derive vocab_size from the dataset
+    # Attempt to derive vocab_size from the dataset
     meta_path = os.path.join(data_dir, "meta.pkl")
     meta_vocab_size = None
     if os.path.exists(meta_path):
@@ -80,7 +78,7 @@ def get_batch(
         ]
     )
     if device_type == "cuda":
-        # pin arrays x,y, which allows us to move them
+        # Pin arrays x,y, which allows us to move them
         # to GPU asynchronously (non_blocking=True)
         x, y = x.pin_memory().to(device, non_blocking=True), y.pin_memory().to(
             device, non_blocking=True
@@ -106,11 +104,10 @@ def gpt_init(meta_vocab_size=None, args=None):
         bias=bias,
         vocab_size=None,
         dropout=dropout,
-    )  # start with model_args from command line
-    # if init_from == 'scratch':
-    # init a new model from scratch
+    )  # Start with model_args from command line
+    # Init a new model from scratch
     print("Initializing a new model from scratch")
-    # determine the vocab size we'll use for from-scratch training
+    # Determine the vocab size we'll use for from-scratch training
     if meta_vocab_size is None:
         print(
             "defaulting to vocab_size of GPT-2 to 50304 "
@@ -123,19 +120,19 @@ def gpt_init(meta_vocab_size=None, args=None):
     return GPT(gptconf)
 
 
-# learning rate decay scheduler (cosine with warmup)
+# Learning rate decay scheduler (cosine with warmup)
 def get_lr(it, args):
     learning_rate = args.learning_rate
     warmup_iters = args.warmup_iters
     lr_decay_iters = args.lr_decay_iters
     min_lr = args.min_lr
-    # 1) linear warmup for warmup_iters steps
+    # 1) Linear warmup for warmup_iters steps
     if it < warmup_iters:
         return learning_rate * it / warmup_iters
-    # 2) if it > lr_decay_iters, return min learning rate
+    # 2) If it > lr_decay_iters, return min learning rate
     if it > lr_decay_iters:
         return min_lr
-    # 3) in between, use cosine decay down to min learning rate
+    # 3) In between, use cosine decay down to min learning rate
     decay_ratio = (it - warmup_iters) / (lr_decay_iters - warmup_iters)
     assert 0 <= decay_ratio <= 1
     coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio))  # coeff ranges 0..1
@@ -159,12 +156,12 @@ def setup(args):
     rank = dist.get_rank()
     local_rank = int(os.environ["LOCAL_RANK"])
     print(f"rank {rank} is initialized local_rank = {local_rank}")
-    # this process will do logging, checkpointing etc.
+    # This process will do logging, checkpointing etc.
     master_process = rank == 0
-    seed_offset = rank  # each process gets a different seed
+    seed_offset = rank  # Each process gets a different seed
     torch.manual_seed(1337 + seed_offset)
-    torch.backends.cuda.matmul.allow_tf32 = True  # allow tf32 on matmul
-    torch.backends.cudnn.allow_tf32 = True  # allow tf32 on cudnn
+    torch.backends.cuda.matmul.allow_tf32 = True  # Allow tf32 on matmul
+    torch.backends.cudnn.allow_tf32 = True  # Allow tf32 on cudnn
 
 
 def cleanup():
@@ -192,14 +189,14 @@ def train():
     torch.cuda.set_device(device)
     device_type = (
         "cuda" if "cuda" in device else "cpu"
-    )  # for later use in torch.autocast
-    # note: float16 data type will automatically use a GradScaler
+    )  # For later use in torch.autocast
+    # Note: float16 data type will automatically use a GradScaler
     dtype = (
         "bfloat16"
         if torch.cuda.is_available() and torch.cuda.is_bf16_supported()
         else "float16"
-    )  # 'float32', 'bfloat16', or 'float16', the latter will
-    # auto implement a GradScaler
+    )
+    # Auto implement a GradScaler
     ptdtype = {
         "float32": torch.float32,
         "bfloat16": torch.bfloat16,
@@ -213,7 +210,7 @@ def train():
     model = gpt_init(meta_vocab_size, args=args)
     scaler = torch.cuda.amp.GradScaler(enabled=(dtype == "float16"))
     model = model.to(device)
-    # optimizer
+    # Optimizer
     print(f"creating optimizer...{model.parameters()}")
     optimizer = model.configure_optimizers(
         weight_decay=args.weight_decay,
@@ -225,7 +222,7 @@ def train():
     if torch.cuda.is_available() and device_type == "cuda":
         local_rank = int(os.environ["LOCAL_RANK"])
         print(f"Running basic DDP example on local rank {local_rank}.")
-        # create model and move it to GPU with id rank
+        # Create model and move it to GPU with id rank
         model = model.to(local_rank)
         model = DDP(model, device_ids=[local_rank])
         print(f"Model device {model.device}")
@@ -236,18 +233,18 @@ def train():
         model = DDP(model)
         print(f"Model device {model.device}")
 
-    # compile the model
+    # Compile the model
     if compile == "True":
         print("compiling the model... (takes a ~minute)")
         model = torch.compile(model)  # requires PyTorch 2.0
 
-    # training loop
+    # Training loop
     X, Y = get_batch(
         "train", train_data, val_data, device_type
-    )  # fetch the very first batch
+    )  # Fetch the very first batch
     total_time = 0.0
-    local_iter_num = 0  # number of iterations in the lifetime of this process
-    raw_model = model.module  # unwrap DDP container if needed
+    local_iter_num = 0  # Number of iterations in the lifetime of this process
+    raw_model = model.module  # Unwrap DDP container if needed
     running_mfu = -1.0
     iter_num = 0
     decay_lr = args.decay_lr
@@ -257,48 +254,48 @@ def train():
     learning_rate = args.learning_rate
 
     while True:
-        # determine and set the learning rate for this iteration
+        # Determine and set the learning rate for this iteration
         lr = get_lr(iter_num) if decay_lr else learning_rate
         for param_group in optimizer.param_groups:
             param_group["lr"] = lr
 
         t0 = time.time()
-        # forward backward update, with optional gradient accumulation
-        #  to simulate larger batch size
-        # and using the GradScaler if data type is float16
+        # Forward backward update, with optional gradient accumulation
+        # to simulate larger batch size and using the GradScaler
+        # if data type is float16
         for micro_step in range(gradient_accumulation_steps):
             with ctx:
                 logits, loss = model(X, Y)
                 loss = (
                     loss / gradient_accumulation_steps
-                )  # scale the loss to account for gradient accumulation
+                )  # Scale the loss to account for gradient accumulation
             # immediately async prefetch next batch while model
             # is doing the forward pass on the GPU
             X, Y = get_batch("train", train_data, val_data, device_type)
-            # backward pass, with gradient scaling if training in fp16
+            # Backward pass, with gradient scaling if training in fp16
             scaler.scale(loss).backward()
-        # clip the gradient
+        # Clip the gradient
         if grad_clip != 0.0:
             scaler.unscale_(optimizer)
             torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
-        # step the optimizer and scaler if training in fp16
+        # Step the optimizer and scaler if training in fp16
         scaler.step(optimizer)
         scaler.update()
-        # flush the gradients as soon as we can,
+        # Flush the gradients as soon as we can,
         # no need for this memory anymore
         optimizer.zero_grad(set_to_none=True)
 
-        # timing and logging
+        # Timing and logging
         t1 = time.time()
         dt = t1 - t0
         total_time += dt
 
         if iter_num % log_interval == 0:
-            # get loss as float. note: this is a CPU-GPU sync point
+            # Get loss as float. note: this is a CPU-GPU sync point
             # scale up to undo the division above, approximating
             # the true total loss (exact would have been a sum)
             lossf = loss.item() * gradient_accumulation_steps
-            if local_iter_num >= 5:  # let the training loop settle a bit
+            if local_iter_num >= 5:  # Let the training loop settle a bit
                 mfu = raw_model.estimate_mfu(
                     batch_size * gradient_accumulation_steps, dt
                 )
@@ -315,7 +312,7 @@ def train():
         iter_num += 1
         local_iter_num += 1
 
-        # termination conditions
+        # Termination conditions
         if iter_num > max_iters:
             break
 
