@@ -62,6 +62,24 @@ torch-mnist-edljob-worker-0             1/1     Running   0          29s
 torch-mnist-edljob-worker-1             1/1     Running   0          32s
 ```
 
+We can view the training log of the worker by
+
+```bash
+kubectl -n dlrover logs torch-mnist-edljob-worker-0
+```
+
+```text
+loss = 0.016916541382670403, step = 400
+Save checkpoint.
+loss = 0.05502168834209442, step = 420
+loss = 0.13794168829917908, step = 440
+loss = 0.023234723135828972, step = 460
+Test model after epoch 18
+Test the model ...
+
+Test set: Average loss: 0.0499, Accuracy: 9828/10000 (98%)
+```
+
 ## Test Fault-tolerance
 
 - Delete a worker.
