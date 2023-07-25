@@ -77,8 +77,9 @@ Except for the failed job resulting from code errors, the rate of completed jobs
 
 ### No Resource Configuration to Submit a Job.
 
-Compared with TFJob in Kubeflow, Users need not to set any resource configuration to submit a
-distributed training job. 
+Compared with Training Job (e.g., TensorFlow, PyTorch etc) in Kubeflow,
+Users can  submit a distributed training job without any resource configuration.
+
 <div align="center">
 <img src="docs/figures/dlrover_vs_tfjob.jpg" alt="Editor" width="600">
 </div>
@@ -114,7 +115,7 @@ the waste of resources.
 ### Dynamic Data Sharding For Elasticity and Fault-tolerance.
 
 Dynamic data sharding splits the dataset into many small shards and each shard only
-contains a few batch of samples. The worker will get a shard only when it using up
+contains a few batches of training samples. The worker will get a shard only when it using up
 samples of the last one. With the dynaic sharding, DLRover can
 
 - recover the shard if the worker fails before using up samples of the shard.
