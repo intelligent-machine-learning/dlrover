@@ -11,16 +11,23 @@ on a public cloud, namely, Alibaba Cloud Container Service for Kubernetes(ACK).
 
 ## Deploy the ElasticJob CRD on ACK
 
-1. Deploy the controller on the cluster.
+1. Clone the repo to your host.
 
 ```bash
+git clone git@github.com:intelligent-machine-learning/dlrover.git
+```
+
+2. Deploy the controller on the cluster.
+
+```bash
+cd dlrover/go/operator/
 make deploy IMG=easydl/elasticjob-controller:master
 ```
 
 2. Grant permission for the DLRover master to Access CRDs.
 
 ```bash
-kubectl -n dlrover apply -f dlrover/go/operator/config/rbac/default_role.yaml 
+kubectl -n dlrover apply -f config/manifests/bases/default-role.yaml
 ```
 
 ## Submit a Job
