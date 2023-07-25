@@ -16,7 +16,7 @@ spec:
             - name: main
               # yamllint disable-line rule:line-length
               image: easydl/dlrover-train-nanogpt:test
-              imagePullPolicy: Never
+              imagePullPolicy: IfNotPresent
               command:
                 - /bin/bash
                 - -c
