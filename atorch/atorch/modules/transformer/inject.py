@@ -78,9 +78,8 @@ def replace_with_deepspeed_transformer(
             preln=False,
             fp16=use_fp16,
         )
-        注：
-        amp.initialize O2会修改掉model参数的data，造成replace_with_deepspeed_transformer算子持有的数据指针被破坏
-        该函数要放在amp.initialize后面
+        Note that amp.initialize O2 would change model parameter data, resulting in bad behavior
+        for replace_with_deepspeed_transformer. Thus, this function should be called after amp.initialize.
     """
     for name, child in model.named_children():
         if isinstance(child, layer_obj):

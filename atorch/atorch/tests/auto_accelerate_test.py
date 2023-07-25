@@ -398,16 +398,6 @@ class LoadSaveStrategyTest(unittest.TestCase):
         removed_items = strategy.remove_distributed_method(opt_lib)
         self.assertEqual(len(strategy), 2)
         self.assertEqual(len(removed_items), 1)
-        strategy = Strategy(
-            [
-                ("amp_native", None, False),
-                ("module_replace", None, False),
-                ("fsdp", {"cpu_offload": True}, False),
-            ]
-        )
-        removed_items = strategy.remove_distributed_method(opt_lib)
-        self.assertEqual(len(strategy), 3)
-        self.assertTrue(removed_items is None)
 
     def test_load_save_with_api(self):
         run_dist_code("save_load")

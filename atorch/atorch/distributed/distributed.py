@@ -8,6 +8,7 @@ import torch
 import torch.distributed as dist
 import torch.distributed.rpc as torch_rpc
 from distutils.util import strtobool
+from torch.distributed.constants import default_pg_timeout
 from torch.distributed.distributed_c10d import _get_default_group
 
 from atorch.common.log_utils import default_logger as logger
@@ -203,6 +204,7 @@ def _check_env():
     if not world_size:
         logger.warning("WORLD_SIZE env not set. Set as 1")
         os.environ["WORLD_SIZE"] = "1"
+        world_size = 1
 
     master_addr = os.getenv("MASTER_ADDR")
     if not master_addr:
@@ -223,6 +225,7 @@ def _check_env():
         if not nproc_per_node:
             logger.warning("NPROC_PER_NODE env not set. Set as 1")
             os.environ["NPROC_PER_NODE"] = "1"
+            nproc_per_node = 1
         else:
             os.environ["NPROC_PER_NODE"] = nproc_per_node
 
@@ -239,8 +242,9 @@ def _check_env():
 
     node_size = os.getenv("NODE_SIZE")
     if not node_size:
-        logger.warning("NODE_SIZE env not set. Set as 1")
-        os.environ["NODE_SIZE"] = "1"
+        node_size = max(int(world_size) // int(nproc_per_node), 1)
+        logger.warning(f"NODE_SIZE env not set. Set as {node_size}")
+        os.environ["NODE_SIZE"] = str(node_size)
 
 
 def get_pg_ranks(slicing_dim, rank_order):
@@ -546,6 +550,7 @@ def init_distributed(
     coworker_num_per_node=0,
     elastic_or_fault_tolerant=False,
     set_cuda_device_using_local_rank=False,
+    timeout: timedelta = default_pg_timeout,
 ):
     """
     Initializes the distributed contexts. Support DDP.
@@ -556,6 +561,27 @@ def init_distributed(
         elastic_or_fault_tolerant (bool): If True, supports elastic training or fault-tolerant training.
         set_cuda_device_using_local_rank (bool):
            If True, set cuda device using local rank.
+        timeout (timedelta, optional): Timeout for operations executed against
+            the process group. Default value equals 30 minutes.
+            This is applicable for the ``gloo`` backend. For ``nccl``, this is
+            applicable only if the environment variable ``NCCL_BLOCKING_WAIT``
+            or ``NCCL_ASYNC_ERROR_HANDLING`` is set to 1. When
+            ``NCCL_BLOCKING_WAIT`` is set, this is the duration for which the
+            process will block and wait for collectives to complete before
+            throwing an exception. When ``NCCL_ASYNC_ERROR_HANDLING`` is set,
+            this is the duration after which collectives will be aborted
+            asynchronously and the process will crash. ``NCCL_BLOCKING_WAIT``
+            will provide errors to the user which can be caught and handled,
+            but due to its blocking nature, it has a performance overhead. On
+            the other hand, ``NCCL_ASYNC_ERROR_HANDLING`` has very little
+            performance overhead, but crashes the process on errors. This is
+            done since CUDA execution is async and it is no longer safe to
+            continue executing user code since failed async NCCL operations
+            might result in subsequent CUDA operations running on corrupted
+            data. Only one of these two environment variables should be set.
+            For ``ucc``, blocking wait is supported similar to NCCL. However,
+            async error handling is done differently since with UCC we have
+            progress thread and not watch-dog thread.
     Return:
         True if initialized successfully. False otherwise.
     """
@@ -582,7 +608,6 @@ def init_distributed(
                 return False
         elif backend == "accl":
             try:
-                # noqa: F401
                 import torch_accl  # noqa: F401
             except ImportError:
                 logger.error("import torch_accl failed")
@@ -593,12 +618,12 @@ def init_distributed(
     _check_env()
 
     # init local_rank, rank, world_size, coworker_size from env
-    _DistributedContext.LOCAL_RANK = int(os.getenv("LOCAL_RANK"))
-    _DistributedContext.RANK = int(os.getenv("RANK"))
-    _DistributedContext.WORLD_SIZE = int(os.getenv("WORLD_SIZE"))
-    _DistributedContext.COWORKER_SIZE = int(os.getenv("COWORKER_SIZE"))
-    _DistributedContext.NPROC_PER_NODE = int(os.getenv("NPROC_PER_NODE"))
-    _DistributedContext.NODE_SIZE = int(os.getenv("NODE_SIZE"))
+    _DistributedContext.LOCAL_RANK = int(os.getenv("LOCAL_RANK"))  # type: ignore
+    _DistributedContext.RANK = int(os.getenv("RANK"))  # type: ignore
+    _DistributedContext.WORLD_SIZE = int(os.getenv("WORLD_SIZE"))  # type: ignore
+    _DistributedContext.COWORKER_SIZE = int(os.getenv("COWORKER_SIZE"))  # type: ignore
+    _DistributedContext.NPROC_PER_NODE = int(os.getenv("NPROC_PER_NODE"))  # type: ignore
+    _DistributedContext.NODE_SIZE = int(os.getenv("NODE_SIZE"))  # type: ignore
     _DistributedContext.COWORKER_NUM_PER_NODE = coworker_num_per_node
     _CoworkerContext.USE_ELASTIC_DATALOADER = bool(strtobool(os.getenv("USE_ELASTIC_DATALOADER", "False")))
 
@@ -626,6 +651,7 @@ def init_distributed(
                 init_method="env://",
                 world_size=ddp_group_size,
                 rank=rank(),
+                timeout=timeout,
             )
             if not torch.distributed.is_initialized():
                 logger.error("Failed to init_process_group")

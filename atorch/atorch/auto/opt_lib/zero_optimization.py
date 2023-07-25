@@ -1,5 +1,5 @@
 import functools
-from copy import deepcopy
+from copy import copy
 
 import torch
 from fairscale.nn.data_parallel import ShardedDataParallel as ShardedDDP
@@ -70,7 +70,7 @@ class Zero2Optimization(Optimization):
         # skip zero2 optimization when user did not pass optim_func
         if model_context.optim_func is None:
             return model_context
-        config = deepcopy(config) or {}
+        config = copy(config) or {}
         not_use_fsdp = config.pop("not_use_fsdp", False)
         if not_use_fsdp or torch_version() < (1, 12, 0) or not torch.cuda.is_available():
             # use fairscale zero2 with OSS
@@ -155,7 +155,7 @@ class FSDPOptimization(Optimization):
         if not torch.cuda.is_available():
             raise ValueError("FSDP only support GPU !")
         model_context.add_wrapper(
-            "fsdp", FSDPOptimization.apply_wrapper, wrapper_config=deepcopy(config), is_pre_wrapper=True
+            "fsdp", FSDPOptimization.apply_wrapper, wrapper_config=copy(config), is_pre_wrapper=True
         )
 
         return model_context

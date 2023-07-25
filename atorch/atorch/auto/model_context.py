@@ -2,10 +2,17 @@ import collections
 import copy
 import inspect
 import os
+import re
 import types
+from functools import wraps
 
 import torch
 from distutils.util import strtobool
+
+try:
+    from torch.distributed.fsdp import MixedPrecision
+except ImportError:
+    MixedPrecision = None
 from torch.utils.data.distributed import DistributedSampler
 
 import atorch
@@ -19,6 +26,14 @@ from atorch.distributed.distributed import (
     parallel_rank,
     rank,
 )
+from atorch.utils.graph_transform_utils import map_aggregate
+
+try:
+    from pippy.IR import LossWrapper
+except ImportError:
+    LossWrapper = None
+
+from atorch.amp.pipe_amp import _hack_pipe_amp_optimizer, scale_backward_wrapper
 
 try:
     torch.fx.wrap("scale_backward_wrapper")
@@ -140,19 +155,123 @@ class ModelContext(object):
         self.tp_status = status
 
     def convert_to_loss_wrapper(self, amp_config=None):
-        pass
+        """This method transforms the model held by this model_context into a loss_wrapper.
+        All pipeline involved optimizations need to do such conversion first.
+        """
+        if amp_config is not None and amp_config["dtype"] != torch.bfloat16:
+            _hack_pipe_amp_optimizer()
+
+        if not self._check_loss_wrapper() and self.loss_func is not None:
+
+            class ModelLossWrapper(LossWrapper):
+                def __init__(self, module, loss_fn, model_input_format):
+                    super().__init__(module, loss_fn)
+                    self.model_input_format = model_input_format
+
+                @wraps(type(self.model).forward)
+                def forward(self, *args, **kwargs):
+                    if self.model_input_format is None:
+                        casted_loss = self.loss_fn(*args, self.module(*args, **kwargs))
+                    elif self.model_input_format == "unpack_sequence":
+                        casted_loss = self.loss_fn(args, self.module(*args, **kwargs))
+                    elif self.model_input_format == "unpack_dict":
+                        casted_loss = self.loss_fn(kwargs, self.module(*args, **kwargs))
+                    else:
+                        logger.warning(f"model input format: {self.model_input_format} not recognized")
+                        casted_loss = None
+
+                    if amp_config is not None and amp_config["dtype"] != torch.bfloat16:
+                        scaled_loss = scale_backward_wrapper(casted_loss)
+                    else:
+                        scaled_loss = casted_loss
+                    return scaled_loss
+
+            loss_wrapper = ModelLossWrapper(
+                module=self.model, loss_fn=self.loss_func, model_input_format=self.model_input_format
+            )
+
+            self.model = loss_wrapper
+
+        return isinstance(self.model, LossWrapper)
 
     def _check_loss_wrapper(self):
-        pass
+        # import pippy internally
+        from pippy.IR import LossWrapper
+
+        return isinstance(self.model, LossWrapper)
 
     def _dynamo_capture_graph(self, input_batch):
-        pass
+        import torch._dynamo as dynamo
+
+        lowered_device = next(self.model.parameters()).device
+
+        def _lower_tensor_to_device(input_):
+            return input_.to(lowered_device) if isinstance(input_, torch.Tensor) else input_
+
+        input_batch = map_aggregate(input_batch, _lower_tensor_to_device)
+
+        sig = inspect.signature(self.model.forward)
+        default_names = sig.parameters.keys() - input_batch.keys()
+        default_args = {p.name: p.default for p in sig.parameters.values() if p.name in default_names}
+        full_args = tuple(input_batch.get(name, default_args.get(name, None)) for name in sig.parameters.keys())
+        captured_graph_model = dynamo.export(self.model, *full_args)[0]
+        graph = captured_graph_model.graph
+        default_placeholders = list()
+        orig_input_keys = list(inspect.signature(self.model.forward).parameters.keys())
+        # alter the placeholders to align the input_names
+        for node in graph.nodes:
+            if node.op == "placeholder" and node.name not in orig_input_keys:
+                arg_index = int(re.findall(r"\d+", node.name)[0])
+                orig_node_name = orig_input_keys[arg_index]
+                node.name = orig_node_name
+                node.target = orig_node_name
+                if node.name not in input_batch.keys():
+                    default_placeholders.append(node)
+        for node in default_placeholders:
+            graph.erase_node(node)
+
+        return captured_graph_model
 
     def capture_compute_graph(self, backend="meta_fx", leaf_modules=None, parallel_config=None):
-        pass
+        if leaf_modules is not None and backend != "meta_fx":
+            logger.warning(f"leaf modules registration is not supported with backend: {backend}")
+
+        input_batch = self.get_one_input_batch(need_model_input_correspondence=True, parallel_config=parallel_config)
+
+        if backend == "dynamo":
+            try:
+                captured_graph_model = self._dynamo_capture_graph(input_batch)
+                self.model = captured_graph_model[0]
+                return captured_graph_model[0].graph
+            except Exception as e:
+                logger.warning(f"tracing failed with exception: {e}")
+                logger.warning("torch._dynamo.export does not support dynamic loop")
+                backend = "meta_fx"
+
+        if backend == "meta_fx" or backend == "fx":
+            meta = backend == "meta_fx"
+            if not meta:
+                from torch.fx import Tracer
+
+                tracer = Tracer()
+                try:
+                    graph = tracer.trace(self.model)
+                    return graph
+                except Exception as e:
+                    logger.warning(f"tracing failed with exception: {e}, try meta tracer instead")
+
+            from atorch.utils.tracer import MetaTracer
+
+            tracer = MetaTracer()
+            tracer.register_leaf_modules(leaf_modules)
+            graph = tracer.trace(self.model, input_batch)
+            return graph
 
     def export_graph_module(self, backend="meta_fx", leaf_modules=None, parallel_config=None):
-        pass
+        # This captures the model's compute graph and export a graph module,
+        # yet self.model is not converted.
+        graph = self.capture_compute_graph(backend=backend, leaf_modules=leaf_modules, parallel_config=parallel_config)
+        return torch.fx.GraphModule(self.model, graph)
 
     def create_dataloader(self, extra_args=None):
         """
@@ -237,7 +356,10 @@ class ModelContext(object):
         self.dataloader = self.create_dataloader(extra_args)
 
     def check_pipe_model(self):
-        pass
+        # import pippy related modules here to avoid PiPPy initialization messes up env
+        from atorch.modules.distributed_modules.compilers import DeviceSafeDriver
+
+        return isinstance(self.model, DeviceSafeDriver)
 
     def create_optim(self):
         """
@@ -288,6 +410,7 @@ class ModelContext(object):
 
         # Since MP wrapper will add some more wrappers, we will call adjust wrappers again.
         self.adjust_wrappers()
+        wrappers = self.pre_wrappers if is_pre_wrapper else self.post_wrappers
 
         for name in wrappers.keys():
             (wrapper_func, wrapper_config) = wrappers[name]
@@ -297,8 +420,91 @@ class ModelContext(object):
         else:
             self.post_wrapper_applied = True
 
+    # Order of execution:
+    # Pipe (with amp, to graph only) -> TP -> Checkpoint (if not Pipe)
+    # -> module replace -> amp (if no Pipe) -> Pipe (to driver)
     def adjust_wrappers(self):
-        pass
+        """Adjust wrappers, remove incompatible wrappers"""
+        # Pipeline parallelism is conditionally compatible with tensor parallel compilation.
+        # To mix pipe and tp, use MixedParallelOptimization instead.
+        # We assume MP does not coexists with Pipe/TP
+        pipe_wrapper_exist = "pipe" in self.pre_wrappers
+        mp_wrapper_exist = "mp" in self.pre_wrappers
+        if pipe_wrapper_exist or mp_wrapper_exist:
+            logger.info("Found pipe wrapper, remove all ddp related wrappers")
+            if "zero2" in self.pre_wrappers:
+                self.pre_wrappers.pop("zero2")
+            if "zero1" in self.pre_wrappers:
+                self.pre_wrappers.pop("zero1")
+            if "fsdp" in self.pre_wrappers:
+                self.pre_wrappers.pop("fsdp")
+
+            if "amp_apex_o1" in self.post_wrappers:
+                self.post_wrappers.pop("amp_apex_o1")
+
+            if "amp_apex_o2" in self.post_wrappers:
+                self.post_wrappers.pop("amp_apex_o2")
+
+            # DDP is supported and handled internally by PiPPy.
+            if "ddp" in self.post_wrappers:
+                self.post_wrappers.pop("ddp")
+
+        if pipe_wrapper_exist:
+            # TODO: support pipe
+            pass
+
+        # FIXME Allow mixing of DDP/ZeRO with MP?
+        if mp_wrapper_exist:
+            # TODO: support mp
+            pass
+
+        ddp_wrapper_exist = "ddp" in self.post_wrappers
+        fairscale_zero2_wrapper_exist = "zero2" in self.post_wrappers
+        fsdp_wrapper_exist = "fsdp" in self.pre_wrappers or "zero2" in self.pre_wrappers
+        tensor_parallel_wrapper_exist = "tp" in self.pre_wrappers
+        # ckpt_wrapper_exist = "checkpoint" in self.post_wrappers
+
+        # remove ddp wrapper when using zero2
+        if ddp_wrapper_exist and (fairscale_zero2_wrapper_exist or fsdp_wrapper_exist):
+            logger.info("Found Zero and ddp wrapper or pipe wrapper, remove ddp wrapper")
+            self.post_wrappers.pop("ddp")
+        if fsdp_wrapper_exist and "amp_native" in self.post_wrappers:
+            logger.info("Found fsdp and amp_native wrapper, turn on mixed_precision in FSDP")
+            _, amp_native_config = self.post_wrappers["amp_native"]
+            fp16_dtype = amp_native_config.get("dtype", torch.float16)
+            mixed_precision_param = (
+                MixedPrecision(param_dtype=fp16_dtype, reduce_dtype=fp16_dtype, buffer_dtype=fp16_dtype)
+                if MixedPrecision
+                else True
+            )
+            config = self.pre_wrappers["fsdp"][1] or {}
+            config["mixed_precision"] = mixed_precision_param
+            self.pre_wrappers["fsdp"] = (
+                self.pre_wrappers["fsdp"][0],
+                config,
+            )
+
+        # move ddp wrapper or zero2 wrapper behind amp_apex_* wrapper
+        if (ddp_wrapper_exist or fairscale_zero2_wrapper_exist) and (
+            "amp_apex_o1" in self.post_wrappers or "amp_apex_o2" in self.post_wrappers
+        ):
+            amp_apex_wrapper_index, ddp_or_zero2_wrapper_index = -1, -1
+            wrappers_list = []
+            for i, (wrapper_name, v) in enumerate(self.post_wrappers.items()):
+                wrappers_list.append((wrapper_name, v))
+                if wrapper_name.startswith("amp_apex_"):
+                    amp_apex_wrapper_index = i
+                elif wrapper_name == "ddp" or wrapper_name == "zero2":
+                    ddp_or_zero2_wrapper_index = i
+            if ddp_or_zero2_wrapper_index < amp_apex_wrapper_index:
+                ddp_or_zero2_wrapper = wrappers_list[ddp_or_zero2_wrapper_index]
+                wrappers_list.insert(amp_apex_wrapper_index + 1, ddp_or_zero2_wrapper)
+                wrappers_list.pop(ddp_or_zero2_wrapper_index)
+            self.post_wrappers = dict(wrappers_list)
+
+        if tensor_parallel_wrapper_exist:
+            # todo: support tp
+            pass
 
     def add_wrapper(self, wrapper_name, wrapper_func, wrapper_config=None, is_pre_wrapper=True):
         """
