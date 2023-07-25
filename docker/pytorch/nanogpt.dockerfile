@@ -4,7 +4,7 @@ WORKDIR /dlrover
 COPY ./ .
 RUN sh scripts/build_wheel.sh
 
-FROM easydl/dlrover-train:torch201-cpu-py38  as base
+FROM registry.cn-hangzhou.aliyuncs.com/easydl/dlrover-train:torch201-py38  as base
 
 WORKDIR /dlrover
 
@@ -14,4 +14,4 @@ COPY ./data/nanogpt /data/nanogpt
 COPY --from=builder /dlrover/dist/dlrover-*.whl /
 RUN pip install /*.whl --extra-index-url=https://pypi.org/simple --no-deps && rm -f /*.whl
 
-COPY ./model_zoo ./model_zoo
+COPY ./model_zoo/pytorch/nanogpt ./model_zoo/pytorch/nanogpt
