@@ -160,7 +160,7 @@ class TaskManager(object):
         for name, dataset in self._datasets.items():
             doing_tasks = dataset.doing
             if not doing_tasks:
-                return
+                continue
             ids = [
                 task_id
                 for task_id, doing_task in doing_tasks.items()
@@ -168,7 +168,7 @@ class TaskManager(object):
                 and doing_task.node_type == node_type
             ]
             if not ids:
-                return
+                continue
             request = elastic_training_pb2.ReportTaskResultRequest()
             recover_tasks = []
             for id in ids:
@@ -207,6 +207,8 @@ class TaskManager(object):
         logger.info("Start the thread to monitor timeout tasks.")
         while True:
             for _, dataset in self._datasets.items():
+                # Copy doing task list because the doing list will pop items
+                # in the following loop.
                 doing_tasks = dataset.doing.copy()
                 cur = time.time()
                 for task_id, doing_task in doing_tasks.items():
