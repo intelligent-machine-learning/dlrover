@@ -70,7 +70,7 @@ def get_batch(
     y = torch.stack(
         [
             torch.from_numpy(
-                (data[i + 1 : i + 1 + block_size]).astype(np.int64)  # noqa: E203 E501
+                (data[i + 1 : i + 1 + block_size]).astype(np.int64)  # noqa
             )
             for i in ix
         ]
@@ -177,7 +177,9 @@ def train():
     block_size = args.block_size
     assert gradient_accumulation_steps % world_size == 0
     gradient_accumulation_steps //= world_size
-    tokens_per_iter = gradient_accumulation_steps * world_size * batch_size * block_size  # noqa: E501
+    tokens_per_iter = (
+        gradient_accumulation_steps * world_size * batch_size * block_size
+    )  # noqa: E501
     log_rank0(f"tokens per iteration will be: {tokens_per_iter:,}")
     # data
     train_data, val_data, meta_vocab_size = get_data_loader(args.data_dir)
