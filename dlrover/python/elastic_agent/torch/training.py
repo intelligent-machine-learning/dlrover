@@ -702,7 +702,6 @@ def network_check(
         entrypoint=entrypoint,
         spec=spec,
         start_method=config.start_method,
-        log_dir=config.log_dir,
     )
 
     metrics.initialize_metrics(metrics.MetricsConfig(config.metrics_cfg))
