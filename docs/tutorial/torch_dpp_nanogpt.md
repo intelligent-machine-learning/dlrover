@@ -37,7 +37,7 @@ NAME                                              READY   STATUS    RESTARTS   A
 dlrover-controller-manager-7dccdf6c4d-grmks       2/2     Running   0          12h
 elasticjob-torch-nanogpt-dlrover-master.          1/1     Running   0          20s
 torch-nanogpt-edljob-worker-0                     1/1     Running   0          11s
-torch-nanogpt-edljob-worker-1                     1/1     Running   0          
+torch-nanogpt-edljob-worker-1                     1/1     Running   0          11s
 ```
 
 ### Building from Docker - Step by Step
@@ -81,3 +81,13 @@ docker build -t easydl/dlrover-train-nanogpt:test -f docker/pytorch/nanogpt.dock
 
 And voila! You're all set to run the model and dive into the world of Natural Language Processing.
 I hope this adds more life and detail to your README document. Let me know if there's anything else you need help with!
+
+# References
+
+This eaxmple is built upon and significantly influenced by the [NanoGPT](https://github.com/karpathy/nanoGPT) project. Several scripts from the project, including but not limited to `prepare.py`, `train.py`, and `model.py`, have been adapted to our specific requirements. 
+
+The original scripts can be found in the NanoGPT repository: [NanoGPT](https://github.com/karpathy/nanoGPT)
+
+# Acknowledgments
+
+We would like to express our sincere gratitude to the authors and contributors of the NanoGPT project. Their work has provided us with a strong foundation for our example, and their insights have been invaluable for our development process. Thank you!

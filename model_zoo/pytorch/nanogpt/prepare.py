@@ -19,7 +19,7 @@ import numpy as np
 
 
 def prepare_dataset(input_file_path):
-    with open("dlrover/model_zoo/pytorch/nanogpt/data/input.txt", "r") as f:
+    with open(input_file_path, "r") as f:
         data = f.read()
     print(f"length of dataset in characters: {len(data):,}")
 
