@@ -125,7 +125,7 @@ class PodScaler(Scaler):
     def scale(self, plan: ScalePlan):
         """Scale in/out Pods by a ScalePlan."""
         self._plan = plan
-        job_pods = self._list_job_pods()
+        job_pods = self._wait_list_pods()
         logger.info("Scale the job by plan %s", plan.toJSON())
 
         with self._lock:
@@ -152,6 +152,17 @@ class PodScaler(Scaler):
                 if not removed:
                     self._k8s_client.delete_pod(node.name)
             self._update_job_pods(job_pods)
+
+    def _wait_list_pods(self, timeout=1800):
+        start = time.time()
+        while True:
+            pods = self._list_job_pods()
+            if pods:
+                return pods
+            if time.time() - start < timeout:
+                time.sleep(60)
+            else:
+                raise TimeoutError(f"Timeout {timeout} to list Pods.")
 
     def _update_job_pods(self, job_pods: Dict[str, List[Node]]):
         for type in [
@@ -188,6 +199,8 @@ class PodScaler(Scaler):
         job_selector = ElasticJobLabel.JOB_KEY + "=" + self._job_name
         pod_list = self._k8s_client.list_namespaced_pod(job_selector)
         job_pods: Dict[str, List[Node]] = {}
+        if not pod_list:
+            return job_pods
         for pod in pod_list.items:
             pod_type = pod.metadata.labels[ElasticJobLabel.REPLICA_TYPE_KEY]
             if pod_type == NodeType.DLROVER_MASTER:
