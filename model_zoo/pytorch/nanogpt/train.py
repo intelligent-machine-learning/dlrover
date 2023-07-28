@@ -386,7 +386,14 @@ def arg_parser():
     parser.add_argument("--min_lr", type=float, default=6e-5, required=False)
 
     # System settings
-    parser.add_argument("--device", type=device_type, default="cpu", required=False)
+    parser.add_argument(
+                        "--device", type=device_type, default="cpu", required=False,
+                        help="""
+                        The device to use for computation. 
+                        Choose from 'cuda' or 'cpu'. 
+                        Defaults to 'cpu' if not specified.
+                        """
+    )
     parser.add_argument("--compile", type=str, default="False", required=False)
 
     args = parser.parse_args()
