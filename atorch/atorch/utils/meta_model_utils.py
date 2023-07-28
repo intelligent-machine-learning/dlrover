@@ -145,7 +145,7 @@ def init_empty_weights_with_disk_offload(
         setattr(cls, name, new_fn)
 
     _reset_call_register = dict()
-    _escaped_mods = list()
+    _mods_to_clean = list()
 
     def _hack_reset_param(mod, init_fn, args, kwargs):
         init_res = init_fn(*args, **kwargs)
@@ -166,16 +166,17 @@ def init_empty_weights_with_disk_offload(
 
             setattr(mod, "reset_parameters", lambda *args, **kwargs: reset_empty_parameters(mod, *args, **kwargs))
 
-        # All models needs to be registered:
-        # we need to defer offloading at rank 0 in case tie_weights not ignored
-        # the first mod is the root module
-        _escaped_mods.append(mod)
         return init_res
 
     @functools.wraps(_super_init_call)
     def init_call_wrapper(mod, *args, **kwargs):
         def init_fn(*args, **kwargs):
             _super_init_call(mod, *args, **kwargs)
+
+        # All models needs to be registered:
+        # we need to defer offloading at rank 0 in case tie_weights not ignored
+        # the first mod is the root module
+        _mods_to_clean.append(mod)
 
         return _hack_reset_param(mod, init_fn, args, kwargs)
 
@@ -195,14 +196,20 @@ def init_empty_weights_with_disk_offload(
         for mod, _orig_reset_call in _reset_call_register.items():
             setattr(mod, "reset_parameters", _orig_reset_call)
 
-        for mod in _escaped_mods:
-            # Empty all mod parameters, assume all funky operetions (e.g. tie_weights)
-            # has already been called properly
-            _set_model_checkpoint_name(mod)
-            empty_param(mod, ignore_save=(not disk_offload))
+        _escaped_mods = list()
+        ignore_save = (not disk_offload) or (torch.distributed.is_initialized() and local_rank() != 0)
+        # check modules not successfully registered
+        for root_mod in _mods_to_clean:
+            for mod in root_mod.modules():
+                _escaped_mods.append(mod)
+                _set_model_checkpoint_name(mod)
+                empty_param(mod, ignore_save=ignore_save)
 
-        _tied_parameters = _find_tied_weights_for_meta(_escaped_mods[0])
-        _retie_weights(_escaped_mods[0], _tied_parameters)
+        all_mods = _escaped_mods + _mods_to_clean
+        # We cannot assume that the first of the _mods_to_clean is the root module
+        for root_mod in all_mods:
+            _tied_parameters = _find_tied_weights_for_meta(root_mod)
+            _retie_weights(root_mod, _tied_parameters)
         # clear _TIE_DICT
         _TIE_DICT.clear()
         gc.collect()
@@ -235,6 +242,8 @@ def _find_tied_weights_for_meta(model):
                 _tied_parameters[name] = _name_dict[param.checkpoint_name]
             else:
                 _name_dict[param.checkpoint_name] = name
+        else:
+            logger.warning("params have no checkpoint_name:%s", name)
 
     return _tied_parameters
 
@@ -343,6 +352,7 @@ def _set_model_checkpoint_name(mod, prefix_name=""):
                 else:
                     ckpt_name = get_checkpoint_name(prefix_name, is_param=True)
                 setattr(mod._parameters[name], "checkpoint_name", ckpt_name)
+
     for name in mod._buffers:
         if mod._buffers[name] is not None:
             if not hasattr(mod._buffers[name], "checkpoint_name"):
@@ -367,16 +377,17 @@ def empty_param(mod, prefix_name="", ignore_save=False):
             else:
                 ckpt_name = mod._parameters[name].checkpoint_name
             if (
-                local_rank() is not None
-                and int(local_rank()) == 0
-                and not ignore_save
-                and mod._parameters[name].device != torch.device("meta")
-            ):
+                not torch.distributed.is_initialized()
+                or (local_rank() is not None and int(local_rank()) == 0 and not ignore_save)
+            ) and mod._parameters[name].device != torch.device("meta"):
                 torch.save(mod._parameters[name], ckpt_name)
             delattr(mod._parameters[name], "checkpoint_name")
-            mod._parameters[name] = param_cls(mod._parameters[name].to(torch.device("meta")), **param_kwargs)
+            mod._parameters[name] = param_cls(
+                mod._parameters[name].to(torch.device("meta")),
+                requires_grad=mod._parameters[name].requires_grad,
+                **param_kwargs,
+            )
             setattr(mod._parameters[name], "checkpoint_name", ckpt_name)
-
     for name in mod._buffers:
         if mod._buffers[name] is not None:
             if not hasattr(mod._buffers[name], "checkpoint_name"):
@@ -388,11 +399,9 @@ def empty_param(mod, prefix_name="", ignore_save=False):
             else:
                 ckpt_name = mod._buffers[name].checkpoint_name
             if (
-                local_rank() is not None
-                and int(local_rank()) == 0
-                and not ignore_save
-                and mod._buffers[name].device != torch.device("meta")
-            ):
+                not torch.distributed.is_initialized()
+                or (local_rank() is not None and int(local_rank()) == 0 and not ignore_save)
+            ) and mod._buffers[name].device != torch.device("meta"):
                 torch.save(mod._buffers[name], ckpt_name)
             delattr(mod._buffers[name], "checkpoint_name")
             mod._buffers[name] = mod._buffers[name].to(torch.device("meta"))
@@ -430,6 +439,7 @@ def reload_meta_module(module, device="cpu", delete_ckpt_name=True, retie_weight
         for name, param in module.named_parameters():
             if param.device == torch.device("meta"):
                 if hasattr(param, "checkpoint_name"):
+                    logger.info("reload meta param %s", name)
                     loaded_param = torch.load(param.checkpoint_name)
                     # ckpt_name: set to the new Parameter, None if delete ckpt name
                     # old_ckpt_name: set to the old Parameter, in case weight tying
@@ -443,14 +453,16 @@ def reload_meta_module(module, device="cpu", delete_ckpt_name=True, retie_weight
                     # so the other submodules can correctly load the param
                     setattr(param, "checkpoint_name", old_ckpt_name)
                     del loaded_param, param
-                    gc.collect()
+                    # gc.collect()
                 else:
                     raise ValueError(f"meta model {module} is not checkpointed, for {name}")
             elif param.device != torch.device(device):
+                logger.info("reload meta param %s", name)
                 _reload_meta_parameter(module, name, device)
         for name, buffer in module.named_buffers():
             if buffer.device == torch.device("meta"):
                 if hasattr(buffer, "checkpoint_name"):
+                    logger.info("reload meta buffer %s", name)
                     loaded_buffer = torch.load(buffer.checkpoint_name)
                     ckpt_name = buffer.checkpoint_name if not delete_ckpt_name else None
                     old_ckpt_name = buffer.checkpoint_name
@@ -458,10 +470,11 @@ def reload_meta_module(module, device="cpu", delete_ckpt_name=True, retie_weight
                     _reload_meta_parameter(module, name, device, value=loaded_buffer, ckpt_name=ckpt_name)
                     setattr(buffer, "checkpoint_name", ckpt_name)
                     del loaded_buffer, buffer
-                    gc.collect()
+                    # gc.collect()
                 else:
                     raise ValueError(f"meta model is not checkpointed, for {name}")
             elif buffer.device != torch.device(device):
+                logger.info("reload meta buffer %s", name)
                 _reload_meta_parameter(module, name, device)
 
         for child in module.children():

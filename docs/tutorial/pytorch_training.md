@@ -136,13 +136,7 @@ RUN pip install dlrover -U
 COPY ./model_zoo ./model_zoo
 ```
 
-### Run the Training code with torchrun.
-
-If we want to use the DLRover job master as the rendezvous backend,
-we need to execute `python -m dlrover.python.elastic_agent.torch.prepare`
-before `trochrun`. The `RendezvousBackend` of job master can support
-the fault-tolerance of rank-0 which is not supported
-in `C10dRendezvousBackend`.
+### Run the Training code with dlrover-run.
 
 ```yaml
 spec:
@@ -156,14 +150,13 @@ spec:
           containers:
             - name: main
               # yamllint disable-line rule:line-length
-              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:torch113-mnist
+              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:torch201-mnist
               imagePullPolicy: Always
               command:
                 - /bin/bash
                 - -c
-                - "python -m dlrover.python.elastic_agent.torch.prepare \
-                  && torchrun --nnodes=1:$WORKER_NUM --nproc_per_node=1
-                  --max_restarts=3 --rdzv_backend=dlrover-master \
+                - "dlrover-run --nnodes=1:$WORKER_NUM --nproc_per_node=1
+                  --max_restarts=3 \
                   model_zoo/pytorch/mnist_cnn.py \
                   --training_data /data/mnist_png/training/elastic_ds.txt \
                   --validation_data /data/mnist_png/testing/elastic_ds.txt"

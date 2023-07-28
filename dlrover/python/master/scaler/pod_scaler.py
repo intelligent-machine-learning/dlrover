@@ -185,9 +185,10 @@ class PodScaler(Scaler):
         return False
 
     def _list_job_pods(self):
-        job_selector = ElasticJobLabel.JOB_KEY + "=" + self._job_name
-        pod_list = self._k8s_client.list_namespaced_pod(job_selector)
+        pod_list = self._wait_list_pods()
         job_pods: Dict[str, List[Node]] = {}
+        if not pod_list:
+            return job_pods
         for pod in pod_list.items:
             pod_type = pod.metadata.labels[ElasticJobLabel.REPLICA_TYPE_KEY]
             if pod_type == NodeType.DLROVER_MASTER:
@@ -208,6 +209,18 @@ class PodScaler(Scaler):
             )
             job_pods[pod_type].append(node)
         return job_pods
+
+    def _wait_list_pods(self, timeout=1800):
+        job_selector = ElasticJobLabel.JOB_KEY + "=" + self._job_name
+        start = time.time()
+        while True:
+            pod_list = self._k8s_client.list_namespaced_pod(job_selector)
+            if pod_list:
+                return pod_list
+            if time.time() - start < timeout:
+                time.sleep(60)
+            else:
+                raise TimeoutError(f"Timeout {timeout} to list Pods.")
 
     def _get_pod_resource(self, pod):
         resources = pod.spec.containers[0].resources

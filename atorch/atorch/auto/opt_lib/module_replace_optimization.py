@@ -31,7 +31,12 @@ REPLACEMENT_PAIRS = {
         {torch.float16, torch.bfloat16},
     ),
     "HF_GPT2Attention_FA": (GPT2Attention, GPT2AttentionFA, {"need_src_module": True}, {torch.float16, torch.bfloat16}),
-    "LayerNorm_Apex": (LayerNorm, ApexLayerNorm, {"init_from_attr": True}, {torch.float32, torch.float16}),
+    "LayerNorm_Apex": (
+        LayerNorm,
+        ApexLayerNorm,
+        {"init_from_attr": True},
+        {torch.float32, torch.float16, torch.bfloat16},
+    ),
 }
 
 
@@ -78,7 +83,7 @@ def _replace_by_config(model, config=None, gpu_used=False):
     post_replacement_devices = _check_model_params_device(model)
     if len(post_replacement_devices) > 1:
         # In this case we assume defer init happens
-        if "meta" in pre_replacement_devices or torch.device("meta") not in pre_replacement_devices:
+        if "meta" in pre_replacement_devices or torch.device("meta") in pre_replacement_devices:
             empty_param(model, prefix_name="replace_")
             recursive_empty_param(model, prefix_name="replace_")
         elif torch.cuda.is_available() and not gpu_used:

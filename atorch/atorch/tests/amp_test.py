@@ -1,11 +1,16 @@
 import logging
+import os
 import sys
 import unittest
 from unittest.mock import patch
 
 import torch
+import torch.distributed as dist
+import torch.multiprocessing as mp
 
+from atorch.auto.accelerate import model_transform
 from atorch.auto.auto_accelerate_context import AutoAccelerateContext
+from atorch.auto.model_context import ModelContext
 from atorch.auto.opt_lib.amp_optimization import (
     AmpApexO1Optimization,
     AmpApexO2Optimization,
@@ -13,8 +18,9 @@ from atorch.auto.opt_lib.amp_optimization import (
     AmpNativeOptimizer,
 )
 from atorch.auto.opt_lib.half_optimization import HalfOptimization
-from atorch.tests.test_utils import skip_if_old_gpu
-from atorch.tests.toy_module import create_model_context, run_train
+from atorch.auto.opt_lib.optimization_library import OptimizationLibrary
+from atorch.auto.strategy import Strategy
+from atorch.tests.toy_module import create_model_context, optim_func, run_train
 
 
 class AmpOptimizationTest(unittest.TestCase):
@@ -106,8 +112,8 @@ class AmpOptimizationTest(unittest.TestCase):
         amp_apex_opt2.reset(None)
 
     @unittest.skipIf(
-        skip_if_old_gpu(),
-        "Skip gpu older than a100.",
+        not torch.cuda.is_available(),
+        "No gpu available for cuda tests",
     )
     def test_fp16_and_bf16(self):
         """fp16 needs loss scaling but bf16 does not."""
@@ -145,8 +151,8 @@ class AmpOptimizationTest(unittest.TestCase):
             opt.apply_wrapper(model_context1, wrapper_name="half", wrapper_config="tf32")
 
     @unittest.skipIf(
-        skip_if_old_gpu(),
-        "Skip gpu older than a100.",
+        not torch.cuda.is_available(),
+        "No gpu available for cuda tests",
     )
     def test_half_precision_dtype_gpu(self):
         device = "cuda"
@@ -173,6 +179,175 @@ class AmpOptimizationTest(unittest.TestCase):
                 loss.backward()
                 optimizer.step()
                 optimizer.zero_grad()
+
+
+class OneVarModule(torch.nn.Module):
+    def __init__(self, param_value):
+        super().__init__()
+        self.var = torch.nn.parameter.Parameter(param_value)
+
+    def forward(self):
+        return torch.pow(self.var, 2)
+
+
+class NonFiniteChecking(unittest.TestCase):
+    def setUp(self):
+        super().setUp()
+
+        def identity_loss_func(a, _):
+            return a
+
+        bf16_max = torch.finfo(torch.bfloat16).max
+        self.param_value = torch.tensor(bf16_max, dtype=torch.float32)
+        model = OneVarModule(self.param_value)
+        self.model_context = ModelContext(
+            model=model,
+            optim_func=optim_func,
+            dataset=None,
+            loss_func=identity_loss_func,
+            prepare_input=None,
+            optim_args={"lr": 1},
+        )
+
+    def tearDown(self):
+        del self.model_context
+        return super().tearDown()
+
+    @unittest.skipIf(
+        not torch.cuda.is_available(),
+        "No gpu available for cuda tests",
+    )
+    def test_skipping_update_params_nonfinite_loss(self):
+        bf16_config = {"dtype": "bf16", "skip_if_nonfinite": True}
+        bf16_amp_native_opt = AmpNativeOptimization()
+        model_context = bf16_amp_native_opt.transform(self.model_context, config=bf16_config)
+        model_context.update_optim()
+        bf16_amp_native_opt.apply_wrapper(model_context, "amp_native", wrapper_config=bf16_config)
+        model = model_context.model.cuda()
+        optimizer = model_context.optim
+        loss_func = model_context.loss_func
+        optimizer.zero_grad()
+        y = model()
+        loss = loss_func(y, None)
+        self.assertTrue(torch.all(loss.isinf()))
+        loss.backward()
+        self.assertTrue(torch.all(model.var.grad.isinf()))
+        optimizer.step()
+        self.assertTrue(torch.allclose(model.var, self.param_value))
+        scaler = optimizer.grad_scaler
+        self.assertEqual(scaler._init_scale, 1.0)
+        self.assertEqual(scaler._growth_factor, 1.0)
+        self.assertEqual(scaler._backoff_factor, 1.0)
+
+    @unittest.skipIf(
+        not torch.cuda.is_available(),
+        "No gpu available for cuda tests",
+    )
+    def test_not_skipping_update_params_nonfinite_loss(self):
+        bf16_config = {"dtype": "bf16", "skip_if_nonfinite": False}
+        bf16_amp_native_opt = AmpNativeOptimization()
+        model_context = bf16_amp_native_opt.transform(self.model_context, config=bf16_config)
+        model_context.update_optim()
+        bf16_amp_native_opt.apply_wrapper(model_context, "amp_native", wrapper_config=bf16_config)
+        model = model_context.model.cuda()
+        optimizer = model_context.optim
+        loss_func = model_context.loss_func
+        optimizer.zero_grad()
+        y = model()
+        loss = loss_func(y, None)
+        self.assertTrue(torch.all(loss.isinf()))
+        loss.backward()
+        self.assertTrue(torch.all(model.var.grad.isinf()))
+        optimizer.step()
+        self.assertTrue(torch.all(model.var.isnan()))
+        self.assertFalse(hasattr(optimizer, "grad_scaler"))
+
+
+class OneLinearModule(torch.nn.Module):
+    def __init__(self, param_value):
+        super().__init__()
+        self.var = torch.nn.Linear(1, 2)
+        for param in self.var.parameters():
+            param.detach().fill_(param_value)
+
+    def forward(self, x):
+        return self.var(x)
+
+
+class FSDPNonFiniteChecking(unittest.TestCase):
+    def setUp(self):
+        super().setUp()
+
+    def tearDown(self):
+        return super().tearDown()
+
+    @unittest.skipIf(
+        not torch.cuda.is_available() or torch.cuda.device_count() < 2,
+        "No gpu available for cuda tests",
+    )
+    def test_skipping_update_params_nonfinite_loss(self):
+        world_size = 2
+        mp.spawn(
+            _test_skipping_update_params_nonfinite_loss,
+            args=(world_size,),
+            nprocs=world_size,
+            join=True,
+            daemon=False,
+            start_method="spawn",
+        )
+
+
+def _test_skipping_update_params_nonfinite_loss(rank, world_size):
+    os.environ["LOCAL_RANK"] = str(rank)
+    os.environ["RANK"] = str(rank)
+    os.environ["WORLD_SIZE"] = str(world_size)
+    os.environ["NPROC_PER_NODE"] = str(world_size)
+    os.environ["MASTER_ADDR"] = "localhost"
+    os.environ["MASTER_PORT"] = "29505"
+    dist.init_process_group(backend="nccl", rank=rank, world_size=world_size)
+    device = f"cuda:{rank}"
+    strategy = Strategy(
+        [
+            ("parallel_mode", ([("data", torch.distributed.get_world_size())], None), False),
+            ("fsdp", {"atorch_size_based_min_num_params": 1}, False),
+            ("amp_native", {"dtype": torch.bfloat16, "skip_if_nonfinite": True}, False),
+        ]
+    )
+    opt_lib = OptimizationLibrary()
+
+    def norm_loss_func(a, _):
+        return a.norm()
+
+    bf16_max = torch.finfo(torch.bfloat16).max
+    param_value = torch.tensor(bf16_max, dtype=torch.float32)
+    model = OneLinearModule(param_value)
+    model_context = ModelContext(
+        model=model,
+        optim_func=optim_func,
+        dataset=None,
+        loss_func=norm_loss_func,
+        prepare_input=None,
+        optim_args={"lr": 1},
+    )
+    model_context = model_transform(model_context, strategy, opt_lib, create_dataloader=False)
+    model = model_context.model
+    optimizer = model_context.optim
+    loss_func = model_context.loss_func
+    optimizer.zero_grad()
+    x = torch.tensor([[bf16_max], [bf16_max]], dtype=torch.bfloat16, device=device)
+    y = model(x)
+    loss = loss_func(y, None)
+    assert torch.all(loss.isinf())
+    loss.backward()
+    for param in model.module.parameters():
+        assert torch.all(param.grad.isnan())
+    optimizer.step()
+    for param in model.module.parameters():
+        assert not torch.all(param.isnan())
+    scaler = optimizer.grad_scaler
+    assert scaler._init_scale == 1.0
+    assert scaler._growth_factor == 1.0
+    assert scaler._backoff_factor == 1.0
 
 
 if __name__ == "__main__":

@@ -423,9 +423,9 @@ class MixPrecisionDeepSpeedTransformerFunction(torch.autograd.Function):
 
 class MixPrecisionTransformerLayer(DeepSpeedTransformerLayer):
     """
-    兼容性
-    1. 支持torch.autocast作用域内使用
-    2. 支持在amp.initialize 之后，替换掉layer
+    Compatibility:
+    1. torch.autocast context manager supported
+    2. support using after amp.initialize
     """
 
     def __init__(
@@ -631,7 +631,7 @@ class MixPrecisionTransformerLayer(DeepSpeedTransformerLayer):
         return ret
 
     def state_dict(self, destination=None, prefix="", keep_vars=False):
-        # 保存的权重格式和bert layer一致，可以互相读取、写入
+        # Keep parameter same as bert layer to support interchangeable read/write.
         sd = super().state_dict(destination=destination, prefix=prefix, keep_vars=keep_vars)
         attn_qkvw = sd.pop(prefix + "attn_qkvw")
         attn_qkvb = sd.pop(prefix + "attn_qkvb")
@@ -657,7 +657,7 @@ class MixPrecisionTransformerLayer(DeepSpeedTransformerLayer):
         return sd
 
     def load_state_dict(self, state_dict, strict=True):
-        # 可以从任意BertLayer权重原地恢复
+        # Support restore parameters from BertLayer parameters.
 
         qw = state_dict["attention.self.query.weight"]
         qb = state_dict["attention.self.query.bias"]

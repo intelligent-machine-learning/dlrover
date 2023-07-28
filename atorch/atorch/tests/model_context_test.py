@@ -1,3 +1,4 @@
+import os
 import unittest
 
 import torch
@@ -5,9 +6,11 @@ from torch.utils.data import Dataset
 from torch.utils.data.distributed import DistributedSampler
 
 import atorch
-from atorch.distributed.distributed import _DistributedContext
+from atorch.auto.model_context import ModelContext
+from atorch.data import ShmDataloader
+from atorch.distributed.distributed import _DistributedContext, create_parallel_group
 from atorch.tests.test_utils import run_multi_process_init_distributed
-from atorch.tests.toy_module import create_model_context, run_train
+from atorch.tests.toy_module import ToyDataset, create_model_context, run_train
 
 
 class ModelContextTest(unittest.TestCase):
@@ -36,6 +39,7 @@ class ModelContextTest(unittest.TestCase):
         device = "cuda"
         self.run_test_with_device(device)
 
+    @unittest.skipIf(torch.cuda.is_available(), "test only on cpu")
     def test_cpu(self):
         device = "cpu"
         self.run_test_with_device(device)
@@ -85,17 +89,65 @@ class ModelContextTest(unittest.TestCase):
         atorch.reset_distributed()
 
 
-run_use_shm_dataloader_code = """
-import os
-import torch
-import atorch
-import numpy as np
-from atorch.distributed.distributed import create_parallel_group
-from atorch.data import ShmDataloader
-from atorch.auto.model_context import ModelContext
-from atorch.tests.toy_module import ToyDataset
+class ModelContextWrapperTest(unittest.TestCase):
+    def setUp(self):
+        self.context = create_model_context(data_size=2, batch_size=1)
 
-if __name__ == "__main__":
+    def test_adjust_ddp_and_zero2_wrapper(self):
+        self.context.add_wrapper("zero2", None, None, is_pre_wrapper=False)
+        self.context.add_wrapper("ddp", None, None, is_pre_wrapper=False)
+        wrappers = self.context.post_wrappers
+        self.assertIn("zero2", wrappers)
+        self.assertIn("ddp", wrappers)
+        self.context.adjust_wrappers()
+        wrappers = self.context.post_wrappers
+        self.assertIn("zero2", wrappers)
+        self.assertNotIn("ddp", wrappers)
+
+    def test_adjust_amp_apex_and_ddp_wrapper(self):
+        self.context.add_wrapper("ddp", None, None, is_pre_wrapper=False)
+        self.context.add_wrapper("amp_apex_o2", None, None, is_pre_wrapper=False)
+        self.context.adjust_wrappers()
+        wrapper_names = [name for name, _ in self.context.post_wrappers.items()]
+        ddp_index = wrapper_names.index("ddp")
+        amp_apex_o2_index = wrapper_names.index("amp_apex_o2")
+        self.assertLess(amp_apex_o2_index, ddp_index)
+
+    def test_adjust_amp_apex_and_zero2_wrapper(self):
+        self.context.add_wrapper("zero2", None, None, is_pre_wrapper=False)
+        self.context.add_wrapper("amp_apex_o2", None, None, is_pre_wrapper=False)
+        self.context.adjust_wrappers()
+        wrapper_names = [name for name, _ in self.context.post_wrappers.items()]
+        zero2_index = wrapper_names.index("zero2")
+        amp_apex_o2_index = wrapper_names.index("amp_apex_o2")
+        self.assertLess(amp_apex_o2_index, zero2_index)
+
+    def test_adjust_amp_apex_zero2_ddp_wrapper(self):
+        self.context.add_wrapper("zero2", None, None, is_pre_wrapper=False)
+        self.context.add_wrapper("ddp", None, None, is_pre_wrapper=False)
+        self.context.add_wrapper("opt0", None, None, is_pre_wrapper=False)
+        self.context.add_wrapper("opt1", None, None, is_pre_wrapper=False)
+        self.context.add_wrapper("opt2", None, None, is_pre_wrapper=False)
+        self.context.add_wrapper("amp_apex_o1", None, None, is_pre_wrapper=False)
+        self.context.add_wrapper("opt3", None, None, is_pre_wrapper=False)
+        self.context.adjust_wrappers()
+        wrapper_names = [name for name, _ in self.context.post_wrappers.items()]
+        self.assertNotIn("ddp", wrapper_names)
+        zero_index = wrapper_names.index("zero2")
+        amp_apex_o2_index = wrapper_names.index("amp_apex_o1")
+        wrappers_order = [
+            wrapper_names.index("opt0"),
+            wrapper_names.index("opt1"),
+            wrapper_names.index("opt2"),
+            amp_apex_o2_index,
+            zero_index,
+            wrapper_names.index("opt3"),
+        ]
+        self.assertLess(amp_apex_o2_index, zero_index)
+        self.assertEqual(wrappers_order, [0, 1, 2, 3, 4, 5])
+
+
+def use_shm_dataloader_func():
     if torch.cuda.is_available():
         atorch.init_distributed("nccl")
     else:
@@ -108,7 +160,7 @@ if __name__ == "__main__":
     d_size = 4
     batch_size = 2
     dataset = ToyDataset(size=d_size, data_size=2, output_size=2)
-    dataloader_args={"batch_size": batch_size, "drop_last": True}
+    dataloader_args = {"batch_size": batch_size, "drop_last": True}
     context = ModelContext(
         dataset=dataset,
         dataloader_args=dataloader_args,
@@ -131,16 +183,15 @@ if __name__ == "__main__":
         assert total_1 == d_size
         assert count == d_size / batch_size
 
-
     atorch.reset_distributed()
-"""
 
 
 class ModelContextShmDataloaderTest(unittest.TestCase):
+    @unittest.skipIf(torch.cuda.is_available(), "Skip on gpu as cpu test covers it.")
     def test_use_shm_dataloader(self):
-        codes = run_use_shm_dataloader_code
-        run_multi_process_init_distributed(codes, nproc=2)
+        code_path = os.path.abspath(__file__)
+        run_multi_process_init_distributed(nproc=2, training_script=code_path)
 
 
 if __name__ == "__main__":
-    unittest.main()
+    use_shm_dataloader_func()
