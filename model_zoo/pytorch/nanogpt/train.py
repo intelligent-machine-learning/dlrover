@@ -14,6 +14,7 @@
 
 import argparse
 import contextlib
+import logging
 import math
 import os
 import pickle
@@ -319,20 +320,23 @@ def train():
         if iter_num > max_iters:
             break
 
+# Determine the device type based on the input string.
 def device_type(string):
+    logging.basicConfig(level=logging.WARNING)
+    
     lower_string = string.lower()
     if "gpu" in lower_string or "cuda" in lower_string:
         if lower_string != "cuda":
-            print(
-                "Warning: It seems you are trying to use a cuda device."
+            logging.warning(
+                "It seems you are trying to use a cuda device."
                 "The correct argument should be \"cuda\"."
                 "Automatically using the cuda device."
             )
         return "cuda"
     else:
         if lower_string != "cpu":
-            print(
-                f"Warning: Unrecognized device type argument \"{lower_string}\"."
+            logging.warning(
+                f"Unrecognized device type argument \"{lower_string}\"."
                 "Defaulting to use the cpu device."
             )
         return "cpu"
