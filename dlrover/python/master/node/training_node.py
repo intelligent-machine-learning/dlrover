@@ -194,7 +194,6 @@ class TrainingNodeManager(object):
             new_id = next(self._node_id_iter)
             relaunch_node = node.get_relaunch_node_info(new_id)
             self._nodes[new_id] = relaunch_node
-            node.relaunchable = False
         logger.info("Relaunch node %s to %s", node.name, new_id)
         plan.launch_nodes.append(
             Node(
@@ -212,8 +211,7 @@ class TrainingNodeManager(object):
     def reduce_pending_node_resource(self):
         """Cut down CPU cores of pendding PS Pods"""
         plan = ScalePlan()
-        nodes = copy.deepcopy(self._nodes)
-        for node in nodes.values():
+        for node in self._nodes.values():
             if node.status == NodeStatus.PENDING:
                 reduced = reduce_timeout_pending_node_resource(node)
                 if reduced:
