@@ -43,9 +43,8 @@ class MockStub(object):
     def optimize(self, request):
         res = brain_pb2.OptimizeResponse()
         res.job_optimize_plans.add()
-        group_resources = res.job_optimize_plans[
-            0
-        ].resource.task_group_resources
+        plan = res.job_optimize_plans[0]
+        group_resources = plan.resource.task_group_resources
         group_resources[NodeType.WORKER].count = 5
         group_resources[NodeType.WORKER].resource.memory = (
             _MEMORY * MemoryUnit.MB
@@ -55,6 +54,7 @@ class MockStub(object):
         group_resources[NodeType.PS].count = 2
         group_resources[NodeType.PS].resource.memory = _MEMORY * MemoryUnit.MB
         group_resources[NodeType.PS].resource.cpu = 16
+        plan.resource.pod_resources["ps-0"].memory = _MEMORY * MemoryUnit.MB
         return res
 
 
