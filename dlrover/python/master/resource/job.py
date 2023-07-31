@@ -351,7 +351,7 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
         plan = self._resource_optimizer.generate_oom_recovery_plan(
             [node], JobOptStage.PS_INITIAL
         )
-        if plan and not plan.empty():
+        if plan and not plan.empty() and node.name in plan.node_resources:
             resource = plan.node_resources[node.name]
             self._ps_resource.node_resource.memory = max(
                 self._ps_resource.node_resource.memory,
