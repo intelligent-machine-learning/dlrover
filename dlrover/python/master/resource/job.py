@@ -352,10 +352,10 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
             [node], JobOptStage.PS_INITIAL
         )
         if plan and not plan.empty():
-            ps = plan.node_group_resources[NodeType.PS]
+            resource = plan.node_resources[node.name]
             self._ps_resource.node_resource.memory = max(
                 self._ps_resource.node_resource.memory,
-                ps.node_resource.memory,
+                resource.memory,
             )
         cur_mem = node.config_resource.memory
         cur_mem *= NodeResourceLimit.INCREMENTAL_MEMORY_FACTOR
