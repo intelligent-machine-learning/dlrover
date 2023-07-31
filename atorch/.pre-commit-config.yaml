@@ -4,11 +4,13 @@ repos:
     rev: v5.10.1
     hooks:
       - id: isort
+        exclude: _pb2.py|_pb2_grpc.py
         args: [--settings-path, atorch/]
   - repo: https://github.com/psf/black
     rev: 22.6.0
     hooks:
       - id: black
+        exclude: _pb2.py|_pb2_grpc.py
         args: [--line-length=120]
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v2.4.0
