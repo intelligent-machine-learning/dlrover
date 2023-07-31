@@ -121,6 +121,7 @@ class PSTrainingAutoScaler(JobAutoScaler):
         logger.info("Start monitoring pending nodes.")
         while True:
             if self._autoscaling_started:
+                logger.info("Stop mointoring pending nodes.")
                 break
             self._reduce_timeout_pending_node_resource()
             time.sleep(60)
