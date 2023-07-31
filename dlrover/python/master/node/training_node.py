@@ -214,8 +214,8 @@ class TrainingNodeManager(object):
         nodes = copy.deepcopy(self._nodes)
         for node in nodes.values():
             if node.status == NodeStatus.PENDING:
-                cut_cpu = reduce_timeout_pending_node_resource(node)
-                if cut_cpu:
+                reduced = reduce_timeout_pending_node_resource(node)
+                if reduced:
                     node.relaunchable = False
                     node_plan = self.relaunch_node(node)
                     plan.remove_nodes.append(node)

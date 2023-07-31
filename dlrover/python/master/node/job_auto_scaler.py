@@ -118,6 +118,7 @@ class PSTrainingAutoScaler(JobAutoScaler):
         ).start()
 
     def monitor_pending_node_at_begining(self):
+        logger.info("Start monitoring pending nodes.")
         while True:
             if self._autoscaling_started:
                 break
