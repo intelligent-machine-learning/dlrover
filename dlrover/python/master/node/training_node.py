@@ -103,8 +103,8 @@ def get_critical_worker_index(params: JobArgs):
     return critical_worker_index
 
 
-def cut_timeout_pending_node_cpu(node: Node):
-    """Cut down CPU cores and relaunch it if the pending
+def reduce_timeout_pending_node_resource(node: Node):
+    """Reduce CPU cores or memroy and relaunch it if the pending
     time is too long"""
     now = time.time()
     if node.is_released or not node.create_time:
@@ -117,6 +117,7 @@ def cut_timeout_pending_node_cpu(node: Node):
     new_cpu = math.ceil(
         original_cpu / _dlrover_context.factor_to_cut_pending_cpu
     )
+    reduced = False
     if new_cpu > NodeResourceLimit.MIN_CPU_CORES:
         node.config_resource.cpu = new_cpu
         logger.info(
@@ -127,9 +128,23 @@ def cut_timeout_pending_node_cpu(node: Node):
             _dlrover_context.seconds_to_wait_pending_pod,
             new_cpu,
         )
-        return True
-    else:
-        return False
+        reduced = True
+    original_memory = node.config_resource.memory
+    new_memory = math.ceil(
+        original_memory / _dlrover_context.factor_to_cut_pending_cpu
+    )
+    if new_memory > NodeResourceLimit.MIN_MEMORY:
+        node.config_resource.memory = new_memory
+        logger.info(
+            "Pod %s pending time %s beyonds %s."
+            "Delete and relaunch it with memory %s",
+            node.name,
+            pending_time,
+            _dlrover_context.seconds_to_wait_pending_pod,
+            new_memory,
+        )
+        reduced = True
+    return reduced
 
 
 class TrainingNodeManager(object):
@@ -193,16 +208,17 @@ class TrainingNodeManager(object):
         )
         return plan
 
-    def cut_pending_node_cpu(self):
+    def reduce_pending_node_resource(self):
         """Cut down CPU cores of pendding PS Pods"""
         plan = ScalePlan()
         nodes = copy.deepcopy(self._nodes)
         for node in nodes.values():
             if node.status == NodeStatus.PENDING:
-                cut_cpu = cut_timeout_pending_node_cpu(node)
+                cut_cpu = reduce_timeout_pending_node_resource(node)
                 if cut_cpu:
                     node.relaunchable = False
                     node_plan = self.relaunch_node(node)
+                    plan.remove_nodes.append(node)
                     plan.merge(node_plan)
         return plan
 
