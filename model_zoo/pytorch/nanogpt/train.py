@@ -318,7 +318,8 @@ def train():
         # Termination conditions
         if iter_num > max_iters:
             break
-        
+
+
 # Determine the device type based on the input string.
 def device_type(string):
     lower_string = string.lower()
@@ -326,17 +327,18 @@ def device_type(string):
         if lower_string != "cuda":
             log_rank0(
                 "It seems you are trying to use a cuda device."
-                "The correct argument should be \"cuda\"."
+                'The correct argument should be "cuda".'
                 "Automatically using the cuda device."
             )
         return "cuda"
     else:
         if lower_string != "cpu":
             log_rank0(
-                f"Unrecognized device type argument \"{lower_string}\"."
+                f'Unrecognized device type argument "{lower_string}".'
                 "Defaulting to use the cpu device."
             )
         return "cpu"
+
 
 def arg_parser():
     parser = argparse.ArgumentParser(description="Process training parameters")
@@ -388,12 +390,15 @@ def arg_parser():
 
     # System settings
     parser.add_argument(
-                        "--device", type=device_type, default="cpu", required=False,
-                        help="""
-                        The device to use for computation. 
-                        Choose from 'cuda' or 'cpu'. 
+        "--device",
+        type=device_type,
+        default="cpu",
+        required=False,
+        help="""
+                        The device to use for computation.
+                        Choose from 'cuda' or 'cpu'.
                         Defaults to 'cpu' if not specified.
-                        """
+                        """,
     )
     parser.add_argument("--compile", type=str, default="False", required=False)
 
