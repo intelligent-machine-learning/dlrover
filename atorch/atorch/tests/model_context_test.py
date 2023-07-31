@@ -146,6 +146,22 @@ class ModelContextWrapperTest(unittest.TestCase):
         self.assertLess(amp_apex_o2_index, zero_index)
         self.assertEqual(wrappers_order, [0, 1, 2, 3, 4, 5])
 
+    def test_adjust_dynamo_and_fsdp_wrapper(self):
+        self.context.add_wrapper("native_dynamo", None, None, is_pre_wrapper=True)
+        self.context.add_wrapper("fsdp", None, None, is_pre_wrapper=True)
+        self.context.adjust_wrappers()
+        wrapper_names = [name for name, _ in self.context.pre_wrappers.items()]
+        wrappers_order = [wrapper_names.index("fsdp"), wrapper_names.index("native_dynamo")]
+        self.assertListEqual(wrappers_order, [0, 1])
+
+    def test_adjust_dynamo_and_ddp_wrapper(self):
+        self.context.add_wrapper("native_dynamo", None, None, is_pre_wrapper=True)
+        self.context.add_wrapper("ddp", None, None, is_pre_wrapper=False)
+        self.context.adjust_wrappers()
+        wrapper_names = [name for name, _ in self.context.post_wrappers.items()]
+        wrappers_order = [wrapper_names.index("ddp"), wrapper_names.index("native_dynamo")]
+        self.assertListEqual(wrappers_order, [0, 1])
+
 
 def use_shm_dataloader_func():
     if torch.cuda.is_available():
