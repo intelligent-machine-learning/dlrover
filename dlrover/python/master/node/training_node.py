@@ -211,7 +211,8 @@ class TrainingNodeManager(object):
     def reduce_pending_node_resource(self):
         """Cut down CPU cores of pendding PS Pods"""
         plan = ScalePlan()
-        for node in self._nodes.values():
+        cur_nodes = list(self._nodes.values())
+        for node in cur_nodes:
             if node.status == NodeStatus.PENDING:
                 reduced = reduce_timeout_pending_node_resource(node)
                 if reduced:
