@@ -77,6 +77,7 @@ class MasterRendezvousHandler(RendezvousHandler):
     Then, the handler will get the communcation world from the master
     and assign ranks to the training process.
     """
+
     def __init__(
         self,
         name,
