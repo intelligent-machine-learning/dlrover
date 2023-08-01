@@ -131,7 +131,7 @@ def reduce_timeout_pending_node_resource(node: Node):
         reduced = True
     original_memory = node.config_resource.memory
     new_memory = math.ceil(
-        original_memory / _dlrover_context.factor_to_cut_pending_cpu
+        original_memory / _dlrover_context.factor_to_cut_pending_mem
     )
     if new_memory > NodeResourceLimit.MIN_MEMORY:
         node.config_resource.memory = new_memory
