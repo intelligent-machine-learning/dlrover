@@ -1,5 +1,4 @@
 import collections
-import sys
 from functools import partialmethod, wraps
 
 import torch
@@ -8,6 +7,7 @@ from torch.cuda.amp import GradScaler, autocast
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 
 from atorch.distributed.distributed import parallel_group
+from atorch.utils.grad_scaler import BF16GradScaler, BF16ShardedGradScaler
 from atorch.utils.version import torch_version
 
 if torch_version() >= (1, 12, 0):
@@ -246,18 +246,22 @@ class AmpNativeOptimization(Optimization):
             optimizer = model_context.optim
             parallel_group_data = parallel_group("data")
             parallel_group_zero = parallel_group("zero")
-            if parallel_group_zero is not None and parallel_group_data is not None:
-                grad_scaler = ShardedGradScaler(process_group=parallel_group_zero)
-            elif parallel_group_data is not None and isinstance(model, (ShardedDDP, FSDP)):
-                grad_scaler = ShardedGradScaler(process_group=parallel_group_data)
-            else:
-                grad_scaler = GradScaler()
+
             if wrapper_config["dtype"] == torch.bfloat16 and skip_if_nonfinite:
                 # Bf16 does not need loss scaling. We only need GradScaler's inf checking.
-                grad_scaler._init_scale = 1.0
-                grad_scaler._growth_factor = 1.0
-                grad_scaler._backoff_factor = 1.0
-                grad_scaler._growth_interval = sys.maxsize
+                if parallel_group_zero is not None and parallel_group_data is not None:
+                    grad_scaler = BF16ShardedGradScaler(process_group=parallel_group_zero)
+                elif parallel_group_data is not None and isinstance(model, (ShardedDDP, FSDP)):
+                    grad_scaler = BF16ShardedGradScaler(process_group=parallel_group_data)
+                else:
+                    grad_scaler = BF16GradScaler()
+            else:
+                if parallel_group_zero is not None and parallel_group_data is not None:
+                    grad_scaler = ShardedGradScaler(process_group=parallel_group_zero)
+                elif parallel_group_data is not None and isinstance(model, (ShardedDDP, FSDP)):
+                    grad_scaler = ShardedGradScaler(process_group=parallel_group_data)
+                else:
+                    grad_scaler = GradScaler()
             if optimizer is not None and loss_func is not None:
                 if not hasattr(AutoAccelerateContext, "amp_native_grad_scaler"):
                     AutoAccelerateContext.add_ac_attr(
@@ -309,12 +313,15 @@ class AmpNativeOptimizer(torch.optim.Optimizer):
         self._is_overflow = False
 
     def step(self, *args, **kwargs):
+        self._is_overflow = False
         scale_before = self.grad_scaler.get_scale()
         self.grad_scaler.step(self.optimizer, *args, **kwargs)
         self.grad_scaler.update()
         scale_after = self.grad_scaler.get_scale()
         # If we reduced the loss scale, it means the optimizer step was skipped because of gradient overflow.
         self._is_overflow = scale_after < scale_before
+        if hasattr(self.grad_scaler, "has_overflow"):
+            self._is_overflow = self.grad_scaler.has_overflow()
 
     def unscale_(self):
         self.grad_scaler.unscale_(self.optimizer)
