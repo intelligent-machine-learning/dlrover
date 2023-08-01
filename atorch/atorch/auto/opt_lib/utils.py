@@ -3,7 +3,63 @@ try:
 except ImportError:
     pipe_split = None
 
+from atorch.modules.distributed_modules.modules_registry import _SHARD_MAP, _SHARDABLE_OPERATORS, _SHARDED_OPERATORS
 from atorch.utils.graph_transform_utils import map_aggregate
+
+
+# FIXME This is a temporary fix for FSDP and TP compatibility,
+# TP will only trace the module to the level of FSDP wrapping, with constraint of being shardable.
+# The wrapping will be broken if the wrapped op is shardable, causing FSDP to be slow (in most cases).
+def _propose_leaf_modules(atorch_wrap_cls=None):
+    leaf_modules = None
+    if atorch_wrap_cls is not None:
+        leaf_modules = list(set(_SHARDABLE_OPERATORS.values()) & set(atorch_wrap_cls))
+    if leaf_modules is None or len(leaf_modules) == 0:
+        leaf_modules = list(_SHARDABLE_OPERATORS.values())
+    return leaf_modules
+
+
+def _propose_wrap_cls(leaf_modules=set()):
+    leaf_module_names = [name for name, cls in _SHARDABLE_OPERATORS.items() if cls in leaf_modules]
+    if len(leaf_modules) != 0:
+        atorch_wrap_cls = {
+            op
+            for name in leaf_module_names
+            for op in [_SHARDABLE_OPERATORS[name]] + [_SHARDED_OPERATORS[shard] for shard in _SHARD_MAP[name]]
+        }
+    else:
+        atorch_wrap_cls = None
+    if len(leaf_modules) == len(list(_SHARDABLE_OPERATORS.items())):
+        # in this case, auto wrap is meaning less
+        atorch_wrap_cls = None
+    return atorch_wrap_cls
+
+
+def propose_leaf_modules_by_strategy(model, strategy=None):
+    wrap_cls = None
+    if strategy is None:
+        return _propose_leaf_modules(wrap_cls)
+    for opt in strategy:
+        opt_name = opt[0]
+        if opt_name == "fsdp":
+            if len(opt) > 1:
+                opt_config = opt[1]
+                atorch_wrap_cls = set(to_module_class_by_name(model, opt_config.get("atorch_wrap_cls", set())))
+                if wrap_cls is None:
+                    wrap_cls = atorch_wrap_cls
+                else:
+                    wrap_cls = wrap_cls & atorch_wrap_cls
+        if opt_name == "checkpoint":
+            if len(opt) > 1:
+                opt_config = opt[1]
+                ckpt_wrap_cls = set(to_module_class_by_name(model, opt_config))
+                if wrap_cls is None:
+                    wrap_cls = ckpt_wrap_cls
+                else:
+                    wrap_cls = wrap_cls & ckpt_wrap_cls
+
+    leaf_modules = _propose_leaf_modules(wrap_cls)
+    return leaf_modules
 
 
 def find_modules(model, m_list):
