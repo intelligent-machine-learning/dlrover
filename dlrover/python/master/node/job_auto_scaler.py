@@ -111,6 +111,20 @@ class PSTrainingAutoScaler(JobAutoScaler):
         self._scaler = node_scaler
         self._job_nodes = job_nodes
         self._autoscaling_started = False
+        threading.Thread(
+            target=self.monitor_pending_node_at_begining,
+            name="monitor_pending_nodes",
+            daemon=True,
+        ).start()
+
+    def monitor_pending_node_at_begining(self):
+        logger.info("Start monitoring pending nodes.")
+        while True:
+            if self._autoscaling_started:
+                logger.info("Stop mointoring pending nodes.")
+                break
+            self._reduce_timeout_pending_node_resource()
+            time.sleep(60)
 
     def start_auto_scaling(self):
         """Start to auto-scale nodes to improve the training throughput."""
@@ -145,7 +159,7 @@ class PSTrainingAutoScaler(JobAutoScaler):
         opt_interval = _dlrover_context.seconds_interval_to_optimize
         while True:
             if self._stop_autoscaling:
-                logger.info("Stop auto-scaling PS Trainign.")
+                logger.info("Stop auto-scaling PS Training.")
                 break
             if (
                 self._speed_monitor.worker_adjustment_finished()
@@ -157,7 +171,6 @@ class PSTrainingAutoScaler(JobAutoScaler):
                 if plan:
                     last_plan_time = time.time()
                 self.execute_job_optimization_plan(plan)
-            self._cut_timeout_pending_node_cpu()
             time.sleep(30)
 
     def execute_job_optimization_plan(self, plan: ResourcePlan):
@@ -217,14 +230,19 @@ class PSTrainingAutoScaler(JobAutoScaler):
         logger.info("Migration plan = %s", scale_plan.toJSON())
         return scale_plan
 
-    def _cut_timeout_pending_node_cpu(self):
+    def _reduce_timeout_pending_node_resource(self):
         """Cut down CPU cores of pending pod at the job starts"""
         if self._autoscaling_started:
             return
+        scale_plan = ScalePlan()
         if _dlrover_context.auto_ps_enabled:
-            self._ps_manager.cut_pending_node_cpu()
+            plan = self._ps_manager.reduce_pending_node_resource()
+            scale_plan.merge(plan)
         if _dlrover_context.auto_worker_enabled:
-            self._worker_manager.cut_pending_node_cpu()
+            plan = self._worker_manager.reduce_pending_node_resource()
+            scale_plan.merge(plan)
+        self._scaler.scale(scale_plan)
+        return scale_plan
 
 
 class AllreduceTrainingAutoScaler(JobAutoScaler):

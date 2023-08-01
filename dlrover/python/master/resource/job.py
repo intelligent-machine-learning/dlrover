@@ -232,7 +232,7 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
         plan = self._resource_optimizer.generate_opt_plan(self._job_stage)
         if not plan or plan.empty():
             logger.info("Use the default plan to start the job")
-            plan = ResourcePlan.new_default_plan()
+            plan = self._gen_default_resource_plan()
         self._job_stage = JobOptStage.WORKER_INITIAL
 
         if (
@@ -259,6 +259,10 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
                 ps_resource.node_resource.cpu,
                 ps_resource.node_resource.memory,
             )
+
+    def _gen_default_resource_plan(self):
+        plan = ResourcePlan.new_default_plan()
+        return plan
 
     def init_job_resource(self, job_resource: JobResource):
         """Adjust the initial resource of typed pods by EasyDL.

@@ -106,6 +106,7 @@ def _convert_pod_event_to_node_event(event):
         host_name=host_name,
         host_ip=host_ip,
     )
+    node.create_time = evt_obj.metadata.creation_timestamp
     node.set_exit_reason(_get_pod_exit_reason(evt_obj))
     node_event = NodeEvent(event_type=evt_type, node=node)
     return node_event
