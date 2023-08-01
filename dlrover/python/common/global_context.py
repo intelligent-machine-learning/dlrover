@@ -27,6 +27,7 @@ class ConfigKeys(object):
     SECONDS_FOR_STABLE_WORKER_COUNT = "seconds_for_stable_worker_count"
     SECONDS_INTERVAL_TO_OPTIMIZE = "seconds_interval_to_optimize"
     FACTOR_TO_CUT_PENDING_CPU = "factor_to_cut_pending_cpu"
+    FACTOR_TO_CUT_PENDING_MEM = "factor_to_cut_pending_mem"
     SECONDS_TO_WAIT_PENDING_POD = "seconds_to_wait_pending_pod"
     SECONDS_HUGE_TRAINING_THRESHOLD = "seconds_huge_training_threshold"
     GLOBAL_STEP_COUNT_TO_AUTO_WORKER = "global_step_count_to_auto_worker"
@@ -42,6 +43,7 @@ class DefaultConfigValues(object):
     DEFAULT_SECONDS_FOR_STABLE_WORKER_COUNT = 60
     DEFAULT_SECONDS_INTERVAL_TO_OPTIMIZE = 300
     DEFAULT_FACTOR_TO_CUT_PENDING_CPU = 2
+    DEFAULT_FACTOR_TO_CUT_PENDING_MEM = 2
     DEFAULT_SECONDS_TO_WAIT_PENDING_POD = 900  # 15min
     DEFAULT_SECONDS_HUGE_TRAINING_THRESHOLD = 1800  # 30min
     DEFALUT_GLOBAL_STEP_COUNT_TO_AUTO_WORKER = 5
@@ -80,6 +82,10 @@ class Context(object):
         self.factor_to_cut_pending_cpu = self.get_param_value_from_brain(
             ConfigKeys.FACTOR_TO_CUT_PENDING_CPU,
             DefaultConfigValues.DEFAULT_FACTOR_TO_CUT_PENDING_CPU,
+        )
+        self.factor_to_cut_pending_mem = self.get_param_value_from_brain(
+            ConfigKeys.FACTOR_TO_CUT_PENDING_MEM,
+            DefaultConfigValues.DEFAULT_FACTOR_TO_CUT_PENDING_MEM,
         )
         self.seconds_to_wait_pending_pod = self.get_param_value_from_brain(
             ConfigKeys.SECONDS_TO_WAIT_PENDING_POD,

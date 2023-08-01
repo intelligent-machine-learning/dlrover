@@ -71,6 +71,13 @@ class ProcessError:
 
 
 class MasterRendezvousHandler(RendezvousHandler):
+    """The rendzevous handler completes rendezvous by connecting
+    with the ElasticJob master. The master will collect all nodes
+    after the handler of all node agents calls `_join_rendezvous`.
+    Then, the handler will get the communcation world from the master
+    and assign ranks to the training process.
+    """
+
     def __init__(
         self,
         name,
