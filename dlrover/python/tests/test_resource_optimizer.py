@@ -226,6 +226,12 @@ class PSJobResourceOptimizerTest(unittest.TestCase):
 
         job_optimizer._adjust_oom_ps_resource(oom_ps)
         self.assertEqual(oom_ps.config_resource.memory, 8192)
+        oom_ps = Node(
+            "ps", 0, name="ps-0", config_resource=NodeResource(2, 10240)
+        )
+
+        job_optimizer._adjust_oom_ps_resource(oom_ps)
+        self.assertEqual(oom_ps.config_resource.memory, 18432)
 
 
 class AllreduceResourceOptimizerTest(unittest.TestCase):

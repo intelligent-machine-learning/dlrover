@@ -20,9 +20,9 @@ from dlrover.python.common.constants import (
     ElasticJobLabel,
     ExitCode,
     NodeExitReason,
-    NodeStatus,
     NodeType,
     ScalePlanLabel,
+    NodeStatus,
 )
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
