@@ -27,7 +27,7 @@ _ch.setFormatter(_DEFAULT_FORMATTER)
 
 _DEFAULT_HANDLERS = [_ch]
 
-_LOGGER_CACHE = {}  # type: typing.Dict[str, logging.Logger]
+_LOGGER_CACHE: typing.Dict[str, logging.Logger] = {}
 
 
 def get_logger(name, level="INFO", handlers=None, update=False):

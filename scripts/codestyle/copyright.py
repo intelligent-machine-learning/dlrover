@@ -47,8 +47,8 @@ else:
     sys.exit("Cannot find year in copyright template")
 process = subprocess.Popen(["date", "+%Y"], stdout=subprocess.PIPE)
 date, err = process.communicate()
-date = date.decode("utf-8").rstrip("\n")
-COPYRIGHT_HEADER = COPYRIGHT_HEADER.replace(p, date)
+date_str = date.decode("utf-8").rstrip("\n")
+COPYRIGHT_HEADER = COPYRIGHT_HEADER.replace(p, date_str)
 
 
 def generate_copyright(template, lang="go"):
