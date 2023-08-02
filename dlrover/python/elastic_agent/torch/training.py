@@ -165,6 +165,12 @@ class MasterRendezvousHandler(RendezvousHandler):
             f"the {self._name} rendezvous as rank {rank} in a world of size "
             f"{world_size}."
         )
+        if (
+            self._name == RendezvousName.ELASTIC_TRAINING
+            and world_size < self._rdzv_params.max_nodes
+        ):
+            err_msg = f"Scale down the number of nodes to {world_size}"
+            self._client.report_failures(err_msg, 0)
         store = self._get_store(round, group)
         return store, world
 

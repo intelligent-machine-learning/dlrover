@@ -487,7 +487,7 @@ class JobManager(object):
                     node.is_recovered_oom = True
                     self._job_optimizer.adjust_oom_resource(node)
             elif node.exit_reason != NodeExitReason.KILLED:
-                if node.relaunch_count > node.max_relaunch_count:
+                if node.relaunch_count >= node.max_relaunch_count:
                     logger.warning(
                         "The relaunch count for Error has been exhausted."
                     )
