@@ -352,6 +352,7 @@ class JobManager(object):
                         node_type,
                         node_id,
                     )
+                    node.is_released = True
                     new_node = copy.deepcopy(node)
                     new_node.status = NodeStatus.DELETED
                     event = NodeEvent(NodeEventType.DELETED, new_node)
