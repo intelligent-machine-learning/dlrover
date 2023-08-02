@@ -194,6 +194,7 @@ class JobManagerTest(unittest.TestCase):
             node_id=1,
             status=NodeStatus.RUNNING,
             config_resource=NodeResource(1, 4096),
+            max_relaunch_count=1,
         )
 
         manager.update_node_resource_usage(NodeType.WORKER, 0, 0.7, 2048)

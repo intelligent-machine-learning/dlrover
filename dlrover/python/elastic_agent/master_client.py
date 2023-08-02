@@ -599,7 +599,7 @@ class LocalMasterClient(object):
     def kv_store_get(self, key):
         return self._kv_store.get(key, "".encode())
 
-    def report_failures(self, error_data, restart_count=-1):
+    def report_failures(self, error_data, restart_count=-1, level=""):
         return True
 
 

@@ -489,7 +489,9 @@ class JobManager(object):
             elif node.exit_reason != NodeExitReason.KILLED:
                 if node.relaunch_count >= node.max_relaunch_count:
                     logger.warning(
-                        "The relaunch count for Error has been exhausted."
+                        "The relaunch count "
+                        f"{node.relaunch_count}/{node.max_relaunch_count} "
+                        "has been exhausted."
                     )
                     should_relaunch = False
         if should_relaunch:
