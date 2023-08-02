@@ -22,7 +22,7 @@ spec:
                 - -c
                 - >-
                   dlrover-run --nnodes=$WORKER_NUM --nproc_per_node=1 \
-                  --max_restarts=1 model_zoo/pytorch/fsdp_examples/mnist.py \
+                  --max_restarts=1 model_zoo/pytorch/mnist.py --use_fsdp \
                   --num_epochs 20 --training_data /data/mnist_png/training/ \
                   --validation_data /data/mnist_png/testing/
               resources:
