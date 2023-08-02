@@ -241,3 +241,11 @@ class NodeErrorMessage(object):
 class NetworkFailureReason(object):
     NODE_FAILURE = "Node Failure"
     WAITING_NODE = "Waiting node"
+
+
+class TrainingMsgLevel(object):
+    RDZV_ERROR = "rdzv_error"
+    PROCESS_ERROR = "process_error"
+    NODE_ERROR = "node_error"
+    WARNING = "warning"
+    INFO = "info"

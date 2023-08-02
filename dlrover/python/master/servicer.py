@@ -448,6 +448,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             request.node_id,
             request.restart_count,
             request.error_data,
+            request.level,
         )
         res = elastic_training_pb2.Response()
         res.success = True
