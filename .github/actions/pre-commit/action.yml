@@ -3,7 +3,7 @@ name: pre-commit
 description: run pre-commit to check codes
 runs:
   using: 'docker'
-  image: "easydl/easydl:ci"
+  image: "easydl/dlrover:ci"
   args:
     - "/bin/bash"
     - "-c"
