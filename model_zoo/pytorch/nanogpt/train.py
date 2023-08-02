@@ -243,7 +243,13 @@ def train():
 
     # Training loop
     X, Y = get_batch(
-        "train", train_data, val_data, device_type
+        "train",
+        train_data=train_data,
+        val_data=val_data,
+        device=device,
+        device_type=device_type,
+        batch_size=batch_size,
+        block_size=block_size,
     )  # Fetch the very first batch
     total_time = 0.0
     local_iter_num = 0  # Number of iterations in the lifetime of this process
@@ -356,7 +362,7 @@ def arg_parser():
         "--always_save_checkpoint", action="store_true", required=False
     )
     parser.add_argument("--batch_size", type=int, default=12, required=False)
-    parser.add_argument("--block_size", type=int, default=1024, required=False)
+    parser.add_argument("--block_size", type=int, default=128, required=False)
 
     # Model settings
     parser.add_argument("--n_layer", type=int, default=6, required=False)
@@ -369,7 +375,7 @@ def arg_parser():
     parser.add_argument(
         "--learning_rate", type=float, default=6e-4, required=False
     )
-    parser.add_argument("--max_iters", type=int, default=10, required=False)
+    parser.add_argument("--max_iters", type=int, default=200, required=False)
     parser.add_argument(
         "--weight_decay", type=float, default=1e-1, required=False
     )

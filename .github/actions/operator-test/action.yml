@@ -3,7 +3,7 @@ name: operator-test
 description: run gotest to execute go test cases of ElasticJob operator
 runs:
   using: 'docker'
-  image: "easydl/easydl:ci"
+  image: "easydl/dlrover:ci"
   args:
     - "/bin/bash"
     - "-c"

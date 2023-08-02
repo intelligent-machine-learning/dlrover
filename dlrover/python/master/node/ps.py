@@ -326,12 +326,7 @@ class ParameterServerManager(TrainingNodeManager):
         """Migrate the parameter server node into a new pod"""
         old_ps_id = int(name.split("-")[-1])
         original_pod = self._nodes[old_ps_id]
-        if (
-            old_ps_id in self._migrated_ps_nodes
-            or original_pod.is_released
-            or original_pod.status
-            not in [NodeStatus.PENDING, NodeStatus.RUNNING]
-        ):
+        if old_ps_id in self._migrated_ps_nodes:
             return
 
         resource = copy.deepcopy(original_pod.config_resource)

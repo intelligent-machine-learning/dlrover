@@ -115,11 +115,9 @@ class JobManager(object):
                 job_args.resource_limits,
             )
         elif job_args.distribution_strategy == DistributionStrategy.ALLREDUCE:
-            self._job_optimizer: JobResourceOptimizer = (
-                AllreduceJobResourceOptimizer(
-                    self._job_resource.node_group_resources[NodeType.WORKER],
-                    job_args.job_uuid,
-                )
+            self._job_optimizer = AllreduceJobResourceOptimizer(
+                self._job_resource.node_group_resources[NodeType.WORKER],
+                job_args.job_uuid,
             )
         else:
             raise ValueError(
@@ -354,7 +352,10 @@ class JobManager(object):
                         node_type,
                         node_id,
                     )
-                    node.is_released = True
+                    new_node = copy.deepcopy(node)
+                    new_node.status = NodeStatus.DELETED
+                    event = NodeEvent(NodeEventType.DELETED, new_node)
+                    self._process_event(event)
 
     def close_job(self):
         plan = ScalePlan()
