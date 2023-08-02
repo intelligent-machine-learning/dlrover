@@ -1,0 +1,39 @@
+apiVersion: elastic.iml.github.io/v1alpha1
+kind: ElasticJob
+metadata:
+  name: torch-llama2
+  namespace: dlrover
+spec:
+  distributionStrategy: AllreduceStrategy
+  optimizeMode: single-job
+  replicaSpecs:
+    worker:
+      replicas: 4
+      template:
+        spec:
+          restartPolicy: Never
+          # affinity:
+          #   nodeAffinity:
+          #     requiredDuringSchedulingIgnoredDuringExecution:
+          #       nodeSelectorTerms:
+          #       - matchExpressions:
+          #         - key: gpu
+          #           operator: In
+          #           values:
+          #           - "3090"
+          containers:
+            - name: main
+              # yamllint disable-line rule:line-length
+              image: registry.cn-hangzhou.aliyuncs.com/major333/llama2_trainer:test
+              imagePullPolicy: Never
+              command:
+                - /bin/bash
+                - -c
+                - "cd llama && dlrover-run --nnodes 1 --nproc_per_node 1 llama_finetuning.py --enable_fsdp \ 
+                --max_restarts 3 --model_name ./Llama-2-7b-hf/ --dist_checkpoint_root_folder model_checkpoints \ 
+                --dist_checkpoint_folder fine-tuned"
+              resources:
+                requests:
+                  cpu: "12"
+                  memory: 50Gi
+                  nvidia.com/gpu: "1"

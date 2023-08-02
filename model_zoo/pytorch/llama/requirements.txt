@@ -1,0 +1,15 @@
+-f https://download.pytorch.org/whl/torch_stable.html 
+torch==2.0.1+cu118
+accelerate
+appdirs
+loralib
+black
+black[jupyter]
+datasets
+fire
+peft
+transformers>=4.31.0
+sentencepiece
+py7zr
+scipy
+
