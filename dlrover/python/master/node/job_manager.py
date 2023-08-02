@@ -672,16 +672,13 @@ class JobManager(object):
             return False
 
     def handle_training_failure(
-        self, node_type, node_id, restart_count=-1, error_data=""
+        self, node_type, node_id, restart_count=-1, error_data="", level=""
     ):
         """Process the training failure reported by the node."""
         node = self._job_nodes[node_type][node_id]
-        if restart_count >= 0:
-            self._error_monitor.handle_process_error(
-                node, restart_count, error_data
-            )
-        else:
-            self._error_monitor.handle_node_error(node, error_data)
+        self._error_monitor.process_error(
+            node, restart_count, error_data, level
+        )
 
     def update_allreduce_node_unit(self, node_unit):
         if isinstance(self._job_optimizer, AllreduceJobResourceOptimizer):

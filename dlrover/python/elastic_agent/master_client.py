@@ -402,12 +402,13 @@ class MasterClient(object):
         self._stub.update_node_status(request)
 
     @retry_grpc_request
-    def report_failures(self, error_data, restart_count=-1):
+    def report_failures(self, error_data, restart_count=-1, level=""):
         request = elastic_training_pb2.NodeFailure()
         request.node_id = self._node_id
         request.node_type = self._node_type
         request.error_data = error_data
         request.restart_count = restart_count
+        request.level = level
         self._stub.report_failure(request)
 
 
