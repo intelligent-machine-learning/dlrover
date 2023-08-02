@@ -152,9 +152,10 @@ class MasterRendezvousHandler(RendezvousHandler):
                     start_join = time.time()
                     continue
             elif time.time() - start_join > self.join_timeout:
-                raise TimeoutError(
-                    f"Timeout {self.join_timeout}s to complete next rendezous."
-                )
+                timeout = self.join_timeout
+                err_msg = f"Timeout {timeout}s to complete rendezvous."
+                self._report_failure(err_msg)
+                raise TimeoutError(err_msg)
             time.sleep(3)
         world = dict(sorted(world.items()))
         rank = list(world.keys()).index(self._rank_id)
@@ -166,6 +167,10 @@ class MasterRendezvousHandler(RendezvousHandler):
         )
         store = self._get_store(round, group)
         return store, world
+
+    def _report_failure(self, err_msg):
+        if self._rank_id == 0:
+            self._client.report_failures(err_msg, 0)
 
     def _get_store(self, round, group) -> Store:
         key_prefix = f"torch.rendezvous.{self._name}.{round}.{group}"
