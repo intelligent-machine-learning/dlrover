@@ -337,13 +337,18 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
                 )
         cur_mem *= NodeResourceLimit.INCREMENTAL_MEMORY_FACTOR
         cur_mem = min(cur_mem, NodeResourceLimit.MAX_MEMORY)
-        node.config_resource.memory = int(
+        opt_memory = int(
             max(
                 self._worker_resource.node_resource.memory,
                 cur_mem,
                 self._original_worker_resource.node_resource.memory,
             )
         )
+        incre_memory = opt_memory - node.config_resource.memory
+        incre_memory = min(
+            incre_memory, NodeResourceLimit.MAX_INCREMENTAL_MEMORY
+        )
+        node.config_resource.memory += incre_memory
         logger.info(
             "Increment the memory of %s to %s",
             node.name,
@@ -363,13 +368,18 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
             )
         cur_mem = node.config_resource.memory
         cur_mem *= NodeResourceLimit.INCREMENTAL_MEMORY_FACTOR
-        node.config_resource.memory = int(
+        opt_memory = int(
             max(
                 self._ps_resource.node_resource.memory,
                 cur_mem,
                 self._original_ps_resource.node_resource.memory,
             )
         )
+        incre_memory = opt_memory - node.config_resource.memory
+        incre_memory = min(
+            incre_memory, NodeResourceLimit.MAX_INCREMENTAL_MEMORY
+        )
+        node.config_resource.memory += incre_memory
         logger.info(
             "Increment the memory of %s to %s",
             node.name,
