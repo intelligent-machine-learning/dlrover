@@ -40,6 +40,107 @@ torch-nanogpt-edljob-worker-0                     1/1     Running   0          1
 torch-nanogpt-edljob-worker-1                     1/1     Running   0          11s
 ```
 
+### Examine the results obtained from two different parameter settings:
+
+parameter settings 1:
+
+```bash
+# parameter settings in dlrover/examples/torch_nanogpt_job.yaml
+--n_layer 6 \
+--n_head 6 \
+--n_embd 384
+```
+
+parameter settings 2:
+
+```bash
+# parameter settings in dlrover/examples/torch_nanogpt_job.yaml
+--n_layer 12 \
+--n_head 12 \
+--n_embd 768
+```
+
+#### More detailed description of the pods:
+
+Worker-0 Logs
+
+```bash
+$ kubectl logs -n dlrover torch-nanogpt-edljob-worker-0
+```
+
+results with parameter settings 1:
+
+```
+iter 0: loss 4.2279, time 4542.46ms, mfu -100.00%, lr 6.00e-04, total time 4.54s
+iter 1: loss 3.5641, time 4439.20ms, mfu -100.00%, lr 6.00e-04, total time 8.98s
+iter 2: loss 4.2329, time 4477.08ms, mfu -100.00%, lr 6.00e-04, total time 13.46s
+iter 3: loss 3.6564, time 4579.50ms, mfu -100.00%, lr 6.00e-04, total time 18.04s
+iter 4: loss 3.5026, time 4494.54ms, mfu -100.00%, lr 6.00e-04, total time 22.53s
+iter 5: loss 3.2993, time 4451.15ms, mfu 0.33%, lr 6.00e-04, total time 26.98s
+iter 6: loss 3.3318, time 4391.21ms, mfu 0.33%, lr 6.00e-04, total time 31.38s
+iter 7: loss 3.3833, time 4454.84ms, mfu 0.33%, lr 6.00e-04, total time 35.83s
+iter 8: loss 3.4490, time 4403.01ms, mfu 0.33%, lr 6.00e-04, total time 40.23s
+iter 9: loss 3.3144, time 4499.54ms, mfu 0.33%, lr 6.00e-04, total time 44.73s
+iter 10: loss 3.3144, time 4553.10ms, mfu 0.33%, lr 6.00e-04, total time 49.29s
+[2023-07-26 07:34:33,313] [INFO] [training.py:355:_invoke_run] [default] worker group successfully finished. Waiting 300 seconds for other agents to finish. 
+```
+
+results with parameter settings 2:
+
+```
+iter 0: loss 4.4201, time 31329.07ms, mfu -100.00%, lr 6.00e-04, total time 31.33s
+iter 1: loss 4.6237, time 30611.01ms, mfu -100.00%, lr 6.00e-04, total time 61.94s
+iter 2: loss 6.7593, time 30294.34ms, mfu -100.00%, lr 6.00e-04, total time 92.23s
+iter 3: loss 4.2238, time 30203.78ms, mfu -100.00%, lr 6.00e-04, total time 122.44s
+iter 4: loss 6.1183, time 30100.29ms, mfu -100.00%, lr 6.00e-04, total time 152.54s
+iter 5: loss 5.0796, time 30182.75ms, mfu 0.33%, lr 6.00e-04, total time 182.72s
+iter 6: loss 4.5217, time 30303.39ms, mfu 0.33%, lr 6.00e-04, total time 213.02s
+iter 7: loss 3.4313, time 30299.88ms, mfu 0.33%, lr 6.00e-04, total time 243.32s
+iter 8: loss 3.3948, time 29995.20ms, mfu 0.33%, lr 6.00e-04, total time 273.32s
+iter 9: loss 3.4007, time 30212.14ms, mfu 0.33%, lr 6.00e-04, total time 303.53s
+iter 10: loss 3.3865, time 30167.96ms, mfu 0.33%, lr 6.00e-04, total time 333.70s
+[2023-07-26 07:43:13,012] [INFO] [training.py:355:_invoke_run] [default] worker group successfully finished. Waiting 300 seconds for other agents to finish. 
+```
+
+Worker-1 Logs
+
+```bash
+$ kubectl logs -n dlrover torch-nanogpt-edljob-worker-1
+```
+
+results with parameter settings 1:
+
+```
+iter 0: loss 4.2382, time 4479.40ms, mfu -100.00%, lr 6.00e-04, total time 4.48s
+iter 1: loss 3.5604, time 4557.53ms, mfu -100.00%, lr 6.00e-04, total time 9.04s
+iter 2: loss 4.3411, time 4408.12ms, mfu -100.00%, lr 6.00e-04, total time 13.45s
+iter 3: loss 3.7863, time 4537.51ms, mfu -100.00%, lr 6.00e-04, total time 17.98s
+iter 4: loss 3.5153, time 4489.47ms, mfu -100.00%, lr 6.00e-04, total time 22.47s
+iter 5: loss 3.3428, time 4567.38ms, mfu 0.32%, lr 6.00e-04, total time 27.04s
+iter 6: loss 3.3700, time 4334.36ms, mfu 0.32%, lr 6.00e-04, total time 31.37s
+iter 7: loss 3.3856, time 4569.72ms, mfu 0.32%, lr 6.00e-04, total time 35.94s
+iter 8: loss 3.3083, time 4384.73ms, mfu 0.32%, lr 6.00e-04, total time 40.33s
+iter 9: loss 3.3264, time 4506.51ms, mfu 0.32%, lr 6.00e-04, total time 44.83s
+iter 10: loss 3.3551, time 4455.05ms, mfu 0.32%, lr 6.00e-04, total time 49.29s
+[2023-07-26 07:34:34,316] [INFO] [training.py:355:_invoke_run] [default] worker group successfully finished. Waiting 300 seconds for other agents to finish.
+```
+
+results with parameter settings 2:
+
+```
+iter 0: loss 4.4402, time 31209.29ms, mfu -100.00%, lr 6.00e-04, total time 31.21s
+iter 1: loss 4.5574, time 30688.11ms, mfu -100.00%, lr 6.00e-04, total time 61.90s
+iter 2: loss 6.7668, time 30233.15ms, mfu -100.00%, lr 6.00e-04, total time 92.13s
+iter 3: loss 4.2619, time 30400.66ms, mfu -100.00%, lr 6.00e-04, total time 122.53s
+iter 4: loss 6.2001, time 29960.20ms, mfu -100.00%, lr 6.00e-04, total time 152.49s
+iter 5: loss 5.0426, time 30222.85ms, mfu 0.32%, lr 6.00e-04, total time 182.71s
+iter 6: loss 4.5057, time 30200.79ms, mfu 0.32%, lr 6.00e-04, total time 212.92s
+iter 7: loss 3.5295, time 30307.59ms, mfu 0.32%, lr 6.00e-04, total time 243.22s
+iter 8: loss 3.3474, time 30105.02ms, mfu 0.32%, lr 6.00e-04, total time 273.33s
+iter 9: loss 3.3891, time 30084.17ms, mfu 0.33%, lr 6.00e-04, total time 303.41s
+iter 10: loss 3.3743, time 30271.93ms, mfu 0.33%, lr 6.00e-04, total time 333.68s
+[2023-07-26 07:43:16,112] [INFO] [training.py:355:_invoke_run] [default] worker group successfully finished. Waiting 300 seconds for other agents to finish.
+```
 ### Building from Docker - Step by Step
 
 **Preparing Your Data**
