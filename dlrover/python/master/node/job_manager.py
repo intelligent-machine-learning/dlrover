@@ -115,11 +115,9 @@ class JobManager(object):
                 job_args.resource_limits,
             )
         elif job_args.distribution_strategy == DistributionStrategy.ALLREDUCE:
-            self._job_optimizer: JobResourceOptimizer = (
-                AllreduceJobResourceOptimizer(
-                    self._job_resource.node_group_resources[NodeType.WORKER],
-                    job_args.job_uuid,
-                )
+            self._job_optimizer = AllreduceJobResourceOptimizer(
+                self._job_resource.node_group_resources[NodeType.WORKER],
+                job_args.job_uuid,
             )
         else:
             raise ValueError(

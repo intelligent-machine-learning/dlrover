@@ -105,7 +105,7 @@ class PSLocalOptimizer(ResourceOptimizer):
 
     def generate_resource_plan_with_optimizer(self, config={}) -> ResourcePlan:
         """Generate a resource plan by an optimizer"""
-        pass
+        return ResourcePlan.new_default_plan()
 
     def _generate_job_create_resource(self):
         plan = ResourcePlan()
