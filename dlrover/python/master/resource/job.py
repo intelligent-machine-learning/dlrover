@@ -232,7 +232,7 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
         plan = self._resource_optimizer.generate_opt_plan(self._job_stage)
         if not plan or plan.empty():
             logger.info("Use the default plan to start the job")
-            plan = ResourcePlan.new_default_plan()
+            plan = self._gen_default_resource_plan()
         self._job_stage = JobOptStage.WORKER_INITIAL
 
         if (
@@ -259,6 +259,10 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
                 ps_resource.node_resource.cpu,
                 ps_resource.node_resource.memory,
             )
+
+    def _gen_default_resource_plan(self):
+        plan = ResourcePlan.new_default_plan()
+        return plan
 
     def init_job_resource(self, job_resource: JobResource):
         """Adjust the initial resource of typed pods by EasyDL.
@@ -333,13 +337,18 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
                 )
         cur_mem *= NodeResourceLimit.INCREMENTAL_MEMORY_FACTOR
         cur_mem = min(cur_mem, NodeResourceLimit.MAX_MEMORY)
-        node.config_resource.memory = int(
+        opt_memory = int(
             max(
                 self._worker_resource.node_resource.memory,
                 cur_mem,
                 self._original_worker_resource.node_resource.memory,
             )
         )
+        incre_memory = opt_memory - node.config_resource.memory
+        incre_memory = min(
+            incre_memory, NodeResourceLimit.MAX_INCREMENTAL_MEMORY
+        )
+        node.config_resource.memory += incre_memory
         logger.info(
             "Increment the memory of %s to %s",
             node.name,
@@ -351,21 +360,26 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
         plan = self._resource_optimizer.generate_oom_recovery_plan(
             [node], JobOptStage.PS_INITIAL
         )
-        if plan and not plan.empty():
-            ps = plan.node_group_resources[NodeType.PS]
+        if plan and not plan.empty() and node.name in plan.node_resources:
+            resource = plan.node_resources[node.name]
             self._ps_resource.node_resource.memory = max(
                 self._ps_resource.node_resource.memory,
-                ps.node_resource.memory,
+                resource.memory,
             )
         cur_mem = node.config_resource.memory
         cur_mem *= NodeResourceLimit.INCREMENTAL_MEMORY_FACTOR
-        node.config_resource.memory = int(
+        opt_memory = int(
             max(
                 self._ps_resource.node_resource.memory,
                 cur_mem,
                 self._original_ps_resource.node_resource.memory,
             )
         )
+        incre_memory = opt_memory - node.config_resource.memory
+        incre_memory = min(
+            incre_memory, NodeResourceLimit.MAX_INCREMENTAL_MEMORY
+        )
+        node.config_resource.memory += incre_memory
         logger.info(
             "Increment the memory of %s to %s",
             node.name,

@@ -234,6 +234,8 @@ class Node(object):
         new_node.name = None
         new_node.status = NodeStatus.INITIAL
         new_node.start_time = None
+        new_node.create_time = None
+        new_node.finish_time = None
         new_node.is_released = False
         new_node.relaunchable = True
         new_node.init_time = time.time()

@@ -121,6 +121,7 @@ class NodeResourceLimit(object):
     MAX_WORKER_NUM = 60
     MAX_PS_NUM = 15
     INCREMENTAL_MEMORY_FACTOR = 2
+    MAX_INCREMENTAL_MEMORY = 8192  # 8Gi
     HUGE_MEMORY_THRESHOLD = 102400  # 100Gi
     HUGE_CPU_THRESHOLD = 100
     WAIT_CHIEF_TIMEOUT_SECS = 1800  # 30min
@@ -240,3 +241,11 @@ class NodeErrorMessage(object):
 class NetworkFailureReason(object):
     NODE_FAILURE = "Node Failure"
     WAITING_NODE = "Waiting node"
+
+
+class TrainingMsgLevel(object):
+    RDZV_ERROR = "rdzv_error"
+    PROCESS_ERROR = "process_error"
+    NODE_ERROR = "node_error"
+    WARNING = "warning"
+    INFO = "info"

@@ -20,6 +20,7 @@ from dlrover.python.common.constants import (
     ElasticJobLabel,
     ExitCode,
     NodeExitReason,
+    NodeStatus,
     NodeType,
     ScalePlanLabel,
 )
@@ -95,17 +96,22 @@ def _convert_pod_event_to_node_event(event):
     host_ip = evt_obj.status.host_ip
 
     resource = _parse_container_resource(evt_obj.spec.containers[0])
+    status = evt_obj.status.phase
+    if evt_obj.metadata.deletion_timestamp:
+        status = NodeStatus.DELETED
+
     node = Node(
         node_type=pod_type,
         node_id=pod_id,
         name=pod_name,
         rank_index=rank,
-        status=evt_obj.status.phase,
+        status=status,
         start_time=_get_start_timestamp(evt_obj.status),
         config_resource=resource,
         host_name=host_name,
         host_ip=host_ip,
     )
+    node.create_time = evt_obj.metadata.creation_timestamp
     node.set_exit_reason(_get_pod_exit_reason(evt_obj))
     node_event = NodeEvent(event_type=evt_type, node=node)
     return node_event

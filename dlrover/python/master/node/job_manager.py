@@ -115,11 +115,9 @@ class JobManager(object):
                 job_args.resource_limits,
             )
         elif job_args.distribution_strategy == DistributionStrategy.ALLREDUCE:
-            self._job_optimizer: JobResourceOptimizer = (
-                AllreduceJobResourceOptimizer(
-                    self._job_resource.node_group_resources[NodeType.WORKER],
-                    job_args.job_uuid,
-                )
+            self._job_optimizer = AllreduceJobResourceOptimizer(
+                self._job_resource.node_group_resources[NodeType.WORKER],
+                job_args.job_uuid,
             )
         else:
             raise ValueError(
@@ -355,6 +353,10 @@ class JobManager(object):
                         node_id,
                     )
                     node.is_released = True
+                    new_node = copy.deepcopy(node)
+                    new_node.status = NodeStatus.DELETED
+                    event = NodeEvent(NodeEventType.DELETED, new_node)
+                    self._process_event(event)
 
     def close_job(self):
         plan = ScalePlan()
@@ -486,9 +488,11 @@ class JobManager(object):
                     node.is_recovered_oom = True
                     self._job_optimizer.adjust_oom_resource(node)
             elif node.exit_reason != NodeExitReason.KILLED:
-                if node.relaunch_count > node.max_relaunch_count:
+                if node.relaunch_count >= node.max_relaunch_count:
                     logger.warning(
-                        "The relaunch count for Error has been exhausted."
+                        "The relaunch count "
+                        f"{node.relaunch_count}/{node.max_relaunch_count} "
+                        "has been exhausted."
                     )
                     should_relaunch = False
         if should_relaunch:
@@ -671,16 +675,13 @@ class JobManager(object):
             return False
 
     def handle_training_failure(
-        self, node_type, node_id, restart_count=-1, error_data=""
+        self, node_type, node_id, restart_count=-1, error_data="", level=""
     ):
         """Process the training failure reported by the node."""
         node = self._job_nodes[node_type][node_id]
-        if restart_count >= 0:
-            self._error_monitor.handle_process_error(
-                node, restart_count, error_data
-            )
-        else:
-            self._error_monitor.handle_node_error(node, error_data)
+        self._error_monitor.process_error(
+            node, restart_count, error_data, level
+        )
 
     def update_allreduce_node_unit(self, node_unit):
         if isinstance(self._job_optimizer, AllreduceJobResourceOptimizer):
