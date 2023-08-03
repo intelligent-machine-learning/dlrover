@@ -241,8 +241,8 @@ class PSTrainingAutoScaler(JobAutoScaler):
         if _dlrover_context.auto_worker_enabled:
             plan = self._worker_manager.reduce_pending_node_resource()
             scale_plan.merge(plan)
-        self._scaler.scale(scale_plan)
-        return scale_plan
+        if not scale_plan.empty():
+            self._scaler.scale(scale_plan)
 
 
 class AllreduceTrainingAutoScaler(JobAutoScaler):
