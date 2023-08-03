@@ -50,8 +50,11 @@ def build_channel(addr):
 def addr_connected(addr):
     if not addr:
         return False
-    host = addr.split(":")[0]
-    port = int(addr.split(":")[1])
+    host_port = addr.split(":")
+    if len(host_port) != 2:
+        return False
+    host = host_port[0]
+    port = int(host_port[1])
     try:
         telnetlib.Telnet(host=host, port=port, timeout=3)
         return True
