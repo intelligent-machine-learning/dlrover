@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import socket
+import telnetlib
 from contextlib import closing
 
 import grpc
@@ -23,7 +24,7 @@ TIMEOUT_SEC = 5
 
 
 def build_channel(addr):
-    if not addr:
+    if not addr_connected(addr):
         return None
     channel = grpc.insecure_channel(
         addr,
@@ -44,6 +45,22 @@ def build_channel(addr):
         ],
     )
     return channel
+
+
+def addr_connected(addr):
+    if not addr:
+        return False
+    host = addr.split(":")[0]
+    port = int(addr.split(":")[1])
+    try:
+        telnetlib.Telnet(host=host, port=port, timeout=3)
+        return True
+    except socket.gaierror:
+        logger.warning(f"Service {addr} is not connected.")
+        return False
+    except Exception as e:
+        logger.error(f"Service {addr} is not connected.", e)
+    return False
 
 
 def find_free_port(port=0):
