@@ -31,15 +31,6 @@ def add_params(parser):
         type=str,
         help="The name of platform",
     )
-    parser.add_argument(
-        "--relaunch_always",  # should be in "--foo" format
-        "--relaunch-always",  # should be in "--foo" format
-        nargs="?",
-        const=not False,
-        default=False,
-        type=lambda x: x.lower() in ["true", "yes", "t", "y"],
-        help=help,
-    )
 
 
 def print_args(args, exclude_args=[], groups=None):
