@@ -427,7 +427,6 @@ class PodScaler(Scaler):
         pod.metadata.labels[ElasticJobLabel.RANK_INDEX_KEY] = str(
             node.rank_index
         )
-        self._patch_tf_config_into_env(pod, node, pod_stats, ps_addrs)
         if (
             _dlrover_context.auto_ps_enabled
             or _dlrover_context.auto_worker_enabled
@@ -435,6 +434,7 @@ class PodScaler(Scaler):
             pod.spec.containers[0].env.append(
                 V1EnvVar(name=NodeEnv.AUTO_MONITOR_WORKLOAD, value="true")
             )
+        self._patch_tf_config_into_env(pod, node, pod_stats, ps_addrs)
         return pod
 
     def get_first_worker_host(self):

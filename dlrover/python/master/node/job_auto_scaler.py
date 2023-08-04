@@ -123,7 +123,8 @@ class PSTrainingAutoScaler(JobAutoScaler):
             if self._autoscaling_started:
                 logger.info("Stop mointoring pending nodes.")
                 break
-            self._reduce_timeout_pending_node_resource()
+            plan = self._reduce_timeout_pending_node_resource()
+            self._scaler.scale(plan)
             time.sleep(60)
 
     def start_auto_scaling(self):
@@ -242,7 +243,9 @@ class PSTrainingAutoScaler(JobAutoScaler):
             plan = self._worker_manager.reduce_pending_node_resource()
             scale_plan.merge(plan)
         if not scale_plan.empty():
-            self._scaler.scale(scale_plan)
+            ps_addrs = self._ps_manager.get_ps_addrs()
+            scale_plan.ps_addrs.extend(ps_addrs)
+        return scale_plan
 
 
 class AllreduceTrainingAutoScaler(JobAutoScaler):
