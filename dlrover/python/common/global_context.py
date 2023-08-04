@@ -35,84 +35,116 @@ class ConfigKeys(object):
     SECONDS_TO_WAIT_FAILED_PS = "seconds_to_wait_failed_ps"
 
 
-class DefaultConfigValues(object):
-    DEFAULT_TRAIN_SPEED_RECORD_NUM = 50
-    DEFAULT_SECENDS_TO_START_AUTOSCALE_WORKER = 90
-    DEFAULT_STEP_TO_ADJUST_WORKER = 200
-    DEFAULT_OPTIMIZED_WORKER_CPU_THRESHOLD = 20
-    DEFAULT_SECONDS_FOR_STABLE_WORKER_COUNT = 60
-    DEFAULT_SECONDS_INTERVAL_TO_OPTIMIZE = 300
-    DEFAULT_FACTOR_TO_CUT_PENDING_CPU = 2
-    DEFAULT_FACTOR_TO_CUT_PENDING_MEM = 2
-    DEFAULT_SECONDS_TO_WAIT_PENDING_POD = 900  # 15min
-    DEFAULT_SECONDS_HUGE_TRAINING_THRESHOLD = 1800  # 30min
-    DEFALUT_GLOBAL_STEP_COUNT_TO_AUTO_WORKER = 5
-    DEFAULT_SECONDS_TO_CHANGE_PS = 3600  # 1h
-    DEFAULT_SECONDS_TO_WAIT_FAILED_PS = 600  # 10min
+class DefaultValues(object):
+    TRAIN_SPEED_RECORD_NUM = 50
+    SEC_TO_START_AUTOSCALE_WORKER = 90
+    STEP_TO_ADJUST_WORKER = 200
+    OPTIMIZED_WORKER_CPU_THRESHOLD = 20
+    SEC_FOR_STABLE_WORKER_COUNT = 60
+    SEC_INTERVAL_TO_OPTIMIZE = 300
+    FACTOR_TO_CUT_PENDING_CPU = 2
+    FACTOR_TO_CUT_PENDING_MEM = 2
+    SEC_TO_WAIT_PENDING_POD = 900  # 15min
+    SEC_HUGE_TRAINING_THRESHOLD = 1800  # 30min
+    STEP_SAMPLE_COUNT_TO_AUTO_WORKER = 5
+    SEC_TO_CHANGE_PS = 3600  # 1h
+    SEC_TO_WAIT_FAILED_PS = 600  # 10min
 
 
 class Context(object):
     _instance_lock = threading.Lock()
 
     def __init__(self):
-        self.train_speed_record_num = self.get_param_value_from_brain(
-            ConfigKeys.TRAIN_SPEED_RECORD_NUM,
-            DefaultConfigValues.DEFAULT_TRAIN_SPEED_RECORD_NUM,
+        self.train_speed_record_num = DefaultValues.TRAIN_SPEED_RECORD_NUM
+        self.seconds_to_autoscale_worker = (
+            DefaultValues.SEC_TO_START_AUTOSCALE_WORKER
         )
-        self.seconds_to_autoscale_worker = self.get_param_value_from_brain(
-            ConfigKeys.SECONDS_TO_START_AUTOSCALE_WORKER,
-            DefaultConfigValues.DEFAULT_SECENDS_TO_START_AUTOSCALE_WORKER,
+        self.step_to_adjust_worker = DefaultValues.STEP_TO_ADJUST_WORKER
+        self.optimize_worker_cpu_threshold = (
+            DefaultValues.OPTIMIZED_WORKER_CPU_THRESHOLD
         )
-        self.step_to_adjust_worker = self.get_param_value_from_brain(
-            ConfigKeys.STEP_TO_ADJUST_WORKER,
-            DefaultConfigValues.DEFAULT_STEP_TO_ADJUST_WORKER,
+        self.seconds_for_stable_worker_count = (
+            DefaultValues.SEC_FOR_STABLE_WORKER_COUNT
         )
-        self.optimize_worker_cpu_threshold = self.get_param_value_from_brain(
-            ConfigKeys.OPTIMIZE_WORKER_CPU_THRESHOLD,
-            DefaultConfigValues.DEFAULT_OPTIMIZED_WORKER_CPU_THRESHOLD,
+        self.seconds_interval_to_optimize = (
+            DefaultValues.SEC_INTERVAL_TO_OPTIMIZE
         )
-        self.seconds_for_stable_worker_count = self.get_param_value_from_brain(
-            ConfigKeys.SECONDS_FOR_STABLE_WORKER_COUNT,
-            DefaultConfigValues.DEFAULT_SECONDS_FOR_STABLE_WORKER_COUNT,
+        self.factor_to_cut_pending_cpu = (
+            DefaultValues.FACTOR_TO_CUT_PENDING_CPU
         )
-        self.seconds_interval_to_optimize = self.get_param_value_from_brain(
-            ConfigKeys.SECONDS_INTERVAL_TO_OPTIMIZE,
-            DefaultConfigValues.DEFAULT_SECONDS_INTERVAL_TO_OPTIMIZE,
+        self.factor_to_cut_pending_mem = (
+            DefaultValues.FACTOR_TO_CUT_PENDING_MEM
         )
-        self.factor_to_cut_pending_cpu = self.get_param_value_from_brain(
-            ConfigKeys.FACTOR_TO_CUT_PENDING_CPU,
-            DefaultConfigValues.DEFAULT_FACTOR_TO_CUT_PENDING_CPU,
+        self.seconds_to_wait_pending_pod = (
+            DefaultValues.SEC_TO_WAIT_PENDING_POD
         )
-        self.factor_to_cut_pending_mem = self.get_param_value_from_brain(
-            ConfigKeys.FACTOR_TO_CUT_PENDING_MEM,
-            DefaultConfigValues.DEFAULT_FACTOR_TO_CUT_PENDING_MEM,
+        self.seconds_huge_training_threshold = (
+            DefaultValues.SEC_HUGE_TRAINING_THRESHOLD
         )
-        self.seconds_to_wait_pending_pod = self.get_param_value_from_brain(
-            ConfigKeys.SECONDS_TO_WAIT_PENDING_POD,
-            DefaultConfigValues.DEFAULT_SECONDS_TO_WAIT_PENDING_POD,
+        self.sample_count_to_adjust_worker = (
+            DefaultValues.STEP_SAMPLE_COUNT_TO_AUTO_WORKER
         )
-        self.seconds_huge_training_threshold = self.get_param_value_from_brain(
-            ConfigKeys.SECONDS_HUGE_TRAINING_THRESHOLD,
-            DefaultConfigValues.DEFAULT_SECONDS_HUGE_TRAINING_THRESHOLD,
-        )
-        self.sample_count_to_adjust_worker = self.get_param_value_from_brain(
-            ConfigKeys.GLOBAL_STEP_COUNT_TO_AUTO_WORKER,
-            DefaultConfigValues.DEFALUT_GLOBAL_STEP_COUNT_TO_AUTO_WORKER,
-        )
-        self.seconds_interval_to_change_ps = self.get_param_value_from_brain(
-            ConfigKeys.SECONDS_TO_CHANGE_PS,
-            DefaultConfigValues.DEFAULT_SECONDS_TO_CHANGE_PS,
-        )
-        self.seconds_to_wait_failed_ps = self.get_param_value_from_brain(
-            ConfigKeys.SECONDS_TO_WAIT_FAILED_PS,
-            DefaultConfigValues.DEFAULT_SECONDS_TO_WAIT_FAILED_PS,
-        )
+        self.seconds_interval_to_change_ps = DefaultValues.SEC_TO_CHANGE_PS
+        self.seconds_to_wait_failed_ps = DefaultValues.SEC_TO_WAIT_FAILED_PS
         self.auto_worker_enabled = False
         self.auto_ps_enabled = False
         self.is_tfv1_ps = False
         self.master_port = 0
         self.relaunch_error = False
-        self.print_config()
+
+    def set_params_from_brain(self):
+        self.train_speed_record_num = self.get_param_value_from_brain(
+            ConfigKeys.TRAIN_SPEED_RECORD_NUM,
+            DefaultValues.TRAIN_SPEED_RECORD_NUM,
+        )
+        self.seconds_to_autoscale_worker = self.get_param_value_from_brain(
+            ConfigKeys.SECONDS_TO_START_AUTOSCALE_WORKER,
+            DefaultValues.SEC_TO_START_AUTOSCALE_WORKER,
+        )
+        self.step_to_adjust_worker = self.get_param_value_from_brain(
+            ConfigKeys.STEP_TO_ADJUST_WORKER,
+            DefaultValues.STEP_TO_ADJUST_WORKER,
+        )
+        self.optimize_worker_cpu_threshold = self.get_param_value_from_brain(
+            ConfigKeys.OPTIMIZE_WORKER_CPU_THRESHOLD,
+            DefaultValues.OPTIMIZED_WORKER_CPU_THRESHOLD,
+        )
+        self.seconds_for_stable_worker_count = self.get_param_value_from_brain(
+            ConfigKeys.SECONDS_FOR_STABLE_WORKER_COUNT,
+            DefaultValues.SEC_FOR_STABLE_WORKER_COUNT,
+        )
+        self.seconds_interval_to_optimize = self.get_param_value_from_brain(
+            ConfigKeys.SECONDS_INTERVAL_TO_OPTIMIZE,
+            DefaultValues.SEC_INTERVAL_TO_OPTIMIZE,
+        )
+        self.factor_to_cut_pending_cpu = self.get_param_value_from_brain(
+            ConfigKeys.FACTOR_TO_CUT_PENDING_CPU,
+            DefaultValues.FACTOR_TO_CUT_PENDING_CPU,
+        )
+        self.factor_to_cut_pending_mem = self.get_param_value_from_brain(
+            ConfigKeys.FACTOR_TO_CUT_PENDING_MEM,
+            DefaultValues.FACTOR_TO_CUT_PENDING_MEM,
+        )
+        self.seconds_to_wait_pending_pod = self.get_param_value_from_brain(
+            ConfigKeys.SECONDS_TO_WAIT_PENDING_POD,
+            DefaultValues.SEC_TO_WAIT_PENDING_POD,
+        )
+        self.seconds_huge_training_threshold = self.get_param_value_from_brain(
+            ConfigKeys.SECONDS_HUGE_TRAINING_THRESHOLD,
+            DefaultValues.SEC_HUGE_TRAINING_THRESHOLD,
+        )
+        self.sample_count_to_adjust_worker = self.get_param_value_from_brain(
+            ConfigKeys.GLOBAL_STEP_COUNT_TO_AUTO_WORKER,
+            DefaultValues.STEP_SAMPLE_COUNT_TO_AUTO_WORKER,
+        )
+        self.seconds_interval_to_change_ps = self.get_param_value_from_brain(
+            ConfigKeys.SECONDS_TO_CHANGE_PS,
+            DefaultValues.SEC_TO_CHANGE_PS,
+        )
+        self.seconds_to_wait_failed_ps = self.get_param_value_from_brain(
+            ConfigKeys.SECONDS_TO_WAIT_FAILED_PS,
+            DefaultValues.SEC_TO_WAIT_FAILED_PS,
+        )
 
     def config_master_port(self, port=0):
         if port > 0:
