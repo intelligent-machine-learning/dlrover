@@ -9,7 +9,7 @@ on a public cloud, namely, Alibaba Cloud Container Service for Kubernetes(ACK).
 - Configure cluster credentials on your local computer.
 - Create a [NAS](https://help.aliyun.com/document_detail/477380.html?spm=a2c4g.11186623.0.0.10635c83Xn7Tkh) storage and mount it to the cluster.
 
-## Deploy the ElasticJob CRD on ACK
+## Deploy the ElasticJob CRD on the Kubernetes Cluster.
 
 1. Clone the repo to your host.
 

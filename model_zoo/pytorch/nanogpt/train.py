@@ -24,6 +24,7 @@ import numpy as np
 import torch
 import torch.distributed as dist
 from model import GPT, GPTConfig
+from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 local_rank = None
@@ -193,6 +194,8 @@ def train():
     )  # For later use in torch.autocast
     if device_type == "cuda":
         torch.cuda.set_device(device)
+    # choose ddp or fdsp
+    use_fsdp = args.use_fsdp == "True"
     # Note: float16 data type will automatically use a GradScaler
     dtype = (
         "bfloat16"
@@ -224,11 +227,16 @@ def train():
 
     if torch.cuda.is_available() and device_type == "cuda":
         local_rank = int(os.environ["LOCAL_RANK"])
-        print(f"Running basic DDP example on local rank {local_rank}.")
         # Create model and move it to GPU with id rank
         model = model.to(local_rank)
-        model = DDP(model, device_ids=[local_rank])
-        print(f"Model device {model.device}")
+        if use_fsdp:
+            print(f"Running basic FSDP example on local rank {local_rank}.")
+            model = FSDP(model, device_id=local_rank)
+        else:
+            print(f"Running basic DDP example on local rank {local_rank}.")
+            model = DDP(model, device_ids=[local_rank])
+            print(f"Model device {model.device}")
+
     else:
         local_rank = int(os.environ["LOCAL_RANK"])
         print(f"Running basic CPU example on device {device}.")
@@ -253,7 +261,7 @@ def train():
     )  # Fetch the very first batch
     total_time = 0.0
     local_iter_num = 0  # Number of iterations in the lifetime of this process
-    raw_model = model.module  # Unwrap DDP container if needed
+    raw_model = model.module  # Unwrap DDP/FSDP container if needed
     running_mfu = -1.0
     iter_num = 0
     decay_lr = args.decay_lr
@@ -407,6 +415,9 @@ def arg_parser():
                         """,
     )
     parser.add_argument("--compile", type=str, default="False", required=False)
+    parser.add_argument(
+        "--use_fsdp", type=str, default="False", required=False
+    )
 
     args = parser.parse_args()
 
