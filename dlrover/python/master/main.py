@@ -30,8 +30,8 @@ def update_context(job_args: JobArgs):
             _dlrover_context.auto_worker_enabled = node_args.auto_scale
         elif node_type == NodeType.PS:
             _dlrover_context.auto_ps_enabled = node_args.auto_scale
-    _dlrover_context.print_config()
     _dlrover_context.set_params_from_brain()
+    _dlrover_context.print_config()
 
 
 def run(args):

@@ -46,7 +46,7 @@ class DefaultValues(object):
     FACTOR_TO_CUT_PENDING_MEM = 2
     SEC_TO_WAIT_PENDING_POD = 900  # 15min
     SEC_HUGE_TRAINING_THRESHOLD = 1800  # 30min
-    GLOBAL_STEP_COUNT_TO_AUTO_WORKER = 5
+    STEP_SAMPLE_COUNT_TO_AUTO_WORKER = 5
     SEC_TO_CHANGE_PS = 3600  # 1h
     SEC_TO_WAIT_FAILED_PS = 600  # 10min
 
@@ -82,7 +82,7 @@ class Context(object):
             DefaultValues.SEC_HUGE_TRAINING_THRESHOLD
         )
         self.sample_count_to_adjust_worker = (
-            DefaultValues.STEP_TO_ADJUST_WORKER
+            DefaultValues.STEP_SAMPLE_COUNT_TO_AUTO_WORKER
         )
         self.seconds_interval_to_change_ps = DefaultValues.SEC_TO_CHANGE_PS
         self.seconds_to_wait_failed_ps = DefaultValues.SEC_TO_WAIT_FAILED_PS
@@ -91,7 +91,6 @@ class Context(object):
         self.is_tfv1_ps = False
         self.master_port = 0
         self.relaunch_error = False
-        self.print_config()
 
     def set_params_from_brain(self):
         self.train_speed_record_num = self.get_param_value_from_brain(
@@ -136,7 +135,7 @@ class Context(object):
         )
         self.sample_count_to_adjust_worker = self.get_param_value_from_brain(
             ConfigKeys.GLOBAL_STEP_COUNT_TO_AUTO_WORKER,
-            DefaultValues.GLOBAL_STEP_COUNT_TO_AUTO_WORKER,
+            DefaultValues.STEP_SAMPLE_COUNT_TO_AUTO_WORKER,
         )
         self.seconds_interval_to_change_ps = self.get_param_value_from_brain(
             ConfigKeys.SECONDS_TO_CHANGE_PS,
