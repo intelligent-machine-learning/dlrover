@@ -126,6 +126,8 @@ class PodScaler(Scaler):
         """Scale in/out Pods by a ScalePlan."""
         self._plan = plan
         job_pods = self._list_job_pods()
+        if plan.empty():
+            return
         logger.info("Scale the job by plan %s", plan.toJSON())
 
         with self._lock:
