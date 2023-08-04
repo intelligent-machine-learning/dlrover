@@ -35,39 +35,57 @@ class ConfigKeys(object):
     SECONDS_TO_WAIT_FAILED_PS = "seconds_to_wait_failed_ps"
 
 
-class DefaultConfigValues(object):
+class DefaultValues(object):
     TRAIN_SPEED_RECORD_NUM = 50
-    SECENDS_TO_START_AUTOSCALE_WORKER = 90
+    SEC_TO_START_AUTOSCALE_WORKER = 90
     STEP_TO_ADJUST_WORKER = 200
     OPTIMIZED_WORKER_CPU_THRESHOLD = 20
-    SECONDS_FOR_STABLE_WORKER_COUNT = 60
-    SECONDS_INTERVAL_TO_OPTIMIZE = 300
-    DFACTOR_TO_CUT_PENDING_CPU = 2
+    SEC_FOR_STABLE_WORKER_COUNT = 60
+    SEC_INTERVAL_TO_OPTIMIZE = 300
+    FACTOR_TO_CUT_PENDING_CPU = 2
     FACTOR_TO_CUT_PENDING_MEM = 2
-    SECONDS_TO_WAIT_PENDING_POD = 900  # 15min
-    SECONDS_HUGE_TRAINING_THRESHOLD = 1800  # 30min
+    SEC_TO_WAIT_PENDING_POD = 900  # 15min
+    SEC_HUGE_TRAINING_THRESHOLD = 1800  # 30min
     GLOBAL_STEP_COUNT_TO_AUTO_WORKER = 5
-    SECONDS_TO_CHANGE_PS = 3600  # 1h
-    SECONDS_TO_WAIT_FAILED_PS = 600  # 10min
+    SEC_TO_CHANGE_PS = 3600  # 1h
+    SEC_TO_WAIT_FAILED_PS = 600  # 10min
 
 
 class Context(object):
     _instance_lock = threading.Lock()
 
     def __init__(self):
-        self.train_speed_record_num = 0
-        self.seconds_to_autoscale_worker = 0
-        self.step_to_adjust_worker = 0
-        self.optimize_worker_cpu_threshold = 0
-        self.seconds_for_stable_worker_count = 0
-        self.seconds_interval_to_optimize = 0
-        self.factor_to_cut_pending_cpu = 0
-        self.factor_to_cut_pending_mem = 0
-        self.seconds_to_wait_pending_pod = 0
-        self.seconds_huge_training_threshold = 0
-        self.sample_count_to_adjust_worker = 0
-        self.seconds_interval_to_change_ps = 0
-        self.seconds_to_wait_failed_ps = 0
+        self.train_speed_record_num = DefaultValues.TRAIN_SPEED_RECORD_NUM
+        self.seconds_to_autoscale_worker = (
+            DefaultValues.SEC_TO_START_AUTOSCALE_WORKER
+        )
+        self.step_to_adjust_worker = DefaultValues.STEP_TO_ADJUST_WORKER
+        self.optimize_worker_cpu_threshold = (
+            DefaultValues.OPTIMIZED_WORKER_CPU_THRESHOLD
+        )
+        self.seconds_for_stable_worker_count = (
+            DefaultValues.SEC_FOR_STABLE_WORKER_COUNT
+        )
+        self.seconds_interval_to_optimize = (
+            DefaultValues.SEC_INTERVAL_TO_OPTIMIZE
+        )
+        self.factor_to_cut_pending_cpu = (
+            DefaultValues.FACTOR_TO_CUT_PENDING_CPU
+        )
+        self.factor_to_cut_pending_mem = (
+            DefaultValues.FACTOR_TO_CUT_PENDING_MEM
+        )
+        self.seconds_to_wait_pending_pod = (
+            DefaultValues.SEC_TO_WAIT_PENDING_POD
+        )
+        self.seconds_huge_training_threshold = (
+            DefaultValues.SEC_HUGE_TRAINING_THRESHOLD
+        )
+        self.sample_count_to_adjust_worker = (
+            DefaultValues.STEP_TO_ADJUST_WORKER
+        )
+        self.seconds_interval_to_change_ps = DefaultValues.SEC_TO_CHANGE_PS
+        self.seconds_to_wait_failed_ps = DefaultValues.SEC_TO_WAIT_FAILED_PS
         self.auto_worker_enabled = False
         self.auto_ps_enabled = False
         self.is_tfv1_ps = False
@@ -78,55 +96,55 @@ class Context(object):
     def set_params_from_brain(self):
         self.train_speed_record_num = self.get_param_value_from_brain(
             ConfigKeys.TRAIN_SPEED_RECORD_NUM,
-            DefaultConfigValues.TRAIN_SPEED_RECORD_NUM,
+            DefaultValues.TRAIN_SPEED_RECORD_NUM,
         )
         self.seconds_to_autoscale_worker = self.get_param_value_from_brain(
             ConfigKeys.SECONDS_TO_START_AUTOSCALE_WORKER,
-            DefaultConfigValues.SECENDS_TO_START_AUTOSCALE_WORKER,
+            DefaultValues.SEC_TO_START_AUTOSCALE_WORKER,
         )
         self.step_to_adjust_worker = self.get_param_value_from_brain(
             ConfigKeys.STEP_TO_ADJUST_WORKER,
-            DefaultConfigValues.STEP_TO_ADJUST_WORKER,
+            DefaultValues.STEP_TO_ADJUST_WORKER,
         )
         self.optimize_worker_cpu_threshold = self.get_param_value_from_brain(
             ConfigKeys.OPTIMIZE_WORKER_CPU_THRESHOLD,
-            DefaultConfigValues.OPTIMIZED_WORKER_CPU_THRESHOLD,
+            DefaultValues.OPTIMIZED_WORKER_CPU_THRESHOLD,
         )
         self.seconds_for_stable_worker_count = self.get_param_value_from_brain(
             ConfigKeys.SECONDS_FOR_STABLE_WORKER_COUNT,
-            DefaultConfigValues.SECONDS_FOR_STABLE_WORKER_COUNT,
+            DefaultValues.SEC_FOR_STABLE_WORKER_COUNT,
         )
         self.seconds_interval_to_optimize = self.get_param_value_from_brain(
             ConfigKeys.SECONDS_INTERVAL_TO_OPTIMIZE,
-            DefaultConfigValues.SECONDS_INTERVAL_TO_OPTIMIZE,
+            DefaultValues.SEC_INTERVAL_TO_OPTIMIZE,
         )
         self.factor_to_cut_pending_cpu = self.get_param_value_from_brain(
             ConfigKeys.FACTOR_TO_CUT_PENDING_CPU,
-            DefaultConfigValues.DFACTOR_TO_CUT_PENDING_CPU,
+            DefaultValues.FACTOR_TO_CUT_PENDING_CPU,
         )
         self.factor_to_cut_pending_mem = self.get_param_value_from_brain(
             ConfigKeys.FACTOR_TO_CUT_PENDING_MEM,
-            DefaultConfigValues.FACTOR_TO_CUT_PENDING_MEM,
+            DefaultValues.FACTOR_TO_CUT_PENDING_MEM,
         )
         self.seconds_to_wait_pending_pod = self.get_param_value_from_brain(
             ConfigKeys.SECONDS_TO_WAIT_PENDING_POD,
-            DefaultConfigValues.SECONDS_TO_WAIT_PENDING_POD,
+            DefaultValues.SEC_TO_WAIT_PENDING_POD,
         )
         self.seconds_huge_training_threshold = self.get_param_value_from_brain(
             ConfigKeys.SECONDS_HUGE_TRAINING_THRESHOLD,
-            DefaultConfigValues.SECONDS_HUGE_TRAINING_THRESHOLD,
+            DefaultValues.SEC_HUGE_TRAINING_THRESHOLD,
         )
         self.sample_count_to_adjust_worker = self.get_param_value_from_brain(
             ConfigKeys.GLOBAL_STEP_COUNT_TO_AUTO_WORKER,
-            DefaultConfigValues.GLOBAL_STEP_COUNT_TO_AUTO_WORKER,
+            DefaultValues.GLOBAL_STEP_COUNT_TO_AUTO_WORKER,
         )
         self.seconds_interval_to_change_ps = self.get_param_value_from_brain(
             ConfigKeys.SECONDS_TO_CHANGE_PS,
-            DefaultConfigValues.SECONDS_TO_CHANGE_PS,
+            DefaultValues.SEC_TO_CHANGE_PS,
         )
         self.seconds_to_wait_failed_ps = self.get_param_value_from_brain(
             ConfigKeys.SECONDS_TO_WAIT_FAILED_PS,
-            DefaultConfigValues.SECONDS_TO_WAIT_FAILED_PS,
+            DefaultValues.SEC_TO_WAIT_FAILED_PS,
         )
 
     def config_master_port(self, port=0):
