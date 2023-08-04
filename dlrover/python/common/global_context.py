@@ -90,7 +90,7 @@ class Context(object):
         self.auto_ps_enabled = False
         self.is_tfv1_ps = False
         self.master_port = 0
-        self.relaunch_error = False
+        self.relaunch_always = False
 
     def set_params_from_brain(self):
         self.train_speed_record_num = self.get_param_value_from_brain(

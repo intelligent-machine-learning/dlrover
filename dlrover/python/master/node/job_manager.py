@@ -465,7 +465,7 @@ class JobManager(object):
         if should_relaunch:
             if (
                 node.exit_reason == NodeExitReason.FATAL_ERROR
-                and not _dlrover_context.relaunch_error
+                and not _dlrover_context.relaunch_always
             ):
                 should_relaunch = False
             elif node.exit_reason == NodeExitReason.OOM:

@@ -32,7 +32,8 @@ def add_params(parser):
         help="The name of platform",
     )
     parser.add_argument(
-        "--relaunch_error",  # should be in "--foo" format
+        "--relaunch_always",  # should be in "--foo" format
+        "--relaunch-always",  # should be in "--foo" format
         nargs="?",
         const=not False,
         default=False,
