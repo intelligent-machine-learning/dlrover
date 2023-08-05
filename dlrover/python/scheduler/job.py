@@ -94,6 +94,7 @@ class JobArgs(JsonSerializable):
         self.optimize_mode = "single-job"
         self.use_ddp = False
         self.resource_limits = ResourceLimits()
+        self.relaunch_always = True
 
     @abstractmethod
     def initilize(self):
