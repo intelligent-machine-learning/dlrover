@@ -187,3 +187,8 @@ Please refer to the [DEVELOPMENT](docs/developer_guide.md)
 [Train a PyTorch Model on Kubernetes](docs/tutorial/torch_on_cloud.md)
 
 [Train a GPT Model on Kubernetes](docs/tutorial/torch_dpp_nanogpt.md)
+
+
+## Community
+
+Join the DLRover WeChat(微信: DLRover社区交流群) to share your suggestions, feedback, and questions with our engineering team.
