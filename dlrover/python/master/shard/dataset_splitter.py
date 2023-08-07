@@ -105,6 +105,10 @@ class DatasetSplitter(metaclass=ABCMeta):
         self._dataset_size = dataset_size
         self._shard_size = shard_size
         self._num_epochs = num_epochs
+        logger.info(
+            f"Create a dataset splitter with shard size {shard_size}"
+            f" and epoch {self._num_epochs}."
+        )
 
     @abstractmethod
     def get_epoch(self):
@@ -123,6 +127,8 @@ class DatasetSplitter(metaclass=ABCMeta):
 
     def epoch_finished(self) -> bool:
         """Check wether to finish the configured epochs"""
+        if self._num_epochs <= 0:
+            return False
         return self.epoch >= self._num_epochs
 
     def get_shard_count(self) -> int:
