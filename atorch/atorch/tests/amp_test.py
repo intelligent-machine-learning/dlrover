@@ -11,12 +11,7 @@ import torch.multiprocessing as mp
 from atorch.auto.accelerate import model_transform
 from atorch.auto.auto_accelerate_context import AutoAccelerateContext
 from atorch.auto.model_context import ModelContext
-from atorch.auto.opt_lib.amp_optimization import (
-    AmpApexO1Optimization,
-    AmpApexO2Optimization,
-    AmpNativeOptimization,
-    AmpNativeOptimizer,
-)
+from atorch.auto.opt_lib.amp_optimization import AmpNativeOptimization, AmpNativeOptimizer
 from atorch.auto.opt_lib.half_optimization import HalfOptimization
 from atorch.auto.opt_lib.optimization_library import OptimizationLibrary
 from atorch.auto.strategy import Strategy
@@ -76,42 +71,6 @@ class AmpOptimizationTest(unittest.TestCase):
         self.assertNotEqual(id(scaler1), id(scaler2))
 
         AutoAccelerateContext.reset()
-
-    @unittest.skipIf(
-        not torch.cuda.is_available(),
-        "No gpu available for cuda tests",
-    )
-    def test_amp_apex_optimizer(self):
-        AutoAccelerateContext.counter = 1
-        model_context1 = create_model_context(data_size=4, batch_size=1)
-        amp_apex_opt = AmpApexO1Optimization()
-        model_context1 = amp_apex_opt.transform(model_context1)
-        model_context1.update_dataloader()
-        model_context1.update_optim()
-        o1_config = {"enabled": True, "opt_level": "O1"}
-        amp_apex_opt.apply_wrapper(model_context1, "amp_apex_o1", wrapper_config=o1_config)
-        model_context1.model.cuda()
-
-        device = "cuda:0"
-
-        run_train(
-            model_context1.model,
-            dataloader=model_context1.dataloader,
-            optim=model_context1.optim,
-            prepare_input=model_context1.prepare_input,
-            loss_func=model_context1.loss_func,
-            device=device,
-        )
-
-        AutoAccelerateContext.counter += 1
-        model_context2 = create_model_context(data_size=4, batch_size=1)
-        amp_apex_opt2 = AmpApexO2Optimization()
-
-        with self.assertRaises(RuntimeError):
-            model_context2 = amp_apex_opt2.transform(model_context2)
-
-        amp_apex_opt.reset(None)
-        amp_apex_opt2.reset(None)
 
     @unittest.skipIf(
         not torch.cuda.is_available(),
