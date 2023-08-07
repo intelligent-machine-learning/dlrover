@@ -86,6 +86,8 @@ class ModelContextTest(unittest.TestCase):
         dataloader.set_epoch(1)
         data_e1 = [data for data in dataloader]
         self.assertNotEqual(data_e0, data_e1)
+        _DistributedContext.PARALLEL_GROUP_SIZE = None
+        _DistributedContext.RANK = None
         atorch.reset_distributed()
 
 
