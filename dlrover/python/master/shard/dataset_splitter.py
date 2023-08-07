@@ -126,7 +126,11 @@ class DatasetSplitter(metaclass=ABCMeta):
         pass
 
     def epoch_finished(self) -> bool:
-        """Check wether to finish the configured epochs"""
+        """Check wether the configured epochs finish.
+        num_epochs <= 0 indicates that the splitter will create data
+        shards infinitely. So, the worker can use the dataset like
+        `dataset.repeat()`.
+        """
         if self._num_epochs <= 0:
             return False
         return self.epoch >= self._num_epochs
