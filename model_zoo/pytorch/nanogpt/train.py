@@ -370,7 +370,7 @@ def arg_parser():
         "--always_save_checkpoint", action="store_true", required=False
     )
     parser.add_argument("--batch_size", type=int, default=12, required=False)
-    parser.add_argument("--block_size", type=int, default=1024, required=False)
+    parser.add_argument("--block_size", type=int, default=128, required=False)
 
     # Model settings
     parser.add_argument("--n_layer", type=int, default=6, required=False)
@@ -383,7 +383,7 @@ def arg_parser():
     parser.add_argument(
         "--learning_rate", type=float, default=6e-4, required=False
     )
-    parser.add_argument("--max_iters", type=int, default=10, required=False)
+    parser.add_argument("--max_iters", type=int, default=200, required=False)
     parser.add_argument(
         "--weight_decay", type=float, default=1e-1, required=False
     )
