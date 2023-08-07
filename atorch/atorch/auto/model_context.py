@@ -441,12 +441,6 @@ class ModelContext(object):
             if "fsdp" in self.pre_wrappers:
                 self.pre_wrappers.pop("fsdp")
 
-            if "amp_apex_o1" in self.post_wrappers:
-                self.post_wrappers.pop("amp_apex_o1")
-
-            if "amp_apex_o2" in self.post_wrappers:
-                self.post_wrappers.pop("amp_apex_o2")
-
             # DDP is supported and handled internally by PiPPy.
             if "ddp" in self.post_wrappers:
                 self.post_wrappers.pop("ddp")
@@ -540,24 +534,6 @@ class ModelContext(object):
                 self.pre_wrappers["fsdp"][0],
                 config,
             )
-
-        # move ddp wrapper or zero2 wrapper behind amp_apex_* wrapper
-        if (ddp_wrapper_exist or fairscale_zero2_wrapper_exist) and (
-            "amp_apex_o1" in self.post_wrappers or "amp_apex_o2" in self.post_wrappers
-        ):
-            amp_apex_wrapper_index, ddp_or_zero2_wrapper_index = -1, -1
-            wrappers_list = []
-            for i, (wrapper_name, v) in enumerate(self.post_wrappers.items()):
-                wrappers_list.append((wrapper_name, v))
-                if wrapper_name.startswith("amp_apex_"):
-                    amp_apex_wrapper_index = i
-                elif wrapper_name == "ddp" or wrapper_name == "zero2":
-                    ddp_or_zero2_wrapper_index = i
-            if ddp_or_zero2_wrapper_index < amp_apex_wrapper_index:
-                ddp_or_zero2_wrapper = wrappers_list[ddp_or_zero2_wrapper_index]
-                wrappers_list.insert(amp_apex_wrapper_index + 1, ddp_or_zero2_wrapper)
-                wrappers_list.pop(ddp_or_zero2_wrapper_index)
-            self.post_wrappers = dict(wrappers_list)
 
         # move dynamo_native wrapper behind ddp or fsdp
         # Note that dynamo_native wrapper and fsdp wrapper are pre-wrappers while ddp wrapper is a post-wrapper.
