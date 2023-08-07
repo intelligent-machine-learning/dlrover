@@ -217,14 +217,6 @@ def train():
     scaler = torch.cuda.amp.GradScaler(enabled=(dtype == "float16"))
     model = model.to(device)
     # Optimizer
-    print(f"creating optimizer...{model.parameters()}")
-    optimizer = model.configure_optimizers(
-        weight_decay=args.weight_decay,
-        learning_rate=args.learning_rate,
-        betas=(args.beta1, args.beta2),
-        device_type=device_type,
-    )
-
     if torch.cuda.is_available() and device_type == "cuda":
         local_rank = int(os.environ["LOCAL_RANK"])
         # Create model and move it to GPU with id rank
@@ -243,6 +235,14 @@ def train():
         model = model.to(device)
         model = DDP(model)
         print(f"Model device {model.device}")
+
+    print(f"creating optimizer...{model.parameters()}")
+    optimizer = torch.optim.Adam(
+        model.parameters(),
+        weight_decay=args.weight_decay,
+        lr=args.learning_rate,
+        betas=(args.beta1, args.beta2),
+    )
 
     # Compile the model
     if compile == "True":
@@ -370,7 +370,7 @@ def arg_parser():
         "--always_save_checkpoint", action="store_true", required=False
     )
     parser.add_argument("--batch_size", type=int, default=12, required=False)
-    parser.add_argument("--block_size", type=int, default=128, required=False)
+    parser.add_argument("--block_size", type=int, default=1024, required=False)
 
     # Model settings
     parser.add_argument("--n_layer", type=int, default=6, required=False)
@@ -383,7 +383,7 @@ def arg_parser():
     parser.add_argument(
         "--learning_rate", type=float, default=6e-4, required=False
     )
-    parser.add_argument("--max_iters", type=int, default=200, required=False)
+    parser.add_argument("--max_iters", type=int, default=10, required=False)
     parser.add_argument(
         "--weight_decay", type=float, default=1e-1, required=False
     )
