@@ -14,7 +14,7 @@
 import unittest
 
 from dlrover.python.common.constants import JobExitReason, NodeStatus, NodeType
-from dlrover.python.master.master import Master
+from dlrover.python.master.master import DistributedJobMaster
 from dlrover.python.master.shard.dataset_splitter import new_dataset_splitter
 from dlrover.python.tests.test_utils import MockK8sPSJobArgs, mock_k8s_client
 
@@ -24,7 +24,7 @@ class MasterTest(unittest.TestCase):
         mock_k8s_client()
         params = MockK8sPSJobArgs()
         params.initilize()
-        self.master = Master(2222, params)
+        self.master = DistributedJobMaster(2222, params)
 
     def test_exit_by_workers(self):
         self.master.job_manager._init_nodes()

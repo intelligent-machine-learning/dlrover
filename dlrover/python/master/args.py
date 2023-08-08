@@ -29,7 +29,16 @@ def add_params(parser):
         "--platform",
         default="pyk8s",
         type=str,
-        help="The name of platform",
+        help="The name of platform which can be pyk8s, k8s, ray or local.",
+    )
+    parser.add_argument(
+        "--enable_dynamic_sharding",  # should be in "--foo" format
+        "--enable-dynamic-sharding",  # should be in "--foo" format
+        nargs="?",
+        const=not False,
+        default=False,
+        type=lambda x: x.lower() in ["true", "yes", "t", "y"],
+        help=help,
     )
 
 

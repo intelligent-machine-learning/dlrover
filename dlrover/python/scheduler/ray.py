@@ -15,7 +15,10 @@ import os
 import threading
 import time
 
-import ray
+try:
+    import ray
+except ImportError:
+    print("----")
 
 from dlrover.python.common.constants import NodeStatus
 from dlrover.python.common.log import default_logger as logger

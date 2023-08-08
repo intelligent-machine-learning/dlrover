@@ -30,6 +30,7 @@ from dlrover.python.master.elastic_training.rdzv_manager import (
     RendezvousManager,
 )
 from dlrover.python.master.elastic_training.sync_service import SyncService
+from dlrover.python.master.local_master import JobMaster
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.event_callback import (
     AllReduceNodeHandlingCallback,
@@ -49,7 +50,26 @@ def _create_elastic_ps_service_if_needed(params: JobArgs):
     return None
 
 
-class Master(object):
+class DistributedJobMaster(JobMaster):
+    """The master of a distrbiuted job which has multiple nodes. The master
+    - launches nodes (e.g. the Pod on kubernetes).
+    - builds the rendezvous of training ndoes.
+    - monitors the node status and launch a new node to recover a failed node.
+    - collects the training metrics including throughput and the workload
+        of each node.
+    - auto-scales nodes of a job to speed up the training and improve the
+        resource utilization.
+
+    The master mainly contains the following components:
+    JobManager: manages the nodes of a job. the job manager can launch nodes,
+        monitor nodes and scale up/down nodes.
+    RendezvousManager: build the rendezvous of training nodes.
+    TaskManager: assignes the data shard tasks to workers and recover the data
+        shard task of a failed worker.
+    MetricCollector: collects the training metrics of a training job.
+    ElasticPSService: manages the hosts of alive PS nodes in a PS training job.
+    """
+
     def __init__(self, port, args: JobArgs):
         self.speed_monitor = SpeedMonitor()
         self.job_manager = (
