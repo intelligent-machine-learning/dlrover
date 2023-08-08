@@ -54,11 +54,7 @@ class JobMaster(metaclass=ABCMeta):
 class LocalJobMaster(JobMaster):
     def __init__(self, port, args: JobArgs):
         self.speed_monitor = SpeedMonitor()
-        self.task_manager = (
-            TaskManager(0, self.speed_monitor)
-            if args.enable_dynamic_sharding
-            else None
-        )
+        self.task_manager = TaskManager(0, self.speed_monitor)
         elastic_training = RendezvousName.ELASTIC_TRAINING
         self.rdzv_managers: Dict[str, RendezvousManager] = {
             elastic_training: ElasticTrainingRendezvousManager(),
@@ -98,10 +94,7 @@ class LocalJobMaster(JobMaster):
         logger.info("Starting master RPC server")
         self._master_server.start()
         logger.info("Master RPC server started")
-
-        # Start the components one by one
-        if self.task_manager:
-            self.task_manager.start()
+        self.task_manager.start()
 
     def run(self):
         """
@@ -111,11 +104,11 @@ class LocalJobMaster(JobMaster):
         try:
             while True:
                 if self.task_manager and self.task_manager.finished():
-                    logger.info("All task completed")
+                    logger.info("All task completed!")
                     break
                 time.sleep(30)
         except KeyboardInterrupt:
-            logger.warning("Server stopping")
+            logger.warning("Server stopping!")
         finally:
             self.stop()
         return 0
@@ -125,11 +118,11 @@ class LocalJobMaster(JobMaster):
         Stop all the components.
         Make sure that the created services and components are shut down.
         """
-        logger.info("Stopping master")
-        logger.info("Stopping RPC server")
+        logger.info("Stopping master!")
+        logger.info("Stopping RPC server!")
         self._master_server.stop(grace=None)
-        logger.info("RPC server stopped")
-        logger.info("Master stopped")
+        logger.info("RPC server stopped!")
+        logger.info("Master stopped!")
 
     def request_stop(self, success, reason, msg=""):
         pass
