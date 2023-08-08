@@ -216,15 +216,7 @@ def train():
     model = gpt_init(meta_vocab_size, args=args)
     scaler = torch.cuda.amp.GradScaler(enabled=(dtype == "float16"))
     model = model.to(device)
-    # Optimizer
-    print(f"creating optimizer...{model.parameters()}")
-    optimizer = model.configure_optimizers(
-        weight_decay=args.weight_decay,
-        learning_rate=args.learning_rate,
-        betas=(args.beta1, args.beta2),
-        device_type=device_type,
-    )
-
+    # Device
     if torch.cuda.is_available() and device_type == "cuda":
         local_rank = int(os.environ["LOCAL_RANK"])
         # Create model and move it to GPU with id rank
@@ -243,6 +235,14 @@ def train():
         model = model.to(device)
         model = DDP(model)
         print(f"Model device {model.device}")
+    # Optimizer
+    print(f"creating optimizer...{model.parameters()}")
+    optimizer = torch.optim.Adam(
+        model.parameters(),
+        weight_decay=args.weight_decay,
+        lr=args.learning_rate,
+        betas=(args.beta1, args.beta2),
+    )
 
     # Compile the model
     if compile == "True":
