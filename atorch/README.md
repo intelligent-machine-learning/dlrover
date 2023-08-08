@@ -1,7 +1,7 @@
 # ATorch
 <div id="top" align="center">
 
-   <img src="../docs/figures/atorch.png" alt="Editor" width="1200">
+   <img src="../docs/figures/atorch.png" alt="Editor" width="500">
 
    ATorch: Making LLMs more efficient and reproducible for everyone.
 
