@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-unset DLROVER_MASTER_ADDR 
 rm -rf ps* log* eval/ export/  checkpoint  model.ckpt* events.out* -rf graph.pbtxt
+python -m dlrover.python.master.main --platform=local --job_name=train-test --port 12347 &
+export DLROVER_MASTER_ADDR=127.0.0.1:12347
 python -m dlrover.trainer --platform=local_ray --conf=conf.TrainConf --ps_num=1 --worker_num=1  
