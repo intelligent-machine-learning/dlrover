@@ -49,7 +49,7 @@ class ElasticDistributedSampler(DistributedSampler):
             seed,
             drop_last,
         )
-        self.completed_num = 0
+        self._epoch_checkpoint: Dict[int, int] = {}
 
     def __iter__(self) -> Iterator[T_co]:
         indices = []  # type: ignore
@@ -76,13 +76,27 @@ class ElasticDistributedSampler(DistributedSampler):
         assert len(indices) == self.total_size
 
         # subsample
-        start_iter = self.rank + self.completed_num
+        completed_num = self._epoch_checkpoint.get(self.epoch, 0)
+        start_iter = self.rank + completed_num
         # fmt: off
         indices = indices[start_iter:self.total_size:self.num_replicas]
         # fmt: on
+        if self.epoch not in self._epoch_checkpoint:
+            self._init_num_samples()
         assert len(indices) == self.num_samples
 
         return iter(indices)
+
+    def _init_num_samples(self):
+        if self.drop_last and len(self.dataset) % self.num_replicas != 0:
+            # Split to nearest available length that is evenly divisible.
+            # This is to ensure each rank receives the same amount of data when
+            # using this Sampler.
+            self.num_samples = math.ceil(
+                (len(self.dataset) - self.num_replicas) / self.num_replicas
+            )
+        else:
+            self.num_samples = math.ceil(len(self.dataset) / self.num_replicas)
 
     def state_dict(self, iter_step, micro_batch_size):
         """Checkpoint the index of the last completed sample.
@@ -103,15 +117,16 @@ class ElasticDistributedSampler(DistributedSampler):
         The master will assign those shards to workers to restore training.
         """
         self.epoch = int(state.get("epoch", 0))
-        self.completed_num = int(state.get("completed_num", 0))
+        completed_num = int(state.get("completed_num", 0))
         self.num_samples = int(
-            (self.total_size - self.completed_num) / self.num_replicas
+            (self.total_size - completed_num) / self.num_replicas
         )
-        if self.completed_num > self.total_size:
-            self.completed_num = self.completed_num % self.total_size
+        if completed_num > self.total_size:
+            completed_num = completed_num % self.total_size
+        self._epoch_checkpoint[self.epoch] = completed_num
         logger.info(
             "Load epoch = %s, completed num = %s, num_samples = %s",
             self.epoch,
-            self.completed_num,
+            completed_num,
             self.num_samples,
         )

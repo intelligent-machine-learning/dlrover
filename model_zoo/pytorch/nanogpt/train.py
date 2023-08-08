@@ -139,7 +139,7 @@ def get_lr(it, args):
 
 
 def log_rank0(msg):
-    local_rank = int(os.environ.get("LOCAL_RANK", 0))
+    local_rank = int(os.getenv("LOCAL_RANK", 0))
     if local_rank == 0:
         print(msg)
 
@@ -153,7 +153,7 @@ def setup(args):
     else:
         dist.init_process_group("gloo", timeout=timedelta(seconds=120))
     rank = dist.get_rank()
-    local_rank = int(os.environ["LOCAL_RANK"])
+    local_rank = int(os.getenv("LOCAL_RANK", 0))
     print(f"rank {rank} is initialized local_rank = {local_rank}")
     # This process will do logging, checkpointing etc.
     master_process = rank == 0
@@ -172,7 +172,7 @@ def train():
 
     args = arg_parser()
     setup(args)
-    world_size = int(os.environ["WORLD_SIZE"])
+    world_size = int(os.getenv("WORLD_SIZE", 1))
     gradient_accumulation_steps = args.gradient_accumulation_steps
     batch_size = args.batch_size
     block_size = args.block_size
@@ -218,7 +218,6 @@ def train():
     model = model.to(device)
     # Device
     if torch.cuda.is_available() and device_type == "cuda":
-        local_rank = int(os.environ["LOCAL_RANK"])
         # Create model and move it to GPU with id rank
         model = model.to(local_rank)
         if use_fsdp:
@@ -230,7 +229,6 @@ def train():
             print(f"Model device {model.device}")
 
     else:
-        local_rank = int(os.environ["LOCAL_RANK"])
         print(f"Running basic CPU example on device {device}.")
         model = model.to(device)
         model = DDP(model)
