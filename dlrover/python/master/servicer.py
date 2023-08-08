@@ -29,22 +29,30 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
 from dlrover.python.master.elastic_training.kv_store_service import (
     KVStoreService,
 )
 from dlrover.python.master.elastic_training.rdzv_manager import (
     RendezvousManager,
 )
-from dlrover.python.master.elastic_training.sync_service import SyncService
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
-from dlrover.python.master.node.job_manager import JobManager
 from dlrover.python.master.shard.dataset_splitter import new_dataset_splitter
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.master.stats.job_collector import JobMetricCollector
 from dlrover.python.master.stats.training_metrics import OpStats, TensorStats
 from dlrover.python.master.watcher.base_watcher import Node, NodeEvent
 from dlrover.python.util.queue.queue import RayEventQueue
+
+try:
+    from dlrover.python.master.elastic_training.elastic_ps import (
+        ElasticPsService,
+    )
+    from dlrover.python.master.elastic_training.sync_service import SyncService
+    from dlrover.python.master.node.job_manager import JobManager
+except ImportError:
+    logger.info("Run the master locally.")
+    pass
+
 
 _dlrover_context = Context.singleton_instance()
 _DEFAULT_NUM_MINIBATCHES_PER_SHARD = 100
@@ -56,17 +64,16 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
 
     def __init__(
         self,
-        task_manager: TaskManager,
-        job_manager: JobManager,
+        task_manager,
+        job_manager,
         speed_monitor: SpeedMonitor,
         rdzv_managers: Dict[str, RendezvousManager],
         job_metric_collector=None,
         elastic_ps_service=None,
         sync_service=None,
     ):
-        # TODO: group params together into a single object.
-        self._task_manager = task_manager
-        self._job_manager = job_manager
+        self._task_manager: TaskManager = task_manager
+        self._job_manager: JobManager = job_manager
         self._speed_monitor = speed_monitor
         self._rdzv_managers = rdzv_managers
         self._kv_store = KVStoreService()
