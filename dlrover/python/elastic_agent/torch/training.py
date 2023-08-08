@@ -149,7 +149,7 @@ class MasterRendezvousHandler(RendezvousHandler):
                         "The node is not in the world "
                         "and waits for more nodes."
                     )
-                    time.sleep(60)
+                    time.sleep(5)
                     start_join = time.time()
                     continue
             elif time.time() - start_join > self.join_timeout:

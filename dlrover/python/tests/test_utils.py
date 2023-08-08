@@ -25,11 +25,13 @@ from dlrover.python.common.constants import (
     NodeType,
     PlatformType,
 )
+from dlrover.python.common.grpc import find_free_port
 from dlrover.python.common.node import NodeGroupResource, NodeResource
+from dlrover.python.master.local_master import LocalJobMaster
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.shard.dataset_splitter import new_dataset_splitter
 from dlrover.python.master.shard.task_manager import TaskManager
-from dlrover.python.scheduler.job import JobArgs, NodeArgs
+from dlrover.python.scheduler.job import JobArgs, LocalJobArgs, NodeArgs
 from dlrover.python.scheduler.kubernetes import k8sClient
 
 
@@ -248,3 +250,13 @@ def mock_k8s_client():
     k8s_client.create_service = mock.MagicMock(  # type: ignore
         return_value=True
     )
+
+
+def start_local_master():
+    job_args = LocalJobArgs("local", "default", "test")
+    job_args.initilize()
+    port = find_free_port()
+    master = LocalJobMaster(port, job_args)
+    master.prepare()
+    addr = f"127.0.0.1:{port}"
+    return master, addr

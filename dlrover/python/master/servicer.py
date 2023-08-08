@@ -444,13 +444,14 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         return res
 
     def report_failure(self, request, _):
-        self._job_manager.handle_training_failure(
-            request.node_type,
-            request.node_id,
-            request.restart_count,
-            request.error_data,
-            request.level,
-        )
+        if self._job_manager:
+            self._job_manager.handle_training_failure(
+                request.node_type,
+                request.node_id,
+                request.restart_count,
+                request.error_data,
+                request.level,
+            )
         res = elastic_training_pb2.Response()
         res.success = True
         return res
