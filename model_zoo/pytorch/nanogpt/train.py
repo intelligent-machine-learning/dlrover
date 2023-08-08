@@ -237,7 +237,7 @@ def train():
         print(f"Model device {model.device}")
     # Optimizer
     print(f"creating optimizer...{model.parameters()}")
-    optimizer = torch.optim.Adam(
+    optimizer = torch.optim.AdamW(
         model.parameters(),
         weight_decay=args.weight_decay,
         lr=args.learning_rate,
@@ -272,7 +272,7 @@ def train():
 
     while True:
         # Determine and set the learning rate for this iteration
-        lr = get_lr(iter_num) if decay_lr else learning_rate
+        lr = get_lr(iter_num, args) if decay_lr else learning_rate
         for param_group in optimizer.param_groups:
             param_group["lr"] = lr
 
