@@ -41,7 +41,6 @@ def run(args):
     if job_args.platform == PlatformType.LOCAL:
         from dlrover.python.master.local_master import LocalJobMaster
 
-        job_args.enable_dynamic_sharding = args.enable_dynamic_sharding
         master = LocalJobMaster(_dlrover_context.master_port, job_args)
     else:
         from dlrover.python.master.dist_master import DistributedJobMaster
