@@ -92,10 +92,18 @@ class JobArgs(JsonSerializable):
         self.user = ""
         self.cluster = ""
         self.optimize_mode = "single-job"
-        self.use_ddp = False
         self.resource_limits = ResourceLimits()
         self.relaunch_always = True
 
     @abstractmethod
     def initilize(self):
         pass
+
+
+class LocalJobArgs(JobArgs):
+    def __init__(self, platform, namespace, job_name):
+        super().__init__(platform, namespace, job_name)
+
+    def initilize(self):
+        self.distribution_strategy = DistributionStrategy.LOCAL
+        self.enable_elastic_scheduling = False

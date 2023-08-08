@@ -118,7 +118,6 @@ class WorkerManager(TrainingNodeManager):
                 worker.
             new_node_name_fn: A callable function to generate a node name of
                 worker.
-            use_ddp: bool, whether workers use DDP to train a model.
         """
         super(WorkerManager, self).__init__(worker_nodes, new_node_name_fn)
         self._job_resource = job_resource

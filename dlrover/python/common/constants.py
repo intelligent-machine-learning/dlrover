@@ -21,6 +21,7 @@ class PlatformType(object):
     KUBERNETES = "k8s"
     RAY = "ray"
     PY_KUBERNETES = "pyk8s"
+    LOCAL = "local"
 
 
 class ElasticJobApi(object):
