@@ -86,6 +86,8 @@ class ModelContextTest(unittest.TestCase):
         dataloader.set_epoch(1)
         data_e1 = [data for data in dataloader]
         self.assertNotEqual(data_e0, data_e1)
+        _DistributedContext.PARALLEL_GROUP_SIZE = None
+        _DistributedContext.RANK = None
         atorch.reset_distributed()
 
 
@@ -103,48 +105,6 @@ class ModelContextWrapperTest(unittest.TestCase):
         wrappers = self.context.post_wrappers
         self.assertIn("zero2", wrappers)
         self.assertNotIn("ddp", wrappers)
-
-    def test_adjust_amp_apex_and_ddp_wrapper(self):
-        self.context.add_wrapper("ddp", None, None, is_pre_wrapper=False)
-        self.context.add_wrapper("amp_apex_o2", None, None, is_pre_wrapper=False)
-        self.context.adjust_wrappers()
-        wrapper_names = [name for name, _ in self.context.post_wrappers.items()]
-        ddp_index = wrapper_names.index("ddp")
-        amp_apex_o2_index = wrapper_names.index("amp_apex_o2")
-        self.assertLess(amp_apex_o2_index, ddp_index)
-
-    def test_adjust_amp_apex_and_zero2_wrapper(self):
-        self.context.add_wrapper("zero2", None, None, is_pre_wrapper=False)
-        self.context.add_wrapper("amp_apex_o2", None, None, is_pre_wrapper=False)
-        self.context.adjust_wrappers()
-        wrapper_names = [name for name, _ in self.context.post_wrappers.items()]
-        zero2_index = wrapper_names.index("zero2")
-        amp_apex_o2_index = wrapper_names.index("amp_apex_o2")
-        self.assertLess(amp_apex_o2_index, zero2_index)
-
-    def test_adjust_amp_apex_zero2_ddp_wrapper(self):
-        self.context.add_wrapper("zero2", None, None, is_pre_wrapper=False)
-        self.context.add_wrapper("ddp", None, None, is_pre_wrapper=False)
-        self.context.add_wrapper("opt0", None, None, is_pre_wrapper=False)
-        self.context.add_wrapper("opt1", None, None, is_pre_wrapper=False)
-        self.context.add_wrapper("opt2", None, None, is_pre_wrapper=False)
-        self.context.add_wrapper("amp_apex_o1", None, None, is_pre_wrapper=False)
-        self.context.add_wrapper("opt3", None, None, is_pre_wrapper=False)
-        self.context.adjust_wrappers()
-        wrapper_names = [name for name, _ in self.context.post_wrappers.items()]
-        self.assertNotIn("ddp", wrapper_names)
-        zero_index = wrapper_names.index("zero2")
-        amp_apex_o2_index = wrapper_names.index("amp_apex_o1")
-        wrappers_order = [
-            wrapper_names.index("opt0"),
-            wrapper_names.index("opt1"),
-            wrapper_names.index("opt2"),
-            amp_apex_o2_index,
-            zero_index,
-            wrapper_names.index("opt3"),
-        ]
-        self.assertLess(amp_apex_o2_index, zero_index)
-        self.assertEqual(wrappers_order, [0, 1, 2, 3, 4, 5])
 
     def test_adjust_dynamo_and_fsdp_wrapper(self):
         self.context.add_wrapper("native_dynamo", None, None, is_pre_wrapper=True)

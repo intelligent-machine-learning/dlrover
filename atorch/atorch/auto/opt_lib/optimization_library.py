@@ -1,8 +1,12 @@
-from atorch.auto.opt_lib.amp_optimization import AmpApexO1Optimization, AmpApexO2Optimization, AmpNativeOptimization
+from atorch.auto.opt_lib.amp_optimization import AmpNativeOptimization
 from atorch.auto.opt_lib.checkpoint_optimization import CheckpointOptimization
+from atorch.auto.opt_lib.dynamo_optimization import NativeDynamoOptimization
 from atorch.auto.opt_lib.half_optimization import HalfOptimization
+from atorch.auto.opt_lib.mixed_parallel_optimization import MixedParallelOptimization
 from atorch.auto.opt_lib.module_replace_optimization import ModuleReplaceOptimization
 from atorch.auto.opt_lib.parallel_mode_optimization import ParallelModeOptimization
+from atorch.auto.opt_lib.pipeline_parallel_optimization import PipelineParallelOptimization
+from atorch.auto.opt_lib.tensor_parallel_optimization import TensorParallelOptimization
 from atorch.auto.opt_lib.zero_optimization import FSDPOptimization, Zero1Optimization, Zero2Optimization
 
 SEMIAUTO_STRATEGIES = ("tensor_parallel", "mixed_parallel", "pipeline_parallel")
@@ -32,15 +36,17 @@ class OptimizationLibrary(object):
 
     def register_optimizations(self):
         opt_list = [
-            AmpApexO1Optimization,
-            AmpApexO2Optimization,
             Zero1Optimization,
             Zero2Optimization,
             FSDPOptimization,
             ParallelModeOptimization,
             AmpNativeOptimization,
+            TensorParallelOptimization,
             ModuleReplaceOptimization,
             CheckpointOptimization,
+            NativeDynamoOptimization,
+            PipelineParallelOptimization,
+            MixedParallelOptimization,
             HalfOptimization,
         ]
         for opt in opt_list:

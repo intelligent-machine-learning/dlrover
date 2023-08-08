@@ -47,7 +47,7 @@ class ShardingClient(object):
     Example:
         batch_size = 64
         client = ShardingClient(
-            datset_name="test",
+            dataset_name="test",
             batch_size=batch_size,
             num_epochs=1,
             dataset_size=10000,

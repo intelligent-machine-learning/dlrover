@@ -51,6 +51,14 @@ class AutoAccelerateExtraArgs(Enum):
         return [variable.value for variable in list(cls)]
 
 
+class DataConstants(object):
+    CUSTOM_PROCESS_FN = "custom_process_fn"
+    DFS_KWARGS = "dfs_kwargs"
+    IS_CHUNK = "is_chunk"
+    IS_MEDIABASE = "is_mediabase"
+    JSONL_VERSION = "jsonl_version"
+
+
 class GPUCapability:
     """
     TFLOPS of GPU
@@ -60,3 +68,7 @@ class GPUCapability:
         "FP16": {"NVIDIA A100-SXM4-80GB": 312, "Tesla V100-SXM2-32GB": 125},
         "FP32": {"NVIDIA A100-SXM4-80GB": 19.5, "Tesla V100-SXM2-32GB": 15.7},
     }
+
+
+class MediaBase:
+    MEDIABASE_PREFIX = "mediabase://"

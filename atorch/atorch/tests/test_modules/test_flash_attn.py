@@ -1,0 +1,694 @@
+# coding=utf-8
+from __future__ import absolute_import, unicode_literals
+
+import copy
+import math
+import random
+import unittest
+
+import numpy as np
+import torch
+from torch.cuda.amp import GradScaler
+
+from atorch.modules.transformer.inject import replace_module
+from atorch.modules.transformer.layers import (
+    BertAttentionFA,
+    CLIPAttentionFA,
+    MultiheadAttentionFA,
+    flash_attn_with_mask_bias,
+)
+
+try:
+    from transformers.modeling_bert import BertAttention, BertConfig, BertLayer  # 3.5
+except (ModuleNotFoundError, ImportError):
+    from transformers.models.bert.modeling_bert import BertAttention, BertConfig, BertLayer  # 4.17
+    from transformers.models.clip.modeling_clip import CLIPAttention, CLIPTextConfig, CLIPEncoderLayer
+
+import gc
+import time
+
+from torch.nn import MultiheadAttention, TransformerEncoderLayer
+
+
+def autocast(enabled):
+    # old than torch version 1.9:
+    if hasattr(torch, "autocast"):
+        return torch.autocast("cuda", enabled=enabled)
+    else:  # newer than torch version 1.9:
+        return torch.cuda.amp.autocast(enabled=enabled)
+
+
+# Timing utilities
+start_time = None
+
+
+def start_timer():
+    global start_time
+    gc.collect()
+    torch.cuda.empty_cache()
+    torch.cuda.reset_max_memory_allocated()
+    torch.cuda.synchronize()
+    start_time = time.time()
+
+
+def end_timer_and_print(local_msg):
+    torch.cuda.synchronize()
+    end_time = time.time()
+    print("\n" + local_msg)
+    print("Total execution time = {:.3f} ms".format((end_time - start_time) * 1000))
+    print("Max memory used by tensors = {} MB".format(torch.cuda.max_memory_allocated() / 1024.0 / 1024.0))
+    return end_time - start_time, torch.cuda.max_memory_allocated()
+
+
+def generate_random_padding_mask(max_seqlen, batch_size, device, mode="random"):
+    assert mode in ["full", "random", "third", "split"]
+    if mode == "full":
+        lengths = torch.full((batch_size, 1), max_seqlen, device=device, dtype=torch.int32)
+    elif mode == "random":
+        lengths = torch.randint(max(1, max_seqlen - 20), max_seqlen + 1, (batch_size, 1), device=device)
+    elif mode == "third":
+        lengths = torch.randint(max_seqlen // 3, max_seqlen + 1, (batch_size, 1), device=device)
+    elif mode == "split":
+        lengths0 = torch.randint(min(128, max_seqlen), max_seqlen + 1, (batch_size // 4 * 3, 1), device=device)
+        lengths1 = torch.randint(
+            min(max(1, max_seqlen - 20), 128),
+            min(max_seqlen, 128) + 1,
+            (batch_size - batch_size // 4 * 3, 1),
+            device=device,
+        )
+        lengths = torch.cat([lengths0, lengths1], dim=0)
+    padding_mask = torch.arange(max_seqlen, device=device).expand(batch_size, max_seqlen) < lengths
+    return padding_mask
+
+
+@unittest.skipIf(not torch.cuda.is_available(), "cuda is not available")
+class TestFlashAttn(unittest.TestCase):
+
+    seed = 1234
+
+    def setUp(self):
+        random.seed(self.seed)
+        np.random.seed(self.seed)
+        torch.manual_seed(self.seed)
+        torch.cuda.manual_seed(self.seed)
+        torch.backends.cudnn.set_flags(_benchmark=False, _deterministic=True)
+
+    def assertTensorEqual(self, tensor0, tensor1):
+        self.assertListEqual(list(tensor0.shape), list(tensor1.shape))
+        self.assertEqual(tensor0.dtype, tensor1.dtype)
+        self.assertFalse(bool(torch.any(torch.isnan(tensor0))))
+        self.assertFalse(bool(torch.any(torch.isnan(tensor1))))
+        allclose = torch.allclose(tensor0, tensor1, atol=1e-2, rtol=1e-2)
+        abs_delta = torch.sum(torch.abs(tensor0 - tensor1))
+        max_delta = torch.max(torch.abs(tensor0 - tensor1))
+        self.assertTrue(
+            allclose,
+            msg="tensor not allclose abs=%.4f max=%.4f" % (abs_delta, max_delta),
+        )
+
+    def assertStateDictEqual(self, sd0, sd1):
+        for key, value in sd0.items():
+            if isinstance(value, dict):
+                self.assertStateDictEqual(value, sd1[key])
+            else:
+                with self.subTest("StateDict", key=key):
+                    self.assertTensorEqual(value, sd1[key])
+
+    def test_flash_attn(self):
+        for batch_size in [4, 16, 22]:
+            for seq_q in [512, 513]:  # test odd seq len
+                for seq_k in [512, 513]:
+                    self._test_flash_attn_with_mask_bias(batch_size, seq_q, seq_k)
+        for batch_size in [1, 4, 16]:
+            for seq_len in [32, 128, 512, 1024]:
+                self._test_HF_clip_autocast(batch_size, seq_len)
+        for batch_size in [1, 4, 16]:
+            for seq_len in [32, 128, 512, 1024]:
+                self._test_HF_bert_autocast(batch_size, seq_len)
+        for batch_size in [1, 4, 16]:
+            for seq_len in [32, 128, 512, 1024]:
+                self._test_nnMHA_autocast(batch_size, seq_len)
+
+    def _test_flash_attn_with_mask_bias(self, b, s_q, s_k):
+        print(f"############## test_flash_attn_with_mask_bias, bs: {b}, seq_q: {s_q}, seq_k: {s_k}")
+        nh, hs = 32, 64
+        q = torch.randn((b, s_q, nh, hs)).to(0)
+        k = torch.randn((b, s_k, nh, hs)).to(0)
+        v = torch.randn((b, s_k, nh, hs)).to(0)
+        bool_m = (torch.randn((b, 1, s_q, s_k)) > 0).float().to(0)
+        float_m = (-65504.0) * (1.0 - bool_m)
+        q.requires_grad = True
+        k.requires_grad = True
+        v.requires_grad = True
+        q_copy, k_copy, v_copy = [copy.deepcopy(i) for i in [q, k, v]]
+        q_fa, k_fa, v_fa = [copy.deepcopy(i) for i in [q, k, v]]
+        label = torch.randn((b, s_q, nh, hs)).to(0)
+
+        def ref_attn(q, k, v, bool_m=None):  # ref to glm
+            q = q.permute(0, 2, 1, 3)  # [b, nh, s_q, hs]
+            k = k.permute(0, 2, 1, 3)
+            v = v.permute(0, 2, 1, 3)
+            attention_scores = torch.matmul(q, k.transpose(-1, -2) / math.sqrt(hs))
+            if bool_m is not None:
+                attention_scores = torch.mul(attention_scores, bool_m)
+                attention_scores = attention_scores + (-65504.0) * (1.0 - bool_m)
+            attention_probs = torch.nn.Softmax(dim=-1)(attention_scores)
+            # ignore dropout
+            context_layer = torch.matmul(attention_probs, v)
+            context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
+            return context_layer
+
+        ori_out_fp32 = ref_attn(q, k, v, bool_m)
+        (ori_out_fp32 - label).pow(2).mean().backward()
+        scaler = GradScaler()
+        with autocast(enabled=True):
+            ori_out_autocast = ref_attn(q_copy, k_copy, v_copy, bool_m)
+
+        scaler.scale((ori_out_autocast.float() - label).pow(2).mean()).backward()
+        fa_out_autocast = flash_attn_with_mask_bias(q_fa.half(), k_fa.half(), v_fa.half(), float_m.half())
+        scaler.scale((fa_out_autocast.float() - label).pow(2).mean()).backward()
+
+        print(f"Original output max diff: {(ori_out_fp32 - ori_out_autocast).abs().max().item()}")
+        print(f"Original output mean diff: {(ori_out_fp32 - ori_out_autocast).abs().mean().item()}")
+        print(f"FA output max diff: {(ori_out_fp32 - fa_out_autocast).abs().max().item()}")
+        print(f"FA output mean diff: {(ori_out_fp32 - fa_out_autocast).abs().mean().item()}")
+        assert (ori_out_fp32 - fa_out_autocast).abs().max().item() <= 2 * (
+            (ori_out_fp32 - ori_out_autocast).abs().max().item()
+        ), "refer to flash attn, ensure absolute error within two times of original autocast"
+
+        q_grad, k_grad, v_grad = [i.grad * scaler._scale for i in [q, k, v]]
+        print(f"Original q grad max diff: {(q_grad - q_copy.grad).abs().max().item()}")
+        print(f"Original k grad max diff: {(k_grad - k_copy.grad).abs().max().item()}")
+        print(f"Original v grad max diff: {(v_grad - v_copy.grad).abs().max().item()}")
+        print(f"Original q grad mean diff: {(q_grad - q_copy.grad).abs().mean().item()}")
+        print(f"Original k grad mean diff: {(k_grad - k_copy.grad).abs().mean().item()}")
+        print(f"Original v grad mean diff: {(v_grad - v_copy.grad).abs().mean().item()}")
+        print(f"FA q grad max diff: {(q_grad - q_fa.grad).abs().max().item()}")
+        print(f"FA k grad max diff: {(k_grad - k_fa.grad).abs().max().item()}")
+        print(f"FA v grad max diff: {(v_grad - v_fa.grad).abs().max().item()}")
+        print(f"FA q grad mean diff: {(q_grad - q_fa.grad).abs().mean().item()}")
+        print(f"FA k grad mean diff: {(k_grad - k_fa.grad).abs().mean().item()}")
+        print(f"FA v grad mean diff: {(v_grad - v_fa.grad).abs().mean().item()}")
+        assert (q_grad - q_fa.grad).abs().max().item() <= 2 * (
+            q_grad - q_copy.grad
+        ).abs().max().item(), "refer to flash attn, ensure absolute error within two times of original autocast"
+        assert (k_grad - k_fa.grad).abs().max().item() <= 2 * (
+            k_grad - k_copy.grad
+        ).abs().max().item(), "refer to flash attn, ensure absolute error within two times of original autocast"
+        assert (v_grad - v_fa.grad).abs().max().item() <= 2 * (
+            v_grad - v_copy.grad
+        ).abs().max().item(), "refer to flash attn, ensure absolute error within two times of original autocast"
+
+        # timer comparison
+        # ori fp32
+        for _ in range(10):
+            ori_out_fp32 = ref_attn(q, k, v, bool_m)
+            (ori_out_fp32 - label).pow(2).mean().backward()
+        start_timer()
+        for _ in range(10):
+            ori_out_fp32 = ref_attn(q, k, v, bool_m)
+            (ori_out_fp32 - label).pow(2).mean().backward()
+        ori_fp32_time, ori_fp32_mem = end_timer_and_print("ori fp32")
+        # ori autocast
+        for _ in range(10):
+            with autocast(enabled=True):
+                ori_out_autocast = ref_attn(q_copy, k_copy, v_copy, bool_m)
+            scaler.scale((ori_out_autocast.float() - label).pow(2).mean()).backward()
+        start_timer()
+        for _ in range(10):
+            with autocast(enabled=True):
+                ori_out_autocast = ref_attn(q_copy, k_copy, v_copy, bool_m)
+            scaler.scale((ori_out_autocast.float() - label).pow(2).mean()).backward()
+        ori_autocast_time, ori_autocast_mem = end_timer_and_print("ori autocast")
+        # fa autocast
+        for _ in range(10):
+            fa_out_autocast = flash_attn_with_mask_bias(q_fa.half(), k_fa.half(), v_fa.half(), float_m.half())
+            scaler.scale((fa_out_autocast.float() - label).pow(2).mean()).backward()
+        start_timer()
+        for _ in range(10):
+            fa_out_autocast = flash_attn_with_mask_bias(q_fa.half(), k_fa.half(), v_fa.half(), float_m.half())
+            scaler.scale((fa_out_autocast.float() - label).pow(2).mean()).backward()
+        fa_autocast_time, fa_autocast_mem = end_timer_and_print("fa autocast")
+        print(
+            f"fa autocast time: {fa_autocast_time / ori_fp32_time :.2%} of ori fp32, "
+            f"{fa_autocast_time / ori_autocast_time :.2%} of ori autocast."
+        )
+        print(
+            f"fa autocast mem: {fa_autocast_mem / ori_fp32_mem :.2%} of ori fp32, "
+            f"{fa_autocast_mem / ori_autocast_mem :.2%} of ori autocast."
+        )
+
+    def _test_HF_clip_autocast(self, batch_size, seq_len):
+        print(f"############## HF_clip autocast, bs: {batch_size}, seq_len: {seq_len}")
+        device = torch.cuda.current_device()
+        torch.cuda.set_device(device)
+        dtype = torch.float32
+        config = CLIPTextConfig(attention_dropout=0.0)
+        hidden_state = torch.randn(
+            batch_size,
+            seq_len,
+            config.hidden_size,
+            dtype=dtype,
+            device=device,
+            requires_grad=True,
+        )
+        mask = generate_random_padding_mask(seq_len, batch_size, device=device, mode="random")
+        _mask = copy.deepcopy(mask)
+        mask = (
+            torch.zeros_like(mask)
+            .to(dtype)
+            .masked_fill_(~mask, float("-inf"))
+            .unsqueeze(1)
+            .unsqueeze(1)
+            .repeat(1, 1, mask.shape[-1], 1)
+        )
+        randn_label = torch.randn_like(hidden_state)
+        ori_layer = CLIPEncoderLayer(config)
+        fa_layer = copy.deepcopy(ori_layer)
+        ori_layer_copy = copy.deepcopy(ori_layer)
+        fa_layer = replace_module(fa_layer, CLIPAttention, CLIPAttentionFA, config=config, need_src_module=True)
+        ori_layer.to(device)
+        fa_layer.to(device)
+        ori_layer_copy.to(device)
+        self.assertStateDictEqual(ori_layer.state_dict(), CLIPAttentionFA.transform_state_dict(fa_layer.state_dict()))
+
+        ori_out_fp32 = ori_layer(hidden_state, mask, None)[0]
+        (ori_out_fp32 - randn_label)[_mask].pow(2).mean().backward()
+        with autocast(enabled=True):
+            ori_out_autocast = ori_layer_copy(hidden_state, mask, None)[0]
+            fa_out_autocast = fa_layer(hidden_state, mask, None)[0]
+        scaler = GradScaler()
+        scaler.scale((ori_out_autocast.to(dtype) - randn_label)[_mask].pow(2).mean()).backward()
+        scaler.scale((fa_out_autocast.to(dtype) - randn_label)[_mask].pow(2).mean()).backward()
+
+        print(f"Original output max diff: {(ori_out_fp32 - ori_out_autocast)[_mask].abs().max().item()}")
+        print(f"Original output mean diff: {(ori_out_fp32 - ori_out_autocast)[_mask].abs().mean().item()}")
+        print(f"FA output max diff: {(ori_out_fp32 - fa_out_autocast)[_mask].abs().max().item()}")
+        print(f"FA output mean diff: {(ori_out_fp32 - fa_out_autocast)[_mask].abs().mean().item()}")
+        assert (ori_out_fp32 - fa_out_autocast)[_mask].abs().max().item() <= 2 * (
+            (ori_out_fp32 - ori_out_autocast)[_mask].abs().max().item()
+        ), "refer to flash attn, ensure absolute error within two times of original autocast"
+
+        # grad comparison on Wqkv
+        ori_Wqkv_weight_grad_fp32 = torch.cat(
+            [
+                ori_layer.self_attn.q_proj.weight.grad,
+                ori_layer.self_attn.k_proj.weight.grad,
+                ori_layer.self_attn.v_proj.weight.grad,
+            ]
+        )
+        ori_Wqkv_bias_grad_fp32 = torch.cat(
+            [
+                ori_layer.self_attn.q_proj.bias.grad,
+                ori_layer.self_attn.k_proj.bias.grad,
+                ori_layer.self_attn.v_proj.bias.grad,
+            ]
+        )
+        ori_Wqkv_weight_grad_autocast = torch.cat(
+            [
+                ori_layer_copy.self_attn.q_proj.weight.grad,
+                ori_layer_copy.self_attn.k_proj.weight.grad,
+                ori_layer_copy.self_attn.v_proj.weight.grad,
+            ]
+        )
+        ori_Wqkv_bias_grad_autocast = torch.cat(
+            [
+                ori_layer_copy.self_attn.q_proj.bias.grad,
+                ori_layer_copy.self_attn.k_proj.bias.grad,
+                ori_layer_copy.self_attn.v_proj.bias.grad,
+            ]
+        )
+        fa_Wqkv_weight_grad_autocast = fa_layer.self_attn.Wqkv.weight.grad
+        fa_Wqkv_bias_grad_autocast = fa_layer.self_attn.Wqkv.bias.grad
+        ori_Wqkv_weight_grad_fp32 *= scaler._scale
+        ori_Wqkv_bias_grad_fp32 *= scaler._scale
+        print(
+            f"Original weight grad max diff: "
+            f"{(ori_Wqkv_weight_grad_fp32 - ori_Wqkv_weight_grad_autocast).abs().max().item()}"
+        )
+        print(
+            f"Original weight grad mean diff: "
+            f"{(ori_Wqkv_weight_grad_fp32 - ori_Wqkv_weight_grad_autocast).abs().mean().item()}"
+        )
+        print(
+            f"FA weight grad max diff: "
+            f"{(ori_Wqkv_weight_grad_fp32 - fa_Wqkv_weight_grad_autocast).abs().max().item()}"
+        )
+        print(
+            f"FA weight grad mean diff: "
+            f"{(ori_Wqkv_weight_grad_fp32 - fa_Wqkv_weight_grad_autocast).abs().mean().item()}"
+        )
+        assert (ori_Wqkv_weight_grad_fp32 - fa_Wqkv_weight_grad_autocast).abs().max().item() <= 2 * (
+            (ori_Wqkv_weight_grad_fp32 - ori_Wqkv_weight_grad_autocast).abs().max().item()
+        ), "refer to flash attn, ensure absolute error within two times of original autocast"
+        print(
+            f"Original bias grad max diff: "
+            f"{(ori_Wqkv_bias_grad_fp32 - ori_Wqkv_bias_grad_autocast).abs().max().item()}"
+        )
+        print(
+            f"Original bias grad mean diff: "
+            f"{(ori_Wqkv_bias_grad_fp32 - ori_Wqkv_bias_grad_autocast).abs().mean().item()}"
+        )
+        print(f"FA bias grad max diff: " f"{(ori_Wqkv_bias_grad_fp32 - fa_Wqkv_bias_grad_autocast).abs().max().item()}")
+        print(
+            f"FA bias grad mean diff: " f"{(ori_Wqkv_bias_grad_fp32 - fa_Wqkv_bias_grad_autocast).abs().mean().item()}"
+        )
+        assert (ori_Wqkv_bias_grad_fp32 - fa_Wqkv_bias_grad_autocast).abs().max().item() <= 2 * (
+            (ori_Wqkv_bias_grad_fp32 - ori_Wqkv_bias_grad_autocast).abs().max().item()
+        ), "refer to flash attn, ensure absolute error within two times of original autocast"
+
+        # timer comparison
+        # ori fp32
+        for _ in range(10):
+            ori_out_fp32 = ori_layer(hidden_state, mask, None)[0]
+            (ori_out_fp32 - randn_label)[_mask].pow(2).mean().backward()
+        start_timer()
+        for _ in range(10):
+            ori_out_fp32 = ori_layer(hidden_state, mask, None)[0]
+            (ori_out_fp32 - randn_label)[_mask].pow(2).mean().backward()
+        ori_fp32_time, ori_fp32_mem = end_timer_and_print("ori fp32")
+        # ori autocast
+        for _ in range(10):
+            with autocast(enabled=True):
+                ori_out_autocast = ori_layer_copy(hidden_state, mask, None)[0]
+            scaler.scale((ori_out_autocast.to(dtype) - randn_label)[_mask].pow(2).mean()).backward()
+        start_timer()
+        for _ in range(10):
+            with autocast(enabled=True):
+                ori_out_autocast = ori_layer_copy(hidden_state, mask, None)[0]
+            scaler.scale((ori_out_autocast.to(dtype) - randn_label)[_mask].pow(2).mean()).backward()
+        ori_autocast_time, ori_autocast_mem = end_timer_and_print("ori autocast")
+        # fa autocast
+        for _ in range(10):
+            with autocast(enabled=True):
+                fa_out_autocast = fa_layer(hidden_state, mask, None)[0]
+            scaler.scale((fa_out_autocast.to(dtype) - randn_label)[_mask].pow(2).mean()).backward()
+        start_timer()
+        for _ in range(10):
+            with autocast(enabled=True):
+                fa_out_autocast = fa_layer(hidden_state, mask, None)[0]
+            scaler.scale((fa_out_autocast.to(dtype) - randn_label)[_mask].pow(2).mean()).backward()
+        fa_autocast_time, fa_autocast_mem = end_timer_and_print("fa autocast")
+        print(
+            f"fa autocast time: {fa_autocast_time / ori_fp32_time :.2%} of ori fp32, "
+            f"{fa_autocast_time / ori_autocast_time :.2%} of ori autocast."
+        )
+        print(
+            f"fa autocast mem: {fa_autocast_mem / ori_fp32_mem :.2%} of ori fp32, "
+            f"{fa_autocast_mem / ori_autocast_mem :.2%} of ori autocast."
+        )
+
+    def _test_HF_bert_autocast(self, batch_size, seq_len):
+        print(f"############## HF_bert autocast, bs: {batch_size}, seq_len: {seq_len}")
+        device = torch.cuda.current_device()
+        torch.cuda.set_device(device)
+        dtype = torch.float32
+        config = BertConfig(hidden_dropout_prob=0.0, attention_probs_dropout_prob=0.0)
+        hidden_state = torch.randn(
+            batch_size,
+            seq_len,
+            config.hidden_size,
+            dtype=dtype,
+            device=device,
+            requires_grad=True,
+        )
+        mask = generate_random_padding_mask(seq_len, batch_size, device=device, mode="random")
+        _mask = copy.deepcopy(mask)
+        mask = torch.zeros_like(mask).to(dtype).masked_fill_(~mask, float("-inf")).unsqueeze(1).unsqueeze(1)
+        randn_label = torch.randn_like(hidden_state)
+        ori_layer = BertLayer(config)
+        fa_layer = copy.deepcopy(ori_layer)
+        ori_layer_copy = copy.deepcopy(ori_layer)
+        fa_layer = replace_module(fa_layer, BertAttention, BertAttentionFA, config=config, need_src_module=True)
+        ori_layer.to(device)
+        fa_layer.to(device)
+        ori_layer_copy.to(device)
+        self.assertStateDictEqual(ori_layer.state_dict(), BertAttentionFA.transform_state_dict(fa_layer.state_dict()))
+
+        ori_out_fp32 = ori_layer(hidden_state, mask)[0]
+        (ori_out_fp32 - randn_label)[_mask].pow(2).mean().backward()
+        with autocast(enabled=True):
+            ori_out_autocast = ori_layer_copy(hidden_state, mask)[0]
+            fa_out_autocast = fa_layer(hidden_state, mask)[0]
+        scaler = GradScaler()
+        scaler.scale((ori_out_autocast.to(dtype) - randn_label)[_mask].pow(2).mean()).backward()
+        scaler.scale((fa_out_autocast.to(dtype) - randn_label)[_mask].pow(2).mean()).backward()
+
+        # flash output zero on pad mask, while original bert remain values on mask.
+        print(f"Original output max diff: {(ori_out_fp32 - ori_out_autocast)[_mask].abs().max().item()}")
+        print(f"Original output mean diff: {(ori_out_fp32 - ori_out_autocast)[_mask].abs().mean().item()}")
+        print(f"FA output max diff: {(ori_out_fp32 - fa_out_autocast)[_mask].abs().max().item()}")
+        print(f"FA output mean diff: {(ori_out_fp32 - fa_out_autocast)[_mask].abs().mean().item()}")
+        assert (ori_out_fp32 - fa_out_autocast)[_mask].abs().max().item() <= 2 * (
+            (ori_out_fp32 - ori_out_autocast)[_mask].abs().max().item()
+        ), "refer to flash attn, ensure absolute error within two times of original autocast"
+
+        # grad comparison on Wqkv
+        ori_Wqkv_weight_grad_fp32 = torch.cat(
+            [
+                ori_layer.attention.self.query.weight.grad,
+                ori_layer.attention.self.key.weight.grad,
+                ori_layer.attention.self.value.weight.grad,
+            ]
+        )
+        ori_Wqkv_bias_grad_fp32 = torch.cat(
+            [
+                ori_layer.attention.self.query.bias.grad,
+                ori_layer.attention.self.key.bias.grad,
+                ori_layer.attention.self.value.bias.grad,
+            ]
+        )
+        ori_Wqkv_weight_grad_autocast = torch.cat(
+            [
+                ori_layer_copy.attention.self.query.weight.grad,
+                ori_layer_copy.attention.self.key.weight.grad,
+                ori_layer_copy.attention.self.value.weight.grad,
+            ]
+        )
+        ori_Wqkv_bias_grad_autocast = torch.cat(
+            [
+                ori_layer_copy.attention.self.query.bias.grad,
+                ori_layer_copy.attention.self.key.bias.grad,
+                ori_layer_copy.attention.self.value.bias.grad,
+            ]
+        )
+        fa_Wqkv_weight_grad_autocast = fa_layer.attention.Wqkv.weight.grad
+        fa_Wqkv_bias_grad_autocast = fa_layer.attention.Wqkv.bias.grad
+        ori_Wqkv_weight_grad_fp32 *= scaler._scale
+        ori_Wqkv_bias_grad_fp32 *= scaler._scale
+        print(
+            f"Original weight grad max diff: "
+            f"{(ori_Wqkv_weight_grad_fp32 - ori_Wqkv_weight_grad_autocast).abs().max().item()}"
+        )
+        print(
+            f"Original weight grad mean diff: "
+            f"{(ori_Wqkv_weight_grad_fp32 - ori_Wqkv_weight_grad_autocast).abs().mean().item()}"
+        )
+        print(
+            f"FA weight grad max diff: "
+            f"{(ori_Wqkv_weight_grad_fp32 - fa_Wqkv_weight_grad_autocast).abs().max().item()}"
+        )
+        print(
+            f"FA weight grad mean diff: "
+            f"{(ori_Wqkv_weight_grad_fp32 - fa_Wqkv_weight_grad_autocast).abs().mean().item()}"
+        )
+        assert (ori_Wqkv_weight_grad_fp32 - fa_Wqkv_weight_grad_autocast).abs().max().item() <= 2 * (
+            (ori_Wqkv_weight_grad_fp32 - ori_Wqkv_weight_grad_autocast).abs().max().item()
+        ), "refer to flash attn, ensure absolute error within two times of original autocast"
+        print(
+            f"Original bias grad max diff: "
+            f"{(ori_Wqkv_bias_grad_fp32 - ori_Wqkv_bias_grad_autocast).abs().max().item()}"
+        )
+        print(
+            f"Original bias grad mean diff: "
+            f"{(ori_Wqkv_bias_grad_fp32 - ori_Wqkv_bias_grad_autocast).abs().mean().item()}"
+        )
+        print(f"FA bias grad max diff: " f"{(ori_Wqkv_bias_grad_fp32 - fa_Wqkv_bias_grad_autocast).abs().max().item()}")
+        print(
+            f"FA bias grad mean diff: " f"{(ori_Wqkv_bias_grad_fp32 - fa_Wqkv_bias_grad_autocast).abs().mean().item()}"
+        )
+        assert (ori_Wqkv_bias_grad_fp32 - fa_Wqkv_bias_grad_autocast).abs().max().item() <= 2 * (
+            (ori_Wqkv_bias_grad_fp32 - ori_Wqkv_bias_grad_autocast).abs().max().item()
+        ), "refer to flash attn, ensure absolute error within two times of original autocast"
+
+        # timer comparison
+        # ori fp32
+        for _ in range(10):
+            ori_out_fp32 = ori_layer(hidden_state, mask)[0]
+            (ori_out_fp32 - randn_label)[_mask].pow(2).mean().backward()
+        start_timer()
+        for _ in range(10):
+            ori_out_fp32 = ori_layer(hidden_state, mask)[0]
+            (ori_out_fp32 - randn_label)[_mask].pow(2).mean().backward()
+        ori_fp32_time, ori_fp32_mem = end_timer_and_print("ori fp32")
+        # ori autocast
+        for _ in range(10):
+            with autocast(enabled=True):
+                ori_out_autocast = ori_layer_copy(hidden_state, mask)[0]
+            scaler.scale((ori_out_autocast.to(dtype) - randn_label)[_mask].pow(2).mean()).backward()
+        start_timer()
+        for _ in range(10):
+            with autocast(enabled=True):
+                ori_out_autocast = ori_layer_copy(hidden_state, mask)[0]
+            scaler.scale((ori_out_autocast.to(dtype) - randn_label)[_mask].pow(2).mean()).backward()
+        ori_autocast_time, ori_autocast_mem = end_timer_and_print("ori autocast")
+        # fa autocast
+        for _ in range(10):
+            with autocast(enabled=True):
+                fa_out_autocast = fa_layer(hidden_state, mask)[0]
+            scaler.scale((fa_out_autocast.to(dtype) - randn_label)[_mask].pow(2).mean()).backward()
+        start_timer()
+        for _ in range(10):
+            with autocast(enabled=True):
+                fa_out_autocast = fa_layer(hidden_state, mask)[0]
+            scaler.scale((fa_out_autocast.to(dtype) - randn_label)[_mask].pow(2).mean()).backward()
+        fa_autocast_time, fa_autocast_mem = end_timer_and_print("fa autocast")
+        print(
+            f"fa autocast time: {fa_autocast_time / ori_fp32_time :.2%} of ori fp32, "
+            f"{fa_autocast_time / ori_autocast_time :.2%} of ori autocast."
+        )
+        print(
+            f"fa autocast mem: {fa_autocast_mem / ori_fp32_mem :.2%} of ori fp32, "
+            f"{fa_autocast_mem / ori_autocast_mem :.2%} of ori autocast."
+        )
+
+    def _test_nnMHA_autocast(self, batch_size, seq_len):
+        print(f"############## nnMHA autocast, bs: {batch_size}, seq_len: {seq_len}")
+        device = torch.cuda.current_device()
+        torch.cuda.set_device(device)
+        dtype = torch.float32
+        config = BertConfig(hidden_dropout_prob=0.0, attention_probs_dropout_prob=0.0)  # use HFBert default setting
+        hidden_state = torch.randn(
+            seq_len,  # torch Transformer default batch_first=False
+            batch_size,
+            config.hidden_size,
+            dtype=dtype,
+            device=device,
+            requires_grad=True,
+        )
+        mask = generate_random_padding_mask(seq_len, batch_size, device=device, mode="random")
+        _mask = copy.deepcopy(mask).transpose(0, 1)  # [seq_len, bs]
+        mask = ~mask  # torch Transformer key_padding_mask use 'True' for padded positions
+        randn_label = torch.randn_like(hidden_state)
+        ori_layer = TransformerEncoderLayer(
+            config.hidden_size,
+            config.num_attention_heads,
+            dim_feedforward=config.intermediate_size,
+            dropout=config.hidden_dropout_prob,
+        )
+        fa_layer = copy.deepcopy(ori_layer)
+        ori_layer_copy = copy.deepcopy(ori_layer)
+        fa_layer = replace_module(fa_layer, MultiheadAttention, MultiheadAttentionFA, need_src_module=True)
+        ori_layer.to(device)
+        fa_layer.to(device)
+        ori_layer_copy.to(device)
+        self.assertStateDictEqual(
+            ori_layer.state_dict(), MultiheadAttentionFA.transform_state_dict(fa_layer.state_dict())
+        )
+
+        ori_out_fp32 = ori_layer(hidden_state, None, mask)
+        (ori_out_fp32 - randn_label)[_mask].pow(2).mean().backward()
+        with autocast(enabled=True):
+            ori_out_autocast = ori_layer_copy(hidden_state, None, mask)
+            fa_out_autocast = fa_layer(hidden_state, None, mask)
+        scaler = GradScaler()
+        scaler.scale((ori_out_autocast.to(dtype) - randn_label)[_mask].pow(2).mean()).backward()
+        scaler.scale((fa_out_autocast.to(dtype) - randn_label)[_mask].pow(2).mean()).backward()
+
+        # flash output zero on pad mask, while original bert remain values on mask.
+        print(f"Original output max diff: {(ori_out_fp32 - ori_out_autocast)[_mask].abs().max().item()}")
+        print(f"Original output mean diff: {(ori_out_fp32 - ori_out_autocast)[_mask].abs().mean().item()}")
+        print(f"FA output max diff: {(ori_out_fp32 - fa_out_autocast)[_mask].abs().max().item()}")
+        print(f"FA output mean diff: {(ori_out_fp32 - fa_out_autocast)[_mask].abs().mean().item()}")
+        assert (ori_out_fp32 - fa_out_autocast)[_mask].abs().max().item() <= 2 * (
+            (ori_out_fp32 - ori_out_autocast)[_mask].abs().max().item()
+        ), "refer to flash attn, ensure absolute error within two times of original autocast"
+
+        # grad comparison on Wqkv
+        ori_Wqkv_weight_grad_fp32 = ori_layer.self_attn.in_proj_weight.grad
+        ori_Wqkv_bias_grad_fp32 = ori_layer.self_attn.in_proj_bias.grad
+        ori_Wqkv_weight_grad_autocast = ori_layer_copy.self_attn.in_proj_weight.grad
+        ori_Wqkv_bias_grad_autocast = ori_layer_copy.self_attn.in_proj_bias.grad
+        fa_Wqkv_weight_grad_autocast = fa_layer.self_attn.Wqkv.weight.grad
+        fa_Wqkv_bias_grad_autocast = fa_layer.self_attn.Wqkv.bias.grad
+        ori_Wqkv_weight_grad_fp32 *= scaler._scale
+        ori_Wqkv_bias_grad_fp32 *= scaler._scale
+        print(
+            f"Original weight grad max diff: "
+            f"{(ori_Wqkv_weight_grad_fp32 - ori_Wqkv_weight_grad_autocast).abs().max().item()}"
+        )
+        print(
+            f"Original weight grad mean diff: "
+            f"{(ori_Wqkv_weight_grad_fp32 - ori_Wqkv_weight_grad_autocast).abs().mean().item()}"
+        )
+        print(
+            f"FA weight grad max diff: "
+            f"{(ori_Wqkv_weight_grad_fp32 - fa_Wqkv_weight_grad_autocast).abs().max().item()}"
+        )
+        print(
+            f"FA weight grad mean diff: "
+            f"{(ori_Wqkv_weight_grad_fp32 - fa_Wqkv_weight_grad_autocast).abs().mean().item()}"
+        )
+        assert (ori_Wqkv_weight_grad_fp32 - fa_Wqkv_weight_grad_autocast).abs().max().item() <= 2 * (
+            (ori_Wqkv_weight_grad_fp32 - ori_Wqkv_weight_grad_autocast).abs().max().item()
+        ), "refer to flash attn, ensure absolute error within two times of original autocast"
+        print(
+            f"Original bias grad max diff: "
+            f"{(ori_Wqkv_bias_grad_fp32 - ori_Wqkv_bias_grad_autocast).abs().max().item()}"
+        )
+        print(
+            f"Original bias grad mean diff: "
+            f"{(ori_Wqkv_bias_grad_fp32 - ori_Wqkv_bias_grad_autocast).abs().mean().item()}"
+        )
+        print(f"FA bias grad max diff: " f"{(ori_Wqkv_bias_grad_fp32 - fa_Wqkv_bias_grad_autocast).abs().max().item()}")
+        print(
+            f"FA bias grad mean diff: " f"{(ori_Wqkv_bias_grad_fp32 - fa_Wqkv_bias_grad_autocast).abs().mean().item()}"
+        )
+        assert (ori_Wqkv_bias_grad_fp32 - fa_Wqkv_bias_grad_autocast).abs().max().item() <= 2 * (
+            (ori_Wqkv_bias_grad_fp32 - ori_Wqkv_bias_grad_autocast).abs().max().item()
+        ), "refer to flash attn, ensure absolute error within two times of original autocast"
+
+        # timer comparison
+        # ori fp32
+        for _ in range(10):
+            ori_out_fp32 = ori_layer(hidden_state, None, mask)
+            (ori_out_fp32 - randn_label)[_mask].pow(2).mean().backward()
+        start_timer()
+        for _ in range(10):
+            ori_out_fp32 = ori_layer(hidden_state, None, mask)
+            (ori_out_fp32 - randn_label)[_mask].pow(2).mean().backward()
+        ori_fp32_time, ori_fp32_mem = end_timer_and_print("ori fp32")
+        # ori autocast
+        for _ in range(10):
+            with autocast(enabled=True):
+                ori_out_autocast = ori_layer_copy(hidden_state, None, mask)
+            scaler.scale((ori_out_autocast.to(dtype) - randn_label)[_mask].pow(2).mean()).backward()
+        start_timer()
+        for _ in range(10):
+            with autocast(enabled=True):
+                ori_out_autocast = ori_layer_copy(hidden_state, None, mask)
+            scaler.scale((ori_out_autocast.to(dtype) - randn_label)[_mask].pow(2).mean()).backward()
+        ori_autocast_time, ori_autocast_mem = end_timer_and_print("ori autocast")
+        # fa autocast
+        for _ in range(10):
+            with autocast(enabled=True):
+                fa_out_autocast = fa_layer(hidden_state, None, mask)
+            scaler.scale((fa_out_autocast.to(dtype) - randn_label)[_mask].pow(2).mean()).backward()
+        start_timer()
+        for _ in range(10):
+            with autocast(enabled=True):
+                fa_out_autocast = fa_layer(hidden_state, None, mask)
+            scaler.scale((fa_out_autocast.to(dtype) - randn_label)[_mask].pow(2).mean()).backward()
+        fa_autocast_time, fa_autocast_mem = end_timer_and_print("fa autocast")
+        print(
+            f"fa autocast time: {fa_autocast_time / ori_fp32_time :.2%} of ori fp32, "
+            f"{fa_autocast_time / ori_autocast_time :.2%} of ori autocast."
+        )
+        print(
+            f"fa autocast mem: {fa_autocast_mem / ori_fp32_mem :.2%} of ori fp32, "
+            f"{fa_autocast_mem / ori_autocast_mem :.2%} of ori autocast."
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()

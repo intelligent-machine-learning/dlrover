@@ -13,8 +13,8 @@
 
 from dlrover.python.common.constants import PlatformType
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.scheduler.job import LocalJobArgs
 from dlrover.python.scheduler.kubernetes import K8sElasticJob, K8sJobArgs
-from dlrover.python.scheduler.ray import RayElasticJob, RayJobArgs
 
 
 def new_elastic_job(platform, job_name, namespace):
@@ -22,6 +22,8 @@ def new_elastic_job(platform, job_name, namespace):
     if platform in (PlatformType.KUBERNETES, PlatformType.PY_KUBERNETES):
         return K8sElasticJob(job_name, namespace)
     elif platform in (PlatformType.RAY):
+        from dlrover.python.scheduler.ray import RayElasticJob
+
         return RayElasticJob(job_name, namespace)
     else:
         raise ValueError("Not support engine %s", platform)
@@ -31,7 +33,11 @@ def new_job_args(platform, job_name, namespace):
     logger.info("New %s JobParameters", platform)
     if platform in (PlatformType.KUBERNETES, PlatformType.PY_KUBERNETES):
         return K8sJobArgs(platform, namespace, job_name)
-    elif platform in (PlatformType.RAY):
+    elif platform == PlatformType.RAY:
+        from dlrover.python.scheduler.ray import RayJobArgs
+
         return RayJobArgs(platform, namespace, job_name)
+    elif platform == PlatformType.LOCAL:
+        return LocalJobArgs(platform, namespace, job_name)
     else:
         raise ValueError("Not support platform %s", platform)

@@ -127,7 +127,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             res.shard.name = task.shard.name
             res.shard.start = task.shard.start
             res.shard.end = task.shard.end
-            res.shard.indices.extend(task.shard.record_indices)
+            if task.shard.record_indices:
+                res.shard.indices.extend(task.shard.record_indices)
         elif not dataset.completed():
             res.type = elastic_training_pb2.WAIT
         with self._lock:

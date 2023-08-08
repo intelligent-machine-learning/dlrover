@@ -996,7 +996,8 @@ class MultiheadAttentionFA(FlashMHA):
         if src_module is not None:
             self.load_state_dict(src_module.state_dict())
 
-    def forward(self, query, key, value, key_padding_mask=None, need_weights=True, attn_mask=None):
+    def forward(self, query, key, value, key_padding_mask=None, need_weights=True, attn_mask=None, is_causal=False):
+        self.causal = is_causal
         assert attn_mask is None, "FlashMHA prefers key_padding_mask"
 
         # need_weights asserted False in FlashMHA
