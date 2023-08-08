@@ -1,7 +1,7 @@
 # ATorch
 <div id="top" align="center">
 
-   <img src="../docs/figures/aiinfra.jpg" alt="Editor" width="350">
+   <img src="../docs/figures/atorch.png" alt="Editor" width="1200">
 
    ATorch: Making LLMs more efficient and reproducible for everyone.
 
@@ -70,7 +70,7 @@ ATorch is an extension library of PyTorch developed by Ant Group's AI Infrastruc
 * Solutions for large-scale model training
 * Automated optimization
   * auto_accelerate for automatic optimization
-* IO/preprocessing
+* IO/Preprocessing
   * Recommended storage for training data
   * Accessing the Pangu cluster
   * CPU/GPU cooperation to optimize data preprocessing
