@@ -44,7 +44,7 @@ def run(args):
         job_args.enable_dynamic_sharding = args.enable_dynamic_sharding
         master = LocalJobMaster(_dlrover_context.master_port, job_args)
     else:
-        from dlrover.python.master.master import DistributedJobMaster
+        from dlrover.python.master.dist_master import DistributedJobMaster
 
         update_context(job_args)
         master = DistributedJobMaster(_dlrover_context.master_port, job_args)

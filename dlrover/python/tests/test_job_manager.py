@@ -25,7 +25,7 @@ from dlrover.python.common.constants import (
     NodeType,
 )
 from dlrover.python.common.node import NodeGroupResource, NodeResource
-from dlrover.python.master.master import DistributedJobMaster
+from dlrover.python.master.dist_master import DistributedJobMaster
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.event_callback import (
     ClusterContext,

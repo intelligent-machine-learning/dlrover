@@ -17,7 +17,7 @@ from dlrover.python.common.constants import JobExitReason, NodeStatus, NodeType
 from dlrover.python.common.grpc import find_free_port
 from dlrover.python.elastic_agent.master_client import build_master_client
 from dlrover.python.master.local_master import LocalJobMaster
-from dlrover.python.master.master import DistributedJobMaster
+from dlrover.python.master.dist_master import DistributedJobMaster
 from dlrover.python.master.shard.dataset_splitter import new_dataset_splitter
 from dlrover.python.scheduler.job import LocalJobArgs
 from dlrover.python.tests.test_utils import MockK8sPSJobArgs, mock_k8s_client
