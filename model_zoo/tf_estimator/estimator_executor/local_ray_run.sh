@@ -16,5 +16,6 @@ rm -rf log* eval/ export/  checkpoint  model.ckpt* events.out* -rf graph.pbtxt p
 pkill python
 ray stop --force
 ray start --head --port=5001  --dashboard-port=5000
-export DLROVER_MASTER_ADDR="127.0.0.1:50001"
+python -m dlrover.python.master.main --platform=local --job_name=train-test --port 12348 &
+export DLROVER_MASTER_ADDR=127.0.0.1:12348
 python -m dlrover.python.master.main --namespace dlrover --platform ray --job_name elasticjob-sample-24 --port 50001
