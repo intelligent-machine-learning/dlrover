@@ -169,7 +169,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         return empty_pb2.Empty()
 
     def ready_for_ps_relaunch(self, request, _):
-        self._job_manager.post_ps_ready()
+        if self._job_manager:
+            self._job_manager.post_ps_ready()
         return empty_pb2.Empty()
 
     def get_shard_checkpoint(self, request, _):
@@ -195,9 +196,10 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         memory = request.memory
         pod_id = request.node_id
         pod_type = request.node_type
-        self._job_manager.update_node_resource_usage(
-            pod_type, pod_id, cpu, memory
-        )
+        if self._job_manager:
+            self._job_manager.update_node_resource_usage(
+                pod_type, pod_id, cpu, memory
+            )
         return empty_pb2.Empty()
 
     def get_dataset_epoch(self, request, _):
@@ -235,7 +237,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         return empty_pb2.Empty()
 
     def _collect_runtime_stats(self):
-        if self._job_metric_collector:
+        if self._job_metric_collector and self._job_manager:
             nodes = self._job_manager.get_running_nodes()
             self._job_metric_collector.collect_runtime_stats(
                 self._speed_monitor, nodes
@@ -244,7 +246,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
     def _check_start_auto_scale_worker(self):
         sample_count = self._speed_monitor.get_sample_count()
         if (
-            not self._start_autoscale
+            self._job_manager
+            and not self._start_autoscale
             and sample_count >= _dlrover_context.sample_count_to_adjust_worker
         ):
             logger.info(
@@ -288,7 +291,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         node_id = request.id
         server_addr = request.addr
 
-        if server_addr:
+        if server_addr and self._job_manager:
             self._job_manager.update_node_service_addr(
                 node_type, node_id, server_addr
             )
@@ -321,10 +324,12 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         return empty_pb2.Empty()
 
     def query_ps_nodes(self, request, _):
+        res = elastic_training_pb2.QueryPsNodesResponse()
+        if not self._job_manager:
+            return res
         training_ps: List[Node] = self._job_manager.get_next_cluster_ps()
         ready = self._job_manager.ready_for_new_ps_cluster()
         ps_failure = self._job_manager.has_ps_failure()
-        res = elastic_training_pb2.QueryPsNodesResponse()
         for ps in training_ps:
             ps_meta = res.ps_nodes.add()
             ps_meta.type = NodeType.PS
@@ -337,8 +342,10 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         return res
 
     def query_running_nodes(self, request, _):
-        nodes: List[Node] = self._job_manager.get_running_nodes()
         res = elastic_training_pb2.RunningNodes()
+        if not self._job_manager:
+            return res
+        nodes: List[Node] = self._job_manager.get_running_nodes()
         for node in nodes:
             meta = elastic_training_pb2.NodeMeta()
             meta.type = node.type
