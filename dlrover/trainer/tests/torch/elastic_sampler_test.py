@@ -52,3 +52,9 @@ class ElasticDistributedSamplerTest(unittest.TestCase):
         sampler.load_state_dict(sampler_state)
         val = next(iter(sampler))
         self.assertEqual(val, 64)
+
+        for i in sampler:
+            pass
+        sampler.set_epoch(1)
+        val = next(iter(sampler))
+        self.assertEqual(val, 0)

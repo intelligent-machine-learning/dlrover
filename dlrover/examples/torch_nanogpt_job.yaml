@@ -15,7 +15,7 @@ spec:
           containers:
             - name: main
               # yamllint disable-line rule:line-length
-              image: registry.cn-hangzhou.aliyuncs.com/easydl/dlrover-train:nanogpt-test
+              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:nanogpt-test
               imagePullPolicy: IfNotPresent
               command:
                 - /bin/bash
