@@ -23,6 +23,7 @@ from dlrover.python.common.constants import (
     ReporterType,
 )
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.master.base_master import JobMaster
 from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
 from dlrover.python.master.elastic_training.rdzv_manager import (
     ElasticTrainingRendezvousManager,
@@ -30,7 +31,6 @@ from dlrover.python.master.elastic_training.rdzv_manager import (
     RendezvousManager,
 )
 from dlrover.python.master.elastic_training.sync_service import SyncService
-from dlrover.python.master.local_master import JobMaster
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.event_callback import (
     AllReduceNodeHandlingCallback,

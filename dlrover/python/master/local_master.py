@@ -12,7 +12,6 @@
 # limitations under the License.
 
 import time
-from abc import ABCMeta, abstractclassmethod
 from typing import Dict
 
 from dlrover.python.common.constants import (
@@ -21,6 +20,7 @@ from dlrover.python.common.constants import (
     ReporterType,
 )
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.master.base_master import JobMaster
 from dlrover.python.master.elastic_training.rdzv_manager import (
     ElasticTrainingRendezvousManager,
     NetworkCheckRendezvousManager,
@@ -31,24 +31,6 @@ from dlrover.python.master.servicer import create_master_service
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.master.stats.job_collector import JobMetricCollector
 from dlrover.python.scheduler.job import JobArgs
-
-
-class JobMaster(metaclass=ABCMeta):
-    @abstractclassmethod
-    def prepare(self):
-        pass
-
-    @abstractclassmethod
-    def run(self):
-        pass
-
-    @abstractclassmethod
-    def stop(self):
-        pass
-
-    @abstractclassmethod
-    def request_stop(self):
-        pass
 
 
 class LocalJobMaster(JobMaster):
