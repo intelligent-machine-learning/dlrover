@@ -13,19 +13,19 @@
 
 
 import argparse
+import contextlib
 import math
 import os
 import pickle
-import contextlib
-
 from datetime import timedelta
 
-import pytorch_lightning as pl
 import numpy as np
+import pytorch_lightning as pl
 import torch
 import torch.distributed as dist
-from torch.utils.data import DataLoader, Dataset
 from model import GPT, GPTConfig
+from torch.utils.data import DataLoader, Dataset
+
 from dlrover.trainer.torch.elastic_sampler import ElasticDistributedSampler
 
 local_rank = None
@@ -202,10 +202,12 @@ class BlockDataset(Dataset):
 
     def __getitem__(self, idx):
         x = torch.from_numpy(
-            self.data[idx: idx + self.block_size].astype(np.int64)  # noqa
+            self.data[idx : idx + self.block_size].astype(np.int64)  # noqa
         )  # noqa
         y = torch.from_numpy(
-            self.data[idx + 1: idx + 1 + self.block_size].astype(np.int64)  # noqa
+            self.data[idx + 1 : idx + 1 + self.block_size].astype(  # noqa E203
+                np.int64
+            )  # noqa
         )  # noqa
         return x, y
 
@@ -295,7 +297,7 @@ def train(args):
     data_module = GPTDataModule(
         data_dir=args.data_dir,
         batch_size=args.batch_size,
-        block_size=args.block_size
+        block_size=args.block_size,
     )
 
     # train
@@ -327,13 +329,15 @@ def arg_parser():
     # Data settings
     parser.add_argument("--data_dir", type=str, required=True)
     parser.add_argument("--out_dir", type=str, default="out", required=False)
-    parser.add_argument("--eval_interval", type=int,
-                        default=2000, required=False)
+    parser.add_argument(
+        "--eval_interval", type=int, default=2000, required=False
+    )
     parser.add_argument("--log_interval", type=int, default=1, required=False)
     parser.add_argument("--eval_iters", type=int, default=200, required=False)
     parser.add_argument("--eval_only", action="store_true", required=False)
-    parser.add_argument("--always_save_checkpoint",
-                        action="store_true", required=False)
+    parser.add_argument(
+        "--always_save_checkpoint", action="store_true", required=False
+    )
     parser.add_argument("--batch_size", type=int, default=16, required=False)
     parser.add_argument("--block_size", type=int, default=128, required=False)
 
@@ -345,11 +349,13 @@ def arg_parser():
     parser.add_argument("--bias", action="store_true", required=False)
 
     # Optimizer settings
-    parser.add_argument("--learning_rate", type=float,
-                        default=6e-4, required=False)
+    parser.add_argument(
+        "--learning_rate", type=float, default=6e-4, required=False
+    )
     parser.add_argument("--max_iters", type=int, default=10, required=False)
-    parser.add_argument("--weight_decay", type=float,
-                        default=1e-1, required=False)
+    parser.add_argument(
+        "--weight_decay", type=float, default=1e-1, required=False
+    )
     parser.add_argument("--beta1", type=float, default=0.9, required=False)
     parser.add_argument("--beta2", type=float, default=0.95, required=False)
     parser.add_argument("--grad_clip", type=float, default=1.0, required=False)
@@ -360,8 +366,9 @@ def arg_parser():
     # Learning rate decay settings
     parser.add_argument("--decay_lr", action="store_true", required=False)
     parser.add_argument("--warmup_iters", type=int, default=0, required=False)
-    parser.add_argument("--lr_decay_iters", type=int,
-                        default=10, required=False)
+    parser.add_argument(
+        "--lr_decay_iters", type=int, default=10, required=False
+    )
     parser.add_argument("--min_lr", type=float, default=6e-5, required=False)
 
     # System settings
