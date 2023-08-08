@@ -3,7 +3,7 @@
 
    <img src="docs/img/atorch.png" alt="Editor" width="500">
 
-   ATorch: Making LLMs more efficient and reproducible for everyone.
+   ATorch: Make LLMs training more efficient and reproducible for everyone.
 
    <h3> <a href="https://www.placeholder.com/"> Paper </a> |
    <a href="https://www.placeholder.com/"> Documentation </a> |
@@ -39,13 +39,13 @@
    <a href="#Parallel-Training-Demo">Parallel Training Demo</a>
    <ul>
      <li><a href="#LLaMA2">LLaMA2</a></li>
-     <li><a href="#GPT-3">GPT-3</a></li>
+     <li><a href="#BERT">BERT</a></li>
    </ul>
  </li>
  <li>
    <a href="#Single-GPU-Training-Demo">Single GPU Training Demo</a>
    <ul>
-     <li><a href="#LLaMA2-Single">GPT-2</a></li>
+     <li><a href="#LLaMA2-Single">LLaMA2-Single</a></li>
    </ul>
  </li>
  <li>
@@ -61,12 +61,11 @@
 </ul>
 
 ## Why ATorch
-ATorch is an extension library of PyTorch developed by Ant Group's AI Infrastructure team. It provides efficient and easy-to-use capabilities for model training and optimization. The design principle is to minimally disrupt the native PyTorch programming style. Through its API interfaces, ATorch provides performance optimizations in aspects such as I/O, preprocessing, computation, and communication (including automatic optimization). ATorch has supported large-scale pretraining of LLMs with over 100 billion parameters and 1,000 A100/H100 GPUs. We aim to open source it and make these capabilities reproducible for everyone. We also welcome contributions.
+ATorch is an extension library of PyTorch developed by Ant Group's AI Infrastructure team. By decoupling model definition from training optimization strategy, ATorch supports efficient and easy-to-use model training experience. The design principle is to minimally disrupt the native PyTorch programming style. Through its API, ATorch provides performance optimizations in aspects such as I/O, preprocessing, computation, and communication (including automatic optimization). ATorch has supported large-scale pretraining of LLMs with over 100 billion parameters and thousands of A100/H100 GPUs. We aim to open source it and make these capabilities reproducible for everyone. We also welcome contributions.
 
 ## Features
 * Usability
   * Fast deployment of runtime environment (images and installation packages)
-  * Script submission of distributed training jobs
 * Solutions for large-scale model training
 * Automated optimization
   * auto_accelerate for automatic optimization
@@ -90,7 +89,10 @@ ATorch is an extension library of PyTorch developed by Ant Group's AI Infrastruc
 
 ## ATorch Applications
 
-### ATorch Pretrain LLMs with over thousands gpus
+### ATorch Pretrain LLMs with over thousands gpus (HFU > 50%)
+TODO
+
+### Finetune your LLMs with ATorch RLHF (3x trlx)
 TODO
 
 ## Major Model results
@@ -99,7 +101,13 @@ TODO
 ### LLaMA2
 TODO
 
-### GPT-3
+### GPT2
+TODO
+
+### GLM
+TODO
+
+### CLIP
 TODO
 
 ## Installation
