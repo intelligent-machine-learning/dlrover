@@ -186,7 +186,7 @@ make deploy IMG=easydl/elasticjob-controller:master
 ### 3. Grant Permission for the DLRover Master to Access CRDs
 
 ```bash
-kubectl apply -f dlrover/go/operator/config/rbac/default_role.yaml 
+kubectl apply -f dlrover/go/operator/config/manifests/bases/default-role.yaml
 ```
 
 ### 4. Build the Image 
