@@ -2,16 +2,21 @@
 from __future__ import absolute_import, unicode_literals
 
 import copy
+import shutil
+from importlib.metadata import version
+from pathlib import Path
 
 import torch
 from deepspeed import DeepSpeedTransformerLayer
 from deepspeed.ops.op_builder import StochasticTransformerBuilder, TransformerBuilder
 from deepspeed.ops.transformer import transformer  # using module var
+from pkg_resources import packaging  # type: ignore
 from torch import nn
 from torch.nn import MultiheadAttention
 
 from atorch.common.log_utils import default_logger as logger
 from atorch.common.util_func import divide, split_tensor_along_last_dim
+from atorch.utils.meta_model_utils import is_meta, recursive_empty_param, reload_meta_module
 
 try:
     from transformers.modeling_bert import BertAttention  # 3.5
@@ -21,23 +26,37 @@ except (ModuleNotFoundError, ImportError):
     from transformers.models.bert.modeling_bert import BertAttention  # 4.17
     from transformers.models.clip.modeling_clip import CLIPAttention
     from transformers.models.gpt2.modeling_gpt2 import GPT2Attention
-try:
-    from flash_attn.flash_attention import FlashMHA  # cuda version
-except (ImportError, ModuleNotFoundError):
-    logger.info("flash_attn not installed")
-    FlashMHA = object
 
 try:
-    from flash_attn.ops.layer_norm import dropout_add_layer_norm
-except ImportError:
+    import flash_attn
+except ModuleNotFoundError:
+    logger.info("flash_attn not installed")
+    flash_attn = None
+
+if flash_attn is not None:
+    _flash_attn_version = packaging.version.Version(version("flash-attn"))
+    try:
+        from flash_attn.flash_attention import FlashMHA  # cuda version
+    except (ImportError, ModuleNotFoundError):
+        assert _flash_attn_version >= packaging.version.Version("2"), "FlashMHA is deleted in 2.0 release"
+        patch_src = Path(__file__).parent.resolve() / "_fa_api_compat_patch"
+        patch_dst = Path(flash_attn.__file__).parent.resolve() / "flash_attention.py"
+        shutil.copy(patch_src, patch_dst)
+        from flash_attn.flash_attention import FlashMHA
+
+    try:
+        from flash_attn.ops.layer_norm import dropout_add_layer_norm
+    except ImportError:
+        dropout_add_layer_norm = None
+else:
+    FlashMHA = object
+    _flash_attn_version = None
     dropout_add_layer_norm = None
 
 try:
     from apex.amp import _amp_state
 except (ImportError, ModuleNotFoundError):
     _amp_state = None
-
-from atorch.utils.meta_model_utils import is_meta, recursive_empty_param, reload_meta_module
 
 
 def is_apex_amp_activate():
@@ -1073,6 +1092,23 @@ def flash_attn_with_mask_bias(q, k, v, mask=None, bias=None, dropout_p=0.0, soft
     Returns:
         out:[b, s_q, nh, hs]
     """
+    # fa2 version check
+    _is_flash_attn_2 = _flash_attn_version >= packaging.version.Version("2")
+    if _is_flash_attn_2:
+        logger.warning(
+            "fa2 additive mask/bias TODO, only `fa2_with_glm_mask` supported currently. If the mask is "
+            "not None, we assume the mask is a glm-style additive mask, and use argmin to transpose "
+            "it to break_point index mask."
+        )
+        assert bias is None, "using `fa2_with_glm_mask` without bias."
+        if mask is not None and causal is False:
+            causal = True
+            logger.warning("glm_mask must be with causal.")
+        glm_mask = mask[:, 0, 0, :].argmin(-1).int() if mask is not None else None
+        return fa2_with_glm_mask(
+            q, k, v, glm_mask=glm_mask, dropout_p=dropout_p, softmax_scale=softmax_scale, causal=causal
+        )
+
     # attn mask/bias supported version FlashAttn
     from flash_attn.flash_attn_interface import flash_attn_unpadded_func
 
@@ -1108,6 +1144,15 @@ def flash_attn_with_mask_bias(q, k, v, mask=None, bias=None, dropout_p=0.0, soft
     q_cu_seqlens = torch.arange(0, (b + 1) * s_q, step=s_q, dtype=torch.int32, device=q.device)
     k_max_s = s_k
     k_cu_seqlens = torch.arange(0, (b + 1) * s_k, step=s_k, dtype=torch.int32, device=q.device)
+    kwargs = {
+        "dropout_p": dropout_p,
+        "softmax_scale": softmax_scale,
+        "causal": causal,
+    }
+    if mask is not None:
+        kwargs.update({"attn_mask": mask})
+    if bias is not None:
+        kwargs.update({"attn_bias": bias})
     out = flash_attn_unpadded_func(
         q,
         k,
@@ -1116,16 +1161,39 @@ def flash_attn_with_mask_bias(q, k, v, mask=None, bias=None, dropout_p=0.0, soft
         k_cu_seqlens,
         q_max_s,
         k_max_s,
-        dropout_p=dropout_p,
-        attn_mask=mask,
-        attn_bias=bias,
-        softmax_scale=softmax_scale,
-        causal=causal,
+        **kwargs,
     )
     out = out.reshape(b, s_q, nh, hs)
     if padded_s_q:
         out = out[:, :-pad_len, :, :]
     return out
+
+
+def fa2_with_glm_mask(q, k, v, glm_mask=None, dropout_p=0.0, softmax_scale=None, causal=True):
+    """
+    FA2 that support glm-style mask. dropout_p should be set to 0.0 during evaluation.
+    Only support half precision(torch.float16 or torch.bfloat16).
+
+    Args:
+        glm_mask: [batch_size] in torch.int32.
+        other args: see `flash_attn_with_mask_bias` or `flash_attn_func` in FA2
+    """
+
+    _is_flash_attn_2 = _flash_attn_version >= packaging.version.Version("2")
+    assert _is_flash_attn_2, "please install glm mask supported version FA2"
+    from flash_attn.flash_attn_interface import flash_attn_func
+
+    if glm_mask is not None:
+        assert causal, "causal must be True for glm_mask"
+    kwargs = {
+        "dropout_p": dropout_p,
+        "softmax_scale": softmax_scale,
+        "causal": causal,
+        "return_attn_probs": False,
+    }
+    if glm_mask is not None:
+        kwargs.update({"glm_mask": glm_mask})
+    return flash_attn_func(q, k, v, **kwargs)
 
 
 class HFGLMSelfAttentionFA(torch.nn.Module):
