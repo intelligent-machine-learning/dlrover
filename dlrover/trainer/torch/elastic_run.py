@@ -11,15 +11,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import uuid
+import os
+import sys
+import telnetlib
+import tempfile
+import time
 from typing import Callable, Union
 
 from torch.distributed.argparse_util import check_env, env
+from torch.distributed.elastic.multiprocessing.api import SubprocessHandler
 from torch.distributed.elastic.multiprocessing.errors import record
 from torch.distributed.launcher.api import LaunchConfig
 from torch.distributed.run import config_from_args, get_args_parser
 
+from dlrover.python.common.grpc import find_free_port
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.elastic_agent.master_client import (
+    GlobalMasterClient,
+    build_master_client,
+)
 from dlrover.python.elastic_agent.torch.training import launch_agent
 
 
@@ -84,19 +94,49 @@ class elastic_launch:
         return launch_agent(self._config, self._entrypoint, list(args))
 
 
+def launch_dlrover_local_master():
+    """Launch a subprocess to run the DLrover master."""
+    cmd = os.getenv("PYTHON_EXEC", sys.executable)
+    port = find_free_port()
+    log_dir = tempfile.mkdtemp(prefix="dlrover_master_")
+    job_name = log_dir.split("_")[-1]
+    stdout = os.path.join(log_dir, "stdout.log")
+    stderr = os.path.join(log_dir, "stderror.log")
+    logger.info(f"The master log file:\n stdout: {stdout} \n stderr: {stderr}")
+    handler = SubprocessHandler(
+        cmd,
+        (
+            "-u",
+            "-m",
+            "dlrover.python.master.main",
+            "--port",
+            f"{port}",
+            "--job_name",
+            f"standalone-{job_name}",
+            "--platform",
+            "local",
+        ),
+        {},
+        stdout,
+        stderr,
+    )
+    host = "127.0.0.1"
+    dlrover_master_addr = f"{host}:{port}"
+    while True:
+        try:
+            telnetlib.Telnet(host=host, port=port, timeout=3)
+            logger.info("DLRover local job master starts!")
+            break
+        except ConnectionRefusedError:
+            time.sleep(3)
+    GlobalMasterClient.MASTER_CLIENT = build_master_client(dlrover_master_addr)
+    return handler
+
+
 def run(args):
+    dlrover_master_handler = None
     if args.standalone:
-        args.rdzv_backend = "c10d"
-        args.rdzv_endpoint = "localhost:29400"
-        args.rdzv_id = str(uuid.uuid4())
-        logger.info(
-            f"\n**************************************\n"
-            f"Rendezvous info:\n"
-            f"--rdzv-backend={args.rdzv_backend} "
-            f"--rdzv-endpoint={args.rdzv_endpoint} "
-            f"--rdzv-id={args.rdzv_id}\n"
-            f"**************************************\n"
-        )
+        dlrover_master_handler = launch_dlrover_local_master()
 
     config, cmd, cmd_args = config_from_args(args)
     setattr(config, "network_check", False)
@@ -105,10 +145,10 @@ def run(args):
         config.network_check = args.network_check
     if hasattr(args, "node_unit"):
         config.rdzv_configs["node_unit"] = args.node_unit
-    elastic_launch(
-        config=config,
-        entrypoint=cmd,
-    )(*cmd_args)
+    elastic_launch(config=config, entrypoint=cmd)(*cmd_args)
+
+    if dlrover_master_handler:
+        dlrover_master_handler.close()
 
 
 @record
