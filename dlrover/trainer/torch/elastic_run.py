@@ -97,30 +97,25 @@ class elastic_launch:
 def launch_dlrover_local_master():
     """Launch a subprocess to run the DLrover master."""
     cmd = os.getenv("PYTHON_EXEC", sys.executable)
+    host = "127.0.0.1"
     port = find_free_port()
     log_dir = tempfile.mkdtemp(prefix="dlrover_master_")
     job_name = log_dir.split("_")[-1]
     stdout = os.path.join(log_dir, "stdout.log")
     stderr = os.path.join(log_dir, "stderror.log")
     logger.info(f"The master log file:\n stdout: {stdout} \n stderr: {stderr}")
-    handler = SubprocessHandler(
-        cmd,
-        (
-            "-u",
-            "-m",
-            "dlrover.python.master.main",
-            "--port",
-            f"{port}",
-            "--job_name",
-            f"standalone-{job_name}",
-            "--platform",
-            "local",
-        ),
-        {},
-        stdout,
-        stderr,
+    args = (
+        "-u",
+        "-m",
+        "dlrover.python.master.main",
+        "--port",
+        f"{port}",
+        "--job_name",
+        f"standalone-{job_name}",
+        "--platform",
+        "local",
     )
-    host = "127.0.0.1"
+    handler = SubprocessHandler(cmd, args, {}, stdout, stderr)
     dlrover_master_addr = f"{host}:{port}"
     while True:
         try:
