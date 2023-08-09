@@ -22,6 +22,12 @@ You’ll need a Kubernetes cluster to run against. You can use [KIND](https://si
 kubectl apply -f config/crd/bases
 ```
 
+We can deploy the controller with a released image.
+
+```sh
+make deploy IMG=easydl/elasticjob-controller:master
+```
+
 2. Build and push your image to the location specified by `IMG`:
 	
 ```sh
