@@ -14,13 +14,14 @@
 import unittest
 
 from dlrover.python.common.constants import JobExitReason, NodeStatus, NodeType
-from dlrover.python.common.grpc import find_free_port
 from dlrover.python.elastic_agent.master_client import build_master_client
 from dlrover.python.master.dist_master import DistributedJobMaster
-from dlrover.python.master.local_master import LocalJobMaster
 from dlrover.python.master.shard.dataset_splitter import new_dataset_splitter
-from dlrover.python.scheduler.job import LocalJobArgs
-from dlrover.python.tests.test_utils import MockK8sPSJobArgs, mock_k8s_client
+from dlrover.python.tests.test_utils import (
+    MockK8sPSJobArgs,
+    mock_k8s_client,
+    start_local_master,
+)
 
 
 class DistributedJobMasterTest(unittest.TestCase):
@@ -77,15 +78,11 @@ class DistributedJobMasterTest(unittest.TestCase):
 
 class LocalJobMasterTest(unittest.TestCase):
     def setUp(self) -> None:
-        job_args = LocalJobArgs("local", "default", "test")
-        job_args.initilize()
-        port = find_free_port()
-        self.master = LocalJobMaster(port, job_args)
-        self.master.prepare()
-        self.master_client = build_master_client(f"127.0.0.1:{port}")
+        self._master, addr = start_local_master()
+        self.master_client = build_master_client(addr)
 
     def addCleanup(self):
-        self.master.stop()
+        self._master.stop()
 
     def test_task_manager(self):
         self.master_client.report_dataset_shard_params(

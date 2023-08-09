@@ -29,22 +29,30 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
 from dlrover.python.master.elastic_training.kv_store_service import (
     KVStoreService,
 )
 from dlrover.python.master.elastic_training.rdzv_manager import (
     RendezvousManager,
 )
-from dlrover.python.master.elastic_training.sync_service import SyncService
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
-from dlrover.python.master.node.job_manager import JobManager
 from dlrover.python.master.shard.dataset_splitter import new_dataset_splitter
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.master.stats.job_collector import JobMetricCollector
 from dlrover.python.master.stats.training_metrics import OpStats, TensorStats
 from dlrover.python.master.watcher.base_watcher import Node, NodeEvent
 from dlrover.python.util.queue.queue import RayEventQueue
+
+try:
+    from dlrover.python.master.elastic_training.elastic_ps import (
+        ElasticPsService,
+    )
+    from dlrover.python.master.elastic_training.sync_service import SyncService
+    from dlrover.python.master.node.job_manager import JobManager
+except ImportError:
+    logger.info("Run the master locally.")
+    pass
+
 
 _dlrover_context = Context.singleton_instance()
 _DEFAULT_NUM_MINIBATCHES_PER_SHARD = 100
@@ -56,17 +64,16 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
 
     def __init__(
         self,
-        task_manager: TaskManager,
-        job_manager: JobManager,
+        task_manager,
+        job_manager,
         speed_monitor: SpeedMonitor,
         rdzv_managers: Dict[str, RendezvousManager],
         job_metric_collector=None,
         elastic_ps_service=None,
         sync_service=None,
     ):
-        # TODO: group params together into a single object.
-        self._task_manager = task_manager
-        self._job_manager = job_manager
+        self._task_manager: TaskManager = task_manager
+        self._job_manager: JobManager = job_manager
         self._speed_monitor = speed_monitor
         self._rdzv_managers = rdzv_managers
         self._kv_store = KVStoreService()
@@ -169,7 +176,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         return empty_pb2.Empty()
 
     def ready_for_ps_relaunch(self, request, _):
-        self._job_manager.post_ps_ready()
+        if self._job_manager:
+            self._job_manager.post_ps_ready()
         return empty_pb2.Empty()
 
     def get_shard_checkpoint(self, request, _):
@@ -195,9 +203,10 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         memory = request.memory
         pod_id = request.node_id
         pod_type = request.node_type
-        self._job_manager.update_node_resource_usage(
-            pod_type, pod_id, cpu, memory
-        )
+        if self._job_manager:
+            self._job_manager.update_node_resource_usage(
+                pod_type, pod_id, cpu, memory
+            )
         return empty_pb2.Empty()
 
     def get_dataset_epoch(self, request, _):
@@ -235,7 +244,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         return empty_pb2.Empty()
 
     def _collect_runtime_stats(self):
-        if self._job_metric_collector:
+        if self._job_metric_collector and self._job_manager:
             nodes = self._job_manager.get_running_nodes()
             self._job_metric_collector.collect_runtime_stats(
                 self._speed_monitor, nodes
@@ -244,7 +253,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
     def _check_start_auto_scale_worker(self):
         sample_count = self._speed_monitor.get_sample_count()
         if (
-            not self._start_autoscale
+            self._job_manager
+            and not self._start_autoscale
             and sample_count >= _dlrover_context.sample_count_to_adjust_worker
         ):
             logger.info(
@@ -288,7 +298,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         node_id = request.id
         server_addr = request.addr
 
-        if server_addr:
+        if server_addr and self._job_manager:
             self._job_manager.update_node_service_addr(
                 node_type, node_id, server_addr
             )
@@ -321,10 +331,12 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         return empty_pb2.Empty()
 
     def query_ps_nodes(self, request, _):
+        res = elastic_training_pb2.QueryPsNodesResponse()
+        if not self._job_manager:
+            return res
         training_ps: List[Node] = self._job_manager.get_next_cluster_ps()
         ready = self._job_manager.ready_for_new_ps_cluster()
         ps_failure = self._job_manager.has_ps_failure()
-        res = elastic_training_pb2.QueryPsNodesResponse()
         for ps in training_ps:
             ps_meta = res.ps_nodes.add()
             ps_meta.type = NodeType.PS
@@ -337,8 +349,10 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         return res
 
     def query_running_nodes(self, request, _):
-        nodes: List[Node] = self._job_manager.get_running_nodes()
         res = elastic_training_pb2.RunningNodes()
+        if not self._job_manager:
+            return res
+        nodes: List[Node] = self._job_manager.get_running_nodes()
         for node in nodes:
             meta = elastic_training_pb2.NodeMeta()
             meta.type = node.type
@@ -371,18 +385,22 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
 
     def join_sync(self, request, _):
         res = elastic_training_pb2.Response()
-        res.success = self._sync_service.join_sync(
-            request.sync_name, request.worker_type, request.worker_id
-        )
+        if self._sync_service:
+            res.success = self._sync_service.join_sync(
+                request.sync_name, request.worker_type, request.worker_id
+            )
         return res
 
     def sync_finished(self, request, _):
         res = elastic_training_pb2.Response()
-        res.success = self._sync_service.sync_finished(request.sync_name)
+        if self._sync_service:
+            res.success = self._sync_service.sync_finished(request.sync_name)
         return res
 
     def barrier(self, request, _):
         res = elastic_training_pb2.Response()
+        if self._sync_service:
+            return res
         if request.notify:
             res.success = self._sync_service.notify_barrier(
                 request.barrier_name
@@ -444,13 +462,14 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         return res
 
     def report_failure(self, request, _):
-        self._job_manager.handle_training_failure(
-            request.node_type,
-            request.node_id,
-            request.restart_count,
-            request.error_data,
-            request.level,
-        )
+        if self._job_manager:
+            self._job_manager.handle_training_failure(
+                request.node_type,
+                request.node_id,
+                request.restart_count,
+                request.error_data,
+                request.level,
+            )
         res = elastic_training_pb2.Response()
         res.success = True
         return res

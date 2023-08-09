@@ -20,12 +20,12 @@ from dlrover.python.common.constants import (
     ReporterType,
 )
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.master.base_master import JobMaster
 from dlrover.python.master.elastic_training.rdzv_manager import (
     ElasticTrainingRendezvousManager,
     NetworkCheckRendezvousManager,
     RendezvousManager,
 )
+from dlrover.python.master.master import JobMaster
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.servicer import create_master_service
 from dlrover.python.master.shard.task_manager import TaskManager

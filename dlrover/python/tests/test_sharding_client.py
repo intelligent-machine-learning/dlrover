@@ -13,14 +13,26 @@
 
 import unittest
 
-from dlrover.python.elastic_agent.master_client import LocalDataset
+from dlrover.python.elastic_agent.master_client import (
+    GlobalMasterClient,
+    LocalDataset,
+    build_master_client,
+)
 from dlrover.python.elastic_agent.sharding.client import (
     IndexShardingClient,
     ShardingClient,
 )
+from dlrover.python.tests.test_utils import start_local_master
 
 
 class DataShardClientTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self._master, addr = start_local_master()
+        GlobalMasterClient.MASTER_CLIENT = build_master_client(addr)
+
+    def addCleanup(self):
+        self._master.stop()
+
     def test_local_dataset(self):
         dataset = LocalDataset(
             batch_size=16,
@@ -55,9 +67,7 @@ class DataShardClientTest(unittest.TestCase):
             shard_count += 1
         self.assertEqual(shard_count, 8)
 
-
-class IndexShardingClientTest(unittest.TestCase):
-    def test_sharding_client(self):
+    def test_index_sharding_client(self):
         client = IndexShardingClient(
             batch_size=16,
             num_epochs=2,
