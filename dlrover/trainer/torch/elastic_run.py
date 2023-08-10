@@ -32,9 +32,7 @@ from dlrover.python.elastic_agent.master_client import (
     GlobalMasterClient,
     build_master_client,
 )
-from dlrover.python.elastic_agent.torch.training import (
-    launch_agent as dlrover_launch_agent,
-)
+from dlrover.python.elastic_agent.torch.training import launch_agent
 
 
 def parse_args(args):
@@ -98,9 +96,7 @@ class elastic_launch:
 
     def __call__(self, *args):
         if self._use_dlrover_launch:
-            return dlrover_launch_agent(
-                self._config, self._entrypoint, list(args)
-            )
+            return launch_agent(self._config, self._entrypoint, list(args))
         else:
             return torch_launch_agent(
                 self._config, self._entrypoint, list(args)

@@ -12,7 +12,11 @@
 # limitations under the License.
 
 import unittest
-from dlrover.trainer.torch.elastic_run import _launch_dlrover_local_master, _check_dlrover_master_available
+
+from dlrover.trainer.torch.elastic_run import (
+    _check_dlrover_master_available,
+    _launch_dlrover_local_master,
+)
 
 
 class ElasticRunTest(unittest.TestCase):
@@ -21,4 +25,3 @@ class ElasticRunTest(unittest.TestCase):
         available = _check_dlrover_master_available(addr)
         self.assertTrue(available)
         handler.close()
-        
