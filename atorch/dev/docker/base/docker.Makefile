@@ -8,7 +8,7 @@ $(warning WARNING: No docker user found using results from whoami)
 DOCKER_ORG                = $(shell whoami)
 endif
 
-CUDA_VERSION              = 11.7.0
+CUDA_VERSION              = 11.8.0
 CUDNN_VERSION             = 8
 BASE_RUNTIME              = ubuntu:20.04
 BASE_DEVEL                = nvidia/cuda:$(CUDA_VERSION)-cudnn$(CUDNN_VERSION)-devel-ubuntu20.04
@@ -19,7 +19,7 @@ CUDA_CHANNEL              = nvidia
 # The conda channel to use to install pytorch / torchvision
 INSTALL_CHANNEL          ?= pytorch
 
-PYTHON_VERSION           ?= 3.10
+PYTHON_VERSION           ?= 3.8
 PYTORCH_VERSION          ?= $(shell git describe --tags --always)
 # Can be either official / dev
 BUILD_TYPE               ?= dev
@@ -57,12 +57,10 @@ endif
 
 DOCKER_BUILD              = DOCKER_BUILDKIT=1 \
 							docker $(BUILD) \
-								--progress=$(BUILD_PROGRESS) \
 								$(EXTRA_DOCKER_BUILD_FLAGS) \
 								$(PLATFORMS_FLAG) \
 								$(PUSH_FLAG) \
-								--target $(BUILD_TYPE) \
-								-t $(DOCKER_FULL_NAME):$(DOCKER_TAG) \
+								-t "easydl/atorch:iml_20230808" \
 								$(BUILD_ARGS) .
 DOCKER_PUSH               = docker push $(DOCKER_FULL_NAME):$(DOCKER_TAG)
 

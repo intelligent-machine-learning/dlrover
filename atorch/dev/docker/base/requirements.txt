@@ -1,0 +1,16 @@
+# Python dependencies required for development
+astunparse
+expecttest
+hypothesis
+numpy
+psutil
+pyyaml
+requests
+setuptools
+types-dataclasses
+typing-extensions
+sympy
+filelock
+networkx
+jinja2
+fsspec
