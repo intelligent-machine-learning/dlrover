@@ -107,7 +107,7 @@ class elastic_launch:
             )
 
 
-def launch_dlrover_local_master():
+def _launch_dlrover_local_master():
     """Launch a subprocess to run the DLrover master."""
     cmd = os.getenv("PYTHON_EXEC", sys.executable)
     host = "127.0.0.1"
@@ -136,7 +136,7 @@ def launch_dlrover_local_master():
 def _check_dlrover_master_available(addr, timeout=60):
     """Check whether the master grpc servicer is available."""
     host = addr.split(":")[0]
-    port = int(addr.split(":"))[1]
+    port = int(addr.split(":")[1])
     start_time = time.time()
     while True:
         try:
@@ -154,7 +154,7 @@ def run(args):
     dmaster_addr = os.getenv("DLROVER_MASTER_ADDR", "")
     use_dlrover_launch = False
     if args.standalone:
-        master_handler, dmaster_addr = launch_dlrover_local_master()
+        master_handler, dmaster_addr = _launch_dlrover_local_master()
     if _check_dlrover_master_available():
         GlobalMasterClient.MASTER_CLIENT = build_master_client(dmaster_addr)
         use_dlrover_launch = True
