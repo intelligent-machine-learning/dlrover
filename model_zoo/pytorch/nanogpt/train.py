@@ -175,7 +175,7 @@ def train():
     gradient_accumulation_steps = args.gradient_accumulation_steps
     batch_size = args.batch_size
     if gradient_accumulation_steps == 0:
-        gradient_accumulation_steps == world_size
+        gradient_accumulation_steps = world_size
     assert gradient_accumulation_steps % world_size == 0
     block_size = args.block_size
     gradient_accumulation_steps //= world_size
