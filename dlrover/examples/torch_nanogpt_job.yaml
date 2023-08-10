@@ -23,7 +23,7 @@ spec:
                 - "dlrover-run --nnodes=$WORKER_NUM \
                   --nproc_per_node=1 --max_restarts=1  \
                   ./model_zoo/pytorch/nanogpt/train.py  \
-                  --data_dir '/data/nanogpt/'
+                  --data_dir /data/nanogpt/"
               resources: 
                 limits:
                   cpu: "8"
