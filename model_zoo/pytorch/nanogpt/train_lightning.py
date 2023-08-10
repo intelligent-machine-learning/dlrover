@@ -14,10 +14,10 @@
 
 import argparse
 import contextlib
+import json
 import math
 import os
 import pickle
-import json
 from datetime import timedelta
 
 import numpy as np
@@ -56,7 +56,9 @@ class Nanogpt(pl.LightningModule):
         self.ctx = (
             contextlib.nullcontext()
             if self.device_type == "cpu"
-            else torch.amp.autocast(device_type=self.device_type, dtype=ptdtype)
+            else torch.amp.autocast(
+                device_type=self.device_type, dtype=ptdtype
+            )
         )
         self.automatic_optimization = False
         self.meta_vocab_size = self._get_meta_vocab_size(
@@ -130,7 +132,10 @@ class Nanogpt(pl.LightningModule):
             with open(config_path) as f:
                 config = json.load(f)
                 meta_vocab_size = config["vocab_size"]
-                print(f"found vocab_size = {meta_vocab_size} (inside {config_path})")
+                print(
+                    f"found vocab_size = {meta_vocab_size}"
+                    f"(inside {config_path})"
+                )
         else:
             # Determine the vocab size we'll use for from-scratch training
             # Attempt to derive vocab_size from the dataset
@@ -146,7 +151,9 @@ class Nanogpt(pl.LightningModule):
                 "defaulting to vocab_size of GPT-2 to 50304 "
                 "(50257 rounded up for efficiency)"
             )
-        meta_vocab_size = meta_vocab_size if meta_vocab_size is not None else 50304
+        meta_vocab_size = (
+            meta_vocab_size if meta_vocab_size is not None else 50304
+        )
         return meta_vocab_size
 
     def _gpt_init(
@@ -336,11 +343,15 @@ def arg_parser():
     # Data settings
     parser.add_argument("--data_dir", type=str, required=True)
     parser.add_argument("--out_dir", type=str, default="out", required=False)
-    parser.add_argument("--eval_interval", type=int, default=2000, required=False)
+    parser.add_argument(
+        "--eval_interval", type=int, default=2000, required=False
+    )
     parser.add_argument("--log_interval", type=int, default=1, required=False)
     parser.add_argument("--eval_iters", type=int, default=200, required=False)
     parser.add_argument("--eval_only", action="store_true", required=False)
-    parser.add_argument("--always_save_checkpoint", action="store_true", required=False)
+    parser.add_argument(
+        "--always_save_checkpoint", action="store_true", required=False
+    )
     parser.add_argument("--batch_size", type=int, default=16, required=False)
     parser.add_argument("--block_size", type=int, default=128, required=False)
 
@@ -353,9 +364,13 @@ def arg_parser():
     parser.add_argument("--bias", action="store_true", required=False)
 
     # Optimizer settings
-    parser.add_argument("--learning_rate", type=float, default=6e-4, required=False)
+    parser.add_argument(
+        "--learning_rate", type=float, default=6e-4, required=False
+    )
     parser.add_argument("--max_iters", type=int, default=10, required=False)
-    parser.add_argument("--weight_decay", type=float, default=1e-1, required=False)
+    parser.add_argument(
+        "--weight_decay", type=float, default=1e-1, required=False
+    )
     parser.add_argument("--beta1", type=float, default=0.9, required=False)
     parser.add_argument("--beta2", type=float, default=0.95, required=False)
     parser.add_argument("--grad_clip", type=float, default=1.0, required=False)
@@ -366,7 +381,9 @@ def arg_parser():
     # Learning rate decay settings
     parser.add_argument("--decay_lr", action="store_true", required=False)
     parser.add_argument("--warmup_iters", type=int, default=0, required=False)
-    parser.add_argument("--lr_decay_iters", type=int, default=10, required=False)
+    parser.add_argument(
+        "--lr_decay_iters", type=int, default=10, required=False
+    )
     parser.add_argument("--min_lr", type=float, default=6e-5, required=False)
 
     # System settings
