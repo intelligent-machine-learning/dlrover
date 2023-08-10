@@ -147,12 +147,12 @@ def _check_dlrover_master_available(addr, timeout=60):
 
 def run(args):
     master_handler = None
-    dmaster_addr = os.getenv("DLROVER_MASTER_ADDR", "")
+    master_addr = os.getenv("DLROVER_MASTER_ADDR", "")
     use_dlrover_launch = False
     if args.standalone:
-        master_handler, dmaster_addr = _launch_dlrover_local_master()
-    if _check_dlrover_master_available():
-        GlobalMasterClient.MASTER_CLIENT = build_master_client(dmaster_addr)
+        master_handler, master_addr = _launch_dlrover_local_master()
+    if _check_dlrover_master_available(master_addr):
+        GlobalMasterClient.MASTER_CLIENT = build_master_client(master_addr)
         use_dlrover_launch = True
     else:
         use_dlrover_launch = False

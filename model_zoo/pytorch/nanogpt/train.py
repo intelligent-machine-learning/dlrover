@@ -169,14 +169,15 @@ def cleanup():
 
 def train():
     global local_rank
-
     args = arg_parser()
     setup(args)
     world_size = int(os.getenv("WORLD_SIZE", 1))
     gradient_accumulation_steps = args.gradient_accumulation_steps
     batch_size = args.batch_size
-    block_size = args.block_size
+    if gradient_accumulation_steps == 0:
+        gradient_accumulation_steps = world_size
     assert gradient_accumulation_steps % world_size == 0
+    block_size = args.block_size
     gradient_accumulation_steps //= world_size
     tokens_per_iter = (
         gradient_accumulation_steps * world_size * batch_size * block_size
@@ -389,7 +390,7 @@ def arg_parser():
     parser.add_argument("--beta2", type=float, default=0.95, required=False)
     parser.add_argument("--grad_clip", type=float, default=1.0, required=False)
     parser.add_argument(
-        "--gradient_accumulation_steps", type=int, default=1, required=False
+        "--gradient_accumulation_steps", type=int, default=0, required=False
     )
 
     # Learning rate decay settings
