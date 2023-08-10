@@ -635,7 +635,10 @@ class NetworkCheckElasticAgent(ElasticTrainingAgent):
                     raise RuntimeError("The node network is breakdown.")
             time.sleep(1)
         if not success:
-            self._client.report_failures(NodeErrorMessage.NETWORKER_ERROR)
+            self._client.report_failures(
+                NodeErrorMessage.NETWORKER_ERROR,
+                level=TrainingMsgLevel.NODE_ERROR,
+            )
             raise RuntimeError("The node network is breakdown.")
         return False
 
