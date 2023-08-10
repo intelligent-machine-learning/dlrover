@@ -25,6 +25,7 @@ import torch
 import torch.distributed as dist
 from model import GPT, GPTConfig
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
+from torch.distributed.fsdp.wrap import size_based_auto_wrap_policy
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 local_rank = None
@@ -214,7 +215,8 @@ def train():
         if device_type == "cpu"
         else torch.amp.autocast(device_type=device_type, dtype=ptdtype)
     )
-    model = gpt_init(meta_vocab_size, args=args)
+    # model = gpt_init(meta_vocab_size, args=args)
+    model = GPT.from_pretrained("gpt-2")
     scaler = torch.cuda.amp.GradScaler(enabled=(dtype == "float16"))
     model = model.to(device)
     # Device
@@ -223,7 +225,11 @@ def train():
         model = model.to(local_rank)
         if use_fsdp:
             print(f"Running basic FSDP example on local rank {local_rank}.")
-            model = FSDP(model, device_id=local_rank)
+            model = FSDP(
+                model,
+                device_id=local_rank,
+                auto_wrap_policy=size_based_auto_wrap_policy,
+            )
         else:
             print(f"Running basic DDP example on local rank {local_rank}.")
             model = DDP(model, device_ids=[local_rank])
@@ -320,10 +326,11 @@ def train():
                     if running_mfu == -1.0
                     else 0.9 * running_mfu + 0.1 * mfu
                 )
+            cuda_mem = torch.cuda.max_memory_allocated()
             print(
                 f"iter {iter_num}: loss {lossf:.4f}, time {dt*1000:.2f}ms, "
-                f"mfu {running_mfu*100:.2f}%, lr {lr:.2e}, "
-                f"total time {total_time:.2f}s"
+                f"mfu {running_mfu*100:.2f}%,  cuda memory {cuda_mem / 1e9:.3f}G, "
+                f"lr {lr:.2e}, total time {total_time:.2f}s"
             )
         iter_num += 1
         local_iter_num += 1
@@ -407,11 +414,9 @@ def arg_parser():
         type=device_type,
         default="cpu",
         required=False,
-        help="""
-                        The device to use for computation.
-                        Choose from 'cuda' or 'cpu'.
-                        Defaults to 'cpu' if not specified.
-                        """,
+        help="""The device to use for computation.
+        Choose from 'cuda' or 'cpu'.
+        Defaults to 'cpu' if not specified.""",
     )
     parser.add_argument("--compile", type=str, default="False", required=False)
     parser.add_argument(
