@@ -285,7 +285,7 @@ def setup(args):
     else:
         dist.init_process_group("gloo", timeout=timedelta(seconds=120))
     rank = dist.get_rank()
-    local_rank = int(os.environ["LOCAL_RANK"])
+    local_rank = int(os.environ.get("LOCAL_RANK", 0))
     print(f"rank {rank} is initialized local_rank = {local_rank}")
     # This process will do logging, checkpointing etc.
     rank == 0
