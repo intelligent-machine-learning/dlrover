@@ -17,6 +17,7 @@ import contextlib
 import math
 import os
 import pickle
+import json
 from datetime import timedelta
 
 import numpy as np
@@ -29,8 +30,6 @@ from torch.utils.data import DataLoader, Dataset
 from dlrover.trainer.torch.elastic_sampler import ElasticDistributedSampler
 
 local_rank = None
-master_process = False
-meta_vocab_size = None
 
 
 class UpdateDataStepCallback(pl.Callback):
@@ -49,9 +48,7 @@ class UpdateDataStepCallback(pl.Callback):
 
 
 class Nanogpt(pl.LightningModule):
-    global meta_vocab_size
-
-    def __init__(self, args, ctx=None):
+    def __init__(self, args, ctx=None, dataset_vocab_size=None):
         super(Nanogpt, self).__init__()
         ptdtype = self._get_autocast_dtype()
         self.device_type = self._device_type(args.device)
@@ -59,13 +56,14 @@ class Nanogpt(pl.LightningModule):
         self.ctx = (
             contextlib.nullcontext()
             if self.device_type == "cpu"
-            else torch.amp.autocast(
-                device_type=self.device_type, dtype=ptdtype
-            )
+            else torch.amp.autocast(device_type=self.device_type, dtype=ptdtype)
         )
         self.automatic_optimization = False
+        self.meta_vocab_size = self._get_meta_vocab_size(
+            ckpt_dir=args.checkpoint_dir, data_dir=args.data_dir
+        )
         self.model = self._gpt_init(
-            meta_vocab_size=meta_vocab_size,
+            meta_vocab_size=self.meta_vocab_size,
             n_layer=args.n_layer,
             n_head=args.n_head,
             n_embd=args.n_embd,
@@ -123,6 +121,34 @@ class Nanogpt(pl.LightningModule):
 
         return ptdtype
 
+    def _get_meta_vocab_size(self, ckpt_dir, data_dir):
+        if ckpt_dir is not None:
+            # Load the existing meta_vocab_size
+            # Attempt to derive vocab_size from the dataset
+            config_path = os.path.join(ckpt_dir, "config.json")
+            meta_vocab_size = None
+            with open(config_path) as f:
+                config = json.load(f)
+                meta_vocab_size = config["vocab_size"]
+                print(f"found vocab_size = {meta_vocab_size} (inside {config_path})")
+        else:
+            # Determine the vocab size we'll use for from-scratch training
+            # Attempt to derive vocab_size from the dataset
+            meta_path = os.path.join(data_dir, "meta.pkl")
+            meta_vocab_size = None
+            if os.path.exists(meta_path):
+                with open(meta_path, "rb") as f:
+                    meta = pickle.load(f)
+            meta_vocab_size = meta["vocab_size"]
+            print(f"found vocab_size = {meta_vocab_size} (inside {meta_path})")
+        if meta_vocab_size is None:
+            print(
+                "defaulting to vocab_size of GPT-2 to 50304 "
+                "(50257 rounded up for efficiency)"
+            )
+        meta_vocab_size = meta_vocab_size if meta_vocab_size is not None else 50304
+        return meta_vocab_size
+
     def _gpt_init(
         self,
         meta_vocab_size,
@@ -140,20 +166,11 @@ class Nanogpt(pl.LightningModule):
             n_embd=n_embd,
             block_size=block_size,
             bias=bias,
-            vocab_size=None,
+            vocab_size=meta_vocab_size,
             dropout=dropout,
         )  # Start with model_args from command line
         # Init a new model from scratch
         print("Initializing a new model from scratch")
-        # Determine the vocab size we'll use for from-scratch training
-        if meta_vocab_size is None:
-            print(
-                "defaulting to vocab_size of GPT-2 to 50304 "
-                "(50257 rounded up for efficiency)"
-            )
-        model_args["vocab_size"] = (
-            meta_vocab_size if meta_vocab_size is not None else 50304
-        )
         gptconf = GPTConfig(**model_args)
         return GPT(gptconf)
 
@@ -221,9 +238,7 @@ class GPTDataModule(pl.LightningDataModule):
         super().__init__()
 
     def setup(self, stage):
-        self.train_data, self.val_data, self.vocab_size = self._get_dataset(
-            self.data_dir
-        )
+        self.train_data, self.val_data = self._get_dataset(self.data_dir)
         self.train_sampler = ElasticDistributedSampler(self.train_data)
 
     def train_dataloader(self):
@@ -252,15 +267,7 @@ class GPTDataModule(pl.LightningDataModule):
         val_data = np.memmap(
             os.path.join(data_dir, "val.bin"), dtype=np.uint16, mode="r"
         )
-        # Attempt to derive vocab_size from the dataset
-        meta_path = os.path.join(data_dir, "meta.pkl")
-        meta_vocab_size = None
-        if os.path.exists(meta_path):
-            with open(meta_path, "rb") as f:
-                meta = pickle.load(f)
-        meta_vocab_size = meta["vocab_size"]
-        print(f"found vocab_size = {meta_vocab_size} (inside {meta_path})")
-        return train_data, val_data, meta_vocab_size
+        return train_data, val_data
 
 
 def log_rank0(msg):
@@ -270,7 +277,7 @@ def log_rank0(msg):
 
 
 def setup(args):
-    global local_rank, master_process
+    global local_rank
 
     use_cuda = torch.cuda.is_available() and args.device != "cpu"
     if use_cuda:
@@ -281,7 +288,7 @@ def setup(args):
     local_rank = int(os.environ["LOCAL_RANK"])
     print(f"rank {rank} is initialized local_rank = {local_rank}")
     # This process will do logging, checkpointing etc.
-    master_process = rank == 0
+    rank == 0
     seed_offset = rank  # Each process gets a different seed
     torch.manual_seed(1337 + seed_offset)
     torch.backends.cuda.matmul.allow_tf32 = True  # Allow tf32 on matmul
@@ -329,19 +336,16 @@ def arg_parser():
     # Data settings
     parser.add_argument("--data_dir", type=str, required=True)
     parser.add_argument("--out_dir", type=str, default="out", required=False)
-    parser.add_argument(
-        "--eval_interval", type=int, default=2000, required=False
-    )
+    parser.add_argument("--eval_interval", type=int, default=2000, required=False)
     parser.add_argument("--log_interval", type=int, default=1, required=False)
     parser.add_argument("--eval_iters", type=int, default=200, required=False)
     parser.add_argument("--eval_only", action="store_true", required=False)
-    parser.add_argument(
-        "--always_save_checkpoint", action="store_true", required=False
-    )
+    parser.add_argument("--always_save_checkpoint", action="store_true", required=False)
     parser.add_argument("--batch_size", type=int, default=16, required=False)
     parser.add_argument("--block_size", type=int, default=128, required=False)
 
     # Model settings
+    parser.add_argument("--checkpoint_dir", type=str, required=False)
     parser.add_argument("--n_layer", type=int, default=6, required=False)
     parser.add_argument("--n_head", type=int, default=6, required=False)
     parser.add_argument("--n_embd", type=int, default=384, required=False)
@@ -349,13 +353,9 @@ def arg_parser():
     parser.add_argument("--bias", action="store_true", required=False)
 
     # Optimizer settings
-    parser.add_argument(
-        "--learning_rate", type=float, default=6e-4, required=False
-    )
+    parser.add_argument("--learning_rate", type=float, default=6e-4, required=False)
     parser.add_argument("--max_iters", type=int, default=10, required=False)
-    parser.add_argument(
-        "--weight_decay", type=float, default=1e-1, required=False
-    )
+    parser.add_argument("--weight_decay", type=float, default=1e-1, required=False)
     parser.add_argument("--beta1", type=float, default=0.9, required=False)
     parser.add_argument("--beta2", type=float, default=0.95, required=False)
     parser.add_argument("--grad_clip", type=float, default=1.0, required=False)
@@ -366,9 +366,7 @@ def arg_parser():
     # Learning rate decay settings
     parser.add_argument("--decay_lr", action="store_true", required=False)
     parser.add_argument("--warmup_iters", type=int, default=0, required=False)
-    parser.add_argument(
-        "--lr_decay_iters", type=int, default=10, required=False
-    )
+    parser.add_argument("--lr_decay_iters", type=int, default=10, required=False)
     parser.add_argument("--min_lr", type=float, default=6e-5, required=False)
 
     # System settings
