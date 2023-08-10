@@ -16,12 +16,14 @@ import sys
 import telnetlib
 import tempfile
 import time
+import uuid
 from typing import Callable, Union
 
 from torch.distributed.argparse_util import check_env, env
 from torch.distributed.elastic.multiprocessing.api import SubprocessHandler
 from torch.distributed.elastic.multiprocessing.errors import record
 from torch.distributed.launcher.api import LaunchConfig
+from torch.distributed.launcher.api import launch_agent as torch_launch_agent
 from torch.distributed.run import config_from_args, get_args_parser
 
 from dlrover.python.common.grpc import find_free_port
@@ -30,7 +32,9 @@ from dlrover.python.elastic_agent.master_client import (
     GlobalMasterClient,
     build_master_client,
 )
-from dlrover.python.elastic_agent.torch.training import launch_agent
+from dlrover.python.elastic_agent.torch.training import (
+    launch_agent as dlrover_launch_agent,
+)
 
 
 def parse_args(args):
@@ -86,12 +90,21 @@ class elastic_launch:
         self,
         config: LaunchConfig,
         entrypoint: Union[Callable, str, None],
+        use_dlrover_launch: bool,
     ):
         self._config = config
         self._entrypoint = entrypoint
+        self._use_dlrover_launch = use_dlrover_launch
 
     def __call__(self, *args):
-        return launch_agent(self._config, self._entrypoint, list(args))
+        if self._use_dlrover_launch:
+            return dlrover_launch_agent(
+                self._config, self._entrypoint, list(args)
+            )
+        else:
+            return torch_launch_agent(
+                self._config, self._entrypoint, list(args)
+            )
 
 
 def launch_dlrover_local_master():
@@ -117,21 +130,49 @@ def launch_dlrover_local_master():
     )
     handler = SubprocessHandler(cmd, args, {}, stdout, stderr)
     dlrover_master_addr = f"{host}:{port}"
+    return handler, dlrover_master_addr
+
+
+def _check_dlrover_master_available(addr, timeout=60):
+    """Check whether the master grpc servicer is available."""
+    host = addr.split(":")[0]
+    port = int(addr.split(":"))[1]
+    start_time = time.time()
     while True:
         try:
-            telnetlib.Telnet(host=host, port=port, timeout=3)
-            logger.info("DLRover local job master starts!")
-            break
+            telnetlib.Telnet(host=host, port=port, timeout=1)
+            logger.info("DLRover job master starts!")
+            return True
         except ConnectionRefusedError:
-            time.sleep(3)
-    GlobalMasterClient.MASTER_CLIENT = build_master_client(dlrover_master_addr)
-    return handler
+            time.sleep(1)
+        if time.time() - start_time > 60:
+            return False
 
 
 def run(args):
-    dlrover_master_handler = None
+    master_handler = None
+    dmaster_addr = os.getenv("DLROVER_MASTER_ADDR", "")
+    use_dlrover_launch = False
     if args.standalone:
-        dlrover_master_handler = launch_dlrover_local_master()
+        master_handler, dmaster_addr = launch_dlrover_local_master()
+    if _check_dlrover_master_available():
+        GlobalMasterClient.MASTER_CLIENT = build_master_client(dmaster_addr)
+        use_dlrover_launch = True
+    else:
+        use_dlrover_launch = False
+
+    if args.standalone and not use_dlrover_launch:
+        args.rdzv_backend = "c10d"
+        args.rdzv_endpoint = "localhost:29400"
+        args.rdzv_id = str(uuid.uuid4())
+        logger.info(
+            f"\n**************************************\n"
+            f"Rendezvous info:\n"
+            f"--rdzv-backend={args.rdzv_backend} "
+            f"--rdzv-endpoint={args.rdzv_endpoint} "
+            f"--rdzv-id={args.rdzv_id}\n"
+            f"**************************************\n"
+        )
 
     config, cmd, cmd_args = config_from_args(args)
     setattr(config, "network_check", False)
@@ -140,10 +181,12 @@ def run(args):
         config.network_check = args.network_check
     if hasattr(args, "node_unit"):
         config.rdzv_configs["node_unit"] = args.node_unit
-    elastic_launch(config=config, entrypoint=cmd)(*cmd_args)
+    elastic_launch(
+        config=config, entrypoint=cmd, use_dlrover_launch=use_dlrover_launch
+    )(*cmd_args)
 
-    if dlrover_master_handler:
-        dlrover_master_handler.close()
+    if master_handler:
+        master_handler.close()
 
 
 @record
