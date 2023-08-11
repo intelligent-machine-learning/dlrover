@@ -13,11 +13,10 @@
 
 import os
 
-from dlrover.python.common.constants import NodeType
+from dlrover.python.common.constants import NodeType, PlatformType
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.args import parse_master_args
-from dlrover.python.master.master import Master
 from dlrover.python.scheduler.factory import new_job_args
 from dlrover.python.scheduler.job import JobArgs
 
@@ -39,8 +38,15 @@ def run(args):
     job_args.initilize()
     logger.info("Job args : %s", job_args.toJSON())
     _dlrover_context.config_master_port(port=args.port)
-    update_context(job_args)
-    master = Master(_dlrover_context.master_port, job_args)
+    if job_args.platform == PlatformType.LOCAL:
+        from dlrover.python.master.local_master import LocalJobMaster
+
+        master = LocalJobMaster(_dlrover_context.master_port, job_args)
+    else:
+        from dlrover.python.master.dist_master import DistributedJobMaster
+
+        update_context(job_args)
+        master = DistributedJobMaster(_dlrover_context.master_port, job_args)
     master.prepare()
     return master.run()
 

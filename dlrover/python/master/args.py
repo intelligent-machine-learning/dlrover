@@ -29,7 +29,7 @@ def add_params(parser):
         "--platform",
         default="pyk8s",
         type=str,
-        help="The name of platform",
+        help="The name of platform which can be pyk8s, k8s, ray or local.",
     )
 
 

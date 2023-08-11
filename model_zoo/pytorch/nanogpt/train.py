@@ -139,7 +139,7 @@ def get_lr(it, args):
 
 
 def log_rank0(msg):
-    local_rank = int(os.environ.get("LOCAL_RANK", 0))
+    local_rank = int(os.getenv("LOCAL_RANK", 0))
     if local_rank == 0:
         print(msg)
 
@@ -153,7 +153,7 @@ def setup(args):
     else:
         dist.init_process_group("gloo", timeout=timedelta(seconds=120))
     rank = dist.get_rank()
-    local_rank = int(os.environ["LOCAL_RANK"])
+    local_rank = int(os.getenv("LOCAL_RANK", 0))
     print(f"rank {rank} is initialized local_rank = {local_rank}")
     # This process will do logging, checkpointing etc.
     master_process = rank == 0
@@ -169,14 +169,15 @@ def cleanup():
 
 def train():
     global local_rank
-
     args = arg_parser()
     setup(args)
-    world_size = int(os.environ["WORLD_SIZE"])
+    world_size = int(os.getenv("WORLD_SIZE", 1))
     gradient_accumulation_steps = args.gradient_accumulation_steps
     batch_size = args.batch_size
-    block_size = args.block_size
+    if gradient_accumulation_steps == 0:
+        gradient_accumulation_steps = world_size
     assert gradient_accumulation_steps % world_size == 0
+    block_size = args.block_size
     gradient_accumulation_steps //= world_size
     tokens_per_iter = (
         gradient_accumulation_steps * world_size * batch_size * block_size
@@ -216,17 +217,8 @@ def train():
     model = gpt_init(meta_vocab_size, args=args)
     scaler = torch.cuda.amp.GradScaler(enabled=(dtype == "float16"))
     model = model.to(device)
-    # Optimizer
-    print(f"creating optimizer...{model.parameters()}")
-    optimizer = model.configure_optimizers(
-        weight_decay=args.weight_decay,
-        learning_rate=args.learning_rate,
-        betas=(args.beta1, args.beta2),
-        device_type=device_type,
-    )
-
+    # Device
     if torch.cuda.is_available() and device_type == "cuda":
-        local_rank = int(os.environ["LOCAL_RANK"])
         # Create model and move it to GPU with id rank
         model = model.to(local_rank)
         if use_fsdp:
@@ -238,11 +230,18 @@ def train():
             print(f"Model device {model.device}")
 
     else:
-        local_rank = int(os.environ["LOCAL_RANK"])
         print(f"Running basic CPU example on device {device}.")
         model = model.to(device)
         model = DDP(model)
         print(f"Model device {model.device}")
+    # Optimizer
+    print(f"creating optimizer...{model.parameters()}")
+    optimizer = torch.optim.AdamW(
+        model.parameters(),
+        weight_decay=args.weight_decay,
+        lr=args.learning_rate,
+        betas=(args.beta1, args.beta2),
+    )
 
     # Compile the model
     if compile == "True":
@@ -272,7 +271,7 @@ def train():
 
     while True:
         # Determine and set the learning rate for this iteration
-        lr = get_lr(iter_num) if decay_lr else learning_rate
+        lr = get_lr(iter_num, args) if decay_lr else learning_rate
         for param_group in optimizer.param_groups:
             param_group["lr"] = lr
 
@@ -391,7 +390,7 @@ def arg_parser():
     parser.add_argument("--beta2", type=float, default=0.95, required=False)
     parser.add_argument("--grad_clip", type=float, default=1.0, required=False)
     parser.add_argument(
-        "--gradient_accumulation_steps", type=int, default=1, required=False
+        "--gradient_accumulation_steps", type=int, default=0, required=False
     )
 
     # Learning rate decay settings

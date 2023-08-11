@@ -135,13 +135,10 @@ def find_memory_factor(strategy):
     optimizer_factor = 1.0
     opt_names = list(opt[0] for opt in strategy)
     for opt_name in opt_names:
-        if opt_name == "amp_native" or opt_name == "amp_apex_o2":
+        if opt_name == "amp_native":
             forward_factor *= 0.5
             if "fsdp" in opt_names or "zero2" in opt_names:
                 grad_factor *= 0.5
-            param_factor *= 1.5
-        if opt_name == "amp_apex_o1":
-            forward_factor *= 0.5
             param_factor *= 1.5
         if opt_name == "zero1":
             optimizer_factor *= 1 / zero_size

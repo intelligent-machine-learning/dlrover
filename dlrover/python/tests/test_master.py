@@ -14,17 +14,22 @@
 import unittest
 
 from dlrover.python.common.constants import JobExitReason, NodeStatus, NodeType
-from dlrover.python.master.master import Master
+from dlrover.python.elastic_agent.master_client import build_master_client
+from dlrover.python.master.dist_master import DistributedJobMaster
 from dlrover.python.master.shard.dataset_splitter import new_dataset_splitter
-from dlrover.python.tests.test_utils import MockK8sPSJobArgs, mock_k8s_client
+from dlrover.python.tests.test_utils import (
+    MockK8sPSJobArgs,
+    mock_k8s_client,
+    start_local_master,
+)
 
 
-class MasterTest(unittest.TestCase):
+class DistributedJobMasterTest(unittest.TestCase):
     def setUp(self) -> None:
         mock_k8s_client()
         params = MockK8sPSJobArgs()
         params.initilize()
-        self.master = Master(2222, params)
+        self.master = DistributedJobMaster(2222, params)
 
     def test_exit_by_workers(self):
         self.master.job_manager._init_nodes()
@@ -69,3 +74,30 @@ class MasterTest(unittest.TestCase):
         self.master.run()
         self.assertEqual(self.master._exit_code, 0)
         self.assertEqual(self.master._exit_reason, JobExitReason.SUCCEEDED)
+
+
+class LocalJobMasterTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self._master, addr = start_local_master()
+        self.master_client = build_master_client(addr)
+
+    def addCleanup(self):
+        self._master.stop()
+
+    def test_task_manager(self):
+        self.master_client.report_dataset_shard_params(
+            64, 1, 10000, False, 10, "test-ds"
+        )
+        succeed, task = self.master_client.get_task("test-ds")
+        self.assertTrue(succeed)
+        self.assertEqual(task.shard.start, 0)
+        self.assertEqual(task.shard.end, 640)
+        succeed = self.master_client.report_task_result("test-ds", 0, "")
+        self.assertTrue(succeed)
+
+    def test_rdzv_manager(self):
+        self.master_client.report_rdzv_params(1, 1, 360, 1)
+        self.master_client.join_rendezvous(0, 8, "elastic-training")
+        group, world = self.master_client.get_comm_world("elastic-training", 0)
+        self.assertEqual(group, 1)
+        self.assertEqual(world[0], 8)

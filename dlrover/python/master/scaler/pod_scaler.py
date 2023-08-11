@@ -364,7 +364,7 @@ class PodScaler(Scaler):
 
         worker_num = self._config_worker_num
         if worker_num == 0:
-            worker_num = pod_stats[node.type]
+            worker_num = pod_stats.get(node.type, 0)
         env.append(V1EnvVar(name=NodeEnv.WORKER_NUM, value=str(worker_num)))
         env.append(
             V1EnvVar(name=NodeEnv.WORKER_RANK, value=str(node.rank_index))

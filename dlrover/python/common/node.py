@@ -14,8 +14,6 @@
 import copy
 import time
 
-from kubernetes.utils.quantity import parse_quantity
-
 from dlrover.python.common.constants import (
     NodeExitReason,
     NodeResourceLimit,
@@ -23,6 +21,11 @@ from dlrover.python.common.constants import (
     PriorityClass,
 )
 from dlrover.python.common.serialize import JsonSerializable
+
+try:
+    from kubernetes.utils.quantity import parse_quantity
+except ImportError:
+    pass
 
 
 def _is_float_str(str_number):

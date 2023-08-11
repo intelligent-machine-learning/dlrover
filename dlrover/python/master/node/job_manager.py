@@ -177,11 +177,12 @@ class JobManager(object):
         threading.Thread(
             target=self._monitor_nodes, name="node_monitor", daemon=True
         ).start()
-        threading.Thread(
-            target=self._monitor_scale_plan_crd,
-            name="scaleplan_monitor",
-            daemon=True,
-        ).start()
+        if os.getenv("KUBERNETES_SERVICE_HOST"):
+            threading.Thread(
+                target=self._monitor_scale_plan_crd,
+                name="scaleplan_monitor",
+                daemon=True,
+            ).start()
 
     def _adjust_worker_for_estimator(self):
         if self._job_args.distribution_strategy == DistributionStrategy.PS:

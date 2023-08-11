@@ -7,10 +7,15 @@
 #
 #       For reference:
 #           https://docs.docker.com/develop/develop-images/build_enhancements/
-ARG BASE_IMAGE=ubuntu:20.04
+FROM nvidia/cuda:11.8.0-cudnn8-devel-ubuntu20.04 as dev-base
 ARG PYTHON_VERSION=3.8
 
-FROM ${BASE_IMAGE} as dev-base
+COPY pip.conf ~/.pip/pip.conf
+
+RUN sed -i s@/archive.ubuntu.com/@/mirrors.aliyun.com/@g /etc/apt/sources.list
+RUN sed -i s@/security.ubuntu.com/@/mirrors.aliyun.com/@g /etc/apt/sources.list
+RUN apt-get clean
+
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         build-essential \
         ca-certificates \
@@ -44,45 +49,19 @@ RUN chmod +x ~/miniconda.sh && \
     /opt/conda/bin/python -mpip install -r requirements.txt && \
     /opt/conda/bin/conda clean -ya
 
-FROM dev-base as submodule-update
-WORKDIR /opt/pytorch
-COPY . .
-RUN git submodule update --init --recursive
-
-FROM conda as build
-ARG CMAKE_VARS
-WORKDIR /opt/pytorch
-COPY --from=conda /opt/conda /opt/conda
-COPY --from=submodule-update /opt/pytorch /opt/pytorch
-RUN --mount=type=cache,target=/opt/ccache \
-    export eval ${CMAKE_VARS} && \
-    TORCH_CUDA_ARCH_LIST="3.5 5.2 6.0 6.1 7.0+PTX 8.0" TORCH_NVCC_FLAGS="-Xfatbin -compress-all" \
-    CMAKE_PREFIX_PATH="$(dirname $(which conda))/../" \
-    python setup.py install
-
 FROM conda as conda-installs
 ARG PYTHON_VERSION=3.8
-ARG CUDA_VERSION=11.7
 ARG CUDA_CHANNEL=nvidia
 ARG INSTALL_CHANNEL=pytorch
 # Automatically set by buildx
-RUN /opt/conda/bin/conda update -y conda
-RUN /opt/conda/bin/conda install -c "${INSTALL_CHANNEL}" -y python=${PYTHON_VERSION}
-ARG TARGETPLATFORM
-
-# On arm64 we can only install wheel packages.
-RUN case ${TARGETPLATFORM} in \
-         "linux/arm64")  pip install --extra-index-url https://download.pytorch.org/whl/cpu/ torch torchvision torchaudio torchtext ;; \
-         *)              /opt/conda/bin/conda install -c "${INSTALL_CHANNEL}" -c "${CUDA_CHANNEL}" -y "python=${PYTHON_VERSION}" pytorch torchvision torchaudio torchtext "pytorch-cuda=$(echo $CUDA_VERSION | cut -d'.' -f 1-2)"  ;; \
-    esac && \
-    /opt/conda/bin/conda clean -ya
+# Note conda needs to be pinned to 23.5.2 see: https://github.com/pytorch/pytorch/issues/106470
+RUN /opt/conda/bin/conda install -c "${INSTALL_CHANNEL}" -y python=${PYTHON_VERSION} conda=23.5.2
+RUN /opt/conda/bin/pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 RUN /opt/conda/bin/pip install torchelastic
 
-FROM ${BASE_IMAGE} as official
-ARG PYTORCH_VERSION
+FROM nvidia/cuda:11.8.0-cudnn8-devel-ubuntu20.04 as official
 ARG TRITON_VERSION
 ARG TARGETPLATFORM
-ARG CUDA_VERSION
 LABEL com.nvidia.volumes.needed="nvidia_driver"
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         ca-certificates \
@@ -98,9 +77,8 @@ ENV PATH /opt/conda/bin:$PATH
 ENV NVIDIA_VISIBLE_DEVICES all
 ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
 ENV LD_LIBRARY_PATH /usr/local/nvidia/lib:/usr/local/nvidia/lib64
-ENV PYTORCH_VERSION ${PYTORCH_VERSION}
 WORKDIR /workspace
 
-FROM official as dev
+# FROM official as dev
 # Should override the already installed version from the official-image stage
-COPY --from=build /opt/conda /opt/conda
+# COPY --from=build /opt/conda /opt/conda

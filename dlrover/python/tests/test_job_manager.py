@@ -25,7 +25,7 @@ from dlrover.python.common.constants import (
     NodeType,
 )
 from dlrover.python.common.node import NodeGroupResource, NodeResource
-from dlrover.python.master.master import Master
+from dlrover.python.master.dist_master import DistributedJobMaster
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.event_callback import (
     ClusterContext,
@@ -332,7 +332,7 @@ class JobManagerTest(unittest.TestCase):
     def test_tf_ps_node_handling(self):
         params = MockK8sPSJobArgs()
         params.initilize()
-        master = Master(2222, params)
+        master = DistributedJobMaster(2222, params)
         master.job_manager._init_nodes()
         master.job_manager._scaler.scale = mock.MagicMock(return_value=True)
         callback = TFPSNodeHandlingCallback(master)

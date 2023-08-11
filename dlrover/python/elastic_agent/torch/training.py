@@ -149,7 +149,7 @@ class MasterRendezvousHandler(RendezvousHandler):
                         "The node is not in the world "
                         "and waits for more nodes."
                     )
-                    time.sleep(60)
+                    time.sleep(5)
                     start_join = time.time()
                     continue
             elif time.time() - start_join > self.join_timeout:
@@ -635,7 +635,10 @@ class NetworkCheckElasticAgent(ElasticTrainingAgent):
                     raise RuntimeError("The node network is breakdown.")
             time.sleep(1)
         if not success:
-            self._client.report_failures(NodeErrorMessage.NETWORKER_ERROR)
+            self._client.report_failures(
+                NodeErrorMessage.NETWORKER_ERROR,
+                level=TrainingMsgLevel.NODE_ERROR,
+            )
             raise RuntimeError("The node network is breakdown.")
         return False
 
