@@ -268,7 +268,7 @@ def build_brain_client():
         client = build_brain_client()
         ```
     """
-    brain_addr = os.getenv(_ENV_BRAIN_ADDR_KEY, _DEFAULT_BRAIN_ADDR)
+    brain_addr = os.getenv(_ENV_BRAIN_ADDR_KEY, "")
     channel = build_channel(brain_addr)
     if channel and grpc_server_ready(channel):
         return BrainClient(channel)

@@ -14,21 +14,17 @@
 from abc import ABCMeta, abstractmethod
 from typing import Dict
 
+from dlrover.python.common.constants import TrainingMsgLevel
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node
 
 
 class ErrorMonitor(metaclass=ABCMeta):
     @abstractmethod
-    def handle_process_error(
-        self, node: Node, restart_count: int, error_data: str
+    def process_error(
+        self, node: Node, restart_count: int, error_data: str, level: str
     ):
         """Handle the error of training processes."""
-        pass
-
-    @abstractmethod
-    def handle_node_error(self, node: Node, error_data: str):
-        """Handle the error of node."""
         pass
 
 
@@ -38,7 +34,19 @@ class ErrorLogMonitor(ErrorMonitor):
     def __init__(self):
         self._restart_errors: Dict[int, str] = {}
 
-    def handle_process_error(
+    def process_error(
+        self, node: Node, restart_count: int, error_data: str, level: str
+    ):
+        if level == TrainingMsgLevel.PROCESS_ERROR:
+            self._handle_process_error(node, restart_count, error_data)
+        elif level == TrainingMsgLevel.NODE_ERROR:
+            self._handle_node_error(node, error_data)
+        elif level == TrainingMsgLevel.RDZV_ERROR:
+            logger.error(f"Rendezvous fails with reason {error_data}")
+        elif level == TrainingMsgLevel.WARNING:
+            logger.warning(error_data)
+
+    def _handle_process_error(
         self, node: Node, restart_count: int, error_data: str
     ):
         if restart_count not in self._restart_errors:
@@ -48,7 +56,7 @@ class ErrorLogMonitor(ErrorMonitor):
                 f"restart {restart_count} fails: {error_data}"
             )
 
-    def handle_node_error(self, node: Node, error_data: str):
+    def _handle_node_error(self, node: Node, error_data: str):
         logger.error(
             f"{node.name} on {node.host_name} is breakdown."
             f"Reason: {error_data}"

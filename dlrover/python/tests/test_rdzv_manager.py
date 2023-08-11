@@ -17,18 +17,30 @@ import unittest
 
 from dlrover.python.common.constants import NetworkFailureReason
 from dlrover.python.common.node import Node
+from dlrover.python.elastic_agent.master_client import (
+    GlobalMasterClient,
+    build_master_client,
+)
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
 from dlrover.python.master.elastic_training.rdzv_manager import (
     ElasticTrainingRendezvousManager,
     NetworkCheckRendezvousManager,
 )
+from dlrover.python.tests.test_utils import start_local_master
 
 
 class MasterKVStoreTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self._master, addr = start_local_master()
+        GlobalMasterClient.MASTER_CLIENT = build_master_client(addr)
+
+    def addCleanup(self):
+        self._master.stop()
+
     def test_kv_store_api(self):
         kv_store = MasterKVStore("dlrover/torch/test")
         key = "key0"
-        kv_store.set(key, "1")
+        kv_store.set(key, "1".encode())
         value = kv_store.get(key)
         self.assertEqual(int(value), 1)
         kv_store.add(key, 2)

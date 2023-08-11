@@ -124,6 +124,8 @@ class PodScaler(Scaler):
 
     def scale(self, plan: ScalePlan):
         """Scale in/out Pods by a ScalePlan."""
+        if plan.empty():
+            return
         self._plan = plan
         job_pods = self._list_job_pods()
         logger.info("Scale the job by plan %s", plan.toJSON())
@@ -362,7 +364,7 @@ class PodScaler(Scaler):
 
         worker_num = self._config_worker_num
         if worker_num == 0:
-            worker_num = pod_stats[node.type]
+            worker_num = pod_stats.get(node.type, 0)
         env.append(V1EnvVar(name=NodeEnv.WORKER_NUM, value=str(worker_num)))
         env.append(
             V1EnvVar(name=NodeEnv.WORKER_RANK, value=str(node.rank_index))
@@ -427,7 +429,6 @@ class PodScaler(Scaler):
         pod.metadata.labels[ElasticJobLabel.RANK_INDEX_KEY] = str(
             node.rank_index
         )
-        self._patch_tf_config_into_env(pod, node, pod_stats, ps_addrs)
         if (
             _dlrover_context.auto_ps_enabled
             or _dlrover_context.auto_worker_enabled
@@ -435,6 +436,7 @@ class PodScaler(Scaler):
             pod.spec.containers[0].env.append(
                 V1EnvVar(name=NodeEnv.AUTO_MONITOR_WORKLOAD, value="true")
             )
+        self._patch_tf_config_into_env(pod, node, pod_stats, ps_addrs)
         return pod
 
     def get_first_worker_host(self):

@@ -322,6 +322,8 @@ class K8sJobArgs(JobArgs):
         self.optimize_mode = job["spec"].get(
             "optimizeMode", OptimizeMode.SINGLE_JOB
         )
+        relaunch_strategy = job["spec"].get("relaunchStrategy", "")
+        self.relaunch_always = relaunch_strategy == "always"
 
         for replica, spec in job["spec"]["replicaSpecs"].items():
             priority = spec.get("priority", "")

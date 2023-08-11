@@ -1,3 +1,4 @@
+import copy
 import os
 import subprocess
 import sys
@@ -9,11 +10,13 @@ import torch.distributed.rpc as rpc
 
 import atorch
 from atorch.distributed.distributed import ParallelGroupContextManager
+from atorch.distributed.distributed import _DistributedContext
 from atorch.distributed.distributed import _DistributedContext as dc
 from atorch.distributed.distributed import (
     create_parallel_group,
     destroy_parallel_group,
     get_pg_ranks,
+    get_ranks_in_same_group,
     init_distributed,
     local_rank,
     parallel_group,
@@ -171,13 +174,63 @@ class ParallelGroupTest(unittest.TestCase):
                 "data": [[0, 8], [1, 9], [2, 10], [3, 11], [4, 12], [5, 13], [6, 14], [7, 15]],
             },
         ]
+        correct_same_group_ranks_10 = [
+            {
+                "model": [10, 11],
+                "pipeline": [8, 10],
+                "data": [10, 14],
+            },
+            {
+                "tensor": [8, 9, 10, 11],
+                "data": [10, 14],
+            },
+            {
+                "model": [10, 11],
+                "sequence": [8, 10],
+                "pipeline": [10, 14],
+                "data": [2, 10],
+            },
+        ]
+        correct_same_group_ranks_0 = [
+            {
+                "model": [0, 1],
+                "pipeline": [0, 2],
+                "data": [0, 4],
+            },
+            {
+                "tensor": [0, 1, 2, 3],
+                "data": [0, 4],
+            },
+            {
+                "model": [0, 1],
+                "sequence": [0, 2],
+                "pipeline": [0, 4],
+                "data": [0, 8],
+            },
+        ]
 
         for index, slicing_dim in enumerate(dmp_sizes):
             size = np.prod([p[1] for p in slicing_dim])
+            _DistributedContext.WORLD_SIZE = size
             rank_order = list(range(size))
             pg_ranks = get_pg_ranks(slicing_dim, rank_order)
-            for name in pg_ranks:
-                self.assertEqual(pg_ranks[name], correct_ranks[index][name])
+            for name in pg_ranks[0]:
+                self.assertEqual(pg_ranks[0][name], correct_ranks[index][name])
+            ranks_in_same_group = get_ranks_in_same_group((slicing_dim, rank_order), 0)
+            self.assertEqual(ranks_in_same_group, correct_same_group_ranks_0[index])
+            _DistributedContext.WORLD_SIZE = size * 2
+            rank_order = list(range(size * 2))
+            pg_ranks = get_pg_ranks(slicing_dim, rank_order)
+            for name in pg_ranks[0]:
+                self.assertEqual(pg_ranks[0][name], correct_ranks[index][name])
+                second_instance_correct_ranks = copy.deepcopy(correct_ranks[index][name])
+                for d in second_instance_correct_ranks:
+                    for i in range(len(d)):
+                        d[i] += size
+                self.assertEqual(pg_ranks[1][name], second_instance_correct_ranks)
+            ranks_in_same_group = get_ranks_in_same_group((slicing_dim, rank_order), 10)
+            self.assertEqual(ranks_in_same_group, correct_same_group_ranks_10[index])
+        reset_distributed()
 
     def test_2_process_create_groups(self):
         run_dist_code("test_pg_dist_with_2node", nproc=2)

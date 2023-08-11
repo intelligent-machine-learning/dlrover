@@ -17,6 +17,7 @@ from torch.utils.data.distributed import DistributedSampler
 
 import atorch
 from atorch.auto.device_context import get_device_context
+from atorch.auto.opt_lib.utils import _propose_leaf_modules, _propose_wrap_cls, to_module_class_by_name
 from atorch.common.log_utils import default_logger as logger
 from atorch.data import ShmDataloader, expand_batch_dim, get_sample_batch
 from atorch.distributed.distributed import (
@@ -27,6 +28,7 @@ from atorch.distributed.distributed import (
     rank,
 )
 from atorch.utils.graph_transform_utils import map_aggregate
+from atorch.utils.version import torch_version
 
 try:
     from pippy.IR import LossWrapper
@@ -439,35 +441,84 @@ class ModelContext(object):
             if "fsdp" in self.pre_wrappers:
                 self.pre_wrappers.pop("fsdp")
 
-            if "amp_apex_o1" in self.post_wrappers:
-                self.post_wrappers.pop("amp_apex_o1")
-
-            if "amp_apex_o2" in self.post_wrappers:
-                self.post_wrappers.pop("amp_apex_o2")
-
             # DDP is supported and handled internally by PiPPy.
             if "ddp" in self.post_wrappers:
                 self.post_wrappers.pop("ddp")
 
         if pipe_wrapper_exist:
-            # TODO: support pipe
-            pass
+            if "checkpoint" in self.post_wrappers:
+                ckpt_wrapper = self.post_wrappers.pop("checkpoint")
+                pipe_config = self.pre_wrappers["pipe"][1] or {}
+                ckpt_wrap_cls = ckpt_wrapper[1]
+                pipe_wrap_cls = set(to_module_class_by_name(self.model, ckpt_wrap_cls))
+                leaf_modules = _propose_leaf_modules(pipe_wrap_cls)
+                pipe_config["compiler_configs"]["checkpoint"] = True
+                pipe_config["compiler_configs"]["leaf_modules"] = leaf_modules
+                self.pre_wrappers["pipe"] = (
+                    self.pre_wrappers["pipe"][0],
+                    pipe_config,
+                )
+
+            if "amp_native" in self.post_wrappers:
+                amp_wrapper = self.post_wrappers.pop("amp_native")
+                amp_config = amp_wrapper[1] or None
+                pipe_config = self.pre_wrappers["pipe"][1] or {}
+                pipe_config["compiler_configs"]["amp_config"] = amp_config
+                self.pre_wrappers["pipe"] = (
+                    self.pre_wrappers["pipe"][0],
+                    pipe_config,
+                )
+
+            if "module_replace" in self.pre_wrappers:
+                self.pre_wrappers.pop("module_replace")
+                pipe_config = self.pre_wrappers["pipe"][1] or {}
+                pipe_config["compiler_configs"]["module_replace"] = True
+                self.pre_wrappers["pipe"] = (
+                    self.pre_wrappers["pipe"][0],
+                    pipe_config,
+                )
 
         # FIXME Allow mixing of DDP/ZeRO with MP?
         if mp_wrapper_exist:
-            # TODO: support mp
-            pass
+            mp_config = self.pre_wrappers["mp"][1] or {}
+            pipe_config = mp_config["pipe_config"]
+            if pipe_config is not None:
+                if "checkpoint" in self.post_wrappers:
+                    ckpt_wrapper = self.post_wrappers.pop("checkpoint")
+                    ckpt_wrap_cls = ckpt_wrapper[1]
+                    pipe_wrap_cls = set(to_module_class_by_name(self.model, ckpt_wrap_cls))
+                    leaf_modules = _propose_leaf_modules(pipe_wrap_cls)
+                    pipe_config["compiler_configs"]["checkpoint"] = True
+                    pipe_config["compiler_configs"]["leaf_modules"] = leaf_modules
+
+                if "amp_native" in self.post_wrappers:
+                    amp_wrapper = self.post_wrappers.pop("amp_native")
+                    amp_config = amp_wrapper[1] or None
+                    pipe_config["compiler_configs"]["amp_config"] = amp_config
+
+                if "module_replace" in self.pre_wrappers:
+                    self.pre_wrappers.pop("module_replace")
+                    pipe_config["compiler_configs"]["module_replace"] = True
+
+                mp_config["pipe_config"] = pipe_config
+
+                self.pre_wrappers["mp"] = (
+                    self.pre_wrappers["mp"][0],
+                    mp_config,
+                )
 
         ddp_wrapper_exist = "ddp" in self.post_wrappers
         fairscale_zero2_wrapper_exist = "zero2" in self.post_wrappers
         fsdp_wrapper_exist = "fsdp" in self.pre_wrappers or "zero2" in self.pre_wrappers
         tensor_parallel_wrapper_exist = "tp" in self.pre_wrappers
-        # ckpt_wrapper_exist = "checkpoint" in self.post_wrappers
+        ckpt_wrapper_exist = "checkpoint" in self.post_wrappers
+        native_dynamo_wrapper_exist = "native_dynamo" in self.pre_wrappers
 
         # remove ddp wrapper when using zero2
         if ddp_wrapper_exist and (fairscale_zero2_wrapper_exist or fsdp_wrapper_exist):
             logger.info("Found Zero and ddp wrapper or pipe wrapper, remove ddp wrapper")
             self.post_wrappers.pop("ddp")
+            ddp_wrapper_exist = False
         if fsdp_wrapper_exist and "amp_native" in self.post_wrappers:
             logger.info("Found fsdp and amp_native wrapper, turn on mixed_precision in FSDP")
             _, amp_native_config = self.post_wrappers["amp_native"]
@@ -484,27 +535,108 @@ class ModelContext(object):
                 config,
             )
 
-        # move ddp wrapper or zero2 wrapper behind amp_apex_* wrapper
-        if (ddp_wrapper_exist or fairscale_zero2_wrapper_exist) and (
-            "amp_apex_o1" in self.post_wrappers or "amp_apex_o2" in self.post_wrappers
-        ):
-            amp_apex_wrapper_index, ddp_or_zero2_wrapper_index = -1, -1
-            wrappers_list = []
-            for i, (wrapper_name, v) in enumerate(self.post_wrappers.items()):
-                wrappers_list.append((wrapper_name, v))
-                if wrapper_name.startswith("amp_apex_"):
-                    amp_apex_wrapper_index = i
-                elif wrapper_name == "ddp" or wrapper_name == "zero2":
-                    ddp_or_zero2_wrapper_index = i
-            if ddp_or_zero2_wrapper_index < amp_apex_wrapper_index:
-                ddp_or_zero2_wrapper = wrappers_list[ddp_or_zero2_wrapper_index]
-                wrappers_list.insert(amp_apex_wrapper_index + 1, ddp_or_zero2_wrapper)
-                wrappers_list.pop(ddp_or_zero2_wrapper_index)
-            self.post_wrappers = dict(wrappers_list)
+        # move dynamo_native wrapper behind ddp or fsdp
+        # Note that dynamo_native wrapper and fsdp wrapper are pre-wrappers while ddp wrapper is a post-wrapper.
+        if native_dynamo_wrapper_exist:
+            if fsdp_wrapper_exist:
+                # both dynamo_native wrapper and fsdp wrapper are pre-wrappers
+                native_dynamo_wrapper_index, fsdp_wrapper_index = -1, -1
+                pre_wrappers_list = []
+                for i, (wrapper_name, v) in enumerate(self.pre_wrappers.items()):
+                    pre_wrappers_list.append((wrapper_name, v))
+                    if wrapper_name == "fsdp":
+                        fsdp_wrapper_index = i
+                    elif wrapper_name == "native_dynamo":
+                        native_dynamo_wrapper_index = i
+                if native_dynamo_wrapper_index < fsdp_wrapper_index:
+                    native_dynamo_wrapper = pre_wrappers_list[native_dynamo_wrapper_index]
+                    pre_wrappers_list.insert(fsdp_wrapper_index + 1, native_dynamo_wrapper)
+                    pre_wrappers_list.pop(native_dynamo_wrapper_index)
+                self.pre_wrappers = dict(pre_wrappers_list)
+            elif ddp_wrapper_exist:
+                # ddp wrapper is a post-wrapper. Popping dynamo_native wrapper from pre-wrappers
+                # then insert it after ddp wrapper.
+                post_wrappers_list = []
+                ddp_wrapper_index = -1
+                for i, (wrapper_name, v) in enumerate(self.post_wrappers.items()):
+                    post_wrappers_list.append((wrapper_name, v))
+                    if wrapper_name == "ddp":
+                        ddp_wrapper_index = i
+                    native_dynamo_wrapper = self.pre_wrappers.pop("native_dynamo")
+                    post_wrappers_list.insert(ddp_wrapper_index + 1, ("native_dynamo", native_dynamo_wrapper))
+                self.post_wrappers = dict(post_wrappers_list)
 
         if tensor_parallel_wrapper_exist:
-            # todo: support tp
-            pass
+            wrap_cls = None
+            if fsdp_wrapper_exist and torch_version() >= (1, 12, 0):
+                fsdp_wrapper = self.pre_wrappers["fsdp"]
+                fsdp_wrapper = list(fsdp_wrapper)
+                if fsdp_wrapper[1] is None:
+                    fsdp_wrapper[1] = dict()
+
+                fsdp_config = fsdp_wrapper[1]
+                if wrap_cls is None:
+                    wrap_cls = set(to_module_class_by_name(self.model, fsdp_config.get("atorch_wrap_cls", set())))
+                else:
+                    wrap_cls = wrap_cls & set(
+                        to_module_class_by_name(self.model, fsdp_config.get("atorch_wrap_cls", set()))
+                    )
+
+            if ckpt_wrapper_exist:
+                ckpt_wrapper = self.post_wrappers["checkpoint"]
+                ckpt_wrapper = list(ckpt_wrapper)
+                if ckpt_wrapper[1] is None:
+                    ckpt_wrapper[1] = tuple()
+                ckpt_wrap_cls = ckpt_wrapper[1]
+                if wrap_cls is None:
+                    wrap_cls = set(to_module_class_by_name(self.model, ckpt_wrap_cls))
+                else:
+                    wrap_cls = set(to_module_class_by_name(self.model, ckpt_wrap_cls)) & wrap_cls
+
+            leaf_modules = _propose_leaf_modules(wrap_cls)
+            auto_wrap_cls = _propose_wrap_cls(leaf_modules)
+
+            if fsdp_wrapper_exist and torch_version() >= (1, 12, 0):
+                if "atorch_wrap_cls" in fsdp_config:
+                    if auto_wrap_cls is not None:
+                        fsdp_config["atorch_wrap_cls"] = auto_wrap_cls
+                    else:
+                        fsdp_config.pop("atorch_wrap_cls")
+
+                    fsdp_wrapper[1] = fsdp_config
+                    self.pre_wrappers["fsdp"] = tuple(fsdp_wrapper)
+
+            if ckpt_wrapper_exist:
+                if auto_wrap_cls is not None:
+                    ckpt_wrapper[1] = tuple(auto_wrap_cls)
+                    self.post_wrappers["checkpoint"] = tuple(ckpt_wrapper)
+                else:
+                    # in this case module structure should have been broken, nothing to checkpoint on
+                    self.post_wrappers.pop("checkpoint")
+
+            # let tensor parallel wrapper be the first, make sure meta models fully reloaded
+            tensor_parallel_wrapper_item = ("tp", self.pre_wrappers["tp"])
+            wrappers_list = list(self.pre_wrappers.items())
+            tensor_parallel_idx = wrappers_list.index(tensor_parallel_wrapper_item)
+            wrappers_list.pop(tensor_parallel_idx)
+            # wrapper item and wrapper are all tuples
+            tensor_parallel_wrapper_item = list(tensor_parallel_wrapper_item)
+            tensor_parallel_wrapper_item[1] = list(tensor_parallel_wrapper_item[1])
+            tensor_parallel_wrapper_item[1][1]["leaf_modules"] = leaf_modules
+            if fsdp_wrapper_exist or pipe_wrapper_exist:
+                tensor_parallel_wrapper_item[1][1]["defer_init"] = True
+            tensor_parallel_wrapper_item[1] = tuple(tensor_parallel_wrapper_item[1])
+            tensor_parallel_wrapper_item = tuple(tensor_parallel_wrapper_item)
+            wrappers_list.insert(0, tensor_parallel_wrapper_item)
+            self.pre_wrappers = dict(wrappers_list)
+
+            # TP checkpointing needs amp_config explicitly to take effect, HACK here
+            if "amp_native" in self.post_wrappers and "checkpoint" in self.post_wrappers:
+                amp_wrapper = self.post_wrappers.pop("amp_native")
+                amp_config = amp_wrapper[1] or None
+                from atorch.modules.distributed_modules.activation_checkpointing import _insert_amp_config_for_tp_ckpt
+
+                _insert_amp_config_for_tp_ckpt(amp_config)
 
     def add_wrapper(self, wrapper_name, wrapper_func, wrapper_config=None, is_pre_wrapper=True):
         """

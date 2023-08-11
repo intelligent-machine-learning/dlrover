@@ -18,17 +18,24 @@ from torch.distributed.elastic.rendezvous import RendezvousParameters
 from torch.distributed.launcher.api import LaunchConfig
 
 from dlrover.python.common.constants import RendezvousName
+from dlrover.python.elastic_agent.master_client import (
+    GlobalMasterClient,
+    build_master_client,
+)
 from dlrover.python.elastic_agent.torch.training import (
     ElasticTrainingAgent,
     MasterRendezvousHandler,
 )
+from dlrover.python.tests.test_utils import start_local_master
 
 
 class ElasticTrainingAgentTest(unittest.TestCase):
     def setUp(self) -> None:
+        self._master, addr = start_local_master()
+        GlobalMasterClient.MASTER_CLIENT = build_master_client(addr)
         self.config = LaunchConfig(
-            min_nodes=4,
-            max_nodes=4,
+            min_nodes=2,
+            max_nodes=2,
             nproc_per_node=8,
             run_id="test",
         )
@@ -51,6 +58,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
             rdzv_parameters,
             local_world_size=self.config.nproc_per_node,
         )
+        self.rdzv_handler.join_timeout = 5
 
         self.spec = WorkerSpec(
             role=self.config.role,
@@ -66,6 +74,9 @@ class ElasticTrainingAgentTest(unittest.TestCase):
             local_addr=self.config.local_addr,
         )
 
+    def addCleanup(self):
+        self._master.stop()
+
     def test_rank0_rendzevous(self):
         node_id = 0
         agent = ElasticTrainingAgent(
@@ -76,13 +87,11 @@ class ElasticTrainingAgentTest(unittest.TestCase):
             start_method=self.config.start_method,
             log_dir=self.config.log_dir,
         )
-        self.rdzv_handler._join_rendezvous()
-        self.rdzv_handler._client.join_rendezvous(1, 8)
-        _, world = self.rdzv_handler.next_rendezvous()
-        self.assertDictEqual(world, {0: 8, 1: 8})
-
-        worker_group = agent._worker_group
+        self.rdzv_handler._client.join_rendezvous(
+            1, 8, self.rdzv_handler._name
+        )
         agent._rendezvous(agent._worker_group)
+        worker_group = agent._worker_group
         self.assertEqual(len(worker_group.workers), 8)
         self.assertEqual(worker_group.group_rank, 0)
         self.assertEqual(worker_group.group_world_size, 2)
@@ -104,15 +113,15 @@ class ElasticTrainingAgentTest(unittest.TestCase):
             start_method=self.config.start_method,
             log_dir=self.config.log_dir,
         )
-        store = self.rdzv_handler._get_store(round=0, group=0)
+        self.rdzv_handler._rank_id = node_id
+        self.rdzv_handler._client.join_rendezvous(
+            0, 8, self.rdzv_handler._name
+        )
+        store = self.rdzv_handler._get_store(round=0, group=1)
         store.set("MASTER_ADDR", "127.0.0.1".encode())
         store.set("MASTER_PORT", "12345".encode())
-        self.rdzv_handler._client.join_rendezvous(1, 8)
-        self.rdzv_handler._client.join_rendezvous(0, 8)
-        _, world = self.rdzv_handler.next_rendezvous()
-        self.assertDictEqual(world, {0: 8, 1: 8})
-        worker_group = agent._worker_group
         agent._rendezvous(agent._worker_group)
+        worker_group = agent._worker_group
         self.assertEqual(len(worker_group.workers), 8)
         self.assertEqual(worker_group.group_rank, 1)
         self.assertEqual(worker_group.group_world_size, 2)

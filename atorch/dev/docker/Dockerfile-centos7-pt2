@@ -1,0 +1,185 @@
+##############################################################################
+# default versions
+# PYTHON_VERSION=3.8
+# TORCH_VERSION=2.0.0
+# CUDA_VERSON=11.7
+##############################################################################
+
+FROM nvidia/cuda:11.8.0-cudnn8-devel-centos7 as base
+
+USER root
+# ARG ADMINPW
+# RUN echo "admin:${ADMINPW}" | chpasswd
+WORKDIR /root
+
+ENV BASH_ENV /root/.bashrc
+ENV LANGUAGE zh_cn
+ENV LC_ALL zh_CN.UTF-8
+ENV SHELL /bin/bash
+
+RUN mkdir -p ~/.pip && \
+    echo -e "\n\
+    [global]\n\
+    index-url = https://artifacts.antgroup-inc.cn/simple/\n\
+    trusted-host = artifacts.antgroup-inc.cn mirrors.aliyun.com\n\
+    " | sed 's/^ \+//g' > ~/.pip/pip.conf
+
+##############################################################################
+# conda, python, osscmd, ossutil64, pangu, gcc6, libaio-devel, nfs, pyodps
+# grpc, elasticdl, elasticdl_client, elasticai_api, easydl_sdk
+# ca certs pybind11
+##############################################################################
+FROM base as util-base
+ARG PYTHON_VERSION=3.8
+ARG CONDA_PATH=/opt/conda
+ENV PATH ${CONDA_PATH}/bin:$PATH
+ARG CA_PATH=/etc/ssl/certs/ca-bundle.crt
+
+RUN cd ~/ && \
+    yum install wget git vim -y && \
+    wget https://mirrors.tuna.tsinghua.edu.cn/anaconda/miniconda/Miniconda3-latest-Linux-x86_64.sh --no-check-certificate -O miniconda-install.sh && \
+    chmod +x miniconda-install.sh && \
+    ~/miniconda-install.sh -b -p ${CONDA_PATH} && \
+    rm ~/miniconda-install.sh && \
+    conda install -y python=${PYTHON_VERSION} conda-build pyyaml numpy==1.23.5 ipython && \
+    conda clean -ya && \
+    pip install osscmd aistudio-common typeguard easydict tensorboardX pyodps kubernetes grpcio==1.34.1 grpcio-tools==1.34.1 && \
+    pip install elasticdl elasticdl_client elasticai_api --no-deps && \
+    pip install easydl_sdk==0.0.6 && \
+    wget -O ${CONDA_PATH}/bin/ossutil64  https://gosspublic.alicdn.com/ossutil/1.7.7/ossutil64?spm=a2c4g.11186623.0.0.128b1c342qUHJs && \
+    chmod a+x ${CONDA_PATH}/bin/ossutil64 && \
+    yum install alios7u-2_24-gcc-8-repo -y && \
+    yum install gcc libaio-devel -y && \
+    wget "http://yum.tbsite.net/taobao/7/x86_64/current/pangu-client/pangu-client-0.16.1.1.1100190-7u2.x86_64.rpm" -O pangu-client.rpm && \
+    rpm -ivh pangu-client.rpm && \
+    rm -rf pangu-client.rpm && \
+    yum install nfs-utils -y && \
+    touch ${CA_PATH} && \
+    wget -O - http://148757.oss-cn-hangzhou-zmf.aliyuncs.com/tmp/echoca_prod.sh | sh && \
+    pip install pybind11
+
+##############################################################################
+# rdma, cuda compat, cuda toolkit, torch
+# imgaug, augly, opencv-python, nvidia-dali
+##############################################################################
+FROM util-base as torch-base
+    
+ARG CUDA_VERSION=11-8
+ARG CUDA_PATH=cuda-11.8
+ARG MAX_DRIVER_VERSION=520.61.05
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=all
+
+# for non-interacvite login
+ENV BASH_ENV /etc/bashrc
+
+COPY tools/docker/handle_driver_compat.sh ./
+
+# CUDA-toolkit, cuDNN, RDMA lib
+RUN echo "/usr/local/cuda/lib" >> /etc/ld.so.conf.d/nvidia.conf && \
+    echo "/usr/local/cuda/lib64" >> /etc/ld.so.conf.d/nvidia.conf && \
+    echo "/usr/lib64" >> /etc/ld.so.conf.d/nvidia.conf && \
+    echo "ldconfig > /dev/null 2>&1 " >> /etc/bashrc && \
+    yum install -y libnl3 mesa-libGL && \
+    wget http://dmsint.cn-hangzhou.alipay.aliyun-inc.com/aistudio%2Fgpu%2Frdma-a100.tgz -O /tmp/rdma-a100.tgz && \
+    tar -xvf /tmp/rdma-a100.tgz -C /tmp && \
+    rpm -Uvh /tmp/rdma-a100/nic-libs-mellanox-rdma-5.2-2.x86_64.rpm && \
+    rm -rf /tmp/rdma-a100.tgz /tmp/rdma-a100/ && \
+    wget -O /etc/yum.repos.d/nvidia-cuda.repo http://yum.tbsite.net/nvidia-cuda/rhel7/x86_64/cuda-rhel7.repo && \
+    sed -i "s#https://developer.download.nvidia.com/compute/cuda/repos#http://yum.tbsite.net/nvidia-cuda#" /etc/yum.repos.d/nvidia-cuda.repo && \
+    yum clean all && \
+    yum install -y cuda-compat-${CUDA_VERSION}-${MAX_DRIVER_VERSION} cuda-toolkit-${CUDA_VERSION} --nogpgcheck && \
+    rm -rf /usr/local/cuda && ln -s /usr/local/${CUDA_PATH} /usr/local/cuda && \
+    rm -rf /var/cache/yum && \
+    wget http://alipay-cognition.cn-hangzhou.alipay.aliyun-inc.com/datacube2/packages/debugger/zy267523/lib/cudnn/cudnn-linux-x86_64-8.9.3.28_cuda11-archive.tar.xz && \
+    tar -xvf cudnn-*-archive.tar.xz && \
+    cp cudnn-*-archive/include/cudnn*.h /usr/local/cuda/include && cp -P cudnn-*-archive/lib/libcudnn* /usr/local/cuda/lib64 && chmod a+r /usr/local/cuda/include/cudnn*.h /usr/local/cuda/lib64/libcudnn* && \
+    rm -rf cudnn-*-archive* && \
+    cat handle_driver_compat.sh >> /etc/bashrc && \
+    rm -rf handle_driver_compat.sh && \
+    pip install imgaug augly opencv-python-headless && \
+    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali-cuda110
+
+##############################################################################
+# torch, torchvision, torchaudio, triton
+##############################################################################
+
+RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+
+
+##############################################################################
+# glpk
+##############################################################################
+FROM torch-base as torch-mip-base
+RUN wget -O ./glpk-5.0.tar.gz http://alps-common.oss-cn-hangzhou-zmf.aliyuncs.com/users%2Fgaoning%2Fglpk-5.0.tar.gz && \
+    tar -zxvf glpk-5.0.tar.gz && \
+    cd ./glpk-5.0 && \
+    ./configure --prefix=/opt && \
+    make && make install && \
+    cd .. && \
+    rm -rf glpk-5.0.tar.gz glpk-5.0
+
+ENV PATH="${PATH}:/opt/bin:/opt/lib"
+
+##############################################################################
+# apex, flash-attention, fastmoe
+# Apex: 2d8302a6c12e202f7b40b13a43daa95f326fd0ea
+# aistudio
+##############################################################################
+FROM torch-mip-base as atorch-fa-base
+ENV USE_NCCL=1
+ARG TORCH_CUDA_ARCH_LIST="6.0 7.0 7.5 8.0 8.6 9.0+PTX"
+RUN yum install libnccl-2.16.2-1+cuda11.0 libnccl-devel-2.16.2-1+cuda11.0 -y && \
+    pip install http://alipay-cognition.cn-hangzhou.alipay.aliyun-inc.com/datacube2/packages/library/feiliu/fastmoe.tar.gz && \
+    pip install dm-tree packaging && \
+    wget -O apex.zip http://alps-common.oss-cn-hangzhou-zmf.aliyuncs.com/users/sichuan/apex-2d8302a.zip && \
+    unzip apex.zip -d ./ && \
+    cd ./apex && \
+    MAKEFLAGS="-j$(nproc)" MAX_JOBS=16 \
+    pip install -v --disable-pip-version-check --no-cache-dir --no-build-isolation \
+    --config-settings "--build-option=--cpp_ext" --config-settings "--build-option=--cuda_ext" ./ && \
+    cd .. && rm -rf apex* && \
+    pip install http://alipay-cognition.cn-hangzhou.alipay.aliyun-inc.com/datacube2/packages/debugger/zy267523/lib/atorch-dev-cu118-torch210/sm90/flash_attn-0.2.6.post3-cp38-cp38-linux_x86_64.whl && \
+    wget -O catapult.tar.gz http://dmsint.cn-hangzhou.alipay.aliyun-inc.com/aistudio_analyzer_test_for_pre_env/110032/catapult.tar.gz && \
+    mkdir -p /home/admin/profile/ && \
+    tar -zxf catapult.tar.gz -C /home/admin/profile/ && \
+    rm -f catapult.tar.gz
+##############################################################################
+# Megatron-LM, Fairscale, PiPPy -> Distributed Support
+# Megatron: 285068c8108e0e8e6538f54fe27c3ee86c5217a2
+# PiPPy: cecc4fc4b015843076b688560c354e14eac2e7c1
+# Colossalai: 0.3.0
+# openmpi: 4.1.3
+##############################################################################
+FROM atorch-fa-base as atorch-base
+RUN wget http://alps-common.oss-cn-hangzhou-zmf.aliyuncs.com/users/gaoning/Megatron-LM-main.zip && \
+    unzip Megatron-LM-main.zip && \
+    cd Megatron-LM-main/ && \
+    pip install . && \
+    cd .. && \
+    mkdir PiPPy && \
+    cd PiPPy && \
+    wget -O ./pippy.tar.gz http://alps-common.oss-cn-hangzhou-zmf.aliyuncs.com/users/gaoning/pippy_cecc4fc4b015843076b688560c354e14eac2e7c1.tar.gz && \
+    tar -xf ./pippy.tar.gz && \
+    python3 setup.py install && \
+    cd .. && \
+    pip install --no-deps colossalai==0.3.0 && \
+    rm -rf *.zip *.whl *.tar.gz PiPPy 
+
+RUN wget http://alipay-cognition.cn-hangzhou.alipay.aliyun-inc.com/datacube2/packages/debugger/zy267523/lib/openmpi-4.1.3.tar.gz && \
+    tar -xzf openmpi-4.1.3.tar.gz && \
+    cd openmpi-4.1.3 && \
+    ./configure --prefix=/usr/local && \
+    make && make install && \
+    ldconfig && \
+    cd .. && rm -rf openmpi-4.1.3/ openmpi-4.1.3.tar.gz && \
+    pip install mpi4py
+
+# atorch
+COPY atorch/requirements.txt ./
+RUN pip install -r requirements.txt && \
+    pip install --no-deps atorch==0.1.6 -U && \
+    rm -f ./requirements.txt && \
+    echo -e 'import math\ninf = math.inf\nnan = math.nan\nstring_classes = (str, bytes)' > /opt/conda/lib/python3.8/site-packages/torch/_six.py && \
+    pip install pytest coverage expecttest==0.1.3 pre-commit==2.19.0 sentencepiece
+

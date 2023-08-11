@@ -24,6 +24,7 @@ import numpy as np
 import torch
 import torch.distributed as dist
 from model import GPT, GPTConfig
+from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 local_rank = None
@@ -138,7 +139,7 @@ def get_lr(it, args):
 
 
 def log_rank0(msg):
-    local_rank = int(os.environ.get("LOCAL_RANK", 0))
+    local_rank = int(os.getenv("LOCAL_RANK", 0))
     if local_rank == 0:
         print(msg)
 
@@ -152,7 +153,7 @@ def setup(args):
     else:
         dist.init_process_group("gloo", timeout=timedelta(seconds=120))
     rank = dist.get_rank()
-    local_rank = int(os.environ["LOCAL_RANK"])
+    local_rank = int(os.getenv("LOCAL_RANK", 0))
     print(f"rank {rank} is initialized local_rank = {local_rank}")
     # This process will do logging, checkpointing etc.
     master_process = rank == 0
@@ -168,14 +169,15 @@ def cleanup():
 
 def train():
     global local_rank
-
     args = arg_parser()
     setup(args)
-    world_size = int(os.environ["WORLD_SIZE"])
+    world_size = int(os.getenv("WORLD_SIZE", 1))
     gradient_accumulation_steps = args.gradient_accumulation_steps
     batch_size = args.batch_size
-    block_size = args.block_size
+    if gradient_accumulation_steps == 0:
+        gradient_accumulation_steps = world_size
     assert gradient_accumulation_steps % world_size == 0
+    block_size = args.block_size
     gradient_accumulation_steps //= world_size
     tokens_per_iter = (
         gradient_accumulation_steps * world_size * batch_size * block_size
@@ -193,6 +195,8 @@ def train():
     )  # For later use in torch.autocast
     if device_type == "cuda":
         torch.cuda.set_device(device)
+    # choose ddp or fdsp
+    use_fsdp = args.use_fsdp == "True"
     # Note: float16 data type will automatically use a GradScaler
     dtype = (
         "bfloat16"
@@ -213,28 +217,31 @@ def train():
     model = gpt_init(meta_vocab_size, args=args)
     scaler = torch.cuda.amp.GradScaler(enabled=(dtype == "float16"))
     model = model.to(device)
-    # Optimizer
-    print(f"creating optimizer...{model.parameters()}")
-    optimizer = model.configure_optimizers(
-        weight_decay=args.weight_decay,
-        learning_rate=args.learning_rate,
-        betas=(args.beta1, args.beta2),
-        device_type=device_type,
-    )
-
+    # Device
     if torch.cuda.is_available() and device_type == "cuda":
-        local_rank = int(os.environ["LOCAL_RANK"])
-        print(f"Running basic DDP example on local rank {local_rank}.")
         # Create model and move it to GPU with id rank
         model = model.to(local_rank)
-        model = DDP(model, device_ids=[local_rank])
-        print(f"Model device {model.device}")
+        if use_fsdp:
+            print(f"Running basic FSDP example on local rank {local_rank}.")
+            model = FSDP(model, device_id=local_rank)
+        else:
+            print(f"Running basic DDP example on local rank {local_rank}.")
+            model = DDP(model, device_ids=[local_rank])
+            print(f"Model device {model.device}")
+
     else:
-        local_rank = int(os.environ["LOCAL_RANK"])
         print(f"Running basic CPU example on device {device}.")
         model = model.to(device)
         model = DDP(model)
         print(f"Model device {model.device}")
+    # Optimizer
+    print(f"creating optimizer...{model.parameters()}")
+    optimizer = torch.optim.AdamW(
+        model.parameters(),
+        weight_decay=args.weight_decay,
+        lr=args.learning_rate,
+        betas=(args.beta1, args.beta2),
+    )
 
     # Compile the model
     if compile == "True":
@@ -243,11 +250,17 @@ def train():
 
     # Training loop
     X, Y = get_batch(
-        "train", train_data, val_data, device_type
+        "train",
+        train_data=train_data,
+        val_data=val_data,
+        device=device,
+        device_type=device_type,
+        batch_size=batch_size,
+        block_size=block_size,
     )  # Fetch the very first batch
     total_time = 0.0
     local_iter_num = 0  # Number of iterations in the lifetime of this process
-    raw_model = model.module  # Unwrap DDP container if needed
+    raw_model = model.module  # Unwrap DDP/FSDP container if needed
     running_mfu = -1.0
     iter_num = 0
     decay_lr = args.decay_lr
@@ -258,7 +271,7 @@ def train():
 
     while True:
         # Determine and set the learning rate for this iteration
-        lr = get_lr(iter_num) if decay_lr else learning_rate
+        lr = get_lr(iter_num, args) if decay_lr else learning_rate
         for param_group in optimizer.param_groups:
             param_group["lr"] = lr
 
@@ -320,6 +333,26 @@ def train():
             break
 
 
+# Determine the device type based on the input string.
+def device_type(string):
+    lower_string = string.lower()
+    if "gpu" in lower_string or "cuda" in lower_string:
+        if lower_string != "cuda":
+            log_rank0(
+                "It seems you are trying to use a cuda device."
+                'The correct argument should be "cuda".'
+                "Automatically using the cuda device."
+            )
+        return "cuda"
+    else:
+        if lower_string != "cpu":
+            log_rank0(
+                f'Unrecognized device type argument "{lower_string}".'
+                "Defaulting to use the cpu device."
+            )
+        return "cpu"
+
+
 def arg_parser():
     parser = argparse.ArgumentParser(description="Process training parameters")
 
@@ -336,7 +369,7 @@ def arg_parser():
         "--always_save_checkpoint", action="store_true", required=False
     )
     parser.add_argument("--batch_size", type=int, default=12, required=False)
-    parser.add_argument("--block_size", type=int, default=1024, required=False)
+    parser.add_argument("--block_size", type=int, default=128, required=False)
 
     # Model settings
     parser.add_argument("--n_layer", type=int, default=6, required=False)
@@ -349,7 +382,7 @@ def arg_parser():
     parser.add_argument(
         "--learning_rate", type=float, default=6e-4, required=False
     )
-    parser.add_argument("--max_iters", type=int, default=10, required=False)
+    parser.add_argument("--max_iters", type=int, default=200, required=False)
     parser.add_argument(
         "--weight_decay", type=float, default=1e-1, required=False
     )
@@ -357,7 +390,7 @@ def arg_parser():
     parser.add_argument("--beta2", type=float, default=0.95, required=False)
     parser.add_argument("--grad_clip", type=float, default=1.0, required=False)
     parser.add_argument(
-        "--gradient_accumulation_steps", type=int, default=1, required=False
+        "--gradient_accumulation_steps", type=int, default=0, required=False
     )
 
     # Learning rate decay settings
@@ -369,8 +402,21 @@ def arg_parser():
     parser.add_argument("--min_lr", type=float, default=6e-5, required=False)
 
     # System settings
-    parser.add_argument("--device", type=str, default="cpu", required=False)
+    parser.add_argument(
+        "--device",
+        type=device_type,
+        default="cpu",
+        required=False,
+        help="""
+                        The device to use for computation.
+                        Choose from 'cuda' or 'cpu'.
+                        Defaults to 'cpu' if not specified.
+                        """,
+    )
     parser.add_argument("--compile", type=str, default="False", required=False)
+    parser.add_argument(
+        "--use_fsdp", type=str, default="False", required=False
+    )
 
     args = parser.parse_args()
 

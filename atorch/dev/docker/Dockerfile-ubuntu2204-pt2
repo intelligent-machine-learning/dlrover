@@ -1,11 +1,11 @@
 ##############################################################################
-# base image: 20.04
+# base image: nvidia/cuda:11.8.0-cudnn8-devel-ubuntu20.04
 # default versions
 # PYTHON_VERSION=3.8
-# TORCH_VERSION=2.0.0
-# CUDA_VERSON=11.7
+# TORCH_VERSION=2.0.1
+# CUDA_VERSON=11.8
 ##############################################################################
-FROM pytorch/pytorch:2.0.0-cuda11.7-cudnn8-devel as base
+FROM easydl/pytorch_gpu_base:2.0.1-cuda11.8-cudnn8-devel as base
 
 ARG PYTHON_VERSION=3.8
 
@@ -14,11 +14,13 @@ WORKDIR /root
 
 ENV BASH_ENV /root/.bashrc
 ENV SHELL /bin/bash
-COPY dev/docker/pip.conf ~/.pip/pip.conf
 
-RUN sed -i s@/archive.ubuntu.com/@/mirrors.aliyun.com/@g /etc/apt/sources.list
-RUN sed -i s@/security.ubuntu.com/@/mirrors.aliyun.com/@g /etc/apt/sources.list
-RUN apt-get clean
+# Already exist in base
+# COPY dev/docker/pip.conf ~/.pip/pip.conf
+
+# RUN sed -i s@/archive.ubuntu.com/@/mirrors.aliyun.com/@g /etc/apt/sources.list
+# RUN sed -i s@/security.ubuntu.com/@/mirrors.aliyun.com/@g /etc/apt/sources.list
+# RUN apt-get clean
 
 ##############################################################################
 # conda and other utils
@@ -27,9 +29,9 @@ FROM base as util-base
 ARG PYTHON_VERSION=3.8
 
 RUN cd ~/ && \
-    apt-get update && apt-get install -y wget git vim && \
-    wget https://mirrors.tuna.tsinghua.edu.cn/anaconda/miniconda/Miniconda3-latest-Linux-x86_64.sh --no-check-certificate -O miniconda-install.sh && \
-    chmod +x miniconda-install.sh
+    apt-get update && apt-get install -y wget git vim
+    # wget https://mirrors.tuna.tsinghua.edu.cn/anaconda/miniconda/Miniconda3-latest-Linux-x86_64.sh --no-check-certificate -O miniconda-install.sh && \
+    # chmod +x miniconda-install.sh
 
 ##############################################################################
 # rdma, cuda compat
@@ -65,8 +67,8 @@ RUN pip install dm-tree setuptools packaging && \
     MAKEFLAGS="-j$(nproc)" MAX_JOBS=16 \
     pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./ && \
     cd .. && rm -rf apex*
-RUN pip install https://dlrover.oss-cn-beijing.aliyuncs.com/atorch/libs/flash_attn-0.2.6.post1-cp310-cp310-linux_x86_64.whl && \
-    wget -O catapult.tar.gz https://dlrover.oss-cn-beijing.aliyuncs.com/atorch/libs/catapult.tar.gz && \
+RUN pip install https://dlrover.oss-cn-beijing.aliyuncs.com/atorch/libs/flash_attn-2.0.4%2Bglm.mask-cp38-cp38-linux_x86_64.whl -i https://pypi.antfin-inc.com/simple
+RUN wget -O catapult.tar.gz https://dlrover.oss-cn-beijing.aliyuncs.com/atorch/libs/catapult.tar.gz && \
     mkdir -p /home/admin/profile/ && \
     tar -zxf catapult.tar.gz -C /home/admin/profile/ && \
     rm -f catapult.tar.gz
@@ -75,6 +77,6 @@ RUN pip install https://dlrover.oss-cn-beijing.aliyuncs.com/atorch/libs/flash_at
 # atorch install
 ##############################################################################
 COPY atorch/requirements.txt ./
-RUN pip install -r requirements.txt && \
-    pip install pre-commit grpcio grpcio-tools && \
+RUN pip install -r requirements.txt -i https://pypi.antfin-inc.com/simple && \
+    pip install pre-commit grpcio grpcio-tools  -i https://pypi.antfin-inc.com/simple && \
     rm -f ./requirements.txt

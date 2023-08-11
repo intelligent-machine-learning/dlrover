@@ -511,3 +511,83 @@ def deepcopy_checkpoint_name(model_copy, model):
         if buffer.device == torch.device("meta"):
             if not hasattr(buffer, "checkpoint_name") and hasattr(orig_buffers[name], "checkpoint_name"):
                 setattr(buffer, "checkpoint_name", orig_buffers[name].checkpoint_name)
+
+
+@contextmanager
+def record_module_init():
+    """
+    Record modules' init args and kwargs while meta constructing model. Since we don't
+    save or offload the initial weight, we should reset_paramters or (hf)_init_weights
+    after building the real modules with the recorded args/kwargs.
+    This contextmanager was originally designed for building deepspeed PipelineModule from
+    native torch model implementation.
+    """
+
+    def init_record_helper(f):
+        @functools.wraps(f)
+        def wrapper(module: torch.nn.Module, *args, **kwargs):
+            f(module, *args, **kwargs)
+            # record args/kwargs after original init, in case parent cls init covers them
+            # in mistake; it must be satisfied that args/kwargs not changed in init
+            module._init_args = args
+            module._init_kwargs = kwargs
+            # torch.device('meta') contextmanager may not handle nn.Parameter(...),
+            # .to('meta') manually to force everything in meta
+            module.to("meta")
+
+        return wrapper
+
+    def _enable_class(cls):
+        cls._old_init = cls.__init__
+        cls.__init__ = init_record_helper(cls.__init__)
+
+    def _disable_class(cls):
+        cls.__init__ = cls._old_init
+        delattr(cls, "_old_init")
+
+    def _init_subclass(cls, **kwargs):
+        cls.__init__ = init_record_helper(cls.__init__)
+
+    def substitute_init_recursively(cls, func, visited):
+        for subcls in cls.__subclasses__():
+            substitute_init_recursively(subcls, func, visited)
+            if subcls not in visited:
+                func(subcls)
+                visited.add(subcls)
+
+    try:
+        substitute_init_recursively(torch.nn.modules.module.Module, _enable_class, set())
+        torch.nn.modules.module.Module._old_init_subclass = torch.nn.modules.module.Module.__init_subclass__
+        torch.nn.modules.module.Module.__init_subclass__ = classmethod(_init_subclass)
+        # torch meta init
+        torch.device("meta").__enter__()
+        yield
+    finally:
+        substitute_init_recursively(torch.nn.modules.module.Module, _disable_class, set())
+        torch.nn.modules.module.Module.__init_subclass__ = torch.nn.modules.module.Module._old_init_subclass
+        delattr(torch.nn.modules.module.Module, "_old_init_subclass")
+        torch.device("meta").__exit__()
+
+
+def build_recorded_module(meta_module):
+    """
+    Build the real module from the recorded meta module, supports recursively building
+    the meta submodules in args/kwargs.
+    """
+    assert hasattr(meta_module, "_init_args") and hasattr(
+        meta_module, "_init_kwargs"
+    ), "must construct meta module with record_module_init contextmanager"
+    args = []
+    for arg in meta_module._init_args:
+        if isinstance(arg, torch.nn.Module):
+            # recursively build module in args
+            arg = build_recorded_module(arg)
+        args.append(arg)
+    kwargs = dict()
+    for k, v in meta_module._init_kwargs.items():
+        if isinstance(v, torch.nn.Module):
+            # recursively build module in kwargs
+            v = build_recorded_module(v)
+        kwargs[k] = v
+
+    return meta_module.__class__(*args, **kwargs)

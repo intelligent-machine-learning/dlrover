@@ -334,6 +334,7 @@ class AutoAccelerateTest(unittest.TestCase):
 
 
 class LoadSaveStrategyTest(unittest.TestCase):
+    @unittest.skipIf(torch.cuda.is_available(), "Skip on gpu as cpu test covers it.")
     def test_load_save_strategy(self):
         pg_info = ([("data", 2)], None)
         strategy = Strategy([("parallel_mode", pg_info, False), ("amp_native", None, False)])
@@ -351,6 +352,7 @@ class LoadSaveStrategyTest(unittest.TestCase):
         easydl_strategy = strategy.convert_strategy_to_easydl_format()
         self.assertEqual(len(easydl_strategy), 2)
 
+    @unittest.skipIf(torch.cuda.is_available(), "Skip on gpu as cpu test covers it.")
     def test_adjust_strategy(self):
         pg_info = ([("model", 2), ("data", 2)], None)
         strategy = Strategy([("parallel_mode", pg_info, False), ("amp_native", None, False)])

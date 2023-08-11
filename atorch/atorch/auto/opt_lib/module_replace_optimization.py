@@ -62,7 +62,7 @@ def _replace_by_config(model, config=None, gpu_used=False):
     if config is None:
         config = {pair_name: None for pair_name in REPLACEMENT_PAIRS}
 
-    # pop unsupported dtype pairs. e.g. apex FusedLayerNorm does not support BFloat16
+    # pop unsupported dtype pairs.
     for pair in list(config.keys()):
         if cur_dtype not in REPLACEMENT_PAIRS[pair][3]:
             config.pop(pair)
