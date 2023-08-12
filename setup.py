@@ -22,7 +22,8 @@ install_requires = [
 
 
 extra_require = {
-    "master": ["kubernetes", "ray"],
+    "k8s": ["kubernetes"],
+    "ray": ["ray"],
     "tensorflow": ["tensorflow"],
     "torch": ["torch"],
 }
