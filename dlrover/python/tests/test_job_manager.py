@@ -27,12 +27,12 @@ from dlrover.python.common.constants import (
 from dlrover.python.common.node import NodeGroupResource, NodeResource
 from dlrover.python.master.dist_master import DistributedJobMaster
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
+from dlrover.python.master.node.dist_job_manager import create_job_manager
 from dlrover.python.master.node.event_callback import (
     ClusterContext,
     TaskRescheduleCallback,
     TFPSNodeHandlingCallback,
 )
-from dlrover.python.master.node.job_manager import create_job_manager
 from dlrover.python.master.node.status_flow import (
     NODE_STATE_FLOWS,
     NodeStateFlow,
