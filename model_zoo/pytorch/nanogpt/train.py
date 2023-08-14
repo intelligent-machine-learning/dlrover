@@ -215,8 +215,7 @@ def train():
         if device_type == "cpu"
         else torch.amp.autocast(device_type=device_type, dtype=ptdtype)
     )
-    # model = gpt_init(meta_vocab_size, args=args)
-    model = GPT.from_pretrained("gpt-2")
+    model = gpt_init(meta_vocab_size, args=args)
     scaler = torch.cuda.amp.GradScaler(enabled=(dtype == "float16"))
     model = model.to(device)
     # Device
@@ -326,10 +325,10 @@ def train():
                     if running_mfu == -1.0
                     else 0.9 * running_mfu + 0.1 * mfu
                 )
-            cuda_mem = torch.cuda.max_memory_allocated()
+            cuda_mem = torch.cuda.max_memory_allocated() / 1e9
             print(
                 f"iter {iter_num}: loss {lossf:.4f}, time {dt*1000:.2f}ms, "
-                f"mfu {running_mfu*100:.2f}%,  cuda memory {cuda_mem / 1e9:.3f}G, "
+                f"mfu {running_mfu*100:.2f}%, cuda memory {cuda_mem:.3f}G, "
                 f"lr {lr:.2e}, total time {total_time:.2f}s"
             )
         iter_num += 1
