@@ -94,7 +94,7 @@ class ResourceMonitor(object):
         reports the used memory and cpu percent to the DLRover master.
         """
         self._total_cpu = psutil.cpu_count(logical=True)
-        pynvml.nvmlInit()
+        self.init_gpu_monitor()
         logger.info("Resource Monitor Init")
         if (
             os.getenv(NodeEnv.DLROVER_MASTER_ADDR, "")
@@ -107,25 +107,50 @@ class ResourceMonitor(object):
             ).start()
 
     def __del__(self):
-        pynvml.nvmlShutdown()
+        self.shutdown_gpu_monitor()
+
+    def init_gpu_monitor(self):
+        try:
+            pynvml.nvmlInit()
+        except pynvml.NVMLError_LibraryNotFound:
+            logger.error(
+                "NVIDIA NVML library not found. "
+                "GPU monitoring features will be disabled."
+            )
+        except pynvml.NVMLError as e:
+            logger.error(
+                f"An error occurred while initializing NVIDIA NVML: {e}")
+        except Exception as e:
+            logger.exception(
+                f"An unexpected error occurred during NVML shutdown: {e}")
+
+    def shutdown_gpu_monitor(self):
+        try:
+            pynvml.nvmlShutdown()
+        except pynvml.NVMLError as e:
+            logger.error(
+                f"An error occurred while shutting down NVIDIA NVML: {e}")
+        except Exception as e:
+            logger.exception(
+                f"An unexpected error occurred during NVML shutdown: {e}")
 
     def start_monitor_cpu(self):
         get_process_cpu_percent()
 
     def report_resource(self):
         try:
-            used_mem = get_used_memory()
-            cpu_percent = get_process_cpu_percent()
-            gpu_stats = get_gpu_stats()
-            current_cpu = round(cpu_percent * self._total_cpu, 2)
+            self._used_mem = get_used_memory()
+            self._cpu_percent = get_process_cpu_percent()
+            self._gpu_stats = get_gpu_stats()
+            current_cpu = round(self._cpu_percent * self._total_cpu, 2)
             GlobalMasterClient.MASTER_CLIENT.report_used_resource(
-                used_mem, current_cpu, gpu_stats
+                self._used_mem, self.current_cpu, self._gpu_stats
             )
             logger.info(
                 "Report Resource CPU : %s, Memory %s, GPU %s",
                 current_cpu,
-                used_mem,
-                gpu_stats,
+                self._used_mem,
+                self._gpu_stats,
             )
         except Exception as e:
             logger.exception(e)
