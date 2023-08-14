@@ -20,6 +20,7 @@ from dlrover.python.common.constants import (
     NodeStatus,
     PriorityClass,
 )
+from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.serialize import JsonSerializable
 
 try:
@@ -55,6 +56,7 @@ class NodeResource(JsonSerializable):
         memory,
         gpu_type="",
         gpu_num=0,
+        gpu_stats=None,
         priority="",
         **kwargs,
     ):
@@ -62,6 +64,7 @@ class NodeResource(JsonSerializable):
         self.memory = memory
         self.gpu_type = gpu_type
         self.gpu_num = gpu_num
+        self.gpu_stats = gpu_stats
         self.kwargs = kwargs
         self.image = ""
         self.priority = priority
@@ -220,9 +223,18 @@ class Node(object):
         if status is not None:
             self.status = status
 
-    def update_resource_usage(self, cpu, memory):
+    def update_resource_usage(self, cpu, memory, gpu_stats):
         self.used_resource.cpu = round(cpu, 2)
         self.used_resource.memory = memory
+        self.used_resource.gpu_stats = gpu_stats
+        logger.debug(
+            "Node {} resource usage: cpu {}, memory {}, gpu {}".format(
+                self.id,
+                self.used_resource.cpu,
+                self.used_resource.memory,
+                self.used_resource.gpu_stats,
+            )
+        )
         if cpu < 0.1:
             self.start_hang_time = time.time()
         else:
