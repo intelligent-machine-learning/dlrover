@@ -95,16 +95,23 @@ class ResourceMonitor(object):
         """
         self._total_cpu = psutil.cpu_count(logical=True)
         self.init_gpu_monitor()
-        logger.info("Resource Monitor Init")
+        logger.info("Resource Monitor Initializing ...")
         if (
             os.getenv(NodeEnv.DLROVER_MASTER_ADDR, "")
             and os.getenv(NodeEnv.AUTO_MONITOR_WORKLOAD, "") == "true"
         ):
-            threading.Thread(
-                target=self._monitor_resource,
-                name="monitor_resource",
-                daemon=True,
-            ).start()
+            try:
+                thread = threading.Thread(
+                    target=self._monitor_resource,
+                    name="monitor_resource",
+                    daemon=True,
+                )
+                thread.start()
+                if thread.is_alive():
+                    logger.info("Resource Monitor initialized successfully")
+            except Exception as e:
+                logger.error(
+                    f"Failed to start the monitor resource thread. Error: {e}")
 
     def __del__(self):
         self.shutdown_gpu_monitor()

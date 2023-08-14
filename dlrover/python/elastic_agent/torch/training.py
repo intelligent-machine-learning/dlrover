@@ -487,7 +487,6 @@ def launch_agent(
     )
 
     ResourceMonitor()
-    logger.info("Elastic agent is imported ResourceMonitor")
     rdzv_parameters = RendezvousParameters(
         backend=config.rdzv_backend,
         endpoint=config.rdzv_endpoint,
