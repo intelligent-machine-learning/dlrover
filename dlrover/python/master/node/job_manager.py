@@ -595,9 +595,11 @@ class JobManager(object):
                 )
         self._stop_monitor = True
 
-    def update_node_resource_usage(self, node_type, node_id, cpu, memory):
+    def update_node_resource_usage(
+        self, node_type, node_id, cpu, memory, gpu_stats
+    ):
         node = self._job_nodes[node_type][node_id]
-        node.update_resource_usage(cpu, memory)
+        node.update_resource_usage(cpu, memory, gpu_stats)
 
     def update_node_service_addr(self, node_type, node_id, service_addr):
         node = self._job_nodes[node_type][node_id]
