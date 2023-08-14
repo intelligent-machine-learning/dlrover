@@ -138,8 +138,7 @@ iter 10: loss 3.2566, time 30.13ms, mfu 1.68%, lr 6.00e-04, total time 2.25s
 
 
 
- It is evident that, with similar runtime, FSDP utilizes less memory.
 
 # References
 
-This guide is a supplemental resource to [torch_ddp_nanogpt.md](dlrover\docs\tutorial\torch_ddp_nanogpt.md). For more details about the usage environment, please refer to torch_ddp_nanogpt.md.
+This guide is a supplemental resource to [torch_ddp_nanogpt.md](./torch_ddp_nanogpt.md). For more details about the usage environment, please refer to torch_ddp_nanogpt.md.

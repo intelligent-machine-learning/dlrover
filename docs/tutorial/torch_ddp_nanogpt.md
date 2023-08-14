@@ -162,6 +162,7 @@ No, uncle; but our crosses on the way
 Have made it tedious, wearisome, and heavy
 I want more uncles here to welcome me.
 ```
+Alternatively, you can use our provided data, which is available in the [dlrover/model_zoo/pytorch/nanogpt/data.txt](dlrover/model_zoo/pytorch/nanogpt/data.txt).  This data has already been prepared for use.
 
 **Time to Run the Preparation Script**
 
