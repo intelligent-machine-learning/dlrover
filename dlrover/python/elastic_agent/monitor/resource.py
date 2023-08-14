@@ -76,7 +76,7 @@ def get_gpu_stats(gpus=[]):
                 index=i,
                 total_memory_mb=total_memory,
                 used_memory_mb=used_memory,
-                gpu_utilization=gpu_utilization
+                gpu_utilization=gpu_utilization,
             )
         )
     for gpu_stats in gpu_stats_list:
@@ -109,7 +109,8 @@ class ResourceMonitor(object):
                     logger.info("Resource Monitor initialized successfully")
             except Exception as e:
                 logger.error(
-                    f"Failed to start the monitor resource thread. Error: {e}")
+                    f"Failed to start the monitor resource thread. Error: {e}"
+                )
 
     def __del__(self):
         self.shutdown_gpu_monitor()
@@ -124,20 +125,24 @@ class ResourceMonitor(object):
             )
         except pynvml.NVMLError as e:
             logger.error(
-                f"An error occurred while initializing NVIDIA NVML: {e}")
+                f"An error occurred while initializing NVIDIA NVML: {e}"
+            )
         except Exception as e:
             logger.exception(
-                f"An unexpected error occurred during NVML shutdown: {e}")
+                f"An unexpected error occurred during NVML shutdown: {e}"
+            )
 
     def shutdown_gpu_monitor(self):
         try:
             pynvml.nvmlShutdown()
         except pynvml.NVMLError as e:
             logger.error(
-                f"An error occurred while shutting down NVIDIA NVML: {e}")
+                f"An error occurred while shutting down NVIDIA NVML: {e}"
+            )
         except Exception as e:
             logger.exception(
-                f"An unexpected error occurred during NVML shutdown: {e}")
+                f"An unexpected error occurred during NVML shutdown: {e}"
+            )
 
     def start_monitor_cpu(self):
         get_process_cpu_percent()
