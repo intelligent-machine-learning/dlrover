@@ -15,6 +15,7 @@ import json
 import os
 import time
 import unittest
+from unittest.mock import patch
 
 from dlrover.python.elastic_agent.monitor.resource import ResourceMonitor
 from dlrover.python.elastic_agent.monitor.training import (
@@ -25,10 +26,24 @@ from dlrover.python.elastic_agent.monitor.training import (
 
 class ResourceMonitorTest(unittest.TestCase):
     def test_resource_monitor(self):
-        resource_monitor = ResourceMonitor()
-        time.sleep(0.3)
-        resource_monitor.report_resource()
-        self.assertTrue(resource_monitor._total_cpu >= 0.0)
+        gpu_stats = [
+            {
+                "index": 0,
+                "total_memory_mb": 24000,
+                "used_memory_mb": 4000,
+                "gpu_utilization": 55.5,
+            }
+        ]
+        # mock get_gpu_stats
+        with patch(
+            "dlrover.python.elastic_agent.monitor.resource.get_gpu_stats",
+            return_value=gpu_stats,
+        ):
+            resource_monitor = ResourceMonitor()
+            time.sleep(0.3)
+            resource_monitor.report_resource()
+            self.assertTrue(resource_monitor._total_cpu >= 0.0)
+            self.assertTrue(resource_monitor._gpu_stats == gpu_stats)
 
     def test_training_reporter(self):
         TF_CONFIG = {
