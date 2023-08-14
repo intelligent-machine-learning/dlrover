@@ -197,12 +197,27 @@ class JobManagerTest(unittest.TestCase):
             max_relaunch_count=1,
         )
 
-        manager.update_node_resource_usage(NodeType.WORKER, 0, 0.7, 2048)
+        gpu_stats = [
+            {
+                "index": 0,
+                "total_memory_mb": 24000,
+                "used_memory_mb": 4000,
+                "gpu_utilization": 55.5,
+            }
+        ]
+
+        manager.update_node_resource_usage(
+            NodeType.WORKER, 0, 0.7, 2048, gpu_stats
+        )  # noqa
         self.assertEqual(
             manager._job_nodes[NodeType.WORKER][0].used_resource.cpu, 0.7
         )
         self.assertEqual(
             manager._job_nodes[NodeType.WORKER][0].used_resource.memory, 2048
+        )
+        self.assertEqual(
+            manager._job_nodes[NodeType.WORKER][0].used_resource.gpu_stats,
+            gpu_stats,  # noqa
         )
 
         node_event: NodeEvent = NodeEvent(NodeEventType.MODIFIED, node)
