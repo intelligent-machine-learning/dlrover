@@ -55,11 +55,13 @@ def get_used_memory():
     return int(mem.used / 1024 / 1024)
 
 
-def get_gpu_stats():
+def get_gpu_stats(gpus=[]):
     """ "Get the used gpu info of the container"""
-    device_count = pynvml.nvmlDeviceGetCount()
+    if not gpus:
+        device_count = pynvml.nvmlDeviceGetCount()
+        gpus = list(range(device_count))
     gpu_stats_list = []
-    for i in range(device_count):
+    for i in gpus:
         handle = pynvml.nvmlDeviceGetHandleByIndex(i)
         memory_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
         total_memory = memory_info.total / (1024**2)
