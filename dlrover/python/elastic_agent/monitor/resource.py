@@ -79,13 +79,8 @@ def get_gpu_stats(gpus=[]):
                 gpu_utilization=gpu_utilization
             )
         )
-    for info in gpu_stats_list:
-        logger.debug(
-            f"GPU {info.index}: "
-            f"Total Memory: {info.total_memory_mb} MB, "
-            f"Used Memory: {info.used_memory_mb} MB, "
-            f"GPU Utilization: {info.gpu_utilization}%"
-        )
+    for gpu_stats in gpu_stats_list:
+        logger.debug(f"GPU metric {gpu_stats}")
     return gpu_stats_list
 
 
