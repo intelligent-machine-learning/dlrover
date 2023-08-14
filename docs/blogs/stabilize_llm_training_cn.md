@@ -45,7 +45,7 @@ Torch Elastic 启动子进程后，所有子进程需要进行集合通信组网
 针对上面问题，DLRover 重新实现了 PyTorch ElasticAgent 的动态组网模块 RendezvousHandler，利用 ElasticJob 点 master 来协助 PyTorch 组网。master 是一个纯 CPU 节点，不参与训练，稳定性比 GPU 节点高很多。
 
 <div align="center">
-<img src="../figures/ft_llm_traning/dynamic_rendezvous.jpg" alt="Editor" width="600">
+<img src="../figures/ft_llm_training/dynamic_rendezvous.jpg" alt="Editor" width="600">
 </div>
 
 
@@ -54,7 +54,7 @@ DLRover 的 ElasticJob 在启动 Pod 时会给每个 Pod 一个唯一的编号 P
 如果用户需要训练节点数量是 N 的整数倍，那边 master 只需要将 world 根据 N 的整数倍裁剪即可。例如 ，训练作业配置了6个节点，由于机器故障导致 Pod-5 失败了，重新拉起的 Pod-6 因为没有资源而 pending。此时，master 收到的节点信息为 {0:8, 1:8, 2:8, 3:8, 4:8}。但是用户要求节点是 2 的整数倍，那么master可以将 Pod-4 从 world 中踢出，然后发送给 Pod-0 到 Pod-3。而 Pod-4 会等着 Pod-6 起来后再加入训练实现扩容。如下图所示：
 
 <div align="center">
-<img src="../figures/ft_llm_traning/autoscale_nodes.jpg" alt="Editor" width="600">
+<img src="../figures/ft_llm_training/autoscale_nodes.jpg" alt="Editor" width="600">
 </div>
 
 ## 分布式训练容错
@@ -85,7 +85,7 @@ Torch Elastic 在子进程出错后，无论什么错误会直接重启所有子
 DLRover 在重启训练子进程前运行一个简单的 allgather 任务来排查故障机。job master 先将所有节点两两划分为多个 world，每个 world 内的节点上执行 allgather 任务并将成功与否上报给 job master。如果有 world 里的 allgather 任务失败，则此 world 的节点为潜在故障机，否则为正常机器。然后开始第二轮测试，master 会将潜在故障机和正常节点再次两两划分 world。每个 world 的节点继续执行 allgather，这样就找到故障节点。比如作业有6个节点，第一轮的划分结果为 [{1,2}, {3,4}, {5,6}]， {5, 6}] 执行 allgather 失败了，那么节点5 和 6 就是潜在故障节点。为此第二轮的划分为[{1,2}, {3,5}, {4,6}] 。如果{4,6} 失败了，说明节点6 就是故障节点。然后，DLRover 会重新拉起一个 Pod，替换节点6。
 
 <div align="center">
-<img src="../figures/ft_llm_traning/node_healthy_check.jpg" alt="Editor" width="600">
+<img src="../figures/ft_llm_training/node_healthy_check.jpg" alt="Editor" width="600">
 </div>
 
 ### DLRover 错误日志收集
@@ -126,7 +126,7 @@ sharding 方式：
 在保存时，直接保存每个 rank 上的 flat param，同时保存一份对应的 meta 信息。如下图所示，每个 flat param 中保存了多个 meta 信息，每个 meta 信息代表这个 flat param 中原始参数的 shape 和在 flat param 中的 start 和 end，因此在恢复参数时，只需要按照顺序将所有的 param 找出来，拼接到一起后，再进行 reshape 即可获得原始的参数。
 
 <div align="center">
-<img src="../figures/ft_llm_traning/fsdp_flat_params.jpg" alt="Editor" width="600">
+<img src="../figures/ft_llm_training/fsdp_flat_params.jpg" alt="Editor" width="600">
 </div>
 
 
@@ -160,7 +160,7 @@ with init_empty_weights_with_disk_offload(ckpt_path='ckpt'):
 FSDP 并行训练时，优化器是基于 FSDP 转化后的模型创建的，atorch 会配置 FSDP 的 use_orig_param。这时优化器状态的结构与 flat param 结构相同。如果某些参数不在 flat param 中，则优化器状态获取到的参数为空。同时还保存了优化器状态的 meta 信息，为优化器状态的 param group 信息。
 
 <div align="center">
-<img src="../figures/ft_llm_traning/fsdp_orig_param_format.jpg" alt="Editor" width="600">
+<img src="../figures/ft_llm_training/fsdp_orig_param_format.jpg" alt="Editor" width="600">
 </div>
 
 FSDP use_orig_param 的优化器状态的逻辑格式
@@ -168,7 +168,7 @@ FSDP use_orig_param 的优化器状态的逻辑格式
 实际在内部实现时，reshard 根据 FSDP 包好的模型来获取优化器状态的数值区间，该区间在 FSDP 内部为intra_param_start_idx，intra_param_end_idx 参数，含义为新的参数在原始 flatten 权重的取值范围。如下图所示，如果由于修改了 rank/wrap 使得 FSDP 的模型产生了变化，则需要重新切分优化器参数。
 
 <div align="center">
-<img src="../figures/ft_llm_traning/fsdp_reshard_params.jpg" alt="Editor" width="600">
+<img src="../figures/ft_llm_training/fsdp_reshard_params.jpg" alt="Editor" width="600">
 </div>
 
 FSDP 优化器状态 reshard 示意图
@@ -197,7 +197,7 @@ optimizer.load_state_dict(reshard_optim_state)
 在使用 DLRover 弹性容错之前，Torch 大模型训练只要出错就要重启训练作业。为了及时重启作业，用户写了个程序每隔10min 来检测作业状态。如果失败，就会重启作业。
 
 <div align="center">
-<img src="../figures/ft_llm_traning/dlrover_ft_result.jpg" alt="Editor" width="600">
+<img src="../figures/ft_llm_training/dlrover_ft_result.jpg" alt="Editor" width="600">
 </div>
 
 下面对比了训练失败时使用 DLRover 弹性容错前后的耗时。
