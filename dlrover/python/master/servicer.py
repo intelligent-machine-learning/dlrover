@@ -203,9 +203,17 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         memory = request.memory
         pod_id = request.node_id
         pod_type = request.node_type
+        gpu_stats = request.gpu_stats
+        logger.debug(
+            "Report resource usage for pod %s, cpu %d, memory %d, gpu %s",
+            pod_id,
+            cpu,
+            memory,
+            gpu_stats,
+        )
         if self._job_manager:
             self._job_manager.update_node_resource_usage(
-                pod_type, pod_id, cpu, memory
+                pod_type, pod_id, cpu, memory, gpu_stats
             )
         return empty_pb2.Empty()
 
