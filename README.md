@@ -10,12 +10,18 @@ DLRover: An Automatic Distributed Deep Learning System
 
 [![Build](https://github.com/intelligent-machine-learning/easydl/actions/workflows/main.yml/badge.svg)](https://github.com/intelligent-machine-learning/easydl/actions/workflows/main.yml)
 
-DLRover automatically trains the Deep Learning model on the distributed cluster. It helps model developers to focus on model arichtecture, without taking care of any engineering stuff, say, hardware acceleration, distributed running, etc. Now, it provides automated operation and maintenance for deep learning training jobs on K8s/Ray. Major features as
+DLRover makes the distributed training of large AI models easy, stable, fast and green.
+It can automatically train the Deep Learning model on the distributed cluster. It helps model developers to focus on model arichtecture, without taking care of any engineering stuff, say, hardware acceleration, distributed running, etc. Now, it provides automated operation and maintenance for deep learning training jobs on K8s/Ray. Major features as
 
 - **Fault-Tolerance**, single node failover without restarting the entire job.
 - **Auto-Scaling**, Automatically scale up/down resources at both node level and CPU/memory level.
 - **Dynamic data sharding**, dynamic dispatch training data to each worker instead of dividing equally, faster worker more data.
 - **Automatic Resource Optimization**, Automatically optimize the job resource to improve the training performance and resources utilization.
+
+
+## Latest News
+* [2023/08] [DLRover improves the stability of pre-trained model training over thousands GPUs.](docs/blogs/stabilize_llm_training_cn.md)
+* [2023/04] [DLRover auto-scales nodes of a DeepRec distributed training job.](docs/blogs/deeprec_autoscale_cn.md)
 
 ## Why DLRover?
 
