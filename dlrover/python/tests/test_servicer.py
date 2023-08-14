@@ -113,6 +113,20 @@ class MasterServicerTest(unittest.TestCase):
         request.cpu = 2
         request.node_id = 0
         request.node_type = NodeType.WORKER
+        gpu_stats = [
+            {
+                "index": 0,
+                "total_memory_mb": 24000,
+                "used_memory_mb": 4000,
+                "gpu_utilization": 55.5,
+            }
+        ]
+        for gpu in gpu_stats:
+            gpu_stats_message = request.gpu_stats[gpu["index"]]
+            gpu_stats_message.index = gpu["index"]
+            gpu_stats_message.total_memory_mb = gpu["total_memory_mb"]
+            gpu_stats_message.used_memory_mb = gpu["used_memory_mb"]
+            gpu_stats_message.gpu_utilization = gpu["gpu_utilization"]
         self.servicer.report_used_resource(request, None)
         request.node_type = NodeType.PS
         self.servicer.report_used_resource(request, None)
