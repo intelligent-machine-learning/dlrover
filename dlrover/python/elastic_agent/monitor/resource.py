@@ -22,6 +22,7 @@ from dlrover.python.common.constants import NodeEnv
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import singleton
 from dlrover.python.elastic_agent.master_client import GlobalMasterClient
+from dlrover.python.elastic_agent.monitor.metrics import GPUMetric
 
 
 def get_process_cpu_percent():
@@ -69,19 +70,19 @@ def get_gpu_stats():
         gpu_utilization = utilization.gpu
 
         gpu_stats_list.append(
-            {
-                "index": i,
-                "total_memory_mb": total_memory,
-                "used_memory_mb": used_memory,
-                "gpu_utilization": gpu_utilization,
-            }
+            GPUMetric(
+                index=i,
+                total_memory_mb=total_memory,
+                used_memory_mb=used_memory,
+                gpu_utilization=gpu_utilization
+            )
         )
     for info in gpu_stats_list:
         logger.debug(
-            f"GPU {info['index']}: "
-            f"Total Memory: {info['total_memory_mb']} MB, "
-            f"Used Memory: {info['used_memory_mb']} MB, "
-            f"GPU Utilization: {info['gpu_utilization']}%"
+            f"GPU {info.index}: "
+            f"Total Memory: {info.total_memory_mb} MB, "
+            f"Used Memory: {info.used_memory_mb} MB, "
+            f"GPU Utilization: {info.gpu_utilization}%"
         )
     return gpu_stats_list
 
