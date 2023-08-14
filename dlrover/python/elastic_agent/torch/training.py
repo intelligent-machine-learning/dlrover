@@ -58,6 +58,7 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.master_client import GlobalMasterClient
+from dlrover.python.elastic_agent.monitor.resource import ResourceMonitor
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
 
 __all__ = ["launch_agent"]
@@ -485,6 +486,8 @@ def launch_agent(
         f"  metrics_cfg      : {config.metrics_cfg}\n"
     )
 
+    ResourceMonitor()
+    logger.info("Elastic agent is imported ResourceMonitor")
     rdzv_parameters = RendezvousParameters(
         backend=config.rdzv_backend,
         endpoint=config.rdzv_endpoint,
