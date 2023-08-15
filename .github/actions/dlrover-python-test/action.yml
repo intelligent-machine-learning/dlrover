@@ -14,4 +14,4 @@ https://download.pytorch.org/whl/torch_stable.html \
 && python -m grpc_tools.protoc -I. \
 dlrover/proto/*.proto --python_out=. --grpc_python_out=. \
 && python -m pytest dlrover/python/tests dlrover/trainer/tests \
-pytest dlrover/client/tests --cov-report term --cov=dlrover"
+dlrover/client/tests --cov-report term --cov=dlrover"
