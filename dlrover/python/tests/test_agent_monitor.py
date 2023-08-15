@@ -51,9 +51,7 @@ class ResourceMonitorTest(unittest.TestCase):
                 "dlrover.python.elastic_agent.monitor.resource.get_gpu_stats",
                 return_value=gpu_stats,
             ):
-                with patch(
-                    "dlrover.python.elastic_agent.monitor.resource.ResourceMonitor.init_gpu_monitor"  # noqa: E501
-                ):
+                with patch("pynvml.nvmlInit"):
                     resource_monitor = ResourceMonitor()
                     resource_monitor.start()
                     time.sleep(0.3)
