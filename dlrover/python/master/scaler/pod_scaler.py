@@ -33,6 +33,8 @@ from dlrover.python.common.node import Node, NodeResource
 from dlrover.python.master.scaler.base_scaler import ScalePlan, Scaler
 from dlrover.python.scheduler.kubernetes import (
     NODE_SERVICE_PORTS,
+    convert_cpu_to_decimal,
+    convert_memory_to_mb,
     get_pod_name,
     k8sClient,
 )
@@ -226,13 +228,9 @@ class PodScaler(Scaler):
 
     def _get_pod_resource(self, pod):
         resources = pod.spec.containers[0].resources
-        cpu = NodeResource.convert_cpu_to_decimal(
-            resources.requests.get("cpu", "0")
-        )
+        cpu = convert_cpu_to_decimal(resources.requests.get("cpu", "0"))
         if "memory" in resources.requests:
-            memory = NodeResource.convert_memory_to_mb(
-                resources.requests["memory"]
-            )
+            memory = convert_memory_to_mb(resources.requests["memory"])
         else:
             memory = 0
         return NodeResource(cpu, memory)
