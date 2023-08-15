@@ -102,7 +102,6 @@ class ResourceMonitor(object):
         ):
             return
 
-        print("Start to monitor resource usage")
         self.init_gpu_monitor()
         logger.info("Resource Monitor Initializing ...")
 
@@ -165,10 +164,8 @@ class ResourceMonitor(object):
         try:
             used_mem = get_used_memory()
             cpu_percent = get_process_cpu_percent()
-            print(f"_gpu_enabled: {self._gpu_enabled}")
             if self._gpu_enabled:
                 self._gpu_stats = get_gpu_stats()
-            print(f"gpus: {self._gpu_stats}")
             current_cpu = round(cpu_percent * self._total_cpu, 2)
             GlobalMasterClient.MASTER_CLIENT.report_used_resource(
                 used_mem, current_cpu, self._gpu_stats
