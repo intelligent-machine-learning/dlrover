@@ -14,8 +14,8 @@
 import time
 import unittest
 from unittest import mock
-import ray
 
+import ray
 from google.protobuf import empty_pb2
 
 from dlrover.proto import elastic_training_pb2
