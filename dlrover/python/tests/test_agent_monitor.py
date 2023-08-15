@@ -51,12 +51,15 @@ class ResourceMonitorTest(unittest.TestCase):
                 "dlrover.python.elastic_agent.monitor.resource.get_gpu_stats",
                 return_value=gpu_stats,
             ):
-                resource_monitor = ResourceMonitor()
-                resource_monitor.start()
-                time.sleep(0.3)
-                resource_monitor.report_resource()
-                self.assertTrue(resource_monitor._total_cpu >= 0.0)
-                self.assertTrue(resource_monitor._gpu_stats == gpu_stats)
+                with patch(
+                    "dlrover.python.elastic_agent.monitor.resource.ResourceMonitor.init_gpu_monitor"  # noqa: E501
+                ):
+                    resource_monitor = ResourceMonitor()
+                    resource_monitor.start()
+                    time.sleep(0.3)
+                    resource_monitor.report_resource()
+                    self.assertTrue(resource_monitor._total_cpu >= 0.0)
+                    self.assertTrue(resource_monitor._gpu_stats == gpu_stats)
 
     def test_training_reporter(self):
         TF_CONFIG = {
