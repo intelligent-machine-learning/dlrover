@@ -486,7 +486,8 @@ def launch_agent(
         f"  metrics_cfg      : {config.metrics_cfg}\n"
     )
 
-    ResourceMonitor()
+    monitor = ResourceMonitor()
+    monitor.start()
     rdzv_parameters = RendezvousParameters(
         backend=config.rdzv_backend,
         endpoint=config.rdzv_endpoint,
@@ -565,6 +566,7 @@ def launch_agent(
     finally:
         if shutdown_rdzv:
             spec.rdzv_handler.shutdown()
+        monitor.stop()
 
 
 class NetworkCheckElasticAgent(ElasticTrainingAgent):
