@@ -13,6 +13,8 @@
 
 import time
 import unittest
+from unittest import mock
+import ray
 
 from google.protobuf import empty_pb2
 
@@ -178,6 +180,7 @@ class MasterServicerTest(unittest.TestCase):
 
 class MasterServicerForRayTest(unittest.TestCase):
     def setUp(self) -> None:
+        ray.init = mock.MagicMock(return_value=True)
         params = MockRayJobArgs()
         params.initilize()
         speed_monitor = SpeedMonitor()
