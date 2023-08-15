@@ -93,6 +93,7 @@ class ResourceMonitor(object):
         """
         self._total_cpu = psutil.cpu_count(logical=True)
         self._gpu_enabled = False
+        self._gpu_stats: list[GPUMetric] = []
 
     def start(self):
         if (
@@ -163,18 +164,17 @@ class ResourceMonitor(object):
         try:
             used_mem = get_used_memory()
             cpu_percent = get_process_cpu_percent()
-            gpu_stats = []
             if self._gpu_enabled:
-                gpu_stats = get_gpu_stats()
+                self._gpu_stats = get_gpu_stats()
             current_cpu = round(cpu_percent * self._total_cpu, 2)
             GlobalMasterClient.MASTER_CLIENT.report_used_resource(
-                used_mem, current_cpu, gpu_stats
+                used_mem, current_cpu, self._gpu_stats
             )
             logger.info(
                 "Report Resource CPU : %s, Memory %s, GPU %s",
                 current_cpu,
                 used_mem,
-                gpu_stats,
+                self._gpu_stats,
             )
         except Exception as e:
             logger.exception(e)
