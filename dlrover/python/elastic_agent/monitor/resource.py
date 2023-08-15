@@ -97,8 +97,8 @@ class ResourceMonitor(object):
 
     def start(self):
         if (
-            os.getenv(NodeEnv.DLROVER_MASTER_ADDR, "")
-            and os.getenv(NodeEnv.AUTO_MONITOR_WORKLOAD, "") == "true"
+            not os.getenv(NodeEnv.DLROVER_MASTER_ADDR, "")
+            or not os.getenv(NodeEnv.AUTO_MONITOR_WORKLOAD, "") == "true"
         ):
             return
 
