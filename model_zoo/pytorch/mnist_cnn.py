@@ -22,8 +22,8 @@ import torch.nn.functional as F
 import torch.optim as optim
 import torchvision
 from torch.distributed.elastic.multiprocessing.errors import record
-from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
+from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader
 from torchvision import transforms
@@ -33,6 +33,7 @@ from dlrover.trainer.torch.elastic_sampler import ElasticDistributedSampler
 
 CHEKPOINT_PATH = "model.pt"
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+
 
 def log_rank0(msg):
     local_rank = int(os.environ.get("LOCAL_RANK", 0))
@@ -169,7 +170,7 @@ def train_with_fixed_batch_size(
     train_loader,
     test_loader,
     epochs,
-    use_fsdp=False
+    use_fsdp=False,
 ):
     """
     The global batch size will not change if the number of workers changes.
