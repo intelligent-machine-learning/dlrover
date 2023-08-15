@@ -17,13 +17,13 @@ import time
 import unittest
 from unittest.mock import patch
 
+from dlrover.python.common.constants import NodeEnv
+from dlrover.python.elastic_agent.monitor.metrics import GPUMetric
 from dlrover.python.elastic_agent.monitor.resource import ResourceMonitor
 from dlrover.python.elastic_agent.monitor.training import (
     TrainingProcessReporter,
     is_tf_chief,
 )
-from dlrover.python.elastic_agent.monitor.metrics import GPUMetric
-from dlrover.python.common.constants import NodeEnv
 
 
 class ResourceMonitorTest(unittest.TestCase):
@@ -43,7 +43,8 @@ class ResourceMonitorTest(unittest.TestCase):
 
         with patch.dict("os.environ", mock_env):
             result = not os.getenv(NodeEnv.DLROVER_MASTER_ADDR, "") or not (
-                os.getenv(NodeEnv.AUTO_MONITOR_WORKLOAD, "") == "true")
+                os.getenv(NodeEnv.AUTO_MONITOR_WORKLOAD, "") == "true"
+            )
             self.assertFalse(result)
             # mock get_gpu_stats
             with patch(
