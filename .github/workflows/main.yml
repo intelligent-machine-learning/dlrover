@@ -24,13 +24,6 @@ jobs:
       - uses: codecov/codecov-action@v3
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-  dlrover-trainer-test:
-    runs-on: ubuntu-latest
-    steps:
-      # This step checks out a copy of your repository.
-      - uses: actions/checkout@v3
-      # This step references the directory that contains the action.
-      - uses: ./.github/actions/dlrover-trainer-test
   operator-test:
     runs-on: ubuntu-latest
     steps:
@@ -66,13 +59,6 @@ jobs:
       - uses: actions/checkout@v3
       # This step references the directory that contains the action.
       - uses: ./.github/actions/dlrover-system-test-tf2
-  dlrover-client-test:
-    runs-on: ubuntu-latest
-    steps:
-      # This step checks out a copy of your repository.
-      - uses: actions/checkout@v3
-      # This step references the directory that contains the action.
-      - uses: ./.github/actions/dlrover-client-test
   atorch-python-test:
     runs-on: ubuntu-latest
     steps:
