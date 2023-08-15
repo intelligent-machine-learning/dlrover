@@ -250,9 +250,7 @@ def mock_k8s_client():
     k8s_client.create_service = mock.MagicMock(  # type: ignore
         return_value=True
     )
-    k8s_client.get_service = mock.MagicMock(  # type: ignore
-        return_value=False
-    )
+    k8s_client.get_service = mock.MagicMock(return_value=False)  # type: ignore
 
 
 def start_local_master():
