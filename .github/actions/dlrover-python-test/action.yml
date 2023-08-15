@@ -15,4 +15,4 @@ https://download.pytorch.org/whl/torch_stable.html \
 dlrover/proto/*.proto --python_out=. --grpc_python_out=. \
 && python -m pytest dlrover/python/tests dlrover/trainer/tests \
 --cov-report xml --cov=dlrover && \
-CODECOV_TOKEN=${{secrets.CODECOV_TOKEN}} sh scripts/codecov.sh"
+sh scripts/codecov.sh"

@@ -22,6 +22,8 @@ jobs:
       # This step references the directory that contains the action.
       - name: Generate coverage report
         uses: ./.github/actions/dlrover-python-test
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
   operator-test:
     runs-on: ubuntu-latest
     steps:
