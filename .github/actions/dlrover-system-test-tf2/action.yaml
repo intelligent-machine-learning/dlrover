@@ -14,6 +14,7 @@ dlrover/proto/*.proto --python_out=. --grpc_python_out=. \
 && pip install h5py==3.7.0 \
 && pip install pyhocon tensorflow==2.11 \
 && pip install ray['defult'] \
+&& pip install pynvml \
 && export PYTHONPATH=`pwd` \
 && cd model_zoo/tf_estimator/estimator_executor \
 && sh mock_k8s_run.sh \
