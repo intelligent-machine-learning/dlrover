@@ -92,32 +92,45 @@ class ResourceMonitor(object):
         reports the used memory and cpu percent to the DLRover master.
         """
         self._total_cpu = psutil.cpu_count(logical=True)
+        self._gpu_enabled = False
+        self._gpu_stats: list[GPUMetric] = []
+
+    def start(self):
+        if (
+            not os.getenv(NodeEnv.DLROVER_MASTER_ADDR, "")
+            or not os.getenv(NodeEnv.AUTO_MONITOR_WORKLOAD, "") == "true"
+        ):
+            return
+
         self.init_gpu_monitor()
         logger.info("Resource Monitor Initializing ...")
-        if (
-            os.getenv(NodeEnv.DLROVER_MASTER_ADDR, "")
-            and os.getenv(NodeEnv.AUTO_MONITOR_WORKLOAD, "") == "true"
-        ):
-            try:
-                thread = threading.Thread(
-                    target=self._monitor_resource,
-                    name="monitor_resource",
-                    daemon=True,
-                )
-                thread.start()
-                if thread.is_alive():
-                    logger.info("Resource Monitor initialized successfully")
-            except Exception as e:
-                logger.error(
-                    f"Failed to start the monitor resource thread. Error: {e}"
-                )
+
+        try:
+            thread = threading.Thread(
+                target=self._monitor_resource,
+                name="monitor_resource",
+                daemon=True,
+            )
+            thread.start()
+            if thread.is_alive():
+                logger.info("Resource Monitor initialized successfully")
+        except Exception as e:
+            logger.error(
+                f"Failed to start the monitor resource thread. Error: {e}"
+            )
+
+    def stop(self):
+        if self._gpu_enabled:
+            self.shutdown_gpu_monitor()
 
     def __del__(self):
-        self.shutdown_gpu_monitor()
+        if self._gpu_enabled:
+            self.shutdown_gpu_monitor()
 
     def init_gpu_monitor(self):
         try:
             pynvml.nvmlInit()
+            self._gpu_enabled = True
         except pynvml.NVMLError_LibraryNotFound:
             logger.error(
                 "NVIDIA NVML library not found. "
@@ -149,17 +162,18 @@ class ResourceMonitor(object):
 
     def report_resource(self):
         try:
-            self._used_mem = get_used_memory()
-            self._cpu_percent = get_process_cpu_percent()
-            self._gpu_stats = get_gpu_stats()
-            current_cpu = round(self._cpu_percent * self._total_cpu, 2)
+            used_mem = get_used_memory()
+            cpu_percent = get_process_cpu_percent()
+            if self._gpu_enabled:
+                self._gpu_stats = get_gpu_stats()
+            current_cpu = round(cpu_percent * self._total_cpu, 2)
             GlobalMasterClient.MASTER_CLIENT.report_used_resource(
-                self._used_mem, self.current_cpu, self._gpu_stats
+                used_mem, current_cpu, self._gpu_stats
             )
             logger.info(
                 "Report Resource CPU : %s, Memory %s, GPU %s",
                 current_cpu,
-                self._used_mem,
+                used_mem,
                 self._gpu_stats,
             )
         except Exception as e:
