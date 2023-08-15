@@ -33,6 +33,7 @@ from dlrover.python.master.node.event_callback import (
     TaskRescheduleCallback,
     TFPSNodeHandlingCallback,
 )
+from dlrover.python.master.node.local_job_manager import LocalJobManager
 from dlrover.python.master.node.status_flow import (
     NODE_STATE_FLOWS,
     NodeStateFlow,
@@ -45,6 +46,7 @@ from dlrover.python.master.node.training_node import (
 )
 from dlrover.python.master.resource.job import JobResource
 from dlrover.python.master.watcher.base_watcher import Node, NodeEvent
+from dlrover.python.scheduler.job import LocalJobArgs
 from dlrover.python.tests.test_utils import (
     MockK8sPSJobArgs,
     create_task_manager,
@@ -88,7 +90,7 @@ class NodeStatusFlowTest(unittest.TestCase):
         self.assertFalse(flow.should_relaunch)
 
 
-class JobManagerTest(unittest.TestCase):
+class DistributedJobManagerTest(unittest.TestCase):
     def setUp(self) -> None:
         mock_k8s_client()
 
@@ -371,3 +373,16 @@ class JobManagerTest(unittest.TestCase):
                 node.status = NodeStatus.RUNNING
         hang = manager.all_running_node_hanged()
         self.assertTrue(hang)
+
+
+class LocalJobManagerTest(unittest.TestCase):
+    def test_local_job_manager(self):
+        args = LocalJobArgs("local", "default", "test")
+        job_mananger = LocalJobManager(args)
+        job_mananger.start()
+        self.assertEqual(len(job_mananger._job_nodes[NodeType.WORKER]), 1)
+        job_mananger.update_node_resource_usage(NodeType.WORKER, 0, 10, 10240)
+
+        worker = job_mananger._job_nodes[NodeType.WORKER][0]
+        self.assertEqual(worker.used_resource.cpu, 10)
+        self.assertEqual(worker.used_resource.memory, 10240)
