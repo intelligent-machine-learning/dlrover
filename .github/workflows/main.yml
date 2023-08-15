@@ -21,6 +21,9 @@ jobs:
       - uses: actions/checkout@v3
       # This step references the directory that contains the action.
       - uses: ./.github/actions/dlrover-python-test
+      - uses: codecov/codecov-action@v3
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
   dlrover-trainer-test:
     runs-on: ubuntu-latest
     steps:
@@ -98,3 +101,4 @@ jobs:
       - uses: actions/checkout@v3
       # This step references the directory that contains the action.
       - uses: ./.github/actions/tfplus-pre-commit
+   

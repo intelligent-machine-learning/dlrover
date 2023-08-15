@@ -9,6 +9,7 @@ DLRover: An Automatic Distributed Deep Learning System
 </div>
 
 [![Build](https://github.com/intelligent-machine-learning/easydl/actions/workflows/main.yml/badge.svg)](https://github.com/intelligent-machine-learning/easydl/actions/workflows/main.yml)
+[![Code Coverage](https://codecov.io/gh/intelligent-machine-learning/dlrover/branch/master/graph/badge.svg)](https://codecov.io/gh/intelligent-machine-learning/dlrover)
 [![PyPI Status Badge](https://badge.fury.io/py/dlrover.svg)](https://pypi.org/project/dlrover/)
 
 DLRover makes the distributed training of large AI models easy, stable, fast and green.
