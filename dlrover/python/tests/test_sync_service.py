@@ -16,7 +16,7 @@ import unittest
 from dlrover.python.common.constants import NodeStatus, NodeType
 from dlrover.python.master.elastic_training.sync_service import SyncService
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
-from dlrover.python.master.node.job_manager import create_job_manager
+from dlrover.python.master.node.dist_job_manager import create_job_manager
 from dlrover.python.tests.test_utils import MockK8sPSJobArgs, mock_k8s_client
 
 

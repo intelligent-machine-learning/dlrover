@@ -20,11 +20,11 @@ from dlrover.python.common.constants import NodeStatus, NodeType
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.node import NodeGroupResource, NodeResource
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
+from dlrover.python.master.node.dist_job_manager import create_job_manager
 from dlrover.python.master.node.job_auto_scaler import (
     AllreduceTrainingAutoScaler,
     PSTrainingAutoScaler,
 )
-from dlrover.python.master.node.job_manager import create_job_manager
 from dlrover.python.master.resource.optimizer import ResourcePlan
 from dlrover.python.tests.test_utils import (
     MockK8sAllreduceJobArgs,

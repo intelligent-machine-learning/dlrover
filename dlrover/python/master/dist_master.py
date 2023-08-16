@@ -32,12 +32,12 @@ from dlrover.python.master.elastic_training.rdzv_manager import (
 from dlrover.python.master.elastic_training.sync_service import SyncService
 from dlrover.python.master.master import JobMaster
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
+from dlrover.python.master.node.dist_job_manager import create_job_manager
 from dlrover.python.master.node.event_callback import (
     AllReduceNodeHandlingCallback,
     TaskRescheduleCallback,
     TFPSNodeHandlingCallback,
 )
-from dlrover.python.master.node.job_manager import create_job_manager
 from dlrover.python.master.servicer import create_master_service
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.master.stats.job_collector import JobMetricCollector
