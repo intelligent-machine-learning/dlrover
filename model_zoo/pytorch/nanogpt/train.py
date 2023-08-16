@@ -27,7 +27,7 @@ from model import GPT, GPTConfig
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.distributed.fsdp.wrap import size_based_auto_wrap_policy
 from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader, Dataset
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 
@@ -44,8 +44,12 @@ class GPTDataset(Dataset):
         return len(self.data) - self.block_size
 
     def __getitem__(self, idx):
-        x = torch.from_numpy(self.data[idx: idx + self.block_size].astype(np.int64))
-        y = torch.from_numpy(self.data[idx + 1: idx + 1 + self.block_size].astype(np.int64))
+        x = torch.from_numpy(
+            self.data[idx : idx + self.block_size].astype(np.int64)
+        )
+        y = torch.from_numpy(
+            self.data[idx + 1 : idx + 1 + self.block_size].astype(np.int64)
+        )
         return x, y
 
 def get_data_loaders(
@@ -60,8 +64,12 @@ def get_data_loaders(
     val_dataset = GPTDataset(os.path.join(data_dir, "val.bin"), block_size)
     with open(os.path.join(data_dir, "meta.pkl"), "rb") as f:
         meta = pickle.load(f)
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+    train_loader = DataLoader(
+        train_dataset, batch_size=batch_size, shuffle=True
+    )
+    val_loader = DataLoader(
+        val_dataset, batch_size=batch_size, shuffle=False
+    )
     meta_vocab_size = meta["vocab_size"]
     return train_loader, val_loader, meta_vocab_size
     
@@ -197,7 +205,7 @@ def train():
         block_size=block_size,
         device_type=device_type,
         device=device,
-        use_fsdp=use_fsdp
+        use_fsdp=use_fsdp,
     )
     model = gpt_init(meta_vocab_size, args=args)
     scaler = torch.cuda.amp.GradScaler(enabled=(dtype == "float16"))
