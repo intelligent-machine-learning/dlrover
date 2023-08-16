@@ -29,7 +29,7 @@ from torch.distributed.fsdp.wrap import size_based_auto_wrap_policy
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import Dataset, DataLoader
 
-os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
+os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 
 local_rank = None
 master_process = False
@@ -193,8 +193,12 @@ def train():
         else torch.amp.autocast(device_type=device_type, dtype=ptdtype)
     )
     train_loader, val_loader, meta_vocab_size = get_data_loaders(
-        data_dir=args.data_dir, batch_size=batch_size, block_size=block_size,
-        device_type=device_type, device=device, use_fsdp=use_fsdp
+        data_dir=args.data_dir,
+        batch_size=batch_size,
+        block_size=block_size,
+        device_type=device_type,
+        device=device,
+        use_fsdp=use_fsdp,
     )
     model = gpt_init(meta_vocab_size, args=args)
     scaler = torch.cuda.amp.GradScaler(enabled=(dtype == "float16"))
