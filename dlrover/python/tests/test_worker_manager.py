@@ -123,7 +123,7 @@ class WorkerManagerTest(unittest.TestCase):
         self.assertEqual(plan.launch_nodes[0].config_resource.cpu, 16)
         self.assertEqual(manager._nodes[1].id, 1)
 
-    def test_cut_pending_node_cpu(self):
+    def test_reduce_pending_node_resource(self):
         worker_manager = WorkerManager(
             self._job_nodes[NodeType.WORKER],
             self._job_resource,
@@ -134,7 +134,7 @@ class WorkerManagerTest(unittest.TestCase):
         for node in worker_manager._nodes.values():
             node.status = NodeStatus.PENDING
             node.create_time = datetime.now() + timedelta(days=-1)
-        plan = worker_manager.cut_pending_node_cpu()
+        plan = worker_manager.reduce_pending_node_resource()
         self.assertEqual(len(plan.launch_nodes), 5)
 
     def test_pending_without_workers(self):

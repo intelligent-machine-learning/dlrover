@@ -63,7 +63,7 @@ class PSManagerTest(unittest.TestCase):
             node.status = NodeStatus.PENDING
             node.create_time = datetime.now() + timedelta(days=-1)
 
-        plan = self._ps_manager.cut_pending_node_cpu()
+        plan = self._ps_manager.reduce_pending_node_resource()
         self.assertEqual(len(plan.launch_nodes), 2)
         self.assertEqual(plan.launch_nodes[0].config_resource.cpu, 8)
         self.assertEqual(plan.launch_nodes[0].config_resource.memory, 2048)

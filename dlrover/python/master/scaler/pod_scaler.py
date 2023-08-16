@@ -33,6 +33,8 @@ from dlrover.python.common.node import Node, NodeResource
 from dlrover.python.master.scaler.base_scaler import ScalePlan, Scaler
 from dlrover.python.scheduler.kubernetes import (
     NODE_SERVICE_PORTS,
+    convert_cpu_to_decimal,
+    convert_memory_to_mb,
     get_pod_name,
     k8sClient,
 )
@@ -124,6 +126,8 @@ class PodScaler(Scaler):
 
     def scale(self, plan: ScalePlan):
         """Scale in/out Pods by a ScalePlan."""
+        if plan.empty():
+            return
         self._plan = plan
         job_pods = self._list_job_pods()
         logger.info("Scale the job by plan %s", plan.toJSON())
@@ -185,9 +189,10 @@ class PodScaler(Scaler):
         return False
 
     def _list_job_pods(self):
-        job_selector = ElasticJobLabel.JOB_KEY + "=" + self._job_name
-        pod_list = self._k8s_client.list_namespaced_pod(job_selector)
+        pod_list = self._wait_list_pods()
         job_pods: Dict[str, List[Node]] = {}
+        if not pod_list:
+            return job_pods
         for pod in pod_list.items:
             pod_type = pod.metadata.labels[ElasticJobLabel.REPLICA_TYPE_KEY]
             if pod_type == NodeType.DLROVER_MASTER:
@@ -209,15 +214,23 @@ class PodScaler(Scaler):
             job_pods[pod_type].append(node)
         return job_pods
 
+    def _wait_list_pods(self, timeout=1800):
+        job_selector = ElasticJobLabel.JOB_KEY + "=" + self._job_name
+        start = time.time()
+        while True:
+            pod_list = self._k8s_client.list_namespaced_pod(job_selector)
+            if pod_list:
+                return pod_list
+            if time.time() - start < timeout:
+                time.sleep(60)
+            else:
+                raise TimeoutError(f"Timeout {timeout} to list Pods.")
+
     def _get_pod_resource(self, pod):
         resources = pod.spec.containers[0].resources
-        cpu = NodeResource.convert_cpu_to_decimal(
-            resources.requests.get("cpu", "0")
-        )
+        cpu = convert_cpu_to_decimal(resources.requests.get("cpu", "0"))
         if "memory" in resources.requests:
-            memory = NodeResource.convert_memory_to_mb(
-                resources.requests["memory"]
-            )
+            memory = convert_memory_to_mb(resources.requests["memory"])
         else:
             memory = 0
         return NodeResource(cpu, memory)
@@ -349,7 +362,7 @@ class PodScaler(Scaler):
 
         worker_num = self._config_worker_num
         if worker_num == 0:
-            worker_num = pod_stats[node.type]
+            worker_num = pod_stats.get(node.type, 0)
         env.append(V1EnvVar(name=NodeEnv.WORKER_NUM, value=str(worker_num)))
         env.append(
             V1EnvVar(name=NodeEnv.WORKER_RANK, value=str(node.rank_index))
@@ -414,7 +427,6 @@ class PodScaler(Scaler):
         pod.metadata.labels[ElasticJobLabel.RANK_INDEX_KEY] = str(
             node.rank_index
         )
-        self._patch_tf_config_into_env(pod, node, pod_stats, ps_addrs)
         if (
             _dlrover_context.auto_ps_enabled
             or _dlrover_context.auto_worker_enabled
@@ -422,6 +434,7 @@ class PodScaler(Scaler):
             pod.spec.containers[0].env.append(
                 V1EnvVar(name=NodeEnv.AUTO_MONITOR_WORKLOAD, value="true")
             )
+        self._patch_tf_config_into_env(pod, node, pod_stats, ps_addrs)
         return pod
 
     def get_first_worker_host(self):

@@ -25,8 +25,6 @@ from dlrover.python.elastic_agent.monitor.training import (
     TrainingProcessReporter,
 )
 
-training_reporter = TrainingProcessReporter()
-
 _DEFAULT_MINI_BATCH_NUM_PER_SHARD = 10
 
 
@@ -47,7 +45,7 @@ class ShardingClient(object):
     Example:
         batch_size = 64
         client = ShardingClient(
-            datset_name="test",
+            dataset_name="test",
             batch_size=batch_size,
             num_epochs=1,
             dataset_size=10000,
@@ -90,6 +88,7 @@ class ShardingClient(object):
         self._max_shard_count = sys.maxsize
         self._shard_count = 0
         self._report_sharding_params()
+        self._training_reporter = TrainingProcessReporter()
 
     def _report_sharding_params(self):
         if self._num_epochs and self._dataset_size:
@@ -115,7 +114,7 @@ class ShardingClient(object):
         return self._current_task
 
     def get_task(self) -> elastic_training_pb2.Task:
-        training_reporter.set_start_time()
+        self._training_reporter.set_start_time()
         if self._shard_count >= self._max_shard_count:
             return None
         for _ in range(5):
@@ -185,8 +184,10 @@ class ShardingClient(object):
         return reported
 
     def _report_training_local_step(self):
-        if not training_reporter.called_in_tf_hook:
-            training_reporter.report_resource_with_step(self._batch_count)
+        if not self._training_reporter.called_in_tf_hook:
+            self._training_reporter.report_resource_with_step(
+                self._batch_count
+            )
 
     def fetch_shard(self):
         """Fetch data shard and each shard contains the name,

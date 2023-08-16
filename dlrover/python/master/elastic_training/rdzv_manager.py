@@ -88,14 +88,20 @@ class RendezvousManager(metaclass=ABCMeta):
             min_nodes: The minimum number of nodes.
             max_nodes: THe maximum number of nodes.
             waiting_timeout: the time to wait more workers.
-            worker_unit: the number unit of workers to build the communication
+            node_unit: the number unit of workers to build the communication
                 world. This is, the number of nodes in a world should be
                 a multiple of worker_unit.
         """
-        self._rdzv_params.min_nodes = min_nodes
-        self._rdzv_params.max_nodes = max_ndoes
-        self._rdzv_params.waiting_timeout = waiting_timeout
-        self._node_unit = node_unit
+        with self._lock:
+            self._rdzv_params.min_nodes = min_nodes
+            self._rdzv_params.max_nodes = max_ndoes
+            self._rdzv_params.waiting_timeout = waiting_timeout
+            self._node_unit = node_unit
+            logger.info(
+                f"{self._name} manager updates rdzv params: "
+                f"min_nodes={min_nodes}, max_nodes={max_ndoes}, "
+                f"waiting_timeout={waiting_timeout}, node_unit={node_unit}"
+            )
 
     def _check_rdzv_completed(self):
         rdzv_completed = False
@@ -154,7 +160,7 @@ class RendezvousManager(metaclass=ABCMeta):
         """
         with self._lock:
             if rank_id in self._waiting_nodes:
-                return
+                return self._rdzv_round
             self._waiting_nodes[rank_id] = local_world_size
             logger.info(f"{self._name} waiting nodes: {self._waiting_nodes}")
             self._rdzv_nodes = {}

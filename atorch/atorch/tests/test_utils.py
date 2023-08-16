@@ -1,5 +1,6 @@
 import os
 import tempfile
+from unittest import mock
 
 import torch
 
@@ -63,3 +64,26 @@ def stop_coverage():
     global ut_cov
     ut_cov.stop()
     ut_cov.save()
+
+
+class DummyProcessGroup:
+    def __init__(self, rank: int, size: int):
+        self._rank = rank
+        self._size = size
+
+    def rank(self) -> int:
+        return self._rank
+
+    def size(self) -> int:
+        return self._size
+
+    def allreduce(self, *args, **kwargs):
+        dist_wait = mock.Mock()
+
+        def get_future():
+            future = torch.futures.Future()
+            future.set_result(1)
+            return future
+
+        dist_wait.get_future = get_future
+        return dist_wait

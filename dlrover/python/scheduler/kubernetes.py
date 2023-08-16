@@ -16,6 +16,7 @@ import threading
 import time
 
 from kubernetes import client, config
+from kubernetes.utils.quantity import parse_quantity
 
 from dlrover.python.common.constants import (
     DefaultResourceLimits,
@@ -36,6 +37,18 @@ NODE_SERVICE_PORTS = {
 }
 
 JOB_SUFFIX = "-edljob-"
+
+
+def convert_memory_to_mb(memory: str):
+    return int(parse_quantity(memory) / 1024 / 1024)
+
+
+def convert_memory_to_byte(memory: str):
+    return parse_quantity(memory)
+
+
+def convert_cpu_to_decimal(cpu: str):
+    return round(float(parse_quantity(cpu)), 1)
 
 
 def parse_bool(s: str):
@@ -310,10 +323,10 @@ class K8sJobArgs(JobArgs):
         if "distributionStrategy" in job["spec"]:
             self.distribution_strategy = job["spec"]["distributionStrategy"]
         limit_config = job["spec"].get("resourceLimits", {})
-        self.resource_limits.cpu = NodeResource.convert_cpu_to_decimal(
+        self.resource_limits.cpu = convert_cpu_to_decimal(
             limit_config.get("cpu", DefaultResourceLimits.CPU_LIMIT)
         )
-        self.resource_limits.memory = NodeResource.convert_memory_to_byte(
+        self.resource_limits.memory = convert_memory_to_byte(
             limit_config.get("memory", DefaultResourceLimits.MEMORY_LIMIT)
         )
         self.resource_limits.gpu_num = int(
@@ -322,6 +335,8 @@ class K8sJobArgs(JobArgs):
         self.optimize_mode = job["spec"].get(
             "optimizeMode", OptimizeMode.SINGLE_JOB
         )
+        relaunch_strategy = job["spec"].get("relaunchStrategy", "")
+        self.relaunch_always = relaunch_strategy == "always"
 
         for replica, spec in job["spec"]["replicaSpecs"].items():
             priority = spec.get("priority", "")
@@ -329,9 +344,9 @@ class K8sJobArgs(JobArgs):
             container = spec["template"]["spec"]["containers"][0]
             resources = container.get("resources", {})
             requests = resources.get("requests", {})
-            cpu = NodeResource.convert_cpu_to_decimal(requests.get("cpu", 0))
+            cpu = convert_cpu_to_decimal(requests.get("cpu", 0))
             if "memory" in requests:
-                memory = NodeResource.convert_memory_to_mb(requests["memory"])
+                memory = convert_memory_to_mb(requests["memory"])
             else:
                 memory = 0
             gpu_type = None

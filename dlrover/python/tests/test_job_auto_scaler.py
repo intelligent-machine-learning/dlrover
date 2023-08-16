@@ -11,10 +11,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 import unittest
+from datetime import datetime, timedelta
 from unittest import mock
 
 from dlrover.python.common.constants import NodeStatus, NodeType
+from dlrover.python.common.global_context import Context
 from dlrover.python.common.node import NodeGroupResource, NodeResource
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.job_auto_scaler import (
@@ -28,6 +31,8 @@ from dlrover.python.tests.test_utils import (
     MockK8sPSJobArgs,
     mock_k8s_client,
 )
+
+_dlrover_context = Context.singleton_instance()
 
 
 class JobAutoScalerTest(unittest.TestCase):
@@ -68,6 +73,38 @@ class JobAutoScalerTest(unittest.TestCase):
         for i in [0, 3, 2]:
             ps_addrs.append("test-edljob-ps-{}.default.svc:2222".format(i))
         self.assertListEqual(scale_plan.ps_addrs, ps_addrs)
+
+    def test_reduce_timeout_pending_node_resource(self):
+        params = MockK8sPSJobArgs()
+        params.initilize()
+        manager = create_job_manager(params, SpeedMonitor())
+        manager._init_nodes()
+
+        manager._scaler.scale = mock.MagicMock(return_value=True)
+
+        auto_scaler = PSTrainingAutoScaler(
+            manager._job_resource,
+            manager._job_nodes,
+            manager._job_optimizer,
+            manager._speed_monitor,
+            manager._ps_manager,
+            manager._worker_manager,
+            manager._scaler,
+        )
+        ps0 = manager._job_nodes[NodeType.PS][0]
+        ps0.config_resource.cpu = 16
+        ps0.status = NodeStatus.PENDING
+        ps0.create_time = datetime.now() + timedelta(days=-1)
+        _dlrover_context.auto_ps_enabled = True
+        plan = auto_scaler._reduce_timeout_pending_node_resource()
+        self.assertEqual(
+            plan.ps_addrs,
+            [
+                "test-edljob-ps-0.default.svc:2222",
+                "test-edljob-ps-1.default.svc:2222",
+                "test-edljob-ps-2.default.svc:2222",
+            ],
+        )
 
 
 class AllreduceAutoScalerTest(unittest.TestCase):

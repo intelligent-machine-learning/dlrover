@@ -54,9 +54,11 @@ from dlrover.python.common.constants import (
     NodeErrorMessage,
     NodeStatus,
     RendezvousName,
+    TrainingMsgLevel,
 )
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.master_client import GlobalMasterClient
+from dlrover.python.elastic_agent.monitor.resource import ResourceMonitor
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
 
 __all__ = ["launch_agent"]
@@ -71,6 +73,13 @@ class ProcessError:
 
 
 class MasterRendezvousHandler(RendezvousHandler):
+    """The rendzevous handler completes rendezvous by connecting
+    with the ElasticJob master. The master will collect all nodes
+    after the handler of all node agents calls `_join_rendezvous`.
+    Then, the handler will get the communcation world from the master
+    and assign ranks to the training process.
+    """
+
     def __init__(
         self,
         name,
@@ -141,13 +150,16 @@ class MasterRendezvousHandler(RendezvousHandler):
                         "The node is not in the world "
                         "and waits for more nodes."
                     )
-                    time.sleep(60)
+                    time.sleep(5)
                     start_join = time.time()
                     continue
             elif time.time() - start_join > self.join_timeout:
-                raise TimeoutError(
-                    f"Timeout {self.join_timeout}s to complete next rendezous."
+                timeout = self.join_timeout
+                err_msg = f"Timeout {timeout}s to complete rendezvous."
+                self._report_failure(
+                    err_msg, level=TrainingMsgLevel.RDZV_ERROR
                 )
+                raise TimeoutError(err_msg)
             time.sleep(3)
         world = dict(sorted(world.items()))
         rank = list(world.keys()).index(self._rank_id)
@@ -157,8 +169,18 @@ class MasterRendezvousHandler(RendezvousHandler):
             f"the {self._name} rendezvous as rank {rank} in a world of size "
             f"{world_size}."
         )
+        if (
+            self._name == RendezvousName.ELASTIC_TRAINING
+            and world_size < self._rdzv_params.max_nodes
+        ):
+            err_msg = f"Scale down the number of nodes to {world_size}"
+            self._report_failure(err_msg, level=TrainingMsgLevel.WARNING)
         store = self._get_store(round, group)
         return store, world
+
+    def _report_failure(self, err_msg, level):
+        if self._rank_id == 0:
+            self._client.report_failures(err_msg, 0, level)
 
     def _get_store(self, round, group) -> Store:
         key_prefix = f"torch.rendezvous.{self._name}.{round}.{group}"
@@ -405,7 +427,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
             )
             errors[rank] = error.__dict__
         error_data = json.dumps(errors)
-        self._client.report_failures(error_data, self._restart_count)
+        self._client.report_failures(
+            error_data, self._restart_count, TrainingMsgLevel.PROCESS_ERROR
+        )
 
     def _restart_workers(self, worker_group: WorkerGroup):
         self._restart_count += 1
@@ -462,6 +486,8 @@ def launch_agent(
         f"  metrics_cfg      : {config.metrics_cfg}\n"
     )
 
+    monitor = ResourceMonitor()
+    monitor.start()
     rdzv_parameters = RendezvousParameters(
         backend=config.rdzv_backend,
         endpoint=config.rdzv_endpoint,
@@ -540,6 +566,7 @@ def launch_agent(
     finally:
         if shutdown_rdzv:
             spec.rdzv_handler.shutdown()
+        monitor.stop()
 
 
 class NetworkCheckElasticAgent(ElasticTrainingAgent):
@@ -612,7 +639,10 @@ class NetworkCheckElasticAgent(ElasticTrainingAgent):
                     raise RuntimeError("The node network is breakdown.")
             time.sleep(1)
         if not success:
-            self._client.report_failures(NodeErrorMessage.NETWORKER_ERROR)
+            self._client.report_failures(
+                NodeErrorMessage.NETWORKER_ERROR,
+                level=TrainingMsgLevel.NODE_ERROR,
+            )
             raise RuntimeError("The node network is breakdown.")
         return False
 
@@ -702,7 +732,6 @@ def network_check(
         entrypoint=entrypoint,
         spec=spec,
         start_method=config.start_method,
-        log_dir=config.log_dir,
     )
 
     metrics.initialize_metrics(metrics.MetricsConfig(config.metrics_cfg))

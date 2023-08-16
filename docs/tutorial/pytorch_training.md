@@ -1,8 +1,9 @@
 # Introduction to Develop PyTorch DDP Model with DLRover
 
 The document describes how to develop PyTorch models and train the model
-with elasticity using DLRover. Users only need to make some simple changes
-of native PyTorch training codes. We have provided the
+using DLRover. Users only need to make some simple changes
+of native PyTorch training codes to support checkpionting dataloader.
+We have provided the
 [CNN example](../../model_zoo/pytorch/mnist_cnn.py) to show how to
 train a CNN model with the MNIST dataset.
 

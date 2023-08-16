@@ -30,6 +30,8 @@ class _DistributedContext:
     PARALLEL_GROUP = None
     PARALLEL_GROUPS_AND_RANKS = None
     PARALLEL_CONFIG = None
+    PARALLEL_INSTANCE_NUM = None
+    PARALLEL_INSTANCE_INDEX = None
     COWORKER_NUM_PER_NODE = None
     STORE = None
     PREFIX_STORE_COUNT = 0
@@ -56,7 +58,7 @@ class ParallelGroupContextManager:
         _DistributedContext.PG_NAME_PREFIX = self.old_name
 
 
-def _prefix_pg_name(name):
+def _prefix_pg_name(name=""):
     return _DistributedContext.PG_NAME_PREFIX + name
 
 
@@ -109,7 +111,9 @@ def parallel_rank(name):
 
 
 def parallel_config():
-    return _DistributedContext.PARALLEL_CONFIG
+    if _DistributedContext.PARALLEL_CONFIG is not None:
+        return _DistributedContext.PARALLEL_CONFIG[_prefix_pg_name()]
+    return None
 
 
 def parallel_group_size(name):
@@ -118,6 +122,18 @@ def parallel_group_size(name):
         and _prefix_pg_name(name) in _DistributedContext.PARALLEL_GROUP_SIZE
     ):
         return _DistributedContext.PARALLEL_GROUP_SIZE[_prefix_pg_name(name)]
+    return None
+
+
+def parallel_instance_num():
+    if _DistributedContext.PARALLEL_INSTANCE_NUM is not None:
+        return _DistributedContext.PARALLEL_INSTANCE_NUM[_prefix_pg_name()]
+    return None
+
+
+def parallel_instance_index():
+    if _DistributedContext.PARALLEL_INSTANCE_INDEX is not None:
+        return _DistributedContext.PARALLEL_INSTANCE_INDEX[_prefix_pg_name()]
     return None
 
 
@@ -248,37 +264,65 @@ def _check_env():
 
 
 def get_pg_ranks(slicing_dim, rank_order):
-    pg_ranks = {}
-    stride = 1
+    # Return: a list of pg_ranks : List(Dict(name, List(List(int))))
+    # The list length is parallel_instance_num.
     total_size = np.prod([p[1] for p in slicing_dim])
-    for (name, size) in slicing_dim:
-        mask = [True] * total_size
-        ranks_list = []
-        index = 0
-        while index < total_size:
-            if mask[index] is False:
+    instance_num = world_size() // total_size
+    offset = 0
+    result = []
+    for _ in range(instance_num):
+        pg_ranks = {}
+        stride = 1
+        for (name, size) in slicing_dim:
+            mask = [True] * total_size
+            ranks_list = []
+            index = 0
+            while index < total_size:
+                if mask[index] is False:
+                    index += 1
+                    continue
+                ranks = []
+                next_index = index
+                for i in range(size):
+                    ranks.append(rank_order[offset + next_index])
+                    assert mask[next_index] is True
+                    mask[next_index] = False
+                    next_index += stride
                 index += 1
-                continue
-            ranks = []
-            next_index = index
-            for i in range(size):
-                ranks.append(rank_order[next_index])
-                assert mask[next_index] is True
-                mask[next_index] = False
-                next_index += stride
-            index += 1
-            ranks_list.append(ranks)
-        pg_ranks[name] = ranks_list
-        stride *= size
-    return pg_ranks
+                ranks_list.append(ranks)
+            pg_ranks[name] = ranks_list
+            stride *= size
+        result.append(pg_ranks)
+        offset += total_size
+    return result
+
+
+def get_ranks_in_same_group(parallel_mode, my_rank=0):
+    # Return Dict(name, List(int)): name is pg name, List(int) is the list of ranks in the same group with my_rank.
+    slicing_dim = parallel_mode[0]
+    rank_order = parallel_mode[1]
+    if rank_order is None:
+        rank_order = list(range(world_size()))
+    all_pg_ranks = get_pg_ranks(slicing_dim, rank_order)
+    all_ranks_in_same_group = {}
+    for (name, _) in slicing_dim:
+        for pg_ranks in all_pg_ranks:
+            named_ranks = pg_ranks[name]
+            for ranks in named_ranks:
+                if my_rank in ranks:
+                    all_ranks_in_same_group[name] = ranks
+                    break
+    return all_ranks_in_same_group
 
 
 def create_parallel_group(parallel_config):
     """
     Create additional groups for mixed parallel when needed.
-    parallel_config: (List[Tuple[str, int]], Optional(List(int)))
-    The first item is a list of (name, size) for mixed parallel. MUL(size) should equal to the number of processes.
-    The second item for rank order, which is optional. if None, using the numeric order.
+    parallel_config: (List[Tuple[str, int]], Oneof(List(int), None), Optional(Bool))
+    The first item is a list of (name, size) for mixed parallel.
+    MUL(size) should equal to the number of processes if support_multi_parallel_instance is False.
+    The second item for rank order. if None, using the numeric order.
+    The third item is for support_multi_parallel_instance, which is optional with default value as False.
     For example, ([("tensor", 4), ("pipeline", 2), ("data", 2)], None) would create:
     4 process groups for "tensor" [0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10, 11], [12, 13, 14, 15]
     8 process groups for "pipeline" [0, 4], [1, 5], [2, 6], [3, 7], [8, 12], [9, 13], [10, 14], [11, 15]
@@ -287,31 +331,44 @@ def create_parallel_group(parallel_config):
     assert _DistributedContext.INITIALIZED or torch.distributed.is_initialized(), "distributed should be initialized"
     slicing_dim = parallel_config[0]
     rank_order = parallel_config[1]
+    support_multi_parallel_instance = parallel_config[2] if len(parallel_config) > 2 else False
     assert len(slicing_dim) > 0, "parallel_config should not be empty"
     multiplication = np.prod([p[1] for p in slicing_dim])
-    if world_size() != multiplication:
-        raise ValueError(
-            f"Multiplication of parallel_config sizes({multiplication}) should equal to world_size({world_size()}). "
-            f"Please check your parallel_config: {parallel_config}"
-        )
+    if not support_multi_parallel_instance:
+        if world_size() != multiplication:
+            raise ValueError(
+                f"Multiplication of parallel_config size({multiplication}) should equal to world_size({world_size()}). "
+                f"Please check your parallel_config: {parallel_config}"
+            )
     if rank_order is None:
         rank_order = list(range(world_size()))
 
-    new_config = [slicing_dim, rank_order]
+    new_config = [slicing_dim, rank_order, support_multi_parallel_instance]
     if _DistributedContext.PARALLEL_CONFIG is None:
-        _DistributedContext.PARALLEL_CONFIG = new_config
-    elif isinstance(_DistributedContext.PARALLEL_CONFIG, list):
-        _DistributedContext.PARALLEL_CONFIG = (_DistributedContext.PARALLEL_CONFIG, new_config)
+        _DistributedContext.PARALLEL_CONFIG = {_prefix_pg_name(): new_config}
     else:
-        _DistributedContext.PARALLEL_CONFIG = _DistributedContext.PARALLEL_CONFIG + (new_config,)
-    _DistributedContext.PARALLEL_GROUP_SIZE = {}
-    _DistributedContext.PARALLEL_RANK = {}
-    _DistributedContext.PARALLEL_GROUP = {}
+        _DistributedContext.PARALLEL_CONFIG[_prefix_pg_name()] = new_config
+
+    if _DistributedContext.PARALLEL_GROUP_SIZE is None:
+        _DistributedContext.PARALLEL_GROUP_SIZE = {}
+    if _DistributedContext.PARALLEL_RANK is None:
+        _DistributedContext.PARALLEL_RANK = {}
+    if _DistributedContext.PARALLEL_GROUP is None:
+        _DistributedContext.PARALLEL_GROUP = {}
+    if _DistributedContext.PARALLEL_INSTANCE_NUM is None:
+        _DistributedContext.PARALLEL_INSTANCE_NUM = {}
+    if _DistributedContext.PARALLEL_INSTANCE_INDEX is None:
+        _DistributedContext.PARALLEL_INSTANCE_INDEX = {}
+
+    instance_num = world_size() // multiplication
+    instance_index = rank() // multiplication if rank() < instance_num * multiplication else None
+    _DistributedContext.PARALLEL_INSTANCE_NUM[_prefix_pg_name()] = instance_num
+    _DistributedContext.PARALLEL_INSTANCE_INDEX[_prefix_pg_name()] = instance_index
 
     has_pipe = False
 
-    if len(slicing_dim) == 1:
-        # only one slicing dim, use global pg.
+    if len(slicing_dim) == 1 and world_size() == multiplication:
+        # only one slicing dim with one parallel instance, use global pg.
         name, size = slicing_dim[0]
         assert name not in _DistributedContext.PARALLEL_GROUP, f"group name {name} already used"
         _DistributedContext.PARALLEL_GROUP_SIZE[_prefix_pg_name(name)] = size
@@ -321,19 +378,22 @@ def create_parallel_group(parallel_config):
             has_pipe = True
     else:
         all_pg_ranks = get_pg_ranks(slicing_dim, rank_order)
-        _DistributedContext.PARALLEL_GROUPS_AND_RANKS = {}
+        if _DistributedContext.PARALLEL_GROUPS_AND_RANKS is None:
+            _DistributedContext.PARALLEL_GROUPS_AND_RANKS = {}
         for (name, size) in slicing_dim:
             if name == "pipe":
                 has_pipe = True
             _DistributedContext.PARALLEL_GROUP_SIZE[_prefix_pg_name(name)] = size
-            named_ranks = all_pg_ranks[name]
+
             group_and_ranks = []
-            for ranks in named_ranks:
-                group = dist.new_group(ranks)
-                group_and_ranks.append((group, ranks))
-                if rank() in ranks:
-                    _DistributedContext.PARALLEL_GROUP[_prefix_pg_name(name)] = group
-                    _DistributedContext.PARALLEL_RANK[_prefix_pg_name(name)] = ranks.index(rank())
+            for idx in range(instance_num):
+                named_ranks = all_pg_ranks[idx][name]
+                for ranks in named_ranks:
+                    group = dist.new_group(ranks)
+                    group_and_ranks.append((group, ranks))
+                    if rank() in ranks:
+                        _DistributedContext.PARALLEL_GROUP[_prefix_pg_name(name)] = group
+                        _DistributedContext.PARALLEL_RANK[_prefix_pg_name(name)] = ranks.index(rank())
             _DistributedContext.PARALLEL_GROUPS_AND_RANKS[_prefix_pg_name(name)] = group_and_ranks
 
     if has_pipe:
@@ -358,6 +418,8 @@ def destroy_parallel_group(destroy_rpc=True):
     _DistributedContext.PARALLEL_GROUP = None
     _DistributedContext.PARALLEL_GROUPS_AND_RANKS = None
     _DistributedContext.PARALLEL_CONFIG = None
+    _DistributedContext.PARALLEL_INSTANCE_NUM = None
+    _DistributedContext.PARALLEL_INSTANCE_INDEX = None
 
 
 def _build_pippy_rpc_networks(num_worker_threads=64, rpc_timeout=1800, init_method="env://"):

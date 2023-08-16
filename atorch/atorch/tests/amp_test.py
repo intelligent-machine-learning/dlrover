@@ -11,16 +11,13 @@ import torch.multiprocessing as mp
 from atorch.auto.accelerate import model_transform
 from atorch.auto.auto_accelerate_context import AutoAccelerateContext
 from atorch.auto.model_context import ModelContext
-from atorch.auto.opt_lib.amp_optimization import (
-    AmpApexO1Optimization,
-    AmpApexO2Optimization,
-    AmpNativeOptimization,
-    AmpNativeOptimizer,
-)
+from atorch.auto.opt_lib.amp_optimization import AmpNativeOptimization, AmpNativeOptimizer
 from atorch.auto.opt_lib.half_optimization import HalfOptimization
 from atorch.auto.opt_lib.optimization_library import OptimizationLibrary
 from atorch.auto.strategy import Strategy
+from atorch.tests.test_utils import DummyProcessGroup
 from atorch.tests.toy_module import create_model_context, optim_func, run_train
+from atorch.utils.grad_scaler import BF16GradScaler, BF16ShardedGradScaler
 
 
 class AmpOptimizationTest(unittest.TestCase):
@@ -74,42 +71,6 @@ class AmpOptimizationTest(unittest.TestCase):
         self.assertNotEqual(id(scaler1), id(scaler2))
 
         AutoAccelerateContext.reset()
-
-    @unittest.skipIf(
-        not torch.cuda.is_available(),
-        "No gpu available for cuda tests",
-    )
-    def test_amp_apex_optimizer(self):
-        AutoAccelerateContext.counter = 1
-        model_context1 = create_model_context(data_size=4, batch_size=1)
-        amp_apex_opt = AmpApexO1Optimization()
-        model_context1 = amp_apex_opt.transform(model_context1)
-        model_context1.update_dataloader()
-        model_context1.update_optim()
-        o1_config = {"enabled": True, "opt_level": "O1"}
-        amp_apex_opt.apply_wrapper(model_context1, "amp_apex_o1", wrapper_config=o1_config)
-        model_context1.model.cuda()
-
-        device = "cuda:0"
-
-        run_train(
-            model_context1.model,
-            dataloader=model_context1.dataloader,
-            optim=model_context1.optim,
-            prepare_input=model_context1.prepare_input,
-            loss_func=model_context1.loss_func,
-            device=device,
-        )
-
-        AutoAccelerateContext.counter += 1
-        model_context2 = create_model_context(data_size=4, batch_size=1)
-        amp_apex_opt2 = AmpApexO2Optimization()
-
-        with self.assertRaises(RuntimeError):
-            model_context2 = amp_apex_opt2.transform(model_context2)
-
-        amp_apex_opt.reset(None)
-        amp_apex_opt2.reset(None)
 
     @unittest.skipIf(
         not torch.cuda.is_available(),
@@ -238,6 +199,7 @@ class NonFiniteChecking(unittest.TestCase):
         self.assertEqual(scaler._init_scale, 1.0)
         self.assertEqual(scaler._growth_factor, 1.0)
         self.assertEqual(scaler._backoff_factor, 1.0)
+        self.assertTrue(optimizer.step_was_skipped)
 
     @unittest.skipIf(
         not torch.cuda.is_available(),
@@ -261,6 +223,7 @@ class NonFiniteChecking(unittest.TestCase):
         optimizer.step()
         self.assertTrue(torch.all(model.var.isnan()))
         self.assertFalse(hasattr(optimizer, "grad_scaler"))
+        self.assertFalse(hasattr(optimizer, "step_was_skipped"))
 
 
 class OneLinearModule(torch.nn.Module):
@@ -319,7 +282,7 @@ def _test_skipping_update_params_nonfinite_loss(rank, world_size):
         return a.norm()
 
     bf16_max = torch.finfo(torch.bfloat16).max
-    param_value = torch.tensor(bf16_max, dtype=torch.float32)
+    param_value = torch.tensor(10.0, dtype=torch.float32)
     model = OneLinearModule(param_value)
     model_context = ModelContext(
         model=model,
@@ -333,21 +296,118 @@ def _test_skipping_update_params_nonfinite_loss(rank, world_size):
     model = model_context.model
     optimizer = model_context.optim
     loss_func = model_context.loss_func
-    optimizer.zero_grad()
-    x = torch.tensor([[bf16_max], [bf16_max]], dtype=torch.bfloat16, device=device)
-    y = model(x)
-    loss = loss_func(y, None)
-    assert torch.all(loss.isinf())
-    loss.backward()
-    for param in model.module.parameters():
-        assert torch.all(param.grad.isnan())
-    optimizer.step()
-    for param in model.module.parameters():
-        assert not torch.all(param.isnan())
-    scaler = optimizer.grad_scaler
-    assert scaler._init_scale == 1.0
-    assert scaler._growth_factor == 1.0
-    assert scaler._backoff_factor == 1.0
+    for i in range(2):
+        optimizer.zero_grad()
+        # step0, rank0 will cause inf. Other steps and ranks will not.
+        if i == 0:
+            tensor_value = bf16_max if rank == 0 else 1
+        else:
+            tensor_value = 1
+        x = torch.tensor([[tensor_value], [tensor_value]], dtype=torch.bfloat16, device=device)
+        y = model(x)
+        loss = loss_func(y, None)
+        scaler = optimizer.grad_scaler
+        if i == 0:
+            if rank == 0:
+                assert torch.all(loss.isinf())
+            else:
+                assert not loss.isinf().any().item()
+            loss.backward()
+            for param in model.module.parameters():
+                assert torch.all(param.grad.isnan())
+            optimizer.step()
+            for param in model.module.parameters():
+                assert not torch.all(param.isnan())
+            assert scaler.has_overflow()
+            assert optimizer.step_was_skipped
+        else:
+            assert not loss.isinf().any().item()
+            loss.backward()
+            optimizer.step()
+            assert not scaler.has_overflow()
+            assert not optimizer.step_was_skipped
+        assert scaler._init_scale == 1.0
+        assert scaler._growth_factor == 1.0
+        assert scaler._backoff_factor == 1.0
+
+    dist.destroy_process_group()
+
+
+@unittest.skipIf(
+    not torch.cuda.is_available(),
+    "No gpu available for cuda tests",
+)
+class BF16GradScalerTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.x = torch.randn(4, 4).cuda()
+        self.m = torch.nn.Linear(4, 1).cuda()
+        kwargs = {"lr": 0.1}
+        self.o = torch.optim.SGD(self.m.parameters(), **kwargs)
+        return super().setUp()
+
+    def tearDown(self) -> None:
+        del self.x
+        del self.m
+        del self.o
+        return super().tearDown()
+
+    def test_bf16_scaler_has_no_overflow(self):
+        scaler = BF16GradScaler()
+        with torch.cuda.amp.autocast(dtype=torch.bfloat16):
+            y = self.m(self.x)
+            loss = y.mean()
+        scaler.scale(loss).backward()
+        scaler.step(self.o)
+        scaler.update()
+        self.assertFalse(scaler.has_overflow())
+        self.assertEqual(scaler._init_scale, 1.0)
+        self.assertEqual(scaler._backoff_factor, 1.0)
+        self.assertEqual(scaler._growth_factor, 1.0)
+
+    def test_bf16_scaler_has_overflow(self):
+        scaler = BF16GradScaler()
+        with torch.cuda.amp.autocast(dtype=torch.bfloat16):
+            y = self.m(self.x)
+            loss = y.mean()
+        scaler.scale(loss).backward()
+        with torch.no_grad():
+            self.m.weight.grad.fill_(float("NaN"))
+        scaler.step(self.o)
+        scaler.update()
+        self.assertTrue(scaler.has_overflow())
+        self.assertEqual(scaler._init_scale, 1.0)
+        self.assertEqual(scaler._backoff_factor, 1.0)
+        self.assertEqual(scaler._growth_factor, 1.0)
+
+    def test_bf16_scaler_two_steps(self):
+        # The first step has overflow and the 2nd does not.
+        scaler = BF16GradScaler()
+        for i in range(2):
+            with torch.cuda.amp.autocast(dtype=torch.bfloat16):
+                y = self.m(self.x)
+                loss = y.mean()
+            scaler.scale(loss).backward()
+            if i == 0:
+                with torch.no_grad():
+                    self.m.weight.grad.fill_(float("NaN"))
+            scaler.step(self.o)
+            scaler.update()
+            self.o.zero_grad()
+            if i == 0:
+                self.assertTrue(scaler.has_overflow())
+            elif i == 1:
+                self.assertFalse(scaler.has_overflow())
+
+    def test_bf16_sharded_scaler_has_overflow(self):
+        pg = DummyProcessGroup(rank=0, size=1)
+        scaler = BF16ShardedGradScaler(process_group=pg)
+        loss = torch.full((1,), 4.0, dtype=torch.float32, device="cpu")
+        t0 = torch.tensor([float("inf")], dtype=torch.float32, device="cpu")
+        t0.grad = t0.clone()
+        opt = torch.optim.SGD([t0], lr=1.0)
+        scaler.scale(loss)
+        scaler.step(opt)
+        self.assertTrue(scaler.has_overflow())
 
 
 if __name__ == "__main__":

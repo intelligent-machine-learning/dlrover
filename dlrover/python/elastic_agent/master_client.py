@@ -16,7 +16,6 @@ import random
 import socket
 import time
 from contextlib import closing
-from typing import Dict
 
 from google.protobuf import empty_pb2
 
@@ -402,12 +401,13 @@ class MasterClient(object):
         self._stub.update_node_status(request)
 
     @retry_grpc_request
-    def report_failures(self, error_data, restart_count=-1):
+    def report_failures(self, error_data, restart_count=-1, level=""):
         request = elastic_training_pb2.NodeFailure()
         request.node_id = self._node_id
         request.node_type = self._node_type
         request.error_data = error_data
         request.restart_count = restart_count
+        request.level = level
         self._stub.report_failure(request)
 
 
@@ -463,156 +463,16 @@ class LocalDataset(object):
         self._todo = []
 
 
-class LocalMasterClient(object):
-    """MockedMasterClient provides the same API as MasterClient without
-    any RPC call.
-    """
-
-    def __init__(self, node_id):
-        """Initialize a master client.
-        Args:
-            worker_id: int
-            the unique and ordered worker ID assigned
-            by dlrover command-line.
-        """
-        self._node_id = node_id
-        self._num_minibatches_per_shard = 0
-        self._datasets: Dict[str, LocalDataset] = {}
-        self._task_type = None
-        self._kv_store: Dict[str, str] = {}
-        self._rdzv_nodes: Dict[int, int] = {}
-
-    def reset_dataset(self, dataset_name):
-        """Reset a dataset
-
-        Args:
-            dataset_name: name of the dataset, must not be None.
-        """
-        dataset = self._datasets.get(dataset_name, None)
-        dataset.reset()
-
-    def get_task(self, dataset_name):
-        """Get a task from master.
-
-        Args:
-            dataset_name: string
-            the training phase, c.f. /dlrover/proto/dlrover.proto
-
-        Returns:
-            the task unit assigned by master,
-            c.f. /dlrover/proto/dlrover.proto
-        """
-
-        shard = elastic_training_pb2.Shard()
-        res = elastic_training_pb2.Task(shard=shard)
-        dataset = self._datasets.get(dataset_name, None)
-        if dataset:
-            start, end = dataset.get_task()
-            if start != -1 and end != -1:
-                res.shard.start = start
-                res.shard.end = end
-                res.type = self._task_type
-        return True, res
-
-    def report_task_result(self, dataset_name, task_id, err_msg):
-        """Report task result to master.
-
-        Args:
-          task_id: int
-          the task ID assigned by master
-
-          err_msg: string
-          the error message on training.
-
-          exec_counters: dict
-          statistics of the task being executed.
-        """
-        return empty_pb2.Empty()
-
-    def update_node_event(self, task_type, task_id, enent):
-        return True
-
-    def report_dataset_shard_params(
-        self,
-        batch_size,
-        num_epochs=None,
-        dataset_size=None,
-        shuffle=False,
-        num_minibatches_per_shard=0,
-        dataset_name=None,
-        task_type=elastic_training_pb2.NONE,
-        storage_type="",
-    ):
-        dataset = LocalDataset(
-            batch_size,
-            num_epochs,
-            dataset_size,
-            shuffle,
-            num_minibatches_per_shard,
-            task_type,
-        )
-        self._task_type = task_type
-        self._datasets[dataset_name] = dataset
-
-    def get_dataset_epoch(self, dataset_name):
-        dataset = self._datasets.get(dataset_name, None)
-        res = elastic_training_pb2.GetDatasetEpochResponse()
-        if dataset:
-            res.epoch = dataset.get_current_epoch()
-        return res
-
-    def report_model_metric(self, *args):
-        return empty_pb2.Empty()
-
-    def report_used_resource(self, memory, cpu):
-        return empty_pb2.Empty()
-
-    def num_nodes_waiting(self, rdzv_name=""):
-        return 0
-
-    def join_rendezvous(
-        self, node_id, local_world_size, rdzv_name="", round=0
-    ):
-        self._rdzv_nodes[node_id] = local_world_size
-        return 0
-
-    def get_comm_world(self, *args, **kwarg):
-        return 0, self._rdzv_nodes
-
-    def network_check_success(self, node_id):
-        return True
-
-    def report_node_status(self, normal):
-        return True
-
-    def report_rdzv_params(
-        self, min_nodes, max_nodes, waiting_timeout, node_unit
-    ):
-        return True
-
-    def kv_store_set(self, key, value):
-        self._kv_store[key] = value
-        logger.info(self._kv_store)
-        return True
-
-    def kv_store_get(self, key):
-        return self._kv_store.get(key, "".encode())
-
-    def report_failures(self, error_data, restart_count=-1):
-        return True
-
-
 def build_master_client(master_addr=None):
     if master_addr is None:
         master_addr = os.getenv(NodeEnv.DLROVER_MASTER_ADDR, "")
     worker_id = int(os.getenv(NodeEnv.WORKER_ID, 0))
     worker_type = os.getenv(NodeEnv.WORKER_TYPE, "worker")
 
+    master_client = None
+    logger.info(f"Build master client with addr {master_addr}.")
     if master_addr:
-        logger.info("Build master client to connect with the DLRover master.")
         master_client = MasterClient(master_addr, worker_id, worker_type)
-    else:
-        master_client = LocalMasterClient(worker_id)
     return master_client
 
 

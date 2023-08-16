@@ -14,8 +14,6 @@
 import copy
 import time
 
-from kubernetes.utils.quantity import parse_quantity
-
 from dlrover.python.common.constants import (
     NodeExitReason,
     NodeResourceLimit,
@@ -90,18 +88,6 @@ class NodeResource(JsonSerializable):
                 gpu_type = key
                 gpu_num = int(resource[key])
         return NodeResource(cpu, memory, gpu_type, gpu_num)
-
-    @classmethod
-    def convert_memory_to_mb(cls, memory: str):
-        return int(parse_quantity(memory) / 1024 / 1024)
-
-    @classmethod
-    def convert_memory_to_byte(cls, memory: str):
-        return parse_quantity(memory)
-
-    @classmethod
-    def convert_cpu_to_decimal(cls, cpu: str):
-        return round(float(parse_quantity(cpu)), 1)
 
 
 class NodeGroupResource(JsonSerializable):
@@ -234,6 +220,8 @@ class Node(object):
         new_node.name = None
         new_node.status = NodeStatus.INITIAL
         new_node.start_time = None
+        new_node.create_time = None
+        new_node.finish_time = None
         new_node.is_released = False
         new_node.relaunchable = True
         new_node.init_time = time.time()
