@@ -46,7 +46,7 @@ class GPTDataset(Dataset):
     def __getitem__(self, idx):
         x = torch.from_numpy(
             self.data[idx : idx + self.block_size].astype(np.int64)
-        )  # noqa E203 
+        )  # noqa E203
         y = torch.from_numpy(
             self.data[idx + 1 : idx + 1 + self.block_size].astype(np.int64)
         )  # noqa E203
@@ -66,9 +66,11 @@ def get_data_loaders(
     with open(os.path.join(data_dir, "meta.pkl"), "rb") as f:
         meta = pickle.load(f)
     train_loader = DataLoader(
-        train_dataset, batch_size=batch_size, shuffle=True
+        train_dataset, batch_size=batch_size, shuffle=True, pin_memory=True
     )
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+    val_loader = DataLoader(
+        val_dataset, batch_size=batch_size, shuffle=False, pin_memory=True
+    )
     meta_vocab_size = meta["vocab_size"]
     return train_loader, val_loader, meta_vocab_size
 
