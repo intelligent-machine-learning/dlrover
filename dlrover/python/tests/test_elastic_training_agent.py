@@ -13,7 +13,7 @@
 
 import unittest
 
-from torch.distributed.elastic.agent.server.api import WorkerSpec
+from torch.distributed.elastic.agent.server.api import WorkerSpec, WorkerState
 from torch.distributed.elastic.rendezvous import RendezvousParameters
 from torch.distributed.launcher.api import LaunchConfig
 
@@ -63,7 +63,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         self.spec = WorkerSpec(
             role=self.config.role,
             local_world_size=self.config.nproc_per_node,
-            entrypoint="python --version",
+            entrypoint="echo",
             args=tuple([]),
             rdzv_handler=self.rdzv_handler,
             max_restarts=self.config.max_restarts,
@@ -129,6 +129,71 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         self.assertEqual(worker.local_rank, 1)
         self.assertEqual(worker.global_rank, 9)
         self.assertEqual(worker.world_size, 16)
+
+
+class ElasticTrainingAgentRunTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self._master, addr = start_local_master()
+        GlobalMasterClient.MASTER_CLIENT = build_master_client(addr)
+        self.config = LaunchConfig(
+            min_nodes=1,
+            max_nodes=1,
+            nproc_per_node=2,
+            run_id="test",
+            monitor_interval=0.1,
+        )
+        rdzv_parameters = RendezvousParameters(
+            backend=self.config.rdzv_backend,
+            endpoint=self.config.rdzv_endpoint,
+            run_id=self.config.run_id,
+            min_nodes=self.config.min_nodes,
+            max_nodes=self.config.max_nodes,
+            local_addr=self.config.local_addr,
+            **self.config.rdzv_configs,
+        )
+
+        master_addr = "127.0.0.1"
+        node_id = 0
+
+        self.rdzv_handler = MasterRendezvousHandler(
+            RendezvousName.ELASTIC_TRAINING,
+            node_id,
+            rdzv_parameters,
+            local_world_size=self.config.nproc_per_node,
+        )
+        self.rdzv_handler.join_timeout = 5
+
+        self.spec = WorkerSpec(
+            role=self.config.role,
+            local_world_size=self.config.nproc_per_node,
+            entrypoint="echo",
+            args=tuple([]),
+            rdzv_handler=self.rdzv_handler,
+            max_restarts=self.config.max_restarts,
+            monitor_interval=self.config.monitor_interval,
+            redirects=self.config.redirects,
+            tee=self.config.tee,
+            master_addr=master_addr,
+            local_addr=self.config.local_addr,
+        )
+
+    def addCleanup(self):
+        self._master.stop()
+
+    def test_monitor_workers(self):
+        self.config.network_check = False
+        agent = ElasticTrainingAgent(
+            rank_id=0,
+            config=self.config,
+            entrypoint="echo",
+            spec=self.spec,
+            start_method=self.config.start_method,
+            log_dir=self.config.log_dir,
+        )
+        agent._report_failure_to_master({})
+        run_result = agent._invoke_run()
+        self.assertDictEqual(run_result.failures, {})
+        self.assertEqual(run_result.state, WorkerState.SUCCEEDED)
 
 
 if __name__ == "__main__":

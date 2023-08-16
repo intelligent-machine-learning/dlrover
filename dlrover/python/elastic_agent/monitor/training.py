@@ -45,6 +45,7 @@ class TrainingProcessReporter(object):
 
     def set_start_time(self):
         if self._start_time == 0:
+            self._resource_monitor.start()
             timestamp = int(time.time())
             self._last_timestamp = timestamp
             self._start_time = timestamp

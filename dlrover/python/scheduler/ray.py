@@ -22,6 +22,10 @@ from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import NodeGroupResource, NodeResource
 from dlrover.python.master.stats.stats_backend import LocalFileStateBackend
 from dlrover.python.scheduler.job import ElasticJob, JobArgs, NodeArgs
+from dlrover.python.scheduler.kubernetes import (
+    convert_cpu_to_decimal,
+    convert_memory_to_mb,
+)
 from dlrover.python.util.actor_util.parse_actor import (
     parse_type_id_from_actor_name,
 )
@@ -177,9 +181,9 @@ class RayJobArgs(JobArgs):
         for replica, spec in job["spec"]["replicaSpecs"].items():
             num = int(spec.get("replicas", 0))
             requests = spec.get("resources", {})
-            cpu = NodeResource.convert_cpu_to_decimal(requests.get("cpu", 0))
+            cpu = convert_cpu_to_decimal(requests.get("cpu", 0))
             if "memory" in requests:
-                memory = NodeResource.convert_memory_to_mb(requests["memory"])
+                memory = convert_memory_to_mb(requests["memory"])
             else:
                 memory = 0
             gpu_type = None
