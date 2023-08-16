@@ -1,16 +1,12 @@
-# Switching from DDP to FSDP with NanoGPT
+# Switch from DDP to FSDP with NanoGPT
 
-Welcome to this guide on how to transition from using DDP (DistributedDataParallel) to FSDP (Fully Sharded Data Parallelism) for training the NanoGPT model. This guide assumes familiarity with the previous DDP guide. If you're new to DDP, we recommend checking out the DDP guide first.
-
-
+Welcome to this guide on how to transition from DDP (Distributed Data Parallel) to FSDP (Fully Sharded Data Parallelism) for training the NanoGPT model. This guide assumes familiarity with the previous DDP guide. If you're new to DDP, we recommend checking out the DDP guide first.
 
 ## What is FSDP?
 
 FSDP is an alternative approach to DDP, designed to improve the efficiency of distributed training. It achieves this by effectively partitioning data and model parameters, reducing communication overhead, and enabling more efficient training on large-scale models.
 
-
-
-## Configuring FSDP for NanoGPT
+## Configure FSDP for NanoGPT
 
 To replace DDP with FSDP in your existing NanoGPT training configuration, simply make the following changes. Use the `kubectl` command to apply the modified training configuration:
 
@@ -23,8 +19,6 @@ Upon successful application of the job configuration, you can monitor the status
 ```bash
 $ kubectl -n dlrover get pods
 ```
-
-
 
 ## Comparing DDP and FSDP Results
 
@@ -48,96 +42,83 @@ Let's compare the results obtained using DDP and FSDP with the same parameter se
 --n_embd 384
 ```
 
-
-
 ### More detailed description of the pods:
 
 Worker-0 Logs
 
 ```bash
-
 $ kubectl logs -n dlrover torch-nanogpt-edljob-worker-0
-
 ```
 
 results on DDP:
 
 ```
-iter 0: loss 4.2516, time 1259.10ms, mfu -100.00%, lr 6.00e-04, total time 1.26s
-iter 1: loss 3.5361, time 26.30ms, mfu -100.00%, lr 6.00e-04, total time 1.29s
-iter 2: loss 4.0251, time 27.39ms, mfu -100.00%, lr 6.00e-04, total time 1.31s
-iter 3: loss 3.5098, time 24.61ms, mfu -100.00%, lr 6.00e-04, total time 1.34s
-iter 4: loss 3.3147, time 25.24ms, mfu -100.00%, lr 6.00e-04, total time 1.36s
-iter 5: loss 5.8905, time 25.39ms, mfu 3.49%, lr 6.00e-04, total time 1.39s
-iter 6: loss 3.2859, time 26.04ms, mfu 3.48%, lr 6.00e-04, total time 1.41s
-iter 7: loss 3.5160, time 27.36ms, mfu 3.45%, lr 6.00e-04, total time 1.44s
-iter 8: loss 3.2804, time 26.90ms, mfu 3.44%, lr 6.00e-04, total time 1.47s
-iter 9: loss 3.2039, time 26.75ms, mfu 3.42%, lr 6.00e-04, total time 1.50s
-iter 10: loss 3.1332, time 27.30ms, mfu 3.41%, lr 6.00e-04, total time 1.52s
+iter 0: loss 4.2519, time 1295.23ms, mfu -100.00%, cuda memory 0.499G, lr 6.00e-04, total time 1.30s
+iter 1: loss 3.5362, time 26.58ms, mfu -100.00%, cuda memory 0.499G, lr 6.00e-04, total time 1.32s
+iter 2: loss 4.0429, time 26.42ms, mfu -100.00%, cuda memory 0.499G, lr 6.00e-04, total time 1.35s
+iter 3: loss 3.5291, time 26.23ms, mfu -100.00%, cuda memory 0.499G, lr 6.00e-04, total time 1.37s
+iter 4: loss 3.3225, time 26.87ms, mfu -100.00%, cuda memory 0.499G, lr 6.00e-04, total time 1.40s
+iter 5: loss 5.9597, time 26.80ms, mfu 3.30%, cuda memory 0.499G, lr 6.00e-04, total time 1.43s
+iter 6: loss 5.7204, time 27.03ms, mfu 3.30%, cuda memory 0.499G, lr 6.00e-04, total time 1.46s
+iter 7: loss 3.3745, time 26.98ms, mfu 3.30%, cuda memory 0.499G, lr 6.00e-04, total time 1.48s
+iter 8: loss 3.4374, time 27.36ms, mfu 3.29%, cuda memory 0.499G, lr 6.00e-04, total time 1.51s
+iter 9: loss 3.2982, time 27.45ms, mfu 3.29%, cuda memory 0.499G, lr 6.00e-04, total time 1.54s
+iter 10: loss 3.2967, time 28.30ms, mfu 3.27%, cuda memory 0.499G, lr 6.00e-04, total time 1.57s
 ```
-
-
 
 results on FSDP:
 
 ```
-iter 0: loss 4.2827, time 2025.59ms, mfu -100.00%, lr 6.00e-04, total time 2.03s
-iter 1: loss 3.5478, time 26.23ms, mfu -100.00%, lr 6.00e-04, total time 2.05s
-iter 2: loss 4.7255, time 26.75ms, mfu -100.00%, lr 6.00e-04, total time 2.08s
-iter 3: loss 3.7794, time 25.40ms, mfu -100.00%, lr 6.00e-04, total time 2.10s
-iter 4: loss 3.5554, time 26.42ms, mfu -100.00%, lr 6.00e-04, total time 2.13s
-iter 5: loss 3.4140, time 26.93ms, mfu 1.72%, lr 6.00e-04, total time 2.16s
-iter 6: loss 3.3416, time 27.06ms, mfu 1.72%, lr 6.00e-04, total time 2.18s
-iter 7: loss 3.3455, time 27.24ms, mfu 1.72%, lr 6.00e-04, total time 2.21s
-iter 8: loss 3.3400, time 28.50ms, mfu 1.71%, lr 6.00e-04, total time 2.24s
-iter 9: loss 3.2522, time 29.86ms, mfu 1.69%, lr 6.00e-04, total time 2.27s
-iter 10: loss 3.2481, time 30.10ms, mfu 1.68%, lr 6.00e-04, total time 2.30s
+iter 0: loss 4.2674, time 1967.15ms, mfu -100.00%, cuda memory 0.479G, lr 6.00e-04, total time 1.97s
+iter 1: loss 3.4770, time 26.56ms, mfu -100.00%, cuda memory 0.479G, lr 6.00e-04, total time 1.99s
+iter 2: loss 4.6944, time 27.10ms, mfu -100.00%, cuda memory 0.479G, lr 6.00e-04, total time 2.02s
+iter 3: loss 3.7846, time 28.37ms, mfu -100.00%, cuda memory 0.479G, lr 6.00e-04, total time 2.05s
+iter 4: loss 3.4877, time 27.44ms, mfu -100.00%, cuda memory 0.479G, lr 6.00e-04, total time 2.08s
+iter 5: loss 3.2793, time 27.75ms, mfu 1.67%, cuda memory 0.479G, lr 6.00e-04, total time 2.10s
+iter 6: loss 3.3074, time 29.90ms, mfu 1.66%, cuda memory 0.479G, lr 6.00e-04, total time 2.13s
+iter 7: loss 3.3063, time 30.07ms, mfu 1.65%, cuda memory 0.479G, lr 6.00e-04, total time 2.16s
+iter 8: loss 3.2537, time 30.04ms, mfu 1.64%, cuda memory 0.479G, lr 6.00e-04, total time 2.19s
+iter 9: loss 3.3800, time 29.74ms, mfu 1.63%, cuda memory 0.479G, lr 6.00e-04, total time 2.22s
+iter 10: loss 3.2457, time 30.30ms, mfu 1.62%, cuda memory 0.479G, lr 6.00e-04, total time 2.18s
 ```
-
-
 
 Worker-1 Logs
 
 ```bash
-
 $ kubectl logs -n dlrover torch-nanogpt-edljob-worker-1
-
 ```
 
 results on DDP:
 
 ```
-iter 0: loss 4.2464, time 1259.01ms, mfu -100.00%, lr 6.00e-04, total time 1.26s
-iter 1: loss 3.4552, time 26.49ms, mfu -100.00%, lr 6.00e-04, total time 1.29s
-iter 2: loss 3.9973, time 27.44ms, mfu -100.00%, lr 6.00e-04, total time 1.31s
-iter 3: loss 3.5437, time 24.62ms, mfu -100.00%, lr 6.00e-04, total time 1.34s
-iter 4: loss 3.2443, time 25.21ms, mfu -100.00%, lr 6.00e-04, total time 1.36s
-iter 5: loss 6.0296, time 25.49ms, mfu 3.47%, lr 6.00e-04, total time 1.39s
-iter 6: loss 3.2579, time 26.01ms, mfu 3.47%, lr 6.00e-04, total time 1.41s
-iter 7: loss 3.4510, time 27.37ms, mfu 3.44%, lr 6.00e-04, total time 1.44s
-iter 8: loss 3.1951, time 26.71ms, mfu 3.43%, lr 6.00e-04, total time 1.47s
-iter 9: loss 3.2957, time 26.76ms, mfu 3.42%, lr 6.00e-04, total time 1.50s
-iter 10: loss 3.1399, time 27.30ms, mfu 3.40%, lr 6.00e-04, total time 1.52s
+iter 0: loss 4.2464, time 1295.62ms, mfu -100.00%, cuda memory 0.499G, lr 6.00e-04, total time 1.30s
+iter 1: loss 3.4549, time 26.48ms, mfu -100.00%, cuda memory 0.499G, lr 6.00e-04, total time 1.32s
+iter 2: loss 4.0122, time 26.27ms, mfu -100.00%, cuda memory 0.499G, lr 6.00e-04, total time 1.35s
+iter 3: loss 3.5630, time 26.30ms, mfu -100.00%, cuda memory 0.499G, lr 6.00e-04, total time 1.37s
+iter 4: loss 3.2510, time 26.84ms, mfu -100.00%, cuda memory 0.499G, lr 6.00e-04, total time 1.40s
+iter 5: loss 6.0906, time 26.68ms, mfu 3.32%, cuda memory 0.499G, lr 6.00e-04, total time 1.43s
+iter 6: loss 5.7520, time 27.01ms, mfu 3.31%, cuda memory 0.499G, lr 6.00e-04, total time 1.46s
+iter 7: loss 3.3311, time 26.91ms, mfu 3.31%, cuda memory 0.499G, lr 6.00e-04, total time 1.48s
+iter 8: loss 3.3454, time 27.30ms, mfu 3.30%, cuda memory 0.499G, lr 6.00e-04, total time 1.51s
+iter 9: loss 3.3826, time 27.42ms, mfu 3.30%, cuda memory 0.499G, lr 6.00e-04, total time 1.54s
+iter 10: loss 3.3080, time 28.20ms, mfu 3.28%, cuda memory 0.499G, lr 6.00e-04, total time 1.57s
 ```
 
 results on FSDP:
 
 ```
-iter 0: loss 4.2673, time 1976.03ms, mfu -100.00%, lr 6.00e-04, total time 1.98s
-iter 1: loss 3.4755, time 26.36ms, mfu -100.00%, lr 6.00e-04, total time 2.00s
-iter 2: loss 4.6895, time 26.66ms, mfu -100.00%, lr 6.00e-04, total time 2.03s
-iter 3: loss 3.7849, time 25.39ms, mfu -100.00%, lr 6.00e-04, total time 2.05s
-iter 4: loss 3.4884, time 26.46ms, mfu -100.00%, lr 6.00e-04, total time 2.08s
-iter 5: loss 3.2789, time 26.89ms, mfu 1.73%, lr 6.00e-04, total time 2.11s
-iter 6: loss 3.3076, time 27.14ms, mfu 1.72%, lr 6.00e-04, total time 2.13s
-iter 7: loss 3.3066, time 27.32ms, mfu 1.72%, lr 6.00e-04, total time 2.16s
-iter 8: loss 3.2544, time 28.56ms, mfu 1.71%, lr 6.00e-04, total time 2.19s
-iter 9: loss 3.3811, time 29.67ms, mfu 1.70%, lr 6.00e-04, total time 2.22s
-iter 10: loss 3.2566, time 30.13ms, mfu 1.68%, lr 6.00e-04, total time 2.25s
+iter 0: loss 4.2821, time 1893.33ms, mfu -100.00%, cuda memory 0.479G, lr 6.00e-04, total time 1.89s
+iter 1: loss 3.5487, time 26.76ms, mfu -100.00%, cuda memory 0.479G, lr 6.00e-04, total time 1.92s
+iter 2: loss 4.7303, time 26.95ms, mfu -100.00%, cuda memory 0.479G, lr 6.00e-04, total time 1.95s
+iter 3: loss 3.7793, time 28.20ms, mfu -100.00%, cuda memory 0.479G, lr 6.00e-04, total time 1.98s
+iter 4: loss 3.5544, time 27.60ms, mfu -100.00%, cuda memory 0.479G, lr 6.00e-04, total time 2.00s
+iter 5: loss 3.4145, time 27.70ms, mfu 1.67%, cuda memory 0.479G, lr 6.00e-04, total time 2.03s
+iter 6: loss 3.3414, time 29.55ms, mfu 1.66%, cuda memory 0.479G, lr 6.00e-04, total time 2.06s
+iter 7: loss 3.3453, time 30.01ms, mfu 1.65%, cuda memory 0.479G, lr 6.00e-04, total time 2.09s
+iter 8: loss 3.3394, time 29.89ms, mfu 1.64%, cuda memory 0.479G, lr 6.00e-04, total time 2.12s
+iter 9: loss 3.2509, time 29.63ms, mfu 1.63%, cuda memory 0.479G, lr 6.00e-04, total time 2.15s
+iter 10: loss 3.2535, time 30.32ms, mfu 1.62%, cuda memory 0.479G, lr 6.00e-04, total time 2.25s
 ```
-
-
-
 
 # References
 
