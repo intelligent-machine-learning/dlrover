@@ -51,6 +51,7 @@ class GPTDataset(Dataset):
             self.data[idx + 1 : idx + 1 + self.block_size].astype(np.int64)
         )
         return x, y
+        
 
 def get_data_loaders(
     data_dir,
@@ -67,9 +68,7 @@ def get_data_loaders(
     train_loader = DataLoader(
         train_dataset, batch_size=batch_size, shuffle=True
     )
-    val_loader = DataLoader(
-        val_dataset, batch_size=batch_size, shuffle=False
-    )
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
     meta_vocab_size = meta["vocab_size"]
     return train_loader, val_loader, meta_vocab_size
     
@@ -248,7 +247,6 @@ def train():
     # Training loop
     X, Y = next(iter(train_loader))
     X, Y = X.to(device), Y.to(device)
-    
     total_time = 0.0
     local_iter_num = 0  # Number of iterations in the lifetime of this process
     raw_model = model.module  # Unwrap DDP/FSDP container if needed
