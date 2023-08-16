@@ -45,21 +45,21 @@ class GPTDataset(Dataset):
 
     def __getitem__(self, idx):
         x = torch.from_numpy(
-            self.data[idx:idx + self.block_size].astype(np.int64)
+            self.data[idx : idx + self.block_size].astype(np.int64) # noqa E203 
         )
         y = torch.from_numpy(
-            self.data[idx + 1:idx + 1 + self.block_size].astype(np.int64)
+            self.data[idx + 1 : idx + 1 + self.block_size].astype(np.int64)  # noqa E203 
         )
         return x, y
 
 
 def get_data_loaders(
-        data_dir,
-        batch_size=12,
-        block_size=128,
-        device_type="cpu",
-        device="cpu",
-        use_fsdp="True",
+    data_dir,
+    batch_size=12,
+    block_size=128,
+    device_type="cpu",
+    device="cpu",
+    use_fsdp="True",
 ):
     train_dataset = GPTDataset(os.path.join(data_dir, "train.bin"), block_size)
     val_dataset = GPTDataset(os.path.join(data_dir, "val.bin"), block_size)
@@ -166,7 +166,7 @@ def train():
     block_size = args.block_size
     gradient_accumulation_steps //= world_size
     tokens_per_iter = (
-            gradient_accumulation_steps * world_size * batch_size * block_size
+        gradient_accumulation_steps * world_size * batch_size * block_size
     )  # noqa: E501
     log_rank0(f"tokens per iteration will be: {tokens_per_iter:,}")
     device = (
@@ -272,7 +272,7 @@ def train():
             with ctx:
                 logits, loss = model(X, Y)
                 loss = (
-                        loss / gradient_accumulation_steps
+                    loss / gradient_accumulation_steps
                 )  # Scale the loss to account for gradient accumulation
             # immediately async prefetch next batch while model
             # is doing the forward pass on the GPU
