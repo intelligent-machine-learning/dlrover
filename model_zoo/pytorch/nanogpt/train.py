@@ -52,7 +52,6 @@ class GPTDataset(Dataset):
         )
         return x, y
         
-
 def get_data_loaders(
     data_dir,
     batch_size=12,
@@ -72,7 +71,6 @@ def get_data_loaders(
     meta_vocab_size = meta["vocab_size"]
     return train_loader, val_loader, meta_vocab_size
     
-
 def gpt_init(meta_vocab_size=None, args=None):
     n_layer = args.n_layer
     n_head = args.n_head
