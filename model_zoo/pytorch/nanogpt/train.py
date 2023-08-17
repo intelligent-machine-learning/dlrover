@@ -45,7 +45,7 @@ class GPTDataset(Dataset):
 
     def __getitem__(self, idx):
         x = torch.from_numpy(
-            self.data[idx : idx + self.block_size].astype(np.int64)  # noqa
+            self.data[idx : idx + self.block_size].astype(np.int64)  # noqa E203
         )  # noqa
         y = torch.from_numpy(
             self.data[idx + 1 : idx + 1 + self.block_size].astype(  # noqa E203
