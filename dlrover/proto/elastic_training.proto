@@ -95,10 +95,10 @@ message ReportUsedResourceRequest {
   float cpu = 2;
   int32 node_id = 3;
   string node_type = 4;
-  map<int32, GPUStats> gpu_stats = 5;
+  repeated GPUMetric gpu_stats = 5;
 }
 
-message GPUStats {
+message GPUMetric {
   int32 index = 1;
   float total_memory_mb = 2;
   float used_memory_mb = 3;

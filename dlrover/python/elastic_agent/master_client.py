@@ -199,11 +199,11 @@ class MasterClient(object):
         request.memory = memory
         request.cpu = cpu
         for gpu in gpu_stats:
-            gpu_stats_message = request.gpu_stats[gpu["index"]]
-            gpu_stats_message.index = gpu["index"]
-            gpu_stats_message.total_memory_mb = gpu["total_memory_mb"]
-            gpu_stats_message.used_memory_mb = gpu["used_memory_mb"]
-            gpu_stats_message.gpu_utilization = gpu["gpu_utilization"]
+            gpu_stats_message = request.gpu_stats.add()
+            gpu_stats_message.index = gpu.index
+            gpu_stats_message.total_memory_mb = gpu.total_memory_mb
+            gpu_stats_message.used_memory_mb = gpu.used_memory_mb
+            gpu_stats_message.gpu_utilization = gpu.gpu_utilization
         request.node_id = self._node_id
         request.node_type = self._node_type
         logger.info("report used resource request: {}".format(request))
