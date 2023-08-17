@@ -91,6 +91,7 @@ class JobAutoScalerTest(unittest.TestCase):
             manager._worker_manager,
             manager._scaler,
         )
+        auto_scaler._autoscaling_started = True
         ps0 = manager._ps_manager._nodes[0]
         ps0.config_resource.cpu = 16
         ps0.status = NodeStatus.PENDING
