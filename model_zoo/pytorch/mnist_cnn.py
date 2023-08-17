@@ -22,6 +22,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 import torchvision
 from torch.distributed.elastic.multiprocessing.errors import record
+from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader
@@ -31,6 +32,7 @@ from dlrover.trainer.torch.elastic import ElasticTrainer
 from dlrover.trainer.torch.elastic_sampler import ElasticDistributedSampler
 
 CHEKPOINT_PATH = "model.pt"
+os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 
 
 def log_rank0(msg):
@@ -119,9 +121,15 @@ def train(args):
         print(f"Running basic DDP example on local rank {local_rank}.")
         # create model and move it to GPU with id rank
         model = model.to(local_rank)
-        model = DDP(model, device_ids=[local_rank])
-        print(f"Model device {model.device}")
+        if args.use_fsdp:
+            # shared model
+            model = FSDP(model)
+        else:
+            model = DDP(model, device_ids=[local_rank])
+            print(f"Model device {model.device}")
     else:
+        if args.use_fsdp:
+            raise ValueError("fsdp requires cuda devices")
         model = DDP(model)
 
     optimizer = optim.SGD(model.parameters(), lr=args.learning_rate)
@@ -162,6 +170,7 @@ def train_with_fixed_batch_size(
     train_loader,
     test_loader,
     epochs,
+    use_fsdp=False,
 ):
     """
     The global batch size will not change if the number of workers changes.
@@ -190,6 +199,9 @@ def train_with_fixed_batch_size(
                     print("loss = {}, step = {}".format(loss, train_step))
 
                 if train_step > 0 and train_step % 200 == 0:
+                    if use_fsdp:
+                        rank = dist.get_rank()
+                        dist.barrier()
                     print("Save checkpoint.")
                     checkpoint = {
                         "model": model.state_dict(),
@@ -198,7 +210,10 @@ def train_with_fixed_batch_size(
                             train_step, train_loader.batch_size
                         ),  # Checkpoint sampler
                     }
-                    torch.save(checkpoint, CHEKPOINT_PATH)
+                    if use_fsdp and rank == 0:
+                        torch.save(checkpoint, CHEKPOINT_PATH)
+                    if not use_fsdp:
+                        torch.save(checkpoint, CHEKPOINT_PATH)
         scheduler.step()
         print("Test model after epoch {}".format(epoch))
         test(model, device, test_loader)
@@ -287,6 +302,7 @@ def arg_parser():
     parser.add_argument("--batch_size", type=int, default=32, required=False)
     parser.add_argument("--num_epochs", type=int, default=1, required=False)
     parser.add_argument("--shuffle", type=bool, default=True, required=False)
+    parser.add_argument("--use_fsdp", type=bool, default=True, required=False)
     parser.add_argument(
         "--fixed_batch_size", type=bool, default=False, required=False
     )

@@ -89,8 +89,9 @@ ATorch is an extension library of PyTorch developed by Ant Group's AI Infrastruc
 
 ## ATorch Applications
 
-### ATorch Pretrain LLMs with over thousands gpus (HFU > 50%)
-TODO
+### ATorch Pretrain LLMs with over thousands GPUs (HFU > 50%)
+
+* Improve the stalibity of training over thousands GPUs by [fault-tolerance and elasticity](../docs/blogs/stabilize_llm_training_cn.md).
 
 ### Finetune your LLMs with ATorch RLHF (3x trlx)
 TODO
