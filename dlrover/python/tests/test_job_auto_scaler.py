@@ -91,11 +91,11 @@ class JobAutoScalerTest(unittest.TestCase):
             manager._worker_manager,
             manager._scaler,
         )
-        ps0 = manager._job_nodes[NodeType.PS][0]
+        auto_scaler._autoscaling_started = True
+        ps0 = manager._ps_manager._nodes[0]
         ps0.config_resource.cpu = 16
         ps0.status = NodeStatus.PENDING
         ps0.create_time = datetime.now() + timedelta(days=-1)
-        _dlrover_context.auto_ps_enabled = True
         plan = auto_scaler._reduce_timeout_pending_node_resource()
         self.assertEqual(
             plan.ps_addrs,

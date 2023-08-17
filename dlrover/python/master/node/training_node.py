@@ -117,7 +117,6 @@ def reduce_timeout_pending_node_resource(node: Node):
     new_cpu = math.ceil(
         original_cpu / _dlrover_context.factor_to_cut_pending_cpu
     )
-    reduced = False
     if new_cpu > NodeResourceLimit.MIN_CPU_CORES:
         node.config_resource.cpu = new_cpu
         logger.info(
@@ -128,7 +127,6 @@ def reduce_timeout_pending_node_resource(node: Node):
             _dlrover_context.seconds_to_wait_pending_pod,
             new_cpu,
         )
-        reduced = True
     original_memory = node.config_resource.memory
     new_memory = math.ceil(
         original_memory / _dlrover_context.factor_to_cut_pending_mem
@@ -143,8 +141,7 @@ def reduce_timeout_pending_node_resource(node: Node):
             _dlrover_context.seconds_to_wait_pending_pod,
             new_memory,
         )
-        reduced = True
-    return reduced
+    return True
 
 
 class TrainingNodeManager(object):
@@ -211,6 +208,8 @@ class TrainingNodeManager(object):
     def reduce_pending_node_resource(self):
         """Cut down CPU cores of pendding PS Pods"""
         plan = ScalePlan()
+
+        # Avoid dictionary changed size during iteration.
         cur_nodes = list(self._nodes.values())
         for node in cur_nodes:
             if node.status == NodeStatus.PENDING:

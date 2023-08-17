@@ -350,16 +350,18 @@ class DistributedJobManager(JobManager):
             self._process_event(event)
 
         for node_type in self._job_nodes.keys():
-            for node_id, node in self._job_nodes[node_type].items():
+            #  Avoid dictionary keys changed during iteration
+            type_nodes = list(self._job_nodes[node_type].values())
+            for node in type_nodes:
                 if (
                     node.status != NodeStatus.INITIAL
                     and not node.is_released
-                    and node_id not in exist_nodes[node_type]
+                    and node.id not in exist_nodes[node_type]
                 ):
                     logger.info(
                         "Node %s %s is deleted without the event",
                         node_type,
-                        node_id,
+                        node.id,
                     )
                     node.is_released = True
                     new_node = copy.deepcopy(node)
