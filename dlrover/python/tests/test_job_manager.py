@@ -416,6 +416,9 @@ class DistributedJobManagerTest(unittest.TestCase):
         manager.update_node_resource_usage(NodeType.WORKER, 0, 0.01, 256)
         hang = manager.all_running_node_hanged()
         self.assertTrue(hang)
+        manager.update_node_resource_usage(NodeType.WORKER, 0, 0.5, 256)
+        hang = manager.all_running_node_hanged()
+        self.assertFalse(hang)
 
     def test_early_stop(self):
         params = MockK8sPSJobArgs()
