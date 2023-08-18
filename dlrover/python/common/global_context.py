@@ -33,6 +33,7 @@ class ConfigKeys(object):
     GLOBAL_STEP_COUNT_TO_AUTO_WORKER = "global_step_count_to_auto_worker"
     SECONDS_TO_CHANGE_PS = "seconds_to_change_ps"
     SECONDS_TO_WAIT_FAILED_PS = "seconds_to_wait_failed_ps"
+    HANG_CPU_USAGE_PERCENTAGE = "hang_cpu_usage_percentage"
 
 
 class DefaultValues(object):
@@ -49,6 +50,7 @@ class DefaultValues(object):
     STEP_SAMPLE_COUNT_TO_AUTO_WORKER = 5
     SEC_TO_CHANGE_PS = 3600  # 1h
     SEC_TO_WAIT_FAILED_PS = 600  # 10min
+    HANG_CPU_USAGE_PERCENTAGE = 0.05
 
 
 class Context(object):
@@ -83,6 +85,9 @@ class Context(object):
         )
         self.sample_count_to_adjust_worker = (
             DefaultValues.STEP_SAMPLE_COUNT_TO_AUTO_WORKER
+        )
+        self.hang_cpu_usage_percentage = (
+            DefaultValues.HANG_CPU_USAGE_PERCENTAGE
         )
         self.seconds_interval_to_change_ps = DefaultValues.SEC_TO_CHANGE_PS
         self.seconds_to_wait_failed_ps = DefaultValues.SEC_TO_WAIT_FAILED_PS
@@ -144,6 +149,10 @@ class Context(object):
         self.seconds_to_wait_failed_ps = self.get_param_value_from_brain(
             ConfigKeys.SECONDS_TO_WAIT_FAILED_PS,
             DefaultValues.SEC_TO_WAIT_FAILED_PS,
+        )
+        self.hang_cpu_usage_percentage = self.get_param_value_from_brain(
+            ConfigKeys.HANG_CPU_USAGE_PERCENTAGE,
+            DefaultValues.HANG_CPU_USAGE_PERCENTAGE,
         )
 
     def config_master_port(self, port=0):

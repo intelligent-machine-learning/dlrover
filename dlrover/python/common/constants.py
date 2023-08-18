@@ -131,7 +131,7 @@ class NodeResourceLimit(object):
     PS_CPU_DECREASED_RATE = 0.5
     MIN_VALID_MEMORY = 1024  # 1GB
     MIN_VALID_CPU = 2
-    MAX_HANG_TIMEOUT_SECS = 10800  # unit: seconds
+    MAX_HANG_TIMEOUT_SECS = 7200  # unit: seconds
 
 
 class DefaultNodeResource(object):
