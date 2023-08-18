@@ -13,6 +13,7 @@
 
 import time
 import unittest
+from datetime import datetime, timedelta
 from unittest import mock
 
 from dlrover.proto import elastic_training_pb2
@@ -399,6 +400,32 @@ class DistributedJobManagerTest(unittest.TestCase):
                 node.status = NodeStatus.RUNNING
         hang = manager.all_running_node_hanged()
         self.assertTrue(hang)
+
+    def test_early_stop(self):
+        params = MockK8sPSJobArgs()
+        params.initilize()
+        manager = create_job_manager(params, SpeedMonitor())
+        manager._init_nodes()
+        for node in manager._job_nodes[NodeType.PS].values():
+            node.status = NodeStatus.PENDING
+            node.is_recovered_oom = True
+            node.create_time = datetime.now()
+        msg = manager.early_stop()
+        self.assertTrue(msg == "")
+
+        for node in manager._job_nodes[NodeType.PS].values():
+            node.status = NodeStatus.PENDING
+            node.create_time = datetime.now() + timedelta(days=-1)
+            node.is_recovered_oom = True
+        msg = manager.early_stop()
+        self.assertFalse(msg == "")
+
+        for node in manager._job_nodes[NodeType.PS].values():
+            node.status = NodeStatus.RUNNING
+            node.create_time = datetime.now() + timedelta(days=-1)
+            node.is_recovered_oom = True
+        msg = manager.early_stop()
+        self.assertTrue(msg == "")
 
 
 class LocalJobManagerTest(unittest.TestCase):

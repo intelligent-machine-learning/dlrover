@@ -171,6 +171,10 @@ class DistributedJobMaster(JobMaster):
             while True:
                 if self._stop_requested:
                     break
+                msg = self.job_manager.early_stop()
+                if msg:
+                    self.request_stop(False, msg)
+                    continue
                 if self.job_manager and self.job_manager.all_workers_exited():
                     if self.job_manager.pend_without_workers():
                         time.sleep(30)

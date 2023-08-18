@@ -192,6 +192,16 @@ class DistributedJobManager(JobManager):
                 daemon=True,
             ).start()
 
+    def early_stop(self):
+        nodes = self._ps_manager.get_pending_timeout_oom_recovered_node()
+        msg = ""
+        if len(nodes) > 0:
+            msg = (
+                "Stop the training early because "
+                "OOM recoverd pod pends too long."
+            )
+        return msg
+
     def _adjust_worker_for_estimator(self):
         if self._job_args.distribution_strategy == DistributionStrategy.PS:
             self._job_resource.adjust_worker_for_estimator()
