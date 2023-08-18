@@ -1,0 +1,269 @@
+# Design to Auto-Tuning Hyperparameters with DLRover
+
+This design doc describes how DLrover auto-tunes hyperparameters a job.
+
+## Background
+
+In the fast-paced world of deep learning, large-scale language models have
+emerged as stars in the field of natural language processing. However, training
+these heavyweight models comes with a major challenge: finding the perfect
+training settings, especially when it comes to micro-batch sizes per GPU and
+learning rates. It's all about striking the right balance between speedy
+training and accurate results. With models getting bigger and optimization
+techniques getting trickier, predicting how much GPU memory need during
+training has become  tough and uncertain for user. That's why users often end
+up trying things out repeatedly to get the right settings.
+
+## Target
+
+Our primary objective is to design and implement a performance monitoring and
+optimization module for the training process, aimed at enhancing the efficiency
+ and effectiveness of distributed deep learning training. The specific goals
+encompass:
+
+ **Collecting Training Data:** We intend to monitor and gather
+ various performance data during the training process, such as GPU memory usage
+ and utilization, along with hyperparameter configurations including batch size
+ and learning rates.
+
+ **Real-time Analysis of Training Performance Data:** Our
+ aim is to analyze the collected performance data in real-time, allowing us to
+ provide optimization strategies based on the current training status. This
+ includes suggesting new batch sizes and learning rates to maximize GPU
+ resource utilization.
+
+ **Dynamic Batch Size Configuration:** Leveraging the
+ collected and analyzed performance data, we'll devise an algorithm that
+ maximizes GPU resource utilization during task submissions while preventing
+ Out-of-Memory (OOM) errors.
+
+ **Dynamic Learning Rate Configuration:** Even as
+ we focus on boosting training speed, maintaining precision despite potential
+ changes in batch size remains paramount. Thus, we will concentrate on
+ configuring and updating learning rates for training tasks, designing
+ corresponding algorithms.
+
+## Design
+
+### Process and Component Design
+
+#### Key Components
+
+`GPU Stats Collector`: A subcomponent of resource monitor to add gpu information collection.
+
+`Hyper-parameter Tuner`: The main generative component of the optimization algorithm is generated in.
+
+`JobMaster` by optimizing the configuration based on the training information of the nodes.
+
+`Elastic Dataloader`: The main execution component of dynamic configuration dynamically
+adjusts the batch size of the training process based on the generated
+hyper-reference configuration.
+
+#### Main Workflow
+
+<div align="center">
+<img src="../figures/dlrover-auto-tuning.png" alt="Autotuning" width="1000">
+</div>
+As shown in the figure, introspective hyper-parameter tuning in **DLRover**
+contains the following steps:
+
+- The `GPU Stats Collector` within `ElasticAgent.ResourceMonitor` gathers
+  training resource information to create  a `ResourceStat`[used_mem,
+  current_cpu, gpu_stats].
+- The `Master_Client` reports `ResourceStat` to `gRPC Server`
+- The `Master.Servicer`receives the `ResourceStat` through a  `gRPC Request`
+  and update `NodeResource`
+- `Master.Node.JobManager` obtains the  `ResourceStat` from `NodeResource` and
+  and enters a waiting state for `HyperParameterTuner`.
+- `HyperParameterTuner` generates a new `HyperParameterConfigPlan` and
+  dispatches a query to `ElasticAgent`
+- `ElasticAgent.ConfigGenerator` updates the `Config File`.
+- The `Trainer` in `Worker` checks the `Config File` timely and  adjust the
+  hpyer-parameters based on its contents. For example, the `Elastic Dataloader`
+  fine-tunes the batch size in accordance with the new configuration.
+
+### Data Structure Design
+
+#### GPUMetric
+
+```python
+@dataclass
+class GPUMetric:
+    """GPU performance metrics for Container."""
+    
+    index: int
+    """The index of the GPU."""
+    
+    total_memory_mb: int
+    """The total memory of the GPU in megabytes (MB)."""
+    
+    used_memory_mb: int
+    """The amount of used memory on the GPU in megabytes (MB)."""
+    
+    gpu_utilization: float
+    """The GPU utilization as a percentage."""
+```
+
+#### HyperParas
+
+```python
+@dataclass
+class HyperParas:
+    """Hyperparameters for model training."""
+    
+    micro_batch_size: int
+    """The size of the micro-batch used in training."""
+    
+    learning_rate: float
+    """The rate at which the model's parameters are updated during training."""
+    
+    optimizer: str
+    """The optimization algorithm used to adjust the model's parameters."""
+    
+    scheduler: str
+    """The learning rate scheduler used to dynamically adjust the learning rate during training."""
+
+```
+
+### API Design
+
+#### `GPU Stats Collector`
+
+##### Description
+
+This API allows you to monitor GPU statistics, providing insights into memory
+usage and utilization.
+
+#### Inputs
+
+- **gpus** (optional)
+  - **Type:** List
+  - **Description:** List of GPU indices to monitor.
+
+#### Outputs
+
+- **gpu_stats**
+  - **Type:** List[GPUMetric]
+  - **Description:** List of GPU metrics including index, total memory, used
+    memory, and GPU utilization.
+
+```python
+def get_gpu_stats(gpus=[]):
+    """Get the used gpu info of the container"""
+    if not gpus:
+        # get gpu index from device list
+        pass
+    for gpu in gpus:
+        # get each gpu's stats and append to gpu_stats
+        pass
+    return gpu_stats
+```
+
+#### `Hyper-parameters Tuner`
+
+##### Description
+
+This API performs hyper-parameter tuning based on GPU metrics and user-submitted training arguments.
+
+##### Inputs
+
+- **gpu_stats**
+  - **Type:** List[GPUMetric]
+  - **Description:** List of GPU metrics including index, total memory, used memory, and GPU utilization.
+
+- **hyper_para_args**
+  - **Type:** HyperParas
+  - **Description:** Dataclass containing training arguments submitted by the user.
+
+##### Outputs
+
+- **tuned_hyper_paras**
+  - **Type:** HyperParas
+  - **Description:** Dataclass containing hyper parameters tuned by the hyper-parameter tuner.
+
+
+```python
+def tune_hyper_paras(gpu_stats=[], hyper_para_args=[]):
+    """Tune a good hyper_paras config"""
+
+    # Iterate through each hyperparameter and call the corresponding tuning method
+    for hyper_param in hyper_para_args:
+        param_name = hyper_param.name
+        
+        if param_name == "learning_rate":
+            # Call the method to tune learning rate
+            tuned_value = tune_learning_rate(hyper_param, gpu_stats)
+            hyper_param.learning_rate = tuned_value
+        
+        elif param_name == "batch_size":
+            # Call the method to tune batch size
+            tuned_value = tune_batch_size(hyper_param, gpu_stats)
+            hyper_param.batch_size = tuned_value
+        
+        # Add more elif branches for other hyperparameters
+        
+    return tuned_hyper_paras
+
+def tune_learning_rate(hyper_param, gpu_stats):
+    """Tune the learning rate hyperparameter"""
+    #Return the tuned learning rate value
+ pass
+
+def tune_batch_size(hyper_param, gpu_stats):
+    """Tune the batch size hyperparameter"""
+    # Return the tuned batch size value
+ pass
+```
+
+#### `Class: Elastic Dataloader`
+
+##### Description
+
+This class extends the functionality of the **DataLoader** class to support dynamic batch sizes during data loading. It allows users to adjust the batch size on-the-fly, providing flexibility in managing memory consumption and training efficiency.
+
+##### Attributes
+
+- **current_batch_size**
+  - **Type**: Integer
+  - **Description**: The current batch size used for data loading. This attribute is initialized with the default batch size.
+
+##### Methods
+
+- **init**
+  - **Description**: Initializes the **DynamicBatchSizeDataLoader** instance. Inherits and extends the initialization behavior of the parent **DataLoader** class.
+
+- **\_\_iter\_\_**
+  - **Description**: Overrides the iteration behavior of the parent **DataLoader** class. Uses a **BatchSampler** with the current batch size to yield batches of data from the dataset.
+
+- **set_batch_size**
+  - **Parameters**: batch_size (Integer)
+  - **Description**: Sets the current batch size to the specified value. This method enables users to dynamically adjust the batch size during runtime, affecting subsequent data loading iterations.
+
+- **update_batch_size_from_config**
+  - **Parameters**: config_path (String)
+  - **Description**: Reads the batch size information from a configuration file located at `config_path` and updates the current batch size accordingly. This method allows for convenient configuration-based adjustment of the batch size.
+
+```python
+class ElasticDataLoader(DataLoader):
+    def init(self, *args, **kwargs):
+        super(ElasticDataLoader, self).init(*args, **kwargs)
+ self.current_batch_size = self.batch_size
+def __iter__(self):
+    batch_sampler = BatchSampler(
+        self.sampler, batch_size=self.current_batch_size, drop_last=self.drop_last
+    )
+    for batch_indices in batch_sampler:
+        yield self.collate_fn([self.dataset[i] for i in batch_indices])
+
+def set_batch_size(self, batch_size):
+    self.current_batch_size = batch_size
+
+def update_batch_size_from_config(self, config_path):
+    # Read batch size from the configuration file and update current_batch_size
+    batch_size_from_config = self._read_batch_size_from_config(config_path)
+    self.set_batch_size(batch_size_from_config)
+
+def _read_batch_size_from_config(self, config_path):
+    # Return the batch size value
+    pass
+```
