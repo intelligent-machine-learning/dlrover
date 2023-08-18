@@ -233,6 +233,21 @@ class DistributedJobManagerTest(unittest.TestCase):
         should_relaunch = manager._should_relaunch(node, NODE_STATE_FLOWS[6])
         self.assertFalse(should_relaunch)
 
+    def test_relaunch_training_master(self):
+        params = MockK8sPSJobArgs()
+        params.initilize()
+        manager = create_job_manager(params, SpeedMonitor())
+        group_resources = manager._job_resource.node_group_resources
+        group_resources[NodeType.MASTER] = NodeGroupResource(
+            1, NodeResource(1, 256)
+        )
+
+        manager._init_nodes()
+        master = Node(NodeType.MASTER, 0, NodeResource(1, 256))
+        manager._job_nodes[NodeType.MASTER][0] = master
+        plan = manager._chief_manager.relaunch_node(master)
+        self.assertEqual(plan.launch_nodes[0].id, 1)
+
     def test_process_list_nodes(self):
         params = MockK8sPSJobArgs()
         params.initilize()
