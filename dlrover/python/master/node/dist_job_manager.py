@@ -622,7 +622,6 @@ class DistributedJobManager(JobManager):
         if cpu_percent < _dlrover_context.hang_cpu_usage_percentage:
             if node.start_hang_time == 0:
                 start_time = datetime.now()
-                logger.info(f"Node {node.name} start hanging at f{start_time}")
                 node.start_hang_time = start_time.timestamp()
         else:
             node.start_hang_time = 0
