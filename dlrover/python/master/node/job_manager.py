@@ -115,6 +115,10 @@ class JobManager(metaclass=ABCMeta):
     def update_allreduce_node_unit(self, node_unit):
         pass
 
+    @abstractclassmethod
+    def early_stop(self):
+        pass
+
     def handle_training_failure(
         self, node_type, node_id, restart_count=-1, error_data="", level=""
     ):
