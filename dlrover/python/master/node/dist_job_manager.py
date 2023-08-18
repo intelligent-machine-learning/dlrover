@@ -619,13 +619,11 @@ class DistributedJobManager(JobManager):
         node = self._job_nodes[node_type][node_id]
         node.update_resource_usage(cpu, memory)
         cpu_percent = node.used_resource.cpu / node.config_resource.cpu
-        if (
-            cpu_percent < _dlrover_context.hang_cpu_usage_percentage
-            and node.start_hang_time == 0
-        ):
-            start_time = datetime.now()
-            logger.info(f"Node {node.name} start hanging at f{start_time}")
-            node.start_hang_time = start_time.timestamp()
+        if cpu_percent < _dlrover_context.hang_cpu_usage_percentage:
+            if node.start_hang_time == 0:
+                start_time = datetime.now()
+                logger.info(f"Node {node.name} start hanging at f{start_time}")
+                node.start_hang_time = start_time.timestamp()
         else:
             node.start_hang_time = 0
 

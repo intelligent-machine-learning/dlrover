@@ -413,6 +413,9 @@ class DistributedJobManagerTest(unittest.TestCase):
             for _, node in nodes.items():
                 node.start_hang_time = time.time() - 3600 * 4
                 node.status = NodeStatus.RUNNING
+        manager.update_node_resource_usage(
+            NodeType.WORKER, 0, 0.01, 256
+        )
         hang = manager.all_running_node_hanged()
         self.assertTrue(hang)
 
