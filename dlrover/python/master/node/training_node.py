@@ -221,6 +221,29 @@ class TrainingNodeManager(object):
                     plan.merge(node_plan)
         return plan
 
+    def get_pending_timeout_oom_recovered_node(self):
+        cur_nodes = list(self._nodes.values())
+        now = time.time()
+        nodes = []
+        for node in cur_nodes:
+            if (
+                node.is_released
+                or not node.create_time
+                or node.status != NodeStatus.PENDING
+            ):
+                continue
+            pending_time = now - node.create_time.timestamp()
+            if (
+                node.is_recovered_oom
+                and pending_time > _dlrover_context.seconds_to_wait_pending_pod
+            ):
+                logger.info(
+                    f"Node {node.name} with resource f{node.config_resource} "
+                    f"and pends f{pending_time}s."
+                )
+                nodes.append(node)
+        return nodes
+
     def get_running_nodes(self):
         """TensorFlow Chief nodes"""
         nodes = []
