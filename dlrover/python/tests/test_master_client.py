@@ -11,11 +11,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import unittest 
+import unittest
 
+from dlrover.python.common.constants import NodeType, TrainingMsgLevel
 from dlrover.python.elastic_agent.master_client import build_master_client
 from dlrover.python.tests.test_utils import start_local_master
-from dlrover.python.common.constants import TrainingMsgLevel, NodeType
 
 
 class MasterClientTest(unittest.TestCase):
@@ -37,5 +37,3 @@ class MasterClientTest(unittest.TestCase):
             "test", 0, TrainingMsgLevel.WARNING
         )
         self.assertIsNone(res)
-
-
