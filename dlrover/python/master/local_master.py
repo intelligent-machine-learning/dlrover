@@ -79,6 +79,7 @@ class LocalJobMaster(JobMaster):
         self._master_server.start()
         logger.info("Master RPC server started")
         self.task_manager.start()
+        self.job_manager.start()
 
     def run(self):
         """
