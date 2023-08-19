@@ -16,6 +16,7 @@ import os
 import threading
 import time
 import traceback
+from datetime import datetime
 from typing import Dict, List
 
 from dlrover.python.common.constants import (
@@ -617,6 +618,17 @@ class DistributedJobManager(JobManager):
     def update_node_resource_usage(self, node_type, node_id, cpu, memory):
         node = self._job_nodes[node_type][node_id]
         node.update_resource_usage(cpu, memory)
+        cpu_percent = node.used_resource.cpu / node.config_resource.cpu
+        if cpu_percent < _dlrover_context.hang_cpu_usage_percentage:
+            if node.start_hang_time == 0:
+                now = datetime.now()
+                logger.info(f"Node {node.name} hangs at {now}")
+                node.start_hang_time = now.timestamp()
+        else:
+            if node.start_hang_time > 0:
+                now = datetime.now()
+                logger.info(f"Node {node.name} stop hanging at {now}")
+            node.start_hang_time = 0
 
     def update_node_service_addr(self, node_type, node_id, service_addr):
         node = self._job_nodes[node_type][node_id]
