@@ -206,7 +206,7 @@ class Node(object):
         if status is not None:
             self.status = status
 
-    def update_resource_usage(self, cpu, memory, gpu_stats):
+    def update_resource_usage(self, cpu, memory, gpu_stats=[]):
         self.used_resource.cpu = round(cpu, 2)
         self.used_resource.memory = memory
         self.used_resource.gpu_stats = gpu_stats
