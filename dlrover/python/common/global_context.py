@@ -86,9 +86,7 @@ class Context(object):
         self.sample_count_to_adjust_worker = (
             DefaultValues.STEP_SAMPLE_COUNT_TO_AUTO_WORKER
         )
-        self.hang_cpu_usage_percentage = (
-            DefaultValues.HANG_CPU_USAGE_RATE
-        )
+        self.hang_cpu_usage_percentage = DefaultValues.HANG_CPU_USAGE_RATE
         self.seconds_interval_to_change_ps = DefaultValues.SEC_TO_CHANGE_PS
         self.seconds_to_wait_failed_ps = DefaultValues.SEC_TO_WAIT_FAILED_PS
         self.auto_worker_enabled = False
