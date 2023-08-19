@@ -206,10 +206,6 @@ class Node(object):
     def update_resource_usage(self, cpu, memory):
         self.used_resource.cpu = round(cpu, 2)
         self.used_resource.memory = memory
-        if cpu < 0.1:
-            self.start_hang_time = time.time()
-        else:
-            self.start_hang_time = 0
 
     def update_service_address(self, service_addr):
         self.service_addr = service_addr

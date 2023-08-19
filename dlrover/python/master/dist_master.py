@@ -198,7 +198,7 @@ class DistributedJobMaster(JobMaster):
                 ):
                     logger.error("All nodes hangeds")
                     self._exit_code = 1
-                    self._exit_reason = JobExitReason.UNKNOWN_ERROR
+                    self._exit_reason = JobExitReason.HANG_ERROR
 
                 if (
                     self.task_manager
