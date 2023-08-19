@@ -26,6 +26,7 @@ from dlrover.python.common.constants import (
     NodeType,
 )
 from dlrover.python.common.node import NodeGroupResource, NodeResource
+from dlrover.python.elastic_agent.monitor.metrics import GPUMetric
 from dlrover.python.master.dist_master import DistributedJobMaster
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.dist_job_manager import create_job_manager
@@ -206,13 +207,13 @@ class DistributedJobManagerTest(unittest.TestCase):
             max_relaunch_count=1,
         )
 
-        gpu_stats = [
-            {
-                "index": 0,
-                "total_memory_mb": 24000,
-                "used_memory_mb": 4000,
-                "gpu_utilization": 55.5,
-            }
+        gpu_stats: list[GPUMetric] = [
+            GPUMetric(
+                index=0,
+                total_memory_mb=24000,
+                used_memory_mb=4000,
+                gpu_utilization=55.5,
+            )
         ]
 
         manager.update_node_resource_usage(
@@ -468,8 +469,19 @@ class LocalJobManagerTest(unittest.TestCase):
         job_mananger = LocalJobManager(args)
         job_mananger.start()
         self.assertEqual(len(job_mananger._job_nodes[NodeType.WORKER]), 1)
-        job_mananger.update_node_resource_usage(NodeType.WORKER, 0, 10, 10240)
+        gpu_stats: list[GPUMetric] = [
+            GPUMetric(
+                index=0,
+                total_memory_mb=24000,
+                used_memory_mb=4000,
+                gpu_utilization=55.5,
+            )
+        ]
+        job_mananger.update_node_resource_usage(
+            NodeType.WORKER, 0, 10, 10240, gpu_stats
+        )
 
         worker = job_mananger._job_nodes[NodeType.WORKER][0]
         self.assertEqual(worker.used_resource.cpu, 10)
         self.assertEqual(worker.used_resource.memory, 10240)
+        self.assertEqual(worker.used_resource.gpu_stats, gpu_stats)
