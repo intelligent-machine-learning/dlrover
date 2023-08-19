@@ -9,5 +9,5 @@ RUN pip install pyparsing -i https://pypi.org/simple
 
 ENV VERSION="0.3.0rc1"
 COPY --from=builder /dlrover/dist/dlrover-${VERSION}-py3-none-any.whl /
-RUN pip install /dlrover-${VERSION}-py3-none-any.whl --extra-index-url=https://pypi.org/simple && rm -f /*.whl
+RUN pip install /dlrover-${VERSION}-py3-none-any.whl[k8s] --extra-index-url=https://pypi.org/simple && rm -f /*.whl
 RUN unset VERSION

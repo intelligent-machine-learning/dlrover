@@ -23,11 +23,6 @@ from dlrover.python.common.constants import (
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.serialize import JsonSerializable
 
-try:
-    from kubernetes.utils.quantity import parse_quantity
-except ImportError:
-    pass
-
 
 def _is_float_str(str_number):
     if not str_number:
@@ -96,18 +91,6 @@ class NodeResource(JsonSerializable):
                 gpu_type = key
                 gpu_num = int(resource[key])
         return NodeResource(cpu, memory, gpu_type, gpu_num)
-
-    @classmethod
-    def convert_memory_to_mb(cls, memory: str):
-        return int(parse_quantity(memory) / 1024 / 1024)
-
-    @classmethod
-    def convert_memory_to_byte(cls, memory: str):
-        return parse_quantity(memory)
-
-    @classmethod
-    def convert_cpu_to_decimal(cls, cpu: str):
-        return round(float(parse_quantity(cpu)), 1)
 
 
 class NodeGroupResource(JsonSerializable):

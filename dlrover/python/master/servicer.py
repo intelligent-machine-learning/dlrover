@@ -36,6 +36,7 @@ from dlrover.python.master.elastic_training.rdzv_manager import (
     RendezvousManager,
 )
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
+from dlrover.python.master.node.job_manager import JobManager
 from dlrover.python.master.shard.dataset_splitter import new_dataset_splitter
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.master.stats.job_collector import JobMetricCollector
@@ -48,7 +49,6 @@ try:
         ElasticPsService,
     )
     from dlrover.python.master.elastic_training.sync_service import SyncService
-    from dlrover.python.master.node.job_manager import JobManager
 except ImportError:
     logger.info("Run the master locally.")
     pass
@@ -176,8 +176,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         return empty_pb2.Empty()
 
     def ready_for_ps_relaunch(self, request, _):
-        if self._job_manager:
-            self._job_manager.post_ps_ready()
+        self._job_manager.post_ps_ready()
         return empty_pb2.Empty()
 
     def get_shard_checkpoint(self, request, _):
@@ -261,8 +260,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
     def _check_start_auto_scale_worker(self):
         sample_count = self._speed_monitor.get_sample_count()
         if (
-            self._job_manager
-            and not self._start_autoscale
+            not self._start_autoscale
             and sample_count >= _dlrover_context.sample_count_to_adjust_worker
         ):
             logger.info(
@@ -306,7 +304,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         node_id = request.id
         server_addr = request.addr
 
-        if server_addr and self._job_manager:
+        if server_addr:
             self._job_manager.update_node_service_addr(
                 node_type, node_id, server_addr
             )
@@ -340,8 +338,6 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
 
     def query_ps_nodes(self, request, _):
         res = elastic_training_pb2.QueryPsNodesResponse()
-        if not self._job_manager:
-            return res
         training_ps: List[Node] = self._job_manager.get_next_cluster_ps()
         ready = self._job_manager.ready_for_new_ps_cluster()
         ps_failure = self._job_manager.has_ps_failure()
@@ -358,8 +354,6 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
 
     def query_running_nodes(self, request, _):
         res = elastic_training_pb2.RunningNodes()
-        if not self._job_manager:
-            return res
         nodes: List[Node] = self._job_manager.get_running_nodes()
         for node in nodes:
             meta = elastic_training_pb2.NodeMeta()
@@ -470,14 +464,13 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         return res
 
     def report_failure(self, request, _):
-        if self._job_manager:
-            self._job_manager.handle_training_failure(
-                request.node_type,
-                request.node_id,
-                request.restart_count,
-                request.error_data,
-                request.level,
-            )
+        self._job_manager.handle_training_failure(
+            request.node_type,
+            request.node_id,
+            request.restart_count,
+            request.error_data,
+            request.level,
+        )
         res = elastic_training_pb2.Response()
         res.success = True
         return res

@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import unittest
+from datetime import datetime, timedelta
 
 from dlrover.python.common.constants import JobExitReason, NodeStatus, NodeType
 from dlrover.python.elastic_agent.master_client import build_master_client
@@ -74,6 +75,16 @@ class DistributedJobMasterTest(unittest.TestCase):
         self.master.run()
         self.assertEqual(self.master._exit_code, 0)
         self.assertEqual(self.master._exit_reason, JobExitReason.SUCCEEDED)
+
+    def test_early_stop(self):
+        self.master.job_manager._init_nodes()
+        job_nodes = self.master.job_manager._job_nodes
+        for node in job_nodes[NodeType.PS].values():
+            node.status = NodeStatus.PENDING
+            node.is_recovered_oom = True
+            node.create_time = datetime.now() + timedelta(days=-1)
+        exit_code = self.master.run()
+        self.assertEqual(exit_code, 1)
 
 
 class LocalJobMasterTest(unittest.TestCase):

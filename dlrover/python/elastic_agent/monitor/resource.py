@@ -16,11 +16,13 @@ import threading
 import time
 
 import psutil
+import pynvml
 
 from dlrover.python.common.constants import NodeEnv
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import singleton
 from dlrover.python.elastic_agent.master_client import GlobalMasterClient
+from dlrover.python.elastic_agent.monitor.metrics import GPUMetric
 
 
 def get_process_cpu_percent():
@@ -53,6 +55,33 @@ def get_used_memory():
     return int(mem.used / 1024 / 1024)
 
 
+def get_gpu_stats(gpus=[]):
+    """ "Get the used gpu info of the container"""
+    if not gpus:
+        device_count = pynvml.nvmlDeviceGetCount()
+        gpus = list(range(device_count))
+    gpu_stats: list[GPUMetric] = []
+    for i in gpus:
+        handle = pynvml.nvmlDeviceGetHandleByIndex(i)
+        memory_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
+        total_memory = memory_info.total / (1024**2)
+        used_memory = memory_info.used / (1024**2)
+
+        # Get GPU utilization
+        utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
+        gpu_utilization = utilization.gpu
+
+        gpu_stats.append(
+            GPUMetric(
+                index=i,
+                total_memory_mb=total_memory,
+                used_memory_mb=used_memory,
+                gpu_utilization=gpu_utilization,
+            )
+        )
+    return gpu_stats
+
+
 @singleton
 class ResourceMonitor(object):
     def __init__(self):
@@ -61,15 +90,70 @@ class ResourceMonitor(object):
         reports the used memory and cpu percent to the DLRover master.
         """
         self._total_cpu = psutil.cpu_count(logical=True)
+        self._gpu_enabled = False
+        self._gpu_stats: list[GPUMetric] = []
+
+    def start(self):
         if (
-            os.getenv(NodeEnv.DLROVER_MASTER_ADDR, "")
-            and os.getenv(NodeEnv.AUTO_MONITOR_WORKLOAD, "") == "true"
+            not os.getenv(NodeEnv.DLROVER_MASTER_ADDR, "")
+            or not os.getenv(NodeEnv.AUTO_MONITOR_WORKLOAD, "") == "true"
         ):
-            threading.Thread(
+            return
+
+        self.init_gpu_monitor()
+        logger.info("Resource Monitor Initializing ...")
+
+        try:
+            thread = threading.Thread(
                 target=self._monitor_resource,
                 name="monitor_resource",
                 daemon=True,
-            ).start()
+            )
+            thread.start()
+            if thread.is_alive():
+                logger.info("Resource Monitor initialized successfully")
+        except Exception as e:
+            logger.error(
+                f"Failed to start the monitor resource thread. Error: {e}"
+            )
+
+    def stop(self):
+        if self._gpu_enabled:
+            self.shutdown_gpu_monitor()
+
+    def __del__(self):
+        if self._gpu_enabled:
+            self.shutdown_gpu_monitor()
+
+    def init_gpu_monitor(self):
+        try:
+            pynvml.nvmlInit()
+            self._gpu_enabled = True
+        except pynvml.NVMLError_LibraryNotFound:
+            logger.warn(
+                "NVIDIA NVML library not found. "
+                "GPU monitoring features will be disabled."
+            )
+        except pynvml.NVMLError as e:
+            logger.error(
+                f"An error occurred while initializing NVIDIA NVML: {e}"
+            )
+        except Exception as e:
+            logger.exception(
+                f"An unexpected error occurred during NVML shutdown: {e}"
+            )
+
+    def shutdown_gpu_monitor(self):
+        try:
+            pynvml.nvmlShutdown()
+        except pynvml.NVMLError as e:
+            logger.error(
+                f"An error occurred while shutting down NVIDIA NVML: {e}"
+            )
+        except Exception as e:
+            logger.exception(
+                f"An unexpected error occurred during NVML shutdown: {e}"
+            )
 
     def start_monitor_cpu(self):
         get_process_cpu_percent()
@@ -78,15 +162,20 @@ class ResourceMonitor(object):
         try:
             used_mem = get_used_memory()
             cpu_percent = get_process_cpu_percent()
+            if self._gpu_enabled:
+                self._gpu_stats = get_gpu_stats()
             current_cpu = round(cpu_percent * self._total_cpu, 2)
             GlobalMasterClient.MASTER_CLIENT.report_used_resource(
-                used_mem, current_cpu
+                used_mem, current_cpu, self._gpu_stats
             )
-            logger.debug(
-                "Report Resource CPU : %s, Memory %s", current_cpu, used_mem
+            logger.info(
+                "Report Resource CPU : %s, Memory %s, GPU %s",
+                current_cpu,
+                used_mem,
+                self._gpu_stats,
             )
         except Exception as e:
-            logger.info(e)
+            logger.exception(e)
 
     def _monitor_resource(self):
         logger.info("Start to monitor resource usage")

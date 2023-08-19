@@ -30,8 +30,6 @@ from dlrover.python.elastic_agent.tensorflow.profile_extractor import (
     TensorStats,
 )
 
-training_reporter = TrainingProcessReporter()
-
 
 def collect_model_stats(flops):
     tensor_stats, op_stats = generate_model_stats()
@@ -64,7 +62,8 @@ class ReportModelMetricHook(SessionRunHook):
         the DLRover master.
         """
         self._is_chief = False
-        training_reporter.called_in_tf_hook = True
+        self._training_reporter = TrainingProcessReporter()
+        self._training_reporter.called_in_tf_hook = True
         self._global_step = 0
         self._op_stats = None
         self._tensor_stats = None
@@ -86,7 +85,7 @@ class ReportModelMetricHook(SessionRunHook):
                 tensor_stats,
                 op_stats,
             )
-            training_reporter.set_start_time()
+            self._training_reporter.set_start_time()
         except Exception as e:
             logger.warning(e)
 
@@ -100,7 +99,7 @@ class ReportModelMetricHook(SessionRunHook):
         if not self._is_chief:
             return
         self._global_step = run_values.results["global_step"]
-        training_reporter.report_resource_with_step(self._global_step)
+        self._training_reporter.report_resource_with_step(self._global_step)
 
 
 class ElasticDataShardReportHook(SessionRunHook):

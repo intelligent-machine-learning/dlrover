@@ -32,12 +32,12 @@ from dlrover.python.master.elastic_training.rdzv_manager import (
 from dlrover.python.master.elastic_training.sync_service import SyncService
 from dlrover.python.master.master import JobMaster
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
+from dlrover.python.master.node.dist_job_manager import create_job_manager
 from dlrover.python.master.node.event_callback import (
     AllReduceNodeHandlingCallback,
     TaskRescheduleCallback,
     TFPSNodeHandlingCallback,
 )
-from dlrover.python.master.node.job_manager import create_job_manager
 from dlrover.python.master.servicer import create_master_service
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.master.stats.job_collector import JobMetricCollector
@@ -171,6 +171,10 @@ class DistributedJobMaster(JobMaster):
             while True:
                 if self._stop_requested:
                     break
+                msg = self.job_manager.early_stop()
+                if msg:
+                    self.request_stop(False, msg)
+                    continue
                 if self.job_manager and self.job_manager.all_workers_exited():
                     if self.job_manager.pend_without_workers():
                         time.sleep(30)
@@ -194,7 +198,7 @@ class DistributedJobMaster(JobMaster):
                 ):
                     logger.error("All nodes hangeds")
                     self._exit_code = 1
-                    self._exit_reason = JobExitReason.UNKNOWN_ERROR
+                    self._exit_reason = JobExitReason.HANG_ERROR
 
                 if (
                     self.task_manager

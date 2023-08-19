@@ -58,6 +58,7 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.master_client import GlobalMasterClient
+from dlrover.python.elastic_agent.monitor.resource import ResourceMonitor
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
 
 __all__ = ["launch_agent"]
@@ -379,7 +380,12 @@ class ElasticTrainingAgent(LocalElasticAgent):
         while True:
             assert self._worker_group.state != WorkerState.INIT
             time.sleep(monitor_interval)
-            run_result: RunResult = self._monitor_workers(self._worker_group)
+            try:
+                run_result: RunResult = self._monitor_workers(
+                    self._worker_group
+                )
+            except json.decoder.JSONDecodeError:
+                run_result = RunResult(state=WorkerState.FAILED)
             state = run_result.state
             self._worker_group.state = state
 
@@ -419,6 +425,8 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
     def _report_failure_to_master(self, failures: Dict[int, ProcessFailure]):
         errors = {}
+        if len(failures) == 0:
+            return
         for rank, failure in failures.items():
             dt = str(datetime.fromtimestamp(int(failure.timestamp)))
             error = ProcessError(
@@ -485,6 +493,8 @@ def launch_agent(
         f"  metrics_cfg      : {config.metrics_cfg}\n"
     )
 
+    monitor = ResourceMonitor()
+    monitor.start()
     rdzv_parameters = RendezvousParameters(
         backend=config.rdzv_backend,
         endpoint=config.rdzv_endpoint,
@@ -563,6 +573,7 @@ def launch_agent(
     finally:
         if shutdown_rdzv:
             spec.rdzv_handler.shutdown()
+        monitor.stop()
 
 
 class NetworkCheckElasticAgent(ElasticTrainingAgent):
