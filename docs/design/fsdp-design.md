@@ -249,7 +249,7 @@ class ElasticTrainer(object):
 1. rank0_only：由 rank-0 节点获取所有的模型参数和优化器状态存入磁盘;
 2. sharding 方式：所有 rank 各自保存其模型参数和优化器状态。
 
-但是这两个方案都没法满足弹性容错训练的需求。
+其中 rank0_only 可以满足弹性容错训练但是容易导入 OOM 错误并且写入时间开销大；sharding 方案没法满足弹性容错训练的需求。
 
 rank0_only：
 
