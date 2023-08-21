@@ -20,7 +20,6 @@ from dlrover.python.common.constants import (
     NodeStatus,
     PriorityClass,
 )
-from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.serialize import JsonSerializable
 
 

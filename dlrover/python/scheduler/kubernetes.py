@@ -358,8 +358,9 @@ class K8sJobArgs(JobArgs):
                     gpu_num = int(v)
             group_resource = NodeGroupResource(
                 num,
-                NodeResource(cpu, memory, gpu_type, gpu_num, gpu_stats,
-                             priority),
+                NodeResource(
+                    cpu, memory, gpu_type, gpu_num, gpu_stats, priority
+                ),
             )
             restart_count = int(spec.get("restartCount", 3))
             auto_scale = parse_bool(str(spec.get("autoScale", "true")))
