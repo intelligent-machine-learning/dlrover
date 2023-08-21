@@ -218,7 +218,6 @@ class PipeGradScaler(GradScaler):
 # 2. If Multiple grad scaler on a single rank, all-reducing is NOT the global result.
 # FIX: Since all grad scalers are synced, it does not matter to use which one of them.
 def scale_backward_wrapper(casted_loss):
-    grad_scaler = next(iter(AutoAccelerateContext.amp_native_pipe_grad_scaler[AutoAccelerateContext.counter].values()))
     if isinstance(casted_loss, collections.abc.Sequence):
         loss = casted_loss[0]
     else:
@@ -226,11 +225,50 @@ def scale_backward_wrapper(casted_loss):
     # To be compatible with FakeTensor shape inference
     if loss.is_meta:
         return casted_loss
+    grad_scaler = next(iter(AutoAccelerateContext.amp_native_pipe_grad_scaler[AutoAccelerateContext.counter].values()))
     scaled_loss = grad_scaler.scale(loss)
     if isinstance(casted_loss, collections.abc.Sequence):
         return scaled_loss, *casted_loss[1:]
     else:
         return scaled_loss
+
+
+def get_pipe_amp_optimizer(submod, stage_id, optim_class, *args, **kwargs):
+    grad_scaler = PipeGradScaler(process_group="pipe", stage_id=stage_id)
+    counter = AutoAccelerateContext.counter
+
+    if not hasattr(AutoAccelerateContext, "grad_scaler_counter"):
+        AutoAccelerateContext.add_ac_attr("grad_scaler_counter", {counter: 0})
+    elif counter not in AutoAccelerateContext.grad_scaler_counter:
+        AutoAccelerateContext.grad_scaler_counter[counter] = 0
+
+    if not hasattr(AutoAccelerateContext, "grad_scaler_condition"):
+        AutoAccelerateContext.add_ac_attr("grad_scaler_condition", {counter: threading.Condition()})
+    elif counter not in AutoAccelerateContext.grad_scaler_condition:
+        AutoAccelerateContext.grad_scaler_condition[counter] = threading.Condition()
+
+    if not hasattr(AutoAccelerateContext, "grad_scaler_store"):
+        AutoAccelerateContext.add_ac_attr("grad_scaler_store", {counter: {stage_id: 0}})
+    else:
+        if counter in AutoAccelerateContext.grad_scaler_store:
+            AutoAccelerateContext.grad_scaler_store[counter].update({stage_id: 0})
+        else:
+            AutoAccelerateContext.grad_scaler_store.update({counter: {stage_id: 0}})
+
+    if not hasattr(AutoAccelerateContext, "amp_native_pipe_grad_scaler"):
+        AutoAccelerateContext.add_ac_attr("amp_native_pipe_grad_scaler", {counter: {stage_id: grad_scaler}})
+    else:
+        if counter in AutoAccelerateContext.amp_native_pipe_grad_scaler:
+            AutoAccelerateContext.amp_native_pipe_grad_scaler[counter].update({stage_id: grad_scaler})
+        else:
+            AutoAccelerateContext.amp_native_pipe_grad_scaler.update({counter: {stage_id: grad_scaler}})
+    AutoAccelerateContext.add_ac_attr(
+        "amp_native_pipe_grad_scaler", {AutoAccelerateContext.counter: {stage_id: grad_scaler}}
+    )
+
+    optimizer = optim_class(submod.parameters(), *args, **kwargs)
+    amp_optimizer = AmpNativeOptimizer(optimizer, grad_scaler)
+    return amp_optimizer
 
 
 def _hack_pipe_amp_optimizer():
@@ -240,41 +278,10 @@ def _hack_pipe_amp_optimizer():
     # hack PiPPy
     def instantiate_amp_optimizer(executor, optim_class, *args, **kwargs):
         stage_id = executor.stage_id
-        grad_scaler = PipeGradScaler(process_group="pipe", stage_id=stage_id)
-        counter = AutoAccelerateContext.counter
-
-        if not hasattr(AutoAccelerateContext, "grad_scaler_counter"):
-            AutoAccelerateContext.add_ac_attr("grad_scaler_counter", {counter: 0})
-        elif counter not in AutoAccelerateContext.grad_scaler_counter:
-            AutoAccelerateContext.grad_scaler_counter[counter] = 0
-
-        if not hasattr(AutoAccelerateContext, "grad_scaler_condition"):
-            AutoAccelerateContext.add_ac_attr("grad_scaler_condition", {counter: threading.Condition()})
-        elif counter not in AutoAccelerateContext.grad_scaler_condition:
-            AutoAccelerateContext.grad_scaler_condition[counter] = threading.Condition()
-
-        if not hasattr(AutoAccelerateContext, "grad_scaler_store"):
-            AutoAccelerateContext.add_ac_attr("grad_scaler_store", {counter: {stage_id: 0}})
-        else:
-            if counter in AutoAccelerateContext.grad_scaler_store:
-                AutoAccelerateContext.grad_scaler_store[counter].update({stage_id: 0})
-            else:
-                AutoAccelerateContext.grad_scaler_store.update({counter: {stage_id: 0}})
-
-        if not hasattr(AutoAccelerateContext, "amp_native_pipe_grad_scaler"):
-            AutoAccelerateContext.add_ac_attr("amp_native_pipe_grad_scaler", {counter: {stage_id: grad_scaler}})
-        else:
-            if counter in AutoAccelerateContext.amp_native_pipe_grad_scaler:
-                AutoAccelerateContext.amp_native_pipe_grad_scaler[counter].update({stage_id: grad_scaler})
-            else:
-                AutoAccelerateContext.amp_native_pipe_grad_scaler.update({counter: {stage_id: grad_scaler}})
-        AutoAccelerateContext.add_ac_attr(
-            "amp_native_pipe_grad_scaler", {AutoAccelerateContext.counter: {stage_id: grad_scaler}}
-        )
+        submod = executor.mod
         assert executor._should_instantiate_optim()
         with executor.optim_init_cv:
-            optimizer = optim_class(executor.mod.parameters(), *args, **kwargs)
-            executor.optimizer = AmpNativeOptimizer(optimizer, grad_scaler)
+            executor.optimizer = get_pipe_amp_optimizer(submod, stage_id, optim_class, *args, **kwargs)
             executor.optim_init_cv.notify()
         return executor.optimizer
 

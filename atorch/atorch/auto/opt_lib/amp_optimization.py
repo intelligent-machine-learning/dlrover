@@ -1,4 +1,5 @@
 import collections
+import copy
 from functools import partialmethod, wraps
 
 import torch
@@ -98,8 +99,9 @@ class AmpNativeOptimization(Optimization):
                 else:
                     AutoAccelerateContext.amp_native_grad_scaler.update({AutoAccelerateContext.counter: grad_scaler})
                 model_context.optim = AmpNativeOptimizer(optimizer, grad_scaler)
-                wrapper_config["counter"] = AutoAccelerateContext.counter
-                model_context.loss_func = amp_native_loss_func(loss_func, **wrapper_config)
+                config_copy = copy.copy(wrapper_config)
+                config_copy["counter"] = AutoAccelerateContext.counter
+                model_context.loss_func = amp_native_loss_func(loss_func, **config_copy)
 
 
 class AmpNativaScaledLoss(torch.Tensor):

@@ -9,11 +9,15 @@ import os
 import shutil
 import time
 from contextlib import contextmanager
+from operator import attrgetter
+from pathlib import Path
 
 import torch
 
 from atorch import local_rank, rank
 from atorch.common.log_utils import default_logger as logger
+from atorch.utils.fsdp_save_util import ShardTensorUtil
+from atorch.utils.fsdp_save_util import version_check as fsdp_save_util_version_check
 from atorch.utils.graph_transform_utils import map_aggregate
 
 _super_init_call = torch.nn.Module.__init__
@@ -37,11 +41,23 @@ class _MetaModeContext:
     offload_path = "./meta_model_offload"
     param_counter = 0
     buffer_counter = 0
+    _SHARD_FLAT_PARAM_LOADER = None
+
+
+@contextmanager
+def load_weights_from_flat_param(ckpt_path):
+    fsdp_save_util_version_check()
+    if _MetaModeContext._SHARD_FLAT_PARAM_LOADER is None:
+        _MetaModeContext._SHARD_FLAT_PARAM_LOADER = ShardTensorUtil(
+            ckpt_path, rank(), torch.distributed.get_world_size(), device="cpu"
+        )
+    with torch.device("meta"):
+        yield
 
 
 @contextmanager
 def init_empty_weights_with_disk_offload(
-    ignore_tie_weights=False, include_buffers=True, reset=True, disk_offload=True, offload_path=None
+    ignore_tie_weights=False, include_buffers=True, reset=True, disk_offload=True, offload_path=None, ckpt_path=None
 ):
     """
     A context manager under which models are initialized with all parameters on the meta device, therefore creating an
@@ -81,6 +97,13 @@ def init_empty_weights_with_disk_offload(
         tst = nn.Sequential(*[nn.Linear(10000, 10000) for _ in range(1000)])
     ```
     """
+    if ckpt_path is not None:
+        from atorch.auto.auto_accelerate_context import AutoAccelerateContext
+
+        AutoAccelerateContext.add_ac_attr("FSDP_META_INIT", True)
+        with load_weights_from_flat_param(ckpt_path):
+            yield
+        return
     if offload_path is not None:
         _MetaModeContext.offload_path = offload_path
     if (torch.distributed.is_initialized() and int(local_rank()) == 0) or not torch.distributed.is_initialized():
@@ -279,14 +302,13 @@ def _find_tied_weights(model, **kwargs):
 
 
 def _retie_weights(model, _tied_parameters):
-    for param_name, tied_param_name in _tied_parameters.items():
-        param = model
-        for split in param_name.split("."):
-            param = getattr(param, split)
-        tied_module = model
-        for split in tied_param_name.split(".")[:-1]:
-            tied_module = getattr(tied_module, split)
-        setattr(tied_module, tied_param_name.split(".")[-1], param)
+    for src, dst in _tied_parameters.items():
+        dst_split = dst.split(".")
+        dst_name = dst_split.pop()
+        dst_module_name = ".".join(dst_split)
+        dst_module = attrgetter(dst_module_name)(model)
+        src_weight = attrgetter(src)(model)
+        setattr(dst_module, dst_name, src_weight)
 
 
 def _reload_meta_parameter(module, tensor_name, device, value=None, ckpt_name=None):
@@ -439,8 +461,32 @@ def reload_meta_module(module, device="cpu", delete_ckpt_name=True, retie_weight
         for name, param in module.named_parameters():
             if param.device == torch.device("meta"):
                 if hasattr(param, "checkpoint_name"):
-                    logger.info("reload meta param %s", name)
-                    loaded_param = torch.load(param.checkpoint_name)
+                    if Path(param.checkpoint_name).exists():
+                        loaded_param = torch.load(param.checkpoint_name)
+                    elif _MetaModeContext._SHARD_FLAT_PARAM_LOADER is not None:
+                        if hasattr(param, "sync_module_states"):
+                            loaded_param = _MetaModeContext._SHARD_FLAT_PARAM_LOADER.load_tensor_by_name(
+                                param.checkpoint_name, sync_module_states=True
+                            )
+                            delattr(param, "sync_module_states")
+                        elif hasattr(param, "intra_load"):
+                            loaded_param = _MetaModeContext._SHARD_FLAT_PARAM_LOADER.load_with_intra_nodes(
+                                param.checkpoint_name
+                            )
+                            delattr(param, "intra_load")
+                        else:
+                            loaded_param = _MetaModeContext._SHARD_FLAT_PARAM_LOADER.load_tensor_by_name(
+                                param.checkpoint_name
+                            )
+                    else:
+                        raise ValueError(
+                            (
+                                "reload meta module needs set `checkpoint_name`, for init, "
+                                "you needs set checkpoint_name for a file which is saved by torch. "
+                                "For load ckpt, you need to set `checkpoint_name` and use "
+                                "ShardTensorUtil to load flat param."
+                            )
+                        )
                     # ckpt_name: set to the new Parameter, None if delete ckpt name
                     # old_ckpt_name: set to the old Parameter, in case weight tying
                     ckpt_name = param.checkpoint_name if not delete_ckpt_name else None
@@ -453,7 +499,6 @@ def reload_meta_module(module, device="cpu", delete_ckpt_name=True, retie_weight
                     # so the other submodules can correctly load the param
                     setattr(param, "checkpoint_name", old_ckpt_name)
                     del loaded_param, param
-                    # gc.collect()
                 else:
                     raise ValueError(f"meta model {module} is not checkpointed, for {name}")
             elif param.device != torch.device(device):
@@ -462,15 +507,27 @@ def reload_meta_module(module, device="cpu", delete_ckpt_name=True, retie_weight
         for name, buffer in module.named_buffers():
             if buffer.device == torch.device("meta"):
                 if hasattr(buffer, "checkpoint_name"):
-                    logger.info("reload meta buffer %s", name)
-                    loaded_buffer = torch.load(buffer.checkpoint_name)
+                    if Path(buffer.checkpoint_name).exists():
+                        loaded_buffer = torch.load(buffer.checkpoint_name)
+                    elif _MetaModeContext._SHARD_FLAT_PARAM_LOADER is not None:
+                        loaded_buffer = _MetaModeContext._SHARD_FLAT_PARAM_LOADER.load_tensor_by_name(
+                            buffer.checkpoint_name
+                        )
+                    else:
+                        raise ValueError(
+                            (
+                                "reload meta module needs set `checkpoint_name`, for init, "
+                                "you needs set checkpoint_name for a file which is saved by torch. "
+                                "For load ckpt, you need to set `checkpoint_name` and use "
+                                "ShardTensorUtil to load flat param."
+                            )
+                        )
                     ckpt_name = buffer.checkpoint_name if not delete_ckpt_name else None
                     old_ckpt_name = buffer.checkpoint_name
                     delattr(buffer, "checkpoint_name")
                     _reload_meta_parameter(module, name, device, value=loaded_buffer, ckpt_name=ckpt_name)
                     setattr(buffer, "checkpoint_name", ckpt_name)
                     del loaded_buffer, buffer
-                    # gc.collect()
                 else:
                     raise ValueError(f"meta model is not checkpointed, for {name}")
             elif buffer.device != torch.device(device):

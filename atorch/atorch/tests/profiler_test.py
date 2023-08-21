@@ -75,6 +75,7 @@ class TestProfiler(unittest.TestCase):
                 params = prof.get_total_params()
                 flops = prof.get_total_flops()
                 macs = prof.get_total_macs()
+                prof.compute_gpu_utilization(10)
                 prof.end_profile()
                 assert within_range(flops, 866076672, TOLERANCE)
                 assert within_range(macs, 426516480, TOLERANCE)

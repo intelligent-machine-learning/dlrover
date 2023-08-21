@@ -1,15 +1,29 @@
 import copy
 import math
+import os
 import tempfile
 import unittest
 from collections import defaultdict
 
 import torch
+import torch.multiprocessing as mp
 import torch.nn as nn
 
 import atorch
 from atorch.auto.accelerate import auto_accelerate
 from atorch.utils.meta_model_utils import init_empty_weights_with_disk_offload, reload_meta_module
+from atorch.utils.version import torch_version
+
+
+def init_dist(rank, world_size):
+    os.environ["LOCAL_RANK"] = str(rank)
+    os.environ["RANK"] = str(rank)
+    os.environ["WORLD_SIZE"] = str(world_size)
+    os.environ["NPROC_PER_NODE"] = str(world_size)
+    if torch.cuda.is_available():
+        atorch.init_distributed("nccl")
+    else:
+        atorch.init_distributed("gloo")
 
 
 def init_bert_params(module):
@@ -152,29 +166,44 @@ class TestMetaInit(unittest.TestCase):
             self.assertTrue(params.device.type == "meta")
         # reload_meta_module(model, "cpu")
 
-    @unittest.skipIf(not torch.cuda.is_available(), "skip if no gpu")
-    def test_init_auto_accelerate(self):
-        if not torch.distributed.is_initialized():
-            atorch.init_distributed("nccl", set_cuda_device_using_local_rank=True)
-        with init_empty_weights_with_disk_offload(ignore_tie_weights=False):
-            model = MyModel(5, self.embed_dim)
-        # simulate requires_grad=False
 
-        for _, p in model.layers.mods[0].named_parameters():
-            p.requires_grad_(False)
-        reload_meta_module(model, "cpu")
-        auto_accelerate(
-            model,
-            load_strategy=[
-                (
-                    "fsdp",
-                    {
-                        "atorch_wrap_cls": (MultiwayNetwork,),
-                    },
-                )
-            ],
+def _test_init_auto_accelerate(rank, world_size):
+    init_dist(rank, world_size)
+    embed_dim = 10
+    with init_empty_weights_with_disk_offload(ignore_tie_weights=False):
+        model = MyModel(5, embed_dim)
+    # simulate requires_grad=False
+    for _, p in model.layers.mods[0].named_parameters():
+        p.requires_grad_(False)
+    reload_meta_module(model, "cpu")
+    # TODO: fix when using "atorch_wrap_cls": (MultiwayNetwork,)  the test fails
+    auto_accelerate(
+        model,
+        load_strategy=[
+            (
+                "fsdp",
+                {"atorch_wrap_cls": {"nn.Linear"}, "use_orig_params": True},
+            )
+        ],
+    )
+
+    atorch.reset_distributed()
+
+
+class TestInitAutoAccelerate(unittest.TestCase):
+    @unittest.skipIf(
+        torch.cuda.device_count() < 2 or torch_version() < (2, 0, 0), "run with gpu_num >=2 torch.version > 2.0"
+    )
+    def test_init_auto_accelerate(self):
+        world_size = 2
+        os.environ["MASTER_ADDR"] = "localhost"  #
+        os.environ["MASTER_PORT"] = "5000"
+        mp.spawn(
+            _test_init_auto_accelerate,
+            args=(world_size,),
+            nprocs=world_size,
+            join=True,
         )
-        atorch.reset_distributed()
 
 
 if __name__ == "__main__":

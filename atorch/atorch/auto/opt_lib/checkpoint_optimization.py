@@ -115,6 +115,7 @@ class CheckpointOptimization(Optimization):
         if tp_group is None:
             apply_activation_checkpointing(model_context.model, check_fn=check_fn)
         else:
+            amp_config.pop("skip_if_nonfinite", None)
             apply_activation_checkpointing(
                 model_context.model,
                 checkpoint_wrapper_fn=partial(tp_wrap_fn, amp_config=amp_config),
