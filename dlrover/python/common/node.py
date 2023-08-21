@@ -51,7 +51,7 @@ class NodeResource(JsonSerializable):
         memory,
         gpu_type="",
         gpu_num=0,
-        gpu_stats=None,
+        gpu_stats=[],
         priority="",
         **kwargs,
     ):
@@ -210,18 +210,6 @@ class Node(object):
         self.used_resource.cpu = round(cpu, 2)
         self.used_resource.memory = memory
         self.used_resource.gpu_stats = gpu_stats
-        logger.debug(
-            "Node {} resource usage: cpu {}, memory {}, gpu {}".format(
-                self.id,
-                self.used_resource.cpu,
-                self.used_resource.memory,
-                self.used_resource.gpu_stats,
-            )
-        )
-        if cpu < 0.1:
-            self.start_hang_time = time.time()
-        else:
-            self.start_hang_time = 0
 
     def update_service_address(self, service_addr):
         self.service_addr = service_addr
