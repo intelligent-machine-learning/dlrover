@@ -2,33 +2,33 @@
 
 ## 1. 背景
 
-随着大规模机器学习模型的持续增长，分布式训练已经成为该领域的核心技术。DLRover系统已展现出其在多个方面的优势，特别是在节点故障、资源动态分配和自动恢复等关键场景下。尽管PyTorch原生支持Fully Sharded Data Parallelism (FSDP) 策略，但DLRover作为一个天然的弹性训练系统，当面临动态的资源扩缩容和容错场景时，简单的使用PyTorch的FSDP可能会导致问题。
+随着大规模机器学习模型的持续增长，分布式训练已经成为该领域的核心技术。DLRover 系统已展现出其在多个方面的优势，特别是在节点故障、资源动态分配和自动恢复等关键场景下。尽管 PyTorch 原生支持 Fully Sharded Data Parallelism (FSDP) 策略，但 DLRover 作为一个天然的弹性训练系统，当面临动态的资源扩缩容和容错场景时，简单的使用 PyTorch 的 FSDP 可能会导致 OOM 或者当 world size 变化时无法重新 load 之前保存的被分片了的 checkpoint 的问题，并且用户手工 save/load 中间状态在编写训练脚本时增加了负担。
 
 **动机**
 
 考虑DLRover系统级别上支持FSDP的主要动机如下：
 
-1. **系统弹性与FSDP策略的结合**：虽然PyTorch提供了FSDP的支持，但在DLRover的弹性环境中，例如节点的动态扩缩容，需要更为深入的整合以确保FSDP策略的正常运作。
-2. **确保训练的稳定性**：DLRover在弹性扩缩容和容错时，可能会面临因worldsize变化而导致的checkpoint加载问题。系统级别的FSDP支持可以确保这些场景下模型的稳定训练。
+1. **系统级别支持 FSDP 弹性训练：** PyTorch 提供了 FSDP 的支持，但在 DLRover 的弹性环境中，DLRover 的 Trainer 需要感知 FSDP 训练过程，进而帮助用户在一定 step 或 epoch 后自动保存 checkpoint，不需要用户手动保存；并在发生 FailOver 或者 Elastic 时自动加载上一checkpoint 进行模型参数和优化器状态的恢复，不需要用户自己加载。
+2. **弹性训练时扩展 Pytorch FSDP 的 resharding 功能：** DLRover在弹性扩缩容和容错时，Pytorch 保存 checkpoint 的方式有两种，rank0_only 和 sharding。使用 rank0_only 策略保存 checkpoint 会容易导致 OOM，不符合弹性容错的需求；Pytorch 目前的 sharding 方式不支持 world size 改变后的重新 load，因此我们需要设计一种 resharding 方案来支持 world size 动态调整下的 load/save。
 
 **主要挑战**
 
-在DLRover中支持FSDP的道路上，我们预计会遭遇以下技术难点：
+在 DLRover 中支持 FSDP 的过程中，我们主要解决以下技术难点：
 
-1. **模型恢复的复杂性**：由于DLRover的弹性特性，如何在worldsize发生变化时，基于checkpoint准确恢复模型状态，成为了一个关键技术问题。
-2. **参数reshard的需求**：考虑到弹性训练的动态性，目前PyTorch在分片参数上的reshard支持有限，DLRover需要找到一种有效的方法来适应这种变化，保障训练的连续性。
+1. **系统级别支持 FSDP 弹性训练的接口设计**：ElasticTrianer 需要设计间接易扩展的接口，让用户可以配置 FSDP 弹性训练任务时尽可能简单，并且支持传入自定义的保存 checkpoint 的策略和共享存储路径。存储路径的设计需要隔离不同任务并避免路径冲突。
+2. **resharding 方式的 load/save**：由于 DLRover 的弹性容错特性，使用 rank0_only 策略保存 checkpoint 会容易导致 OOM，不符合弹性容错的需求。所以我们必须以 sharding 形式保存 checkpoint。但由于 Pytorch 目前没有支持 resharding 的 save/load，因此在 world size 发生变化时，需要基于将分片后保存的 checkpoint 进行 reshard 来恢复模型参数和优化器状态，这需要对 Pytorch _shard 和 fsdp 包进行功能上的扩展。
 
 综上所述，为DLRover系统引入对FSDP的深度支持不仅是技术上的延展，更是为了确保在复杂、动态的弹性训练环境中，大模型的训练可以稳定、高效地进行。
 
 ## 2. 概要设计
 
-将主要对 DLRover 系统中的 ElasticTrainer 模块、Master 模块进行修改。ElasticTrainer 相当于是运行在 worker pod 中的 Agent，因此将主要修改这个模块使其能够支持在fsdp训练策略下，没过一段step或者epoch后保存模型分片，然后在pod数量发生变化时reaload 模型和优化器状态的分片。修改Master主要是因为Worker pod是由master拉起，因此我们需要在master创建 Worker 这部分代码中进行修改，使其能够传入必要的环境变量等。
+将主要对 DLRover 系统中的 ElasticTrainer 模块、Master 模块进行修改。ElasticTrainer 是管理模型训练的 manager，因此将主要修改这个模块使其能够支持在fsdp训练策略下，每过一段step或者epoch后保存模型分片，然后在pod数量发生变化时reaload 模型和优化器状态的分片。
 
 ### **2.1 ElasticTrainer 增加的属性**
 
-- **use_fsdp：**是否采用 FSDP 训练策略
-- **shared_storage_path：**指定 worker pod 之间共享存储的路径，fsdp 的相关数据是其中的一部分
-- **checkpoint_interval：**CheckpointInterval 的实例用来表达存储 checkpoint 的策略。保存策略由用户指定，可以按照多少个epoch来保存，也可以按照多少个step来保存
+- **use_fsdp：** 是否采用 FSDP 训练策略
+- **shared_storage_path：** 指定 worker pod 之间共享存储的路径，fsdp 的相关数据是其中的一部分
+- **checkpoint_interval：** CheckpointInterval 的实例用来表达存储 checkpoint 的策略。保存策略由用户指定，可以按照多少个epoch来保存，也可以按照多少个step来保存
 
 ```python
 class CheckpointInterval:
@@ -48,33 +48,23 @@ class CheckpointInterval:
 
 ### **2.2 ElasticTrainer 新增和修改的 public 函数**
 
-- **增加** **epoch 函数**：这是一个 contextmanager 装饰器，在 epoch 开始前后做一些操作。比如rest 和在 fsdp 策略下保存模型和优化器状态参数分片。
+- **增加** **epoch 函数**：这是一个 contextmanager 装饰器，在 epoch 开始前后做一些操作。比如 reset 和在 fsdp 策略下保存模型和优化器状态参数分片。
 - **修改** **step 函数**：这是一个 contextmanager 装饰器，在 step 结束后检测是否需要保存模型和优化器状态参数分片。
-- **prepare 函数的修改**：初始化时需要检查是否需要先load模型和优化器状态参数分片，如果分片和当前worker数不一致需要reshard load
+- **prepare 函数的修改**：初始化时需要检查是否需要先load模型和优化器状态参数分片，如果分片和当前 worker 数不一致需要reshard load。
 
 ### **2.3 ElasticTrainer 对 save/load 时 reshard 的支持**
 
 考虑到弹性训练的动态性，目前 PyTorch 在分片参数上的 reshard 支持有限，因此需要支持在 save 时保存分片的 meta 信息，在 load 时进行 reshard 操作等。在ElasticTrainer中增加：_save_fsdp_state 和 _load_fsdp_state 函数来实现
 
-### 2.4 部署 PV
-
-非云上环境需要。为了让 Worker Pods 共享存储，选择的存储解决方案必须支持 **`ReadWriteMany`** 访问模式。
-
-### 2.5 Job yaml 增加 volumeMounts 和 env
-
-增加共享存储和是否使用 fsdp 等相关环境变量，用来传递给 worker pod
-
 ## 3. ElasticTrainer 详细设计
 
 ### 3.1 增加 shared_storage_path 、use_fsdp 和 **checkpoint_interval** 属性
 
-为了能够让用户编写 fsdp 弹性训练代码的时候可以尽量少的去感知内部实现，
+我们将在 ElasticTrainer 中只增加 shared_storage_path 和 use_fsdp 属性
 
-我们将在 ElasticTrainer 中增加 shared_storage_path 和 use_fsdp 属性
-
-1. use_fsdp: bool ，use_fsdp 从环境变量中获取，默认值是 False。当为True 时 ElasticTrainer 将检测 shared_storage_path 是否存在，并且在 trainer 每轮 epoch 结束的时候将模型参数和优化器状态 checkpoint，保存到shared_storage_path。
-2. shared_storage_path：str，从环境变量中获取，默认值是None。用来暂存这次训练用于实现弹性训练而存放checkpoint的path（这个共享路径还可以存储其他数据）。
-    
+1. use_fsdp: bool ，use_fsdp 从构造函数中获取，默认值是 False。当为True 时 ElasticTrainer 将检测 shared_storage_path 是否存在，并且在符合 `checkpoint_interval` 的时候将模型参数和优化器状态 checkpoint，保存到shared_storage_path。
+2. shared_storage_path：str，从构造函数中获取，默认值是None。用来暂存这次训练用于实现弹性训练而存放checkpoint的path（这个共享路径还可以存储其他数据）。
+  
     ```bash
     shared_storage_path/
     │
@@ -98,15 +88,14 @@ class CheckpointInterval:
             ├── ...
             └── step_200/
     ```
-    
-3. load_from_checkpoint：bool，从环境变量中获取，默认值是 False。当为 True 时，将在 Elastic Trainer 的 prepare 函数中，load checkpoint，更新 model 和 optimizer 的 state。
-    1. 当计算资源变更的时候，master 拉起的新的 worker 会将此变量置为 True。第一次拉起时为 False
 
-```python
+3. checkpoint_interval
+
+``` python
 class ElasticTrainer:
-    def __init__(self, ...):  # 其他参数
+    def __init__(self, checkpoint_interval: CheckpointInterval, ...):  # 其他参数
         ...
-        self.checkpoint_interval = CheckpointInterval()
+        self.checkpoint_interval = checkpoint_interval
 
 class CheckpointInterval:
     def __init__(self, steps=None, epochs=None):
@@ -123,12 +112,11 @@ class CheckpointInterval:
         return False
 ```
 
-> 考虑从环境变量获取而不是构造函数传参是因为 Trainer 运行在 pod 中，拉起 pod 时可以指定环境变量，而且三个参数应该对用户透明。
-> 
+
 
 ### 3.2 增加 epoch 函数
 
-目前的 Elastic Trainer 的使用流程如下：
+ 目前的 Elastic Trainer 的使用流程如下：
 
 ```python
 from dlrover.trainer.torch.elastic import ElasticTrainer
@@ -138,11 +126,11 @@ model, optimizer, scheduler = ...
 elastic_trainer = ElasticTrainer(model)
 optimizer, scheduler = elastic_trainer.prepare(optimizer, scheduler)
 for epoch in range(start_epoch, epochs):
-	elastic_trainer.reset()
-	for _, (data, target) in enumerate(train_loader):
-		...
-		with elastic_trainer.step():
-			...
+    elastic_trainer.reset()
+        for _, (data, target) in enumerate(train_loader):
+            ...
+            with elastic_trainer.step():
+                ...
 ```
 
 修改后 Elastic Trainer 的使用流程：
@@ -155,11 +143,11 @@ model, optimizer, scheduler = ...
 elastic_trainer = ElasticTrainer(model)
 optimizer, scheduler = elastic_trainer.prepare(optimizer, scheduler)
 for epoch in range(start_epoch, epochs):
-	with elastic_trainer.epoch():
-		for _, (data, target) in enumerate(train_loader):
-			...
-			with elastic_trainer.step():
-				...
+    with elastic_trainer.epoch():
+        for _, (data, target) in enumerate(train_loader):
+            ...
+            with elastic_trainer.step():
+                ...
 ```
 
 我们将用 @contextmanager 装饰 epoch 函数，ElasticTrainer.epoch 负责在每轮epoch开始的时候完成以下操作：
@@ -172,16 +160,16 @@ for epoch in range(start_epoch, epochs):
 
 ```python
 class ElasticTrainer(object):
-		@contextmanager
+    @contextmanager
     def epoch(self, epoch: int):
-				self._before_epoch()
-				yield 
-		    self._after_epoch(epoch: int)
+        self._before_epoch()
+        yield 
+        self._after_epoch(epoch: int)
 
-		def _after_epoch(self, epoch: int):
-				# save checkpoint to self.shared_storage_path
-				if self.checkpoint_interval.should_save(current_epoch=epoch):
-						....
+    def _after_epoch(self, epoch: int):
+        # save checkpoint to self.shared_storage_path
+        if self.checkpoint_interval.should_save(current_epoch=epoch):
+            ....
 ```
 
 ### 3.3  修改 step 函数
@@ -192,7 +180,7 @@ class ElasticTrainer(object):
 
 ```python
 class ElasticTrainer(object):
-@contextmanager
+    @contextmanager
     def step(self, fix_total_batch_size=True):
         self._before_step(fix_total_batch_size)
         context = contextlib.nullcontext
@@ -211,7 +199,7 @@ class ElasticTrainer(object):
 
 ```python
 class ElasticTrainer(object):
-@contextmanager
+    @contextmanager
     def step(self, fix_total_batch_size=True):
         self._before_step(fix_total_batch_size)
         context = contextlib.nullcontext
@@ -221,10 +209,10 @@ class ElasticTrainer(object):
         with context():
             yield
             self._after_step()
-		def _after_step(self):
-				# save checkpoint to self.shared_storage_path
-				if self.checkpoint_interval.should_save(current_step=self.num_steps):
-						....
+    def _after_step(self):
+        # save checkpoint to self.shared_storage_path
+        if self.checkpoint_interval.should_ save(current_step=self.num_steps):
+            ....
         if self.gradient_state.sync_gradients:
             self.gradient_state.num_steps += 1
 ```
@@ -233,26 +221,26 @@ class ElasticTrainer(object):
 
 ```python
 class ElasticTrainer(object):
-	def prepare(self, optimizer, lr_scheduler=None):
-	        """
-	        Prepare optimizer and learning rate scheduler in elastic training.
-	        """
-					# If the trainer is configured to load from a checkpoint,
-					# load both the model state and the optimizer state.
-					if self.load_from_checkpoint:
-							self._load_model()
-							self._load_optim()
-					#########################################################
-	        self._set_gradient_accumulation_steps()
-	        optimizer = _ElasticOptimizer(optimizer)
-	        if lr_scheduler:
-	            lr_scheduler = _ElasticLRScheduler(lr_scheduler)
-	            return optimizer, lr_scheduler
-	        else:
-	            return optimizer
+    def prepare(self, optimizer, lr_scheduler=None):
+	      """
+	      Prepare optimizer and learning rate scheduler in elastic training.
+	      """
+        # If the trainer is configured to load from a checkpoint,
+        # load both the model state and the optimizer state.
+        if self.load_from_checkpoint:
+            self._load_model()
+            self._load_optim()
+        #########################################################
+	      self._set_gradient_accumulation_steps()
+	      optimizer = _ElasticOptimizer(optimizer)
+	      if lr_scheduler:
+	          lr_scheduler = _ElasticLRScheduler(lr_scheduler)
+	          return optimizer, lr_scheduler
+	      else:
+	          return optimizer
 ```
 
-### 2.4 支持 reshard 的 save/load
+### 3.5 支持 reshard 的 save/load
 
 **背景：**
 
@@ -304,19 +292,18 @@ from torch.distributed.fsdp import FullStateDictConfig
 from torch.distributed.fsdp import FullOptimStateDictConfig
 
 class ElasticTrainer(object):
-		
-		def _save_fsdp_state(self):
-				# save checkpoint to self.shared_storage_path
-				folder_name = ...
-				save_dir = os.path.join(self.shared_storage_path, folder_name)
-				writer = FileSystemWriter(save_dir)
-				with FSDP.state_dict_type(model, StateDictType.LOCAL_STATE_DICT):
-						state_dict = model.state_dict()
-						fsdp_osd = FSDP.sharded_optim_state_dict(self.model, self.optim)
-            flattened_osd = FSDP.flatten_sharded_optim_state_dict(
-                fsdp_osd, self.model, self.optim
-            )
-				# save a checkpoint ...
+    def _save_fsdp_state(self):
+    # save checkpoint to self.shared_storage_path
+    folder_name = ...
+    save_dir = os.path.join(self.shared_storage_path, folder_name)
+    writer = FileSystemWriter(save_dir)
+    with FSDP.state_dict_type(model, StateDictType.LOCAL_STATE_DICT):
+        state_dict = model.state_dict()
+        fsdp_osd = FSDP.sharded_optim_state_dict(self.model, self.optim)
+        flattened_osd = FSDP.flatten_sharded_optim_state_dict(
+            fsdp_osd, self.model, self.optim
+        )
+    # save a checkpoint ...
 
 ```
 
@@ -325,62 +312,8 @@ class ElasticTrainer(object):
 1. 异步写入，在保存checkpoint这个操作的时候单开一个线程去写入，不阻塞训练过程
 2. meta信息在nodegroup没有变更的时候不重复写入，因为分片没有改变时候meta信息也没有改变
 
-## 3. CRD
 
-### 3.1 Job yaml 增加 volumeMounts 和 env
-
-用户需要现在集群里创建或使用一个 PVC
-
-```yaml
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: dlrover-shared-pvc
-spec:
-  accessModes:
-  - ReadWriteMany
-  resources:
-    requests:
-      storage: 1Gi
-```
-
-```yaml
-apiVersion: elastic.iml.github.io/v1alpha1
-kind: ElasticJob
-metadata:
-  name: torch-mnist-fsdp
-  namespace: dlrover
-spec:
-  distributionStrategy: AllreduceStrategy
-  optimizeMode: single-job
-  replicaSpecs:
-    worker:
-      replicas: 4
-      template:
-        spec:
-          restartPolicy: Never
-					volumes:
-					  - name: dlrover-shared-storage
-					    persistentVolumeClaim:
-					      claimName: dlrover-shared-pvc
-          containers:
-            - name: main
-						volumeMounts:
-						    - name: dlrover-shared-storage
-						      mountPath: /data/shared-worker-data
-						env:                       
-						    - name: USE_FSDP
-						      value: "true"
-						    - name: SHARED_STORAGE_PATH
-						      value: "/data/shared-worker-data"
-```
-
-用户提交的CRD里需要增加的有：
-
-1. 一个 PVC 的 volume和 volumeMounts
-2. 两个环境变量：USE_FSDP 和 SHARED_STORAGE_PATH
-
-## 4. 部署PV
+## 3. 部署PV
 
 为了让 Worker Pods 共享存储，选择的存储解决方案必须支持 **`ReadWriteMany`** 访问模式。这是因为 **`ReadWriteMany`** 访问模式允许多个节点上的 pods 同时访问同一个存储卷。
 
@@ -397,7 +330,6 @@ spec:
 3. 在 master 和 worker pods 的定义中使用这个 PVC
 
 <aside>
-在多数情况下，不需要手动创建PV。很多 Kubernetes 集群配置了自动化的存储供应，例如AWS EBS、Google Cloud Persistent Disk 或 Azure Disk Storage，这些存储解决方案会在PVC创建时自动供应一个新的 PV。
+在多数情况下，不需要手动创建PV。很多 Kubernetes 集群配置了自动化的存储供应，例如AWS EBS、Google Cloud Persistent Disk 或 Azure Disk Storage，这些存储解决方案会在PVC创建时自动供应一个新的 PV。
 但是，如果 Kubernetes 环境没有自动存储供应或你需要特定的存储配置，那么需要手动创建 PV。在这种情况下，你可以在 PV 中指定特定的参数和配置，然后再创建 PVC 来使用这个 PV。
-
 </aside>
