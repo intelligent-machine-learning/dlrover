@@ -3,6 +3,7 @@ from __future__ import absolute_import, unicode_literals
 
 import copy
 import math
+import os
 import random
 import unittest
 
@@ -15,6 +16,7 @@ from atorch.modules.transformer.inject import replace_module
 from atorch.modules.transformer.layers import (
     BertAttentionFA,
     CLIPAttentionFA,
+    LlamaAttentionFA,
     MultiheadAttentionFA,
     _flash_attn_version,
     fa2_with_glm_mask,
@@ -26,6 +28,13 @@ try:
 except (ModuleNotFoundError, ImportError):
     from transformers.models.bert.modeling_bert import BertAttention, BertConfig, BertLayer  # 4.17
     from transformers.models.clip.modeling_clip import CLIPAttention, CLIPTextConfig, CLIPEncoderLayer
+    from transformers.models.llama.modeling_llama import (
+        LlamaAttention,
+        LlamaDecoderLayer,
+        LlamaConfig,
+        _expand_mask,
+        _make_causal_mask,
+    )
 
 import gc
 import time
@@ -147,6 +156,9 @@ class TestFlashAttn(unittest.TestCase):
         for batch_size in [1, 4, 16]:
             for seq_len in [32, 128, 512, 1024]:
                 self._test_nnMHA_autocast(batch_size, seq_len)
+        for batch_size in [1, 4, 16]:
+            for seq_len in [32, 128, 512, 1024]:
+                self._test_Llama(batch_size, seq_len)
 
     def _test_fa2_with_glm_mask(self, b, s_q, s_k, dtype):
         print(f"############## test_fa2_with_glm_mask, bs: {b}, seq_q: {s_q}, seq_k: {s_k}, dtype: {dtype}")
@@ -222,43 +234,48 @@ class TestFlashAttn(unittest.TestCase):
         ).abs().max().item(), "refer to flash attn, ensure absolute error within two times of original autocast"
 
         # timer comparison
-        # ori fp32
-        for _ in range(10):
-            ori_out_fp32 = ref_attn(q, k, v, additive_glm_mask)
-            (ori_out_fp32 - label).pow(2).mean().backward()
-        start_timer()
-        for _ in range(10):
-            ori_out_fp32 = ref_attn(q, k, v, additive_glm_mask)
-            (ori_out_fp32 - label).pow(2).mean().backward()
-        ori_fp32_time, ori_fp32_mem = end_timer_and_print("ori fp32")
-        # ori autocast
-        for _ in range(10):
-            with autocast(enabled=True, dtype=dtype):
-                ori_out_autocast = ref_attn(q_copy, k_copy, v_copy, additive_glm_mask)
-            scaler.scale((ori_out_autocast.float() - label).pow(2).mean()).backward()
-        start_timer()
-        for _ in range(10):
-            with autocast(enabled=True, dtype=dtype):
-                ori_out_autocast = ref_attn(q_copy, k_copy, v_copy, additive_glm_mask)
-            scaler.scale((ori_out_autocast.float() - label).pow(2).mean()).backward()
-        ori_autocast_time, ori_autocast_mem = end_timer_and_print("ori autocast")
-        # fa autocast
-        for _ in range(10):
-            fa_out_autocast = fa2_with_glm_mask(q_fa.to(dtype), k_fa.to(dtype), v_fa.to(dtype), glm_mask)
-            scaler.scale((fa_out_autocast.float() - label).pow(2).mean()).backward()
-        start_timer()
-        for _ in range(10):
-            fa_out_autocast = fa2_with_glm_mask(q_fa.to(dtype), k_fa.to(dtype), v_fa.to(dtype), glm_mask)
-            scaler.scale((fa_out_autocast.float() - label).pow(2).mean()).backward()
-        fa_autocast_time, fa_autocast_mem = end_timer_and_print("fa autocast")
-        print(
-            f"fa autocast time: {fa_autocast_time / ori_fp32_time :.2%} of ori fp32, "
-            f"{fa_autocast_time / ori_autocast_time :.2%} of ori autocast."
-        )
-        print(
-            f"fa autocast mem: {fa_autocast_mem / ori_fp32_mem :.2%} of ori fp32, "
-            f"{fa_autocast_mem / ori_autocast_mem :.2%} of ori autocast."
-        )
+        if os.environ.get("FA_TIMER_COMPARISON", None) is not None:
+            # ori fp32
+            for _ in range(10):
+                ori_out_fp32 = ref_attn(q, k, v, additive_glm_mask)
+                (ori_out_fp32 - label).pow(2).mean().backward()
+            start_timer()
+            for _ in range(10):
+                ori_out_fp32 = ref_attn(q, k, v, additive_glm_mask)
+                (ori_out_fp32 - label).pow(2).mean().backward()
+            ori_fp32_time, ori_fp32_mem = end_timer_and_print("ori fp32")
+            # ori autocast
+            for _ in range(10):
+                with autocast(enabled=True, dtype=dtype):
+                    ori_out_autocast = ref_attn(q_copy, k_copy, v_copy, additive_glm_mask)
+                scaler.scale((ori_out_autocast.float() - label).pow(2).mean()).backward()
+            start_timer()
+            for _ in range(10):
+                with autocast(enabled=True, dtype=dtype):
+                    ori_out_autocast = ref_attn(q_copy, k_copy, v_copy, additive_glm_mask)
+                scaler.scale((ori_out_autocast.float() - label).pow(2).mean()).backward()
+            ori_autocast_time, ori_autocast_mem = end_timer_and_print("ori autocast")
+            # fa autocast
+            for _ in range(10):
+                fa_out_autocast = fa2_with_glm_mask(q_fa.to(dtype), k_fa.to(dtype), v_fa.to(dtype), glm_mask)
+                scaler.scale((fa_out_autocast.float() - label).pow(2).mean()).backward()
+            start_timer()
+            for _ in range(10):
+                fa_out_autocast = fa2_with_glm_mask(q_fa.to(dtype), k_fa.to(dtype), v_fa.to(dtype), glm_mask)
+                scaler.scale((fa_out_autocast.float() - label).pow(2).mean()).backward()
+            fa_autocast_time, fa_autocast_mem = end_timer_and_print("fa autocast")
+            print(
+                f"fa autocast time: {fa_autocast_time / ori_fp32_time :.2%} of ori fp32, "
+                f"{fa_autocast_time / ori_autocast_time :.2%} of ori autocast."
+            )
+            print(
+                f"fa autocast mem: {fa_autocast_mem / ori_fp32_mem :.2%} of ori fp32, "
+                f"{fa_autocast_mem / ori_autocast_mem :.2%} of ori autocast."
+            )
+        else:
+            # still call timer for gc
+            start_timer()
+            end_timer_and_print("")
 
     def _test_flash_attn_with_mask_bias(self, b, s_q, s_k):
         print(f"############## test_flash_attn_with_mask_bias, bs: {b}, seq_q: {s_q}, seq_k: {s_k}")
@@ -342,43 +359,48 @@ class TestFlashAttn(unittest.TestCase):
         ).abs().max().item(), "refer to flash attn, ensure absolute error within two times of original autocast"
 
         # timer comparison
-        # ori fp32
-        for _ in range(10):
-            ori_out_fp32 = ref_attn(q, k, v, bool_m)
-            (ori_out_fp32 - label).pow(2).mean().backward()
-        start_timer()
-        for _ in range(10):
-            ori_out_fp32 = ref_attn(q, k, v, bool_m)
-            (ori_out_fp32 - label).pow(2).mean().backward()
-        ori_fp32_time, ori_fp32_mem = end_timer_and_print("ori fp32")
-        # ori autocast
-        for _ in range(10):
-            with autocast(enabled=True):
-                ori_out_autocast = ref_attn(q_copy, k_copy, v_copy, bool_m)
-            scaler.scale((ori_out_autocast.float() - label).pow(2).mean()).backward()
-        start_timer()
-        for _ in range(10):
-            with autocast(enabled=True):
-                ori_out_autocast = ref_attn(q_copy, k_copy, v_copy, bool_m)
-            scaler.scale((ori_out_autocast.float() - label).pow(2).mean()).backward()
-        ori_autocast_time, ori_autocast_mem = end_timer_and_print("ori autocast")
-        # fa autocast
-        for _ in range(10):
-            fa_out_autocast = flash_attn_with_mask_bias(q_fa.half(), k_fa.half(), v_fa.half(), float_m)
-            scaler.scale((fa_out_autocast.float() - label).pow(2).mean()).backward()
-        start_timer()
-        for _ in range(10):
-            fa_out_autocast = flash_attn_with_mask_bias(q_fa.half(), k_fa.half(), v_fa.half(), float_m)
-            scaler.scale((fa_out_autocast.float() - label).pow(2).mean()).backward()
-        fa_autocast_time, fa_autocast_mem = end_timer_and_print("fa autocast")
-        print(
-            f"fa autocast time: {fa_autocast_time / ori_fp32_time :.2%} of ori fp32, "
-            f"{fa_autocast_time / ori_autocast_time :.2%} of ori autocast."
-        )
-        print(
-            f"fa autocast mem: {fa_autocast_mem / ori_fp32_mem :.2%} of ori fp32, "
-            f"{fa_autocast_mem / ori_autocast_mem :.2%} of ori autocast."
-        )
+        if os.environ.get("FA_TIMER_COMPARISON", None) is not None:
+            # ori fp32
+            for _ in range(10):
+                ori_out_fp32 = ref_attn(q, k, v, bool_m)
+                (ori_out_fp32 - label).pow(2).mean().backward()
+            start_timer()
+            for _ in range(10):
+                ori_out_fp32 = ref_attn(q, k, v, bool_m)
+                (ori_out_fp32 - label).pow(2).mean().backward()
+            ori_fp32_time, ori_fp32_mem = end_timer_and_print("ori fp32")
+            # ori autocast
+            for _ in range(10):
+                with autocast(enabled=True):
+                    ori_out_autocast = ref_attn(q_copy, k_copy, v_copy, bool_m)
+                scaler.scale((ori_out_autocast.float() - label).pow(2).mean()).backward()
+            start_timer()
+            for _ in range(10):
+                with autocast(enabled=True):
+                    ori_out_autocast = ref_attn(q_copy, k_copy, v_copy, bool_m)
+                scaler.scale((ori_out_autocast.float() - label).pow(2).mean()).backward()
+            ori_autocast_time, ori_autocast_mem = end_timer_and_print("ori autocast")
+            # fa autocast
+            for _ in range(10):
+                fa_out_autocast = flash_attn_with_mask_bias(q_fa.half(), k_fa.half(), v_fa.half(), float_m)
+                scaler.scale((fa_out_autocast.float() - label).pow(2).mean()).backward()
+            start_timer()
+            for _ in range(10):
+                fa_out_autocast = flash_attn_with_mask_bias(q_fa.half(), k_fa.half(), v_fa.half(), float_m)
+                scaler.scale((fa_out_autocast.float() - label).pow(2).mean()).backward()
+            fa_autocast_time, fa_autocast_mem = end_timer_and_print("fa autocast")
+            print(
+                f"fa autocast time: {fa_autocast_time / ori_fp32_time :.2%} of ori fp32, "
+                f"{fa_autocast_time / ori_autocast_time :.2%} of ori autocast."
+            )
+            print(
+                f"fa autocast mem: {fa_autocast_mem / ori_fp32_mem :.2%} of ori fp32, "
+                f"{fa_autocast_mem / ori_autocast_mem :.2%} of ori autocast."
+            )
+        else:
+            # still call timer for gc
+            start_timer()
+            end_timer_and_print("")
 
     def _test_HF_clip_autocast(self, batch_size, seq_len):
         print(f"############## HF_clip autocast, bs: {batch_size}, seq_len: {seq_len}")
@@ -500,45 +522,50 @@ class TestFlashAttn(unittest.TestCase):
         ), "refer to flash attn, ensure absolute error within two times of original autocast"
 
         # timer comparison
-        # ori fp32
-        for _ in range(10):
-            ori_out_fp32 = ori_layer(hidden_state, mask, None)[0]
-            (ori_out_fp32 - randn_label)[_mask].pow(2).mean().backward()
-        start_timer()
-        for _ in range(10):
-            ori_out_fp32 = ori_layer(hidden_state, mask, None)[0]
-            (ori_out_fp32 - randn_label)[_mask].pow(2).mean().backward()
-        ori_fp32_time, ori_fp32_mem = end_timer_and_print("ori fp32")
-        # ori autocast
-        for _ in range(10):
-            with autocast(enabled=True):
-                ori_out_autocast = ori_layer_copy(hidden_state, mask, None)[0]
-            scaler.scale((ori_out_autocast.to(dtype) - randn_label)[_mask].pow(2).mean()).backward()
-        start_timer()
-        for _ in range(10):
-            with autocast(enabled=True):
-                ori_out_autocast = ori_layer_copy(hidden_state, mask, None)[0]
-            scaler.scale((ori_out_autocast.to(dtype) - randn_label)[_mask].pow(2).mean()).backward()
-        ori_autocast_time, ori_autocast_mem = end_timer_and_print("ori autocast")
-        # fa autocast
-        for _ in range(10):
-            with autocast(enabled=True):
-                fa_out_autocast = fa_layer(hidden_state, mask, None)[0]
-            scaler.scale((fa_out_autocast.to(dtype) - randn_label)[_mask].pow(2).mean()).backward()
-        start_timer()
-        for _ in range(10):
-            with autocast(enabled=True):
-                fa_out_autocast = fa_layer(hidden_state, mask, None)[0]
-            scaler.scale((fa_out_autocast.to(dtype) - randn_label)[_mask].pow(2).mean()).backward()
-        fa_autocast_time, fa_autocast_mem = end_timer_and_print("fa autocast")
-        print(
-            f"fa autocast time: {fa_autocast_time / ori_fp32_time :.2%} of ori fp32, "
-            f"{fa_autocast_time / ori_autocast_time :.2%} of ori autocast."
-        )
-        print(
-            f"fa autocast mem: {fa_autocast_mem / ori_fp32_mem :.2%} of ori fp32, "
-            f"{fa_autocast_mem / ori_autocast_mem :.2%} of ori autocast."
-        )
+        if os.environ.get("FA_TIMER_COMPARISON", None) is not None:
+            # ori fp32
+            for _ in range(10):
+                ori_out_fp32 = ori_layer(hidden_state, mask, None)[0]
+                (ori_out_fp32 - randn_label)[_mask].pow(2).mean().backward()
+            start_timer()
+            for _ in range(10):
+                ori_out_fp32 = ori_layer(hidden_state, mask, None)[0]
+                (ori_out_fp32 - randn_label)[_mask].pow(2).mean().backward()
+            ori_fp32_time, ori_fp32_mem = end_timer_and_print("ori fp32")
+            # ori autocast
+            for _ in range(10):
+                with autocast(enabled=True):
+                    ori_out_autocast = ori_layer_copy(hidden_state, mask, None)[0]
+                scaler.scale((ori_out_autocast.to(dtype) - randn_label)[_mask].pow(2).mean()).backward()
+            start_timer()
+            for _ in range(10):
+                with autocast(enabled=True):
+                    ori_out_autocast = ori_layer_copy(hidden_state, mask, None)[0]
+                scaler.scale((ori_out_autocast.to(dtype) - randn_label)[_mask].pow(2).mean()).backward()
+            ori_autocast_time, ori_autocast_mem = end_timer_and_print("ori autocast")
+            # fa autocast
+            for _ in range(10):
+                with autocast(enabled=True):
+                    fa_out_autocast = fa_layer(hidden_state, mask, None)[0]
+                scaler.scale((fa_out_autocast.to(dtype) - randn_label)[_mask].pow(2).mean()).backward()
+            start_timer()
+            for _ in range(10):
+                with autocast(enabled=True):
+                    fa_out_autocast = fa_layer(hidden_state, mask, None)[0]
+                scaler.scale((fa_out_autocast.to(dtype) - randn_label)[_mask].pow(2).mean()).backward()
+            fa_autocast_time, fa_autocast_mem = end_timer_and_print("fa autocast")
+            print(
+                f"fa autocast time: {fa_autocast_time / ori_fp32_time :.2%} of ori fp32, "
+                f"{fa_autocast_time / ori_autocast_time :.2%} of ori autocast."
+            )
+            print(
+                f"fa autocast mem: {fa_autocast_mem / ori_fp32_mem :.2%} of ori fp32, "
+                f"{fa_autocast_mem / ori_autocast_mem :.2%} of ori autocast."
+            )
+        else:
+            # still call timer for gc
+            start_timer()
+            end_timer_and_print("")
 
     def _test_HF_bert_autocast(self, batch_size, seq_len):
         print(f"############## HF_bert autocast, bs: {batch_size}, seq_len: {seq_len}")
@@ -654,45 +681,50 @@ class TestFlashAttn(unittest.TestCase):
         ), "refer to flash attn, ensure absolute error within two times of original autocast"
 
         # timer comparison
-        # ori fp32
-        for _ in range(10):
-            ori_out_fp32 = ori_layer(hidden_state, mask)[0]
-            (ori_out_fp32 - randn_label)[_mask].pow(2).mean().backward()
-        start_timer()
-        for _ in range(10):
-            ori_out_fp32 = ori_layer(hidden_state, mask)[0]
-            (ori_out_fp32 - randn_label)[_mask].pow(2).mean().backward()
-        ori_fp32_time, ori_fp32_mem = end_timer_and_print("ori fp32")
-        # ori autocast
-        for _ in range(10):
-            with autocast(enabled=True):
-                ori_out_autocast = ori_layer_copy(hidden_state, mask)[0]
-            scaler.scale((ori_out_autocast.to(dtype) - randn_label)[_mask].pow(2).mean()).backward()
-        start_timer()
-        for _ in range(10):
-            with autocast(enabled=True):
-                ori_out_autocast = ori_layer_copy(hidden_state, mask)[0]
-            scaler.scale((ori_out_autocast.to(dtype) - randn_label)[_mask].pow(2).mean()).backward()
-        ori_autocast_time, ori_autocast_mem = end_timer_and_print("ori autocast")
-        # fa autocast
-        for _ in range(10):
-            with autocast(enabled=True):
-                fa_out_autocast = fa_layer(hidden_state, mask)[0]
-            scaler.scale((fa_out_autocast.to(dtype) - randn_label)[_mask].pow(2).mean()).backward()
-        start_timer()
-        for _ in range(10):
-            with autocast(enabled=True):
-                fa_out_autocast = fa_layer(hidden_state, mask)[0]
-            scaler.scale((fa_out_autocast.to(dtype) - randn_label)[_mask].pow(2).mean()).backward()
-        fa_autocast_time, fa_autocast_mem = end_timer_and_print("fa autocast")
-        print(
-            f"fa autocast time: {fa_autocast_time / ori_fp32_time :.2%} of ori fp32, "
-            f"{fa_autocast_time / ori_autocast_time :.2%} of ori autocast."
-        )
-        print(
-            f"fa autocast mem: {fa_autocast_mem / ori_fp32_mem :.2%} of ori fp32, "
-            f"{fa_autocast_mem / ori_autocast_mem :.2%} of ori autocast."
-        )
+        if os.environ.get("FA_TIMER_COMPARISON", None) is not None:
+            # ori fp32
+            for _ in range(10):
+                ori_out_fp32 = ori_layer(hidden_state, mask)[0]
+                (ori_out_fp32 - randn_label)[_mask].pow(2).mean().backward()
+            start_timer()
+            for _ in range(10):
+                ori_out_fp32 = ori_layer(hidden_state, mask)[0]
+                (ori_out_fp32 - randn_label)[_mask].pow(2).mean().backward()
+            ori_fp32_time, ori_fp32_mem = end_timer_and_print("ori fp32")
+            # ori autocast
+            for _ in range(10):
+                with autocast(enabled=True):
+                    ori_out_autocast = ori_layer_copy(hidden_state, mask)[0]
+                scaler.scale((ori_out_autocast.to(dtype) - randn_label)[_mask].pow(2).mean()).backward()
+            start_timer()
+            for _ in range(10):
+                with autocast(enabled=True):
+                    ori_out_autocast = ori_layer_copy(hidden_state, mask)[0]
+                scaler.scale((ori_out_autocast.to(dtype) - randn_label)[_mask].pow(2).mean()).backward()
+            ori_autocast_time, ori_autocast_mem = end_timer_and_print("ori autocast")
+            # fa autocast
+            for _ in range(10):
+                with autocast(enabled=True):
+                    fa_out_autocast = fa_layer(hidden_state, mask)[0]
+                scaler.scale((fa_out_autocast.to(dtype) - randn_label)[_mask].pow(2).mean()).backward()
+            start_timer()
+            for _ in range(10):
+                with autocast(enabled=True):
+                    fa_out_autocast = fa_layer(hidden_state, mask)[0]
+                scaler.scale((fa_out_autocast.to(dtype) - randn_label)[_mask].pow(2).mean()).backward()
+            fa_autocast_time, fa_autocast_mem = end_timer_and_print("fa autocast")
+            print(
+                f"fa autocast time: {fa_autocast_time / ori_fp32_time :.2%} of ori fp32, "
+                f"{fa_autocast_time / ori_autocast_time :.2%} of ori autocast."
+            )
+            print(
+                f"fa autocast mem: {fa_autocast_mem / ori_fp32_mem :.2%} of ori fp32, "
+                f"{fa_autocast_mem / ori_autocast_mem :.2%} of ori autocast."
+            )
+        else:
+            # still call timer for gc
+            start_timer()
+            end_timer_and_print("")
 
     def _test_nnMHA_autocast(self, batch_size, seq_len):
         print(f"############## nnMHA autocast, bs: {batch_size}, seq_len: {seq_len}")
@@ -791,45 +823,181 @@ class TestFlashAttn(unittest.TestCase):
         ), "refer to flash attn, ensure absolute error within two times of original autocast"
 
         # timer comparison
-        # ori fp32
-        for _ in range(10):
-            ori_out_fp32 = ori_layer(hidden_state, None, mask)
-            (ori_out_fp32 - randn_label)[_mask].pow(2).mean().backward()
-        start_timer()
-        for _ in range(10):
-            ori_out_fp32 = ori_layer(hidden_state, None, mask)
-            (ori_out_fp32 - randn_label)[_mask].pow(2).mean().backward()
-        ori_fp32_time, ori_fp32_mem = end_timer_and_print("ori fp32")
-        # ori autocast
-        for _ in range(10):
-            with autocast(enabled=True):
-                ori_out_autocast = ori_layer_copy(hidden_state, None, mask)
-            scaler.scale((ori_out_autocast.to(dtype) - randn_label)[_mask].pow(2).mean()).backward()
-        start_timer()
-        for _ in range(10):
-            with autocast(enabled=True):
-                ori_out_autocast = ori_layer_copy(hidden_state, None, mask)
-            scaler.scale((ori_out_autocast.to(dtype) - randn_label)[_mask].pow(2).mean()).backward()
-        ori_autocast_time, ori_autocast_mem = end_timer_and_print("ori autocast")
-        # fa autocast
-        for _ in range(10):
-            with autocast(enabled=True):
-                fa_out_autocast = fa_layer(hidden_state, None, mask)
-            scaler.scale((fa_out_autocast.to(dtype) - randn_label)[_mask].pow(2).mean()).backward()
-        start_timer()
-        for _ in range(10):
-            with autocast(enabled=True):
-                fa_out_autocast = fa_layer(hidden_state, None, mask)
-            scaler.scale((fa_out_autocast.to(dtype) - randn_label)[_mask].pow(2).mean()).backward()
-        fa_autocast_time, fa_autocast_mem = end_timer_and_print("fa autocast")
+        if os.environ.get("FA_TIMER_COMPARISON", None) is not None:
+            # ori fp32
+            for _ in range(10):
+                ori_out_fp32 = ori_layer(hidden_state, None, mask)
+                (ori_out_fp32 - randn_label)[_mask].pow(2).mean().backward()
+            start_timer()
+            for _ in range(10):
+                ori_out_fp32 = ori_layer(hidden_state, None, mask)
+                (ori_out_fp32 - randn_label)[_mask].pow(2).mean().backward()
+            ori_fp32_time, ori_fp32_mem = end_timer_and_print("ori fp32")
+            # ori autocast
+            for _ in range(10):
+                with autocast(enabled=True):
+                    ori_out_autocast = ori_layer_copy(hidden_state, None, mask)
+                scaler.scale((ori_out_autocast.to(dtype) - randn_label)[_mask].pow(2).mean()).backward()
+            start_timer()
+            for _ in range(10):
+                with autocast(enabled=True):
+                    ori_out_autocast = ori_layer_copy(hidden_state, None, mask)
+                scaler.scale((ori_out_autocast.to(dtype) - randn_label)[_mask].pow(2).mean()).backward()
+            ori_autocast_time, ori_autocast_mem = end_timer_and_print("ori autocast")
+            # fa autocast
+            for _ in range(10):
+                with autocast(enabled=True):
+                    fa_out_autocast = fa_layer(hidden_state, None, mask)
+                scaler.scale((fa_out_autocast.to(dtype) - randn_label)[_mask].pow(2).mean()).backward()
+            start_timer()
+            for _ in range(10):
+                with autocast(enabled=True):
+                    fa_out_autocast = fa_layer(hidden_state, None, mask)
+                scaler.scale((fa_out_autocast.to(dtype) - randn_label)[_mask].pow(2).mean()).backward()
+            fa_autocast_time, fa_autocast_mem = end_timer_and_print("fa autocast")
+            print(
+                f"fa autocast time: {fa_autocast_time / ori_fp32_time :.2%} of ori fp32, "
+                f"{fa_autocast_time / ori_autocast_time :.2%} of ori autocast."
+            )
+            print(
+                f"fa autocast mem: {fa_autocast_mem / ori_fp32_mem :.2%} of ori fp32, "
+                f"{fa_autocast_mem / ori_autocast_mem :.2%} of ori autocast."
+            )
+        else:
+            # still call timer for gc
+            start_timer()
+            end_timer_and_print("")
+
+    def _test_Llama(self, batch_size, seq_len):
+        print(f"############## Llama autocast, bs: {batch_size}, seq_len: {seq_len}")
+        device = torch.cuda.current_device()
+        torch.cuda.set_device(device)
+        dtype = torch.float32
+        config = LlamaConfig(hidden_size=512, intermediate_size=2048)  # default 4096/11008
+        hidden_state = torch.randn(
+            batch_size,
+            seq_len,
+            config.hidden_size,
+            dtype=dtype,
+            device=device,
+            requires_grad=True,
+        )
+        position_ids = torch.arange(0, seq_len, dtype=torch.long).to(device)[None, :].expand(batch_size, seq_len)
+        mask = generate_random_padding_mask(seq_len, batch_size, device=device, mode="random")
+        _mask = mask.float()
+        _mask = _make_causal_mask((batch_size, seq_len), dtype, device) + _expand_mask(_mask, dtype, seq_len)
+        randn_label = torch.randn_like(hidden_state)
+        ori_layer = LlamaDecoderLayer(config)
+        fa_layer = copy.deepcopy(ori_layer)
+        ori_layer_copy = copy.deepcopy(ori_layer)
+        fa_layer = replace_module(fa_layer, LlamaAttention, LlamaAttentionFA, need_src_module=True)
+        ori_layer.to(device)
+        fa_layer.to(device)
+        ori_layer_copy.to(device)
+        self.assertStateDictEqual(ori_layer.state_dict(), fa_layer.state_dict())
+
+        ori_out_fp32 = ori_layer(hidden_state, _mask, position_ids)[0]
+        (ori_out_fp32 - randn_label)[mask].pow(2).mean().backward()
+        with autocast(enabled=True):
+            ori_out_autocast = ori_layer_copy(hidden_state, _mask, position_ids)[0]
+            fa_out_autocast = fa_layer(hidden_state, _mask, position_ids)[0]
+        scaler = GradScaler()
+        scaler.scale((ori_out_autocast.to(dtype) - randn_label)[mask].pow(2).mean()).backward()
+        scaler.scale((fa_out_autocast.to(dtype) - randn_label)[mask].pow(2).mean()).backward()
+
+        # flash output zero on pad mask, while original bert remain values on mask.
+        print(f"Original output max diff: {(ori_out_fp32 - ori_out_autocast)[mask].abs().max().item()}")
+        print(f"Original output mean diff: {(ori_out_fp32 - ori_out_autocast)[mask].abs().mean().item()}")
+        print(f"FA output max diff: {(ori_out_fp32 - fa_out_autocast)[mask].abs().max().item()}")
+        print(f"FA output mean diff: {(ori_out_fp32 - fa_out_autocast)[mask].abs().mean().item()}")
+        assert (ori_out_fp32 - fa_out_autocast)[mask].abs().max().item() <= 2 * (
+            (ori_out_fp32 - ori_out_autocast)[mask].abs().max().item()
+        ), "refer to flash attn, ensure absolute error within two times of original autocast"
+
+        # grad comparison on Wqkv
+        ori_q_weight_grad_fp32 = ori_layer.self_attn.q_proj.weight.grad
+        ori_k_weight_grad_fp32 = ori_layer.self_attn.k_proj.weight.grad
+        ori_v_weight_grad_fp32 = ori_layer.self_attn.v_proj.weight.grad
+        ori_q_weight_grad_autocast = ori_layer_copy.self_attn.q_proj.weight.grad
+        ori_k_weight_grad_autocast = ori_layer_copy.self_attn.k_proj.weight.grad
+        ori_v_weight_grad_autocast = ori_layer_copy.self_attn.v_proj.weight.grad
+        fa_q_weight_grad_fp32 = fa_layer.self_attn.q_proj.weight.grad
+        fa_k_weight_grad_fp32 = fa_layer.self_attn.k_proj.weight.grad
+        fa_v_weight_grad_fp32 = fa_layer.self_attn.v_proj.weight.grad
+
+        ori_q_weight_grad_fp32 *= scaler._scale
+        ori_k_weight_grad_fp32 *= scaler._scale
+        ori_v_weight_grad_fp32 *= scaler._scale
         print(
-            f"fa autocast time: {fa_autocast_time / ori_fp32_time :.2%} of ori fp32, "
-            f"{fa_autocast_time / ori_autocast_time :.2%} of ori autocast."
+            f"Original q weight grad max diff: "
+            f"{(ori_q_weight_grad_fp32 - ori_q_weight_grad_autocast).abs().max().item()}"
         )
         print(
-            f"fa autocast mem: {fa_autocast_mem / ori_fp32_mem :.2%} of ori fp32, "
-            f"{fa_autocast_mem / ori_autocast_mem :.2%} of ori autocast."
+            f"Original k weight grad max diff: "
+            f"{(ori_k_weight_grad_fp32 - ori_k_weight_grad_autocast).abs().max().item()}"
         )
+        print(
+            f"Original v weight grad max diff: "
+            f"{(ori_v_weight_grad_fp32 - ori_v_weight_grad_autocast).abs().max().item()}"
+        )
+        print(f"FA q weight grad max diff: " f"{(ori_q_weight_grad_fp32 - fa_q_weight_grad_fp32).abs().max().item()}")
+        print(f"FA k weight grad max diff: " f"{(ori_k_weight_grad_fp32 - fa_k_weight_grad_fp32).abs().max().item()}")
+        print(f"FA v weight grad max diff: " f"{(ori_v_weight_grad_fp32 - fa_v_weight_grad_fp32).abs().max().item()}")
+        assert (ori_q_weight_grad_fp32 - fa_q_weight_grad_fp32).abs().max().item() <= 2 * (
+            (ori_q_weight_grad_fp32 - ori_q_weight_grad_autocast).abs().max().item()
+        ), "refer to flash attn, ensure absolute error within two times of original autocast"
+        assert (ori_k_weight_grad_fp32 - fa_k_weight_grad_fp32).abs().max().item() <= 2 * (
+            (ori_k_weight_grad_fp32 - ori_k_weight_grad_autocast).abs().max().item()
+        ), "refer to flash attn, ensure absolute error within two times of original autocast"
+        assert (ori_v_weight_grad_fp32 - fa_v_weight_grad_fp32).abs().max().item() <= 2 * (
+            (ori_v_weight_grad_fp32 - ori_v_weight_grad_autocast).abs().max().item()
+        ), "refer to flash attn, ensure absolute error within two times of original autocast"
+
+        # timer comparison
+        if os.environ.get("FA_TIMER_COMPARISON", None) is not None:
+            # ori fp32
+            for _ in range(10):
+                ori_out_fp32 = ori_layer(hidden_state, _mask, position_ids)[0]
+                (ori_out_fp32 - randn_label)[mask].pow(2).mean().backward()
+            start_timer()
+            for _ in range(10):
+                ori_out_fp32 = ori_layer(hidden_state, _mask, position_ids)[0]
+                (ori_out_fp32 - randn_label)[mask].pow(2).mean().backward()
+            ori_fp32_time, ori_fp32_mem = end_timer_and_print("ori fp32")
+            # ori autocast
+            for _ in range(10):
+                with autocast(enabled=True):
+                    ori_out_autocast = ori_layer_copy(hidden_state, _mask, position_ids)[0]
+                scaler.scale((ori_out_autocast.to(dtype) - randn_label)[mask].pow(2).mean()).backward()
+            start_timer()
+            for _ in range(10):
+                with autocast(enabled=True):
+                    ori_out_autocast = ori_layer_copy(hidden_state, _mask, position_ids)[0]
+                scaler.scale((ori_out_autocast.to(dtype) - randn_label)[mask].pow(2).mean()).backward()
+            ori_autocast_time, ori_autocast_mem = end_timer_and_print("ori autocast")
+            # fa autocast
+            for _ in range(10):
+                with autocast(enabled=True):
+                    fa_out_autocast = fa_layer(hidden_state, _mask, position_ids)[0]
+                scaler.scale((fa_out_autocast.to(dtype) - randn_label)[mask].pow(2).mean()).backward()
+            start_timer()
+            for _ in range(10):
+                with autocast(enabled=True):
+                    fa_out_autocast = fa_layer(hidden_state, _mask, position_ids)[0]
+                scaler.scale((fa_out_autocast.to(dtype) - randn_label)[mask].pow(2).mean()).backward()
+            fa_autocast_time, fa_autocast_mem = end_timer_and_print("fa autocast")
+            print(
+                f"fa autocast time: {fa_autocast_time / ori_fp32_time :.2%} of ori fp32, "
+                f"{fa_autocast_time / ori_autocast_time :.2%} of ori autocast."
+            )
+            print(
+                f"fa autocast mem: {fa_autocast_mem / ori_fp32_mem :.2%} of ori fp32, "
+                f"{fa_autocast_mem / ori_autocast_mem :.2%} of ori autocast."
+            )
+        else:
+            # still call timer for gc
+            start_timer()
+            end_timer_and_print("")
 
 
 if __name__ == "__main__":

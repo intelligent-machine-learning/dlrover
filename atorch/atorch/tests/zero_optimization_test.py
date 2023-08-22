@@ -79,6 +79,7 @@ class ZeroOptimizationTest(unittest.TestCase):
         self.assertEqual(result[0], ToyCustomModule)
         self.assertEqual(result[1].__name__, "Linear")
 
+    @unittest.skipIf(not torch.cuda.is_available(), "cuda is not available")
     def test_fsdp(self):
         model_context = create_model_context(data_size=4, batch_size=1)
         # test fsdp in cpu mode

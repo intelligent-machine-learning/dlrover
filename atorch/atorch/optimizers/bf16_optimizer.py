@@ -42,14 +42,13 @@ def master_params_to_model_params(model_params, master_params, flat_master=False
             model.data.copy_(master.data)
 
 
-class BF16Optimizer:
+# based on https://github.com/THUDM/GLM/blob/main/fp16/fp16.py
+class BF16Optimizer(torch.optim.Optimizer):
     """
     :class:`BF16Optimizer` is designed to wrap an existing PyTorch optimizer.
     """
 
-    def __init__(
-        self, init_optimizer, static_loss_scale=1.0, dynamic_loss_scale=False, dynamic_loss_args=None, verbose=False
-    ):
+    def __init__(self, init_optimizer, verbose=False):
         if not torch.cuda.is_available:
             raise SystemError("Cannot use fp16 without CUDA.")
 
@@ -260,3 +259,7 @@ class BF16Optimizer:
 
     def update_master_grads(self):
         self._model_grads_to_master_grads()
+
+    @property
+    def param_groups(self):
+        return self.optimizer.optim.param_groups if isinstance(self.optimizer, OSS) else self.optimizer.param_groups

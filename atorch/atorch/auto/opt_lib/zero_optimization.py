@@ -11,12 +11,56 @@ try:
 except ImportError:
     from torch.distributed.fsdp.wrap import default_auto_wrap_policy as auto_wrap_policy
 
+from typing import Set, Type
+
 from atorch.auto.opt_lib.optimization import Optimization
 from atorch.auto.opt_lib.utils import find_modules, to_module_class_by_name
+from atorch.common.log_utils import default_logger as logger
 from atorch.distributed.distributed import local_rank, parallel_group, parallel_group_size
 from atorch.modules.distributed_modules.materialize_modules import materialize_modules_to_device
 from atorch.utils.meta_model_utils import is_meta
 from atorch.utils.version import torch_version
+
+
+def _skip_match_module_child_wrap_policy_pre_2(
+    module: torch.nn.Module,
+    recurse: bool,
+    unwrapped_params: int,
+    module_classes: Set[Type[torch.nn.Module]],
+) -> bool:
+    return _skip_match_module_child_wrap_policy(module, recurse, unwrapped_params, module_classes)
+
+
+def _skip_match_module_child_wrap_policy(
+    module: torch.nn.Module,
+    recurse: bool,
+    nonwrapped_numel: int,
+    module_classes: Set[Type[torch.nn.Module]],
+) -> bool:
+    # skip to wrap any children of a matched module.
+    match = isinstance(module, tuple(module_classes))
+    attr_name = "_ignore_fsdp_wrap_tag"
+    if match:
+        for _, child in module.named_modules():
+            if child != module:
+                setattr(child, attr_name, True)
+    if getattr(module, attr_name, False):
+        delattr(module, attr_name)
+        return False
+    if recurse:
+        return True  # always recurse if not skip
+    return match
+
+
+def get_skip_match_module_child_wrap_policy(wrap_cls, model=None):
+    # wrap_cls is a tuple of module type.
+    # If model is provided, wrap_cls tuple can contain module type name.
+    if model is not None:
+        wrap_cls = to_module_class_by_name(model, wrap_cls)
+    if torch_version() >= (2, 0, 0):
+        return functools.partial(_skip_match_module_child_wrap_policy, module_classes=wrap_cls)
+    else:
+        return functools.partial(_skip_match_module_child_wrap_policy_pre_2, module_classes=wrap_cls)
 
 
 class Zero1Optimization(Optimization):
@@ -175,7 +219,7 @@ class FSDPOptimization(Optimization):
 
             wrap_policy = functools.partial(transformer_auto_wrap_policy, transformer_layer_cls=set(wrap_cls))
             wrapper_config["auto_wrap_policy"] = wrap_policy
-        else:
+        elif "auto_wrap_policy" not in wrapper_config:
             policy_param_name = "auto_wrap_policy" if torch_version() >= (1, 12, 0) else "fsdp_auto_wrap_policy"
             if "atorch_size_based_min_num_params" in wrapper_config:
                 min_num_params = wrapper_config["atorch_size_based_min_num_params"]
@@ -203,6 +247,35 @@ class FSDPOptimization(Optimization):
                 # Initialize modules' params on gpu and set device id
                 # support meta
                 if is_meta(model_context.model):
+                    from atorch.utils import meta_model_utils
+                    from atorch.utils.meta_model_utils import _find_tied_weights, _retie_weights
+
+                    if meta_model_utils._MetaModeContext._SHARD_FLAT_PARAM_LOADER is not None:
+                        pg = parallel_group("data")
+                        rank0 = torch.distributed.get_rank(pg) == 0
+                        tie_weights = _find_tied_weights(model_context.model)
+                        # ensure model is on meta device
+                        model_context.model = model_context.model.to("meta")
+                        _retie_weights(model_context.model, tie_weights)
+                        for name, p in model_context.model.named_parameters():
+                            setattr(p, "checkpoint_name", name)
+                        for name, p in model_context.model.named_buffers():
+                            setattr(p, "checkpoint_name", name)
+                        intra_load = wrapper_config.pop("intra_load", False)
+                        # sync_module_states has high priority
+                        if "sync_module_states" in wrapper_config:
+                            if rank0:
+                                logger.info("sync_module_states is switch on, disable intra_load")
+                            for name, p in model_context.model.named_parameters():
+                                setattr(p, "sync_module_states", True)
+                        elif intra_load:
+                            if rank0:
+                                logger.info("intra load is switch on")
+                            for name, p in model_context.model.named_parameters():
+                                setattr(p, "intra_load", True)
+                            meta_model_utils._MetaModeContext._SHARD_FLAT_PARAM_LOADER.get_fsdp_init_order(
+                                model_context.model, wrap_cls
+                            )
                     wrapper_config["param_init_fn"] = functools.partial(
                         materialize_modules_to_device, device=local_rank()
                     )
@@ -253,4 +326,9 @@ class FSDPOptimization(Optimization):
         )
         if torch_version() < (1, 12, 0):
             model_context.model.to(local_rank())
+
+        from atorch.utils import meta_model_utils
+
+        if meta_model_utils._MetaModeContext._SHARD_FLAT_PARAM_LOADER is not None:
+            meta_model_utils._MetaModeContext._SHARD_FLAT_PARAM_LOADER = None
         return model_context
