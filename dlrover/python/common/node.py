@@ -55,7 +55,8 @@ class NodeResource(JsonSerializable):
     - memory: 8192
     - gpu_type: "nvidia.com"
     - gpu_num: 1
-    - gpu_stats: [GPUMetric(index=0, total_memory_mb=8192, used_memory_mb=2048, gpu_utilization=80.0)]
+    - gpu_stats: [GPUMetric(index=0, total_memory_mb=8192, used_memory_mb=2048,
+    gpu_utilization=80.0)]
     - image: "ubuntu:20.04"
     - priority: "high"
 
@@ -64,7 +65,8 @@ class NodeResource(JsonSerializable):
     ...     memory=8192,
     ...     gpu_type="nvidia.com",
     ...     gpu_num=1,
-    ...     gpu_stats=[GPUMetric(index=0, total_memory_mb=8192, used_memory_mb=2048, gpu_utilization=80.0)],
+    ...     gpu_stats=[GPUMetric(index=0, total_memory_mb=8192,
+    ...     used_memory_mb=2048, gpu_utilization=80.0)],
     ...     image="ubuntu:20.04",
     ...     priority="high"
     ... )
