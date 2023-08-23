@@ -321,15 +321,18 @@ class TrainingNodeManager(object):
         node_hang = []
         for _, node in self._nodes.items():
             if node.status == NodeStatus.RUNNING:
+                timeout = NodeResourceLimit.MAX_HANG_TIMEOUT_SECS
                 hang = (
                     node.start_hang_time > 0
-                    and cur_time - node.start_hang_time
-                    > NodeResourceLimit.MAX_HANG_TIMEOUT_SECS
+                    and cur_time - node.start_hang_time > timeout
                 )
-                if hang:
+                if not node.hang and hang:
                     time_array = time.localtime(node.start_hang_time)
                     date_time = time.strftime("%Y-%m-%d %H:%M:%S", time_array)
-                    logger.warning("Node %s hangs at %s", node.name, date_time)
+                    logger.warning(
+                        f"Node {node.name} hangs with timeout "
+                        f"{timeout} from {date_time}!!!")
+                node.hang = hang
                 node_hang.append(hang)
         return node_hang
 
