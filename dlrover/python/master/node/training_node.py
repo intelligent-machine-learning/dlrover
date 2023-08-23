@@ -331,7 +331,8 @@ class TrainingNodeManager(object):
                     date_time = time.strftime("%Y-%m-%d %H:%M:%S", time_array)
                     logger.warning(
                         f"Node {node.name} hangs with timeout "
-                        f"{timeout} from {date_time}!!!")
+                        f"{timeout} from {date_time}!!!"
+                    )
                 node.hang = hang
                 node_hang.append(hang)
         return node_hang
