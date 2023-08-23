@@ -176,6 +176,7 @@ class Node(object):
         self.eval_time = 0
         self.host_name = host_name
         self.host_ip = host_ip
+        self.hang = False
 
     def inc_relaunch_count(self):
         self.relaunch_count += 1

@@ -1,17 +1,11 @@
-# Deploy DLRover Job Controller on a Kubernetes Cluster
+# Deploy DLRover ElasticJob Controller on a Kubernetes Cluster
 
 Here, we introduce how to deploy the DLRover job controller directly on a Kubernetes cluster step by step. Minikube is optional and primarily used for testing.
 
 ## 1. Preliminary
 - Ensure you have [Kubernetes](https://kubernetes.io/docs/home/) installed. If you prefer to use Minikube for testing purposes, make sure to have [Minikube](https://minikube.sigs.k8s.io/docs/start/) installed and run `minikube start`.
 
-## 2. Create Namespace
-
-```bash
-$ kubectl create namespace dlrover
-```
-
-## 3. Deploy Dlrover Job Controller With Kubectl
+## 3. Deploy Dlrover ElasticJob Controller With Kubectl
 
 ```bash
 # deploy from local directory

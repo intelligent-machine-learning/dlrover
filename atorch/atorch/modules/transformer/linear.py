@@ -1,10 +1,10 @@
 import warnings
 
 import torch
+from torch import nn
 from torch.nn import Linear
 
 try:
-
     # from apex.fused_dense import FusedDenseGeluDenseFunc  # TODO: https://github.com/NVIDIA/apex/issues/1605
     from apex.fused_dense.fused_dense import DenseNoBiasFunc, FusedDense, FusedDenseFunc
 except (ImportError, ModuleNotFoundError) as e:
@@ -59,10 +59,21 @@ def replace_linear(module, cur_name):
         child_name = cur_name + "." + name
         if isinstance(child, Linear):
             if child.bias is not None:
-                new_module = AmpFusedDense(child.in_features, child.out_features, bias=True)
+                new_module = Linear2D(child.in_features, child.out_features, bias=True)
             else:
-                new_module = AmpFusedDense(child.in_features, child.out_features, bias=False)
+                new_module = Linear2D(child.in_features, child.out_features, bias=False)
             new_module.load_state_dict(child.state_dict())
             setattr(module, name, new_module)
         else:
             replace_linear(child, child_name)
+
+
+class Linear2D(nn.Linear):
+    def forward(self, x):
+        # format: x from (batch, seq_len, embed_dim) to (batch*seq_len, embed_dim)
+        # format: x from (batch, head_dim,head_num, embed_dim) to (batch*head_dim*head_num, embed_dim)
+        x_shape = x.size()
+        x = x.reshape(-1, x.size(-1))
+        x = super().forward(x)
+        x = x.reshape(x_shape[:-1] + x.shape[-1:])
+        return x
