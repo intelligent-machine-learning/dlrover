@@ -4,6 +4,7 @@ import traceback
 import types
 
 import torch
+from torch.fx.graph_module import GraphModule
 
 from atorch.auto.auto_accelerate_context import AutoAccelerateContext
 from atorch.auto.opt_lib.module_replace_optimization import (
@@ -17,7 +18,7 @@ from atorch.auto.opt_lib.utils import insert_split_point
 from atorch.common.log_utils import default_logger as logger
 from atorch.distributed.distributed import local_rank, parallel_group_and_ranks, rank
 from atorch.modules.distributed_modules.compilers import pippy_compiler
-from atorch.modules.distributed_modules.compilers.pipe_compiler.distributed_pippy_compiler import _compile_to_pipe
+from atorch.modules.distributed_modules.modules_registry import _SHARDABLE_OPERATORS
 
 try:
     from pippy.IR import MultiUseParameterConfig, pipe_split
@@ -42,6 +43,8 @@ def _backward(self, gradient=None, retain_graph=None, create_graph=False, inputs
 # pipe_model has only one output (that is loss)
 # hacks backward method
 def pipe_loss_func(data, output, amp=False):
+    if output is None:
+        output = torch.zeros((0,))
     if isinstance(output, collections.abc.Sequence):
         output[0].backward = types.MethodType(_backward, output[0])
     else:
@@ -73,9 +76,6 @@ class PipelineParallelOptimization(DistributedGraphOptimization):
         return self._shard_planner
 
     def tune(self, model_context, config=None, strategy=None, apply_transform=False):
-        logger.warning(
-            "Pipeline parallelism is more stable with Environment Variable: " "CUDA_DEVICE_MAX_CONNECTIONS=1"
-        )
         logger.info(
             "Must call destroy_parallel_group at the end of the training script. "
             "Must hande over the lr scheduler and optimizer to auto_accelerate."
@@ -87,6 +87,11 @@ class PipelineParallelOptimization(DistributedGraphOptimization):
         nstages = config.get("nstages", len(pipe_ranks))
         chunks = config.get("chunks", len(pipe_ranks))
         use_c10d = config.get("use_c10d", False)
+        if not use_c10d:
+            logger.warning(
+                "Non-c10d Pipeline parallelism is more stable with Environment Variable: "
+                "CUDA_DEVICE_MAX_CONNECTIONS=1"
+            )
         dynamic_shape = config.get("dynamic_shape", False)
         subset_topo = self.device_topo.get_physical_topology(pipe_ranks)
         pipe_schedule = config.get("pipe_schedule", "Interleaved1F1B")
@@ -165,7 +170,6 @@ class PipelineParallelOptimization(DistributedGraphOptimization):
             compiler_configs.setdefault("model_input_format", model_context.model_input_format)
             expected_num_stages = compiler_configs["expected_num_stages"]
             insert_before_nodes = compiler_configs["insert_before_nodes"]
-            use_c10d = compiler_configs.get("use_c10d", False)
             amp_config = compiler_configs.get("amp_config", None)
 
             # amp for fp16 is not compatible with InterleavedSchedule:
@@ -177,12 +181,13 @@ class PipelineParallelOptimization(DistributedGraphOptimization):
                 logger.info("AMP Interleaved Schedule is only compatible with torch.bfloat16")
                 amp_config["dtype"] = torch.bfloat16
 
-            leaf_modules = compiler_configs.get("leaf_modules", None)
+            leaf_modules = compiler_configs.get("leaf_modules", list(_SHARDABLE_OPERATORS.values()))
 
             if not model_context.tp_status or not isinstance(model_context.model, torch.fx.GraphModule):
                 # First rewrite the module
-                model_context.convert_to_loss_wrapper(amp_config=amp_config)
-                gm = model_context.export_graph_module(backend="meta_fx", leaf_modules=leaf_modules)
+                graph = model_context.capture_compute_graph(backend="meta_fx", leaf_modules=leaf_modules)
+                pipe_graph = insert_split_point(graph, insert_before_nodes, expected_num_stages)
+                gm = GraphModule(model_context.model, pipe_graph)
             else:
                 gm = model_context.model
             # insert pipe split
@@ -191,23 +196,16 @@ class PipelineParallelOptimization(DistributedGraphOptimization):
                 if not _check_pipe_split_inserted(gm):
                     pipe_graph = insert_split_point(gm.graph, insert_before_nodes, expected_num_stages)
                     gm = torch.fx.GraphModule(gm, pipe_graph)
-                if use_c10d:
-                    counter = AutoAccelerateContext.counter
+                # Since a fake_gm is allocated on meta, we will default to storing it.
+                counter = AutoAccelerateContext.counter
+                # If fake_gm already exists, the pipe gm might already been modified by TP, do not use it.
+                if not hasattr(AutoAccelerateContext, "fake_gm") or counter not in AutoAccelerateContext.fake_gm:
+                    fake_gm = copy.deepcopy(gm).to("meta")
 
-                    if (
-                        not hasattr(AutoAccelerateContext, "fake_split_gm")
-                        or counter not in AutoAccelerateContext.fake_split_gm
-                    ):
-                        compile_with_dynamo = compiler_configs.get("compile_with_dynamo", False)
-                        multi_use_param_spec = compiler_configs.get("multi_use_param_spec", None)
-                        output_loss_value_spec = compiler_configs.get("output_loss_value_spec", True)
-                        model_pipe, _ = _compile_to_pipe(
-                            gm, pipe_ranks, compile_with_dynamo, multi_use_param_spec, output_loss_value_spec
-                        )
-                        fake_split_gm = copy.deepcopy(model_pipe.split_gm).to("meta")
-
-                        if not hasattr(AutoAccelerateContext, "fake_split_gm"):
-                            AutoAccelerateContext.add_ac_attr("fake_split_gm", {counter: fake_split_gm})
+                    if not hasattr(AutoAccelerateContext, "fake_gm"):
+                        AutoAccelerateContext.add_ac_attr("fake_gm", {counter: fake_gm})
+                    else:
+                        AutoAccelerateContext.fake_gm[counter] = fake_gm
 
             module_replace = compiler_configs.get("module_replace", False)
 

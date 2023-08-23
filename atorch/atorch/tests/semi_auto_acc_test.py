@@ -1,19 +1,141 @@
+import copy
 import os
 import unittest
 
 import torch
 import torch.multiprocessing as mp
+from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 
 import atorch
 from atorch.auto.accelerate import auto_accelerate
+from atorch.auto.opt_lib.zero_optimization import get_skip_match_module_child_wrap_policy
 from atorch.common.util_func import find_free_port
 from atorch.distributed.distributed import parallel_instance_index, parallel_instance_num, world_size
+from atorch.optimizers.bf16_optimizer import BF16Optimizer
 from atorch.tests.toy_module import create_model_context, get_gpt2_module_type, run_train
 from atorch.utils.version import torch_version
 
 
+def run_wraps(model_context):
+    gpt2block_cls = get_gpt2_module_type(module="block")
+    wrap_type_tuple = (gpt2block_cls, torch.nn.LayerNorm)
+    fsdp_config = {
+        "sync_module_states": True,
+        "limit_all_gathers": True,
+        "atorch_wrap_cls": wrap_type_tuple,
+    }
+    strategy = [
+        "parallel_mode",
+        ("fsdp", fsdp_config),
+    ]
+    mc_copy = copy.deepcopy(model_context)
+    status, result, _ = auto_accelerate(
+        model_context.model,
+        model_context.optim_func,
+        model_context.dataset,
+        model_context.loss_func,
+        model_context.prepare_input,
+        model_context.model_input_format,
+        model_context.optim_args,
+        model_context.optim_param_func,
+        model_context.dataloader_args,
+        load_strategy=strategy,
+        ignore_dryrun_on_load_strategy=True,
+    )
+    assert status
+    fsdp_module_counts = {t: 0 for t in wrap_type_tuple}
+    for _, child in result.model.named_modules():
+        if isinstance(child, FSDP):
+            for t in wrap_type_tuple:
+                if isinstance(child.module, t):
+                    fsdp_module_counts[t] += 1
+    assert fsdp_module_counts[wrap_type_tuple[0]] == 3
+    assert fsdp_module_counts[wrap_type_tuple[1]] == 3 * 2 + 1
+
+    model_context = copy.deepcopy(mc_copy)
+    # test get_skip_match_module_child_wrap_policy with module class tuple
+    wrap_policy = get_skip_match_module_child_wrap_policy(wrap_type_tuple)
+    fsdp_config = {
+        "sync_module_states": True,
+        "limit_all_gathers": True,
+        "auto_wrap_policy": wrap_policy,
+    }
+    strategy = [
+        "parallel_mode",
+        ("fsdp", fsdp_config),
+    ]
+    status, result, _ = auto_accelerate(
+        model_context.model,
+        model_context.optim_func,
+        model_context.dataset,
+        model_context.loss_func,
+        model_context.prepare_input,
+        model_context.model_input_format,
+        model_context.optim_args,
+        model_context.optim_param_func,
+        model_context.dataloader_args,
+        load_strategy=strategy,
+        ignore_dryrun_on_load_strategy=True,
+    )
+    assert status
+    fsdp_module_counts = {t: 0 for t in wrap_type_tuple}
+    for _, child in result.model.named_modules():
+        if isinstance(child, FSDP):
+            for t in wrap_type_tuple:
+                if isinstance(child.module, t):
+                    fsdp_module_counts[t] += 1
+    assert fsdp_module_counts[wrap_type_tuple[0]] == 3
+    assert fsdp_module_counts[wrap_type_tuple[1]] == 1
+
+    model_context = mc_copy
+    # test get_skip_match_module_child_wrap_policy with module class and name tuple
+    wrap_type_tuple_name = (gpt2block_cls, "LayerNorm")
+    wrap_policy = get_skip_match_module_child_wrap_policy(wrap_type_tuple_name, model_context.model)
+    fsdp_config = {
+        "sync_module_states": True,
+        "limit_all_gathers": True,
+        "auto_wrap_policy": wrap_policy,
+    }
+    strategy = [
+        "parallel_mode",
+        ("fsdp", fsdp_config),
+    ]
+    status, result, _ = auto_accelerate(
+        model_context.model,
+        model_context.optim_func,
+        model_context.dataset,
+        model_context.loss_func,
+        model_context.prepare_input,
+        model_context.model_input_format,
+        model_context.optim_args,
+        model_context.optim_param_func,
+        model_context.dataloader_args,
+        load_strategy=strategy,
+        ignore_dryrun_on_load_strategy=True,
+    )
+    assert status
+    fsdp_module_counts = {t: 0 for t in wrap_type_tuple}
+    for _, child in result.model.named_modules():
+        if isinstance(child, FSDP):
+            for t in wrap_type_tuple:
+                if isinstance(child.module, t):
+                    fsdp_module_counts[t] += 1
+    assert fsdp_module_counts[wrap_type_tuple[0]] == 3
+    assert fsdp_module_counts[wrap_type_tuple[1]] == 1
+
+
 def run_gpt2_with_strategy(
-    rank, hidden_size, head_num, layer_num, seq_length, data_size, batch_size, use_bf16=False, zero_size=None
+    rank,
+    hidden_size,
+    head_num,
+    layer_num,
+    seq_length,
+    data_size,
+    batch_size,
+    use_bf16=False,
+    zero_size=None,
+    bf16_only=False,
+    wrap_test_only=False,
 ):
     os.environ["LOCAL_RANK"] = str(rank)
     os.environ["RANK"] = str(rank)
@@ -33,38 +155,46 @@ def run_gpt2_with_strategy(
         seq_length=seq_length,
     )
 
-    gpt2block_cls = get_gpt2_module_type(module="block")
+    if wrap_test_only:
+        run_wraps(model_context)
+        atorch.reset_distributed()
+        return
 
-    amp_config = {"dtype": torch.bfloat16 if use_bf16 else torch.float16}
-
-    fsdp_config = {
-        "sync_module_states": True,
-        "limit_all_gathers": True,
-        "atorch_wrap_cls": (gpt2block_cls,),
-    }
-    if torch_version() >= (2, 0, 0):
-        fsdp_config["use_orig_params"] = True
-    checkpoint_config = (gpt2block_cls,)
-
-    if zero_size is not None:
-        p_config = ([("data", zero_size)], None, True)
+    if bf16_only:
+        strategy = [("half", "bf16")]
     else:
-        p_config = None
-    if use_fa:
-        strategy = [
-            ("parallel_mode", p_config),
-            "module_replace",
-            ("amp_native", amp_config),
-            ("fsdp", fsdp_config),
-            ("checkpoint", checkpoint_config),
-        ]
-    else:
-        strategy = [
-            ("parallel_mode", p_config),
-            ("amp_native", amp_config),
-            ("fsdp", fsdp_config),
-            ("checkpoint", checkpoint_config),
-        ]
+        gpt2block_cls = get_gpt2_module_type(module="block")
+
+        amp_config = {"dtype": torch.bfloat16 if use_bf16 else torch.float16}
+
+        fsdp_config = {
+            "sync_module_states": True,
+            "limit_all_gathers": True,
+            "atorch_wrap_cls": (gpt2block_cls,),
+        }
+        if torch_version() >= (2, 0, 0):
+            fsdp_config["use_orig_params"] = True
+        checkpoint_config = (gpt2block_cls,)
+
+        if zero_size is not None:
+            p_config = ([("data", zero_size)], None, True)
+        else:
+            p_config = None
+        if use_fa:
+            strategy = [
+                ("parallel_mode", p_config),
+                "module_replace",
+                ("amp_native", amp_config),
+                ("fsdp", fsdp_config),
+                ("checkpoint", checkpoint_config),
+            ]
+        else:
+            strategy = [
+                ("parallel_mode", p_config),
+                ("amp_native", amp_config),
+                ("fsdp", fsdp_config),
+                ("checkpoint", checkpoint_config),
+            ]
 
     status, result, best_strategy = auto_accelerate(
         model_context.model,
@@ -81,6 +211,10 @@ def run_gpt2_with_strategy(
     )
     assert status
     assert len(best_strategy) == len(strategy)
+    if bf16_only:
+        assert isinstance(result.optim, BF16Optimizer)
+    else:
+        assert not isinstance(result.optim, BF16Optimizer)
     m_model = result.model
     m_dataloader = result.dataloader
     m_optim = result.optim
@@ -92,14 +226,15 @@ def run_gpt2_with_strategy(
         m_model, m_dataloader, m_optim, m_prepare_input, m_loss_func, device, input_dtype=input_dtype, gpt2_model=True
     )
     assert num == data_size // batch_size, f"num={num}"
-    if zero_size is None:
-        assert parallel_instance_num() == 1
-        assert parallel_instance_index() == 0
-    else:
-        assert parallel_instance_num() == world_size() // zero_size
-        assert parallel_instance_index() == rank // zero_size
-        assert m_model.world_size == zero_size
-        assert m_model.rank == rank % zero_size
+    if not bf16_only:
+        if zero_size is None:
+            assert parallel_instance_num() == 1
+            assert parallel_instance_index() == 0
+        else:
+            assert parallel_instance_num() == world_size() // zero_size
+            assert parallel_instance_index() == rank // zero_size
+            assert m_model.world_size == zero_size
+            assert m_model.rank == rank % zero_size
 
     atorch.reset_distributed()
 
@@ -173,8 +308,61 @@ class LoadStrategyTest(unittest.TestCase):
         batch_size = 4
         mp.spawn(
             run_gpt2_with_strategy,
-            args=(hidden_size, head_num, layer_num, seq_length, data_size, batch_size, False, 4),
+            args=(hidden_size, head_num, layer_num, seq_length, data_size, batch_size, False, 2),
             nprocs=4,
+            join=True,
+            daemon=False,
+            start_method="spawn",
+        )
+
+    @unittest.skipIf(
+        not torch.cuda.is_available() or not torch.cuda.is_bf16_supported(),
+        "Must have GPU with bf16 supported",
+    )
+    def test_gpt2_bf16_only(self):
+        os.environ["WORLD_SIZE"] = str(1)
+        os.environ["NPROC_PER_NODE"] = str(1)
+        os.environ["MASTER_ADDR"] = "localhost"
+        os.environ["MASTER_PORT"] = str(find_free_port())
+        hidden_size = 256
+        head_num = 4
+        layer_num = 3
+        seq_length = 128
+        data_size = 16
+        batch_size = 4
+        run_gpt2_with_strategy(
+            0,
+            hidden_size,
+            head_num,
+            layer_num,
+            seq_length,
+            data_size,
+            batch_size,
+            use_bf16=False,
+            zero_size=None,
+            bf16_only=True,
+        )
+
+    @unittest.skipIf(
+        not torch.cuda.is_available() or torch.cuda.device_count() < 2,
+        "Must have at least 2 GPUs for gpu test",
+    )
+    def test_fsdp_wraps(self):
+        os.environ["WORLD_SIZE"] = str(2)
+        os.environ["NPROC_PER_NODE"] = str(2)
+        os.environ["MASTER_ADDR"] = "localhost"
+        os.environ["MASTER_PORT"] = str(find_free_port())
+
+        hidden_size = 256
+        head_num = 4
+        layer_num = 3
+        seq_length = 512
+        data_size = 16
+        batch_size = 2
+        mp.spawn(
+            run_gpt2_with_strategy,
+            args=(hidden_size, head_num, layer_num, seq_length, data_size, batch_size, False, None, False, True),
+            nprocs=2,
             join=True,
             daemon=False,
             start_method="spawn",

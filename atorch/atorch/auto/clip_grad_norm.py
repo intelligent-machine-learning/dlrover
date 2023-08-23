@@ -2,6 +2,7 @@ import math
 
 import torch
 import torch.distributed as dist
+from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 
 from atorch.auto.auto_accelerate_context import AutoAccelerateContext
 from atorch.distributed.distributed import parallel_group
@@ -173,3 +174,108 @@ def clip_grad_norm(model, max_norm, norm_type=2, optimizer=None, process_group_n
         if p.grad is not None:
             p.grad.detach().mul_(clip_coef_clamped.to(p.grad.device))
     return total_norm
+
+
+# grad/param norm or zero count utils for fsdp
+def fsdp_param_norm_and_grad_num_zero(model, norm_type=2.0):
+    """
+    Get param norm and number of zero in grad, refered to fsdp clip_grad_norm_
+    """
+    sharded_params = set()
+    nonsharded_params = set()  # `NO_SHARD` or not FSDP-managed
+    for handle in model._all_handles:
+        target_set = sharded_params if handle.uses_sharded_strategy else nonsharded_params
+        if handle._use_orig_params:
+            for param in handle.flat_param._params:
+                target_set.add(param)
+        else:
+            target_set.add(handle.flat_param)
+    for param in model.parameters():
+        not_fsdp_managed = param not in sharded_params and param not in nonsharded_params
+        if not_fsdp_managed:
+            nonsharded_params.add(param)
+
+    # compute param norm
+    def _compute_param_norm(params):
+        if len(params) == 0:
+            return torch.tensor(0.0, device=model.compute_device)
+        norm = torch.linalg.vector_norm(
+            torch.stack(
+                [
+                    torch.linalg.vector_norm(param.detach(), norm_type, dtype=torch.float32)
+                    for param in params
+                    if param.numel() > 0
+                ],
+            ),
+            norm_type,
+            dtype=torch.float32,
+        )
+        return norm
+
+    local_sharded_param_norm = _compute_param_norm(sharded_params)
+    local_nonsharded_param_norm = _compute_param_norm(nonsharded_params)
+    import math
+
+    if norm_type == math.inf:
+        total_param_norm = torch.maximum(local_sharded_param_norm, local_nonsharded_param_norm)
+        dist.all_reduce(total_param_norm, op=torch.distributed.ReduceOp.MAX, group=model.process_group)
+    else:
+        total_param_norm = local_sharded_param_norm**norm_type
+        dist.all_reduce(total_param_norm, group=model.process_group)
+        # All-reducing the local non-sharded norm would count it an extra
+        # world-size-many times
+        total_param_norm += local_nonsharded_param_norm**norm_type
+        total_param_norm = total_param_norm ** (1.0 / norm_type)
+    if model.cpu_offload.offload_params:
+        total_param_norm = total_param_norm.cpu()
+
+    # count grad zero
+    def _count_grad_zero(params):
+        if len(params) == 0:
+            return torch.tensor(0, device=model.compute_device)
+        grad_num_zeros = 0
+        for param in params:
+            if param.grad is not None:
+                grad = param.grad.detach()
+                grad_num_zeros += grad.numel() - torch.count_nonzero(grad)
+        return grad_num_zeros
+
+    local_sharded_grad_num_zeros = _count_grad_zero(sharded_params)
+    local_nonsharded_grad_num_zeros = _count_grad_zero(nonsharded_params)
+    total_grad_num_zeros = local_sharded_grad_num_zeros
+    dist.all_reduce(total_grad_num_zeros, op=torch.distributed.ReduceOp.SUM, group=model.process_group)
+    total_grad_num_zeros += local_nonsharded_grad_num_zeros
+
+    return total_param_norm, total_grad_num_zeros
+
+
+def fsdp_grad_norm_per_param(model, inv_scale, norm_type=2.0):
+    """
+    Get grad norm for each parameter, inv_scale will mul to the grad
+    """
+    assert isinstance(model, FSDP) and model._use_orig_params, "this api only supports use orig params"
+
+    def rm_prefix(name):
+        name_lst = name.split(".")
+        name_lst = [n for n in name_lst if n not in ("_fsdp_wrapped_module", "_checkpoint_wrapped_module")]
+        return ".".join(name_lst)
+
+    grad_norms = dict()
+    for n, p in model.named_parameters():
+        n = rm_prefix(n)
+        grad = p.grad
+        if grad is None:
+            local_norm = torch.tensor(0.0).to(torch.cuda.current_device())
+        else:
+            local_norm = torch.linalg.vector_norm(grad.detach() * inv_scale, norm_type, dtype=torch.float32)
+
+        if norm_type == math.inf:
+            total_norm = local_norm
+            dist.all_reduce(total_norm, op=torch.distributed.ReduceOp.MAX, group=model.process_group)
+        else:
+            total_norm = local_norm**norm_type
+            dist.all_reduce(total_norm, op=torch.distributed.ReduceOp.SUM, group=model.process_group)
+            total_norm = total_norm ** (1.0 / norm_type)
+        grad_norms[n] = total_norm
+
+    return grad_norms
