@@ -351,7 +351,6 @@ class K8sJobArgs(JobArgs):
                 memory = 0
             gpu_type = None
             gpu_num = 0
-            gpu_stats = []
             for k, v in requests.items():
                 if "nvidia.com" in k:
                     gpu_type = k
@@ -359,7 +358,11 @@ class K8sJobArgs(JobArgs):
             group_resource = NodeGroupResource(
                 num,
                 NodeResource(
-                    cpu, memory, gpu_type, gpu_num, gpu_stats, priority
+                    cpu=cpu,
+                    memory=memory,
+                    gpu_type=gpu_type,
+                    gpu_num=gpu_num,
+                    priority=priority,
                 ),
             )
             restart_count = int(spec.get("restartCount", 3))
