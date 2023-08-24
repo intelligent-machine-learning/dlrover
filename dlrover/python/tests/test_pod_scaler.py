@@ -132,8 +132,10 @@ class PodScalerTest(unittest.TestCase):
             NodeType.CHIEF: NodeGroupResource(1, resource),
             NodeType.PS: NodeGroupResource(2, resource),
         }
+        scale_plan.ps_addrs = ["ps-0:22222"]
         scaler.scale(scale_plan)
         self.assertEqual(len(scaler._create_node_queue), 3)
+        self.assertListEqual(scaler._ps_addrs, scale_plan.ps_addrs)
 
         worker_ids = []
         chief_ids = []

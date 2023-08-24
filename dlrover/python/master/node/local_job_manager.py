@@ -60,9 +60,11 @@ class LocalJobManager(JobManager):
     def add_node_event_callback(self, node_event_callback):
         pass
 
-    def update_node_resource_usage(self, node_type, node_id, cpu, memory):
+    def update_node_resource_usage(
+        self, node_type, node_id, cpu, memory, gpu_stats=[]
+    ):
         node = self._job_nodes[node_type][node_id]
-        node.update_resource_usage(cpu, memory)
+        node.update_resource_usage(cpu, memory, gpu_stats)
 
     def handle_training_failure(
         self, node_type, node_id, restart_count=-1, error_data="", level=""
