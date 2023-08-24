@@ -624,12 +624,10 @@ class DistributedJobManager(JobManager):
         if cpu_percent < _dlrover_context.hang_cpu_usage_percentage:
             if node.start_hang_time == 0:
                 now = datetime.now()
-                logger.info(f"Node {node.name} hangs at {now}")
                 node.start_hang_time = now.timestamp()
         else:
             if node.start_hang_time > 0:
                 now = datetime.now()
-                logger.info(f"Node {node.name} stop hanging at {now}")
             node.start_hang_time = 0
 
     def update_node_service_addr(self, node_type, node_id, service_addr):
