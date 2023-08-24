@@ -27,7 +27,9 @@ class JobManager(metaclass=ABCMeta):
         pass
 
     @abstractclassmethod
-    def update_node_resource_usage(self, node_type, node_id, cpu, memory):
+    def update_node_resource_usage(
+        self, node_type, node_id, cpu, memory, gpu_stats=[]
+    ):
         pass
 
     @abstractclassmethod
@@ -70,7 +72,6 @@ class JobManager(metaclass=ABCMeta):
     def stop(self):
         pass
 
-    @abstractclassmethod
     def update_node_service_addr(self, node_type, node_id, service_addr):
         pass
 

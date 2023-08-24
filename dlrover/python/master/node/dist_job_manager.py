@@ -615,9 +615,11 @@ class DistributedJobManager(JobManager):
                 )
         self._stop_monitor = True
 
-    def update_node_resource_usage(self, node_type, node_id, cpu, memory):
+    def update_node_resource_usage(
+        self, node_type, node_id, cpu, memory, gpu_stats=[]
+    ):
         node = self._job_nodes[node_type][node_id]
-        node.update_resource_usage(cpu, memory)
+        node.update_resource_usage(cpu, memory, gpu_stats)
         cpu_percent = node.used_resource.cpu / node.config_resource.cpu
         if cpu_percent < _dlrover_context.hang_cpu_usage_percentage:
             if node.start_hang_time == 0:
