@@ -4,7 +4,7 @@ The document describes how to develop PyTorch models and train the model
 using DLRover. Users only need to make some simple changes
 of native PyTorch training codes to support checkpionting dataloader.
 We have provided the
-[CNN example](../../model_zoo/pytorch/mnist_cnn.py) to show how to
+[CNN example](../../examples/pytorch/mnist_cnn.py) to show how to
 train a CNN model with the MNIST dataset.
 
 ## Develop a Torch Model with DLRover. 
@@ -151,14 +151,14 @@ spec:
           containers:
             - name: main
               # yamllint disable-line rule:line-length
-              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:torch201-mnist
+              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover-train:torch201-mnist
               imagePullPolicy: Always
               command:
                 - /bin/bash
                 - -c
                 - "dlrover-run --nnodes=1:$WORKER_NUM --nproc_per_node=1
                   --max_restarts=3 \
-                  model_zoo/pytorch/mnist_cnn.py \
+                  examples/pytorch/mnist_cnn.py \
                   --training_data /data/mnist_png/training/elastic_ds.txt \
                   --validation_data /data/mnist_png/testing/elastic_ds.txt"
 ```

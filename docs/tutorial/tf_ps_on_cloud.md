@@ -28,7 +28,7 @@ kubectl -n dlrover apply -f dlrover/go/operator/config/rbac/default_role.yaml
 - Submit a job to train a DeepFM model without specified resource.
 
 ```bash
-kubectl -n dlrover apply -f dlrover/examples/deepctr_auto_scale_job.yaml
+kubectl -n dlrover apply -f examples/tensorflow/criteo_deeprec/autoscale_job.yaml
 ```
 
 - Check the job status
@@ -74,7 +74,7 @@ dlrover-auto-scale-edljob-worker-2            1/1     Running   0          3m19s
 - Submit a job with the DeepFM model.
 
 ```bash
-kubectl -n dlrover apply -f dlrover/examples/deepctr-manual-scaling-job.yaml
+kubectl -n dlrover apply -f examples/tensorflow/criteo_deeprec/autoscale_job.yaml
 ```
 
 - Check the job status

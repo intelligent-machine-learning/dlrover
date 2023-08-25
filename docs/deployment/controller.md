@@ -30,7 +30,7 @@ pod/dlrover-controller-manager-7dccdf6c4d-grmks   2/2     Running   0          6
 ## 4. Test Your Controller by Submitting A Mnist Training Job
 
 ```bash
-kubectl -n dlrover apply -f dlrover/examples/torch_mnist_job.yaml
+kubectl -n dlrover apply -f examples/pytorch/mnist/ddp_elastic_job.yaml
 ```
 
 Check traning nodes.

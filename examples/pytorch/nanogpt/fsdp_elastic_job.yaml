@@ -1,7 +1,7 @@
 apiVersion: elastic.iml.github.io/v1alpha1
 kind: ElasticJob
 metadata:
-  name: torch-nanogpt-debug
+  name: torch-nanogpt
   namespace: dlrover
 spec:
   distributionStrategy: AllreduceStrategy
@@ -15,16 +15,17 @@ spec:
           containers:
             - name: main
               # yamllint disable-line rule:line-length
-              image: easydl/dlrover-train-nanogpt:test
-              imagePullPolicy: Never
+              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:nanogpt-test
+              imagePullPolicy: IfNotPresent
               command:
                 - /bin/bash
                 - -c
                 - "dlrover-run --nnodes=$WORKER_NUM \
                   --nproc_per_node=1 --max_restarts=1  \
-                  ./model_zoo/pytorch/nanogpt/train.py  \
+                  ./examples/pytorch/nanogpt/train.py  \
                   --data_dir '/data/nanogpt/' \
-                  --gradient_accumulation_steps $((WORKER_NUM * 1))"
+                  --gradient_accumulation_steps $((WORKER_NUM * 1)) \
+                  --use_fsdp 'True'"
               resources:
                 limits:
                   cpu: "8"
@@ -34,11 +35,3 @@ spec:
                   cpu: "4"
                   memory: 16Gi
                   # nvidia.com/gpu: 1 # optional
-    dlrover-master:
-      template:
-        spec:
-          restartPolicy: Never
-          containers:
-            - name: main
-              imagePullPolicy: Never
-              image: easydl/dlrover-master:test

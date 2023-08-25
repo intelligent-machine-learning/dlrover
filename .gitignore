@@ -39,7 +39,6 @@ share/python-wheels/
 MANIFEST
 *.ckpt
 dlrover/go/operator/bin/
-model_zoo/Dockerfile
 
 # PyInstaller
 #  Usually these files are written by a python script from a template

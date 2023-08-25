@@ -11,7 +11,7 @@ FSDP is an alternative approach to DDP, designed to improve the efficiency of di
 To replace DDP with FSDP in your existing NanoGPT training configuration, simply make the following changes. Use the `kubectl` command to apply the modified training configuration:
 
 ```bash
-$ kubectl -n dlrover apply -f dlrover/examples/torch_nanogpt_job_with_fsdp.yaml
+$ kubectl -n dlrover apply -f examples/pytorch/nanogpt/fsdp_elastic_job.yaml
 ```
 
 Upon successful application of the job configuration, you can monitor the status of the training nodes using the command below:
@@ -27,7 +27,7 @@ Let's compare the results obtained using DDP and FSDP with the same parameter se
 **DDP:**
 
 ```bash
-# parameter settings in dlrover/examples/torch_nanogpt_job.yaml
+# parameter settings in examples/pytorch/nanogpt/fsdp_elastic_job.yaml
 --n_layer 6 \
 --n_head 6 \
 --n_embd 384
@@ -36,7 +36,7 @@ Let's compare the results obtained using DDP and FSDP with the same parameter se
 **FSDP (Same Parameter Setting as DDP):**
 
 ```bash
-# parameter settings in dlrover/examples/torch_nanogpt_job_with_fsdp.yaml
+# parameter settings in examples/pytorch/nanogpt/fsdp_elastic_job.yaml
 --n_layer 6 \
 --n_head 6 \
 --n_embd 384
