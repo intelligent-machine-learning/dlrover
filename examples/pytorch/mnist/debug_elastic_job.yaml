@@ -38,5 +38,5 @@ spec:
           restartPolicy: Never
           containers:
             - name: main
-              imagePullPolicy: Never
-              image: easydl/dlrover-master:test
+              imagePullPolicy: Always
+              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:test
