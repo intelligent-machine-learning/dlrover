@@ -302,7 +302,7 @@ def arg_parser():
     parser.add_argument("--batch_size", type=int, default=32, required=False)
     parser.add_argument("--num_epochs", type=int, default=1, required=False)
     parser.add_argument("--shuffle", type=bool, default=True, required=False)
-    parser.add_argument("--use_fsdp", type=bool, default=True, required=False)
+    parser.add_argument("--use_fsdp", type=bool, default=False, required=False)
     parser.add_argument(
         "--fixed_batch_size", type=bool, default=False, required=False
     )

@@ -11,6 +11,6 @@ WORKDIR /dlrover
 RUN apt-get install sudo
 
 COPY --from=builder /dlrover/dist/dlrover-*.whl /
-RUN pip install /*.whl --extra-index-url=https://pypi.org/simple --no-deps && rm -f /*.whl
+RUN pip install /*.whl --extra-index-url=https://pypi.org/simple && rm -f /*.whl
 
 COPY ./examples ./examples

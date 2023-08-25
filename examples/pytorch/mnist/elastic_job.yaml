@@ -32,3 +32,11 @@ spec:
                 requests:
                   cpu: "1"
                   memory: 2Gi
+    dlrover-master:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: main
+              imagePullPolicy: Always
+              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:test
