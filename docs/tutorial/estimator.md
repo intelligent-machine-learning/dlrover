@@ -184,7 +184,7 @@ We need to set the command of ps and worker to train the model like the
 command:
     - /bin/bash
     - -c
-    - " cd /home/examples/tensorflow/criteo_deeprec \
+    - " cd ./examples/tensorflow/criteo_deeprec \
         && python -m dlrover.trainer.entry.local_entry \
         --platform=Kubernetes --conf=train_conf.TrainConf \
         --enable_auto_scaling=True"

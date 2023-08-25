@@ -16,7 +16,7 @@ spec:
             - name: main
               # yamllint disable-line rule:line-length
               image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:nanogpt-test
-              imagePullPolicy: IfNotPresent
+              imagePullPolicy: Always
               command:
                 - /bin/bash
                 - -c

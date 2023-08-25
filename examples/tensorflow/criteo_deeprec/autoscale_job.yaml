@@ -23,7 +23,7 @@ spec:
               command:
                 - /bin/bash
                 - -c
-                - "cd /home/examples/tensorflow/criteo_deeprec \
+                - "cd ./examples/tensorflow/criteo_deeprec \
                   && python -m dlrover.trainer.entry.local_entry \
                   --platform=Kubernetes --conf=train_conf.TrainConf \
                   --enable_auto_scaling=True"
@@ -47,7 +47,7 @@ spec:
               command:
                 - /bin/bash
                 - -c
-                - "cd /home/examples/tensorflow/criteo_deeprec \
+                - "cd ./examples/tensorflow/criteo_deeprec \
                   && python -m dlrover.trainer.entry.local_entry \
                   --platform=Kubernetes --conf=train_conf.TrainConf \
                   --enable_auto_scaling=True"
@@ -72,7 +72,7 @@ spec:
               command:
                 - /bin/bash
                 - -c
-                - "cd /home/examples/tensorflow/criteo_deeprec \
+                - "cd ./examples/tensorflow/criteo_deeprec \
                   && python -m dlrover.trainer.entry.local_entry \
                   --platform=Kubernetes --conf=train_conf.TrainConf \
                   --enable_auto_scaling=True"
