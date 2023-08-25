@@ -21,7 +21,7 @@ Starting off with your journey to evaluating the performance of DLRover, you'll 
 Kick off the process with the following command:
 
 ```bash
-$ kubectl -n dlrover apply -f dlrover/examples/torch_nanogpt_job.yaml
+$ kubectl -n dlrover apply -f  examples/pytorch/nanogpt/ddp_elastic_job.yaml
 ```
 
 Upon successful application of the job configuration, you can monitor the status of the training nodes using the command below:
@@ -45,7 +45,7 @@ torch-nanogpt-edljob-worker-1                     1/1     Running   0          1
 parameter settings 1:
 
 ```bash
-# parameter settings in dlrover/examples/torch_nanogpt_job.yaml
+# parameter settings in examples/pytorch/nanogpt/ddp_elastic_job.yaml
 --n_layer 6 \
 --n_head 6 \
 --n_embd 384
@@ -54,7 +54,7 @@ parameter settings 1:
 parameter settings 2:
 
 ```bash
-# parameter settings in dlrover/examples/torch_nanogpt_job.yaml
+# parameter settings in examples/pytorch/nanogpt/ddp_elastic_job.yaml
 --n_layer 12 \
 --n_head 12 \
 --n_embd 768
@@ -162,14 +162,14 @@ No, uncle; but our crosses on the way
 Have made it tedious, wearisome, and heavy
 I want more uncles here to welcome me.
 ```
-Alternatively, you can use our provided data, which is available in the [dlrover/model_zoo/pytorch/nanogpt/data.txt](dlrover/model_zoo/pytorch/nanogpt/data.txt).  This data has already been prepared for use.
+Alternatively, you can use our provided data, which is available in the [examples/pytorch/nanogpt/data.txt](examples/pytorch/nanogpt/data.txt).  This data has already been prepared for use.
 
 **Time to Run the Preparation Script**
 
 Now that you have your data, let's run the preparation script as follows:
 
 ```bash
-python dlrover/model_zoo/pytorch/nanogpt/prepare.py --src_data_path data.txt
+python examples/pytorch/nanogpt/prepare.py --src_data_path data.txt
 This command generates a train.bin and val.bin file in the data directory.
 ```
 

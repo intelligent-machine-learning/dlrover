@@ -206,12 +206,12 @@ docker build -t easydl/dlrover-train:test -f docker/pytorch/mnist.dockerfile .
 ### 5. Submit an ElasticJob to test your images.
 
 We can set the training image of the line 18 and the master image
-of line 42 in the debug job `dlrover/examples/torch_debug_job.yaml`.
+of line 42 in the debug job `examples/pytorch/mnist/elastic_debug_job.yaml`.
 Then, we can submit a job with the above images.
 
 ```bash
 eval $(minikube docker-env)
-kubectl -n dlrover apply -f dlrover/examples/torch_debug_job.yaml
+kubectl -n dlrover apply -f examples/pytorch/mnist/elastic_debug_job.yaml
 ```
 
 Check traning nodes.

@@ -211,7 +211,7 @@ worker-0 会根据新的 PS 集合来构造计算图，更新 session，重新�
 
 为了验证自动扩缩容的可行性，我们在阿里云的 ACK 上创建了一个小的 Kubernetes 集群。
 然后我们针对 CRITEO 广告点击预测数据集开发了一个 DeepFM 模型，
-将[训练作业](https://github.com/intelligent-machine-learning/dlrover/blob/master/dlrover/examples/deepctr_auto_scale_job.yaml)
+将[训练作业](../../examples/tensorflow/criteo_deeprec/autoscale_job.yaml)
 的 CPU 限制配置为 15 核。在作业起始阶段，DLRover 给作业启动了一个 PS 和一个 worker，如下所示：
 
 ```shell

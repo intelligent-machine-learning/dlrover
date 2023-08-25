@@ -161,7 +161,7 @@ dlrover-run
 ```
 
 - Set the image and command in an ElasticJob yaml file to submit a job.
-We can refer to the example [torch_mnist_job.yaml](dlrover/examples/torch_mnist_job.yaml)
+We can refer to the example [torch_mnist_job.yaml](examples/pytorch/mnist/ddp_elastic_job.yaml)
 to make an ElasticJob yaml.
 
 ### Train a TensorFlow Model
