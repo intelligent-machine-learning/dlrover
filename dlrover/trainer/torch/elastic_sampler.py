@@ -26,6 +26,23 @@ class ElasticDistributedSampler(DistributedSampler):
     """ElasticDistributedSampler can checkpoint unused sample indices
     and restore sample indices from the checkpoint to support
     fault-tolerance.
+
+    Example::
+
+    >>> dataset = torchvision.datasets.ImageFolder(
+    ...     root=args.training_data,
+    ...     transform=transforms.ToTensor(),
+    ... )
+    >>> sampler = ElasticDistributedSampler(dataset=dataset)
+    >>> dataloader = DataLoader(
+    ...     dataset=train_data,
+    ...     batch_size=args.batch_size,
+    ...     num_workers=2,
+    ...     sampler=sampler,
+    ... )
+    >>> for epoch in range(start_epoch, n_epochs):
+    ...     sampler.set_epoch(epoch)
+    ...     train(dataloader)
     """
 
     def __init__(
