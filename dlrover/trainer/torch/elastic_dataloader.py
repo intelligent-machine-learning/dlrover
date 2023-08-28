@@ -12,7 +12,8 @@
 # limitations under the License.
 
 import json
-from torch.utils.data import DataLoader, BatchSampler
+
+from torch.utils.data import BatchSampler, DataLoader
 
 
 class ElasticDataLoader(DataLoader):

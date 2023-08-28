@@ -13,9 +13,11 @@
 
 import unittest
 from unittest.mock import patch
+
 import numpy as np
-from dlrover.trainer.torch.elastic_dataloader import ElasticDataLoader
 from torch.utils.data import Dataset
+
+from dlrover.trainer.torch.elastic_dataloader import ElasticDataLoader
 
 
 class SimpleDataset(Dataset):
