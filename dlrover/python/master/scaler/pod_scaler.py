@@ -84,6 +84,7 @@ class PodScaler(Scaler):
         self._create_node_queue: List[Node] = []
         self._lock = threading.Lock()
         self._plan = ScalePlan()
+        self._ps_addrs: List[str] = []
         self._pod_stats: Dict[str, int] = {}
         self._init_pod_config_by_job()
         threading.Thread(
@@ -126,13 +127,14 @@ class PodScaler(Scaler):
 
     def scale(self, plan: ScalePlan):
         """Scale in/out Pods by a ScalePlan."""
-        if plan.empty():
-            return
-        self._plan = plan
-        job_pods = self._list_job_pods()
-        logger.info("Scale the job by plan %s", plan.toJSON())
-
         with self._lock:
+            if plan.empty():
+                return
+            self._plan = plan
+            job_pods = self._list_job_pods()
+            logger.info("Scale the job by plan %s", plan.toJSON())
+            if plan.ps_addrs:
+                self._ps_addrs = plan.ps_addrs
             for type, group_resource in plan.node_group_resources.items():
                 type_pods = job_pods.get(type, [])
                 max_pod_id = self._get_max_pod_id(type_pods)
@@ -323,7 +325,7 @@ class PodScaler(Scaler):
                         pod = self._create_pod(
                             node,
                             self._pod_stats,
-                            self._plan.ps_addrs,
+                            self._ps_addrs,
                         )
                         succeed = self._k8s_client.create_pod(pod)
                     if not succeed:

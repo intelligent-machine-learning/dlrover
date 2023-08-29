@@ -15,9 +15,7 @@ from atorch.distributed.distributed import (
     destroy_parallel_group,
     get_ranks_in_same_group,
     parallel_group,
-    parallel_group_and_ranks,
 )
-from atorch.modules.distributed_modules.compilers.pipe_compiler.distributed_pippy_compiler import _compile_to_pipe
 from atorch.modules.distributed_modules.modules_registry import _SHARDABLE_OPERATORS, _register_custom_operators
 
 from .parallel_mode_optimization import ParallelModeOptimization
@@ -52,9 +50,6 @@ class MixedParallelOptimization(DistributedGraphOptimization):
         strategy=None,
         apply_transform=True,
     ):
-        logger.warning(
-            "Pipeline parallelism is more stable with Environment Variable: " "CUDA_DEVICE_MAX_CONNECTIONS=1"
-        )
         config = config if config is not None else dict()
 
         parallel_mode = config.get("parallel_mode", None)
@@ -107,6 +102,11 @@ class MixedParallelOptimization(DistributedGraphOptimization):
                 insert_before_modules = pipe_config.get("insert_before_modules", None)
                 self.pipe_shard_planner = pipe_config.get("shard_planner", self.pipe_shard_planner)
                 use_c10d = pipe_config.get("use_c10d", False)
+                if not use_c10d:
+                    logger.warning(
+                        "Non-c10d Pipeline parallelism is more stable with Environment Variable: "
+                        "CUDA_DEVICE_MAX_CONNECTIONS=1"
+                    )
                 dynamic_shape = pipe_config.get("dynamic_shape", False)
 
                 output_loss_value_spec = True if train_mode else None
@@ -225,7 +225,6 @@ class MixedParallelOptimization(DistributedGraphOptimization):
                 # Default checkpoint to be true
                 pipe_config.setdefault("checkpoint", True)
                 amp_config = pipe_config["compiler_configs"].get("amp_config", None)
-                use_c10d = pipe_config["compiler_configs"].get("use_c10d", False)
                 model_context.convert_to_loss_wrapper(amp_config=amp_config)
 
                 insert_before_nodes = pipe_config["compiler_configs"]["insert_before_nodes"]
@@ -234,24 +233,20 @@ class MixedParallelOptimization(DistributedGraphOptimization):
                 # get the graph and insert split point
                 # at this point parallel groups are readily created
                 # If we are using Pipes, we do not need to care about how nodes are sharded
-                graph = model_context.capture_compute_graph(
-                    backend="meta_fx", leaf_modules=list(_SHARDABLE_OPERATORS.values())
+                leaf_modules = pipe_config["compiler_configs"].setdefault(
+                    "leaf_modules", list(_SHARDABLE_OPERATORS.values())
                 )
+                graph = model_context.capture_compute_graph(backend="meta_fx", leaf_modules=leaf_modules)
                 pipe_graph = insert_split_point(graph, insert_before_nodes, expected_num_stages)
                 gm = GraphModule(model_context.model, pipe_graph)
 
-                if use_c10d:
-                    compile_with_dynamo = pipe_config["compiler_configs"].get("compile_with_dynamo", False)
-                    multi_use_param_spec = pipe_config["compiler_configs"].get("multi_use_param_spec", None)
-                    output_loss_value_spec = pipe_config["compiler_configs"].get("output_loss_value_spec", True)
-                    _, pipe_ranks = parallel_group_and_ranks("pipe")
-                    model_pipe, _ = _compile_to_pipe(
-                        gm, pipe_ranks, compile_with_dynamo, multi_use_param_spec, output_loss_value_spec
-                    )
-                    fake_split_gm = copy.deepcopy(model_pipe.split_gm).to("meta")
-                    counter = AutoAccelerateContext.counter
-                    if not hasattr(AutoAccelerateContext, "fake_split_gm"):
-                        AutoAccelerateContext.add_ac_attr("fake_split_gm", {counter: fake_split_gm})
+                # Since a fake_gm is allocated on meta, we will default to storing it.
+                fake_gm = copy.deepcopy(gm).to("meta")
+                counter = AutoAccelerateContext.counter
+                if not hasattr(AutoAccelerateContext, "fake_gm"):
+                    AutoAccelerateContext.add_ac_attr("fake_gm", {counter: fake_gm})
+                else:
+                    AutoAccelerateContext.fake_gm[counter] = fake_gm
 
                 if tp_config is not None:
                     tp_config["gm"] = gm

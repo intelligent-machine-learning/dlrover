@@ -117,7 +117,6 @@ def reduce_timeout_pending_node_resource(node: Node):
     new_cpu = math.ceil(
         original_cpu / _dlrover_context.factor_to_cut_pending_cpu
     )
-    reduced = False
     if new_cpu > NodeResourceLimit.MIN_CPU_CORES:
         node.config_resource.cpu = new_cpu
         logger.info(
@@ -128,7 +127,6 @@ def reduce_timeout_pending_node_resource(node: Node):
             _dlrover_context.seconds_to_wait_pending_pod,
             new_cpu,
         )
-        reduced = True
     original_memory = node.config_resource.memory
     new_memory = math.ceil(
         original_memory / _dlrover_context.factor_to_cut_pending_mem
@@ -143,8 +141,7 @@ def reduce_timeout_pending_node_resource(node: Node):
             _dlrover_context.seconds_to_wait_pending_pod,
             new_memory,
         )
-        reduced = True
-    return reduced
+    return True
 
 
 class TrainingNodeManager(object):
@@ -211,6 +208,8 @@ class TrainingNodeManager(object):
     def reduce_pending_node_resource(self):
         """Cut down CPU cores of pendding PS Pods"""
         plan = ScalePlan()
+
+        # Avoid dictionary changed size during iteration.
         cur_nodes = list(self._nodes.values())
         for node in cur_nodes:
             if node.status == NodeStatus.PENDING:
@@ -221,6 +220,29 @@ class TrainingNodeManager(object):
                     plan.remove_nodes.append(node)
                     plan.merge(node_plan)
         return plan
+
+    def get_pending_timeout_oom_recovered_node(self):
+        cur_nodes = list(self._nodes.values())
+        now = time.time()
+        nodes = []
+        for node in cur_nodes:
+            if (
+                node.is_released
+                or not node.create_time
+                or node.status != NodeStatus.PENDING
+            ):
+                continue
+            pending_time = now - node.create_time.timestamp()
+            if (
+                node.is_recovered_oom
+                and pending_time > _dlrover_context.seconds_to_wait_pending_pod
+            ):
+                logger.info(
+                    f"Node {node.name} with resource f{node.config_resource} "
+                    f"and pends f{pending_time}s."
+                )
+                nodes.append(node)
+        return nodes
 
     def get_running_nodes(self):
         """TensorFlow Chief nodes"""
@@ -299,15 +321,19 @@ class TrainingNodeManager(object):
         node_hang = []
         for _, node in self._nodes.items():
             if node.status == NodeStatus.RUNNING:
+                timeout = NodeResourceLimit.MAX_HANG_TIMEOUT_SECS
                 hang = (
                     node.start_hang_time > 0
-                    and cur_time - node.start_hang_time
-                    > NodeResourceLimit.MAX_HANG_TIMEOUT_SECS
+                    and cur_time - node.start_hang_time > timeout
                 )
-                if hang:
+                if not node.hang and hang:
                     time_array = time.localtime(node.start_hang_time)
                     date_time = time.strftime("%Y-%m-%d %H:%M:%S", time_array)
-                    logger.warning("Node %s hangs at %s", node.name, date_time)
+                    logger.warning(
+                        f"Node {node.name} hangs with timeout "
+                        f"{timeout} from {date_time}!!!"
+                    )
+                node.hang = hang
                 node_hang.append(hang)
         return node_hang
 

@@ -2,11 +2,13 @@
 from __future__ import absolute_import, unicode_literals
 
 import copy
+import inspect
 import shutil
 from importlib.metadata import version
 from pathlib import Path
 
 import torch
+import torch.nn.functional as F
 from deepspeed import DeepSpeedTransformerLayer
 from deepspeed.ops.op_builder import StochasticTransformerBuilder, TransformerBuilder
 from deepspeed.ops.transformer import transformer  # using module var
@@ -26,6 +28,7 @@ except (ModuleNotFoundError, ImportError):
     from transformers.models.bert.modeling_bert import BertAttention  # 4.17
     from transformers.models.clip.modeling_clip import CLIPAttention
     from transformers.models.gpt2.modeling_gpt2 import GPT2Attention
+    from transformers.models.llama.modeling_llama import LlamaAttention, apply_rotary_pos_emb
 
 try:
     import flash_attn
@@ -43,6 +46,14 @@ if flash_attn is not None:
         patch_dst = Path(flash_attn.__file__).parent.resolve() / "flash_attention.py"
         shutil.copy(patch_src, patch_dst)
         from flash_attn.flash_attention import FlashMHA
+
+    from flash_attn.bert_padding import pad_input, unpad_input
+
+    if _flash_attn_version >= packaging.version.Version("2"):
+        from flash_attn.flash_attn_interface import flash_attn_func
+        from flash_attn.flash_attn_interface import flash_attn_varlen_func as flash_attn_unpadded_func
+    else:
+        from flash_attn.flash_attn_interface import flash_attn_unpadded_func
 
     try:
         from flash_attn.ops.layer_norm import dropout_add_layer_norm
@@ -63,6 +74,18 @@ def is_apex_amp_activate():
     if _amp_state is None:
         return False
     return hasattr(_amp_state, "opt_properties") and _amp_state.opt_properties.enabled
+
+
+def is_additive_mask_bias_supported_fa1():
+    if not _flash_attn_version or _flash_attn_version >= packaging.version.Version("2"):
+        return False
+    return "attn_mask" in inspect.signature(flash_attn_unpadded_func).parameters
+
+
+def is_glm_mask_supported_fa2():
+    if not _flash_attn_version or _flash_attn_version < packaging.version.Version("2"):
+        return False
+    return "glm_mask" in inspect.signature(flash_attn_func).parameters
 
 
 class MixPrecisionDeepSpeedTransformerFunction(torch.autograd.Function):
@@ -1109,9 +1132,6 @@ def flash_attn_with_mask_bias(q, k, v, mask=None, bias=None, dropout_p=0.0, soft
             q, k, v, glm_mask=glm_mask, dropout_p=dropout_p, softmax_scale=softmax_scale, causal=causal
         )
 
-    # attn mask/bias supported version FlashAttn
-    from flash_attn.flash_attn_interface import flash_attn_unpadded_func
-
     b, s_q, nh, hs = q.shape
     _, s_k, _, _ = k.shape
 
@@ -1149,10 +1169,9 @@ def flash_attn_with_mask_bias(q, k, v, mask=None, bias=None, dropout_p=0.0, soft
         "softmax_scale": softmax_scale,
         "causal": causal,
     }
-    if mask is not None:
-        kwargs.update({"attn_mask": mask})
-    if bias is not None:
-        kwargs.update({"attn_bias": bias})
+    if mask is not None or bias is not None:
+        assert is_additive_mask_bias_supported_fa1(), "Must be attn mask/bias supported version FlashAttn v1"
+        kwargs.update({"attn_mask": mask, "attn_bias": bias})
     out = flash_attn_unpadded_func(
         q,
         k,
@@ -1178,11 +1197,6 @@ def fa2_with_glm_mask(q, k, v, glm_mask=None, dropout_p=0.0, softmax_scale=None,
         glm_mask: [batch_size] in torch.int32.
         other args: see `flash_attn_with_mask_bias` or `flash_attn_func` in FA2
     """
-
-    _is_flash_attn_2 = _flash_attn_version >= packaging.version.Version("2")
-    assert _is_flash_attn_2, "please install glm mask supported version FA2"
-    from flash_attn.flash_attn_interface import flash_attn_func
-
     if glm_mask is not None:
         assert causal, "causal must be True for glm_mask"
     kwargs = {
@@ -1192,8 +1206,149 @@ def fa2_with_glm_mask(q, k, v, glm_mask=None, dropout_p=0.0, softmax_scale=None,
         "return_attn_probs": False,
     }
     if glm_mask is not None:
+        assert is_glm_mask_supported_fa2(), "please install glm mask supported version FA2"
         kwargs.update({"glm_mask": glm_mask})
     return flash_attn_func(q, k, v, **kwargs)
+
+
+class FlashAttnModule(nn.Module):
+    """
+    Unified API for FlashAttention, make it a module for train/val dropout_p handling.
+    support key_padding_mask; support additive mask/bias in FA1; support break_point index glm-mask in FA2
+    """
+
+    def __init__(self, causal=False, softmax_scale=None, attention_dropout=0.0):
+        super().__init__()
+        self.causal = causal
+        self.softmax_scale = softmax_scale
+        self.attention_dropout = attention_dropout
+
+    def forward(self, q, k, v, key_padding_mask=None, glm_mask=None, additive_mask=None, additive_bias=None):
+        """
+        key_padding_mask: a bool tensor of shape (B, S), bool / int, True / 1 means valid and 0 means not valid.
+        """
+        b, s_q, nh, hs = q.shape
+        _, s_k, _, _ = k.shape
+        if self.causal:
+            assert s_q == s_k, "FA supports causal mask only if query/key length equal"
+        kwargs = {
+            "dropout_p": self.attention_dropout if self.training else 0.0,
+            "softmax_scale": self.softmax_scale,
+            "causal": self.causal,
+        }
+
+        # FA2 glm_mask
+        if glm_mask is not None:
+            assert self.causal, "causal must be True for glm_mask"
+            assert is_glm_mask_supported_fa2(), "please install glm mask supported version FA2"
+            kwargs.update({"glm_mask": glm_mask})
+
+        # FA1 additive mask
+        if additive_mask is not None or additive_bias is not None:
+            assert is_additive_mask_bias_supported_fa1(), "Must be attn mask/bias supported version FlashAttn v1"
+            assert not self.causal and key_padding_mask is None, "Should not causal/padding mask when additive mask"
+            kwargs.update({"mask": additive_mask, "bias": additive_bias})
+
+        if key_padding_mask is None or key_padding_mask.bool().all():
+            if _flash_attn_version >= packaging.version.Version("2"):
+                return flash_attn_func(q, k, v, **kwargs)
+            else:
+                return flash_attn_with_mask_bias(q, k, v, **kwargs)
+        else:
+            # unpad input and pad output according key_padding_mask
+            q_unpad, indices, cu_seqlens, max_seqlen = unpad_input(q, key_padding_mask)
+            k_unpad, _, _, _ = unpad_input(k, key_padding_mask)
+            v_unpad, _, _, _ = unpad_input(v, key_padding_mask)
+            o_unpad = flash_attn_unpadded_func(
+                q_unpad, k_unpad, v_unpad, cu_seqlens, cu_seqlens, max_seqlen, max_seqlen, **kwargs
+            )
+            return pad_input(o_unpad, indices, b, s_q)
+
+
+class LlamaAttentionFA(LlamaAttention):
+    def __new__(cls, src_module):
+        assert src_module is not None and isinstance(src_module, LlamaAttention)
+        new_module = copy.deepcopy(src_module)
+        new_module.__class__ = cls
+        return new_module
+
+    def __init__(self, *args, **kwargs):
+        self.FA = FlashAttnModule(causal=True)
+
+    def forward(
+        self,
+        hidden_states,
+        attention_mask=None,
+        position_ids=None,
+        past_key_value=None,
+        output_attentions=False,
+        use_cache=False,
+    ):
+        bsz, q_len, _ = hidden_states.size()
+
+        if self.config.pretraining_tp > 1:
+            key_value_slicing = (self.num_key_value_heads * self.head_dim) // self.config.pretraining_tp
+            query_slices = self.q_proj.weight.split(
+                (self.num_heads * self.head_dim) // self.config.pretraining_tp, dim=0
+            )
+            key_slices = self.k_proj.weight.split(key_value_slicing, dim=0)
+            value_slices = self.v_proj.weight.split(key_value_slicing, dim=0)
+
+            query_states = [F.linear(hidden_states, query_slices[i]) for i in range(self.config.pretraining_tp)]
+            query_states = torch.cat(query_states, dim=-1)
+
+            key_states = [F.linear(hidden_states, key_slices[i]) for i in range(self.config.pretraining_tp)]
+            key_states = torch.cat(key_states, dim=-1)
+
+            value_states = [F.linear(hidden_states, value_slices[i]) for i in range(self.config.pretraining_tp)]
+            value_states = torch.cat(value_states, dim=-1)
+
+        else:
+            query_states = self.q_proj(hidden_states)
+            key_states = self.k_proj(hidden_states)
+            value_states = self.v_proj(hidden_states)
+
+        query_states = query_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
+        key_states = key_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
+        value_states = value_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
+
+        kv_seq_len = key_states.shape[-2]
+        if past_key_value is not None:
+            kv_seq_len += past_key_value[0].shape[-2]
+        cos, sin = self.rotary_emb(value_states, seq_len=kv_seq_len)
+        query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin, position_ids)
+
+        if past_key_value is not None:
+            # reuse k, v, self_attention
+            key_states = torch.cat([past_key_value[0], key_states], dim=2)
+            value_states = torch.cat([past_key_value[1], value_states], dim=2)
+
+        past_key_value = (key_states, value_states) if use_cache else None
+
+        ###### FA Compute ####### # noqa: E266
+        # FA note: llama pre-add causal mask and padding mask, convert back to padding mask
+        key_padding_mask = attention_mask[:, 0, -1, :] == 0
+        attn_output = self.FA(
+            query_states.transpose(1, 2),
+            key_states.transpose(1, 2),
+            value_states.transpose(1, 2),
+            key_padding_mask=key_padding_mask,
+        )
+        ###### FA Compute End ### # noqa: E266
+
+        attn_output = attn_output.reshape(bsz, q_len, self.hidden_size)
+
+        if self.config.pretraining_tp > 1:
+            attn_output = attn_output.split(self.hidden_size // self.config.pretraining_tp, dim=2)
+            o_proj_slices = self.o_proj.weight.split(self.hidden_size // self.config.pretraining_tp, dim=1)
+            attn_output = sum([F.linear(attn_output[i], o_proj_slices[i]) for i in range(self.config.pretraining_tp)])
+        else:
+            attn_output = self.o_proj(attn_output)
+
+        if not output_attentions:
+            attn_weights = None
+
+        return attn_output, attn_weights, past_key_value
 
 
 class HFGLMSelfAttentionFA(torch.nn.Module):

@@ -233,15 +233,11 @@ class PSTrainingAutoScaler(JobAutoScaler):
 
     def _reduce_timeout_pending_node_resource(self):
         """Cut down CPU cores of pending pod at the job starts"""
-        if self._autoscaling_started:
-            return
         scale_plan = ScalePlan()
-        if _dlrover_context.auto_ps_enabled:
-            plan = self._ps_manager.reduce_pending_node_resource()
-            scale_plan.merge(plan)
-        if _dlrover_context.auto_worker_enabled:
-            plan = self._worker_manager.reduce_pending_node_resource()
-            scale_plan.merge(plan)
+        plan = self._ps_manager.reduce_pending_node_resource()
+        scale_plan.merge(plan)
+        plan = self._worker_manager.reduce_pending_node_resource()
+        scale_plan.merge(plan)
         if not scale_plan.empty():
             ps_addrs = self._ps_manager.get_ps_addrs()
             scale_plan.ps_addrs.extend(ps_addrs)

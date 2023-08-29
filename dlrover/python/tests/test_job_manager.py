@@ -13,6 +13,7 @@
 
 import time
 import unittest
+from datetime import datetime, timedelta
 from unittest import mock
 
 from dlrover.proto import elastic_training_pb2
@@ -25,14 +26,16 @@ from dlrover.python.common.constants import (
     NodeType,
 )
 from dlrover.python.common.node import NodeGroupResource, NodeResource
+from dlrover.python.elastic_agent.monitor.metrics import GPUMetric
 from dlrover.python.master.dist_master import DistributedJobMaster
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
+from dlrover.python.master.node.dist_job_manager import create_job_manager
 from dlrover.python.master.node.event_callback import (
     ClusterContext,
     TaskRescheduleCallback,
     TFPSNodeHandlingCallback,
 )
-from dlrover.python.master.node.job_manager import create_job_manager
+from dlrover.python.master.node.local_job_manager import LocalJobManager
 from dlrover.python.master.node.status_flow import (
     NODE_STATE_FLOWS,
     NodeStateFlow,
@@ -45,6 +48,7 @@ from dlrover.python.master.node.training_node import (
 )
 from dlrover.python.master.resource.job import JobResource
 from dlrover.python.master.watcher.base_watcher import Node, NodeEvent
+from dlrover.python.scheduler.job import LocalJobArgs
 from dlrover.python.tests.test_utils import (
     MockK8sPSJobArgs,
     create_task_manager,
@@ -87,8 +91,14 @@ class NodeStatusFlowTest(unittest.TestCase):
         self.assertEqual(flow, NODE_STATE_FLOWS[-2])
         self.assertFalse(flow.should_relaunch)
 
+        flow = get_node_state_flow(
+            NodeStatus.PENDING, NodeEventType.DELETED, NodeStatus.DELETED
+        )
+        self.assertEqual(flow, NODE_STATE_FLOWS[9])
+        self.assertTrue(flow.should_relaunch)
 
-class JobManagerTest(unittest.TestCase):
+
+class DistributedJobManagerTest(unittest.TestCase):
     def setUp(self) -> None:
         mock_k8s_client()
 
@@ -179,7 +189,7 @@ class JobManagerTest(unittest.TestCase):
         critical_worker = get_critical_worker_index(params)
         self.assertDictEqual(critical_worker, {0: 3, 1: 3, 2: 3})
 
-    def test_create_job_manager(self):
+    def test_relaunch_node(self):
         params = MockK8sPSJobArgs()
         params.initilize()
         manager = create_job_manager(params, SpeedMonitor())
@@ -197,12 +207,27 @@ class JobManagerTest(unittest.TestCase):
             max_relaunch_count=1,
         )
 
-        manager.update_node_resource_usage(NodeType.WORKER, 0, 0.7, 2048)
+        gpu_stats: list[GPUMetric] = [
+            GPUMetric(
+                index=0,
+                total_memory_mb=24000,
+                used_memory_mb=4000,
+                gpu_utilization=55.5,
+            )
+        ]
+
+        manager.update_node_resource_usage(
+            NodeType.WORKER, 0, 0.7, 2048, gpu_stats
+        )  # noqa
         self.assertEqual(
             manager._job_nodes[NodeType.WORKER][0].used_resource.cpu, 0.7
         )
         self.assertEqual(
             manager._job_nodes[NodeType.WORKER][0].used_resource.memory, 2048
+        )
+        self.assertEqual(
+            manager._job_nodes[NodeType.WORKER][0].used_resource.gpu_stats,
+            gpu_stats,  # noqa
         )
 
         node_event: NodeEvent = NodeEvent(NodeEventType.MODIFIED, node)
@@ -210,7 +235,6 @@ class JobManagerTest(unittest.TestCase):
         self.assertEqual(
             manager._job_nodes[NodeType.WORKER][1].status, NodeStatus.RUNNING
         )
-
         should_relaunch = manager._should_relaunch(node, NODE_STATE_FLOWS[5])
         self.assertFalse(should_relaunch)
 
@@ -224,6 +248,42 @@ class JobManagerTest(unittest.TestCase):
         node.exit_reason = NodeExitReason.FATAL_ERROR
         should_relaunch = manager._should_relaunch(node, NODE_STATE_FLOWS[6])
         self.assertFalse(should_relaunch)
+
+    def test_relaunch_training_master(self):
+        params = MockK8sPSJobArgs()
+        params.initilize()
+        manager = create_job_manager(params, SpeedMonitor())
+        group_resources = manager._job_resource.node_group_resources
+        group_resources[NodeType.MASTER] = NodeGroupResource(
+            1, NodeResource(1, 256)
+        )
+
+        manager._init_nodes()
+        master = Node(NodeType.MASTER, 0, NodeResource(1, 256))
+        manager._job_nodes[NodeType.MASTER][0] = master
+        plan = manager._chief_manager.relaunch_node(master)
+        self.assertEqual(plan.launch_nodes[0].id, 1)
+
+    def test_process_list_nodes(self):
+        params = MockK8sPSJobArgs()
+        params.initilize()
+        manager = create_job_manager(params, SpeedMonitor())
+        manager._init_nodes()
+        for node in manager._job_nodes[NodeType.PS].values():
+            node.status = NodeStatus.PENDING
+        nodes = []
+        for i in range(2):
+            node = Node(
+                node_type=NodeType.PS,
+                node_id=i,
+                status=NodeStatus.RUNNING,
+                config_resource=NodeResource(1, 4096),
+                max_relaunch_count=1,
+            )
+            nodes.append(node)
+        manager._process_list_nodes(nodes)
+        ps_ids = list(manager._job_nodes[NodeType.PS].keys())
+        self.assertListEqual(ps_ids, [0, 1, 3])
 
     def test_create_allreduce_job_manager(self):
         params = MockK8sPSJobArgs()
@@ -369,5 +429,59 @@ class JobManagerTest(unittest.TestCase):
             for _, node in nodes.items():
                 node.start_hang_time = time.time() - 3600 * 4
                 node.status = NodeStatus.RUNNING
+        manager.update_node_resource_usage(NodeType.WORKER, 0, 0.01, 256)
         hang = manager.all_running_node_hanged()
         self.assertTrue(hang)
+        manager.update_node_resource_usage(NodeType.WORKER, 0, 0.5, 256)
+        hang = manager.all_running_node_hanged()
+        self.assertFalse(hang)
+
+    def test_early_stop(self):
+        params = MockK8sPSJobArgs()
+        params.initilize()
+        manager = create_job_manager(params, SpeedMonitor())
+        manager._init_nodes()
+        for node in manager._job_nodes[NodeType.PS].values():
+            node.status = NodeStatus.PENDING
+            node.is_recovered_oom = True
+            node.create_time = datetime.now()
+        msg = manager.early_stop()
+        self.assertTrue(msg == "")
+
+        for node in manager._job_nodes[NodeType.PS].values():
+            node.status = NodeStatus.PENDING
+            node.create_time = datetime.now() + timedelta(days=-1)
+            node.is_recovered_oom = True
+        msg = manager.early_stop()
+        self.assertFalse(msg == "")
+
+        for node in manager._job_nodes[NodeType.PS].values():
+            node.status = NodeStatus.RUNNING
+            node.create_time = datetime.now() + timedelta(days=-1)
+            node.is_recovered_oom = True
+        msg = manager.early_stop()
+        self.assertTrue(msg == "")
+
+
+class LocalJobManagerTest(unittest.TestCase):
+    def test_local_job_manager(self):
+        args = LocalJobArgs("local", "default", "test")
+        job_mananger = LocalJobManager(args)
+        job_mananger.start()
+        self.assertEqual(len(job_mananger._job_nodes[NodeType.WORKER]), 1)
+        gpu_stats: list[GPUMetric] = [
+            GPUMetric(
+                index=0,
+                total_memory_mb=24000,
+                used_memory_mb=4000,
+                gpu_utilization=55.5,
+            )
+        ]
+        job_mananger.update_node_resource_usage(
+            NodeType.WORKER, 0, 10, 10240, gpu_stats
+        )
+
+        worker = job_mananger._job_nodes[NodeType.WORKER][0]
+        self.assertEqual(worker.used_resource.cpu, 10)
+        self.assertEqual(worker.used_resource.memory, 10240)
+        self.assertEqual(worker.used_resource.gpu_stats, gpu_stats)

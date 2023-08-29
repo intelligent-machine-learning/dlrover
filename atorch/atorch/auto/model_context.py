@@ -27,6 +27,8 @@ from atorch.distributed.distributed import (
     parallel_rank,
     rank,
 )
+from atorch.modules.distributed_modules.materialize_modules import materialize_modules_to_device
+from atorch.optimizers.bf16_optimizer import BF16Optimizer
 from atorch.utils.graph_transform_utils import map_aggregate
 from atorch.utils.version import torch_version
 
@@ -359,9 +361,9 @@ class ModelContext(object):
 
     def check_pipe_model(self):
         # import pippy related modules here to avoid PiPPy initialization messes up env
-        from atorch.modules.distributed_modules.compilers import DeviceSafeDriver
+        from atorch.modules.distributed_modules.compilers import DeviceSafeDriver, SafeStage
 
-        return isinstance(self.model, DeviceSafeDriver)
+        return isinstance(self.model, (DeviceSafeDriver, SafeStage))
 
     def create_optim(self):
         """
@@ -381,6 +383,18 @@ class ModelContext(object):
                     "model parameter retrieval is handled by pipe stage executor, optim_param_func will not take effect"
                 )
             logger.info(f"successfully construct optimizer at {rank()}")
+
+        # Use BF16Optimizer if using half with bf16
+        if "half" in self.pre_wrappers and self.pre_wrappers["half"][1] == "bf16":
+            model_device = next(self.model.parameters()).device
+            # model must on cuda device before calling BF16Optimizer
+            if torch.cuda.is_available() and model_device.type != "cuda":
+                if local_rank() is not None:
+                    device = torch.device(type="cuda", index=local_rank())
+                else:
+                    device = torch.device(type="cuda")
+                materialize_modules_to_device(self.model, device)
+            optim = BF16Optimizer(optim)
         return optim
 
     def _create_lr_scheduler(self):

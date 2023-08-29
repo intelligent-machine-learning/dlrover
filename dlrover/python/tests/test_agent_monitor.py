@@ -15,7 +15,10 @@ import json
 import os
 import time
 import unittest
+from unittest.mock import patch
 
+from dlrover.python.common.constants import NodeEnv
+from dlrover.python.elastic_agent.monitor.metrics import GPUMetric
 from dlrover.python.elastic_agent.monitor.resource import ResourceMonitor
 from dlrover.python.elastic_agent.monitor.training import (
     TrainingProcessReporter,
@@ -25,10 +28,36 @@ from dlrover.python.elastic_agent.monitor.training import (
 
 class ResourceMonitorTest(unittest.TestCase):
     def test_resource_monitor(self):
-        resource_monitor = ResourceMonitor()
-        time.sleep(0.3)
-        resource_monitor.report_resource()
-        self.assertTrue(resource_monitor._total_cpu >= 0.0)
+        gpu_stats: list[GPUMetric] = [
+            GPUMetric(
+                index=0,
+                total_memory_mb=24000,
+                used_memory_mb=4000,
+                gpu_utilization=55.5,
+            )
+        ]
+        mock_env = {
+            NodeEnv.DLROVER_MASTER_ADDR: "127.0.0.1:12345",
+            NodeEnv.AUTO_MONITOR_WORKLOAD: "true",
+        }
+
+        with patch.dict("os.environ", mock_env):
+            result = not os.getenv(NodeEnv.DLROVER_MASTER_ADDR, "") or not (
+                os.getenv(NodeEnv.AUTO_MONITOR_WORKLOAD, "") == "true"
+            )
+            self.assertFalse(result)
+            # mock get_gpu_stats
+            with patch(
+                "dlrover.python.elastic_agent.monitor.resource.get_gpu_stats",
+                return_value=gpu_stats,
+            ):
+                with patch("pynvml.nvmlInit"):
+                    resource_monitor = ResourceMonitor()
+                    resource_monitor.start()
+                    time.sleep(0.3)
+                    resource_monitor.report_resource()
+                    self.assertTrue(resource_monitor._total_cpu >= 0.0)
+                    self.assertTrue(resource_monitor._gpu_stats == gpu_stats)
 
     def test_training_reporter(self):
         TF_CONFIG = {

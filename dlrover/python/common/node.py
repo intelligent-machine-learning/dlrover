@@ -40,8 +40,36 @@ class NodeResource(JsonSerializable):
         memory: float, memory MB.
         gpu_type: str, the type of GPU.
         gpu_num: int,
+        gpu_stats: list of GPUMetric, a list of GPUMetric dataclass objects,
+        each containing GPU statistics.
+            - index (int): The index of the GPU.
+            - total_memory_mb (int): Total GPU memory in megabytes.
+            - used_memory_mb (int): Used GPU memory in megabytes.
+            - gpu_utilization (float): GPU utilization in percentage (0.0 to
+              100.0).
         image: the image name of the node.
         priority: the priority classs of the node.
+    Example:
+    To create an instance of NodeResource with the following attributes:
+    - cpu: 4.0
+    - memory: 8192
+    - gpu_type: "nvidia.com"
+    - gpu_num: 1
+    - gpu_stats: [GPUMetric(index=0, total_memory_mb=8192, used_memory_mb=2048,
+    gpu_utilization=80.0)]
+    - image: "ubuntu:20.04"
+    - priority: "high"
+
+    >>> resource = NodeResource(
+    ...     cpu=4.0,
+    ...     memory=8192,
+    ...     gpu_type="nvidia.com",
+    ...     gpu_num=1,
+    ...     gpu_stats=[GPUMetric(index=0, total_memory_mb=8192,
+    ...     used_memory_mb=2048, gpu_utilization=80.0)],
+    ...     image="ubuntu:20.04",
+    ...     priority="high"
+    ... )
     """
 
     def __init__(
@@ -50,6 +78,7 @@ class NodeResource(JsonSerializable):
         memory,
         gpu_type="",
         gpu_num=0,
+        gpu_stats=[],
         priority="",
         **kwargs,
     ):
@@ -57,6 +86,7 @@ class NodeResource(JsonSerializable):
         self.memory = memory
         self.gpu_type = gpu_type
         self.gpu_num = gpu_num
+        self.gpu_stats = gpu_stats
         self.kwargs = kwargs
         self.image = ""
         self.priority = priority
@@ -176,6 +206,7 @@ class Node(object):
         self.eval_time = 0
         self.host_name = host_name
         self.host_ip = host_ip
+        self.hang = False
 
     def inc_relaunch_count(self):
         self.relaunch_count += 1
@@ -203,13 +234,10 @@ class Node(object):
         if status is not None:
             self.status = status
 
-    def update_resource_usage(self, cpu, memory):
+    def update_resource_usage(self, cpu, memory, gpu_stats=[]):
         self.used_resource.cpu = round(cpu, 2)
         self.used_resource.memory = memory
-        if cpu < 0.1:
-            self.start_hang_time = time.time()
-        else:
-            self.start_hang_time = 0
+        self.used_resource.gpu_stats = gpu_stats
 
     def update_service_address(self, service_addr):
         self.service_addr = service_addr

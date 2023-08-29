@@ -3,7 +3,6 @@ import gc
 import os
 import pickle
 import time
-import traceback
 from copy import deepcopy
 
 import torch
@@ -12,7 +11,6 @@ from atorch.auto.analyser.analyser import get_analyser
 from atorch.auto.auto_accelerate_context import AutoAccelerateContext
 from atorch.auto.device_context import get_device_context
 from atorch.auto.dry_runner.dry_runner import get_dryrunner
-from atorch.auto.engine.acceleration_engine import AccelerationEngine
 from atorch.auto.engine_client import EngineClient
 from atorch.auto.model_context import ModelContext
 from atorch.auto.opt_lib.optimization_library import SEMIAUTO_STRATEGIES, OptimizationLibrary
@@ -30,6 +28,12 @@ from atorch.distributed.distributed import (
     rank,
 )
 from atorch.utils.meta_model_utils import deepcopy_checkpoint_name, reload_meta_module
+
+try:
+    from easydl.python.acceleration.acceleration_engine import AccelerationEngine
+except ImportError:
+    AccelerationEngine = None
+import traceback
 
 
 def model_transform(
@@ -310,7 +314,7 @@ def adjust_strategy(strategy, device_context, finetune_strategy, opt_lib):
     """
     found, parallel_mode = strategy.get_parallel_mode()
     cur_total_process = device_context.node_num * device_context.nproc_per_node
-    # adjust data parallel size in parallel_mode
+    # adjust data parallel size in parallel_mode if required.
     if parallel_mode is not None:
         st_total_process = 1
         data_parallel_size = 1
@@ -320,7 +324,8 @@ def adjust_strategy(strategy, device_context, finetune_strategy, opt_lib):
             if name == "data":
                 data_parallel_size = size
                 data_parallel_exist = True
-        if st_total_process != cur_total_process:
+        support_multi_parallel_instance = parallel_mode[2] if len(parallel_mode) > 2 else False
+        if st_total_process != cur_total_process and not support_multi_parallel_instance:
             if parallel_mode[1] is not None or not data_parallel_exist:
                 # if total process num is not equal, we can adjust only for data parallel
                 # without custom ranks in process group.
@@ -333,8 +338,8 @@ def adjust_strategy(strategy, device_context, finetune_strategy, opt_lib):
                     device_context_total_process={cur_total_process}"
                 )
                 return False, None
-        new_data_parallel_size = cur_total_process * data_parallel_size // st_total_process
-        strategy.adjust_data_parallel(new_data_parallel_size)
+            new_data_parallel_size = cur_total_process * data_parallel_size // st_total_process
+            strategy.adjust_data_parallel(new_data_parallel_size)
     elif found:
         # set parallel mode's config to data parallel only.
         strategy.adjust_data_parallel(cur_total_process)

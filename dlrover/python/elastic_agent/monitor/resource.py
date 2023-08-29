@@ -60,7 +60,7 @@ def get_gpu_stats(gpus=[]):
     if not gpus:
         device_count = pynvml.nvmlDeviceGetCount()
         gpus = list(range(device_count))
-    gpu_stats_list = []
+    gpu_stats: list[GPUMetric] = []
     for i in gpus:
         handle = pynvml.nvmlDeviceGetHandleByIndex(i)
         memory_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
@@ -71,7 +71,7 @@ def get_gpu_stats(gpus=[]):
         utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
         gpu_utilization = utilization.gpu
 
-        gpu_stats_list.append(
+        gpu_stats.append(
             GPUMetric(
                 index=i,
                 total_memory_mb=total_memory,
@@ -79,9 +79,7 @@ def get_gpu_stats(gpus=[]):
                 gpu_utilization=gpu_utilization,
             )
         )
-    for gpu_stats in gpu_stats_list:
-        logger.debug(f"GPU metric {gpu_stats}")
-    return gpu_stats_list
+    return gpu_stats
 
 
 @singleton
@@ -132,7 +130,7 @@ class ResourceMonitor(object):
             pynvml.nvmlInit()
             self._gpu_enabled = True
         except pynvml.NVMLError_LibraryNotFound:
-            logger.error(
+            logger.warn(
                 "NVIDIA NVML library not found. "
                 "GPU monitoring features will be disabled."
             )

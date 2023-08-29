@@ -12,7 +12,7 @@ A DLrover program with Estimator typically consists of the following four steps:
 
 Each `Column` identifies a feature name, its type and whether it is label.
 The following snippet defines two feature columns in the
-[example](../../model_zoo/tf_estimator/criteo_deeprec/train_conf.py). 
+[example](../../examples/tensorflow/criteo_deeprec/train_conf.py). 
 ```
 train_set = {
     "reader": FileReader("test.data"),
@@ -178,13 +178,13 @@ docker push ${IMAGE_NAME}
 ### Set the Command to Train the Model.
 
 We need to set the command of ps and worker to train the model like the
-[DeepCTR example](../../dlrover/examples/deepctr_auto_scale_job.yaml)
+[DeepCTR example](../../examples/tensorflow/criteo_deeprec/autoscale_job.yaml)
 
 ```yaml
 command:
     - /bin/bash
     - -c
-    - " cd /home/model_zoo/tf_estimator/criteo_deeprec \
+    - " cd ./examples/tensorflow/criteo_deeprec \
         && python -m dlrover.trainer.entry.local_entry \
         --platform=Kubernetes --conf=train_conf.TrainConf \
         --enable_auto_scaling=True"

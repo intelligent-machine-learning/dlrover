@@ -194,12 +194,19 @@ class MasterClient(object):
         return self._stub.report_shard_checkpoint(request)
 
     @retry_grpc_request
-    def report_used_resource(self, memory, cpu):
+    def report_used_resource(self, memory, cpu, gpu_stats):
         request = elastic_training_pb2.ReportUsedResourceRequest()
         request.memory = memory
         request.cpu = cpu
+        for gpu in gpu_stats:
+            gpu_stats_message = request.gpu_stats.add()
+            gpu_stats_message.index = gpu.index
+            gpu_stats_message.total_memory_mb = gpu.total_memory_mb
+            gpu_stats_message.used_memory_mb = gpu.used_memory_mb
+            gpu_stats_message.gpu_utilization = gpu.gpu_utilization
         request.node_id = self._node_id
         request.node_type = self._node_type
+        logger.debug("report used resource request: {}".format(request))
         return self._stub.report_used_resource(request)
 
     @retry_grpc_request

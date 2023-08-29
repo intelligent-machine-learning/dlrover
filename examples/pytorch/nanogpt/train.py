@@ -27,65 +27,56 @@ from model import GPT, GPTConfig
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.distributed.fsdp.wrap import size_based_auto_wrap_policy
 from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.utils.data import DataLoader, Dataset
+
+os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 
 local_rank = None
 master_process = False
 
 
-def get_data_loader(data_dir):
-    train_data = np.memmap(
-        os.path.join(data_dir, "train.bin"), dtype=np.uint16, mode="r"
-    )
-    val_data = np.memmap(
-        os.path.join(data_dir, "val.bin"), dtype=np.uint16, mode="r"
-    )
-    # Attempt to derive vocab_size from the dataset
-    meta_path = os.path.join(data_dir, "meta.pkl")
-    meta_vocab_size = None
-    if os.path.exists(meta_path):
-        with open(meta_path, "rb") as f:
-            meta = pickle.load(f)
-    meta_vocab_size = meta["vocab_size"]
-    print(f"found vocab_size = {meta_vocab_size} (inside {meta_path})")
-    return train_data, val_data, meta_vocab_size
+class GPTDataset(Dataset):
+    def __init__(self, data_path, block_size=128):
+        self.data = np.memmap(data_path, dtype=np.uint16, mode="r")
+        self.block_size = block_size
+
+    def __len__(self):
+        return len(self.data) - self.block_size
+
+    def __getitem__(self, idx):
+        x = torch.from_numpy(
+            self.data[idx : idx + self.block_size].astype(  # noqa E203
+                np.int64
+            )  # noqa E203
+        )  # noqa
+        y = torch.from_numpy(
+            self.data[idx + 1 : idx + 1 + self.block_size].astype(  # noqa E203
+                np.int64
+            )  # noqa
+        )  # noqa
+        return x, y
 
 
-def get_batch(
-    split,
-    train_data,
-    val_data,
-    device_type="cpu",
-    device="cpu",
+def get_data_loaders(
+    data_dir,
     batch_size=12,
     block_size=128,
+    device_type="cpu",
+    device="cpu",
+    use_fsdp="True",
 ):
-    data = train_data if split == "train" else val_data
-    ix = torch.randint(len(data) - block_size, (batch_size,))
-    x = torch.stack(
-        [
-            torch.from_numpy(
-                (data[i : i + block_size]).astype(np.int64)  # noqa: E203 E501
-            )
-            for i in ix
-        ]
+    train_dataset = GPTDataset(os.path.join(data_dir, "train.bin"), block_size)
+    val_dataset = GPTDataset(os.path.join(data_dir, "val.bin"), block_size)
+    with open(os.path.join(data_dir, "meta.pkl"), "rb") as f:
+        meta = pickle.load(f)
+    train_loader = DataLoader(
+        train_dataset, batch_size=batch_size, shuffle=True, pin_memory=True
     )
-    y = torch.stack(
-        [
-            torch.from_numpy(
-                (data[i + 1 : i + 1 + block_size]).astype(np.int64)  # noqa
-            )
-            for i in ix
-        ]
+    val_loader = DataLoader(
+        val_dataset, batch_size=batch_size, shuffle=False, pin_memory=True
     )
-    if device_type == "cuda":
-        # Pin arrays x,y, which allows us to move them
-        # to GPU asynchronously (non_blocking=True)
-        x, y = x.pin_memory().to(device, non_blocking=True), y.pin_memory().to(
-            device, non_blocking=True
-        )
-    else:
-        x, y = x.to(device), y.to(device)
-    return x, y
+    meta_vocab_size = meta["vocab_size"]
+    return train_loader, val_loader, meta_vocab_size
 
 
 def gpt_init(meta_vocab_size=None, args=None):
@@ -184,8 +175,6 @@ def train():
         gradient_accumulation_steps * world_size * batch_size * block_size
     )  # noqa: E501
     log_rank0(f"tokens per iteration will be: {tokens_per_iter:,}")
-    # data
-    train_data, val_data, meta_vocab_size = get_data_loader(args.data_dir)
     device = (
         f"cuda:{local_rank}"
         if torch.cuda.is_available() and "cuda" in args.device
@@ -214,6 +203,14 @@ def train():
         contextlib.nullcontext()
         if device_type == "cpu"
         else torch.amp.autocast(device_type=device_type, dtype=ptdtype)
+    )
+    train_loader, val_loader, meta_vocab_size = get_data_loaders(
+        data_dir=args.data_dir,
+        batch_size=batch_size,
+        block_size=block_size,
+        device_type=device_type,
+        device=device,
+        use_fsdp=use_fsdp,
     )
     model = gpt_init(meta_vocab_size, args=args)
     scaler = torch.cuda.amp.GradScaler(enabled=(dtype == "float16"))
@@ -254,15 +251,8 @@ def train():
         model = torch.compile(model)  # requires PyTorch 2.0
 
     # Training loop
-    X, Y = get_batch(
-        "train",
-        train_data=train_data,
-        val_data=val_data,
-        device=device,
-        device_type=device_type,
-        batch_size=batch_size,
-        block_size=block_size,
-    )  # Fetch the very first batch
+    X, Y = next(iter(train_loader))
+    X, Y = X.to(device), Y.to(device)
     total_time = 0.0
     local_iter_num = 0  # Number of iterations in the lifetime of this process
     raw_model = model.module  # Unwrap DDP/FSDP container if needed
@@ -292,7 +282,8 @@ def train():
                 )  # Scale the loss to account for gradient accumulation
             # immediately async prefetch next batch while model
             # is doing the forward pass on the GPU
-            X, Y = get_batch("train", train_data, val_data, device_type)
+            X, Y = next(iter(train_loader))
+            X, Y = X.to(device), Y.to(device)
             # Backward pass, with gradient scaling if training in fp16
             scaler.scale(loss).backward()
         # Clip the gradient
@@ -327,8 +318,8 @@ def train():
                 )
             cuda_mem = torch.cuda.max_memory_allocated() / 1e9
             print(
-                f"iter {iter_num}: loss {lossf:.4f}, time {dt*1000:.2f}ms, "
-                f"mfu {running_mfu*100:.2f}%, cuda memory {cuda_mem:.3f}G, "
+                f"iter {iter_num}: loss {lossf:.4f}, time {dt * 1000:.2f}ms, "
+                f"mfu {running_mfu * 100:.2f}%, cuda memory {cuda_mem:.3f}G, "
                 f"lr {lr:.2e}, total time {total_time:.2f}s"
             )
         iter_num += 1
