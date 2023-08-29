@@ -54,6 +54,7 @@ class ElasticDataLoader(DataLoader):
         - PyTorch DataLoader:
           https://pytorch.org/docs/stable/data.html#torch.utils.data.DataLoader
     """
+
     def __init__(self, *args, config_file=None, **kwargs):
         super(ElasticDataLoader, self).__init__(*args, **kwargs)
         self.current_batch_size = self.batch_size

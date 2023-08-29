@@ -44,9 +44,7 @@ class TestElasticDataLoader(unittest.TestCase):
     def test_load_config(self, mock_open):
         dataset = SimpleDataset()
         # Create a temporary ElasticDataLoader instance for testing
-        dataloader = ElasticDataLoader(
-            dataset=dataset, batch_size=32
-        )
+        dataloader = ElasticDataLoader(dataset=dataset, batch_size=32)
 
         # Assert that the loaded batch_size is correct
         self.assertEqual(dataloader.current_batch_size, 32)
