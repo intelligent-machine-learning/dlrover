@@ -43,20 +43,33 @@ class TestElasticDataLoader(unittest.TestCase):
     @patch("builtins.open", create=True)
     def test_load_config(self, mock_open):
         dataset = SimpleDataset()
+        # Create a temporary ElasticDataLoader instance for testing
+        dataloader = ElasticDataLoader(
+            dataset=dataset, batch_size=32
+        )
+
+        # Assert that the loaded batch_size is correct
+        self.assertEqual(dataloader.current_batch_size, 32)
+
         # Configure the mock_open to return the desired content
         mock_open.return_value.__enter__.return_value.read.return_value = (
             '{"batch_size": 64}'
         )
-        # Create a temporary ElasticDataLoader instance for testing
-        dataloader = ElasticDataLoader(
-            dataset=dataset, batch_size=32, config_file="config.json"
-        )
 
         # Call the load_config method
-        dataloader.load_config()
+        dataloader.load_config(config_file="config.json")
+
+        # Configure the mock_open to return the desired content
+        mock_open.return_value.__enter__.return_value.read.return_value = (
+            '{"batch_size": 128}'
+        )
+
+        dataloader = ElasticDataLoader(
+            dataset=dataset, config_file="config.json"
+        )
 
         # Assert that the loaded batch_size is correct
-        self.assertEqual(dataloader.current_batch_size, 64)
+        self.assertEqual(dataloader.current_batch_size, 128)
 
     @patch("builtins.open", create=True)
     def test_set_batch_size(self, mock_open):
