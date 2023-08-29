@@ -94,16 +94,15 @@ update configured parameters.
 The format of config file is a json string like
 
 ```json
-config = {
+{
     "dataloader": {
         "batch_size": 4,
         "num_workers": 2,
-        "pin_memory": False,
+        "pin_memory": false
     },
     "optimizer": {
-        "learning_rate": 0.001,
+        "learning_rate": 0.001
     }
-    ...
 }
 ```
 
