@@ -2,27 +2,34 @@
 
 ## 1. 背景
 
-随着大规模机器学习模型的持续增长，分布式训练已经成为该领域的核心技术。DLRover 系统已展现出其在多个方面的优势，特别是在节点故障、资源动态分配和自动恢复等关键场景下。尽管 PyTorch 原生支持 Fully Sharded Data Parallelism (FSDP) 策略，但 DLRover 作为一个天然的弹性训练系统，当面临动态的资源扩缩容和容错场景时，简单的使用 PyTorch 的 FSDP 可能会导致 OOM 或者当 world size 变化时无法重新 load 之前保存的被分片了的 checkpoint 的问题，并且用户手工 save/load 中间状态在编写训练脚本时增加了负担。
+大规模机器学习模型增长中，分布式训练成为核心技术。DLRover 在多个场景下展现了优势，特别是节点故障、资源动态分配和自动恢复。
+PyTorch 原生支持 FSDP 策略，但 DLRover 在动态资源和容错时面临问题，如 OOM 和 world size 变化无法重新加载分片的 checkpoint。
 
 **动机**
 
 考虑DLRover系统级别上支持FSDP的主要动机如下：
 
-1. **系统级别支持 FSDP 弹性训练：** PyTorch 提供了 FSDP 的支持，但在 DLRover 的弹性环境中，DLRover 的 Trainer 需要感知 FSDP 训练过程，进而帮助用户在一定 step 或 epoch 后自动保存 checkpoint，不需要用户手动保存；并在发生 FailOver 或者 Elastic 时自动加载上一checkpoint 进行模型参数和优化器状态的恢复，不需要用户自己加载。
-2. **弹性训练时扩展 Pytorch FSDP 的 resharding 功能：** DLRover在弹性扩缩容和容错时，Pytorch 保存 checkpoint 的方式有两种，rank0_only 和 sharding。使用 rank0_only 策略保存 checkpoint 会容易导致 OOM，不符合弹性容错的需求；Pytorch 目前的 sharding 方式不支持 world size 改变后的重新 load，因此我们需要设计一种 resharding 方案来支持 world size 动态调整下的 load/save。
+1. **系统级别支持 FSDP 弹性训练：** DLRover 需要感知 FSDP 训练，帮助用户自动保存和加载checkpoint。
+2. **弹性训练时扩展 Pytorch FSDP 的 resharding 功能：** Pytorch 保存方式需改进，需设计 resharding 方案支持 world size 变化时的动态调整。
 
 **主要挑战**
 
 在 DLRover 中支持 FSDP 的过程中，我们主要解决以下技术难点：
 
-1. **系统级别支持 FSDP 弹性训练的接口设计**：ElasticTrianer 需要设计间接易扩展的接口，让用户可以配置 FSDP 弹性训练任务时尽可能简单，并且支持传入自定义的保存 checkpoint 的策略和共享存储路径。存储路径的设计需要隔离不同任务并避免路径冲突。
-2. **resharding 方式的 load/save**：由于 DLRover 的弹性容错特性，使用 rank0_only 策略保存 checkpoint 会容易导致 OOM，不符合弹性容错的需求。所以我们必须以 sharding 形式保存 checkpoint。但由于 Pytorch 目前没有支持 resharding 的 save/load，因此在 world size 发生变化时，需要基于将分片后保存的 checkpoint 进行 reshard 来恢复模型参数和优化器状态，这需要对 Pytorch _shard 和 fsdp 包进行功能上的扩展。
+1. **系统级别支持 FSDP 弹性训练的接口设计**：ElasticTrianer 的接口设计需要考虑如何简化用户
+输入，同时保持扩展性。用户应能方便配置 FSDP 弹性训练任务，提供自定义的
+保存 checkpoint 策略，及指定共享存储路径。关键是如何设计路径，避免
+任务间冲突。
 
-综上所述，为DLRover系统引入对FSDP的深度支持不仅是技术上的延展，更是为了确保在复杂、动态的弹性训练环境中，大模型的训练可以稳定、高效地进行。
+2. **resharding 方式的 load/save**：DLRover 的弹性特点意味着必须采用分片
+形式保存 checkpoint。但 Pytorch 尚不完全支持 resharding 的保存和加载，
+特别是在 world size 变化时。需要扩展 Pytorch 的功能，使其能够在保存
+和加载时进行有效的 reshard。
 
 ## 2. 概要设计
 
-将主要对 DLRover 系统中的 ElasticTrainer 模块、Master 模块进行修改。ElasticTrainer 是管理模型训练的 manager，因此将主要修改这个模块使其能够支持在fsdp训练策略下，每过一段step或者epoch后保存模型分片，然后在pod数量发生变化时reaload 模型和优化器状态的分片。
+修改 DLRover 的 ElasticTrainer 模块。主要在 fsdp 策略下，
+每段时间后保存和加载模型分片。
 
 ### **2.1 ElasticTrainer 增加的属性**
 
@@ -48,8 +55,8 @@ class CheckpointInterval:
 
 ### **2.2 ElasticTrainer 新增和修改的 public 函数**
 
-- **增加** **epoch 函数**：这是一个 contextmanager 装饰器，在 epoch 开始前后做一些操作。比如 reset 和在 fsdp 策略下保存模型和优化器状态参数分片。
-- **修改** **step 函数**：这是一个 contextmanager 装饰器，在 step 结束后检测是否需要保存模型和优化器状态参数分片。
+- **增加** **epoch 函数**：contextmanager 装饰器，在 epoch 开始前后做一些操作。比如 reset 和在 fsdp 策略下保存模型和优化器状态参数分片。
+- **修改** **step 函数**：contextmanager 装饰器，在 step 结束后检测是否需要保存模型和优化器状态参数分片。
 - **prepare 函数的修改**：初始化时需要检查是否需要先load模型和优化器状态参数分片，如果分片和当前 worker 数不一致需要reshard load。
 
 ### **2.3 ElasticTrainer 对 save/load 时 reshard 的支持**
