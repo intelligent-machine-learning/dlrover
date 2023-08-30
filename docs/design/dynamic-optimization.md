@@ -37,8 +37,8 @@ to detect the bottleneck.
 size per GPU, the num_workers of dataloader without pausing
 the training to checkpoint.
 
-1. Automatically adjust the sharding strategy of FSDP to
-improve the training performance without restarting the job.
+1. Automatically adjust the sharding strategy of [FSDP](https://arxiv.org/pdf/2304.11277.pdf)
+to improve the training performance without restarting the job.
 
 ## System Design
 
@@ -95,6 +95,7 @@ The format of config file is a json string like
 
 ```json
 {
+    "version": 1,
     "dataloader": {
         "batch_size": 4,
         "num_workers": 2,
