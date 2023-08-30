@@ -248,6 +248,11 @@ message NodeFailure {
   string level = 5;
 }
 
+message TrainingStrategy {
+    int version = 1;
+    string config = 2;
+}
+
 service Master {
   rpc get_task(GetTaskRequest) returns (Task);
   rpc report_task_result(ReportTaskResultRequest)
