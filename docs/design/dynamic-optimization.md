@@ -1,4 +1,4 @@
-# Dynamic Optimization of Distributed Training.
+# Dynamic Optimization of Distributed Training
 
 The design describes how to implement dynamic optimization of distributed
 training in an ElasticJob of DLRover.
@@ -53,7 +53,7 @@ and generate training strategy with those metrics.
 As showed in the above figure, a job of DLRover has a master node and
 worker nodes. The worker node connects with the master node by GRPC to
 report the training metrics and acquire the training strategy config from
-the master node. 
+the master node.
 
 ### Job Master
 
@@ -70,7 +70,6 @@ characteristics, runtime workload and throughput.
 
 - Strategy generator generates the distributed strategy configuration
 by the collected metrics and send the configuration to the worker.
-
 
 ### ElasticAgent
 
@@ -107,7 +106,6 @@ The format of config file is a json string like
 }
 ```
 
-
 ### Dynamic Adjustment Extensions
 
 To dynamically adjust the training configured strategy, the user need to use
@@ -127,7 +125,6 @@ convergence.
 - DynamicParallelism dynamically adjusts the sharding strategy of model to
 improve the throughput.
 
-
 ## Related Work
 
 In recent years, the community has introduced and investigated numerous
@@ -138,11 +135,11 @@ that delivers good training speed. DeepSpeep autotuning can search
 the optimal micro batch size and ZeRO optimization stage by performing
 experiments with different configurations. Each experiment need to restart
 the training process. The training does not start until the autotuning
-generete the optimal configurations. 
+generete the optimal configurations.
 [Collossal-Auto](https://github.com/hpcaitech/ColossalAI/tree/main/colossalai/auto_parallel)
 provides automation of intra-op parallelism and activation
 checkpoint but it need to generate all valid parallelism startegies of
-all operators in PyTorch. 
+all operators in PyTorch.
 
 In a distributed training job with mutilple nodes, it is more difficult
 to automatically optimize the parallelism strategy and configuration
