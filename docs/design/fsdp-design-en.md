@@ -2,32 +2,49 @@
 
 ## 1. Background
 
-As large-scale machine learning models continue to grow, distributed training has become a core technology. DLRover has shown advantages in various scenarios, especially in node failure, dynamic resource allocation, and automatic recovery. While PyTorch natively supports the FSDP (Fully Sharded Data Parallel) strategy, DLRover encounters issues with dynamic resources and fault tolerance, such as OOM (Out of Memory) and the inability to reload sharded checkpoints when the world size changes.
+As the scale of machine learning models has grown, the necessity for distributed
+training has become paramount. DLRover is especially proficient in addressing
+challenges such as node failures, dynamic resource allocation, and automatic
+recovery. While PyTorch provides support through FSDP (Fully Sharded Data Parallel),
+DLRover still faces specific issues related to dynamic resources and fault tolerance.
+These problems often manifest as OOM (Out of Memory) errors and complications in
+reloading sharded checkpoints when the world size alters."
 
-**Motivation**
+### 1.1 Motivation
 
-The primary motivations for supporting FSDP at the system level in DLRover are:
+DLRover aims to support FSDP at the system level for:
 
-1. **System-Level Support for FSDP Elastic Training:** DLRover needs to be aware of FSDP training to help users automatically save and load checkpoints.
-2. **Extend PyTorch FSDP Resharding During Elastic Training:** The PyTorch save method needs improvements to support dynamic resharding when the world size changes.
+1. **System-Level FSDP Elastic Training:** DLRover should recognize FSDP
+training, aiding users in auto-saving and loading checkpoints.
+2. **Enhanced PyTorch FSDP Resharding:** PyTorch's save method requires
+refinement for dynamic resharding when world size varies.
 
-**Main Challenges**
+### 1.2 Main Challenges
 
-During the implementation of FSDP in DLRover, we primarily address the following technical challenges:
+FSDP implementation in DLRover presents hurdles:
 
-1. **System-Level Interface Design for FSDP Elastic Training:** The design of the `ElasticTrainer` interface needs to simplify user input while maintaining extensibility. Users should be able to easily configure FSDP elastic training tasks, provide custom checkpoint save strategies, and specify shared storage paths. The key is designing a path that avoids conflicts between tasks.
-  
-2. **Load/Save with Resharding:** The elastic nature of DLRover requires checkpoints to be saved in shards. PyTorch does not fully support saving and loading with resharding, especially when the world size changes. Extending PyTorch's capabilities to efficiently reshard during saving and loading is essential.
+1. **System-Level Interface for FSDP Elastic Training:** The
+`ElasticTrainer` design should simplify user interaction yet remain
+extensible. It should support easy FSDP elastic training configuration,
+custom checkpoint strategies, and shared storage paths without task
+conflicts.
+
+2. **Efficient Load/Save with Resharding:** DLRover's elasticity
+demands sharded checkpoint saves. PyTorch's current methods aren't
+optimal for save/load with resharding, especially during world size
+changes.
 
 ## 2. High-Level Design
 
-Modify DLRover's `ElasticTrainer` module to save and load model shards at intervals under the FSDP strategy.
+Revise DLRover's `ElasticTrainer` to save/load model shards with FSDP.
 
 ### 2.1 Attributes Added to ElasticTrainer
 
-- **use_fsdp:** Whether to adopt the FSDP training strategy
-- **shared_storage_path:** Specifies the shared storage path between worker pods; FSDP-related data is part of this.
-- **checkpoint_interval:** An instance of `CheckpointInterval` to specify the checkpoint save strategy, either by the number of epochs or steps.
+- **use_fsdp:** Option for the FSDP training strategy.
+- **shared_storage_path:** Path shared among worker pods containing FSDP
+data.
+- **checkpoint_interval:** A `CheckpointInterval` instance to define
+checkpoint save strategy, either by epochs or steps.
 
 ```python
 class CheckpointInterval:
@@ -47,22 +64,34 @@ class CheckpointInterval:
 
 ### 2.2 New and Modified Public Functions in ElasticTrainer
 
-- **Add `epoch` function:** A context manager decorator to perform certain operations before and after each epoch, such as reset and save model and optimizer state shards under the FSDP strategy.
-- **Modify `step` function:** A context manager decorator to check whether model and optimizer state shards need to be saved after each step.
-- **Modify `prepare` function:** Check during initialization if model and optimizer state shards need to be loaded first. If shards are inconsistent with the current number of workers, perform resharding during load.
+- **Add `epoch` function:** Introduces a context manager decorator for executing specific operations before
+and after each epoch. Notably, it resets and saves model and optimizer state shards under the FSDP strategy.
+  
+- **Modify `step` function:** Updated to act as a context manager decorator. It verifies whether state shards
+for the model and optimizer should be saved after each training step.
+
+- **Modify `prepare` function:** Enhanced to inspect at initialization whether state shards for the model and
+optimizer should be pre-loaded. If shard inconsistencies exist due to varying worker numbers, resharding is
+conducted during load.
 
 ### 2.3 ElasticTrainer Support for Resharding During Save/Load
 
-Given the dynamic nature of elastic training, current PyTorch support for parameter resharding is limited. Thus, we need to save shard meta information during save and perform resharding operations during load. Add `_save_fsdp_state` and `_load_fsdp_state` functions in `ElasticTrainer` for this purpose.
+Considering the fluid nature of elastic training, existing PyTorch support for parameter resharding is somewhat lacking.
+To address this, we've added `_save_fsdp_state` and `_load_fsdp_state` functions in `ElasticTrainer`.
+These functions manage the saving of shard metadata and execute resharding procedures during load operations.
 
 ## 3. Detailed Design of ElasticTrainer
 
-### 3.1 Add `shared_storage_path`, `use_fsdp`, and `checkpoint_interval` Attributes
+### 3.1 Introduction of Attributes
 
-We will only add `shared_storage_path` and `use_fsdp` attributes in `ElasticTrainer`.
+In `ElasticTrainer`, we're introducing `shared_storage_path` and `use_fsdp`.
 
-1. `use_fsdp: bool`, obtained from the constructor, with a default value of `False`. When set to `True`, `ElasticTrainer` will check if `shared_storage_path` exists and will save model parameters and optimizer states to `shared_storage_path` when it meets the `checkpoint_interval`.
-2. `shared_storage_path: str`, obtained from the constructor, with a default value of `None`. This path is used to temporarily store checkpoints for this training session to achieve elastic training (this shared path can also store other data).
+1. `use_fsdp: bool` - Sourced from the constructor, it defaults to `False`.
+If activated, the trainer checks the existence of `shared_storage_path`.
+When the `checkpoint_interval` is met, model parameters and optimizer states are saved there.
+
+2. `shared_storage_path: str` - Obtained from the constructor and defaults to `None`.
+This path temporarily houses checkpoints for facilitating elastic training. It can also store other data types.
 
     ```bash
     shared_storage_path/
@@ -147,13 +176,15 @@ for epoch in range(start_epoch, epochs):
                 ...
 ```
 
-We will decorate the `epoch` function with `@contextmanager`. `ElasticTrainer.epoch` will handle the following at the start of each epoch:
+We will decorate the `epoch` function with `@contextmanager`.
+`ElasticTrainer.epoch` will handle the following at the start of each epoch:
 
 1. Invoke the `reset` function, setting `trainer.gradient_state.num_steps` to zero.
 
 Upon conclusion, it will:
 
-1. If `checkpoint_interval` meets the `should save` condition, save model parameters and optimizer state as a checkpoint to `shared_storage_path`.
+1. If `checkpoint_interval` meets the `should save` condition,
+save model parameters and optimizer state as a checkpoint to `shared_storage_path`.
 
 ```python
 class ElasticTrainer(object):
@@ -171,7 +202,8 @@ class ElasticTrainer(object):
 
 ### 3.3 Modify `step` function
 
-If `checkpoint_interval` meets the `should save` condition, save model parameters and optimizer state as a checkpoint to `shared_storage_path`.
+If `checkpoint_interval` meets the `should save` condition,
+save model parameters and optimizer state as a checkpoint to `shared_storage_path`.
 
 Before modification:
 
@@ -237,38 +269,42 @@ class ElasticTrainer(object):
             return optimizer
 ```
 
-### 3.5 Support resharding for save/load
+### 3.5 Resharding Support for Save/Load
 
 **Background:**
 
-Elastic fault tolerance depends on checkpoints to restore model states. The present large model training adopts the FSDP parallel approach. There are two ways FSDP saves checkpoints:
+Restoring model states in elastic fault tolerance relies on checkpoints.
+Modern large model training employs the FSDP parallel technique. FSDP offers two checkpoint-saving methods:
 
-1. `rank0_only`: The rank-0 node collects all model parameters and optimizer states, then saves them to disk.
-2. Sharding method: Every rank saves its respective model parameters and optimizer states.
+1. `rank0_only`: Rank-0 node aggregates model parameters and optimizer states, then commits to disk.
+2. Sharding method: Each rank saves its model parameters and optimizer states.
 
-While `rank0_only` supports elastic fault tolerance, it might cause OOM errors and has significant write latency. The sharding approach can't satisfy elastic fault tolerance training's requirements.
+While `rank0_only` aids elastic fault tolerance, it can trigger OOM errors and bears notable write delays.
+The sharding method doesn't meet elastic fault tolerance training needs.
 
-For `rank0_only`:
+Concerning `rank0_only`:
 
-1. Loading all model parameters and optimizer states in rank-0 might lead to OOM.
-2. Collecting all model parameters and optimizer states in rank-0, then writing them to disk one by one, is time-consuming.
+1. Loading all parameters and states in rank-0 can induce OOM.
+2. Aggregating then sequentially writing to disk in rank-0 is inefficient.
 
-For the sharding method:
+Regarding the sharding method:
 
-1. The number of ranks saving the checkpoint must match the number loading it. But in elastic fault tolerance, rank numbers may change.
+1. Ranks saving the checkpoint should mirror those loading it. But in elastic scenarios, rank count can vary.
 
 **Objective:**
 
-Enhance the sharding method to support resharding when the number of ranks changes.
+Refine the sharding technique to accommodate resharding when rank counts shift.
 
 **Design:**
 
-Save the start and end positions for each parameter. Store this info as checkpoint meta data in a separate file. Then reshard based on these parameters during load.
+Document start and end positions for each parameter. Retain this data as checkpoint metadata in an isolated file.
+During loading, perform resharding using these parameters.
 
 ![fsdp](../figures/fsdp-resharding.png)
 
 <aside>
-As operations on non-flattened data (Tensor) are needed when saving and loading the model, we need to save a triplet for the model parameters: (original_shape, start, end).
+As operations on non-flattened data (Tensor) are needed when saving and loading the model,
+we need to save a triplet for the model parameters: (original_shape, start, end).
 </aside>
 
 File structure will look like:
@@ -303,27 +339,35 @@ class ElasticTrainer(object):
         # save a checkpoint ...
 ```
 
-**Two upcoming improvements:**
+**Upcoming Improvements:**
 
-1. Asynchronous writing: Use a separate thread to save the checkpoint to prevent blocking the training process.
-2. If the nodegroup remains unchanged, don't rewrite the meta information. This is because when shards don't change, meta data remains the same.
+1. Asynchronous writing: Utilize a separate thread for checkpoint saving, ensuring training remains non-blocking.
+2. When the nodegroup is stable, avoid meta data rewrites.
 
 ## 3. Deploying PV
 
-To enable Worker Pods to share storage, the chosen storage solution must support the **`ReadWriteMany`** access mode. This is because the **`ReadWriteMany`** access mode allows pods on multiple nodes to access the same storage volume simultaneously.
+To enable Worker Pods shared storage, the storage solution should support the **`ReadWriteMany`** mode.
+This mode permits multiple pods on different nodes to access a singular storage volume simultaneously.
 
-Here are some common storage solutions that support the **`ReadWriteMany`** access mode:
+Popular storage solutions with **`ReadWriteMany`** mode include:
 
-1. **NFS (Network File System)**: NFS is a popular file system that supports multiple read and writes. You can set up an NFS server and use the NFS-provisioner to dynamically provision PersistentVolumes in Kubernetes.
-2. **CephFS**: Ceph is a highly scalable distributed file system, and its CephFS layer supports multiple read and write modes.
-3. **GlusterFS**: Gluster is a free and open-source scalable network file system that can provide a large storage pool and supports concurrent access from multiple nodes.
+1. **NFS (Network File System)**:
+A widely-used system supporting multiple operations. By setting up an NFS server and leveraging NFS-provisioner,
+one can dynamically provision PersistentVolumes in Kubernetes.
+2. **CephFS**: A scalable, distributed file system. Its CephFS layer allows multiple operations.
+3. **GlusterFS**:
+An open-source, scalable network file system offering expansive storage pools and access from multiple nodes.
 
-To achieve shared storage functionality for master and worker pods in a multi-node Kubernetes cluster, one needs to:
+For shared storage across master and worker pods in a multi-node Kubernetes cluster:
 
-1. Ensure the storage backend (e.g., NFS, CephFS, GlusterFS, etc.) is deployed and running correctly in the cluster.
-2. Create a **`PersistentVolume`** and **`PersistentVolumeClaim`** to utilize that storage. Ensure the **`ReadWriteMany`** access mode is specified in the PVC definition.
-3. Utilize this PVC in the definitions of both the master and worker pods.
+1. Ensure a proper deployment and operation of the storage backend (e.g., NFS, CephFS, GlusterFS).
+2. Set up a **`PersistentVolume`** and **`PersistentVolumeClaim`** using that storage,
+specifying **`ReadWriteMany`** in the PVC.
+3. Integrate this PVC into master and worker pod definitions.
 
 <aside>
-In most cases, there's no need to manually create PVs. Many Kubernetes clusters have automated storage provisioning configured, such as AWS EBS, Google Cloud Persistent Disk, or Azure Disk Storage, which automatically provisions a new PV when a PVC is created. However, if your Kubernetes environment doesn't have automated storage provisioning or if you require a specific storage configuration, then manual PV creation becomes necessary. In such scenarios, specific parameters and configurations can be specified in the PV, after which a PVC can be created to utilize this PV.
+Often, manual PV creation isn't needed. Many Kubernetes setups, like AWS EBS, Google Cloud Persistent Disk,
+or Azure Disk Storage, auto-create PVs upon PVC generation. But if automated storage provisioning is absent or a
+distinct storage configuration is required, manual PV creation becomes essential.
+In such cases, specific parameters are defined in the PV, paving the way for PVC usage.
 </aside>
