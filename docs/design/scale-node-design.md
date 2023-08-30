@@ -11,6 +11,7 @@ the training process.
 ## Design
 
 Auto-scaling in DLRover contains the following steps:
+
 - The `JobResourceOptimizer` in `JobManager` queries a `ResourcePlan`.
 - The `TrainingNodeManager` (e.g. `PSManager` and `WorkerManger`)
 in `JobManager` generates the `ScalePlan`.
@@ -40,7 +41,7 @@ and PS.
 of the job and ajust resource to mitigate the bottleneck.
 
 At each stage, `JobResourceOptimizer` queries a `ResourcePlan` by calling its
-`ResourceOptimizer`. 
+`ResourceOptimizer`.
 
 The `ResourcePlan` contains resource configurations of training nodes. For
 exampel:
@@ -141,15 +142,15 @@ If the number of PS is smaller than the current number of PS. `PSManager` will
 not delete the additional PS nodes immediately. Because model parameters are
 stored across PS nodes and will be lost if we delele PS nodes before
 workers checkpoints model parameters on PS.
-`PSManager` will  add those PS nodes which is to be removed 
-to a queuee `_pre_dropped_ps` and remove those PS hosts from 
+`PSManager` will  add those PS nodes which is to be removed
+to a queuee `_pre_dropped_ps` and remove those PS hosts from
 its `_next_training_ps_cluster`. After workers succeed to checkpoint model parameters
 and connect the next PS cluster. `PSManager` will set those those PS nodes into `remove_nodes`
 of a `ScalePlan`.
 
 **Migrate PS.**
-If there is a updatation in a PS node's resource in `ResourcePlan.node_resources`, 
-`PSManager` will create a PS `Node` with the new resource. 
+If there is a updatation in a PS node's resource in `ResourcePlan.node_resources`,
+`PSManager` will create a PS `Node` with the new resource.
 After the new PS node is running, `PSManager`
 will update its `_next_training_ps_cluster` and notify
 workers to connect new PS clusters. After workers succeed to connect new PS
@@ -177,7 +178,8 @@ for additional workers to be removed.
 create/update/delete nodes to achieve the `ScalePlan`. We can implement
 differenct `Scaler` for different distributed cluster.
 
-#### Pod Scaler 
+#### Pod Scaler
+
 `PodScaler` is implemented by K8s Python APIs to create/update/delete Pods
 on a K8s cluster.
 
@@ -192,6 +194,7 @@ will replace the `Node` into the queue to retry.
 by the name of the node in `remove_nodes`.
 
 #### ElasticJob Scaler
+
 `ElasticJobScaler` is implemented to create a `ScalePlan` CRD to notify the
 [ElasticJob controller](docs/design/elastic-training-operator.md) to
 reconcile Pods by the `ScalePlan` on a K8s cluster. The example of `ScalePlan` is

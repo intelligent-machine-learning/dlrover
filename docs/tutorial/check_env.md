@@ -1,6 +1,8 @@
 # Environment Test before Start
 
-Before you start installing this project, you need to perform the following tests to ensure that your current computer environment meets the requirements, so as to avoid some possible errors.
+Before you start installing this project, you need to perform the following
+tests to ensure that your current computer environment meets the requirements,
+so as to avoid some possible errors.
 
 `grpcio == 1.34.1`:
 
@@ -59,4 +61,3 @@ import importlib
 
 assert importlib.util.find_spec("ray") is not None, "ray module is not installed"
 ```
-
