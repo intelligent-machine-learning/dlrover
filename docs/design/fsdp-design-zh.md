@@ -5,14 +5,14 @@
 大规模机器学习模型增长中，分布式训练成为核心技术。DLRover 在多个场景下展现了优势，特别是节点故障、资源动态分配和自动恢复。
 PyTorch 原生支持 FSDP 策略，但 DLRover 在动态资源和容错时面临问题，如 OOM 和 world size 变化无法重新加载分片的 checkpoint。
 
-**动机**
+### 1.1 动机
 
 考虑DLRover系统级别上支持FSDP的主要动机如下：
 
 1. **系统级别支持 FSDP 弹性训练：** DLRover 需要感知 FSDP 训练，帮助用户自动保存和加载checkpoint。
 2. **弹性训练时扩展 Pytorch FSDP 的 resharding 功能：** Pytorch 保存方式需改进，需设计 resharding 方案支持 world size 变化时的动态调整。
 
-**主要挑战**
+### 1.2 主要挑战
 
 在 DLRover 中支持 FSDP 的过程中，我们主要解决以下技术难点：
 
@@ -61,7 +61,8 @@ class CheckpointInterval:
 
 ### **2.3 ElasticTrainer 对 save/load 时 reshard 的支持**
 
-考虑到弹性训练的动态性，目前 PyTorch 在分片参数上的 reshard 支持有限，因此需要支持在 save 时保存分片的 meta 信息，在 load 时进行 reshard 操作等。在ElasticTrainer中增加：_save_fsdp_state 和 _load_fsdp_state 函数来实现
+考虑到弹性训练的动态性，目前 PyTorch 在分片参数上的 reshard 支持有限，因此需要支持在 save 时保存分片的 meta 信息，在 load 时进行 reshard 操作等。
+在ElasticTrainer中增加：_save_fsdp_state 和_load_fsdp_state 函数来实现
 
 ## 3. ElasticTrainer 详细设计
 
@@ -69,7 +70,9 @@ class CheckpointInterval:
 
 我们将在 ElasticTrainer 中只增加 shared_storage_path 和 use_fsdp 属性
 
-1. use_fsdp: bool ，use_fsdp 从构造函数中获取，默认值是 False。当为True 时 ElasticTrainer 将检测 shared_storage_path 是否存在，并且在符合 `checkpoint_interval` 的时候将模型参数和优化器状态 checkpoint，保存到shared_storage_path。
+1. use_fsdp: bool ，use_fsdp 从构造函数中获取，默认值是 False。
+当为True 时 ElasticTrainer 将检测 shared_storage_path 是否存在，
+并且在符合 `checkpoint_interval` 的时候将模型参数和优化器状态 checkpoint，保存到shared_storage_path。
 2. shared_storage_path：str，从构造函数中获取，默认值是None。用来暂存这次训练用于实现弹性训练而存放checkpoint的path（这个共享路径还可以存储其他数据）。
   
     ```bash
@@ -118,8 +121,6 @@ class CheckpointInterval:
             return True
         return False
 ```
-
-
 
 ### 3.2 增加 epoch 函数
 
@@ -197,7 +198,7 @@ class ElasticTrainer(object):
         with context():
             yield
             self._after_step()
-		def _after_step(self):
+    def _after_step(self):
         if self.gradient_state.sync_gradients:
             self.gradient_state.num_steps += 1
 ```
@@ -229,22 +230,22 @@ class ElasticTrainer(object):
 ```python
 class ElasticTrainer(object):
     def prepare(self, optimizer, lr_scheduler=None):
-	      """
-	      Prepare optimizer and learning rate scheduler in elastic training.
-	      """
+        """
+        Prepare optimizer and learning rate scheduler in elastic training.
+        """
         # If the trainer is configured to load from a checkpoint,
         # load both the model state and the optimizer state.
         if self.load_from_checkpoint:
             self._load_model()
             self._load_optim()
         #########################################################
-	      self._set_gradient_accumulation_steps()
-	      optimizer = _ElasticOptimizer(optimizer)
-	      if lr_scheduler:
-	          lr_scheduler = _ElasticLRScheduler(lr_scheduler)
-	          return optimizer, lr_scheduler
-	      else:
-	          return optimizer
+        self._set_gradient_accumulation_steps()
+        optimizer = _ElasticOptimizer(optimizer)
+        if lr_scheduler:
+            lr_scheduler = _ElasticLRScheduler(lr_scheduler)
+            return optimizer, lr_scheduler
+        else:
+            return optimizer
 ```
 
 ### 3.5 支持 reshard 的 save/load
@@ -319,7 +320,6 @@ class ElasticTrainer(object):
 1. 异步写入，在保存checkpoint这个操作的时候单开一个线程去写入，不阻塞训练过程
 2. meta信息在nodegroup没有变更的时候不重复写入，因为分片没有改变时候meta信息也没有改变
 
-
 ## 3. 部署PV
 
 为了让 Worker Pods 共享存储，选择的存储解决方案必须支持 **`ReadWriteMany`** 访问模式。这是因为 **`ReadWriteMany`** 访问模式允许多个节点上的 pods 同时访问同一个存储卷。
@@ -337,6 +337,9 @@ class ElasticTrainer(object):
 3. 在 master 和 worker pods 的定义中使用这个 PVC
 
 <aside>
-在多数情况下，不需要手动创建PV。很多 Kubernetes 集群配置了自动化的存储供应，例如AWS EBS、Google Cloud Persistent Disk 或 Azure Disk Storage，这些存储解决方案会在PVC创建时自动供应一个新的 PV。
-但是，如果 Kubernetes 环境没有自动存储供应或你需要特定的存储配置，那么需要手动创建 PV。在这种情况下，你可以在 PV 中指定特定的参数和配置，然后再创建 PVC 来使用这个 PV。
+在多数情况下，不需要手动创建PV。很多 Kubernetes 集群配置了自动化的存储供应，
+例如AWS EBS、Google Cloud Persistent Disk 或 Azure Disk Storage，
+这些存储解决方案会在PVC创建时自动供应一个新的 PV。
+但是，如果 Kubernetes 环境没有自动存储供应或你需要特定的存储配置，那么需要手动创建 PV。
+在这种情况下，你可以在 PV 中指定特定的参数和配置，然后再创建 PVC 来使用这个 PV。
 </aside>
