@@ -133,7 +133,7 @@ class MasterRendezvousHandler(RendezvousHandler):
         start_join = time.time()
         node_name = os.getenv("POD_NAME", "")
         msg = (
-            f"The node node_name attempts to join the next round of the "
+            f"The node {node_name} attempts to join the next round of the "
             f"rendezvous '{self._name}' with timeout {self.join_timeout}."
         )
         logger.info(msg)

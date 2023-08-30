@@ -6,23 +6,23 @@ step by step.
 ## Create namespace
 
 ```shell
-$ kubectl create namespace dlrover
+kubectl create namespace dlrover
 ```
 
-## Deploy MySQL 
+## Deploy MySQL
 
 To create MySQL DB as the store for ELRover
 
 ```shell
-$ cd dlrover/go/brain/manifests/k8s
-$ kubectl apply -f mysql-pv.yaml
-$ kubectl apply -f mysql.yaml
+cd dlrover/go/brain/manifests/k8s
+kubectl apply -f mysql-pv.yaml
+kubectl apply -f mysql.yaml
 ```
 
 Create tables in MySQL
 
 ```shell
-$ kubectl exec -it mysql-pod-name --namespace dlrover -- bash
-$ cd dlrover
-$ mysql -uroot -proot < dlrover-tables.sql
+kubectl exec -it mysql-pod-name --namespace dlrover -- bash
+cd dlrover
+mysql -uroot -proot < dlrover-tables.sql
 ```
