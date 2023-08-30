@@ -5,14 +5,15 @@ on a public cloud, namely, Alibaba Cloud Container Service for Kubernetes(ACK).
 
 ## Preliminary
 
-- Create a Kubernetes cluster on [ACK](https://help.aliyun.com/document_detail/309552.htm?spm=a2c4g.11186623.0.0.168f6b7aegH7nI#task-2112671). 
+- Create a Kubernetes cluster on [ACK](https://help.aliyun.com/document_detail/309552.htm?spm=a2c4g.11186623.0.0.168f6b7aegH7nI#task-2112671).
 - Configure cluster credentials on your local computer.
-- Create a [NAS](https://help.aliyun.com/document_detail/477380.html?spm=a2c4g.11186623.0.0.10635c83Xn7Tkh) storage and mount it to the cluster.
+- Create a [NAS](https://help.aliyun.com/document_detail/477380.html?spm=a2c4g.11186623.0.0.10635c83Xn7Tkh)
+storage and mount it to the cluster.
 
 If you do not have a Kubernetes cluster on Cloud, you also can start
 a local kubernetes cluster by [Minikube start](https://minikube.sigs.k8s.io/docs/start/).
 
-## Deploy the ElasticJob CRD on the Kubernetes Cluster.
+## Deploy the ElasticJob CRD on the Kubernetes Cluster
 
 1. Clone the repo to your host.
 
@@ -27,7 +28,7 @@ cd dlrover/go/operator/
 make deploy IMG=easydl/elasticjob-controller:master
 ```
 
-2. Grant permission for the DLRover master to Access CRDs.
+3. Grant permission for the DLRover master to Access CRDs.
 
 ```bash
 kubectl -n dlrover apply -f config/manifests/bases/default-role.yaml
