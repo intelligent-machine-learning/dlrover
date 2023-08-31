@@ -11,7 +11,7 @@ only:
   triggerType:
     - push
   targetBranch:
-    - master
+    - release
 
 build_elasticdl_dev:
   stage: 构建&发布到测试库
