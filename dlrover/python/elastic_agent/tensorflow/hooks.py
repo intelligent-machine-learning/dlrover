@@ -56,7 +56,7 @@ def generate_model_stats():
     return tensor_stats, op_stats
 
 
-class ReportModelMetricHook(SessionRunHook):
+class ReportModelInfoHook(SessionRunHook):
     def __init__(self):
         """Report variables and operators in a model to
         the DLRover master.
@@ -67,7 +67,7 @@ class ReportModelMetricHook(SessionRunHook):
         self._global_step = 0
         self._op_stats = None
         self._tensor_stats = None
-        super(ReportModelMetricHook, self).__init__()
+        super(ReportModelInfoHook, self).__init__()
 
     def begin(self):
         self._is_chief = is_tf_chief()

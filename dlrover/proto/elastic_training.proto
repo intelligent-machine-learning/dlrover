@@ -122,9 +122,11 @@ message OperationStats {
   int64 recv_op_count = 6;
 }
 
-message ModelMetric {
+message ModelInfo {
   TensorStats tensor_stats = 1;
   OperationStats op_stats = 2;
+  float instantiation_memory = 3;
+  float activation_memory = 4;
 }
 
 message GetClusterVersionRequest {
@@ -248,8 +250,9 @@ message NodeFailure {
   string level = 5;
 }
 
-message TrainingStrategy {
-    int version = 1;
+message ParallelismConfig {
+    int32 version = 1;
+    // A json string to store the config.
     string config = 2;
 }
 
@@ -269,7 +272,7 @@ service Master {
   // rpcs to report training metrics
   rpc report_used_resource(ReportUsedResourceRequest)
       returns (google.protobuf.Empty);
-  rpc report_model_metric(ModelMetric) returns (google.protobuf.Empty);
+  rpc report_model_metric(ModelInfo) returns (google.protobuf.Empty);
   rpc report_global_step(GlobalStepRecord) returns (google.protobuf.Empty);
 
   // rpcs for worker sync
@@ -305,6 +308,12 @@ service Master {
   rpc kv_store_get(KeyValuePair) returns (KeyValuePair);
   rpc report_failure(NodeFailure) returns (Response);
   rpc network_check_success(RendezvousRequest) returns (Response);
+
+  // rpc for dynamic parallelism optimization
+  rpc report_parallelism_config(ParallelismConfig)
+      returns (google.protobuf.Empty);
+  rpc get_parallelism_config(google.protobuf.Empty)
+      returns (ParallelismConfig);
 
   rpc report_prestop(ReportPreStopRequest) returns (google.protobuf.Empty);
   rpc update_node_status(NodeMeta) returns (Response);

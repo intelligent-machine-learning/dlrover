@@ -25,7 +25,7 @@ from dlrover.python.master.stats.training_metrics import (
     CustomMetricKey,
     DatasetMetric,
     DatasetType,
-    ModelMetric,
+    ModelInfo,
     OpStats,
     RuntimeMetric,
     TensorStats,
@@ -123,8 +123,8 @@ class JobMetricCollector(BaseMetricCollector):
         if not self._flops:
             self._flops = op_stats.flops
         op_stats.flops = self._flops
-        metric = ModelMetric(tensor_stats, op_stats)
-        self._stats_reporter.report_model_metrics(metric)
+        metric = ModelInfo(tensor_stats, op_stats)
+        self._stats_reporter.report_model_info(metric)
 
     @BaseMetricCollector.catch_exception
     def _report_runtime_stats(self):

@@ -483,6 +483,17 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         res.reason = reason
         return res
 
+    # TODO: collect the parallelism config from the worker.
+    def report_parallelism_config(self, request, context):
+        logger.info(f"parallelism config is {request}")
+
+    # TODO: genereate a valid parallelism config.
+    def get_parallelism_config(self, request, context):
+        res = elastic_training_pb2.ParallelismConfig()
+        res.config = ""
+        res.version = 0
+        return res
+
 
 def create_master_service(
     port,

@@ -23,6 +23,7 @@ from dlrover.proto import elastic_training_pb2, elastic_training_pb2_grpc
 from dlrover.python.common.constants import NetworkFailureReason, NodeEnv
 from dlrover.python.common.grpc import build_channel
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.common.parallelism_config import ParallelismConfig
 
 
 def retry_grpc_request(func):
@@ -217,7 +218,7 @@ class MasterClient(object):
 
     @retry_grpc_request
     def report_model_metric(self, tensor_stats, op_stats):
-        metric_msg = elastic_training_pb2.ModelMetric()
+        metric_msg = elastic_training_pb2.ModelInfo()
         tensor_msg = metric_msg.tensor_stats
         tensor_msg.variable_count = tensor_stats.variable_count
         tensor_msg.total_variable_size = tensor_stats.total_variable_size
@@ -416,6 +417,17 @@ class MasterClient(object):
         request.restart_count = restart_count
         request.level = level
         self._stub.report_failure(request)
+
+    @retry_grpc_request
+    def report_parallelism_config(self, version, config: ParallelismConfig):
+        request = elastic_training_pb2.ParallelismConfig()
+        request.version = version
+        request.config = config.toJSON()
+        self._stub.report_parallelism_config(request)
+
+    def get_parallelism_config(self):
+        request = empty_pb2.Empty()
+        self._stub.get_parallelism_config(request)
 
 
 class LocalDataset(object):

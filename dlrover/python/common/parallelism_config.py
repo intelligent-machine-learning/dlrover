@@ -24,3 +24,9 @@ class DataLoaderConfig(JsonSerializable):
 class OptimizerConfig(JsonSerializable):
     name: str
     learning_rate: Optional[float] = None
+
+
+@dataclass
+class ParallelismConfig(JsonSerializable):
+    dataloader: Optional[DataLoaderConfig] = None
+    optimizer: Optional[DataLoaderConfig] = None

@@ -130,8 +130,8 @@ class OpStats(object):
         self.flops = flops
 
 
-class ModelMetric(object):
-    """ModelMetric contains profiling data of a model."""
+class ModelInfo(object):
+    """ModelInfo contains profiling data of a model."""
 
     def __init__(self, tensor_stats: TensorStats, op_stats: OpStats):
         self.tensor_stats = tensor_stats

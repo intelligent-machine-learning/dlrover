@@ -134,7 +134,7 @@ class MasterServicerTest(unittest.TestCase):
         request.node_type = NodeType.PS
         self.servicer.report_used_resource(request, None)
 
-        request = elastic_training_pb2.ModelMetric()
+        request = elastic_training_pb2.ModelInfo()
         request.tensor_stats.variable_count = 100
         request.tensor_stats.total_variable_size = 10000
 
@@ -143,7 +143,7 @@ class MasterServicerTest(unittest.TestCase):
         self.servicer.report_model_metric(request, None)
         reporter = self.job_metric_collector._stats_reporter
         reporter._runtime_stats = []
-        self.assertEqual(reporter._model_metric.op_stats.flops, 10000)
+        self.assertEqual(reporter._model_info.op_stats.flops, 10000)
 
         worker0 = self.job_manager._job_nodes[NodeType.WORKER][0]
         worker0.status = NodeStatus.RUNNING
