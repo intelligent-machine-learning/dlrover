@@ -206,7 +206,7 @@ class MasterClient(object):
             gpu_stats_message.gpu_utilization = gpu.gpu_utilization
         request.node_id = self._node_id
         request.node_type = self._node_type
-        logger.info("report used resource request: {}".format(request))
+        logger.debug("report used resource request: {}".format(request))
         return self._stub.report_used_resource(request)
 
     @retry_grpc_request

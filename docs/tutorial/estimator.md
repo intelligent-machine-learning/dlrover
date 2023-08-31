@@ -3,17 +3,20 @@
 The document describes how to develop tensorflow estimator model with DLRover trainer.
 
 ## Develop model with tensorflow estimator
+
 [Tensorflow Estimator](https://www.tensorflow.org/guide/estimator)
 encapsulate Training, Evaluation, Prediction and Export for serving actions.
 In DLrover, both custome estimators and pre-made estimators are supported.
 
 A DLrover program with Estimator typically consists of the following four steps:
+
 ### Define the features and label column in the conf
 
 Each `Column` identifies a feature name, its type and whether it is label.
 The following snippet defines two feature columns in the
-[example](../../model_zoo/tf_estimator/criteo_deeprec/train_conf.py). 
-```
+[example](../../examples/tensorflow/criteo_deeprec/train_conf.py).
+
+```python
 train_set = {
     "reader": FileReader("test.data"),
     "columns": (
@@ -29,21 +32,23 @@ train_set = {
         ),
     ),
 }
-``` 
+```
 
 The first feature is `x` and its type is `float32`.
-The second feature is `y` and is label. Its type is `float32`. 
-`dlrover.trainer` helps build `input_fn` for train set and test set with those columns. 
-
+The second feature is `y` and is label. Its type is `float32`.
+`dlrover.trainer` helps build `input_fn` for train set and test set with those columns.
 
 ### Add Custom Reader for TF Estimator in DLrover
+
 In some case, the reader provided by DLrover trainer doesn't satisfy user's need.
 User need to develop custom reader and set it in the conf.
 
 #### Add Custom Elastic Reader for TF Estimator in DLrover
-##### Define Elastic Reader Class
+
 One necessary arguments in the `__init__` method is path.
-The key funcion is `read_data_by_index_range` and `count_data`. `count_data` is used for konwing how many dataset are there before training. During training, `read_data_by_index_range` will be called to get train data.
+The key funcion is `read_data_by_index_range` and `count_data`. `count_data` is used for
+konwing how many dataset are there before training. During training, `read_data_by_index_range`
+will be called to get train data.
 
 ```python
 from dlrover.trainer.tensorflow.reader.base_reader import ElasticReader
@@ -65,7 +70,6 @@ class FakeReader(ElasticReader):
         return data
 ```
 
-##### Set Reader Conf file
 you need to initial you reader and set it in the conf. Here is an example  
 
 ```python
@@ -73,8 +77,6 @@ eval_set = {"reader": FakeReader("./eval.data"), "columns": train_set["columns"]
 ```
 
 #### Add Custom Non Elastic Reader for TF Estimator in DLrover
-
-##### Define Reader Class
 
 The key funcion is `iterator`.  During training, `iterator` will be called to get train data.
 
@@ -98,26 +100,35 @@ class Reader:
                 yield d
 ```
 
-##### Set Reader Conf file
 you need to initial you reader and set it in the conf. Here is an example  
+
 ```python
 eval_set = {"reader": Reader("./eval.data"), "columns": train_set["columns"]}
 ```
 
-### Instantiate the Estimator.
-The heart of every Estimator—whether pre-made or custom—is its model function, model_fn, which is a method that builds graphs for training, evaluation, and prediction.  
-In `dlrover.trainer`, we assume the Estimator is a custom estimator. And pre-made estimators should be converted to custom estimator with little overhead.
+### Instantiate the Estimator
+
+The heart of every Estimator—whether pre-made or custom—is its model function, model_fn,
+which is a method that builds graphs for training, evaluation, and prediction.  
+In `dlrover.trainer`, we assume the Estimator is a custom estimator.
+And pre-made estimators should be converted to custom estimator with little overhead.
+
 #### Train a model from custome estimators
-When relying on a custom Estimator, you must write the model function yourself. Refer the [tutorial](https://www.tensorflow.org/guide/estimator).
-#### Train a model from pre-made estimators 
+
+When relying on a custom Estimator, you must write the model function yourself.
+Refer the [tutorial](https://www.tensorflow.org/guide/estimator).
+
+#### Train a model from pre-made estimators
+
 You can convert an existing pre-made estimators by writing an Adaptor to fit with `dlrover.trainer`.
 As we can see, the model_fn is the key part of estimator.
 When training and evaluating, the model_fn is called with different mode and the graph is returned.
 Thus, you can define a custom estimator in which model_fn function acts as a wrapper for pre-made estimator model_fn.
 In the example of [DeepFMAdaptor](../../dlrover/trainer/examples/deepfm/DeepFMAdaptor.py),
-`DeepFMEstimator` in [`deepctr.estimator.models`](https://github.com/shenweichen/DeepCTR/tree/master/deepctr/estimator/models) is a pre-made estimator. 
+`DeepFMEstimator` in [`deepctr.estimator.models`](https://github.com/shenweichen/DeepCTR/tree/master/deepctr/estimator/models)
+is a pre-made estimator.
 
-```
+```python
 from deepctr.estimator.models.deepfm import DeepFMEstimator
 
 class DeepFMAdaptor(tf.estimator.Estimator):
@@ -142,20 +153,24 @@ class DeepFMAdaptor(tf.estimator.Estimator):
         )
 
 ```
+
 ### Saving object-based checkpoints with Estimator
-Estimators by default save checkpoints with variable names rather than the object graph described in the Checkpoint guide. 
+
+Estimators by default save checkpoints with variable names rather than the
+object graph described in the Checkpoint guide.
 The checkpoint hook is added by `dlrover.trainer.estimator_executor`.
 
 ### SavedModels from Estimators
+
 Estimators export SavedModels through tf.Estimator.export_saved_model.
 The exporter hook is added by `dlrover.trainer.estimator_executor`.
 
-When the job is launched, `dlrover.trainer.estimator_executor` parses the conf and builds input_fn, estimator and related hooks.
+When the job is launched, `dlrover.trainer.estimator_executor` parses the conf and builds input_fn,
+estimator and related hooks.
 
+## Submit a Job to Train the Estimator model
 
- ## Submit a Job to Train the Estimator model
-
- ### Build an Image with Models.
+### Build an Image with Models
 
 You can install dlrover in your image.
 
@@ -175,16 +190,16 @@ docker build -t ${IMAGE_NAME} -f ${DockerFile} .
 docker push ${IMAGE_NAME} 
 ```
 
-### Set the Command to Train the Model.
+### Set the Command to Train the Model
 
 We need to set the command of ps and worker to train the model like the
-[DeepCTR example](../../dlrover/examples/deepctr_auto_scale_job.yaml)
+[DeepCTR example](../../examples/tensorflow/criteo_deeprec/autoscale_job.yaml)
 
 ```yaml
 command:
     - /bin/bash
     - -c
-    - " cd /home/model_zoo/tf_estimator/criteo_deeprec \
+    - " cd ./examples/tensorflow/criteo_deeprec \
         && python -m dlrover.trainer.entry.local_entry \
         --platform=Kubernetes --conf=train_conf.TrainConf \
         --enable_auto_scaling=True"

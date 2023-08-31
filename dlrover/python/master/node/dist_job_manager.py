@@ -394,7 +394,7 @@ class DistributedJobManager(JobManager):
         node_type = event.node.type
         node_id = event.node.id
         if node_id not in self._job_nodes[node_type]:
-            self._job_nodes[node_type][node_id] = event.node
+            logger.info(f"The node {event.node.name} is released.")
             return
         else:
             cur_node = self._job_nodes[node_type][node_id]

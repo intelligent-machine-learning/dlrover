@@ -16,16 +16,10 @@ import os
 
 import tensorflow as tf
 
-from dlrover.python.elastic_agent.sharding.client import ShardingClient
-from dlrover.python.elastic_agent.tensorflow.hooks import (
-    ElasticDataShardReportHook,
-    ReportModelMetricHook,
-)
-
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.INFO)
 
 CATEGORY_CODE = {"Iris-setosa": 0, "Iris-versicolor": 1, "Iris-virginica": 2}
-DATASET_DIR = "/model_zoo/iris.data"
+DATASET_DIR = "examples/tensorflow/iris/iris.data"
 
 
 def read_csv(file_path):
@@ -89,27 +83,21 @@ def model_fn(features, labels, mode, params):
         )
 
 
-def train_generator(shard_service):
-    import time
-
+def train_generator():
     rows = read_csv(DATASET_DIR)
-    while True:
-        # Read samples by the range of the shard from
-        # the data shard serice.
-        shard = shard_service.fetch_shard()
-        if not shard:
-            break
-        for i in range(shard.start, shard.end):
-            label = CATEGORY_CODE[rows[i][-1]]
-            yield rows[i][0:-1], [label]
-            time.sleep(0.01)
+    for i in range(100):
+        for row in rows:
+            if len(row) > 0:
+                label = CATEGORY_CODE[row[-1]]
+                yield row[0:-1], [label]
 
 
 def eval_generator():
     rows = read_csv(DATASET_DIR)
     for row in rows:
-        label = CATEGORY_CODE[row[-1]]
-        yield row[0:-1], [label]
+        if len(row) > 0:
+            label = CATEGORY_CODE[row[-1]]
+            yield row[0:-1], [label]
 
 
 def input_fn(sample_generator, batch_size):
@@ -127,7 +115,7 @@ def input_fn(sample_generator, batch_size):
 
 if __name__ == "__main__":
     model_dir = "/data/ckpts/"
-    batch_size = 32
+    batch_size = 64
     feature_columns = [
         tf.feature_column.numeric_column(key="x", shape=(4,), dtype=tf.float32)
     ]
@@ -149,28 +137,11 @@ if __name__ == "__main__":
     # Create a data shard service which can split the dataset
     # into shards.
     rows = read_csv(DATASET_DIR)
-    sharding_client = ShardingClient(
-        dataset_name="iris_data",
-        batch_size=batch_size,
-        num_epochs=100,
-        dataset_size=len(rows),
-        num_minibatches_per_shard=2,
-    )
-
-    # Add a hook to report the shard done so that the data
-    # shard service will not reassign the shard to other workers.
-    hooks = [
-        ElasticDataShardReportHook(sharding_client),
-        ReportModelMetricHook(),
-    ]
 
     def train_input_fn():
-        return input_fn(lambda: train_generator(sharding_client), batch_size)
+        return input_fn(lambda: train_generator(), batch_size)
 
-    train_spec = tf.estimator.TrainSpec(
-        input_fn=train_input_fn,
-        hooks=hooks,
-    )
+    train_spec = tf.estimator.TrainSpec(input_fn=train_input_fn)
     eval_spec = tf.estimator.EvalSpec(
         input_fn=lambda: input_fn(eval_generator, batch_size)
     )

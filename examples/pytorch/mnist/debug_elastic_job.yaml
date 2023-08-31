@@ -15,14 +15,14 @@ spec:
           containers:
             - name: main
               # yamllint disable-line rule:line-length
-              image: easydl/dlrover-train:test
+              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:torch201-mnist-test
               imagePullPolicy: Never
               command:
                 - /bin/bash
                 - -c
                 - "dlrover-run --nnodes=$WORKER_NUM \
                   --nproc_per_node=2 --max_restarts=3  \
-                  model_zoo/pytorch/mnist_cnn.py --num_epochs 2 \
+                  examples/pytorch/mnist/cnn_train.py --num_epochs 2 \
                   --training_data /data/mnist_png/training/ \
                   --validation_data /data/mnist_png/testing/"
               resources:
@@ -38,5 +38,5 @@ spec:
           restartPolicy: Never
           containers:
             - name: main
-              imagePullPolicy: Never
-              image: easydl/dlrover-master:test
+              imagePullPolicy: Always
+              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:test

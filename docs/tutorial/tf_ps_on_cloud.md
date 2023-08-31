@@ -5,9 +5,10 @@ with on a public cloud, namely, Alibaba Cloud Container Service for Kubernetes(A
 
 ## Preliminary
 
-- Create a Kubernetes cluster on [ACK](https://help.aliyun.com/document_detail/309552.htm?spm=a2c4g.11186623.0.0.168f6b7aegH7nI#task-2112671). 
+- Create a Kubernetes cluster on [ACK](https://help.aliyun.com/document_detail/309552.htm?spm=a2c4g.11186623.0.0.168f6b7aegH7nI#task-2112671).
 - Configure cluster credentials on your local computer.
-- Create a [NAS](https://help.aliyun.com/document_detail/477380.html?spm=a2c4g.11186623.0.0.10635c83Xn7Tkh) storage and mount it to the cluster.
+- Create a [NAS](https://help.aliyun.com/document_detail/477380.html?spm=a2c4g.11186623.0.0.10635c83Xn7Tkh)
+storage and mount it to the cluster.
 
 ## Deploy the ElasticJob CRD on ACK
 
@@ -17,7 +18,7 @@ with on a public cloud, namely, Alibaba Cloud Container Service for Kubernetes(A
 make deploy IMG=easydl/elasticjob-controller:v0.1.1
 ```
 
-2. Grant permission for the DLRover master to Access CRDs.
+1. Grant permission for the DLRover master to Access CRDs.
 
 ```bash
 kubectl -n dlrover apply -f dlrover/go/operator/config/rbac/default_role.yaml 
@@ -28,7 +29,7 @@ kubectl -n dlrover apply -f dlrover/go/operator/config/rbac/default_role.yaml
 - Submit a job to train a DeepFM model without specified resource.
 
 ```bash
-kubectl -n dlrover apply -f dlrover/examples/deepctr_auto_scale_job.yaml
+kubectl -n dlrover apply -f examples/tensorflow/criteo_deeprec/autoscale_job.yaml
 ```
 
 - Check the job status
@@ -74,7 +75,7 @@ dlrover-auto-scale-edljob-worker-2            1/1     Running   0          3m19s
 - Submit a job with the DeepFM model.
 
 ```bash
-kubectl -n dlrover apply -f dlrover/examples/deepctr-manual-scaling-job.yaml
+kubectl -n dlrover apply -f examples/tensorflow/criteo_deeprec/autoscale_job.yaml
 ```
 
 - Check the job status
@@ -124,6 +125,7 @@ spec:
     worker:
       replicas: 3
 ```
+
 After scaling, there three worker nodes:
 
 ``` bash
@@ -190,7 +192,6 @@ deepctr-auto-scaling-edljob-ps-0                 1/1     Running   0          9m
 elasticjob-deepctr-auto-scaling-dlrover-master   1/1     Running   0          9m47s
 ```
 
-
 We can migrate a PS with more resource like
 
 ```yaml
@@ -218,6 +219,7 @@ NAME                                             READY   STATUS    RESTARTS   AG
 deepctr-auto-scaling-edljob-chief-0              1/1     Running   0          22m
 deepctr-auto-scaling-edljob-ps-0                 1/1     Running   0          22m
 ```
+
 After migrating, new ps joins and the old ps exit:
 
 ``` bash

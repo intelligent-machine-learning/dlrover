@@ -15,7 +15,7 @@ import contextlib
 import os
 import socket
 from contextlib import contextmanager
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import torch
 import torch.distributed as dist
@@ -167,6 +167,50 @@ class _ElasticLRScheduler(object):
         return self.scheduler.print_lr(*args, **kwargs)
 
 
+class CheckpointInterval:
+    def __init__(
+        self, steps: Optional[int] = None, epochs: Optional[int] = None
+    ):
+        """Initializes the CheckpointInterval class to determine intervals
+        for saving checkpoints.
+
+        Args:
+            steps (int, optional): Number of steps for checkpoint intervals.
+            epochs (int, optional): Number of epochs for checkpoint intervals.
+
+        Raises:
+            ValueError: If both 'steps' and 'epochs' are set simultaneously.
+
+        **Note:**
+            Only one of 'steps' or 'epochs' should be set.
+        """
+        if steps and epochs:
+            raise ValueError("Only one of 'steps' or 'epochs' should be set.")
+        self.steps = steps
+        self.epochs = epochs
+
+    def should_save(
+        self,
+        current_step: Optional[int] = None,
+        current_epoch: Optional[int] = None,
+    ) -> bool:
+        """Determines if a checkpoint should be saved based on
+        provided parameters.
+
+        Args:
+            current_step (int, optional): The current training step.
+            current_epoch (int, optional): The current training epoch.
+
+        Returns:
+            bool: True if the checkpoint should be saved, otherwise False.
+        """
+        if self.steps and current_step and current_step % self.steps == 0:
+            return True
+        if self.epochs and current_epoch and current_epoch % self.epochs == 0:
+            return True
+        return False
+
+
 class ElasticTrainer(object):
     """Creates an instance of an elastic trainer for elastic distributed
     training on multi-nodes. The elastic trainer will do:
@@ -189,11 +233,25 @@ class ElasticTrainer(object):
             size fixed by adjusting the gradient_accumulation_steps.
     """
 
-    def __init__(self, model):
+    def __init__(
+        self,
+        model,
+        use_fsdp: bool = False,
+        ckpt_interval: CheckpointInterval = None,
+        shared_storage_path: str = None,
+    ):
+        if use_fsdp and (ckpt_interval is None or shared_storage_path is None):
+            raise ValueError(
+                "When 'use_fsdp' is True, both 'ckpt_interval' and \
+                    'shared_storage_path' must be provided and not None."
+            )
         self.model = model
         self.optimizer = None
         self.gradient_state = GradientState()
         self.gradient_accumulation_steps = 1
+        self.use_fsdp = use_fsdp
+        self.ckpt_interval = ckpt_interval
+        self.shared_storage_path = shared_storage_path
 
     def prepare(self, optimizer, lr_scheduler=None):
         """
@@ -206,6 +264,60 @@ class ElasticTrainer(object):
             return optimizer, lr_scheduler
         else:
             return optimizer
+
+    def _save_fsdp_ckpt(
+        self,
+        epoch_num: Optional[int] = None,
+        step_num: Optional[int] = None,
+    ):
+        """Intended for saving Fully Sharded Data Parallel (FSDP) checkpoints.
+        This method's implementation is pending in a subsequent PR.
+
+        Args:
+            epoch_num (Optional[int], optional):
+                The current epoch number. Defaults to None.
+            step_num (Optional[int], optional):
+                The current step number. Defaults to None.
+
+        Raises:
+            NotImplementedError: This method has not been implemented yet.
+
+        **TODO:**
+            - Implement the detailed logic for saving FSDP checkpoints to
+                the file system in a subsequent PR.
+        """
+        raise NotImplementedError(
+            "The save_checkpoint method will be implemented \
+                in a subsequent PR."
+        )
+
+    def _before_epoch(self):
+        """Prepares necessary setups before starting a new epoch."""
+        self.reset()
+
+    def _after_epoch(self, num_epochs: int):
+        """Handles post-epoch operations based on the completed number
+        of epochs.
+
+        Args:
+            num_epochs (int): The total number of completed epochs.
+        """
+        if self.ckpt_interval and self.ckpt_interval.should_save(
+            current_epoch=num_epochs
+        ):
+            self._save_fsdp_ckpt(num_epochs)
+
+    @contextmanager
+    def epoch(self, num_epochs: int):
+        """Context manager for pre-epoch setup and post-epoch cleanup.
+
+        Args:
+            num_epochs (int):
+                The number of epochs to consider within this context.
+        """
+        self._before_epoch()
+        yield
+        self._after_epoch(num_epochs)
 
     @contextmanager
     def step(self, fix_total_batch_size=True):
@@ -265,6 +377,10 @@ class ElasticTrainer(object):
             )
 
     def _after_step(self):
+        if self.ckpt_interval and self.ckpt_interval.should_save(
+            current_step=self.num_steps
+        ):
+            self._save_fsdp_ckpt()
         if self.gradient_state.sync_gradients:
             self.gradient_state.num_steps += 1
 
