@@ -685,7 +685,6 @@ class DistributedJobManager(JobManager):
     def all_running_node_hanged(self):
         node_hang = self._worker_manager.running_nodes_hanged()
         node_hang.extend(self._chief_manager.running_nodes_hanged())
-        node_hang.extend(self._evaluator_manager.running_nodes_hanged())
         node_hang.extend(self._ps_manager.running_nodes_hanged())
         if node_hang:
             return all(node_hang)
