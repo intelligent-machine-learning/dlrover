@@ -416,7 +416,6 @@ class DistributedJobManager(JobManager):
             status_change_flow: NodeStateFlow = get_node_state_flow(
                 old_status, event.event_type, new_status
             )
-            cur_node.update_status(new_status)
             # If there is no matched state change, return directly
             # If the node has been succeed, return directly
             if (
@@ -426,6 +425,7 @@ class DistributedJobManager(JobManager):
                 return
 
             # Update the node status
+            cur_node.update_status(new_status)
             new_status = status_change_flow.to_status
             cur_node.set_exit_reason(event.node.exit_reason)
             self._process_node_events(status_change_flow, cur_node)
