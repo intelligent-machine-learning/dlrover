@@ -394,7 +394,7 @@ class DistributedJobManager(JobManager):
         node_type = event.node.type
         node_id = event.node.id
         if node_id not in self._job_nodes[node_type]:
-            self._job_nodes[node_type][node_id] = event.node
+            logger.info(f"The node {event.node.name} is released.")
             return
         else:
             cur_node = self._job_nodes[node_type][node_id]
@@ -416,7 +416,6 @@ class DistributedJobManager(JobManager):
             status_change_flow: NodeStateFlow = get_node_state_flow(
                 old_status, event.event_type, new_status
             )
-            cur_node.update_status(new_status)
             # If there is no matched state change, return directly
             # If the node has been succeed, return directly
             if (
@@ -426,6 +425,7 @@ class DistributedJobManager(JobManager):
                 return
 
             # Update the node status
+            cur_node.update_status(new_status)
             new_status = status_change_flow.to_status
             cur_node.set_exit_reason(event.node.exit_reason)
             self._process_node_events(status_change_flow, cur_node)

@@ -1,4 +1,5 @@
 # Training Master of DLRover
+
 The design describes the architecture of the training master of DLRover.
 The master is responsible to controll the training of a single job and
 provide the following services:
@@ -25,6 +26,7 @@ distributed systems.
 ## Architecture of the Training Master
 
 The master contains 5 components:
+
 - Resource Generator: it generates resource configuration plans for the job.
 - Scaler: it generates Scale CRDs according to resource plans.
 - Stats Collector: it collects the runtime statistics for the job, including
@@ -70,6 +72,7 @@ class StatsCollector(metaclass=ABCMeta):
     def report_resource_usage(self):
         pass
 ```
+
 We can implement `report_resource_usage` to report the runtime statistics
 (e.g. CPU/memory usage) of all parameter servers and workers
 to DLRover Brain to persist them in a database like MySQL.
@@ -200,7 +203,7 @@ After a worker start to training, `DataShardManager` dispatch the shard
 to the worker. After the worker uses up samples in the shard, it will
 report a shard status to `DataShardManger`.
 The shard only contains indices of smaples not the sample
-data. 
+data.
 
 ```Python
 class DataShardManger(metaclass=ABCmeta):
@@ -234,4 +237,3 @@ class DataShardManger(metaclass=ABCmeta):
         """Restore uncompleted data shards from a checkpoint"""
         pass
 ```
-

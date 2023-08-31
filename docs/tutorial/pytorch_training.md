@@ -7,14 +7,13 @@ We have provided the
 [CNN example](../../examples/pytorch/mnist_cnn.py) to show how to
 train a CNN model with the MNIST dataset.
 
-## Develop a Torch Model with DLRover. 
+## Develop a Torch Model with DLRover
 
 Using elastic training of DLRover, users only need to set the
 `ElasticDistributedSampler` into their training `DataLoader`
 and checkpoint the sampler when checkpointing the model.
 
-### Setup ElasticDistributedSampler into the Dataloader.
-
+### Setup ElasticDistributedSampler into the Dataloader
 
 ```Python
 from dlrover.trainer.torch.elastic_sampler import ElasticDistributedSampler
@@ -113,15 +112,16 @@ for _, (data, target) in enumerate(train_loader):
             torch.save(model_checkpoint, "model.pt")
 ```
 
-## Submit an ElasticJob on the Kubernetes to Train the model.
+## Submit an ElasticJob on the Kubernetes to Train the model
 
-### Build the Image with the Model.
+### Build the Image with the Model
 
 You can install dlrover in your image like
 
 ```bash
 pip install dlrover[torch] -U
 ```
+
 or build your image with the dockerfile.
 
 ```dockerfile
@@ -137,7 +137,7 @@ RUN pip install dlrover -U
 COPY ./model_zoo ./model_zoo
 ```
 
-### Run the Training code with dlrover-run.
+### Run the Training code with dlrover-run
 
 ```yaml
 spec:

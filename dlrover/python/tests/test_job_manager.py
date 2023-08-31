@@ -283,7 +283,7 @@ class DistributedJobManagerTest(unittest.TestCase):
             nodes.append(node)
         manager._process_list_nodes(nodes)
         ps_ids = list(manager._job_nodes[NodeType.PS].keys())
-        self.assertListEqual(ps_ids, [0, 1, 3])
+        self.assertListEqual(ps_ids, [0, 1, 2, 3])
 
     def test_create_allreduce_job_manager(self):
         params = MockK8sPSJobArgs()
