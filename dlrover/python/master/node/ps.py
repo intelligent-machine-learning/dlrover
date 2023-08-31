@@ -85,7 +85,6 @@ class ParameterServerManager(TrainingNodeManager):
             node.is_released = True
             new_id = next(self._node_id_iter)
             self._nodes[new_id] = node.get_relaunch_node_info(new_id)
-            self._nodes.pop(node.id)
             if node in self._training_ps_cluster:
                 i = self._training_ps_cluster.index(node)
                 self._training_ps_cluster[i] = self._nodes[new_id]
