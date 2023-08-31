@@ -1,6 +1,9 @@
 ### GPU User Guide
 
-> "The first four steps in this document need to be run on each bare-metal machine that will use a GPU. If you've already set up each node that requires GPU usage, or you're working in a well-maintained cloud-based Kubernetes environment, you can directly start from step five."
+> "The first four steps in this document need to be run on each bare-metal machine that will use a GPU.
+If you've already set up each node that requires GPU usage,
+or you're working in a well-maintained cloud-based Kubernetes environment,
+you can directly start from step five."
 
 #### Step 1: Prepare the system for NVIDIA GPU support
 
@@ -24,7 +27,8 @@ sudo apt-get install -y nvidia-container-toolkit && \
 sudo nvidia-ctk runtime configure --runtime=docker --set-as-default
 ```
 
-This will install the necessary components for NVIDIA GPU support in Docker, enabling you to utilize GPU resources within Docker containers.
+This will install the necessary components for NVIDIA GPU support in Docker,
+enabling you to utilize GPU resources within Docker containers.
 
 #### Step 3: Set NVIDIA as the default runtime for Docker
 
@@ -60,7 +64,8 @@ After making the changes, restart the Docker service for the new configuration t
 sudo systemctl restart docker
 ```
 
-Now, NVIDIA will be set as the default runtime for Docker, allowing you to use NVIDIA GPU support seamlessly with Docker containers.
+Now, NVIDIA will be set as the default runtime for Docker,
+allowing you to use NVIDIA GPU support seamlessly with Docker containers.
 
 #### Step 5: Deploy the NVIDIA Device Plugin for Kubernetes
 
@@ -70,7 +75,8 @@ Use the following command to deploy the NVIDIA Device Plugin for Kubernetes:
 kubectl create -f https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/v1.11/nvidia-device-plugin.yml
 ```
 
-This plugin enables Kubernetes to recognize and manage NVIDIA GPUs on the worker nodes, ensuring efficient allocation and utilization of GPU resources for container workloads.
+This plugin enables Kubernetes to recognize and manage NVIDIA GPUs on the worker nodes,
+ensuring efficient allocation and utilization of GPU resources for container workloads.
 
 #### Step 6: Create a test Pod with GPU resources
 
@@ -90,7 +96,8 @@ spec:
           nvidia.com/gpu: 1 # requesting 1 GPU
 ```
 
-The above YAML configuration requests one GPU for the Pod. Replace the image with your desired GPU-accelerated application image if needed.
+The above YAML configuration requests one GPU for the Pod.
+Replace the image with your desired GPU-accelerated application image if needed.
 
 #### Step 7: Deploy the test Pod
 
@@ -100,7 +107,8 @@ Use the following command to deploy the test Pod to Kubernetes:
 kubectl apply -f <your-yaml-file-name>.yaml
 ```
 
-This will create the Pod on your Kubernetes cluster, and the GPU resource will be allocated to the Pod based on the NVIDIA Device Plugin's capabilities.
+This will create the Pod on your Kubernetes cluster,
+and the GPU resource will be allocated to the Pod based on the NVIDIA Device Plugin's capabilities.
 
-Now, you have successfully enabled GPU support in your Kubernetes cluster and deployed a test Pod with GPU resources for running GPU-accelerated workloads.
-
+Now, you have successfully enabled GPU support in your Kubernetes cluster
+and deployed a test Pod with GPU resources for running GPU-accelerated workloads.

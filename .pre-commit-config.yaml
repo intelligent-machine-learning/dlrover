@@ -71,7 +71,8 @@ repos:
       - id: markdownlint
         name: markdownlint
         description: "Checks the style of Markdown files."
-        entry: markdownlint
+        entry: markdownlint --fix --config .markdownlint.yaml
         language: node
+        types: [markdown]
         exclude: (dlrover/go/brain/vendor)
-        args: [-s, .markdownlint.yaml]
+        # args: [--fix]
