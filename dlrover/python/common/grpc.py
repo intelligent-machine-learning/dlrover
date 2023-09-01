@@ -362,6 +362,12 @@ class RunningNodes(Message):
 
 
 @dataclass
+class KeyValuePair(Message):
+    key: str = ""
+    value: bytes = b""
+
+
+@dataclass
 class DataLoaderConfig(Message):
     """The configured parameters of DataLoader.
     Attr:
@@ -377,12 +383,6 @@ class DataLoaderConfig(Message):
     batch_size: int = 0
     num_workers: int = 0
     pin_memory: int = 0
-
-
-@dataclass
-class KeyValuePair(Message):
-    key: str = ""
-    value: bytes = b""
 
 
 @dataclass
