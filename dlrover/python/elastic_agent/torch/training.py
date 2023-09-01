@@ -749,7 +749,7 @@ def network_check(
 
 def run_network_check(config, entrypoint):
     cmd_args = ["-m", "dlrover.trainer.torch.run_network_check"]
-    for _ in range(config.max_restarts):
+    for _ in range(2):
         # If network fails because other abnormal node, We
         # will retry to check network after the new node is starting.
         # DLRover will replace the abnormal node with a new node.
