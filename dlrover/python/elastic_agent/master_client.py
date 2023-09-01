@@ -20,10 +20,9 @@ from contextlib import closing
 from google.protobuf import empty_pb2
 
 from dlrover.proto import elastic_training_pb2, elastic_training_pb2_grpc
+from dlrover.python.common import grpc
 from dlrover.python.common.constants import NetworkFailureReason, NodeEnv
-from dlrover.python.common.grpc import build_channel
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.common.parallelism_config import ParallelismConfig
 
 
 def retry_grpc_request(func):
@@ -72,7 +71,7 @@ class MasterClient(object):
             by dlrover command-line.
         """
         self._master_addr = master_addr
-        self._channel = build_channel(master_addr)
+        self._channel = grpc.build_channel(master_addr)
         logger.info("dlrover master addr is %s" % self._master_addr)
         self._stub = elastic_training_pb2_grpc.MasterStub(self._channel)
         self._node_id = node_id
@@ -89,7 +88,7 @@ class MasterClient(object):
         self._channel.close()
 
     def open_channel(self):
-        self._channel = build_channel(self._master_addr)
+        self._channel = grpc.build_channel(self._master_addr)
         self._stub = elastic_training_pb2_grpc.MasterStub(self._channel)
 
     def find_free_port(self):
@@ -100,6 +99,34 @@ class MasterClient(object):
             sock.bind(("localhost", 0))
             _, port = sock.getsockname()
             return port
+
+    # @retry_grpc_request
+    def _report(self, message: grpc.Message):
+        request = elastic_training_pb2.Message()
+        request.node_id = self._node_id
+        request.node_type = self._node_type
+        request.data = message.serialize()
+        return self._stub.report(request)
+
+    # @retry_grpc_request
+    def _get(self, message: grpc.Message):
+        request = elastic_training_pb2.Message()
+        request.node_id = self._node_id
+        request.node_type = self._node_type
+        request.data = message.serialize()
+        response = self._stub.get(request)
+        res_message = grpc.deserialize_message(response.data)
+        return res_message
+
+    def kv_store_set(self, key, value):
+        message = grpc.KeyValuePair(key, value)
+        response = self._report(message)
+        return response.success
+
+    def kv_store_get(self, key):
+        request = grpc.KeyValuePair(key)
+        response: grpc.KeyValuePair = self._get(request)
+        return response.value
 
     def get_task(self, dataset_name):
         """Get a task from master.
@@ -113,17 +140,14 @@ class MasterClient(object):
             c.f. /dlrover/proto/dlrover.proto
         """
 
-        req = elastic_training_pb2.GetTaskRequest()
-        req.worker_type = self._node_type
-        req.worker_id = self._node_id
-        req.dataset_name = dataset_name
+        req = grpc.TaskRequest(dataset_name)
 
         success = False
         res = None
         exception = None
         for _ in range(10):
             try:
-                res = self._stub.get_task(req)
+                res = self._get(req)
                 success = True
                 break
             except Exception as e:
@@ -132,10 +156,9 @@ class MasterClient(object):
         if not success:
             logger.warning(exception)
         if not res:
-            res = elastic_training_pb2.Task()
+            res = grpc.Task()
         return success, res
 
-    @retry_grpc_request
     def report_task_result(self, dataset_name, task_id, err_msg):
         """Report task result to master.
 
@@ -146,13 +169,9 @@ class MasterClient(object):
           err_msg: string
           the error message on training.
         """
-        request = elastic_training_pb2.ReportTaskResultRequest()
-        request.dataset_name = dataset_name
-        request.task_id = task_id
-        request.err_message = err_msg
-        return self._stub.report_task_result(request)
+        message = grpc.TaskResult(dataset_name, task_id, err_msg)
+        return self._report(message)
 
-    @retry_grpc_request
     def report_dataset_shard_params(
         self,
         batch_size,
@@ -164,206 +183,135 @@ class MasterClient(object):
         task_type=elastic_training_pb2.NONE,
         storage_type="",
     ):
-        request = elastic_training_pb2.ReportDatasetShardParamsRequest()
-        request.batch_size = batch_size
-        request.shuffle = shuffle
-        request.task_type = task_type
-        request.dataset_name = dataset_name
-        if num_epochs is not None:
-            request.num_epochs = num_epochs
-        if dataset_size is not None:
-            request.dataset_size = dataset_size
-        request.num_minibatches_per_shard = num_minibatches_per_shard
-        request.storage_type = storage_type
-        return self._stub.report_dataset_shard_params(request)
+        message = grpc.DatasetShardParams(
+            batch_size=batch_size,
+            num_epochs=num_epochs,
+            dataset_size=dataset_size,
+            shuffle=shuffle,
+            num_minibatches_per_shard=num_minibatches_per_shard,
+            dataset_name=dataset_name,
+            task_type=task_type,
+            storage_type=storage_type,
+        )
+        return self._report(message)
 
-    @retry_grpc_request
     def ready_for_ps_relaunch(self):
-        request = empty_pb2.Empty()
-        self._stub.ready_for_ps_relaunch(request)
+        message = grpc.PsReady()
+        return self._report(message)
 
-    @retry_grpc_request
     def get_shard_checkpoint(self, dataset_name):
-        request = elastic_training_pb2.DatasetMeta()
-        request.dataset_name = dataset_name if dataset_name else ""
-        return self._stub.get_shard_checkpoint(request)
+        req = grpc.ShardCheckpointRequest(dataset_name)
+        res: grpc.ShardCheckpoint = self._get(req)
+        return res.content
 
-    @retry_grpc_request
-    def report_shard_checkpoint(self, shard_checkpoint):
-        request = elastic_training_pb2.ShardCheckpoint()
-        request.content = shard_checkpoint
-        return self._stub.report_shard_checkpoint(request)
-
-    @retry_grpc_request
     def report_used_resource(self, memory, cpu, gpu_stats):
-        request = elastic_training_pb2.ReportUsedResourceRequest()
-        request.memory = memory
-        request.cpu = cpu
-        for gpu in gpu_stats:
-            gpu_stats_message = request.gpu_stats.add()
-            gpu_stats_message.index = gpu.index
-            gpu_stats_message.total_memory_mb = gpu.total_memory_mb
-            gpu_stats_message.used_memory_mb = gpu.used_memory_mb
-            gpu_stats_message.gpu_utilization = gpu.gpu_utilization
-        request.node_id = self._node_id
-        request.node_type = self._node_type
-        logger.debug("report used resource request: {}".format(request))
-        return self._stub.report_used_resource(request)
+        message = grpc.ResourceStats(memory, cpu, gpu_stats)
+        return self._report(message)
 
-    @retry_grpc_request
-    def get_dataset_epoch(self, dataset_name):
-        request = elastic_training_pb2.DatasetMeta()
-        request.dataset_name = dataset_name if dataset_name else ""
-        return self._stub.get_dataset_epoch(request)
+    def report_model_info(self, model_info):
+        self._report(model_info)
 
-    @retry_grpc_request
-    def report_model_metric(self, tensor_stats, op_stats):
-        metric_msg = elastic_training_pb2.ModelInfo()
-        tensor_msg = metric_msg.tensor_stats
-        tensor_msg.variable_count = tensor_stats.variable_count
-        tensor_msg.total_variable_size = tensor_stats.total_variable_size
-        tensor_msg.max_variable_size = tensor_stats.max_variable_size
-        tensor_msg.tensor_alloc_bytes.update(tensor_stats.tensor_alloc_bytes)
-        tensor_msg.kv_embedding_dims.extend(tensor_stats.kv_embedding_dims)
+    def report_global_step(
+        self, global_step, timestamp, elapsed_time_per_step=0
+    ):
+        message = grpc.GlobalStep(
+            timestamp=timestamp,
+            step=global_step,
+            elapsed_time_per_step=elapsed_time_per_step,
+        )
+        return self._report(message)
 
-        op_msg = metric_msg.op_stats
-        op_msg.op_count = op_stats.op_count
-        op_msg.update_op_count = op_stats.update_op_count
-        op_msg.read_op_count = op_stats.read_op_count
-        op_msg.input_fetch_dur = op_stats.input_fetch_dur
-        op_msg.flops = op_stats.flops
-        op_msg.recv_op_count = op_stats.recv_op_count
-        return self._stub.report_model_metric(metric_msg)
-
-    @retry_grpc_request
-    def report_global_step(self, global_step, timestamp):
-        record = elastic_training_pb2.GlobalStepRecord()
-        record.global_step = global_step
-        record.timestamp = timestamp
-        return self._stub.report_global_step(record, timeout=10)
-
-    @retry_grpc_request
     def get_cluster_version(self, version_type, task_type, task_id):
-        request = elastic_training_pb2.GetClusterVersionRequest()
-        request.task_id = task_id
-        request.version_type = version_type
-        request.task_type = task_type
-        return self._stub.get_cluster_version(request)
+        request = grpc.ClusterVersionRequest(
+            task_type=task_type,
+            task_id=task_id,
+            version_type=version_type,
+        )
+        response: grpc.ClusterVersion = self._get(request)
+        return response.version
 
     def update_node_addr(self, task_type, task_id, node_addr):
-        request = elastic_training_pb2.NodeMeta()
-        request.id = task_id
-        request.type = task_type
-        request.addr = node_addr
-        request.rank = -1
-        res = self._stub.update_node_status(request)
+        message = grpc.NodeStatus(
+            type=task_type, id=task_id, addr=node_addr, rank=-1
+        )
+        res = self._report(message)
         return res
 
-    @retry_grpc_request
     def update_node_event(self, task_type, task_id, event):
-        request = elastic_training_pb2.NodeEvent()
-        request.node.id = task_id
-        request.node.type = task_type
-        request.message = "train_success"
-        request.event_type = "1"
-        return self._stub.update_node_event(request)
+        message = grpc.NodeEvent(
+            event_type="1",
+            message="train_success",
+            node=grpc.NodeMeta(type=task_type, id=task_id),
+        )
+        return self._report(message)
 
-    @retry_grpc_request
     def update_cluster_version(
         self, version_type, version, task_type, task_id
     ):
-        request = elastic_training_pb2.UpdateClusterVersionRequest()
-        request.task_id = task_id
-        request.version_type = version_type
-        request.version = version
-        request.task_type = task_type
-        self._stub.update_cluster_version(request)
+        message = grpc.ClusterVersion(
+            task_type=task_type,
+            task_id=task_id,
+            version_type=version_type,
+            version=version,
+        )
+        self._report(message)
 
     def query_ps_nodes(self):
-        request = empty_pb2.Empty()
-        response = self._stub.query_ps_nodes(request)
-        return response.ps_nodes, response.ps_failure
+        request = grpc.PsNodesRequest()
+        response: grpc.PsNodes = self._get(request)
+        return response.nodes, response.ps_failure
 
-    @retry_grpc_request
     def query_training_status(self):
-        request = empty_pb2.Empty()
-        response = self._stub.query_training_status(request)
+        request = grpc.TrainingStatusRequest()
+        response: grpc.TrainingStatus = self._get(request)
         return response.status
 
-    @retry_grpc_request
-    def get_dataset_shard_num(self, dataset_name):
-        request = elastic_training_pb2.DatasetMeta()
-        request.dataset_name = dataset_name
-        response = self._stub.get_dataset_shard_num(request)
-        return response.shard_num
-
-    @retry_grpc_request
     def join_sync(self, sync_name):
-        request = elastic_training_pb2.SyncRequest()
-        request.sync_name = sync_name
-        request.worker_id = self._node_id
-        request.worker_type = self._node_type
+        message = grpc.SyncJoin(sync_name, self._node_type, self._node_id)
         logger.info(
             " {}:{} join sync {}".format(
                 self._node_id, self._node_type, sync_name
             )
         )
-        return self._stub.join_sync(request)
+        return self._report(message)
 
-    @retry_grpc_request
     def sync_finished(self, sync_name):
-        request = elastic_training_pb2.SyncRequest()
-        request.sync_name = sync_name
-        return self._stub.sync_finished(request)
+        message = grpc.SyncFinish(sync_name)
+        return self._report(message)
 
-    @retry_grpc_request
     def barrier(self, barrier_name, notify=False):
-        request = elastic_training_pb2.BarrierRequest()
-        request.barrier_name = barrier_name
-        request.notify = notify
-        return self._stub.barrier(request)
-
-    def report_prestop(self):
-        req = elastic_training_pb2.ReportPreStopRequest()
-        req.worker_host = self._host
-        logger.info("Worker {} report prestop hook".format(self._host))
-        return self._stub.report_prestop(req)
+        message = grpc.SyncBarrier(barrier_name, notify)
+        return self._report(message)
 
     def get_running_nodes(self):
-        request = empty_pb2.Empty()
-        response = self._stub.query_running_nodes(request)
+        request = grpc.RunningNodesRequest()
+        response: grpc.RunningNodes = self._get(request)
         return response.nodes
 
-    @retry_grpc_request
     def num_nodes_waiting(self, rdzv_name):
-        request = elastic_training_pb2.RendezvousRequest()
-        request.rdzv_name = rdzv_name
-        response = self._stub.num_nodes_waiting(request)
+        request = grpc.WaitingNodeNumRequest(rdzv_name=rdzv_name)
+        response: grpc.RendezvousState = self._get(request)
         return response.waiting_num
 
-    @retry_grpc_request
     def join_rendezvous(self, rank_id, local_world_size, rdzv_name=""):
-        request = elastic_training_pb2.RendezvousRequest()
-        request.node_id = rank_id
-        request.local_world_size = local_world_size
-        request.rdzv_name = rdzv_name
-        response = self._stub.join_rendezvous(request)
+        request = grpc.JoinRendezvousRequest(
+            node_id=rank_id,
+            local_world_size=local_world_size,
+            rdzv_name=rdzv_name,
+        )
+        response: grpc.RendezvousState = self._get(request)
         return response.round
 
-    @retry_grpc_request
     def get_comm_world(self, rdzv_name, rank_id):
-        request = elastic_training_pb2.RendezvousRequest()
-        request.node_id = rank_id
-        request.rdzv_name = rdzv_name
-        response = self._stub.get_comm_world(request)
+        request = grpc.CommWorldRequest(node_id=rank_id, rdzv_name=rdzv_name)
+        response: grpc.RendezvousState = self._get(request)
         return response.group, response.world
 
-    @retry_grpc_request
     def network_check_success(self, timeout=300):
-        request = elastic_training_pb2.RendezvousRequest()
+        request = grpc.NetworkReadyRequest()
         start = time.time()
         while True:
-            response = self._stub.network_check_success(request)
+            response: grpc.NetworkReady = self._get(request)
             if (
                 response.reason == NetworkFailureReason.WAITING_NODE
                 and time.time() - start < timeout
@@ -371,59 +319,27 @@ class MasterClient(object):
                 time.sleep(5)
                 continue
             break
-        return response.success
+        return response.succeed
 
-    @retry_grpc_request
     def report_rdzv_params(
         self, min_nodes, max_nodes, waiting_timeout, node_unit
     ):
-        request = elastic_training_pb2.RendezvousParams()
-        request.min_nodes = min_nodes
-        request.max_nodes = max_nodes
-        request.waiting_timeout = waiting_timeout
-        request.node_unit = node_unit
-        response = self._stub.report_rdzv_params(request)
+        message = grpc.RendezvousParams(
+            min_nodes,
+            max_nodes,
+            waiting_timeout,
+            node_unit,
+        )
+        response = self._report(message)
         return response.success
 
-    @retry_grpc_request
-    def kv_store_set(self, key, value):
-        request = elastic_training_pb2.KeyValuePair()
-        request.key = key
-        request.value = value
-        response = self._stub.kv_store_set(request)
-        return response.success
-
-    @retry_grpc_request
-    def kv_store_get(self, key):
-        request = elastic_training_pb2.KeyValuePair()
-        request.key = key
-        response = self._stub.kv_store_get(request)
-        return response.value
-
-    @retry_grpc_request
     def report_node_status(self, rank_id, status):
-        request = elastic_training_pb2.NodeMeta()
-        request.id = rank_id
-        request.type = self._node_type
-        request.status = status
-        self._stub.update_node_status(request)
+        message = grpc.NodeStatus(rank_id=rank_id, status=status)
+        self._report(message)
 
-    @retry_grpc_request
     def report_failures(self, error_data, restart_count=-1, level=""):
-        request = elastic_training_pb2.NodeFailure()
-        request.node_id = self._node_id
-        request.node_type = self._node_type
-        request.error_data = error_data
-        request.restart_count = restart_count
-        request.level = level
-        self._stub.report_failure(request)
-
-    @retry_grpc_request
-    def report_parallelism_config(self, version, config: ParallelismConfig):
-        request = elastic_training_pb2.ParallelismConfig()
-        request.version = version
-        request.config = config.toJSON()
-        self._stub.report_parallelism_config(request)
+        message = grpc.NodeFailure(error_data, restart_count, level)
+        self._report(message)
 
     def get_parallelism_config(self):
         request = empty_pb2.Empty()

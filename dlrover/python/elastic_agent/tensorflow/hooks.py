@@ -18,6 +18,7 @@ from tensorflow.python.training.session_run_hook import (
     SessionRunHook,
 )
 
+from dlrover.python.common.grpc import ModelInfo, OpStats, TensorStats
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.master_client import GlobalMasterClient
 from dlrover.python.elastic_agent.monitor.training import (
@@ -25,23 +26,10 @@ from dlrover.python.elastic_agent.monitor.training import (
     is_tf_chief,
 )
 from dlrover.python.elastic_agent.sharding.client import ShardingClient
-from dlrover.python.elastic_agent.tensorflow.profile_extractor import (
-    OperationStats,
-    TensorStats,
-)
 
 
-def collect_model_stats(flops):
-    tensor_stats, op_stats = generate_model_stats()
-    op_stats.runtime_flops = flops
-    GlobalMasterClient.MASTER_CLIENT.report_model_metric(
-        tensor_stats,
-        op_stats,
-    )
-
-
-def generate_model_stats():
-    op_stats = OperationStats()
+def generate_model_info():
+    op_stats = OpStats()
     tensor_stats = TensorStats()
     all_ops = tf.get_default_graph().get_operations()
     op_stats.op_count = len(all_ops)
@@ -52,8 +40,22 @@ def generate_model_stats():
             "/Read/ReadVariableOp"
         ):
             op_stats.read_op_count += 1
-    tensor_stats.update_varible_stats(tf.global_variables())
-    return tensor_stats, op_stats
+    variables = tf.global_variables()
+    tensor_stats.variable_count = len(variables)
+    for var in variables:
+        shape = var.get_shape().as_list()
+        if hasattr(var, "key_dtype"):  # The unique attr for KV embedding
+            tensor_stats.kv_embedding_dims.append(int(shape[-1]))
+        else:
+            var_size = 1
+            for dimesion in shape:
+                var_size *= dimesion
+            tensor_stats.total_variable_size += var_size
+            tensor_stats.max_variable_size = max(
+                tensor_stats.max_variable_size, var_size
+            )
+    model_info = ModelInfo(tensor_stats, op_stats)
+    return model_info
 
 
 class ReportModelInfoHook(SessionRunHook):
@@ -67,6 +69,7 @@ class ReportModelInfoHook(SessionRunHook):
         self._global_step = 0
         self._op_stats = None
         self._tensor_stats = None
+        self._master_client = GlobalMasterClient.MASTER_CLIENT
         super(ReportModelInfoHook, self).__init__()
 
     def begin(self):
@@ -80,11 +83,8 @@ class ReportModelInfoHook(SessionRunHook):
         if not self._is_chief:
             return
         try:
-            tensor_stats, op_stats = generate_model_stats()
-            GlobalMasterClient.MASTER_CLIENT.report_model_metric(
-                tensor_stats,
-                op_stats,
-            )
+            model_info = generate_model_info()
+            self._master_client.report_model_info(model_info)
             self._training_reporter.set_start_time()
         except Exception as e:
             logger.warning(e)

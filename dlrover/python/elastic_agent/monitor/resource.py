@@ -19,10 +19,10 @@ import psutil
 import pynvml
 
 from dlrover.python.common.constants import NodeEnv
+from dlrover.python.common.grpc import GPUStats
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import singleton
 from dlrover.python.elastic_agent.master_client import GlobalMasterClient
-from dlrover.python.elastic_agent.monitor.metrics import GPUMetric
 
 
 def get_process_cpu_percent():
@@ -60,7 +60,7 @@ def get_gpu_stats(gpus=[]):
     if not gpus:
         device_count = pynvml.nvmlDeviceGetCount()
         gpus = list(range(device_count))
-    gpu_stats: list[GPUMetric] = []
+    gpu_stats: list[GPUStats] = []
     for i in gpus:
         handle = pynvml.nvmlDeviceGetHandleByIndex(i)
         memory_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
@@ -72,7 +72,7 @@ def get_gpu_stats(gpus=[]):
         gpu_utilization = utilization.gpu
 
         gpu_stats.append(
-            GPUMetric(
+            GPUStats(
                 index=i,
                 total_memory_mb=total_memory,
                 used_memory_mb=used_memory,
@@ -91,7 +91,7 @@ class ResourceMonitor(object):
         """
         self._total_cpu = psutil.cpu_count(logical=True)
         self._gpu_enabled = False
-        self._gpu_stats: list[GPUMetric] = []
+        self._gpu_stats: list[GPUStats] = []
 
     def start(self):
         if (

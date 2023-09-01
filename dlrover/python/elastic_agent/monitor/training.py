@@ -42,6 +42,7 @@ class TrainingProcessReporter(object):
         self._start_time = 0
         self.called_in_tf_hook = False
         self._is_tf_chief = is_tf_chief()
+        self._master_client = GlobalMasterClient.MASTER_CLIENT
 
     def set_start_time(self):
         if self._start_time == 0:
@@ -64,8 +65,9 @@ class TrainingProcessReporter(object):
                 self._resource_monitor.report_resource()
                 logger.info("Report global step = {}".format(step))
                 self._last_timestamp = timestamp
-                GlobalMasterClient.MASTER_CLIENT.report_global_step(
-                    step, self._last_timestamp
+                self._master_client.report_global_step(
+                    step,
+                    self._last_timestamp,
                 )
         except Exception as e:
             logger.warning(e)

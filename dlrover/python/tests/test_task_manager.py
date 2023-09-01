@@ -14,8 +14,8 @@
 import json
 import unittest
 
-from dlrover.proto import elastic_training_pb2
 from dlrover.python.common.constants import NodeType
+from dlrover.python.common.grpc import TaskResult
 from dlrover.python.master.shard.task_manager import DatasetShardCheckpoint
 from dlrover.python.tests.test_utils import create_task_manager
 
@@ -30,9 +30,7 @@ class TaskMangerTest(unittest.TestCase):
         dataset_manager = task_manager.get_dataset(dataset_name)
         self.assertIsNotNone(dataset_manager)
 
-        request = elastic_training_pb2.ReportTaskResultRequest()
-        request.task_id = 0
-        request.dataset_name = dataset_name
+        request = TaskResult(dataset_name=dataset_name, task_id=0)
         task, worker_id = task_manager.report_dataset_task(request, True)
         self.assertEqual(worker_id, 0)
         self.assertEqual(task.task_id, 0)
@@ -48,9 +46,7 @@ class TaskMangerTest(unittest.TestCase):
         dataset = task_manager.get_dataset(dataset_name)
         task = task_manager.get_dataset_task(NodeType.WORKER, 0, dataset_name)
         self.assertEqual(len(dataset.todo), 9)
-        request = elastic_training_pb2.ReportTaskResultRequest()
-        request.task_id = task.task_id
-        request.dataset_name = dataset_name
+        request = TaskResult(dataset_name=dataset_name, task_id=task.task_id)
         task_manager.report_dataset_task(request, False)
         self.assertEqual(len(dataset.todo), 10)
         self.assertEqual(len(dataset.doing), 0)

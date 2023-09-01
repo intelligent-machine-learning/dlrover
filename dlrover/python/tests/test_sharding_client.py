@@ -58,7 +58,6 @@ class DataShardClientTest(unittest.TestCase):
         shard = data_shard_service.fetch_shard()
         self.assertEqual(shard.start, 0)
         self.assertEqual(shard.end, 32)
-        self.assertEqual(data_shard_service.get_current_epoch(), 0)
         shard_count = 1
         while True:
             shard = data_shard_service.fetch_shard()

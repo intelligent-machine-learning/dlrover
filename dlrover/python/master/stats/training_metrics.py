@@ -12,10 +12,12 @@
 # limitations under the License.
 
 from abc import ABCMeta, abstractmethod
-from typing import List
+from dataclasses import dataclass
+from typing import List, Optional
 
 from dlrover.python.common.constants import DatasetType
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.common.serialize import JsonSerializable
 from dlrover.python.master.watcher.base_watcher import Node
 
 
@@ -23,11 +25,11 @@ class CustomMetricKey(object):
     INIT_TRAINING_TIME = "init_training_time"
 
 
-class TrainingHyperParams(object):
-    def __init__(self, batch_size=0, epoch=0, max_steps=0):
-        self.batch_size = batch_size
-        self.epoch = epoch
-        self.max_steps = max_steps
+@dataclass
+class TrainingHyperParams(JsonSerializable):
+    batch_size: Optional[int] = 0
+    epoch: Optional[int] = 0
+    max_steps: Optional[int] = 0
 
 
 class DatasetMetric(metaclass=ABCMeta):
@@ -106,36 +108,6 @@ class TextDatasetMetric(DatasetMetric):
 
     def get_storage_size(self):
         return self.storage_size
-
-
-class TensorStats(object):
-    """TensorStats contains tensor statistics of a deep learning model"""
-
-    def __init__(self, variable_count, total_variable_size, max_variable_size):
-        self.variable_count = variable_count
-        self.total_variable_size = total_variable_size
-        self.max_variable_size = max_variable_size
-
-
-class OpStats(object):
-    """TensorStats contains OP statistics of a deep learning model"""
-
-    def __init__(
-        self, op_count, update_op_count, read_op_count, input_fetch_dur, flops
-    ):
-        self.op_count = op_count
-        self.update_op_count = update_op_count
-        self.read_op_count = read_op_count
-        self.input_fetch_dur = input_fetch_dur
-        self.flops = flops
-
-
-class ModelInfo(object):
-    """ModelInfo contains profiling data of a model."""
-
-    def __init__(self, tensor_stats: TensorStats, op_stats: OpStats):
-        self.tensor_stats = tensor_stats
-        self.op_stats = op_stats
 
 
 class RuntimeMetric(object):

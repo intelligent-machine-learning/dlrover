@@ -22,7 +22,7 @@ def to_dict(o):
 
 
 class JsonSerializable(object):
-    def toJSON(self, indent=None):
+    def to_json(self, indent=None):
         return json.dumps(
             self,
             default=to_dict,

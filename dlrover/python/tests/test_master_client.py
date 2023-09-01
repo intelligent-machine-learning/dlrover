@@ -13,11 +13,9 @@
 
 import unittest
 
-from google.protobuf.empty_pb2 import Empty
-
 from dlrover.python.common.constants import TrainingMsgLevel
+from dlrover.python.common.grpc import GPUStats
 from dlrover.python.elastic_agent.master_client import build_master_client
-from dlrover.python.elastic_agent.monitor.metrics import GPUMetric
 from dlrover.python.tests.test_utils import start_local_master
 
 
@@ -30,8 +28,8 @@ class MasterClientTest(unittest.TestCase):
         self._master.stop()
 
     def test_report_used_resource(self):
-        gpu_stats: list[GPUMetric] = [
-            GPUMetric(
+        gpu_stats: list[GPUStats] = [
+            GPUStats(
                 index=0,
                 total_memory_mb=24000,
                 used_memory_mb=4000,
@@ -39,7 +37,7 @@ class MasterClientTest(unittest.TestCase):
             )
         ]
         result = self._master_client.report_used_resource(1024, 10, gpu_stats)
-        self.assertIsInstance(result, Empty)
+        self.assertTrue(result.success)
 
     def test_report_failures(self):
         res = self._master_client.report_failures(

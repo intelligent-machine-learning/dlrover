@@ -19,11 +19,11 @@ from typing import List
 from dlrover.proto import brain_pb2
 from dlrover.python.brain.client import GlobalBrainClient
 from dlrover.python.common.constants import ReporterType
+from dlrover.python.common.grpc import ModelInfo
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import singleton
 from dlrover.python.master.stats.training_metrics import (
     DatasetMetric,
-    ModelInfo,
     RuntimeMetric,
     TrainingHyperParams,
 )
@@ -231,5 +231,5 @@ class BrainReporter(StatsReporter):
         """
         job_metrics = init_job_metrics_message(self._job_meta)
         job_metrics.metrics_type = brain_pb2.MetricsType.Resource
-        job_metrics.resource = job_resource.toJSON()
+        job_metrics.resource = job_resource.to_json()
         self._brain_client.report_metrics(job_metrics)
