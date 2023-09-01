@@ -316,8 +316,9 @@ class NetworkReadyRequest(Message):
     pass
 
 
+@dataclass
 class NetworkReady(Message):
-    succeed: bool = False
+    success: bool = False
     reason: str = ""
 
 

@@ -98,11 +98,9 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         elif isinstance(req_message, grpc.ShardCheckpointRequest):
             message = self._get_shard_checkpoint(req_message)
         elif isinstance(req_message, grpc.ClusterVersionRequest):
-            message = self._get_shard_checkpoint(req_message)
-        elif isinstance(req_message, grpc.TrainingStatus):
-            message = self._get_training_status(req_message)
+            message = self._get_cluster_version(req_message)
         elif isinstance(req_message, grpc.RunningNodesRequest):
-            message = self._get_running_nodes(req_message)
+            message = self._get_running_nodes()
         elif isinstance(req_message, grpc.JoinRendezvousRequest):
             message = self._join_rendezvous(req_message)
         elif isinstance(req_message, grpc.WaitingNodeNumRequest):
@@ -115,6 +113,10 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             message = self._get_comm_world(req_message)
         elif isinstance(req_message, grpc.KeyValuePair):
             message = self._kv_store_get(req_message)
+        elif isinstance(req_message, grpc.PsNodesRequest):
+            message = self._query_ps_nodes()
+        elif isinstance(req_message, grpc.TrainingStatusRequest):
+            message = self._get_training_status()
 
         if message:
             response.data = message.serialize()
@@ -211,7 +213,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
     def _network_check_success(self):
         net_rdzv_manager = self._rdzv_managers[RendezvousName.NETWORK_CHECK]
         success, reason = net_rdzv_manager.network_check_success()
-        res = grpc.NetworkReady(succeed=success, reason=reason)
+        logger.info(f"{success}, {reason}")
+        res = grpc.NetworkReady(success=success, reason=reason)
         return res
 
     def _join_rendezvous(self, request: grpc.JoinRendezvousRequest):
@@ -413,6 +416,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             self._start_autoscale = True
 
     def _update_cluster_version(self, message: grpc.ClusterVersion):
+        logger.info(f"====={message}, {self._elastic_ps_service}")
         if not self._elastic_ps_service:
             return False
 
@@ -466,7 +470,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         return success
 
     def _barrier(self, message: grpc.SyncBarrier):
-        if self._sync_service:
+        if not self._sync_service:
             return False
         if message.notify:
             success = self._sync_service.notify_barrier(message.barrier_name)

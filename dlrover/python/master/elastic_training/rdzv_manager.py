@@ -375,9 +375,8 @@ class NetworkCheckRendezvousManager(RendezvousManager):
             if len(self._reported_nodes) < len(self._rdzv_nodes):
                 reason = NetworkFailureReason.WAITING_NODE
             else:
-                success = self._node_status and all(
-                    list(self._node_status.values())
-                )
+                if self._node_status:
+                    success = all(list(self._node_status.values()))
                 if success:
                     self._rdzv_round = (
                         math.ceil(self._rdzv_round / self._check_round)

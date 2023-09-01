@@ -17,8 +17,6 @@ import socket
 import time
 from contextlib import closing
 
-from google.protobuf import empty_pb2
-
 from dlrover.proto import elastic_training_pb2, elastic_training_pb2_grpc
 from dlrover.python.common import grpc
 from dlrover.python.common.constants import NetworkFailureReason, NodeEnv
@@ -100,7 +98,7 @@ class MasterClient(object):
             _, port = sock.getsockname()
             return port
 
-    # @retry_grpc_request
+    @retry_grpc_request
     def _report(self, message: grpc.Message):
         request = elastic_training_pb2.Message()
         request.node_id = self._node_id
@@ -108,7 +106,7 @@ class MasterClient(object):
         request.data = message.serialize()
         return self._stub.report(request)
 
-    # @retry_grpc_request
+    @retry_grpc_request
     def _get(self, message: grpc.Message):
         request = elastic_training_pb2.Message()
         request.node_id = self._node_id
@@ -204,6 +202,10 @@ class MasterClient(object):
         res: grpc.ShardCheckpoint = self._get(req)
         return res.content
 
+    def report_shard_checkpoint(self, shard_checkpoint):
+        request = grpc.ShardCheckpoint(shard_checkpoint)
+        return self._report(request)
+
     def report_used_resource(self, memory, cpu, gpu_stats):
         message = grpc.ResourceStats(memory, cpu, gpu_stats)
         return self._report(message)
@@ -267,21 +269,24 @@ class MasterClient(object):
         return response.status
 
     def join_sync(self, sync_name):
-        message = grpc.SyncJoin(sync_name, self._node_type, self._node_id)
+        message = grpc.SyncJoin(sync_name)
         logger.info(
             " {}:{} join sync {}".format(
                 self._node_id, self._node_type, sync_name
             )
         )
-        return self._report(message)
+        response = self._report(message)
+        return response.success
 
     def sync_finished(self, sync_name):
         message = grpc.SyncFinish(sync_name)
-        return self._report(message)
+        response = self._report(message)
+        return response.success
 
     def barrier(self, barrier_name, notify=False):
         message = grpc.SyncBarrier(barrier_name, notify)
-        return self._report(message)
+        response = self._report(message)
+        return response.success
 
     def get_running_nodes(self):
         request = grpc.RunningNodesRequest()
@@ -319,7 +324,7 @@ class MasterClient(object):
                 time.sleep(5)
                 continue
             break
-        return response.succeed
+        return response.success
 
     def report_rdzv_params(
         self, min_nodes, max_nodes, waiting_timeout, node_unit
@@ -334,16 +339,12 @@ class MasterClient(object):
         return response.success
 
     def report_node_status(self, rank_id, status):
-        message = grpc.NodeStatus(rank_id=rank_id, status=status)
+        message = grpc.NodeStatus(rank=rank_id, status=status)
         self._report(message)
 
     def report_failures(self, error_data, restart_count=-1, level=""):
         message = grpc.NodeFailure(error_data, restart_count, level)
         self._report(message)
-
-    def get_parallelism_config(self):
-        request = empty_pb2.Empty()
-        self._stub.get_parallelism_config(request)
 
 
 class LocalDataset(object):
