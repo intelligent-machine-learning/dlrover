@@ -4,15 +4,24 @@ This design doc describes how DLrover auto-tunes hyperparameters of a job.
 
 ## Background
 
- In the fast-paced world of deep learning, large-scale language models have
- become prominent in natural language processing. However, training these
- models presents a significant challenge, particularly in determining the
- optimal micro-batch sizes per GPU and learning rates. Achieving the right
- balance between training speed and accuracy is crucial. As models grow larger
- and optimization techniques become more complex, predicting GPU memory
- requirements during training has become uncertain and challenging for users.
- Consequently, users often resort to repetitive experimentation to find the
- ideal settings.
+  In the fast-paced world of deep learning, large-scale language models have
+  become prominent in natural language processing. However, training these
+  models presents a significant challenge, particularly in determining the
+  optimal micro-batch sizes per GPU and learning rates.
+
+        As models grow larger and optimization techniques become more complex, manual
+        configuration tuning becomes increasingly challenging for users. Larger model
+        parameters result in extensive activation values and additional GPU memory
+        cache usage. Even minor batch size adjustments can unexpectedly increase GPU
+        memory requirements, leading to job crashes due to out-of-memory issues.
+        Additionally, various methods such as "gradient checkpoints," "ZERO," and
+        "host-mem offload" have been introduced to mitigate these memory
+        requirements. However, these optimization techniques introduce a vast array
+        of configuration options, which can be overwhelming for beginners.
+        Consequently, configuring training jobs has become highly challenging for
+        users. This often leads users to resort to repetitive experimentation to find
+        the optimal settings, resulting in an unsatisfactory training experience due
+        to extended restart times.
 
 ## Target
 
@@ -145,15 +154,15 @@ usage and utilization.
     memory, and GPU utilization.
 
 ```python
-def get_gpu_stats(gpus=[]):
-    """Get the used gpu info of the container"""
-    if not gpus:
-        # get gpu index from device list
-        pass
-    for gpu in gpus:
-        # get each gpu's stats and append to gpu_stats
-        pass
-    return gpu_stats
+    def get_gpu_stats(gpus=[]):
+        """Get the used gpu info of the container"""
+        if not gpus:
+            # get gpu index from device list
+            pass
+        for gpu in gpus:
+            # get each gpu's stats and append to gpu_stats
+            pass
+        return gpu_stats
 ```
 
 #### `Hyper-parameters Tuner`
@@ -178,38 +187,37 @@ This API performs hyper-parameter tuning based on GPU metrics and user-submitted
   - **Type:** HyperParams
   - **Description:** Dataclass containing hyper parameters tuned by the hyper-parameter tuner.
 
-
 ```python
-def tune_hyper_params(gpu_stats=[], hyper_param_args=[]):
-    """Tune a good hyper_paras config"""
+    def tune_hyper_params(gpu_stats=[], hyper_param_args=[]):
+        """Tune a good hyper_paras config"""
 
-    # Iterate through each hyperparameter and call the corresponding tuning method
-    for hyper_param in hyper_param_args:
-        param_name = hyper_param.name
-        
-        if param_name == "learning_rate":
-            # Call the method to tune learning rate
-            tuned_value = tune_learning_rate(hyper_param, gpu_stats)
-            hyper_param.learning_rate = tuned_value
-        
-        elif param_name == "batch_size":
-            # Call the method to tune batch size
-            tuned_value = tune_batch_size(hyper_param, gpu_stats)
-            hyper_param.batch_size = tuned_value
-        
-        # Add more elif branches for other hyperparameters
-        
-    return tuned_hyper_params
+        # Iterate through each hyperparameter and call the corresponding tuning method
+        for hyper_param in hyper_param_args:
+            param_name = hyper_param.name
+            
+            if param_name == "learning_rate":
+                # Call the method to tune learning rate
+                tuned_value = tune_learning_rate(hyper_param, gpu_stats)
+                hyper_param.learning_rate = tuned_value
+            
+            elif param_name == "batch_size":
+                # Call the method to tune batch size
+                tuned_value = tune_batch_size(hyper_param, gpu_stats)
+                hyper_param.batch_size = tuned_value
+            
+            # Add more elif branches for other hyperparameters
+            
+        return tuned_hyper_params
 
-def tune_learning_rate(hyper_param, gpu_stats):
-    """Tune the learning rate hyperparameter"""
-    #Return the tuned learning rate value
-    pass
+    def tune_learning_rate(hyper_param, gpu_stats):
+        """Tune the learning rate hyperparameter"""
+        #Return the tuned learning rate value
+        pass
 
-def tune_batch_size(hyper_param, gpu_stats):
-    """Tune the batch size hyperparameter"""
-    # Return the tuned batch size value
-    pass
+    def tune_batch_size(hyper_param, gpu_stats):
+        """Tune the batch size hyperparameter"""
+        # Return the tuned batch size value
+        pass
 ```
 
 #### `Class: Elastic Dataloader`
