@@ -88,15 +88,15 @@ class MasterClientTest(unittest.TestCase):
 
     def test_get_cluster_version(self):
         self._master_client.update_cluster_version(
-            "local",
+            "LOCAL",
             1,
             NodeType.WORKER,
             0,
         )
         version = self._master_client.get_cluster_version(
-            "local", NodeType.WORKER, 0
+            "LOCAL", NodeType.WORKER, 0
         )
-        self.assertEqual(version, "")
+        self.assertEqual(version, 0)
 
     def test_report(self):
         res = self._master_client.update_node_addr(
