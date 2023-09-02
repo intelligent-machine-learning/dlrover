@@ -19,9 +19,19 @@ import ray
 
 from dlrover.proto import elastic_training_pb2
 from dlrover.python.common import grpc
-from dlrover.python.common.constants import NodeStatus, NodeType
+from dlrover.python.common.constants import (
+    NodeStatus,
+    NodeType,
+    PSClusterVersionType,
+    RendezvousName,
+)
 from dlrover.python.common.grpc import GPUStats
 from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
+from dlrover.python.master.elastic_training.rdzv_manager import (
+    ElasticTrainingRendezvousManager,
+    NetworkCheckRendezvousManager,
+)
+from dlrover.python.master.elastic_training.sync_service import SyncService
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.dist_job_manager import create_job_manager
 from dlrover.python.master.servicer import MasterServicer
@@ -49,24 +59,36 @@ class MasterServicerTest(unittest.TestCase):
         self.task_manager = TaskManager(False, speed_monitor)
         self.job_manager = create_job_manager(params, speed_monitor)
         self.job_manager._init_nodes()
+        self.job_manager._init_job_auto_scaler()
+        for node in self.job_manager._job_nodes[NodeType.WORKER].values():
+            node.status = NodeStatus.RUNNING
         self.job_metric_collector = JobMetricCollector(
             "1", "default", "local", "dlrover"
         )
         self.elastic_ps_service = ElasticPsService()
+        training_manager = ElasticTrainingRendezvousManager()
+        rdzv_managers = {
+            RendezvousName.ELASTIC_TRAINING: training_manager,
+            RendezvousName.NETWORK_CHECK: NetworkCheckRendezvousManager(),
+        }
+        sync_service = SyncService(self.job_manager)
         self.servicer = MasterServicer(
             task_manager=self.task_manager,
             job_manager=self.job_manager,
             speed_monitor=speed_monitor,
-            rdzv_managers={},
+            rdzv_managers=rdzv_managers,
             job_metric_collector=self.job_metric_collector,
             elastic_ps_service=self.elastic_ps_service,
+            sync_service=sync_service,
         )
 
     def test_query_running_nodes(self):
-        workers = self.job_manager._job_nodes[NodeType.WORKER]
-        workers[0].status = NodeStatus.RUNNING
-        res = self.servicer._get_running_nodes()
-        self.assertEqual(len(res.nodes), 1)
+        request = elastic_training_pb2.Message()
+        message = grpc.RunningNodesRequest()
+        request.data = message.serialize()
+        res = self.servicer.get(request, None)
+        ret: grpc.RunningNodes = grpc.deserialize_message(res.data)
+        self.assertEqual(len(ret.nodes), 3)
 
     def test_dataset_service(self):
         request = grpc.DatasetShardParams()
@@ -184,6 +206,138 @@ class MasterServicerTest(unittest.TestCase):
         self.assertEqual(
             res.nodes[0].addr, "test-edljob-ps-0.default.svc:2222"
         )
+
+    def test_get(self):
+        request = elastic_training_pb2.Message()
+        request.data = b""
+        response = self.servicer.get(request, None)
+        self.assertEqual(response.data, b"")
+
+    def test_get_cluster_version(self):
+        message = grpc.ClusterVersionRequest(NodeType.WORKER, 0, "local")
+        request = elastic_training_pb2.Message()
+        request.data = message.serialize()
+        response = self.servicer.get(request, None)
+        res_msg = grpc.deserialize_message(response.data)
+        self.assertEqual(res_msg.version, 0)
+
+        message = grpc.ClusterVersionRequest(NodeType.PS, 0, "local")
+        request = elastic_training_pb2.Message()
+        request.data = message.serialize()
+        response = self.servicer.get(request, None)
+        res_msg = grpc.deserialize_message(response.data)
+        self.assertEqual(res_msg.version, 0)
+
+    def test_get_training_status(self):
+        message = grpc.TrainingStatusRequest()
+        request = elastic_training_pb2.Message()
+        request.data = message.serialize()
+        response = self.servicer.get(request, None)
+        res_msg: grpc.TrainingStatus = grpc.deserialize_message(response.data)
+        self.assertEqual(res_msg.status, 3)
+
+    def test_num_nodes_waiting(self):
+        message = grpc.WaitingNodeNumRequest(
+            0, 8, RendezvousName.ELASTIC_TRAINING
+        )
+        request = elastic_training_pb2.Message()
+        request.data = message.serialize()
+        self.servicer._rdzv_managers[
+            RendezvousName.ELASTIC_TRAINING
+        ]._waiting_nodes = {0: 8}
+        response = self.servicer.get(request, None)
+        res_msg: grpc.RendezvousState = grpc.deserialize_message(response.data)
+        self.assertEqual(res_msg.waiting_num, 1)
+
+    def test_report(self):
+        request = elastic_training_pb2.Message()
+        request.data = b""
+        response = self.servicer.report(request, None)
+        self.assertFalse(response.success)
+
+    def test_report_task_result(self):
+        request = elastic_training_pb2.Message()
+        message = grpc.TaskResult("test", 0, "error")
+        dataset_params = grpc.DatasetShardParams(
+            batch_size=64,
+            num_epochs=1,
+            dataset_size=10000,
+            num_minibatches_per_shard=10,
+            dataset_name="test",
+            task_type=elastic_training_pb2.PREDICTION,
+        )
+        self.servicer._collect_dataset_shard_params(dataset_params)
+        request.data = message.serialize()
+        response = self.servicer.report(request, None)
+        self.assertFalse(response.success, False)
+
+        message = grpc.TaskResult("test", 0, "")
+        request.data = message.serialize()
+        self.servicer._start_autoscale = False
+        self.servicer._speed_monitor.completed_global_step == 0
+        self.servicer._start_training_time = time.time() - 3600
+        response = self.servicer.report(request, None)
+        self.assertTrue(self.servicer._start_autoscale)
+        self.assertTrue(response.success)
+
+    def test_update_cluster_version(self):
+        request = elastic_training_pb2.Message()
+        message = grpc.ClusterVersion(
+            NodeType.WORKER, 0, PSClusterVersionType.LOCAL, 1
+        )
+        request.data = message.serialize()
+        response = self.servicer.report(request, None)
+        self.assertTrue(response.success)
+        self.assertEqual(
+            self.servicer._elastic_ps_service._worker_local_version[0], 1
+        )
+
+        message = grpc.ClusterVersion(
+            NodeType.WORKER, 0, PSClusterVersionType.RESTORED, 1
+        )
+        request.data = message.serialize()
+        response = self.servicer.report(request, None)
+        self.assertTrue(response.success)
+        self.assertEqual(
+            self.servicer._elastic_ps_service._worker_restored_version[0], 1
+        )
+
+        message = grpc.ClusterVersion(
+            NodeType.PS, 0, PSClusterVersionType.GLOBAL, 1
+        )
+        request.data = message.serialize()
+        response = self.servicer.report(request, None)
+        self.assertTrue(response.success)
+        self.assertEqual(self.servicer._elastic_ps_service._global_version, 1)
+
+    def test_sync(self):
+        request = elastic_training_pb2.Message()
+        message = grpc.SyncJoin("test")
+        request.data = message.serialize()
+        request.node_type = NodeType.WORKER
+        request.node_id = 0
+        self.servicer.report(request, None)
+        self.assertEqual(len(self.servicer._sync_service._sync_objs_target), 1)
+        sync_obj = self.servicer._sync_service._sync_objs_target["test"]
+        self.assertEqual(len(sync_obj), 2)
+
+        message = grpc.SyncFinish("test")
+        request.data = message.serialize()
+        response = self.servicer.report(request, None)
+        self.assertFalse(response.success)
+
+        self.servicer._sync_service._sync_objs_target["test"] = []
+        response = self.servicer.report(request, None)
+        self.assertTrue(response.success)
+
+        message = grpc.SyncBarrier("test")
+        request.data = message.serialize()
+        response = self.servicer.report(request, None)
+        self.assertFalse(response.success)
+
+        self.servicer._sync_service._finished_barriers = ["test"]
+        response = self.servicer.report(request, None)
+        self.assertTrue(response.success)
 
 
 class MasterServicerForRayTest(unittest.TestCase):

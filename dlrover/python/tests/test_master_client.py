@@ -33,6 +33,10 @@ class MasterClientTest(unittest.TestCase):
     def addCleanup(self):
         self._master.stop()
 
+    def test_open_channel(self):
+        self._master_client.close_channel()
+        self._master_client.open_channel()
+
     def test_report_used_resource(self):
         gpu_stats: list[grpc.GPUStats] = [
             grpc.GPUStats(
@@ -134,3 +138,6 @@ class MasterClientTest(unittest.TestCase):
 
         success = self._master_client.network_check_success()
         self.assertFalse(success)
+
+        round = self._master_client.join_rendezvous(0, 8, "elastic-training")
+        self.assertEqual(round, 0)

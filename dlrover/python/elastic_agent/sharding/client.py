@@ -223,7 +223,7 @@ class ShardingClient(object):
 
     def restore_shard_from_checkpoint(self, shard_checkpoint):
         message = grpc.ShardCheckpoint(shard_checkpoint)
-        res = self._mc.report(message)
+        res = self._mc.report_shard_checkpoint(message)
         return res.success
 
     def get_total_sample_num(self):

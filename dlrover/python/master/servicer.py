@@ -104,7 +104,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         elif isinstance(req_message, grpc.JoinRendezvousRequest):
             message = self._join_rendezvous(req_message)
         elif isinstance(req_message, grpc.WaitingNodeNumRequest):
-            message = self._num_nodes_waiting(req_message)
+            message = self._num_nodes_waiting()
         elif isinstance(req_message, grpc.NetworkReadyRequest):
             message = self._network_check_success()
         elif isinstance(req_message, grpc.JoinRendezvousRequest):
@@ -416,7 +416,6 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             self._start_autoscale = True
 
     def _update_cluster_version(self, message: grpc.ClusterVersion):
-        logger.info(f"====={message}, {self._elastic_ps_service}")
         if not self._elastic_ps_service:
             return False
 

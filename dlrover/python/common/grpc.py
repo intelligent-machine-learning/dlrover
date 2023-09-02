@@ -243,15 +243,15 @@ class PsReady(Message):
 
 
 @dataclass
-class ClusterVersion(Message):
+class ClusterVersionRequest(Message):
     task_type: str = ""  # TF job type PS/worker
     task_id: int = 0
-    version: str = ""
     version_type: str = ""
 
 
-class ClusterVersionRequest(ClusterVersion):
-    pass
+@dataclass
+class ClusterVersion(ClusterVersionRequest):
+    version: int = 0
 
 
 @dataclass

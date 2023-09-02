@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import unittest
 
 from dlrover.python.elastic_agent.master_client import (
@@ -63,8 +64,14 @@ class DataShardClientTest(unittest.TestCase):
             shard = data_shard_service.fetch_shard()
             if not shard:
                 break
+            data_shard_service.report_batch_done(32)
             shard_count += 1
         self.assertEqual(shard_count, 8)
+        checkpoint_str = data_shard_service.get_shard_checkpoint()
+        checkpoint = json.loads(checkpoint_str)
+        self.assertEqual(checkpoint["epoch"], 2)
+        self.assertEqual(len(checkpoint["todo"]), 0)
+        data_shard_service.restore_shard_from_checkpoint(checkpoint_str)
 
     def test_index_sharding_client(self):
         client = IndexShardingClient(

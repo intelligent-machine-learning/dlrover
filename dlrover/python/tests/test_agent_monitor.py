@@ -73,6 +73,10 @@ class ResourceMonitorTest(unittest.TestCase):
         reporter0 = TrainingProcessReporter()
         reporter1 = TrainingProcessReporter()
         self.assertEqual(reporter0, reporter1)
+        reporter0.set_start_time()
+        self.assertTrue(reporter0._start_time > 0)
+        reporter0._last_timestamp = time.time() - 30
+        reporter0.report_resource_with_step(100)
 
 
 if __name__ == "__main__":
