@@ -9,19 +9,19 @@ This design doc describes how DLrover auto-tunes hyperparameters of a job.
   models presents a significant challenge, particularly in determining the
   optimal micro-batch sizes per GPU and learning rates.
 
-        As models grow larger and optimization techniques become more complex, manual
-        configuration tuning becomes increasingly challenging for users. Larger model
-        parameters result in extensive activation values and additional GPU memory
-        cache usage. Even minor batch size adjustments can unexpectedly increase GPU
-        memory requirements, leading to job crashes due to out-of-memory issues.
-        Additionally, various methods such as "gradient checkpoints," "ZERO," and
-        "host-mem offload" have been introduced to mitigate these memory
-        requirements. However, these optimization techniques introduce a vast array
-        of configuration options, which can be overwhelming for beginners.
-        Consequently, configuring training jobs has become highly challenging for
-        users. This often leads users to resort to repetitive experimentation to find
-        the optimal settings, resulting in an unsatisfactory training experience due
-        to extended restart times.
+  As models grow larger and optimization techniques become more complex, manual
+  configuration tuning becomes increasingly challenging for users. Larger model
+  parameters result in extensive activation values and additional GPU memory
+  cache usage. Even minor batch size adjustments can unexpectedly increase GPU
+  memory requirements, leading to job crashes due to out-of-memory issues.
+  Additionally, various methods such as "gradient checkpoints," "ZERO," and
+  "host-mem offload" have been introduced to mitigate these memory
+  requirements. However, these optimization techniques introduce a vast array
+  of configuration options, which can be overwhelming for beginners.
+  Consequently, configuring training jobs has become highly challenging for
+  users. This often leads users to resort to repetitive experimentation to find
+  the optimal settings, resulting in an unsatisfactory training experience due
+  to extended restart times.
 
 ## Target
 
@@ -143,121 +143,115 @@ usage and utilization.
 #### Inputs
 
 - **gpus** (optional)
-  - **Type:** List
-  - **Description:** List of GPU indices to monitor.
+  - Type: List
+  - Description: List of GPU indices to monitor.
 
 #### Outputs
 
 - **gpu_stats**
-  - **Type:** List[GPUMetric]
-  - **Description:** List of GPU metrics including index, total memory, used
+  - Type: List[GPUMetric]
+  - Description: List of GPU metrics including index, total memory, used
     memory, and GPU utilization.
 
 ```python
-    def get_gpu_stats(gpus=[]):
-        """Get the used gpu info of the container"""
-        if not gpus:
-            # get gpu index from device list
-            pass
-        for gpu in gpus:
-            # get each gpu's stats and append to gpu_stats
-            pass
-        return gpu_stats
+def get_gpu_stats(gpus=[]):
+    """Get the used gpu info of the container"""
+    if not gpus:
+        # get gpu index from device list
+        pass
+    for gpu in gpus:
+        # get each gpu's stats and append to gpu_stats
+        pass
+    return gpu_stats
 ```
 
 #### `Hyper-parameters Tuner`
 
-##### Description
+- **Description**
+  - This API performs hyper-parameter tuning based on GPU metrics and user-submitted training arguments.
 
-This API performs hyper-parameter tuning based on GPU metrics and user-submitted training arguments.
+- **Inputs**
+  - *gpu_stats*
+    - Type: List[GPUMetric]
+    - Description: List of GPU metrics including index, total memory, used memory, and GPU utilization.
 
-##### Inputs
+  - *hyper_param_args*
+    - Type: HyperParams
+    - Description: Dataclass containing training arguments submitted by the user.
 
-- **gpu_stats**
-  - **Type:** List[GPUMetric]
-  - **Description:** List of GPU metrics including index, total memory, used memory, and GPU utilization.
-
-- **hyper_param_args**
-  - **Type:** HyperParams
-  - **Description:** Dataclass containing training arguments submitted by the user.
-
-##### Outputs
-
-- **tuned_hyper_paras**
-  - **Type:** HyperParams
-  - **Description:** Dataclass containing hyper parameters tuned by the hyper-parameter tuner.
+- **Outputs**
+  - *tuned_hyper_paras*
+    - Type: HyperParams
+    - Description: Dataclass containing hyper parameters tuned by the hyper-parameter tuner.
 
 ```python
-    def tune_hyper_params(gpu_stats=[], hyper_param_args=[]):
-        """Tune a good hyper_paras config"""
+def tune_hyper_params(gpu_stats=[], hyper_param_args=[]):
+    """Tune a good hyper_paras config"""
 
-        # Iterate through each hyperparameter and call the corresponding tuning method
-        for hyper_param in hyper_param_args:
-            param_name = hyper_param.name
-            
-            if param_name == "learning_rate":
-                # Call the method to tune learning rate
-                tuned_value = tune_learning_rate(hyper_param, gpu_stats)
-                hyper_param.learning_rate = tuned_value
-            
-            elif param_name == "batch_size":
-                # Call the method to tune batch size
-                tuned_value = tune_batch_size(hyper_param, gpu_stats)
-                hyper_param.batch_size = tuned_value
-            
-            # Add more elif branches for other hyperparameters
-            
-        return tuned_hyper_params
+    # Iterate through each hyperparameter and call the corresponding tuning method
+    for hyper_param in hyper_param_args:
+        param_name = hyper_param.name
+        
+        if param_name == "learning_rate":
+            # Call the method to tune learning rate
+            tuned_value = tune_learning_rate(hyper_param, gpu_stats)
+            hyper_param.learning_rate = tuned_value
+        
+        elif param_name == "batch_size":
+            # Call the method to tune batch size
+            tuned_value = tune_batch_size(hyper_param, gpu_stats)
+            hyper_param.batch_size = tuned_value
+        
+        # Add more elif branches for other hyperparameters
+        
+    return tuned_hyper_params
 
-    def tune_learning_rate(hyper_param, gpu_stats):
-        """Tune the learning rate hyperparameter"""
-        #Return the tuned learning rate value
-        pass
+def tune_learning_rate(hyper_param, gpu_stats):
+    """Tune the learning rate hyperparameter"""
+    #Return the tuned learning rate value
+    pass
 
-    def tune_batch_size(hyper_param, gpu_stats):
-        """Tune the batch size hyperparameter"""
-        # Return the tuned batch size value
-        pass
+def tune_batch_size(hyper_param, gpu_stats):
+    """Tune the batch size hyperparameter"""
+    # Return the tuned batch size value
+    pass
 ```
 
 #### `Class: Elastic Dataloader`
 
-##### Description
+- Description
+  - This class extends the DataLoader class to enable dynamic batch size
+    adjustments during data loading. This feature allows users to modify batch
+    sizes in real-time, enhancing memory management and training efficiency.
 
-This class extends the DataLoader class to enable dynamic batch size
-adjustments during data loading. This feature allows users to modify batch
-sizes in real-time, enhancing memory management and training efficiency.
+- Attributes
+  - *current_batch_size*
+    - Type: Integer
+    - Description: The current batch size used for data loading. This attribute is initialized with the default batch size.
 
-##### Attributes
+- Methods
+  - *init*
+    - Description: Initializes the `ElasticDataLoader` instance.
+      Inherits and extends the initialization behavior of the parent
+      `DataLoader` class.
 
-- **current_batch_size**
-  - **Type**: Integer
-  - **Description**: The current batch size used for data loading. This attribute is initialized with the default batch size.
+  - *\_\_iter\_\_*
+    - Description: Overrides the iteration behavior of the parent
+      `DataLoader` class. Uses a `BatchSampler` with the current batch size
+      to yield batches of data from the dataset.
 
-##### Methods
+  - *set_batch_size*
+    - Parameters: batch_size (Integer)
+    - Description: Sets the current batch size to the specified value. This
+      method enables users to dynamically adjust the batch size during runtime,
+      affecting subsequent data loading iterations.
 
-- **init**
-  - **Description**: Initializes the **DynamicBatchSizeDataLoader** instance.
-    Inherits and extends the initialization behavior of the parent
-    **DataLoader** class.
-
-- **\_\_iter\_\_**
-  - **Description**: Overrides the iteration behavior of the parent
-    **DataLoader** class. Uses a **BatchSampler** with the current batch size
-    to yield batches of data from the dataset.
-
-- **set_batch_size**
-  - **Parameters**: batch_size (Integer)
-  - **Description**: Sets the current batch size to the specified value. This
-    method enables users to dynamically adjust the batch size during runtime,
-    affecting subsequent data loading iterations.
-
-- **update_batch_size_from_config**
-  - **Parameters**: config_path (String)
-  - **Description**: Reads the batch size information from a configuration file
-    located at `config_path` and updates the current batch size accordingly.
-    This method allows for convenient configuration-based adjustment of the
-    batch size.
+  - *update_batch_size_from_config*
+    - **Parameters**: config_path (String)
+    - Description: Reads the batch size information from a configuration file
+      located at `config_path` and updates the current batch size accordingly.
+      This method allows for convenient configuration-based adjustment of the
+      batch size.
 
 ```python
 class ElasticDataLoader(DataLoader):
