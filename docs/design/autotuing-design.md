@@ -92,6 +92,7 @@ contains the following steps:
 
 #### GPUMetric
 
+<!-- markdownlint-disable MD046 -->
 ```python
 @dataclass
 class GPUMetric:
@@ -128,7 +129,6 @@ class HyperParams:
     
     scheduler: str
     """The learning rate scheduler used to dynamically adjust the learning rate during training."""
-
 ```
 
 ### API Design
