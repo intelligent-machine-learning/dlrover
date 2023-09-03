@@ -132,7 +132,7 @@ class PodScaler(Scaler):
                 return
             self._plan = plan
             job_pods = self._list_job_pods()
-            logger.info("Scale the job by plan %s", plan.toJSON())
+            logger.info("Scale the job by plan %s", plan.to_json())
             if plan.ps_addrs:
                 self._ps_addrs = plan.ps_addrs
             for type, group_resource in plan.node_group_resources.items():
