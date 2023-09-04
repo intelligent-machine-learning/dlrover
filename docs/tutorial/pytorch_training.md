@@ -16,7 +16,7 @@ and checkpoint the sampler when checkpointing the model.
 ### Setup ElasticDistributedSampler into the Dataloader
 
 ```Python
-from dlrover.trainer.torch.elastic_sampler import ElasticDistributedSampler
+from dlrover.trainer.torch.elastic.sampler import ElasticDistributedSampler
 
 train_data = torchvision.datasets.ImageFolder(
     root="mnist/training/",

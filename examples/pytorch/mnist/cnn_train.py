@@ -28,8 +28,8 @@ from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader
 from torchvision import transforms
 
-from dlrover.trainer.torch.elastic import ElasticTrainer
-from dlrover.trainer.torch.elastic_sampler import ElasticDistributedSampler
+from dlrover.trainer.torch.elastic.sampler import ElasticDistributedSampler
+from dlrover.trainer.torch.elastic.trainer import ElasticTrainer
 
 CHEKPOINT_PATH = "model.pt"
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"

@@ -117,6 +117,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             message = self._query_ps_nodes()
         elif isinstance(req_message, grpc.TrainingStatusRequest):
             message = self._get_training_status()
+        elif isinstance(req_message, grpc.ParallelismConfig):
+            message = self._get_paral_config()
 
         if message:
             response.data = message.serialize()
@@ -247,6 +249,10 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         res = grpc.KeyValuePair(request.key, value)
         return res
 
+    def _get_paral_config(self):
+        res = grpc.ParallelismConfig()
+        return res
+
     def report(self, request, _):
         node_type = request.node_type
         node_id = request.node_id
@@ -291,6 +297,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             success = self._ready_for_ps_relaunch()
         elif isinstance(message, grpc.KeyValuePair):
             success = self._kv_store_set(message)
+        elif isinstance(message, grpc.ParallelismConfig):
+            success = self._report_paral_config(message)
 
         response.success = success
         return response
@@ -500,6 +508,10 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
 
     def _kv_store_set(self, message: grpc.KeyValuePair):
         self._kv_store.set(message.key, message.value)
+        return True
+
+    def _report_paral_config(self, message: grpc.ParallelismConfig):
+        logger.info(f"config = {message}")
         return True
 
 
