@@ -51,9 +51,14 @@ class ResourcePlan(JsonSerializable):
     def __init__(self):
         self.node_group_resources: Dict[str, NodeGroupResource] = {}
         self.node_resources: Dict[str, NodeResource] = {}
+        self.extended_config: Dict[str, str] = {}
 
     def empty(self):
-        return len(self.node_group_resources) + len(self.node_resources) == 0
+        return (
+            not self.node_group_resources
+            and not self.node_resources
+            and not self.extended_config
+        )
 
     def adjust_plan_by_context(self):
         if not _dlrover_context.auto_ps_enabled:
