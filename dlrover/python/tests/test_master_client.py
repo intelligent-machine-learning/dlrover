@@ -141,3 +141,8 @@ class MasterClientTest(unittest.TestCase):
 
         round = self._master_client.join_rendezvous(0, 8, "elastic-training")
         self.assertEqual(round, 0)
+
+    def test_paral_config(self):
+        config = grpc.ParallelConfig()
+        print(config.to_json())
+        self.assertFalse(True)

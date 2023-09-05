@@ -123,8 +123,8 @@ class MasterClient(object):
 
     def kv_store_get(self, key):
         request = grpc.KeyValuePair(key)
-        response: grpc.KeyValuePair = self._get(request)
-        return response.value
+        result: grpc.KeyValuePair = self._get(request)
+        return result.value
 
     def get_task(self, dataset_name):
         """Get a task from master.
@@ -229,8 +229,8 @@ class MasterClient(object):
             task_id=task_id,
             version_type=version_type,
         )
-        response: grpc.ClusterVersion = self._get(request)
-        return response.version
+        result: grpc.ClusterVersion = self._get(request)
+        return result.version
 
     def update_node_addr(self, task_type, task_id, node_addr):
         message = grpc.NodeStatus(
@@ -260,8 +260,8 @@ class MasterClient(object):
 
     def query_ps_nodes(self):
         request = grpc.PsNodesRequest()
-        response: grpc.PsNodes = self._get(request)
-        return response.nodes, response.ps_failure
+        result: grpc.PsNodes = self._get(request)
+        return result.nodes, result.ps_failure
 
     def query_training_status(self):
         request = grpc.TrainingStatusRequest()
@@ -290,13 +290,13 @@ class MasterClient(object):
 
     def get_running_nodes(self):
         request = grpc.RunningNodesRequest()
-        response: grpc.RunningNodes = self._get(request)
-        return response.nodes
+        result: grpc.RunningNodes = self._get(request)
+        return result.nodes
 
     def num_nodes_waiting(self, rdzv_name):
         request = grpc.WaitingNodeNumRequest(rdzv_name=rdzv_name)
-        response: grpc.RendezvousState = self._get(request)
-        return response.waiting_num
+        result: grpc.RendezvousState = self._get(request)
+        return result.waiting_num
 
     def join_rendezvous(self, rank_id, local_world_size, rdzv_name=""):
         request = grpc.JoinRendezvousRequest(
@@ -304,27 +304,27 @@ class MasterClient(object):
             local_world_size=local_world_size,
             rdzv_name=rdzv_name,
         )
-        response: grpc.RendezvousState = self._get(request)
-        return response.round
+        result: grpc.RendezvousState = self._get(request)
+        return result.round
 
     def get_comm_world(self, rdzv_name, rank_id):
         request = grpc.CommWorldRequest(node_id=rank_id, rdzv_name=rdzv_name)
-        response: grpc.RendezvousState = self._get(request)
-        return response.group, response.world
+        result: grpc.RendezvousState = self._get(request)
+        return result.group, result.world
 
     def network_check_success(self, timeout=300):
         request = grpc.NetworkReadyRequest()
         start = time.time()
         while True:
-            response: grpc.NetworkReady = self._get(request)
+            result: grpc.NetworkReady = self._get(request)
             if (
-                response.reason == NetworkFailureReason.WAITING_NODE
+                result.reason == NetworkFailureReason.WAITING_NODE
                 and time.time() - start < timeout
             ):
                 time.sleep(5)
                 continue
             break
-        return response.success
+        return result.success
 
     def report_rdzv_params(
         self, min_nodes, max_nodes, waiting_timeout, node_unit
@@ -345,6 +345,14 @@ class MasterClient(object):
     def report_failures(self, error_data, restart_count=-1, level=""):
         message = grpc.NodeFailure(error_data, restart_count, level)
         self._report(message)
+
+    def report_paral_config(self, config: grpc.ParallelConfig):
+        self._report(config)
+
+    def get_paral_config(self) -> grpc.ParallelConfig:
+        request = grpc.ParallelConfigRequest()
+        result = self._get(request)
+        return result
 
 
 class LocalDataset(object):

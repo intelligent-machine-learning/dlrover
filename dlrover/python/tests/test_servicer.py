@@ -340,14 +340,14 @@ class MasterServicerTest(unittest.TestCase):
         self.assertTrue(response.success)
 
     def test_paral_config(self):
-        message = grpc.ParallelismConfig()
+        message = grpc.ParallelConfig()
         request = elastic_training_pb2.Message()
         request.data = message.serialize()
         self.servicer.report(request, None)
 
         response = self.servicer.get(request, None)
         config = grpc.deserialize_message(response.data)
-        self.assertTrue(isinstance(config, grpc.ParallelismConfig))
+        self.assertTrue(isinstance(config, grpc.ParallelConfig))
 
 
 class MasterServicerForRayTest(unittest.TestCase):
