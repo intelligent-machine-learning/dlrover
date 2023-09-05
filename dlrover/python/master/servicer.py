@@ -119,6 +119,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             message = self._get_training_status()
         elif isinstance(req_message, grpc.ParallelismConfig):
             message = self._get_paral_config()
+        elif isinstance(req_message, grpc.JobInfoRequest):
+            message = self._get_job_info()
 
         if message:
             response.data = message.serialize()
@@ -251,6 +253,14 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
 
     def _get_paral_config(self):
         res = grpc.ParallelismConfig()
+        return res
+
+    def _get_job_info(self):
+        res = grpc.JobInfo()
+        if hasattr(self._job_manager, "job_name"):
+            res.job_name = self._job_manager.job_name
+        if hasattr(self._job_manager, "job_uuid"):
+            res.job_uuid = self._job_manager.job_uuid
         return res
 
     def report(self, request, _):

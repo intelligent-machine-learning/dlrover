@@ -353,6 +353,17 @@ class TrainingStatus(Message):
 
 
 @dataclass
+class JobInfoRequest(Message):
+    pass
+
+
+@dataclass
+class JobInfo(Message):
+    job_name: str = ""
+    job_uuid: str = ""
+
+
+@dataclass
 class RunningNodesRequest(Message):
     pass
 

@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import uuid
 from abc import ABCMeta, abstractmethod
 from typing import Dict
 
@@ -103,7 +104,21 @@ class JobArgs(JsonSerializable):
 class LocalJobArgs(JobArgs):
     def __init__(self, platform, namespace, job_name):
         super().__init__(platform, namespace, job_name)
+        self.job_uuid = self._generate_pseudo_uuid()
 
     def initilize(self):
         self.distribution_strategy = DistributionStrategy.LOCAL
         self.enable_elastic_scheduling = False
+
+    def _generate_pseudo_uuid(self):
+        """
+        Generates a pseudo-UUID for local mode.
+        
+        This UUID is for imitating K8s behavior and maintaining data structure consistency 
+        in local mode. In actual local mode, this UUID doesn't have practical functionality
+        or significance.
+        
+        Returns:
+            str: A new UUID string.
+        """
+        return str(uuid.uuid4())

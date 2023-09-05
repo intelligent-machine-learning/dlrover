@@ -30,6 +30,7 @@ from dlrover.python.common.constants import (
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource
+from dlrover.python.common.constants import PlatformType
 from dlrover.python.master.monitor.error_monitor import (
     ErrorLogMonitor,
     ErrorMonitor,
@@ -107,6 +108,10 @@ class DistributedJobManager(JobManager):
             ] = node_args.group_resource
             node_restart_count[type] = node_args.restart_count
 
+        self.job_name = job_args.job_name
+        self.job_uuid = None
+        if job_args.platform in (PlatformType.KUBERNETES, PlatformType.PY_KUBERNETES, PlatformType.LOCAL):
+            self.job_uuid = job_args.job_uuid
         self._job_args = job_args
         self._ps_is_critical = False
         if (

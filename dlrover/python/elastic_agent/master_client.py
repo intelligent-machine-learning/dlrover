@@ -15,6 +15,7 @@ import os
 import random
 import socket
 import time
+from typing import Tuple
 from contextlib import closing
 
 from dlrover.proto import elastic_training_pb2, elastic_training_pb2_grpc
@@ -311,6 +312,11 @@ class MasterClient(object):
         request = grpc.CommWorldRequest(node_id=rank_id, rdzv_name=rdzv_name)
         response: grpc.RendezvousState = self._get(request)
         return response.group, response.world
+
+    def get_job_info(self) -> Tuple[str, str]:
+        request = grpc.JobInfoRequest()
+        response: grpc.JobInfo = self._get(request)
+        return response.job_name, response.job_uuid
 
     def network_check_success(self, timeout=300):
         request = grpc.NetworkReadyRequest()

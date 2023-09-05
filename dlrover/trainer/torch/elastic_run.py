@@ -131,8 +131,12 @@ def _launch_dlrover_local_master():
 
 def _check_dlrover_master_available(addr, timeout=60):
     """Check whether the master grpc servicer is available."""
-    host = addr.split(":")[0]
-    port = int(addr.split(":")[1])
+    try:
+        host = addr.split(":")[0]
+        port = int(addr.split(":")[1])
+    except Exception as e:
+        logger.error(f"Master address: {addr} is invalid")
+        raise e
     start_time = time.time()
     while True:
         try:

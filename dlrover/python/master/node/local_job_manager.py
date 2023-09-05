@@ -14,6 +14,7 @@ from typing import Dict
 
 from dlrover.python.common.constants import NodeStatus, NodeType
 from dlrover.python.common.node import Node
+from dlrover.python.common.constants import PlatformType
 from dlrover.python.master.monitor.error_monitor import (
     ErrorLogMonitor,
     ErrorMonitor,
@@ -38,6 +39,10 @@ class LocalJobManager(JobManager):
         error_monitor=None,
     ):
         self._job_resource = JobResource()
+        self.job_name = job_args.job_name
+        self.job_uuid = None
+        if job_args.platform in (PlatformType.KUBERNETES, PlatformType.PY_KUBERNETES, PlatformType.LOCAL):
+            self.job_uuid = job_args.job_uuid
         self._job_args = job_args
         self._job_optimizer = None
         self._stop_monitor = False

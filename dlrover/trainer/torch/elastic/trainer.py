@@ -13,6 +13,7 @@
 
 import contextlib
 import os
+import time
 import socket
 from contextlib import contextmanager
 from typing import Any, Dict, Optional
@@ -21,6 +22,7 @@ import torch
 import torch.distributed as dist
 
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.elastic_agent.master_client import GlobalMasterClient
 
 
 def find_free_port() -> int:
@@ -209,6 +211,99 @@ class CheckpointInterval:
         if self.epochs and current_epoch and current_epoch % self.epochs == 0:
             return True
         return False
+
+
+class SharedStorageManager:
+    """
+    Manages shared storage directory structure for temporarily housing checkpoints and other data types to facilitate elastic training.
+
+    Directory Structure:
+    ```
+    shared_storage_path/
+    └── fsdp_checkpoint/
+        ├── <job1_name>_<job1_uuid>/
+        │   ├── epoch_1/
+        │   ├── ...
+        │   └── step_100/
+        ├── <job2_name>_<job2_uuid>/
+        │   ├── epoch_1/
+        │   ├── ...
+        │   └── step_150/
+        └── <job3_name>_<job3_uuid>/
+            ├── epoch_1/
+            ├── ...
+            └── step_200/
+    ```
+
+    Args:
+        shared_storage_path (str): Path to the shared storage. Defaults to None.
+
+    Methods:
+        get_job_dir(job_name: str) -> str: Get or create a directory for a specific job.
+        get_epoch_dir(job_name: str, epoch: int) -> str: Get or create a directory for a specific job and epoch.
+        get_step_dir(job_name: str, epoch: int, step: int) -> str: Get or create a directory for a specific job, epoch, and step.
+        get_latest_checkpoint(interval: CheckpointInterval) -> str: Get the latest checkpoint path based on the interval.
+        get_next_checkpoint_path(interval: CheckpointInterval, current_step: Optional[int], current_epoch: Optional[int]) -> str: Get the next checkpoint path based on the interval.
+    """
+
+    FSDP_CHECKPOINT_DIR = "fsdp_checkpoint"
+    EPOCH_DIR_PREFIX = "epoch_"
+    STEP_DIR_PREFIX = "step_"
+
+    def __init__(self, shared_storage_path: str):
+        self.shared_storage_path = shared_storage_path
+        self.job_name, self.job_uuid = GlobalMasterClient.MASTER_CLIENT.get_job_info()
+        self.job_dir_name = f"{self.job_name}_{self.job_uuid}"
+        self.job_path = os.path.join(self.shared_storage_path, self.FSDP_CHECKPOINT_DIR, self.job_dir_name)
+        self._check_job_dir()
+
+    def _check_job_dir(self):
+        if not os.path.exists(self.job_path):
+            os.makedirs(self.job_path)
+
+    def _get_latest(self, prefix: str) -> Optional[int]:
+        dirs = [d for d in os.listdir(self.job_path) if d.startswith(prefix)]
+        if not dirs:
+            return None
+        return sorted([int(d.split('_')[-1]) for d in dirs])[-1]
+
+    def get_latest_checkpoint_dir(self, interval: CheckpointInterval) -> str:
+        """Get the latest checkpoint dir path based on the interval."""
+        if interval.steps:
+            latest_step = self._get_latest(self.STEP_DIR_PREFIX)
+            if latest_step is not None:
+                return os.path.join(self.job_path, f"{self.STEP_DIR_PREFIX}{latest_step}")
+        
+        if interval.epochs:
+            latest_epoch = self._get_latest(self.EPOCH_DIR_PREFIX)
+            if latest_epoch is not None:
+                return os.path.join(self.job_path, f"{self.EPOCH_DIR_PREFIX}{latest_epoch}")
+        
+        return None
+
+    def get_next_checkpoint_dir(self, interval: CheckpointInterval, current_step: Optional[int] = None, current_epoch: Optional[int] = None) -> str:
+        """Get the next checkpoint dir path based on the current step or epoch."""
+        if interval.steps and current_step is not None:
+            next_step = current_step + interval.steps
+            return os.path.join(self.job_path, f"{self.STEP_DIR_PREFIX}{next_step}")
+
+        if interval.epochs and current_epoch is not None:
+            next_epoch = current_epoch + interval.epochs
+            return os.path.join(self.job_path, f"{self.EPOCH_DIR_PREFIX}{next_epoch}")
+
+        raise ValueError("Invalid CheckpointInterval or current values provided.")
+
+    def get_epoch_dir(self, epoch: int) -> str:
+        """Get the epoch directory for a specific job and epoch."""
+        epoch_dir_name = f"{self.EPOCH_DIR_PREFIX}{epoch}"
+        epoch_path = os.path.join(self.job_path, epoch_dir_name)
+        return epoch_path
+
+    def get_step_dir(self, step: int) -> str:
+        """Get the step directory for a specific job, epoch, and step."""
+        step_dir_name = f"{self.STEP_DIR_PREFIX}{step}"
+        step_path = os.path.join(self.job_path, step_dir_name)
+        return step_path
 
 
 class ElasticTrainer(object):
