@@ -27,7 +27,7 @@ import torch.distributed as dist
 from model import GPT, GPTConfig
 from torch.utils.data import DataLoader, Dataset
 
-from dlrover.trainer.torch.elastic_sampler import ElasticDistributedSampler
+from dlrover.trainer.torch.elastic.sampler import ElasticDistributedSampler
 
 local_rank = None
 

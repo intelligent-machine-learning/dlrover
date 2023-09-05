@@ -394,5 +394,6 @@ class OptimizerConfig(Message):
 
 @dataclass
 class ParallelismConfig(Message):
+    version: int = 0
     dataloader: DataLoaderConfig = DataLoaderConfig()
     optimizer: OptimizerConfig = OptimizerConfig()

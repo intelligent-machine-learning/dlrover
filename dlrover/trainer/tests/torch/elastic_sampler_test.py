@@ -16,7 +16,7 @@ import unittest
 import numpy as np
 from torch.utils.data import Dataset
 
-from dlrover.trainer.torch.elastic_sampler import ElasticDistributedSampler
+from dlrover.trainer.torch.elastic.sampler import ElasticDistributedSampler
 
 
 class SimpleDataset(Dataset):
