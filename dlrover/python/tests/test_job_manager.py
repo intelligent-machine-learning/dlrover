@@ -415,6 +415,10 @@ class DistributedJobManagerTest(unittest.TestCase):
         callback.on_node_failed(node, cluster_context)
         self.assertEqual(master.speed_monitor._target_worker_num, 1)
         self.assertEqual(len(master.speed_monitor.running_workers), 1)
+        master.speed_monitor.set_target_worker_num(2)
+        master.speed_monitor._workers.add(("worker", 0))
+        callback.on_node_succeeded(node, cluster_context)
+        self.assertEqual(master.speed_monitor._target_worker_num, 1)
 
     def test_all_running_node_hang(self):
         params = MockK8sPSJobArgs()
