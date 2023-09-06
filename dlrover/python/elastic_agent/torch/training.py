@@ -267,7 +267,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
     def _periodically_update_paral_config(self):
         while True:
             config = self._client.get_paral_config()
-            with open(WorkerEnv.PARAL_CONFIG_PATH.default, "r") as f:
+            with open(WorkerEnv.PARAL_CONFIG_PATH.default, "w") as f:
                 f.write(config.to_json())
             time.sleep(30)
 
