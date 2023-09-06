@@ -13,10 +13,10 @@
 import copy
 import functools
 import json
-import threading
 import os
 import socket
 import tempfile
+import threading
 import time
 import uuid
 from dataclasses import dataclass
@@ -69,7 +69,9 @@ __all__ = ["launch_agent"]
 def _set_paral_config():
     config_dir = os.path.dirname(WorkerEnv.PARAL_CONFIG_PATH.default)
     os.makedirs(config_dir, exist_ok=True)
-    os.environ[WorkerEnv.PARAL_CONFIG_PATH.name] = WorkerEnv.PARAL_CONFIG_PATH.default
+    os.environ[
+        WorkerEnv.PARAL_CONFIG_PATH.name
+    ] = WorkerEnv.PARAL_CONFIG_PATH.default
 
 
 @dataclass
