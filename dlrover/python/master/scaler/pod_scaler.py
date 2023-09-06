@@ -87,6 +87,7 @@ class PodScaler(Scaler):
         self._ps_addrs: List[str] = []
         self._pod_stats: Dict[str, int] = {}
         self._init_pod_config_by_job()
+        self._job_uid = ""
         threading.Thread(
             target=self._periodic_create_pod, name="pod-creater", daemon=True
         ).start()
@@ -98,6 +99,7 @@ class PodScaler(Scaler):
         self._distribution_strategy = self._job["spec"].get(
             "distributionStrategy", None
         )
+        self._job_uid = self._job["metadata"]["uid"]
         worker_spec = self._job["spec"]["replicaSpecs"][NodeType.WORKER]
         self._config_worker_num = worker_spec.get("replicas", 0)
         if "replicaSpecs" in self._job["spec"]:
@@ -357,6 +359,8 @@ class PodScaler(Scaler):
 
         env.append(V1EnvVar(name=NodeEnv.WORKER_TYPE, value=node.type))
         env.append(V1EnvVar(name=NodeEnv.WORKER_ID, value=str(node.id)))
+        env.append(V1EnvVar(name=NodeEnv.JOB_NAME, value=self._job_name))
+        env.append(V1EnvVar(name=NodeEnv.JOB_UID, value=self._job_uid))
 
         # A deadlock can happen when pthread_atfork handler is running.
         # For detail https://chromium.googlesource.com/external/github.com/grpc/grpc/+/refs/tags/v1.19.0-pre1/doc/fork_support.md  # noqa: E501
