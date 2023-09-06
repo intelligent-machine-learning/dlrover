@@ -141,3 +141,6 @@ class MasterClientTest(unittest.TestCase):
 
         round = self._master_client.join_rendezvous(0, 8, "elastic-training")
         self.assertEqual(round, 0)
+
+        config = self._master_client.get_paral_config()
+        self.assertEqual(config.dataloader.version, 0)

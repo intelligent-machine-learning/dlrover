@@ -380,6 +380,7 @@ class DataLoaderConfig(Message):
             device/CUDA pinned memory before returning them.
     """
 
+    version: int = 0
     dataloader_name: str = ""
     batch_size: int = 0
     num_workers: int = 0
@@ -388,12 +389,17 @@ class DataLoaderConfig(Message):
 
 @dataclass
 class OptimizerConfig(Message):
+    version: int = 0
     optimizer_name: str = ""
     learning_rate: float = 0.0
 
 
 @dataclass
-class ParallelismConfig(Message):
-    version: int = 0
+class ParallelConfigRequest(Message):
+    pass
+
+
+@dataclass
+class ParallelConfig(Message):
     dataloader: DataLoaderConfig = DataLoaderConfig()
     optimizer: OptimizerConfig = OptimizerConfig()

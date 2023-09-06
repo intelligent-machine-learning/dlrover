@@ -224,11 +224,6 @@ def tune_batch_size(hyper_param, gpu_stats):
     adjustments during data loading. This feature allows users to modify batch
     sizes in real-time, enhancing memory management and training efficiency.
 
-- Attributes
-  - *current_batch_size*
-    - Type: Integer
-    - Description: The current batch size used for data loading. This attribute is initialized with the default batch size.
-
 - Methods
   - *init*
     - Description: Initializes the `ElasticDataLoader` instance.
@@ -257,21 +252,13 @@ def tune_batch_size(hyper_param, gpu_stats):
 class ElasticDataLoader(DataLoader):
     def init(self, *args, **kwargs):
         super(ElasticDataLoader, self).init(*args, **kwargs)
-        self.current_batch_size = self.batch_size
-    def __iter__(self):
-        batch_sampler = BatchSampler(
-            self.sampler, batch_size=self.current_batch_size, drop_last=self.drop_last
-        )
-        for batch_indices in batch_sampler:
-            yield self.collate_fn([self.dataset[i] for i in batch_indices])
 
-    def set_batch_size(self, batch_size):
-        self.current_batch_size = batch_size
+    def update_batch_size(self, batch_size):
+        self.batch_sampler.batch_size = batch_size
 
     def update_batch_size_from_config(self, config_path):
-        # Read batch size from the configuration file and update current_batch_size
         batch_size_from_config = self._read_batch_size_from_config(config_path)
-        self.set_batch_size(batch_size_from_config)
+        self.update_batch_size(batch_size_from_config)
 
     def _read_batch_size_from_config(self, config_path):
         # Return the batch size value
