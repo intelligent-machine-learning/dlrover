@@ -340,7 +340,7 @@ class MasterServicerTest(unittest.TestCase):
         self.assertTrue(response.success)
 
     def test_paral_config(self):
-        message = grpc.ParallelConfig()
+        message = grpc.ParallelConfigRequest()
         request = elastic_training_pb2.Message()
         request.data = message.serialize()
         self.servicer.report(request, None)
