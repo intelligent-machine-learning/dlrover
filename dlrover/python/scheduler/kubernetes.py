@@ -249,7 +249,7 @@ class k8sClient(object):
 
     def create_service(self, service: client.V1Service):
         """Create a service
-        
+
         Args:
             service: client.V1Service.
         """
@@ -265,7 +265,7 @@ class k8sClient(object):
 
     def patch_service(self, name, service: client.V1Service):
         """Patch a service
-        
+
         Args:
             name: str, the service name.
             service: client.V1Service.
@@ -276,15 +276,13 @@ class k8sClient(object):
             )
             return True
         except client.rest.ApiException as e:
-            logger.warning(
-                "Failed to patch %s service: %s\n" % (name, e)
-            )
+            logger.warning("Failed to patch %s service: %s\n" % (name, e))
             return False
 
     @retry_k8s_request
     def get_service(self, name):
         """Get a k8s service object.
-        
+
         Args:
             name: str, the service name.
         """
