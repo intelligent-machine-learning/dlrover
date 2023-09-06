@@ -167,6 +167,9 @@ class TFPSNodeHandlingCallback(NodeEventCallback):
                     msg="All critical nodes completed",
                 )
         self._master.speed_monitor.remove_running_worker(node.type, node.id)
+        self._master.speed_monitor.reduce_target_worker_num(
+            [(node.type, node.id)]
+        )
         self._master.sync_service.remove_exited_worker_sync(node.type, node.id)
 
     @NodeEventCallback.log_callback_exception
