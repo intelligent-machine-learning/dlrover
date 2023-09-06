@@ -224,7 +224,6 @@ def tune_batch_size(hyper_param, gpu_stats):
     adjustments during data loading. This feature allows users to modify batch
     sizes in real-time, enhancing memory management and training efficiency.
 
-
 - Methods
   - *init*
     - Description: Initializes the `ElasticDataLoader` instance.
