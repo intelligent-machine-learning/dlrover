@@ -14,6 +14,7 @@
 import os
 import threading
 import time
+from typing import Dict
 
 from kubernetes import client, config
 from kubernetes.utils.quantity import parse_quantity
@@ -117,6 +118,11 @@ class k8sClient(object):
 
     @retry_k8s_request
     def list_namespaced_pod(self, label_selector):
+        """List the pods in the namespace with the label selector.
+
+        Args:
+            label_selector: str like "label0=value0,lable1=value1"
+        """
         pod_list = self.client.list_namespaced_pod(
             self._namespace,
             label_selector=label_selector,
@@ -187,11 +193,21 @@ class k8sClient(object):
 
     @retry_k8s_request
     def get_pod(self, name):
+        """Get the pod with the pod name:
+
+        Args:
+            name: str, the pod name.
+        """
         return self.client.read_namespaced_pod(
             namespace=self._namespace, name=name
         )
 
     def delete_pod(self, name):
+        """Delete the pod with the pod name:
+
+        Args:
+            name: str, the pod name.
+        """
         try:
             self.client.delete_namespaced_pod(
                 name,
@@ -206,20 +222,37 @@ class k8sClient(object):
             return False
 
     @retry_k8s_request
-    def patch_labels_to_pod(self, name, labels_dict):
-        body = {"metadata": {"labels": labels_dict}}
+    def patch_labels_to_pod(self, name, labels: Dict[str, str]):
+        """Patch labels to a Pod.
+
+        Args:
+            name: str, the pod name.
+            labels: dict, the key and value are str.
+        """
+        body = {"metadata": {"labels": labels}}
         return self.client.patch_namespaced_pod(
             name=name, namespace=self._namespace, body=body
         )
 
     @retry_k8s_request
-    def patch_annotations_to_pod(self, name, annotations):
+    def patch_annotations_to_pod(self, name, annotations: Dict[str, str]):
+        """Patch annotaions to a Pod.
+
+        Args:
+            name: str, the pod name.
+            annotations: dict, the key and value are str.
+        """
         body = {"metadata": {"annotations": annotations}}
         return self.client.patch_namespaced_pod(
             name=name, namespace=self._namespace, body=body
         )
 
-    def create_service(self, service):
+    def create_service(self, service: client.V1Service):
+        """Create a service
+        
+        Args:
+            service: client.V1Service.
+        """
         try:
             self.client.create_namespaced_service(self._namespace, service)
             return True
@@ -230,20 +263,31 @@ class k8sClient(object):
             )
             return False
 
-    def patch_service(self, service_name, service):
+    def patch_service(self, name, service: client.V1Service):
+        """Patch a service
+        
+        Args:
+            name: str, the service name.
+            service: client.V1Service.
+        """
         try:
             self.client.patch_namespaced_service(
-                service_name, self._namespace, service
+                name, self._namespace, service
             )
             return True
         except client.rest.ApiException as e:
             logger.warning(
-                "Failed to patch %s service: %s\n" % (service_name, e)
+                "Failed to patch %s service: %s\n" % (name, e)
             )
             return False
 
     @retry_k8s_request
     def get_service(self, name):
+        """Get a k8s service object.
+        
+        Args:
+            name: str, the service name.
+        """
         return self.client.read_namespaced_service(
             name=name,
             namespace=self._namespace,
