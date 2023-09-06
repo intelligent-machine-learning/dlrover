@@ -57,6 +57,7 @@ class PodScalerTest(unittest.TestCase):
 
     def test_create_pod(self):
         scaler = PodScaler("elasticjob-sample", "default")
+        scaler._init_pod_config_by_job()
         scaler._distribution_strategy = DistributionStrategy.PS
         resource = NodeResource(4, 8192)
         node = Node(NodeType.WORKER, 0, resource, rank_index=0)
@@ -82,15 +83,27 @@ class PodScalerTest(unittest.TestCase):
             """{"type": "worker", "index": 0}"""
             in main_container.env[-1].value
         )
-        self.assertEqual(main_container.env[5].name, "WORKER_NUM")
-        self.assertEqual(main_container.env[5].value, "2")
+        env_worker_num = 0
+        env_job_name = ""
+        env_job_uid = ""
+        for env in main_container.env:
+            if env.name == "WORKER_NUM":
+                env_worker_num = int(env.value)
+            elif env.name == "ELASTIC_JOB_NAME":
+                env_job_name = env.value
+            elif env.name == "JOB_UID":
+                env_job_uid = env.value
+
+        self.assertEqual(env_worker_num, 2)
+        self.assertEqual(env_job_name, "elasticjob-sample")
+        self.assertEqual(env_job_uid, "111-222")
+
         node = Node(NodeType.CHIEF, 0, resource, rank_index=0)
         pod = scaler._create_pod(node, pod_stats, ps_addrs)
         main_container = pod.spec.containers[0]
         self.assertTrue(
             """{"type": "chief", "index": 0}""" in main_container.env[-1].value
         )
-
         node = Node(NodeType.PS, 0, resource, rank_index=0)
         pod = scaler._create_pod(node, pod_stats, ps_addrs)
         main_container = pod.spec.containers[0]
