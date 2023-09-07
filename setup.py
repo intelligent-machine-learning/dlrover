@@ -19,6 +19,7 @@ install_requires = [
     "psutil",
     "pynvml",
     "urllib3<1.27,>=1.21.1",
+    "deprecated",
 ]
 
 
