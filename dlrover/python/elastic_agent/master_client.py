@@ -233,9 +233,7 @@ class MasterClient(object):
         return result.version
 
     def update_node_addr(self, task_type, task_id, node_addr):
-        message = grpc.NodeStatus(
-            type=task_type, id=task_id, addr=node_addr, rank=-1
-        )
+        message = grpc.NodeAddress(type=task_type, id=task_id, addr=node_addr)
         res = self._report(message)
         return res
 
