@@ -93,15 +93,16 @@ class RendezvousManager(metaclass=ABCMeta):
                 a multiple of worker_unit.
         """
         with self._lock:
-            self._rdzv_params.min_nodes = min_nodes
-            self._rdzv_params.max_nodes = max_ndoes
-            self._rdzv_params.waiting_timeout = waiting_timeout
-            self._node_unit = node_unit
-            logger.info(
-                f"{self._name} manager updates rdzv params: "
-                f"min_nodes={min_nodes}, max_nodes={max_ndoes}, "
-                f"waiting_timeout={waiting_timeout}, node_unit={node_unit}"
-            )
+            if self._rdzv_params.max_nodes == 0:
+                self._rdzv_params.min_nodes = min_nodes
+                self._rdzv_params.max_nodes = max_ndoes
+                self._rdzv_params.waiting_timeout = waiting_timeout
+                self._node_unit = node_unit
+                logger.info(
+                    f"{self._name} manager updates rdzv params: "
+                    f"min_nodes={min_nodes}, max_nodes={max_ndoes}, "
+                    f"waiting_timeout={waiting_timeout}, node_unit={node_unit}"
+                )
 
     def _check_rdzv_completed(self):
         rdzv_completed = False
