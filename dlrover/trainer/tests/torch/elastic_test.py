@@ -16,7 +16,7 @@ from unittest.mock import MagicMock, patch
 
 import torch
 
-from dlrover.trainer.torch.elastic import (
+from dlrover.trainer.torch.elastic.trainer import (
     CheckpointInterval,
     ElasticTrainer,
     _ElasticLRScheduler,
@@ -49,8 +49,12 @@ class ElasticTrainerTest(unittest.TestCase):
         with self.elastic_trainer.epoch(1):
             self.assertEqual(self.elastic_trainer.gradient_state.num_steps, 0)
 
-    @patch("dlrover.trainer.torch.elastic.ElasticTrainer._save_fsdp_ckpt")
-    @patch("dlrover.trainer.torch.elastic.CheckpointInterval.should_save")
+    @patch(
+        "dlrover.trainer.torch.elastic.trainer.ElasticTrainer._save_fsdp_ckpt"
+    )
+    @patch(
+        "dlrover.trainer.torch.elastic.trainer.CheckpointInterval.should_save"
+    )
     def test_step_context(
         self, mock_should_save: MagicMock, mock_save: MagicMock
     ):

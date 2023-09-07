@@ -18,7 +18,7 @@ import unittest
 from unittest.mock import patch
 
 from dlrover.python.common.constants import NodeEnv
-from dlrover.python.elastic_agent.monitor.metrics import GPUMetric
+from dlrover.python.common.grpc import GPUStats
 from dlrover.python.elastic_agent.monitor.resource import ResourceMonitor
 from dlrover.python.elastic_agent.monitor.training import (
     TrainingProcessReporter,
@@ -28,8 +28,8 @@ from dlrover.python.elastic_agent.monitor.training import (
 
 class ResourceMonitorTest(unittest.TestCase):
     def test_resource_monitor(self):
-        gpu_stats: list[GPUMetric] = [
-            GPUMetric(
+        gpu_stats: list[GPUStats] = [
+            GPUStats(
                 index=0,
                 total_memory_mb=24000,
                 used_memory_mb=4000,
@@ -73,6 +73,10 @@ class ResourceMonitorTest(unittest.TestCase):
         reporter0 = TrainingProcessReporter()
         reporter1 = TrainingProcessReporter()
         self.assertEqual(reporter0, reporter1)
+        reporter0.set_start_time()
+        self.assertTrue(reporter0._start_time > 0)
+        reporter0._last_timestamp = time.time() - 30
+        reporter0.report_resource_with_step(100)
 
 
 if __name__ == "__main__":

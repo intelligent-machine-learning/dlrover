@@ -165,7 +165,7 @@ class JobResource(JsonSerializable):
         chief.node_resource.memory = worker.node_resource.memory
         self.node_group_resources[NodeType.CHIEF] = chief
         worker.count -= 1
-        logger.info("self = %s", self.toJSON())
+        logger.info("self = %s", self.to_json())
 
 
 class JobResourceOptimizer(metaclass=ABCMeta):
@@ -295,7 +295,7 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
             if resource.memory < min_memory:
                 resource.memory = self._worker_resource.node_resource.memory
 
-        logger.info("Job resource = %s", job_resource.toJSON())
+        logger.info("Job resource = %s", job_resource.to_json())
         return job_resource
 
     def adjust_oom_resource(self, node):

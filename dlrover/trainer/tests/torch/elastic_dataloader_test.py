@@ -11,13 +11,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+import tempfile
 import unittest
-from unittest.mock import patch
 
 import numpy as np
 from torch.utils.data import Dataset
 
-from dlrover.trainer.torch.elastic_dataloader import ElasticDataLoader
+from dlrover.python.common.grpc import ParallelConfig
+from dlrover.trainer.torch.elastic.dataloader import ElasticDataLoader
 
 
 class SimpleDataset(Dataset):
@@ -40,48 +42,46 @@ class TestElasticDataLoader(unittest.TestCase):
         # Cleanup code to run after each test method
         pass
 
-    @patch("builtins.open", create=True)
-    def test_load_config(self, mock_open):
+    def test_load_config(self):
         dataset = SimpleDataset()
         # Create a temporary ElasticDataLoader instance for testing
         dataloader = ElasticDataLoader(dataset=dataset, batch_size=32)
 
         # Assert that the loaded batch_size is correct
-        self.assertEqual(dataloader.current_batch_size, 32)
+        self.assertEqual(dataloader.batch_sampler.batch_size, 32)
 
-        # Configure the mock_open to return the desired content
-        mock_open.return_value.__enter__.return_value.read.return_value = (
-            '{"batch_size": 64}'
-        )
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            config = ParallelConfig()
+            config.dataloader.batch_size = 128
+            config.dataloader.version = 1
+            config_file = os.path.join(tmpdirname, "config.json")
+            with open(config_file, "w") as f:
+                f.write(config.to_json())
 
-        # Call the load_config method
-        dataloader.load_config(config_file="config.json")
+            # Call the load_config method
+            dataloader.load_config(config_file=config_file)
+            dataloader = ElasticDataLoader(
+                dataset=dataset, config_file=config_file
+            )
 
-        # Configure the mock_open to return the desired content
-        mock_open.return_value.__enter__.return_value.read.return_value = (
-            '{"batch_size": 128}'
-        )
+            # Assert that the loaded batch_size is correct
+            self.assertEqual(dataloader.batch_sampler.batch_size, 128)
 
-        dataloader = ElasticDataLoader(
-            dataset=dataset, config_file="config.json"
-        )
-
-        # Assert that the loaded batch_size is correct
-        self.assertEqual(dataloader.current_batch_size, 128)
-
-    @patch("builtins.open", create=True)
-    def test_set_batch_size(self, mock_open):
+    def test_set_batch_size(self):
         dataset = SimpleDataset()
-        # Configure the mock_open to return the desired content
-        mock_open.return_value.__enter__.return_value.read.return_value = (
-            '{"batch_size": 128}'
-        )
-        dataloader = ElasticDataLoader(
-            dataset=dataset, batch_size=32, config_file="config.json"
-        )
+        config = ParallelConfig()
+        config.dataloader.batch_size = 128
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            config_file = os.path.join(tmpdirname, "config.json")
+            with open(config_file, "w") as f:
+                f.write(config.to_json())
 
-        # Call the set_batch_size method to change the batch_size
-        dataloader.set_batch_size(128)
+            dataloader = ElasticDataLoader(
+                dataset=dataset, batch_size=32, config_file=config_file
+            )
 
-        # Assert that the set batch_size is correct
-        self.assertEqual(dataloader.current_batch_size, 128)
+            # Call the set_batch_size method to change the batch_size
+            dataloader.update_batch_size(128)
+
+            # Assert that the set batch_size is correct
+            self.assertEqual(dataloader.batch_sampler.batch_size, 128)

@@ -12,8 +12,15 @@
 # limitations under the License.
 
 import json
+import logging
+import os
 
-from torch.utils.data import BatchSampler, DataLoader
+from torch.utils.data import DataLoader
+
+from dlrover.trainer.constants.torch import WorkerEnv
+
+logging.basicConfig(level=logging.NOTSET)
+logger = logging.getLogger(__name__)
 
 
 class ElasticDataLoader(DataLoader):
@@ -33,20 +40,20 @@ class ElasticDataLoader(DataLoader):
             the initial batch size (default: None).
 
     Attributes:
-        current_batch_size (int): The current batch size used by the
-        DataLoader. config_file (str): The path to the configuration file if
+        config_file (str): The path to the configuration file if
         provided.
 
     Methods:
         load_config(): Load the batch size configuration from the specified
-        JSON file. set_batch_size(batch_size): Dynamically set the batch size.
+        JSON file.
+        update_batch_size(batch_size): Dynamically set the batch size.
 
     Usage Example:
         >>> # create a elastic dataloader with config.json
         >>> loader = ElasticDataLoader(dataset, shuffle=True,
-        >>> config_file="config.json")
+        >>>     config_file="config.json")
         >>> # Dynamically change the batch size to 64.
-        >>> loader.set_batch_size(64)
+        >>> loader.update_params()
         >>> for batch in loader:
         ...     # Training loop
 
@@ -57,9 +64,13 @@ class ElasticDataLoader(DataLoader):
 
     def __init__(self, *args, config_file=None, **kwargs):
         super(ElasticDataLoader, self).__init__(*args, **kwargs)
-        self.current_batch_size = self.batch_size
+        self._config_version = 0
         self.config_file = config_file
-
+        if not self.config_file:
+            self.config_file = os.getenv(
+                WorkerEnv.PARAL_CONFIG_PATH.name,
+                WorkerEnv.PARAL_CONFIG_PATH.default,
+            )
         if self.config_file:
             self.load_config(self.config_file)
 
@@ -75,29 +86,31 @@ class ElasticDataLoader(DataLoader):
             This method is automatically called during DataLoader
             initialization if `config_file` is provided.
         """
-        if not config_file:
+        if not config_file or not os.path.exists(config_file):
             return
         with open(config_file, "r") as f:
             config = json.load(f)
-            if "batch_size" in config:
-                self.set_batch_size(config["batch_size"])
+            if "dataloader" not in config:
+                return
+            dl_config = config["dataloader"]
+            config_version = dl_config.get("version", 0)
+            if config_version > self._config_version:
+                self._config_version = config_version
+            else:
+                return
+            batch_size = dl_config.get("batch_size", 0)
+            if batch_size > 0:
+                self.batch_sampler.batch_size = batch_size
+                logger.info(
+                    f"Update the batch size of dataloader to {batch_size}"
+                )
 
-    def __iter__(self):
-        batch_sampler = BatchSampler(
-            self.sampler, batch_size=self.current_batch_size, drop_last=False
-        )
-        for batch_indices in batch_sampler:
-            yield self.collate_fn([self.dataset[i] for i in batch_indices])
-
-    def set_batch_size(self, batch_size):
+    def update_batch_size(self, batch_size=None):
         """
-        Dynamically set the batch size to the specified value.
-
-        Args:
-            batch_size (int): The new batch size to be used.
-
-        Example:
-            >>> loader = ElasticDataLoader(dataset, batch_size=32)
-            >>> loader.set_batch_size(64)  # Change batch size to 64.
+        Update parameters like batch size, num_workers of the dataloader
+        From the parallelism config file.
         """
-        self.current_batch_size = batch_size
+        if batch_size:
+            self.batch_sampler.batch_size = batch_size
+        else:
+            self.load_config(self.config_file)

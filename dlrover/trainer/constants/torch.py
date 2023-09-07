@@ -11,12 +11,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass
+from dlrover.trainer.constants.constants import Constant
 
 
-@dataclass
-class GPUMetric:
-    index: int
-    total_memory_mb: int
-    used_memory_mb: int
-    gpu_utilization: float
+class WorkerEnv(Constant):
+    PARAL_CONFIG_PATH = Constant(
+        "DLROVER_PARAL_CONFIG_PATH",
+        "/tmp/dlrover/auto_paral_config.json",
+    )

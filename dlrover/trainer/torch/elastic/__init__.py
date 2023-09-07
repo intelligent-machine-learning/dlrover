@@ -10,12 +10,3 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-import torch.distributed as dist
-
-
-def get_rank():
-    rank = 0
-    if dist.is_initialized():
-        rank = dist.get_rank()
-    return rank

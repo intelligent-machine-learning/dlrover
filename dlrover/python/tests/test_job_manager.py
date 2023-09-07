@@ -25,8 +25,8 @@ from dlrover.python.common.constants import (
     NodeStatus,
     NodeType,
 )
+from dlrover.python.common.grpc import GPUStats
 from dlrover.python.common.node import NodeGroupResource, NodeResource
-from dlrover.python.elastic_agent.monitor.metrics import GPUMetric
 from dlrover.python.master.dist_master import DistributedJobMaster
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.dist_job_manager import create_job_manager
@@ -207,8 +207,8 @@ class DistributedJobManagerTest(unittest.TestCase):
             max_relaunch_count=1,
         )
 
-        gpu_stats: list[GPUMetric] = [
-            GPUMetric(
+        gpu_stats: list[GPUStats] = [
+            GPUStats(
                 index=0,
                 total_memory_mb=24000,
                 used_memory_mb=4000,
@@ -415,6 +415,10 @@ class DistributedJobManagerTest(unittest.TestCase):
         callback.on_node_failed(node, cluster_context)
         self.assertEqual(master.speed_monitor._target_worker_num, 1)
         self.assertEqual(len(master.speed_monitor.running_workers), 1)
+        master.speed_monitor.set_target_worker_num(2)
+        master.speed_monitor._workers.add(("worker", 0))
+        callback.on_node_succeeded(node, cluster_context)
+        self.assertEqual(master.speed_monitor._target_worker_num, 1)
 
     def test_all_running_node_hang(self):
         params = MockK8sPSJobArgs()
@@ -469,8 +473,8 @@ class LocalJobManagerTest(unittest.TestCase):
         job_mananger = LocalJobManager(args)
         job_mananger.start()
         self.assertEqual(len(job_mananger._job_nodes[NodeType.WORKER]), 1)
-        gpu_stats: list[GPUMetric] = [
-            GPUMetric(
+        gpu_stats: list[GPUStats] = [
+            GPUStats(
                 index=0,
                 total_memory_mb=24000,
                 used_memory_mb=4000,

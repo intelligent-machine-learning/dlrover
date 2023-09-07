@@ -267,7 +267,7 @@ class K8sScalePlanWatcher:
             resource_plan.node_resources[pod["name"]] = NodeResource(
                 cpu, memory
             )
-        logger.info("Get a manual resource plan %s", resource_plan.toJSON())
+        logger.info("Get a manual resource plan %s", resource_plan.to_json())
         return resource_plan
 
     def _set_owner_to_scaleplan(self, scale_crd):

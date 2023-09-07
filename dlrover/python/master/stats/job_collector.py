@@ -18,6 +18,7 @@ from abc import ABCMeta, abstractmethod
 from typing import Dict, List
 
 from dlrover.python.common.constants import MemoryUnit
+from dlrover.python.common.grpc import ModelInfo
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.stats.reporter import JobMeta, StatsReporter
@@ -25,10 +26,7 @@ from dlrover.python.master.stats.training_metrics import (
     CustomMetricKey,
     DatasetMetric,
     DatasetType,
-    ModelMetric,
-    OpStats,
     RuntimeMetric,
-    TensorStats,
     TrainingHyperParams,
 )
 from dlrover.python.master.watcher.base_watcher import Node
@@ -117,14 +115,10 @@ class JobMetricCollector(BaseMetricCollector):
         self._stats_reporter.report_job_type(job_type)
 
     @BaseMetricCollector.catch_exception
-    def collect_model_metric(
-        self, tensor_stats: TensorStats, op_stats: OpStats
-    ):
+    def collect_model_metric(self, model_info: ModelInfo):
         if not self._flops:
-            self._flops = op_stats.flops
-        op_stats.flops = self._flops
-        metric = ModelMetric(tensor_stats, op_stats)
-        self._stats_reporter.report_model_metrics(metric)
+            self._flops = model_info.op_stats.flops
+        self._stats_reporter.report_model_info(model_info)
 
     @BaseMetricCollector.catch_exception
     def _report_runtime_stats(self):

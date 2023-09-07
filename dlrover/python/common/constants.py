@@ -199,6 +199,8 @@ class NodeEnv(object):
     GRPC_ENABLE_FORK = "GRPC_ENABLE_FORK_SUPPORT"
     POD_NAME = "POD_NAME"
     AUTO_MONITOR_WORKLOAD = "AUTO_MONITOR_WORKLOAD"
+    JOB_NAME = "ELASTIC_JOB_NAME"
+    JOB_UID = "JOB_UID"
 
 
 class DatasetType(object):

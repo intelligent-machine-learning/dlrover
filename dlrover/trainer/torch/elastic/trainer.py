@@ -334,7 +334,7 @@ class ElasticTrainer(object):
 
         Example:
         ```python
-        >>> from dlrover.trainer.torch.elastic import ElasticTrainer
+        >>> from dlrover.trainer.torch.elastic.trainer import ElasticTrainer
         >>> elastic_trainer = ElasticTrainer(model)
         >>> optimizer, scheduler = elastic_trainer.prepare(
                 optimizer, scheduler

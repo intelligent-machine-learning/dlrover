@@ -19,7 +19,7 @@ import tensorflow as tf
 from dlrover.python.elastic_agent.sharding.client import ShardingClient
 from dlrover.python.elastic_agent.tensorflow.hooks import (
     ElasticDataShardReportHook,
-    ReportModelMetricHook,
+    ReportModelInfoHook,
 )
 
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.INFO)
@@ -161,7 +161,7 @@ if __name__ == "__main__":
     # shard service will not reassign the shard to other workers.
     hooks = [
         ElasticDataShardReportHook(sharding_client),
-        ReportModelMetricHook(),
+        ReportModelInfoHook(),
     ]
 
     def train_input_fn():
