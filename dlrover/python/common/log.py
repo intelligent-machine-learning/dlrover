@@ -15,6 +15,8 @@ import logging
 import sys
 import typing
 
+logging.basicConfig(level=logging.INFO)
+
 _DEFAULT_LOGGER = "dlrover.logger"
 
 _DEFAULT_FORMATTER = logging.Formatter(
