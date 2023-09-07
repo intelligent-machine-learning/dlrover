@@ -15,6 +15,8 @@ from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
 from typing import List, Optional
 
+from deprecated import deprecated
+
 from dlrover.python.common.constants import DatasetType
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.serialize import JsonSerializable
@@ -108,6 +110,48 @@ class TextDatasetMetric(DatasetMetric):
 
     def get_storage_size(self):
         return self.storage_size
+
+
+@deprecated(
+    version="0.3.0",
+    reason="You should use dlrover.python.common.grpc.TensorStats",
+)
+class TensorStats(object):
+    """TensorStats contains tensor statistics of a deep learning model"""
+
+    def __init__(self, variable_count, total_variable_size, max_variable_size):
+        self.variable_count = variable_count
+        self.total_variable_size = total_variable_size
+        self.max_variable_size = max_variable_size
+
+
+@deprecated(
+    version="0.3.0",
+    reason="You should use dlrover.python.common.grpc.OpStats",
+)
+class OpStats(object):
+    """TensorStats contains OP statistics of a deep learning model"""
+
+    def __init__(
+        self, op_count, update_op_count, read_op_count, input_fetch_dur, flops
+    ):
+        self.op_count = op_count
+        self.update_op_count = update_op_count
+        self.read_op_count = read_op_count
+        self.input_fetch_dur = input_fetch_dur
+        self.flops = flops
+
+
+@deprecated(
+    version="0.3.0",
+    reason="You should use dlrover.python.common.grpc.ModelInfo",
+)
+class ModelMetric(object):
+    """ModelMetric contains profiling data of a model."""
+
+    def __init__(self, tensor_stats: TensorStats, op_stats: OpStats):
+        self.tensor_stats = tensor_stats
+        self.op_stats = op_stats
 
 
 class RuntimeMetric(object):
