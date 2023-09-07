@@ -215,7 +215,6 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
     def _network_check_success(self):
         net_rdzv_manager = self._rdzv_managers[RendezvousName.NETWORK_CHECK]
         success, reason = net_rdzv_manager.network_check_success()
-        logger.info(f"{success}, {reason}")
         res = grpc.NetworkReady(success=success, reason=reason)
         return res
 
