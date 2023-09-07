@@ -7,7 +7,7 @@ runs:
   args:
     - "/bin/bash"
     - "-c"
-    - "pip install kubernetes grpcio-tools psutil \
+    - "pip install kubernetes grpcio-tools psutil deprecated \
 'ray[default]' pyhocon pytest-cov tensorflow==2.13.0 \
 && pip install torch==2.0.1+cpu -f \
 https://download.pytorch.org/whl/torch_stable.html \
