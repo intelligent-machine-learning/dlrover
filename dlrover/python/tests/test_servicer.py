@@ -380,7 +380,7 @@ class MasterServicerForRayTest(unittest.TestCase):
         request.id = task_id
         request.addr = "localhost:5001"
         self.job_manager._init_nodes()
-        self.servicer._update_node_status(request)
+        self.servicer._update_node_address(request)
         self.assertEqual(
             self.job_manager._job_nodes[task_type][task_id].service_addr, addr
         )

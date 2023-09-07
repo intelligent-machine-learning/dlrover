@@ -267,6 +267,10 @@ class NodeMeta(Message):
     status: str = ""
 
 
+class NodeAddress(NodeMeta):
+    pass
+
+
 class NodeStatus(NodeMeta):
     pass
 

@@ -279,6 +279,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             success = self._report_task_result(message)
         elif isinstance(message, grpc.ClusterVersion):
             success = self._update_cluster_version(message)
+        elif isinstance(message, grpc.NodeAddress):
+            success = self._update_node_address(message)
         elif isinstance(message, grpc.NodeStatus):
             success = self._update_node_status(message)
         elif isinstance(message, grpc.NodeEvent):
@@ -437,23 +439,21 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             )
         return True
 
-    def _update_node_status(self, message: grpc.NodeStatus):
-        node_type = message.type
-        node_id = message.id
-        server_addr = message.addr
+    def _update_node_address(self, message: grpc.NodeAddress):
+        self._job_manager.update_node_service_addr(
+            node_type=message.type,
+            node_id=message.id,
+            service_addr=message.addr,
+        )
+        return True
 
-        if server_addr:
-            self._job_manager.update_node_service_addr(
-                node_type, node_id, server_addr
-            )
-        node_status = message.status
-        if node_status:
-            net_rdzv_manager = self._rdzv_managers.get(
-                RendezvousName.NETWORK_CHECK, None
-            )
-            if net_rdzv_manager:
-                succeed = message.status == NodeStatus.SUCCEEDED
-                net_rdzv_manager.report_network_check_result(node_id, succeed)
+    def _update_node_status(self, message: grpc.NodeStatus):
+        net_rdzv_manager = self._rdzv_managers.get(
+            RendezvousName.NETWORK_CHECK, None
+        )
+        if net_rdzv_manager:
+            succeed = message.status == NodeStatus.SUCCEEDED
+            net_rdzv_manager.report_network_check_result(message.rank, succeed)
         return True
 
     def _update_node_event(self, message: grpc.NodeEvent):
