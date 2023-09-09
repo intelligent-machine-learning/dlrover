@@ -208,4 +208,4 @@ Please refer to the [DEVELOPMENT](docs/developer_guide.md)
 
 [Train a PyTorch Model on Kubernetes](docs/tutorial/torch_on_cloud.md)
 
-[Train a GPT Model on Kubernetes](docs/tutorial/torch_dpp_nanogpt.md)
+[Train a GPT Model on Kubernetes](docs/tutorial/torch_ddp_nanogpt.md)
