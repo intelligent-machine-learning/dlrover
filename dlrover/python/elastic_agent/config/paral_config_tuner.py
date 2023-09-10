@@ -11,15 +11,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dlrover.python.elastic_agent.master_client import GlobalMasterClient
-from dlrover.python.common.singleton import singleton
-from dlrover.python.common.grpc import ParallelConfig
 import json
 import os
 import threading
 import time
+
+from dlrover.python.common.grpc import ParallelConfig
+from dlrover.python.common.singleton import singleton
+from dlrover.python.elastic_agent.master_client import GlobalMasterClient
 from dlrover.trainer.constants.torch import WorkerEnv
-from dlrover.python.common.log import default_logger as logger
 
 
 @singleton
@@ -28,7 +28,7 @@ class ParalConfigTuner(object):
         """
         Parallelism config tuner for updating parallelism config file.
         """
-        self._cilent = GlobalMasterClient.MASTER_CLIENT
+        self._master_client = GlobalMasterClient.MASTER_CLIENT
         self.config_dir = os.path.dirname(WorkerEnv.PARAL_CONFIG_PATH.default)
         self.config_path = WorkerEnv.PARAL_CONFIG_PATH.default
         self._set_paral_config()
@@ -46,16 +46,14 @@ class ParalConfigTuner(object):
         intended to run on a separate thread started by `self.start`.
         """
         while True:
-            config: ParallelConfig = self._cilent.get_paral_config()
+            config: ParallelConfig = self._master_client.get_paral_config()
             with open(self.config_path, "w") as f:
                 f.write(config.to_json())
-            logger.info("Update paral config")
-            logger.info(f"client in tuner {self._master_client}")
             time.sleep(30)
 
     def _set_paral_config(self):
         """
-        Set up the directory and path for the parallelism configuration. 
+        Set up the directory and path for the parallelism configuration.
         """
         os.makedirs(self.config_dir, exist_ok=True)
         os.environ[
@@ -67,7 +65,7 @@ class ParalConfigTuner(object):
         Read the parallelism configuration from a JSON file.
         """
         try:
-            with open(config_path, 'r') as json_file:
+            with open(config_path, "r") as json_file:
                 self.config = json.load(json_file)
             return self.config
         except FileNotFoundError:
