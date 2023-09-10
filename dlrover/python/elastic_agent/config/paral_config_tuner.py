@@ -26,8 +26,9 @@ from dlrover.python.common.log import default_logger as logger
 class ParalConfigTuner(object):
     def __init__(self):
         """
-        The config tuner reads and writes config.
+        Parallelism config tuner for updating parallelism config file.
         """
+        self._cilent = GlobalMasterClient.MASTER_CLIENT
         self.config_dir = os.path.dirname(WorkerEnv.PARAL_CONFIG_PATH.default)
         self.config_path = WorkerEnv.PARAL_CONFIG_PATH.default
         self._set_paral_config()
@@ -40,8 +41,12 @@ class ParalConfigTuner(object):
         ).start()
 
     def _periodically_update_paral_config(self):
+        """
+        Updates the parallelism configuration every 30 seconds. This method is
+        intended to run on a separate thread started by `self.start`.
+        """
         while True:
-            config: ParallelConfig = GlobalMasterClient.MASTER_CLIENT.get_paral_config()
+            config: ParallelConfig = self._cilent.get_paral_config()
             with open(self.config_path, "w") as f:
                 f.write(config.to_json())
             logger.info("Update paral config")
@@ -49,12 +54,18 @@ class ParalConfigTuner(object):
             time.sleep(30)
 
     def _set_paral_config(self):
+        """
+        Set up the directory and path for the parallelism configuration. 
+        """
         os.makedirs(self.config_dir, exist_ok=True)
         os.environ[
             WorkerEnv.PARAL_CONFIG_PATH.name
         ] = WorkerEnv.PARAL_CONFIG_PATH.default
 
     def _read_paral_config(self, config_path):
+        """
+        Read the parallelism configuration from a JSON file.
+        """
         try:
             with open(config_path, 'r') as json_file:
                 self.config = json.load(json_file)
