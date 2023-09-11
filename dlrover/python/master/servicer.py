@@ -249,7 +249,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         return res
 
     def _get_paral_config(self):
-        res = grpc.ParallelConfig()
+        strategy = self._job_manager.get_opt_strategy()
+        res = grpc.ParallelConfig(strategy)
         return res
 
     def report(self, request, _):
@@ -299,7 +300,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         elif isinstance(message, grpc.KeyValuePair):
             success = self._kv_store_set(message)
         elif isinstance(message, grpc.ParallelConfig):
-            success = self._report_paral_config(message)
+            success = self._report_paral_config(node_type, node_id, message)
 
         response.success = success
         return response
@@ -509,8 +510,13 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         self._kv_store.set(message.key, message.value)
         return True
 
-    def _report_paral_config(self, message: grpc.ParallelConfig):
-        logger.info(f"config = {message}")
+    def _report_paral_config(self, node_type, node_id, message: grpc.ParallelConfig):
+        if self._job_manager:
+            self._job_manager.update_node_paral_config(
+                node_type,
+                node_id,
+                message
+            )
         return True
 
 
