@@ -319,7 +319,8 @@ class TrainingNodeManager(object):
     def running_nodes_hanged(self) -> List[bool]:
         cur_time = time.time()
         node_hang = []
-        for _, node in self._nodes.items():
+        nodes = list(self._nodes.values())  # Avoid dictionary changed size.
+        for node in nodes:
             if node.status == NodeStatus.RUNNING:
                 timeout = NodeResourceLimit.MAX_HANG_TIMEOUT_SECS
                 hang = (
