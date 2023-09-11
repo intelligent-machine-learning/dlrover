@@ -16,10 +16,10 @@ import os
 import threading
 import time
 
+from dlrover.python.common.constants import ConfigPath
 from dlrover.python.common.grpc import ParallelConfig
 from dlrover.python.common.singleton import singleton
 from dlrover.python.elastic_agent.master_client import GlobalMasterClient
-from dlrover.python.common.constants import ConfigPath
 
 
 @singleton
@@ -56,9 +56,7 @@ class ParalConfigTuner(object):
         Set up the directory and path for the parallelism configuration.
         """
         os.makedirs(self.config_dir, exist_ok=True)
-        os.environ[
-            ConfigPath.ENV_PARAL_CONFIG
-        ] = ConfigPath.PARAL_CONFIG
+        os.environ[ConfigPath.ENV_PARAL_CONFIG] = ConfigPath.PARAL_CONFIG
 
     def _read_paral_config(self, config_path):
         """
