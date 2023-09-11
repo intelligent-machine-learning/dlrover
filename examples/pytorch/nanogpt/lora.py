@@ -23,13 +23,13 @@ code of the Python package loralib, which implements the LoRA algorithm.
 """
 
 import math
+
 import torch
 import torch.nn as nn
 from torch.nn.utils import parametrize
 
 
 class LoraLinear(nn.Module):
-
     def __init__(self, fan_in, fan_out, rank=4, dropout_p=0.0, alpha=1.0):
         super().__init__()
         self.fan_in = fan_in
@@ -46,31 +46,59 @@ class LoraLinear(nn.Module):
         self.dropout = nn.Dropout(dropout_p)
 
     def forward(self, weight):
-        return weight + torch.matmul(self.lora_b, self.dropout(self.lora_a)) * self.scaling
+        return (
+            weight
+            + torch.matmul(self.lora_b, self.dropout(self.lora_a))
+            * self.scaling
+        )
 
 
-def apply_lora(model: nn.Module, targets=['wq', 'wk', 'wo', 'wv'], rank=8, dropout=0.0, alpha=1.0, verbose=False):
+def apply_lora(
+    model: nn.Module,
+    targets=["wq", "wk", "wo", "wv"],
+    rank=8,
+    dropout=0.0,
+    alpha=1.0,
+    verbose=False,
+):
 
     for name, module in model.named_modules():
-        if any(name.endswith(target) for target in targets) and hasattr(module, 'weight'):
+        if any(name.endswith(target) for target in targets) and hasattr(
+            module, "weight"
+        ):
             # print(name)
             fan_out, fan_in = module.weight.shape
             parametrize.register_parametrization(
-                module, 'weight', LoraLinear(fan_in, fan_out,))
+                module,
+                "weight",
+                LoraLinear(
+                    fan_in,
+                    fan_out,
+                ),
+            )
             if verbose:
-                print(f'add lora to {name}')
+                print(f"add lora to {name}")
 
 
 def merge_lora(model):
     def _merge_lora(module):
-        if type(module) in (nn.Linear, nn.Embedding) and hasattr(module, 'parametrizations'):
+        if type(module) in (nn.Linear, nn.Embedding) and hasattr(
+            module, "parametrizations"
+        ):
             parametrize.remove_parametrizations(
-                module, 'weight', leave_parametrized=True)
+                module, "weight", leave_parametrized=True
+            )
+
     model.apply(_merge_lora)
 
 
 def tie_lora_weights(src, trg):
-    """Tie the LoRA weights between two modules. Can be useful for tying embeddings to the final classifier."""
-    if hasattr(src, 'parametrizations') and hasattr(trg, 'parametrizations'):
-        trg.parametrizations.weight[0].lora_a = src.parametrizations.weight[0].lora_a
-        trg.parametrizations.weight[0].lora_b = src.parametrizations.weight[0].lora_b
+    """Tie the LoRA weights between two modules. Can be useful for tying
+    embeddings to the final classifier."""
+    if hasattr(src, "parametrizations") and hasattr(trg, "parametrizations"):
+        trg.parametrizations.weight[0].lora_a = src.parametrizations.weight[
+            0
+        ].lora_a
+        trg.parametrizations.weight[0].lora_b = src.parametrizations.weight[
+            0
+        ].lora_b
