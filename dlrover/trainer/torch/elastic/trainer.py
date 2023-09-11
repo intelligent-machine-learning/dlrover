@@ -14,13 +14,17 @@
 import contextlib
 import os
 import socket
+import time
 from contextlib import contextmanager
+from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
 import torch
 import torch.distributed as dist
 
+from dlrover.python.common.constants import ConfigPath
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.common.serialize import JsonSerializable
 
 
 def find_free_port() -> int:
@@ -37,6 +41,12 @@ def get_rank():
     if dist.is_initialized():
         rank = dist.get_rank()
     return rank
+
+
+@dataclass
+class TrainingRecord(JsonSerializable):
+    step: int = 0
+    timestamp: int = 0
 
 
 class GradientState(object):
@@ -252,6 +262,8 @@ class ElasticTrainer(object):
         self.use_fsdp = use_fsdp
         self.ckpt_interval = ckpt_interval
         self.shared_storage_path = shared_storage_path
+        self._report_step_interval = 15  # 15s
+        self._last_report_time = 0
 
     def prepare(self, optimizer, lr_scheduler=None):
         """
@@ -383,9 +395,13 @@ class ElasticTrainer(object):
             self._save_fsdp_ckpt()
         if self.gradient_state.sync_gradients:
             self.gradient_state.num_steps += 1
+            now = time.time()
+            if now - self._last_report_time > self._report_step_interval:
+                self.report_training_step()
+                self._last_report_time = now
 
     def _set_gradient_accumulation_steps(self):
-        max_worker_num = int(os.getenv("WORKER_NUM", 0))
+        max_worker_num = int(os.getenv("WORKER_NUM", 1))
         if max_worker_num == 0:
             self.gradient_accumulation_steps = 1
 
@@ -405,3 +421,12 @@ class ElasticTrainer(object):
             cur_world_size,
             self.gradient_accumulation_steps,
         )
+
+    def report_training_step(self):
+        timestamp = time.time()
+        record = TrainingRecord(self.gradient_state.num_steps, timestamp)
+        metric_path = os.getenv(ConfigPath.ENV_RUNTIME_METRICS, "")
+        rank = get_rank()
+        if os.path.exists(os.path.dirname(metric_path)) and rank == 0:
+            with open(metric_path, "w") as f:
+                f.write(record.to_json(indent=4))

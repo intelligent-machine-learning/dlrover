@@ -51,6 +51,7 @@ from torch.distributed.elastic.rendezvous.api import RendezvousHandler
 from torch.distributed.launcher.api import LaunchConfig, _get_entrypoint_name
 
 from dlrover.python.common.constants import (
+    ConfigPath,
     NodeEnv,
     NodeErrorMessage,
     NodeStatus,
@@ -59,19 +60,17 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.master_client import GlobalMasterClient
-from dlrover.python.elastic_agent.monitor.resource import ResourceMonitor
+from dlrover.python.elastic_agent.monitor.training import TorchTrainingMonitor
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
-from dlrover.trainer.constants.torch import WorkerEnv
 
 __all__ = ["launch_agent"]
 
 
 def _set_paral_config():
-    config_dir = os.path.dirname(WorkerEnv.PARAL_CONFIG_PATH.default)
+    config_dir = os.path.dirname(ConfigPath.PARAL_CONFIG)
     os.makedirs(config_dir, exist_ok=True)
-    os.environ[
-        WorkerEnv.PARAL_CONFIG_PATH.name
-    ] = WorkerEnv.PARAL_CONFIG_PATH.default
+    os.environ[ConfigPath.ENV_PARAL_CONFIG] = ConfigPath.PARAL_CONFIG
+    os.environ[ConfigPath.ENV_RUNTIME_METRICS] = ConfigPath.RUNTIME_METRICS
 
 
 @dataclass
@@ -266,7 +265,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
     def _periodically_update_paral_config(self):
         while True:
             config = self._client.get_paral_config()
-            with open(WorkerEnv.PARAL_CONFIG_PATH.default, "w") as f:
+            with open(ConfigPath.PARAL_CONFIG, "w") as f:
                 f.write(config.to_json())
             time.sleep(30)
 
@@ -516,7 +515,7 @@ def launch_agent(
         f"  metrics_cfg      : {config.metrics_cfg}\n"
     )
 
-    monitor = ResourceMonitor()
+    monitor = TorchTrainingMonitor(ConfigPath.RUNTIME_METRICS)
     monitor.start()
     rdzv_parameters = RendezvousParameters(
         backend=config.rdzv_backend,

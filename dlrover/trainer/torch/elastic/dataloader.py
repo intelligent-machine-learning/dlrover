@@ -17,9 +17,9 @@ import os
 
 from torch.utils.data import DataLoader
 
-from dlrover.trainer.constants.torch import WorkerEnv
+from dlrover.python.common.constants import ConfigPath
 
-logging.basicConfig(level=logging.NOTSET)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
@@ -68,8 +68,8 @@ class ElasticDataLoader(DataLoader):
         self.config_file = config_file
         if not self.config_file:
             self.config_file = os.getenv(
-                WorkerEnv.PARAL_CONFIG_PATH.name,
-                WorkerEnv.PARAL_CONFIG_PATH.default,
+                ConfigPath.ENV_PARAL_CONFIG,
+                ConfigPath.PARAL_CONFIG,
             )
         if self.config_file:
             self.load_config(self.config_file)
