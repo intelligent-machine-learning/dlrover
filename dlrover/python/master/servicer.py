@@ -510,12 +510,12 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         self._kv_store.set(message.key, message.value)
         return True
 
-    def _report_paral_config(self, node_type, node_id, message: grpc.ParallelConfig):
+    def _report_paral_config(
+        self, node_type, node_id, message: grpc.ParallelConfig
+    ):
         if self._job_manager:
             self._job_manager.update_node_paral_config(
-                node_type,
-                node_id,
-                message
+                node_type, node_id, message
             )
         return True
 
