@@ -253,3 +253,10 @@ class TrainingMsgLevel(object):
     NODE_ERROR = "node_error"
     WARNING = "warning"
     INFO = "info"
+
+
+class ConfigPath(object):
+    ENV_PARAL_CONFIG = "DLROVER_PARAL_CONFIG_PATH"
+    PARAL_CONFIG = "/tmp/dlrover/auto_paral_config.json"
+    ENV_RUNTIME_METRICS = "RUNTIME_METRICS_PATH"
+    RUNTIME_METRICS = "/tmp/dlrover/runtime_metrics.json"
