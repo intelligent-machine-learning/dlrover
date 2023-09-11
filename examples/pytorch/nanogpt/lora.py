@@ -66,7 +66,6 @@ def apply_lora(
         if any(name.endswith(target) for target in targets) and hasattr(
             module, "weight"
         ):
-            # print(name)
             fan_out, fan_in = module.weight.shape
             parametrize.register_parametrization(
                 module,
