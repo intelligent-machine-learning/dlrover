@@ -23,6 +23,7 @@ from datetime import timedelta
 import numpy as np
 import torch
 import torch.distributed as dist
+from lora import apply_lora
 from model import GPT, GPTConfig
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.distributed.fsdp.wrap import size_based_auto_wrap_policy
@@ -109,6 +110,23 @@ def gpt_init(meta_vocab_size=None, args=None):
     )
     gptconf = GPTConfig(**model_args)
     return GPT(gptconf)
+
+
+def create_lora_config(args):
+    if (
+        args.lora_rank is None
+        and args.lora_dropout is None
+        and args.lora_alpha is None
+        and args.lora_targets is None
+    ):
+        return None
+    lora_config = {
+        "rank": args.lora_rank,
+        "dropout": args.lora_dropout,
+        "alpha": args.lora_alpha,
+        "targets": args.lora_targets.split(",") if args.lora_targets else [],
+    }
+    return lora_config
 
 
 # Learning rate decay scheduler (cosine with warmup)
@@ -213,6 +231,10 @@ def train():
         use_fsdp=use_fsdp,
     )
     model = gpt_init(meta_vocab_size, args=args)
+    lora_config = create_lora_config(args)
+    if lora_config is not None:
+        log_rank0(f"apply lora config {lora_config}")
+        apply_lora(model, **lora_config)
     scaler = torch.cuda.amp.GradScaler(enabled=(dtype == "float16"))
     model = model.to(device)
     # Device
@@ -375,6 +397,21 @@ def arg_parser():
     parser.add_argument("--dropout", type=float, default=0.0, required=False)
     parser.add_argument("--bias", action="store_true", required=False)
 
+    # LoRA settings
+    parser.add_argument("--lora_rank", type=int, default=4, required=False)
+    parser.add_argument(
+        "--lora_dropout", type=float, default=0.0, required=False
+    )
+    parser.add_argument(
+        "--lora_alpha", type=float, default=1.0, required=False
+    )
+    parser.add_argument(
+        "--lora_targets",
+        type=str,
+        default="wq,wk,wo,wv",
+        required=False,
+        help="comma separated list of targets to apply lora to",
+    )
     # Optimizer settings
     parser.add_argument(
         "--learning_rate", type=float, default=6e-4, required=False
