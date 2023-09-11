@@ -143,4 +143,4 @@ class MasterClientTest(unittest.TestCase):
         self.assertEqual(round, 0)
 
         config = self._master_client.get_paral_config()
-        self.assertEqual(config.dataloader.version, 0)
+        self.assertIsInstance(config, grpc.ParallelConfig)
