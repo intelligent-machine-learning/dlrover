@@ -50,6 +50,7 @@ from torch.distributed.elastic.rendezvous.api import RendezvousHandler
 from torch.distributed.launcher.api import LaunchConfig, _get_entrypoint_name
 
 from dlrover.python.common.constants import (
+    ConfigPath,
     NodeEnv,
     NodeErrorMessage,
     NodeStatus,
@@ -61,7 +62,7 @@ from dlrover.python.elastic_agent.config.paral_config_tuner import (
     ParalConfigTuner,
 )
 from dlrover.python.elastic_agent.master_client import GlobalMasterClient
-from dlrover.python.elastic_agent.monitor.resource import ResourceMonitor
+from dlrover.python.elastic_agent.monitor.training import TorchTrainingMonitor
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
 
 __all__ = ["launch_agent"]
@@ -497,7 +498,7 @@ def launch_agent(
         f"  metrics_cfg      : {config.metrics_cfg}\n"
     )
 
-    monitor = ResourceMonitor()
+    monitor = TorchTrainingMonitor(ConfigPath.RUNTIME_METRICS)
     monitor.start()
     rdzv_parameters = RendezvousParameters(
         backend=config.rdzv_backend,

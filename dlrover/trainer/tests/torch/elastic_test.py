@@ -11,11 +11,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
+import os
+import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
 import torch
 
+from dlrover.python.common.constants import ConfigPath
 from dlrover.trainer.torch.elastic.trainer import (
     CheckpointInterval,
     ElasticTrainer,
@@ -108,6 +112,17 @@ class ElasticTrainerTest(unittest.TestCase):
     def test_reset(self):
         self.elastic_trainer.reset()
         self.assertEqual(self.elastic_trainer.gradient_state.num_steps, 0)
+
+    def test_report_training_step(self):
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            config_file = os.path.join(tmpdirname, "runtime_metrics.json")
+            os.environ[ConfigPath.ENV_RUNTIME_METRICS] = config_file
+            self.elastic_trainer._last_report_time = 0
+            self.elastic_trainer._after_step()
+            with open(config_file, "r") as f:
+                runtime_metrics = json.load(f)
+                step = runtime_metrics.get("step")
+                self.assertEqual(step, 1)
 
 
 if __name__ == "__main__":

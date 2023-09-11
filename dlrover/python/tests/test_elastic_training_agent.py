@@ -11,6 +11,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
+import os
+import tempfile
+import time
 import unittest
 
 from torch.distributed.elastic.agent.server.api import WorkerSpec, WorkerState
@@ -22,6 +26,7 @@ from dlrover.python.elastic_agent.master_client import (
     GlobalMasterClient,
     build_master_client,
 )
+from dlrover.python.elastic_agent.monitor.training import TorchTrainingMonitor
 from dlrover.python.elastic_agent.torch.training import (
     ElasticTrainingAgent,
     MasterRendezvousHandler,
@@ -194,6 +199,19 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         run_result = agent._invoke_run()
         self.assertDictEqual(run_result.failures, {})
         self.assertEqual(run_result.state, WorkerState.SUCCEEDED)
+
+    def test_report_resource_with_step(self):
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            config_file = os.path.join(tmpdirname, "runtime_metrics.json")
+            monitor = TorchTrainingMonitor(config_file)
+            monitor.report_resource_with_step()
+            self.assertEqual(self._master.speed_monitor._global_step, 0)
+            record = {"step": 100, "timestamp": time.time()}
+            with open(config_file, "w") as f:
+                f.write(json.dumps(record))
+
+            monitor.report_resource_with_step()
+            self.assertEqual(self._master.speed_monitor._global_step, 100)
 
 
 if __name__ == "__main__":

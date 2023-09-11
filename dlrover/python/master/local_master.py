@@ -15,6 +15,7 @@ import time
 from typing import Dict
 
 from dlrover.python.common.constants import (
+    NodeType,
     OptimizeMode,
     RendezvousName,
     ReporterType,
@@ -49,6 +50,8 @@ class LocalJobMaster(JobMaster):
         )
         self._master_server = self._create_master_grpc_service(port, args)
         self._job_args = args
+        self.speed_monitor.add_running_worker(NodeType.WORKER, 0)
+        self.speed_monitor.set_target_worker_num(1)
 
     def _create_master_grpc_service(self, port, params: JobArgs):
         return create_master_service(

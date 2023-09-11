@@ -22,7 +22,7 @@ from dlrover.python.common.grpc import ModelInfo, OpStats, TensorStats
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.master_client import GlobalMasterClient
 from dlrover.python.elastic_agent.monitor.training import (
-    TrainingProcessReporter,
+    TFTrainingProcessReporter,
     is_tf_chief,
 )
 from dlrover.python.elastic_agent.sharding.client import ShardingClient
@@ -64,7 +64,7 @@ class ReportModelInfoHook(SessionRunHook):
         the DLRover master.
         """
         self._is_chief = False
-        self._training_reporter = TrainingProcessReporter()
+        self._training_reporter = TFTrainingProcessReporter()
         self._training_reporter.called_in_tf_hook = True
         self._global_step = 0
         self._op_stats = None
