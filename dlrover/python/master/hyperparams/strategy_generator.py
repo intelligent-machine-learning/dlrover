@@ -19,10 +19,6 @@ class StrategyGenerator(metaclass=ABCMeta):
         self._job_uuid = job_uuid
 
     @abstractmethod
-    def start(self):
-        pass
-
-    @abstractmethod
     def generate_opt_strategy(self, gpu_stats):
         pass
 
