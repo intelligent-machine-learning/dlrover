@@ -15,10 +15,10 @@ import json
 import os
 import unittest
 
+from dlrover.python.common.constants import ConfigPath
 from dlrover.python.elastic_agent.config.paral_config_tuner import (
     ParalConfigTuner,
 )
-from dlrover.python.common.constants import ConfigPath
 
 MOCKED_CONFIG = {
     "dataloader": {

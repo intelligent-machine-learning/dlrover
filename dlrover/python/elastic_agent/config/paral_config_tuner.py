@@ -30,7 +30,8 @@ class ParalConfigTuner(object):
         """
         self._master_client = GlobalMasterClient.MASTER_CLIENT
         self.config_dir = os.path.dirname(
-            os.environ[ConfigPath.ENV_PARAL_CONFIG])
+            os.environ[ConfigPath.ENV_PARAL_CONFIG]
+        )
         self.config_path = os.environ[ConfigPath.ENV_PARAL_CONFIG]
 
     def start(self):
