@@ -86,7 +86,7 @@ class SimpleStrategyGenerator(StrategyGenerator):
                 paral_config = node.paral_config
                 data_loader_config, optimizer_config = (
                     self._generate_dataloader_config(
-                        gpu_stats, model_config, paral_config.dataloader_config
+                        gpu_stats, model_config, paral_config.dataloader
                     ),
                     self._generate_optimizer_config(),
                 )
@@ -151,12 +151,10 @@ class SimpleStrategyGenerator(StrategyGenerator):
         node_used_resources[NodeType.WORKER] = []
         simple_node = Node(node_type="worker", node_id=0)
         simple_node.used_resource.gpu_stats = gpu_stats
-        simple_node.paral_config.dataloader_config = mock_dataloader_config
+        simple_node.paral_config.dataloader = mock_dataloader_config
         simple_node.name = "simple_node"
         node_used_resources[NodeType.WORKER].append([simple_node])
         if len(stats) == 0:
-            logger.info("stats length is 0")
             return node_used_resources
-        for node in stats[-1].running_nodes:
-            logger.info("node type: %s", node.type)
+        else:
             return node_used_resources
