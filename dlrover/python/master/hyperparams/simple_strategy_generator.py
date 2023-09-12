@@ -129,10 +129,13 @@ class SimpleStrategyGenerator(StrategyGenerator):
             / (1024 * 1024 * 1024)
         )
 
-        # Calculate the updated batch size based on available memory
-        updated_batch_size = int(
-            batch_size + batch_size * min_remain_memory / activation_memory_gb
-        )
+        try:
+            updated_batch_size = int(
+                batch_size
+                + batch_size * min_remain_memory / activation_memory_gb
+            )
+        except ZeroDivisionError:
+            updated_batch_size = batch_size
 
         return DataLoaderConfig(
             updated_version,
