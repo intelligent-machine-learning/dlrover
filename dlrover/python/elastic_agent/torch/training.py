@@ -68,7 +68,7 @@ from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
 __all__ = ["launch_agent"]
 
 
-def _set_paral_config(self):
+def _set_paral_config():
     """
     Set up the directory and path for the parallelism configuration.
     """
@@ -249,7 +249,6 @@ class ElasticTrainingAgent(LocalElasticAgent):
         log_dir: Optional[str] = None,
     ):
         super().__init__(spec, exit_barrier_timeout)
-        _set_paral_config()
         self._rank_id = rank_id
         self._config = config
         self._entrypoint = entrypoint
@@ -508,6 +507,8 @@ def launch_agent(
         f"  log_dir          : {config.log_dir}\n"
         f"  metrics_cfg      : {config.metrics_cfg}\n"
     )
+
+    _set_paral_config()
 
     monitor = TorchTrainingMonitor(ConfigPath.RUNTIME_METRICS)
     monitor.start()
