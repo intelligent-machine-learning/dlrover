@@ -55,8 +55,8 @@ class TestLocalStrategyGenerator(unittest.TestCase):
         node_used_resources[NodeType.WORKER] = []
         simple_node = Node(node_type="worker", node_id=0)
         simple_node.used_resource.gpu_stats = gpu_stats
-        simple_node.paral_config.dataloader_config = dataloader_config
-        simple_node.paral_config.optimizer_config = optimizer_config
+        simple_node.paral_config.dataloader = dataloader_config
+        simple_node.paral_config.optimizer = optimizer_config
         simple_node.name = "simple_node"
         node_used_resources[NodeType.WORKER].append([simple_node])
         with patch(
@@ -71,6 +71,7 @@ class TestLocalStrategyGenerator(unittest.TestCase):
             result = self._strategy_generator.generate_opt_strategy(
                 gpu_stats, model_config
             )
+
             self.assertEqual(expected_dataloader_config, result.dataloader)
             self.assertEqual(expected_optimizer_config, result.optimizer)
 
