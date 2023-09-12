@@ -15,10 +15,10 @@ import json
 import os
 import unittest
 
+from dlrover.python.common.constants import ConfigPath
 from dlrover.python.elastic_agent.config.paral_config_tuner import (
     ParalConfigTuner,
 )
-from dlrover.trainer.constants.torch import WorkerEnv
 
 MOCKED_CONFIG = {
     "dataloader": {
@@ -32,16 +32,26 @@ MOCKED_CONFIG = {
 }
 
 
+def _set_paral_config():
+    """
+    Set up the directory and path for the parallelism configuration.
+    """
+    config_dir = os.path.dirname(ConfigPath.PARAL_CONFIG)
+    os.makedirs(config_dir, exist_ok=True)
+    os.environ[ConfigPath.ENV_PARAL_CONFIG] = ConfigPath.PARAL_CONFIG
+    os.environ[ConfigPath.ENV_RUNTIME_METRICS] = ConfigPath.RUNTIME_METRICS
+
+
 class TestParalConfigTuner(unittest.TestCase):
     def setUp(self):
+        _set_paral_config()
         self.tuner = ParalConfigTuner()
 
     def test_set_paral_config(self):
-        self.tuner._set_paral_config()
         self.assertTrue(os.path.exists(self.tuner.config_dir))
         self.assertEqual(
-            os.environ[WorkerEnv.PARAL_CONFIG_PATH.name],
-            WorkerEnv.PARAL_CONFIG_PATH.default,
+            os.environ[ConfigPath.ENV_PARAL_CONFIG],
+            ConfigPath.PARAL_CONFIG,
         )
 
     def test_read_paral_config(self):
