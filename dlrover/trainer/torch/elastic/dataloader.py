@@ -99,7 +99,7 @@ class ElasticDataLoader(DataLoader):
             else:
                 return
             batch_size = dl_config.get("batch_size", 0)
-            if batch_size > 0:
+            if batch_size > 0 and self.batch_sampler.batch_size != batch_size:
                 self.batch_sampler.batch_size = batch_size
                 logger.info(
                     f"Update the batch size of dataloader to {batch_size}"

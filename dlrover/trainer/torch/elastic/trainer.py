@@ -25,6 +25,7 @@ import torch.distributed as dist
 from dlrover.python.common.constants import ConfigPath
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.serialize import JsonSerializable
+from dlrover.trainer.torch.elastic.dataloader import ElasticDataLoader
 
 
 def find_free_port() -> int:
@@ -230,6 +231,8 @@ class ElasticTrainer(object):
 
     Args:
         model (`torch.nn.Module`): PyTorch Module.
+        dataloader (`ElasticDataloader`): An ElasticDataloader can
+            update the batch size of sampler.
 
     **Available attributes:**
         - **step** -- the number of local step on the process.
@@ -246,6 +249,7 @@ class ElasticTrainer(object):
     def __init__(
         self,
         model,
+        dataloader: ElasticDataLoader = None,
         use_fsdp: bool = False,
         ckpt_interval: CheckpointInterval = None,
         shared_storage_path: str = None,
@@ -256,7 +260,7 @@ class ElasticTrainer(object):
                     'shared_storage_path' must be provided and not None."
             )
         self.model = model
-        self.optimizer = None
+        self.dataloader = dataloader
         self.gradient_state = GradientState()
         self.gradient_accumulation_steps = 1
         self.use_fsdp = use_fsdp
@@ -264,6 +268,17 @@ class ElasticTrainer(object):
         self.shared_storage_path = shared_storage_path
         self._report_step_interval = 15  # 15s
         self._last_report_time = 0
+
+        self._check()
+
+    def _check(self):
+        if self.dataloader and not isinstance(
+            self.dataloader, ElasticDataLoader
+        ):
+            logger.warning(
+                "Cannot adjust the batch size of dataloader and "
+                "you should use ElasticDataloader not Dataloader."
+            )
 
     def prepare(self, optimizer, lr_scheduler=None):
         """
@@ -399,6 +414,8 @@ class ElasticTrainer(object):
             if now - self._last_report_time > self._report_step_interval:
                 self.report_training_step()
                 self._last_report_time = now
+        if self.dataloader and isinstance(self.dataloader, ElasticDataLoader):
+            self.dataloader.update_batch_size()
 
     def _set_gradient_accumulation_steps(self):
         max_worker_num = int(os.getenv("WORKER_NUM", 1))
