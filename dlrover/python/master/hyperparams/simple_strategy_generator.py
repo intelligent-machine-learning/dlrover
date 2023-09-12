@@ -12,13 +12,19 @@
 # limitations under the License.
 
 import threading
-import time
-from dlrover.python.common.log import default_logger as logger
-from dlrover.python.master.hyperparams.strategy_generator import StrategyGenerator
-from dlrover.python.common.grpc import DataLoaderConfig, OptimizerConfig, ParallelConfig
 from typing import Dict, List
-from dlrover.python.common.node import Node
+
 from dlrover.python.common.constants import NodeType
+from dlrover.python.common.grpc import (
+    DataLoaderConfig,
+    OptimizerConfig,
+    ParallelConfig,
+)
+from dlrover.python.common.log import default_logger as logger
+from dlrover.python.common.node import Node
+from dlrover.python.master.hyperparams.strategy_generator import (
+    StrategyGenerator,
+)
 from dlrover.python.master.stats.reporter import JobMeta, LocalStatsReporter
 
 gpu_stats = [
@@ -90,12 +96,15 @@ class SimpleStrategyGenerator(StrategyGenerator):
         logger.info("paral configs: %s", paral_configs["simple_node"])
         return paral_configs["simple_node"]
 
-    def _generate_dataloader_config(self, gpu_stats, model_config, dataloader_config):
+    def _generate_dataloader_config(
+        self, gpu_stats, model_config, dataloader_config
+    ):
         if gpu_stats == []:
             return DataLoaderConfig(0, "", 0, 0, 0)
         # Calculate the minimum remaining memory among GPUs
         min_remain_memory = min(
-            entry["total_memory_gb"] - entry["used_memory_gb"] for entry in gpu_stats
+            entry["total_memory_gb"] - entry["used_memory_gb"]
+            for entry in gpu_stats
         )
 
         # Update dataloader configuration version
@@ -126,7 +135,11 @@ class SimpleStrategyGenerator(StrategyGenerator):
         )
 
         return DataLoaderConfig(
-            updated_version, dataloader_config.dataloader_name, updated_batch_size, 0, 0
+            updated_version,
+            dataloader_config.dataloader_name,
+            updated_batch_size,
+            0,
+            0,
         )
 
     def _generate_optimizer_config(self):
