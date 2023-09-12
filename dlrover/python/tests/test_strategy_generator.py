@@ -12,12 +12,12 @@
 # limitations under the License.
 
 import unittest
+from typing import Dict, List
+from unittest.mock import patch
 
-from dlrover.python.common.grpc import (
-    DataLoaderConfig,
-    OptimizerConfig,
-    ParallelConfig,
-)
+from dlrover.python.common.constants import NodeType
+from dlrover.python.common.grpc import DataLoaderConfig, OptimizerConfig
+from dlrover.python.common.node import Node
 from dlrover.python.master.hyperparams.simple_strategy_generator import (
     SimpleStrategyGenerator,
 )
@@ -51,19 +51,28 @@ class TestLocalStrategyGenerator(unittest.TestCase):
 
         dataloader_config = DataLoaderConfig(0, "simple_dataloader", 32, 2, 0)
         optimizer_config = OptimizerConfig(0, 0)
-        paral_config = ParallelConfig(dataloader_config, optimizer_config)
+        node_used_resources: Dict[str, List[List[Node]]] = {}
+        node_used_resources[NodeType.WORKER] = []
+        simple_node = Node(node_type="worker", node_id=0)
+        simple_node.used_resource.gpu_stats = gpu_stats
+        simple_node.paral_config.dataloader_config = dataloader_config
+        simple_node.paral_config.optimizer_config = optimizer_config
+        simple_node.name = "simple_node"
+        node_used_resources[NodeType.WORKER].append([simple_node])
+        with patch(
+            "dlrover.python.master.hyperparams.simple_strategy_generator.SimpleStrategyGenerator._extract_node_resource"  # noqa: E501
+        ) as mock_extract_node_resource:
+            mock_extract_node_resource.return_value = node_used_resources
+            expected_dataloader_config = DataLoaderConfig(
+                1, "simple_dataloader", 2348, 0, 0
+            )
+            expected_optimizer_config = OptimizerConfig(5, 6)
 
-        expected_dataloader_config = DataLoaderConfig(
-            1, "simple_dataloader", 1800, 0, 0
-        )
-        expected_optimizer_config = OptimizerConfig(5, 6)
-
-        result = self._strategy_generator.generate_opt_strategy(
-            gpu_stats, model_config
-        )
-        print(result)
-        self.assertEqual(expected_dataloader_config, result.dataloader)
-        self.assertEqual(expected_optimizer_config, result.optimizer)
+            result = self._strategy_generator.generate_opt_strategy(
+                gpu_stats, model_config
+            )
+            self.assertEqual(expected_dataloader_config, result.dataloader)
+            self.assertEqual(expected_optimizer_config, result.optimizer)
 
 
 if __name__ == "__main__":
