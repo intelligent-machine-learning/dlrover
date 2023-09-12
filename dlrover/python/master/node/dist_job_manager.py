@@ -28,8 +28,12 @@ from dlrover.python.common.constants import (
     NodeType,
 )
 from dlrover.python.common.global_context import Context
+from dlrover.python.common.grpc import ParallelConfig
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource
+from dlrover.python.master.hyperparams.local_strategy_generator import (
+    LocalStrategyGenerator,
+)
 from dlrover.python.master.monitor.error_monitor import (
     ErrorLogMonitor,
     ErrorMonitor,
@@ -109,6 +113,9 @@ class DistributedJobManager(JobManager):
 
         self._job_args = job_args
         self._ps_is_critical = False
+        self._job_strategy_generator: LocalStrategyGenerator = (
+            LocalStrategyGenerator(self._job_args.job_uuid)
+        )
         if (
             job_args.distribution_strategy == DistributionStrategy.PS
             or job_args.distribution_strategy == DistributionStrategy.CUSTOM
@@ -168,6 +175,7 @@ class DistributedJobManager(JobManager):
         )
         self._scaler: Scaler = job_scaler
         self._init_training_node_manager()
+        self._job_strategy_generator.start()
 
     def start(self):
         self._job_optimizer.update_job_uuid(self._job_args.job_uuid)
@@ -717,6 +725,14 @@ class DistributedJobManager(JobManager):
     def update_allreduce_node_unit(self, node_unit):
         if isinstance(self._job_optimizer, AllreduceJobResourceOptimizer):
             self._job_optimizer.set_node_unit(node_unit)
+
+    def get_opt_strategy(self) -> ParallelConfig:
+        strategy = self._job_strategy_generator.generate_opt_strategy()
+        return strategy
+
+    def update_node_paral_config(self, node_type, node_id, paral_config):
+        node = self._job_nodes[node_type][node_id]
+        node.update_paral_config(paral_config)
 
 
 def create_job_manager(args: JobArgs, speed_monitor) -> DistributedJobManager:
