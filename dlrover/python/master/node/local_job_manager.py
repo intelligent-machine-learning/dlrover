@@ -15,8 +15,8 @@ from typing import Dict
 from dlrover.python.common.constants import NodeStatus, NodeType
 from dlrover.python.common.grpc import ParallelConfig
 from dlrover.python.common.node import Node
-from dlrover.python.master.hyperparams.local_strategy_generator import (
-    LocalStrategyGenerator,
+from dlrover.python.master.hyperparams.simple_strategy_generator import (
+    SimpleStrategyGenerator,
 )
 from dlrover.python.master.monitor.error_monitor import (
     ErrorLogMonitor,
@@ -44,8 +44,8 @@ class LocalJobManager(JobManager):
         self._job_resource = JobResource()
         self._job_args = job_args
         self._job_resource_optimizer = None
-        self._job_strategy_generator: LocalStrategyGenerator = (
-            LocalStrategyGenerator(self._job_args.job_uuid)
+        self._job_strategy_generator: SimpleStrategyGenerator = (
+            SimpleStrategyGenerator(self._job_args.job_uuid)
         )
         self._stop_monitor = False
         self._speed_monitor: SpeedMonitor = speed_monitor
