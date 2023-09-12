@@ -18,7 +18,7 @@ import unittest
 from dlrover.python.elastic_agent.config.paral_config_tuner import (
     ParalConfigTuner,
 )
-from dlrover.trainer.constants.torch import WorkerEnv
+from dlrover.python.common.constants import ConfigPath
 
 MOCKED_CONFIG = {
     "dataloader": {
@@ -40,8 +40,8 @@ class TestParalConfigTuner(unittest.TestCase):
         self.tuner._set_paral_config()
         self.assertTrue(os.path.exists(self.tuner.config_dir))
         self.assertEqual(
-            os.environ[WorkerEnv.PARAL_CONFIG_PATH.name],
-            WorkerEnv.PARAL_CONFIG_PATH.default,
+            os.environ[ConfigPath.ENV_PARAL_CONFIG],
+            ConfigPath.PARAL_CONFIG,
         )
 
     def test_read_paral_config(self):
