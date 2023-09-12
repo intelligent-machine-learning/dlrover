@@ -20,6 +20,7 @@ from dlrover.python.common.constants import (
     NodeStatus,
     PriorityClass,
 )
+from dlrover.python.common.grpc import ParallelConfig
 from dlrover.python.common.serialize import JsonSerializable
 
 
@@ -65,7 +66,7 @@ class NodeResource(JsonSerializable):
     ...     memory=8192,
     ...     gpu_type="nvidia.com",
     ...     gpu_num=1,
-    ...     gpu_stats=[GPUMetric(index=0, total_memory_mb=8192,
+    ...     gpu_stats=[GPUStats(index=0, total_memory_mb=8192,
     ...     used_memory_mb=2048, gpu_utilization=80.0)],
     ...     image="ubuntu:20.04",
     ...     priority="high"
@@ -182,6 +183,7 @@ class Node(object):
         service_addr=None,
         host_name=None,
         host_ip=None,
+        paral_config=None,
     ):
         self.type = node_type
         self.id = node_id
@@ -207,6 +209,7 @@ class Node(object):
         self.host_name = host_name
         self.host_ip = host_ip
         self.hang = False
+        self.paral_config = ParallelConfig()
 
     def inc_relaunch_count(self):
         self.relaunch_count += 1
@@ -238,6 +241,9 @@ class Node(object):
         self.used_resource.cpu = round(cpu, 2)
         self.used_resource.memory = memory
         self.used_resource.gpu_stats = gpu_stats
+
+    def update_paral_config(self, paral_config):
+        self.paral_config = paral_config
 
     def update_service_address(self, service_addr):
         self.service_addr = service_addr
