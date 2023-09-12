@@ -29,9 +29,9 @@ class ParalConfigTuner(object):
         Parallelism config tuner for updating parallelism config file.
         """
         self._master_client = GlobalMasterClient.MASTER_CLIENT
-        self.config_dir = os.path.dirname(ConfigPath.PARAL_CONFIG)
-        self.config_path = ConfigPath.PARAL_CONFIG
-        self._set_paral_config()
+        self.config_dir = os.path.dirname(
+            os.environ[ConfigPath.ENV_PARAL_CONFIG])
+        self.config_path = os.environ[ConfigPath.ENV_PARAL_CONFIG]
 
     def start(self):
         threading.Thread(
@@ -50,13 +50,6 @@ class ParalConfigTuner(object):
             with open(self.config_path, "w") as f:
                 f.write(config.to_json())
             time.sleep(30)
-
-    def _set_paral_config(self):
-        """
-        Set up the directory and path for the parallelism configuration.
-        """
-        os.makedirs(self.config_dir, exist_ok=True)
-        os.environ[ConfigPath.ENV_PARAL_CONFIG] = ConfigPath.PARAL_CONFIG
 
     def _read_paral_config(self, config_path):
         """

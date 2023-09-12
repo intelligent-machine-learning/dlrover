@@ -68,6 +68,16 @@ from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
 __all__ = ["launch_agent"]
 
 
+def _set_paral_config(self):
+    """
+    Set up the directory and path for the parallelism configuration.
+    """
+    config_dir = os.path.dirname(ConfigPath.PARAL_CONFIG)
+    os.makedirs(config_dir, exist_ok=True)
+    os.environ[ConfigPath.ENV_PARAL_CONFIG] = ConfigPath.PARAL_CONFIG
+    os.environ[ConfigPath.ENV_RUNTIME_METRICS] = ConfigPath.RUNTIME_METRICS
+
+
 @dataclass
 class ProcessError:
     local_rank: int
@@ -239,6 +249,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         log_dir: Optional[str] = None,
     ):
         super().__init__(spec, exit_barrier_timeout)
+        _set_paral_config()
         self._rank_id = rank_id
         self._config = config
         self._entrypoint = entrypoint
