@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import threading
 from typing import Dict, List
 
 from dlrover.python.common.constants import NodeType
@@ -20,13 +19,14 @@ from dlrover.python.common.grpc import (
     OptimizerConfig,
     ParallelConfig,
 )
-from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node
 from dlrover.python.master.hyperparams.strategy_generator import (
     StrategyGenerator,
 )
 from dlrover.python.master.stats.reporter import JobMeta, LocalStatsReporter
 
+# TODO This is a mock GPU stats. We need to replace it with real GPU stats from
+# self._stats_collector
 gpu_stats = [
     {
         "index": 0,
@@ -40,7 +40,8 @@ gpu_stats = [
     },
 ]
 
-# Define model configuration as a dictionary
+# TODO This is a mock model card configuration. We need to replace it with real
+# model card configuration from model config reporter
 mock_model_config = {
     "block_size": 128,
     "n_layer": 6,
@@ -48,6 +49,9 @@ mock_model_config = {
     "n_embd": 384,
 }
 
+
+# TODO This is a mock dataloader configuration. We need to replace it with real
+# dataloader configuration from dataloader config reporter
 mock_dataloader_config = DataLoaderConfig(0, "simple_dataloader", 32, 2, 0)
 
 
@@ -62,17 +66,6 @@ class SimpleStrategyGenerator(StrategyGenerator):
         self._job_uuid = job_uuid
         self._stats_collector = LocalStatsReporter(JobMeta(job_uuid))
 
-    def start(self):
-        try:
-            logger.info("Start local strategy generator")
-            threading.Thread(
-                target=self._extract_node_resource,
-                name="strategy-generator",
-                daemon=True,
-            ).start()
-        except Exception as e:
-            logger.error(e)
-
     def generate_opt_strategy(
         self,
         gpu_stats=[],
@@ -84,16 +77,13 @@ class SimpleStrategyGenerator(StrategyGenerator):
             for node in nodes:
                 gpu_stats = node.used_resource.gpu_stats
                 paral_config = node.paral_config
-                data_loader_config, optimizer_config = (
-                    self._generate_dataloader_config(
-                        gpu_stats, model_config, paral_config.dataloader
-                    ),
-                    self._generate_optimizer_config(),
+                data_loader_config = self._generate_dataloader_config(
+                    gpu_stats, model_config, paral_config.dataloader
                 )
+                optimizer_config = self._generate_optimizer_config()
                 paral_configs[node.name] = ParallelConfig(
                     data_loader_config, optimizer_config
                 )
-        logger.info("paral configs: %s", paral_configs["simple_node"])
         return paral_configs["simple_node"]
 
     def _generate_dataloader_config(
@@ -111,7 +101,6 @@ class SimpleStrategyGenerator(StrategyGenerator):
         updated_version = dataloader_config.version + 1
         # Extract dataloader configuration values
         batch_size = dataloader_config.batch_size
-        logger.info("batch size: %d", batch_size)
 
         # Extract model configuration values
         block_size = model_config["block_size"]
@@ -149,15 +138,11 @@ class SimpleStrategyGenerator(StrategyGenerator):
         return OptimizerConfig(5, 6)
 
     def _extract_node_resource(self) -> Dict[str, List[List[Node]]]:
-        stats = self._stats_collector.get_runtime_stats()
         node_used_resources: Dict[str, List[List[Node]]] = {}
         node_used_resources[NodeType.WORKER] = []
-        simple_node = Node(node_type="worker", node_id=0)
+        simple_node = Node(node_type=NodeType.WORKER, node_id=0)
         simple_node.used_resource.gpu_stats = gpu_stats
         simple_node.paral_config.dataloader = mock_dataloader_config
         simple_node.name = "simple_node"
         node_used_resources[NodeType.WORKER].append([simple_node])
-        if len(stats) == 0:
-            return node_used_resources
-        else:
-            return node_used_resources
+        return node_used_resources
