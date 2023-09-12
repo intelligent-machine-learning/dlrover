@@ -231,6 +231,8 @@ class ElasticTrainer(object):
 
     Args:
         model (`torch.nn.Module`): PyTorch Module.
+        dataloader (`ElasticDataloader`): An ElasticDataloader can
+            update the batch size of sampler.
 
     **Available attributes:**
         - **step** -- the number of local step on the process.

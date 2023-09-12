@@ -28,6 +28,7 @@ from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader
 from torchvision import transforms
 
+from dlrover.trainer.torch.elastic.dataloader import ElasticDataLoader
 from dlrover.trainer.torch.elastic.sampler import ElasticDistributedSampler
 from dlrover.trainer.torch.elastic.trainer import ElasticTrainer
 
@@ -101,10 +102,9 @@ def train(args):
     )
     #  Setup sampler for elastic training.
     sampler = ElasticDistributedSampler(dataset=train_data)
-    train_loader = DataLoader(
+    train_loader = ElasticDataLoader(
         dataset=train_data,
         batch_size=args.batch_size,
-        num_workers=2,
         sampler=sampler,
     )
 
@@ -175,7 +175,7 @@ def train_with_fixed_batch_size(
     """
     The global batch size will not change if the number of workers changes.
     """
-    elastic_trainer = ElasticTrainer(model)
+    elastic_trainer = ElasticTrainer(model, dataloader=train_loader)
     optimizer, scheduler = elastic_trainer.prepare(optimizer, scheduler)
 
     epoch = 0
@@ -304,7 +304,7 @@ def arg_parser():
     parser.add_argument("--shuffle", type=bool, default=True, required=False)
     parser.add_argument("--use_fsdp", type=bool, default=False, required=False)
     parser.add_argument(
-        "--fixed_batch_size", type=bool, default=False, required=False
+        "--fixed_batch_size", type=bool, default=True, required=False
     )
     parser.add_argument(
         "--learning_rate", type=float, default=0.1, required=False
