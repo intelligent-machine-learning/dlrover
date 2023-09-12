@@ -172,13 +172,14 @@ class MasterServicerTest(unittest.TestCase):
         request.timestamp = ts
         request.step = 100
         self.servicer._collect_global_step(request)
+        self.job_metric_collector._report_runtime_stats()
         request.timestamp = ts + 10
         request.step = 1100
         self.servicer._collect_global_step(request)
         self.job_metric_collector._report_runtime_stats()
         self.assertEqual(len(reporter._runtime_stats), 2)
-        self.assertEqual(reporter._runtime_stats[0].global_step, 1100)
-        self.assertEqual(len(reporter._runtime_stats[0].running_nodes), 2)
+        self.assertEqual(reporter._runtime_stats[1].global_step, 1100)
+        self.assertEqual(len(reporter._runtime_stats[1].running_nodes), 2)
 
         request.timestamp = ts + 20
         request.step = 2100
