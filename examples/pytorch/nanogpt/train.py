@@ -28,7 +28,10 @@ from model import GPT, GPTConfig
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.distributed.fsdp.wrap import size_based_auto_wrap_policy
 from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import Dataset
+
+from dlrover.trainer.torch.elastic.dataloader import ElasticDataLoader
+from dlrover.trainer.torch.elastic.trainer import ElasticTrainer
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 
@@ -60,7 +63,7 @@ class GPTDataset(Dataset):
 
 def get_data_loaders(
     data_dir,
-    batch_size=12,
+    batch_size=32,
     block_size=128,
     device_type="cpu",
     device="cpu",
@@ -70,10 +73,10 @@ def get_data_loaders(
     val_dataset = GPTDataset(os.path.join(data_dir, "val.bin"), block_size)
     with open(os.path.join(data_dir, "meta.pkl"), "rb") as f:
         meta = pickle.load(f)
-    train_loader = DataLoader(
+    train_loader = ElasticDataLoader(
         train_dataset, batch_size=batch_size, shuffle=True, pin_memory=True
     )
-    val_loader = DataLoader(
+    val_loader = ElasticDataLoader(
         val_dataset, batch_size=batch_size, shuffle=False, pin_memory=True
     )
     meta_vocab_size = meta["vocab_size"]
@@ -273,8 +276,6 @@ def train():
         model = torch.compile(model)  # requires PyTorch 2.0
 
     # Training loop
-    X, Y = next(iter(train_loader))
-    X, Y = X.to(device), Y.to(device)
     total_time = 0.0
     local_iter_num = 0  # Number of iterations in the lifetime of this process
     raw_model = model.module  # Unwrap DDP/FSDP container if needed
@@ -285,71 +286,82 @@ def train():
     log_interval = args.log_interval
     grad_clip = args.grad_clip
     learning_rate = args.learning_rate
+    elastic_trainer = ElasticTrainer(
+        model=model,
+        dataloader=train_loader,
+    )
+    optimizer = elastic_trainer.prepare(optimizer)
 
-    while True:
-        # Determine and set the learning rate for this iteration
-        lr = get_lr(iter_num, args) if decay_lr else learning_rate
-        for param_group in optimizer.param_groups:
-            param_group["lr"] = lr
+    # Forward backward update, with optional gradient accumulation
+    # to simulate larger batch size and using the GradScaler
+    # if data type is float16
 
-        t0 = time.time()
-        # Forward backward update, with optional gradient accumulation
-        # to simulate larger batch size and using the GradScaler
-        # if data type is float16
-        for micro_step in range(gradient_accumulation_steps):
-            with ctx:
-                logits, loss = model(X, Y)
-                loss = (
-                    loss / gradient_accumulation_steps
-                )  # Scale the loss to account for gradient accumulation
-            # immediately async prefetch next batch while model
-            # is doing the forward pass on the GPU
-            X, Y = next(iter(train_loader))
-            X, Y = X.to(device), Y.to(device)
-            # Backward pass, with gradient scaling if training in fp16
-            scaler.scale(loss).backward()
-        # Clip the gradient
-        if grad_clip != 0.0:
-            scaler.unscale_(optimizer)
-            torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
-        # Step the optimizer and scaler if training in fp16
-        scaler.step(optimizer)
-        scaler.update()
-        # Flush the gradients as soon as we can,
-        # no need for this memory anymore
-        optimizer.zero_grad(set_to_none=True)
+    for X, Y in train_loader:
+        with elastic_trainer.step():
+            # Determine and set the learning rate for this iteration
+            lr = get_lr(iter_num, args) if decay_lr else learning_rate
+            for param_group in optimizer.param_groups:
+                param_group["lr"] = lr
+            for micro_step in range(gradient_accumulation_steps):
+                t0 = time.time()
+                X, Y = X.to(device), Y.to(device)
+                with ctx:
+                    logits, loss = model(X, Y)
+                    loss = (
+                        loss / gradient_accumulation_steps
+                    )  # Scale the loss to account for gradient accumulation
+                # immediately async prefetch next batch while model
+                # is doing the forward pass on the GPU
+                # Backward pass, with gradient scaling if training in fp16
+                scaler.scale(loss).backward()
+                # Clip the gradient
+                if grad_clip != 0.0:
+                    scaler.unscale_(optimizer)
+                    torch.nn.utils.clip_grad_norm_(
+                        model.parameters(), grad_clip
+                    )
+                # Step the optimizer and scaler if training in fp16
+                scaler.step(optimizer)
+                scaler.update()
+                # Flush the gradients as soon as we can,
+                # no need for this memory anymore
+                optimizer.zero_grad(set_to_none=True)
 
-        # Timing and logging
-        t1 = time.time()
-        dt = t1 - t0
-        total_time += dt
+                # Timing and logging
+                t1 = time.time()
+                dt = t1 - t0
+                total_time += dt
 
-        if iter_num % log_interval == 0:
-            # Get loss as float. note: this is a CPU-GPU sync point
-            # scale up to undo the division above, approximating
-            # the true total loss (exact would have been a sum)
-            lossf = loss.item() * gradient_accumulation_steps
-            if local_iter_num >= 5:  # Let the training loop settle a bit
-                mfu = raw_model.estimate_mfu(
-                    batch_size * gradient_accumulation_steps, dt
-                )
-                running_mfu = (
-                    mfu
-                    if running_mfu == -1.0
-                    else 0.9 * running_mfu + 0.1 * mfu
-                )
-            cuda_mem = torch.cuda.max_memory_allocated() / 1e9
-            print(
-                f"iter {iter_num}: loss {lossf:.4f}, time {dt * 1000:.2f}ms, "
-                f"mfu {running_mfu * 100:.2f}%, cuda memory {cuda_mem:.3f}G, "
-                f"lr {lr:.2e}, total time {total_time:.2f}s"
-            )
-        iter_num += 1
-        local_iter_num += 1
+                if iter_num % log_interval == 0:
+                    # Get loss as float. note: this is a CPU-GPU sync point
+                    # scale up to undo the division above, approximating
+                    # the true total loss (exact would have been a sum)
+                    lossf = loss.item() * gradient_accumulation_steps
+                    if (
+                        local_iter_num >= 5
+                    ):  # Let the training loop settle a bit
+                        mfu = raw_model.estimate_mfu(
+                            batch_size * gradient_accumulation_steps, dt
+                        )
+                        running_mfu = (
+                            mfu
+                            if running_mfu == -1.0
+                            else 0.9 * running_mfu + 0.1 * mfu
+                        )
+                    cuda_mem = torch.cuda.max_memory_allocated() / 1e9
+                    print(
+                        f"iter {iter_num}: loss {lossf:.4f},"
+                        f" time {dt * 1000:.2f}ms, "
+                        f"mfu {running_mfu * 100:.2f}%,"
+                        f" cuda memory {cuda_mem:.3f}G, "
+                        f"lr {lr:.2e}, total time {total_time:.2f}s"
+                    )
+                iter_num += 1
+                local_iter_num += 1
 
-        # Termination conditions
-        if iter_num > max_iters:
-            break
+                # Termination conditions
+                if iter_num > max_iters:
+                    break
 
 
 # Determine the device type based on the input string.
@@ -387,7 +399,7 @@ def arg_parser():
     parser.add_argument(
         "--always_save_checkpoint", action="store_true", required=False
     )
-    parser.add_argument("--batch_size", type=int, default=12, required=False)
+    parser.add_argument("--batch_size", type=int, default=32, required=False)
     parser.add_argument("--block_size", type=int, default=128, required=False)
 
     # Model settings
