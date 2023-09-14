@@ -287,7 +287,6 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 store,
                 spec.master_addr,
                 spec.master_port,
-                spec.local_addr,
             )
 
         master_addr, master_port = self._get_master_addr_port(store)
@@ -518,7 +517,6 @@ def launch_agent(
         run_id=config.run_id,
         min_nodes=config.min_nodes,
         max_nodes=config.max_nodes,
-        local_addr=config.local_addr,
         **config.rdzv_configs,
     )
 
@@ -543,7 +541,6 @@ def launch_agent(
         redirects=config.redirects,
         tee=config.tee,
         master_addr=master_addr,
-        local_addr=config.local_addr,
     )
 
     agent = ElasticTrainingAgent(
@@ -726,7 +723,6 @@ def network_check(
         run_id=config.run_id,
         min_nodes=config.min_nodes,
         max_nodes=config.max_nodes,
-        local_addr=config.local_addr,
         **config.rdzv_configs,
     )
 
