@@ -92,7 +92,7 @@ class ElasticDataLoader(DataLoader):
             content = f.read()
             if not content:
                 return
-            config = json.load(f)
+            config = json.loads(content)
             if "dataloader" not in config:
                 return
             dl_config = config["dataloader"]
