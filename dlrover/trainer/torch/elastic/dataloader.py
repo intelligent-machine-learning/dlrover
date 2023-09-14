@@ -76,6 +76,8 @@ class ElasticDataLoader(DataLoader):
         self.init_config(self.config_file)
 
     def init_config(self, config_file=None):
+        if not config_file or not os.path.exists(config_file):
+            return
         with open(config_file, "r") as json_file:
             config = json.load(json_file)
         dl_config = config["dataloader"]
