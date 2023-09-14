@@ -249,8 +249,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         return res
 
     def _get_paral_config(self):
-        strategy = self._job_manager.get_opt_strategy()
-        res = grpc.ParallelConfig(strategy)
+        res = self._job_manager.get_opt_strategy()
         return res
 
     def report(self, request, _):
@@ -514,6 +513,12 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         self, node_type, node_id, message: grpc.ParallelConfig
     ):
         if self._job_manager:
+            logger.info(
+                "Update parallel config for %s-%s: %s",
+                node_type,
+                node_id,
+                message,
+            )
             self._job_manager.update_node_paral_config(
                 node_type, node_id, message
             )
