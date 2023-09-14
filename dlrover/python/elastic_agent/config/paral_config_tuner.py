@@ -97,7 +97,6 @@ class ParalConfigTuner(object):
                         ],
                     ),
                 )
-                logger.info(f"Read parallelism config: {self.config}")
             return self.config
         except FileNotFoundError:
             print(f"Error: Config file '{config_path}' not found.")
