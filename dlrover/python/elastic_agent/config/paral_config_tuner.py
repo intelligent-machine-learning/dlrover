@@ -56,10 +56,8 @@ class ParalConfigTuner(object):
         while True:
             local_config = self._read_paral_config(self.config_path)
             self._master_client.report_paral_config(local_config)
-            logger.info(f"Reported parallelism config: {local_config}")
             time.sleep(30)
             config: ParallelConfig = self._master_client.get_paral_config()
-            logger.info(f"Received parallelism config: {config}")
             if config is not None:
                 with open(self.config_path, "w") as f:
                     f.write(config.to_json())
