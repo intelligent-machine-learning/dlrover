@@ -79,9 +79,14 @@ class ElasticDataLoader(DataLoader):
         if not config_file or not os.path.exists(config_file):
             return
         with open(config_file, "r") as json_file:
-            config = json.load(json_file)
-        dl_config = config["dataloader"]
-        batch_size = dl_config["batch_size"]
+            try:
+                content = json_file.read()
+                config = json.loads(content)
+            except json.decoder.JSONDecodeError:
+                logger.warning(f"Fail to load config {content}")
+                return
+        dl_config = config.get("dataloader", {})
+        batch_size = config.get("batch_size", 0)
         if batch_size == 0:
             batch_size = self.batch_sampler.batch_size
         dl_config["batch_size"] = batch_size
