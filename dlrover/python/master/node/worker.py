@@ -211,7 +211,7 @@ class WorkerManager(TrainingNodeManager):
             ]:
                 worker.relaunchable = False
                 logger.info(
-                    "Remove the worker %s after the worker-0 completed",
+                    "Remove the worker %s after the chief completed",
                     worker.name,
                 )
                 worker.is_released = True
