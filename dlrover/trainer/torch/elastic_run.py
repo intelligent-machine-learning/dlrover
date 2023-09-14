@@ -177,6 +177,8 @@ def run(args):
     config, cmd, cmd_args = config_from_args(args)
     setattr(config, "network_check", False)
     setattr(config, "node_unit", 1)
+    if not hasattr(config, "local_addr"):
+        setattr(config, "local_addr", None)
     if hasattr(args, "network_check"):
         config.network_check = args.network_check
     if hasattr(args, "node_unit"):
