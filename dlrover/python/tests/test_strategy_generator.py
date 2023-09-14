@@ -16,8 +16,11 @@ from typing import Dict, List
 from unittest.mock import patch
 
 from dlrover.python.common.constants import NodeType
-from dlrover.python.common.grpc import GPUStats
-from dlrover.python.common.grpc import DataLoaderConfig, OptimizerConfig
+from dlrover.python.common.grpc import (
+    DataLoaderConfig,
+    GPUStats,
+    OptimizerConfig,
+)
 from dlrover.python.common.node import Node
 from dlrover.python.master.hyperparams.simple_strategy_generator import (
     SimpleStrategyGenerator,
