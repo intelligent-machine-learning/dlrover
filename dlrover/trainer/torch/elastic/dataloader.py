@@ -89,10 +89,11 @@ class ElasticDataLoader(DataLoader):
         if not config_file or not os.path.exists(config_file):
             return
         with open(config_file, "r") as f:
-            content = f.read()
-            if not content:
-                return
-            config = json.loads(content)
+            try:
+                content = f.read()
+                config = json.load(content)
+            except json.decoder.JSONDecodeError:
+                logger.warning(f"Fail to load config {content}")
             if "dataloader" not in config:
                 return
             dl_config = config["dataloader"]
