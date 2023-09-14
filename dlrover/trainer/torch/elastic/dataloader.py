@@ -91,7 +91,7 @@ class ElasticDataLoader(DataLoader):
         with open(config_file, "r") as f:
             try:
                 content = f.read()
-                config = json.load(content)
+                config = json.loads(content)
             except json.decoder.JSONDecodeError:
                 logger.warning(f"Fail to load config {content}")
             if "dataloader" not in config:
