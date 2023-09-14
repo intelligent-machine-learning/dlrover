@@ -26,6 +26,7 @@ from torch.distributed.launcher.api import LaunchConfig
 from torch.distributed.launcher.api import launch_agent as torch_launch_agent
 from torch.distributed.run import config_from_args, get_args_parser
 
+from dlrover.python.common.constants import NodeEnv
 from dlrover.python.common.grpc import find_free_port
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.master_client import (
@@ -108,8 +109,10 @@ def _launch_dlrover_local_master():
     cmd = os.getenv("PYTHON_EXEC", sys.executable)
     host = "127.0.0.1"
     port = find_free_port()
-    log_dir = tempfile.mkdtemp(prefix="dlrover_master_")
-    job_name = log_dir.split("_")[-1]
+    root_dir = "/tmp/dlrover_master/"
+    os.makedirs(root_dir, exist_ok=True)
+    log_dir = tempfile.mkdtemp(prefix="", dir=root_dir)
+    job_name = log_dir.split("/")[-1]
     stdout = os.path.join(log_dir, "stdout.log")
     stderr = os.path.join(log_dir, "stderror.log")
     logger.info(f"The master log file:\n stdout: {stdout} \n stderr: {stderr}")
@@ -147,10 +150,11 @@ def _check_dlrover_master_available(addr, timeout=60):
 
 def run(args):
     master_handler = None
-    master_addr = os.getenv("DLROVER_MASTER_ADDR", "")
+    master_addr = os.getenv(NodeEnv.DLROVER_MASTER_ADDR, "")
     use_dlrover_launch = False
     if args.standalone:
         master_handler, master_addr = _launch_dlrover_local_master()
+        os.environ[NodeEnv.DLROVER_MASTER_ADDR] = master_addr
     if _check_dlrover_master_available(master_addr):
         GlobalMasterClient.MASTER_CLIENT = build_master_client(master_addr)
         use_dlrover_launch = True

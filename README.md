@@ -29,7 +29,7 @@ to improve the training performance and resources utilization.
 
 ## Latest News
 
-- [2023/08] [DLRover improves the stability of pre-trained model training over thousands GPUs.](docs/blogs/stabilize_llm_training_cn.md)
+- [2023/08] [DLRover improves the stability of pre-trained model training over thousands of GPUs.](docs/blogs/stabilize_llm_training_cn.md)
 - [2023/04] [DLRover auto-scales nodes of a DeepRec distributed training job.](docs/blogs/deeprec_autoscale_cn.md)
 
 ## Why DLRover?
@@ -208,4 +208,4 @@ Please refer to the [DEVELOPMENT](docs/developer_guide.md)
 
 [Train a PyTorch Model on Kubernetes](docs/tutorial/torch_on_cloud.md)
 
-[Train a GPT Model on Kubernetes](docs/tutorial/torch_dpp_nanogpt.md)
+[Train a GPT Model on Kubernetes](docs/tutorial/torch_ddp_nanogpt.md)

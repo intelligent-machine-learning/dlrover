@@ -14,13 +14,18 @@
 import contextlib
 import os
 import socket
+import time
 from contextlib import contextmanager
+from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
 import torch
 import torch.distributed as dist
 
+from dlrover.python.common.constants import ConfigPath
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.common.serialize import JsonSerializable
+from dlrover.trainer.torch.elastic.dataloader import ElasticDataLoader
 
 
 def find_free_port() -> int:
@@ -37,6 +42,12 @@ def get_rank():
     if dist.is_initialized():
         rank = dist.get_rank()
     return rank
+
+
+@dataclass
+class TrainingRecord(JsonSerializable):
+    step: int = 0
+    timestamp: int = 0
 
 
 class GradientState(object):
@@ -220,6 +231,8 @@ class ElasticTrainer(object):
 
     Args:
         model (`torch.nn.Module`): PyTorch Module.
+        dataloader (`ElasticDataloader`): An ElasticDataloader can
+            update the batch size of sampler.
 
     **Available attributes:**
         - **step** -- the number of local step on the process.
@@ -236,6 +249,7 @@ class ElasticTrainer(object):
     def __init__(
         self,
         model,
+        dataloader: ElasticDataLoader = None,
         use_fsdp: bool = False,
         ckpt_interval: CheckpointInterval = None,
         shared_storage_path: str = None,
@@ -246,12 +260,25 @@ class ElasticTrainer(object):
                     'shared_storage_path' must be provided and not None."
             )
         self.model = model
-        self.optimizer = None
+        self.dataloader = dataloader
         self.gradient_state = GradientState()
         self.gradient_accumulation_steps = 1
         self.use_fsdp = use_fsdp
         self.ckpt_interval = ckpt_interval
         self.shared_storage_path = shared_storage_path
+        self._report_step_interval = 15  # 15s
+        self._last_report_time = 0
+
+        self._check()
+
+    def _check(self):
+        if self.dataloader and not isinstance(
+            self.dataloader, ElasticDataLoader
+        ):
+            logger.warning(
+                "Cannot adjust the batch size of dataloader and "
+                "you should use ElasticDataloader not Dataloader."
+            )
 
     def prepare(self, optimizer, lr_scheduler=None):
         """
@@ -383,9 +410,15 @@ class ElasticTrainer(object):
             self._save_fsdp_ckpt()
         if self.gradient_state.sync_gradients:
             self.gradient_state.num_steps += 1
+            now = time.time()
+            if now - self._last_report_time > self._report_step_interval:
+                self.report_training_step()
+                self._last_report_time = now
+        if self.dataloader and isinstance(self.dataloader, ElasticDataLoader):
+            self.dataloader.update_batch_size()
 
     def _set_gradient_accumulation_steps(self):
-        max_worker_num = int(os.getenv("WORKER_NUM", 0))
+        max_worker_num = int(os.getenv("WORKER_NUM", 1))
         if max_worker_num == 0:
             self.gradient_accumulation_steps = 1
 
@@ -405,3 +438,12 @@ class ElasticTrainer(object):
             cur_world_size,
             self.gradient_accumulation_steps,
         )
+
+    def report_training_step(self):
+        timestamp = time.time()
+        record = TrainingRecord(self.gradient_state.num_steps, timestamp)
+        metric_path = os.getenv(ConfigPath.ENV_RUNTIME_METRICS, "")
+        rank = get_rank()
+        if os.path.exists(os.path.dirname(metric_path)) and rank == 0:
+            with open(metric_path, "w") as f:
+                f.write(record.to_json(indent=4))

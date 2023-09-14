@@ -11,17 +11,36 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
+import os
+import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
+import numpy as np
 import torch
+from torch.utils.data import Dataset
 
+from dlrover.python.common.constants import ConfigPath
+from dlrover.python.common.grpc import ParallelConfig
+from dlrover.trainer.torch.elastic.dataloader import ElasticDataLoader
 from dlrover.trainer.torch.elastic.trainer import (
     CheckpointInterval,
     ElasticTrainer,
     _ElasticLRScheduler,
     _ElasticOptimizer,
 )
+
+
+class SimpleDataset(Dataset):
+    def __init__(self):
+        self.data = np.arange(0, 60000)
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, index):
+        return self.data[index]
 
 
 class CheckpointIntervalTest(unittest.TestCase):
@@ -108,6 +127,33 @@ class ElasticTrainerTest(unittest.TestCase):
     def test_reset(self):
         self.elastic_trainer.reset()
         self.assertEqual(self.elastic_trainer.gradient_state.num_steps, 0)
+
+    def test_report_training_step(self):
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            config_file = os.path.join(tmpdirname, "runtime_metrics.json")
+            os.environ[ConfigPath.ENV_RUNTIME_METRICS] = config_file
+            self.elastic_trainer._last_report_time = 0
+            self.elastic_trainer._after_step()
+            with open(config_file, "r") as f:
+                runtime_metrics = json.load(f)
+                step = runtime_metrics.get("step")
+                self.assertEqual(step, 1)
+
+    def test_update_dataloader(self):
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            config_file = os.path.join(tmpdirname, "paral_config.json")
+            os.environ[ConfigPath.ENV_PARAL_CONFIG] = config_file
+            dataset = SimpleDataset()
+            dataloader = ElasticDataLoader(dataset=dataset, batch_size=32)
+            model = torch.nn.Linear(10, 10)
+            trainer = ElasticTrainer(model, dataloader=dataloader)
+            config = ParallelConfig()
+            config.dataloader.batch_size = 64
+            config.dataloader.version = 1
+            with open(config_file, "w") as f:
+                f.write(config.to_json())
+            trainer._after_step()
+            self.assertEqual(dataloader.batch_sampler.batch_size, 64)
 
 
 if __name__ == "__main__":

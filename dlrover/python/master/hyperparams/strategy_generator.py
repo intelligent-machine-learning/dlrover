@@ -1,4 +1,4 @@
-# Copyright 2023 The DLRover Authors. All rights reserved.
+# Copyright 2022 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -11,11 +11,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dlrover.trainer.constants.constants import Constant
+from abc import ABCMeta, abstractmethod
 
 
-class WorkerEnv(Constant):
-    PARAL_CONFIG_PATH = Constant(
-        "DLROVER_PARAL_CONFIG_PATH",
-        "/tmp/dlrover/auto_paral_config.json",
-    )
+class StrategyGenerator(metaclass=ABCMeta):
+    def __init__(self, job_uuid):
+        self._job_uuid = job_uuid
+
+    @abstractmethod
+    def generate_opt_strategy(self, gpu_stats):
+        pass
+
+    @abstractmethod
+    def _generate_dataloader_config(self, gpu_stats):
+        pass
+
+    @abstractmethod
+    def _generate_optimizer_config(self):
+        pass
