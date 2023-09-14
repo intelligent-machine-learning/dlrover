@@ -137,6 +137,12 @@ class WorkerManagerTest(unittest.TestCase):
         plan = worker_manager.reduce_pending_node_resource()
         self.assertEqual(len(plan.launch_nodes), 5)
 
+        for node in worker_manager._nodes.values():
+            node.config_resource.gpu_num = 1
+
+        plan = worker_manager.reduce_pending_node_resource()
+        self.assertTrue(plan.empty())
+
     def test_pending_without_workers(self):
         worker_manager = WorkerManager(
             self._job_nodes[NodeType.WORKER],

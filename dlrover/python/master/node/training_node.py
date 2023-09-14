@@ -107,7 +107,11 @@ def reduce_timeout_pending_node_resource(node: Node):
     """Reduce CPU cores or memroy and relaunch it if the pending
     time is too long"""
     now = time.time()
-    if node.is_released or not node.create_time:
+    if (
+        node.is_released
+        or not node.create_time
+        or node.config_resource.gpu_num > 0
+    ):
         return False
     pending_time = now - node.create_time.timestamp()
     if pending_time < _dlrover_context.seconds_to_wait_pending_pod:
