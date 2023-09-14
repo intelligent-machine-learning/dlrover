@@ -19,12 +19,12 @@ from dlrover.python.common.grpc import (
     OptimizerConfig,
     ParallelConfig,
 )
+from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node
 from dlrover.python.master.hyperparams.strategy_generator import (
     StrategyGenerator,
 )
 from dlrover.python.master.stats.reporter import JobMeta, LocalStatsReporter
-from dlrover.python.common.log import default_logger as logger
 
 # TODO This is a mock model card configuration. We need to replace it with real
 # model card configuration from model config reporter
@@ -34,11 +34,6 @@ mock_model_config = {
     "n_heads": 20,
     "n_embd": 1280,
 }
-
-
-# TODO This is a mock dataloader configuration. We need to replace it with real
-# dataloader configuration from dataloader config reporter
-# mock_dataloader_config = DataLoaderConfig(0, "simple_dataloader", 32, 2, 0)
 
 
 class SimpleStrategyGenerator(StrategyGenerator):
@@ -62,9 +57,7 @@ class SimpleStrategyGenerator(StrategyGenerator):
         for nodes in node_samples[NodeType.WORKER]:
             for node in nodes:
                 gpu_stats = node.used_resource.gpu_stats
-                logger.info(f"gpu_stats: {gpu_stats}")
                 paral_config = node.paral_config
-                logger.info(f"extract paral_config: {paral_config}")
                 data_loader_config = self._generate_dataloader_config(
                     gpu_stats, model_config, paral_config.dataloader
                 )
@@ -86,9 +79,10 @@ class SimpleStrategyGenerator(StrategyGenerator):
         if gpu_stats == []:
             return dataloader_config
         # Calculate the minimum remaining memory among GPUs
-        min_remain_memory = min(entry.total_memory_mb - entry.used_memory_mb for entry in gpu_stats)
+        min_remain_memory = min(
+            entry.total_memory_mb - entry.used_memory_mb for entry in gpu_stats
+        )
         if min_remain_memory > 2400:
-            logger.info(f"min_remain_memory: {min_remain_memory}")
             # Update dataloader configuration version
             updated_version = dataloader_config.version + 1
             # Extract dataloader configuration values
@@ -109,9 +103,6 @@ class SimpleStrategyGenerator(StrategyGenerator):
                 * n_layer
                 / (1024**2)
             )
-            logger.info(f"batch_size: {batch_size}")
-            logger.info(f"activation_memory_mb: {activation_memory_mb}")
-            logger.info(f"batch_size * min_remain_memory / activation_memory_mb: {batch_size * min_remain_memory / activation_memory_mb}")
             try:
                 updated_batch_size = int(
                     batch_size
@@ -138,11 +129,6 @@ class SimpleStrategyGenerator(StrategyGenerator):
         stats = self._stats_collector.get_runtime_stats()
         node_used_resources: Dict[str, List[List[Node]]] = {}
         node_used_resources[NodeType.WORKER] = []
-        # simple_node = Node(node_type=NodeType.WORKER, node_id=0)
-        # simple_node.used_resource.gpu_stats = gpu_stats
-        # simple_node.paral_config.dataloader = mock_dataloader_config
-        # simple_node.name = "simple_node"
-        # node_used_resources[NodeType.WORKER].append([simple_node])
         if len(stats) == 0:
             logger.info("stats length is 0")
             return node_used_resources
