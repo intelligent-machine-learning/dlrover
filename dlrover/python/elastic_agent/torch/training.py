@@ -287,6 +287,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 store,
                 spec.master_addr,
                 spec.master_port,
+                "",
             )
 
         master_addr, master_port = self._get_master_addr_port(store)
