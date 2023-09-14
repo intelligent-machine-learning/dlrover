@@ -51,7 +51,7 @@ class SimpleStrategyGenerator(StrategyGenerator):
         self,
         gpu_stats=[],
         model_config=mock_model_config,
-    ) -> ParallelConfig:
+    ):
         node_samples = self._extract_node_resource()
         paral_configs: Dict[str, ParallelConfig] = {}
         for nodes in node_samples[NodeType.WORKER]:
@@ -132,11 +132,8 @@ class SimpleStrategyGenerator(StrategyGenerator):
         if len(stats) == 0:
             logger.info("stats length is 0")
             return node_used_resources
-        for node in stats[-1].running_nodes:
-            logger.info("node type: %s", node.type)
-            logger.info("node id: %s", node.id)
-            logger.info("node name: %s", node.name)
-            logger.info(f"running nodes: {node}")
-            node_used_resources[NodeType.WORKER].append([node])
-            logger.info(f"node_used_resources: {node_used_resources}")
+        else:
+            for node in stats[-1].running_nodes:
+                node_used_resources[NodeType.WORKER].append([node])
+                logger.info(f"node_used_resources: {node_used_resources}")
             return node_used_resources
