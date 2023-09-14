@@ -70,7 +70,7 @@ class TestLocalStrategyGenerator(unittest.TestCase):
         ) as mock_extract_node_resource:
             mock_extract_node_resource.return_value = node_used_resources
             expected_dataloader_config = DataLoaderConfig(
-                1, "simple_dataloader", 1648, 0, 0
+                1, "simple_dataloader", 177, 0, 0
             )
             expected_optimizer_config = OptimizerConfig(5, 6)
 
