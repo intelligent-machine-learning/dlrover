@@ -67,6 +67,10 @@ class TestElasticDataLoader(unittest.TestCase):
             # Assert that the loaded batch_size is correct
             self.assertEqual(dataloader.batch_sampler.batch_size, 128)
 
+            with open(config_file, "w") as f:
+                f.write("")
+            dataloader.load_config(config_file=config_file)
+
     def test_set_batch_size(self):
         dataset = SimpleDataset()
         config = ParallelConfig()
