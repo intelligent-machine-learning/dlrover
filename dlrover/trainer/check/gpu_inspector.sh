@@ -35,6 +35,7 @@ fi
 memory_occupied_by_residual_process=$(echo "$status" | grep "Default" | awk '{print $9}' | awk -F "M" '{print $1}' | awk '{ SUM += $1} END {print SUM}')
 
 # Sum the memory usage of all GPUs. If it exceeds 512MB, it is considered to have Pod residue.
+# Note: the check may misjudge there is the Pod residue on the machine.
 if [ "$memory_occupied_by_residual_process" -ge 512 ];
 then
     echo "Found residual process"

@@ -16,6 +16,10 @@ Users can use the script to check where the GPU is available before
 running the training script. For example, we can the command
 like
     python -m dlrover.trainer.check.gpu_check && dlrover-run ...
+
+Note:
+    If the return_code of gpu_inspector is 202, there may
+    be the Pod residue on the machine. However, it may be a misjudgement.
 """
 
 import os
