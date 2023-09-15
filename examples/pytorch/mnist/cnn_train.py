@@ -210,9 +210,11 @@ def train_with_fixed_batch_size(
                         )
                         if checkpoint:
                             sampler = train_loader.sampler
-                            checkpoint["sampler"] = sampler.state_dict(
-                                train_step, train_loader.batch_size
-                            ),  # Checkpoint sampler
+                            checkpoint["sampler"] = (
+                                sampler.state_dict(
+                                    train_step, train_loader.batch_size
+                                ),
+                            )  # Checkpoint sampler
                     elif rank == 0:
                         checkpoint = {
                             "model": model.state_dict(),
