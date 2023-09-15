@@ -262,7 +262,7 @@ def train():
         model = DDP(model)
         print(f"Model device {model.device}")
     # Optimizer
-    print(f"creating optimizer...{model.parameters()}")
+    log_rank0(f"creating optimizer...{model.parameters()}")
     optimizer = torch.optim.AdamW(
         model.parameters(),
         weight_decay=args.weight_decay,
@@ -272,7 +272,7 @@ def train():
 
     # Compile the model
     if compile == "True":
-        print("compiling the model... (takes a ~minute)")
+        log_rank0("compiling the model... (takes a ~minute)")
         model = torch.compile(model)  # requires PyTorch 2.0
 
     # Training loop
@@ -296,72 +296,72 @@ def train():
     # to simulate larger batch size and using the GradScaler
     # if data type is float16
 
-    for X, Y in train_loader:
-        with elastic_trainer.step():
-            # Determine and set the learning rate for this iteration
-            lr = get_lr(iter_num, args) if decay_lr else learning_rate
-            for param_group in optimizer.param_groups:
-                param_group["lr"] = lr
-            for micro_step in range(gradient_accumulation_steps):
-                t0 = time.time()
-                X, Y = X.to(device), Y.to(device)
-                with ctx:
-                    logits, loss = model(X, Y)
-                    loss = (
-                        loss / gradient_accumulation_steps
-                    )  # Scale the loss to account for gradient accumulation
-                # immediately async prefetch next batch while model
-                # is doing the forward pass on the GPU
-                # Backward pass, with gradient scaling if training in fp16
-                scaler.scale(loss).backward()
-                # Clip the gradient
-                if grad_clip != 0.0:
-                    scaler.unscale_(optimizer)
-                    torch.nn.utils.clip_grad_norm_(
-                        model.parameters(), grad_clip
-                    )
-                # Step the optimizer and scaler if training in fp16
-                scaler.step(optimizer)
-                scaler.update()
-                # Flush the gradients as soon as we can,
-                # no need for this memory anymore
-                optimizer.zero_grad(set_to_none=True)
-
-                # Timing and logging
-                t1 = time.time()
-                dt = t1 - t0
-                total_time += dt
-
-                if iter_num % log_interval == 0:
-                    # Get loss as float. note: this is a CPU-GPU sync point
-                    # scale up to undo the division above, approximating
-                    # the true total loss (exact would have been a sum)
-                    lossf = loss.item() * gradient_accumulation_steps
-                    if (
-                        local_iter_num >= 5
-                    ):  # Let the training loop settle a bit
-                        mfu = raw_model.estimate_mfu(
-                            batch_size * gradient_accumulation_steps, dt
+    for epoch in range(args.epochs):
+        for X, Y in train_loader:
+            with elastic_trainer.step():
+                # Determine and set the learning rate for this iteration
+                lr = get_lr(iter_num, args) if decay_lr else learning_rate
+                for param_group in optimizer.param_groups:
+                    param_group["lr"] = lr
+                for micro_step in range(gradient_accumulation_steps):
+                    t0 = time.time()
+                    X, Y = X.to(device), Y.to(device)
+                    with ctx:
+                        logits, loss = model(X, Y)
+                        # Scale the loss to account for gradient accumulation
+                        loss = loss / gradient_accumulation_steps
+                    # immediately async prefetch next batch while model
+                    # is doing the forward pass on the GPU
+                    # Backward pass, with gradient scaling if training in fp16
+                    scaler.scale(loss).backward()
+                    # Clip the gradient
+                    if grad_clip != 0.0:
+                        scaler.unscale_(optimizer)
+                        torch.nn.utils.clip_grad_norm_(
+                            model.parameters(), grad_clip
                         )
-                        running_mfu = (
-                            mfu
-                            if running_mfu == -1.0
-                            else 0.9 * running_mfu + 0.1 * mfu
-                        )
-                    cuda_mem = torch.cuda.max_memory_allocated() / 1e9
-                    print(
-                        f"iter {iter_num}: loss {lossf:.4f},"
-                        f" time {dt * 1000:.2f}ms, "
-                        f"mfu {running_mfu * 100:.2f}%,"
-                        f" cuda memory {cuda_mem:.3f}G, "
-                        f"lr {lr:.2e}, total time {total_time:.2f}s"
-                    )
-                iter_num += 1
-                local_iter_num += 1
+                    # Step the optimizer and scaler if training in fp16
+                    scaler.step(optimizer)
+                    scaler.update()
+                    # Flush the gradients as soon as we can,
+                    # no need for this memory anymore
+                    optimizer.zero_grad(set_to_none=True)
 
-                # Termination conditions
-                if iter_num > max_iters:
-                    break
+                    # Timing and logging
+                    t1 = time.time()
+                    dt = t1 - t0
+                    total_time += dt
+
+                    if iter_num % log_interval == 0:
+                        # Get loss as float. note: this is a CPU-GPU sync point
+                        # scale up to undo the division above, approximating
+                        # the true total loss (exact would have been a sum)
+                        lossf = loss.item() * gradient_accumulation_steps
+                        if (
+                            local_iter_num >= 5
+                        ):  # Let the training loop settle a bit
+                            mfu = raw_model.estimate_mfu(
+                                batch_size * gradient_accumulation_steps, dt
+                            )
+                            running_mfu = (
+                                mfu
+                                if running_mfu == -1.0
+                                else 0.9 * running_mfu + 0.1 * mfu
+                            )
+                        cuda_mem = torch.cuda.max_memory_allocated() / 1e9
+                        log_rank0(
+                            f"iter {iter_num}: loss {lossf:.4f},"
+                            f" time {dt * 1000:.2f}ms, "
+                            f"mfu {running_mfu * 100:.2f}%,"
+                            f" cuda memory {cuda_mem:.3f}G, "
+                            f"lr {lr:.2e}, total time {total_time:.2f}s"
+                        )
+                    iter_num += 1
+                    local_iter_num += 1
+
+                    # Termination conditions
+                    if iter_num > max_iters:
+                        break
 
 
 # Determine the device type based on the input string.
@@ -401,6 +401,7 @@ def arg_parser():
     )
     parser.add_argument("--batch_size", type=int, default=32, required=False)
     parser.add_argument("--block_size", type=int, default=128, required=False)
+    parser.add_argument("--epochs", type=int, default=1, required=False)
 
     # Model settings
     parser.add_argument("--n_layer", type=int, default=6, required=False)

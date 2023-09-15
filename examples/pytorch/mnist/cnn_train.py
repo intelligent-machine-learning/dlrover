@@ -196,26 +196,34 @@ def train_with_fixed_batch_size(
                 optimizer.zero_grad()
                 train_step = elastic_trainer.num_steps
                 if train_step % 20 == 0:
-                    print("loss = {}, step = {}".format(loss, train_step))
+                    log_rank0("loss = {}, step = {}".format(loss, train_step))
 
                 if train_step > 0 and train_step % 200 == 0:
                     if use_fsdp:
                         rank = dist.get_rank()
                         dist.barrier()
-                    print("Save checkpoint.")
-                    checkpoint = {
-                        "model": model.state_dict(),
-                        "optimizer": optimizer.state_dict(),
-                        "sampler": train_loader.sampler.state_dict(
-                            train_step, train_loader.batch_size
-                        ),  # Checkpoint sampler
-                    }
-                    if use_fsdp and rank == 0:
-                        torch.save(checkpoint, CHEKPOINT_PATH)
-                    if not use_fsdp:
-                        torch.save(checkpoint, CHEKPOINT_PATH)
+                    log_rank0("Save checkpoint.")
+
+                    if use_fsdp:
+                        checkpoint = FSDP.full_optim_state_dict(
+                            model, optimizer
+                        )
+                        if checkpoint:
+                            sampler = train_loader.sampler
+                            checkpoint["sampler"] = sampler.state_dict(
+                                train_step, train_loader.batch_size
+                            ),  # Checkpoint sampler
+                    elif rank == 0:
+                        checkpoint = {
+                            "model": model.state_dict(),
+                            "optimizer": optimizer.state_dict(),
+                            "sampler": train_loader.sampler.state_dict(
+                                train_step, train_loader.batch_size
+                            ),  # Checkpoint sampler
+                        }
+                    torch.save(checkpoint, CHEKPOINT_PATH)
         scheduler.step()
-        print("Test model after epoch {}".format(epoch))
+        log_rank0("Test model after epoch {}".format(epoch))
         test(model, device, test_loader)
 
 
