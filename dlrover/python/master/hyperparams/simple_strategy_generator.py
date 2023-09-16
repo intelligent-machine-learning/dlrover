@@ -82,6 +82,9 @@ class SimpleStrategyGenerator(StrategyGenerator):
         min_remain_memory = min(
             entry.total_memory_mb - entry.used_memory_mb for entry in gpu_stats
         )
+        # To avoid the case that the remaining memory is too small and crashes
+        # into OOM We set the minimum remaining memory to greater than 2400 MB
+        # TODO: We need to replace 2400 with a more reasonable value
         if min_remain_memory > 2400:
             # Update dataloader configuration version
             updated_version = dataloader_config.version + 1
@@ -130,7 +133,7 @@ class SimpleStrategyGenerator(StrategyGenerator):
         node_used_resources: Dict[str, List[List[Node]]] = {}
         node_used_resources[NodeType.WORKER] = []
         if len(stats) == 0:
-            logger.info("stats length is 0")
+            logger.info("There is no any training stats.")
             return node_used_resources
         else:
             for node in stats[-1].running_nodes:
