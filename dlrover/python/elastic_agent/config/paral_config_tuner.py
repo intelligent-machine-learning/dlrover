@@ -76,7 +76,8 @@ class ParalConfigTuner(object):
         """
         try:
             with open(config_path, 'r') as json_file:
-                    json_data = json.load(json_file)    
+                content = json_file.read()
+                json_data = json.loads(content)
             #check the instance_name whether they exist in the json, and if we find it, create it
             items = json_data.items()
             for item in items:
