@@ -75,28 +75,16 @@ class ParalConfigTuner(object):
         Read the parallelism configuration from a JSON file.
         """
         try:
-            with open(config_path, "r") as json_file:
-                config_data = json.load(json_file)
-                self.config = ParallelConfig(
-                    dataloader=DataLoaderConfig(
-                        version=config_data["dataloader"]["version"],
-                        dataloader_name=config_data["dataloader"][
-                            "dataloader_name"
-                        ],
-                        batch_size=config_data["dataloader"]["batch_size"],
-                        num_workers=config_data["dataloader"]["num_workers"],
-                        pin_memory=config_data["dataloader"]["pin_memory"],
-                    ),
-                    optimizer=OptimizerConfig(
-                        version=config_data["optimizer"]["version"],
-                        optimizer_name=config_data["optimizer"][
-                            "optimizer_name"
-                        ],
-                        learning_rate=config_data["optimizer"][
-                            "learning_rate"
-                        ],
-                    ),
-                )
+            with open(config_path, 'r') as json_file:
+                    json_data = json.load(json_file)    
+            #check the instance_name whether they exist in the json, and if we find it, create it
+            items = json_data.items()
+            for item in items:
+                if item[0] == 'dataloader':
+                    dataloader = DataLoaderConfig(**(item[1]))
+                elif item[0] == 'optimizer':
+                    optimizer = OptimizerConfig(**(item[1]))
+            self.config = ParallelConfig(dataloader=dataloader, optimizer=optimizer)
             return self.config
         except FileNotFoundError:
             print(f"Error: Config file '{config_path}' not found.")
