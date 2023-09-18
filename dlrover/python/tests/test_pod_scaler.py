@@ -43,7 +43,7 @@ class PodScalerTest(unittest.TestCase):
         self.assertEqual(
             main_container.image, "dlrover/elasticjob:iris_estimator"
         )
-        self.assertEqual(worker_pod.spec.restart_policy, "Never")
+        self.assertEqual(worker_pod.spec.restart_policy, "Always")
         self.assertListEqual(
             main_container.command,
             [

@@ -11,7 +11,7 @@ spec:
       replicas: 4
       template:
         spec:
-          restartPolicy: Never
+          restartPolicy: Always
           containers:
             - name: main
               # yamllint disable-line rule:line-length

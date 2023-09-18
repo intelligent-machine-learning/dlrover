@@ -377,10 +377,14 @@ class K8sJobArgs(JobArgs):
         self.optimize_mode = job["spec"].get(
             "optimizeMode", OptimizeMode.SINGLE_JOB
         )
-        relaunch_strategy = job["spec"].get("relaunchStrategy", "")
-        self.relaunch_always = relaunch_strategy == "always"
 
         for replica, spec in job["spec"]["replicaSpecs"].items():
+            if replica == NodeType.WORKER:
+                restart_policy = spec["template"]["spec"].get(
+                    "restartPolicy", ""
+                )
+                self.relaunch_always = restart_policy == "Always"
+
             priority = spec.get("priority", "")
             num = int(spec.get("replicas", 0))
             container = spec["template"]["spec"]["containers"][0]
