@@ -48,3 +48,4 @@ class k8sJobArgsTest(unittest.TestCase):
         self.assertEqual(
             ps_params.group_resource.node_resource.priority, "high"
         )
+        self.assertTrue(params.relaunch_always)
