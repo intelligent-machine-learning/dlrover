@@ -75,8 +75,8 @@ class TestLocalStrategyGenerator(unittest.TestCase):
             expected_optimizer_config = OptimizerConfig(
                 2,
                 "SGD",
-                0.01*math.sqrt(177/32),
-                0.001*math.sqrt(177/32),
+                0.01 * math.sqrt(177 / 32),
+                0.001 * math.sqrt(177 / 32),
             )
 
             result = self._strategy_generator.generate_opt_strategy(
