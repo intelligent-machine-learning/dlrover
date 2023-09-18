@@ -37,10 +37,7 @@ mock_model_config = {
     "n_embd": 1280,
 }
 mock_optimizer_config = OptimizerConfig(
-    version=1,
-    optimizer_name="SGD",
-    learning_rate=0.01,
-    weight_decay=0.001
+    version=1, optimizer_name="SGD", learning_rate=0.01, weight_decay=0.001
 )
 
 
