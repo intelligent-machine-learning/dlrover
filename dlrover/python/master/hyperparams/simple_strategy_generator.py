@@ -11,6 +11,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
+
 from typing import Dict, List
 
 from dlrover.python.common.constants import NodeType
@@ -34,7 +36,13 @@ mock_model_config = {
     "n_heads": 20,
     "n_embd": 1280,
 }
-
+mock_batch_sizes = [ 2,4,16 ]
+mock_optimizer_config = OptimizerConfig(
+    version=1,
+    optimizer_name="SGD",
+    learning_rate=0.01,
+    weight_decay=0.001
+)
 
 class SimpleStrategyGenerator(StrategyGenerator):
     """
@@ -58,12 +66,11 @@ class SimpleStrategyGenerator(StrategyGenerator):
             for node in nodes:
                 gpu_stats = node.used_resource.gpu_stats
                 paral_config = node.paral_config
-                data_loader_config = self._generate_dataloader_config(
-                    gpu_stats, model_config, paral_config.dataloader
-                )
-                optimizer_config = self._generate_optimizer_config()
-                paral_configs[node.id] = ParallelConfig(
-                    data_loader_config, optimizer_config
+                paral_configs[node.id] = self._generate_paral_config(
+                    gpu_stats,
+                    model_config,
+                    paral_config.dataloader,
+                    paral_config.optimizer,
                 )
                 node.paral_config = paral_configs[node.id]
         if paral_configs == {}:
@@ -73,11 +80,11 @@ class SimpleStrategyGenerator(StrategyGenerator):
             logger.info(f"paral_configs: {paral_configs}")
             return paral_configs[0]
 
-    def _generate_dataloader_config(
-        self, gpu_stats, model_config, dataloader_config
+    def _generate_paral_config(
+        self, gpu_stats, model_config, dataloader_config, optimizer_config
     ):
         if gpu_stats == []:
-            return dataloader_config
+            return ParallelConfig(dataloader_config, optimizer_config)
         # Calculate the minimum remaining memory among GPUs
         min_remain_memory = min(
             entry.total_memory_mb - entry.used_memory_mb for entry in gpu_stats
@@ -115,18 +122,33 @@ class SimpleStrategyGenerator(StrategyGenerator):
                 updated_batch_size = batch_size
 
             logger.info(f"updated_batch_size: {updated_batch_size}")
-            return DataLoaderConfig(
+            update_dataloader_config = DataLoaderConfig(
                 updated_version,
                 dataloader_config.dataloader_name,
                 updated_batch_size,
                 0,
                 0,
             )
-        else:
-            return dataloader_config
+            
+            try:
+                ratio = updated_batch_size / batch_size
+            except ZeroDivisionError:
+                ratio = 1
+            coefficient = math.sqrt(ratio)
+        
+            update_version = optimizer_config.version + 1
+            update_learning_rate = optimizer_config.learning_rate * coefficient
+            update_weight_decay = optimizer_config.weight_decay * coefficient
 
-    def _generate_optimizer_config(self):
-        return OptimizerConfig(5, 6)
+            logger.info(f"update_learning_rate: {update_learning_rate}")
+            logger.info(f"update_weight_decay: {update_weight_decay}")
+            update_optimizer_config = OptimizerConfig(
+                update_version,
+                optimizer_config.optimizer_name,
+                update_learning_rate,
+                update_weight_decay,
+            )
+            return ParallelConfig(update_dataloader_config, update_optimizer_config)
 
     def _extract_node_resource(self) -> Dict[str, List[List[Node]]]:
         stats = self._stats_collector.get_runtime_stats()

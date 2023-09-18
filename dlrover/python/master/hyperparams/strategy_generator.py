@@ -23,9 +23,6 @@ class StrategyGenerator(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def _generate_dataloader_config(self, gpu_stats):
+    def _generate_paral_config(self, gpu_stats):
         pass
 
-    @abstractmethod
-    def _generate_optimizer_config(self):
-        pass
