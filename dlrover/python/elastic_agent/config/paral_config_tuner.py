@@ -76,27 +76,17 @@ class ParalConfigTuner(object):
         """
         try:
             with open(config_path, "r") as json_file:
-                config_data = json.load(json_file)
-                self.config = ParallelConfig(
-                    dataloader=DataLoaderConfig(
-                        version=config_data["dataloader"]["version"],
-                        dataloader_name=config_data["dataloader"][
-                            "dataloader_name"
-                        ],
-                        batch_size=config_data["dataloader"]["batch_size"],
-                        num_workers=config_data["dataloader"]["num_workers"],
-                        pin_memory=config_data["dataloader"]["pin_memory"],
-                    ),
-                    optimizer=OptimizerConfig(
-                        version=config_data["optimizer"]["version"],
-                        optimizer_name=config_data["optimizer"][
-                            "optimizer_name"
-                        ],
-                        learning_rate=config_data["optimizer"][
-                            "learning_rate"
-                        ],
-                    ),
-                )
+                content = json_file.read()
+                json_data = json.loads(content)
+            # if we find the instance_name in the JSON file, create it
+            for key, value in json_data.items():
+                if key == "dataloader":
+                    dataloader = DataLoaderConfig(**(value))
+                elif key == "optimizer":
+                    optimizer = OptimizerConfig(**(value))
+            self.config = ParallelConfig(
+                dataloader=dataloader, optimizer=optimizer
+            )
             return self.config
         except FileNotFoundError:
             print(f"Error: Config file '{config_path}' not found.")
