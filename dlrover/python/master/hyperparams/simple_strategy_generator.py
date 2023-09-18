@@ -12,7 +12,6 @@
 # limitations under the License.
 
 import math
-
 from typing import Dict, List
 
 from dlrover.python.common.constants import NodeType
