@@ -13,7 +13,11 @@
 from typing import Dict
 
 from dlrover.python.common.constants import NodeStatus, NodeType
+from dlrover.python.common.grpc import ParallelConfig
 from dlrover.python.common.node import Node
+from dlrover.python.master.hyperparams.simple_strategy_generator import (
+    SimpleStrategyGenerator,
+)
 from dlrover.python.master.monitor.error_monitor import (
     ErrorLogMonitor,
     ErrorMonitor,
@@ -39,7 +43,10 @@ class LocalJobManager(JobManager):
     ):
         self._job_resource = JobResource()
         self._job_args = job_args
-        self._job_optimizer = None
+        self._job_resource_optimizer = None
+        self._job_strategy_generator: SimpleStrategyGenerator = (
+            SimpleStrategyGenerator(self._job_args.job_uuid)
+        )
         self._stop_monitor = False
         self._speed_monitor: SpeedMonitor = speed_monitor
         self._error_monitor: ErrorMonitor = error_monitor
@@ -140,6 +147,14 @@ class LocalJobManager(JobManager):
 
     def update_allreduce_node_unit(self, node_unit):
         pass
+
+    def get_opt_strategy(self) -> ParallelConfig:
+        strategy = self._job_strategy_generator.generate_opt_strategy()
+        return strategy
+
+    def update_node_paral_config(self, node_type, node_id, paral_config):
+        node = self._job_nodes[node_type][node_id]
+        node.update_paral_config(paral_config)
 
 
 def create_job_manager(args: JobArgs, speed_monitor) -> LocalJobManager:

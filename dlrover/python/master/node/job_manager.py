@@ -120,6 +120,14 @@ class JobManager(metaclass=ABCMeta):
     def early_stop(self):
         pass
 
+    @abstractclassmethod
+    def get_opt_strategy(self):
+        pass
+
+    @abstractclassmethod
+    def update_node_paral_config(self, node_type, node_id, paral_config):
+        pass
+
     def handle_training_failure(
         self, node_type, node_id, restart_count=-1, error_data="", level=""
     ):
