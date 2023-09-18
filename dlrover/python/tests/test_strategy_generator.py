@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
 import unittest
 from typing import Dict, List
 from unittest.mock import patch
@@ -54,9 +55,8 @@ class TestLocalStrategyGenerator(unittest.TestCase):
             "n_heads": 20,
             "n_embd": 1280,
         }
-
         dataloader_config = DataLoaderConfig(0, "simple_dataloader", 32, 2, 0)
-        optimizer_config = OptimizerConfig(0, 0)
+        optimizer_config = OptimizerConfig(1, "SGD", 0.01, 0.001)
         node_used_resources: Dict[str, List[List[Node]]] = {}
         node_used_resources[NodeType.WORKER] = []
         simple_node = Node(node_type="worker", node_id=0)
@@ -72,7 +72,7 @@ class TestLocalStrategyGenerator(unittest.TestCase):
             expected_dataloader_config = DataLoaderConfig(
                 1, "simple_dataloader", 177, 0, 0
             )
-            expected_optimizer_config = OptimizerConfig(5, 6)
+            expected_optimizer_config = OptimizerConfig(2, "SGD", 0.01*math.sqrt(177/32), 0.001*math.sqrt(177/32))
 
             result = self._strategy_generator.generate_opt_strategy(
                 gpu_stats, model_config
