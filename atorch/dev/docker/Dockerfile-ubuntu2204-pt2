@@ -49,12 +49,16 @@ RUN echo "/usr/local/cuda/lib" >> /etc/ld.so.conf.d/nvidia.conf && \
     cat handle_driver_compat.sh >> /etc/bashrc && \
     rm -rf handle_driver_compat.sh
 
+# ibutils
+RUN apt-get install -y ibverbs-utils rdma-core && \
+    apt-get install -y pciutils net-tools opensm
+
 ##############################################################################
 # apex, flash-attention, fastmoe
 # Apex: 623315a5d1b47b0addf00bbfd15017e5605750bc
 # aistudio
 ##############################################################################
-FROM util-base as atorch-fa-base
+FROM torch-base as atorch-fa-base
 ENV USE_NCCL=1
 ARG TORCH_CUDA_ARCH_LIST="6.0 7.0 7.5 8.0 8.6+PTX"
 # RUN yum install libnccl-2.16.2-1+cuda11.0 libnccl-devel-2.16.2-1+cuda11.0 -y && \
@@ -77,6 +81,7 @@ RUN wget -O catapult.tar.gz https://dlrover.oss-cn-beijing.aliyuncs.com/atorch/l
 ##############################################################################
 # atorch install
 ##############################################################################
+FROM atorch-fa-base as atorch-base
 COPY atorch/requirements.txt ./
 RUN pip install -r requirements.txt -i https://pypi.antfin-inc.com/simple && \
     pip install pre-commit grpcio grpcio-tools  -i https://pypi.antfin-inc.com/simple && \
