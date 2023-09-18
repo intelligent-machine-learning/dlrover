@@ -396,6 +396,7 @@ class OptimizerConfig(Message):
     version: int = 0
     optimizer_name: str = ""
     learning_rate: float = 0.0
+    weight_decay: float = 0.0
 
 
 @dataclass
