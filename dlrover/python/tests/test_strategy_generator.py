@@ -72,7 +72,9 @@ class TestLocalStrategyGenerator(unittest.TestCase):
             expected_dataloader_config = DataLoaderConfig(
                 1, "simple_dataloader", 177, 0, 0
             )
-            expected_optimizer_config = OptimizerConfig(2, "SGD", 0.01*math.sqrt(177/32), 0.001*math.sqrt(177/32))
+            expected_optimizer_config = OptimizerConfig(
+                2, "SGD", 0.01*math.sqrt(177/32), 0.001*math.sqrt(177/32)
+            )
 
             result = self._strategy_generator.generate_opt_strategy(
                 gpu_stats, model_config

@@ -36,13 +36,13 @@ mock_model_config = {
     "n_heads": 20,
     "n_embd": 1280,
 }
-mock_batch_sizes = [ 2,4,16 ]
 mock_optimizer_config = OptimizerConfig(
     version=1,
     optimizer_name="SGD",
     learning_rate=0.01,
     weight_decay=0.001
 )
+
 
 class SimpleStrategyGenerator(StrategyGenerator):
     """
@@ -129,13 +129,13 @@ class SimpleStrategyGenerator(StrategyGenerator):
                 0,
                 0,
             )
-            
+
             try:
                 ratio = updated_batch_size / batch_size
             except ZeroDivisionError:
                 ratio = 1
             coefficient = math.sqrt(ratio)
-        
+
             update_version = optimizer_config.version + 1
             update_learning_rate = optimizer_config.learning_rate * coefficient
             update_weight_decay = optimizer_config.weight_decay * coefficient
@@ -148,7 +148,9 @@ class SimpleStrategyGenerator(StrategyGenerator):
                 update_learning_rate,
                 update_weight_decay,
             )
-            return ParallelConfig(update_dataloader_config, update_optimizer_config)
+            return ParallelConfig(
+                update_dataloader_config, update_optimizer_config
+            )
 
     def _extract_node_resource(self) -> Dict[str, List[List[Node]]]:
         stats = self._stats_collector.get_runtime_stats()

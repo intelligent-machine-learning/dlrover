@@ -25,4 +25,3 @@ class StrategyGenerator(metaclass=ABCMeta):
     @abstractmethod
     def _generate_paral_config(self, gpu_stats):
         pass
-
