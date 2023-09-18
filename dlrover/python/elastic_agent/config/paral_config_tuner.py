@@ -79,12 +79,11 @@ class ParalConfigTuner(object):
                 content = json_file.read()
                 json_data = json.loads(content)
             # if we find the instance_name in the JSON file, create it
-            items = json_data.items()
-            for item in items:
-                if item[0] == "dataloader":
-                    dataloader = DataLoaderConfig(**(item[1]))
-                elif item[0] == "optimizer":
-                    optimizer = OptimizerConfig(**(item[1]))
+            for key, value in json_data.items():
+                if key == 'dataloader':
+                    dataloader = DataLoaderConfig(**(value))
+                elif key == 'optimizer':
+                    optimizer = OptimizerConfig(**(value))
             self.config = ParallelConfig(
                 dataloader=dataloader, optimizer=optimizer
             )
