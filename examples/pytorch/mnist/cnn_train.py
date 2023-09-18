@@ -135,7 +135,9 @@ def train(args):
             raise ValueError("fsdp requires cuda devices")
         model = DDP(model)
 
-    optimizer = optim.SGD(model.parameters(), lr=args.learning_rate)
+    optimizer = optim.SGD(
+        model.parameters(), lr=args.learning_rate, momentum=args.momentum
+    )
     scheduler = StepLR(optimizer, step_size=1, gamma=0.5)
 
     load_checkpoint(model, optimizer, sampler, CHEKPOINT_PATH, args.use_fsdp)
@@ -179,13 +181,13 @@ def train_epoch(
 
     for _, (data, target) in enumerate(train_loader):
         with elastic_trainer.step(fixed_batch_size):
+            optimizer.zero_grad()
             target = target.type(torch.LongTensor)
             data, target = data.to(device), target.to(device)
             output = model(data)
             loss = F.nll_loss(output, target)
             loss.backward()
             optimizer.step()
-            optimizer.zero_grad()
             train_step = elastic_trainer.num_steps
             if train_step % 20 == 0:
                 log_rank0("loss = {}, step = {}".format(loss, train_step))
@@ -207,23 +209,30 @@ def load_checkpoint(model, optimizer, sampler, ckpt_path, use_fsdp=False):
     print("Checkpoint loaded to rank0 CPU.")
     checkpoint = torch.load(ckpt_path)
     sampler.load_state_dict(checkpoint.get("sampler", {}))
-    model_state = checkpoint.get("model", {})
-    model.load_state_dict(model_state)
-    optim_state = checkpoint.get("optimizer", {})
+    model_state_dict = checkpoint.get("model", {})
+    model.load_state_dict(model_state_dict)
+    optim_state_dict = checkpoint.get("optimizer", {})
     if use_fsdp:
+        FSDP.set_state_dict_type(
+            model,
+            StateDictType.FULL_STATE_DICT,
+            FullStateDictConfig(rank0_only=True),
+        )
         # called from all ranks, though only rank0 has
         # a valid param for full_osd.
-        FSDP.scatter_full_optim_state_dict(optim_state, model)
+        optim_state_dict = FSDP.optim_state_dict_to_load(
+            optim_state_dict, model, optimizer
+        )
+        optimizer.load_state_dict(optim_state_dict)
     else:
-        optimizer.load_state_dict(optim_state)
+        optimizer.load_state_dict(optim_state_dict)
 
 
 def save_checkpoint(
     step, model, optimizer, data_loader, ckpt_path, use_fsdp=False
 ):
     log_rank0("Save checkpoint.")
-    msd = get_model_state(model, use_fsdp)
-    osd = get_optimizer_state(model, optimizer, use_fsdp)
+    msd, osd = get_model_optim_state(model, optimizer, use_fsdp)
     ssd = data_loader.sampler.state_dict(step, data_loader.batch_size)
     checkpoint = {"model": msd, "optimizer": osd, "sampler": ssd}
     rank = dist.get_rank()
@@ -231,26 +240,19 @@ def save_checkpoint(
         torch.save(checkpoint, ckpt_path)
 
 
-def get_model_state(model, use_fsdp=False):
+def get_model_optim_state(model, optimizer, use_fsdp=False):
     if use_fsdp:
-        save_policy = FullStateDictConfig(offload_to_cpu=True, rank0_only=True)
-        with FSDP.state_dict_type(
+        FSDP.set_state_dict_type(
             model,
             StateDictType.FULL_STATE_DICT,
-            save_policy,
-        ):
-            model_state = model.state_dict()
+            FullStateDictConfig(rank0_only=True),
+        )
+        model_state = model.state_dict()
+        optim_state = FSDP.optim_state_dict(model, optimizer)
     else:
         model_state = model.state_dict()
-    return model_state
-
-
-def get_optimizer_state(model, optimizer, use_fsdp=False):
-    if use_fsdp:
-        optim_state = FSDP.full_optim_state_dict(model, optimizer)
-    else:
         optim_state = optimizer.state_dict()
-    return optim_state
+    return model_state, optim_state
 
 
 def test(model, device, test_loader):
@@ -292,6 +294,9 @@ def arg_parser():
     parser.add_argument("--use_fsdp", type=bool, default=False, required=False)
     parser.add_argument(
         "--fixed_batch_size", type=bool, default=True, required=False
+    )
+    parser.add_argument(
+        "--momentum", type=float, default=0.1, required=False
     )
     parser.add_argument(
         "--learning_rate", type=float, default=0.1, required=False
