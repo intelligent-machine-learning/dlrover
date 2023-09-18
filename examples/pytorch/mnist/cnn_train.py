@@ -295,9 +295,7 @@ def arg_parser():
     parser.add_argument(
         "--fixed_batch_size", type=bool, default=True, required=False
     )
-    parser.add_argument(
-        "--momentum", type=float, default=0.1, required=False
-    )
+    parser.add_argument("--momentum", type=float, default=0.1, required=False)
     parser.add_argument(
         "--learning_rate", type=float, default=0.1, required=False
     )
