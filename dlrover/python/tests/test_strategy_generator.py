@@ -55,7 +55,9 @@ class TestLocalStrategyGenerator(unittest.TestCase):
             "n_heads": 20,
             "n_embd": 1280,
         }
-        dataloader_config = DataLoaderConfig(0, "simple_dataloader", 32, 2, 0)
+        dataloader_config = DataLoaderConfig(
+            0, "simple_dataloader", 0, 32, 2, 0
+        )
         optimizer_config = OptimizerConfig(1, "SGD", 0.01, 0.001)
         node_used_resources: Dict[str, List[List[Node]]] = {}
         node_used_resources[NodeType.WORKER] = []
@@ -70,7 +72,7 @@ class TestLocalStrategyGenerator(unittest.TestCase):
         ) as mock_extract_node_resource:
             mock_extract_node_resource.return_value = node_used_resources
             expected_dataloader_config = DataLoaderConfig(
-                1, "simple_dataloader", 177, 0, 0
+                1, "simple_dataloader", 32, 177, 0, 0
             )
             expected_optimizer_config = OptimizerConfig(
                 2,
