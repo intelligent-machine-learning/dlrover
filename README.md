@@ -34,12 +34,6 @@ to improve the training performance and resources utilization.
 
 ## Why DLRover?
 
-<div align="center">
-   <a href="https://www.bilibili.com/video/BV1Nk4y1N7fx/?vd_source=603516da01339dc75fb908e1cce180c7">
-   <img src="docs/figures/dlrover-cover.jpg" width="700" />
-   </a>
-</div>
-
 ### Fault Tolerance to Improve the Stability of Job
 
 DLRover can restore the training when the process fails without stopping the
@@ -61,15 +55,11 @@ install  packages on all nodes.
 |       Restore action      |        Restart Job        |        Restart failed nodes       |      Restart training process     |
 |  Schedule node, pull image and install packages   |  All nodes |       Only new nodes      |                 No                |
 | Node health check         |            No             | All nodes execute a simple allgtather task | All nodes execute a allgtather simple task |
-| Build communication world |            Yes            |                Yes                |                Yes                |
-|   Start training process  |            Yes            |                Yes                |                Yes                |
-|     Restore checkpoint    |            Yes            |                Yes                |                Yes                |
-
+| Start training process    |            Yes            |                Yes                |                Yes                |
 
 <div align="center">
 <img src="docs/figures/dlrover-allreduce-ft.jpg" alt="Editor" width="600">
 </div>
-
 
 #### Fault Tolerance of TensorFlow PS Distributed Training
 
@@ -96,11 +86,6 @@ NaN loss of the model, network breakdown, and so on.
 <div align="center">
 <img src="docs/figures/job-complete-rate.png" alt="Editor" width="600">
 </div>
-
-### No Resource Configuration to Submit a Job
-
-Compared with Training Job (e.g., TensorFlow, PyTorch etc) in Kubeflow,
-Users can submit a distributed TensorFlow PS job without any resource configuration.
 
 ### Auto-Scaling to Improve Training Performance and Resource Utilization
 
@@ -167,7 +152,7 @@ Here, the `WORKER_NUM` is the number of nodes like worker Pods in a k8s cluster.
 Users can also use DLRover locally like.
 
 ```bash
-dlrover-run --standalone --nproc_per_node=$$NUM_TRAINERS
+dlrover-run --standalone --nproc_per_node=$NUM_TRAINERS
     train_scripts.py
 ```
 
