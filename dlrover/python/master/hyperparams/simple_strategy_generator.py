@@ -35,9 +35,6 @@ mock_model_config = {
     "n_heads": 20,
     "n_embd": 1280,
 }
-mock_optimizer_config = OptimizerConfig(
-    version=1, optimizer_name="SGD", learning_rate=0.01, weight_decay=0.001
-)
 
 
 class SimpleStrategyGenerator(StrategyGenerator):
@@ -135,6 +132,8 @@ class SimpleStrategyGenerator(StrategyGenerator):
         batch_size = dataloader_config.batch_size
         last_batch_size = dataloader_config.last_batch_size
 
+        # Calculate the ratio between the latest batch_size
+        # and the previous batch_size
         try:
             ratio = batch_size / last_batch_size
         except ZeroDivisionError:
@@ -142,7 +141,14 @@ class SimpleStrategyGenerator(StrategyGenerator):
         coefficient = math.sqrt(ratio)
 
         update_version = optimizer_config.version + 1
+
+        # update_learning_rate = learning_rate * sqrt(ratio)
         update_learning_rate = optimizer_config.learning_rate * coefficient
+
+        # When the learning_rate is small
+        # update_weight_decay approximates to weight_decay * sqrt(ratio)
+        # In order to mitigate the absolute error of the original formula
+        # we set update_weight_decay = weight_decay * sqrt(ratio)
         update_weight_decay = optimizer_config.weight_decay * coefficient
 
         logger.info(
