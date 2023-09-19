@@ -65,6 +65,12 @@ install  packages on all nodes.
 |   Start training process  |            Yes            |                Yes                |                Yes                |
 |     Restore checkpoint    |            Yes            |                Yes                |                Yes                |
 
+
+<div align="center">
+<img src="docs/figures/dlrover-allreduce-ft.jpg" alt="Editor" width="600">
+</div>
+
+
 #### Fault Tolerance of TensorFlow PS Distributed Training
 
 DLRover can recover failed parameter servers and workers to
@@ -94,31 +100,16 @@ NaN loss of the model, network breakdown, and so on.
 ### No Resource Configuration to Submit a Job
 
 Compared with Training Job (e.g., TensorFlow, PyTorch etc) in Kubeflow,
-Users can  submit a distributed training job without any resource configuration.
+Users can submit a distributed TensorFlow PS job without any resource configuration.
 
-<div align="center">
-<img src="docs/figures/dlrover_vs_tfjob.jpg" alt="Editor" width="600">
-</div>
-
-### Auto-Scaling to Improve Training Performance
+### Auto-Scaling to Improve Training Performance and Resource Utilization
 
 DLRover automatically scales up/down resources (for parameter servers or workers) at the runtime of a training job.
 By monitoring the workload of nodes and throughput, DLRover can diagnose the bottleneck of the resource configuration.
 The common bottleneck contains node straggler, the unbalanced workload of PS, insufficient CPU cores of nodes,
 and the insufficient number of nodes. DLRover can improve the training performance by dynamic resource adjustment.
 
-We use the dataset of [Kaggle CRITEO](https://www.kaggle.com/c/criteo-display-ad-challenge)
-to train Wide&Deep and xDeepFM with 10 epoches on a K8s cluster.
-DLRover can mitigate straggler to improve the training throughput
-and shorten the job competion time (JCT).
-
-<div align="center">
-<img src="docs/figures/exp-jct-deepctr.png" alt="Editor" width="600">
-</div>
-
-### Auto-Scaling to Improve Resource Utilization
-
-Different model training requires different resources. Users prefer to
+In order to improve the training througphput, users prefer to
 configure their jobs with over-provision resources to
 avoid any potential risk from insufficient resources.
 This usually ends up in huge resource waste. DLRover Auto-Scaling
@@ -164,12 +155,19 @@ Only by 2 steps, the user can use DLRover to run the training script which
 pip install dlrover[torch]
 ```
 
-- Use `dlrover-run` to run the training script.
+- Use `dlrover-run` to run the training script in the command of Pod container.
 
 ```bash
-dlrover-run
-    --nnodes=$NUM_NODES
-    --nproc_per_node=$$NUM_TRAINERS
+dlrover-run --nnodes=$WORKER_NUM --nproc_per_node=$NUM_TRAINERS
+    train_scripts.py
+```
+
+Here, the `WORKER_NUM` is the number of nodes like worker Pods in a k8s cluster.
+
+Users can also use DLRover locally like.
+
+```bash
+dlrover-run --standalone --nproc_per_node=$$NUM_TRAINERS
     train_scripts.py
 ```
 
