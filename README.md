@@ -140,25 +140,20 @@ Only by 2 steps, the user can use DLRover to run the training script which
 pip install dlrover[torch]
 ```
 
-- Use `dlrover-run` to run the training script in the command of Pod container.
+- Use `dlrover-run` to run the training script in the command of Pod container
+like the example [torch_mnist_job.yaml](examples/pytorch/mnist/elastic_job.yaml).
 
 ```bash
-dlrover-run --nnodes=$WORKER_NUM --nproc_per_node=$NUM_TRAINERS
-    train_scripts.py
+dlrover-run --nnodes=$WORKER_NUM --nproc_per_node=$NUM_TRAINERS train_scripts.py
 ```
 
 Here, the `WORKER_NUM` is the number of nodes like worker Pods in a k8s cluster.
 
-Users can also use DLRover locally like.
+Users can also use DLRover locally like
 
 ```bash
-dlrover-run --standalone --nproc_per_node=$NUM_TRAINERS
-    train_scripts.py
+dlrover-run --standalone --nproc_per_node=$NUM_TRAINERS train_scripts.py
 ```
-
-- Set the image and command in an ElasticJob yaml file to submit a job.
-We can refer to the example [torch_mnist_job.yaml](examples/pytorch/mnist/ddp_elastic_job.yaml)
-to make an ElasticJob yaml.
 
 ### Train a TensorFlow Model
 
