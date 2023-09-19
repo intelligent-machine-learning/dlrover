@@ -145,7 +145,7 @@ class SimpleStrategyGenerator(StrategyGenerator):
         # update_learning_rate = learning_rate * sqrt(ratio)
         update_learning_rate = optimizer_config.learning_rate * coefficient
 
-        # When the learning_rate is small
+        # When the learning_rate is very small
         # update_weight_decay approximates to weight_decay * sqrt(ratio)
         # In order to mitigate the absolute error of the original formula
         # we set update_weight_decay = weight_decay * sqrt(ratio)
