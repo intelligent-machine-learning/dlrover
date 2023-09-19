@@ -62,11 +62,17 @@ class SimpleStrategyGenerator(StrategyGenerator):
             for node in nodes:
                 gpu_stats = node.used_resource.gpu_stats
                 paral_config = node.paral_config
-                paral_configs[node.id] = self._generate_paral_config(
+                dataloader = self._generate_dataloader_config(
                     gpu_stats,
                     model_config,
                     paral_config.dataloader,
+                )
+                optimizer = self._generate_optimizer_config(
+                    dataloader,
                     paral_config.optimizer,
+                )
+                paral_configs[node.id] = ParallelConfig(
+                    dataloader, optimizer
                 )
                 node.paral_config = paral_configs[node.id]
         if paral_configs == {}:
@@ -76,11 +82,11 @@ class SimpleStrategyGenerator(StrategyGenerator):
             logger.info(f"paral_configs: {paral_configs}")
             return paral_configs[0]
 
-    def _generate_paral_config(
-        self, gpu_stats, model_config, dataloader_config, optimizer_config
+    def _generate_dataloader_config(
+        self, gpu_stats, model_config, dataloader_config
     ):
         if gpu_stats == []:
-            return ParallelConfig(dataloader_config, optimizer_config)
+            return dataloader_config
         # Calculate the minimum remaining memory among GPUs
         min_remain_memory = min(
             entry.total_memory_mb - entry.used_memory_mb for entry in gpu_stats
@@ -118,34 +124,40 @@ class SimpleStrategyGenerator(StrategyGenerator):
                 updated_batch_size = batch_size
 
             logger.info(f"updated_batch_size: {updated_batch_size}")
-            update_dataloader_config = DataLoaderConfig(
+            return DataLoaderConfig(
                 updated_version,
                 dataloader_config.dataloader_name,
+                batch_size,
                 updated_batch_size,
                 0,
                 0,
             )
 
-            try:
-                ratio = updated_batch_size / batch_size
-            except ZeroDivisionError:
-                ratio = 1
-            coefficient = math.sqrt(ratio)
+    def _generate_optimizer_config(
+        self, dataloader_config, optimizer_config
+    ):
+        batch_size = dataloader_config.batch_size
+        last_batch_size = dataloader_config.last_batch_size
 
-            update_version = optimizer_config.version + 1
-            update_learning_rate = optimizer_config.learning_rate * coefficient
-            update_weight_decay = optimizer_config.weight_decay * coefficient
+        try:
+            ratio = batch_size / last_batch_size
+        except ZeroDivisionError:
+            ratio = 1
+        coefficient = math.sqrt(ratio)
 
-            logger.info(f"update_learning_rate: {update_learning_rate}")
-            logger.info(f"update_weight_decay: {update_weight_decay}")
-            update_optimizer_config = OptimizerConfig(
+        update_version = optimizer_config.version + 1
+        update_learning_rate = optimizer_config.learning_rate * coefficient
+        update_weight_decay = optimizer_config.weight_decay * coefficient
+
+        logger.info(
+            f"Update optimizer with learning rate {update_learning_rate} "
+            f"and weight decay {update_weight_decay}"
+        )
+        return OptimizerConfig(
                 update_version,
                 optimizer_config.optimizer_name,
                 update_learning_rate,
                 update_weight_decay,
-            )
-            return ParallelConfig(
-                update_dataloader_config, update_optimizer_config
             )
 
     def _extract_node_resource(self) -> Dict[str, List[List[Node]]]:
