@@ -71,9 +71,7 @@ class SimpleStrategyGenerator(StrategyGenerator):
                     dataloader,
                     paral_config.optimizer,
                 )
-                paral_configs[node.id] = ParallelConfig(
-                    dataloader, optimizer
-                )
+                paral_configs[node.id] = ParallelConfig(dataloader, optimizer)
                 node.paral_config = paral_configs[node.id]
         if paral_configs == {}:
             logger.info("paral_configs length is 0")
@@ -133,9 +131,7 @@ class SimpleStrategyGenerator(StrategyGenerator):
                 0,
             )
 
-    def _generate_optimizer_config(
-        self, dataloader_config, optimizer_config
-    ):
+    def _generate_optimizer_config(self, dataloader_config, optimizer_config):
         batch_size = dataloader_config.batch_size
         last_batch_size = dataloader_config.last_batch_size
 
@@ -154,11 +150,11 @@ class SimpleStrategyGenerator(StrategyGenerator):
             f"and weight decay {update_weight_decay}"
         )
         return OptimizerConfig(
-                update_version,
-                optimizer_config.optimizer_name,
-                update_learning_rate,
-                update_weight_decay,
-            )
+            update_version,
+            optimizer_config.optimizer_name,
+            update_learning_rate,
+            update_weight_decay,
+        )
 
     def _extract_node_resource(self) -> Dict[str, List[List[Node]]]:
         stats = self._stats_collector.get_runtime_stats()
