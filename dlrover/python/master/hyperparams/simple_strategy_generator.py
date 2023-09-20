@@ -142,7 +142,8 @@ class SimpleStrategyGenerator(StrategyGenerator):
 
         update_version = optimizer_config.version + 1
 
-        # update_learning_rate = learning_rate * sqrt(ratio)
+        # When the batch size is increased by a factor of ratio
+        # increase the learning rate by a factor of sqrt(ratio)
         update_learning_rate = optimizer_config.learning_rate * coefficient
 
         # When the learning_rate is very small
