@@ -134,22 +134,18 @@ class ResourceMonitor(object):
                 "NVIDIA NVML library not found. "
                 "GPU monitoring features will be disabled."
             )
-        except pynvml.NVML_Error as e:
+        except pynvml.NVML_ERROR_UNKNOWN as e:
             logger.error(
-                f"An error occurred while initializing NVIDIA NVML: {e}"
+                f"An unknown error occurred during NVML initializing: {e}"
             )
         except Exception as e:
             logger.exception(
-                f"An unexpected error occurred during NVML shutdown: {e}"
+                f"An unexpected error occurred during NVML initializing: {e}"
             )
 
     def shutdown_gpu_monitor(self):
         try:
             pynvml.nvmlShutdown()
-        except pynvml.NVML_Error as e:
-            logger.error(
-                f"An error occurred while shutting down NVIDIA NVML: {e}"
-            )
         except Exception as e:
             logger.exception(
                 f"An unexpected error occurred during NVML shutdown: {e}"
