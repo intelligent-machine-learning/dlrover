@@ -386,6 +386,7 @@ class DataLoaderConfig(Message):
 
     version: int = 0
     dataloader_name: str = ""
+    last_batch_size: int = 0
     batch_size: int = 0
     num_workers: int = 0
     pin_memory: int = 0
@@ -396,6 +397,7 @@ class OptimizerConfig(Message):
     version: int = 0
     optimizer_name: str = ""
     learning_rate: float = 0.0
+    weight_decay: float = 0.0
 
 
 @dataclass
