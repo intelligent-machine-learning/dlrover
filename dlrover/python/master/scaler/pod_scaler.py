@@ -601,6 +601,7 @@ class PodScaler(Scaler):
         main_container.env = env
         main_container.lifecycle = lifecycle
         pod.spec.priority_class_name = priority
+        pod.spec.restart_policy = "Never"
         pod.spec.termination_grace_period_seconds = termination_period
         pod.metadata = client.V1ObjectMeta(
             name=name,
