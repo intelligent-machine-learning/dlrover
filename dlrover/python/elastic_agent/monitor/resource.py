@@ -134,7 +134,7 @@ class ResourceMonitor(object):
                 "NVIDIA NVML library not found. "
                 "GPU monitoring features will be disabled."
             )
-        except pynvml.NVML_ERROR_UNKNOWN as e:
+        except pynvml.NVMLError_Unknown as e:
             logger.error(
                 f"An unknown error occurred during NVML initializing: {e}"
             )
