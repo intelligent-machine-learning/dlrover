@@ -641,27 +641,39 @@ class NetworkCheckElasticAgent(ElasticTrainingAgent):
             f"{spec.get_entrypoint_name()}"
         )
         success = False
+        total_worker_num = len(self._client.get_running_nodes())
         for i in range(self._check_round):
-            result = self._run_network_check(spec.monitor_interval)
-            logger.info(f"Network check round {i} is {result}")
+            result, elapsed_time = self._run_node_check()
+            logger.info(f"Straggler check time of round {i} is {elapsed_time}")
             status = NodeStatus.SUCCEEDED if result else NodeStatus.FAILED
-            self._client.report_node_status(self._rank_id, status)
+            self._client.report_network_status(
+                self._rank_id,
+                status,
+                elapsed_time,
+            )
             success = success or result
-            network_ready = self._client.network_check_success()
+            no_fault_node = self._client.network_check_success()
+            no_straggler = self._client.check_straggler()
             self._stop_workers(self._worker_group)
-            if network_ready:
-                return True
-            else:
-                total_worker_num = len(self._client.get_running_nodes())
-                # If the number of nodes <= 2, we cannot determine which node
-                # breakdowns because there is no normal node in the job to
-                # execute allgather tasks with the two nodes.
+            if not no_fault_node:
                 if total_worker_num <= 2:
+                    # If the number of nodes <= 2, we cannot determine which
+                    # node if fault because there is no normal node in the job
+                    # to execute allgather tasks with the two nodes.
                     logger.error(
                         "Fail to check network when there are only 2 nodes."
                     )
                     raise RuntimeError("The node network is breakdown.")
-            time.sleep(1)
+                else:
+                    # Run the next round check to detect the fault node.
+                    time.sleep(3)
+                    continue
+            elif not no_straggler and self._config.check_straggler:
+                # Run the next round check to detect the straggler.
+                time.sleep(3)
+                continue
+            else:
+                return True
         if not success:
             self._client.report_failures(
                 NodeErrorMessage.NETWORKER_ERROR,
@@ -670,9 +682,10 @@ class NetworkCheckElasticAgent(ElasticTrainingAgent):
             raise RuntimeError("The node network is breakdown.")
         return False
 
-    def _run_network_check(self, monitor_interval, timeout=300):
+    def _run_node_check(self, monitor_interval=3, timeout=300):
         self._initialize_workers(self._worker_group)
         start = time.time()
+        succeed = False
         while True:
             assert self._worker_group.state != WorkerState.INIT
             time.sleep(monitor_interval)
@@ -682,9 +695,17 @@ class NetworkCheckElasticAgent(ElasticTrainingAgent):
             if state == WorkerState.HEALTHY:
                 if time.time() - start > timeout:
                     logger.error(f"Timeout {timeout} to check network.")
-                    return False
+                    break
                 continue
-            return state == WorkerState.SUCCEEDED
+            elif state == WorkerState.SUCCEEDED:
+                succeed = True
+                break
+            else:
+                break
+        elapsed_time = time.time() - start
+        if not succeed:
+            elapsed_time = 3600
+        return succeed, elapsed_time
 
 
 def network_check(

@@ -163,7 +163,7 @@ class NcclCheckRendezvousManagerTest(unittest.TestCase):
         group, world = rdzv_manager.get_comm_world(1)
         self.assertDictEqual(world, {1: 8, 2: 8})
         self.assertEqual(group, 1)
-        success, _ = rdzv_manager.network_check_success()
+        success, _ = rdzv_manager.fault_node_existed()
         self.assertFalse(success)
 
         for i in range(4):
@@ -171,10 +171,10 @@ class NcclCheckRendezvousManagerTest(unittest.TestCase):
         self.assertEqual(round, 2)
         group, world = rdzv_manager.get_comm_world(3)
         self.assertDictEqual(world, {2: 8, 3: 8})
-        _, reason = rdzv_manager.network_check_success()
+        _, reason = rdzv_manager.fault_node_existed()
         self.assertEqual(reason, NetworkFailureReason.WAITING_NODE)
         for i in range(3):
             rdzv_manager.report_network_check_result(i, True)
         rdzv_manager.report_network_check_result(3, True)
-        success, _ = rdzv_manager.network_check_success()
+        success, _ = rdzv_manager.fault_node_existed()
         self.assertTrue(success)

@@ -324,6 +324,21 @@ class MasterClient(object):
             break
         return result.success
 
+    def check_straggler(self, timeout=300):
+        request = grpc.StragglerExistRequest()
+        start = time.time()
+        while True:
+            result: grpc.StragglerNodes = self._get(request)
+            if (
+                result.reason == NetworkFailureReason.WAITING_NODE
+                and time.time() - start < timeout
+            ):
+                time.sleep(5)
+                continue
+            break
+        no_straggler = not result.nodes
+        return no_straggler
+
     def report_rdzv_params(
         self, min_nodes, max_nodes, waiting_timeout, node_unit
     ):
@@ -336,8 +351,10 @@ class MasterClient(object):
         response = self._report(message)
         return response.success
 
-    def report_node_status(self, rank_id, status):
-        message = grpc.NodeStatus(rank=rank_id, status=status)
+    def report_network_status(self, rank_id, status, elasped_time):
+        message = grpc.NetworkStatus(
+            rank=rank_id, status=status, elasped_time=elasped_time
+        )
         self._report(message)
 
     def report_failures(self, error_data, restart_count=-1, level=""):

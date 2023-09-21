@@ -33,6 +33,7 @@ from dlrover.python.master.elastic_training.kv_store_service import (
     KVStoreService,
 )
 from dlrover.python.master.elastic_training.rdzv_manager import (
+    NetworkCheckRendezvousManager,
     RendezvousManager,
 )
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
@@ -107,6 +108,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             message = self._num_nodes_waiting()
         elif isinstance(req_message, grpc.NetworkReadyRequest):
             message = self._network_check_success()
+        elif isinstance(req_message, grpc.StragglerExistRequest):
+            message = self._get_straggler_nodes()
         elif isinstance(req_message, grpc.JoinRendezvousRequest):
             message = self._join_rendezvous(req_message)
         elif isinstance(req_message, grpc.CommWorldRequest):
@@ -213,9 +216,19 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         return res
 
     def _network_check_success(self):
-        net_rdzv_manager = self._rdzv_managers[RendezvousName.NETWORK_CHECK]
-        success, reason = net_rdzv_manager.network_check_success()
+        rdzv_manager: NetworkCheckRendezvousManager = self._rdzv_managers[
+            RendezvousName.NETWORK_CHECK
+        ]
+        success, reason = rdzv_manager.fault_node_existed()
         res = grpc.NetworkReady(success=success, reason=reason)
+        return res
+
+    def _get_straggler_nodes(self):
+        rdzv_manager: NetworkCheckRendezvousManager = self._rdzv_managers[
+            RendezvousName.NETWORK_CHECK
+        ]
+        nodes, reason = rdzv_manager.get_straggler()
+        res = grpc.StragglerNodes(nodes=nodes, reason=reason)
         return res
 
     def _join_rendezvous(self, request: grpc.JoinRendezvousRequest):
@@ -280,7 +293,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             success = self._update_cluster_version(message)
         elif isinstance(message, grpc.NodeAddress):
             success = self._update_node_address(message)
-        elif isinstance(message, grpc.NodeStatus):
+        elif isinstance(message, grpc.NetworkStatus):
             success = self._update_node_status(message)
         elif isinstance(message, grpc.NodeEvent):
             success = self._update_node_event(message)
@@ -446,13 +459,15 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         )
         return True
 
-    def _update_node_status(self, message: grpc.NodeStatus):
+    def _update_node_status(self, message: grpc.NetworkStatus):
         net_rdzv_manager = self._rdzv_managers.get(
             RendezvousName.NETWORK_CHECK, None
         )
         if net_rdzv_manager:
             succeed = message.status == NodeStatus.SUCCEEDED
-            net_rdzv_manager.report_network_check_result(message.rank, succeed)
+            net_rdzv_manager.report_network_check_result(
+                message.rank, succeed, message.elasped_time
+            )
         return True
 
     def _update_node_event(self, message: grpc.NodeEvent):

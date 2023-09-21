@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import argparse
 import os
 import time
 from datetime import timedelta
@@ -19,6 +20,9 @@ import torch
 import torch.distributed as dist
 
 from dlrover.python.common.log import default_logger as logger
+
+FAULT_CHECK_TASK = "fault-check"
+STRAGGLER_CHECK_TASK = "straggler-check"
 
 
 def bm_all_gather(shape, use_cuda):
@@ -29,24 +33,60 @@ def bm_all_gather(shape, use_cuda):
     tensor_list = [
         torch.zeros_like(data).to(device) for _ in range(world_size)
     ]
+
     start = int(time.time())
     for _ in range(10):
         dist.all_gather(tensor_list, data)
-    end = time.time()
-    if local_rank == 0:
-        logger.info(f"Test allgather costs {end - start}s")
+    elapsed_time = time.time() - start
+    return elapsed_time
 
 
-def main(use_cuda):
-    shape = 1 << 20
-    bm_all_gather(shape, use_cuda)
+def matmul(use_cuda):
+    local_rank = int(os.environ["LOCAL_RANK"])
+    device = torch.device(f"cuda:{local_rank}" if use_cuda else "cpu")
+    tensor1 = torch.randn(10, 4096, 1024).to(device)
+    tensor2 = torch.randn(10, 1024, 4096).to(device)
+
+    start = int(time.time())
+    for _ in range(10):
+        torch.matmul(tensor1, tensor2)
+    elapsed_time = time.time() - start
+    return elapsed_time
 
 
-if __name__ == "__main__":
+def main(task):
     use_cuda = torch.cuda.is_available()
     if use_cuda:
         dist.init_process_group("nccl", timeout=timedelta(seconds=180))
     else:
         dist.init_process_group("gloo", timeout=timedelta(seconds=180))
-    main(use_cuda)
-    logger.info("Finish testing allgather.")
+    if task == FAULT_CHECK_TASK:
+        shape = 1 << 20
+        elapsed_time = bm_all_gather(shape, use_cuda)
+    elif task == STRAGGLER_CHECK_TASK:
+        shape = 1 << 24
+        elapsed_time = matmul(use_cuda)
+        elapsed_time += bm_all_gather(shape, use_cuda)
+    local_rank = int(os.environ["LOCAL_RANK"])
+    if local_rank == 0:
+        logger.info(f"Test costs {elapsed_time}s")
+    return elapsed_time
+
+
+def arg_parser():
+    parser = argparse.ArgumentParser(description="Network checker")
+    parser.add_argument(
+        "--task",
+        type=str,
+        default=FAULT_CHECK_TASK,
+        choices=[FAULT_CHECK_TASK, STRAGGLER_CHECK_TASK],
+        required=False,
+    )
+    return parser
+
+
+if __name__ == "__main__":
+    parser = arg_parser()
+    args = parser.parse_args()
+    main(args.task)
+    logger.info("Finish testing machine.")

@@ -122,7 +122,7 @@ class MasterClientTest(unittest.TestCase):
         success = self._master_client.barrier("test-barrier", True)
         self.assertFalse(success)
 
-        self._master_client.report_node_status(0, NodeStatus.SUCCEEDED)
+        self._master_client.report_network_status(0, NodeStatus.SUCCEEDED, 10)
 
     def test_get(self):
         nodes, failure = self._master_client.query_ps_nodes()
@@ -137,7 +137,7 @@ class MasterClientTest(unittest.TestCase):
         self.assertEqual(nodes[0].type, NodeType.WORKER)
 
         success = self._master_client.network_check_success()
-        self.assertFalse(success)
+        self.assertTrue(success)
 
         round = self._master_client.join_rendezvous(0, 8, "elastic-training")
         self.assertEqual(round, 0)
