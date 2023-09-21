@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
 from typing import Dict, List
 
 from dlrover.python.common.constants import NodeType
@@ -58,13 +59,16 @@ class SimpleStrategyGenerator(StrategyGenerator):
             for node in nodes:
                 gpu_stats = node.used_resource.gpu_stats
                 paral_config = node.paral_config
-                data_loader_config = self._generate_dataloader_config(
-                    gpu_stats, model_config, paral_config.dataloader
+                dataloader = self._generate_dataloader_config(
+                    gpu_stats,
+                    model_config,
+                    paral_config.dataloader,
                 )
-                optimizer_config = self._generate_optimizer_config()
-                paral_configs[node.id] = ParallelConfig(
-                    data_loader_config, optimizer_config
+                optimizer = self._generate_optimizer_config(
+                    dataloader,
+                    paral_config.optimizer,
                 )
+                paral_configs[node.id] = ParallelConfig(dataloader, optimizer)
                 node.paral_config = paral_configs[node.id]
         if paral_configs == {}:
             logger.info("paral_configs length is 0")
@@ -118,15 +122,46 @@ class SimpleStrategyGenerator(StrategyGenerator):
             return DataLoaderConfig(
                 updated_version,
                 dataloader_config.dataloader_name,
+                batch_size,
                 updated_batch_size,
                 0,
                 0,
             )
-        else:
-            return dataloader_config
 
-    def _generate_optimizer_config(self):
-        return OptimizerConfig(5, 6)
+    def _generate_optimizer_config(self, dataloader_config, optimizer_config):
+        batch_size = dataloader_config.batch_size
+        last_batch_size = dataloader_config.last_batch_size
+
+        # Calculate the ratio between the latest batch_size
+        # and the previous batch_size
+        try:
+            ratio = batch_size / last_batch_size
+        except ZeroDivisionError:
+            ratio = 1
+        coefficient = math.sqrt(ratio)
+
+        update_version = optimizer_config.version + 1
+
+        # When the batch size is increased by a factor of ratio
+        # increase the learning rate by a factor of sqrt(ratio)
+        update_learning_rate = optimizer_config.learning_rate * coefficient
+
+        # When the learning_rate is very small
+        # update_weight_decay approximates to weight_decay * sqrt(ratio)
+        # In order to mitigate the absolute error of the original formula
+        # we set update_weight_decay = weight_decay * sqrt(ratio)
+        update_weight_decay = optimizer_config.weight_decay * coefficient
+
+        logger.info(
+            f"Update optimizer with learning rate {update_learning_rate} "
+            f"and weight decay {update_weight_decay}"
+        )
+        return OptimizerConfig(
+            update_version,
+            optimizer_config.optimizer_name,
+            update_learning_rate,
+            update_weight_decay,
+        )
 
     def _extract_node_resource(self) -> Dict[str, List[List[Node]]]:
         stats = self._stats_collector.get_runtime_stats()
