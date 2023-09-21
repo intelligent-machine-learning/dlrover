@@ -219,7 +219,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         rdzv_manager: NetworkCheckRendezvousManager = self._rdzv_managers[
             RendezvousName.NETWORK_CHECK
         ]
-        success, reason = rdzv_manager.fault_node_existed()
+        success, reason = rdzv_manager.check_no_fault_node()
         res = grpc.NetworkReady(success=success, reason=reason)
         return res
 

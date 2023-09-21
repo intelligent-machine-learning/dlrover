@@ -293,7 +293,6 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                         self._node_status = {}
                     self._reported_nodes = set()
                     self._rdzv_round += 1
-
             for i, group in enumerate(self._node_groups):
                 if rank_id in group:
                     return i, group
@@ -323,10 +322,10 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                     node_groups.append(group)
         elif round == 1:
             self._check_abnormal_nodes()
-            group = {}
             node_times = sorted(self._node_times.items(), key=lambda x: x[1])
             left, right = 0, len(node_times) - 1
             while True:
+                group = {}
                 node0 = node_times[left][0]
                 node1 = node_times[right][0]
                 group[node0] = self._rdzv_nodes[node0]
@@ -342,7 +341,7 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                     node_groups[-1].update(group)
                 else:
                     node_groups.append(group)
-            return node_groups
+        return node_groups
 
     def _check_abnormal_nodes(self):
         abnormal_nodes = []
@@ -392,13 +391,13 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         self._straggler_nodes = []
         return super().join_rendezvous(rank_id, local_world_size)
 
-    def fault_node_existed(self):
+    def check_no_fault_node(self):
         """Check the network task is succeed. Each task contains 2 rounds
         allgather. If succeed, the round should be set to the multiples of 2.
         """
         with self._lock:
             reason = ""
-            success = False
+            no_fault_node = False
             if len(self._reported_nodes) < len(self._rdzv_nodes):
                 reason = NetworkFailureReason.WAITING_NODE
             elif self._fault_nodes:
@@ -409,17 +408,16 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                     if not status:
                         self._fault_nodes.append(node_id)
                 if self._fault_nodes:
-                    self._fault_node_existed = True
                     logger.warning(f"Fault nodes {self._fault_nodes}")
-                success = not self._fault_nodes
-                if success:
+                no_fault_node = not self._fault_nodes
+                if no_fault_node:
                     self._rdzv_round = (
                         math.ceil(self._rdzv_round / self._check_round)
                         * self._check_round
                     )
                 else:
                     reason = NetworkFailureReason.NODE_FAILURE
-            return success, reason
+            return no_fault_node, reason
 
     def get_straggler(self):
         """Detect whether there is the straggler according to the

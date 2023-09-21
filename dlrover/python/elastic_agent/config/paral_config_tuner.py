@@ -55,6 +55,8 @@ class ParalConfigTuner(object):
         """
         while True:
             local_config = self._read_paral_config(self.config_path)
+            if not self._master_client:
+                break
             self._master_client.report_paral_config(local_config)
             time.sleep(30)
             config: ParallelConfig = self._master_client.get_paral_config()

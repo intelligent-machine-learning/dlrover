@@ -152,8 +152,8 @@ class NcclCheckRendezvousManagerTest(unittest.TestCase):
         self.assertDictEqual(world, {2: 8, 3: 8})
         self.assertEqual(group, 1)
         for i in range(3):
-            rdzv_manager.report_network_check_result(i, True)
-        rdzv_manager.report_network_check_result(3, False)
+            rdzv_manager.report_network_check_result(i, True, 0.0)
+        rdzv_manager.report_network_check_result(3, False, 0.0)
 
         for i in range(4):
             round = rdzv_manager.join_rendezvous(i, 8)
@@ -163,7 +163,7 @@ class NcclCheckRendezvousManagerTest(unittest.TestCase):
         group, world = rdzv_manager.get_comm_world(1)
         self.assertDictEqual(world, {1: 8, 2: 8})
         self.assertEqual(group, 1)
-        success, _ = rdzv_manager.fault_node_existed()
+        success, _ = rdzv_manager.check_no_fault_node()
         self.assertFalse(success)
 
         for i in range(4):
@@ -171,10 +171,54 @@ class NcclCheckRendezvousManagerTest(unittest.TestCase):
         self.assertEqual(round, 2)
         group, world = rdzv_manager.get_comm_world(3)
         self.assertDictEqual(world, {2: 8, 3: 8})
-        _, reason = rdzv_manager.fault_node_existed()
+        _, reason = rdzv_manager.check_no_fault_node()
         self.assertEqual(reason, NetworkFailureReason.WAITING_NODE)
         for i in range(3):
-            rdzv_manager.report_network_check_result(i, True)
-        rdzv_manager.report_network_check_result(3, True)
-        success, _ = rdzv_manager.fault_node_existed()
+            rdzv_manager.report_network_check_result(i, True, 0.0)
+        rdzv_manager.report_network_check_result(3, True, 0.0)
+        success, _ = rdzv_manager.check_no_fault_node()
         self.assertTrue(success)
+
+    def test_network_check_rdzv_with_single_node(self):
+        rdzv_manager = NetworkCheckRendezvousManager()
+        rdzv_manager.update_rdzv_params(1, 1, 60, 1)
+        rdzv_manager._alive_nodes = [0]
+        round = rdzv_manager.join_rendezvous(0, 8)
+        self.assertEqual(round, 0)
+        _, world = rdzv_manager.get_comm_world(0)
+        self.assertDictEqual(world, {0: 8})
+        rdzv_manager.report_network_check_result(0, True, 0.0)
+        existed, _ = rdzv_manager.check_no_fault_node()
+        self.assertTrue(existed)
+
+    def test_network_check_straggler(self):
+        rdzv_manager = NetworkCheckRendezvousManager()
+        rdzv_manager.update_rdzv_params(6, 6, 60, 1)
+        rdzv_manager._alive_nodes = [0, 1, 2, 3, 4, 5]
+        for i in range(6):
+            round = rdzv_manager.join_rendezvous(i, 8)
+        self.assertEqual(round, 0)
+        group, world = rdzv_manager.get_comm_world(0)
+        self.assertEqual(group, 0)
+        group, world = rdzv_manager.get_comm_world(2)
+        self.assertDictEqual(world, {2: 8, 3: 8})
+        self.assertEqual(group, 1)
+        for i in range(4):
+            rdzv_manager.report_network_check_result(i, True, 5.0)
+        for i in range(4, 6):
+            rdzv_manager.report_network_check_result(i, True, 15.0)
+        stragglers, _ = rdzv_manager.get_straggler()
+        self.assertListEqual(stragglers, [4, 5])
+
+        for i in range(6):
+            round = rdzv_manager.join_rendezvous(i, 8)
+        self.assertEqual(round, 1)
+        group, world = rdzv_manager.get_comm_world(5)
+        self.assertDictEqual(world, {0: 8, 5: 8})
+
+        for i in [1, 2, 3, 4]:
+            rdzv_manager.report_network_check_result(i, True, 5.0)
+        for i in [0, 5]:
+            rdzv_manager.report_network_check_result(i, True, 15.0)
+        stragglers, _ = rdzv_manager.get_straggler()
+        self.assertListEqual(stragglers, [5])
