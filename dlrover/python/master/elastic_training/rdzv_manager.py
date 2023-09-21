@@ -17,8 +17,6 @@ from abc import ABCMeta, abstractmethod
 from threading import Lock
 from typing import Dict, List
 
-import numpy as np
-
 from dlrover.python.common.constants import (
     NetworkFailureReason,
     RendezvousName,
@@ -433,8 +431,15 @@ class NetworkCheckRendezvousManager(RendezvousManager):
             elif self._straggler_nodes:
                 return self._straggler_nodes, reason
             else:
-                times = list(self._node_times.values())
-                med_time = np.median(times)
+                times = sorted(list(self._node_times.values()))
+                if not times:
+                    return self._straggler_nodes, reason
+                if len(times) % 2 == 0:
+                    i = len(times) // 2
+                    med_time = (times[i] + times[i-1]) / 2
+                else:
+                    i = len(times) // 2
+                    med_time = times[i]
                 for node_id, t in self._node_times.items():
                     if t > med_time * 2:
                         stragglers[node_id] = t

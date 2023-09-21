@@ -652,10 +652,10 @@ class NetworkCheckElasticAgent(ElasticTrainingAgent):
                 elapsed_time,
             )
             success = success or result
-            no_fault_node = self._client.network_check_success()
+            no_fault_node = self._client.check_fault_nodes()
             no_straggler = self._client.check_straggler()
             self._stop_workers(self._worker_group)
-            if not no_fault_node:
+            if not no_fault_node or not no_straggler:
                 if total_worker_num <= 3:
                     # If the number of nodes <= 3, we cannot determine which
                     # node if fault because there is no normal node in the job
@@ -668,10 +668,6 @@ class NetworkCheckElasticAgent(ElasticTrainingAgent):
                     # Run the next round check to detect the fault node.
                     time.sleep(3)
                     continue
-            elif not no_straggler and self._config.check_straggler:
-                # Run the next round check to detect the straggler.
-                time.sleep(3)
-                continue
             else:
                 return True
         if not success:

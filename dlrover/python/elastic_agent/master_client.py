@@ -310,7 +310,7 @@ class MasterClient(object):
         result: grpc.RendezvousState = self._get(request)
         return result.group, result.world
 
-    def network_check_success(self, timeout=300):
+    def check_fault_nodes(self, timeout=300):
         request = grpc.NetworkReadyRequest()
         start = time.time()
         while True:
