@@ -129,12 +129,12 @@ class ResourceMonitor(object):
         try:
             pynvml.nvmlInit()
             self._gpu_enabled = True
-        except pynvml.NVML_ERROR_LIBRARY_NOT_FOUND:
+        except pynvml.NVMLError_LibraryNotFound:
             logger.warn(
                 "NVIDIA NVML library not found. "
                 "GPU monitoring features will be disabled."
             )
-        except pynvml.NVML_ERROR_UNKNOWN as e:
+        except pynvml.NVMLError_Unknown as e:
             logger.error(
                 f"An unknown error occurred during NVML initializing: {e}"
             )
