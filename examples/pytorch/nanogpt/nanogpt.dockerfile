@@ -1,4 +1,4 @@
-FROM easydl/easydl:ci as builder
+FROM easydl/dlrover:ci as builder
 
 WORKDIR /dlrover
 COPY ./ .
