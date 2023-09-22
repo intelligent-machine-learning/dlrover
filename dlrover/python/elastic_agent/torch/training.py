@@ -698,7 +698,7 @@ class NetworkCheckElasticAgent(ElasticTrainingAgent):
                 break
             else:
                 break
-        elapsed_time = time.time() - start
+        elapsed_time = round(time.time() - start, 2)
         if not succeed:
             elapsed_time = 3600
         return succeed, elapsed_time
