@@ -29,9 +29,6 @@ STRAGGLER_CHECK_TASK = "straggler-check"
 
 
 def bm_all_gather(shape, use_cuda):
-    rank = int(os.environ["RANK"])
-    if rank == 1:
-        time.sleep(10)
     world_size = dist.get_world_size()
     local_rank = int(os.environ["LOCAL_RANK"])
     device = torch.device(f"cuda:{local_rank}" if use_cuda else "cpu")
