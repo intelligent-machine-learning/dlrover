@@ -260,3 +260,4 @@ class ConfigPath(object):
     PARAL_CONFIG = "/tmp/dlrover/auto_paral_config.json"
     ENV_RUNTIME_METRICS = "RUNTIME_METRICS_PATH"
     RUNTIME_METRICS = "/tmp/dlrover/runtime_metrics.json"
+    NETWORK_CHECK_DATA_DIR = "/tmp/dlrover/network_check/"

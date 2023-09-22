@@ -660,9 +660,7 @@ class NetworkCheckElasticAgent(ElasticTrainingAgent):
                     # If the number of nodes <= 3, we cannot determine which
                     # node if fault because there is no normal node in the job
                     # to execute allgather tasks with the two nodes.
-                    logger.error(
-                        "Network check needs at least 4 nodes."
-                    )
+                    logger.error("Network check needs at least 4 nodes.")
                     raise RuntimeError("The node network is breakdown.")
                 else:
                     # Run the next round check to detect the fault node.
@@ -698,10 +696,27 @@ class NetworkCheckElasticAgent(ElasticTrainingAgent):
                 break
             else:
                 break
-        elapsed_time = round(time.time() - start, 2)
-        if not succeed:
+
+        if succeed:
+            elapsed_time = self._get_network_check_time()
+        else:
             elapsed_time = 3600
         return succeed, elapsed_time
+
+    def _get_network_check_time(self):
+        root = ConfigPath.NETWORK_CHECK_DATA_DIR
+        elapsed_time = 0
+        if not os.path.exists(root):
+            return elapsed_time
+        for filename in os.listdir(root):
+            path = os.path.join(root, filename)
+            with open(path, "r") as f:
+                data = f.read()
+                if not data:
+                    continue
+                data = json.loads(data)
+                elapsed_time = max(elapsed_time, data.get("time", 0))
+        return elapsed_time
 
 
 def network_check(

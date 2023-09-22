@@ -436,7 +436,7 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                     return self._straggler_nodes, reason
                 if len(times) % 2 == 0:
                     i = len(times) // 2
-                    med_time = (times[i] + times[i-1]) / 2
+                    med_time = (times[i] + times[i - 1]) / 2
                 else:
                     i = len(times) // 2
                     med_time = times[i]

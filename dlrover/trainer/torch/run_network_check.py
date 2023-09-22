@@ -12,13 +12,16 @@
 # limitations under the License.
 
 import argparse
+import json
 import os
+import shutil
 import time
 from datetime import timedelta
 
 import torch
 import torch.distributed as dist
 
+from dlrover.python.common.constants import ConfigPath
 from dlrover.python.common.log import default_logger as logger
 
 FAULT_CHECK_TASK = "fault-check"
@@ -54,12 +57,25 @@ def matmul(use_cuda):
     return elapsed_time
 
 
+def write_time_to_file(time, rank):
+    data = {"time": time, "rank": rank}
+    root = ConfigPath.NETWORK_CHECK_DATA_DIR
+    if os.path.exists(root):
+        shutil.rmtree(root)
+    os.makedirs(root, exist_ok=True)
+    path = os.path.join(root, f"{rank}.txt")
+    with open(path, "w") as f:
+        f.write(json.dumps(data))
+
+
 def main(task):
     use_cuda = torch.cuda.is_available()
+    start_init = time.time()
     if use_cuda:
         dist.init_process_group("nccl", timeout=timedelta(seconds=180))
     else:
         dist.init_process_group("gloo", timeout=timedelta(seconds=180))
+    init_time = round(time.time() - start_init, 3)
     if task == FAULT_CHECK_TASK:
         shape = 1 << 20
         elapsed_time = bm_all_gather(shape, use_cuda)
@@ -68,8 +84,12 @@ def main(task):
         elapsed_time = matmul(use_cuda)
         elapsed_time += bm_all_gather(shape, use_cuda)
     local_rank = int(os.environ["LOCAL_RANK"])
+    write_time_to_file(init_time, local_rank)
     if local_rank == 0:
-        logger.info(f"Test costs {elapsed_time}s")
+        logger.info(
+            f"Init process group costs {init_time}.",
+            f"Execution costs {elapsed_time}s",
+        )
     return elapsed_time
 
 
@@ -78,7 +98,7 @@ def arg_parser():
     parser.add_argument(
         "--task",
         type=str,
-        default=FAULT_CHECK_TASK,
+        default=STRAGGLER_CHECK_TASK,
         choices=[FAULT_CHECK_TASK, STRAGGLER_CHECK_TASK],
         required=False,
     )
