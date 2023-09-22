@@ -44,14 +44,14 @@ def bm_all_gather(shape, use_cuda):
     return elapsed_time
 
 
-def matmul(use_cuda):
-    local_rank = int(os.environ["LOCAL_RANK"])
+def matmul(use_cuda, round=10):
+    local_rank = int(os.getenv("LOCAL_RANK", 0))
     device = torch.device(f"cuda:{local_rank}" if use_cuda else "cpu")
     tensor1 = torch.randn(10, 4096, 1024).to(device)
     tensor2 = torch.randn(10, 1024, 4096).to(device)
 
     start = int(time.time())
-    for _ in range(10):
+    for _ in range(round):
         torch.matmul(tensor1, tensor2)
     elapsed_time = time.time() - start
     return elapsed_time

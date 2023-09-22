@@ -71,8 +71,8 @@ class SimpleStrategyGenerator(StrategyGenerator):
                 paral_configs[node.id] = ParallelConfig(dataloader, optimizer)
                 node.paral_config = paral_configs[node.id]
         if not paral_configs:
-            logger.info("paral_configs length is 0")
-            return None
+            logger.info("There is no parallelism config.")
+            return ParallelConfig()
         else:
             logger.info(f"paral_configs: {paral_configs}")
             return paral_configs[0]

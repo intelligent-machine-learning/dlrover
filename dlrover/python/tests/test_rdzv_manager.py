@@ -191,7 +191,7 @@ class NcclCheckRendezvousManagerTest(unittest.TestCase):
         existed, _ = rdzv_manager.check_no_fault_node()
         self.assertTrue(existed)
 
-    def test_network_check_straggler(self):
+    def test_network_check_straggler_even_nodes(self):
         rdzv_manager = NetworkCheckRendezvousManager()
         rdzv_manager.update_rdzv_params(6, 6, 60, 1)
         rdzv_manager._alive_nodes = [0, 1, 2, 3, 4, 5]
@@ -222,3 +222,35 @@ class NcclCheckRendezvousManagerTest(unittest.TestCase):
             rdzv_manager.report_network_check_result(i, True, 15.0)
         stragglers, _ = rdzv_manager.get_straggler()
         self.assertListEqual(stragglers, [5])
+
+    def test_network_check_straggler_old_nodes(self):
+        rdzv_manager = NetworkCheckRendezvousManager()
+        rdzv_manager.update_rdzv_params(5, 5, 60, 1)
+        rdzv_manager._alive_nodes = [0, 1, 2, 3, 4]
+        for i in range(5):
+            round = rdzv_manager.join_rendezvous(i, 8)
+        self.assertEqual(round, 0)
+        group, world = rdzv_manager.get_comm_world(0)
+        self.assertEqual(group, 0)
+        group, world = rdzv_manager.get_comm_world(2)
+        self.assertDictEqual(world, {2: 8, 3: 8, 4: 8})
+        self.assertEqual(group, 1)
+        for i in range(2):
+            rdzv_manager.report_network_check_result(i, True, 15.0)
+        for i in range(2, 5):
+            rdzv_manager.report_network_check_result(i, True, 5.0)
+        stragglers, _ = rdzv_manager.get_straggler()
+        self.assertListEqual(stragglers, [0, 1])
+
+        for i in range(5):
+            round = rdzv_manager.join_rendezvous(i, 8)
+        self.assertEqual(round, 1)
+        group, world = rdzv_manager.get_comm_world(1)
+        self.assertDictEqual(world, {1: 8, 2: 8})
+
+        for i in [1, 2]:
+            rdzv_manager.report_network_check_result(i, True, 15.0)
+        for i in [0, 3, 4]:
+            rdzv_manager.report_network_check_result(i, True, 5.0)
+        stragglers, _ = rdzv_manager.get_straggler()
+        self.assertListEqual(stragglers, [1])

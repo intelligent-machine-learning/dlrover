@@ -15,7 +15,11 @@ import json
 import os
 import unittest
 
-from dlrover.trainer.torch.run_network_check import FAULT_CHECK_TASK, main
+from dlrover.trainer.torch.run_network_check import (
+    FAULT_CHECK_TASK,
+    main,
+    matmul,
+)
 
 
 class TestNetworkCheckScript(unittest.TestCase):
@@ -39,3 +43,7 @@ class TestNetworkCheckScript(unittest.TestCase):
             data = json.load(f)
             self.assertEqual(data["rank"], 0)
             self.assertTrue(data["time"] > 0)
+
+    def test_matmul(self):
+        t = matmul(False, 0)
+        self.assertTrue(t > 0)
