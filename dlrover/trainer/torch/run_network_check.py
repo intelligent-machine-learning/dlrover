@@ -29,6 +29,9 @@ STRAGGLER_CHECK_TASK = "straggler-check"
 
 
 def bm_all_gather(shape, use_cuda):
+    rank = int(os.environ["RANK"])
+    if rank == 1:
+        time.sleep(10)
     world_size = dist.get_world_size()
     local_rank = int(os.environ["LOCAL_RANK"])
     device = torch.device(f"cuda:{local_rank}" if use_cuda else "cpu")
@@ -47,8 +50,8 @@ def bm_all_gather(shape, use_cuda):
 def matmul(use_cuda, round=10):
     local_rank = int(os.getenv("LOCAL_RANK", 0))
     device = torch.device(f"cuda:{local_rank}" if use_cuda else "cpu")
-    tensor1 = torch.randn(10, 4096, 1024).to(device)
-    tensor2 = torch.randn(10, 1024, 4096).to(device)
+    tensor1 = torch.randn(10, 2048, 1024).to(device)
+    tensor2 = torch.randn(10, 1024, 2048).to(device)
 
     start = int(time.time())
     for _ in range(round):
@@ -57,13 +60,13 @@ def matmul(use_cuda, round=10):
     return elapsed_time
 
 
-def write_time_to_file(time, rank):
-    data = {"time": time, "rank": rank}
+def write_time_to_file(time, local_rank):
+    data = {"time": time, "local_rank": local_rank}
     root = ConfigPath.NETWORK_CHECK_DATA_DIR
     if os.path.exists(root):
         shutil.rmtree(root)
     os.makedirs(root, exist_ok=True)
-    path = os.path.join(root, f"{rank}.txt")
+    path = os.path.join(root, f"{local_rank}.txt")
     with open(path, "w") as f:
         f.write(json.dumps(data))
 
@@ -80,15 +83,15 @@ def main(task):
         shape = 1 << 20
         elapsed_time = bm_all_gather(shape, use_cuda)
     elif task == STRAGGLER_CHECK_TASK:
-        shape = 1 << 24
         elapsed_time = matmul(use_cuda)
+        shape = 1 << 24
         elapsed_time += bm_all_gather(shape, use_cuda)
     local_rank = int(os.environ["LOCAL_RANK"])
     write_time_to_file(init_time, local_rank)
     if local_rank == 0:
         logger.info(
-            f"Init process group costs {init_time}.",
-            f"Execution costs {elapsed_time}s",
+            f"Init process group costs {init_time}."
+            f"Execution costs {elapsed_time}s"
         )
     return elapsed_time
 
