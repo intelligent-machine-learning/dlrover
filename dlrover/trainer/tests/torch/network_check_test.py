@@ -41,7 +41,7 @@ class TestNetworkCheckScript(unittest.TestCase):
         self.assertTrue(t > 0)
         with open("/tmp/dlrover/network_check/0.txt", "r") as f:
             data = json.load(f)
-            self.assertEqual(data["rank"], 0)
+            self.assertEqual(data["local_rank"], 0)
             self.assertTrue(data["time"] > 0)
 
     def test_matmul(self):
