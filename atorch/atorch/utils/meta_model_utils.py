@@ -9,6 +9,7 @@ import os
 import shutil
 import time
 from contextlib import contextmanager
+from itertools import chain
 from operator import attrgetter
 from pathlib import Path
 
@@ -16,6 +17,7 @@ import torch
 
 from atorch import local_rank, rank
 from atorch.common.log_utils import default_logger as logger
+from atorch.common.util_func import recursive_setattr
 from atorch.utils.fsdp_save_util import ShardTensorUtil
 from atorch.utils.fsdp_save_util import version_check as fsdp_save_util_version_check
 from atorch.utils.graph_transform_utils import map_aggregate
@@ -630,21 +632,64 @@ def build_recorded_module(meta_module):
     """
     Build the real module from the recorded meta module, supports recursively building
     the meta submodules in args/kwargs.
+    Support custom build function and post process function.
     """
-    assert hasattr(meta_module, "_init_args") and hasattr(
-        meta_module, "_init_kwargs"
-    ), "must construct meta module with record_module_init contextmanager"
-    args = []
-    for arg in meta_module._init_args:
-        if isinstance(arg, torch.nn.Module):
-            # recursively build module in args
-            arg = build_recorded_module(arg)
-        args.append(arg)
-    kwargs = dict()
-    for k, v in meta_module._init_kwargs.items():
-        if isinstance(v, torch.nn.Module):
-            # recursively build module in kwargs
-            v = build_recorded_module(v)
-        kwargs[k] = v
+    if len(meta_module._parameters) == 0 and len(meta_module._buffers) == 0:
+        # Module without param/buffer, regards itself as builded module after build child modules
+        assert not hasattr(
+            meta_module, "_build_fn"
+        ), f"module {meta_module.__class__.__name__} without param/buffer should have not _build_fn."
+        memos = dict()
+        for child_name, child_module in meta_module._modules.items():
+            if child_module not in memos:
+                memos[child_module] = child_name
+                meta_module._modules[child_name] = build_recorded_module(child_module)
+            else:
+                memoried_name = memos[child_module]
+                meta_module._modules[child_name] = meta_module._modules[memoried_name]
+        builded_module = meta_module
+    else:
+        # Build from init args/kwargs, check if has children module
+        if len(meta_module._modules) != 0:
+            logger.info(
+                f"Meta_module {meta_module.__class__.__name__} has its own param/buffer "
+                f"{[k for k in chain(meta_module._parameters, meta_module._buffers)]}, "
+                f"but has submodules {[k for k in meta_module._modules]}. Building it "
+                f"from init args/kwargs may lead to coarse-grained materialization (OOM) "
+                f"and repeatly building if submodule has custom _build_fn/_post_fn."
+            )
 
-    return meta_module.__class__(*args, **kwargs)
+        # recursively build module in args and kwargs
+        assert hasattr(meta_module, "_init_args") and hasattr(
+            meta_module, "_init_kwargs"
+        ), "must construct meta module with record_module_init contextmanager"
+        args = []
+        for arg in meta_module._init_args:
+            if isinstance(arg, torch.nn.Module):
+                arg = build_recorded_module(arg)
+            args.append(arg)
+        kwargs = dict()
+        for k, v in meta_module._init_kwargs.items():
+            if isinstance(v, torch.nn.Module):
+                v = build_recorded_module(v)
+            kwargs[k] = v
+
+        # support custom build fn
+        if hasattr(meta_module, "_build_fn"):
+            build_callable = meta_module._build_fn
+        else:
+            build_callable = meta_module.__class__
+        builded_module = build_callable(*args, **kwargs)
+
+        # if submodules have custom _build_fn/_post_fn, rebuild and substitute them
+        for submodule_name, submodule in list(meta_module.named_modules())[1:]:
+            if hasattr(submodule, "_build_fn") or hasattr(submodule, "_post_fn"):
+                builded_submodule = build_recorded_module(submodule)
+                recursive_setattr(builded_module, submodule_name, builded_submodule)
+
+    # support custom post process fn
+    if hasattr(meta_module, "_post_fn"):
+        builded_module = meta_module._post_fn(builded_module)
+
+    return builded_module
+
