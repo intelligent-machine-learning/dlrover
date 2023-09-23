@@ -513,7 +513,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         self, node_type, node_id, message: grpc.ParallelConfig
     ):
         if self._job_manager:
-            logger.info(
+            logger.debug(
                 "Update parallel config for %s-%s: %s",
                 node_type,
                 node_id,
