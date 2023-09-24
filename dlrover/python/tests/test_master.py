@@ -23,13 +23,13 @@ from dlrover.python.common.constants import (
 from dlrover.python.common.global_context import Context
 from dlrover.python.elastic_agent.master_client import build_master_client
 from dlrover.python.master.dist_master import DistributedJobMaster
+from dlrover.python.master.main import update_context
 from dlrover.python.master.shard.dataset_splitter import new_dataset_splitter
 from dlrover.python.tests.test_utils import (
     MockK8sPSJobArgs,
     mock_k8s_client,
     start_local_master,
 )
-from dlrover.python.master.main import update_context
 
 _dlrover_context = Context.singleton_instance()
 
