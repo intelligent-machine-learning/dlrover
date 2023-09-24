@@ -20,6 +20,7 @@ from dlrover.python.common.constants import (
     NodeType,
     RendezvousName,
 )
+from dlrover.python.common.global_context import Context
 from dlrover.python.elastic_agent.master_client import build_master_client
 from dlrover.python.master.dist_master import DistributedJobMaster
 from dlrover.python.master.shard.dataset_splitter import new_dataset_splitter
@@ -28,6 +29,9 @@ from dlrover.python.tests.test_utils import (
     mock_k8s_client,
     start_local_master,
 )
+from dlrover.python.master.main import update_context
+
+_dlrover_context = Context.singleton_instance()
 
 
 class DistributedJobMasterTest(unittest.TestCase):
@@ -90,6 +94,15 @@ class DistributedJobMasterTest(unittest.TestCase):
             node.create_time = datetime.now() + timedelta(days=-1)
         exit_code = self.master.run()
         self.assertEqual(exit_code, 1)
+
+    def test_update_context(self):
+        job_args = MockK8sPSJobArgs()
+        job_args.initilize()
+        job_args.relaunch_always = True
+        update_context(job_args)
+        self.assertTrue(_dlrover_context.relaunch_always)
+        self.assertTrue(_dlrover_context.auto_ps_enabled)
+        self.assertTrue(_dlrover_context.auto_worker_enabled)
 
 
 class LocalJobMasterTest(unittest.TestCase):
