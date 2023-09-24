@@ -71,10 +71,10 @@ class SimpleStrategyGenerator(StrategyGenerator):
                 paral_configs[node.id] = ParallelConfig(dataloader, optimizer)
                 node.paral_config = paral_configs[node.id]
         if paral_configs == {}:
-            logger.info("paral_configs length is 0")
+            logger.debug("No parallel config.")
             return None
         else:
-            logger.info(f"paral_configs: {paral_configs}")
+            logger.debug(f"paral_configs: {paral_configs}")
             return paral_configs[0]
 
     def _generate_dataloader_config(
@@ -168,10 +168,10 @@ class SimpleStrategyGenerator(StrategyGenerator):
         node_used_resources: Dict[str, List[List[Node]]] = {}
         node_used_resources[NodeType.WORKER] = []
         if len(stats) == 0:
-            logger.info("There is no any training stats.")
+            logger.debug("There is no any training stats.")
             return node_used_resources
         else:
             for node in stats[-1].running_nodes:
                 node_used_resources[NodeType.WORKER].append([node])
-                logger.info(f"node_used_resources: {node_used_resources}")
+                logger.debug(f"node_used_resources: {node_used_resources}")
             return node_used_resources
