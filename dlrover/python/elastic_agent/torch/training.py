@@ -642,6 +642,7 @@ class NetworkCheckElasticAgent(ElasticTrainingAgent):
         )
         success = False
         total_worker_num = len(self._client.get_running_nodes())
+        no_fault_node = False
         for i in range(self._check_round):
             result, elapsed_time = self._run_network_check()
             logger.info(f"Straggler check time of round {i} is {elapsed_time}")
@@ -674,7 +675,7 @@ class NetworkCheckElasticAgent(ElasticTrainingAgent):
                 level=TrainingMsgLevel.NODE_ERROR,
             )
             raise RuntimeError("The node network is breakdown.")
-        return False
+        return no_fault_node
 
     def _run_network_check(self, monitor_interval=3, timeout=300):
         self._initialize_workers(self._worker_group)

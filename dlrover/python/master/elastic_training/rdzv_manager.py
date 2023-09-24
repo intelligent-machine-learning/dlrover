@@ -408,7 +408,9 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                 if self._fault_nodes:
                     logger.warning(f"Fault nodes {self._fault_nodes}")
                 no_fault_node = not self._fault_nodes
-                if no_fault_node:
+                stragglers = self._detect_stragglers()
+                no_stragger = not stragglers
+                if no_fault_node and no_stragger:
                     self._rdzv_round = (
                         math.ceil(self._rdzv_round / self._check_round)
                         * self._check_round
@@ -431,19 +433,25 @@ class NetworkCheckRendezvousManager(RendezvousManager):
             elif self._straggler_nodes:
                 return self._straggler_nodes, reason
             else:
-                times = sorted(list(self._node_times.values()))
-                if not times:
-                    return self._straggler_nodes, reason
-                if len(times) % 2 == 0:
-                    i = len(times) // 2
-                    med_time = (times[i] + times[i - 1]) / 2
-                else:
-                    i = len(times) // 2
-                    med_time = times[i]
-                for node_id, t in self._node_times.items():
-                    if t > med_time * 2:
-                        stragglers[node_id] = t
+                stragglers = self._detect_stragglers()
                 if stragglers:
                     logger.warning(f"Straggler: {stragglers}.")
-                    self._straggler_nodes = list(stragglers.keys())
+                self._straggler_nodes = list(stragglers.keys())
             return self._straggler_nodes, reason
+
+    def _detect_stragglers(self):
+        """Detect wether there is the straggler in the job."""
+        stragglers: Dict[int, float] = {}
+        times = sorted(list(self._node_times.values()))
+        if not times:
+            return self._straggler_nodes
+        if len(times) % 2 == 0:
+            i = len(times) // 2
+            med_time = (times[i] + times[i - 1]) / 2
+        else:
+            i = len(times) // 2
+            med_time = times[i]
+        for node_id, t in self._node_times.items():
+            if t > med_time * 2:
+                stragglers[node_id] = t
+        return stragglers
