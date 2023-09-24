@@ -79,6 +79,23 @@ def _set_paral_config():
 
 
 @dataclass
+class ElasticLaunchConfig(LaunchConfig):
+    """
+    Creates a rendezvous config of elastic training.
+
+    Args:
+        network_check: whether to check the network avaliable before training.
+        node_unit: the number of unit of nodes. The number of nodes must be
+            a multiple of node_unit.
+        auto_tunning: whether to auto-tune the parallelism configuration.
+    """
+
+    network_check: bool = False
+    node_unit: int = 1
+    auto_tunning: bool = False
+
+
+@dataclass
 class ProcessError:
     local_rank: int
     exitcode: int
@@ -259,8 +276,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
         self._restart_count = 0
         self._remaining_failovers = self._remaining_restarts
         self._client = GlobalMasterClient.MASTER_CLIENT
-        self._paral_config_tuner = ParalConfigTuner()
-        self._paral_config_tuner.start()
+        if config.auto_tunning:
+            self._paral_config_tuner = ParalConfigTuner()
+            self._paral_config_tuner.start()
 
     @prof
     def _rendezvous(self, worker_group: WorkerGroup) -> None:
@@ -460,12 +478,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
     def _membership_changed(self, role, rdzv_handler: RendezvousHandler):
         # Timeout may happen when to query TCPStore.
-        try:
-            num_nodes_waiting = rdzv_handler.num_nodes_waiting()
-        except Exception as e:
-            logger.warning("Fail to call num_node_waiting.", e)
-            num_nodes_waiting = 0
-
+        num_nodes_waiting = rdzv_handler.num_nodes_waiting()
         group_rank = self._worker_group.group_rank
         if num_nodes_waiting > 0:
             logger.info(
@@ -478,7 +491,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
 
 def launch_agent(
-    config: LaunchConfig,
+    config: ElasticLaunchConfig,
     entrypoint: Union[Callable, str, None],
     args: List[Any],
 ) -> Dict[int, Any]:
@@ -688,7 +701,7 @@ class NetworkCheckElasticAgent(ElasticTrainingAgent):
 
 
 def network_check(
-    config: LaunchConfig,
+    config: ElasticLaunchConfig,
     entrypoint: Union[Callable, str, None],
     args: List[Any],
 ) -> bool:

@@ -19,7 +19,6 @@ import unittest
 
 from torch.distributed.elastic.agent.server.api import WorkerSpec, WorkerState
 from torch.distributed.elastic.rendezvous import RendezvousParameters
-from torch.distributed.launcher.api import LaunchConfig
 
 from dlrover.python.common.constants import RendezvousName
 from dlrover.python.elastic_agent.master_client import (
@@ -28,6 +27,7 @@ from dlrover.python.elastic_agent.master_client import (
 )
 from dlrover.python.elastic_agent.monitor.training import TorchTrainingMonitor
 from dlrover.python.elastic_agent.torch.training import (
+    ElasticLaunchConfig,
     ElasticTrainingAgent,
     MasterRendezvousHandler,
 )
@@ -38,7 +38,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
     def setUp(self) -> None:
         self._master, addr = start_local_master()
         GlobalMasterClient.MASTER_CLIENT = build_master_client(addr)
-        self.config = LaunchConfig(
+        self.config = ElasticLaunchConfig(
             min_nodes=2,
             max_nodes=2,
             nproc_per_node=8,
@@ -140,7 +140,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
     def setUp(self) -> None:
         self._master, addr = start_local_master()
         GlobalMasterClient.MASTER_CLIENT = build_master_client(addr)
-        self.config = LaunchConfig(
+        self.config = ElasticLaunchConfig(
             min_nodes=1,
             max_nodes=1,
             nproc_per_node=2,
