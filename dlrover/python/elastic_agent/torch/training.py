@@ -92,6 +92,26 @@ class MasterRendezvousHandler(RendezvousHandler):
     after the handler of all node agents calls `_join_rendezvous`.
     Then, the handler will get the communcation world from the master
     and assign ranks to the training process.
+
+    Args:
+        name: the name of rendezvous.
+        rank_id: the node rank id.
+        rdzv_params: RendezvousParameters instance. We can set timeout of
+            rendezvous in the rdzv_params.config. Now we set:
+            join_timeout: the timeout to join the rendevous. The timeout
+                happens if the number of nodes is less than min_nodes
+                in the join_timeout.
+            lastcall_timeout: the timeout to wait new nodes after the
+                number of nodes is equal or greater than min_nodes.
+                The node will join the rendezvous to start train if
+                the timeout happens.
+            pend_timeout: the timeout to wait the next rendezvous. The timeout
+                happens if there is a rendezvous and the node is not in the
+                rendzvous. For example. the number of nodes must be the
+                multiple of node_uint. If the node_uint = 4 and the number
+                of nodes is 5, then the 5th node will wait for more nodes
+                in the pend_timeout.
+            local_world_size: the number of local processes.
     """
 
     def __init__(
@@ -106,6 +126,7 @@ class MasterRendezvousHandler(RendezvousHandler):
         self._rdzv_params = rdzv_params
         self._local_world_size = local_world_size
         self.join_timeout = int(rdzv_params.get("join_timeout", 600))
+        self.pend_timeout = int(rdzv_params.get("pend_timeout", float("inf")))
         self._client = GlobalMasterClient.MASTER_CLIENT
         self._store = MasterKVStore(self._name, timedelta(seconds=60))
         lastcall_timeout = int(rdzv_params.get("lastcall_timeout", 60))
@@ -151,6 +172,7 @@ class MasterRendezvousHandler(RendezvousHandler):
         )
         logger.info(msg)
         round = self._join_rendezvous()
+        start_pending = 0
         while True:
             group, world = self._client.get_comm_world(
                 self._name, self._rank_id
@@ -163,8 +185,14 @@ class MasterRendezvousHandler(RendezvousHandler):
                         "The node is not in the world "
                         "and waits for more nodes."
                     )
+                    if start_pending == 0:
+                        start_pending = time.time()
                     time.sleep(5)
                     start_join = time.time()
+                    if start_join - start_pending > self.pend_timeout:
+                        raise TimeoutError(
+                            f"Timeout {self.pend_timeout}s to wait more nodes"
+                        )
                     continue
             elif time.time() - start_join > self.join_timeout:
                 timeout = self.join_timeout
