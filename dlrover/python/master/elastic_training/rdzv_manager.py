@@ -321,11 +321,15 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         elif round == 1:
             self._check_abnormal_nodes()
             node_times = sorted(self._node_times.items(), key=lambda x: x[1])
-            left, right = 0, len(node_times) - 1
+            cur_nodes = []
+            for node_id, _ in node_times:
+                if node_id in self._rdzv_nodes:
+                    cur_nodes.append(node_id)
+            left, right = 0, len(cur_nodes) - 1
             while True:
                 group = {}
-                node0 = node_times[left][0]
-                node1 = node_times[right][0]
+                node0 = cur_nodes[left]
+                node1 = cur_nodes[right]
                 group[node0] = self._rdzv_nodes[node0]
                 group[node1] = self._rdzv_nodes[node1]
                 if len(group) == 2:
