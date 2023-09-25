@@ -18,7 +18,7 @@ with the following additional functionalities:
 
 1. Check the network of node to detect the fault node or straggler.
 
-2. `rdzv-endpoint`, `rdzv-backend` and `rdzv-id` are not required for 
+2. `rdzv-endpoint`, `rdzv-backend` and `rdzv-id` are not required for
 multi-node multi-worker.
 
 Usage
