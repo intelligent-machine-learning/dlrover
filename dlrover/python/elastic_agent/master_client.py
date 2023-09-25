@@ -104,7 +104,7 @@ class MasterClient(object):
         request.node_id = self._node_id
         request.node_type = self._node_type
         request.data = message.serialize()
-        return self._stub.report(request)
+        return self._stub.report(request, timeout=5)
 
     @retry_grpc_request
     def _get(self, message: grpc.Message):
@@ -112,7 +112,7 @@ class MasterClient(object):
         request.node_id = self._node_id
         request.node_type = self._node_type
         request.data = message.serialize()
-        response = self._stub.get(request)
+        response = self._stub.get(request, timeout=5)
         res_message = grpc.deserialize_message(response.data)
         return res_message
 
