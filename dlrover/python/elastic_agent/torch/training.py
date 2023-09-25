@@ -143,7 +143,7 @@ class MasterRendezvousHandler(RendezvousHandler):
         self._rdzv_params = rdzv_params
         self._local_world_size = local_world_size
         self.join_timeout = int(rdzv_params.get("join_timeout", 600))
-        self.pend_timeout = int(rdzv_params.get("pend_timeout", float("inf")))
+        self.pend_timeout = float(rdzv_params.get("pend_timeout", "inf"))
         self._client = GlobalMasterClient.MASTER_CLIENT
         self._store = MasterKVStore(self._name, timedelta(seconds=60))
         lastcall_timeout = int(rdzv_params.get("lastcall_timeout", 60))
