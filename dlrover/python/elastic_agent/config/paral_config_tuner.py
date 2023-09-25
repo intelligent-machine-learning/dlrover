@@ -39,14 +39,18 @@ class ParalConfigTuner(object):
         )
         self.config_path = os.environ[ConfigPath.ENV_PARAL_CONFIG]
         self._create_paral_config_file()
+        self._started = False
 
     def start(self):
+        if self._started:
+            return
         threading.Thread(
             target=self._periodically_update_paral_config,
             name="config-updater",
             daemon=True,
         ).start()
         logger.info("Started parallelism config tuner.")
+        self._started = True
 
     def _periodically_update_paral_config(self):
         """

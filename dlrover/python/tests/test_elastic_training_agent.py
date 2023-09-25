@@ -28,6 +28,7 @@ from dlrover.python.elastic_agent.master_client import (
 )
 from dlrover.python.elastic_agent.monitor.training import TorchTrainingMonitor
 from dlrover.python.elastic_agent.torch.training import (
+    ElasticLaunchConfig,
     ElasticTrainingAgent,
     MasterRendezvousHandler,
 )
@@ -38,12 +39,13 @@ class ElasticTrainingAgentTest(unittest.TestCase):
     def setUp(self) -> None:
         self._master, addr = start_local_master()
         GlobalMasterClient.MASTER_CLIENT = build_master_client(addr)
-        self.config = LaunchConfig(
+        launch_config = LaunchConfig(
             min_nodes=2,
             max_nodes=2,
             nproc_per_node=8,
             run_id="test",
         )
+        self.config = ElasticLaunchConfig(**launch_config.__dict__)
         rdzv_parameters = RendezvousParameters(
             backend=self.config.rdzv_backend,
             endpoint=self.config.rdzv_endpoint,
@@ -140,13 +142,14 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
     def setUp(self) -> None:
         self._master, addr = start_local_master()
         GlobalMasterClient.MASTER_CLIENT = build_master_client(addr)
-        self.config = LaunchConfig(
+        launch_config = LaunchConfig(
             min_nodes=1,
             max_nodes=1,
             nproc_per_node=2,
             run_id="test",
             monitor_interval=0.1,
         )
+        self.config = ElasticLaunchConfig(**launch_config.__dict__)
         rdzv_parameters = RendezvousParameters(
             backend=self.config.rdzv_backend,
             endpoint=self.config.rdzv_endpoint,
