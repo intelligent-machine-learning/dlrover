@@ -17,12 +17,11 @@ import telnetlib
 import tempfile
 import time
 import uuid
-from typing import Callable, Union
+from typing import Callable, List, Tuple, Union
 
 from torch.distributed.argparse_util import check_env, env
 from torch.distributed.elastic.multiprocessing.api import SubprocessHandler
 from torch.distributed.elastic.multiprocessing.errors import record
-from torch.distributed.launcher.api import LaunchConfig
 from torch.distributed.launcher.api import launch_agent as torch_launch_agent
 from torch.distributed.run import config_from_args, get_args_parser
 
@@ -33,7 +32,10 @@ from dlrover.python.elastic_agent.master_client import (
     GlobalMasterClient,
     build_master_client,
 )
-from dlrover.python.elastic_agent.torch.training import launch_agent
+from dlrover.python.elastic_agent.torch.training import (
+    ElasticLaunchConfig,
+    launch_agent,
+)
 
 
 def parse_args(args):
@@ -52,6 +54,12 @@ def parse_args(args):
         default=1,
         help="The number unit of nodes to schedule. The scheduled number of "
         "nodes should be a multiple of node_unit.",
+    )
+    parser.add_argument(
+        "--auto_tunning",
+        "--auto-tunning",
+        action=check_env,
+        help="Whether to auto-tune the parallel configuraion.",
     )
     return parser.parse_args(args)
 
@@ -87,7 +95,7 @@ class elastic_launch:
 
     def __init__(
         self,
-        config: LaunchConfig,
+        config: ElasticLaunchConfig,
         entrypoint: Union[Callable, str, None],
         use_dlrover_launch: bool,
     ):
@@ -148,6 +156,17 @@ def _check_dlrover_master_available(addr, timeout=60):
             return False
 
 
+def _elastic_config_from_args(
+    args,
+) -> Tuple[ElasticLaunchConfig, Union[Callable, str], List[str]]:
+    config, cmd, cmd_args = config_from_args(args)
+    elastic_config = ElasticLaunchConfig(**config.__dict__)
+    elastic_config.network_check = args.network_check
+    elastic_config.node_unit = args.node_unit
+    elastic_config.auto_tunning = args.auto_tunning
+    return elastic_config, cmd, cmd_args
+
+
 def run(args):
     master_handler = None
     master_addr = os.getenv(NodeEnv.DLROVER_MASTER_ADDR, "")
@@ -174,15 +193,11 @@ def run(args):
             f"**************************************\n"
         )
 
-    config, cmd, cmd_args = config_from_args(args)
-    setattr(config, "network_check", False)
-    setattr(config, "node_unit", 1)
-    if hasattr(args, "network_check"):
-        config.network_check = args.network_check
-    if hasattr(args, "node_unit"):
-        config.rdzv_configs["node_unit"] = args.node_unit
+    config, cmd, cmd_args = _elastic_config_from_args(args)
     elastic_launch(
-        config=config, entrypoint=cmd, use_dlrover_launch=use_dlrover_launch
+        config=config,
+        entrypoint=cmd,
+        use_dlrover_launch=use_dlrover_launch,
     )(*cmd_args)
 
     if master_handler:
