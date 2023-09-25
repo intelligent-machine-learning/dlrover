@@ -142,7 +142,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
     def setUp(self) -> None:
         self._master, addr = start_local_master()
         GlobalMasterClient.MASTER_CLIENT = build_master_client(addr)
-        launch_config = ElasticLaunchConfig(
+        launch_config = LaunchConfig(
             min_nodes=1,
             max_nodes=1,
             nproc_per_node=2,
