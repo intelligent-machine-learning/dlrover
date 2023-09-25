@@ -11,6 +11,67 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
+"""
+``dlrover-run`` provides a superset of the functionality as ``torchrun``
+with the following additional functionalities:
+
+1. Check the network of node to detect the fault node or straggler.
+
+2. `rdzv-endpoint`, `rdzv-backend` and `rdzv-id` are not required for
+multi-node multi-worker.
+
+Usage
+--------
+
+Single-node multi-worker
+++++++++++++++++++++++++++++++
+
+::
+
+    dlrover-run
+        --standalone
+        --nproc-per-node=$NUM_TRAINERS
+        YOUR_TRAINING_SCRIPT.py (--arg1 ... train script args...)
+
+multi-node multi-worker
++++++++++++++++++++++++++++++++++++
+
+::
+
+    torchrun
+        --nnodes=$NUM_NODES
+        --nproc-per-node=$NUM_TRAINERS
+        --max-restarts=3
+        YOUR_TRAINING_SCRIPT.py (--arg1 ... train script args...)
+
+Elastic (``min=1``, ``max=4``, tolerates up to 3 membership
+changes or failures)
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+::
+
+    torchrun
+        --nnodes=1:4
+        --nproc-per-node=$NUM_TRAINERS
+        --max-restarts=3
+        YOUR_TRAINING_SCRIPT.py (--arg1 ... train script args...)
+
+Note on rendezvous backend
+------------------------------
+
+For multi-node training you need to specify:
+
+1. ``--network-check``: Bool, whether to check the node network to find the
+    fault node or straggler.
+2. ``--rdzv-conf``: We can set timeout into rdzv_conf like
+    ```--rdzv-conf join_timeout=600,lastcall_timeout=60,pend_timeout=3600`.
+
+For auto-tuning parallelism configuration, you need to specify:
+
+1. ``--auto-tunning``: Whether to auto tune the batch size and learning rate.
+"""
+
 import os
 import sys
 import telnetlib

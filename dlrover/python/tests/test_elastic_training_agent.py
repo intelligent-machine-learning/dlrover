@@ -16,6 +16,7 @@ import os
 import tempfile
 import time
 import unittest
+from unittest import mock
 
 from torch.distributed.elastic.agent.server.api import WorkerSpec, WorkerState
 from torch.distributed.elastic.rendezvous import RendezvousParameters
@@ -215,6 +216,40 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
 
             monitor.report_resource_with_step()
             self.assertEqual(self._master.speed_monitor._global_step, 100)
+
+
+class MasterRendezvousHandlerTest(unittest.TestCase):
+    def test_pend_timeout(self):
+        launch_config = LaunchConfig(
+            min_nodes=1,
+            max_nodes=1,
+            nproc_per_node=2,
+            run_id="test",
+            monitor_interval=0.1,
+        )
+        self.config = ElasticLaunchConfig(**launch_config.__dict__)
+        rdzv_parameters = RendezvousParameters(
+            backend=self.config.rdzv_backend,
+            endpoint=self.config.rdzv_endpoint,
+            run_id=self.config.run_id,
+            min_nodes=self.config.min_nodes,
+            max_nodes=self.config.max_nodes,
+            local_addr=self.config.local_addr,
+            **self.config.rdzv_configs,
+        )
+        rdzv_parameters.config["pend_timeout"] = 1
+        rdzv_handler = MasterRendezvousHandler(
+            RendezvousName.ELASTIC_TRAINING,
+            0,
+            rdzv_parameters,
+            local_world_size=self.config.nproc_per_node,
+        )
+        rdzv_handler._join_rendezvous = mock.MagicMock(return_value=0)
+        rdzv_handler._client.get_comm_world = mock.MagicMock(
+            return_value=(0, {1: 8})
+        )
+        with self.assertRaises(TimeoutError):
+            rdzv_handler.next_rendezvous()
 
 
 if __name__ == "__main__":
