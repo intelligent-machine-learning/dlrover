@@ -94,10 +94,7 @@ class ResourceMonitor(object):
         self._gpu_stats: list[GPUStats] = []
 
     def start(self):
-        if (
-            not os.getenv(NodeEnv.DLROVER_MASTER_ADDR, "")
-            or not os.getenv(NodeEnv.AUTO_MONITOR_WORKLOAD, "") == "true"
-        ):
+        if not os.getenv(NodeEnv.DLROVER_MASTER_ADDR, ""):
             return
 
         self.init_gpu_monitor()
