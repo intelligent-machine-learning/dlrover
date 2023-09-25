@@ -60,8 +60,6 @@ def matmul(use_cuda, round=10):
 def write_time_to_file(time, local_rank):
     data = {"time": time, "local_rank": local_rank}
     root = ConfigPath.NETWORK_CHECK_DATA_DIR
-    if os.path.exists(root):
-        shutil.rmtree(root)
     os.makedirs(root, exist_ok=True)
     path = os.path.join(root, f"{local_rank}.txt")
     with open(path, "w") as f:
@@ -76,19 +74,21 @@ def main(task):
     else:
         dist.init_process_group("gloo", timeout=timedelta(seconds=180))
     init_time = round(time.time() - start_init, 3)
+    task_time = 0
     if task == FAULT_CHECK_TASK:
         shape = 1 << 20
-        elapsed_time = bm_all_gather(shape, use_cuda)
+        task_time = bm_all_gather(shape, use_cuda)
     elif task == STRAGGLER_CHECK_TASK:
-        elapsed_time = matmul(use_cuda)
+        task_time = matmul(use_cuda)
         shape = 1 << 24
-        elapsed_time += bm_all_gather(shape, use_cuda)
+        task_time += bm_all_gather(shape, use_cuda)
     local_rank = int(os.environ["LOCAL_RANK"])
-    write_time_to_file(init_time, local_rank)
+    elapsed_time = init_time + task_time
+    write_time_to_file(elapsed_time, local_rank)
     if local_rank == 0:
         logger.info(
             f"Init process group costs {init_time}."
-            f"Execution costs {elapsed_time}s"
+            f"Execution costs {task_time}s"
         )
     return elapsed_time
 
