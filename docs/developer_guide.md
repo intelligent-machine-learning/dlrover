@@ -198,7 +198,7 @@ kubectl apply -f dlrover/go/operator/config/manifests/bases/default-role.yaml
 **Build the master image with codes.**
 
 ```bash
-docker build -t easydl/dlrover-master:test -f docker/Dockerfile .
+docker build -t easydl/dlrover-master:test -f docker/master.dockerfile .
 ```
 
 **Build the training image of PyTorch models.**
