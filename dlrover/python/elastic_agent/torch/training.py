@@ -655,11 +655,13 @@ class NetworkCheckElasticAgent(ElasticTrainingAgent):
             f"{spec.get_entrypoint_name()}"
         )
         success = False
-        total_worker_num = len(self._client.get_running_nodes())
         no_fault_node = False
         for i in range(self._check_round):
             result, elapsed_time = self._run_network_check()
-            logger.info(f"Straggler check time of round {i} is {elapsed_time}")
+            logger.info(
+                f"Network check time of round {i} is {elapsed_time}"
+                f" and succeed is {result}."
+            )
             status = NodeStatus.SUCCEEDED if result else NodeStatus.FAILED
             self._client.report_network_status(
                 self._rank_id,
@@ -669,8 +671,13 @@ class NetworkCheckElasticAgent(ElasticTrainingAgent):
             success = success or result
             no_fault_node = self._client.check_fault_nodes()
             no_straggler = self._client.check_straggler()
+            logger.info(
+                f"No fault node: {no_fault_node}"
+                f" and no straggler: {no_straggler}."
+            )
             self._stop_workers(self._worker_group)
             if not no_fault_node or not no_straggler:
+                total_worker_num = len(self._client.get_running_nodes())
                 if total_worker_num <= 3:
                     # If the number of nodes <= 3, we cannot determine which
                     # node if fault because there is no normal node in the job
