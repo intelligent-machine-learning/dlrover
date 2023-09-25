@@ -225,12 +225,13 @@ class NetworkCheckElasticAgentTest(unittest.TestCase):
     def setUp(self) -> None:
         self._master, addr = start_local_master()
         GlobalMasterClient.MASTER_CLIENT = build_master_client(addr)
-        self.config = LaunchConfig(
+        launch_config = LaunchConfig(
             min_nodes=2,
             max_nodes=2,
             nproc_per_node=8,
             run_id="test",
         )
+        self.config = ElasticLaunchConfig(**launch_config.__dict__)
         rdzv_parameters = RendezvousParameters(
             backend=self.config.rdzv_backend,
             endpoint=self.config.rdzv_endpoint,
