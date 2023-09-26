@@ -43,6 +43,9 @@ training job. The actions to restore training in DLRover are:
 2. Restart the process not the node due to software errors.
 3. Restart the failed nodes due to hardward errors.
 
+For detail, we can see [experiments](docs/tutorial/fault_tolerations.md)
+of fault-tolerance and elasticity.
+
 #### Fault Tolerance of PyTorch Distributed Training
 
 DLRover supports fault tolerance of the process failure and the node failure
