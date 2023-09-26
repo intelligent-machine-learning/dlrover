@@ -1,4 +1,5 @@
 # Fault-tolerance and Elasticity Experiments of DLRover ElasticJob
+# Fault-tolerance and Elasticity Experiments of DLRover ElasticJob
 
 The tutorial shows experiments to test the fault-tolerance and elasticity
 of DLRover ElasticJob. In the experiments, we use the chaos enginerring toolkit
@@ -266,7 +267,7 @@ chaos-test-edljob-worker-3                    1/1     Running   0             3m
 elasticjob-chaos-test-dlrover-master          1/1     Running   0             3m9s
 ```
 
-## Experiments of TensorFlow Distributed Job
+## Experiments of TensorFlow PS Distributed Job
 
 We conduct experiments with the TF distributed job using PS to
 test the fault-tolerance of worker and PS.
