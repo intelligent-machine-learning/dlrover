@@ -1,7 +1,8 @@
 # Fault-tolerance and Elasticity Experiments of DLRover ElasticJob
 
 The tutorial shows experiments to test the fault-tolerance and elasticity
-of DLRover elastic job. using the chaos enginerring toolkit [chaosblade](https://github.com/chaosblade-io/chaosblade).
+of DLRover ElasticJob. In the experiments, we use the chaos enginerring toolkit
+[chaosblade](https://github.com/chaosblade-io/chaosblade) to simulate fault scenarios.
 
 ## Preliminary
 
@@ -17,18 +18,25 @@ We conduct experiments to simulate the following scenarios:
 - The Pod is a straggler.
 - The Pod is placed on a fualt node.
 - The Pod network breaks down during training.
-- The training process in the Pod corrupts.
+- The training process corrupts in the Pod.
 
 ### Pod is Preempted
 
-In the experiment, we set replicas of worker to 4 in a job and
-kill the worker-0 to simulate that the Pod is preempted by the command
+In the experiment, we submit a job with the [example](../../examples/pytorch/mnist/choas_test_job.yaml)
+and the command in the worker spec is
 
-```bash
-kubectl -n dlrover delete pod chaos-test-edljob-worker-0
+```yaml
+  command:
+    - /bin/bash
+    - -c
+    - "dlrover-run --network-check --exclude-straggler --nnodes=3:$WORKER_NUM \
+        --nproc_per_node=2 --max_restarts=3  --rdzv_conf pend_timeout=600 \
+        examples/pytorch/mnist/cnn_train.py --num_epochs 5 \
+        --training_data /data/mnist_png/training/ \
+        --validation_data /data/mnist_png/testing/"
 ```
 
-Before killing the worker-0, job Pods are
+The Pods of the job are:
 
 ```text
 chaos-test-edljob-worker-0                    1/1     Running   0             85s
@@ -36,6 +44,12 @@ chaos-test-edljob-worker-1                    1/1     Running   0             85
 chaos-test-edljob-worker-2                    1/1     Running   0             85s
 chaos-test-edljob-worker-3                    1/1     Running   0             85s
 elasticjob-chaos-test-dlrover-master          1/1     Running   0             89s
+```
+
+We kill the worker-0 to simulate that the Pod is preempted by the command
+
+```bash
+kubectl -n dlrover delete pod chaos-test-edljob-worker-0
 ```
 
 After killing worker-0, job Pods are
@@ -84,7 +98,7 @@ sh examples/pytorch/mnist/chaos_start.sh cpu-overload
 and set the command in the yaml of elasticjob like the [example](../../examples/pytorch/mnist/choas_test_job.yaml).
 
 ```yaml
-command:
+  command:
     - /bin/bash
     - -c
     - "(bash examples/pytorch/mnist/chaos_start.sh cpu-overload &) && \
@@ -108,8 +122,8 @@ torch-mnist-debug-edljob-worker-3             0/1     Completed   0             
 torch-mnist-debug-edljob-worker-4             0/1     Completed   0             3h10m
 ```
 
-From the log of worker-1 by `kubectl -n dlrover logs torch-mnist-debug-edljob-worker-1`, we can
-see worker-1 fails because it is a straggler. If we don't want to the worker-1 fails due to
+From the log of worker-1 by `kubectl -n dlrover logs torch-mnist-debug-edljob-worker-1`,
+worker-1 fails because it is a straggler. If we don't want to the worker-1 fails due to
 straggler, we can remove the config `dlrover-run --network-check --exclude-straggler`
 from the command like `dlrover-run --network-check`.
 
