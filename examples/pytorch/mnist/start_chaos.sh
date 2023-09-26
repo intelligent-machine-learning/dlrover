@@ -15,15 +15,15 @@
 
 exp=$1
 
-if [ ${WORKER_ID} -eq 1 -a ${exp} = "cpu-overload" ]
+if [ "${WORKER_ID}" -eq 1 ] && [ "${exp}" = "cpu-overload" ]
 then
     chaosblade-1.7.2/blade create cpu load --cpu-percent 90 
-elif [ ${WORKER_ID} -eq 1 -a ${exp} = "memory-overload" ]
+elif [ "${WORKER_ID}" -eq 1 ] && [ "${exp}" = "memory-overload" ]
 then
     chaosblade-1.7.2/blade create mem load --mode ram --mem-percent 80
-elif [ ${WORKER_ID} -eq 1 -a ${exp} = "kill-process" ]
+elif [ "${WORKER_ID}" -eq 1 ] && [ "${exp}" = "kill-process" ]
 then
-    for i in {0..1200}
+    for _ in {0..1200}
     do
         chaosblade-1.7.2/blade create process kill --process run_network_check --signal 1
         sleep 1
