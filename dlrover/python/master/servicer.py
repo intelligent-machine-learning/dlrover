@@ -219,8 +219,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         rdzv_manager: NetworkCheckRendezvousManager = self._rdzv_managers[
             RendezvousName.NETWORK_CHECK
         ]
-        success, reason = rdzv_manager.check_no_fault_node()
-        res = grpc.NetworkReady(success=success, reason=reason)
+        nodes, reason = rdzv_manager.check_fault_node()
+        res = grpc.NetworkCheckResult(nodes=nodes, reason=reason)
         return res
 
     def _get_straggler_nodes(self):
@@ -228,7 +228,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             RendezvousName.NETWORK_CHECK
         ]
         nodes, reason = rdzv_manager.get_straggler()
-        res = grpc.StragglerNodes(nodes=nodes, reason=reason)
+        res = grpc.NetworkCheckResult(nodes=nodes, reason=reason)
         return res
 
     def _join_rendezvous(self, request: grpc.JoinRendezvousRequest):

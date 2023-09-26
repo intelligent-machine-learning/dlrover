@@ -393,13 +393,13 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         self._straggler_nodes = []
         return super().join_rendezvous(rank_id, local_world_size)
 
-    def check_no_fault_node(self):
-        """Check the network task is succeed. Each task contains 2 rounds
+    def check_fault_node(self):
+        """Check whether the job has fault nodes. Each task contains 2 rounds
         allgather. If succeed, the round should be set to the multiples of 2.
         """
         with self._lock:
             reason = ""
-            no_fault_node = False
+            fault_nodes = self._fault_nodes
             if len(self._reported_nodes) < len(self._rdzv_nodes):
                 reason = NetworkFailureReason.WAITING_NODE
             elif self._fault_nodes:
@@ -411,17 +411,15 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                         self._fault_nodes.append(node_id)
                 if self._fault_nodes:
                     logger.warning(f"Fault nodes {self._fault_nodes}")
-                no_fault_node = not self._fault_nodes
                 stragglers = self._detect_stragglers()
-                no_stragger = not stragglers
-                if no_fault_node and no_stragger:
+                if not self._fault_nodes and not stragglers:
                     self._rdzv_round = (
                         math.ceil(self._rdzv_round / self._check_round)
                         * self._check_round
                     )
                 else:
                     reason = NetworkFailureReason.NODE_FAILURE
-            return no_fault_node, reason
+            return fault_nodes, reason
 
     def get_straggler(self):
         """Detect whether there is the straggler according to the

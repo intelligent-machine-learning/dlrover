@@ -310,11 +310,11 @@ class MasterClient(object):
         result: grpc.RendezvousState = self._get(request)
         return result.group, result.world
 
-    def check_fault_nodes(self, timeout=300):
+    def check_fault_node(self, timeout=300):
         request = grpc.NetworkReadyRequest()
         start = time.time()
         while True:
-            result: grpc.NetworkReady = self._get(request)
+            result: grpc.NetworkCheckResult = self._get(request)
             if (
                 result.reason == NetworkFailureReason.WAITING_NODE
                 and time.time() - start < timeout
@@ -322,13 +322,13 @@ class MasterClient(object):
                 time.sleep(5)
                 continue
             break
-        return result.success
+        return result.nodes
 
     def check_straggler(self, timeout=300):
         request = grpc.StragglerExistRequest()
         start = time.time()
         while True:
-            result: grpc.StragglerNodes = self._get(request)
+            result: grpc.NetworkCheckResult = self._get(request)
             if (
                 result.reason == NetworkFailureReason.WAITING_NODE
                 and time.time() - start < timeout

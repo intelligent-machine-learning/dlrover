@@ -163,7 +163,7 @@ class NcclCheckRendezvousManagerTest(unittest.TestCase):
         group, world = rdzv_manager.get_comm_world(1)
         self.assertDictEqual(world, {1: 8, 2: 8})
         self.assertEqual(group, 1)
-        success, _ = rdzv_manager.check_no_fault_node()
+        success, _ = rdzv_manager.check_fault_node()
         self.assertFalse(success)
 
         for i in range(4):
@@ -171,13 +171,13 @@ class NcclCheckRendezvousManagerTest(unittest.TestCase):
         self.assertEqual(round, 2)
         group, world = rdzv_manager.get_comm_world(3)
         self.assertDictEqual(world, {2: 8, 3: 8})
-        _, reason = rdzv_manager.check_no_fault_node()
+        _, reason = rdzv_manager.check_fault_node()
         self.assertEqual(reason, NetworkFailureReason.WAITING_NODE)
         for i in range(3):
             rdzv_manager.report_network_check_result(i, True, 0.0)
         rdzv_manager.report_network_check_result(3, True, 0.0)
-        success, _ = rdzv_manager.check_no_fault_node()
-        self.assertTrue(success)
+        nodes, _ = rdzv_manager.check_fault_node()
+        self.assertListEqual(nodes, [])
 
     def test_network_check_rdzv_with_single_node(self):
         rdzv_manager = NetworkCheckRendezvousManager()
@@ -188,8 +188,8 @@ class NcclCheckRendezvousManagerTest(unittest.TestCase):
         _, world = rdzv_manager.get_comm_world(0)
         self.assertDictEqual(world, {0: 8})
         rdzv_manager.report_network_check_result(0, True, 0.0)
-        existed, _ = rdzv_manager.check_no_fault_node()
-        self.assertTrue(existed)
+        nodes, _ = rdzv_manager.check_fault_node()
+        self.assertListEqual(nodes, [])
 
     def test_network_check_straggler_even_nodes(self):
         rdzv_manager = NetworkCheckRendezvousManager()

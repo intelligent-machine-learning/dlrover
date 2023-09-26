@@ -326,13 +326,7 @@ class StragglerExistRequest(Message):
 
 
 @dataclass
-class NetworkReady(Message):
-    success: bool = False
-    reason: str = ""
-
-
-@dataclass
-class StragglerNodes(Message):
+class NetworkCheckResult(Message):
     nodes: List[int] = None  # type: ignore
     reason: str = ""
 

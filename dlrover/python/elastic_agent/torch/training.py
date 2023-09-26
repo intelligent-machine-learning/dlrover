@@ -687,7 +687,8 @@ class NetworkCheckElasticAgent(ElasticTrainingAgent):
             f"{spec.get_entrypoint_name()}"
         )
         success = False
-        no_fault_node = False
+        fault_nodes = []
+        stragglers = []
         for i in range(self._check_round):
             result, elapsed_time = self._run_network_check()
             logger.info(
@@ -701,14 +702,14 @@ class NetworkCheckElasticAgent(ElasticTrainingAgent):
                 elapsed_time,
             )
             success = success or result
-            no_fault_node = self._client.check_fault_nodes()
+            fault_nodes = self._client.check_fault_node()
             stragglers = self._client.check_straggler()
             logger.info(
-                f"No fault node: {no_fault_node}"
-                f" and no straggler: {stragglers}."
+                f"Fault nodes are: {fault_nodes} "
+                f" and stragglers are: {stragglers}."
             )
             self._stop_workers(self._worker_group)
-            if not no_fault_node or stragglers:
+            if fault_nodes or stragglers:
                 total_worker_num = len(self._client.get_running_nodes())
                 if total_worker_num <= 3:
                     # If the number of nodes <= 3, we cannot determine which
@@ -722,7 +723,7 @@ class NetworkCheckElasticAgent(ElasticTrainingAgent):
                     continue
             else:
                 return True
-        if not success:
+        if self._rank_id in fault_nodes:
             self._client.report_failures(
                 NodeErrorMessage.NETWORKER_ERROR,
                 level=TrainingMsgLevel.NODE_ERROR,
@@ -730,7 +731,7 @@ class NetworkCheckElasticAgent(ElasticTrainingAgent):
             raise RuntimeError("The node network is breakdown.")
         elif self._config.exclude_straggler and self._rank_id in stragglers:
             raise RuntimeError("The node is a straggler and exits.")
-        return no_fault_node
+        return True
 
     def _run_network_check(self, monitor_interval=3, timeout=300):
         self._initialize_workers(self._worker_group)

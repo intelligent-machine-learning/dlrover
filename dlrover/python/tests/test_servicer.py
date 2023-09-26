@@ -355,7 +355,7 @@ class MasterServicerTest(unittest.TestCase):
         self.servicer.report(request, None)
         response = self.servicer.get(request, None)
         config = grpc.deserialize_message(response.data)
-        self.assertIsInstance(config, grpc.StragglerNodes)
+        self.assertIsInstance(config, grpc.NetworkCheckResult)
 
 
 class MasterServicerForRayTest(unittest.TestCase):
