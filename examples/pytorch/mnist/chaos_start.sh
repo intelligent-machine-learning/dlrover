@@ -18,6 +18,9 @@ exp=$1
 if [ ${WORKER_ID} -eq 1 -a ${exp} = "cpu-overload" ]
 then
     chaosblade-1.7.2/blade create cpu load --cpu-percent 90 
+elif [ ${WORKER_ID} -eq 1 -a ${exp} = "memory-overload" ]
+then
+    chaosblade-1.7.2/blade create mem load --mode ram --mem-percent 80
 else
     echo "No chaos experiment."
 fi

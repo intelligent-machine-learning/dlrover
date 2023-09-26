@@ -82,7 +82,7 @@ def main(task):
         shape = 1 << 24
         task_time += bm_all_gather(shape, use_cuda)
     local_rank = int(os.environ["LOCAL_RANK"])
-    elapsed_time = init_time + task_time
+    elapsed_time = round(init_time + task_time, 3)
     write_time_to_file(elapsed_time, local_rank)
     if local_rank == 0:
         logger.info(

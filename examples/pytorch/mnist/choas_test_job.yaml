@@ -15,16 +15,17 @@ spec:
           restartPolicy: Always
           containers:
             - name: main
-              # yamllint disable-line rule:line-length
               # build the image with examples/pytorch/mnist/mnist_chaos.dockerfile
+              # yamllint disable-line rule:line-length
               image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:torch201-mnist-test
               imagePullPolicy: Always
               command:
                 - /bin/bash
                 - -c
                 - "sh examples/pytorch/mnist/chaos_start.sh cpu-overload \
-                  && dlrover-run --network-check --exclude-straggler --nnodes=3:$WORKER_NUM \
-                  --nproc_per_node=2 --max_restarts=3  --rdzv_conf pend_timeout=600 \
+                  && dlrover-run --network-check --exclude-straggler \
+                  --nnodes=3:$WORKER_NUM --nproc_per_node=2 \
+                  --max_restarts=3  --rdzv_conf pend_timeout=600 \
                   examples/pytorch/mnist/cnn_train.py --num_epochs 5 \
                   --training_data /data/mnist_png/training/ \
                   --validation_data /data/mnist_png/testing/"
