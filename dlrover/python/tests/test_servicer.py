@@ -348,6 +348,15 @@ class MasterServicerTest(unittest.TestCase):
         config = grpc.deserialize_message(response.data)
         self.assertIsInstance(config, grpc.ParallelConfig)
 
+    def test_get_straggler(self):
+        message = grpc.StragglerExistRequest()
+        request = elastic_training_pb2.Message()
+        request.data = message.serialize()
+        self.servicer.report(request, None)
+        response = self.servicer.get(request, None)
+        config = grpc.deserialize_message(response.data)
+        self.assertIsInstance(config, grpc.NetworkCheckResult)
+
 
 class MasterServicerForRayTest(unittest.TestCase):
     def setUp(self) -> None:

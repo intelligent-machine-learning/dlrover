@@ -271,8 +271,9 @@ class NodeAddress(NodeMeta):
     pass
 
 
-class NodeStatus(NodeMeta):
-    pass
+@dataclass
+class NetworkStatus(NodeMeta):
+    elasped_time: float = 0.0
 
 
 @dataclass
@@ -320,9 +321,13 @@ class NetworkReadyRequest(Message):
     pass
 
 
+class StragglerExistRequest(Message):
+    pass
+
+
 @dataclass
-class NetworkReady(Message):
-    success: bool = False
+class NetworkCheckResult(Message):
+    nodes: List[int] = None  # type: ignore
     reason: str = ""
 
 

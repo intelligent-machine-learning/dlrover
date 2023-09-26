@@ -88,11 +88,14 @@ class ElasticLaunchConfig(LaunchConfig):
         node_unit: the number of unit of nodes. The number of nodes must be
             a multiple of node_unit.
         auto_tunning: whether to auto-tune the parallelism configuration.
+        exclude_straggler: The node will exit if it is a straggler in network
+            check and exclude_straggler is True.
     """
 
     network_check: bool = False
     node_unit: int = 1
     auto_tunning: bool = False
+    exclude_straggler: bool = False
 
 
 @dataclass
@@ -673,6 +676,7 @@ class NetworkCheckElasticAgent(ElasticTrainingAgent):
         )
         self._log_dir = log_dir or tempfile.mkdtemp(prefix="network_check_")
         self._check_round = 2
+        self._config: ElasticLaunchConfig = config
 
     def run(self, role: str = DEFAULT_ROLE) -> bool:
         spec = self._worker_group.spec
@@ -683,38 +687,56 @@ class NetworkCheckElasticAgent(ElasticTrainingAgent):
             f"{spec.get_entrypoint_name()}"
         )
         success = False
+        fault_nodes = []
+        stragglers = []
         for i in range(self._check_round):
-            result = self._run_network_check(spec.monitor_interval)
-            logger.info(f"Network check round {i} is {result}")
+            result, elapsed_time = self._run_network_check()
+            logger.info(
+                f"Network check time of round {i} is {elapsed_time}"
+                f" and succeed is {result}."
+            )
             status = NodeStatus.SUCCEEDED if result else NodeStatus.FAILED
-            self._client.report_node_status(self._rank_id, status)
+            self._client.report_network_status(
+                self._rank_id,
+                status,
+                elapsed_time,
+            )
             success = success or result
-            network_ready = self._client.network_check_success()
+            fault_nodes = self._client.check_fault_node()
+            stragglers = self._client.check_straggler()
+            logger.info(
+                f"Fault nodes are: {fault_nodes} "
+                f" and stragglers are: {stragglers}."
+            )
             self._stop_workers(self._worker_group)
-            if network_ready:
-                return True
-            else:
+            if fault_nodes or stragglers:
                 total_worker_num = len(self._client.get_running_nodes())
-                # If the number of nodes <= 2, we cannot determine which node
-                # breakdowns because there is no normal node in the job to
-                # execute allgather tasks with the two nodes.
-                if total_worker_num <= 2:
-                    logger.error(
-                        "Fail to check network when there are only 2 nodes."
-                    )
+                if total_worker_num <= 3:
+                    # If the number of nodes <= 3, we cannot determine which
+                    # node if fault because there is no normal node in the job
+                    # to execute allgather tasks with the two nodes.
+                    logger.error("Network check needs at least 4 nodes.")
                     raise RuntimeError("The node network is breakdown.")
-            time.sleep(1)
-        if not success:
+                else:
+                    # Run the next round check to detect the fault node.
+                    time.sleep(3)
+                    continue
+            else:
+                return True
+        if self._rank_id in fault_nodes:
             self._client.report_failures(
                 NodeErrorMessage.NETWORKER_ERROR,
                 level=TrainingMsgLevel.NODE_ERROR,
             )
             raise RuntimeError("The node network is breakdown.")
-        return False
+        elif self._config.exclude_straggler and self._rank_id in stragglers:
+            raise RuntimeError("The node is a straggler and exits.")
+        return True
 
-    def _run_network_check(self, monitor_interval, timeout=300):
+    def _run_network_check(self, monitor_interval=3, timeout=300):
         self._initialize_workers(self._worker_group)
         start = time.time()
+        succeed = False
         while True:
             assert self._worker_group.state != WorkerState.INIT
             time.sleep(monitor_interval)
@@ -724,9 +746,34 @@ class NetworkCheckElasticAgent(ElasticTrainingAgent):
             if state == WorkerState.HEALTHY:
                 if time.time() - start > timeout:
                     logger.error(f"Timeout {timeout} to check network.")
-                    return False
+                    break
                 continue
-            return state == WorkerState.SUCCEEDED
+            elif state == WorkerState.SUCCEEDED:
+                succeed = True
+                break
+            else:
+                break
+
+        if succeed:
+            elapsed_time = self._get_network_check_time()
+        else:
+            elapsed_time = 3600
+        return succeed, elapsed_time
+
+    def _get_network_check_time(self):
+        root = ConfigPath.NETWORK_CHECK_DATA_DIR
+        elapsed_time = 0
+        if not os.path.exists(root):
+            return elapsed_time
+        for filename in os.listdir(root):
+            path = os.path.join(root, filename)
+            with open(path, "r") as f:
+                data = f.read()
+                if not data:
+                    continue
+                data = json.loads(data)
+                elapsed_time = max(elapsed_time, data.get("time", 0))
+        return elapsed_time
 
 
 def network_check(

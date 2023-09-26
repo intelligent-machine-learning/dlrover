@@ -198,7 +198,9 @@ class RendezvousManager(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def report_network_check_result(self, node_id: int, normal: bool):
+    def report_network_check_result(
+        self, node_id: int, normal: bool, elapsed_time: float
+    ):
         """The node updates its status"""
         pass
 
@@ -243,7 +245,7 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
                     self._rdzv_round += 1
             return self._rdzv_round, self._rdzv_nodes
 
-    def report_network_check_result(self, node_id, normal):
+    def report_network_check_result(self, node_id, normal, elapsed_time):
         return
 
 
@@ -265,9 +267,12 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         super().__init__()
         self._name = RendezvousName.NETWORK_CHECK
         self._node_status: Dict[int, bool] = {}
+        self._node_times: Dict[int, float] = {}
         self._reported_nodes = set()
         self._node_groups: List[Dict[int, int]] = []
         self._check_round = 2
+        self._fault_nodes: List[int] = []
+        self._straggler_nodes: List[int] = []
 
     def get_comm_world(self, rank_id):
         """Return the communication world if a round rendezvous is completed.
@@ -286,7 +291,6 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                         self._node_status = {}
                     self._reported_nodes = set()
                     self._rdzv_round += 1
-
             for i, group in enumerate(self._node_groups):
                 if rank_id in group:
                     return i, group
@@ -315,39 +319,60 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                 else:
                     node_groups.append(group)
         elif round == 1:
-            abnormal_nodes = []
-            normal_nodes = []
-            for node_id, status in self._node_status.items():
-                if status:
-                    normal_nodes.append(node_id)
-                else:
-                    abnormal_nodes.append(node_id)
-            logger.info(
-                f"Normal nodes: {normal_nodes}.\n"
-                f"Abnormal nodes: {abnormal_nodes}"
-            )
-            if len(abnormal_nodes) > len(normal_nodes):
-                return node_groups
-            for i, node_id in enumerate(abnormal_nodes):
+            self._check_abnormal_nodes()
+            node_times = sorted(self._node_times.items(), key=lambda x: x[1])
+            cur_nodes = []
+            for node_id, _ in node_times:
+                if node_id in self._rdzv_nodes:
+                    cur_nodes.append(node_id)
+            left, right = 0, len(cur_nodes) - 1
+            while True:
                 group = {}
-                group[node_id] = self._rdzv_nodes[node_id]
-                group[normal_nodes[i]] = self._rdzv_nodes[node_id]
-                node_groups.append(group)
-            group = {}
-            for node_id in normal_nodes[len(abnormal_nodes) :]:  # noqa: E203
-                group[node_id] = self._rdzv_nodes[node_id]
-            if group:
-                node_groups.append(group)
+                node0 = cur_nodes[left]
+                node1 = cur_nodes[right]
+                group[node0] = self._rdzv_nodes[node0]
+                group[node1] = self._rdzv_nodes[node1]
+                if len(group) == 2:
+                    node_groups.append(group)
+                left += 1
+                right -= 1
+                if right < left:
+                    break
+            if len(group) == 1:
+                if len(node_groups) > 0:
+                    node_groups[-1].update(group)
+                else:
+                    node_groups.append(group)
         return node_groups
 
-    def report_network_check_result(self, node_id: int, succeed):
+    def _check_abnormal_nodes(self):
+        abnormal_nodes = []
+        normal_nodes = []
+        for node_id, status in self._node_status.items():
+            if status:
+                normal_nodes.append(node_id)
+            else:
+                abnormal_nodes.append(node_id)
+        logger.info(
+            f"Normal nodes: {normal_nodes}.\n"
+            f"Abnormal nodes: {abnormal_nodes}"
+        )
+
+    def report_network_check_result(
+        self, node_id: int, succeed: bool, elapsed_time: float
+    ):
         self._reported_nodes.add(node_id)
-        self._node_status.setdefault(node_id, False)
+        self._node_status.setdefault(node_id, succeed)
+        self._node_times.setdefault(node_id, elapsed_time)
         self._node_status[node_id] = self._node_status[node_id] or succeed
+        self._node_times[node_id] = min(
+            self._node_times[node_id], elapsed_time
+        )
         if len(self._reported_nodes) == len(self._rdzv_nodes):
             logger.info(
-                f"The node normal status of {self._rdzv_round} check "
-                f"is {self._node_status}."
+                f"The node status of {self._rdzv_round} check "
+                f"is {self._node_status}.\n"
+                f"The elapsed time of nodes are {self._node_times}"
             )
 
     def join_rendezvous(
@@ -364,25 +389,71 @@ class NetworkCheckRendezvousManager(RendezvousManager):
             int: the number of rendezvous round.
         """
         self._node_groups = []
+        self._fault_nodes = []
+        self._straggler_nodes = []
         return super().join_rendezvous(rank_id, local_world_size)
 
-    def network_check_success(self):
-        """Check the network task is succeed. Each task contains 3 rounds
-        allgather. If succeed, the round should be set to the multiples of 3.
+    def check_fault_node(self):
+        """Check whether the job has fault nodes. Each task contains 2 rounds
+        allgather. If succeed, the round should be set to the multiples of 2.
         """
         with self._lock:
             reason = ""
-            success = False
+            fault_nodes = self._fault_nodes
             if len(self._reported_nodes) < len(self._rdzv_nodes):
                 reason = NetworkFailureReason.WAITING_NODE
+            elif self._fault_nodes:
+                reason = NetworkFailureReason.NODE_FAILURE
             else:
-                if self._node_status:
-                    success = all(list(self._node_status.values()))
-                if success:
+                self._fault_nodes = []
+                for node_id, status in self._node_status.items():
+                    if not status:
+                        self._fault_nodes.append(node_id)
+                if self._fault_nodes:
+                    logger.warning(f"Fault nodes {self._fault_nodes}")
+                stragglers = self._detect_stragglers()
+                if not self._fault_nodes and not stragglers:
                     self._rdzv_round = (
                         math.ceil(self._rdzv_round / self._check_round)
                         * self._check_round
                     )
                 else:
                     reason = NetworkFailureReason.NODE_FAILURE
-            return success, reason
+            return fault_nodes, reason
+
+    def get_straggler(self):
+        """Detect whether there is the straggler according to the
+        elapsed time of node to run the test task. If the elapsed
+        time of node is bigger than 2*median_time, the node is
+        a straggler.
+        """
+        with self._lock:
+            reason = ""
+            stragglers: Dict[int, float] = {}
+            if len(self._reported_nodes) < len(self._rdzv_nodes):
+                reason = NetworkFailureReason.WAITING_NODE
+            elif self._straggler_nodes:
+                return self._straggler_nodes, reason
+            else:
+                stragglers = self._detect_stragglers()
+                if stragglers:
+                    logger.warning(f"Straggler: {stragglers}.")
+                self._straggler_nodes = list(stragglers.keys())
+            return self._straggler_nodes, reason
+
+    def _detect_stragglers(self):
+        """Detect wether there is the straggler in the job."""
+        stragglers: Dict[int, float] = {}
+        times = sorted(list(self._node_times.values()))
+        if not times:
+            return stragglers
+        if len(times) % 2 == 0:
+            i = len(times) // 2
+            med_time = (times[i] + times[i - 1]) / 2
+        else:
+            i = len(times) // 2
+            med_time = times[i]
+        for node_id, t in self._node_times.items():
+            if t > med_time * 2:
+                stragglers[node_id] = t
+        return stragglers
