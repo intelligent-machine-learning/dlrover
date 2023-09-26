@@ -17,7 +17,7 @@ spec:
             - name: main
               # build the image with mnist_chaos.dockerfile
               # yamllint disable-line rule:line-length
-              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:torch201-mnist-test
+              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:torch201-mnist
               imagePullPolicy: Always
               command:
                 - /bin/bash
@@ -50,4 +50,4 @@ spec:
             - name: main
               imagePullPolicy: Always
               # build the image with docker/master.dockerfile and set it here.
-              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:test
+              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:master
