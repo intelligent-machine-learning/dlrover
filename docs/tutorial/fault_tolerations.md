@@ -92,7 +92,7 @@ If you use the image `registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:torch2
 you can use chaosblade to create an chaos experint by
 
 ```bash
-sh examples/pytorch/mnist/chaos_start.sh cpu-overload 
+sh examples/pytorch/mnist/start_chaos.sh cpu-overload 
 ```
 
 and set the command in the yaml of elasticjob like the [example](../../examples/pytorch/mnist/choas_test_job.yaml).
@@ -101,7 +101,7 @@ and set the command in the yaml of elasticjob like the [example](../../examples/
   command:
     - /bin/bash
     - -c
-    - "(bash examples/pytorch/mnist/chaos_start.sh cpu-overload &) && \
+    - "(bash examples/pytorch/mnist/start_chaos.sh cpu-overload &) && \
         dlrover-run --network-check --exclude-straggler --nnodes=3:$WORKER_NUM \
         --nproc_per_node=2 --max_restarts=3  --rdzv_conf pend_timeout=600 \
         examples/pytorch/mnist/cnn_train.py --num_epochs 5 \
@@ -168,7 +168,7 @@ and set the command in the yaml of elasticjob like the [example](../../examples/
 command:
     - /bin/bash
     - -c
-    - "(bash examples/pytorch/mnist/chaos_start.sh kill-process &) && \
+    - "(bash examples/pytorch/mnist/start_chaos.sh kill-process &) && \
         dlrover-run --network-check --exclude-straggler --nnodes=3:$WORKER_NUM \
         --nproc_per_node=2 --max_restarts=3  --rdzv_conf pend_timeout=600 \
         examples/pytorch/mnist/cnn_train.py --num_epochs 5 \
