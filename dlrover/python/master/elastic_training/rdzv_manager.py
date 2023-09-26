@@ -369,14 +369,17 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         self._node_status.setdefault(node_id, succeed)
         self._node_times.setdefault(node_id, elapsed_time)
         self._node_status[node_id] = self._node_status[node_id] or succeed
-        self._node_times[node_id] = min(
-            self._node_times[node_id], elapsed_time
+        self._node_times[node_id] = round(
+            min(self._node_times[node_id], elapsed_time), 3
         )
         if len(self._reported_nodes) == len(self._rdzv_nodes):
             logger.info(
-                f"The node status of {self._rdzv_round} check "
-                f"is {self._node_status}.\n"
-                f"The elapsed time of nodes are {self._node_times}"
+                f"Round {self._rdzv_round}: The node status "
+                f"are {self._node_status}."
+            )
+            logger.info(
+                f"Round {self._rdzv_round}: The node elapsed time "
+                f"are {self._node_times}"
             )
 
     def join_rendezvous(
