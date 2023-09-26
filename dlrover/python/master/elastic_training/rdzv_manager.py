@@ -406,7 +406,6 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         """
         with self._lock:
             reason = ""
-            fault_nodes = self._fault_nodes
             if len(self._reported_nodes) < len(self._rdzv_nodes):
                 reason = NetworkFailureReason.WAITING_NODE
             elif self._fault_nodes:
@@ -426,7 +425,7 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                     )
                 else:
                     reason = NetworkFailureReason.NODE_FAILURE
-            return fault_nodes, reason
+            return self._fault_nodes, reason
 
     def get_straggler(self):
         """Detect whether there is the straggler according to the

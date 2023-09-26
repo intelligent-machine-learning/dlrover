@@ -27,8 +27,10 @@ spec:
                   --validation_data /data/mnist_png/testing/"
               resources:
                 limits:
-                  cpu: "1"
-                  memory: 2Gi
+                  cpu: "1"  # turn up when using GPU
+                  memory: 2Gi  # turn up when using GPU
+                  # nvidia.com/gpu: 1 # optional
                 requests:
-                  cpu: "1"
-                  memory: 2Gi
+                  cpu: "1"  # turn up when using GPU
+                  memory: 2Gi  # turn up when using GPU
+                  # nvidia.com/gpu: 1 # optional

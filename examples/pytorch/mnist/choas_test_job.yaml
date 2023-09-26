@@ -15,14 +15,14 @@ spec:
           restartPolicy: Always
           containers:
             - name: main
-              # build the image with examples/pytorch/mnist/mnist_chaos.dockerfile
+              # build the image with mnist_chaos.dockerfile
               # yamllint disable-line rule:line-length
               image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:torch201-mnist-test
               imagePullPolicy: Always
               command:
                 - /bin/bash
                 - -c
-                - "sh examples/pytorch/mnist/chaos_start.sh cpu-overload \
+                - "(bash examples/pytorch/mnist/chaos_start.sh cpu-overload &)
                   && dlrover-run --network-check --exclude-straggler \
                   --nnodes=3:$WORKER_NUM --nproc_per_node=2 \
                   --max_restarts=3  --rdzv_conf pend_timeout=600 \
@@ -31,12 +31,12 @@ spec:
                   --validation_data /data/mnist_png/testing/"
               resources:
                 limits:
-                  cpu: "1"
-                  memory: 3Gi
+                  cpu: "1"  # turn up when using GPU
+                  memory: 2Gi  # turn up when using GPU
                   # nvidia.com/gpu: 1 # optional
                 requests:
-                  cpu: "1"
-                  memory: 3Gi
+                  cpu: "1"  # turn up when using GPU
+                  memory: 2Gi  # turn up when using GPU
                   # nvidia.com/gpu: 1 # optional
               securityContext:
                 capabilities:

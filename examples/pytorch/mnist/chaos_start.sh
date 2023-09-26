@@ -21,6 +21,13 @@ then
 elif [ ${WORKER_ID} -eq 1 -a ${exp} = "memory-overload" ]
 then
     chaosblade-1.7.2/blade create mem load --mode ram --mem-percent 80
+elif [ ${WORKER_ID} -eq 1 -a ${exp} = "kill-process" ]
+then
+    for i in {0..1200}
+    do
+        chaosblade-1.7.2/blade create process kill --process run_network_check --signal 1
+        sleep 1
+    done
 else
     echo "No chaos experiment."
 fi
