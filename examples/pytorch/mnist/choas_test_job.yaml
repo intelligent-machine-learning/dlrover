@@ -1,7 +1,7 @@
 apiVersion: elastic.iml.github.io/v1alpha1
 kind: ElasticJob
 metadata:
-  name: torch-mnist-debug
+  name: chaos-test
   namespace: dlrover
 spec:
   distributionStrategy: AllreduceStrategy
