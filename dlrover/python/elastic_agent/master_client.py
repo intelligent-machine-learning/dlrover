@@ -336,8 +336,7 @@ class MasterClient(object):
                 time.sleep(5)
                 continue
             break
-        no_straggler = not result.nodes
-        return no_straggler
+        return result.nodes
 
     def report_rdzv_params(
         self, min_nodes, max_nodes, waiting_timeout, node_unit

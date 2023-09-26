@@ -122,6 +122,14 @@ def parse_args(args):
         action=check_env,
         help="Whether to auto-tune the parallel configuraion.",
     )
+    parser.add_argument(
+        "--exclude-straggler",
+        "--exclude_straggler",
+        action=check_env,
+        help="Bool, The node will exit if the node is straggler and "
+        "the argument is True. The argument only works when network-check "
+        "is True.",
+    )
     return parser.parse_args(args)
 
 
@@ -225,6 +233,7 @@ def _elastic_config_from_args(
     elastic_config.network_check = args.network_check
     elastic_config.node_unit = args.node_unit
     elastic_config.auto_tunning = args.auto_tunning
+    elastic_config.exclude_straggler = args.exclude_straggler
     return elastic_config, cmd, cmd_args
 
 

@@ -88,11 +88,14 @@ class ElasticLaunchConfig(LaunchConfig):
         node_unit: the number of unit of nodes. The number of nodes must be
             a multiple of node_unit.
         auto_tunning: whether to auto-tune the parallelism configuration.
+        exclude_straggler: The node will exit if it is a straggler in network
+            check and exclude_straggler is True.
     """
 
     network_check: bool = False
     node_unit: int = 1
     auto_tunning: bool = False
+    exclude_straggler: bool = False
 
 
 @dataclass
@@ -673,6 +676,7 @@ class NetworkCheckElasticAgent(ElasticTrainingAgent):
         )
         self._log_dir = log_dir or tempfile.mkdtemp(prefix="network_check_")
         self._check_round = 2
+        self._config: ElasticLaunchConfig = config
 
     def run(self, role: str = DEFAULT_ROLE) -> bool:
         spec = self._worker_group.spec
@@ -698,13 +702,13 @@ class NetworkCheckElasticAgent(ElasticTrainingAgent):
             )
             success = success or result
             no_fault_node = self._client.check_fault_nodes()
-            no_straggler = self._client.check_straggler()
+            stragglers = self._client.check_straggler()
             logger.info(
                 f"No fault node: {no_fault_node}"
-                f" and no straggler: {no_straggler}."
+                f" and no straggler: {stragglers}."
             )
             self._stop_workers(self._worker_group)
-            if not no_fault_node or not no_straggler:
+            if not no_fault_node or stragglers:
                 total_worker_num = len(self._client.get_running_nodes())
                 if total_worker_num <= 3:
                     # If the number of nodes <= 3, we cannot determine which
@@ -724,6 +728,8 @@ class NetworkCheckElasticAgent(ElasticTrainingAgent):
                 level=TrainingMsgLevel.NODE_ERROR,
             )
             raise RuntimeError("The node network is breakdown.")
+        elif self._config.exclude_straggler and self._rank_id in stragglers:
+            raise RuntimeError("The node is a straggler and exits.")
         return no_fault_node
 
     def _run_network_check(self, monitor_interval=3, timeout=300):
