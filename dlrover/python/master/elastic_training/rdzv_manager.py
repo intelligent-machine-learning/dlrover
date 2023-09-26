@@ -288,13 +288,17 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                         f"node group: {self._node_groups}"
                     )
                     if self._rdzv_round % 2 == 0:
-                        self._node_status = {}
+                        self._clear_check_status()
                     self._reported_nodes = set()
                     self._rdzv_round += 1
             for i, group in enumerate(self._node_groups):
                 if rank_id in group:
                     return i, group
             return 0, self._rdzv_nodes
+
+    def _clear_check_status(self):
+        self._node_status = {}
+        self._node_times = {}
 
     def _group_nodes(self, round):
         """Group nodes into goups.
