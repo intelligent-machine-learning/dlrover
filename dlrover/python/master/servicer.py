@@ -107,9 +107,9 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         elif isinstance(req_message, grpc.WaitingNodeNumRequest):
             message = self._num_nodes_waiting()
         elif isinstance(req_message, grpc.NetworkReadyRequest):
-            message = self._network_check_success()
+            message = self._check_fault_node()
         elif isinstance(req_message, grpc.StragglerExistRequest):
-            message = self._get_straggler_nodes()
+            message = self._check_straggler()
         elif isinstance(req_message, grpc.JoinRendezvousRequest):
             message = self._join_rendezvous(req_message)
         elif isinstance(req_message, grpc.CommWorldRequest):
@@ -215,7 +215,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             res.status = TrainingLoopStatus.PENDING
         return res
 
-    def _network_check_success(self):
+    def _check_fault_node(self):
         rdzv_manager: NetworkCheckRendezvousManager = self._rdzv_managers[
             RendezvousName.NETWORK_CHECK
         ]
@@ -223,7 +223,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         res = grpc.NetworkCheckResult(nodes=nodes, reason=reason)
         return res
 
-    def _get_straggler_nodes(self):
+    def _check_straggler(self):
         rdzv_manager: NetworkCheckRendezvousManager = self._rdzv_managers[
             RendezvousName.NETWORK_CHECK
         ]
