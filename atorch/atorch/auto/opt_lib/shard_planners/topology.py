@@ -32,6 +32,18 @@ class DeviceTopology:
         path = nx.shortest_path(self.graph, device_id_1, device_id_2, weight="bandwidth_inverse")
         return min(self.graph.edges[path[i], path[i + 1]]["bandwidth"] for i in range(len(path) - 1))
 
+    def get_average_bandwidth(self):
+        average_bandwidth = 0.0
+        counter = 0
+        ranks = self.get_device_ranks()
+        for i in self.get_device_ranks():
+            for j in range(i + 1, self.num_devices()):
+                bandwidth = self.get_effective_bandwidth(ranks[i], ranks[j])
+                if bandwidth != float("inf"):
+                    counter += 1
+                    average_bandwidth += (bandwidth - average_bandwidth) / counter
+        return average_bandwidth
+
 
 class SimpleTopology(DeviceTopology):
     def __init__(self, num_nodes, num_devices_per_node, intra_node_bandwidth, inter_node_bandwidth):

@@ -14,6 +14,7 @@ from atorch.utils.graph_transform_utils import map_aggregate
 from atorch.utils.meta_model_utils import reload_meta_module
 from atorch.utils.shape_prop import MetaShapeProp
 from atorch.utils.spec_prop import MetaSpecProp, SpecProp
+from atorch.utils.version import torch_version
 
 try:
     from torch._subclasses.fake_tensor import FakeTensorMode
@@ -72,27 +73,27 @@ class Optimization(ABC):
         pass
 
 
-class DistributedGraphOptimization(Optimization):
+class DistributedGraphMixin:
     def __init__(
         self,
-        name=None,
         num_nodes=None,
         num_devices_per_node=None,
         tracer_backend="meta_fx",
         prop_mode="interpreter",
         use_fake_mode=False,
+        device_context=None,
     ):
         """
+        This is a mixin encapsulating the functionality of device topology abstraction, graph extraction,
+        graph interpretation etc. This mixin is primarily used in places where shape propogation is needed.
+
         Args:
-            name: Name for this optimization pass.
             num_nodes: number of nodes in the cluster.
             num_devices_per_node: self explained.
             tracer_backend: the backend to be used for tracing, support fx, meta_fx, and dynamo.
             prop_mode: mode for shape inference, by default interpreter. Supports also a faster version: "meta_tracer"
             use_fake_mode: Whether to use fake mode for interpreter
         """
-        group = "parallel"
-        is_tunable = True
         if num_nodes is None or num_devices_per_node is None:
             if torch.distributed.is_initialized():
                 num_devices_per_node = torch.cuda.device_count()
@@ -103,7 +104,9 @@ class DistributedGraphOptimization(Optimization):
             else:
                 num_devices_per_node = 1
                 num_nodes = 1
-        device_context = get_device_context()
+        self.num_nodes = num_nodes
+        self.num_devices_per_node = num_devices_per_node
+        device_context = get_device_context() if device_context is None else device_context
         intra_node_bandwidth = device_context.intra_node_bandwidth
         inter_node_bandwidth = device_context.inter_node_bandwidth
         self.fp32_flops = device_context.fp32_flops
@@ -117,17 +120,19 @@ class DistributedGraphOptimization(Optimization):
         self.prop_mode = prop_mode
         self.tracer_backend = tracer_backend
         self.use_fake_mode = use_fake_mode
-        super().__init__(name, group, is_tunable, is_distributed=True)
 
     def _apply_interpreter(self, model, graph, input_batch, InterpreterCls, use_fake_mode=False):
-        device = next(model.parameters()).device if use_fake_mode else torch.device(type="cuda", index=local_rank())
+        available_device = (
+            torch.device(type="cuda", index=local_rank()) if torch.cuda.is_available() else torch.device("cpu")
+        )
+        device = next(model.parameters()).device if use_fake_mode else available_device
         traced_model = GraphModule(model, graph)
         sig = inspect.signature(traced_model.forward)
         default_names = sig.parameters.keys() - input_batch.keys()
         default_args = {p.name: p.default for p in sig.parameters.values() if p.name in default_names}
         input_batch.update(default_args)
 
-        fake_mode = FakeTensorMode(allow_non_fake_inputs=True) if use_fake_mode else None
+        fake_mode = FakeTensorMode(allow_non_fake_inputs=True) if torch_version() >= (2, 0, 0) else FakeTensorMode()
 
         def _lower_tensor_to_device(input_):
             lowered_input = input_.to(device) if isinstance(input_, torch.Tensor) else input_

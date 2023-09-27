@@ -12,7 +12,7 @@ from atorch.auto.opt_lib.module_replace_optimization import (
     _get_default_replace_config,
     _replace_by_config,
 )
-from atorch.auto.opt_lib.optimization import DistributedGraphOptimization
+from atorch.auto.opt_lib.optimization import DistributedGraphMixin, Optimization
 from atorch.auto.opt_lib.shard_planners import BaseStagePlanner
 from atorch.auto.opt_lib.utils import insert_split_point
 from atorch.common.log_utils import default_logger as logger
@@ -53,7 +53,7 @@ def pipe_loss_func(data, output, amp=False):
 
 
 # FIXME Implement more strategies, including DP/KL
-class PipelineParallelOptimization(DistributedGraphOptimization):
+class PipelineParallelOptimization(Optimization, DistributedGraphMixin):
     """Pipeline parallel optimization.
     This is a STANDALONE implementation, which means mixed parallel cannot be implemented as
     a stack of PipelineParallelOptimization and TensorParallelOptimization.
@@ -62,7 +62,8 @@ class PipelineParallelOptimization(DistributedGraphOptimization):
     """
 
     def __init__(self, shard_planner="equal_size", **kwargs):
-        super().__init__(name="pipeline_parallel", **kwargs)
+        super().__init__(name="pipeline_parallel", group="parallel", is_tunable=True, is_distributed=True)
+        DistributedGraphMixin.__init__(self)
         self._shard_planner = shard_planner
 
     @property
@@ -185,6 +186,7 @@ class PipelineParallelOptimization(DistributedGraphOptimization):
 
             if not model_context.tp_status or not isinstance(model_context.model, torch.fx.GraphModule):
                 # First rewrite the module
+                model_context.convert_to_loss_wrapper(amp_config=amp_config)
                 graph = model_context.capture_compute_graph(backend="meta_fx", leaf_modules=leaf_modules)
                 pipe_graph = insert_split_point(graph, insert_before_nodes, expected_num_stages)
                 gm = GraphModule(model_context.model, pipe_graph)

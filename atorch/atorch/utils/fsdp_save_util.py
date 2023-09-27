@@ -3,8 +3,9 @@ import json
 import pickle
 import struct
 from collections import OrderedDict, defaultdict, deque
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Callable, DefaultDict, Dict, List, Tuple
+from typing import Any, DefaultDict, Dict, List, Tuple
 
 import safetensors
 import torch
@@ -253,7 +254,7 @@ class ShardOptim:
                     shards.append(s[target_start:target_end])
                     break
                 if target_start <= seg_end and target_end >= seg_start:
-                    shards.append(s[max(target_start, seg_start) : min(target_end, seg_end)])  # noqa E203
+                    shards.append(s[max(target_start, seg_start) : min(target_end, seg_end)])
                 target_start -= seg_end
                 target_end -= seg_end
 
@@ -363,7 +364,7 @@ class ShardOptim:
 class ShardTensorUtil:
     """Parse flatten parameter, get reshard flatten parameter or original parameter."""
 
-    def __init__(self, path, rank, world_size, device=None):
+    def __init__(self, path, rank, world_size, device=None, name_mapping_func_or_dict=None, create_param_cb=None):
         """
         param_meta: record all meta information of original parameter, maybe original parameter
             will across multiple flatten parameters. Key is name of top module, value is meta info
@@ -385,6 +386,27 @@ class ShardTensorUtil:
         self.flat_param_segments: Dict[Tuple[int, str], List[int]] = {}
         self.flat_param_length: DefaultDict[str, int] = defaultdict(int)
         self.param_meta, self.rank_fds = self._prepare_meta_and_fds()
+        self.name_mapping_func = None
+        if create_param_cb is not None and not callable(create_param_cb):
+            raise ValueError("create_param_cb shoule be callable")
+        self.create_param_cb = create_param_cb
+        if name_mapping_func_or_dict is not None:
+            if isinstance(name_mapping_func_or_dict, Mapping):
+
+                def mapping_to_func(name):
+                    if name not in name_mapping_func_or_dict:
+                        readable_keys = "\n".join(name_mapping_func_or_dict.keys())
+                        raise KeyError(
+                            f"{name} is not in mapping, check content of `name_mapping_func_or_dict`"
+                            f" keys are {readable_keys}"
+                        )
+                    return name_mapping_func_or_dict[name]
+
+                self.name_mapping_func = mapping_to_func
+            elif callable(name_mapping_func_or_dict):
+                self.name_mapping_func = name_mapping_func_or_dict
+            else:
+                raise ValueError("`name_mapping_func` must be callable or dict, mapping str to str")
         if self.device.startswith("cuda"):
             self.init_local_ranks()
 
@@ -410,7 +432,7 @@ class ShardTensorUtil:
         rank = dist.get_rank(data_group)
         node_rank = rank // self.load_parallelism
         rank_offset = node_rank * self.load_parallelism
-        self.load_order = deque(self.fsdp_init_order[self.load_local_rank :: self.load_parallelism])  # noqa E203
+        self.load_order = deque(self.fsdp_init_order[self.load_local_rank :: self.load_parallelism])
         self.param_name_to_rank = {
             name: i % self.load_parallelism + rank_offset for i, name in enumerate(self.fsdp_init_order)
         }
@@ -578,9 +600,7 @@ class ShardTensorUtil:
     def check_tensor_not_in_ckpt(self, name):
         return name not in self.buffers.keys() and name not in self.param_meta
 
-    def load_tensor_by_name(
-        self, name: str, strict=True, create_param_cb: Callable = None, return_shape=False, sync_module_states=False
-    ):
+    def load_tensor_by_name(self, name: str, strict=True, return_shape=False, sync_module_states=False):
         """Load origin tensors in flatten parameters. If tensor is cross multiple flat parameters,
         concats them together, reshape flatten parameters at last.
 
@@ -597,18 +617,27 @@ class ShardTensorUtil:
         +-----+ flat param0   +------+ flat param1
 
         """
+        if self.name_mapping_func is not None:
+            old_name = name
+            name = self.name_mapping_func(name)
+            logger.info(f"[{self.rank}]: shard util replace {old_name} -> {name}")
         miss = self.check_tensor_not_in_ckpt(name)
         if miss:
             if not strict:
                 logger.warning(f"miss key {name}, maybe tie weights")
                 return None
-            if create_param_cb is None:
+            if self.create_param_cb is None:
+                param_keys = "\n".join(self.param_meta.keys())
+                buffer_keys = "\n".join(self.buffers.keys())
                 raise ValueError(
                     f"Miss param/buffer, key {name}, maybe you can pass"
                     f"`create_param_cb` to specify how {name} is created"
+                    f"\nparam keys is:\n{param_keys}"
+                    f"\nbuffer keys is:\n{buffer_keys}"
                 )
             else:
-                return create_param_cb(name)
+                logger.info(f"[{self.rank}]: shard util use create_param_cb to create {name}")
+                return self.create_param_cb(name)
 
         if name in self.buffers.keys():
             return self.buffers.get_tensor(name)

@@ -28,7 +28,7 @@ from atorch.distributed.distributed import (
     rank,
 )
 from atorch.modules.distributed_modules.materialize_modules import materialize_modules_to_device
-from atorch.optimizers.bf16_optimizer import BF16Optimizer
+from atorch.optim.bf16_optimizer import BF16Optimizer
 from atorch.utils.graph_transform_utils import map_aggregate
 from atorch.utils.version import torch_version
 
@@ -154,6 +154,7 @@ class ModelContext(object):
         self.expand_sample_batch = self.extra_args.get("expand_sample_batch", True)
         self._check_data_related_args()
         self.tp_status = False
+        self.sampler_seed = self.extra_args.get("sampler_seed", 0)  # pytorch DistributedSamper default seed is 0
 
     def update_tp_status(self, status):
         self.tp_status = status
@@ -308,7 +309,9 @@ class ModelContext(object):
                 shuffle = bool(args["shuffle"])
                 if shuffle:
                     args["shuffle"] = False
-            sampler = self.distributed_sampler_cls(self.dataset, shuffle=shuffle, num_replicas=ddp_size, rank=rank)
+            sampler = self.distributed_sampler_cls(
+                self.dataset, shuffle=shuffle, num_replicas=ddp_size, rank=rank, seed=self.sampler_seed
+            )
             # strong scaling, so adjust batchsize
             if "batch_size" in args:
                 ori_batchsize = args["batch_size"]

@@ -290,6 +290,7 @@ def _gather_shard_dim_with_reshuffle_check(input_, shard_dim, group=None, ranks=
     sorted_ranks = sorted(ranks)
     sorted_index = sorted_ranks.index(my_rank)
     input_ = input_.contiguous()
+
     tensor_list[sorted_index] = input_
     dist.all_gather(tensor_list, input_, group=group)
     if not rank_list_is_sorted(ranks):

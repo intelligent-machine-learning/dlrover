@@ -7,7 +7,7 @@ import traceback
 import torch
 
 from atorch import local_rank
-from atorch.auto.opt_lib.optimization import DistributedGraphOptimization
+from atorch.auto.opt_lib.optimization import DistributedGraphMixin, Optimization
 from atorch.auto.opt_lib.shard_planners import BaseTensorParallelPlanner, MIPTensorParallelPlanner
 from atorch.auto.opt_lib.utils import find_memory_factor, print_sharding_specs
 from atorch.common.log_utils import default_logger as logger
@@ -20,7 +20,7 @@ from atorch.utils.meta_model_utils import _MetaModeContext, empty_param, is_meta
 
 # FIXME Support manual leaf modules, supports manual strategy
 # FIXME Implement more strategies, support manual selection of strategies
-class TensorParallelOptimization(DistributedGraphOptimization):
+class TensorParallelOptimization(Optimization, DistributedGraphMixin):
     def __init__(self, shard_planner="mip", **kwargs):
         """
         Args:
@@ -28,7 +28,8 @@ class TensorParallelOptimization(DistributedGraphOptimization):
                 'base'/None -> BaseTensorParallelPlanner
                 'mip' -> MIPTensorParallelPlanner
         """
-        super().__init__(name="tensor_parallel", **kwargs)
+        super().__init__(name="tensor_parallel", group="parallel", is_tunable=True, is_distributed=True)
+        DistributedGraphMixin.__init__(self)
         self._shard_planner = shard_planner
 
     @property

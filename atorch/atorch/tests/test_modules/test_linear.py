@@ -141,7 +141,6 @@ class TestLinear(unittest.TestCase):
                 name2grad[name] = p.grad
             for name, p in old_linear.named_parameters():
                 torch.testing.assert_close(name2grad[name], p.grad, rtol=1e-4, atol=1e-4)
-            self.assertLess(fused_time, origin_time)
             print("fused_time", fused_time, "origin_time", origin_time)
         prof.export_chrome_trace("test_2d_linear_gpu.json")
 

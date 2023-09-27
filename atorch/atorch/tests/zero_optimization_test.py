@@ -63,6 +63,44 @@ class ZeroOptimizationTest(unittest.TestCase):
             self.assertIsInstance(fsdp_model_context.model, FSDP)
         atorch.reset_distributed()
 
+    @unittest.skipIf(not torch.cuda.is_available(), "cuda is not available")
+    def test_fsdp_wrap_trainable_outmost(self):
+        def run_wrap_trainable_outmost(config):
+            fsdp_model_context = copy.deepcopy(self.model_context)
+            fsdp_optimization = FSDPOptimization()
+            for name, param in fsdp_model_context.model.named_parameters():
+                if "bias" in name:
+                    param.requires_grad = False
+            atorch.init_distributed("nccl")
+            zero_conf = {
+                "sync_module_states": True,
+                "forward_prefetch": True,
+                "atorch_wrap_cls": ("Linear",),
+                "wrap_trainable_outmost": config,
+            }
+            fsdp_model_context = fsdp_optimization.transform(fsdp_model_context, config=zero_conf)
+            if torch_version() < (2, 1, 0):
+                with self.assertRaises(RuntimeError):
+                    fsdp_model_context.apply_wrappers(is_pre_wrapper=True)
+            else:
+                fsdp_model_context.apply_wrappers(is_pre_wrapper=True)
+                self.assertIsInstance(fsdp_model_context.model, FSDP)
+                cpu_device = torch.device("cpu")
+                for _, m in fsdp_model_context.model.named_modules():
+                    if isinstance(m, FSDP):
+                        self.assertTrue(len(m._ignored_params) == 0)
+                trainable_param_num = 0
+                for p in fsdp_model_context.model.parameters():
+                    self.assertTrue(p.device != cpu_device)
+                    if p.requires_grad:
+                        trainable_param_num += 1
+                self.assertEqual(trainable_param_num, 1)
+            atorch.reset_distributed()
+
+        configs = [True, "NO_SHARD"]
+        for config in configs:
+            run_wrap_trainable_outmost(config)
+
     def test_to_module_class_by_name(self):
         model = self.model_context.model
         wrap_cls = [ToyCustomModule]
