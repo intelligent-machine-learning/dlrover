@@ -276,9 +276,7 @@ into the environment `WORKER_NUM`.
 At first, there are 3 running workers and 1 pending worker due to the insufficient resource.
 
 ```text
-elasticjob-deepctr-manual-scale-dlrover-master   1/1     Running     0             4m31s
-elasticjob-torch-mnist-dxlrover-master            1/1     Running     0             57s
-mysql-7d757854f-8l5k4                            1/1     Running     0             194d
+elasticjob-torch-mnist-dxlrover-master           1/1     Running     0             57s
 torch-mnist-edljob-worker-0                      1/1     Running     0             47s
 torch-mnist-edljob-worker-1                      1/1     Running     0             47s
 torch-mnist-edljob-worker-2                      1/1     Running     0             47s
