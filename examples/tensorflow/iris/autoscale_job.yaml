@@ -47,3 +47,4 @@ spec:
           containers:
             - name: main
               imagePullPolicy: Always
+              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:v0.2.0

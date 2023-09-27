@@ -190,6 +190,9 @@ class NcclCheckRendezvousManagerTest(unittest.TestCase):
         rdzv_manager.report_network_check_result(0, True, 0.0)
         nodes, _ = rdzv_manager.check_fault_node()
         self.assertListEqual(nodes, [])
+        rdzv_manager._clear_check_status()
+        self.assertDictEqual(rdzv_manager._node_times, {})
+        self.assertDictEqual(rdzv_manager._node_status, {})
 
     def test_network_check_straggler_even_nodes(self):
         rdzv_manager = NetworkCheckRendezvousManager()
