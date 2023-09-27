@@ -691,6 +691,7 @@ class NetworkCheckElasticAgent(ElasticTrainingAgent):
         stragglers = []
         for i in range(self._check_round):
             result, elapsed_time = self._run_network_check()
+            elapsed_time = round(elapsed_time, 3)
             logger.info(
                 f"Network check time of round {i} is {elapsed_time}"
                 f" and succeed is {result}."
