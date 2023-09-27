@@ -27,10 +27,10 @@ spec:
                   --enable_auto_scaling=True"
               resources:
                 limits:
-                  cpu: "1"
+                  cpu: "2"
                   memory: 3Gi
                 requests:
-                  cpu: "1"
+                  cpu: "2"
                   memory: 3Gi
               volumeMounts:
                 - name: pvc-nas
@@ -58,10 +58,10 @@ spec:
                   --enable_auto_scaling=True"
               resources:
                 limits:
-                  cpu: "1"
+                  cpu: "2"
                   memory: 4Gi
                 requests:
-                  cpu: "1"
+                  cpu: "2"
                   memory: 4Gi
               volumeMounts:
                 - name: pvc-nas

@@ -1,5 +1,4 @@
 # Fault-tolerance and Elasticity Experiments of DLRover ElasticJob
-# Fault-tolerance and Elasticity Experiments of DLRover ElasticJob
 
 The tutorial shows experiments to test the fault-tolerance and elasticity
 of DLRover ElasticJob. In the experiments, we use the chaos enginerring toolkit
@@ -267,6 +266,137 @@ chaos-test-edljob-worker-3                    1/1     Running   0             3m
 elasticjob-chaos-test-dlrover-master          1/1     Running   0             3m9s
 ```
 
+### Scale Up Nodes
+
+In the experiment, we use the [example](../../examples/pytorch/mnist/elastic_job.yaml)
+to submit an elastic training job. In the job, we set the `min_node=3` and
+`max_node=$WORKER_NUM` as the number of replicas. The ElasticJob will set the replicas
+into the environment `WORKER_NUM`.
+
+At first, there are 3 running workers and 1 pending worker due to the insufficient resource. 
+
+```text
+elasticjob-deepctr-manual-scale-dlrover-master   1/1     Running     0             4m31s
+elasticjob-torch-mnist-dxlrover-master            1/1     Running     0             57s
+mysql-7d757854f-8l5k4                            1/1     Running     0             194d
+torch-mnist-edljob-worker-0                      1/1     Running     0             47s
+torch-mnist-edljob-worker-1                      1/1     Running     0             47s
+torch-mnist-edljob-worker-2                      1/1     Running     0             47s
+torch-mnist-edljob-worker-3                      0/1     Pending     0             47s
+```
+
+After about 2 min, we can see the training starts in 3 running workers with the log.
+
+```text
+[2023-09-27 02:23:21,097] [INFO] [training.py:344:_rendezvous] [default] Rendezvous complete for workers. Result:
+  restart_count=0
+  master_addr=192.168.0.71
+  master_port=36725
+  group_rank=0
+  group_world_size=3
+  local_ranks=[0, 1]
+  role_ranks=[0, 1]
+  global_ranks=[0, 1]
+  role_world_sizes=[6, 6]
+  global_world_sizes=[6, 6]
+
+rank 1 is initialized local_rank = 1
+loss = 2.3198373317718506, step = 0
+loss = 2.2946105003356934, step = 0
+loss = 1.7543025016784668, step = 20
+
+```
+
+Then, we kill another job to release resource and the worker-3 will start.
+
+```
+elasticjob-torch-mnist-dlrover-master         1/1     Running   0             5m39s
+torch-mnist-edljob-worker-0                   1/1     Running   0             5m34s
+torch-mnist-edljob-worker-1                   1/1     Running   0             5m34s
+torch-mnist-edljob-worker-2                   1/1     Running   0             5m34s
+torch-mnist-edljob-worker-3                   1/1     Running   0             5m34s
+```
+
+From the log of worker-0, we can see the training starts with `group_world_size=4`.
+
+```text
+[2023-09-27 02:25:43,362] [INFO] [training.py:344:_rendezvous] [default] Rendezvous complete for workers. Result:
+  restart_count=1
+  master_addr=192.168.0.71
+  master_port=58241
+  group_rank=0
+  group_world_size=4
+  local_ranks=[0, 1]
+  role_ranks=[0, 1]
+  global_ranks=[0, 1]
+  role_world_sizes=[8, 8]
+  global_world_sizes=[8, 8]
+
+rank 1 is initialized local_rank = 1rank 0 is initialized local_rank = 0
+
+loss = 2.2984073162078857, step = 0
+loss = 2.1407980918884277, step = 20
+loss = 1.1324385404586792, step = 40
+loss = 0.4783979058265686, step = 60
+loss = 0.5714012384414673, step = 80
+loss = 0.6941334009170532, step = 100
+```
+
+### Scale Down Nodes
+
+In the experiment, we use the [example](../../examples/pytorch/mnist/elastic_job.yaml)
+to submit an elastic training job. In the job, we set the `min_node=3` and
+`max_node=$WORKER_NUM` as the number of replicas. The ElasticJob will set the replicas
+into the environment `WORKER_NUM`.
+
+At first, there are 4 running workers. 
+
+```text
+elasticjob-torch-mnist-dlrover-master            1/1     Running     0             2m43s
+torch-mnist-edljob-worker-0                      1/1     Running     0             2m38s
+torch-mnist-edljob-worker-1                      1/1     Running     0             2m38s
+torch-mnist-edljob-worker-2                      1/1     Running     0             2m38s
+torch-mnist-edljob-worker-3                      0/1     Running     0             2m38s
+```
+
+Then, we use the chaosblade to make worker-1 failed.
+
+```bash
+kubectl -n dlrover exec -it torch-mnist-edljob-worker-1 bash
+./chaosblade-1.7.2/blade create process kill --process dlrover-run --signal 1
+```
+
+```text
+elasticjob-torch-mnist-dlrover-master         1/1     Running   0             4m43s
+torch-mnist-edljob-worker-0                   1/1     Running   0             4m38s
+torch-mnist-edljob-worker-1                   0/1     Error     0             4m38s
+torch-mnist-edljob-worker-2                   1/1     Running   0             4m38s
+torch-mnist-edljob-worker-3                   1/1     Running   0             4m38s
+```
+
+From the log of worker-0, we can see the training restores the model and data sampler
+from the checkpoint and starts with `group_world_size=3`.
+
+```text
+[2023-09-27 03:18:00,815] [INFO] [training.py:344:_rendezvous] [default] Rendezvous complete for workers. Result:
+  restart_count=1
+  master_addr=192.168.0.66
+  master_port=39705
+  group_rank=0
+  group_world_size=3
+  local_ranks=[0, 1]
+  role_ranks=[0, 1]
+  global_ranks=[0, 1]
+  role_world_sizes=[6, 6]
+  global_world_sizes=[6, 6]
+
+[2023-09-27 03:18:05,957] [INFO] [sampler.py:153:load_state_dict] Load epoch = 0, completed num = 51200, num_samples = 1467
+[2023-09-27 03:18:05,958] [INFO] [sampler.py:153:load_state_dict] Load epoch = 0, completed num = 51200, num_samples = 1467
+loss = 0.2617453336715698, step = 0
+loss = 0.2548859417438507, step = 20
+
+```
+
 ## Experiments of TensorFlow PS Distributed Job
 
 We conduct experiments with the TF distributed job using PS to
@@ -319,7 +449,7 @@ We can view the memory of chief-0 and chief-1 by
 ```bash
 kubectl -n dlrover get pod deepctr-manual-scale-edljob-chief-0 -o yaml | grep memory
 
->>>>
+>>>
         memory: 4Gi
         memory: 4Gi
 ```
@@ -327,9 +457,9 @@ kubectl -n dlrover get pod deepctr-manual-scale-edljob-chief-0 -o yaml | grep me
 ```bash
 kubectl -n dlrover get pod deepctr-manual-scale-edljob-chief-1 -o yaml | grep memory
 
->>>>
-        memory: 4Gi
-        memory: 4Gi
+>>>
+        memory: 8Gi
+        memory: 8Gi
 ```
 
 We can view the log of chief-1 to check whether the training restores.
