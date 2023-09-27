@@ -297,6 +297,13 @@ class NetworkCheckElasticAgentTest(unittest.TestCase):
 
 
 class MasterRendezvousHandlerTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self._master, addr = start_local_master()
+        GlobalMasterClient.MASTER_CLIENT = build_master_client(addr)
+
+    def tearDown(self):
+        self._master.stop()
+
     def test_pend_timeout(self):
         launch_config = LaunchConfig(
             min_nodes=1,

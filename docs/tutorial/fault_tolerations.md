@@ -89,7 +89,7 @@ chaosblade-1.7.2/blade create cpu load --cpu-percent 90
 ```
 
 If you use the image `registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:torch201-mnist`,
-you can use chaosblade to create an chaos experint by
+you can use chaosblade to create a chaos experiment by
 
 ```bash
 sh examples/pytorch/mnist/start_chaos.sh cpu-overload 
