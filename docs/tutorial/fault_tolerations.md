@@ -308,7 +308,7 @@ loss = 1.7543025016784668, step = 20
 
 Then, we kill another job to release resource and the worker-3 will start.
 
-```
+```text
 elasticjob-torch-mnist-dlrover-master         1/1     Running   0             5m39s
 torch-mnist-edljob-worker-0                   1/1     Running   0             5m34s
 torch-mnist-edljob-worker-1                   1/1     Running   0             5m34s
