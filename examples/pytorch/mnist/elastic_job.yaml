@@ -19,7 +19,7 @@ spec:
               command:
                 - /bin/bash
                 - -c
-                # WORKER_NUM is set into env with the value as replicas. 
+                # WORKER_NUM is set into env with the value as replicas.
                 - "dlrover-run --network-check --nnodes=3:$WORKER_NUM \
                   --nproc_per_node=2 --max_restarts=3  \
                   examples/pytorch/mnist/cnn_train.py --num_epochs 5 \

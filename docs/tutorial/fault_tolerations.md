@@ -273,7 +273,7 @@ to submit an elastic training job. In the job, we set the `min_node=3` and
 `max_node=$WORKER_NUM` as the number of replicas. The ElasticJob will set the replicas
 into the environment `WORKER_NUM`.
 
-At first, there are 3 running workers and 1 pending worker due to the insufficient resource. 
+At first, there are 3 running workers and 1 pending worker due to the insufficient resource.
 
 ```text
 elasticjob-deepctr-manual-scale-dlrover-master   1/1     Running     0             4m31s
@@ -304,7 +304,6 @@ rank 1 is initialized local_rank = 1
 loss = 2.3198373317718506, step = 0
 loss = 2.2946105003356934, step = 0
 loss = 1.7543025016784668, step = 20
-
 ```
 
 Then, we kill another job to release resource and the worker-3 will start.
@@ -349,7 +348,7 @@ to submit an elastic training job. In the job, we set the `min_node=3` and
 `max_node=$WORKER_NUM` as the number of replicas. The ElasticJob will set the replicas
 into the environment `WORKER_NUM`.
 
-At first, there are 4 running workers. 
+At first, there are 4 running workers.
 
 ```text
 elasticjob-torch-mnist-dlrover-master            1/1     Running     0             2m43s
@@ -394,7 +393,6 @@ from the checkpoint and starts with `group_world_size=3`.
 [2023-09-27 03:18:05,958] [INFO] [sampler.py:153:load_state_dict] Load epoch = 0, completed num = 51200, num_samples = 1467
 loss = 0.2617453336715698, step = 0
 loss = 0.2548859417438507, step = 20
-
 ```
 
 ## Experiments of TensorFlow PS Distributed Job
