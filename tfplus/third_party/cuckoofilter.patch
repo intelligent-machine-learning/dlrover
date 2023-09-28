@@ -1,0 +1,816 @@
+From e1644634eec3898813c0d90a60b5ee93a1ad6a9e Mon Sep 17 00:00:00 2001
+From: chengfu <chengfu.wcy@antfin.com>
+Date: Mon, 11 Jan 2021 13:55:50 +0800
+Subject: [PATCH 1/5] support serialize and deserialize
+
+---
+ Makefile           |  6 ++++-
+ example/test1.cc   | 75 ++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ src/cuckoofilter.h | 17 +++++++++++++
+ src/hashutil.h     | 48 ++++++++++++++++++++++++++++++++++
+ src/packedtable.h  | 13 ++++++++++
+ src/singletable.h  | 15 +++++++++++
+ 6 files changed, 173 insertions(+), 1 deletion(-)
+ create mode 100644 example/test1.cc
+
+diff --git a/Makefile b/Makefile
+index 9da574b..bf20ead 100644
+--- a/Makefile
++++ b/Makefile
+@@ -23,9 +23,13 @@ all: $(TEST)
+ clean:
+ 	rm -f $(TEST) */*.o
+ 
+-test: example/test.o $(LIBOBJECTS) 
++test: example/test.o $(LIBOBJECTS)
+ 	$(CC) example/test.o $(LIBOBJECTS) $(LDFLAGS) -o $@
+ 
++test1: example/test1.o $(LIBOBJECTS)
++	$(CC) example/test1.o $(LIBOBJECTS) $(LDFLAGS) -o $@
++
++
+ %.o: %.cc ${HEADERS} Makefile
+ 	$(CC) $(CFLAGS) $< -o $@
+ 
+diff --git a/example/test1.cc b/example/test1.cc
+new file mode 100644
+index 0000000..8ca59f1
+--- /dev/null
++++ b/example/test1.cc
+@@ -0,0 +1,75 @@
++#include "cuckoofilter.h"
++
++#include <assert.h>
++#include <math.h>
++
++#include <iostream>
++#include <fstream>
++#include <vector>
++
++using cuckoofilter::CuckooFilter;
++
++template<typename T>
++void fpr(T& t, size_t total_items) {
++  // Check non-existing items, a few false positives expected
++  size_t total_queries = 0;
++  size_t false_queries = 0;
++  for (size_t i = total_items; i < 2 * total_items; i++) {
++   if (t.Contain(i) == cuckoofilter::Ok) {
++     false_queries++;
++   }
++   total_queries++;
++  }
++
++  // Output the measured false positive rate
++  std::cout << "false positive rate is "
++      << 100.0 * false_queries / total_queries << "%\n";
++}
++
++int main(int argc, char **argv) {
++  size_t total_items = 1000000;
++
++  // Create a cuckoo filter where each item is of type size_t and
++  // use 12 bits for each item:
++  //    CuckooFilter<size_t, 12> filter(total_items);
++  // To enable semi-sorting, define the storage of cuckoo filter to be
++  // PackedTable, accepting keys of size_t type and making 13 bits
++  // for each key:
++  CuckooFilter<size_t, 13, cuckoofilter::PackedTable> filter(total_items);
++  // CuckooFilter<size_t, 12> filter(total_items);
++  using FilterType = decltype(filter);
++
++  // Insert items to this cuckoo filter
++  size_t num_inserted = 0;
++  for (size_t i = 0; i < total_items; i++, num_inserted++) {
++    if (filter.Add(i) != cuckoofilter::Ok) {
++      break;
++    }
++  }
++
++  std::cout << "actual num_inserted: " << num_inserted << std::endl;
++  num_inserted = 1000000;
++  std::cout << "num_inserted: " << num_inserted << std::endl;
++
++  // Check if previously inserted items are in the filter, expected
++  // true for all items
++  for (size_t i = 0; i < num_inserted; i++) {
++    if(filter.Contain(i) != cuckoofilter::Ok) {
++      std::cout << "I: " << i << " not ok" << std::endl;
++      break;
++    }
++  }
++
++  std::ofstream os("filter.meta", std::ios_base::binary);
++  filter.Serialize(os);
++  os.close();
++  fpr(filter, total_items);
++
++  FilterType filter1(total_items);
++  std::ifstream handler("filter.meta", std::ios_base::binary);
++  filter1.Deserialize(handler);
++  handler.close();
++  fpr(filter1, total_items);
++
++  return 0;
++}
+diff --git a/src/cuckoofilter.h b/src/cuckoofilter.h
+index bfcfa18..ffc60dc 100644
+--- a/src/cuckoofilter.h
++++ b/src/cuckoofilter.h
+@@ -99,6 +99,23 @@ class CuckooFilter {
+ 
+   ~CuckooFilter() { delete table_; }
+ 
++  void Serialize(std::ofstream& handler) {
++    uint64_t bytes = sizeof(VictimCache);
++    std::cout << "Write from file: with size: " << bytes << std::endl;
++    handler.write(reinterpret_cast<char*>(&victim_), bytes);
++    table_->Serialize(handler);
++    hasher_.Serialize(handler);
++  }
++
++  void Deserialize(std::ifstream& handler) {
++    char* buffer = reinterpret_cast<char*>(&victim_);
++    uint64_t length = sizeof(VictimCache);
++    std::cout << "Read from file: with size: " << length << std::endl;
++    handler.read(buffer, length);
++    table_->Deserialize(handler);
++    hasher_.Deserialize(handler);
++  }
++
+   // Add an item to the filter.
+   Status Add(const ItemType &item);
+ 
+diff --git a/src/hashutil.h b/src/hashutil.h
+index ac903d6..7e68050 100644
+--- a/src/hashutil.h
++++ b/src/hashutil.h
+@@ -4,6 +4,8 @@
+ #include <stdint.h>
+ #include <stdlib.h>
+ #include <sys/types.h>
++#include <iostream>
++#include <fstream>
+ 
+ #include <string>
+ 
+@@ -64,6 +66,27 @@ class TwoIndependentMultiplyShift {
+   uint64_t operator()(uint64_t key) const {
+     return (add_ + multiply_ * static_cast<decltype(multiply_)>(key)) >> 64;
+   }
++
++  void Serialize(std::ofstream& handler) {
++      uint64_t bytes = sizeof(multiply_);
++      handler.write(reinterpret_cast<char*>(&multiply_), bytes);
++      std::cout << "Write multiply_ to file: total bytes: " << bytes << std::endl;
++      bytes = sizeof(add_);
++      handler.write(reinterpret_cast<char*>(&add_), bytes);
++      std::cout << "Write add_ to file: total bytes: " << bytes << std::endl;
++  }
++
++  void Deserialize(std::ifstream& handler) {
++      char* buffer = reinterpret_cast<char*>(&multiply_);
++      uint64_t length = sizeof(multiply_);
++      std::cout << "Read multiply_ from file: with size: " << length << std::endl;
++      handler.read(buffer, length);
++      buffer = reinterpret_cast<char*>(&add_);
++      length = sizeof(add_);
++      std::cout << "Read add_ from file: with size: " << length << std::endl;
++      handler.read(buffer, length);
++  }
++
+ };
+ 
+ // See Patrascu and Thorup's "The Power of Simple Tabulation Hashing"
+@@ -87,6 +110,31 @@ class SimpleTabulation {
+     }
+     return result;
+   }
++  void Serialize(std::ofstream& handler) {
++      int row = sizeof(uint64_t);
++      int col = (1 << CHAR_BIT);
++      uint64_t bytes = sizeof(uint64_t);
++      uint64_t total_bytes = row * col * bytes;
++      for (int i = 0; i < row; ++i) {
++          for (int j = 0; j < col; ++j) {
++              handler.write(reinterpret_cast<char*>(&tables_[i][j]), bytes);
++          }
++      }
++      std::cout << "Write table_ to file: total bytes: " << total_bytes << std::endl;
++  }
++
++  void Deserialize(std::ifstream& handler) {
++      int row = sizeof(uint64_t);
++      int col = (1 << CHAR_BIT);
++      uint64_t bytes = sizeof(uint64_t);
++      uint64_t total_bytes = row * col * bytes;
++      for (int i = 0; i < row; ++i) {
++          for (int j = 0; j < col; ++j) {
++              handler.read(reinterpret_cast<char*>(&tables_[i][j]), bytes);
++          }
++      }
++      std::cout << "Read table_ to file: total bytes: " << total_bytes << std::endl;
++  }
+ };
+ }
+ 
+diff --git a/src/packedtable.h b/src/packedtable.h
+index 5b84473..2e70663 100644
+--- a/src/packedtable.h
++++ b/src/packedtable.h
+@@ -1,6 +1,8 @@
+ #ifndef CUCKOO_FILTER_PACKED_TABLE_H_
+ #define CUCKOO_FILTER_PACKED_TABLE_H_
+ 
++#include <iostream>
++#include <fstream>
+ #include <sstream>
+ #include <utility>
+ 
+@@ -426,6 +428,17 @@ class PackedTable {
+     return false;
+   }
+ 
++  void Serialize(std::ofstream& handler) {
++    std::cout << "Write to file: "<< "total bytes: " << len_ << std::endl;
++    handler.write(buckets_, len_);
++  }
++
++  void Deserialize(std::ifstream& handler) {
++    std::cout << "Read from file: with size: " << len_ << std::endl;
++    handler.read(buckets_, len_);
++  }
++
++
+   // inline size_t NumTagsInBucket(const size_t i) {
+   //     size_t num = 0;
+   //     for (size_t j = 0; j < tags_per_bucket; j++ ){
+diff --git a/src/singletable.h b/src/singletable.h
+index 8fd40b3..0a16fb3 100644
+--- a/src/singletable.h
++++ b/src/singletable.h
+@@ -3,6 +3,8 @@
+ 
+ #include <assert.h>
+ 
++#include <fstream>
++#include <iostream>
+ #include <sstream>
+ 
+ #include "bitsutil.h"
+@@ -53,6 +55,19 @@ class SingleTable {
+     return kTagsPerBucket * num_buckets_; 
+   }
+ 
++  void Serialize(std::ofstream& handler) {
++    uint64_t bytes = kBytesPerBucket * (num_buckets_ + kPaddingBuckets);
++    std::cout << "Write to file: "<< "total bytes: " << bytes << std::endl;
++    handler.write(reinterpret_cast<char*>(buckets_), bytes);
++  }
++
++  void Deserialize(std::ifstream& handler) {
++    char* buffer = reinterpret_cast<char*>(buckets_);
++    uint64_t length = kBytesPerBucket * (num_buckets_ + kPaddingBuckets);
++    std::cout << "Read from file: with size: " << length << std::endl;
++    handler.read(buffer, length);
++  }
++
+   std::string Info() const {
+     std::stringstream ss;
+     ss << "SingleHashtable with tag size: " << bits_per_tag << " bits \n";
+-- 
+2.10.1
+
+
+From e3725ef0cd8d10a7e6612e65de28b3365a92424d Mon Sep 17 00:00:00 2001
+From: chengfu <chengfu.wcy@antfin.com>
+Date: Wed, 13 Jan 2021 11:59:33 +0800
+Subject: [PATCH 2/5] abstract databuffer
+
+---
+ example/test1.cc   | 10 +++++++---
+ src/cuckoofilter.h | 10 ++++++----
+ src/databuffer.h   | 44 ++++++++++++++++++++++++++++++++++++++++++++
+ src/hashutil.h     | 14 ++++++++------
+ src/packedtable.h  | 10 ++++++----
+ src/singletable.h  | 10 ++++++----
+ 6 files changed, 77 insertions(+), 21 deletions(-)
+ create mode 100644 src/databuffer.h
+
+diff --git a/example/test1.cc b/example/test1.cc
+index 8ca59f1..dc05d5d 100644
+--- a/example/test1.cc
++++ b/example/test1.cc
+@@ -1,4 +1,5 @@
+ #include "cuckoofilter.h"
++#include "databuffer.h"
+ 
+ #include <assert.h>
+ #include <math.h>
+@@ -8,6 +9,7 @@
+ #include <vector>
+ 
+ using cuckoofilter::CuckooFilter;
++using Databuffer = cuckoofilter::FstreamDatabuffer;
+ 
+ template<typename T>
+ void fpr(T& t, size_t total_items) {
+@@ -61,13 +63,15 @@ int main(int argc, char **argv) {
+   }
+ 
+   std::ofstream os("filter.meta", std::ios_base::binary);
+-  filter.Serialize(os);
++  std::ifstream handler("filter.meta", std::ios_base::binary);
++  Databuffer db(handler, os);
++
++  filter.Serialize(db);
+   os.close();
+   fpr(filter, total_items);
+ 
+   FilterType filter1(total_items);
+-  std::ifstream handler("filter.meta", std::ios_base::binary);
+-  filter1.Deserialize(handler);
++  filter1.Deserialize(db);
+   handler.close();
+   fpr(filter1, total_items);
+ 
+diff --git a/src/cuckoofilter.h b/src/cuckoofilter.h
+index ffc60dc..96b9734 100644
+--- a/src/cuckoofilter.h
++++ b/src/cuckoofilter.h
+@@ -99,19 +99,21 @@ class CuckooFilter {
+ 
+   ~CuckooFilter() { delete table_; }
+ 
+-  void Serialize(std::ofstream& handler) {
++  template<typename T>
++  void Serialize(T& handler) {
+     uint64_t bytes = sizeof(VictimCache);
+     std::cout << "Write from file: with size: " << bytes << std::endl;
+-    handler.write(reinterpret_cast<char*>(&victim_), bytes);
++    handler.Write(reinterpret_cast<char*>(&victim_), bytes);
+     table_->Serialize(handler);
+     hasher_.Serialize(handler);
+   }
+ 
+-  void Deserialize(std::ifstream& handler) {
++  template<typename T>
++  void Deserialize(T& handler) {
+     char* buffer = reinterpret_cast<char*>(&victim_);
+     uint64_t length = sizeof(VictimCache);
+     std::cout << "Read from file: with size: " << length << std::endl;
+-    handler.read(buffer, length);
++    handler.Read(buffer, length);
+     table_->Deserialize(handler);
+     hasher_.Deserialize(handler);
+   }
+diff --git a/src/databuffer.h b/src/databuffer.h
+new file mode 100644
+index 0000000..3903b1b
+--- /dev/null
++++ b/src/databuffer.h
+@@ -0,0 +1,44 @@
++/** Copyright 2020
++ * DataBuffer used to read or write data to buffer.
++ * Buffer can be a fstream, char*
++ */
++
++#ifndef __DATABUFFER__
++#define __DATABUFFER__
++
++#include <fstream>
++
++namespace cuckoofilter {
++
++class IDatabuffer {
++public:
++
++    virtual void Read(char* buffer, uint64_t length) = 0;
++
++    virtual void Write(char* buffer, uint64_t length) = 0;
++
++};
++
++
++class FstreamDatabuffer: IDatabuffer {
++private:
++    std::ifstream& input_;
++    std::ofstream& output_;
++public:
++
++    FstreamDatabuffer(std::ifstream& input, std::ofstream& output): input_(input), output_(output) {
++    }
++
++    void Read(char* buffer, uint64_t length) {
++        input_.read(buffer, length);
++    }
++
++    void Write(char* buffer, uint64_t length) {
++        output_.write(buffer, length);
++    }
++};
++
++
++}  // namespace cuckoofilter
++
++#endif  // __DATABUFFER__
+diff --git a/src/hashutil.h b/src/hashutil.h
+index 7e68050..75b8eeb 100644
+--- a/src/hashutil.h
++++ b/src/hashutil.h
+@@ -67,24 +67,26 @@ class TwoIndependentMultiplyShift {
+     return (add_ + multiply_ * static_cast<decltype(multiply_)>(key)) >> 64;
+   }
+ 
+-  void Serialize(std::ofstream& handler) {
++  template<typename T>
++  void Serialize(T& handler) {
+       uint64_t bytes = sizeof(multiply_);
+-      handler.write(reinterpret_cast<char*>(&multiply_), bytes);
++      handler.Write(reinterpret_cast<char*>(&multiply_), bytes);
+       std::cout << "Write multiply_ to file: total bytes: " << bytes << std::endl;
+       bytes = sizeof(add_);
+-      handler.write(reinterpret_cast<char*>(&add_), bytes);
++      handler.Write(reinterpret_cast<char*>(&add_), bytes);
+       std::cout << "Write add_ to file: total bytes: " << bytes << std::endl;
+   }
+ 
+-  void Deserialize(std::ifstream& handler) {
++  template<typename T>
++  void Deserialize(T& handler) {
+       char* buffer = reinterpret_cast<char*>(&multiply_);
+       uint64_t length = sizeof(multiply_);
+       std::cout << "Read multiply_ from file: with size: " << length << std::endl;
+-      handler.read(buffer, length);
++      handler.Read(buffer, length);
+       buffer = reinterpret_cast<char*>(&add_);
+       length = sizeof(add_);
+       std::cout << "Read add_ from file: with size: " << length << std::endl;
+-      handler.read(buffer, length);
++      handler.Read(buffer, length);
+   }
+ 
+ };
+diff --git a/src/packedtable.h b/src/packedtable.h
+index 2e70663..be6abc4 100644
+--- a/src/packedtable.h
++++ b/src/packedtable.h
+@@ -428,14 +428,16 @@ class PackedTable {
+     return false;
+   }
+ 
+-  void Serialize(std::ofstream& handler) {
++  template<typename T>
++  void Serialize(T& handler) {
+     std::cout << "Write to file: "<< "total bytes: " << len_ << std::endl;
+-    handler.write(buckets_, len_);
++    handler.Write(buckets_, len_);
+   }
+ 
+-  void Deserialize(std::ifstream& handler) {
++  template<typename T>
++  void Deserialize(T& handler) {
+     std::cout << "Read from file: with size: " << len_ << std::endl;
+-    handler.read(buckets_, len_);
++    handler.Read(buckets_, len_);
+   }
+ 
+ 
+diff --git a/src/singletable.h b/src/singletable.h
+index 0a16fb3..c5841e1 100644
+--- a/src/singletable.h
++++ b/src/singletable.h
+@@ -55,17 +55,19 @@ class SingleTable {
+     return kTagsPerBucket * num_buckets_; 
+   }
+ 
+-  void Serialize(std::ofstream& handler) {
++  template<typename T>
++  void Serialize(T& handler) {
+     uint64_t bytes = kBytesPerBucket * (num_buckets_ + kPaddingBuckets);
+     std::cout << "Write to file: "<< "total bytes: " << bytes << std::endl;
+-    handler.write(reinterpret_cast<char*>(buckets_), bytes);
++    handler.Write(reinterpret_cast<char*>(buckets_), bytes);
+   }
+ 
+-  void Deserialize(std::ifstream& handler) {
++  template<typename T>
++  void Deserialize(T& handler) {
+     char* buffer = reinterpret_cast<char*>(buckets_);
+     uint64_t length = kBytesPerBucket * (num_buckets_ + kPaddingBuckets);
+     std::cout << "Read from file: with size: " << length << std::endl;
+-    handler.read(buffer, length);
++    handler.Read(buffer, length);
+   }
+ 
+   std::string Info() const {
+-- 
+2.10.1
+
+
+From 808be299facf03eea1308420eea58ce8597b17b3 Mon Sep 17 00:00:00 2001
+From: chengfu <chengfu.wcy@antfin.com>
+Date: Mon, 18 Jan 2021 15:12:50 +0800
+Subject: [PATCH 3/5] Use cerr instead of cout
+
+---
+ src/cuckoofilter.h |  4 ++--
+ src/hashutil.h     | 12 ++++++------
+ src/packedtable.h  | 12 ++++++------
+ src/singletable.h  |  4 ++--
+ 4 files changed, 16 insertions(+), 16 deletions(-)
+
+diff --git a/src/cuckoofilter.h b/src/cuckoofilter.h
+index 96b9734..afd82f9 100644
+--- a/src/cuckoofilter.h
++++ b/src/cuckoofilter.h
+@@ -102,7 +102,7 @@ class CuckooFilter {
+   template<typename T>
+   void Serialize(T& handler) {
+     uint64_t bytes = sizeof(VictimCache);
+-    std::cout << "Write from file: with size: " << bytes << std::endl;
++    std::cerr << "Write from file: with size: " << bytes << std::endl;
+     handler.Write(reinterpret_cast<char*>(&victim_), bytes);
+     table_->Serialize(handler);
+     hasher_.Serialize(handler);
+@@ -112,7 +112,7 @@ class CuckooFilter {
+   void Deserialize(T& handler) {
+     char* buffer = reinterpret_cast<char*>(&victim_);
+     uint64_t length = sizeof(VictimCache);
+-    std::cout << "Read from file: with size: " << length << std::endl;
++    std::cerr << "Read from file: with size: " << length << std::endl;
+     handler.Read(buffer, length);
+     table_->Deserialize(handler);
+     hasher_.Deserialize(handler);
+diff --git a/src/hashutil.h b/src/hashutil.h
+index 75b8eeb..0fef288 100644
+--- a/src/hashutil.h
++++ b/src/hashutil.h
+@@ -71,21 +71,21 @@ class TwoIndependentMultiplyShift {
+   void Serialize(T& handler) {
+       uint64_t bytes = sizeof(multiply_);
+       handler.Write(reinterpret_cast<char*>(&multiply_), bytes);
+-      std::cout << "Write multiply_ to file: total bytes: " << bytes << std::endl;
++      std::cerr << "Write multiply_ to file: total bytes: " << bytes << std::endl;
+       bytes = sizeof(add_);
+       handler.Write(reinterpret_cast<char*>(&add_), bytes);
+-      std::cout << "Write add_ to file: total bytes: " << bytes << std::endl;
++      std::cerr << "Write add_ to file: total bytes: " << bytes << std::endl;
+   }
+ 
+   template<typename T>
+   void Deserialize(T& handler) {
+       char* buffer = reinterpret_cast<char*>(&multiply_);
+       uint64_t length = sizeof(multiply_);
+-      std::cout << "Read multiply_ from file: with size: " << length << std::endl;
++      std::cerr << "Read multiply_ from file: with size: " << length << std::endl;
+       handler.Read(buffer, length);
+       buffer = reinterpret_cast<char*>(&add_);
+       length = sizeof(add_);
+-      std::cout << "Read add_ from file: with size: " << length << std::endl;
++      std::cerr << "Read add_ from file: with size: " << length << std::endl;
+       handler.Read(buffer, length);
+   }
+ 
+@@ -122,7 +122,7 @@ class SimpleTabulation {
+               handler.write(reinterpret_cast<char*>(&tables_[i][j]), bytes);
+           }
+       }
+-      std::cout << "Write table_ to file: total bytes: " << total_bytes << std::endl;
++      std::cerr << "Write table_ to file: total bytes: " << total_bytes << std::endl;
+   }
+ 
+   void Deserialize(std::ifstream& handler) {
+@@ -135,7 +135,7 @@ class SimpleTabulation {
+               handler.read(reinterpret_cast<char*>(&tables_[i][j]), bytes);
+           }
+       }
+-      std::cout << "Read table_ to file: total bytes: " << total_bytes << std::endl;
++      std::cerr << "Read table_ to file: total bytes: " << total_bytes << std::endl;
+   }
+ };
+ }
+diff --git a/src/packedtable.h b/src/packedtable.h
+index be6abc4..44ef253 100644
+--- a/src/packedtable.h
++++ b/src/packedtable.h
+@@ -65,7 +65,7 @@ class PackedTable {
+   void PrintBucket(const size_t i) const {
+     DPRINTF(DEBUG_TABLE, "PackedTable::PrintBucket %zu \n", i);
+     const char *p = buckets_ + kBitsPerBucket * i / 8;
+-    std::cout << "\tbucketbits  ="
++    std::cerr << "\tbucketbits  ="
+               << PrintUtil::bytes_to_hex((char *)p, kBytesPerBucket + 1)
+               << std::endl;
+ 
+@@ -85,12 +85,12 @@ class PackedTable {
+       dirbits[j] = (tags[j] & kDirBitsMask) >> 4;
+     }
+     uint16_t codeword = perm_.encode(lowbits);
+-    std::cout << "\tcodeword  ="
++    std::cerr << "\tcodeword  ="
+               << PrintUtil::bytes_to_hex((char *)&codeword, 2) << std::endl;
+     for (size_t j = 0; j < 4; j++) {
+-      std::cout << "\ttag[" << j
++      std::cerr << "\ttag[" << j
+                 << "]: " << PrintUtil::bytes_to_hex((char *)&tags[j], 4);
+-      std::cout << " lowbits="
++      std::cerr << " lowbits="
+                 << PrintUtil::bytes_to_hex((char *)&lowbits[j], 1)
+                 << " dirbits="
+                 << PrintUtil::bytes_to_hex((char *)&dirbits[j],
+@@ -430,13 +430,13 @@ class PackedTable {
+ 
+   template<typename T>
+   void Serialize(T& handler) {
+-    std::cout << "Write to file: "<< "total bytes: " << len_ << std::endl;
++    std::cerr << "Write to file: "<< "total bytes: " << len_ << std::endl;
+     handler.Write(buckets_, len_);
+   }
+ 
+   template<typename T>
+   void Deserialize(T& handler) {
+-    std::cout << "Read from file: with size: " << len_ << std::endl;
++    std::cerr << "Read from file: with size: " << len_ << std::endl;
+     handler.Read(buckets_, len_);
+   }
+ 
+diff --git a/src/singletable.h b/src/singletable.h
+index c5841e1..1e569c3 100644
+--- a/src/singletable.h
++++ b/src/singletable.h
+@@ -58,7 +58,7 @@ class SingleTable {
+   template<typename T>
+   void Serialize(T& handler) {
+     uint64_t bytes = kBytesPerBucket * (num_buckets_ + kPaddingBuckets);
+-    std::cout << "Write to file: "<< "total bytes: " << bytes << std::endl;
++    std::cerr << "Write to file: "<< "total bytes: " << bytes << std::endl;
+     handler.Write(reinterpret_cast<char*>(buckets_), bytes);
+   }
+ 
+@@ -66,7 +66,7 @@ class SingleTable {
+   void Deserialize(T& handler) {
+     char* buffer = reinterpret_cast<char*>(buckets_);
+     uint64_t length = kBytesPerBucket * (num_buckets_ + kPaddingBuckets);
+-    std::cout << "Read from file: with size: " << length << std::endl;
++    std::cerr << "Read from file: with size: " << length << std::endl;
+     handler.Read(buffer, length);
+   }
+ 
+-- 
+2.10.1
+
+
+From 77deb08db6a3edc06f5d4fd729eea82662d8a764 Mon Sep 17 00:00:00 2001
+From: chengfu <chengfu.wcy@antfin.com>
+Date: Thu, 21 Jan 2021 10:51:59 +0800
+Subject: [PATCH 4/5] Add GetSize
+
+---
+ example/test1.cc   |  2 ++
+ src/cuckoofilter.h |  4 ++++
+ src/hashutil.h     | 11 +++++++++++
+ src/packedtable.h  |  4 ++++
+ src/singletable.h  |  4 ++++
+ 5 files changed, 25 insertions(+)
+
+diff --git a/example/test1.cc b/example/test1.cc
+index dc05d5d..d81119d 100644
+--- a/example/test1.cc
++++ b/example/test1.cc
+@@ -67,10 +67,12 @@ int main(int argc, char **argv) {
+   Databuffer db(handler, os);
+ 
+   filter.Serialize(db);
++  std::cout << "Filter size: " << filter.GetSize() << std::endl;
+   os.close();
+   fpr(filter, total_items);
+ 
+   FilterType filter1(total_items);
++  std::cout << "Filter size: " << filter1.GetSize() << std::endl;
+   filter1.Deserialize(db);
+   handler.close();
+   fpr(filter1, total_items);
+diff --git a/src/cuckoofilter.h b/src/cuckoofilter.h
+index afd82f9..62b9da3 100644
+--- a/src/cuckoofilter.h
++++ b/src/cuckoofilter.h
+@@ -99,6 +99,10 @@ class CuckooFilter {
+ 
+   ~CuckooFilter() { delete table_; }
+ 
++  uint64_t GetSize() {
++    return sizeof(VictimCache) + table_->GetSize() + hasher_.GetSize();
++  }
++
+   template<typename T>
+   void Serialize(T& handler) {
+     uint64_t bytes = sizeof(VictimCache);
+diff --git a/src/hashutil.h b/src/hashutil.h
+index 0fef288..797e51a 100644
+--- a/src/hashutil.h
++++ b/src/hashutil.h
+@@ -67,6 +67,10 @@ class TwoIndependentMultiplyShift {
+     return (add_ + multiply_ * static_cast<decltype(multiply_)>(key)) >> 64;
+   }
+ 
++  uint64_t GetSize() {
++    return sizeof(multiply_) + sizeof(add_);
++  }
++
+   template<typename T>
+   void Serialize(T& handler) {
+       uint64_t bytes = sizeof(multiply_);
+@@ -112,6 +116,13 @@ class SimpleTabulation {
+     }
+     return result;
+   }
++
++  uint64_t GetSize() {
++    int row = sizeof(uint64_t);
++    int col = (1 << CHAR_BIT);
++    uint64_t bytes = sizeof(uint64_t);
++    return row * col * bytes;
++  }
+   void Serialize(std::ofstream& handler) {
+       int row = sizeof(uint64_t);
+       int col = (1 << CHAR_BIT);
+diff --git a/src/packedtable.h b/src/packedtable.h
+index 44ef253..05d1d43 100644
+--- a/src/packedtable.h
++++ b/src/packedtable.h
+@@ -428,6 +428,10 @@ class PackedTable {
+     return false;
+   }
+ 
++  uint64_t GetSize() {
++    return len_;
++  }
++
+   template<typename T>
+   void Serialize(T& handler) {
+     std::cerr << "Write to file: "<< "total bytes: " << len_ << std::endl;
+diff --git a/src/singletable.h b/src/singletable.h
+index 1e569c3..f3a4edc 100644
+--- a/src/singletable.h
++++ b/src/singletable.h
+@@ -55,6 +55,10 @@ class SingleTable {
+     return kTagsPerBucket * num_buckets_; 
+   }
+ 
++  uint64_t GetSize() {
++    return kBytesPerBucket * (num_buckets_ + kPaddingBuckets);
++  }
++
+   template<typename T>
+   void Serialize(T& handler) {
+     uint64_t bytes = kBytesPerBucket * (num_buckets_ + kPaddingBuckets);
+-- 
+2.10.1
+
+
+From be4cb5df5ce953aa2257435f33ac0fb22e6a688b Mon Sep 17 00:00:00 2001
+From: chengfu <chengfu.wcy@antfin.com>
+Date: Thu, 18 Feb 2021 13:43:50 +0800
+Subject: [PATCH 5/5] num_items_ serialize & deserialize
+
+---
+ src/cuckoofilter.h | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/src/cuckoofilter.h b/src/cuckoofilter.h
+index 62b9da3..ceb2e92 100644
+--- a/src/cuckoofilter.h
++++ b/src/cuckoofilter.h
+@@ -100,7 +100,7 @@ class CuckooFilter {
+   ~CuckooFilter() { delete table_; }
+ 
+   uint64_t GetSize() {
+-    return sizeof(VictimCache) + table_->GetSize() + hasher_.GetSize();
++    return sizeof(VictimCache) + table_->GetSize() + hasher_.GetSize() + sizeof(num_items_);
+   }
+ 
+   template<typename T>
+@@ -108,6 +108,8 @@ class CuckooFilter {
+     uint64_t bytes = sizeof(VictimCache);
+     std::cerr << "Write from file: with size: " << bytes << std::endl;
+     handler.Write(reinterpret_cast<char*>(&victim_), bytes);
++    bytes = sizeof(num_items_);
++    handler.Write(reinterpret_cast<char*>(&num_items_), bytes);
+     table_->Serialize(handler);
+     hasher_.Serialize(handler);
+   }
+@@ -116,7 +118,10 @@ class CuckooFilter {
+   void Deserialize(T& handler) {
+     char* buffer = reinterpret_cast<char*>(&victim_);
+     uint64_t length = sizeof(VictimCache);
++    handler.Read(buffer, length);
+     std::cerr << "Read from file: with size: " << length << std::endl;
++    buffer = reinterpret_cast<char*>(&num_items_);
++    length = sizeof(num_items_);
+     handler.Read(buffer, length);
+     table_->Deserialize(handler);
+     hasher_.Deserialize(handler);
+-- 
+2.10.1
+

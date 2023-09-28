@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package tfplus;
+option cc_enable_arenas = true;
+
+message DeltaList {
+  repeated string deltas = 1;
+}
+
+message CheckpointStateExt {
+  string current_full_checkpoint_path = 1;
+  double current_full_checkpoint_timestamp = 2;
+  repeated string all_valid_delta_checkpoint_paths = 3;
+  map<string, DeltaList> history_versions = 4;
+}

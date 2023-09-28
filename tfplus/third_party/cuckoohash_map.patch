@@ -1,0 +1,211 @@
+diff --git a/libcuckoo/cuckoohash_map.hh b/libcuckoo/cuckoohash_map.hh
+index 88f1f43..6fe4593 100644
+--- a/libcuckoo/cuckoohash_map.hh
++++ b/libcuckoo/cuckoohash_map.hh
+@@ -474,6 +474,18 @@ public:
+     }
+   }
+ 
++  template <typename K, typename F> bool find_fn_ptr(const K &key, F fn) const {
++    const hash_value hv = hashed_key(key);
++    const auto b = snapshot_and_lock_two<normal_mode>(hv);
++    const table_position pos = cuckoo_find(key, hv.partial, b.i1, b.i2);
++    if (pos.status == ok) {
++      fn(&(buckets_[pos.index].mapped(pos.slot)));
++      return true;
++    } else {
++      return false;
++    }
++  }
++
+   /**
+    * Searches the table for @p key, and invokes @p fn on the value. @p fn is
+    * allow to modify the contents of the value if found.
+@@ -497,6 +509,59 @@ public:
+     }
+   }
+ 
++  template <typename K, typename F> bool update_fn_ptr(const K &key, F fn) {
++    const hash_value hv = hashed_key(key);
++    const auto b = snapshot_and_lock_two<normal_mode>(hv);
++    const table_position pos = cuckoo_find(key, hv.partial, b.i1, b.i2);
++    if (pos.status == ok) {
++      fn(&(buckets_[pos.index].mapped(pos.slot)));
++      return true;
++    } else {
++      return false;
++    }
++  }
++
++  template <typename K, typename F>
++  mapped_type* find_or_insert_fn(const K& key, F fn) {
++    hash_value hv = hashed_key(key);
++    auto b = snapshot_and_lock_two<normal_mode>(hv);
++    table_position pos = cuckoo_find(key, hv.partial, b.i1, b.i2);
++    if (pos.status != ok) {
++      table_position new_pos = cuckoo_insert_loop<normal_mode>(hv, b, key);
++      if (new_pos.status == ok) {
++        add_to_bucket(new_pos.index, new_pos.slot, hv.partial,
++                      std::move(key), std::move(fn(key)));
++      } else {
++        buckets_[new_pos.index].mapped(new_pos.slot) = std::move(fn(key));
++      }
++
++      pos = cuckoo_find(key, hv.partial, b.i1, b.i2);
++      return &(buckets_[pos.index].mapped(pos.slot));
++    }
++    return &(buckets_[pos.index].mapped(pos.slot));
++  }
++
++  template <typename K, typename FindFn, typename InsertFn>
++  bool find_or_insert_fn(const K& key, FindFn find_func,
++                         InsertFn insert_func) {
++    hash_value hv = hashed_key(key);
++    auto b = snapshot_and_lock_two<normal_mode>(hv);
++    table_position pos = cuckoo_find(key, hv.partial, b.i1, b.i2);
++    if (pos.status == ok) {
++      find_func(&(buckets_[pos.index].mapped(pos.slot)));
++      return true;
++    } else {
++      table_position new_pos = cuckoo_insert_loop<normal_mode>(hv, b, key);
++      if (new_pos.status == ok) {
++        add_to_bucket(new_pos.index, new_pos.slot, hv.partial,
++                      std::move(key), std::move(insert_func(key)));
++      } else {
++        buckets_[new_pos.index].mapped(new_pos.slot) = std::move(insert_func(key));
++      }
++      return false;
++    }
++  }
++
+   /**
+    * Searches for @p key in the table, and invokes @p fn on the value if the
+    * key is found. The functor can mutate the value, and should return @c true
+@@ -560,6 +625,22 @@ public:
+     return pos.status == ok;
+   }
+ 
++  template <typename K, typename F, typename... Args>
++  bool uprase_with_fn(K &key, F fn, Args &&... val) {
++    hash_value hv = hashed_key(key);
++    auto b = snapshot_and_lock_two<normal_mode>(hv);
++    table_position pos = cuckoo_insert_loop<normal_mode>(hv, b, key);
++    if (pos.status == ok) {
++      add_to_bucket(pos.index, pos.slot, hv.partial, std::forward<K>(key),
++                    std::forward<Args>(val)...);
++    } else {
++      if (fn(buckets_[pos.index].mapped(pos.slot))) {
++        del_from_bucket(pos.index, pos.slot);
++      }
++    }
++    return pos.status == ok;
++  }
++
+   /**
+    * Equivalent to calling @ref uprase_fn with a functor that modifies the
+    * given value and always returns false (meaning the element is not removed).
+@@ -604,6 +685,17 @@ public:
+     }
+   }
+ 
++  template <typename K> mapped_type* find_or_null(const K &key) const {
++    const hash_value hv = hashed_key(key);
++    const auto b = snapshot_and_lock_two<normal_mode>(hv);
++    const table_position pos = cuckoo_find(key, hv.partial, b.i1, b.i2);
++    if (pos.status == ok) {
++      return &(buckets_[pos.index].mapped(pos.slot));
++    } else {
++      return nullptr;
++    }
++  }
++
+   /**
+    * Returns whether or not @p key is in the table. Equivalent to @ref
+    * find_fn with a functor that does nothing.
+@@ -642,6 +734,21 @@ public:
+                   std::forward<V>(val));
+   }
+ 
++  template <typename K, typename F, typename... Args>
++  bool upsert2(K &key, F fn, Args &&... val) {
++    return uprase_with_fn(std::forward<K>(key),
++                          [&fn](mapped_type &v) {
++                          fn(v);
++                          return false;
++                        },
++                        std::forward<Args>(val)...);
++  }
++
++  template <typename K, typename V> bool insert_or_update(K &key, V &&val) {
++    return upsert2(key, [&val](mapped_type &m) { m = std::move(val); },
++                  std::forward<V>(val));
++  }
++
+   /**
+    * Erases the key from the table. Equivalent to calling @ref erase_fn with a
+    * functor that just returns true.
+@@ -1792,7 +1899,7 @@ private:
+       throw maximum_hashpower_exceeded(new_hp);
+     }
+     if (AUTO_RESIZE::value && load_factor() < minimum_load_factor()) {
+-      throw load_factor_too_low(minimum_load_factor());
++      throw load_factor_too_low(load_factor(), minimum_load_factor());
+     }
+     if (hashpower() != orig_hp) {
+       // Most likely another expansion ran before this one could grab the
+diff --git a/libcuckoo/cuckoohash_util.hh b/libcuckoo/cuckoohash_util.hh
+index f8a1f73..8d46fa3 100644
+--- a/libcuckoo/cuckoohash_util.hh
++++ b/libcuckoo/cuckoohash_util.hh
+@@ -15,9 +15,10 @@ namespace libcuckoo {
+ //! When \ref LIBCUCKOO_DEBUG is 0, LIBCUCKOO_DBG will printing out status
+ //! messages in various situations
+ #define LIBCUCKOO_DBG(fmt, ...)                                                \
+-  fprintf(stderr, "\x1b[32m"                                                   \
+-                  "[libcuckoo:%s:%d:%lu] " fmt ""                              \
+-                  "\x1b[0m",                                                   \
++  fprintf(stderr,                                                              \
++          "\x1b[32m"                                                           \
++          "[libcuckoo:%s:%d:%lu] " fmt ""                                      \
++          "\x1b[0m",                                                           \
+           __FILE__, __LINE__,                                                  \
+           std::hash<std::thread::id>()(std::this_thread::get_id()),            \
+           __VA_ARGS__)
+@@ -79,14 +80,18 @@ public:
+    *
+    * @param lf the load factor of the table when the exception was thrown
+    */
+-  load_factor_too_low(const double lf) noexcept : load_factor_(lf) {}
++  load_factor_too_low(const double lf, const double min_lf) noexcept
++      : load_factor_(lf), min_load_factor_(min_lf) {}
+ 
+   /**
+    * @return a descriptive error message
+    */
+   virtual const char *what() const noexcept override {
+-    return "Automatic expansion triggered when load factor was below "
+-           "minimum threshold";
++    std::string msg =
++        "Automatic expansion triggered when load factor was below "
++        "minimum threshold" +
++        std::to_string(load_factor_) + " < " + std::to_string(min_load_factor_);
++    return msg.c_str();
+   }
+ 
+   /**
+@@ -96,6 +101,7 @@ public:
+ 
+ private:
+   const double load_factor_;
++  const double min_load_factor_;
+ };
+ 
+ /**
+@@ -128,6 +134,6 @@ private:
+   const size_t hashpower_;
+ };
+ 
+-}  // namespace libcuckoo
++} // namespace libcuckoo
+ 
+ #endif // _CUCKOOHASH_UTIL_HH
