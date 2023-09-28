@@ -14,8 +14,8 @@ tf_http_archive(
 http_archive(
     name = "tbb",
     build_file = "//third_party:tbb.BUILD",
-    sha256 = "c3245012296f09f1418b78a8c2f17df5188b3bd0db620f7fd5fabe363320805a",
-    strip_prefix = "tbb-2019_U1",
+    sha256 = "e75fafb171fcd392fdedac14f1a6d6c6211230c6a38169a0ec279ea0d80b8a22",
+    strip_prefix = "oneTBB-2019_U1",
     urls = [
         "https://github.com/01org/tbb/archive/2019_U1.zip",
     ],
