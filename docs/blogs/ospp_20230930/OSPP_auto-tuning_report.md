@@ -21,23 +21,33 @@
 
 ### 致谢与感悟
 
-这次活动最大的收获是结识了[DLRover](https://github.com/intelligent-machine-learning/dlrover)，认识了几位特别优秀的mentor @[长
-凡](https://github.com/workingloong) @[旧客](https://github.com/samplise) @弘历
-. 特别感谢长凡老师带领我了解DLRover自动机器学习框架精妙的设计与实现，也在每一次
-PR提交的过程中通过review以及实时沟通给我提出非常多的宝贵意见与建议。在这样的过
-程中，我学习到非常多关于代码规范、开发流程，以及最重要的如何设计一个适合大规模
-训练系统的自动调优框架的宝贵经验。
+这次活动最大的收获是结识了
+[DLRover](https://github.com/intelligent-machine-learning/dlrover)，认识了几位
+特别优秀的mentor @[长凡](https://github.com/workingloong) @[旧
+客](https://github.com/samplise) @弘历. 特别感谢长凡老师带领我了解DLRover自动机
+器学习框架精妙的设计与实现，也在每一次PR提交的过程中通过review以及实时沟通给我
+提出非常多的宝贵意见与建议。在这样的过程中，我学习到非常多关于代码规范、开发流
+程，以及最重要的如何设计一个适合大规模训练系统的自动调优框架的宝贵经验。
 
-同时，我要特别感谢**四川大学 AI-System Lab**的[唐明洁](https://cs.scu.edu.cn/info/1288/17205.htm)老师对我的项目所给予的大力支持。
+同时，我要特别感谢**四川大学 AI-System Lab**的[唐明
+洁](https://cs.scu.edu.cn/info/1288/17205.htm)老师对我的项目所给予的大力支持。
 唐老师不仅为我提供了项目开发和测试所需的硬件支持，时常关心项目的进展并与我讨论
 开发的计划与方向，同时还积极鼓励实验室的同学们参与DLRover的项目，以推动共建开源
 的力量。
 
-还要感谢同期一起参与[开源之夏项目](https://summer-ospp.ac.cn/)的[王泽钜](https://github.com/Major-333)同学，在和他沟通合作解决问题的同时，学习到非常多代码开发，项目汇报与同步的宝贵经验。
+还要感谢同期一起参与[开源之夏项目](https://summer-ospp.ac.cn/)的[王泽
+钜](https://github.com/Major-333)同学，在和他沟通合作解决问题的同时，学习到非常
+多代码开发，项目汇报与同步的宝贵经验。
 
-最后，感谢[开源之夏组委会](https://summer-ospp.ac.cn/)以及DLR over社区为我提供了这次宝贵的机会，让我认识到开源是一件非常酷的事，之后我也会持续关注DLRover以及其他开源项目。让更多的人参与到开源社区共建当时，为社区的发展贡献自己的力量与想法。也欢迎对分布式机器学习、对[DLRover](https://github.com/intelligent-machine-learning/dlrover)大规模自动机器学习框架感兴趣加入我们的大家庭。
+最后，感谢[开源之夏组委会](https://summer-ospp.ac.cn/)以及DLR over社区为我提供
+了这次宝贵的机会，让我认识到开源是一件非常酷的事，之后我也会持续关注DLRover以及
+其他开源项目。让更多的人参与到开源社区共建当时，为社区的发展贡献自己的力量与想
+法。也欢迎对分布式机器学习、对
+[DLRover](https://github.com/intelligent-machine-learning/dlrover)大规模自动机
+器学习框架感兴趣加入我们的大家庭。
 
-在完成本篇报告时已经是中秋佳节的深夜，在这里祝各位老师们，开源社区的同学们，中秋快乐！！！
+在完成本篇报告时已经是中秋佳节的深夜，在这里祝各位老师们，开源社区的同学们，中
+秋快乐！！！
 
 ## 简介
 
@@ -80,13 +90,17 @@ DeepSpeed-AutoTuning的特性对比。
 们开发了一个性能监控和优化模块，用于分布式深度学习训练，以提高效率和效果。该模
 块的主要功能包括：
 
-**收集运行时指标**: 在训练期间监控和记录各种性能指标，例如GPU内存使用情况、利用率、batch size和learning rate。
+**收集运行时指标**: 在训练期间监控和记录各种性能指标，例如GPU内存使用情况、利用
+率、batch size和learning rate。
 
-**实时分析性能指标**: 实时分析收集到的性能数据，以根据当前的训练状态提供优化策略。
+**实时分析性能指标**: 实时分析收集到的性能数据，以根据当前的训练状态提供优化策
+略。
 
-**实时自适应micro batch size配置**: 使用一个弹性的dataloader，以持续最大化GPU资源的利用，从而消除了用户因性能调优而需要重启job的需求。
+**实时自适应micro batch size配置**: 使用一个弹性的dataloader，以持续最大化GPU资
+源的利用，从而消除了用户因性能调优而需要重启job的需求。
 
-**实时learning rate配置**: 优先考虑吞吐量和模型质量，通过动态配置和更新learning rate来响应batch size的变化。
+**实时learning rate配置**: 优先考虑吞吐量和模型质量，通过动态配置和更新learning
+rate来响应batch size的变化。
 
 ## 设计文档
 
@@ -96,9 +110,11 @@ DeepSpeed-AutoTuning的特性对比。
 
 **GPU Stats Collector**：`resource monitor`的一个子组件，负责收集GPU状态。
 
-**Strategy Generator**：优化算法的核心生成组件，生成在JobMaster内，用于优化节点训练配置。
+**Strategy Generator**：优化算法的核心生成组件，生成在JobMaster内，用于优化节点
+训练配置。
 
-**Elastic Dataloader**：动态配置的主要执行组件，根据生成的超参配置动态调整训练batch size。
+**Elastic Dataloader**：动态配置的主要执行组件，根据生成的超参配置动态调整训练
+batch size。
 
 #### 工作流
 
@@ -107,18 +123,21 @@ DeepSpeed-AutoTuning的特性对比。
 </div>
 如图所示，DLRover中的自动超参数调整包括以下步骤：
 
-`ElasticAgent.ResourceMonitor`中的`GPU Stats Collector`收集训练性能指标和资源信息，以创建`ResourceStat[used_mem, current_cpu, gpu_stats]`。
+`ElasticAgent.ResourceMonitor`中的`GPU Stats Collector`收集训练性能指标和资源信
+息，以创建`ResourceStat[used_mem, current_cpu, gpu_stats]`。
 
 `Master_Client`将`ResourceStat`报告给`gRPC Server`。
 
 `Master.Servicer`通过`gRPC Request`接收`ResourceStat`并更新`NodeResource`。
 
-`Master.Node.JobManager`从`NodeResource`获取`ResourceStat`，然后进入`Strategy Generator`的等待状态。
-`Strategy Generator`生成一个新的`ParallelConfigPlan`并向`ElasticAgent`下发新的超参数配置。
+`Master.Node.JobManager`从`NodeResource`获取`ResourceStat`，然后进入`Strategy
+Generator`的等待状态。 `Strategy Generator`生成一个新的`ParallelConfigPlan`并向
+`ElasticAgent`下发新的超参数配置。
 
 `ElasticAgent.ConfigTuner`更新`Config File`。
 
-`Worker`中的`Trainer`实时检查`Config File`，并根据其内容调整超参数。例如，`Elastic Dataloader`根据新配置微调`batch size`。
+`Worker`中的`Trainer`实时检查`Config File`，并根据其内容调整超参数。例
+如，`Elastic Dataloader`根据新配置微调`batch size`。
 
 #### 模型显存测算
 
@@ -189,9 +208,12 @@ except ZeroDivisionError:
 
 #### 学习率调整
 
-根据`(OSDI 2021) Pollux: Co-adaptive Cluster Scheduling for Goodput-Optimized Deep Learning`的研究结果，我们需要在调整batch size的同时保证training efficiency也就是模型训练精度的效果。
+根据`(OSDI 2021) Pollux: Co-adaptive Cluster Scheduling for Goodput-Optimized
+Deep Learning`的研究结果，我们需要在调整batch size的同时保证training efficiency
+也就是模型训练精度的效果。
 
-因此，同时我们需要对学习率调整进行协同设计，对于transformer结构模型，通常使用AdamW优化器，并使用Square-Root Scaler。
+因此，同时我们需要对学习率调整进行协同设计，对于transformer结构模型，通常使用
+AdamW优化器，并使用Square-Root Scaler。
 
 ###### 策略生成
 
@@ -294,18 +316,25 @@ usage and utilization.
 
 ##### Description
 
-The `get_gpu_stats` function is designed to retrieve information regarding the utilization of GPUs within the container. It extracts and returns the GPU statistics, including index, total memory, used memory, and GPU utilization. If the `gpus` parameter is not provided, the function will gather statistics for all available GPUs.
+The `get_gpu_stats` function is designed to retrieve information regarding the
+utilization of GPUs within the container. It extracts and returns the GPU
+statistics, including index, total memory, used memory, and GPU utilization. If
+the `gpus` parameter is not provided, the function will gather statistics for
+all available GPUs.
 
 ##### Inputs
 
 - **gpus** (Optional; Type: `List[int]`)
   - A list containing the indices of the GPUs to monitor.
-  - Default is an empty list, in which case the function retrieves the statistics for all available GPUs.
+  - Default is an empty list, in which case the function retrieves the
+    statistics for all available GPUs.
 
 ##### Outputs
 
 - **gpu_stats** (Type: `List[GPUStats]`)
-  - A list of `GPUStats` objects, each representing the statistics of a single GPU, including the index, total memory in MB, used memory in MB, and GPU utilization.
+  - A list of `GPUStats` objects, each representing the statistics of a single
+    GPU, including the index, total memory in MB, used memory in MB, and GPU
+    utilization.
 
 ##### Example
 
@@ -317,12 +346,17 @@ all_gpu_stats = get_gpu_stats()
 specific_gpu_stats = get_gpu_stats(gpus=[0, 2])
 ```
 
-In the example above, `all_gpu_stats` will hold the statistics for all GPUs available, and `specific_gpu_stats` will hold the statistics for GPUs at indices 0 and 2.
+In the example above, `all_gpu_stats` will hold the statistics for all GPUs
+available, and `specific_gpu_stats` will hold the statistics for GPUs at
+indices 0 and 2.
 
 ##### Notes
 
-- The function uses the `pynvml` library to interact with the NVML API for retrieving the GPU information.
-- The `GPUStats` class should be defined to hold the GPU statistics, with attributes like `index`, `total_memory_mb`, `used_memory_mb`, and `gpu_utilization`.
+- The function uses the `pynvml` library to interact with the NVML API for
+  retrieving the GPU information.
+- The `GPUStats` class should be defined to hold the GPU statistics, with
+  attributes like `index`, `total_memory_mb`, `used_memory_mb`, and
+  `gpu_utilization`.
 
 ### Example of `GPUStats` Class
 
@@ -336,13 +370,18 @@ class GPUStats:
         self.gpu_utilization = gpu_utilization
 ```
 
-The `GPUStats` class, as illustrated, will hold the GPU statistics and can be used to store the output of the `get_gpu_stats` function.
+The `GPUStats` class, as illustrated, will hold the GPU statistics and can be
+used to store the output of the `get_gpu_stats` function.
 
 #### `SimpleStrategyGenerator`
 
 ##### Description
 
-The `SimpleStrategyGenerator` class is a strategy generator focusing on local optimization. It is designed to generate optimal configurations for data loaders and optimizers based on the available GPU statistics and the provided model configuration. It collects stats and produces parallel configurations optimizing data loading and processing according to available resources.
+The `SimpleStrategyGenerator` class is a strategy generator focusing on local
+optimization. It is designed to generate optimal configurations for data
+loaders and optimizers based on the available GPU statistics and the provided
+model configuration. It collects stats and produces parallel configurations
+optimizing data loading and processing according to available resources.
 
 #### Methods
 
@@ -365,7 +404,8 @@ The `SimpleStrategyGenerator` class is a strategy generator focusing on local op
   
 - **Inputs**:
   - **gpu_stats** (Optional; Type: `List[GPUMetric]`)
-    - A list of GPU metrics including index, total memory, used memory, and GPU utilization.
+    - A list of GPU metrics including index, total memory, used memory, and GPU
+      utilization.
     - Default is an empty list.
   - **model_config** (Optional)
     - The configuration of the model.
@@ -373,16 +413,18 @@ The `SimpleStrategyGenerator` class is a strategy generator focusing on local op
 
 - **Outputs**:
   - **paral_configs** (Type: `Dict[str, ParallelConfig]`)
-    - A dictionary containing parallel configurations for each node id, including configurations for data loaders and optimizers.
+    - A dictionary containing parallel configurations for each node id,
+      including configurations for data loaders and optimizers.
 
 ##### `_generate_dataloader_config(self, gpu_stats, model_config, dataloader_config)`
 
-- **Description**:
-  Generates and returns an optimized data loader configuration based on GPU stats and model configuration.
+- **Description**: Generates and returns an optimized data loader configuration
+  based on GPU stats and model configuration.
   
 - **Inputs**:
   - **gpu_stats** (Type: `List[GPUMetric]`)
-    - A list of GPU metrics including index, total memory, used memory, and GPU utilization.
+    - A list of GPU metrics including index, total memory, used memory, and GPU
+      utilization.
   - **model_config**
     - The configuration of the model.
   - **dataloader_config**
@@ -406,11 +448,15 @@ The `SimpleStrategyGenerator` class is a strategy generator focusing on local op
   
 - **Outputs**:
   - **node_used_resources** (Type: `Dict[str, List[List[Node]]]`)
-    - A dictionary representing the resource usage of nodes categorized by node types.
+    - A dictionary representing the resource usage of nodes categorized by node
+      types.
 
 ### Notes
 
-The `_generate_dataloader_config` method will use the GPU stats and model configuration to optimize the batch size for the data loader, and will keep the dataloader configuration unchanged if the minimum remaining memory is not greater than 2400 MB.
+The `_generate_dataloader_config` method will use the GPU stats and model
+configuration to optimize the batch size for the data loader, and will keep the
+dataloader configuration unchanged if the minimum remaining memory is not
+greater than 2400 MB.
 
 ### Example
 
@@ -420,7 +466,10 @@ strategy_generator = SimpleStrategyGenerator(job_uuid=job_uuid)
 optimal_strategy = strategy_generator.generate_opt_strategy(gpu_stats=some_gpu_stats, model_config=some_model_config)
 ```
 
-Here, `some_gpu_stats` should be a list of `GPUMetric` objects, and `some_model_config` should be the configuration of the model. The `optimal_strategy` will be a dictionary containing optimal parallel configurations for each node id.
+Here, `some_gpu_stats` should be a list of `GPUMetric` objects, and
+`some_model_config` should be the configuration of the model. The
+`optimal_strategy` will be a dictionary containing optimal parallel
+configurations for each node id.
 
 #### `Class: Elastic Dataloader`
 
@@ -500,35 +549,47 @@ size，而增加其他节点的batch size。这样可以确保整个系统的资
 
 ##### 超参数调整失败
 
-在`Strategy Generator`中，我们调整了训练的超参数，例如`learning_rate`和`batch_size`。这是一个根据`gpu_stats`和`hyper_param_args`来生成`tuned_hyper_params`的过程。这个过程可能会失败，例如，由于某个超参数的范围设置不正确，或者GPU的状态信息不完整。
+在`Strategy Generator`中，我们调整了训练的超参数，例如`learning_rate`和
+`batch_size`。这是一个根据`gpu_stats`和`hyper_param_args`来生成
+`tuned_hyper_params`的过程。这个过程可能会失败，例如，由于某个超参数的范围设置
+不正确，或者GPU的状态信息不完整。
 
-我们需要设计一个错误处理机制来捕获这些错误，并采取适当的行动。例如，如果超参数调整失败，我们可以选择保持当前的超参数不变，并记录一条错误日志。
+我们需要设计一个错误处理机制来捕获这些错误，并采取适当的行动。例如，如果超参数
+调整失败，我们可以选择保持当前的超参数不变，并记录一条错误日志。
 
 #### 配置文件错误
 
-在`Elastic DataLoader`的`update_batch_size_from_config`方法中，我们从配置文件中读取`batch_size`的值。如果配置文件不存在或者配置文件的格式不正确，这个方法将失败。
+在`Elastic DataLoader`的`update_batch_size_from_config`方法中，我们从配置文件中
+读取`batch_size`的值。如果配置文件不存在或者配置文件的格式不正确，这个方法将失
+败。
 
-我们需要设计一个错误处理机制来捕获这些错误，并采取适当的行动。例如，如果读取配置文件失败，我们可以选择保持当前的`batch_size`不变，并记录一条错误日志。
+我们需要设计一个错误处理机制来捕获这些错误，并采取适当的行动。例如，如果读取配
+置文件失败，我们可以选择保持当前的`batch_size`不变，并记录一条错误日志。
 
 #### 日志记录
 
 我们需要在关键的操作步骤中记录日志，以方便排查问题。例如：
 
-在`GPU Stats Collector`中，每当收集到GPU的状态信息时，记录一条日志。
-在`Strategy Generator`中，每当调整了一个超参数的值时，记录一条日志。
-在`Elastic DataLoader`的`update_batch_size_from_config`方法中，每当从配置文件中读取了`batch_size`的值时，记录一条日志。
-测试用例
-我们需要设计测试用例来验证我们的代码是否能够正确地工作。例如：
+在`GPU Stats Collector`中，每当收集到GPU的状态信息时，记录一条日志。在`Strategy
+Generator`中，每当调整了一个超参数的值时，记录一条日志。在`Elastic DataLoader`
+的`update_batch_size_from_config`方法中，每当从配置文件中读取了`batch_size`的值
+时，记录一条日志。测试用例我们需要设计测试用例来验证我们的代码是否能够正确地工
+作。例如：
 
-对于`GPU Stats Collector`，我们可以设计一个测试用例，模拟GPU的状态信息，然后验证`get_gpu_stats`方法能否正确地返回这些信息。
-对于`Strategy Generator`，我们可以设计一个测试用例，提供一组`gpu_stats`和`hyper_param_args`，然后验证`tune_hyper_params`方法能否正确地返回`tuned_hyper_params`。
-对于`Elastic DataLoader`，我们可以设计一个测试用例，提供一个配置文件，然后验证`update_batch_size_from_config`方法能否正确地从配置文件中读取`batch_size`的值。
-性能优化
-我们的代码涉及到GPU状态信息的收集、超参数的调整、和动态地调整`batch_size`。这些操作可能会对训练的性能产生影响。我们需要考虑一些性能优化的措施，例如：
+对于`GPU Stats Collector`，我们可以设计一个测试用例，模拟GPU的状态信息，然后验
+证`get_gpu_stats`方法能否正确地返回这些信息。对于`Strategy Generator`，我们可以
+设计一个测试用例，提供一组`gpu_stats`和`hyper_param_args`，然后验证
+`tune_hyper_params`方法能否正确地返回`tuned_hyper_params`。对于`Elastic
+DataLoader`，我们可以设计一个测试用例，提供一个配置文件，然后验证
+`update_batch_size_from_config`方法能否正确地从配置文件中读取`batch_size`的值。
+性能优化我们的代码涉及到GPU状态信息的收集、超参数的调整、和动态地调整
+`batch_size`。这些操作可能会对训练的性能产生影响。我们需要考虑一些性能优化的措
+施，例如：
 
-在`GPU Stats Collector`中，我们可以考虑异步地收集GPU状态信息，以减少对训练的影响。
-在`Strategy Generator`中，我们可以考虑使用更高效的算法来调整超参数的值。
-在`Elastic DataLoader`中，我们可以考虑异步地从配置文件中读取batch_size的值，以减少对数据加载的影响。
+在`GPU Stats Collector`中，我们可以考虑异步地收集GPU状态信息，以减少对训练的影
+响。在`Strategy Generator`中，我们可以考虑使用更高效的算法来调整超参数的值。在
+`Elastic DataLoader`中，我们可以考虑异步地从配置文件中读取batch_size的值，以减
+少对数据加载的影响。
 
 # 效果测评
 
@@ -596,6 +657,10 @@ Torch v2.0.1
 
 ### 分析
 
-**显存使用率与吞吐量：** 在两个模型中，通过`DLRover-autotuing`提高显存使用率，都显著地提高了模型的吞吐量。特别是在小型的nanogpt模型中，吞吐量提升显著，达到了原来的约8倍。
+**显存使用率与吞吐量：** 在两个模型中，通过`DLRover-autotuing`提高显存使用率，
+都显著地提高了模型的吞吐量。特别是在小型的nanogpt模型中，吞吐量提升显著，达到了
+原来的约8倍。
 
-**批量大小：** 调整显存后，两个模型的批量大小都得到了显著的提升。这对于提高模型的训练和推理速度是非常重要的，因为较大的批量大小通常可以更充分地利用GPU的计算能力。
+**批量大小：** 调整显存后，两个模型的批量大小都得到了显著的提升。这对于提高模型
+的训练和推理速度是非常重要的，因为较大的批量大小通常可以更充分地利用GPU的计算能
+力。
