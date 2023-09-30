@@ -613,7 +613,7 @@ Torch v2.0.1
 - **显存：** 2.211Gi (8%)
 - **吞吐量：** 416 samples/s
 
-![](https://cdn.nlark.com/yuque/0/2023/png/29623079/1694598008645-5fc5879b-1dd1-4c96-8257-b78113239ff3.png#averageHue=%232a2f37&from=url&id=DUtqo&originHeight=1019&originWidth=2799&originalType=binary&ratio=1.5&rotation=0&showTitle=false&status=done&style=none&title=)
+![nanogpt_before_adjustment1](https://cdn.nlark.com/yuque/0/2023/png/29623079/1694598008645-5fc5879b-1dd1-4c96-8257-b78113239ff3.png#averageHue=%232a2f37&from=url&id=DUtqo&originHeight=1019&originWidth=2799&originalType=binary&ratio=1.5&rotation=0&showTitle=false&status=done&style=none&title=)
 
 #### 调整后
 
@@ -622,9 +622,9 @@ Torch v2.0.1
 - **吞吐量提升：** 710%
 - **显存使用率提升：** 85个百分点
 
-![](https://cdn.nlark.com/yuque/0/2023/png/29623079/1694598056763-557db2e5-9a3d-4c5c-97b0-560b1c1cc7f8.png#averageHue=%232a2f37&from=url&id=BTmju&originHeight=1023&originWidth=2812&originalType=binary&ratio=1.5&rotation=0&showTitle=false&status=done&style=none&title=)
+![nanogpt_after_adjustment1](https://cdn.nlark.com/yuque/0/2023/png/29623079/1694598056763-557db2e5-9a3d-4c5c-97b0-560b1c1cc7f8.png#averageHue=%232a2f37&from=url&id=BTmju&originHeight=1023&originWidth=2812&originalType=binary&ratio=1.5&rotation=0&showTitle=false&status=done&style=none&title=)
 
-![](https://cdn.nlark.com/yuque/0/2023/png/29623079/1694598071559-18ccdbbb-12ae-46f5-b5d0-f18a1568ad72.png#averageHue=%232b2f37&from=url&id=Izm0p&originHeight=1021&originWidth=2799&originalType=binary&ratio=1.5&rotation=0&showTitle=false&status=done&style=none&title=)
+![nanogpt_after_adjustment2](https://cdn.nlark.com/yuque/0/2023/png/29623079/1694598071559-18ccdbbb-12ae-46f5-b5d0-f18a1568ad72.png#averageHue=%232b2f37&from=url&id=Izm0p&originHeight=1021&originWidth=2799&originalType=binary&ratio=1.5&rotation=0&showTitle=false&status=done&style=none&title=)
 
 ### gpt2-medium模型
 
@@ -636,7 +636,7 @@ Torch v2.0.1
 - **显存：** 13.284Gi (55%)
 - **吞吐量：** 119.36 samples/s
 
-![](https://cdn.nlark.com/yuque/0/2023/png/29623079/1694596789353-0e3c5f76-9b54-42bc-824a-03898136b715.png#averageHue=%232a2f37&from=url&id=BBl19&originHeight=1014&originWidth=2827&originalType=binary&ratio=1.5&rotation=0&showTitle=false&status=done&style=none&title=)
+![gpt2_before_adjustment](https://cdn.nlark.com/yuque/0/2023/png/29623079/1694596789353-0e3c5f76-9b54-42bc-824a-03898136b715.png#averageHue=%232a2f37&from=url&id=BBl19&originHeight=1014&originWidth=2827&originalType=binary&ratio=1.5&rotation=0&showTitle=false&status=done&style=none&title=)
 
 #### 调整后
 
@@ -645,7 +645,7 @@ Torch v2.0.1
 - **吞吐量提升：** 50%
 - **显存使用率提升：** 44个百分点
 
-![](https://cdn.nlark.com/yuque/0/2023/png/29623079/1694597477698-76294d36-b087-4376-9541-c12a1baaa45d.png#averageHue=%232a2f37&from=url&id=Fi6ef&originHeight=1012&originWidth=2814&originalType=binary&ratio=1.5&rotation=0&showTitle=false&status=done&style=none&title=)
+![gpt2_after_adjustment](https://cdn.nlark.com/yuque/0/2023/png/29623079/1694597477698-76294d36-b087-4376-9541-c12a1baaa45d.png#averageHue=%232a2f37&from=url&id=Fi6ef&originHeight=1012&originWidth=2814&originalType=binary&ratio=1.5&rotation=0&showTitle=false&status=done&style=none&title=)
 
 ### 总结
 
