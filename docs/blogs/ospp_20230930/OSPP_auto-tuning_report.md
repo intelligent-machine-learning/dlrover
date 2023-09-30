@@ -7,7 +7,7 @@
 
 ### 所有PR
 
-[Antlera: PR Counts: 55 ](<https://github.com/intelligent-machine-learning/dlrover/commits?author=Antlera>)
+[Antlera: PR Counts: 55](<https://github.com/intelligent-machine-learning/dlrover/commits?author=Antlera>)
 
 ### 主要PR
 
@@ -653,7 +653,6 @@ Torch v2.0.1
 | ----------- | ------- | ------------ | ------------- | ---------------- | -------------- | ------------- | ----------------- | ---------- | -------------- |
 | nanogpt     | 10.45M  | 32           | 2.211Gi(8%)   | 416 samples/s    | 1833           | 22.336Gi(93%) | 3372.72 samples/s | 710%       | 85%            |
 | gpt2-medium | 393.35M | 32           | 13.284Gi(55%) | 119.36 samples/s | 111            | 23.828Gi(99%) | 238.65 samples/s  | 50%        | 44%            |
-
 
 ### 分析
 
