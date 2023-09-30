@@ -38,7 +38,7 @@ func TestCreateMasterPod(t *testing.T) {
 	pod := manager.newJobMaster(job, initMasterIndex)
 	assert.Equal(t, pod.Name, "elasticjob-test-ps-dlrover-master")
 	assert.Equal(t, pod.Spec.Containers[0].Image, "dlrover-master:test")
-	assert.Equal(t, string(pod.Spec.Containers[0].ImagePullPolicy), "IfNotPresent")
+	assert.Equal(t, string(pod.Spec.Containers[0].ImagePullPolicy), "Always")
 	assert.True(t, strings.Contains(pod.Spec.Containers[0].Command[2], "--namespace dlrover"))
 	assert.True(t, strings.Contains(pod.Spec.Containers[0].Command[2], "--job_name test-ps"))
 	assert.True(t, strings.Contains(pod.Spec.Containers[0].Command[2], "--port 50001"))
