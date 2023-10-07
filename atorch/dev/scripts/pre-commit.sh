@@ -3,7 +3,7 @@
 pip install pre-commit==2.21.0
 git config --global --add safe.directory '*'
 
-Config=.pre-commit-config-internal.yaml
+Config=.pre-commit-config.yaml
 
 py_files=$(find . -path "./atorch/protos" -prune -o -name "*.py" -print0 | tr '\0' ' ')
 pre-commit run -v --files ${py_files} -c ${Config}
