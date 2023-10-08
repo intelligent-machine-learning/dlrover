@@ -71,8 +71,7 @@ RUN pip install dm-tree setuptools packaging && \
     pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./ && \
     cd .. && rm -rf apex*
 
-# TODO: need to build flash-atten under new image
-# RUN pip install https://dlrover.oss-cn-beijing.aliyuncs.com/atorch/libs/flash_attn-0.2.6.post1-cp38-cp38-linux_x86_64.whl -i https://pypi.antfin-inc.com/simple
+RUN pip install https://dlrover.oss-cn-beijing.aliyuncs.com/atorch/libs/torch-2.1.0.dev20230731%2Bcu118-cp38-cp38-linux_x86_64.whl -i https://pypi.antfin-inc.com/simple
 RUN wget -O catapult.tar.gz https://dlrover.oss-cn-beijing.aliyuncs.com/atorch/libs/catapult.tar.gz && \
     mkdir -p /home/admin/profile/ && \
     tar -zxf catapult.tar.gz -C /home/admin/profile/ && \
