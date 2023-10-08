@@ -1336,7 +1336,7 @@ class LlamaAttentionFA(LlamaAttention):
 
         past_key_value = (key_states, value_states) if use_cache else None
 
-        ###### FA Compute #######
+        # FA Compute
         # FA note: llama pre-add causal mask and padding mask, convert back to padding mask
         key_padding_mask = attention_mask[:, 0, -1, :] == 0
         attn_output = self.FA(
@@ -1345,7 +1345,7 @@ class LlamaAttentionFA(LlamaAttention):
             value_states.transpose(1, 2),
             key_padding_mask=key_padding_mask,
         )
-        ###### FA Compute End ###
+        # FA Compute End
 
         attn_output = attn_output.reshape(bsz, q_len, self.hidden_size)
 

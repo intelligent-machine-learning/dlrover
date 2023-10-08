@@ -1,11 +1,11 @@
 import pickle
 
 import grpc
-from google.protobuf import empty_pb2
+from google.protobuf import empty_pb2  # type: ignore
 
 from atorch.common.constants import GrpcEnv
 from atorch.common.util_func import wait_for_server_started
-from atorch.protos import coworker_pb2, coworker_pb2_grpc
+from atorch.protos import coworker_pb2, coworker_pb2_grpc  # type: ignore
 
 
 class GpuPodRpcClient(object):

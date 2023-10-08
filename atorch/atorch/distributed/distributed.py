@@ -675,8 +675,7 @@ def init_distributed(
                 return False
         elif backend == "accl":
             try:
-                # noqa: F401
-                import torch_accl
+                import torch_accl  # noqa: F401
             except ImportError:
                 logger.error("import torch_accl failed")
                 return False
