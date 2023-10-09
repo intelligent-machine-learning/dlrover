@@ -69,8 +69,8 @@ jobs:
     runs-on: self-hosted
     steps:
       # This step checks out a copy of your repository.
-      - name: Set owner of working dir recurively (Linux)
-        run: sudo rm -rf /home/nash635/actions-runner/_work/dlrover/dlrover
+      - name: Clean folder.
+        run: rm -rf /home/nash635/actions-runner/_work/dlrover/dlrover
       - uses: actions/checkout@v3
       # This step references the directory that contains the action.
       - uses: ./.github/actions/atorch-python-test
