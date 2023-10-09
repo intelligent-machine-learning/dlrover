@@ -13,4 +13,5 @@ runs:
 && cd atorch \
 && sh bin/build_proto.sh \
 && PYTHONPATH=. pytest atorch/tests \
-&& chown -R nash635 /home/nash635/actions-runner/"
+&& cd ../.. \
+&& rm -fr dlrover"
