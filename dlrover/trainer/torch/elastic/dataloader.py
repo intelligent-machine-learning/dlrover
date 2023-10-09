@@ -66,13 +66,33 @@ class ElasticDataLoader(DataLoader):
         super(ElasticDataLoader, self).__init__(*args, **kwargs)
         self._config_version = 0
         self.config_file = config_file
-        if not self.config_file:
+        if self.config_file:
+            self.load_config(self.config_file)
+        else:
             self.config_file = os.getenv(
                 ConfigPath.ENV_PARAL_CONFIG,
                 ConfigPath.PARAL_CONFIG,
             )
-        if self.config_file:
-            self.load_config(self.config_file)
+        self.init_config(self.config_file)
+
+    def init_config(self, config_file=None):
+        if not config_file or not os.path.exists(config_file):
+            return
+        with open(config_file, "r") as json_file:
+            try:
+                content = json_file.read()
+                config = json.loads(content)
+            except json.decoder.JSONDecodeError:
+                logger.warning(f"Fail to load config {content}")
+                return
+        dl_config = config.get("dataloader", {})
+        batch_size = config.get("batch_size", 0)
+        if batch_size == 0:
+            batch_size = self.batch_sampler.batch_size
+        dl_config["batch_size"] = batch_size
+        logger.info(f"Init the batch size of dataloader to {batch_size}")
+        with open(config_file, "w") as json_file:
+            json.dump(config, json_file, indent=4)
 
     def load_config(self, config_file=None):
         """
@@ -89,7 +109,12 @@ class ElasticDataLoader(DataLoader):
         if not config_file or not os.path.exists(config_file):
             return
         with open(config_file, "r") as f:
-            config = json.load(f)
+            try:
+                content = f.read()
+                config = json.loads(content)
+            except json.decoder.JSONDecodeError:
+                logger.warning(f"Fail to load config {content}")
+                return
             if "dataloader" not in config:
                 return
             dl_config = config["dataloader"]
@@ -114,3 +139,9 @@ class ElasticDataLoader(DataLoader):
             self.batch_sampler.batch_size = batch_size
         else:
             self.load_config(self.config_file)
+
+    def get_batch_size(self):
+        """
+        Get the batch size of the dataloader.
+        """
+        return self.batch_sampler.batch_size

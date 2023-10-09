@@ -22,7 +22,9 @@ import torch.nn.functional as F
 import torch.optim as optim
 import torchvision
 from torch.distributed.elastic.multiprocessing.errors import record
+from torch.distributed.fsdp import FullStateDictConfig
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
+from torch.distributed.fsdp import StateDictType
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader
@@ -32,7 +34,9 @@ from dlrover.trainer.torch.elastic.dataloader import ElasticDataLoader
 from dlrover.trainer.torch.elastic.sampler import ElasticDistributedSampler
 from dlrover.trainer.torch.elastic.trainer import ElasticTrainer
 
-CHEKPOINT_PATH = "model.pt"
+# Note, we need to set the path of a shared file
+# system like nas, cpfs or hdfs.
+CHEKPOINT_PATH = "./model.pt"
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 
 
@@ -118,13 +122,14 @@ def train(args):
 
     if torch.cuda.is_available():
         local_rank = int(os.environ["LOCAL_RANK"])
-        print(f"Running basic DDP example on local rank {local_rank}.")
+
         # create model and move it to GPU with id rank
         model = model.to(local_rank)
         if args.use_fsdp:
-            # shared model
+            print(f"Running basic FSDP example on local rank {local_rank}.")
             model = FSDP(model)
         else:
+            print(f"Running basic DDP example on local rank {local_rank}.")
             model = DDP(model, device_ids=[local_rank])
             print(f"Model device {model.device}")
     else:
@@ -132,138 +137,124 @@ def train(args):
             raise ValueError("fsdp requires cuda devices")
         model = DDP(model)
 
-    optimizer = optim.SGD(model.parameters(), lr=args.learning_rate)
+    optimizer = optim.SGD(
+        model.parameters(), lr=args.learning_rate, momentum=args.momentum
+    )
     scheduler = StepLR(optimizer, step_size=1, gamma=0.5)
 
-    checkpoint = load_checkpoint(CHEKPOINT_PATH)
-    if checkpoint:
-        model.load_state_dict(checkpoint.get("model", {}))
-        optimizer.load_state_dict(checkpoint.get("optimizer", {}))
-        #  Restore sampler from checkpoint.
-        train_loader.sampler.load_state_dict(checkpoint.get("sampler", {}))
+    load_checkpoint(model, optimizer, sampler, CHEKPOINT_PATH, args.use_fsdp)
 
-    epochs = args.num_epochs
-    if args.fixed_batch_size:
-        train_with_fixed_batch_size(
+    elastic_trainer = ElasticTrainer(model, dataloader=train_loader)
+    optimizer, scheduler = elastic_trainer.prepare(optimizer, scheduler)
+    use_cuda = torch.cuda.is_available()
+    device = torch.device("cuda" if use_cuda else "cpu")
+
+    start_epoch = train_loader.sampler.epoch
+    for epoch in range(start_epoch, args.num_epochs):
+        elastic_trainer.reset()
+        scheduler.step()
+        model.train()
+        train_epoch(
+            elastic_trainer,
             model,
             optimizer,
-            scheduler,
             train_loader,
-            test_loader,
-            epochs,
+            device,
+            args.use_fsdp,
+            args.fixed_batch_size,
         )
-    else:
-        train_with_elastic_batch_size(
-            model,
-            optimizer,
-            scheduler,
-            train_loader,
-            test_loader,
-            epochs,
-        )
+        log_rank0("Test model after epoch {}".format(epoch))
+        test(model, device, test_loader)
+    dist.barrier()
 
 
-def train_with_fixed_batch_size(
+def train_epoch(
+    elastic_trainer,
     model,
     optimizer,
-    scheduler,
     train_loader,
-    test_loader,
-    epochs,
+    device,
     use_fsdp=False,
+    fixed_batch_size=False,
 ):
     """
     The global batch size will not change if the number of workers changes.
     """
-    elastic_trainer = ElasticTrainer(model, dataloader=train_loader)
-    optimizer, scheduler = elastic_trainer.prepare(optimizer, scheduler)
 
-    epoch = 0
-    use_cuda = torch.cuda.is_available()
-    device = torch.device("cuda" if use_cuda else "cpu")
-    start_epoch = train_loader.sampler.epoch
-    for epoch in range(start_epoch, epochs):
-        elastic_trainer.reset()
-        for _, (data, target) in enumerate(train_loader):
-            model.train()
-            with elastic_trainer.step():
-                target = target.type(torch.LongTensor)
-                data, target = data.to(device), target.to(device)
-                output = model(data)
-                loss = F.nll_loss(output, target)
-                loss.backward()
-                optimizer.step()
-                optimizer.zero_grad()
-                train_step = elastic_trainer.num_steps
-                if train_step % 20 == 0:
-                    print("loss = {}, step = {}".format(loss, train_step))
-
-                if train_step > 0 and train_step % 200 == 0:
-                    if use_fsdp:
-                        rank = dist.get_rank()
-                        dist.barrier()
-                    print("Save checkpoint.")
-                    checkpoint = {
-                        "model": model.state_dict(),
-                        "optimizer": optimizer.state_dict(),
-                        "sampler": train_loader.sampler.state_dict(
-                            train_step, train_loader.batch_size
-                        ),  # Checkpoint sampler
-                    }
-                    if use_fsdp and rank == 0:
-                        torch.save(checkpoint, CHEKPOINT_PATH)
-                    if not use_fsdp:
-                        torch.save(checkpoint, CHEKPOINT_PATH)
-        scheduler.step()
-        print("Test model after epoch {}".format(epoch))
-        test(model, device, test_loader)
-
-
-def train_with_elastic_batch_size(
-    model,
-    optimizer,
-    scheduler,
-    train_loader,
-    test_loader,
-    epochs,
-):
-    """The global batch size will change if the number of worker changes."""
-    use_cuda = torch.cuda.is_available()
-    device = torch.device("cuda" if use_cuda else "cpu")
-    start_epoch = train_loader.sampler.epoch
-    for epoch in range(start_epoch, epochs):
-        train_loader.sampler.set_epoch(epoch)
-        for step, (data, target) in enumerate(train_loader):
-            model.train()
+    for _, (data, target) in enumerate(train_loader):
+        with elastic_trainer.step(fixed_batch_size):
+            optimizer.zero_grad()
             target = target.type(torch.LongTensor)
             data, target = data.to(device), target.to(device)
             output = model(data)
             loss = F.nll_loss(output, target)
             loss.backward()
             optimizer.step()
-            optimizer.zero_grad()
-            if step % 20 == 0:
-                log_rank0("loss = {}, step = {}".format(loss, step))
-            if step > 0 and step % 200 == 0:
-                log_rank0("Save checkpoint.")
-                checkpoint = {
-                    "model": model.state_dict(),
-                    "optimizer": optimizer.state_dict(),
-                    "sampler": train_loader.sampler.state_dict(
-                        step, train_loader.batch_size
-                    ),  # Checkpoint sampler
-                }
-                torch.save(checkpoint, CHEKPOINT_PATH)
-        scheduler.step()
-        log_rank0("Test model after epoch {}".format(epoch))
-        test(model, device, test_loader)
+            train_step = elastic_trainer.num_steps
+            if train_step % 20 == 0:
+                log_rank0("loss = {}, step = {}".format(loss, train_step))
+
+            if train_step > 0 and train_step % 200 == 0:
+                save_checkpoint(
+                    train_step,
+                    model,
+                    optimizer,
+                    train_loader,
+                    CHEKPOINT_PATH,
+                    use_fsdp,
+                )
 
 
-def load_checkpoint(path):
-    if not os.path.exists(path):
-        return {}
-    checkpoint = torch.load(path)
-    return checkpoint
+def load_checkpoint(model, optimizer, sampler, ckpt_path, use_fsdp=False):
+    if not os.path.exists(ckpt_path):
+        return
+    print("Checkpoint loaded to rank0 CPU.")
+    checkpoint = torch.load(ckpt_path)
+    sampler.load_state_dict(checkpoint.get("sampler", {}))
+    model_state_dict = checkpoint.get("model", {})
+    model.load_state_dict(model_state_dict)
+    optim_state_dict = checkpoint.get("optimizer", {})
+    if use_fsdp:
+        FSDP.set_state_dict_type(
+            model,
+            StateDictType.FULL_STATE_DICT,
+            FullStateDictConfig(rank0_only=True),
+        )
+        # called from all ranks, though only rank0 has
+        # a valid param for full_osd.
+        optim_state_dict = FSDP.optim_state_dict_to_load(
+            optim_state_dict, model, optimizer
+        )
+        optimizer.load_state_dict(optim_state_dict)
+    else:
+        optimizer.load_state_dict(optim_state_dict)
+
+
+def save_checkpoint(
+    step, model, optimizer, data_loader, ckpt_path, use_fsdp=False
+):
+    log_rank0("Save checkpoint.")
+    msd, osd = get_model_optim_state(model, optimizer, use_fsdp)
+    ssd = data_loader.sampler.state_dict(step, data_loader.batch_size)
+    checkpoint = {"model": msd, "optimizer": osd, "sampler": ssd}
+    rank = dist.get_rank()
+    if rank == 0:
+        torch.save(checkpoint, ckpt_path)
+
+
+def get_model_optim_state(model, optimizer, use_fsdp=False):
+    if use_fsdp:
+        FSDP.set_state_dict_type(
+            model,
+            StateDictType.FULL_STATE_DICT,
+            FullStateDictConfig(rank0_only=True),
+        )
+        model_state = model.state_dict()
+        optim_state = FSDP.optim_state_dict(model, optimizer)
+    else:
+        model_state = model.state_dict()
+        optim_state = optimizer.state_dict()
+    return model_state, optim_state
 
 
 def test(model, device, test_loader):
@@ -306,6 +297,7 @@ def arg_parser():
     parser.add_argument(
         "--fixed_batch_size", type=bool, default=True, required=False
     )
+    parser.add_argument("--momentum", type=float, default=0.1, required=False)
     parser.add_argument(
         "--learning_rate", type=float, default=0.1, required=False
     )

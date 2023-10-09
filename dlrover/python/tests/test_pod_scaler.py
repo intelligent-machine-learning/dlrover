@@ -1,4 +1,4 @@
-# Copyright 2022 The EasyDL Authors. All rights reserved.
+# Copyright 2022 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -43,7 +43,7 @@ class PodScalerTest(unittest.TestCase):
         self.assertEqual(
             main_container.image, "dlrover/elasticjob:iris_estimator"
         )
-        self.assertEqual(worker_pod.spec.restart_policy, "Never")
+        self.assertEqual(worker_pod.spec.restart_policy, "Always")
         self.assertListEqual(
             main_container.command,
             [

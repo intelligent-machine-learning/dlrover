@@ -29,16 +29,11 @@ to improve the training performance and resources utilization.
 
 ## Latest News
 
+- [2023/09] [Weighted Sharpness-Aware Minimization (WSAM) has been accepted by KDD'23.](atorch/atorch/optimizers/README.md)
 - [2023/08] [DLRover improves the stability of pre-trained model training over thousands of GPUs.](docs/blogs/stabilize_llm_training_cn.md)
 - [2023/04] [DLRover auto-scales nodes of a DeepRec distributed training job.](docs/blogs/deeprec_autoscale_cn.md)
 
 ## Why DLRover?
-
-<div align="center">
-   <a href="https://www.bilibili.com/video/BV1Nk4y1N7fx/?vd_source=603516da01339dc75fb908e1cce180c7">
-   <img src="docs/figures/dlrover-cover.jpg" width="700" />
-   </a>
-</div>
 
 ### Fault Tolerance to Improve the Stability of Job
 
@@ -48,6 +43,9 @@ training job. The actions to restore training in DLRover are:
 1. Diagnose the failure reason.
 2. Restart the process not the node due to software errors.
 3. Restart the failed nodes due to hardward errors.
+
+For detail, we can see [experiments](docs/tutorial/fault_tolerations.md)
+of fault-tolerance and elasticity.
 
 #### Fault Tolerance of PyTorch Distributed Training
 
@@ -61,9 +59,11 @@ install  packages on all nodes.
 |       Restore action      |        Restart Job        |        Restart failed nodes       |      Restart training process     |
 |  Schedule node, pull image and install packages   |  All nodes |       Only new nodes      |                 No                |
 | Node health check         |            No             | All nodes execute a simple allgtather task | All nodes execute a allgtather simple task |
-| Build communication world |            Yes            |                Yes                |                Yes                |
-|   Start training process  |            Yes            |                Yes                |                Yes                |
-|     Restore checkpoint    |            Yes            |                Yes                |                Yes                |
+| Start training process    |            Yes            |                Yes                |                Yes                |
+
+<div align="center">
+<img src="docs/figures/dlrover-allreduce-ft.jpg" alt="Editor" width="600">
+</div>
 
 #### Fault Tolerance of TensorFlow PS Distributed Training
 
@@ -91,34 +91,14 @@ NaN loss of the model, network breakdown, and so on.
 <img src="docs/figures/job-complete-rate.png" alt="Editor" width="600">
 </div>
 
-### No Resource Configuration to Submit a Job
-
-Compared with Training Job (e.g., TensorFlow, PyTorch etc) in Kubeflow,
-Users can  submit a distributed training job without any resource configuration.
-
-<div align="center">
-<img src="docs/figures/dlrover_vs_tfjob.jpg" alt="Editor" width="600">
-</div>
-
-### Auto-Scaling to Improve Training Performance
+### Auto-Scaling to Improve Training Performance and Resource Utilization
 
 DLRover automatically scales up/down resources (for parameter servers or workers) at the runtime of a training job.
 By monitoring the workload of nodes and throughput, DLRover can diagnose the bottleneck of the resource configuration.
 The common bottleneck contains node straggler, the unbalanced workload of PS, insufficient CPU cores of nodes,
 and the insufficient number of nodes. DLRover can improve the training performance by dynamic resource adjustment.
 
-We use the dataset of [Kaggle CRITEO](https://www.kaggle.com/c/criteo-display-ad-challenge)
-to train Wide&Deep and xDeepFM with 10 epoches on a K8s cluster.
-DLRover can mitigate straggler to improve the training throughput
-and shorten the job competion time (JCT).
-
-<div align="center">
-<img src="docs/figures/exp-jct-deepctr.png" alt="Editor" width="600">
-</div>
-
-### Auto-Scaling to Improve Resource Utilization
-
-Different model training requires different resources. Users prefer to
+In order to improve the training througphput, users prefer to
 configure their jobs with over-provision resources to
 avoid any potential risk from insufficient resources.
 This usually ends up in huge resource waste. DLRover Auto-Scaling
@@ -164,18 +144,20 @@ Only by 2 steps, the user can use DLRover to run the training script which
 pip install dlrover[torch]
 ```
 
-- Use `dlrover-run` to run the training script.
+- Use `dlrover-run` to run the training script in the command of Pod container
+like the example [torch_mnist_job.yaml](examples/pytorch/mnist/elastic_job.yaml).
 
 ```bash
-dlrover-run
-    --nnodes=$NUM_NODES
-    --nproc_per_node=$$NUM_TRAINERS
-    train_scripts.py
+dlrover-run --nnodes=$WORKER_NUM --nproc_per_node=$NUM_TRAINERS train_scripts.py
 ```
 
-- Set the image and command in an ElasticJob yaml file to submit a job.
-We can refer to the example [torch_mnist_job.yaml](examples/pytorch/mnist/ddp_elastic_job.yaml)
-to make an ElasticJob yaml.
+Here, the `WORKER_NUM` is the number of nodes like worker Pods in a k8s cluster.
+
+Users can also use DLRover locally like
+
+```bash
+dlrover-run --standalone --nproc_per_node=$NUM_TRAINERS train_scripts.py
+```
 
 ### Train a TensorFlow Model
 

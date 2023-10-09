@@ -56,6 +56,7 @@ setup(
             "proto/*",
             "docker/*",
             "Makefile",
+            "trainer/check/*",
         ]
     },
     entry_points={

@@ -11,7 +11,6 @@ spec:
       replicas: 4
       template:
         spec:
-          restartPolicy: Never
           containers:
             - name: main
               # yamllint disable-line rule:line-length
@@ -20,15 +19,18 @@ spec:
               command:
                 - /bin/bash
                 - -c
-                - "dlrover-run --network-check --nnodes=$WORKER_NUM \
+                # WORKER_NUM is set into env with the value as replicas.
+                - "dlrover-run --network-check --nnodes=3:$WORKER_NUM \
                   --nproc_per_node=2 --max_restarts=3  \
-                  examples/pytorch/mnist/cnn_train.py --num_epochs 2 \
+                  examples/pytorch/mnist/cnn_train.py --num_epochs 5 \
                   --training_data /data/mnist_png/training/ \
                   --validation_data /data/mnist_png/testing/"
               resources:
                 limits:
-                  cpu: "1"
-                  memory: 2Gi
+                  cpu: "2"  # turn up when using GPU
+                  memory: 3Gi  # turn up when using GPU
+                  # nvidia.com/gpu: 1 # optional
                 requests:
-                  cpu: "1"
-                  memory: 2Gi
+                  cpu: "2"  # turn up when using GPU
+                  memory: 3Gi  # turn up when using GPU
+                  # nvidia.com/gpu: 1 # optional

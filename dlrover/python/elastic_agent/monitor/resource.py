@@ -94,10 +94,7 @@ class ResourceMonitor(object):
         self._gpu_stats: list[GPUStats] = []
 
     def start(self):
-        if (
-            not os.getenv(NodeEnv.DLROVER_MASTER_ADDR, "")
-            or not os.getenv(NodeEnv.AUTO_MONITOR_WORKLOAD, "") == "true"
-        ):
+        if not os.getenv(NodeEnv.DLROVER_MASTER_ADDR, ""):
             return
 
         self.init_gpu_monitor()
@@ -134,22 +131,18 @@ class ResourceMonitor(object):
                 "NVIDIA NVML library not found. "
                 "GPU monitoring features will be disabled."
             )
-        except pynvml.NVMLError as e:
+        except pynvml.NVMLError_Unknown as e:
             logger.error(
-                f"An error occurred while initializing NVIDIA NVML: {e}"
+                f"An unknown error occurred during NVML initializing: {e}"
             )
         except Exception as e:
             logger.exception(
-                f"An unexpected error occurred during NVML shutdown: {e}"
+                f"An unexpected error occurred during NVML initializing: {e}"
             )
 
     def shutdown_gpu_monitor(self):
         try:
             pynvml.nvmlShutdown()
-        except pynvml.NVMLError as e:
-            logger.error(
-                f"An error occurred while shutting down NVIDIA NVML: {e}"
-            )
         except Exception as e:
             logger.exception(
                 f"An unexpected error occurred during NVML shutdown: {e}"
@@ -168,7 +161,7 @@ class ResourceMonitor(object):
             GlobalMasterClient.MASTER_CLIENT.report_used_resource(
                 used_mem, current_cpu, self._gpu_stats
             )
-            logger.info(
+            logger.debug(
                 "Report Resource CPU : %s, Memory %s, GPU %s",
                 current_cpu,
                 used_mem,

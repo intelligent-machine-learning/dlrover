@@ -11,12 +11,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
 import unittest
 from typing import Dict, List
 from unittest.mock import patch
 
 from dlrover.python.common.constants import NodeType
-from dlrover.python.common.grpc import DataLoaderConfig, OptimizerConfig
+from dlrover.python.common.grpc import (
+    DataLoaderConfig,
+    GPUStats,
+    OptimizerConfig,
+)
 from dlrover.python.common.node import Node
 from dlrover.python.master.hyperparams.simple_strategy_generator import (
     SimpleStrategyGenerator,
@@ -30,27 +35,30 @@ class TestLocalStrategyGenerator(unittest.TestCase):
 
     def test_generate_opt_strategy(self):
         gpu_stats = [
-            {
-                "index": 0,
-                "total_memory_gb": 40,
-                "used_memory_gb": 2,
-            },
-            {
-                "index": 1,
-                "total_memory_gb": 40,
-                "used_memory_gb": 12,
-            },
+            GPUStats(
+                index=0,
+                total_memory_mb=24000,
+                used_memory_mb=4000,
+                gpu_utilization=55.5,
+            ),
+            GPUStats(
+                index=1,
+                total_memory_mb=24000,
+                used_memory_mb=4000,
+                gpu_utilization=55.5,
+            ),
         ]
 
         model_config = {
             "block_size": 128,
-            "n_layer": 6,
-            "n_heads": 6,
-            "n_embd": 384,
+            "n_layer": 20,
+            "n_heads": 20,
+            "n_embd": 1280,
         }
-
-        dataloader_config = DataLoaderConfig(0, "simple_dataloader", 32, 2, 0)
-        optimizer_config = OptimizerConfig(0, 0)
+        dataloader_config = DataLoaderConfig(
+            0, "simple_dataloader", 0, 32, 2, 0
+        )
+        optimizer_config = OptimizerConfig(1, "SGD", 0.01, 0.001)
         node_used_resources: Dict[str, List[List[Node]]] = {}
         node_used_resources[NodeType.WORKER] = []
         simple_node = Node(node_type="worker", node_id=0)
@@ -64,9 +72,14 @@ class TestLocalStrategyGenerator(unittest.TestCase):
         ) as mock_extract_node_resource:
             mock_extract_node_resource.return_value = node_used_resources
             expected_dataloader_config = DataLoaderConfig(
-                1, "simple_dataloader", 2348, 0, 0
+                1, "simple_dataloader", 32, 177, 0, 0
             )
-            expected_optimizer_config = OptimizerConfig(5, 6)
+            expected_optimizer_config = OptimizerConfig(
+                2,
+                "SGD",
+                0.01 * math.sqrt(177 / 32),
+                0.001 * math.sqrt(177 / 32),
+            )
 
             result = self._strategy_generator.generate_opt_strategy(
                 gpu_stats, model_config

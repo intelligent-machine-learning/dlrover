@@ -1,0 +1,79 @@
+---
+apiVersion: elastic.iml.github.io/v1alpha1
+kind: ElasticJob
+metadata:
+  name: deepctr-manual-scale
+  namespace: dlrover
+spec:
+  distributionStrategy: ParameterServerStrategy
+  replicaSpecs:
+    ps:
+      autoScale: False
+      replicas: 1
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: main
+              # yamllint disable-line rule:line-length
+              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:deeprec_criteo_v2
+              imagePullPolicy: Always
+              command:
+                - /bin/bash
+                - -c
+                - "cd ./examples/tensorflow/criteo_deeprec \
+                  && python -m dlrover.trainer.entry.local_entry \
+                  --platform=Kubernetes --conf=train_conf.TrainConf \
+                  --enable_auto_scaling=True"
+              resources:
+                limits:
+                  cpu: "2"
+                  memory: 3Gi
+                requests:
+                  cpu: "2"
+                  memory: 3Gi
+              volumeMounts:
+                - name: pvc-nas
+                  mountPath: /nas
+          volumes:
+            - name: pvc-nas
+              persistentVolumeClaim:
+                claimName: pvc-nas
+    worker:
+      autoScale: False
+      replicas: 2
+      template:
+        spec:
+          containers:
+            - name: main
+              # yamllint disable-line rule:line-length
+              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:deeprec_criteo_v2
+              imagePullPolicy: Always
+              command:
+                - /bin/bash
+                - -c
+                - "cd ./examples/tensorflow/criteo_deeprec \
+                  && python -m dlrover.trainer.entry.local_entry \
+                  --platform=Kubernetes --conf=train_conf.TrainConf \
+                  --enable_auto_scaling=True"
+              resources:
+                limits:
+                  cpu: "2"
+                  memory: 4Gi
+                requests:
+                  cpu: "2"
+                  memory: 4Gi
+              volumeMounts:
+                - name: pvc-nas
+                  mountPath: /nas
+          volumes:
+            - name: pvc-nas
+              persistentVolumeClaim:
+                claimName: pvc-nas
+    dlrover-master:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: main
+              imagePullPolicy: Always

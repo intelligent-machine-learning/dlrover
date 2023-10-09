@@ -104,7 +104,7 @@ class MasterClient(object):
         request.node_id = self._node_id
         request.node_type = self._node_type
         request.data = message.serialize()
-        return self._stub.report(request)
+        return self._stub.report(request, timeout=5)
 
     @retry_grpc_request
     def _get(self, message: grpc.Message):
@@ -112,7 +112,7 @@ class MasterClient(object):
         request.node_id = self._node_id
         request.node_type = self._node_type
         request.data = message.serialize()
-        response = self._stub.get(request)
+        response = self._stub.get(request, timeout=5)
         res_message = grpc.deserialize_message(response.data)
         return res_message
 
@@ -310,11 +310,11 @@ class MasterClient(object):
         result: grpc.RendezvousState = self._get(request)
         return result.group, result.world
 
-    def network_check_success(self, timeout=300):
+    def check_fault_node(self, timeout=300):
         request = grpc.NetworkReadyRequest()
         start = time.time()
         while True:
-            result: grpc.NetworkReady = self._get(request)
+            result: grpc.NetworkCheckResult = self._get(request)
             if (
                 result.reason == NetworkFailureReason.WAITING_NODE
                 and time.time() - start < timeout
@@ -322,7 +322,21 @@ class MasterClient(object):
                 time.sleep(5)
                 continue
             break
-        return result.success
+        return result.nodes
+
+    def check_straggler(self, timeout=300):
+        request = grpc.StragglerExistRequest()
+        start = time.time()
+        while True:
+            result: grpc.NetworkCheckResult = self._get(request)
+            if (
+                result.reason == NetworkFailureReason.WAITING_NODE
+                and time.time() - start < timeout
+            ):
+                time.sleep(5)
+                continue
+            break
+        return result.nodes
 
     def report_rdzv_params(
         self, min_nodes, max_nodes, waiting_timeout, node_unit
@@ -336,8 +350,10 @@ class MasterClient(object):
         response = self._report(message)
         return response.success
 
-    def report_node_status(self, rank_id, status):
-        message = grpc.NodeStatus(rank=rank_id, status=status)
+    def report_network_status(self, rank_id, status, elasped_time):
+        message = grpc.NetworkStatus(
+            rank=rank_id, status=status, elasped_time=elasped_time
+        )
         self._report(message)
 
     def report_failures(self, error_data, restart_count=-1, level=""):

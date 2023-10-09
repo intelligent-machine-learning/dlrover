@@ -16,6 +16,11 @@ import os
 import unittest
 
 from dlrover.python.common.constants import ConfigPath
+from dlrover.python.common.grpc import (
+    DataLoaderConfig,
+    OptimizerConfig,
+    ParallelConfig,
+)
 from dlrover.python.elastic_agent.config.paral_config_tuner import (
     ParalConfigTuner,
 )
@@ -23,13 +28,30 @@ from dlrover.python.elastic_agent.config.paral_config_tuner import (
 MOCKED_CONFIG = {
     "dataloader": {
         "batch_size": 3,
-        "dataloader_name": 2,
+        "dataloader_name": "simple_dataloader",
         "num_workers": 4,
         "pin_memory": 0,
         "version": 1,
     },
-    "optimizer": {"learning_rate": 0.0, "optimizer_name": 6, "version": 5},
+    "optimizer": {
+        "learning_rate": 0.0,
+        "optimizer_name": "simple_optimizer",
+        "version": 5,
+    },
 }
+
+MOCK_PARAL_CONFIG = ParallelConfig(
+    dataloader=DataLoaderConfig(
+        batch_size=3,
+        dataloader_name="simple_dataloader",
+        num_workers=4,
+        pin_memory=False,
+        version=1,
+    ),
+    optimizer=OptimizerConfig(
+        learning_rate=0.0, optimizer_name="simple_optimizer", version=5
+    ),
+)
 
 
 def _set_paral_config():
@@ -58,7 +80,7 @@ class TestParalConfigTuner(unittest.TestCase):
         with open(self.tuner.config_path, "w") as json_file:
             json.dump(MOCKED_CONFIG, json_file)
         config = self.tuner._read_paral_config(self.tuner.config_path)
-        self.assertEqual(config, MOCKED_CONFIG)
+        self.assertEqual(config, MOCK_PARAL_CONFIG)
 
     def test_read_paral_config_file_not_found(self):
         os.remove(self.tuner.config_path)

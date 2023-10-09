@@ -3,8 +3,9 @@ name: pre-commit
 description: run pre-commit to check codes
 runs:
   using: 'docker'
-  image: "easydl/easydl:ci"
+  image: "easydl/dlrover:ci"
   args:
     - "/bin/bash"
     - "-c"
-    - "pre-commit run -a --show-diff-on-failure --color=always"
+    - "git config --global --add safe.directory '*' && \
+    pre-commit run -a --show-diff-on-failure --color=always"

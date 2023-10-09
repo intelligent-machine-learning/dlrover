@@ -1,4 +1,4 @@
-# Copyright 2022 The EasyDL Authors. All rights reserved.
+# Copyright 2022 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -25,7 +25,12 @@ from dlrover.python.common.constants import (
     NodeStatus,
     NodeType,
 )
-from dlrover.python.common.grpc import GPUStats
+from dlrover.python.common.grpc import (
+    DataLoaderConfig,
+    GPUStats,
+    OptimizerConfig,
+    ParallelConfig,
+)
 from dlrover.python.common.node import NodeGroupResource, NodeResource
 from dlrover.python.master.dist_master import DistributedJobMaster
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
@@ -489,3 +494,10 @@ class LocalJobManagerTest(unittest.TestCase):
         self.assertEqual(worker.used_resource.cpu, 10)
         self.assertEqual(worker.used_resource.memory, 10240)
         self.assertEqual(worker.used_resource.gpu_stats, gpu_stats)
+
+        dataloader_config = DataLoaderConfig(1, "test_dataloader", 2, 3, 4)
+        optimizer_config = OptimizerConfig(1, "test_optimizer", 2)
+        paral_config = ParallelConfig(dataloader_config, optimizer_config)
+        job_mananger.update_node_paral_config(NodeType.WORKER, 0, paral_config)
+        worker = job_mananger._job_nodes[NodeType.WORKER][0]
+        self.assertEqual(worker.paral_config, paral_config)

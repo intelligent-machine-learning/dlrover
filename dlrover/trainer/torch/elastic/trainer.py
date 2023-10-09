@@ -347,7 +347,7 @@ class ElasticTrainer(object):
         self._after_epoch(num_epochs)
 
     @contextmanager
-    def step(self, fix_total_batch_size=True):
+    def step(self, fix_total_batch_size=False):
         """
         A context manager that will lightly wrap around and to keep
         the global batch size fixed when the number of worker changes.

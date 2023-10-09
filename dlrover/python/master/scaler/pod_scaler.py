@@ -215,6 +215,11 @@ class PodScaler(Scaler):
                 status=pod.status.phase,
                 config_resource=pod_resource,
             )
+            if node.type != NodeType.WORKER and node.status not in [
+                NodeStatus.PENDING,
+                NodeStatus.RUNNING,
+            ]:
+                continue
             job_pods[pod_type].append(node)
         return job_pods
 
@@ -601,6 +606,7 @@ class PodScaler(Scaler):
         main_container.env = env
         main_container.lifecycle = lifecycle
         pod.spec.priority_class_name = priority
+        pod.spec.restart_policy = "Never"
         pod.spec.termination_grace_period_seconds = termination_period
         pod.metadata = client.V1ObjectMeta(
             name=name,

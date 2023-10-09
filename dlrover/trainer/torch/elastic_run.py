@@ -11,18 +11,78 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
+"""
+``dlrover-run`` provides a superset of the functionality as ``torchrun``
+with the following additional functionalities:
+
+1. Check the network of node to detect the fault node or straggler.
+
+2. `rdzv-endpoint`, `rdzv-backend` and `rdzv-id` are not required for
+multi-node multi-worker.
+
+Usage
+--------
+
+Single-node multi-worker
+++++++++++++++++++++++++++++++
+
+::
+
+    dlrover-run
+        --standalone
+        --nproc-per-node=$NUM_TRAINERS
+        YOUR_TRAINING_SCRIPT.py (--arg1 ... train script args...)
+
+multi-node multi-worker
++++++++++++++++++++++++++++++++++++
+
+::
+
+    torchrun
+        --nnodes=$NUM_NODES
+        --nproc-per-node=$NUM_TRAINERS
+        --max-restarts=3
+        YOUR_TRAINING_SCRIPT.py (--arg1 ... train script args...)
+
+Elastic (``min=1``, ``max=4``, tolerates up to 3 membership
+changes or failures)
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+::
+
+    torchrun
+        --nnodes=1:4
+        --nproc-per-node=$NUM_TRAINERS
+        --max-restarts=3
+        YOUR_TRAINING_SCRIPT.py (--arg1 ... train script args...)
+
+Note on rendezvous backend
+------------------------------
+
+For multi-node training you need to specify:
+
+1. ``--network-check``: Bool, whether to check the node network to find the
+    fault node or straggler.
+2. ``--rdzv-conf``: We can set timeout into rdzv_conf like
+    ```--rdzv-conf join_timeout=600,lastcall_timeout=60,pend_timeout=3600`.
+
+For auto-tuning parallelism configuration, you need to specify:
+
+1. ``--auto-tunning``: Whether to auto tune the batch size and learning rate.
+"""
+
 import os
 import sys
 import telnetlib
 import tempfile
 import time
 import uuid
-from typing import Callable, Union
+from typing import Callable, List, Tuple, Union
 
 from torch.distributed.argparse_util import check_env, env
 from torch.distributed.elastic.multiprocessing.api import SubprocessHandler
 from torch.distributed.elastic.multiprocessing.errors import record
-from torch.distributed.launcher.api import LaunchConfig
 from torch.distributed.launcher.api import launch_agent as torch_launch_agent
 from torch.distributed.run import config_from_args, get_args_parser
 
@@ -33,7 +93,10 @@ from dlrover.python.elastic_agent.master_client import (
     GlobalMasterClient,
     build_master_client,
 )
-from dlrover.python.elastic_agent.torch.training import launch_agent
+from dlrover.python.elastic_agent.torch.training import (
+    ElasticLaunchConfig,
+    launch_agent,
+)
 
 
 def parse_args(args):
@@ -52,6 +115,20 @@ def parse_args(args):
         default=1,
         help="The number unit of nodes to schedule. The scheduled number of "
         "nodes should be a multiple of node_unit.",
+    )
+    parser.add_argument(
+        "--auto_tunning",
+        "--auto-tunning",
+        action=check_env,
+        help="Whether to auto-tune the parallel configuraion.",
+    )
+    parser.add_argument(
+        "--exclude-straggler",
+        "--exclude_straggler",
+        action=check_env,
+        help="Bool, The node will exit if the node is straggler and "
+        "the argument is True. The argument only works when network-check "
+        "is True.",
     )
     return parser.parse_args(args)
 
@@ -87,7 +164,7 @@ class elastic_launch:
 
     def __init__(
         self,
-        config: LaunchConfig,
+        config: ElasticLaunchConfig,
         entrypoint: Union[Callable, str, None],
         use_dlrover_launch: bool,
     ):
@@ -148,6 +225,18 @@ def _check_dlrover_master_available(addr, timeout=60):
             return False
 
 
+def _elastic_config_from_args(
+    args,
+) -> Tuple[ElasticLaunchConfig, Union[Callable, str], List[str]]:
+    config, cmd, cmd_args = config_from_args(args)
+    elastic_config = ElasticLaunchConfig(**config.__dict__)
+    elastic_config.network_check = args.network_check
+    elastic_config.node_unit = args.node_unit
+    elastic_config.auto_tunning = args.auto_tunning
+    elastic_config.exclude_straggler = args.exclude_straggler
+    return elastic_config, cmd, cmd_args
+
+
 def run(args):
     master_handler = None
     master_addr = os.getenv(NodeEnv.DLROVER_MASTER_ADDR, "")
@@ -174,17 +263,11 @@ def run(args):
             f"**************************************\n"
         )
 
-    config, cmd, cmd_args = config_from_args(args)
-    setattr(config, "network_check", False)
-    setattr(config, "node_unit", 1)
-    if not hasattr(config, "local_addr"):
-        setattr(config, "local_addr", None)
-    if hasattr(args, "network_check"):
-        config.network_check = args.network_check
-    if hasattr(args, "node_unit"):
-        config.rdzv_configs["node_unit"] = args.node_unit
+    config, cmd, cmd_args = _elastic_config_from_args(args)
     elastic_launch(
-        config=config, entrypoint=cmd, use_dlrover_launch=use_dlrover_launch
+        config=config,
+        entrypoint=cmd,
+        use_dlrover_launch=use_dlrover_launch,
     )(*cmd_args)
 
     if master_handler:

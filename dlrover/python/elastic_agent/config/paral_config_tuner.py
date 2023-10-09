@@ -17,7 +17,12 @@ import threading
 import time
 
 from dlrover.python.common.constants import ConfigPath
-from dlrover.python.common.grpc import ParallelConfig
+from dlrover.python.common.grpc import (
+    DataLoaderConfig,
+    OptimizerConfig,
+    ParallelConfig,
+)
+from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import singleton
 from dlrover.python.elastic_agent.master_client import GlobalMasterClient
 
@@ -33,13 +38,19 @@ class ParalConfigTuner(object):
             os.environ[ConfigPath.ENV_PARAL_CONFIG]
         )
         self.config_path = os.environ[ConfigPath.ENV_PARAL_CONFIG]
+        self._create_paral_config_file()
+        self._started = False
 
     def start(self):
+        if self._started:
+            return
         threading.Thread(
             target=self._periodically_update_paral_config,
             name="config-updater",
             daemon=True,
         ).start()
+        logger.info("Started parallelism config tuner.")
+        self._started = True
 
     def _periodically_update_paral_config(self):
         """
@@ -47,10 +58,23 @@ class ParalConfigTuner(object):
         intended to run on a separate thread started by `self.start`.
         """
         while True:
-            config: ParallelConfig = self._master_client.get_paral_config()
-            with open(self.config_path, "w") as f:
-                f.write(config.to_json())
+            local_config = self._read_paral_config(self.config_path)
+            if not self._master_client:
+                break
+            self._master_client.report_paral_config(local_config)
             time.sleep(30)
+            config: ParallelConfig = self._master_client.get_paral_config()
+            if config is not None:
+                with open(self.config_path, "w") as f:
+                    f.write(config.to_json())
+
+    def _create_paral_config_file(self):
+        """
+        Create a parallelism configuration file.
+        """
+        config = ParallelConfig()
+        with open(self.config_path, "w") as f:
+            f.write(config.to_json())
 
     def _read_paral_config(self, config_path):
         """
@@ -58,7 +82,17 @@ class ParalConfigTuner(object):
         """
         try:
             with open(config_path, "r") as json_file:
-                self.config = json.load(json_file)
+                content = json_file.read()
+                json_data = json.loads(content)
+            # if we find the instance_name in the JSON file, create it
+            for key, value in json_data.items():
+                if key == "dataloader":
+                    dataloader = DataLoaderConfig(**(value))
+                elif key == "optimizer":
+                    optimizer = OptimizerConfig(**(value))
+            self.config = ParallelConfig(
+                dataloader=dataloader, optimizer=optimizer
+            )
             return self.config
         except FileNotFoundError:
             print(f"Error: Config file '{config_path}' not found.")

@@ -135,12 +135,21 @@ class ElasticDistributedSampler(DistributedSampler):
         """
         self.epoch = int(state.get("epoch", 0))
         completed_num = int(state.get("completed_num", 0))
-        self.num_samples = int(
-            (self.total_size - completed_num) / self.num_replicas
-        )
-        if completed_num > self.total_size:
-            completed_num = completed_num % self.total_size
+        dataset_size = len(self.dataset)
+        if completed_num > dataset_size:
+            completed_num = completed_num % dataset_size
+        remaining_samples = dataset_size - completed_num
         self._epoch_checkpoint[self.epoch] = completed_num
+        if self.drop_last and remaining_samples % self.num_replicas != 0:
+            # Split to nearest available length that is evenly divisible.
+            # This is to ensure each rank receives the same amount of data when
+            # using this Sampler.
+            self.num_samples = math.ceil(
+                (remaining_samples - self.num_replicas) / self.num_replicas
+            )
+        else:
+            self.num_samples = math.ceil(remaining_samples / self.num_replicas)
+        self.total_size = self.num_samples * self.num_replicas + completed_num
         logger.info(
             "Load epoch = %s, completed num = %s, num_samples = %s",
             self.epoch,

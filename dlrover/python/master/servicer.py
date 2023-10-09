@@ -33,6 +33,7 @@ from dlrover.python.master.elastic_training.kv_store_service import (
     KVStoreService,
 )
 from dlrover.python.master.elastic_training.rdzv_manager import (
+    NetworkCheckRendezvousManager,
     RendezvousManager,
 )
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
@@ -106,7 +107,9 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         elif isinstance(req_message, grpc.WaitingNodeNumRequest):
             message = self._num_nodes_waiting()
         elif isinstance(req_message, grpc.NetworkReadyRequest):
-            message = self._network_check_success()
+            message = self._check_fault_node()
+        elif isinstance(req_message, grpc.StragglerExistRequest):
+            message = self._check_straggler()
         elif isinstance(req_message, grpc.JoinRendezvousRequest):
             message = self._join_rendezvous(req_message)
         elif isinstance(req_message, grpc.CommWorldRequest):
@@ -212,10 +215,20 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             res.status = TrainingLoopStatus.PENDING
         return res
 
-    def _network_check_success(self):
-        net_rdzv_manager = self._rdzv_managers[RendezvousName.NETWORK_CHECK]
-        success, reason = net_rdzv_manager.network_check_success()
-        res = grpc.NetworkReady(success=success, reason=reason)
+    def _check_fault_node(self):
+        rdzv_manager: NetworkCheckRendezvousManager = self._rdzv_managers[
+            RendezvousName.NETWORK_CHECK
+        ]
+        nodes, reason = rdzv_manager.check_fault_node()
+        res = grpc.NetworkCheckResult(nodes=nodes, reason=reason)
+        return res
+
+    def _check_straggler(self):
+        rdzv_manager: NetworkCheckRendezvousManager = self._rdzv_managers[
+            RendezvousName.NETWORK_CHECK
+        ]
+        nodes, reason = rdzv_manager.get_straggler()
+        res = grpc.NetworkCheckResult(nodes=nodes, reason=reason)
         return res
 
     def _join_rendezvous(self, request: grpc.JoinRendezvousRequest):
@@ -249,7 +262,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         return res
 
     def _get_paral_config(self):
-        res = grpc.ParallelConfig()
+        res = self._job_manager.get_opt_strategy()
         return res
 
     def report(self, request, _):
@@ -280,7 +293,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             success = self._update_cluster_version(message)
         elif isinstance(message, grpc.NodeAddress):
             success = self._update_node_address(message)
-        elif isinstance(message, grpc.NodeStatus):
+        elif isinstance(message, grpc.NetworkStatus):
             success = self._update_node_status(message)
         elif isinstance(message, grpc.NodeEvent):
             success = self._update_node_event(message)
@@ -299,7 +312,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         elif isinstance(message, grpc.KeyValuePair):
             success = self._kv_store_set(message)
         elif isinstance(message, grpc.ParallelConfig):
-            success = self._report_paral_config(message)
+            success = self._report_paral_config(node_type, node_id, message)
 
         response.success = success
         return response
@@ -446,13 +459,15 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         )
         return True
 
-    def _update_node_status(self, message: grpc.NodeStatus):
+    def _update_node_status(self, message: grpc.NetworkStatus):
         net_rdzv_manager = self._rdzv_managers.get(
             RendezvousName.NETWORK_CHECK, None
         )
         if net_rdzv_manager:
             succeed = message.status == NodeStatus.SUCCEEDED
-            net_rdzv_manager.report_network_check_result(message.rank, succeed)
+            net_rdzv_manager.report_network_check_result(
+                message.rank, succeed, message.elasped_time
+            )
         return True
 
     def _update_node_event(self, message: grpc.NodeEvent):
@@ -509,8 +524,19 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         self._kv_store.set(message.key, message.value)
         return True
 
-    def _report_paral_config(self, message: grpc.ParallelConfig):
-        logger.info(f"config = {message}")
+    def _report_paral_config(
+        self, node_type, node_id, message: grpc.ParallelConfig
+    ):
+        if self._job_manager:
+            logger.debug(
+                "Update parallel config for %s-%s: %s",
+                node_type,
+                node_id,
+                message,
+            )
+            self._job_manager.update_node_paral_config(
+                node_type, node_id, message
+            )
         return True
 
 
