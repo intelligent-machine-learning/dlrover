@@ -13,5 +13,6 @@ runs:
 && cd atorch \
 && sh bin/build_proto.sh \
 && PYTHONPATH=. pytest atorch/tests \
-&& cd ../.. \
-&& rm -fr dlrover"
+&& cd .. \
+&& git config --global --add safe.directory /github/workspace \
+&& git clean -xdf"
