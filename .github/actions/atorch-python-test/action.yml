@@ -12,4 +12,6 @@ runs:
 (str, bytes)' > /opt/conda/lib/python3.8/site-packages/torch/_six.py \
 && cd atorch \
 && sh bin/build_proto.sh \
-&& PYTHONPATH=. pytest atorch/tests"
+&& PYTHONPATH=. pytest atorch/tests \
+&& cd ../.. \
+&& rm -fr dlrover"
