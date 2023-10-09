@@ -162,7 +162,7 @@ class OptimizationMethodLibrary(object):
             self.methods[name].disabled = True
 
     def generate_group_info(self):
-        self.groups["amp"] = ["amp_native", "amp_apex_o1", "amp_apex_o2"]
+        self.groups["amp"] = ["amp_native"]
         self.groups["zero"] = ["zero1", "zero2", "fsdp"]
         self.groups["parallel_mode"] = ["parallel_mode"]
         self.groups["parallel"] = [
