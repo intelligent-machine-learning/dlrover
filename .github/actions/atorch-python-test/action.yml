@@ -13,5 +13,5 @@ runs:
 && cd atorch \
 && sh bin/build_proto.sh \
 && PYTHONPATH=. pytest atorch/tests \
-&& cd ../.. \
-&& rm -fr dlrover"
+&& cd .. \
+&& rm -fr atorch"
