@@ -70,7 +70,6 @@ jobs:
     steps:
       # This step checks out a copy of your repository.
       - name: Set owner of working dir recurively (Linux)
-        if: ${{ inputs.build_platform == 'linux' }}
         run: sudo chown -R $(whoami) .
       - uses: actions/checkout@v3
       # This step references the directory that contains the action.
