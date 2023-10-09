@@ -161,7 +161,7 @@ class ResourceMonitor(object):
             GlobalMasterClient.MASTER_CLIENT.report_used_resource(
                 used_mem, current_cpu, self._gpu_stats
             )
-            logger.info(
+            logger.debug(
                 "Report Resource CPU : %s, Memory %s, GPU %s",
                 current_cpu,
                 used_mem,

@@ -215,6 +215,11 @@ class PodScaler(Scaler):
                 status=pod.status.phase,
                 config_resource=pod_resource,
             )
+            if node.type != NodeType.WORKER and node.status not in [
+                NodeStatus.PENDING,
+                NodeStatus.RUNNING,
+            ]:
+                continue
             job_pods[pod_type].append(node)
         return job_pods
 

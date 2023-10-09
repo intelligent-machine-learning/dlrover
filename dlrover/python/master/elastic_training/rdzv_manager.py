@@ -288,13 +288,17 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                         f"node group: {self._node_groups}"
                     )
                     if self._rdzv_round % 2 == 0:
-                        self._node_status = {}
+                        self._clear_check_status()
                     self._reported_nodes = set()
                     self._rdzv_round += 1
             for i, group in enumerate(self._node_groups):
                 if rank_id in group:
                     return i, group
             return 0, self._rdzv_nodes
+
+    def _clear_check_status(self):
+        self._node_status = {}
+        self._node_times = {}
 
     def _group_nodes(self, round):
         """Group nodes into goups.
@@ -365,14 +369,17 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         self._node_status.setdefault(node_id, succeed)
         self._node_times.setdefault(node_id, elapsed_time)
         self._node_status[node_id] = self._node_status[node_id] or succeed
-        self._node_times[node_id] = min(
-            self._node_times[node_id], elapsed_time
+        self._node_times[node_id] = round(
+            min(self._node_times[node_id], elapsed_time), 3
         )
         if len(self._reported_nodes) == len(self._rdzv_nodes):
             logger.info(
-                f"The node status of {self._rdzv_round} check "
-                f"is {self._node_status}.\n"
-                f"The elapsed time of nodes are {self._node_times}"
+                f"Round {self._rdzv_round}: The node status "
+                f"are {self._node_status}."
+            )
+            logger.info(
+                f"Round {self._rdzv_round}: The node elapsed time "
+                f"are {self._node_times}"
             )
 
     def join_rendezvous(
@@ -399,7 +406,6 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         """
         with self._lock:
             reason = ""
-            fault_nodes = self._fault_nodes
             if len(self._reported_nodes) < len(self._rdzv_nodes):
                 reason = NetworkFailureReason.WAITING_NODE
             elif self._fault_nodes:
@@ -419,7 +425,7 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                     )
                 else:
                     reason = NetworkFailureReason.NODE_FAILURE
-            return fault_nodes, reason
+            return self._fault_nodes, reason
 
     def get_straggler(self):
         """Detect whether there is the straggler according to the

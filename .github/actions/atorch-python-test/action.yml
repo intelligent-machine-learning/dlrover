@@ -3,7 +3,7 @@ name: atorch-python-test
 description: run pytest to execute python test cases of atorch python
 runs:
   using: 'docker'
-  image: "easydl/atorch:iml_20230918"
+  image: "easydl/atorch:iml_pt210"
   args:
     - "/bin/bash"
     - "-c"
@@ -12,4 +12,7 @@ runs:
 (str, bytes)' > /opt/conda/lib/python3.8/site-packages/torch/_six.py \
 && cd atorch \
 && sh bin/build_proto.sh \
-&& PYTHONPATH=. pytest atorch/tests"
+&& PYTHONPATH=. pytest atorch/tests \
+&& cd .. \
+&& git config --global --add safe.directory /github/workspace \
+&& git clean -xdf"

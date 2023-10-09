@@ -34,7 +34,9 @@ from dlrover.trainer.torch.elastic.dataloader import ElasticDataLoader
 from dlrover.trainer.torch.elastic.sampler import ElasticDistributedSampler
 from dlrover.trainer.torch.elastic.trainer import ElasticTrainer
 
-CHEKPOINT_PATH = "model.pt"
+# Note, we need to set the path of a shared file
+# system like nas, cpfs or hdfs.
+CHEKPOINT_PATH = "./model.pt"
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 
 

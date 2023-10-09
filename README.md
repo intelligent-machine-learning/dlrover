@@ -29,6 +29,7 @@ to improve the training performance and resources utilization.
 
 ## Latest News
 
+- [2023/09] [Weighted Sharpness-Aware Minimization (WSAM) has been accepted by KDD'23.](atorch/atorch/optimizers/README.md)
 - [2023/08] [DLRover improves the stability of pre-trained model training over thousands of GPUs.](docs/blogs/stabilize_llm_training_cn.md)
 - [2023/04] [DLRover auto-scales nodes of a DeepRec distributed training job.](docs/blogs/deeprec_autoscale_cn.md)
 
@@ -42,6 +43,9 @@ training job. The actions to restore training in DLRover are:
 1. Diagnose the failure reason.
 2. Restart the process not the node due to software errors.
 3. Restart the failed nodes due to hardward errors.
+
+For detail, we can see [experiments](docs/tutorial/fault_tolerations.md)
+of fault-tolerance and elasticity.
 
 #### Fault Tolerance of PyTorch Distributed Training
 
