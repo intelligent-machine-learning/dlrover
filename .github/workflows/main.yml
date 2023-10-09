@@ -69,9 +69,10 @@ jobs:
     runs-on: self-hosted
     steps:
       # This step checks out a copy of your repository.
+      - name: Set owner of working dir recurively (Linux)
+        if: ${{ inputs.build_platform == 'linux' }}
+        run: sudo chown -R $(whoami) .
       - uses: actions/checkout@v3
-        with:
-          clean: false
       # This step references the directory that contains the action.
       - uses: ./.github/actions/atorch-python-test
   atorch-pre-commit:
