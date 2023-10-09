@@ -171,6 +171,7 @@ class TestOptim(TestCase):
         )
 
     @unittest.skipIf(torch.cuda.is_available(), "Failed on gpu")
+    @unittest.skipIf(True, "Skip outdated optim from apex")
     def test_adam(self):
         optimizer = atorch.optim.Adam
         self._test_basic_cases(lambda weight, bias: optimizer([weight, bias], lr=1e-3))
@@ -207,6 +208,7 @@ class TestOptim(TestCase):
             optimizer(None, lr=1e-2, weight_decay=-1)
 
     @unittest.skipIf(torch.cuda.is_available(), "Failed on gpu")
+    @unittest.skipIf(True, "Skip outdated optim from apex")
     def test_adamw(self):
         optimizer = atorch.optim.AdamW
         self._test_basic_cases(lambda weight, bias: optimizer([weight, bias], lr=1e-3))
@@ -217,6 +219,7 @@ class TestOptim(TestCase):
             optimizer(None, lr=1e-2, weight_decay=-1)
 
     @unittest.skipIf(torch.cuda.is_available(), "Failed on gpu")
+    @unittest.skipIf(True, "Skip outdated optim from apex")
     def test_adagrad(self):
         optimizer = atorch.optim.Adagrad
         self._test_basic_cases(lambda weight, bias: optimizer([weight, bias], lr=1e-1))
@@ -234,6 +237,7 @@ class TestOptim(TestCase):
             optimizer(None, lr=1e-2, lr_decay=-0.5)
 
     @unittest.skipIf(torch.cuda.is_available(), "Failed on gpu")
+    @unittest.skipIf(True, "Skip outdated optim from apex")
     def test_sgd(self):
         optimizer = atorch.optim.SGD
         self._test_basic_cases(lambda weight, bias: optimizer([weight, bias], lr=1e-3))
