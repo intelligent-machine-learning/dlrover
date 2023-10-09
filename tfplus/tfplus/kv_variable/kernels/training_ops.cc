@@ -290,7 +290,6 @@ class KvVariableSparseApplyFtrlOp : public OpKernel {
     /**
      * TODO, set use_exclusive_lock=true can lead to deadlocks
      * fix this problem in another issue
-     * see issue#55, http://gitlab.alipay-inc.com/Arc/tf-plus/issues/55
      */
     auto locks = MaybeLockVariableInputMutexesInOrder(ctx, use_exclusive_lock_,
                                                       {0, 1, 2});
@@ -540,9 +539,6 @@ class KvVariableSparseGroupSparseApplyFtrlOp : public OpKernel {
 
   void Compute(OpKernelContext* ctx) override TF_NO_THREAD_SAFETY_ANALYSIS {
     uint64_t stime = tensorflow::Env::Default()->NowMicros();
-    // TODO(tongsuo): set use_exclusive_lock=true can lead to deadlocks
-    // fix this problem in another issue,
-    // http://gitlab.alipay-inc.com/Arc/tf-plus/issues/55
     auto locks = MaybeLockVariableInputMutexesInOrder(ctx, use_exclusive_lock_,
                                                       {0, 1, 2});
     // Get the KvVariable handle
@@ -815,9 +811,6 @@ class KvVariableGroupSparseApplyFtrlOp : public OpKernel {
 
   void Compute(OpKernelContext* ctx) override TF_NO_THREAD_SAFETY_ANALYSIS {
     uint64_t stime = tensorflow::Env::Default()->NowMicros();
-    // TODO(tongsuo): Set use_exclusive_lock=true can lead to deadlocks
-    // fix this problem in another issue
-    // http://gitlab.alipay-inc.com/Arc/tf-plus/issues/55
     auto locks = MaybeLockVariableInputMutexesInOrder(ctx, use_exclusive_lock_,
                                                       {0, 1, 2});
     // Get the KvVariable handle
@@ -1078,9 +1071,6 @@ class KvVariableGroupSparseApplyAdamOp : public OpKernel {
 
   void Compute(OpKernelContext* ctx) override TF_NO_THREAD_SAFETY_ANALYSIS {
     uint64_t stime = tensorflow::Env::Default()->NowMicros();
-    // TODO(tongsuo): Set use_exclusive_lock=true can lead to deadlocks
-    // fix this problem in another issue
-    // http://gitlab.alipay-inc.com/Arc/tf-plus/issues/55
     auto locks = MaybeLockVariableInputMutexesInOrder(ctx, use_exclusive_lock_,
                                                       {0, 1, 2, 3, 4});
     // Get the KvVariable handle
@@ -1390,9 +1380,6 @@ class KvVariableSparseApplyAdagradOp : public OpKernel {
 
   void Compute(OpKernelContext* ctx) override TF_NO_THREAD_SAFETY_ANALYSIS {
     uint64_t stime = tensorflow::Env::Default()->NowMicros();
-    // TODO(tongsuo): Set use_exclusive_lock=true can lead to deadlocks
-    // fix this problem in another issue
-    // http://gitlab.alipay-inc.com/Arc/tf-plus/issues/55
     auto locks =
         MaybeLockVariableInputMutexesInOrder(ctx, use_exclusive_lock_, {0, 1});
     // Get the KvVariable handle
@@ -1542,9 +1529,6 @@ class KvVariableGroupSparseApplyAMSGradOp : public OpKernel {
 
   void Compute(OpKernelContext* ctx) override TF_NO_THREAD_SAFETY_ANALYSIS {
     uint64_t stime = tensorflow::Env::Default()->NowMicros();
-    // TODO(tongsuo): Set use_exclusive_lock=true can lead to deadlocks
-    // fix this problem in another issue
-    // http://gitlab.alipay-inc.com/Arc/tf-plus/issues/55
     auto locks = MaybeLockVariableInputMutexesInOrder(ctx, use_exclusive_lock_,
                                                       {0, 1, 2, 3, 4});
     // Get the KvVariable handle
@@ -1845,9 +1829,6 @@ class KvVariableSparseApplyAdadeltaOp : public OpKernel {
 
   void Compute(OpKernelContext* ctx) override TF_NO_THREAD_SAFETY_ANALYSIS {
     uint64_t stime = tensorflow::Env::Default()->NowMicros();
-    // TODO(tongsuo): Set use_exclusive_lock=true can lead to deadlocks
-    // fix this problem in another issue
-    // http://gitlab.alipay-inc.com/Arc/tf-plus/issues/55
     auto locks =
         MaybeLockVariableInputMutexesInOrder(ctx, use_exclusive_lock_, {0, 1});
     // Get the KvVariable handle
@@ -2030,9 +2011,6 @@ class KvVariableGroupSparseApplyAdadeltaOp : public OpKernel {
 
   void Compute(OpKernelContext* ctx) override TF_NO_THREAD_SAFETY_ANALYSIS {
     uint64_t stime = tensorflow::Env::Default()->NowMicros();
-    // TODO(tongsuo): Set use_exclusive_lock=true can lead to deadlocks
-    // fix this problem in another issue
-    // http://gitlab.alipay-inc.com/Arc/tf-plus/issues/55
     auto locks = MaybeLockVariableInputMutexesInOrder(ctx, use_exclusive_lock_,
                                                       {0, 1, 2, 3});
     // Get the KvVariable handle
@@ -2303,9 +2281,6 @@ class KvVariableGroupSparseApplyMomentumOp : public OpKernel {
 
   void Compute(OpKernelContext* ctx) override TF_NO_THREAD_SAFETY_ANALYSIS {
     uint64_t stime = tensorflow::Env::Default()->NowMicros();
-    // TODO(tongsuo): Set use_exclusive_lock=true can lead to deadlocks
-    // fix this problem in another issue
-    // http://gitlab.alipay-inc.com/Arc/tf-plus/issues/55
     auto locks = MaybeLockVariableInputMutexesInOrder(ctx, use_exclusive_lock_,
                                                       {0, 1, 2, 3});
     // Get the KvVariable handle
@@ -2560,9 +2535,6 @@ class KvVariableGroupSparseApplyAdaHessianOp : public OpKernel {
 
   void Compute(OpKernelContext* ctx) override TF_NO_THREAD_SAFETY_ANALYSIS {
     uint64_t stime = tensorflow::Env::Default()->NowMicros();
-    // TODO(tongsuo): Set use_exclusive_lock=true can lead to deadlocks
-    // fix this problem in another issue
-    // http://gitlab.alipay-inc.com/Arc/tf-plus/issues/55
     auto locks = MaybeLockVariableInputMutexesInOrder(ctx, use_exclusive_lock_,
                                                       {0, 1, 2, 3, 4});
     // Get the KvVariable handle
@@ -5462,9 +5434,6 @@ class KvVariableGroupSparseApplyAdamV2Op : public OpKernel {
 
   void Compute(OpKernelContext* ctx) override TF_NO_THREAD_SAFETY_ANALYSIS {
     uint64_t stime = tensorflow::Env::Default()->NowMicros();
-    // TODO(tongsuo): Set use_exclusive_lock=true can lead to deadlocks
-    // fix this problem in another issue
-    // http://gitlab.alipay-inc.com/Arc/tf-plus/issues/55
     auto locks = MaybeLockVariableInputMutexesInOrder(ctx, use_exclusive_lock_,
                                                       {0, 1, 2, 3});
     // Get the KvVariable handle
@@ -5747,9 +5716,6 @@ class KvVariableGroupSparseApplyAdamV3Op : public OpKernel {
 
   void Compute(OpKernelContext* ctx) override TF_NO_THREAD_SAFETY_ANALYSIS {
     uint64_t stime = tensorflow::Env::Default()->NowMicros();
-    // TODO(tongsuo): Set use_exclusive_lock=true can lead to deadlocks
-    // fix this problem in another issue
-    // http://gitlab.alipay-inc.com/Arc/tf-plus/issues/55
     auto locks = MaybeLockVariableInputMutexesInOrder(ctx, use_exclusive_lock_,
                                                       {0, 1});
     // Get the KvVariable handle
@@ -6734,9 +6700,6 @@ class KvVariableGroupSparseApplyRectifiedAdamOp : public OpKernel {
 
   void Compute(OpKernelContext* ctx) override TF_NO_THREAD_SAFETY_ANALYSIS {
     uint64_t stime = tensorflow::Env::Default()->NowMicros();
-    // TODO(tongsuo): Set use_exclusive_lock=true can lead to deadlocks
-    // fix this problem in another issue
-    // http://gitlab.alipay-inc.com/Arc/tf-plus/issues/55
     auto locks = MaybeLockVariableInputMutexesInOrder(ctx, use_exclusive_lock_,
                                                       {0, 1});
     // Get the KvVariable handle
@@ -7024,9 +6987,6 @@ class KvVariableGroupSparseApplyAdamV4Op : public OpKernel {
 
   void Compute(OpKernelContext* ctx) override TF_NO_THREAD_SAFETY_ANALYSIS {
     uint64_t stime = tensorflow::Env::Default()->NowMicros();
-    // TODO(tongsuo): Set use_exclusive_lock=true can lead to deadlocks
-    // fix this problem in another issue
-    // http://gitlab.alipay-inc.com/Arc/tf-plus/issues/55
     auto locks = MaybeLockVariableInputMutexesInOrder(ctx, use_exclusive_lock_,
                                                       {0, 1});
     // Get the KvVariable handle

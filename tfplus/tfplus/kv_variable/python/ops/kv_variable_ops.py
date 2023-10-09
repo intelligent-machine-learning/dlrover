@@ -69,7 +69,6 @@ from tfplus.common import _load_library, is_tf_1_13_or_higher
 from tfplus.kv_variable.kernels.hybrid_embedding.storage_config_pb2 import *  # pylint: disable=unused-wildcard-import
 from tfplus.kv_variable.python.ops import utils, variable_scope
 from tfplus.kv_variable.python.ops.kv_variable_options import parse_from_string
-from tfplus.kv_variable.python.training.saver_ext import DynamicSaverBuilder
 
 gen_kv_variable_ops = _load_library("_kv_variable_ops.so")
 
@@ -88,7 +87,7 @@ _ENABLE_AUTO_PARTITION = True
 _ENABLE_AUTO_HYBRID_EMBEDDING = []
 _CKPT_DIR_OR_FILE = None
 _NEW_NUM_SHARDS_DICT = None
-TFPLUS_SAVER_BUILDER = [BaseSaverBuilder, DynamicSaverBuilder]
+TFPLUS_SAVER_BUILDER = [BaseSaverBuilder]
 ORI_SAVE_V2 = None
 ORI_ADDRESTOREOPS = None
 IN_RESTORE_STATE = False

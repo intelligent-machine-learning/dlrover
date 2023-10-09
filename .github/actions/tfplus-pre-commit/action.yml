@@ -7,5 +7,6 @@ runs:
   args:
     - "/bin/bash"
     - "-c"
-    - "cd tfplus \
+    - "pip install pre-commit==2.21.0 \
+&& cd tfplus \
 && sh run_tfplus_precommit.sh"

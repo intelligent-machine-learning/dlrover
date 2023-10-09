@@ -11,5 +11,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-pip install pre-commit==2.21.0
 pre-commit run -v --files $(find . -path ./build -prune -o \( -name "*.py" -not -name "*pb2.py" -not -name "copyright.py" -o -name "*.cc" -o -name "*.h" -o -name "*.hpp" \) -type f -print) -c .pre-commit-config.yaml

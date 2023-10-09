@@ -53,20 +53,6 @@ http_archive(
         "https://github.com/aappleby/smhasher/archive/master.zip"],
 )
 
-http_archive(
-    name = "libcuckoofilter",
-    patch_args = ["-p1"],
-    patches = [
-        "//third_party:cuckoofilter.patch",
-    ],
-    build_file = "//third_party:libcuckoofilter.BUILD",
-    sha256 = "7dbe2fd5ede016100a4643593e127e5b02924453861e027d03b275f370f2ed73",
-    strip_prefix = "cuckoofilter-master",
-    urls = [
-        "https://github.com/efficient/cuckoofilter/archive/master.zip",
-    ],
-)
-
 
 http_archive(
     name = "farmhash",

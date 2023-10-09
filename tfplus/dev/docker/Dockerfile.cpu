@@ -33,7 +33,6 @@ RUN cd ~/ && \
 
 ARG BAZEL_VERSION=5.3.0
 ARG BAZEL_OS=linux
-#ARG BAZEL_LINK_BASE=http://aivolvo-dev.cn-hangzhou-alipay-b.oss-cdn.aliyun-inc.com/common/bazel
 ARG BAZEL_LINK_BASE=https://github.com/bazelbuild/bazel/releases/download
 
 # COPY dev/scripts/bazel-3.7.2-installer-linux-x86_64.sh bazel-install.sh

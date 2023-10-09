@@ -13,3 +13,13 @@
 """tfplus version file"""
 
 __version__ = "0.1.0"
+package_info = {
+    "package_name": "tfplus",
+    "version": __version__,
+    "author": "tfplus authors",
+    "description": "tfplus for better perf addons to ml frameworks.",
+    "long_description": """
+tfplus aim to provide addons to major machine learning framework,
+which provide super better perf and extra capabilities.
+""",
+}
