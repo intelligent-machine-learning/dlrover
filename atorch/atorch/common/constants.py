@@ -46,6 +46,7 @@ class AutoAccelerateExtraArgs(Enum):
     SAMPLE_BATCH = "sample_batch"
     BATCH_SIZE = "batch_size"  # total batch size. Equals to batch_size_per_process * ddp_size
     EXPAND_SAMPLE_BATCH = "expand_sample_batch"  # whether to expand sample batch
+    SAMPLER_SEED = "sampler_seed"
 
     @classmethod
     def all(cls):

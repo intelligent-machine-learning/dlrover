@@ -17,8 +17,14 @@ from torch import nn
 from torch.nn import MultiheadAttention
 
 from atorch.common.log_utils import default_logger as logger
+from atorch.common.log_utils import log_once
 from atorch.common.util_func import divide, split_tensor_along_last_dim
 from atorch.utils.meta_model_utils import is_meta, recursive_empty_param, reload_meta_module
+
+
+class ImportFailDummyClass:
+    pass
+
 
 try:
     from transformers.modeling_bert import BertAttention  # 3.5
@@ -28,7 +34,12 @@ except (ModuleNotFoundError, ImportError):
     from transformers.models.bert.modeling_bert import BertAttention  # 4.17
     from transformers.models.clip.modeling_clip import CLIPAttention
     from transformers.models.gpt2.modeling_gpt2 import GPT2Attention
+
+try:
     from transformers.models.llama.modeling_llama import LlamaAttention, apply_rotary_pos_emb
+except (ModuleNotFoundError, ImportError):
+    LlamaAttention = ImportFailDummyClass
+    logger.info("Transformers is not in llama supported version.")
 
 try:
     import flash_attn
@@ -60,7 +71,7 @@ if flash_attn is not None:
     except ImportError:
         dropout_add_layer_norm = None
 else:
-    FlashMHA = object
+    FlashMHA = ImportFailDummyClass
     _flash_attn_version = None
     dropout_add_layer_norm = None
 
@@ -1118,7 +1129,7 @@ def flash_attn_with_mask_bias(q, k, v, mask=None, bias=None, dropout_p=0.0, soft
     # fa2 version check
     _is_flash_attn_2 = _flash_attn_version >= packaging.version.Version("2")
     if _is_flash_attn_2:
-        logger.warning(
+        log_once(
             "fa2 additive mask/bias TODO, only `fa2_with_glm_mask` supported currently. If the mask is "
             "not None, we assume the mask is a glm-style additive mask, and use argmin to transpose "
             "it to break_point index mask."
@@ -1325,7 +1336,7 @@ class LlamaAttentionFA(LlamaAttention):
 
         past_key_value = (key_states, value_states) if use_cache else None
 
-        ###### FA Compute ####### # noqa: E266
+        # FA Compute
         # FA note: llama pre-add causal mask and padding mask, convert back to padding mask
         key_padding_mask = attention_mask[:, 0, -1, :] == 0
         attn_output = self.FA(
@@ -1334,7 +1345,7 @@ class LlamaAttentionFA(LlamaAttention):
             value_states.transpose(1, 2),
             key_padding_mask=key_padding_mask,
         )
-        ###### FA Compute End ### # noqa: E266
+        # FA Compute End
 
         attn_output = attn_output.reshape(bsz, q_len, self.hidden_size)
 

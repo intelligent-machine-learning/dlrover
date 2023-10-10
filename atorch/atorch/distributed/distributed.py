@@ -263,6 +263,31 @@ def _check_env():
         os.environ["NODE_SIZE"] = str(node_size)
 
 
+def _get_pg_ranks(slicing_dim, rank_order, offset, total_size):
+    pg_ranks = {}
+    stride = 1
+    for (name, size) in slicing_dim:
+        mask = [True] * total_size
+        ranks_list = []
+        index = 0
+        while index < total_size:
+            if mask[index] is False:
+                index += 1
+                continue
+            ranks = []
+            next_index = index
+            for i in range(size):
+                ranks.append(rank_order[offset + next_index])
+                assert mask[next_index] is True
+                mask[next_index] = False
+                next_index += stride
+            index += 1
+            ranks_list.append(ranks)
+        pg_ranks[name] = ranks_list
+        stride *= size
+    return pg_ranks
+
+
 def get_pg_ranks(slicing_dim, rank_order):
     # Return: a list of pg_ranks : List(Dict(name, List(List(int))))
     # The list length is parallel_instance_num.
@@ -271,27 +296,7 @@ def get_pg_ranks(slicing_dim, rank_order):
     offset = 0
     result = []
     for _ in range(instance_num):
-        pg_ranks = {}
-        stride = 1
-        for (name, size) in slicing_dim:
-            mask = [True] * total_size
-            ranks_list = []
-            index = 0
-            while index < total_size:
-                if mask[index] is False:
-                    index += 1
-                    continue
-                ranks = []
-                next_index = index
-                for i in range(size):
-                    ranks.append(rank_order[offset + next_index])
-                    assert mask[next_index] is True
-                    mask[next_index] = False
-                    next_index += stride
-                index += 1
-                ranks_list.append(ranks)
-            pg_ranks[name] = ranks_list
-            stride *= size
+        pg_ranks = _get_pg_ranks(slicing_dim, rank_order, offset, total_size)
         result.append(pg_ranks)
         offset += total_size
     return result

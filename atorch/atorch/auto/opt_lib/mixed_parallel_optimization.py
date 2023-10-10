@@ -5,8 +5,9 @@ import traceback
 from torch.fx.graph_module import GraphModule
 
 from atorch.auto.auto_accelerate_context import AutoAccelerateContext
-from atorch.auto.opt_lib.optimization import DistributedGraphOptimization
+from atorch.auto.opt_lib.optimization import DistributedGraphMixin, Optimization
 from atorch.auto.opt_lib.shard_planners import BaseStagePlanner, BaseTensorParallelPlanner, MIPTensorParallelPlanner
+from atorch.auto.opt_lib.shard_planners.dim_planner import DimPlanner
 from atorch.auto.opt_lib.utils import find_memory_factor, insert_split_point
 from atorch.common.log_utils import default_logger as logger
 from atorch.common.util_func import set_sync_bn_pg
@@ -28,7 +29,7 @@ except ImportError:
     MultiUseParameterConfig = None
 
 
-class MixedParallelOptimization(DistributedGraphOptimization):
+class MixedParallelOptimization(Optimization, DistributedGraphMixin):
     def __init__(self):
         """
         Args:
@@ -41,7 +42,8 @@ class MixedParallelOptimization(DistributedGraphOptimization):
                     "equal_size" -> split_into_nstages_equal_size
         """
         name = "mixed_parallel"
-        super().__init__(name)
+        super().__init__(name, group="parallel", is_tunable=True, is_distributed=True)
+        DistributedGraphMixin.__init__(self)
 
     def tune(
         self,
@@ -55,6 +57,32 @@ class MixedParallelOptimization(DistributedGraphOptimization):
         parallel_mode = config.get("parallel_mode", None)
         pipe_config = config.get("pipe_config", dict())
         tensor_config = config.get("tensor_config", dict())
+        if parallel_mode is None:
+            logger.warning("Support for auto parallel_mode is limited")
+            dim_planner = DimPlanner(
+                num_nodes=self.num_nodes,
+                num_devices_per_node=self.num_devices_per_node,
+                prop_mode=config.get("prop_mode", "interpreter"),
+                use_fake_mode=config.get("use_fake_mode", False),
+            )
+            (
+                optimal_tensor_size,
+                optimal_pipe_size,
+                optimal_data_size,
+                insert_before_nodes,
+            ) = dim_planner.generate_sharding_plan(model_context)
+            parallel_mode = [dict(), None]
+            if optimal_data_size is None:
+                raise ValueError("No valid GPU partition is found, please assign manually")
+            if optimal_tensor_size > 1:
+                parallel_mode[0]["tensor"] = optimal_tensor_size
+            if optimal_pipe_size > 1:
+                parallel_mode[0]["pipe"] = optimal_pipe_size
+                pipe_config["insert_before_nodes"] = insert_before_nodes
+            if optimal_data_size > 1:
+                parallel_mode[0]["data"] = optimal_data_size
+
+            parallel_mode = tuple(parallel_mode)
 
         # FIXME be more flexible after we have different planners
         self.pipe_shard_planner = BaseStagePlanner()
@@ -70,9 +98,6 @@ class MixedParallelOptimization(DistributedGraphOptimization):
                 greedy_init=True,
                 timelimit=10 * 60,
             )
-
-        if parallel_mode is None:
-            raise ValueError("Currently we support only semi-auto mixed parallel opt, with known parallel_mode")
 
         all_local_ranks = get_ranks_in_same_group(parallel_mode, 0)
         "tensor" in all_local_ranks and _register_custom_operators()
@@ -100,6 +125,7 @@ class MixedParallelOptimization(DistributedGraphOptimization):
                 pipe_schedule = pipe_config.get("pipe_schedule", "Interleaved1F1B")
                 # This is a hack to specify split points.
                 insert_before_modules = pipe_config.get("insert_before_modules", None)
+                insert_before_nodes = pipe_config.get("insert_before_nodes", None)
                 self.pipe_shard_planner = pipe_config.get("shard_planner", self.pipe_shard_planner)
                 use_c10d = pipe_config.get("use_c10d", False)
                 if not use_c10d:
@@ -125,7 +151,7 @@ class MixedParallelOptimization(DistributedGraphOptimization):
                     for node in graph.nodes:
                         if node.op == "call_module" and node.target in insert_before_modules:
                             insert_before_nodes.append(node.name)
-                else:
+                elif insert_before_nodes is None:
                     insert_before_nodes = self.pipe_shard_planner.generate_sharding_plan(
                         model, graph, sharding_specs, tensor_shapes, device_topo=pipe_topo, nstages=nstages
                     )

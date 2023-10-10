@@ -19,6 +19,7 @@ import torch
 from torch import _C
 from torch.cuda import _lazy_call
 from torch.cuda import device as device_ctx_manager
+from torch.cuda.amp import autocast
 from torch.utils.checkpoint import detach_variable
 
 from atorch.distributed.distributed import parallel_group_size
@@ -187,6 +188,7 @@ def model_parallel_cuda_manual_seed(seed, group="tensor"):
     _CUDA_RNG_STATE_TRACKER.add(_MODEL_PARALLEL_RNG_TRACKER_NAME, tensor_model_parallel_seed)
 
 
+# FIXME this is not compatible with AMP as it breaks the autocast
 class CheckpointFunction(torch.autograd.Function):
     """This function is adapted from torch.utils.checkpoint with
     two main changes:
@@ -348,5 +350,17 @@ class TPCheckpointWrapper(TorchWrapper):
         return self.checkpoint_fn(my_function, True, *flat_args)
 
 
-def tp_wrap_fn(module):
+def tp_wrap_fn(module, amp_config=None):
+    if amp_config is not None:
+        module.forward = autocast(**amp_config)(module.forward)
     return TPCheckpointWrapper(module, checkpoint)
+
+
+def _insert_amp_config_for_tp_ckpt(amp_config):
+    from atorch.auto.auto_accelerate_context import AutoAccelerateContext
+
+    counter = AutoAccelerateContext.counter
+    if not hasattr(AutoAccelerateContext, "tp_amp_config"):
+        AutoAccelerateContext.add_ac_attr("tp_amp_config", {counter: amp_config})
+    else:
+        AutoAccelerateContext.tp_amp_config[counter] = amp_config

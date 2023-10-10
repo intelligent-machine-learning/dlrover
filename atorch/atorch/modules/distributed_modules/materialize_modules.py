@@ -3,7 +3,7 @@ from atorch.utils.meta_model_utils import is_meta, reload_meta_module
 from .layers import ATorchTPLayer
 
 
-def materialize_modules_to_device(model, device):
+def materialize_modules_to_device(model, device="cpu"):
     # Base case: if the model is an instance of ATorchTPLayer
     if not is_meta(model):
         model.to(device)
