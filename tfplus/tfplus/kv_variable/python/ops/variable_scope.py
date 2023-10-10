@@ -24,6 +24,7 @@ tensorflow accept pass user define args.
 Thanks to the original authors.
 """
 
+# pylint: disable=cyclic-import
 from __future__ import absolute_import, division, print_function
 
 import collections as collections_lib

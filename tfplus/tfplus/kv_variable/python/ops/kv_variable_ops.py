@@ -16,6 +16,7 @@ https://github.com/tensorflow/tensorflow/blob/v1.13.1/tensorflow/python/ops/reso
 We inherit ResourceVariable to implement KvVariable.
 """
 
+# pylint: disable=cyclic-import
 from __future__ import absolute_import, division, print_function
 
 import inspect
