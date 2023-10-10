@@ -163,7 +163,6 @@ class RendezvousManager(metaclass=ABCMeta):
             if rank_id in self._waiting_nodes:
                 return self._rdzv_round
             self._waiting_nodes[rank_id] = local_world_size
-            logger.info(f"{self._name} waiting nodes: {self._waiting_nodes}")
             self._rdzv_nodes = {}
             self._lastcall_time = time.time()
         return self._rdzv_round
