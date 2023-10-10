@@ -84,36 +84,29 @@ jobs:
   tfplus-python-test:
     runs-on: ubuntu-latest
     steps:
-      # Checkout the base code. The base could be the base branch of a PR or any branch for a push event.
-      - name: Checkout base code 
-        id: base
+      # Checkout the code
+      - name: Checkout code
         uses: actions/checkout@v3
         with:
-          ref: ${{ github.base_ref || github.ref }}
-          fetch-depth: 1
-      # Get the SHA of the last commit in the base branch.
-      - name: Get Base SHA
-        run: echo "BASE_SHA=$(git rev-parse HEAD)" >> $GITHUB_ENV
-      # Checkout the head code. The head could be the head branch of a PR or any branch for a push event.
-      - name: Checkout head code
-        id: head
-        uses: actions/checkout@v3
-        with:
-          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
-          ref: ${{ github.event.pull_request.head.ref || github.ref }}
-      # Compare the base and head, check for changes in directory 'tfplus'.
-      - name: check for changes in 'tfplus'
-        id: check_files
+          fetch-depth: 0
+      # Check 'tfplus' changes for PR or set true for direct push
+      - name: Determine if job should run
+        id: run_decision
         run: |
-          FILES=$(git diff --name-only $BASE_SHA HEAD)
-          if echo "$FILES" | grep -q "tfplus/"; then
+          if [ "${{ github.event_name }}" = "push" ]; then
             echo "::set-output name=run_job::true"
           else
-            echo "::set-output name=run_job::false"
+            DIFF=$(git diff --name-only \
+              ${{ github.event.pull_request.base.sha }} HEAD)
+            if echo "$DIFF" | grep -q "tfplus/"; then
+              echo "::set-output name=run_job::true"
+            else
+              echo "::set-output name=run_job::false"
+            fi
           fi
-      # Run the tfplus tests if there're any changes in 'tfplus'.
+      # Run tests if conditions are met
       - name: Run tfplus tests
-        if: steps.check_files.outputs.run_job == 'true'
+        if: steps.run_decision.outputs.run_job == 'true'
         uses: ./.github/actions/tfplus-python-test
   tfplus-pre-commit:
     runs-on: ubuntu-latest
