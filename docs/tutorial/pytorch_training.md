@@ -4,20 +4,19 @@ The document describes how to develop PyTorch models and train the model
 using DLRover. Users only need to make some simple changes
 of native PyTorch training codes to support checkpionting dataloader.
 We have provided the
-[CNN example](../../model_zoo/pytorch/mnist_cnn.py) to show how to
+[CNN example](../../examples/pytorch/mnist_cnn.py) to show how to
 train a CNN model with the MNIST dataset.
 
-## Develop a Torch Model with DLRover. 
+## Develop a Torch Model with DLRover
 
 Using elastic training of DLRover, users only need to set the
 `ElasticDistributedSampler` into their training `DataLoader`
 and checkpoint the sampler when checkpointing the model.
 
-### Setup ElasticDistributedSampler into the Dataloader.
-
+### Setup ElasticDistributedSampler into the Dataloader
 
 ```Python
-from dlrover.trainer.torch.elastic_sampler import ElasticDistributedSampler
+from dlrover.trainer.torch.elastic.sampler import ElasticDistributedSampler
 
 train_data = torchvision.datasets.ImageFolder(
     root="mnist/training/",
@@ -113,15 +112,16 @@ for _, (data, target) in enumerate(train_loader):
             torch.save(model_checkpoint, "model.pt")
 ```
 
-## Submit an ElasticJob on the Kubernetes to Train the model.
+## Submit an ElasticJob on the Kubernetes to Train the model
 
-### Build the Image with the Model.
+### Build the Image with the Model
 
 You can install dlrover in your image like
 
 ```bash
 pip install dlrover[torch] -U
 ```
+
 or build your image with the dockerfile.
 
 ```dockerfile
@@ -137,7 +137,7 @@ RUN pip install dlrover -U
 COPY ./model_zoo ./model_zoo
 ```
 
-### Run the Training code with dlrover-run.
+### Run the Training code with dlrover-run
 
 ```yaml
 spec:
@@ -151,14 +151,14 @@ spec:
           containers:
             - name: main
               # yamllint disable-line rule:line-length
-              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:torch201-mnist
+              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover-train:torch201-mnist
               imagePullPolicy: Always
               command:
                 - /bin/bash
                 - -c
                 - "dlrover-run --nnodes=1:$WORKER_NUM --nproc_per_node=1
                   --max_restarts=3 \
-                  model_zoo/pytorch/mnist_cnn.py \
+                  examples/pytorch/mnist_cnn.py \
                   --training_data /data/mnist_png/training/elastic_ds.txt \
                   --validation_data /data/mnist_png/testing/elastic_ds.txt"
 ```

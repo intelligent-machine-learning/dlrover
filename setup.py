@@ -17,12 +17,15 @@ install_requires = [
     "grpcio-tools==1.34.1",
     "protobuf>=3.15.3,<4.0dev",
     "psutil",
+    "pynvml",
     "urllib3<1.27,>=1.21.1",
+    "deprecated",
 ]
 
 
 extra_require = {
-    "master": ["kubernetes", "ray"],
+    "k8s": ["kubernetes"],
+    "ray": ["ray"],
     "tensorflow": ["tensorflow"],
     "torch": ["torch"],
 }
@@ -53,6 +56,7 @@ setup(
             "proto/*",
             "docker/*",
             "Makefile",
+            "trainer/check/*",
         ]
     },
     entry_points={

@@ -4,9 +4,11 @@ To build docker images
 ```bash
 # Build pytorch base image under dev/docker/base folder.
 sudo docker build -f Dockerfile --net host -t "easydl/pytorch_gpu_base:2.0.1-cuda11.8-cudnn8-devel" .
+sudo docker build -f Dockerfile-pt21 --net host -t "easydl/pytorch_gpu_base:2.1.0-cuda11.8-cudnn8-devel" .
 
 # Build atorch image
-sudo docker build -f dev/docker/Dockerfile-dev-pt2 --net host -t "easydl/atorch:iml" .
+sudo docker build -f dev/docker/Dockerfile-ubuntu2004-pt200 --net host -t "easydl/atorch:iml" .
+sudo docker build -f dev/docker/Dockerfile-ubuntu2004-pt210 --net host -t "reg.docker.alibaba-inc.com/atorch/atorch-open:pt210" .
 # To build base image, usually not needed, base Dockerfile is copied from pytorch repo for reference.
 make -f docker.Makefile
 ```

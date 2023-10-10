@@ -15,6 +15,7 @@ import time
 from typing import Dict
 
 from dlrover.python.common.constants import (
+    NodeType,
     OptimizeMode,
     RendezvousName,
     ReporterType,
@@ -27,6 +28,7 @@ from dlrover.python.master.elastic_training.rdzv_manager import (
 )
 from dlrover.python.master.master import JobMaster
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
+from dlrover.python.master.node.local_job_manager import create_job_manager
 from dlrover.python.master.servicer import create_master_service
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.master.stats.job_collector import JobMetricCollector
@@ -37,6 +39,7 @@ class LocalJobMaster(JobMaster):
     def __init__(self, port, args: JobArgs):
         self.speed_monitor = SpeedMonitor()
         self.task_manager = TaskManager(0, self.speed_monitor)
+        self.job_manager = create_job_manager(args, self.speed_monitor)
         elastic_training = RendezvousName.ELASTIC_TRAINING
         self.rdzv_managers: Dict[str, RendezvousManager] = {
             elastic_training: ElasticTrainingRendezvousManager(),
@@ -47,12 +50,14 @@ class LocalJobMaster(JobMaster):
         )
         self._master_server = self._create_master_grpc_service(port, args)
         self._job_args = args
+        self.speed_monitor.add_running_worker(NodeType.WORKER, 0)
+        self.speed_monitor.set_target_worker_num(1)
 
     def _create_master_grpc_service(self, port, params: JobArgs):
         return create_master_service(
             port,
             self.task_manager,
-            None,
+            self.job_manager,
             self.speed_monitor,
             self.rdzv_managers,
             self.job_metric_collector,
@@ -77,6 +82,7 @@ class LocalJobMaster(JobMaster):
         self._master_server.start()
         logger.info("Master RPC server started")
         self.task_manager.start()
+        self.job_manager.start()
 
     def run(self):
         """

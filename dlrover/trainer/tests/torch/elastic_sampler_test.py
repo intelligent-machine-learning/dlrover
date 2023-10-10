@@ -16,12 +16,12 @@ import unittest
 import numpy as np
 from torch.utils.data import Dataset
 
-from dlrover.trainer.torch.elastic_sampler import ElasticDistributedSampler
+from dlrover.trainer.torch.elastic.sampler import ElasticDistributedSampler
 
 
 class SimpleDataset(Dataset):
     def __init__(self):
-        self.data = np.arange(0, 60000)
+        self.data = np.arange(0, 60001)
 
     def __len__(self):
         return len(self.data)
@@ -49,6 +49,13 @@ class ElasticDistributedSamplerTest(unittest.TestCase):
                 sampler_state = sampler.state_dict(step, batch_size)
                 break
         self.assertEqual(sampler_state["completed_num"], 64)
+
+        sampler = ElasticDistributedSampler(
+            dataset=dataset,
+            num_replicas=3,
+            rank=0,
+            shuffle=False,
+        )
         sampler.load_state_dict(sampler_state)
         val = next(iter(sampler))
         self.assertEqual(val, 64)
@@ -58,3 +65,14 @@ class ElasticDistributedSamplerTest(unittest.TestCase):
         sampler.set_epoch(1)
         val = next(iter(sampler))
         self.assertEqual(val, 0)
+
+        sampler = ElasticDistributedSampler(
+            dataset=dataset,
+            num_replicas=3,
+            rank=0,
+            shuffle=False,
+            drop_last=True,
+        )
+        sampler.load_state_dict(sampler_state)
+        val = next(iter(sampler))
+        self.assertEqual(val, 64)

@@ -29,6 +29,7 @@ def update_context(job_args: JobArgs):
             _dlrover_context.auto_worker_enabled = node_args.auto_scale
         elif node_type == NodeType.PS:
             _dlrover_context.auto_ps_enabled = node_args.auto_scale
+    _dlrover_context.relaunch_always = job_args.relaunch_always
     _dlrover_context.set_params_from_brain()
     _dlrover_context.print_config()
 
@@ -36,7 +37,7 @@ def update_context(job_args: JobArgs):
 def run(args):
     job_args = new_job_args(args.platform, args.job_name, args.namespace)
     job_args.initilize()
-    logger.info("Job args : %s", job_args.toJSON())
+    logger.info("Job args : %s", job_args.to_json(indent=4))
     _dlrover_context.config_master_port(port=args.port)
     if job_args.platform == PlatformType.LOCAL:
         from dlrover.python.master.local_master import LocalJobMaster

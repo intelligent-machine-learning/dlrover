@@ -88,7 +88,9 @@ class PSLocalOptimizer(ResourceOptimizer):
         if plan.empty():
             logger.info("No any resource plan for %s", stage)
         else:
-            logger.info("plan of stage %s is %s", stage, plan.toJSON(indent=4))
+            logger.info(
+                "plan of stage %s is %s", stage, plan.to_json(indent=4)
+            )
         return plan
 
     def generate_oom_recovery_plan(
@@ -181,7 +183,7 @@ class PSLocalOptimizer(ResourceOptimizer):
         resource = ProcessResourceRequirement(
             worker_cpu, ps_cpu_per_process, worker_memory
         )
-        logger.info("Training process needs %s", resource.toJSON())
+        logger.info("Training process needs %s", resource.to_json())
         return resource
 
     def _generate_worker_resoruce(self):

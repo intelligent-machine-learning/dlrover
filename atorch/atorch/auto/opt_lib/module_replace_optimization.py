@@ -1,47 +1,81 @@
 import torch
+from torch.nn import LayerNorm
 
 from atorch.auto.auto_accelerate_context import AutoAccelerateContext
 from atorch.auto.opt_lib.optimization import Optimization
 from atorch.distributed.distributed import local_rank
 from atorch.modules.distributed_modules.materialize_modules import materialize_modules_to_device
 from atorch.modules.transformer.inject import replace_module
-from atorch.modules.transformer.layers import BertAttentionFA, CLIPAttentionFA, GPT2AttentionFA, MultiheadAttentionFA
+from atorch.modules.transformer.layers import (
+    BertAttentionFA,
+    CLIPAttentionFA,
+    GPT2AttentionFA,
+    LlamaAttentionFA,
+    MultiheadAttentionFA,
+)
 from atorch.normalization import LayerNorm as ApexLayerNorm
 from atorch.utils.meta_model_utils import empty_param, recursive_empty_param
 
-try:
-    from transformers.modeling_bert import BertAttention  # 3.5
-    from transformers.modeling_clip import CLIPAttention
-    from transformers.modeling_gpt2 import GPT2Attention
-except (ModuleNotFoundError, ImportError):
-    from transformers.models.bert.modeling_bert import BertAttention  # 4.17
-    from transformers.models.clip.modeling_clip import CLIPAttention
-    from transformers.models.gpt2.modeling_gpt2 import GPT2Attention
-
-from torch.nn import LayerNorm, MultiheadAttention
-
 # supported replacement pairs, default replace_configs and supported dtypes for module replace optimization
-REPLACEMENT_PAIRS = {
-    "HF_BertAttention_FA": (BertAttention, BertAttentionFA, {"need_src_module": True}, {torch.float16, torch.bfloat16}),
-    "HF_CLIPAttention_FA": (CLIPAttention, CLIPAttentionFA, {"need_src_module": True}, {torch.float16, torch.bfloat16}),
-    "MultiheadAttention_FA": (
-        MultiheadAttention,
-        MultiheadAttentionFA,
-        {"need_src_module": True},
-        {torch.float16, torch.bfloat16},
-    ),
-    "HF_GPT2Attention_FA": (GPT2Attention, GPT2AttentionFA, {"need_src_module": True}, {torch.float16, torch.bfloat16}),
-    "LayerNorm_Apex": (
-        LayerNorm,
-        ApexLayerNorm,
-        {"init_from_attr": True},
-        {torch.float32, torch.float16, torch.bfloat16},
-    ),
-}
+# in format of {pair_name: (src_module_cls, target_cls, kwargs, supported_dtypes)}
+REPLACEMENT_PAIRS = dict()
+
+
+def register_replace_pair(
+    pair_name,
+    kwargs={"need_src_module": True},
+    supported_dtypes={torch.float32, torch.float16, torch.bfloat16},
+    pair_cls=None,
+):
+    """
+    kwargs: used as `**kwargs` when calling `replace_module`.
+
+    This func can be used in decorator mode. Decorator mode requires that pair_cls is None,
+    and the target cls must inherit from source cls or has `_src_module_cls` attribute:
+
+        >>> @register_replace_pair('pair_name')
+        >>> class TgtCls(SrcCls):
+        >>>    pass
+        >>> # or
+        >>> @register_replace_pair('pair_name')
+        >>> class TgtCls(torch.nn.Module):
+        >>>    _src_module_cls = SrcCls
+        >>>    pass
+
+    And this func can directly register the replace pair when assigning pair_cls:
+
+        >>> register_replace_pair('pair_name', pair_cls=(SrcCls, TgtCls))
+    """
+    global REPLACEMENT_PAIRS
+
+    if pair_cls is None:
+        # decorator mode
+        def decorator(cls):
+            src_cls = getattr(cls, "_src_module_cls", cls.__base__)
+            REPLACEMENT_PAIRS[pair_name] = (src_cls, cls, kwargs, supported_dtypes)
+            return cls
+
+        return decorator
+    else:
+        src_cls, cls = pair_cls
+        REPLACEMENT_PAIRS[pair_name] = (src_cls, cls, kwargs, supported_dtypes)
+
+
+# directly register
+register_replace_pair("LayerNorm_Apex", kwargs={"init_from_attr": True}, pair_cls=(LayerNorm, ApexLayerNorm))
+
+# decorator mode register. Not doing this in cls definition
+# because importing `register_replace_pair` there incurs circular import
+register_replace_pair("HF_BertAttention_FA", supported_dtypes={torch.float16, torch.bfloat16})(BertAttentionFA)
+register_replace_pair("HF_CLIPAttention_FA", supported_dtypes={torch.float16, torch.bfloat16})(CLIPAttentionFA)
+register_replace_pair("MultiheadAttention_FA", supported_dtypes={torch.float16, torch.bfloat16})(MultiheadAttentionFA)
+register_replace_pair("HF_LlamaAttention_FA", supported_dtypes={torch.float16, torch.bfloat16})(LlamaAttentionFA)
+register_replace_pair("HF_GPT2Attention_FA", supported_dtypes={torch.float16, torch.bfloat16})(GPT2AttentionFA)
 
 
 def _check_model_params_device(model):
     devices = set()
+
     for param in model.parameters():
         devices.add(str(param.device))
     return devices
@@ -120,9 +154,18 @@ class ModuleReplaceOptimization(Optimization):
         """
         if wrapper_config is None:
             wrapper_config = _get_default_replace_config()
+
+        tie_weights = {}
+        from atorch.utils.meta_model_utils import _find_tied_weights, _retie_weights
+
+        if hasattr(AutoAccelerateContext, "FSDP_META_INIT"):
+            tie_weights = _find_tied_weights(model_context.model)
+            model_context.model = model_context.model.to("meta")
+
         model_context.model = _replace_by_config(
             model_context.model, config=wrapper_config, gpu_used=model_context.gpu_used
         )
+        _retie_weights(model_context.model, tie_weights)
         model = model_context.model
         _enable_flash_attn_by_attr(model)
         model_context.model = model

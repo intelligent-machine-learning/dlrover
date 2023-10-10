@@ -14,8 +14,10 @@
 import os
 import threading
 import time
+from typing import Dict
 
 from kubernetes import client, config
+from kubernetes.utils.quantity import parse_quantity
 
 from dlrover.python.common.constants import (
     DefaultResourceLimits,
@@ -36,6 +38,18 @@ NODE_SERVICE_PORTS = {
 }
 
 JOB_SUFFIX = "-edljob-"
+
+
+def convert_memory_to_mb(memory: str):
+    return int(parse_quantity(memory) / 1024 / 1024)
+
+
+def convert_memory_to_byte(memory: str):
+    return parse_quantity(memory)
+
+
+def convert_cpu_to_decimal(cpu: str):
+    return round(float(parse_quantity(cpu)), 1)
 
 
 def parse_bool(s: str):
@@ -104,6 +118,11 @@ class k8sClient(object):
 
     @retry_k8s_request
     def list_namespaced_pod(self, label_selector):
+        """List the pods in the namespace with the label selector.
+
+        Args:
+            label_selector: str like "label0=value0,lable1=value1"
+        """
         pod_list = self.client.list_namespaced_pod(
             self._namespace,
             label_selector=label_selector,
@@ -174,11 +193,21 @@ class k8sClient(object):
 
     @retry_k8s_request
     def get_pod(self, name):
+        """Get the pod with the pod name:
+
+        Args:
+            name: str, the pod name.
+        """
         return self.client.read_namespaced_pod(
             namespace=self._namespace, name=name
         )
 
     def delete_pod(self, name):
+        """Delete the pod with the pod name:
+
+        Args:
+            name: str, the pod name.
+        """
         try:
             self.client.delete_namespaced_pod(
                 name,
@@ -193,20 +222,37 @@ class k8sClient(object):
             return False
 
     @retry_k8s_request
-    def patch_labels_to_pod(self, name, labels_dict):
-        body = {"metadata": {"labels": labels_dict}}
+    def patch_labels_to_pod(self, name, labels: Dict[str, str]):
+        """Patch labels to a Pod.
+
+        Args:
+            name: str, the pod name.
+            labels: dict, the key and value are str.
+        """
+        body = {"metadata": {"labels": labels}}
         return self.client.patch_namespaced_pod(
             name=name, namespace=self._namespace, body=body
         )
 
     @retry_k8s_request
-    def patch_annotations_to_pod(self, name, annotations):
+    def patch_annotations_to_pod(self, name, annotations: Dict[str, str]):
+        """Patch annotaions to a Pod.
+
+        Args:
+            name: str, the pod name.
+            annotations: dict, the key and value are str.
+        """
         body = {"metadata": {"annotations": annotations}}
         return self.client.patch_namespaced_pod(
             name=name, namespace=self._namespace, body=body
         )
 
-    def create_service(self, service):
+    def create_service(self, service: client.V1Service):
+        """Create a service
+
+        Args:
+            service: client.V1Service.
+        """
         try:
             self.client.create_namespaced_service(self._namespace, service)
             return True
@@ -217,20 +263,29 @@ class k8sClient(object):
             )
             return False
 
-    def patch_service(self, service_name, service):
+    def patch_service(self, name, service: client.V1Service):
+        """Patch a service
+
+        Args:
+            name: str, the service name.
+            service: client.V1Service.
+        """
         try:
             self.client.patch_namespaced_service(
-                service_name, self._namespace, service
+                name, self._namespace, service
             )
             return True
         except client.rest.ApiException as e:
-            logger.warning(
-                "Failed to patch %s service: %s\n" % (service_name, e)
-            )
+            logger.warning("Failed to patch %s service: %s\n" % (name, e))
             return False
 
     @retry_k8s_request
     def get_service(self, name):
+        """Get a k8s service object.
+
+        Args:
+            name: str, the service name.
+        """
         return self.client.read_namespaced_service(
             name=name,
             namespace=self._namespace,
@@ -310,10 +365,10 @@ class K8sJobArgs(JobArgs):
         if "distributionStrategy" in job["spec"]:
             self.distribution_strategy = job["spec"]["distributionStrategy"]
         limit_config = job["spec"].get("resourceLimits", {})
-        self.resource_limits.cpu = NodeResource.convert_cpu_to_decimal(
+        self.resource_limits.cpu = convert_cpu_to_decimal(
             limit_config.get("cpu", DefaultResourceLimits.CPU_LIMIT)
         )
-        self.resource_limits.memory = NodeResource.convert_memory_to_byte(
+        self.resource_limits.memory = convert_memory_to_byte(
             limit_config.get("memory", DefaultResourceLimits.MEMORY_LIMIT)
         )
         self.resource_limits.gpu_num = int(
@@ -322,18 +377,22 @@ class K8sJobArgs(JobArgs):
         self.optimize_mode = job["spec"].get(
             "optimizeMode", OptimizeMode.SINGLE_JOB
         )
-        relaunch_strategy = job["spec"].get("relaunchStrategy", "")
-        self.relaunch_always = relaunch_strategy == "always"
 
         for replica, spec in job["spec"]["replicaSpecs"].items():
+            if replica == NodeType.WORKER:
+                restart_policy = spec["template"]["spec"].get(
+                    "restartPolicy", ""
+                )
+                self.relaunch_always = restart_policy == "Always"
+
             priority = spec.get("priority", "")
             num = int(spec.get("replicas", 0))
             container = spec["template"]["spec"]["containers"][0]
             resources = container.get("resources", {})
             requests = resources.get("requests", {})
-            cpu = NodeResource.convert_cpu_to_decimal(requests.get("cpu", 0))
+            cpu = convert_cpu_to_decimal(requests.get("cpu", 0))
             if "memory" in requests:
-                memory = NodeResource.convert_memory_to_mb(requests["memory"])
+                memory = convert_memory_to_mb(requests["memory"])
             else:
                 memory = 0
             gpu_type = None
@@ -344,7 +403,13 @@ class K8sJobArgs(JobArgs):
                     gpu_num = int(v)
             group_resource = NodeGroupResource(
                 num,
-                NodeResource(cpu, memory, gpu_type, gpu_num, priority),
+                NodeResource(
+                    cpu=cpu,
+                    memory=memory,
+                    gpu_type=gpu_type,
+                    gpu_num=gpu_num,
+                    priority=priority,
+                ),
             )
             restart_count = int(spec.get("restartCount", 3))
             auto_scale = parse_bool(str(spec.get("autoScale", "true")))

@@ -43,7 +43,7 @@ def master_params_to_model_params(model_params, master_params, flat_master=False
 
 
 # based on https://github.com/THUDM/GLM/blob/main/fp16/fp16.py
-class BF16Optimizer:
+class BF16Optimizer(torch.optim.Optimizer):
     """
     :class:`BF16Optimizer` is designed to wrap an existing PyTorch optimizer.
     """
@@ -259,3 +259,7 @@ class BF16Optimizer:
 
     def update_master_grads(self):
         self._model_grads_to_master_grads()
+
+    @property
+    def param_groups(self):
+        return self.optimizer.optim.param_groups if isinstance(self.optimizer, OSS) else self.optimizer.param_groups

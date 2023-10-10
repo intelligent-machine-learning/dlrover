@@ -1,0 +1,50 @@
+apiVersion: elastic.iml.github.io/v1alpha1
+kind: ElasticJob
+metadata:
+  name: elasticjob-sample
+  namespace: dlrover
+spec:
+  distributionStrategy: ParameterServerStrategy
+  optimizeMode: cluster
+  resourceLimits:
+    cpu: "6"
+    memory: "8192Mi"
+  replicaSpecs:
+    ps:
+      autoScale: True
+      restartCount: 3
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: main
+              image: easydl/tf-estimator:iris_dnn_v0
+              imagePullPolicy: IfNotPresent
+              # yamllint disable
+              command:
+                - /bin/bash
+                - -c
+                - "python -m examples.tensorflow.iris_dnn_elastic"
+              # yamllint enable
+    worker:
+      autoScale: True
+      restartCount: 3
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: main
+              image: easydl/tf-estimator:iris_dnn_v0
+              imagePullPolicy: IfNotPresent
+              command:
+                - /bin/bash
+                - -c
+                - "python -m examples.tensorflow.iris_dnn_elastic"
+    dlrover-master:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: main
+              imagePullPolicy: Always
+              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:v0.2.0

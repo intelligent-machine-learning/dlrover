@@ -1,4 +1,4 @@
-# Copyright 2022 The EasyDL Authors. All rights reserved.
+# Copyright 2022 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -20,11 +20,11 @@ from dlrover.python.common.constants import NodeStatus, NodeType
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.node import NodeGroupResource, NodeResource
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
+from dlrover.python.master.node.dist_job_manager import create_job_manager
 from dlrover.python.master.node.job_auto_scaler import (
     AllreduceTrainingAutoScaler,
     PSTrainingAutoScaler,
 )
-from dlrover.python.master.node.job_manager import create_job_manager
 from dlrover.python.master.resource.optimizer import ResourcePlan
 from dlrover.python.tests.test_utils import (
     MockK8sAllreduceJobArgs,
@@ -91,11 +91,11 @@ class JobAutoScalerTest(unittest.TestCase):
             manager._worker_manager,
             manager._scaler,
         )
-        ps0 = manager._job_nodes[NodeType.PS][0]
+        auto_scaler._autoscaling_started = True
+        ps0 = manager._ps_manager._nodes[0]
         ps0.config_resource.cpu = 16
         ps0.status = NodeStatus.PENDING
         ps0.create_time = datetime.now() + timedelta(days=-1)
-        _dlrover_context.auto_ps_enabled = True
         plan = auto_scaler._reduce_timeout_pending_node_resource()
         self.assertEqual(
             plan.ps_addrs,

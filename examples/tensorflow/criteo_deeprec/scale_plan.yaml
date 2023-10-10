@@ -1,0 +1,12 @@
+apiVersion: elastic.iml.github.io/v1alpha1
+kind: ScalePlan
+metadata:
+  name: deepctr-manual-scale-plan-0
+  labels:
+    elasticjob-name: deepctr-manual-scale
+    scale-type: manual
+spec:
+  ownerJob: deepctr-manual-scale
+  replicaResourceSpecs:
+    ps:
+      replicas: 2

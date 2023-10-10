@@ -38,6 +38,7 @@ class AnalyserConstants(object):
     TIMELINE_SIGNAL_FILE_NAME = "aprof.done"
     PROF_SIGNAL_FILE_NAME = "aprof_txt.done"
     GPU_UTILIZATION = "gpu_utility"
+    HFU = "hfu"
 
 
 class AutoAccelerateExtraArgs(Enum):
@@ -65,8 +66,8 @@ class GPUCapability:
     """
 
     TFLOPS = {
-        "FP16": {"NVIDIA A100-SXM4-80GB": 312, "Tesla V100-SXM2-32GB": 125},
-        "FP32": {"NVIDIA A100-SXM4-80GB": 19.5, "Tesla V100-SXM2-32GB": 15.7},
+        "FP16": {"NVIDIA A100-SXM4-80GB": 312, "Tesla V100-SXM2-32GB": 125, "NVIDIA A800-SXM4-80GB": 312},
+        "FP32": {"NVIDIA A100-SXM4-80GB": 19.5, "Tesla V100-SXM2-32GB": 15.7, "NVIDIA A800-SXM4-80GB": 19.5},
     }
 
 

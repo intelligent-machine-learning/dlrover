@@ -1,4 +1,4 @@
-# Copyright 2022 The EasyDL Authors. All rights reserved.
+# Copyright 2022 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -48,3 +48,4 @@ class k8sJobArgsTest(unittest.TestCase):
         self.assertEqual(
             ps_params.group_resource.node_resource.priority, "high"
         )
+        self.assertTrue(params.relaunch_always)

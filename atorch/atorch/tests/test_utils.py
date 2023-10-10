@@ -17,10 +17,11 @@ def run_multi_process_init_distributed(codes=None, nproc=2, training_script=None
 
     os.environ["WORLD_SIZE"] = "1"
     os.environ["MASTER_PORT"] = str(find_free_port())
-    args = parse_args()
-    args.training_script = training_script
-    args.training_script_args = training_script_args
-    args.nproc_per_node = nproc
+    input_args = [
+        f"--nproc_per_node={nproc}",
+        f"{training_script}",
+    ] + list(training_script_args)
+    args = parse_args(input_args)
     main(args)
 
 
@@ -32,10 +33,11 @@ def elastic_run_multi_process(codes=None, nproc=2, training_script=None, trainin
 
     os.environ["WORLD_SIZE"] = "1"
     os.environ["MASTER_PORT"] = str(find_free_port())
-    args = parse_fault_tolerant_or_elastic_args(mode="fault_tolerant")
-    args.training_script = training_script
-    args.training_script_args = training_script_args
-    args.nproc_per_node = nproc
+    input_args = [
+        f"--nproc_per_node={nproc}",
+        f"{training_script}",
+    ] + list(training_script_args)
+    args = parse_fault_tolerant_or_elastic_args(input_args, mode="fault_tolerant")
     elastic_run(args)
 
 

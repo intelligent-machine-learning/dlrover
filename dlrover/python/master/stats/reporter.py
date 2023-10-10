@@ -19,11 +19,11 @@ from typing import List
 from dlrover.proto import brain_pb2
 from dlrover.python.brain.client import GlobalBrainClient
 from dlrover.python.common.constants import ReporterType
+from dlrover.python.common.grpc import ModelInfo
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import singleton
 from dlrover.python.master.stats.training_metrics import (
     DatasetMetric,
-    ModelMetric,
     RuntimeMetric,
     TrainingHyperParams,
 )
@@ -65,7 +65,7 @@ class StatsReporter(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def report_model_metrics(self, metric: ModelMetric):
+    def report_model_info(self, info: ModelInfo):
         pass
 
     @abstractmethod
@@ -103,7 +103,7 @@ class LocalStatsReporter(StatsReporter):
         self._runtime_stats: List[RuntimeMetric] = []
         self._dataset_metric = None
         self._training_hype_params = None
-        self._model_metric = None
+        self._model_info = None
         self._job_type = ""
         self._exit_reason = ""
         self._custom_data = None
@@ -114,8 +114,8 @@ class LocalStatsReporter(StatsReporter):
     def report_training_hyper_params(self, params: TrainingHyperParams):
         self._training_hype_params = params
 
-    def report_model_metrics(self, metric: ModelMetric):
-        self._model_metric = metric
+    def report_model_info(self, info: ModelInfo):
+        self._model_info = info
 
     def report_runtime_stats(self, stats: RuntimeMetric):
         self._runtime_stats.append(copy.deepcopy(stats))
@@ -156,7 +156,7 @@ class BrainReporter(StatsReporter):
     def report_training_hyper_params(self, params: TrainingHyperParams):
         self._brain_client.report_training_hyper_params(self._job_meta, params)
 
-    def report_model_metrics(self, metric: ModelMetric):
+    def report_model_info(self, metric: ModelInfo):
         """Report the model meta to EasyDL DB.
         Args:
             job_uuid: str, the unique id of the job which is usually
@@ -231,5 +231,5 @@ class BrainReporter(StatsReporter):
         """
         job_metrics = init_job_metrics_message(self._job_meta)
         job_metrics.metrics_type = brain_pb2.MetricsType.Resource
-        job_metrics.resource = job_resource.toJSON()
+        job_metrics.resource = job_resource.to_json()
         self._brain_client.report_metrics(job_metrics)

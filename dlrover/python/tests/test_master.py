@@ -12,16 +12,26 @@
 # limitations under the License.
 
 import unittest
+from datetime import datetime, timedelta
 
-from dlrover.python.common.constants import JobExitReason, NodeStatus, NodeType
+from dlrover.python.common.constants import (
+    JobExitReason,
+    NodeStatus,
+    NodeType,
+    RendezvousName,
+)
+from dlrover.python.common.global_context import Context
 from dlrover.python.elastic_agent.master_client import build_master_client
 from dlrover.python.master.dist_master import DistributedJobMaster
+from dlrover.python.master.main import update_context
 from dlrover.python.master.shard.dataset_splitter import new_dataset_splitter
 from dlrover.python.tests.test_utils import (
     MockK8sPSJobArgs,
     mock_k8s_client,
     start_local_master,
 )
+
+_dlrover_context = Context.singleton_instance()
 
 
 class DistributedJobMasterTest(unittest.TestCase):
@@ -75,6 +85,25 @@ class DistributedJobMasterTest(unittest.TestCase):
         self.assertEqual(self.master._exit_code, 0)
         self.assertEqual(self.master._exit_reason, JobExitReason.SUCCEEDED)
 
+    def test_early_stop(self):
+        self.master.job_manager._init_nodes()
+        job_nodes = self.master.job_manager._job_nodes
+        for node in job_nodes[NodeType.PS].values():
+            node.status = NodeStatus.PENDING
+            node.is_recovered_oom = True
+            node.create_time = datetime.now() + timedelta(days=-1)
+        exit_code = self.master.run()
+        self.assertEqual(exit_code, 1)
+
+    def test_update_context(self):
+        job_args = MockK8sPSJobArgs()
+        job_args.initilize()
+        job_args.relaunch_always = True
+        update_context(job_args)
+        self.assertTrue(_dlrover_context.relaunch_always)
+        self.assertTrue(_dlrover_context.auto_ps_enabled)
+        self.assertTrue(_dlrover_context.auto_worker_enabled)
+
 
 class LocalJobMasterTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -97,7 +126,11 @@ class LocalJobMasterTest(unittest.TestCase):
 
     def test_rdzv_manager(self):
         self.master_client.report_rdzv_params(1, 1, 360, 1)
-        self.master_client.join_rendezvous(0, 8, "elastic-training")
-        group, world = self.master_client.get_comm_world("elastic-training", 0)
+        self.master_client.join_rendezvous(
+            0, 8, RendezvousName.ELASTIC_TRAINING
+        )
+        group, world = self.master_client.get_comm_world(
+            RendezvousName.ELASTIC_TRAINING, 0
+        )
         self.assertEqual(group, 1)
         self.assertEqual(world[0], 8)

@@ -1,323 +1,492 @@
-# worker和ps容错样例
-## worker容错示例
-在任务运行过程中删除worker-i对应的pod，之后dlrover master会重新拉起一个pod。work-i对应的pod的名称会发生变化，新创建的pod的启动命令和被kill掉的pod的启动命令相同，启动后参与组网，并进行训练。期间其他worker不受影响。
-### 启动作业
-首先，启动作业。为了避免自动扩容缩容的影响，选择人工配置扩容缩容策略。
-```shell
-kubectl apply -f deepctr_manual_scale_job.yaml -n dlrover
+# Fault-tolerance and Elasticity Experiments of DLRover ElasticJob
+
+The tutorial shows experiments to test the fault-tolerance and elasticity
+of DLRover ElasticJob. In the experiments, we use the chaos enginerring toolkit
+[chaosblade](https://github.com/chaosblade-io/chaosblade) to simulate fault scenarios.
+
+## Preliminary
+
+- Create a k8s cluster and configure cluster credentials on your local computer.
+- Deploy DLRover ElasticJob on the k8s cluster with the [tutorial](torch_on_cloud.md).
+- Build the image with chaosblade like the [example](../../examples/pytorch/mnist/mnist_chaos.dockerfile).
+
+## Experiments of PyTorch Distributed Job
+
+We conduct experiments to simulate the following scenarios:
+
+- The Pod is preempted.
+- The Pod is a straggler.
+- The Pod is placed on a fualt node.
+- The Pod network breaks down during training.
+- The training process corrupts in the Pod.
+
+### Pod is Preempted
+
+In the experiment, we submit a job with the [example](../../examples/pytorch/mnist/choas_test_job.yaml)
+and the command in the worker spec is
+
+```yaml
+  command:
+    - /bin/bash
+    - -c
+    - "dlrover-run --network-check --exclude-straggler --nnodes=3:$WORKER_NUM \
+        --nproc_per_node=2 --max_restarts=3  --rdzv_conf pend_timeout=600 \
+        examples/pytorch/mnist/cnn_train.py --num_epochs 5 \
+        --training_data /data/mnist_png/training/ \
+        --validation_data /data/mnist_png/testing/"
 ```
-当前有1个ps和3个worker。
-```shell
+
+The Pods of the job are:
+
+```text
+chaos-test-edljob-worker-0                    1/1     Running   0             85s
+chaos-test-edljob-worker-1                    1/1     Running   0             85s
+chaos-test-edljob-worker-2                    1/1     Running   0             85s
+chaos-test-edljob-worker-3                    1/1     Running   0             85s
+elasticjob-chaos-test-dlrover-master          1/1     Running   0             89s
+```
+
+We kill the worker-0 to simulate that the Pod is preempted by the command
+
+```bash
+kubectl -n dlrover delete pod chaos-test-edljob-worker-0
+```
+
+After killing worker-0, job Pods are
+
+```text
+chaos-test-edljob-worker-1                    1/1     Running   0             2m3s
+chaos-test-edljob-worker-2                    1/1     Running   0             2m3s
+chaos-test-edljob-worker-3                    1/1     Running   0             2m3s
+chaos-test-edljob-worker-4                    1/1     Running   0             30s
+elasticjob-chaos-test-dlrover-master          1/1     Running   0             2m7s
+```
+
+Then, we can see the log of worker to check whether the training restores.
+
+```bash
+kubectl -n dlrover logs chaos-test-edljob-worker-1
+```
+
+```text
+loss = 2.298487901687622, step = 0
+INFO:torch.nn.parallel.distributed:Reducer buckets have been rebuilt in this iteration.
+INFO:torch.nn.parallel.distributed:Reducer buckets have been rebuilt in this iteration.
+loss = 2.195965051651001, step = 20
+loss = 1.2307546138763428, step = 40
+loss = 0.6579511761665344, step = 60
+loss = 1.0608341693878174, step = 80
+loss = 0.7761049270629883, step = 100
+```
+
+### Straggler Pod
+
+In the experiment, we set replicas of worker to 4 in a job and
+use chaosblade to perform a CPU full load 90% on the `worker-1` with the command
+
+```bash
+chaosblade-1.7.2/blade create cpu load --cpu-percent 90
+```
+
+If you use the image `registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:torch201-mnist`,
+you can use chaosblade to create a chaos experiment by
+
+```bash
+sh examples/pytorch/mnist/start_chaos.sh cpu-overload 
+```
+
+and set the command in the yaml of elasticjob like the [example](../../examples/pytorch/mnist/choas_test_job.yaml).
+
+```yaml
+  command:
+    - /bin/bash
+    - -c
+    - "(bash examples/pytorch/mnist/start_chaos.sh cpu-overload &) && \
+        dlrover-run --network-check --exclude-straggler --nnodes=3:$WORKER_NUM \
+        --nproc_per_node=2 --max_restarts=3  --rdzv_conf pend_timeout=600 \
+        examples/pytorch/mnist/cnn_train.py --num_epochs 5 \
+        --training_data /data/mnist_png/training/ \
+        --validation_data /data/mnist_png/testing/"
+```
+
+After submitting an ElasticJob to the k8s cluster by
+`kubectl -n dlrover apply -f examples/pytorch/mnist/choas_test_job.yaml`,
+We can see the `worker-1` exits with errors like
+
+```text
+elasticjob-torch-mnist-debug-dlrover-master   0/1     Completed   0             3h17m
+torch-mnist-debug-edljob-worker-0             0/1     Completed   0             3h17m
+torch-mnist-debug-edljob-worker-1             0/1     Error       0             3h17m
+torch-mnist-debug-edljob-worker-2             0/1     Completed   0             3h17m
+torch-mnist-debug-edljob-worker-3             0/1     Completed   0             3h17m
+torch-mnist-debug-edljob-worker-4             0/1     Completed   0             3h10m
+```
+
+From the log of worker-1 by `kubectl -n dlrover logs torch-mnist-debug-edljob-worker-1`,
+worker-1 fails because it is a straggler. If we don't want to the worker-1 fails due to
+straggler, we can remove the config `dlrover-run --network-check --exclude-straggler`
+from the command like `dlrover-run --network-check`.
+
+```text
+[2023-09-26 03:52:20,235] [INFO] [training.py:707:run] Fault nodes are: []  and stragglers are: [1].
+Traceback (most recent call last):
+  File "/usr/local/bin/dlrover-run", line 8, in <module>
+    sys.exit(main())
+  ...
+  File "/usr/local/lib/python3.8/site-packages/dlrover/python/elastic_agent/torch/training.py", line 733, in run
+    raise RuntimeError("The node is a straggler and exits.")
+RuntimeError: The node is a straggler and exits.
+
+```
+
+We can see the elapsed time of each node to run the task to check straggler in the master log.
+
+```bash
+kubectl -n dlrover logs elasticjob-torch-mnist-debug-dlrover-master | grep elapsed
+```
+
+```text
+Round 0: The node elapsed time are {2: 20.307, 3: 20.265, 0: 206.872, 1: 151.752}
+Round 1: The node elapsed time are {2: 20.307, 3: 20.265, 0: 23.174, 1: 135.961}
+Round 2: The node elapsed time aree {2: 21.491, 0: 22.685, 3: 20.889, 1: 23.097}
+```
+
+From the log, The worker-1 the elapsed time is much bigger than others in the first 2 rounds.
+After the worker-1 fails, the ElasticJob relaunch a new Pod worker-4 to restore the failed Pod.
+The elapsed times of all nodes have not significant differenct. Note. the index is the
+`WOKRER_RANK` of node. The `WORKER_RANK` of worker-4 is the same as worker-1.
+
+### Fault Node
+
+In the experiment, we set replicas of worker to 4 in a job and
+use chaosblade to kill the process to run `run_network_check.py`
+to simulate the fault node.
+
+and set the command in the yaml of elasticjob like the [example](../../examples/pytorch/mnist/choas_test_job.yaml).
+
+```yaml
+command:
+    - /bin/bash
+    - -c
+    - "(bash examples/pytorch/mnist/start_chaos.sh kill-process &) && \
+        dlrover-run --network-check --exclude-straggler --nnodes=3:$WORKER_NUM \
+        --nproc_per_node=2 --max_restarts=3  --rdzv_conf pend_timeout=600 \
+        examples/pytorch/mnist/cnn_train.py --num_epochs 5 \
+        --training_data /data/mnist_png/training/ \
+        --validation_data /data/mnist_png/testing/"
+```
+
+```text
+chaos-test-edljob-worker-0                    1/1     Running             0             12m
+chaos-test-edljob-worker-1                    0/1     Error               0             12m
+chaos-test-edljob-worker-2                    1/1     Running             0             12m
+chaos-test-edljob-worker-3                    1/1     Running             0             12m
+chaos-test-edljob-worker-4                    1/1     Running             0             3m59s
+elasticjob-chaos-test-dlrover-master          1/1     Running             0             12m
+```
+
+The worker-1 fails with the message
+
+```text
+Traceback (most recent call last):
+  ....
+  File "/usr/local/lib/python3.8/site-packages/dlrover/python/elastic_agent/torch/training.py", line 732, in run
+    raise RuntimeError("The node network is breakdown.")
+RuntimeError: The node network is breakdown.
+```
+
+From the master log by `kubectl -n dlrover logs elasticjob-chaos-test-dlrover-master | grep "The node status"`,
+the worker-1 fails in the first 2 round check. Afther worker-4 starts to replace worker-1,
+all nodes are noraml.
+
+```text
+Round 1: The node status are {1: False, 2: True, 3: True, 0: False}.
+Round 2: The node status are {1: False, 2: True, 3: True, 0: True}.
+Round 3: The node status are {3: True, 0: True, 1: True, 2: True}.
+```
+
+### Network Breakdown
+
+In the experiment, we set replicas of worker to 4 in a job and
+use chaosblade to set the network loss rate to 100% to simulate
+that the network of the node is breakdown.
+
+We watch the log of worker-1 to check whether the training starts.
+The training starts if `loss=..., step=...` in the log.
+After the training starts, we perform a network loadd rate 100%
+in the worker-1 to simulate the networker of worker-1 is breakdown.
+
+```bash
+kubectl -n dlrover exec -it chaos-test-edljob-worker-1  bash
+./chaosblade-1.7.2/blade create network loss --percent 100 --interface eth0
+```
+
+Then, the worker-1 fails and a new worker-4 starts to replace the worker-1.
+
+```text
+chaos-test-edljob-worker-0                    1/1     Running   0             4m39s
+chaos-test-edljob-worker-1                    0/1     Error     0             4m39s
+chaos-test-edljob-worker-2                    1/1     Running   0             4m39s
+chaos-test-edljob-worker-3                    1/1     Running   0             4m39s
+chaos-test-edljob-worker-4                    1/1     Running   0             17s
+elasticjob-chaos-test-dlrover-master          1/1     Running   0             4m43s
+```
+
+The training also restores after the worker-4 starts by the log of worker-0.
+
+```text
+loss = 0.24101698398590088, step = 0
+INFO:torch.nn.parallel.distributed:Reducer buckets have been rebuilt in this iteration.
+INFO:torch.nn.parallel.distributed:Reducer buckets have been rebuilt in this iteration.
+loss = 0.4646361768245697, step = 20
+```
+
+### Training Process Corruption
+
+In the experiment, we set replicas of worker to 4 in a job and
+use chaosblade to kill a training process to simulate the GPU error.
+
+We watch the log of worker-1 to check whether the training starts.
+The training starts if `loss=..., step=...` in the log.
+After the training starts, we kill a process in the worker-1.
+
+```bash
+kubectl -n dlrover exec -it chaos-test-edljob-worker-1  bash
+ps -aux | grep cnn_train.py
+```
+
+Then, we can kill a training process by `kill -9 ${PID}`. The all workers
+are still running and we can see that the training restarts from the log.
+
+```text
+chaos-test-edljob-worker-0                    1/1     Running   0             3m4s
+chaos-test-edljob-worker-1                    1/1     Running   0             3m4s
+chaos-test-edljob-worker-2                    1/1     Running   0             3m4s
+chaos-test-edljob-worker-3                    1/1     Running   0             3m4s
+elasticjob-chaos-test-dlrover-master          1/1     Running   0             3m9s
+```
+
+### Scale Up Nodes
+
+In the experiment, we use the [example](../../examples/pytorch/mnist/elastic_job.yaml)
+to submit an elastic training job. In the job, we set the `min_node=3` and
+`max_node=$WORKER_NUM` as the number of replicas. The ElasticJob will set the replicas
+into the environment `WORKER_NUM`.
+
+At first, there are 3 running workers and 1 pending worker due to the insufficient resource.
+
+```text
+elasticjob-torch-mnist-dxlrover-master           1/1     Running     0             57s
+torch-mnist-edljob-worker-0                      1/1     Running     0             47s
+torch-mnist-edljob-worker-1                      1/1     Running     0             47s
+torch-mnist-edljob-worker-2                      1/1     Running     0             47s
+torch-mnist-edljob-worker-3                      0/1     Pending     0             47s
+```
+
+After about 2 min, we can see the training starts in 3 running workers with the log.
+
+```text
+[2023-09-27 02:23:21,097] [INFO] [training.py:344:_rendezvous] [default] Rendezvous complete for workers. Result:
+  restart_count=0
+  master_addr=192.168.0.71
+  master_port=36725
+  group_rank=0
+  group_world_size=3
+  local_ranks=[0, 1]
+  role_ranks=[0, 1]
+  global_ranks=[0, 1]
+  role_world_sizes=[6, 6]
+  global_world_sizes=[6, 6]
+
+rank 1 is initialized local_rank = 1
+loss = 2.3198373317718506, step = 0
+loss = 2.2946105003356934, step = 0
+loss = 1.7543025016784668, step = 20
+```
+
+Then, we kill another job to release resource and the worker-3 will start.
+
+```text
+elasticjob-torch-mnist-dlrover-master         1/1     Running   0             5m39s
+torch-mnist-edljob-worker-0                   1/1     Running   0             5m34s
+torch-mnist-edljob-worker-1                   1/1     Running   0             5m34s
+torch-mnist-edljob-worker-2                   1/1     Running   0             5m34s
+torch-mnist-edljob-worker-3                   1/1     Running   0             5m34s
+```
+
+From the log of worker-0, we can see the training starts with `group_world_size=4`.
+
+```text
+[2023-09-27 02:25:43,362] [INFO] [training.py:344:_rendezvous] [default] Rendezvous complete for workers. Result:
+  restart_count=1
+  master_addr=192.168.0.71
+  master_port=58241
+  group_rank=0
+  group_world_size=4
+  local_ranks=[0, 1]
+  role_ranks=[0, 1]
+  global_ranks=[0, 1]
+  role_world_sizes=[8, 8]
+  global_world_sizes=[8, 8]
+
+rank 1 is initialized local_rank = 1rank 0 is initialized local_rank = 0
+
+loss = 2.2984073162078857, step = 0
+loss = 2.1407980918884277, step = 20
+loss = 1.1324385404586792, step = 40
+loss = 0.4783979058265686, step = 60
+loss = 0.5714012384414673, step = 80
+loss = 0.6941334009170532, step = 100
+```
+
+### Scale Down Nodes
+
+In the experiment, we use the [example](../../examples/pytorch/mnist/elastic_job.yaml)
+to submit an elastic training job. In the job, we set the `min_node=3` and
+`max_node=$WORKER_NUM` as the number of replicas. The ElasticJob will set the replicas
+into the environment `WORKER_NUM`.
+
+At first, there are 4 running workers.
+
+```text
+elasticjob-torch-mnist-dlrover-master            1/1     Running     0             2m43s
+torch-mnist-edljob-worker-0                      1/1     Running     0             2m38s
+torch-mnist-edljob-worker-1                      1/1     Running     0             2m38s
+torch-mnist-edljob-worker-2                      1/1     Running     0             2m38s
+torch-mnist-edljob-worker-3                      0/1     Running     0             2m38s
+```
+
+Then, we use the chaosblade to make worker-1 failed.
+
+```bash
+kubectl -n dlrover exec -it torch-mnist-edljob-worker-1 bash
+./chaosblade-1.7.2/blade create process kill --process dlrover-run --signal 1
+```
+
+```text
+elasticjob-torch-mnist-dlrover-master         1/1     Running   0             4m43s
+torch-mnist-edljob-worker-0                   1/1     Running   0             4m38s
+torch-mnist-edljob-worker-1                   0/1     Error     0             4m38s
+torch-mnist-edljob-worker-2                   1/1     Running   0             4m38s
+torch-mnist-edljob-worker-3                   1/1     Running   0             4m38s
+```
+
+From the log of worker-0, we can see the training restores the model and data sampler
+from the checkpoint and starts with `group_world_size=3`.
+
+```text
+[2023-09-27 03:18:00,815] [INFO] [training.py:344:_rendezvous] [default] Rendezvous complete for workers. Result:
+  restart_count=1
+  master_addr=192.168.0.66
+  master_port=39705
+  group_rank=0
+  group_world_size=3
+  local_ranks=[0, 1]
+  role_ranks=[0, 1]
+  global_ranks=[0, 1]
+  role_world_sizes=[6, 6]
+  global_world_sizes=[6, 6]
+
+[2023-09-27 03:18:05,957] [INFO] [sampler.py:153:load_state_dict] Load epoch = 0, completed num = 51200, num_samples = 1467
+[2023-09-27 03:18:05,958] [INFO] [sampler.py:153:load_state_dict] Load epoch = 0, completed num = 51200, num_samples = 1467
+loss = 0.2617453336715698, step = 0
+loss = 0.2548859417438507, step = 20
+```
+
+## Experiments of TensorFlow PS Distributed Job
+
+We conduct experiments with the TF distributed job using PS to
+test the fault-tolerance of worker and PS.
+
+### Fault-tolerance of Worker
+
+We can sumit a TensorFlow PS job using the [example](../../examples/tensorflow/criteo_deeprec/manual_job.yaml).
+The job will launch 1 chief, 1 worker and 1 PS.
+
+```bash
+kubectl -n dlrover apply -f examples/tensorflow/criteo_deeprec/manual_job.yaml
+```
+
+```text
+deepctr-manual-scale-edljob-chief-0              1/1     Running   0             88s
+deepctr-manual-scale-edljob-ps-0                 1/1     Running   0             88s
+deepctr-manual-scale-edljob-worker-0             1/1     Running   0             88s
+elasticjob-deepctr-manual-scale-dlrover-master   1/1     Running   0             99s
+```
+
+We use `kubectl` to kill a worker.
+
+```bash
+kubectl -n dlrover delete pod deepctr-manual-scale-edljob-worker-0
+```
+
+After the worker-0 is killed, the job relaunch the worker-1 to restore the failed node.
+
+```text
 NAME                                                 READY   STATUS    RESTARTS   AGE
-deepctr-auto-scaling-job-edljob-chief-0              1/1     Running   0          117s
-deepctr-auto-scaling-job-edljob-ps-0                 1/1     Running   0          117s
-deepctr-auto-scaling-job-edljob-worker-0             1/1     Running   0          65s
-deepctr-auto-scaling-job-edljob-worker-1             1/1     Running   0          65s
+deepctr-manual-scale-edljob-chief-0              1/1     Running   0             2m57s
+deepctr-manual-scale-edljob-ps-0                 1/1     Running   0             2m57s
+deepctr-manual-scale-edljob-worker-1             1/1     Running   0             60s
+elasticjob-deepctr-manual-scale-dlrover-master   1/1     Running   0             3m8s
 ```
-查看worker-0对应的pod的信息
-```shell
-Name:             deepctr-auto-scaling-job-edljob-worker-0
-Namespace:        dlrover
-Priority:         0
-Service Account:  default
-Node:             cn-beijing.192.168.0.13/192.168.0.13
-Start Time:       Mon, 20 Mar 2023 10:17:10 +0800
-Labels:           app=dlrover
-                  elasticjob-name=deepctr-auto-scaling-job
-                  rank-index=0
-                  replica-index=0
-                  replica-type=worker
-                  restart-count=0
-Annotations:      k8s.aliyun.com/pod-ips: 192.168.0.65
-                  kubernetes.io/psp: ack.privileged
-Status:           Running
-IP:               192.168.0.65
-IPs:
-  IP:           192.168.0.65
-Controlled By:  ElasticJob/deepctr-auto-scaling-job
-Containers:
-  main:
-    Container ID:  containerd://b1ad0d4b08efa07ea79bc5af0ea2eca67f2d9e91ad0023ed57e89a933b122ee4
-    Image:         registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:v11
-    Image ID:      registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec@sha256:d0159b59af3dfb9e9ab4384945ef2b3b2a9cf3250dbe0a1bc06c06421ef8c780
-    Port:          <none>
-    Host Port:     <none>
-    Command:
-      /bin/bash
-      -c
-      pip install pyhocon && cd /usr/local/lib/python3.8/dist-packages/dlrover/trainer/examples/deepfm_deeprec && python -m dlrover.trainer.entry.local_entry --platform=Kubernetes --conf=deepfm_deeprec_conf.TrainConf --enable_auto_scaling=True
-    State:          Running
-      Started:      Mon, 20 Mar 2023 10:17:11 +0800
-    Ready:          True
-    Restart Count:  0
-    Limits:
-      cpu:     500m
-      memory:  4Gi
-    Requests:
-      cpu:     500m
-      memory:  4Gi
-    Environment:
-      DLROVER_MASTER_ADDR:  elasticjob-deepctr-auto-scaling-job-dlrover-master:50001
-      WORKER_TYPE:          worker
-      WORKER_ID:            0
-      WORKER_RANK:          0
-      WORKER_NUM:           1
-      TF_CONFIG:            {"cluster":{"worker":["deepctr-auto-scaling-job-edljob-worker-0:3333"],"ps":["deepctr-auto-scaling-job-edljob-ps-0.dlrover.svc:2222"],"chief":["deepctr-auto-scaling-job-edljob-chief-0:3333"]},"task":{"type":"worker","index":0}}
-    Mounts:
-      /nas from pvc-nas (rw)
-      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-jtpfw (ro)
-Conditions:
-  Type              Status
-  Initialized       True 
-  Ready             True 
-  ContainersReady   True 
-  PodScheduled      True 
-Volumes:
-  pvc-nas:
-    Type:       PersistentVolumeClaim (a reference to a PersistentVolumeClaim in the same namespace)
-    ClaimName:  pvc-nas
-    ReadOnly:   false
-  kube-api-access-jtpfw:
-    Type:                    Projected (a volume that contains injected data from multiple sources)
-    TokenExpirationSeconds:  3607
-    ConfigMapName:           kube-root-ca.crt
-    ConfigMapOptional:       <nil>
-    DownwardAPI:             true
-QoS Class:                   Guaranteed
-Node-Selectors:              <none>
-Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
-                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
-Events:
-  Type    Reason          Age    From               Message
-  ----    ------          ----   ----               -------
-  Normal  Scheduled       2m14s  default-scheduler  Successfully assigned dlrover/deepctr-auto-scaling-job-edljob-worker-0 to cn-beijing.192.168.0.13
-  Normal  AllocIPSucceed  2m14s  terway-daemon      Alloc IP 192.168.0.65/24
-  Normal  Pulling         2m14s  kubelet            Pulling image "registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:v11"
-  Normal  Pulled          2m14s  kubelet            Successfully pulled image "registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:v11" in 282.030396ms (282.03863ms including waiting)
-  Normal  Created         2m13s  kubelet            Created container main
-  Normal  Started         2m13s  kubelet            Started container main
+
+After the job runs about 4min, the chief-0 fails with OOM due to the insufficient memory
+configuration. The job relaunches the chief-1 with more memory to restore it.
+
+```text
+deepctr-manual-scale-edljob-chief-0              0/1     OOMKilled   0             4m53s
+deepctr-manual-scale-edljob-chief-1              1/1     Running     0             64s
+deepctr-manual-scale-edljob-ps-0                 1/1     Running     0             4m53s
+deepctr-manual-scale-edljob-worker-1             1/1     Running     0             2m56s
 ```
-### 容错模拟
-为了模拟容错，需要主动删除worker-0对应的pod
-```shell
-kubectl delete pods -n dlrover deepctr-auto-scaling-job-edljob-worker-0
-pod "deepctr-auto-scaling-job-edljob-worker-0" deleted
+
+We can view the memory of chief-0 and chief-1 by
+
+```bash
+kubectl -n dlrover get pod deepctr-manual-scale-edljob-chief-0 -o yaml | grep memory
+
+>>>
+        memory: 4Gi
+        memory: 4Gi
 ```
-worker-0对应的新pod启动，完成准备工作后开始消费数据，进行训练。
-```shell
-deepctr-auto-scaling-job-edljob-chief-0              1/1     Running             0          4m24s
-deepctr-auto-scaling-job-edljob-ps-0                 1/1     Running             0          4m24s
-deepctr-auto-scaling-job-edljob-worker-1             1/1     Running             0          3m32s
-deepctr-auto-scaling-job-edljob-worker-2             0/1     ContainerCreating   0          2s
+
+```bash
+kubectl -n dlrover get pod deepctr-manual-scale-edljob-chief-1 -o yaml | grep memory
+
+>>>
+        memory: 8Gi
+        memory: 8Gi
 ```
-查看worker-0对应的pod的信息
-```shell
-Name:             deepctr-auto-scaling-job-edljob-worker-2
-Namespace:        dlrover
-Priority:         0
-Service Account:  default
-Node:             cn-beijing.192.168.0.13/192.168.0.13
-Start Time:       Mon, 20 Mar 2023 11:50:34 +0800
-Labels:           app=dlrover
-                  elasticjob-name=deepctr-auto-scaling-job
-                  rank-index=0
-                  replica-index=2
-                  replica-type=worker
-                  restart-count=0
-Annotations:      k8s.aliyun.com/pod-ips: 192.168.0.63
-                  kubernetes.io/psp: ack.privileged
-Status:           Running
-IP:               192.168.0.63
-IPs:
-  IP:           192.168.0.63
-Controlled By:  ElasticJob/deepctr-auto-scaling-job
-Containers:
-  main:
-    Container ID:  containerd://31b97063042b4f5569be958b79fe28c555ed2802a9fdd3fcbd79b6a1a779fdb0
-    Image:         registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:v11
-    Image ID:      registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec@sha256:d0159b59af3dfb9e9ab4384945ef2b3b2a9cf3250dbe0a1bc06c06421ef8c780
-    Port:          <none>
-    Host Port:     <none>
-    Command:
-      /bin/bash
-      -c
-      pip install pyhocon && cd /usr/local/lib/python3.8/dist-packages/dlrover/trainer/examples/deepfm_deeprec && python -m dlrover.trainer.entry.local_entry --platform=Kubernetes --conf=deepfm_deeprec_conf.TrainConf --enable_auto_scaling=True
-    State:          Running
-      Started:      Mon, 20 Mar 2023 11:50:36 +0800
-    Ready:          True
-    Restart Count:  0
-    Limits:
-      cpu:     500m
-      memory:  4Gi
-    Requests:
-      cpu:     500m
-      memory:  4Gi
-    Environment:
-      DLROVER_MASTER_ADDR:  elasticjob-deepctr-auto-scaling-job-dlrover-master:50001
-      WORKER_TYPE:          worker
-      WORKER_ID:            2
-      WORKER_RANK:          0
-      WORKER_NUM:           1
-      TF_CONFIG:            {"cluster":{"worker":["deepctr-auto-scaling-job-edljob-worker-0:3333"],"ps":["deepctr-auto-scaling-job-edljob-ps-0.dlrover.svc:2222"],"chief":["deepctr-auto-scaling-job-edljob-chief-0:3333"]},"task":{"type":"worker","index":0}}
-    Mounts:
-      /nas from pvc-nas (rw)
-      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-n4lq9 (ro)
-Conditions:
-  Type              Status
-  Initialized       True 
-  Ready             True 
-  ContainersReady   True 
-  PodScheduled      True 
-Volumes:
-  pvc-nas:
-    Type:       PersistentVolumeClaim (a reference to a PersistentVolumeClaim in the same namespace)
-    ClaimName:  pvc-nas
-    ReadOnly:   false
-  kube-api-access-n4lq9:
-    Type:                    Projected (a volume that contains injected data from multiple sources)
-    TokenExpirationSeconds:  3607
-    ConfigMapName:           kube-root-ca.crt
-    ConfigMapOptional:       <nil>
-    DownwardAPI:             true
-QoS Class:                   Guaranteed
-Node-Selectors:              <none>
-Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
-                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
-Events:
-  Type    Reason          Age   From               Message
-  ----    ------          ----  ----               -------
-  Normal  Scheduled       93s   default-scheduler  Successfully assigned dlrover/deepctr-auto-scaling-job-edljob-worker-2 to cn-beijing.192.168.0.13
-  Normal  AllocIPSucceed  92s   terway-daemon      Alloc IP 192.168.0.63/24
-  Normal  Pulling         92s   kubelet            Pulling image "registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:v11"
-  Normal  Pulled          92s   kubelet            Successfully pulled image "registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:v11" in 314.52769ms (314.541567ms including waiting)
-  Normal  Created         92s   kubelet            Created container main
-  Normal  Started         92s   kubelet            Started container main
-```
-worker-0 对应pod的日志
+
+We can view the log of chief-1 to check whether the training restores.
+
 ```shell
 [2023-03-20 11:51:10,774] [INFO][session_manager.py:511:_try_run_local_init_op] Running local_init_op.
 [2023-03-20 11:51:11,302] [INFO][session_manager.py:513:_try_run_local_init_op] Done running local_init_op.
-[2023-03-20 11:51:14,279] [INFO][global_step_hook.py:39:before_run] global_step: 10488361
-```
-## ps容错示例
-运行过程中删除一个ps-i对应的pod，之后dlrover master会重新拉起一个pod，ps-i对应的pod的名称会发生变化，但是新创建的pod的启动命令和被kill掉的pod的启动命令相同。在pod被kill到新的pod启动ps创建server之前，worker训练会中断。
-### 启动作业
-启动作业之后，可以查看当前运行的worker和ps。
-
-```shell
-NAME                                                 READY   STATUS    RESTARTS   AGE
-deepctr-auto-scaling-job-edljob-chief-0              1/1     Running   0          4m3s
-deepctr-auto-scaling-job-edljob-ps-0                 1/1     Running   0          4m3s
-deepctr-auto-scaling-job-edljob-ps-1                 1/1     Running   0          106s
-deepctr-auto-scaling-job-edljob-worker-0             1/1     Running   0          2m30s
-deepctr-auto-scaling-job-edljob-worker-1             1/1     Running   0          2m30s
-dlrover-controller-manager-7dccdf6c4d-jp4wb          2/2     Running   0          3h26m
-elasticjob-deepctr-auto-scaling-job-dlrover-master   1/1     Running   0          4m9s
-mysql-7d757854f-8l5k4                                1/1     Running   0          4d4h
-```
-### 容错模拟
-为了模拟容错，需要主动删除ps-0对应的pod，删除后worker的日志
-```shell
-[2023-03-20 15:04:34,350] [INFO][monitored_session.py:1336:run] An error was raised. This may be due to a preemption in a connected worker or parameter server. The current session will be closed and a new session will be created. This error may also occur due to a gRPC failure caused by high memory or network bandwidth usage in the parameter servers. If this error occurs repeatedly, try increasing the number of parameter servers assigned to the job. Error: From /job:ps/replica:0/task:1:
-RecvTensor expects a different device incarnation: 11288349594494262162 vs. 11542130100054943552. Your worker job ("/job:localhost/replica:0/task:0") was probably restarted. Check your worker job for the reason why it was restarted.
+[2023-03-20 11:51:14,279] [INFO][global_step_hook.py:39:before_run] global_step: 126
 ```
 
-当ps pod重新创建，ps server启动
-```shell
-NAME                                                 READY   STATUS    RESTARTS   AGE
-deepctr-auto-scaling-job-edljob-chief-0              1/1     Running   0          11m
-deepctr-auto-scaling-job-edljob-ps-1                 1/1     Running   0          8m55s
-deepctr-auto-scaling-job-edljob-ps-2                 1/1     Running   0          6m13s
-deepctr-auto-scaling-job-edljob-worker-0             1/1     Running   0          9m39s
-deepctr-auto-scaling-job-edljob-worker-1             1/1     Running   0          9m39s
-```
-worker会加载最近一次的checkpoint，并继续训练
-```shell
-[2023-03-20 15:04:34,100] [INFO][monitored_session.py:1336:run] An error was raised. This may be due to a preemption in a connected worker or parameter server. The current session will be closed and a new session will be created. This error may also occur due to a gRPC failure caused by high memory or network bandwidth usage in the parameter servers. If this error occurs repeatedly, try increasing the number of parameter servers assigned to the job. Error: 
-=====================
-Aborted: From /job:chief/replica:0/task:0:
-RecvTensor expects a different device incarnation: 11288349594494262162 vs. 11542130100054943552. Your worker job ("/job:localhost/replica:0/task:0") was probably restarted. Check your worker job for the reason why it was restarted.
-Additional GRPC error information:
-{"created":"@1679295874.088182934","description":"Error received from peer","file":"external/grpc/src/core/lib/surface/call.cc","file_line":1039,"grpc_message":"RecvTensor expects a different device incarnation: 11288349594494262162 vs. 11542130100054943552. Your worker job ("/job:localhost/replica:0/task:0") was probably restarted. Check your worker job for the reason why it was restarted.","grpc_status":10}
-	 [[node global_step (defined at /local/lib/python3.8/dist-packages/tensorflow_core/python/framework/ops.py:1748) ]]
-Aborted: From /job:ps/replica:0/task:0:
-Session handle is not found: f8368e3b7d417955. Possibly this worker ("/job:localhost/replica:0/task:0") just restarted.
-=====================
+### Fault-tolerance of PS
 
+We kill the ps-0 by `kubectl -n dlrover delete pod deepctr-manual-scale-edljob-ps-0`.
+The job relaunches the ps-1 to restore the killed ps-0>
 
-Original stack trace for 'global_step':
-  File "/lib/python3.8/threading.py", line 890, in _bootstrap
-    self._bootstrap_inner()
-  File "/lib/python3.8/threading.py", line 932, in _bootstrap_inner
-    self.run()
-  File "/lib/python3.8/threading.py", line 870, in run
-    self._target(*self._args, **self._kwargs)
-  File "/local/lib/python3.8/dist-packages/dlrover/trainer/worker/tf_kubernetes_worker.py", line 56, in run_worker
-    self.estimator.train_and_evaluate()
-  File "/local/lib/python3.8/dist-packages/dlrover/trainer/tensorflow/executor/estimator_executor.py", line 273, in train_and_evaluate
-    tf.estimator.train_and_evaluate(
-  File "/local/lib/python3.8/dist-packages/tensorflow_estimator/python/estimator/training.py", line 473, in train_and_evaluate
-    return executor.run()
-  File "/local/lib/python3.8/dist-packages/tensorflow_estimator/python/estimator/training.py", line 640, in run
-    getattr(self, task_to_run)()
-  File "/local/lib/python3.8/dist-packages/tensorflow_estimator/python/estimator/training.py", line 645, in run_chief
-    return self._start_distributed_training()
-  File "/local/lib/python3.8/dist-packages/tensorflow_estimator/python/estimator/training.py", line 790, in _start_distributed_training
-    self._estimator.train(
-  File "/local/lib/python3.8/dist-packages/tensorflow_estimator/python/estimator/estimator.py", line 370, in train
-    loss = self._train_model(input_fn, hooks, saving_listeners)
-  File "/local/lib/python3.8/dist-packages/tensorflow_estimator/python/estimator/estimator.py", line 1166, in _train_model
-    return self._train_model_default(input_fn, hooks, saving_listeners)
-  File "/local/lib/python3.8/dist-packages/tensorflow_estimator/python/estimator/estimator.py", line 1184, in _train_model_default
-    global_step_tensor = self._create_and_assert_global_step(g)
-  File "/local/lib/python3.8/dist-packages/tensorflow_estimator/python/estimator/estimator.py", line 1082, in _create_and_assert_global_step
-    step = self._create_global_step(graph)
-  File "/local/lib/python3.8/dist-packages/tensorflow_estimator/python/estimator/estimator.py", line 1071, in _create_global_step
-    return training.create_global_step(graph)
-  File "/local/lib/python3.8/dist-packages/tensorflow_core/python/training/training_util.py", line 137, in create_global_step
-    return variable_scope.get_variable(
-  File "/local/lib/python3.8/dist-packages/tensorflow_core/python/ops/variable_scope.py", line 1951, in get_variable
-    return get_variable_scope().get_variable(
-  File "/local/lib/python3.8/dist-packages/tensorflow_core/python/ops/variable_scope.py", line 1509, in get_variable
-    return var_store.get_variable(
-  File "/local/lib/python3.8/dist-packages/tensorflow_core/python/ops/variable_scope.py", line 786, in get_variable
-    return _true_getter(
-  File "/local/lib/python3.8/dist-packages/tensorflow_core/python/ops/variable_scope.py", line 731, in _true_getter
-    return self._get_single_variable(
-  File "/local/lib/python3.8/dist-packages/tensorflow_core/python/ops/variable_scope.py", line 1199, in _get_single_variable
-    v = variables.VariableV1(
-  File "/local/lib/python3.8/dist-packages/tensorflow_core/python/ops/variables.py", line 460, in __call__
-    return cls._variable_v1_call(*args, **kwargs)
-  File "/local/lib/python3.8/dist-packages/tensorflow_core/python/ops/variables.py", line 401, in _variable_v1_call
-    return previous_getter(
-  File "/local/lib/python3.8/dist-packages/tensorflow_core/python/ops/variables.py", line 394, in <lambda>
-    previous_getter = lambda **kwargs: default_variable_creator(None, **kwargs)
-  File "/local/lib/python3.8/dist-packages/tensorflow_core/python/ops/variable_scope.py", line 3389, in default_variable_creator
-    return variables.RefVariable(
-  File "/local/lib/python3.8/dist-packages/tensorflow_core/python/ops/variables.py", line 464, in __call__
-    return super(VariableMetaclass, cls).__call__(*args, **kwargs)
-  File "/local/lib/python3.8/dist-packages/tensorflow_core/python/ops/variables.py", line 1883, in __init__
-    self._init_from_args(
-  File "/local/lib/python3.8/dist-packages/tensorflow_core/python/ops/variables.py", line 2030, in _init_from_args
-    self._variable = state_ops.variable_op_v2(
-  File "/local/lib/python3.8/dist-packages/tensorflow_core/python/ops/state_ops.py", line 76, in variable_op_v2
-    return gen_state_ops.variable_v2(
-  File "/local/lib/python3.8/dist-packages/tensorflow_core/python/ops/gen_state_ops.py", line 1619, in variable_v2
-    _, _, _op = _op_def_lib._apply_op_helper(
-  File "/local/lib/python3.8/dist-packages/tensorflow_core/python/framework/op_def_library.py", line 792, in _apply_op_helper
-    op = g.create_op(op_type_name, inputs, dtypes=None, name=scope,
-  File "/local/lib/python3.8/dist-packages/tensorflow_core/python/util/deprecation.py", line 507, in new_func
-    return func(*args, **kwargs)
-  File "/local/lib/python3.8/dist-packages/tensorflow_core/python/framework/ops.py", line 3360, in create_op
-    return self._create_op_internal(op_type, inputs, dtypes, input_types, name,
-  File "/local/lib/python3.8/dist-packages/tensorflow_core/python/framework/ops.py", line 3422, in _create_op_internal
-    ret = Operation(
-  File "/local/lib/python3.8/dist-packages/tensorflow_core/python/framework/ops.py", line 1748, in __init__
-    self._traceback = tf_stack.extract_stack()
-
-[2023-03-20 15:04:34,499] [INFO][monitored_session.py:256:finalize] Graph was finalized.
-[2023-03-20 15:04:34,511] [INFO][session_manager.py:220:_restore_checkpoint] run with loading checkpoint
-[2023-03-20 15:04:34,724] [INFO][saver.py:1531:restore] Restoring parameters from /nas/model.ckpt-10701903
+```text
+deepctr-manual-scale-edljob-chief-0              0/1     OOMKilled   0             10m
+deepctr-manual-scale-edljob-chief-1              1/1     Running     0             7m1s
+deepctr-manual-scale-edljob-ps-1                 1/1     Running     0             109s
+deepctr-manual-scale-edljob-worker-1             0/1     OOMKilled   0             8m53s
+deepctr-manual-scale-edljob-worker-2             1/1     Running     0             4m13s
+elasticjob-deepctr-manual-scale-dlrover-master   1/1     Running     0             11m
 ```
 
- 
+From the log of chief, the training job restore the model from the latest checkpoint
+and contiune training the model.
+
+```text
+[2023-09-26 19:24:00,861] [INFO][saver.py:1531:restore] Restoring parameters from /nas/deepctr/model.ckpt-126
+[2023-09-26 19:24:03,473] [INFO][session_manager.py:511:_try_run_local_init_op] Running local_init_op.
+[2023-09-26 19:24:03,580] [INFO] [resource.py:164:report_resource] Report Resource CPU : 0.98, Memory 7146, GPU []
+[2023-09-26 19:24:03,670] [INFO][session_manager.py:513:_try_run_local_init_op] Done running local_init_op.
+[2023-09-26 19:24:07,665] [INFO][basic_session_run_hooks.py:627:_save] Saving checkpoints for 126 into /nas/deepctr/model.ckpt.
+```

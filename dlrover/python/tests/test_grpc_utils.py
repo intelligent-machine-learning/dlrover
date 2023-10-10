@@ -14,7 +14,9 @@
 import unittest
 
 from dlrover.python.common.grpc import (
+    Message,
     addr_connected,
+    deserialize_message,
     find_free_port,
     find_free_port_in_range,
 )
@@ -30,6 +32,14 @@ class GRPCUtilTest(unittest.TestCase):
     def test_addr_connected(self):
         connected = addr_connected("localhost:80")
         self.assertFalse(connected)
+
+    def test_deserialize_message(self):
+        message = Message()
+        message_bytes = message.serialize()
+        de_message = deserialize_message(message_bytes)
+        self.assertTrue(isinstance(de_message, Message))
+        de_message = deserialize_message(b"")
+        self.assertIsNone(de_message)
 
 
 if __name__ == "__main__":

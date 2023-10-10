@@ -35,7 +35,7 @@ mkdir -p ${go env GOPATH}/src/github.com/intelligent-machine-learning
 ln -sf ${GIT_TRAINING} ${go env GOPATH}/src/github.com/intelligent-machine-learning/dlrover
 ```
 
-- GIT_TRAINING should be the location where you checked out https://github.com/intelligent-machine-learning/dlrover
+- GIT_TRAINING should be the location where you checked out <https://github.com/intelligent-machine-learning/dlrover>
 
 Install dependencies
 
@@ -67,9 +67,11 @@ It is highly recommended to have more than one GPU resources in your workspace.
 
 However, there is still a workaround to divide your single GPU resource into multiple ones.
 
-For this, enable [shared-access-to-gpus with CUDA Time-Slicing](https://github.com/NVIDIA/k8s-device-plugin#shared-access-to-gpus-with-cuda-time-slicing) to get more GPU resources.
+For this, enable [shared-access-to-gpus with CUDA Time-Slicing](https://github.com/NVIDIA/k8s-device-plugin#shared-access-to-gpus-with-cuda-time-slicing)
+to get more GPU resources.
 
-Check the doc and modify your ``nvidia-k8s-device-plugin`` or simply update the plugin by ``helm`` with the command ([See more details about getting GPU resources](https://github.com/ChenhuiHu/DLRover-Supplementary-Description-/blob/main/Obtain%20more%20GPU%20resources%20on%20a%20single%20machine.md))
+Check the doc and modify your ``nvidia-k8s-device-plugin`` or simply update the plugin by ``helm`` with the command
+([See more details about getting GPU resources](https://github.com/ChenhuiHu/DLRover-Supplementary-Description-/blob/main/Obtain%20more%20GPU%20resources%20on%20a%20single%20machine.md))
 
 ```bash
 $ helm upgrade -i nvdp nvdp/nvidia-device-plugin \
@@ -149,7 +151,8 @@ minikube start --vm-driver=docker --cpus 6 --memory 6144
 
 # If you wish to run minikube with GPUs, recommended commands are as follows.(root privilege requried)
 
-minikube start --driver=none --container-runtime='containerd' --apiserver-ips 127.0.0.1 --apiserver-name localhost --cpus 6 --memory 6144
+minikube start --driver=none --container-runtime='containerd' --apiserver-ips 127.0.0.1 \
+--apiserver-name localhost --cpus 6 --memory 6144
 ```
 
 ### Configure KUBECONFIG and KUBEFLOW_NAMESPACE
@@ -162,7 +165,8 @@ export KUBECONFIG=$(echo ~/.kube/config)
 export KUBEFLOW_NAMESPACE=$(your_namespace)
 ```
 
-- KUBEFLOW_NAMESPACE is used when deployed on Kubernetes, we use this variable to create other resources (e.g. the resource lock) internal in the same namespace. It is optional, use `default` namespace if not set.
+- KUBEFLOW_NAMESPACE is used when deployed on Kubernetes, we use this variable to create other
+resources (e.g. the resource lock) internal in the same namespace. It is optional, use `default` namespace if not set.
 
 ### 2. Run ElasticJob Controller
 
@@ -189,12 +193,12 @@ make deploy IMG=easydl/elasticjob-controller:master
 kubectl apply -f dlrover/go/operator/config/manifests/bases/default-role.yaml
 ```
 
-### 4. Build the Image 
+### 4. Build the Image
 
 **Build the master image with codes.**
 
 ```bash
-docker build -t easydl/dlrover-master:test -f docker/Dockerfile .
+docker build -t easydl/dlrover-master:test -f docker/master.dockerfile .
 ```
 
 **Build the training image of PyTorch models.**
@@ -203,15 +207,15 @@ docker build -t easydl/dlrover-master:test -f docker/Dockerfile .
 docker build -t easydl/dlrover-train:test -f docker/pytorch/mnist.dockerfile .
 ```
 
-### 5. Submit an ElasticJob to test your images.
+### 5. Submit an ElasticJob to test your images
 
 We can set the training image of the line 18 and the master image
-of line 42 in the debug job `dlrover/examples/torch_debug_job.yaml`.
+of line 42 in the debug job `examples/pytorch/mnist/elastic_debug_job.yaml`.
 Then, we can submit a job with the above images.
 
 ```bash
 eval $(minikube docker-env)
-kubectl -n dlrover apply -f dlrover/examples/torch_debug_job.yaml
+kubectl -n dlrover apply -f examples/pytorch/mnist/elastic_debug_job.yaml
 ```
 
 Check traning nodes.
@@ -220,7 +224,7 @@ Check traning nodes.
 kubectl -n dlrover get pods
 ```
 
-```
+```text
 NAME                            READY   STATUS    RESTARTS   AGE
 elasticjob-torch-mnist-master   1/1     Running   0          2m47s
 torch-mnist-edljob-chief-0      1/1     Running   0          2m42s
@@ -234,4 +238,6 @@ Change pip version and docker image tag when creating a new release.
 
 ## Go version
 
-On ubuntu the default go package appears to be gccgo-go which has problems see [issue](https://github.com/golang/go/issues/15429) golang-go package is also really old so install from golang tarballs instead.
+On ubuntu the default go package appears to be gccgo-go which has problems see
+[issue](https://github.com/golang/go/issues/15429) golang-go package is
+also really old so install from golang tarballs instead.

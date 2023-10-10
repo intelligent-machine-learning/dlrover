@@ -1,6 +1,7 @@
 # DLRover: 云上自动扩缩容 DeepRec 分布式训练作业
 
 ## 背景
+
 如今，深度学习已广泛应用在搜索、广告、推荐等业务中，这类业务场景普遍有两个特点：
 1）训练样本量大，需要分布式训练提升训练速度；
 2）模型稀疏，即模型结构中离散特征计算逻辑占比较高。
@@ -73,7 +74,7 @@ Chief 资源预估：取历史作业中所有 worker 的 CPU 消耗和内存消�
 
 启动阶段的特殊情况：
 
-1. 没有历史相关作业，比如新用户使用新数据集提交的训练作业。此时，DLRover 
+1. 没有历史相关作业，比如新用户使用新数据集提交的训练作业。此时，DLRover
 采用默认资源配置来启动 PS 和 chief。比如 PSNUM=1，PSCPU=8，PSMEM=8G，chiefCPU=8，chiefMEM=8G。
 2. 初始资源导致节点失败，最常见的是，内存不足导致 OOM。当节点发生 OOM 时，
 DLRover 通过容错机制会自动增加节点的内存来重启节点，直到训练正常运行。
@@ -91,7 +92,7 @@ PS 总的 CPU 使用量（total_PSUsedCPU）和内存使用量 （total_PSUsedMe
 这样我们根据 Job 配置的总 CPU 量 limitCPU 可以计算 worker 的数量`workerNUM = limitCPU/trianingCPU`。
 
 - worker CPU 和内存预估：因为 worker 的模型完全相同，所以 CPU 和 内存消耗也是相似的，
-新的 `workerCPU = chiefUsedCPU * factor`,` workerMem = chiefUsedMem * factor`，
+新的 `workerCPU = chiefUsedCPU * factor`,`workerMem = chiefUsedMem * factor`，
 factor 为冗余因子，比如1.2。
 
 - PS 数量预估：异步训练中，PS 的 CPU 负载与 worker 数量成正比，
@@ -100,7 +101,7 @@ factor 为冗余因子，比如1.2。
 - PS 内存预估：PS 存储模型参数，内存使用量并不会随 worker 的增加而增加。
 如果模型包含稀疏 embedding，PS 的内存会随着训练的进行而增加，为此 PS 的内存预估分为两种情况：
     1. PS 的内存在训练开始后保持稳定，PSMEM= (total_PSUsedMem / PSNUM)* factor，factor 为冗余因子，一般要大于1。
-    2.  PS 的内存持续增长，那么 DLRover Brain 会计算 PS 内存随迭代步数的增长率 memRate，
+    2. PS 的内存持续增长，那么 DLRover Brain 会计算 PS 内存随迭代步数的增长率 memRate，
 然后计算总的 totalPSMEM = memRate * totalStep，则每个 PS 的内存 PSMEM = totalPSMEM / PSNUM。
 
 #### 动态调优阶段
@@ -172,7 +173,6 @@ master 会根据样本索引在数据集切分为很多小的 shard，放入一�
 向 master 汇报 shard 已完成，master会将shard 从 DOING 队列移除。如果 worker 挂了，
 master 会将对应的 shard 会重新放入 TODO 队列。
 
-
 <div align="center">
 <img src="../figures/dynamic-data-sharding.jpg" alt="Editor" width="600">
 </div>
@@ -191,7 +191,6 @@ master 会将对应的 shard 会重新放入 TODO 队列。
 为解决上述问题，DeepRec 新设计了一套支持动态 Embedding 语义的 EmbeddingVariable，
 在特征无损训练的同时以最经济的方式使用内存资源。具体可以参考[DeepRec](https://github.com/alibaba/DeepRec)。
 
-
 #### 基于 checkpoint 的 PS 弹性扩缩容
 
 PS 架构中，模型的权重是存储在 PS 内存的。如果 PS 变化，模型训练需要将权重重新分配到 PS 上。
@@ -206,12 +205,11 @@ worker 在每一个step之后会运行相关 hook，在 hook 中会向 DLRover m
 worker-0 会根据新的 PS 集合来构造计算图，更新 session，重新组网，
 然后通知新的 PS 加载 checkpoint。最后 worker-0 通知所有的 worker 连接新的 PS 开始训练。
 
-
 ## 阿里云 ACK 上验证 DLRover 自动扩缩容
 
 为了验证自动扩缩容的可行性，我们在阿里云的 ACK 上创建了一个小的 Kubernetes 集群。
 然后我们针对 CRITEO 广告点击预测数据集开发了一个 DeepFM 模型，
-将[训练作业](https://github.com/intelligent-machine-learning/dlrover/blob/master/dlrover/examples/deepctr_auto_scale_job.yaml)
+将[训练作业](../../examples/tensorflow/criteo_deeprec/autoscale_job.yaml)
 的 CPU 限制配置为 15 核。在作业起始阶段，DLRover 给作业启动了一个 PS 和一个 worker，如下所示：
 
 ```shell
@@ -220,6 +218,7 @@ dlrover-auto-scale-edljob-chief-0             1/1     Running   0          32s
 dlrover-auto-scale-edljob-ps-0                1/1     Running   0          32s
 elasticjob-torch-mnist-dlrover-master         1/1     Running   0          39s
 ```
+
 此时的训练速度约为 30 step/s。大约 3 min 后，DLRover 自动给作业新增了 3 个 worker，速度提升到 100 steps/s
 如下所示：
 
@@ -238,4 +237,3 @@ elasticjob-torch-mnist-dlrover-master         1/1     Running   0          6m24s
 DLRover 支持了 PS 异步训练的自动扩缩容来提升训练速度。下一步我们将针对 DeepRec
 的同步训练提供自动扩缩容功能。除了搜推广场景，DLRover 也将探索 foundation model
 的分布式训练的自动扩缩容，以提升预训练大模型的训练效率和降低训练成本。
-

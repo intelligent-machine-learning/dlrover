@@ -36,8 +36,6 @@ class AmpOptimizationTest(unittest.TestCase):
         amp_native_opt.apply_wrapper(model_context1, "amp_native", wrapper_config=config)
         model_context1.model.cuda()
 
-        config.pop("counter")
-
         AutoAccelerateContext.counter += 1
         model_context2 = create_model_context(data_size=4, batch_size=1)
         amp_native_opt2 = AmpNativeOptimization()

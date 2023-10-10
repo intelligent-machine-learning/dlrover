@@ -73,6 +73,12 @@ def new_job_auto_scaler(
 class JobAutoScaler(metaclass=ABCMeta):
     """JobAutoScaler automatically scale up/down nodes of job."""
 
+    def __init__(self):
+        self._suggested_stop = False
+
+    def suggested_stop(self):
+        return self._suggested_stop
+
     @abstractmethod
     def start_auto_scaling(self):
         """Start auto-scaling nodes of a job"""
@@ -102,6 +108,7 @@ class PSTrainingAutoScaler(JobAutoScaler):
         worker_manager: WorkerManager,
         node_scaler: Scaler,
     ) -> None:
+        super().__init__()
         self._job_resource = job_resource
         self._job_optimizer = job_optimizer
         self._speed_monitor = speed_monitor
@@ -228,20 +235,16 @@ class PSTrainingAutoScaler(JobAutoScaler):
         if len(workers) > 0:
             plan = self._worker_manager.migrate_workers(workers)
             scale_plan.merge(plan)
-        logger.info("Migration plan = %s", scale_plan.toJSON())
+        logger.info("Migration plan = %s", scale_plan.to_json())
         return scale_plan
 
     def _reduce_timeout_pending_node_resource(self):
         """Cut down CPU cores of pending pod at the job starts"""
-        if self._autoscaling_started:
-            return
         scale_plan = ScalePlan()
-        if _dlrover_context.auto_ps_enabled:
-            plan = self._ps_manager.reduce_pending_node_resource()
-            scale_plan.merge(plan)
-        if _dlrover_context.auto_worker_enabled:
-            plan = self._worker_manager.reduce_pending_node_resource()
-            scale_plan.merge(plan)
+        plan = self._ps_manager.reduce_pending_node_resource()
+        scale_plan.merge(plan)
+        plan = self._worker_manager.reduce_pending_node_resource()
+        scale_plan.merge(plan)
         if not scale_plan.empty():
             ps_addrs = self._ps_manager.get_ps_addrs()
             scale_plan.ps_addrs.extend(ps_addrs)
@@ -260,6 +263,7 @@ class AllreduceTrainingAutoScaler(JobAutoScaler):
         worker_manager: WorkerManager,
         node_scaler: Scaler,
     ) -> None:
+        super().__init__()
         self._job_resource = job_resource
         self._job_optimizer = job_optimizer
         self._speed_monitor = speed_monitor

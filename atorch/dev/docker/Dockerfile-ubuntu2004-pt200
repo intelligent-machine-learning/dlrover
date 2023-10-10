@@ -1,0 +1,88 @@
+##############################################################################
+# base image: nvidia/cuda:11.8.0-cudnn8-devel-ubuntu20.04
+# default versions
+# PYTHON_VERSION=3.8
+# TORCH_VERSION=2.0.1
+# CUDA_VERSON=11.8
+##############################################################################
+FROM easydl/pytorch_gpu_base:2.0.1-cuda11.8-cudnn8-devel as base
+
+ARG PYTHON_VERSION=3.8
+
+USER root
+WORKDIR /root
+
+ENV BASH_ENV /root/.bashrc
+ENV SHELL /bin/bash
+
+# Already exist in base
+# COPY dev/docker/pip.conf ~/.pip/pip.conf
+
+# RUN sed -i s@/archive.ubuntu.com/@/mirrors.aliyun.com/@g /etc/apt/sources.list
+# RUN sed -i s@/security.ubuntu.com/@/mirrors.aliyun.com/@g /etc/apt/sources.list
+# RUN apt-get clean
+
+##############################################################################
+# conda and other utils
+##############################################################################
+FROM base as util-base
+ARG PYTHON_VERSION=3.8
+
+RUN cd ~/ && \
+    apt-get update && apt-get install -y wget git vim
+    # wget https://mirrors.tuna.tsinghua.edu.cn/anaconda/miniconda/Miniconda3-latest-Linux-x86_64.sh --no-check-certificate -O miniconda-install.sh && \
+    # chmod +x miniconda-install.sh
+
+##############################################################################
+# rdma, cuda compat
+##############################################################################
+FROM util-base as torch-base
+
+COPY dev/docker/handle_driver_compat.sh ./
+
+RUN echo "/usr/local/cuda/lib" >> /etc/ld.so.conf.d/nvidia.conf && \
+    echo "/usr/local/cuda/lib64" >> /etc/ld.so.conf.d/nvidia.conf && \
+    echo "/usr/lib64" >> /etc/ld.so.conf.d/nvidia.conf && \
+    echo "ldconfig > /dev/null 2>&1 " >> /etc/bashrc && \
+    apt-get install -y build-essential libnl-3-dev libgl1-mesa-dev git && \
+    apt-get clean all && \
+    cat handle_driver_compat.sh >> /etc/bashrc && \
+    rm -rf handle_driver_compat.sh
+
+# ibutils
+RUN apt-get install -y ibverbs-utils rdma-core && \
+    apt-get install -y pciutils net-tools opensm
+
+##############################################################################
+# apex, flash-attention, fastmoe
+# Apex: 623315a5d1b47b0addf00bbfd15017e5605750bc
+# aistudio
+##############################################################################
+FROM torch-base as atorch-fa-base
+ENV USE_NCCL=1
+ARG TORCH_CUDA_ARCH_LIST="6.0 7.0 7.5 8.0 8.6+PTX"
+# RUN yum install libnccl-2.16.2-1+cuda11.0 libnccl-devel-2.16.2-1+cuda11.0 -y && \
+RUN pip install https://dlrover.oss-cn-beijing.aliyuncs.com/atorch/libs/fastmoe.tar.gz
+RUN pip install dm-tree setuptools packaging && \
+    wget -O apex.zip https://dlrover.oss-cn-beijing.aliyuncs.com/atorch/libs/apex-master.zip && \
+    apt-get install -y unzip && \
+    unzip apex.zip -d ./ && \
+    cd ./apex-master && \
+    MAKEFLAGS="-j$(nproc)" MAX_JOBS=16 \
+    pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./ && \
+    cd .. && rm -rf apex*
+# RUN pip install https://dlrover.oss-cn-beijing.aliyuncs.com/atorch/libs/flash_attn-2.0.4%2Bglm.mask-cp38-cp38-linux_x86_64.whl -i https://pypi.antfin-inc.com/simple
+RUN pip install https://dlrover.oss-cn-beijing.aliyuncs.com/atorch/libs/flash_attn-0.2.6.post1-cp38-cp38-linux_x86_64.whl -i https://pypi.antfin-inc.com/simple
+RUN wget -O catapult.tar.gz https://dlrover.oss-cn-beijing.aliyuncs.com/atorch/libs/catapult.tar.gz && \
+    mkdir -p /home/admin/profile/ && \
+    tar -zxf catapult.tar.gz -C /home/admin/profile/ && \
+    rm -f catapult.tar.gz
+
+##############################################################################
+# atorch install
+##############################################################################
+FROM atorch-fa-base as atorch-base
+COPY atorch/requirements.txt ./
+RUN pip install -r requirements.txt -i https://pypi.antfin-inc.com/simple && \
+    pip install pre-commit grpcio grpcio-tools  -i https://pypi.antfin-inc.com/simple && \
+    rm -f ./requirements.txt

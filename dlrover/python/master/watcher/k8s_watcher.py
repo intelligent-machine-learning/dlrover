@@ -28,7 +28,11 @@ from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
 from dlrover.python.master.resource.optimizer import ResourcePlan
 from dlrover.python.master.watcher.base_watcher import NodeEvent, NodeWatcher
-from dlrover.python.scheduler.kubernetes import k8sClient
+from dlrover.python.scheduler.kubernetes import (
+    convert_cpu_to_decimal,
+    convert_memory_to_mb,
+    k8sClient,
+)
 
 
 def _get_start_timestamp(pod_status_obj):
@@ -118,12 +122,8 @@ def _convert_pod_event_to_node_event(event):
 
 
 def _parse_container_resource(container):
-    cpu = NodeResource.convert_cpu_to_decimal(
-        container.resources.requests["cpu"]
-    )
-    memory = NodeResource.convert_memory_to_mb(
-        container.resources.requests["memory"]
-    )
+    cpu = convert_cpu_to_decimal(container.resources.requests["cpu"])
+    memory = convert_memory_to_mb(container.resources.requests["memory"])
     return NodeResource(cpu, memory)
 
 
@@ -247,10 +247,10 @@ class K8sScalePlanWatcher:
         for replica, spec in (
             scaler_crd["spec"].get("replicaResourceSpecs", {}).items()
         ):
-            cpu = NodeResource.convert_cpu_to_decimal(
+            cpu = convert_cpu_to_decimal(
                 spec.get("resource", {}).get("cpu", "0")
             )
-            memory = NodeResource.convert_memory_to_mb(
+            memory = convert_memory_to_mb(
                 spec.get("resource", {}).get("memory", "0Mi")
             )
             resource_plan.node_group_resources[replica] = NodeGroupResource(
@@ -258,16 +258,16 @@ class K8sScalePlanWatcher:
             )
 
         for pod in scaler_crd["spec"].get("migratePods", []):
-            cpu = NodeResource.convert_cpu_to_decimal(
+            cpu = convert_cpu_to_decimal(
                 pod["resource"].get("cpu", "0"),
             )
-            memory = NodeResource.convert_memory_to_mb(
+            memory = convert_memory_to_mb(
                 pod["resource"].get("memory", "0Mi"),
             )
             resource_plan.node_resources[pod["name"]] = NodeResource(
                 cpu, memory
             )
-        logger.info("Get a manual resource plan %s", resource_plan.toJSON())
+        logger.info("Get a manual resource plan %s", resource_plan.to_json())
         return resource_plan
 
     def _set_owner_to_scaleplan(self, scale_crd):

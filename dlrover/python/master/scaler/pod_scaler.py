@@ -33,6 +33,8 @@ from dlrover.python.common.node import Node, NodeResource
 from dlrover.python.master.scaler.base_scaler import ScalePlan, Scaler
 from dlrover.python.scheduler.kubernetes import (
     NODE_SERVICE_PORTS,
+    convert_cpu_to_decimal,
+    convert_memory_to_mb,
     get_pod_name,
     k8sClient,
 )
@@ -82,8 +84,10 @@ class PodScaler(Scaler):
         self._create_node_queue: List[Node] = []
         self._lock = threading.Lock()
         self._plan = ScalePlan()
+        self._ps_addrs: List[str] = []
         self._pod_stats: Dict[str, int] = {}
         self._init_pod_config_by_job()
+        self._job_uid = ""
         threading.Thread(
             target=self._periodic_create_pod, name="pod-creater", daemon=True
         ).start()
@@ -95,6 +99,7 @@ class PodScaler(Scaler):
         self._distribution_strategy = self._job["spec"].get(
             "distributionStrategy", None
         )
+        self._job_uid = self._job["metadata"]["uid"]
         worker_spec = self._job["spec"]["replicaSpecs"][NodeType.WORKER]
         self._config_worker_num = worker_spec.get("replicas", 0)
         if "replicaSpecs" in self._job["spec"]:
@@ -124,13 +129,14 @@ class PodScaler(Scaler):
 
     def scale(self, plan: ScalePlan):
         """Scale in/out Pods by a ScalePlan."""
-        if plan.empty():
-            return
-        self._plan = plan
-        job_pods = self._list_job_pods()
-        logger.info("Scale the job by plan %s", plan.toJSON())
-
         with self._lock:
+            if plan.empty():
+                return
+            self._plan = plan
+            job_pods = self._list_job_pods()
+            logger.info("Scale the job by plan %s", plan.to_json())
+            if plan.ps_addrs:
+                self._ps_addrs = plan.ps_addrs
             for type, group_resource in plan.node_group_resources.items():
                 type_pods = job_pods.get(type, [])
                 max_pod_id = self._get_max_pod_id(type_pods)
@@ -209,6 +215,11 @@ class PodScaler(Scaler):
                 status=pod.status.phase,
                 config_resource=pod_resource,
             )
+            if node.type != NodeType.WORKER and node.status not in [
+                NodeStatus.PENDING,
+                NodeStatus.RUNNING,
+            ]:
+                continue
             job_pods[pod_type].append(node)
         return job_pods
 
@@ -226,13 +237,9 @@ class PodScaler(Scaler):
 
     def _get_pod_resource(self, pod):
         resources = pod.spec.containers[0].resources
-        cpu = NodeResource.convert_cpu_to_decimal(
-            resources.requests.get("cpu", "0")
-        )
+        cpu = convert_cpu_to_decimal(resources.requests.get("cpu", "0"))
         if "memory" in resources.requests:
-            memory = NodeResource.convert_memory_to_mb(
-                resources.requests["memory"]
-            )
+            memory = convert_memory_to_mb(resources.requests["memory"])
         else:
             memory = 0
         return NodeResource(cpu, memory)
@@ -325,7 +332,7 @@ class PodScaler(Scaler):
                         pod = self._create_pod(
                             node,
                             self._pod_stats,
-                            self._plan.ps_addrs,
+                            self._ps_addrs,
                         )
                         succeed = self._k8s_client.create_pod(pod)
                     if not succeed:
@@ -357,6 +364,8 @@ class PodScaler(Scaler):
 
         env.append(V1EnvVar(name=NodeEnv.WORKER_TYPE, value=node.type))
         env.append(V1EnvVar(name=NodeEnv.WORKER_ID, value=str(node.id)))
+        env.append(V1EnvVar(name=NodeEnv.JOB_NAME, value=self._job_name))
+        env.append(V1EnvVar(name=NodeEnv.JOB_UID, value=self._job_uid))
 
         # A deadlock can happen when pthread_atfork handler is running.
         # For detail https://chromium.googlesource.com/external/github.com/grpc/grpc/+/refs/tags/v1.19.0-pre1/doc/fork_support.md  # noqa: E501
@@ -597,6 +606,7 @@ class PodScaler(Scaler):
         main_container.env = env
         main_container.lifecycle = lifecycle
         pod.spec.priority_class_name = priority
+        pod.spec.restart_policy = "Never"
         pod.spec.termination_grace_period_seconds = termination_period
         pod.metadata = client.V1ObjectMeta(
             name=name,

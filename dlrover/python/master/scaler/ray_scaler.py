@@ -50,7 +50,7 @@ class ActorScaler(Scaler):
 
     def scale(self, plan: ScalePlan):
         self._plan = plan
-        logger.info("Scale the job by plan %s", plan.toJSON())
+        logger.info("Scale the job by plan %s", plan.to_json())
         with self._lock:
             alive_actors = self._stats_alive_actors()
             for type, group_resource in plan.node_group_resources.items():

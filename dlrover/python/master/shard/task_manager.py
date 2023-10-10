@@ -18,6 +18,7 @@ from collections.abc import Callable
 from typing import Dict, List
 
 from dlrover.proto import elastic_training_pb2
+from dlrover.python.common import grpc
 from dlrover.python.common.constants import NodeType
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
@@ -116,7 +117,7 @@ class TaskManager(object):
     def get_dataset(self, dataset_name):
         return self._datasets.get(dataset_name, None)
 
-    def report_dataset_task(self, request, success):
+    def report_dataset_task(self, request: grpc.TaskResult, success: bool):
         """Report if the task is successful or not"""
 
         task_id = request.task_id
@@ -169,7 +170,7 @@ class TaskManager(object):
             ]
             if not ids:
                 continue
-            request = elastic_training_pb2.ReportTaskResultRequest()
+            request = grpc.TaskResult()
             recover_tasks = []
             for id in ids:
                 request.task_id = id

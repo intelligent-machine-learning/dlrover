@@ -77,6 +77,7 @@ class BF16OptimizerTest(unittest.TestCase):
         oss_optimizer = OSS([p for p in model.parameters()], lr=0.1)
 
         bf_16_finetune_optimizer = BF16Optimizer(oss_optimizer)
+        lr = torch.optim.lr_scheduler.ExponentialLR(bf_16_finetune_optimizer, gamma=0.98)
         self.assertEqual(len(bf_16_finetune_optimizer.fp32_from_fp16_groups), 1)
         self.assertEqual(len(bf_16_finetune_optimizer.fp32_from_fp32_groups), 1)
         self.assertEqual(len(bf_16_finetune_optimizer.fp16_groups), 1)
@@ -85,7 +86,12 @@ class BF16OptimizerTest(unittest.TestCase):
             for p in param_group["params"]:
                 self.assertTrue(p.dtype == torch.float)
 
+        for i, param_group in enumerate(bf_16_finetune_optimizer.param_groups):
+            for p in param_group["params"]:
+                self.assertTrue(p.dtype == torch.float)
+
         bf_16_finetune_optimizer.step()
+        lr.step()
 
         model_fp32_param_grad = []
         for i, param_group in enumerate(bf_16_finetune_optimizer.optimizer.optim.param_groups):

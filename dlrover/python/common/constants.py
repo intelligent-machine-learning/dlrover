@@ -101,6 +101,7 @@ class JobExitReason(object):
     EVALUATOR_OOM = "EvaluatorOOM"
     EVALUATOR_ERROR = "EvaluatorError"
     UNKNOWN_ERROR = "UnknownError"
+    HANG_ERROR = "HangError"
 
 
 class ExitCode(object):
@@ -131,7 +132,7 @@ class NodeResourceLimit(object):
     PS_CPU_DECREASED_RATE = 0.5
     MIN_VALID_MEMORY = 1024  # 1GB
     MIN_VALID_CPU = 2
-    MAX_HANG_TIMEOUT_SECS = 10800  # unit: seconds
+    MAX_HANG_TIMEOUT_SECS = 7200  # unit: seconds
 
 
 class DefaultNodeResource(object):
@@ -198,6 +199,8 @@ class NodeEnv(object):
     GRPC_ENABLE_FORK = "GRPC_ENABLE_FORK_SUPPORT"
     POD_NAME = "POD_NAME"
     AUTO_MONITOR_WORKLOAD = "AUTO_MONITOR_WORKLOAD"
+    JOB_NAME = "ELASTIC_JOB_NAME"
+    JOB_UID = "JOB_UID"
 
 
 class DatasetType(object):
@@ -250,3 +253,11 @@ class TrainingMsgLevel(object):
     NODE_ERROR = "node_error"
     WARNING = "warning"
     INFO = "info"
+
+
+class ConfigPath(object):
+    ENV_PARAL_CONFIG = "DLROVER_PARAL_CONFIG_PATH"
+    PARAL_CONFIG = "/tmp/dlrover/auto_paral_config.json"
+    ENV_RUNTIME_METRICS = "RUNTIME_METRICS_PATH"
+    RUNTIME_METRICS = "/tmp/dlrover/runtime_metrics.json"
+    NETWORK_CHECK_DATA_DIR = "/tmp/dlrover/network_check/"

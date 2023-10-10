@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import sys
 import threading
 import time
@@ -19,13 +18,12 @@ from collections import OrderedDict
 from multiprocessing import SimpleQueue
 
 from dlrover.proto import elastic_training_pb2
+from dlrover.python.common import grpc
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.master_client import GlobalMasterClient
 from dlrover.python.elastic_agent.monitor.training import (
-    TrainingProcessReporter,
+    TFTrainingProcessReporter,
 )
-
-training_reporter = TrainingProcessReporter()
 
 _DEFAULT_MINI_BATCH_NUM_PER_SHARD = 10
 
@@ -90,6 +88,7 @@ class ShardingClient(object):
         self._max_shard_count = sys.maxsize
         self._shard_count = 0
         self._report_sharding_params()
+        self._training_reporter = TFTrainingProcessReporter()
 
     def _report_sharding_params(self):
         if self._num_epochs and self._dataset_size:
@@ -114,8 +113,8 @@ class ShardingClient(object):
     def get_current_task(self):
         return self._current_task
 
-    def get_task(self) -> elastic_training_pb2.Task:
-        training_reporter.set_start_time()
+    def get_task(self):
+        self._training_reporter.set_start_time()
         if self._shard_count >= self._max_shard_count:
             return None
         for _ in range(5):
@@ -185,8 +184,10 @@ class ShardingClient(object):
         return reported
 
     def _report_training_local_step(self):
-        if not training_reporter.called_in_tf_hook:
-            training_reporter.report_resource_with_step(self._batch_count)
+        if not self._training_reporter.called_in_tf_hook:
+            self._training_reporter.report_resource_with_step(
+                self._batch_count
+            )
 
     def fetch_shard(self):
         """Fetch data shard and each shard contains the name,
@@ -218,31 +219,15 @@ class ShardingClient(object):
             }
         """
         shard_checkpoint = self._mc.get_shard_checkpoint(self._dataset_name)
-        return shard_checkpoint.content
+        return shard_checkpoint
 
     def restore_shard_from_checkpoint(self, shard_checkpoint):
-        res = self._mc.report_shard_checkpoint(shard_checkpoint)
+        message = grpc.ShardCheckpoint(shard_checkpoint)
+        res = self._mc.report_shard_checkpoint(message)
         return res.success
-
-    def get_current_epoch(self):
-        res = self._mc.get_dataset_epoch(self._dataset_name)
-        return res.epoch - 1
 
     def get_total_sample_num(self):
         return self._dataset_size * self._num_epochs
-
-    def set_max_shard_count(self):
-        world_size = int(os.getenv("WORLD_SIZE", 0))
-        if world_size:
-            total_shard_count = self._mc.get_dataset_shard_num(
-                self._dataset_name
-            )
-            if total_shard_count == 0:
-                return
-            self._max_shard_count = total_shard_count // world_size
-            logger.info(
-                "The max number of shards is %s", self._max_shard_count
-            )
 
 
 class IndexShardingClient(ShardingClient):

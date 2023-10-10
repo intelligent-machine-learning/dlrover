@@ -1,0 +1,22 @@
+---
+default: true
+
+MD004:
+  style: dash
+
+MD013:
+  tables: false
+  code_blocks: false
+  line_length: 120
+  code_block_line_length: 120
+
+MD041: false
+
+MD033: false
+
+MD024: false
+
+MD029: false
+
+MD046:
+  style: fenced
