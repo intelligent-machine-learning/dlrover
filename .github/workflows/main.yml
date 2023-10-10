@@ -91,7 +91,8 @@ jobs:
       - name: check for changes in 'tfplus'
         id: check_files
         run: |
-          FILES=$(git diff --name-only HEAD^..HEAD)
+          git fetch origin main
+          FILES=$(git diff --name-only origin/main)
           if echo "$FILES" | grep -q "tfplus/"; then
             echo "::set-output name=run_job::true"
           else
