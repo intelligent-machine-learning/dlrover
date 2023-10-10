@@ -163,5 +163,5 @@ def _unpack_kwargs(flat_args, kwarg_keys):
     if len(kwarg_keys) == 0:
         return flat_args, {}
     args = flat_args[: -len(kwarg_keys)]
-    kwargs = dict(zip(kwarg_keys, flat_args[-len(kwarg_keys) :]))  # noqa: E203
+    kwargs = dict(zip(kwarg_keys, flat_args[-len(kwarg_keys) :]))
     return args, kwargs

@@ -1,5 +1,6 @@
 from atorch.auto.opt_lib.amp_optimization import AmpNativeOptimization
 from atorch.auto.opt_lib.checkpoint_optimization import CheckpointOptimization
+from atorch.auto.opt_lib.ds_3d_parallel_optimization import DeepSpeed3DParallelOptimization
 from atorch.auto.opt_lib.dynamo_optimization import NativeDynamoOptimization
 from atorch.auto.opt_lib.half_optimization import HalfOptimization
 from atorch.auto.opt_lib.mixed_parallel_optimization import MixedParallelOptimization
@@ -48,6 +49,7 @@ class OptimizationLibrary(object):
             PipelineParallelOptimization,
             MixedParallelOptimization,
             HalfOptimization,
+            DeepSpeed3DParallelOptimization,
         ]
         for opt in opt_list:
             opt_instance = opt()

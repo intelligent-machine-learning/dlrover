@@ -8,6 +8,7 @@ import math
 import os
 import time
 
+import numpy as np
 import pyomo.environ as pyo
 
 from atorch.auto.opt_lib.shard_planners.base_tp_planner import BaseTensorParallelPlanner
@@ -200,6 +201,8 @@ class MIPTensorParallelPlanner(BaseTensorParallelPlanner):
         operator_flops,
         device_topo,
         fp32_flops,
+        greedy_init=None,
+        flops_cost_factor=None,
     ):
         """Given the parameters, construct an mip model
         model variables:
@@ -219,7 +222,8 @@ class MIPTensorParallelPlanner(BaseTensorParallelPlanner):
 
         stage_total_memory_reqs = None
 
-        if self.greedy_init:
+        greedy_init = self.greedy_init if greedy_init is None else greedy_init
+        if greedy_init:
             initial_assignment, stage_total_memory_reqs = self._greedy_initialization(
                 contracted_graph, memory_requirements
             )
@@ -259,9 +263,10 @@ class MIPTensorParallelPlanner(BaseTensorParallelPlanner):
             )
 
         # objective
-        device_world_size = device_topo.num_devices()
-        default_flops_cost_factor = 4 * math.sqrt(device_world_size) * device_world_size
-        flops_cost_factor = os.getenv("FLOPS_COST_FACTOR", default_flops_cost_factor)
+        if flops_cost_factor is None:
+            device_world_size = device_topo.num_devices()
+            default_flops_cost_factor = 4 * math.sqrt(device_world_size) * device_world_size
+            flops_cost_factor = os.getenv("FLOPS_COST_FACTOR", default_flops_cost_factor)
         model.com_cost = pyo.Objective(
             expr=(
                 sum(
@@ -275,6 +280,85 @@ class MIPTensorParallelPlanner(BaseTensorParallelPlanner):
         )
 
         return model, stage_total_memory_reqs
+
+    def fake_profile(self, model, graph, sharding_specs, tensor_shapes, device_topo, fp32_flops, optimizer=None):
+        """Given the device topology, the graph, this method offers
+        to profile the graph, giving a rough estimate of the runtime of each node (total flops + total btyes comm),
+        the communicate time, on node memory requirements.
+
+        A more accurate method would be to specify the stage partition first then run an estimation for each individual
+        partition, but this is too costly.
+
+        With all the info, we ca solve an optimal chunks. Currently assume no interleaved schedule employed.
+        Even if checkpointing is used, in the backward pass all forward activations must be stored for a single
+        chunk, so we give the full estimation and leave the post processing for scaling the estimate
+
+        Args:
+            model: original model
+            graph: fx.Graph
+            sharding_specs: sharding specs of the model
+            tensor_shapes: tensor shapes of the output of each node. Supposedly to be used
+                for inferring memory and communication cost. to be refactored.
+            device_topo: the physical topology of devices on which to distribute the model
+                These devices are symoblic, corresponding to the process_group created for tensor
+                parallelism
+        """
+        (
+            intra_node_communication_costs,
+            inter_nodes_communication_costs,
+            memory_requirements,
+            operator_flops,
+            contracted_graph,
+            _,
+        ) = self._get_mip_parameters(model, graph, sharding_specs, tensor_shapes, device_topo, optimizer)
+        device_world_size = device_topo.num_devices()
+        flops_cost_factor = 4 * device_world_size**2
+        # TODO we are enforcing the MIP to solve a model without greedy init for stability
+        mip_model, _ = self._construct_mip_model(
+            contracted_graph,
+            intra_node_communication_costs,
+            inter_nodes_communication_costs,
+            memory_requirements,
+            operator_flops,
+            device_topo,
+            self.fp32_flops,
+            greedy_init=False,
+            flops_cost_factor=flops_cost_factor,
+        )
+        nodes = list(contracted_graph.nodes())
+        node_vars = intra_node_communication_costs.keys()
+        edge_vars = inter_nodes_communication_costs.keys()
+        estimated_node_memory_reqs = np.zeros(len(nodes), dtype=float)
+        estimated_node_flops_cost = np.zeros(len(nodes), dtype=float)
+        estimated_intra_node_comm_cost = np.zeros(len(nodes), dtype=float)
+        estimated_edge_comm_cost = np.zeros((len(nodes), len(nodes)), dtype=float)
+
+        # Solve the MIP model
+        solver = pyo.SolverFactory(self.solver)
+        if self.solver == "glpk":
+            # set a tighter time limit
+            solver.options["tmlim"] = 60
+
+        solver.solve(mip_model)
+        for (i, k) in node_vars:
+            estimated_node_memory_reqs[i] += memory_requirements[(i, k)] * mip_model.x[(i, k)].value
+            estimated_node_flops_cost[i] += operator_flops[(i, k)] * mip_model.x[(i, k)].value / fp32_flops
+            estimated_intra_node_comm_cost[i] += intra_node_communication_costs[(i, k)] * mip_model.x[(i, k)].value
+
+        # FIXME the inter_nodes_communication_costs is the cost for resharding
+        # what we need is to compute the activation size
+        for ((i, j), (k, r)) in edge_vars:
+            estimated_edge_comm_cost[i][j] += (
+                inter_nodes_communication_costs[((i, j), (k, r))] * mip_model.e[((i, j), (k, r))].value
+            )
+
+        return (
+            estimated_node_memory_reqs,
+            estimated_node_flops_cost,
+            estimated_intra_node_comm_cost,
+            estimated_edge_comm_cost,
+            contracted_graph,
+        )
 
     def generate_sharding_plan(self, model, graph, sharding_specs, tensor_shapes, device_topo, optimizer=None):
         """Generate a sharding plan with MIP

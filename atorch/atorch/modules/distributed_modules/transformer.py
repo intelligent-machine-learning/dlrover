@@ -21,14 +21,20 @@ import copy
 import math
 
 import torch
+import torch.nn.functional as F
+from torch.nn import CrossEntropyLoss, LayerNorm
 from transformers.activations import ACT2FN, gelu
+from transformers.modeling_utils import PreTrainedModel
 
 try:
-    from transformers.models.gpt_neox.modeling_gpt_neox import RotaryEmbedding, apply_rotary_pos_emb
+    from transformers.models.gpt_neox.modeling_gpt_neox import apply_rotary_pos_emb
 except ImportError:
-    RotaryEmbedding, apply_rotary_pos_emb = None, None
+    apply_rotary_pos_emb = None
+
+from transformers.modeling_outputs import ModelOutput
 
 from atorch.common.log_utils import default_logger as logger
+from atorch.modules.distributed_modules.layers import ParallelEmbedding
 from atorch.modules.transformer.layers import flash_attn_with_mask_bias
 from atorch.utils.meta_model_utils import deepcopy_checkpoint_name, reload_meta_module
 
@@ -83,7 +89,6 @@ class ColumnParallelBertSelfAttention(ATorchTPLayer):
 
             self.position_embedding_type = self.orig_module.position_embedding_type
             self.dropout = copy.deepcopy(self.orig_module.dropout)
-            deepcopy_checkpoint_name(self.dropout, self.orig_module.dropout)
             self.is_decoder = self.orig_module.is_decoder
             if self.position_embedding_type == "relative_key" or self.position_embedding_type == "relative_key_query":
                 self.max_position_embeddings = orig_module.max_position_embeddings
@@ -237,7 +242,6 @@ class RowParallelBertSelfOutput(ATorchTPLayer):
             self.LayerNorm = copy.deepcopy(self.orig_module.LayerNorm)
             self.dropout = copy.deepcopy(self.orig_module.dropout)
             deepcopy_checkpoint_name(self.LayerNorm, self.orig_module.LayerNorm)
-            deepcopy_checkpoint_name(self.dropout, self.orig_module.dropout)
 
         else:
             raise ValueError("Initialization by args are currently not supported")
@@ -385,16 +389,28 @@ class MegatronCLIPAttention(ATorchTPLayer):
 
         if orig_module is not None:
             self.k_proj = ColumnParallelLinear(
-                orig_module=orig_module.k_proj, process_group=self.process_group, ranks=self.ranks
+                orig_module=orig_module.k_proj,
+                process_group=self.process_group,
+                ranks=self.ranks,
+                defer_init=True,
             )
             self.v_proj = ColumnParallelLinear(
-                orig_module=orig_module.v_proj, process_group=self.process_group, ranks=self.ranks
+                orig_module=orig_module.v_proj,
+                process_group=self.process_group,
+                ranks=self.ranks,
+                defer_init=True,
             )
             self.q_proj = ColumnParallelLinear(
-                orig_module=orig_module.q_proj, process_group=self.process_group, ranks=self.ranks
+                orig_module=orig_module.q_proj,
+                process_group=self.process_group,
+                ranks=self.ranks,
+                defer_init=True,
             )
             self.out_proj = RowParallelLinear(
-                orig_module=orig_module.out_proj, process_group=self.process_group, ranks=self.ranks
+                orig_module=orig_module.out_proj,
+                process_group=self.process_group,
+                ranks=self.ranks,
+                defer_init=True,
             )
             self.pruned_heads = set()
             self.embed_dim = orig_module.embed_dim
@@ -403,7 +419,6 @@ class MegatronCLIPAttention(ATorchTPLayer):
             self.num_heads_per_partiton = divide(self.num_heads, self.world_size)
             self.scale = orig_module.scale
             self.dropout = copy.deepcopy(self.orig_module.dropout)
-            deepcopy_checkpoint_name(self.dropout, self.orig_module.dropout)
         else:
             raise ValueError("Initialization by args are currently not supported")
 
@@ -415,7 +430,7 @@ class MegatronCLIPAttention(ATorchTPLayer):
         self.v_proj._reset_parameters()
         self.q_proj._reset_parameters()
         self.out_proj._reset_parameters()
-        reload_meta_module(self.dropout)
+        # reload_meta_module(self.dropout)
 
     @staticmethod
     def orig_module_shardable(orig_module, ranks):
@@ -510,6 +525,73 @@ class MegatronCLIPAttention(ATorchTPLayer):
         return attn_output, attn_weights_reshaped
 
 
+class RotaryEmbedding(torch.nn.Module):  # type:ignore
+    def __init__(self, dim, base=10000, precision=torch.float, learnable=False):
+        super().__init__()
+        inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2).float() / dim))
+        inv_freq = inv_freq.half()
+        self.learnable = learnable
+        if learnable:
+            self.inv_freq = torch.nn.Parameter(inv_freq)
+            self.max_seq_len_cached = None
+        else:
+            self.register_buffer("inv_freq", inv_freq)
+            self.max_seq_len_cached = None
+            self.cos_cached = None
+            self.sin_cached = None
+        self.precision = precision
+
+    def _load_from_state_dict(
+        self, state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs
+    ):
+        pass
+
+    def forward(self, x, seq_dim=1, seq_len=None):
+        if seq_len is None:
+            seq_len = x.shape[seq_dim]
+        if self.max_seq_len_cached is None or (seq_len > self.max_seq_len_cached):
+            self.max_seq_len_cached = None if self.learnable else seq_len
+            t = torch.arange(seq_len, device=x.device, dtype=self.inv_freq.dtype)
+            freqs = torch.einsum("i,j->ij", t, self.inv_freq)
+            # Different from paper, but it uses a different permutation in order to obtain the same calculation
+            emb = torch.cat((freqs, freqs), dim=-1).to(x.device)
+            if self.precision == torch.bfloat16:
+                emb = emb.float()
+
+            # [sx, 1 (b * np), hn]
+            cos_cached = emb.cos()[:, None, :]
+            sin_cached = emb.sin()[:, None, :]
+            if self.precision == torch.bfloat16:
+                cos_cached = cos_cached.bfloat16()
+                sin_cached = sin_cached.bfloat16()
+            if self.learnable:
+                return cos_cached, sin_cached
+            self.cos_cached, self.sin_cached = cos_cached, sin_cached
+        return self.cos_cached[:seq_len, ...], self.sin_cached[:seq_len, ...]
+
+    def _apply(self, fn):
+        if self.cos_cached is not None:
+            self.cos_cached = fn(self.cos_cached)
+        if self.sin_cached is not None:
+            self.sin_cached = fn(self.sin_cached)
+        return super()._apply(fn)
+
+
+def rotate_half(x):
+    x1, x2 = x[..., : x.shape[-1] // 2], x[..., x.shape[-1] // 2 :]
+    return torch.cat((-x2, x1), dim=x1.ndim - 1)  # dim=-1 triggers a bug in earlier torch versions
+
+
+@torch.jit.script
+def apply_rotary_pos_emb_index(q, k, cos, sin, position_id):
+    # position_id: [sq, b], q, k: [sq, b, np, hn], cos: [sq, 1, hn] -> [sq, b, 1, hn]
+    cos, sin = F.embedding(position_id, cos.squeeze(1)).unsqueeze(2), F.embedding(
+        position_id, sin.squeeze(1)
+    ).unsqueeze(2)
+    q, k = (q * cos) + (rotate_half(q) * sin), (k * cos) + (rotate_half(k) * sin)
+    return q, k
+
+
 class MegatronGLMSelfAttention(ATorchTPLayer):
     """Megatron Style Self attention for HuggingFace GLM model"""
 
@@ -526,11 +608,12 @@ class MegatronGLMSelfAttention(ATorchTPLayer):
         process_group="tensor",
         ranks=None,
         use_fa=False,
+        use_rotary=False,
         defer_init=False,
     ):
         super().__init__(orig_module, process_group, ranks, defer_init)
         self.use_fa = use_fa
-
+        self.use_rotary = use_rotary
         # Set output layer initialization if not provided.
         if output_layer_init_method is None:
             output_layer_init_method = init_method
@@ -540,6 +623,7 @@ class MegatronGLMSelfAttention(ATorchTPLayer):
                 orig_module=orig_module.query_key_value,
                 process_group=self.process_group,
                 ranks=self.ranks,
+                stride=3,
                 defer_init=True,
             )
             self.dense = RowParallelLinear(
@@ -560,7 +644,6 @@ class MegatronGLMSelfAttention(ATorchTPLayer):
             deepcopy_checkpoint_name(self.attention_dropout, self.orig_module.attention_dropout)
             deepcopy_checkpoint_name(self.output_dropout, self.orig_module.output_dropout)
         else:
-
             self.hidden_size_per_partition = divide(hidden_size, self.world_size)
             self.hidden_size_per_attention_head = divide(hidden_size, num_attention_heads)
             self.num_attention_heads_per_partition = divide(num_attention_heads, self.world_size)
@@ -583,6 +666,15 @@ class MegatronGLMSelfAttention(ATorchTPLayer):
                 defer_init=True,
             )
             self.output_dropout = torch.nn.Dropout(output_dropout_prob)
+
+        if self.use_rotary:
+            self.position_encoding_2d = True
+            self.rotary_emb = RotaryEmbedding(
+                self.hidden_size // (self.num_attention_heads * 2),
+                base=10000,
+                precision=torch.half,
+                learnable=False,
+            )
 
         if not self.defer_init:
             self.reset_parameters()
@@ -612,7 +704,7 @@ class MegatronGLMSelfAttention(ATorchTPLayer):
             and orig_module.num_attention_heads % world_size == 0
         )
 
-    def forward(self, hidden_states, ltor_mask, mem=None):
+    def forward(self, hidden_states, ltor_mask, position_ids=None, mem=None):
         # hidden_states: [b, s, h]
         # ltor_mask: [1, 1, s, s]
 
@@ -627,12 +719,30 @@ class MegatronGLMSelfAttention(ATorchTPLayer):
             mixed_x_layer = self.query_key_value(cat)
             (mixed_query_layer, mixed_key_layer, mixed_value_layer) = split_tensor_along_shard_dim(mixed_x_layer, -1, 3)
             mixed_query_layer = mixed_query_layer[:, -query_length:]
-
         if not self.use_fa:
             # Reshape and transpose [b, np, s, hn]
             query_layer = self._transpose_for_scores(mixed_query_layer)
             key_layer = self._transpose_for_scores(mixed_key_layer)
             value_layer = self._transpose_for_scores(mixed_value_layer)
+
+            if self.use_rotary:
+                query_layer = query_layer.permute(0, 2, 1, 3)
+                key_layer = key_layer.permute(0, 2, 1, 3)
+                q1, q2 = query_layer.chunk(2, dim=(query_layer.ndim - 1))
+                k1, k2 = key_layer.chunk(2, dim=(key_layer.ndim - 1))
+                cos, sin = self.rotary_emb(q1, seq_len=position_ids.max() + 1)
+                position_ids, block_position_ids = (
+                    position_ids[:, 0, :].contiguous(),
+                    position_ids[:, 1, :].contiguous(),
+                )
+                # print(f'q1: {q1.dtype}, k1: {k1.dtype}, q2: {q2.dtype}, k2: {k2.dtype}')
+                q1, k1 = apply_rotary_pos_emb_index(q1, k1, cos, sin, position_ids)
+                q2, k2 = apply_rotary_pos_emb_index(q2, k2, cos, sin, block_position_ids)
+                # print(f'qq1: {q1.dtype}, kk1: {k1.dtype}, qq2: {q2.dtype}, kk2: {k2.dtype}')
+                query_layer = torch.concat([q1, q2], dim=(q1.ndim - 1))
+                key_layer = torch.concat([k1, k2], dim=(k1.ndim - 1))
+                query_layer = query_layer.permute(0, 2, 1, 3)
+                key_layer = key_layer.permute(0, 2, 1, 3)
             if self.attention_scale > 1.0:
                 # Raw attention scores. [b, np, s, s]
                 attention_scores = torch.matmul(
@@ -684,14 +794,35 @@ class MegatronGLMSelfAttention(ATorchTPLayer):
                 self.hidden_size_per_attention_head,
             )
 
+            if self.use_rotary:
+
+                q1, q2 = query_layer.chunk(2, dim=(query_layer.ndim - 1))
+                k1, k2 = key_layer.chunk(2, dim=(key_layer.ndim - 1))
+                cos, sin = self.rotary_emb(q1, seq_len=position_ids.max() + 1)
+                position_ids, block_position_ids = (
+                    position_ids[:, 0, :].contiguous(),
+                    position_ids[:, 1, :].contiguous(),
+                )
+                # print(f'q1: {q1.dtype}, k1: {k1.dtype}, q2: {q2.dtype}, k2: {k2.dtype}')
+                q1, k1 = apply_rotary_pos_emb_index(q1, k1, cos, sin, position_ids)
+                q2, k2 = apply_rotary_pos_emb_index(q2, k2, cos, sin, block_position_ids)
+                # print(f'qq1: {q1.dtype}, kk1: {k1.dtype}, qq2: {q2.dtype}, kk2: {k2.dtype}')
+                query_layer = torch.concat([q1, q2], dim=(q1.ndim - 1)).half()  # todo fix output float32
+                key_layer = torch.concat([k1, k2], dim=(k1.ndim - 1)).half()
+
             if ltor_mask.dtype != query_layer.dtype:
                 ltor_mask = ltor_mask.to(query_layer.dtype)
 
             dropout_p = self.attention_dropout.p if self.training else 0.0
 
             context_layer = flash_attn_with_mask_bias(
-                query_layer, key_layer, value_layer, mask=(-65504.0) * (1.0 - ltor_mask), dropout_p=dropout_p
+                query_layer.half(),
+                key_layer.half(),
+                value_layer.half(),
+                mask=(-65504.0) * (1.0 - ltor_mask),
+                dropout_p=dropout_p,
             )
+            context_layer = context_layer.float()
 
         new_context_layer_shape = context_layer.size()[:-2] + (self.hidden_size_per_partition,)
         # [b, s, hp]
@@ -751,7 +882,6 @@ class MegatronGLMMLP(ATorchTPLayer):
                 defer_init=True,
             )
             self.dropout = copy.deepcopy(self.orig_module.dropout)
-            deepcopy_checkpoint_name(self.dropout, self.orig_module.dropout)
 
         if not self.defer_init:
             self.reset_parameters()
@@ -812,7 +942,7 @@ class MegatronGLMBlock(ATorchTPLayer):
                 defer_init=True,
             )
             self.hidden_size = hidden_size
-            self.layernorm_epsilon = self.layernorm_epsilon
+            self.layernorm_epsilon = layernorm_epsilon
             # Layernorm on the input data.
             self.post_attention_layernorm = torch.nn.LayerNorm(self.hidden_size, eps=self.layernorm_epsilon)
             self.input_layernorm = torch.nn.LayerNorm(self.hidden_size, eps=self.layernorm_epsilon)
@@ -826,12 +956,15 @@ class MegatronGLMBlock(ATorchTPLayer):
                 defer_init=True,
             )
         else:
-
             self.attention = MegatronGLMSelfAttention(
-                orig_module=orig_module.attention, process_group=process_group, defer_init=True
+                orig_module=orig_module.attention,
+                process_group=self.process_group,
+                ranks=self.ranks,
+                defer_init=True,
             )
-
-            self.mlp = MegatronGLMMLP(orig_module=orig_module.mlp, process_group=process_group, defer_init=True)
+            self.mlp = MegatronGLMMLP(
+                orig_module=orig_module.mlp, process_group=self.process_group, ranks=self.ranks, defer_init=True
+            )
             self.input_layernorm = copy.deepcopy(self.orig_module.input_layernorm)
             self.post_attention_layernorm = copy.deepcopy(self.orig_module.post_attention_layernorm)
             deepcopy_checkpoint_name(self.input_layernorm, self.orig_module.input_layernorm)
@@ -906,6 +1039,7 @@ class MegatronGPTNeoXAttention(ATorchTPLayer):
                 process_group=self.process_group,
                 ranks=self.ranks,
                 defer_init=True,
+                stride=3,
             )
             self.dense = RowParallelLinear(
                 config.hidden_size,
@@ -920,6 +1054,7 @@ class MegatronGPTNeoXAttention(ATorchTPLayer):
                 process_group=self.process_group,
                 ranks=self.ranks,
                 defer_init=True,
+                stride=3,
             )
             self.dense = RowParallelLinear(
                 orig_module=orig_module.dense,
@@ -965,6 +1100,8 @@ class MegatronGPTNeoXAttention(ATorchTPLayer):
         if hasattr(self, "rotary_emb_copy"):
             self.rotary_emb = self.rotary_emb_copy
         else:
+            from transformers.models.gpt_neox.modeling_gpt_neox import RotaryEmbedding
+
             self.rotary_emb = RotaryEmbedding(self.rotary_ndims, self.max_positions, base=self.rotary_emb_base)
 
         self.register_buffer("bias", self.bias_copy)
@@ -973,6 +1110,7 @@ class MegatronGPTNeoXAttention(ATorchTPLayer):
     def _reset_parameters(self):
         self.query_key_value._reset_parameters()
         self.dense._reset_parameters()
+        self.norm_factor = self.orig_module.norm_factor if self.orig_module is not None else self.norm_factor
         self._init_emb()
 
     @staticmethod
@@ -1014,14 +1152,14 @@ class MegatronGPTNeoXAttention(ATorchTPLayer):
 
         # [b, s, n/p, 3 * h/n] --> 3 [b, n/p, s, h/n]
         query = qkv[..., : self.head_size].permute(0, 2, 1, 3)
-        key = qkv[..., self.head_size : 2 * self.head_size].permute(0, 2, 1, 3)  # noqa: E203
-        value = qkv[..., 2 * self.head_size :].permute(0, 2, 1, 3)  # noqa: E203
+        key = qkv[..., self.head_size : 2 * self.head_size].permute(0, 2, 1, 3)
+        value = qkv[..., 2 * self.head_size :].permute(0, 2, 1, 3)
 
         # Compute rotary embeddings on rotary_ndims
         query_rot = query[..., : self.rotary_ndims]
-        query_pass = query[..., self.rotary_ndims :]  # noqa: E203
+        query_pass = query[..., self.rotary_ndims :]
         key_rot = key[..., : self.rotary_ndims]
-        key_pass = key[..., self.rotary_ndims :]  # noqa: E203
+        key_pass = key[..., self.rotary_ndims :]
 
         # Compute token offset for rotary embeddings (when decoding)
         seq_len = key.shape[-2]
@@ -1106,7 +1244,7 @@ class MegatronGPTNeoXAttention(ATorchTPLayer):
         batch_size, num_attention_heads, query_length, attn_head_size = query.size()
         key_length = key.size(-2)
 
-        causal_mask = self.bias[:, :, key_length - query_length : key_length, :key_length]  # noqa: E203
+        causal_mask = self.bias[:, :, key_length - query_length : key_length, :key_length]
 
         query = query.view(batch_size * num_attention_heads, query_length, attn_head_size)
         key = key.view(batch_size * num_attention_heads, key_length, attn_head_size)
@@ -1314,3 +1452,350 @@ class MegatronGPTNeoXLayer(ATorchTPLayer):
             outputs = (hidden_states,) + outputs[1:]  # hidden_states, (attn_weights)
 
         return outputs
+
+
+class MegatronGLMStack(ATorchTPLayer):
+    def __init__(
+        self,
+        num_layers=None,
+        hidden_size=None,
+        num_attention_heads=None,
+        max_sequence_length=None,
+        embedding_dropout_prob=0.1,
+        attention_dropout_prob=None,
+        output_dropout_prob=None,
+        checkpoint_activations=None,
+        checkpoint_num_layers=1,
+        layernorm_epsilon=1.0e-5,
+        init_method_std=0.02,
+        use_scaled_init_for_output_weights=True,
+        block_position_encoding=False,
+        attention_scale=1.0,
+        orig_module=None,
+        process_group="tensor",
+        ranks=None,
+        defer_init=False,
+    ):
+        super().__init__(orig_module, process_group, ranks, defer_init)
+        self.hidden_size = hidden_size
+        # Store activation checkpoiting flag.
+        self.checkpoint_activations = checkpoint_activations
+        self.checkpoint_num_layers = checkpoint_num_layers
+        self.attention_scale = attention_scale
+        self.num_attention_heads = num_attention_heads
+        self.attention_dropout_prob = output_dropout_prob
+        self.output_dropout_prob = attention_dropout_prob
+        self.layernorm_epsilon = layernorm_epsilon
+        self.init_method_std = init_method_std
+        output_layer_init_method = None
+        if use_scaled_init_for_output_weights:
+            output_layer_init_method = None
+
+        # Set output layer initialization if not provided.
+        if output_layer_init_method is None:
+            output_layer_init_method = None
+
+        def get_layer(orig_module):
+            return MegatronGLMBlock(
+                hidden_size=hidden_size,
+                num_attention_heads=num_attention_heads,
+                attention_dropout_prob=attention_dropout_prob,
+                output_dropout_prob=output_dropout_prob,
+                layernorm_epsilon=layernorm_epsilon,
+                init_method=init_method_std,
+                output_layer_init_method=output_layer_init_method,
+                attention_scale=attention_scale,
+                orig_module=orig_module,
+                process_group=process_group,
+                ranks=ranks,
+                defer_init=True,
+            )
+
+        if orig_module is not None:
+
+            # Transformer layers.
+            self.layers = torch.nn.ModuleList([get_layer(orig_layer) for orig_layer in orig_module.layers])
+            # Final layer norm before output.
+
+            # Embeddings dropout
+            self.embedding_dropout = copy.deepcopy(self.orig_module.embedding_dropout)
+            self.block_position_encoding = block_position_encoding
+            # Position embedding (serial).
+            if block_position_encoding:
+                self.position_embeddings = copy.deepcopy(self.orig_module.position_embeddings)
+                self.block_position_embeddings = copy.deepcopy(self.orig_module.block_position_embeddings)
+            else:
+                self.position_embeddings = copy.deepcopy(self.orig_module.position_embeddings)
+            self.final_layernorm = copy.deepcopy(self.orig_module.final_layernorm)
+
+        else:
+            # Transformer layers.
+            # Embeddings dropout
+            self.embedding_dropout = torch.nn.Dropout(embedding_dropout_prob)
+            self.block_position_encoding = block_position_encoding
+
+            # Position embedding (serial).
+            if block_position_encoding:
+                self.position_embeddings = torch.nn.Embedding(max_sequence_length + 1, hidden_size)
+                self.block_position_embeddings = torch.nn.Embedding(max_sequence_length + 1, hidden_size)
+                torch.nn.init.normal_(self.block_position_embeddings.weight, mean=0.0, std=init_method_std)
+            else:
+                self.position_embeddings = torch.nn.Embedding(max_sequence_length, hidden_size)
+            # Initialize the position embeddings.
+            torch.nn.init.normal_(self.position_embeddings.weight, mean=0.0, std=init_method_std)
+            self.layers = torch.nn.ModuleList([get_layer(None) for _ in range(num_layers)])
+            # Final layer norm before output.
+            self.final_layernorm = LayerNorm(hidden_size, eps=layernorm_epsilon)
+
+        if not self.defer_init:
+            self.reset_parameters()
+
+    def forward(self, hidden_states, position_ids, attention_mask, memory_states=None, encoder_states=None):
+        batch_size, query_length = hidden_states.size()[:2]
+        memory_length = memory_states[0].size(1) if memory_states else 0
+        # attention mask is the beginning postion of B region, \in [0, query_len)
+        is_scalar = torch.numel(attention_mask) == 1
+        is_sep = is_scalar or torch.numel(attention_mask) == batch_size
+        if is_sep:
+            sep = attention_mask.item() if is_scalar else attention_mask
+
+            # conventional transformer
+            def build_mask_matrix(seq_length, sep, memory_length=0):
+                m = hidden_states.new_ones((1, seq_length, seq_length))
+                m = torch.tril(m)
+                if is_scalar:
+                    m[0, :, :sep] = 1
+                else:
+                    m = m.expand(batch_size, -1, -1)
+                    ids = torch.arange(seq_length, device=sep.device, dtype=sep.dtype).view(1, -1)
+                    mask = ids < sep.view(-1, 1)
+                    m = m.masked_fill(mask.unsqueeze(1).expand_as(m), 1)
+                if memory_length > 0:
+                    m = m.expand(batch_size, -1, -1)
+                    m = torch.cat((hidden_states.new_ones((batch_size, seq_length, memory_length)), m), dim=2)
+                m = m.unsqueeze(1)
+                return m
+
+            attention_mask = build_mask_matrix(query_length, sep, memory_length=memory_length)
+        else:
+            if attention_mask.dim() == 2:
+                attention_mask = attention_mask.unsqueeze(1).unsqueeze(1)
+            attention_mask = attention_mask[:, :, :, -query_length - memory_length :]
+
+        if self.block_position_encoding:
+            position_ids, block_position_ids = position_ids[:, 0], position_ids[:, 1]
+        position_embeddings = self.position_embeddings(position_ids)
+        hidden_states = hidden_states + position_embeddings
+
+        if self.block_position_encoding:
+            block_position_embeddings = self.block_position_embeddings(block_position_ids)
+            hidden_states = hidden_states + block_position_embeddings
+        hidden_states = self.embedding_dropout(hidden_states)
+
+        def check_detach(_hidden_states):
+            return _hidden_states.detach()
+
+        mem_layers = [check_detach(hidden_states)]
+        for i, layer in enumerate(self.layers):
+
+            args = [hidden_states, attention_mask]
+
+            def create_custom_forward(module):
+                def custom_forward(*inputs):
+                    # None for past_key_value
+                    return module(*inputs)
+
+                return custom_forward
+
+            mem_i = memory_states[i] if memory_states else None
+
+            if self.checkpoint_activations:
+                hidden_states = torch.utils.checkpoint.checkpoint(
+                    create_custom_forward(layer),
+                    hidden_states,
+                    mem=mem_i,
+                )
+            else:
+                hidden_states = layer(*args, mem=mem_i)
+            mem_layers.append(check_detach(hidden_states))
+
+        # Final layer norm.
+        output = self.final_layernorm(hidden_states)
+        mem_layers = self.update_mems(mem_layers, memory_states)
+        return (output, mem_layers)
+
+    def update_mems(self, hiddens, mems, return_memory=False):
+        memory_length = mems[0].size(1) if mems else 0
+        query_length = hiddens[0].size(1)
+        new_memory_length = memory_length + query_length
+        new_mems = []
+        # with torch.no_grad():
+        for i in range(len(hiddens)):
+            if new_memory_length <= query_length:
+                new_mems.append(hiddens[i][:, -new_memory_length:])
+            else:
+                new_mems.append(torch.cat((mems[i][:, -new_memory_length + query_length :], hiddens[i]), dim=1))
+        return new_mems
+
+    def _reset_parameters(self):
+        for i in self.layers:
+            i._reset_parameters()
+
+
+class MegatronGLMModel(ATorchTPLayer):
+    def __init__(
+        self,
+        config,
+        orig_module=None,
+        process_group="tensor",
+        ranks=None,
+        defer_init=False,
+        orig_module_dst_device="cpu",
+    ):
+        super().__init__(orig_module, process_group, ranks, defer_init, orig_module_dst_device)
+
+        self.config = config
+        self.output_predict = config.output_predict
+        # Word embeddings (parallel).
+
+        if orig_module is not None:
+            self.word_embeddings = ParallelEmbedding(
+                orig_module=orig_module.word_embeddings, process_group=process_group, ranks=ranks, defer_init=True
+            )
+
+            self.transformer = MegatronGLMStack(
+                config.num_layers,
+                config.hidden_size,
+                config.num_attention_heads,
+                config.max_sequence_length,
+                config.embedding_dropout_prob,
+                config.attention_dropout_prob,
+                config.output_dropout_prob,
+                config.checkpoint_activations,
+                config.checkpoint_num_layers,
+                attention_scale=config.attention_scale,
+                block_position_encoding=config.block_position_encoding,
+                orig_module=orig_module.transformer,
+                process_group=process_group,
+                ranks=ranks,
+                defer_init=True,
+            )
+        else:
+            # Word embeddings (parallel).
+            self.word_embeddings = ParallelEmbedding(config)
+            # Transformer
+            self.transformer = MegatronGLMStack(
+                config.num_layers,
+                config.hidden_size,
+                config.num_attention_heads,
+                config.max_sequence_length,
+                config.embedding_dropout_prob,
+                config.attention_dropout_prob,
+                config.output_dropout_prob,
+                config.checkpoint_activations,
+                config.checkpoint_num_layers,
+                attention_scale=config.attention_scale,
+                block_position_encoding=config.block_position_encoding,
+            )
+            # Initialize weights and apply final processing
+            self.post_init()
+
+        if not self.defer_init:
+            self.reset_parameters()
+
+    def forward(self, input_ids=None, position_ids=None, attention_mask=None, mems=None, **kwargs):
+        batch_size = input_ids.size(0)
+        words_embeddings = self.word_embeddings(input_ids)
+        words_embeddings_shape = self.word_embeddings.weight.shape[0]
+        embeddings = words_embeddings
+        device = input_ids.device
+        input_shape = input_ids.size()
+
+        if position_ids is None:
+            position_ids = torch.arange(0, input_shape[-1], dtype=torch.long, device=device)
+            block_position_ids = torch.zeros(input_shape[-1], dtype=torch.long, device=device)
+            position_ids = torch.stack((position_ids, block_position_ids), dim=0).unsqueeze(0)
+        if attention_mask is None:
+            attention_mask = torch.zeros(batch_size)
+
+        transformer_output = self.transformer(embeddings, position_ids, attention_mask, mems)
+        last_hidden_states, mems = transformer_output
+        logits = None
+        if self.output_predict:
+            input_ids = torch.range(0, words_embeddings_shape - 1, dtype=torch.long).to(
+                self.word_embeddings.weight.device
+            )
+            word_embeddings_weight = self.word_embeddings(input_ids)
+            logits = F.linear(last_hidden_states, word_embeddings_weight)
+
+        return ModelOutput(
+            last_hidden_states=last_hidden_states,
+            logits=logits,
+            mems=mems,
+        )
+
+    def _reset_parameters(self):
+        self.transformer._reset_parameters()
+        self.word_embeddings._reset_parameters()
+
+
+class GLMForConditionalGeneration(PreTrainedModel):
+    def __init__(self, config):
+        super().__init__(config)
+        self.glm = None
+
+    def _reorder_cache(self, past, beam_idx):
+        # if decoder past is not included in output
+        # speedy decoding is disabled and no need to reorder
+        if past is None:
+            return past
+        reordered_decoder_past = ()
+        for layer_past_states in past:
+            # get the correct batch idx from layer past batch dim
+            reordered_decoder_past = reordered_decoder_past + (
+                layer_past_states.index_select(0, beam_idx.to(layer_past_states.device)),
+            )
+        return reordered_decoder_past
+
+    def prepare_inputs_for_generation(
+        self, input_ids, past=None, position_ids=None, generation_attention_mask=None, **kwargs
+    ):
+        # only last token for inputs_ids if past is defined in kwargs
+        attention_mask = generation_attention_mask
+        seq_length = input_ids.shape[1]
+        if past:
+            if position_ids is not None:
+                position_ids = position_ids[:, :, seq_length - 1].unsqueeze(-1)
+            if attention_mask is not None:
+                attention_mask = attention_mask[:, :, seq_length - 1, :seq_length].unsqueeze(-2)
+            input_ids = input_ids[:, -1].unsqueeze(-1)
+        else:
+            if position_ids is not None:
+                position_ids = position_ids[:, :, :seq_length]
+            if attention_mask is not None:
+                attention_mask = attention_mask[:, :, :seq_length, :seq_length]
+        if position_ids is not None and input_ids.size(0) > position_ids.size(0):
+            batch_size = position_ids.size(0)
+            num_beams = input_ids.size(0) // batch_size
+            position_ids = position_ids.unsqueeze(1).expand(-1, num_beams, -1, -1)
+            position_ids = position_ids.reshape(batch_size * num_beams, *position_ids.shape[-2:])
+        if attention_mask is not None and input_ids.size(0) > attention_mask.size(0):
+            batch_size = attention_mask.size(0)
+            num_beams = input_ids.size(0) // batch_size
+            attention_mask = attention_mask.unsqueeze(1).expand(-1, num_beams, -1, -1, -1)
+            attention_mask = attention_mask.reshape(batch_size * num_beams, *attention_mask.shape[-3:])
+        return {
+            "input_ids": input_ids,
+            "position_ids": position_ids,
+            "attention_mask": attention_mask,
+            "mems": past,
+        }
+
+    def forward(self, input_ids=None, position_ids=None, attention_mask=None, labels=None, mems=None, **kwargs):
+        model_output = self.glm(input_ids, position_ids, attention_mask, mems=mems, **kwargs)
+        lm_logits = model_output.logits
+        loss = None
+        if labels is not None:
+            loss_fct = CrossEntropyLoss(ignore_index=-100)
+            loss = loss_fct(lm_logits.view(-1, lm_logits.size(-1)), labels.view(-1))
+        return ModelOutput(loss=loss, logits=lm_logits, mems=model_output.mems)

@@ -112,7 +112,10 @@ def _replace_by_config(model, config=None, gpu_used=False):
         and "meta" not in pre_replacement_devices
         and torch.device("meta") not in pre_replacement_devices
     ):
-        materialize_modules_to_device(model, list(pre_replacement_devices)[0])
+        materialize_modules_to_device(
+            model,
+            list(pre_replacement_devices)[0],
+        )
 
     post_replacement_devices = _check_model_params_device(model)
     if len(post_replacement_devices) > 1:

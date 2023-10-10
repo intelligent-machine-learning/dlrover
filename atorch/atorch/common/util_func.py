@@ -1,6 +1,8 @@
 import socket
 import time
 from collections.abc import Mapping, Sequence
+from contextlib import AbstractContextManager
+from operator import attrgetter
 
 import grpc
 import torch
@@ -144,3 +146,26 @@ def split_tensor_along_last_dim(tensor, num_partitions, contiguous_split_chunks=
     if contiguous_split_chunks:
         return tuple(chunk.contiguous() for chunk in tensor_list)
     return tensor_list
+
+
+def recursive_setattr(obj, attr, value):
+    if "." not in attr:
+        setattr(obj, attr, value)
+    else:
+        dst_split = attr.split(".")
+        dst_name = dst_split.pop()
+        dst_module_name = ".".join(dst_split)
+        dst_module = attrgetter(dst_module_name)(obj)
+        setattr(dst_module, dst_name, value)
+
+
+def is_wrapped_by_context_manager(func):
+    closure = func.__closure__
+    if closure is None:
+        return False
+
+    for cell in closure:
+        if isinstance(cell.cell_contents, AbstractContextManager):
+            return True
+
+    return False

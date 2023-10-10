@@ -27,14 +27,20 @@ try:
     from transformers.modeling_bert import BertAttention, BertConfig, BertLayer  # 3.5
 except (ModuleNotFoundError, ImportError):
     from transformers.models.bert.modeling_bert import BertAttention, BertConfig, BertLayer  # 4.17
-    from transformers.models.clip.modeling_clip import CLIPAttention, CLIPTextConfig, CLIPEncoderLayer
+    from transformers.models.clip.modeling_clip import CLIPAttention, CLIPEncoderLayer, CLIPTextConfig
+
+try:
     from transformers.models.llama.modeling_llama import (
         LlamaAttention,
-        LlamaDecoderLayer,
         LlamaConfig,
+        LlamaDecoderLayer,
         _expand_mask,
         _make_causal_mask,
     )
+
+    _llama_supported_transformers = True
+except (ImportError, ModuleNotFoundError):
+    _llama_supported_transformers = False
 
 import gc
 import time
@@ -156,9 +162,10 @@ class TestFlashAttn(unittest.TestCase):
         for batch_size in [1, 4, 16]:
             for seq_len in [32, 128, 512, 1024]:
                 self._test_nnMHA_autocast(batch_size, seq_len)
-        for batch_size in [1, 4, 16]:
-            for seq_len in [32, 128, 512, 1024]:
-                self._test_Llama(batch_size, seq_len)
+        if _llama_supported_transformers:
+            for batch_size in [1, 4, 16]:
+                for seq_len in [32, 128, 512, 1024]:
+                    self._test_Llama(batch_size, seq_len)
 
     def _test_fa2_with_glm_mask(self, b, s_q, s_k, dtype):
         print(f"############## test_fa2_with_glm_mask, bs: {b}, seq_q: {s_q}, seq_k: {s_k}, dtype: {dtype}")

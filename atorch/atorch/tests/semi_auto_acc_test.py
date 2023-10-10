@@ -11,7 +11,7 @@ from atorch.auto.accelerate import auto_accelerate
 from atorch.auto.opt_lib.zero_optimization import get_skip_match_module_child_wrap_policy
 from atorch.common.util_func import find_free_port
 from atorch.distributed.distributed import parallel_instance_index, parallel_instance_num, world_size
-from atorch.optimizers.bf16_optimizer import BF16Optimizer
+from atorch.optim.bf16_optimizer import BF16Optimizer
 from atorch.tests.toy_module import create_model_context, get_gpt2_module_type, run_train
 from atorch.utils.version import torch_version
 
