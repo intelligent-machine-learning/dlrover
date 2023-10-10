@@ -84,10 +84,23 @@ jobs:
   tfplus-python-test:
     runs-on: ubuntu-latest
     steps:
-      # This step checks out a copy of your repository.
-      - uses: actions/checkout@v3
-      # This step references the directory that contains the action.
-      - uses: ./.github/actions/tfplus-python-test
+      # Check out the repository
+      - name: checkout
+        uses: actions/checkout@v3
+      # Check if there are changes in the 'tfplus' directory
+      - name: check for changes in 'tfplus'
+        id: check_files
+        run: |
+          FILES=$(git diff --name-only HEAD^..HEAD)
+          if echo "$FILES" | grep -q "tfplus/"; then
+            echo "::set-output name=run_job::true"
+          else
+            echo "::set-output name=run_job::false"
+          fi
+      # Only run the tests if there are changes in the 'tfplus' directory
+      - name: Run tfplus tests
+        if: steps.check_files.outputs.run_job == 'true'
+        uses: ./.github/actions/tfplus-python-test
   tfplus-pre-commit:
     runs-on: ubuntu-latest
     steps:

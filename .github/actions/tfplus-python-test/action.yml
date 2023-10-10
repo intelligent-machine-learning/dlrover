@@ -1,4 +1,3 @@
----
 name: tfplus-python-test
 description: run pytest to execute python test cases of tfplus python
 runs:
@@ -7,5 +6,5 @@ runs:
   args:
     - "/bin/bash"
     - "-c"
-    - "cd tfplus \
-&& sh build.sh"
+    - "cd tfplus/dev/scripts \
+       && sh build_and_test.sh"
