@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package protos;
+
+import "google/protobuf/empty.proto";
+
+message BatchData {
+    bytes data = 1;
+}
+
+message DataInfo {
+    string coworker_addr = 1;
+    int32 batch_num = 2;
+}
+
+service CoworkerRpcService {
+    rpc get_batch_data(google.protobuf.Empty) returns (BatchData);
+}
+
+service DataInfoService {
+    rpc report_data_info(DataInfo) returns (google.protobuf.Empty);
+    rpc get_data_info(google.protobuf.Empty) returns (DataInfo);
+}

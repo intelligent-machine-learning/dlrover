@@ -219,6 +219,34 @@ def save_load_code(data_size, batch_size):
     atorch.reset_distributed()
 
 
+def set_seed_code(data_size, batch_size):
+    backend = "nccl" if torch.cuda.is_available() else "gloo"
+    res = atorch.init_distributed(backend, set_cuda_device_using_local_rank=True)
+    if not res:
+        raise Exception("init failed")
+    seed = 13
+    model_context = create_model_context(data_size=data_size, batch_size=batch_size, sampler_seed=seed)
+    assert model_context.sampler_seed == 13
+
+    atorch.auto.accelerate.EngineClient = FakeEasyDLClient
+    atorch.auto.accelerate.AccelerationEngine = FakeEngine
+
+    status, res, _ = auto_accelerate(
+        model_context.model,
+        model_context.optim_func,
+        model_context.dataset,
+        loss_func=model_context.loss_func,
+        prepare_input=model_context.prepare_input,
+        optim_args=model_context.optim_args,
+        dataloader_args=model_context.dataloader_args,
+    )
+    assert status
+    dataloader = res.dataloader
+    sampler = dataloader.sampler
+    assert isinstance(sampler, torch.data.utils.distributed.DistributedSampler)
+    assert sampler.seed == seed
+
+
 class FakeEasyDLClientOnlyPass(FakeEasyDLClient):
     def __init__(self, addr, port):
         tasks = []
@@ -332,6 +360,12 @@ class AutoAccelerateTest(unittest.TestCase):
     def test_pass_sample_batch(self):
         run_dist_code("pass_sample_batch")
 
+    @unittest.skipIf(
+        not torch.cuda.is_available() or torch.cuda.device_count() < 2, "Skip when gpu not exists or only 1 gpu"
+    )
+    def test_seed(self):
+        run_dist_code("set_seed_code")
+
 
 class LoadSaveStrategyTest(unittest.TestCase):
     @unittest.skipIf(torch.cuda.is_available(), "Skip on gpu as cpu test covers it.")
@@ -434,5 +468,7 @@ if __name__ == "__main__":
         only_pass_model_code(dp_size=2)
     elif sys.argv[1] == "pass_sample_batch":
         pass_sample_batch_code(dp_size=2)
+    elif sys.argv[1] == "test_seed":
+        set_seed_code(data_size=100, batch_size=2)
     if cov_status:
         stop_coverage()

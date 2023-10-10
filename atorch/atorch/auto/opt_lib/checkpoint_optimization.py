@@ -97,7 +97,19 @@ class CheckpointOptimization(Optimization):
 
         else:
             try:
-                from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import apply_activation_checkpointing
+                from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
+                    CheckpointImpl,
+                    apply_activation_checkpointing,
+                    checkpoint_wrapper,
+                )
+
+                # need to set CheckpointImpl.NO_REENTRANT before 20230906 nightly
+                checkpoint_wrapper_non_entrant = partial(
+                    checkpoint_wrapper, checkpoint_impl=CheckpointImpl.NO_REENTRANT
+                )
+                apply_activation_checkpointing = partial(
+                    apply_activation_checkpointing, checkpoint_wrapper_fn=checkpoint_wrapper_non_entrant
+                )
             except ImportError:
                 logger.warning("Checkpoint not supported, thus ignored!")
                 return model_context

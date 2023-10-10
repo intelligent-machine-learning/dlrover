@@ -7,7 +7,9 @@ import os
 import psutil
 import torch
 import torch.distributed as dist
+import torch.nn.functional as F
 import torch.nn.init as init
+from torch.cuda.amp import custom_bwd, custom_fwd
 from torch.nn.parameter import Parameter
 
 from atorch.common.log_utils import default_logger as logger
@@ -20,6 +22,7 @@ from atorch.distributed.distributed import (
 )
 from atorch.modules.distributed_modules.mappings import (
     copy_to_group,
+    gather_shard_dim_with_reshuffle_check,
     reduce_from_group,
     split_shard_dim_with_reshuffle_check,
 )
@@ -94,32 +97,38 @@ class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function):
     Support also the transformers gpt2 Conv1D style implementation
     """
 
+    # use native custom_fwd/custom_bwd decorator to cast inputs
     @staticmethod
+    @custom_fwd
     def forward(ctx, input_, weight, bias, process_group=None, async_grad_allreduce=False, weight_transpose=True):
         if process_group is None:
             process_group = "tensor"
         if isinstance(process_group, str):
             process_group = parallel_group(process_group)
+        # Casting the weight and bias to the type of input_ is the only way such that
+        # the output_ is aligned with the type of input_. This is necessary if we operators
+        # following LinearWithGradAccumulationAndAsyncCommunication is restricted to 16bit (e.g. FA)
         ctx.process_group = process_group
         ctx.use_bias = bias is not None
         ctx.async_grad_allreduce = async_grad_allreduce
         ctx.weight_transpose = weight_transpose
         ctx.save_for_backward(input_, weight)
+        # cast params here so the output keeps as bf16
         if weight_transpose:
             output = torch.matmul(input_, weight.t())
         else:
             output = torch.matmul(input_, weight)
         if bias is not None:
-            output = output + bias
+            # torch.add/+ is not autocasted
+            output = output + bias.to(input_.dtype)
         return output
 
     @staticmethod
+    @custom_bwd
     def backward(ctx, grad_output):
         input_, weight = ctx.saved_tensors
         use_bias = ctx.use_bias
 
-        weight = weight.to(grad_output.dtype)
-        input_ = input_.to(grad_output.dtype)
         if ctx.weight_transpose:
             grad_input = torch.matmul(grad_output, weight)
         else:
@@ -154,7 +163,9 @@ class ATorchTPLayer(torch.nn.Module):
     abstract reset_parameters method: used when the true initialization should be delayed
     """
 
-    def __init__(self, orig_module=None, process_group="tensor", ranks=None, defer_init=False):
+    def __init__(
+        self, orig_module=None, process_group="tensor", ranks=None, defer_init=False, orig_module_dst_device="meta"
+    ):
         # We must create the Parameters even we defer initialization, so that these parameters are transparent to FSDP
         # Since FSDP requires all parameters to be on the same device, we must manually clear all parameters to "meta"
         # and wait the _reset_parameters call to materialize them back.
@@ -166,6 +177,7 @@ class ATorchTPLayer(torch.nn.Module):
         self.world_size = dist.get_world_size(process_group)
         self.process_group = process_group
         self.ranks = ranks
+        self.orig_module_dst_device = orig_module_dst_device
 
         # A Hack to prevent PyTorch from automatically tracking orig_module
         object.__setattr__(self, "orig_module", orig_module)
@@ -202,22 +214,22 @@ class ATorchTPLayer(torch.nn.Module):
             # Possibly due the internals of PyTorch, del cannot release the memory taken up by orig_target
             # But .to("meta") can
             # FIXME more tests to see if this is causing trouble
-            self.orig_module.to("meta")
-            # remove orig_module so that the self module can pass the is_meta test
-            del self.orig_module
+            self.orig_module.to(self.orig_module_dst_device)
+            if self.orig_module_dst_device == "meta":
+                # remove orig_module so that the self module can pass the is_meta test
+                del self.orig_module
+                if "orig_module" in self._modules:
+                    del self._modules["orig_module"]
 
-            # clear parameters and modules
-            if "orig_module" in self._modules:
-                del self._modules["orig_module"]
+                def delete_orig_module(module):
+                    for _, submodule in list(module.named_modules()):
+                        if hasattr(submodule, "orig_module"):
+                            delattr(submodule, "orig_module")
+                            if "orig_module" in submodule._modules:
+                                del submodule._modules["orig_module"]
 
-            def delete_orig_module(module):
-                for _, submodule in list(module.named_modules()):
-                    if hasattr(submodule, "orig_module"):
-                        delattr(submodule, "orig_module")
-                        if "orig_module" in submodule._modules:
-                            del submodule._modules["orig_module"]
-
-            delete_orig_module(self)
+                # clear parameters and modules
+                delete_orig_module(self)
 
             if tp_debug and local_rank() == 0:
                 mu_after_release = _memory_usage() / (1000**3)
@@ -274,7 +286,6 @@ class RowParallelLinear(ATorchTPLayer):
         defer_init=False,
     ):
         super().__init__(orig_module, process_group, ranks, defer_init)
-
         if self.orig_module is not None:
             # In this case we assume that input is already properly sharded
             # Assume initialization on cuda
@@ -298,7 +309,6 @@ class RowParallelLinear(ATorchTPLayer):
         self.weight = Parameter(
             torch.empty(self.output_size, self.input_size_per_partition, dtype=self.params_dtype, device="meta")
         )
-
         if self.orig_module:
             if self.orig_module.bias is not None:
                 my_bias = torch.empty(self.orig_module.bias.shape, dtype=self.params_dtype, device="meta")
@@ -352,6 +362,8 @@ class RowParallelLinear(ATorchTPLayer):
             requires_grad=self.requires_grad,
         )
         self._init_bias()
+        # set tp attr
+        setattr(self.weight, "is_tensor_parallel", True)
 
     @staticmethod
     def orig_module_shardable(orig_module, ranks):
@@ -416,12 +428,7 @@ class ColumnParallelLinear(ATorchTPLayer):
         defer_init=False,
     ):
         super().__init__(orig_module, process_group, ranks, defer_init)
-
         if self.orig_module is not None:
-            # In this case we assume that input is already properly sharded
-            # Assume initialization on cuda
-            input_is_parallel = True
-            self.input_is_parallel = input_is_parallel
             self.input_size = self.orig_module.in_features
             self.output_size = self.orig_module.out_features
             self.params_dtype = self.orig_module.weight.dtype
@@ -429,7 +436,6 @@ class ColumnParallelLinear(ATorchTPLayer):
             self.input_size = input_size
             self.output_size = output_size
             self.use_bias = bias
-            self.input_is_parallel = input_is_parallel
             self.params_dtype = params_dtype
 
         self.stride = stride
@@ -497,7 +503,6 @@ class ColumnParallelLinear(ATorchTPLayer):
     def _reset_parameters(self):
         self.weight = Parameter(torch.empty(self.output_size_per_partition, self.input_size, dtype=self.params_dtype))
         master_weight = self.orig_module.weight if self.orig_module else None
-
         # initialize weight
         _initialize_affine_weight(
             self.weight,
@@ -513,6 +518,10 @@ class ColumnParallelLinear(ATorchTPLayer):
             requires_grad=self.requires_grad,
         )
         self._init_bias()
+        # set tp attr
+        setattr(self.weight, "is_tensor_parallel", True)
+        if self.bias is not None:
+            setattr(self.bias, "is_tensor_parallel", True)
 
     @staticmethod
     def orig_module_shardable(orig_module, ranks):
@@ -622,6 +631,8 @@ class VocabParallelEmbedding(ATorchTPLayer):
             group_name="tensor",
             requires_grad=self.requires_grad,
         )
+        # set tp attr
+        setattr(self.weight, "is_tensor_parallel", True)
 
     @staticmethod
     def orig_module_shardable(orig_module, ranks):
@@ -653,4 +664,100 @@ class VocabParallelEmbedding(ATorchTPLayer):
         # Reduce across all the model parallel GPUs.
         # FIXME use a backward enabled operator
         output = reduce_from_group(output_parallel, self.process_group)
+        return output
+
+
+class ParallelEmbedding(ATorchTPLayer):
+    """Embedding parallelized in the embedding dimension.
+
+    This is mainly adapted from torch.nn.Embedding and all the default
+    values are kept.
+    Arguments:
+        num_embeddings: vocabulary size.
+        embedding_dim: size of hidden state.
+        init_method: method to initialize weights.
+    """
+
+    def __init__(
+        self,
+        num_embeddings=None,
+        embedding_dim=None,
+        padding_idx=None,
+        max_norm=None,
+        norm_type=2.0,
+        scale_grad_by_freq=False,
+        sparse=False,
+        init_method=init.xavier_normal_,
+        orig_module=None,
+        process_group="tensor",
+        ranks=None,
+        params_dtype=torch.float32,
+        requires_grad=True,
+        defer_init=False,
+    ):
+        super().__init__(orig_module, process_group, ranks, defer_init)
+        self.tensor_model_parallel_size = self.world_size
+
+        self.num_embeddings = orig_module.num_embeddings if orig_module else num_embeddings
+        self.embedding_dim = orig_module.embedding_dim if orig_module else embedding_dim
+        self.padding_idx = orig_module.padding_idx if orig_module else padding_idx
+        self.max_norm = orig_module.max_norm if orig_module else max_norm
+        self.norm_type = orig_module.norm_type if orig_module else norm_type
+        self.scale_grad_by_freq = orig_module.scale_grad_by_freq if orig_module else scale_grad_by_freq
+        self.sparse = orig_module.sparse if orig_module else sparse
+        self.requires_grad = orig_module.weight.requires_grad if orig_module else requires_grad
+        self.params_dtype = orig_module.weight.dtype if orig_module is not None else params_dtype
+        self.embedding_dim_per_partition = divide(self.embedding_dim, self.world_size)
+        self.init_method = init_method
+
+        self.weight = Parameter(
+            torch.empty(
+                self.num_embeddings,
+                self.embedding_dim_per_partition,
+                requires_grad=self.requires_grad,
+                dtype=self.params_dtype,
+                device="meta",
+            )
+        )
+
+        if not self.defer_init:
+            self.reset_parameters()
+
+    def _reset_parameters(self):
+        # Allocate weights.
+        self.weight = Parameter(
+            torch.empty(
+                self.num_embeddings,
+                self.embedding_dim_per_partition,
+                requires_grad=self.requires_grad,
+                dtype=self.params_dtype,
+            )
+        )
+        master_weight = self.orig_module.weight if self.orig_module else None
+        _initialize_affine_weight(
+            self.weight,
+            per_partition_size=self.embedding_dim_per_partition,
+            partition_dim=-1,
+            init_method=self.init_method,
+            master_weight=master_weight,
+            out_features=self.num_embeddings,
+            in_features=self.embedding_dim,
+            group_name="tensor",
+            requires_grad=self.requires_grad,
+        )
+        # set tp attr
+        setattr(self.weight, "is_tensor_parallel", True)
+
+    def forward(self, input_):
+        input_parallel = copy_to_group(input_)
+        output_parallel = F.embedding(
+            input_parallel,
+            self.weight,
+            self.padding_idx,
+            self.max_norm,
+            self.norm_type,
+            self.scale_grad_by_freq,
+            self.sparse,
+        )
+        output = gather_shard_dim_with_reshuffle_check(output_parallel, -1, group=self.process_group, ranks=self.ranks)
         return output

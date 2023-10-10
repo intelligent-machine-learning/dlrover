@@ -161,7 +161,7 @@ def clip_grad_norm(model, max_norm, norm_type=2, optimizer=None, process_group_n
         if norm_type == math.inf:
             dist.all_reduce(total_norm, op=dist.ReduceOp.MAX, group=tensor_parallel_group)
         else:
-            total_norm = local_norm**norm_type
+            total_norm = total_norm**norm_type
             dist.all_reduce(total_norm, op=dist.ReduceOp.SUM, group=tensor_parallel_group)
             total_norm = total_norm ** (1.0 / norm_type)
 

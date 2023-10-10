@@ -3,6 +3,7 @@ import gc
 import os
 import pickle
 import time
+import traceback
 from copy import deepcopy
 
 import torch
@@ -11,6 +12,7 @@ from atorch.auto.analyser.analyser import get_analyser
 from atorch.auto.auto_accelerate_context import AutoAccelerateContext
 from atorch.auto.device_context import get_device_context
 from atorch.auto.dry_runner.dry_runner import get_dryrunner
+from atorch.auto.engine.acceleration_engine import AccelerationEngine
 from atorch.auto.engine_client import EngineClient
 from atorch.auto.model_context import ModelContext
 from atorch.auto.opt_lib.optimization_library import SEMIAUTO_STRATEGIES, OptimizationLibrary
@@ -28,12 +30,6 @@ from atorch.distributed.distributed import (
     rank,
 )
 from atorch.utils.meta_model_utils import deepcopy_checkpoint_name, reload_meta_module
-
-try:
-    from easydl.python.acceleration.acceleration_engine import AccelerationEngine
-except ImportError:
-    AccelerationEngine = None
-import traceback
 
 
 def model_transform(
@@ -460,6 +456,8 @@ def auto_accelerate(
                      list of optimization method name or (name, config).
     - finetune_strategy: if True and load_strategy is not None, finetune the loaded strategy.
     - save_strategy_to_file: if not None, a file name for saving the acceleration strategy.
+    - kargs: a dict. Including:
+        sample_batch, batch_size, expand_sample_batch and sampler_seed(default to 0)
 
     Returns: status, result, best_strategy
     - status: a bool indicating if auto_accelerate is successful
@@ -468,7 +466,13 @@ def auto_accelerate(
               None if status is False.
     - best_strategy: the best strategy if status is True, otherwise None.
     """
+    meta_init_offload_name = kargs.pop("meta_init_offload_name", None)
     extra_args = create_extra_args_for_auto_accelerate(**kargs)
+    # set current offload name for fsdp shard util
+    from atorch.utils.meta_model_utils import _MetaModeContext
+
+    _MetaModeContext.current_offload_name = meta_init_offload_name
+
     AutoAccelerateContext.counter += 1
     model_context = ModelContext(
         model=model,
@@ -554,6 +558,7 @@ def auto_accelerate(
                     "strategy_opt_names", {AutoAccelerateContext.counter: strategy.opt_names()}
                 )
             logger.info(f"Load strategy successfully and ready for use.\n{strategy}")
+            _MetaModeContext.del_current_shard_flat_loader()
             setattr(result.model, "_auto_acc_ctx_counter", AutoAccelerateContext.counter)
             return True, assemble_result(result), strategy
     else:
@@ -606,6 +611,7 @@ def auto_accelerate(
                     )
                 setattr(result.model, "_auto_acc_ctx_counter", AutoAccelerateContext.counter)
                 logger.info(f"auto_accelerate finished!\n{task.strategy}")
+                _MetaModeContext.del_current_shard_flat_loader()
                 return True, assemble_result(result), task.strategy
             else:
                 logger.error("auto_accelerate cannot find a valid strategy to train model!")

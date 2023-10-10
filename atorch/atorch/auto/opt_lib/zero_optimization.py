@@ -63,6 +63,51 @@ def get_skip_match_module_child_wrap_policy(wrap_cls, model=None):
         return functools.partial(_skip_match_module_child_wrap_policy_pre_2, module_classes=wrap_cls)
 
 
+def fsdp_wrap_params_outmost(model, param_list, outmost_sharding_strategy, **kwargs):
+    """
+    Minimum torch version required: 2.1.0.
+    Cannot used with ignored_states or ignored_modules in kwargs
+    FSDP wraps model with kwargs, but ignores parameters in param_list.
+    Then add an outmost wrap for parameters in param_list.
+    """
+    if torch_version() < (2, 1, 0):
+        raise RuntimeError("fsdp_wrap_params_outmost requires torch version >= 2.1")
+    ignored_states = kwargs.get("ignored_states", None)
+    ignored_modules = kwargs.get("ignored_modules", None)
+    if ignored_modules is not None or ignored_states is not None:
+        raise ValueError("fsdp_wrap_params_outmost cannot be used with ignored_states or ignored_modules")
+    # step 1: wrap with ignored_states
+    model = FSDP(model, ignored_states=param_list, **kwargs)
+    # step 2: move param_list to gpu if not so, as torch 20230906 nightly would skip ignored_params for move_to_gpu.
+    cpu_device = torch.device("cpu")
+    gpu_device = kwargs["device_id"] if "device_id" in kwargs else torch.device("cuda", torch.cuda.current_device())
+    for param in param_list:
+        if param.device == cpu_device:
+            with torch.no_grad():
+                param.data = param.to(gpu_device)
+    # step 3: clear _ignored_params so param_list can be wrapped in step 3.
+    for _, m in model.named_modules():
+        if isinstance(m, FSDP):
+            m._ignored_params.clear()
+    # step 4: outmost wrap parameters in param_list without auto_wrap_policy.
+    outer_kwargs = copy(kwargs)
+    if "auto_wrap_policy" in kwargs:
+        outer_kwargs.pop("auto_wrap_policy")
+    outer_kwargs["sharding_strategy"] = outmost_sharding_strategy
+    model = FSDP(model, **outer_kwargs)
+    return model
+
+
+def fsdp_wrap_trainable_outmost(model, outmost_sharding_strategy, **kwargs):
+    params = []
+    for p in model.parameters():
+        if p.requires_grad:
+            params.append(p)
+    if len(params) == 0:
+        raise ValueError("No trainable parameters in model!")
+    return fsdp_wrap_params_outmost(model, params, outmost_sharding_strategy, **kwargs)
+
+
 class Zero1Optimization(Optimization):
     def __init__(self):
         super().__init__(name="zero1", group="zero", is_tunable=False, is_distributed=True)
@@ -228,6 +273,16 @@ class FSDPOptimization(Optimization):
                 min_num_params = 1e5
             wrapper_config[policy_param_name] = functools.partial(auto_wrap_policy, min_num_params=min_num_params)
 
+        wrap_trainable_outmost = wrapper_config.pop("wrap_trainable_outmost", False)
+        if wrap_trainable_outmost:
+            if torch_version() < (2, 1, 0):
+                raise RuntimeError("fsdp_wrap_params_outmost requires torch version >= 2.1")
+            from torch.distributed.fsdp.api import ShardingStrategy
+
+            outmost_sharding_strategy = (
+                ShardingStrategy.NO_SHARD if wrap_trainable_outmost == "NO_SHARD" else ShardingStrategy.FULL_SHARD
+            )
+
         if torch_version() >= (1, 12, 0):
             # ignore embedding
             if "atorch_ignored_cls" in wrapper_config:
@@ -250,7 +305,7 @@ class FSDPOptimization(Optimization):
                     from atorch.utils import meta_model_utils
                     from atorch.utils.meta_model_utils import _find_tied_weights, _retie_weights
 
-                    if meta_model_utils._MetaModeContext._SHARD_FLAT_PARAM_LOADER is not None:
+                    if meta_model_utils._MetaModeContext._SHARD_FLAT_PARAM_LOADER:
                         pg = parallel_group("data")
                         rank0 = torch.distributed.get_rank(pg) == 0
                         tie_weights = _find_tied_weights(model_context.model)
@@ -273,7 +328,7 @@ class FSDPOptimization(Optimization):
                                 logger.info("intra load is switch on")
                             for name, p in model_context.model.named_parameters():
                                 setattr(p, "intra_load", True)
-                            meta_model_utils._MetaModeContext._SHARD_FLAT_PARAM_LOADER.get_fsdp_init_order(
+                            meta_model_utils._MetaModeContext.get_current_shard_flat_loader().get_fsdp_init_order(
                                 model_context.model, wrap_cls
                             )
                     wrapper_config["param_init_fn"] = functools.partial(
@@ -318,17 +373,18 @@ class FSDPOptimization(Optimization):
 
             fsdp_clz = ParseFSDP(fsdp_clz, fsdp_clz is FSDP, cb)
 
+        extra_config["process_group"] = pg
         wrapper_config.update(extra_config)
+        if wrap_trainable_outmost:
+            fsdp_clz = functools.partial(
+                fsdp_wrap_trainable_outmost, outmost_sharding_strategy=outmost_sharding_strategy
+            )
+
         model_context.model = fsdp_clz(
             model_context.model,
-            pg,
             **wrapper_config,
         )
         if torch_version() < (1, 12, 0):
             model_context.model.to(local_rank())
 
-        from atorch.utils import meta_model_utils
-
-        if meta_model_utils._MetaModeContext._SHARD_FLAT_PARAM_LOADER is not None:
-            meta_model_utils._MetaModeContext._SHARD_FLAT_PARAM_LOADER = None
         return model_context

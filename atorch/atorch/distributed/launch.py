@@ -282,7 +282,7 @@ def parse_args(args=None):
         "--use_elastic_dataloader",
         default=False,
         action="store_true",
-        help="Use coworker with easydl's dynamic data sharding",
+        help="Use coworker with elasticdl's dynamic data sharding",
     )
     parser.add_argument(
         "--rank_log_dir",

@@ -1,7 +1,9 @@
+import hashlib
 import logging
 import os
 import sys
 import time
+import traceback
 import typing  # type: ignore # noqa: F401
 
 import atorch
@@ -31,6 +33,18 @@ def get_logger(name, level="INFO", handlers=None, update=False):
 
 
 default_logger = get_logger(_DEFAULT_LOGGER)
+
+
+logged_messages = set()
+
+
+# Function to log a message only once
+def log_once(message):
+    call_stack = repr(traceback.extract_stack()[:-1])
+    message_hash = hashlib.md5((call_stack + message).encode("utf-8")).hexdigest()
+    if message_hash not in logged_messages:
+        logging.info(message)
+        logged_messages.add(message_hash)
 
 
 class DashBoardWriter(object):
