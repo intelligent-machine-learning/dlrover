@@ -50,7 +50,7 @@ class BF16Optimizer(torch.optim.Optimizer):
 
     def __init__(self, init_optimizer, verbose=False):
         if not torch.cuda.is_available:
-            raise SystemError("Cannot use fp16 without CUDA.")
+            raise SystemError("Cannot use bf16 without CUDA.")
 
         self.verbose = verbose
 

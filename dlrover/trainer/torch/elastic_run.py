@@ -230,10 +230,12 @@ def _elastic_config_from_args(
 ) -> Tuple[ElasticLaunchConfig, Union[Callable, str], List[str]]:
     config, cmd, cmd_args = config_from_args(args)
     elastic_config = ElasticLaunchConfig(**config.__dict__)
-    elastic_config.network_check = args.network_check
-    elastic_config.node_unit = args.node_unit
-    elastic_config.auto_tunning = args.auto_tunning
-    elastic_config.exclude_straggler = args.exclude_straggler
+    elastic_config.network_check = getattr(args, "network_check", False)
+    elastic_config.node_unit = getattr(args, "node_unit", 1)
+    elastic_config.auto_tunning = getattr(args, "auto_tunning", False)
+    elastic_config.exclude_straggler = getattr(
+        args, "exclude_straggler", False
+    )
     return elastic_config, cmd, cmd_args
 
 
