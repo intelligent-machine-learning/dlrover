@@ -84,20 +84,34 @@ jobs:
   tfplus-python-test:
     runs-on: ubuntu-latest
     steps:
-      # Check out the repository
-      - name: checkout
+      # Checkout the base code. The base could be the base branch of a PR or any branch for a push event.
+      - name: Checkout base code 
+        id: base
         uses: actions/checkout@v3
-      # Check if there are changes in the 'tfplus' directory
+        with:
+          ref: ${{ github.base_ref || github.ref }}
+          fetch-depth: 1
+      # Get the SHA of the last commit in the base branch.
+      - name: Get Base SHA
+        run: echo "BASE_SHA=$(git rev-parse HEAD)" >> $GITHUB_ENV
+      # Checkout the head code. The head could be the head branch of a PR or any branch for a push event.
+      - name: Checkout head code
+        id: head
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.head_ref || github.ref }}
+          fetch-depth: 1
+      # Compare the base and head, check for changes in directory 'tfplus'.
       - name: check for changes in 'tfplus'
         id: check_files
         run: |
-          FILES=$(git diff --name-only HEAD^ HEAD)
+          FILES=$(git diff --name-only $BASE_SHA HEAD)
           if echo "$FILES" | grep -q "tfplus/"; then
             echo "::set-output name=run_job::true"
           else
             echo "::set-output name=run_job::false"
           fi
-      # Only run the tests if there are changes in the 'tfplus' directory
+      # Run the tfplus tests if there're any changes in 'tfplus'.
       - name: Run tfplus tests
         if: steps.check_files.outputs.run_job == 'true'
         uses: ./.github/actions/tfplus-python-test
