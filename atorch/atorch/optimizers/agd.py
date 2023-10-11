@@ -24,8 +24,10 @@ class AGD(torch.optim.Optimizer):
         betas (tuple of 2 floats, optional): Coefficients used for computing running averages of gradient and its square. Default is (0.9, 0.999).
         delta (float, optional): Small constant for numerical stability to prevent division by zero. Default is 1e-5.
         weight_decay (float, optional): Weight decay coefficient. Default is 0.0.
-        amsgrad (bool, optional): If set to True, applies the AMSGrad variant of the optimizer. Default is False.
-        win (bool, optional): If set to True, applies the Win variant of the optimizer. Default is False.
+        weight_decouple (bool, optional): If set to True, use decoupled weight decay. Default is True.
+        fixed_decay (bool, optional): Enables fixed weight decay irrespective of the learning rate. Default setting is False.
+        amsgrad (bool, optional): Applies the AMSGrad variant of the optimizer. Default is False.
+        win (bool, optional): Applies the Win variant of the optimizer. Default is False.
         clip (bool, optional): Total update clip to prevent abnormal updates. Default is None.
     """
 
@@ -36,6 +38,8 @@ class AGD(torch.optim.Optimizer):
         betas: Betas2 = (0.9, 0.999),
         delta: float = 1e-5,
         weight_decay: float = 0.0,
+        weight_decouple: bool = True,
+        fixed_decay: bool = False,
         amsgrad: bool = False,
         win: bool = False,
         clip: float = None,
@@ -56,6 +60,8 @@ class AGD(torch.optim.Optimizer):
             betas=betas,
             delta=delta,
             weight_decay=weight_decay,
+            weight_decouple=weight_decouple,
+            fixed_decay=fixed_decay,
             amsgrad=amsgrad,
             win=win,
             clip=clip,
@@ -77,6 +83,16 @@ class AGD(torch.optim.Optimizer):
                 if grad.is_sparse:
                     msg = "AGD does not support sparse gradients."
                     raise RuntimeError(msg)
+
+                if not group["win"]:
+                    if self.weight_decouple:
+                        if not self.fixed_decay:
+                            p.data.mul_(1.0 - group["lr"] * group["weight_decay"])
+                        else:
+                            p.data.mul_(1.0 - group["weight_decay"])
+                    else:
+                        if group["weight_decay"] != 0:
+                            grad.add_(p.data, alpha=group["weight_decay"])
 
                 state = self.state[p]
                 # Lazy state initialization
@@ -135,13 +151,16 @@ class AGD(torch.optim.Optimizer):
                 update = exp_avg / update
                 if group["clip"] is not None:
                     update.clamp_(min=-group["clip"], max=group["clip"])
-                weight_decay = group["weight_decay"]
                 if not group["win"]:
-                    p.data.mul_(1 - group["lr"] * weight_decay).add_(update, alpha=-lr_adjust)
+                    p.data.add_(update, alpha=-lr_adjust)
                 else:
                     z = state["z"]
-                    z.data.add_(update, alpha=-lr_adjust).mul_(1.0 / (1.0 + weight_decay * lr_adjust))
+                    z.data.add_(update, alpha=-lr_adjust).mul_(
+                        1.0 / (1.0 + group["weight_decay"] * lr_adjust)
+                    )
                     lr_adjust2 = 2 * lr_adjust
-                    tao = 1.0 / (3.0 + lr_adjust2 * weight_decay)
-                    p.data.mul_(tao).add_(update, alpha=-tao * lr_adjust2).add_(z, alpha=2 * tao)
+                    tao = 1.0 / (3.0 + lr_adjust2 * group["weight_decay"])
+                    p.data.mul_(tao).add_(update, alpha=-tao * lr_adjust2).add_(
+                        z, alpha=2 * tao
+                    )
         return loss
