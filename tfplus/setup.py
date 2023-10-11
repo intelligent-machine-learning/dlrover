@@ -30,7 +30,9 @@ USING_SO_FILES = (
 )
 
 __version__ = "0.1.0"
-REQUIRED_PACKAGES = []
+REQUIRED_PACKAGES = [
+  "tensorflow-cpu==2.13.0"
+]
 project_name = "tfplus"
 project = "tfplus"
 
@@ -94,8 +96,25 @@ print(find_packages())
 setup(
     name=project_name,
     version=__version__,
-    description=("TFPlus"),
-    author="Ant Group.",
+    description=("TFPlus is a high-performance TensorFlow extension"
+    " library developed in-house by Ant Group"),
+    long_description="""
+TFPlus is a high-performance TensorFlow extension library developed in-house
+by Ant Group and encapsulates the Ant Group's core capabilities for large-scale
+sparse training. TFPlus has accumulated essential functionalities and performance
+optimizations for core sparse scenarios. It has deeply optimized the performance
+in terms of IO, operators, graph optimization, distribution, and collective
+communication for sparse models. Also, it provides special optimizers, fault
+tolerance, elasticity, incremental updates, etc., unique to sparse scenarios.
+Its main features are:
+-  Provide highly efficient TF operator extensions in a plug-in manner
+-  Support high-performance sparse Embedding training in recommendation scenarios: Kv Variable
+-  Offer high-performance, self-developed deep learning optimizers
+    """,
+    long_description_content_type='text/markdown',
+    author="Ant Group",
+    url="https://github.com/intelligent-machine-learning/dlrover",
+    python_requires=">=3.8",
     # Contained modules and scripts.
     packages=find_packages(),
     install_requires=REQUIRED_PACKAGES,
@@ -111,7 +130,7 @@ setup(
         "Intended Audience :: Developers",
         "Intended Audience :: Education",
         "Intended Audience :: Science/Research",
-        "License :: OSI Approved :: Apache Software License 2.0",
+        "License :: OSI Approved :: Apache Software License",
         "Topic :: Scientific/Engineering :: Mathematics",
         "Topic :: Software Development :: Libraries :: Python Modules",
         "Topic :: Software Development :: Libraries",

@@ -24,14 +24,15 @@ TFPlus is a high-performance TensorFlow extension library developed in-house by 
 > We will promote the construction of the DLRover open-source system and gradually open source all the functions of TFPlus.
 
 ## TFPlus Installation
-We provide two methods to install TFPlus: one is directly via PyPI, and the other is locally built.
-### PyPI Installation
-First, you need to install TensorFlow 2.13.0. Notably, TFPlus is currently optimized for TensorFlow's CPU version.
+There are two ways to install TFPlus: installing the whl package we released on GitHub directly or building it locally.
+### GitHub Release Installation
+First, you need to install TensorFlow 2.13.0. Please note that TFPlus is currently optimized and supported only for the CPU version of TensorFlow.  
+Next, go to the [release page](https://github.com/intelligent-machine-learning/dlrover/releases) of the [GitHub repository](https://github.com/intelligent-machine-learning/dlrover) to obtain the latest download link for tfplus whl package.
 ```shell
 pip install tensorflow-cpu==2.13.0
 
 # Install the latest version of TFPlus through pip:
-pip install tfplus
+pip install [Github release path]
 
 # To ensure successful TFPlus installation, you can try importing TFPlus and print its version:
 python -c "import tfplus; print(tfplus.__version__)"
@@ -42,10 +43,13 @@ Currently, the PyPI version of TFPlus is tested and supported only on Linux. If 
 ### Local Build Installation
 Another optional installation method is local building, which requires more time (depending on your machine's performance).<br />You can download and launch our Docker image by running the following command:
 ```shell
+git clone https://github.com/intelligent-machine-learning/dlrover.git
+cd dlrover
 docker run -it --net=host -v ${PWD}:/v -w /v easydl/tfplus:tf213_dev /bin/bash
 
 # Then, execute the build script in the initiated Docker container:
-bash build.sh
+cd tfplus/dev/scripts
+bash build_and_test.sh
 ```
 ### Precautions
 

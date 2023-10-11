@@ -24,14 +24,15 @@ TFPlus 是蚂蚁集团自研的高性能 TensorFlow 扩展库，支持了蚂蚁�
 > 我们将推进 DLRover 开源体系建设，逐步将 TFPlus 的全部功能进行开源。
 
 ## TFPlus 安装
-我们提供了两种方式来安装 TFPlus：一种是直接通过 PyPI，另一种是在本地构建。
-### PyPI 安装
-首先，你需要安装 TensorFlow 2.13.0。值得注意的是，TFPlus 当前只对 TensorFlow 的 CPU 版本进行了优化支持。
+我们提供了两种方式来安装 TFPlus：一种是直接安装我们在github发布的whl包，另一种是在本地构建。
+### Github release 安装
+首先，你需要安装 TensorFlow 2.13.0。值得注意的是，TFPlus 当前只对 TensorFlow 的 CPU 版本进行了优化支持。  
+然后前往[Github仓库](https://github.com/intelligent-machine-learning/dlrover)的[release页面](https://github.com/intelligent-machine-learning/dlrover/releases)获取最新的tfplus的whl下载地址。
 ```shell
 pip install tensorflow-cpu==2.13.0
 
 # 通过 pip 安装最新版本的 TFPlus：
-pip install tfplus
+pip install [Github release path]
 
 # 为了确认 TFPlus 安装成功，你可以尝试导入 TFPlus 并打印其版本：
 python -c "import tfplus; print(tfplus.__version__)"
@@ -41,10 +42,13 @@ python -c "import tfplus; print(tfplus.__version__)"
 ### 本地构建安装
 另外一种可选的安装方式是在本地构建，这需要更多的时间（取决于你的机器性能）。<br /> 你可以通过运行以下命令来下载和启动我们的 Docker 镜像：
 ```shell
+git clone https://github.com/intelligent-machine-learning/dlrover.git
+cd dlrover
 docker run -it --net=host -v ${PWD}:/v -w /v easydl/tfplus:tf213_dev /bin/bash
 
 # 然后，在启动的 Docker 容器中执行构建脚本：
-bash build.sh
+cd tfplus/dev/scripts
+bash build_and_test.sh
 ```
 ### 注意事项
 
