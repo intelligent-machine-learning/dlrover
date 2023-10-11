@@ -17,13 +17,21 @@ from abc import ABCMeta, abstractmethod
 
 class QuotaChecker(metaclass=ABCMeta):
     @abstractmethod
-    def get_avaliable_worker_num(self):
+    def get_free_node_num(self):
         pass
 
 
 class UnlimitedQuotaChecker(QuotaChecker):
     """No resource limits."""
 
-    def get_avaliable_worker_num(self):
+    def get_free_node_num(self):
         """Assume there is always enough resource."""
         return sys.maxsize
+
+
+class NoFreeQuotaChecker(QuotaChecker):
+    """No any free nodes."""
+
+    def get_free_node_num(self):
+        """Assume there is always enough resource."""
+        return 0

@@ -21,8 +21,6 @@ from dlrover.python.common.constants import (
 from dlrover.python.elastic_agent.master_client import GlobalMasterClient
 from dlrover.python.elastic_agent.monitor.resource import ResourceMonitor
 
-monitor = ResourceMonitor()
-
 
 def get_task_type_from_tf_config():
     if os.getenv("TF_CONFIG", None):
@@ -50,18 +48,20 @@ class ElasticPsClient(object):
         self._task_type = task_type
         self._task_id = task_id
         self._master_client = GlobalMasterClient.MASTER_CLIENT
+        self._monitor = ResourceMonitor()
+        self._monitor.start()
 
     def get_global_cluster_version(self):
-        response = self._master_client.get_cluster_version(
+        version = self._master_client.get_cluster_version(
             PSClusterVersionType.GLOBAL, self._task_type, self._task_id
         )
-        return response.version
+        return version
 
     def get_local_cluster_version(self):
-        response = self._master_client.get_cluster_version(
+        version = self._master_client.get_cluster_version(
             PSClusterVersionType.LOCAL, self._task_type, self._task_id
         )
-        return response.version
+        return version
 
     def update_local_cluster_version(self, version):
         self._master_client.update_cluster_version(
@@ -77,10 +77,10 @@ class ElasticPsClient(object):
         )
 
     def get_restored_version(self):
-        response = self._master_client.get_cluster_version(
+        version = self._master_client.get_cluster_version(
             PSClusterVersionType.RESTORED, self._task_type, self._task_id
         )
-        return response.version
+        return version
 
     def update_restored_version(self, version):
         self._master_client.update_cluster_version(

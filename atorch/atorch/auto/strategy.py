@@ -20,6 +20,9 @@ class Strategy(object):
     def add_opt(self, opt):
         self.opt_list.append(opt)
 
+    def opt_names(self):
+        return [opt[0] for opt in self.opt_list]
+
     def is_tunable(self):
         for item in self.opt_list:
             if item[2]:
@@ -55,7 +58,10 @@ class Strategy(object):
         for idx, item in enumerate(self.opt_list):
             if item[0] == "parallel_mode":
                 if item[1] is not None:
-                    # item[1] is tuple(list(name, size), optional(rank_list))
+                    # item[1] is tuple(list(name, size), Oneof(None, rank_list), Optional(bool))
+                    support_multi_parallel_instance = item[1][2] if len(item[1]) > 2 else False
+                    if support_multi_parallel_instance:
+                        break
                     pg_list = []
                     for name, size in item[1][0]:
                         if name == "data":

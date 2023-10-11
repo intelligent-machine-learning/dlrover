@@ -3,13 +3,13 @@ name: dlrover-system-test-deepfm_tf
 description: run pytest to execute python test cases of dlrover-trainer
 runs:
   using: 'docker'
-  image: "registry.cn-hangzhou.aliyuncs.com/dlrover_deeprec/deeprec:v1"
+  image: "easydl/dlrover:deeprec_ci"
   args:
     - "/bin/bash"
     - "-c"
     - " python -m grpc_tools.protoc -I. \
 dlrover/proto/*.proto --python_out=. --grpc_python_out=. \
-&& pip install deepctr \
+&& pip install deepctr deprecated\
 && export PYTHONPATH=`pwd` \
-&& cd model_zoo/tf_estimator/deepfm_tf\
+&& cd examples/tensorflow/deepfm_tf\
 && unset DLROVER_MASTER_ADDR  && sh run.sh"

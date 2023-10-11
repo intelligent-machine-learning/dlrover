@@ -16,10 +16,10 @@ import time
 from concurrent import futures
 from typing import Dict, List
 
-import grpc
-from google.protobuf import empty_pb2
+import grpc as grpc_lib
 
 from dlrover.proto import elastic_training_pb2, elastic_training_pb2_grpc
+from dlrover.python.common import grpc
 from dlrover.python.common.constants import (
     GRPC,
     NodeStatus,
@@ -29,22 +29,30 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
 from dlrover.python.master.elastic_training.kv_store_service import (
     KVStoreService,
 )
 from dlrover.python.master.elastic_training.rdzv_manager import (
+    NetworkCheckRendezvousManager,
     RendezvousManager,
 )
-from dlrover.python.master.elastic_training.sync_service import SyncService
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.job_manager import JobManager
 from dlrover.python.master.shard.dataset_splitter import new_dataset_splitter
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.master.stats.job_collector import JobMetricCollector
-from dlrover.python.master.stats.training_metrics import OpStats, TensorStats
 from dlrover.python.master.watcher.base_watcher import Node, NodeEvent
 from dlrover.python.util.queue.queue import RayEventQueue
+
+try:
+    from dlrover.python.master.elastic_training.elastic_ps import (
+        ElasticPsService,
+    )
+    from dlrover.python.master.elastic_training.sync_service import SyncService
+except ImportError:
+    logger.info("Run the master locally.")
+    pass
+
 
 _dlrover_context = Context.singleton_instance()
 _DEFAULT_NUM_MINIBATCHES_PER_SHARD = 100
@@ -56,17 +64,16 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
 
     def __init__(
         self,
-        task_manager: TaskManager,
-        job_manager: JobManager,
+        task_manager,
+        job_manager,
         speed_monitor: SpeedMonitor,
         rdzv_managers: Dict[str, RendezvousManager],
         job_metric_collector=None,
         elastic_ps_service=None,
         sync_service=None,
     ):
-        # TODO: group params together into a single object.
-        self._task_manager = task_manager
-        self._job_manager = job_manager
+        self._task_manager: TaskManager = task_manager
+        self._job_manager: JobManager = job_manager
         self._speed_monitor = speed_monitor
         self._rdzv_managers = rdzv_managers
         self._kv_store = KVStoreService()
@@ -75,13 +82,323 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         self._sync_service: SyncService = sync_service
         self._lock = threading.Lock()
         self._version = 0
-        self._start_training_time = None
+        self._start_training_time = 0
         self._start_autoscale = False
 
-    def get_model_version(self):
-        return self._version
+    def get(self, request, _):
+        node_type = request.node_type
+        node_id = request.node_id
+        req_message = grpc.deserialize_message(request.data)
 
-    def report_task_result(self, request, _):
+        response = elastic_training_pb2.Message()
+        if not req_message:
+            return response
+        message = None
+        if isinstance(req_message, grpc.TaskRequest):
+            message = self._get_task(node_type, node_id, req_message)
+        elif isinstance(req_message, grpc.ShardCheckpointRequest):
+            message = self._get_shard_checkpoint(req_message)
+        elif isinstance(req_message, grpc.ClusterVersionRequest):
+            message = self._get_cluster_version(req_message)
+        elif isinstance(req_message, grpc.RunningNodesRequest):
+            message = self._get_running_nodes()
+        elif isinstance(req_message, grpc.JoinRendezvousRequest):
+            message = self._join_rendezvous(req_message)
+        elif isinstance(req_message, grpc.WaitingNodeNumRequest):
+            message = self._num_nodes_waiting()
+        elif isinstance(req_message, grpc.NetworkReadyRequest):
+            message = self._check_fault_node()
+        elif isinstance(req_message, grpc.StragglerExistRequest):
+            message = self._check_straggler()
+        elif isinstance(req_message, grpc.JoinRendezvousRequest):
+            message = self._join_rendezvous(req_message)
+        elif isinstance(req_message, grpc.CommWorldRequest):
+            message = self._get_comm_world(req_message)
+        elif isinstance(req_message, grpc.KeyValuePair):
+            message = self._kv_store_get(req_message)
+        elif isinstance(req_message, grpc.PsNodesRequest):
+            message = self._query_ps_nodes()
+        elif isinstance(req_message, grpc.TrainingStatusRequest):
+            message = self._get_training_status()
+        elif isinstance(req_message, grpc.ParallelConfigRequest):
+            message = self._get_paral_config()
+
+        if message:
+            response.data = message.serialize()
+        return response
+
+    def _get_task(self, node_type, node_id, request: grpc.TaskRequest):
+        if not self._start_training_time:
+            self._start_training_time = int(time.time())
+        shard = grpc.Shard()
+        res = grpc.Task(shard=shard)
+        ds_name = request.dataset_name
+        dataset = self._task_manager.get_dataset(ds_name)
+        if not dataset:
+            return res
+        task = self._task_manager.get_dataset_task(node_type, node_id, ds_name)
+
+        if task:
+            res.task_id = task.task_id
+            res.type = task.task_type
+            res.shard.name = task.shard.name
+            res.shard.start = task.shard.start
+            res.shard.end = task.shard.end
+            if task.shard.record_indices:
+                res.shard.indices.extend(task.shard.record_indices)
+        elif not dataset.completed():
+            res.type = elastic_training_pb2.WAIT
+        with self._lock:
+            self._task_manager.reset_worker_start_task_time(node_id)
+        return res
+
+    def _get_shard_checkpoint(self, request: grpc.ShardCheckpointRequest):
+        response = grpc.ShardCheckpoint()
+        dataset = self._task_manager.get_dataset(request.dataset_name)
+        checkpoint = dataset.checkpoint()
+        if checkpoint:
+            response.content = checkpoint.to_json()
+        return response
+
+    def _get_cluster_version(self, request: grpc.ClusterVersionRequest):
+        message = grpc.ClusterVersion()
+        if not self._elastic_ps_service:
+            return message
+
+        if request.task_type == NodeType.WORKER:
+            message.version = self._elastic_ps_service.get_worker_version(
+                request.version_type, request.task_id
+            )
+        elif request.task_type == NodeType.PS:
+            message.version = self._elastic_ps_service.get_ps_version(
+                request.version_type, request.task_id
+            )
+        return message
+
+    def _query_ps_nodes(self):
+        res = grpc.PsNodes(nodes=[])
+        training_ps: List[Node] = self._job_manager.get_next_cluster_ps()
+        ready = self._job_manager.ready_for_new_ps_cluster()
+        ps_failure = self._job_manager.has_ps_failure()
+        for ps in training_ps:
+            ps_meta = grpc.NodeMeta()
+            ps_meta.type = NodeType.PS
+            ps_meta.addr = ps.service_addr
+            ps_meta.cpu = ps.config_resource.cpu
+            ps_meta.memory = int(ps.config_resource.memory)
+            res.nodes.append(ps_meta)
+        logger.info("PS nodes : %s", res)
+        res.new_ps_ready = ready
+        res.ps_failure = ps_failure
+        return res
+
+    def _get_running_nodes(self):
+        res = grpc.RunningNodes(nodes=[])
+        nodes: List[Node] = self._job_manager.get_running_nodes()
+        for node in nodes:
+            meta = grpc.NodeMeta()
+            meta.type = node.type
+            meta.addr = node.service_addr
+            meta.cpu = node.config_resource.cpu
+            meta.memory = node.config_resource.memory
+            if node.config_resource.gpu_type:
+                meta.gpu_type = node.config_resource.gpu_type
+                meta.gpu = node.config_resource.gpu_num
+            res.nodes.append(meta)
+        return res
+
+    def _get_training_status(self):
+        res = grpc.TrainingStatus()
+        if self._task_manager.training_started():
+            res.status = TrainingLoopStatus.START
+        else:
+            res.status = TrainingLoopStatus.PENDING
+        return res
+
+    def _check_fault_node(self):
+        rdzv_manager: NetworkCheckRendezvousManager = self._rdzv_managers[
+            RendezvousName.NETWORK_CHECK
+        ]
+        nodes, reason = rdzv_manager.check_fault_node()
+        res = grpc.NetworkCheckResult(nodes=nodes, reason=reason)
+        return res
+
+    def _check_straggler(self):
+        rdzv_manager: NetworkCheckRendezvousManager = self._rdzv_managers[
+            RendezvousName.NETWORK_CHECK
+        ]
+        nodes, reason = rdzv_manager.get_straggler()
+        res = grpc.NetworkCheckResult(nodes=nodes, reason=reason)
+        return res
+
+    def _join_rendezvous(self, request: grpc.JoinRendezvousRequest):
+        rdzv_manager = self._rdzv_managers[request.rdzv_name]
+        round = rdzv_manager.join_rendezvous(
+            request.node_id, request.local_world_size
+        )
+        res = grpc.RendezvousState(round=round)
+        return res
+
+    def _num_nodes_waiting(self):
+        waiting_num = 0
+        for rdzv_manager in self._rdzv_managers.values():
+            num = rdzv_manager.num_nodes_waiting()
+            waiting_num = max(num, waiting_num)
+        res = grpc.RendezvousState(waiting_num=waiting_num)
+        return res
+
+    def _get_comm_world(self, request: grpc.CommWorldRequest):
+        rdzv_manager = self._rdzv_managers[request.rdzv_name]
+        group, nodes = rdzv_manager.get_comm_world(request.node_id)
+        res = grpc.RendezvousState(world={})
+        res.group = group
+        for rank_id, worker_num in nodes.items():
+            res.world[rank_id] = worker_num
+        return res
+
+    def _kv_store_get(self, request: grpc.KeyValuePair):
+        value = self._kv_store.get(request.key)
+        res = grpc.KeyValuePair(request.key, value)
+        return res
+
+    def _get_paral_config(self):
+        res = self._job_manager.get_opt_strategy()
+        return res
+
+    def report(self, request, _):
+        node_type = request.node_type
+        node_id = request.node_id
+        message = grpc.deserialize_message(request.data)
+
+        response = elastic_training_pb2.Response()
+        if not message:
+            return response
+
+        success = False
+        if isinstance(message, grpc.DatasetShardParams):
+            success = self._collect_dataset_shard_params(message)
+        elif isinstance(message, grpc.ResourceStats):
+            success = self._update_node_resource_usage(
+                node_type, node_id, message
+            )
+        elif isinstance(message, grpc.ModelInfo):
+            success = self._collect_model_info(message)
+        elif isinstance(message, grpc.GlobalStep):
+            success = self._collect_global_step(message)
+        elif isinstance(message, grpc.ShardCheckpoint):
+            success = self._restore_shard_checkpoint(message)
+        elif isinstance(message, grpc.TaskResult):
+            success = self._report_task_result(message)
+        elif isinstance(message, grpc.ClusterVersion):
+            success = self._update_cluster_version(message)
+        elif isinstance(message, grpc.NodeAddress):
+            success = self._update_node_address(message)
+        elif isinstance(message, grpc.NetworkStatus):
+            success = self._update_node_status(message)
+        elif isinstance(message, grpc.NodeEvent):
+            success = self._update_node_event(message)
+        elif isinstance(message, grpc.SyncJoin):
+            success = self._join_sync(node_type, node_id, message)
+        elif isinstance(message, grpc.SyncFinish):
+            success = self._sync_finished(message)
+        elif isinstance(message, grpc.SyncBarrier):
+            success = self._barrier(message)
+        elif isinstance(message, grpc.NodeFailure):
+            success = self._report_failure(node_type, node_id, message)
+        elif isinstance(message, grpc.RendezvousParams):
+            success = self._report_rdzv_params(message)
+        elif isinstance(message, grpc.PsReady):
+            success = self._ready_for_ps_relaunch()
+        elif isinstance(message, grpc.KeyValuePair):
+            success = self._kv_store_set(message)
+        elif isinstance(message, grpc.ParallelConfig):
+            success = self._report_paral_config(node_type, node_id, message)
+
+        response.success = success
+        return response
+
+    def _ready_for_ps_relaunch(self):
+        self._job_manager.post_ps_ready()
+        return True
+
+    def _collect_dataset_shard_params(self, metrics: grpc.DatasetShardParams):
+        num_minibatches_per_task = (
+            metrics.num_minibatches_per_shard
+            or _DEFAULT_NUM_MINIBATCHES_PER_SHARD
+        )
+        shard_size = metrics.batch_size * num_minibatches_per_task
+        splitter = new_dataset_splitter(
+            metrics.shuffle,
+            shard_size,
+            metrics.dataset_size,
+            metrics.num_epochs,
+            metrics.dataset_name,
+            metrics.storage_type,
+        )
+        self._task_manager.new_dataset(
+            metrics.batch_size,
+            metrics.dataset_size,
+            metrics.dataset_name,
+            splitter,
+            metrics.task_type,
+        )
+        if self._job_metric_collector:
+            self._job_metric_collector.collect_dataset_metric(
+                metrics.dataset_name,
+                metrics.dataset_size,
+                metrics.storage_type,
+            )
+            if metrics.task_type == elastic_training_pb2.TRAINING:
+                self._job_metric_collector.collect_training_hyper_params(
+                    metrics.num_epochs, metrics.batch_size
+                )
+        return True
+
+    def _update_node_resource_usage(
+        self, node_type, node_id, metrics: grpc.ResourceStats
+    ):
+        logger.debug(
+            f"Update resource usage for {node_type}-{node_id},"
+            f"cpu={metrics.cpu}, memory={metrics.memory},"
+            f"gpu_stats={metrics.gpu_stats}"
+        )
+        if self._job_manager:
+            self._job_manager.update_node_resource_usage(
+                node_type,
+                node_id,
+                metrics.cpu,
+                metrics.memory,
+                metrics.gpu_stats,
+            )
+        return True
+
+    def _collect_model_info(self, metrics: grpc.ModelInfo):
+        if self._job_metric_collector:
+            self._job_metric_collector.collect_model_metric(metrics)
+        return True
+
+    def _collect_global_step(self, metrics: grpc.GlobalStep):
+        self._speed_monitor.collect_global_step(
+            metrics.step, metrics.timestamp
+        )
+        self._collect_runtime_stats()
+        self._check_start_auto_scale_worker()
+        return True
+
+    def _restore_shard_checkpoint(self, message: grpc.ShardCheckpoint):
+        success = self._task_manager.restore_dataset_from_checkpoint(
+            message.content
+        )
+        return success
+
+    def _collect_runtime_stats(self):
+        if self._job_metric_collector and self._job_manager:
+            nodes = self._job_manager.get_running_nodes()
+            self._job_metric_collector.collect_runtime_stats(
+                self._speed_monitor, nodes
+            )
+
+    def _report_task_result(self, request: grpc.TaskResult):
         success = True
         if request.err_message:
             logger.warning("Worker reported error: " + request.err_message)
@@ -105,140 +422,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         ):
             self._collect_runtime_stats()
             self._check_start_auto_scale_worker()
-        return empty_pb2.Empty()
-
-    def get_task(self, request, _):
-        if not self._start_training_time:
-            self._start_training_time = int(time.time())
-        shard = elastic_training_pb2.Shard()
-        res = elastic_training_pb2.Task(shard=shard)
-        res.model_version = self._version
-        ds_name = request.dataset_name
-        dataset = self._task_manager.get_dataset(ds_name)
-        if not dataset:
-            return res
-        task = self._task_manager.get_dataset_task(
-            request.worker_type, request.worker_id, ds_name
-        )
-
-        if task:
-            res.task_id = task.task_id
-            res.type = task.task_type
-            res.shard.name = task.shard.name
-            res.shard.start = task.shard.start
-            res.shard.end = task.shard.end
-            res.shard.indices.extend(task.shard.record_indices)
-        elif not dataset.completed():
-            res.type = elastic_training_pb2.WAIT
-        with self._lock:
-            self._task_manager.reset_worker_start_task_time(request.worker_id)
-        return res
-
-    def report_dataset_shard_params(self, request, _):
-        num_minibatches_per_task = (
-            request.num_minibatches_per_shard
-            or _DEFAULT_NUM_MINIBATCHES_PER_SHARD
-        )
-        shard_size = request.batch_size * num_minibatches_per_task
-        splitter = new_dataset_splitter(
-            request.shuffle,
-            shard_size,
-            request.dataset_size,
-            request.num_epochs,
-            request.dataset_name,
-            request.storage_type,
-        )
-        self._task_manager.new_dataset(
-            request.batch_size,
-            request.dataset_size,
-            request.dataset_name,
-            splitter,
-            request.task_type,
-        )
-        if self._job_metric_collector:
-            self._job_metric_collector.collect_dataset_metric(
-                request.dataset_name,
-                request.dataset_size,
-                request.storage_type,
-            )
-            if request.task_type == elastic_training_pb2.TRAINING:
-                self._job_metric_collector.collect_training_hyper_params(
-                    request.num_epochs, request.batch_size
-                )
-        return empty_pb2.Empty()
-
-    def ready_for_ps_relaunch(self, request, _):
-        self._job_manager.post_ps_ready()
-        return empty_pb2.Empty()
-
-    def get_shard_checkpoint(self, request, _):
-        res = elastic_training_pb2.ShardCheckpoint()
-        dataset = self._task_manager.get_dataset(request.dataset_name)
-        checkpoint = dataset.checkpoint()
-        if checkpoint:
-            res.content = checkpoint.to_json()
-        else:
-            res.content = ""
-        return res
-
-    def report_shard_checkpoint(self, request, _):
-        res = elastic_training_pb2.Response()
-        success = self._task_manager.restore_dataset_from_checkpoint(
-            request.content
-        )
-        res.success = success
-        return res
-
-    def report_used_resource(self, request, _):
-        cpu = request.cpu
-        memory = request.memory
-        pod_id = request.node_id
-        pod_type = request.node_type
-        self._job_manager.update_node_resource_usage(
-            pod_type, pod_id, cpu, memory
-        )
-        return empty_pb2.Empty()
-
-    def get_dataset_epoch(self, request, _):
-        res = elastic_training_pb2.GetDatasetEpochResponse()
-        dataset_name = request.dataset_name
-        res.epoch = self._task_manager.get_dataset_epoch(dataset_name)
-        return res
-
-    def report_model_metric(self, request, _):
-        if self._job_metric_collector:
-            tensor_stats = TensorStats(
-                variable_count=request.tensor_stats.variable_count,
-                total_variable_size=request.tensor_stats.total_variable_size,
-                max_variable_size=request.tensor_stats.max_variable_size,
-            )
-            op_stats = OpStats(
-                op_count=request.op_stats.op_count,
-                update_op_count=request.op_stats.update_op_count,
-                read_op_count=request.op_stats.read_op_count,
-                input_fetch_dur=request.op_stats.input_fetch_dur,
-                flops=request.op_stats.flops,
-            )
-            self._job_metric_collector.collect_model_metric(
-                tensor_stats,
-                op_stats,
-            )
-        return empty_pb2.Empty()
-
-    def report_global_step(self, request, _):
-        self._speed_monitor.collect_global_step(
-            request.global_step, request.timestamp
-        )
-        self._collect_runtime_stats()
-        self._check_start_auto_scale_worker()
-        return empty_pb2.Empty()
-
-    def _collect_runtime_stats(self):
-        if self._job_metric_collector:
-            nodes = self._job_manager.get_running_nodes()
-            self._job_metric_collector.collect_runtime_stats(
-                self._speed_monitor, nodes
-            )
+        return success
 
     def _check_start_auto_scale_worker(self):
         sample_count = self._speed_monitor.get_sample_count()
@@ -253,209 +437,107 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             self._job_manager.start_auto_scaling()
             self._start_autoscale = True
 
-    def get_cluster_version(self, request, _):
-        response = elastic_training_pb2.GetClusterVersionResponse()
+    def _update_cluster_version(self, message: grpc.ClusterVersion):
         if not self._elastic_ps_service:
-            return response
+            return False
 
-        if request.task_type == NodeType.WORKER:
-            response.version = self._elastic_ps_service.get_worker_version(
-                request.version_type, request.task_id
-            )
-        elif request.task_type == NodeType.PS:
-            response.version = self._elastic_ps_service.get_ps_version(
-                request.version_type, request.task_id
-            )
-        return response
-
-    def update_cluster_version(self, request, _):
-        if not self._elastic_ps_service:
-            return empty_pb2.Empty()
-
-        if request.task_type == NodeType.WORKER:
+        if message.task_type == NodeType.WORKER:
             self._elastic_ps_service.update_worker_version(
-                request.task_id, request.version_type, request.version
+                message.task_id, message.version_type, message.version
             )
-        elif request.task_type == NodeType.PS:
+        elif message.task_type == NodeType.PS:
             self._elastic_ps_service.update_ps_version(
-                request.task_id, request.version_type, request.version
+                message.task_id, message.version_type, message.version
             )
-        return empty_pb2.Empty()
+        return True
 
-    def update_node_status(self, request, _):
-        node_type = request.type
-        node_id = request.id
-        server_addr = request.addr
+    def _update_node_address(self, message: grpc.NodeAddress):
+        self._job_manager.update_node_service_addr(
+            node_type=message.type,
+            node_id=message.id,
+            service_addr=message.addr,
+        )
+        return True
 
-        if server_addr:
-            self._job_manager.update_node_service_addr(
-                node_type, node_id, server_addr
+    def _update_node_status(self, message: grpc.NetworkStatus):
+        net_rdzv_manager = self._rdzv_managers.get(
+            RendezvousName.NETWORK_CHECK, None
+        )
+        if net_rdzv_manager:
+            succeed = message.status == NodeStatus.SUCCEEDED
+            net_rdzv_manager.report_network_check_result(
+                message.rank, succeed, message.elasped_time
             )
-        node_status = request.status
-        if node_status:
-            net_rdzv_manager = self._rdzv_managers.get(
-                RendezvousName.NETWORK_CHECK, None
-            )
-            if net_rdzv_manager:
-                succeed = request.status == NodeStatus.SUCCEEDED
-                net_rdzv_manager.report_network_check_result(node_id, succeed)
+        return True
 
-        response = elastic_training_pb2.Response()
-        response.success = True
-        return response
-
-    def update_node_event(self, request, _):
-
-        event_type = request.event_type
-        message = request.message
-        event = {
-            "event_type": event_type,
-            "message": message,
-            "id": request.node.id,
-            "type": request.node.type,
-        }
-        node = Node(request.node.type, request.node.id)
+    def _update_node_event(self, message: grpc.NodeEvent):
+        node = Node(message.event_type, message.node.id)
         event = NodeEvent("exit", node)
         ray_event_queue.put(event)
-        return empty_pb2.Empty()
+        return True
 
-    def query_ps_nodes(self, request, _):
-        training_ps: List[Node] = self._job_manager.get_next_cluster_ps()
-        ready = self._job_manager.ready_for_new_ps_cluster()
-        ps_failure = self._job_manager.has_ps_failure()
-        res = elastic_training_pb2.QueryPsNodesResponse()
-        for ps in training_ps:
-            ps_meta = res.ps_nodes.add()
-            ps_meta.type = NodeType.PS
-            ps_meta.addr = ps.service_addr
-            ps_meta.cpu = int(ps.config_resource.cpu)
-            ps_meta.memory = int(ps.config_resource.memory)
-        logger.info("PS nodes : %s", res)
-        res.new_ps_ready = ready
-        res.ps_failure = ps_failure
-        return res
-
-    def query_running_nodes(self, request, _):
-        nodes: List[Node] = self._job_manager.get_all_running_nodes()
-        res = elastic_training_pb2.RunningNodes()
-        for node in nodes:
-            meta = elastic_training_pb2.NodeMeta()
-            meta.type = node.type
-            meta.addr = node.service_addr
-            meta.cpu = node.config_resource.cpu
-            meta.memory = node.config_resource.memory
-            if node.config_resource.gpu_type:
-                meta.gpu_type = node.config_resource.gpu_type
-                meta.gpu_num = node.config_resource.gpu_num
-            res.nodes.append(meta)
-        return res
-
-    def query_training_status(self, request, _):
-        res = elastic_training_pb2.QueryTrainingStatusResponse()
-        if self._task_manager.training_started():
-            res.status = TrainingLoopStatus.START
-        else:
-            res.status = TrainingLoopStatus.PENDING
-        return res
-
-    def get_dataset_shard_num(self, request, _):
-        res = elastic_training_pb2.DatasetMeta()
-        dataset = self._task_manager.get_dataset(request.dataset_name)
-        res.dataset_name = request.dataset_name
-        res.shard_num = dataset.get_task_count()
-        return res
-
-    def report_prestop(self, request, _):
-        return empty_pb2.Empty()
-
-    def join_sync(self, request, _):
-        res = elastic_training_pb2.Response()
-        res.success = self._sync_service.join_sync(
-            request.sync_name, request.worker_type, request.worker_id
-        )
-        return res
-
-    def sync_finished(self, request, _):
-        res = elastic_training_pb2.Response()
-        res.success = self._sync_service.sync_finished(request.sync_name)
-        return res
-
-    def barrier(self, request, _):
-        res = elastic_training_pb2.Response()
-        if request.notify:
-            res.success = self._sync_service.notify_barrier(
-                request.barrier_name
+    def _join_sync(self, node_type, node_id, message: grpc.SyncJoin):
+        success = False
+        if self._sync_service:
+            success = self._sync_service.join_sync(
+                message.sync_name, node_type, node_id
             )
+        return success
+
+    def _sync_finished(self, message: grpc.SyncFinish):
+        success = False
+        if self._sync_service:
+            success = self._sync_service.sync_finished(message.sync_name)
+        return success
+
+    def _barrier(self, message: grpc.SyncBarrier):
+        if not self._sync_service:
+            return False
+        if message.notify:
+            success = self._sync_service.notify_barrier(message.barrier_name)
         else:
-            res.success = self._sync_service.barrier(request.barrier_name)
-        return res
+            success = self._sync_service.barrier(message.barrier_name)
+        return success
 
-    def get_comm_world(self, request, _):
-        rdzv_manager = self._rdzv_managers[request.rdzv_name]
-        group, nodes = rdzv_manager.get_comm_world(request.node_id)
-        res = elastic_training_pb2.RendezvousState()
-        res.group = group
-        for node_id, worker_num in nodes.items():
-            res.world[node_id] = worker_num
-        return res
-
-    def join_rendezvous(self, request, _):
-        rdzv_manager = self._rdzv_managers[request.rdzv_name]
-        round = rdzv_manager.join_rendezvous(
-            request.node_id, request.local_world_size
-        )
-        res = elastic_training_pb2.RendezvousState()
-        res.round = round
-        return res
-
-    def num_nodes_waiting(self, request, _):
-        rdzv_manager = self._rdzv_managers[request.rdzv_name]
-        waiting_num = rdzv_manager.num_nodes_waiting()
-        res = elastic_training_pb2.RendezvousState()
-        res.waiting_num = waiting_num
-        return res
-
-    def report_rdzv_params(self, request, _):
+    def _report_rdzv_params(self, message: grpc.RendezvousParams):
+        # Enable auto-scaling workers if elasticity is enabled.
         for manager in self._rdzv_managers.values():
             manager.update_rdzv_params(
-                min_nodes=request.min_nodes,
-                max_ndoes=request.max_nodes,
-                waiting_timeout=request.waiting_timeout,
+                min_nodes=message.min_nodes,
+                max_ndoes=message.max_nodes,
+                waiting_timeout=message.waiting_timeout,
+                node_unit=message.node_unit,
             )
-        res = elastic_training_pb2.Response()
-        res.success = True
-        return res
+        return True
 
-    def kv_store_set(self, request, _):
-        self._kv_store.set(request.key, request.value)
-        res = elastic_training_pb2.Response()
-        res.success = True
-        return res
-
-    def kv_store_get(self, request, _):
-        res = elastic_training_pb2.KeyValuePair()
-        res.key = request.key
-        res.value = self._kv_store.get(request.key)
-        return res
-
-    def report_failure(self, request, _):
+    def _report_failure(self, node_type, node_id, message: grpc.NodeFailure):
         self._job_manager.handle_training_failure(
-            request.node_type,
-            request.node_id,
-            request.restart_count,
-            request.error_data,
+            node_type,
+            node_id,
+            message.restart_count,
+            message.error_data,
+            message.level,
         )
-        res = elastic_training_pb2.Response()
-        res.success = True
-        return res
+        return True
 
-    def network_check_success(self, request, _):
-        res = elastic_training_pb2.Response()
-        net_rdzv_manager = self._rdzv_managers[RendezvousName.NETWORK_CHECK]
-        success, reason = net_rdzv_manager.network_check_success()
-        res.success = success
-        res.reason = reason
-        return res
+    def _kv_store_set(self, message: grpc.KeyValuePair):
+        self._kv_store.set(message.key, message.value)
+        return True
+
+    def _report_paral_config(
+        self, node_type, node_id, message: grpc.ParallelConfig
+    ):
+        if self._job_manager:
+            logger.debug(
+                "Update parallel config for %s-%s: %s",
+                node_type,
+                node_id,
+                message,
+            )
+            self._job_manager.update_node_paral_config(
+                node_type, node_id, message
+            )
+        return True
 
 
 def create_master_service(
@@ -470,7 +552,7 @@ def create_master_service(
 ) -> MasterServicer:
     """Create GRPC server"""
     logger.info("Creating master service")
-    server = grpc.server(
+    server = grpc_lib.server(
         futures.ThreadPoolExecutor(max_workers=64),
         options=[
             ("grpc.max_send_message_length", GRPC.MAX_SEND_MESSAGE_LENGTH),

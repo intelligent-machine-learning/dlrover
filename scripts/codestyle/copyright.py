@@ -1,4 +1,4 @@
-# Copyright 2022 The EasyDL Authors. All rights reserved.
+# Copyright 2022 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -47,8 +47,8 @@ else:
     sys.exit("Cannot find year in copyright template")
 process = subprocess.Popen(["date", "+%Y"], stdout=subprocess.PIPE)
 date, err = process.communicate()
-date = date.decode("utf-8").rstrip("\n")
-COPYRIGHT_HEADER = COPYRIGHT_HEADER.replace(p, date)
+date_str = date.decode("utf-8").rstrip("\n")
+COPYRIGHT_HEADER = COPYRIGHT_HEADER.replace(p, date_str)
 
 
 def generate_copyright(template, lang="go"):

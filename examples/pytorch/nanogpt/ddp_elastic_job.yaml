@@ -1,0 +1,35 @@
+apiVersion: elastic.iml.github.io/v1alpha1
+kind: ElasticJob
+metadata:
+  name: torch-nanogpt
+  namespace: dlrover
+spec:
+  distributionStrategy: AllreduceStrategy
+  optimizeMode: single-job
+  replicaSpecs:
+    worker:
+      replicas: 2
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: main
+              # yamllint disable-line rule:line-length
+              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:nanogpt-test
+              imagePullPolicy: Always
+              command:
+                - /bin/bash
+                - -c
+                - "dlrover-run --nnodes=$WORKER_NUM \
+                  --nproc_per_node=1 --max_restarts=1  \
+                  ./examples/pytorch/nanogpt/train.py  \
+                  --data_dir /data/nanogpt/"
+              resources:
+                limits:
+                  cpu: "8"
+                  memory: 16Gi
+                  # nvidia.com/gpu: 1 # optional
+                requests:
+                  cpu: "4"
+                  memory: 16Gi
+                  # nvidia.com/gpu: 1 # optional

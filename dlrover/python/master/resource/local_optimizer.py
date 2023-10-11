@@ -63,8 +63,8 @@ class ProcessResourceRequirement(JsonSerializable):
         self.worker_memory = worker_memory
 
 
-class LocalOptimizer(ResourceOptimizer):
-    """Local optimizer stores runtime statistics locally and optimize
+class PSLocalOptimizer(ResourceOptimizer):
+    """PS Local optimizer stores runtime statistics locally and optimize
     the resource of a training job without cluster information.
     """
 
@@ -88,7 +88,9 @@ class LocalOptimizer(ResourceOptimizer):
         if plan.empty():
             logger.info("No any resource plan for %s", stage)
         else:
-            logger.info("plan of stage %s is %s", stage, plan.toJSON(indent=4))
+            logger.info(
+                "plan of stage %s is %s", stage, plan.to_json(indent=4)
+            )
         return plan
 
     def generate_oom_recovery_plan(
@@ -104,8 +106,8 @@ class LocalOptimizer(ResourceOptimizer):
         return plan
 
     def generate_resource_plan_with_optimizer(self, config={}) -> ResourcePlan:
-        """Generate a resource plan by an optimizer"""
-        pass
+        """Generate a resource plan by an optimizer."""
+        return ResourcePlan.new_default_plan()
 
     def _generate_job_create_resource(self):
         plan = ResourcePlan()
@@ -181,7 +183,7 @@ class LocalOptimizer(ResourceOptimizer):
         resource = ProcessResourceRequirement(
             worker_cpu, ps_cpu_per_process, worker_memory
         )
-        logger.info("Training process needs %s", resource.toJSON())
+        logger.info("Training process needs %s", resource.to_json())
         return resource
 
     def _generate_worker_resoruce(self):

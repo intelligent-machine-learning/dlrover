@@ -40,6 +40,14 @@ class CheckpointOptimization(Optimization):
     @staticmethod
     def apply_wrapper(model_context, wrapper_name, wrapper_config=None):
         # wrapper_config should be a module class or tuple of module classes
+        # A HACK to read in amp_config for tp checkpointing
+        from atorch.auto.auto_accelerate_context import AutoAccelerateContext
+
+        counter = AutoAccelerateContext.counter
+        if hasattr(AutoAccelerateContext, "tp_amp_config"):
+            amp_config = AutoAccelerateContext.tp_amp_config.get(counter, None)
+        else:
+            amp_config = None
         if torch_version() == (1, 12, 1):
             # 1.12.1 does not have apply_activation_checkpointing, and checkpoint does not support kwargs.
             from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import CheckpointWrapper
@@ -89,7 +97,19 @@ class CheckpointOptimization(Optimization):
 
         else:
             try:
-                from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import apply_activation_checkpointing
+                from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
+                    CheckpointImpl,
+                    apply_activation_checkpointing,
+                    checkpoint_wrapper,
+                )
+
+                # need to set CheckpointImpl.NO_REENTRANT before 20230906 nightly
+                checkpoint_wrapper_non_entrant = partial(
+                    checkpoint_wrapper, checkpoint_impl=CheckpointImpl.NO_REENTRANT
+                )
+                apply_activation_checkpointing = partial(
+                    apply_activation_checkpointing, checkpoint_wrapper_fn=checkpoint_wrapper_non_entrant
+                )
             except ImportError:
                 logger.warning("Checkpoint not supported, thus ignored!")
                 return model_context
@@ -107,9 +127,10 @@ class CheckpointOptimization(Optimization):
         if tp_group is None:
             apply_activation_checkpointing(model_context.model, check_fn=check_fn)
         else:
+            amp_config.pop("skip_if_nonfinite", None)
             apply_activation_checkpointing(
                 model_context.model,
-                checkpoint_wrapper_fn=tp_wrap_fn,
+                checkpoint_wrapper_fn=partial(tp_wrap_fn, amp_config=amp_config),
                 check_fn=check_fn,
             )
 

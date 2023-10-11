@@ -1,5 +1,6 @@
 import inspect
 
+import torch
 from deepspeed import DeepSpeedTransformerConfig
 
 from atorch.common.log_utils import default_logger as logger
@@ -78,9 +79,8 @@ def replace_with_deepspeed_transformer(
             preln=False,
             fp16=use_fp16,
         )
-        注：
-        amp.initialize O2会修改掉model参数的data，造成replace_with_deepspeed_transformer算子持有的数据指针被破坏
-        该函数要放在amp.initialize后面
+        Note that amp.initialize O2 would change model parameter data, resulting in bad behavior
+        for replace_with_deepspeed_transformer. Thus, this function should be called after amp.initialize.
     """
     for name, child in model.named_children():
         if isinstance(child, layer_obj):
@@ -177,16 +177,24 @@ def replace_module(
                             child, arg
                         ), f"{tgt_module_cls.__name__}'s arg {arg} is not the attribute of {child.__class__.__name__}"
                         kwargs[arg] = getattr(child, arg)
-                new_module = tgt_module_cls(**kwargs)
-                if init_from_attr:
-                    mod_is_meta = is_meta(child)
-                    if mod_is_meta:
-                        reload_meta_module(child)
-                    new_module.load_state_dict(child.state_dict())
-                    if mod_is_meta:
-                        recursive_empty_param(child, ignore_save=True)
-                        empty_param(new_module, prefix_name="replace_")
-                        recursive_empty_param(new_module, prefix_name="replace_")
+                mod_is_meta = is_meta(child)
+                from atorch.auto.auto_accelerate_context import AutoAccelerateContext
+
+                if mod_is_meta and hasattr(AutoAccelerateContext, "FSDP_META_INIT"):
+                    with torch.device("meta"):
+                        new_module = tgt_module_cls(**kwargs).to("meta")
+
+                else:
+                    new_module = tgt_module_cls(**kwargs)
+                    if init_from_attr:
+                        mod_is_meta = is_meta(child)
+                        if mod_is_meta:
+                            reload_meta_module(child)
+                        new_module.load_state_dict(child.state_dict())
+                        if mod_is_meta:
+                            recursive_empty_param(child, ignore_save=True)
+                            empty_param(new_module, prefix_name="replace_")
+                            recursive_empty_param(new_module, prefix_name="replace_")
                 if bkup_ori:
                     ori_module_bkup[model] = ori_module_bkup.get(model, []) + [(child_name, child)]
                 setattr(model, name, new_module)

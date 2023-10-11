@@ -2,14 +2,22 @@ import collections
 import copy
 import inspect
 import os
+import re
 import types
+from functools import wraps
 
 import torch
 from distutils.util import strtobool
+
+try:
+    from torch.distributed.fsdp import MixedPrecision
+except ImportError:
+    MixedPrecision = None
 from torch.utils.data.distributed import DistributedSampler
 
 import atorch
 from atorch.auto.device_context import get_device_context
+from atorch.auto.opt_lib.utils import _propose_leaf_modules, _propose_wrap_cls, to_module_class_by_name
 from atorch.common.log_utils import default_logger as logger
 from atorch.data import ShmDataloader, expand_batch_dim, get_sample_batch
 from atorch.distributed.distributed import (
@@ -19,6 +27,17 @@ from atorch.distributed.distributed import (
     parallel_rank,
     rank,
 )
+from atorch.modules.distributed_modules.materialize_modules import materialize_modules_to_device
+from atorch.optim.bf16_optimizer import BF16Optimizer
+from atorch.utils.graph_transform_utils import map_aggregate
+from atorch.utils.version import torch_version
+
+try:
+    from pippy.IR import LossWrapper
+except ImportError:
+    LossWrapper = None
+
+from atorch.amp.pipe_amp import _hack_pipe_amp_optimizer, scale_backward_wrapper
 
 try:
     torch.fx.wrap("scale_backward_wrapper")
@@ -135,24 +154,129 @@ class ModelContext(object):
         self.expand_sample_batch = self.extra_args.get("expand_sample_batch", True)
         self._check_data_related_args()
         self.tp_status = False
+        self.sampler_seed = self.extra_args.get("sampler_seed", 0)  # pytorch DistributedSamper default seed is 0
 
     def update_tp_status(self, status):
         self.tp_status = status
 
     def convert_to_loss_wrapper(self, amp_config=None):
-        pass
+        """This method transforms the model held by this model_context into a loss_wrapper.
+        All pipeline involved optimizations need to do such conversion first.
+        """
+        if amp_config is not None and amp_config["dtype"] != torch.bfloat16:
+            _hack_pipe_amp_optimizer()
+
+        if not self._check_loss_wrapper() and self.loss_func is not None:
+
+            class ModelLossWrapper(LossWrapper):
+                def __init__(self, module, loss_fn, model_input_format):
+                    super().__init__(module, loss_fn)
+                    self.model_input_format = model_input_format
+
+                @wraps(type(self.model).forward)
+                def forward(self, *args, **kwargs):
+                    if self.model_input_format is None:
+                        casted_loss = self.loss_fn(*args, self.module(*args, **kwargs))
+                    elif self.model_input_format == "unpack_sequence":
+                        casted_loss = self.loss_fn(args, self.module(*args, **kwargs))
+                    elif self.model_input_format == "unpack_dict":
+                        casted_loss = self.loss_fn(kwargs, self.module(*args, **kwargs))
+                    else:
+                        logger.warning(f"model input format: {self.model_input_format} not recognized")
+                        casted_loss = None
+
+                    if amp_config is not None and amp_config["dtype"] != torch.bfloat16:
+                        scaled_loss = scale_backward_wrapper(casted_loss)
+                    else:
+                        scaled_loss = casted_loss
+                    return scaled_loss
+
+            loss_wrapper = ModelLossWrapper(
+                module=self.model, loss_fn=self.loss_func, model_input_format=self.model_input_format
+            )
+
+            self.model = loss_wrapper
+
+        return isinstance(self.model, LossWrapper)
 
     def _check_loss_wrapper(self):
-        pass
+        # import pippy internally
+        from pippy.IR import LossWrapper
+
+        return isinstance(self.model, LossWrapper)
 
     def _dynamo_capture_graph(self, input_batch):
-        pass
+        import torch._dynamo as dynamo
+
+        lowered_device = next(self.model.parameters()).device
+
+        def _lower_tensor_to_device(input_):
+            return input_.to(lowered_device) if isinstance(input_, torch.Tensor) else input_
+
+        input_batch = map_aggregate(input_batch, _lower_tensor_to_device)
+
+        sig = inspect.signature(self.model.forward)
+        default_names = sig.parameters.keys() - input_batch.keys()
+        default_args = {p.name: p.default for p in sig.parameters.values() if p.name in default_names}
+        full_args = tuple(input_batch.get(name, default_args.get(name, None)) for name in sig.parameters.keys())
+        captured_graph_model = dynamo.export(self.model, *full_args)[0]
+        graph = captured_graph_model.graph
+        default_placeholders = list()
+        orig_input_keys = list(inspect.signature(self.model.forward).parameters.keys())
+        # alter the placeholders to align the input_names
+        for node in graph.nodes:
+            if node.op == "placeholder" and node.name not in orig_input_keys:
+                arg_index = int(re.findall(r"\d+", node.name)[0])
+                orig_node_name = orig_input_keys[arg_index]
+                node.name = orig_node_name
+                node.target = orig_node_name
+                if node.name not in input_batch.keys():
+                    default_placeholders.append(node)
+        for node in default_placeholders:
+            graph.erase_node(node)
+
+        return captured_graph_model
 
     def capture_compute_graph(self, backend="meta_fx", leaf_modules=None, parallel_config=None):
-        pass
+        if leaf_modules is not None and backend != "meta_fx":
+            logger.warning(f"leaf modules registration is not supported with backend: {backend}")
+
+        input_batch = self.get_one_input_batch(need_model_input_correspondence=True, parallel_config=parallel_config)
+
+        if backend == "dynamo":
+            try:
+                captured_graph_model = self._dynamo_capture_graph(input_batch)
+                self.model = captured_graph_model[0]
+                return captured_graph_model[0].graph
+            except Exception as e:
+                logger.warning(f"tracing failed with exception: {e}")
+                logger.warning("torch._dynamo.export does not support dynamic loop")
+                backend = "meta_fx"
+
+        if backend == "meta_fx" or backend == "fx":
+            meta = backend == "meta_fx"
+            if not meta:
+                from torch.fx import Tracer
+
+                tracer = Tracer()
+                try:
+                    graph = tracer.trace(self.model)
+                    return graph
+                except Exception as e:
+                    logger.warning(f"tracing failed with exception: {e}, try meta tracer instead")
+
+            from atorch.utils.tracer import MetaTracer
+
+            tracer = MetaTracer()
+            tracer.register_leaf_modules(leaf_modules)
+            graph = tracer.trace(self.model, input_batch)
+            return graph
 
     def export_graph_module(self, backend="meta_fx", leaf_modules=None, parallel_config=None):
-        pass
+        # This captures the model's compute graph and export a graph module,
+        # yet self.model is not converted.
+        graph = self.capture_compute_graph(backend=backend, leaf_modules=leaf_modules, parallel_config=parallel_config)
+        return torch.fx.GraphModule(self.model, graph)
 
     def create_dataloader(self, extra_args=None):
         """
@@ -185,7 +309,9 @@ class ModelContext(object):
                 shuffle = bool(args["shuffle"])
                 if shuffle:
                     args["shuffle"] = False
-            sampler = self.distributed_sampler_cls(self.dataset, shuffle=shuffle, num_replicas=ddp_size, rank=rank)
+            sampler = self.distributed_sampler_cls(
+                self.dataset, shuffle=shuffle, num_replicas=ddp_size, rank=rank, seed=self.sampler_seed
+            )
             # strong scaling, so adjust batchsize
             if "batch_size" in args:
                 ori_batchsize = args["batch_size"]
@@ -237,7 +363,10 @@ class ModelContext(object):
         self.dataloader = self.create_dataloader(extra_args)
 
     def check_pipe_model(self):
-        pass
+        # import pippy related modules here to avoid PiPPy initialization messes up env
+        from atorch.modules.distributed_modules.compilers import DeviceSafeDriver, SafeStage
+
+        return isinstance(self.model, (DeviceSafeDriver, SafeStage))
 
     def create_optim(self):
         """
@@ -257,6 +386,18 @@ class ModelContext(object):
                     "model parameter retrieval is handled by pipe stage executor, optim_param_func will not take effect"
                 )
             logger.info(f"successfully construct optimizer at {rank()}")
+
+        # Use BF16Optimizer if using half with bf16
+        if "half" in self.pre_wrappers and self.pre_wrappers["half"][1] == "bf16":
+            model_device = next(self.model.parameters()).device
+            # model must on cuda device before calling BF16Optimizer
+            if torch.cuda.is_available() and model_device.type != "cuda":
+                if local_rank() is not None:
+                    device = torch.device(type="cuda", index=local_rank())
+                else:
+                    device = torch.device(type="cuda")
+                materialize_modules_to_device(self.model, device)
+            optim = BF16Optimizer(optim)
         return optim
 
     def _create_lr_scheduler(self):
@@ -288,6 +429,7 @@ class ModelContext(object):
 
         # Since MP wrapper will add some more wrappers, we will call adjust wrappers again.
         self.adjust_wrappers()
+        wrappers = self.pre_wrappers if is_pre_wrapper else self.post_wrappers
 
         for name in wrappers.keys():
             (wrapper_func, wrapper_config) = wrappers[name]
@@ -297,8 +439,221 @@ class ModelContext(object):
         else:
             self.post_wrapper_applied = True
 
+    # Order of execution:
+    # Pipe (with amp, to graph only) -> TP -> Checkpoint (if not Pipe)
+    # -> module replace -> amp (if no Pipe) -> Pipe (to driver)
     def adjust_wrappers(self):
-        pass
+        """Adjust wrappers, remove incompatible wrappers"""
+        # Pipeline parallelism is conditionally compatible with tensor parallel compilation.
+        # To mix pipe and tp, use MixedParallelOptimization instead.
+        # We assume MP does not coexists with Pipe/TP
+        pipe_wrapper_exist = "pipe" in self.pre_wrappers
+        mp_wrapper_exist = "mp" in self.pre_wrappers
+        if pipe_wrapper_exist or mp_wrapper_exist:
+            logger.info("Found pipe wrapper, remove all ddp related wrappers")
+            if "zero2" in self.pre_wrappers:
+                self.pre_wrappers.pop("zero2")
+            if "zero1" in self.pre_wrappers:
+                self.pre_wrappers.pop("zero1")
+            if "fsdp" in self.pre_wrappers:
+                self.pre_wrappers.pop("fsdp")
+
+            # DDP is supported and handled internally by PiPPy.
+            if "ddp" in self.post_wrappers:
+                self.post_wrappers.pop("ddp")
+
+        if pipe_wrapper_exist:
+            if "checkpoint" in self.post_wrappers:
+                ckpt_wrapper = self.post_wrappers.pop("checkpoint")
+                pipe_config = self.pre_wrappers["pipe"][1] or {}
+                ckpt_wrap_cls = ckpt_wrapper[1]
+                pipe_wrap_cls = set(to_module_class_by_name(self.model, ckpt_wrap_cls))
+                leaf_modules = _propose_leaf_modules(pipe_wrap_cls)
+                pipe_config["compiler_configs"]["checkpoint"] = True
+                pipe_config["compiler_configs"]["leaf_modules"] = leaf_modules
+                self.pre_wrappers["pipe"] = (
+                    self.pre_wrappers["pipe"][0],
+                    pipe_config,
+                )
+
+            if "amp_native" in self.post_wrappers:
+                amp_wrapper = self.post_wrappers.pop("amp_native")
+                amp_config = amp_wrapper[1] or None
+                pipe_config = self.pre_wrappers["pipe"][1] or {}
+                pipe_config["compiler_configs"]["amp_config"] = amp_config
+                self.pre_wrappers["pipe"] = (
+                    self.pre_wrappers["pipe"][0],
+                    pipe_config,
+                )
+
+            if "module_replace" in self.pre_wrappers:
+                self.pre_wrappers.pop("module_replace")
+                pipe_config = self.pre_wrappers["pipe"][1] or {}
+                pipe_config["compiler_configs"]["module_replace"] = True
+                self.pre_wrappers["pipe"] = (
+                    self.pre_wrappers["pipe"][0],
+                    pipe_config,
+                )
+
+        # FIXME Allow mixing of DDP/ZeRO with MP?
+        if mp_wrapper_exist:
+            mp_config = self.pre_wrappers["mp"][1] or {}
+            pipe_config = mp_config["pipe_config"]
+            if pipe_config is not None:
+                if "checkpoint" in self.post_wrappers:
+                    ckpt_wrapper = self.post_wrappers.pop("checkpoint")
+                    ckpt_wrap_cls = ckpt_wrapper[1]
+                    pipe_wrap_cls = set(to_module_class_by_name(self.model, ckpt_wrap_cls))
+                    leaf_modules = _propose_leaf_modules(pipe_wrap_cls)
+                    pipe_config["compiler_configs"]["checkpoint"] = True
+                    pipe_config["compiler_configs"]["leaf_modules"] = leaf_modules
+
+                if "amp_native" in self.post_wrappers:
+                    amp_wrapper = self.post_wrappers.pop("amp_native")
+                    amp_config = amp_wrapper[1] or None
+                    pipe_config["compiler_configs"]["amp_config"] = amp_config
+
+                if "module_replace" in self.pre_wrappers:
+                    self.pre_wrappers.pop("module_replace")
+                    pipe_config["compiler_configs"]["module_replace"] = True
+
+                mp_config["pipe_config"] = pipe_config
+
+                self.pre_wrappers["mp"] = (
+                    self.pre_wrappers["mp"][0],
+                    mp_config,
+                )
+
+        ddp_wrapper_exist = "ddp" in self.post_wrappers
+        fairscale_zero2_wrapper_exist = "zero2" in self.post_wrappers
+        fsdp_wrapper_exist = "fsdp" in self.pre_wrappers or "zero2" in self.pre_wrappers
+        tensor_parallel_wrapper_exist = "tp" in self.pre_wrappers
+        ckpt_wrapper_exist = "checkpoint" in self.post_wrappers
+        native_dynamo_wrapper_exist = "native_dynamo" in self.pre_wrappers
+
+        # remove ddp wrapper when using zero2
+        if ddp_wrapper_exist and (fairscale_zero2_wrapper_exist or fsdp_wrapper_exist):
+            logger.info("Found Zero and ddp wrapper or pipe wrapper, remove ddp wrapper")
+            self.post_wrappers.pop("ddp")
+            ddp_wrapper_exist = False
+        if fsdp_wrapper_exist and "amp_native" in self.post_wrappers:
+            logger.info("Found fsdp and amp_native wrapper, turn on mixed_precision in FSDP")
+            _, amp_native_config = self.post_wrappers["amp_native"]
+            fp16_dtype = amp_native_config.get("dtype", torch.float16)
+            mixed_precision_param = (
+                MixedPrecision(param_dtype=fp16_dtype, reduce_dtype=fp16_dtype, buffer_dtype=fp16_dtype)
+                if MixedPrecision
+                else True
+            )
+            config = self.pre_wrappers["fsdp"][1] or {}
+            config["mixed_precision"] = mixed_precision_param
+            self.pre_wrappers["fsdp"] = (
+                self.pre_wrappers["fsdp"][0],
+                config,
+            )
+
+        # move dynamo_native wrapper behind ddp or fsdp
+        # Note that dynamo_native wrapper and fsdp wrapper are pre-wrappers while ddp wrapper is a post-wrapper.
+        if native_dynamo_wrapper_exist:
+            if fsdp_wrapper_exist:
+                # both dynamo_native wrapper and fsdp wrapper are pre-wrappers
+                native_dynamo_wrapper_index, fsdp_wrapper_index = -1, -1
+                pre_wrappers_list = []
+                for i, (wrapper_name, v) in enumerate(self.pre_wrappers.items()):
+                    pre_wrappers_list.append((wrapper_name, v))
+                    if wrapper_name == "fsdp":
+                        fsdp_wrapper_index = i
+                    elif wrapper_name == "native_dynamo":
+                        native_dynamo_wrapper_index = i
+                if native_dynamo_wrapper_index < fsdp_wrapper_index:
+                    native_dynamo_wrapper = pre_wrappers_list[native_dynamo_wrapper_index]
+                    pre_wrappers_list.insert(fsdp_wrapper_index + 1, native_dynamo_wrapper)
+                    pre_wrappers_list.pop(native_dynamo_wrapper_index)
+                self.pre_wrappers = dict(pre_wrappers_list)
+            elif ddp_wrapper_exist:
+                # ddp wrapper is a post-wrapper. Popping dynamo_native wrapper from pre-wrappers
+                # then insert it after ddp wrapper.
+                post_wrappers_list = []
+                ddp_wrapper_index = -1
+                for i, (wrapper_name, v) in enumerate(self.post_wrappers.items()):
+                    post_wrappers_list.append((wrapper_name, v))
+                    if wrapper_name == "ddp":
+                        ddp_wrapper_index = i
+                    native_dynamo_wrapper = self.pre_wrappers.pop("native_dynamo")
+                    post_wrappers_list.insert(ddp_wrapper_index + 1, ("native_dynamo", native_dynamo_wrapper))
+                self.post_wrappers = dict(post_wrappers_list)
+
+        if tensor_parallel_wrapper_exist:
+            wrap_cls = None
+            if fsdp_wrapper_exist and torch_version() >= (1, 12, 0):
+                fsdp_wrapper = self.pre_wrappers["fsdp"]
+                fsdp_wrapper = list(fsdp_wrapper)
+                if fsdp_wrapper[1] is None:
+                    fsdp_wrapper[1] = dict()
+
+                fsdp_config = fsdp_wrapper[1]
+                if wrap_cls is None:
+                    wrap_cls = set(to_module_class_by_name(self.model, fsdp_config.get("atorch_wrap_cls", set())))
+                else:
+                    wrap_cls = wrap_cls & set(
+                        to_module_class_by_name(self.model, fsdp_config.get("atorch_wrap_cls", set()))
+                    )
+
+            if ckpt_wrapper_exist:
+                ckpt_wrapper = self.post_wrappers["checkpoint"]
+                ckpt_wrapper = list(ckpt_wrapper)
+                if ckpt_wrapper[1] is None:
+                    ckpt_wrapper[1] = tuple()
+                ckpt_wrap_cls = ckpt_wrapper[1]
+                if wrap_cls is None:
+                    wrap_cls = set(to_module_class_by_name(self.model, ckpt_wrap_cls))
+                else:
+                    wrap_cls = set(to_module_class_by_name(self.model, ckpt_wrap_cls)) & wrap_cls
+
+            leaf_modules = _propose_leaf_modules(wrap_cls)
+            auto_wrap_cls = _propose_wrap_cls(leaf_modules)
+
+            if fsdp_wrapper_exist and torch_version() >= (1, 12, 0):
+                if "atorch_wrap_cls" in fsdp_config:
+                    if auto_wrap_cls is not None:
+                        fsdp_config["atorch_wrap_cls"] = auto_wrap_cls
+                    else:
+                        fsdp_config.pop("atorch_wrap_cls")
+
+                    fsdp_wrapper[1] = fsdp_config
+                    self.pre_wrappers["fsdp"] = tuple(fsdp_wrapper)
+
+            if ckpt_wrapper_exist:
+                if auto_wrap_cls is not None:
+                    ckpt_wrapper[1] = tuple(auto_wrap_cls)
+                    self.post_wrappers["checkpoint"] = tuple(ckpt_wrapper)
+                else:
+                    # in this case module structure should have been broken, nothing to checkpoint on
+                    self.post_wrappers.pop("checkpoint")
+
+            # let tensor parallel wrapper be the first, make sure meta models fully reloaded
+            tensor_parallel_wrapper_item = ("tp", self.pre_wrappers["tp"])
+            wrappers_list = list(self.pre_wrappers.items())
+            tensor_parallel_idx = wrappers_list.index(tensor_parallel_wrapper_item)
+            wrappers_list.pop(tensor_parallel_idx)
+            # wrapper item and wrapper are all tuples
+            tensor_parallel_wrapper_item = list(tensor_parallel_wrapper_item)
+            tensor_parallel_wrapper_item[1] = list(tensor_parallel_wrapper_item[1])
+            tensor_parallel_wrapper_item[1][1]["leaf_modules"] = leaf_modules
+            if fsdp_wrapper_exist or pipe_wrapper_exist:
+                tensor_parallel_wrapper_item[1][1]["defer_init"] = True
+            tensor_parallel_wrapper_item[1] = tuple(tensor_parallel_wrapper_item[1])
+            tensor_parallel_wrapper_item = tuple(tensor_parallel_wrapper_item)
+            wrappers_list.insert(0, tensor_parallel_wrapper_item)
+            self.pre_wrappers = dict(wrappers_list)
+
+            # TP checkpointing needs amp_config explicitly to take effect, HACK here
+            if "amp_native" in self.post_wrappers and "checkpoint" in self.post_wrappers:
+                amp_wrapper = self.post_wrappers.pop("amp_native")
+                amp_config = amp_wrapper[1] or None
+                from atorch.modules.distributed_modules.activation_checkpointing import _insert_amp_config_for_tp_ckpt
+
+                _insert_amp_config_for_tp_ckpt(amp_config)
 
     def add_wrapper(self, wrapper_name, wrapper_func, wrapper_config=None, is_pre_wrapper=True):
         """

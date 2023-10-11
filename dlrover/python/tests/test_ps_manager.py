@@ -1,4 +1,4 @@
-# Copyright 2022 The EasyDL Authors. All rights reserved.
+# Copyright 2022 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -63,7 +63,7 @@ class PSManagerTest(unittest.TestCase):
             node.status = NodeStatus.PENDING
             node.create_time = datetime.now() + timedelta(days=-1)
 
-        plan = self._ps_manager.cut_pending_node_cpu()
+        plan = self._ps_manager.reduce_pending_node_resource()
         self.assertEqual(len(plan.launch_nodes), 2)
         self.assertEqual(plan.launch_nodes[0].config_resource.cpu, 8)
         self.assertEqual(plan.launch_nodes[0].config_resource.memory, 2048)

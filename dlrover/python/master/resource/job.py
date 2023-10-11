@@ -32,7 +32,7 @@ from dlrover.python.common.serialize import JsonSerializable
 from dlrover.python.master.resource.brain_optimizer import (
     BrainResoureOptimizer,
 )
-from dlrover.python.master.resource.local_optimizer import LocalOptimizer
+from dlrover.python.master.resource.local_optimizer import PSLocalOptimizer
 from dlrover.python.master.resource.optimizer import (
     ResourcePlan,
     SimpleOptimizer,
@@ -44,7 +44,7 @@ _WORKER_OPTIMIZE_PHASE = "optimizer.worker.optimize-phase"
 _dlrover_context = Context.singleton_instance()
 
 
-def new_resource_optimizer(
+def new_ps_resource_optimizer(
     optimize_mode: str, job_uuid, resoure_limits: ResourceLimits
 ):
     logger.info(
@@ -57,9 +57,9 @@ def new_resource_optimizer(
             logger.warning(
                 "Brain service is not available, use a local optimizer"
             )
-            return LocalOptimizer(job_uuid, resoure_limits)
+            return PSLocalOptimizer(job_uuid, resoure_limits)
     elif optimize_mode == OptimizeMode.SINGLE_JOB:
-        return LocalOptimizer(job_uuid, resoure_limits)
+        return PSLocalOptimizer(job_uuid, resoure_limits)
     else:
         logger.warning(
             "Not support optiimzem mode %s, use a simple optimizer",
@@ -165,7 +165,7 @@ class JobResource(JsonSerializable):
         chief.node_resource.memory = worker.node_resource.memory
         self.node_group_resources[NodeType.CHIEF] = chief
         worker.count -= 1
-        logger.info("self = %s", self.toJSON())
+        logger.info("self = %s", self.to_json())
 
 
 class JobResourceOptimizer(metaclass=ABCMeta):
@@ -179,7 +179,7 @@ class JobResourceOptimizer(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def get_job_resource_plan(self):
+    def get_job_resource_plan(self) -> ResourcePlan:
         """Get resource plan for a job."""
         pass
 
@@ -208,7 +208,7 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
         self._ps_resource = ps_resource
         self._original_worker_resource = copy.deepcopy(self._worker_resource)
         self._original_ps_resource = copy.deepcopy(self._ps_resource)
-        self._resource_optimizer = new_resource_optimizer(
+        self._resource_optimizer = new_ps_resource_optimizer(
             optimize_mode, job_uuid, resource_limits
         )
         self._lock = threading.Lock()
@@ -232,7 +232,7 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
         plan = self._resource_optimizer.generate_opt_plan(self._job_stage)
         if not plan or plan.empty():
             logger.info("Use the default plan to start the job")
-            plan = ResourcePlan.new_default_plan()
+            plan = self._gen_default_resource_plan()
         self._job_stage = JobOptStage.WORKER_INITIAL
 
         if (
@@ -259,6 +259,10 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
                 ps_resource.node_resource.cpu,
                 ps_resource.node_resource.memory,
             )
+
+    def _gen_default_resource_plan(self):
+        plan = ResourcePlan.new_default_plan()
+        return plan
 
     def init_job_resource(self, job_resource: JobResource):
         """Adjust the initial resource of typed pods by EasyDL.
@@ -291,7 +295,7 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
             if resource.memory < min_memory:
                 resource.memory = self._worker_resource.node_resource.memory
 
-        logger.info("Job resource = %s", job_resource.toJSON())
+        logger.info("Job resource = %s", job_resource.to_json())
         return job_resource
 
     def adjust_oom_resource(self, node):
@@ -333,13 +337,18 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
                 )
         cur_mem *= NodeResourceLimit.INCREMENTAL_MEMORY_FACTOR
         cur_mem = min(cur_mem, NodeResourceLimit.MAX_MEMORY)
-        node.config_resource.memory = int(
+        opt_memory = int(
             max(
                 self._worker_resource.node_resource.memory,
                 cur_mem,
                 self._original_worker_resource.node_resource.memory,
             )
         )
+        incre_memory = opt_memory - node.config_resource.memory
+        incre_memory = min(
+            incre_memory, NodeResourceLimit.MAX_INCREMENTAL_MEMORY
+        )
+        node.config_resource.memory += incre_memory
         logger.info(
             "Increment the memory of %s to %s",
             node.name,
@@ -351,21 +360,26 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
         plan = self._resource_optimizer.generate_oom_recovery_plan(
             [node], JobOptStage.PS_INITIAL
         )
-        if plan and not plan.empty():
-            ps = plan.node_group_resources[NodeType.PS]
+        if plan and not plan.empty() and node.name in plan.node_resources:
+            resource = plan.node_resources[node.name]
             self._ps_resource.node_resource.memory = max(
                 self._ps_resource.node_resource.memory,
-                ps.node_resource.memory,
+                resource.memory,
             )
         cur_mem = node.config_resource.memory
         cur_mem *= NodeResourceLimit.INCREMENTAL_MEMORY_FACTOR
-        node.config_resource.memory = int(
+        opt_memory = int(
             max(
                 self._ps_resource.node_resource.memory,
                 cur_mem,
                 self._original_ps_resource.node_resource.memory,
             )
         )
+        incre_memory = opt_memory - node.config_resource.memory
+        incre_memory = min(
+            incre_memory, NodeResourceLimit.MAX_INCREMENTAL_MEMORY
+        )
+        node.config_resource.memory += incre_memory
         logger.info(
             "Increment the memory of %s to %s",
             node.name,
@@ -506,21 +520,31 @@ class AllreduceJobResourceOptimizer(JobResourceOptimizer):
         self._original_worker_resource = copy.deepcopy(self._worker_resource)
         self._job_uuid = job_uuid
         self._lock = threading.Lock()
+        self._node_unit = 1
+        self._alive_node_num = 0
 
     def update_job_uuid(self, job_uuid):
         pass
 
     def init_job_resource(self, job_resource: JobResource):
-        """The job only launches the first worker at begining and
-        launches workers once the first worker is running"""
-        job_resource.node_group_resources[NodeType.WORKER].count = 1
+        pass
 
-    def get_job_resource_plan(self):
-        """Get resource plan for a job."""
+    def get_job_resource_plan(self) -> ResourcePlan:
+        """Check wether there are free nodes in the cluster."""
         plan = ResourcePlan()
-        worker_config = self._original_worker_resource
+        worker_config = copy.deepcopy(self._original_worker_resource)
+        max_node_num = self._original_worker_resource.count
+        request_num = max_node_num - self._alive_node_num
+        free_num = self._get_free_gpu_node()
+        free_num = (free_num // self._node_unit) * self._node_unit
+        new_num = min(free_num, request_num)
+        worker_config.count = self._alive_node_num + new_num
         plan.node_group_resources[NodeType.WORKER] = worker_config
         return plan
+
+    # TODO: implement the function to query the number free GPU nodes.
+    def _get_free_gpu_node(self):
+        return 0
 
     def adjust_oom_resource(self, node: Node):
         """Adjust the resource configuration for OOM nodes"""
@@ -531,3 +555,9 @@ class AllreduceJobResourceOptimizer(JobResourceOptimizer):
         worker_config = self._original_worker_resource
         job_config.node_group_resources[NodeType.WORKER] = worker_config
         return job_config
+
+    def set_node_unit(self, node_unit):
+        self._node_unit = node_unit
+
+    def set_alive_node_num(self, node_num):
+        self._alive_node_num = node_num

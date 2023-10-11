@@ -11,16 +11,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import unittest
 
-from dlrover.python.elastic_agent.master_client import LocalDataset
+from dlrover.python.elastic_agent.master_client import (
+    GlobalMasterClient,
+    LocalDataset,
+    build_master_client,
+)
 from dlrover.python.elastic_agent.sharding.client import (
     IndexShardingClient,
     ShardingClient,
 )
+from dlrover.python.tests.test_utils import start_local_master
 
 
 class DataShardClientTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self._master, addr = start_local_master()
+        GlobalMasterClient.MASTER_CLIENT = build_master_client(addr)
+
+    def addCleanup(self):
+        self._master.stop()
+
     def test_local_dataset(self):
         dataset = LocalDataset(
             batch_size=16,
@@ -46,18 +59,21 @@ class DataShardClientTest(unittest.TestCase):
         shard = data_shard_service.fetch_shard()
         self.assertEqual(shard.start, 0)
         self.assertEqual(shard.end, 32)
-        self.assertEqual(data_shard_service.get_current_epoch(), 0)
         shard_count = 1
         while True:
             shard = data_shard_service.fetch_shard()
             if not shard:
                 break
+            data_shard_service.report_batch_done(32)
             shard_count += 1
         self.assertEqual(shard_count, 8)
+        checkpoint_str = data_shard_service.get_shard_checkpoint()
+        checkpoint = json.loads(checkpoint_str)
+        self.assertEqual(checkpoint["epoch"], 2)
+        self.assertEqual(len(checkpoint["todo"]), 0)
+        data_shard_service.restore_shard_from_checkpoint(checkpoint_str)
 
-
-class IndexShardingClientTest(unittest.TestCase):
-    def test_sharding_client(self):
+    def test_index_sharding_client(self):
         client = IndexShardingClient(
             batch_size=16,
             num_epochs=2,

@@ -43,7 +43,7 @@ from dlrover.trainer.util.reflect_util import get_class
 
 try:
     from dlrover.python.elastic_agent.tensorflow.hooks import (
-        ReportModelMetricHook,
+        ReportModelInfoHook,
     )
 except Exception:
     logger.warning("fail to import dlrover")
@@ -167,7 +167,7 @@ class EstimatorExecutor(BaseExecutor):
             global_dict[TFConstants.DataShardClient.name] = data_shard_client
             logger.info("appending ElasticDataShardReportHook")
             shard_report_hook = ElasticDataShardReportHook(data_shard_client)
-            model_metric_report_hook = ReportModelMetricHook()
+            model_metric_report_hook = ReportModelInfoHook()
             training_hooks.append(shard_report_hook)
             training_hooks.append(model_metric_report_hook)
 

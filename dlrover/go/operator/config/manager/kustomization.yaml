@@ -13,4 +13,4 @@ kind: Kustomization
 images:
 - name: controller
   newName: easydl/elasticjob-controller
-  newTag: test
+  newTag: master

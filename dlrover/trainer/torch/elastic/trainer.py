@@ -1,0 +1,449 @@
+# Copyright 2023 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import contextlib
+import os
+import socket
+import time
+from contextlib import contextmanager
+from dataclasses import dataclass
+from typing import Any, Dict, Optional
+
+import torch
+import torch.distributed as dist
+
+from dlrover.python.common.constants import ConfigPath
+from dlrover.python.common.log import default_logger as logger
+from dlrover.python.common.serialize import JsonSerializable
+from dlrover.trainer.torch.elastic.dataloader import ElasticDataLoader
+
+
+def find_free_port() -> int:
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.bind(("localhost", 0))
+    sockname = sock.getsockname()
+    sock.close()
+    return sockname[1]
+
+
+def get_rank():
+    rank = 0
+    if dist.is_initialized():
+        rank = dist.get_rank()
+    return rank
+
+
+@dataclass
+class TrainingRecord(JsonSerializable):
+    step: int = 0
+    timestamp: int = 0
+
+
+class GradientState(object):
+    """
+    Singleton class that has information related to gradient
+    synchronization for gradient accumulation.
+
+    **Available attributes:**
+        - *sync_gradients** (`bool`) -- Whether gradients are currently
+            being synchronized across all processes.
+        - *num_backward_steps** (`int`) -- The number of step to perform
+            backward to compute gradients.
+        - *num_steps** (`int`) -- The number of step to sync gradients and
+            update model parameters by gradients.
+    """
+
+    _shared_state: Dict[str, Any] = {}
+
+    def __init__(self):
+        self.__dict__ = self._shared_state
+        if not self.initialized:
+            self.sync_gradients = True
+            self.num_backward_steps = 0
+            self.num_steps = 0
+
+    def check_sync_gradient(self, gradient_accumulation_steps):
+        """Check whether to synchronize gradients accross all processes."""
+        if self.num_backward_steps % gradient_accumulation_steps == 0:
+            self.sync_gradients = True
+        else:
+            self.sync_gradients = False
+
+    @property
+    def initialized(self) -> bool:
+        "Returns whether the `GradientState` has been initialized"
+        return GradientState._shared_state != {}
+
+
+class _ElasticOptimizer(torch.optim.Optimizer):
+    """
+    Internal wrapper around a torch optimizer.
+    Perform `step` and `zero_grad` if gradients should be synchronized.
+    Args:
+        optimizer (`torch.optim.optimizer.Optimizer`):
+            The optimizer to wrap.
+    """
+
+    def __init__(self, optimizer: torch.optim.Optimizer) -> None:
+        self.optimizer = optimizer
+        self.gradient_state = GradientState()
+
+    @property
+    def state(self):
+        return self.optimizer.state
+
+    @state.setter
+    def state(self, state):
+        self.optimizer.state = state
+
+    @property
+    def param_groups(self):
+        return self.optimizer.param_groups
+
+    @param_groups.setter
+    def param_groups(self, param_groups):
+        self.optimizer.param_groups = param_groups
+
+    @property
+    def defaults(self):
+        return self.optimizer.defaults
+
+    @defaults.setter
+    def defaults(self, defaults):
+        self.optimizer.defaults = defaults
+
+    def add_param_group(self, param_group):
+        self.optimizer.add_param_group(param_group)
+
+    def load_state_dict(self, state_dict):
+        self.optimizer.load_state_dict(state_dict)
+
+    def state_dict(self):
+        return self.optimizer.state_dict()
+
+    def zero_grad(self, set_to_none=None):
+        if self.gradient_state.sync_gradients:
+            self.optimizer.zero_grad(set_to_none)
+
+    def step(self, closure=None):
+        if self.gradient_state.sync_gradients:
+            self.optimizer.step(closure)
+
+    def __getstate__(self):
+        return self.__dict__.copy()
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+
+
+class _ElasticLRScheduler(object):
+    """A wrapper around a learning rate scheduler that will only
+    step after the gradients are sychronizing across all processes and
+    the optimizer steps."""
+
+    def __init__(
+        self, scheduler: torch.optim.lr_scheduler._LRScheduler
+    ) -> None:
+        self.scheduler = scheduler
+        self.gradient_state = GradientState()
+
+    def step(self, *args, **kwargs):
+        self.scheduler._step_count = self.gradient_state.num_steps
+        self.scheduler.step(*args, **kwargs)
+
+    def get_last_lr(self):
+        return self.scheduler.get_last_lr()
+
+    def state_dict(self):
+        return self.scheduler.state_dict()
+
+    def load_state_dict(self, state_dict):
+        self.scheduler.load_state_dict(state_dict)
+
+    def get_lr(self):
+        return self.scheduler.get_lr()
+
+    def print_lr(self, *args, **kwargs):
+        return self.scheduler.print_lr(*args, **kwargs)
+
+
+class CheckpointInterval:
+    def __init__(
+        self, steps: Optional[int] = None, epochs: Optional[int] = None
+    ):
+        """Initializes the CheckpointInterval class to determine intervals
+        for saving checkpoints.
+
+        Args:
+            steps (int, optional): Number of steps for checkpoint intervals.
+            epochs (int, optional): Number of epochs for checkpoint intervals.
+
+        Raises:
+            ValueError: If both 'steps' and 'epochs' are set simultaneously.
+
+        **Note:**
+            Only one of 'steps' or 'epochs' should be set.
+        """
+        if steps and epochs:
+            raise ValueError("Only one of 'steps' or 'epochs' should be set.")
+        self.steps = steps
+        self.epochs = epochs
+
+    def should_save(
+        self,
+        current_step: Optional[int] = None,
+        current_epoch: Optional[int] = None,
+    ) -> bool:
+        """Determines if a checkpoint should be saved based on
+        provided parameters.
+
+        Args:
+            current_step (int, optional): The current training step.
+            current_epoch (int, optional): The current training epoch.
+
+        Returns:
+            bool: True if the checkpoint should be saved, otherwise False.
+        """
+        if self.steps and current_step and current_step % self.steps == 0:
+            return True
+        if self.epochs and current_epoch and current_epoch % self.epochs == 0:
+            return True
+        return False
+
+
+class ElasticTrainer(object):
+    """Creates an instance of an elastic trainer for elastic distributed
+    training on multi-nodes. The elastic trainer will do:
+    - set the number of step to accumlate gradients to keep the global
+    batch size fixed.
+    - do checkpoint before the worker group changes.
+
+    Args:
+        model (`torch.nn.Module`): PyTorch Module.
+        dataloader (`ElasticDataloader`): An ElasticDataloader can
+            update the batch size of sampler.
+
+    **Available attributes:**
+        - **step** -- the number of local step on the process.
+
+        - **gradient_accumulation_steps** (`int`): The number of
+            steps that should pass before gradients are accumulated.
+            It will change with the number of workers. For example,
+            if the expected max number of worker is 8, it is 4 if the current
+            number of worker is 2 and it is 2 if the current number of
+            worker is 4. The elastic trainer can keep the global batch
+            size fixed by adjusting the gradient_accumulation_steps.
+    """
+
+    def __init__(
+        self,
+        model,
+        dataloader: ElasticDataLoader = None,
+        use_fsdp: bool = False,
+        ckpt_interval: CheckpointInterval = None,
+        shared_storage_path: str = None,
+    ):
+        if use_fsdp and (ckpt_interval is None or shared_storage_path is None):
+            raise ValueError(
+                "When 'use_fsdp' is True, both 'ckpt_interval' and \
+                    'shared_storage_path' must be provided and not None."
+            )
+        self.model = model
+        self.dataloader = dataloader
+        self.gradient_state = GradientState()
+        self.gradient_accumulation_steps = 1
+        self.use_fsdp = use_fsdp
+        self.ckpt_interval = ckpt_interval
+        self.shared_storage_path = shared_storage_path
+        self._report_step_interval = 15  # 15s
+        self._last_report_time = 0
+
+        self._check()
+
+    def _check(self):
+        if self.dataloader and not isinstance(
+            self.dataloader, ElasticDataLoader
+        ):
+            logger.warning(
+                "Cannot adjust the batch size of dataloader and "
+                "you should use ElasticDataloader not Dataloader."
+            )
+
+    def prepare(self, optimizer, lr_scheduler=None):
+        """
+        Prepare optimizer and learning rate scheduler in elastic training.
+        """
+        self._set_gradient_accumulation_steps()
+        optimizer = _ElasticOptimizer(optimizer)
+        if lr_scheduler:
+            lr_scheduler = _ElasticLRScheduler(lr_scheduler)
+            return optimizer, lr_scheduler
+        else:
+            return optimizer
+
+    def _save_fsdp_ckpt(
+        self,
+        epoch_num: Optional[int] = None,
+        step_num: Optional[int] = None,
+    ):
+        """Intended for saving Fully Sharded Data Parallel (FSDP) checkpoints.
+        This method's implementation is pending in a subsequent PR.
+
+        Args:
+            epoch_num (Optional[int], optional):
+                The current epoch number. Defaults to None.
+            step_num (Optional[int], optional):
+                The current step number. Defaults to None.
+
+        Raises:
+            NotImplementedError: This method has not been implemented yet.
+
+        **TODO:**
+            - Implement the detailed logic for saving FSDP checkpoints to
+                the file system in a subsequent PR.
+        """
+        raise NotImplementedError(
+            "The save_checkpoint method will be implemented \
+                in a subsequent PR."
+        )
+
+    def _before_epoch(self):
+        """Prepares necessary setups before starting a new epoch."""
+        self.reset()
+
+    def _after_epoch(self, num_epochs: int):
+        """Handles post-epoch operations based on the completed number
+        of epochs.
+
+        Args:
+            num_epochs (int): The total number of completed epochs.
+        """
+        if self.ckpt_interval and self.ckpt_interval.should_save(
+            current_epoch=num_epochs
+        ):
+            self._save_fsdp_ckpt(num_epochs)
+
+    @contextmanager
+    def epoch(self, num_epochs: int):
+        """Context manager for pre-epoch setup and post-epoch cleanup.
+
+        Args:
+            num_epochs (int):
+                The number of epochs to consider within this context.
+        """
+        self._before_epoch()
+        yield
+        self._after_epoch(num_epochs)
+
+    @contextmanager
+    def step(self, fix_total_batch_size=False):
+        """
+        A context manager that will lightly wrap around and to keep
+        the global batch size fixed when the number of worker changes.
+
+        Args:
+            fix_total_batch_size (`bool`): Whether to keep the total
+            batch size fixed when the optimizer steps. If True,
+            the context manager will perform gradient accumulation and
+            synchronize gradients when the accumulated batch size if
+            equal to the global batch size.
+
+        Example:
+        ```python
+        >>> from dlrover.trainer.torch.elastic.trainer import ElasticTrainer
+        >>> elastic_trainer = ElasticTrainer(model)
+        >>> optimizer, scheduler = elastic_trainer.prepare(
+                optimizer, scheduler
+            )
+        >>> for input, output in dataloader:
+        ...     with elastic_trainer.step():
+        ...         outputs = model(input)
+        ...         loss = loss_func(outputs)
+        ...         loss.backward()
+        ...         optimizer.step()
+        ...         scheduler.step()
+        ...         optimizer.zero_grad()
+        ```
+        """
+        self._before_step(fix_total_batch_size)
+        context = contextlib.nullcontext
+        if not self.gradient_state.sync_gradients:
+            context = getattr(self.model, "no_sync", context)
+
+        with context():
+            yield
+            self._after_step()
+
+    def reset(self):
+        self.gradient_state.num_steps = 0
+
+    @property
+    def num_steps(self):
+        return self.gradient_state.num_steps
+
+    def _before_step(self, fix_total_batch_size):
+        """Sets the right `sync_gradients` and either resets
+        or increases `self.step`"""
+        self.gradient_state.num_backward_steps += 1
+        if not fix_total_batch_size:
+            self.gradient_state.sync_gradients = True
+        else:
+            self.gradient_state.check_sync_gradient(
+                self.gradient_accumulation_steps
+            )
+
+    def _after_step(self):
+        if self.ckpt_interval and self.ckpt_interval.should_save(
+            current_step=self.num_steps
+        ):
+            self._save_fsdp_ckpt()
+        if self.gradient_state.sync_gradients:
+            self.gradient_state.num_steps += 1
+            now = time.time()
+            if now - self._last_report_time > self._report_step_interval:
+                self.report_training_step()
+                self._last_report_time = now
+        if self.dataloader and isinstance(self.dataloader, ElasticDataLoader):
+            self.dataloader.update_batch_size()
+
+    def _set_gradient_accumulation_steps(self):
+        max_worker_num = int(os.getenv("WORKER_NUM", 1))
+        if max_worker_num == 0:
+            self.gradient_accumulation_steps = 1
+
+        local_size = int(os.environ.get("LOCAL_WORLD_SIZE", 1))
+        max_worker_num *= local_size
+        cur_world_size, rank = 1, 0
+        if dist.is_initialized():
+            cur_world_size = dist.get_world_size()
+            rank = dist.get_rank()
+        self.gradient_accumulation_steps = int(max_worker_num / cur_world_size)
+        remainder = max_worker_num % cur_world_size
+        if rank < remainder:
+            self.gradient_accumulation_steps += 1
+        logger.info(
+            "Rank = %s, World size = %s, Gradient accumulation steps = %s",
+            rank,
+            cur_world_size,
+            self.gradient_accumulation_steps,
+        )
+
+    def report_training_step(self):
+        timestamp = time.time()
+        record = TrainingRecord(self.gradient_state.num_steps, timestamp)
+        metric_path = os.getenv(ConfigPath.ENV_RUNTIME_METRICS, "")
+        rank = get_rank()
+        if os.path.exists(os.path.dirname(metric_path)) and rank == 0:
+            with open(metric_path, "w") as f:
+                f.write(record.to_json(indent=4))

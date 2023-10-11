@@ -103,11 +103,15 @@ def get_critical_worker_index(params: JobArgs):
     return critical_worker_index
 
 
-def cut_timeout_pending_node_cpu(node: Node):
-    """Cut down CPU cores and relaunch it if the pending
+def reduce_timeout_pending_node_resource(node: Node):
+    """Reduce CPU cores or memroy and relaunch it if the pending
     time is too long"""
     now = time.time()
-    if node.is_released or not node.create_time:
+    if (
+        node.is_released
+        or not node.create_time
+        or node.config_resource.gpu_num > 0
+    ):
         return False
     pending_time = now - node.create_time.timestamp()
     if pending_time < _dlrover_context.seconds_to_wait_pending_pod:
@@ -127,9 +131,21 @@ def cut_timeout_pending_node_cpu(node: Node):
             _dlrover_context.seconds_to_wait_pending_pod,
             new_cpu,
         )
-        return True
-    else:
-        return False
+    original_memory = node.config_resource.memory
+    new_memory = math.ceil(
+        original_memory / _dlrover_context.factor_to_cut_pending_mem
+    )
+    if new_memory > NodeResourceLimit.MIN_MEMORY:
+        node.config_resource.memory = new_memory
+        logger.info(
+            "Pod %s pending time %s beyonds %s."
+            "Delete and relaunch it with memory %s",
+            node.name,
+            pending_time,
+            _dlrover_context.seconds_to_wait_pending_pod,
+            new_memory,
+        )
+    return True
 
 
 class TrainingNodeManager(object):
@@ -179,7 +195,6 @@ class TrainingNodeManager(object):
             new_id = next(self._node_id_iter)
             relaunch_node = node.get_relaunch_node_info(new_id)
             self._nodes[new_id] = relaunch_node
-            self._nodes.pop(node.id)
         logger.info("Relaunch node %s to %s", node.name, new_id)
         plan.launch_nodes.append(
             Node(
@@ -194,18 +209,44 @@ class TrainingNodeManager(object):
         )
         return plan
 
-    def cut_pending_node_cpu(self):
+    def reduce_pending_node_resource(self):
         """Cut down CPU cores of pendding PS Pods"""
         plan = ScalePlan()
-        nodes = copy.deepcopy(self._nodes)
-        for node in nodes.values():
+
+        # Avoid dictionary changed size during iteration.
+        cur_nodes = list(self._nodes.values())
+        for node in cur_nodes:
             if node.status == NodeStatus.PENDING:
-                cut_cpu = cut_timeout_pending_node_cpu(node)
-                if cut_cpu:
+                reduced = reduce_timeout_pending_node_resource(node)
+                if reduced:
                     node.relaunchable = False
                     node_plan = self.relaunch_node(node)
+                    plan.remove_nodes.append(node)
                     plan.merge(node_plan)
         return plan
+
+    def get_pending_timeout_oom_recovered_node(self):
+        cur_nodes = list(self._nodes.values())
+        now = time.time()
+        nodes = []
+        for node in cur_nodes:
+            if (
+                node.is_released
+                or not node.create_time
+                or node.status != NodeStatus.PENDING
+            ):
+                continue
+            pending_time = now - node.create_time.timestamp()
+            if (
+                node.is_recovered_oom
+                and pending_time > _dlrover_context.seconds_to_wait_pending_pod
+            ):
+                logger.info(
+                    f"Node {node.name} with resource f{node.config_resource} "
+                    f"and pends f{pending_time}s."
+                )
+                nodes.append(node)
+        return nodes
 
     def get_running_nodes(self):
         """TensorFlow Chief nodes"""
@@ -217,6 +258,8 @@ class TrainingNodeManager(object):
         return nodes
 
     def all_nodes_exited(self):
+        if len(self._nodes) == 0:
+            return True
         counter = self._get_node_counter()
 
         # At start, there may be no launched worker.
@@ -280,17 +323,22 @@ class TrainingNodeManager(object):
     def running_nodes_hanged(self) -> List[bool]:
         cur_time = time.time()
         node_hang = []
-        for _, node in self._nodes.items():
+        nodes = list(self._nodes.values())  # Avoid dictionary changed size.
+        for node in nodes:
             if node.status == NodeStatus.RUNNING:
+                timeout = NodeResourceLimit.MAX_HANG_TIMEOUT_SECS
                 hang = (
                     node.start_hang_time > 0
-                    and cur_time - node.start_hang_time
-                    > NodeResourceLimit.MAX_HANG_TIMEOUT_SECS
+                    and cur_time - node.start_hang_time > timeout
                 )
-                if hang:
+                if not node.hang and hang:
                     time_array = time.localtime(node.start_hang_time)
                     date_time = time.strftime("%Y-%m-%d %H:%M:%S", time_array)
-                    logger.warning("Node %s hangs at %s", node.name, date_time)
+                    logger.warning(
+                        f"Node {node.name} hangs with timeout "
+                        f"{timeout} from {date_time}!!!"
+                    )
+                node.hang = hang
                 node_hang.append(hang)
         return node_hang
 

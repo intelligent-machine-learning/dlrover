@@ -9,11 +9,18 @@ import os
 import shutil
 import time
 from contextlib import contextmanager
+from itertools import chain
+from operator import attrgetter
+from pathlib import Path
+from typing import Dict, Union
 
 import torch
 
 from atorch import local_rank, rank
 from atorch.common.log_utils import default_logger as logger
+from atorch.common.util_func import recursive_setattr
+from atorch.utils.fsdp_save_util import ShardTensorUtil
+from atorch.utils.fsdp_save_util import version_check as fsdp_save_util_version_check
 from atorch.utils.graph_transform_utils import map_aggregate
 
 _super_init_call = torch.nn.Module.__init__
@@ -37,11 +44,51 @@ class _MetaModeContext:
     offload_path = "./meta_model_offload"
     param_counter = 0
     buffer_counter = 0
+    _SHARD_FLAT_PARAM_LOADER: Dict[Union[None, str], ShardTensorUtil] = {}
+    current_offload_name = None
+
+    @classmethod
+    def del_current_shard_flat_loader(cls):
+        if cls.current_offload_name in cls._SHARD_FLAT_PARAM_LOADER:
+            del cls._SHARD_FLAT_PARAM_LOADER[cls.current_offload_name]
+
+    @classmethod
+    def get_current_shard_flat_loader(cls):
+        if not cls._SHARD_FLAT_PARAM_LOADER:
+            raise ValueError(
+                "Wrong call path, make sure you call `get_current_shard_flat_loader`"
+                " after init_empty_weights_with_disk_offload(meta_init_offload_name=xxx)"
+            )
+        if cls.current_offload_name in cls._SHARD_FLAT_PARAM_LOADER:
+            return cls._SHARD_FLAT_PARAM_LOADER[cls.current_offload_name]
+        raise ValueError(f"current shard fsdp name is not set, name is {cls.current_offload_name}")
+
+
+@contextmanager
+def load_weights_from_flat_param(ckpt_path, shard_kwargs, meta_init_offload_name):
+    fsdp_save_util_version_check()
+    if meta_init_offload_name in _MetaModeContext._SHARD_FLAT_PARAM_LOADER:
+        raise ValueError(
+            f"meta init {meta_init_offload_name} has been create, "
+            "check `meta_init_offload_name` in init_empty_weights_with_disk_offload"
+        )
+    _MetaModeContext._SHARD_FLAT_PARAM_LOADER[meta_init_offload_name] = ShardTensorUtil(
+        ckpt_path, rank(), torch.distributed.get_world_size(), device="cpu", **shard_kwargs
+    )
+    with torch.device("meta"):
+        yield
 
 
 @contextmanager
 def init_empty_weights_with_disk_offload(
-    ignore_tie_weights=False, include_buffers=True, reset=True, disk_offload=True, offload_path=None
+    ignore_tie_weights=False,
+    include_buffers=True,
+    reset=True,
+    disk_offload=True,
+    offload_path=None,
+    ckpt_path=None,
+    shard_kwargs=None,
+    meta_init_offload_name=None,
 ):
     """
     A context manager under which models are initialized with all parameters on the meta device, therefore creating an
@@ -69,6 +116,12 @@ def init_empty_weights_with_disk_offload(
         disk_offload (`bool`, *optional*, defaults to `True`): Whether to offload the initialized weights into disk.
             Potential use case: we want to initialize an empty model to hold values to be loaded from customized ckpt
         offload_path (`str`, *optional* defaults to None): Path to which we offload the meta initialized model.
+        ckpt_path (`str`, *optional* defaults to None): Checkpoint path for shard fsdp, this will move module to meta
+            device and reload param in fsdp transformation.
+        shard_kwargs (`dict`,  *optional* defaults to None): Kwargs for shard fsdp util, currently, it has those keys:
+            1. name_mapping_func_or_dict: a dict or callable, mapping name of param in restore module to name of param
+                in checkpoint.
+            2. create_param_cb: callable, if some tensor is missing, use this function to create parameters.
 
     Example:
 
@@ -81,6 +134,13 @@ def init_empty_weights_with_disk_offload(
         tst = nn.Sequential(*[nn.Linear(10000, 10000) for _ in range(1000)])
     ```
     """
+    if ckpt_path is not None:
+        from atorch.auto.auto_accelerate_context import AutoAccelerateContext
+
+        AutoAccelerateContext.add_ac_attr("FSDP_META_INIT", True)
+        with load_weights_from_flat_param(ckpt_path, shard_kwargs or {}, meta_init_offload_name):
+            yield
+        return
     if offload_path is not None:
         _MetaModeContext.offload_path = offload_path
     if (torch.distributed.is_initialized() and int(local_rank()) == 0) or not torch.distributed.is_initialized():
@@ -145,7 +205,7 @@ def init_empty_weights_with_disk_offload(
         setattr(cls, name, new_fn)
 
     _reset_call_register = dict()
-    _escaped_mods = list()
+    _mods_to_clean = list()
 
     def _hack_reset_param(mod, init_fn, args, kwargs):
         init_res = init_fn(*args, **kwargs)
@@ -166,16 +226,17 @@ def init_empty_weights_with_disk_offload(
 
             setattr(mod, "reset_parameters", lambda *args, **kwargs: reset_empty_parameters(mod, *args, **kwargs))
 
-        # All models needs to be registered:
-        # we need to defer offloading at rank 0 in case tie_weights not ignored
-        # the first mod is the root module
-        _escaped_mods.append(mod)
         return init_res
 
     @functools.wraps(_super_init_call)
     def init_call_wrapper(mod, *args, **kwargs):
         def init_fn(*args, **kwargs):
             _super_init_call(mod, *args, **kwargs)
+
+        # All models needs to be registered:
+        # we need to defer offloading at rank 0 in case tie_weights not ignored
+        # the first mod is the root module
+        _mods_to_clean.append(mod)
 
         return _hack_reset_param(mod, init_fn, args, kwargs)
 
@@ -195,14 +256,20 @@ def init_empty_weights_with_disk_offload(
         for mod, _orig_reset_call in _reset_call_register.items():
             setattr(mod, "reset_parameters", _orig_reset_call)
 
-        for mod in _escaped_mods:
-            # Empty all mod parameters, assume all funky operetions (e.g. tie_weights)
-            # has already been called properly
-            _set_model_checkpoint_name(mod)
-            empty_param(mod, ignore_save=(not disk_offload))
+        _escaped_mods = list()
+        ignore_save = (not disk_offload) or (torch.distributed.is_initialized() and local_rank() != 0)
+        # check modules not successfully registered
+        for root_mod in _mods_to_clean:
+            for mod in root_mod.modules():
+                _escaped_mods.append(mod)
+                _set_model_checkpoint_name(mod)
+                empty_param(mod, ignore_save=ignore_save)
 
-        _tied_parameters = _find_tied_weights_for_meta(_escaped_mods[0])
-        _retie_weights(_escaped_mods[0], _tied_parameters)
+        all_mods = _escaped_mods + _mods_to_clean
+        # We cannot assume that the first of the _mods_to_clean is the root module
+        for root_mod in all_mods:
+            _tied_parameters = _find_tied_weights_for_meta(root_mod)
+            _retie_weights(root_mod, _tied_parameters)
         # clear _TIE_DICT
         _TIE_DICT.clear()
         gc.collect()
@@ -235,6 +302,8 @@ def _find_tied_weights_for_meta(model):
                 _tied_parameters[name] = _name_dict[param.checkpoint_name]
             else:
                 _name_dict[param.checkpoint_name] = name
+        else:
+            logger.warning("params have no checkpoint_name:%s", name)
 
     return _tied_parameters
 
@@ -270,14 +339,13 @@ def _find_tied_weights(model, **kwargs):
 
 
 def _retie_weights(model, _tied_parameters):
-    for param_name, tied_param_name in _tied_parameters.items():
-        param = model
-        for split in param_name.split("."):
-            param = getattr(param, split)
-        tied_module = model
-        for split in tied_param_name.split(".")[:-1]:
-            tied_module = getattr(tied_module, split)
-        setattr(tied_module, tied_param_name.split(".")[-1], param)
+    for src, dst in _tied_parameters.items():
+        dst_split = dst.split(".")
+        dst_name = dst_split.pop()
+        dst_module_name = ".".join(dst_split)
+        dst_module = attrgetter(dst_module_name)(model)
+        src_weight = attrgetter(src)(model)
+        setattr(dst_module, dst_name, src_weight)
 
 
 def _reload_meta_parameter(module, tensor_name, device, value=None, ckpt_name=None):
@@ -343,6 +411,7 @@ def _set_model_checkpoint_name(mod, prefix_name=""):
                 else:
                     ckpt_name = get_checkpoint_name(prefix_name, is_param=True)
                 setattr(mod._parameters[name], "checkpoint_name", ckpt_name)
+
     for name in mod._buffers:
         if mod._buffers[name] is not None:
             if not hasattr(mod._buffers[name], "checkpoint_name"):
@@ -367,16 +436,17 @@ def empty_param(mod, prefix_name="", ignore_save=False):
             else:
                 ckpt_name = mod._parameters[name].checkpoint_name
             if (
-                local_rank() is not None
-                and int(local_rank()) == 0
-                and not ignore_save
-                and mod._parameters[name].device != torch.device("meta")
-            ):
+                not torch.distributed.is_initialized()
+                or (local_rank() is not None and int(local_rank()) == 0 and not ignore_save)
+            ) and mod._parameters[name].device != torch.device("meta"):
                 torch.save(mod._parameters[name], ckpt_name)
             delattr(mod._parameters[name], "checkpoint_name")
-            mod._parameters[name] = param_cls(mod._parameters[name].to(torch.device("meta")), **param_kwargs)
+            mod._parameters[name] = param_cls(
+                mod._parameters[name].to(torch.device("meta")),
+                requires_grad=mod._parameters[name].requires_grad,
+                **param_kwargs,
+            )
             setattr(mod._parameters[name], "checkpoint_name", ckpt_name)
-
     for name in mod._buffers:
         if mod._buffers[name] is not None:
             if not hasattr(mod._buffers[name], "checkpoint_name"):
@@ -388,11 +458,9 @@ def empty_param(mod, prefix_name="", ignore_save=False):
             else:
                 ckpt_name = mod._buffers[name].checkpoint_name
             if (
-                local_rank() is not None
-                and int(local_rank()) == 0
-                and not ignore_save
-                and mod._buffers[name].device != torch.device("meta")
-            ):
+                not torch.distributed.is_initialized()
+                or (local_rank() is not None and int(local_rank()) == 0 and not ignore_save)
+            ) and mod._buffers[name].device != torch.device("meta"):
                 torch.save(mod._buffers[name], ckpt_name)
             delattr(mod._buffers[name], "checkpoint_name")
             mod._buffers[name] = mod._buffers[name].to(torch.device("meta"))
@@ -430,7 +498,34 @@ def reload_meta_module(module, device="cpu", delete_ckpt_name=True, retie_weight
         for name, param in module.named_parameters():
             if param.device == torch.device("meta"):
                 if hasattr(param, "checkpoint_name"):
-                    loaded_param = torch.load(param.checkpoint_name)
+                    if Path(param.checkpoint_name).exists():
+                        loaded_param = torch.load(param.checkpoint_name)
+                    elif _MetaModeContext._SHARD_FLAT_PARAM_LOADER:
+                        if hasattr(param, "sync_module_states"):
+                            loaded_param = _MetaModeContext.get_current_shard_flat_loader().load_tensor_by_name(
+                                param.checkpoint_name, sync_module_states=True
+                            )
+                            delattr(param, "sync_module_states")
+                        elif hasattr(param, "intra_load"):
+                            loaded_param = _MetaModeContext.get_current_shard_flat_loader().load_with_intra_nodes(
+                                param.checkpoint_name
+                            )
+                            delattr(param, "intra_load")
+                        else:
+                            loaded_param = _MetaModeContext.get_current_shard_flat_loader().load_tensor_by_name(
+                                param.checkpoint_name
+                            )
+                    else:
+                        raise ValueError(
+                            (
+                                "reload meta module needs set `checkpoint_name`, for init, "
+                                "you needs set checkpoint_name for a file which is saved by torch. "
+                                "For load ckpt, you need to set `checkpoint_name` and use "
+                                "ShardTensorUtil to load flat param."
+                            )
+                        )
+                    if loaded_param.dtype is not param.dtype:
+                        loaded_param = loaded_param.to(param.dtype)
                     # ckpt_name: set to the new Parameter, None if delete ckpt name
                     # old_ckpt_name: set to the old Parameter, in case weight tying
                     ckpt_name = param.checkpoint_name if not delete_ckpt_name else None
@@ -443,25 +538,41 @@ def reload_meta_module(module, device="cpu", delete_ckpt_name=True, retie_weight
                     # so the other submodules can correctly load the param
                     setattr(param, "checkpoint_name", old_ckpt_name)
                     del loaded_param, param
-                    gc.collect()
                 else:
                     raise ValueError(f"meta model {module} is not checkpointed, for {name}")
             elif param.device != torch.device(device):
+                logger.info("reload meta param %s", name)
                 _reload_meta_parameter(module, name, device)
         for name, buffer in module.named_buffers():
             if buffer.device == torch.device("meta"):
                 if hasattr(buffer, "checkpoint_name"):
-                    loaded_buffer = torch.load(buffer.checkpoint_name)
+                    if Path(buffer.checkpoint_name).exists():
+                        loaded_buffer = torch.load(buffer.checkpoint_name)
+                    elif _MetaModeContext._SHARD_FLAT_PARAM_LOADER:
+                        loaded_buffer = _MetaModeContext.get_current_shard_flat_loader().load_tensor_by_name(
+                            buffer.checkpoint_name
+                        )
+                    else:
+                        raise ValueError(
+                            (
+                                "reload meta module needs set `checkpoint_name`, for init, "
+                                "you needs set checkpoint_name for a file which is saved by torch. "
+                                "For load ckpt, you need to set `checkpoint_name` and use "
+                                "ShardTensorUtil to load flat param."
+                            )
+                        )
+                    if loaded_buffer.dtype is not buffer.dtype:
+                        loaded_buffer = loaded_buffer.to(buffer.dtype)
                     ckpt_name = buffer.checkpoint_name if not delete_ckpt_name else None
                     old_ckpt_name = buffer.checkpoint_name
                     delattr(buffer, "checkpoint_name")
                     _reload_meta_parameter(module, name, device, value=loaded_buffer, ckpt_name=ckpt_name)
                     setattr(buffer, "checkpoint_name", ckpt_name)
                     del loaded_buffer, buffer
-                    gc.collect()
                 else:
                     raise ValueError(f"meta model is not checkpointed, for {name}")
             elif buffer.device != torch.device(device):
+                logger.info("reload meta buffer %s", name)
                 _reload_meta_parameter(module, name, device)
 
         for child in module.children():
@@ -498,3 +609,125 @@ def deepcopy_checkpoint_name(model_copy, model):
         if buffer.device == torch.device("meta"):
             if not hasattr(buffer, "checkpoint_name") and hasattr(orig_buffers[name], "checkpoint_name"):
                 setattr(buffer, "checkpoint_name", orig_buffers[name].checkpoint_name)
+
+
+@contextmanager
+def record_module_init():
+    """
+    Record modules' init args and kwargs while meta constructing model. Since we don't
+    save or offload the initial weight, we should reset_paramters or (hf)_init_weights
+    after building the real modules with the recorded args/kwargs.
+    This contextmanager was originally designed for building deepspeed PipelineModule from
+    native torch model implementation.
+    """
+
+    def init_record_helper(f):
+        @functools.wraps(f)
+        def wrapper(module: torch.nn.Module, *args, **kwargs):
+            f(module, *args, **kwargs)
+            # record args/kwargs after original init, in case parent cls init covers them
+            # in mistake; it must be satisfied that args/kwargs not changed in init
+            module._init_args = args
+            module._init_kwargs = kwargs
+            # torch.device('meta') contextmanager may not handle nn.Parameter(...),
+            # .to('meta') manually to force everything in meta
+            module.to("meta")
+
+        return wrapper
+
+    def _enable_class(cls):
+        cls._old_init = cls.__init__
+        cls.__init__ = init_record_helper(cls.__init__)
+
+    def _disable_class(cls):
+        cls.__init__ = cls._old_init
+        delattr(cls, "_old_init")
+
+    def _init_subclass(cls, **kwargs):
+        cls.__init__ = init_record_helper(cls.__init__)
+
+    def substitute_init_recursively(cls, func, visited):
+        for subcls in cls.__subclasses__():
+            substitute_init_recursively(subcls, func, visited)
+            if subcls not in visited:
+                func(subcls)
+                visited.add(subcls)
+
+    try:
+        substitute_init_recursively(torch.nn.modules.module.Module, _enable_class, set())
+        torch.nn.modules.module.Module._old_init_subclass = torch.nn.modules.module.Module.__init_subclass__
+        torch.nn.modules.module.Module.__init_subclass__ = classmethod(_init_subclass)
+        # torch meta init
+        torch.device("meta").__enter__()
+        yield
+    finally:
+        substitute_init_recursively(torch.nn.modules.module.Module, _disable_class, set())
+        torch.nn.modules.module.Module.__init_subclass__ = torch.nn.modules.module.Module._old_init_subclass
+        delattr(torch.nn.modules.module.Module, "_old_init_subclass")
+        torch.device("meta").__exit__()
+
+
+def build_recorded_module(meta_module):
+    """
+    Build the real module from the recorded meta module, supports recursively building
+    the meta submodules in args/kwargs.
+    Support custom build function and post process function.
+    """
+    if len(meta_module._parameters) == 0 and len(meta_module._buffers) == 0:
+        # Module without param/buffer, regards itself as builded module after build child modules
+        assert not hasattr(
+            meta_module, "_build_fn"
+        ), f"module {meta_module.__class__.__name__} without param/buffer should have not _build_fn."
+        memos = dict()
+        for child_name, child_module in meta_module._modules.items():
+            if child_module not in memos:
+                memos[child_module] = child_name
+                meta_module._modules[child_name] = build_recorded_module(child_module)
+            else:
+                memoried_name = memos[child_module]
+                meta_module._modules[child_name] = meta_module._modules[memoried_name]
+        builded_module = meta_module
+    else:
+        # Build from init args/kwargs, check if has children module
+        if len(meta_module._modules) != 0:
+            logger.info(
+                f"Meta_module {meta_module.__class__.__name__} has its own param/buffer "
+                f"{[k for k in chain(meta_module._parameters, meta_module._buffers)]}, "
+                f"but has submodules {[k for k in meta_module._modules]}. Building it "
+                f"from init args/kwargs may lead to coarse-grained materialization (OOM) "
+                f"and repeatly building if submodule has custom _build_fn/_post_fn."
+            )
+
+        # recursively build module in args and kwargs
+        assert hasattr(meta_module, "_init_args") and hasattr(
+            meta_module, "_init_kwargs"
+        ), "must construct meta module with record_module_init contextmanager"
+        args = []
+        for arg in meta_module._init_args:
+            if isinstance(arg, torch.nn.Module):
+                arg = build_recorded_module(arg)
+            args.append(arg)
+        kwargs = dict()
+        for k, v in meta_module._init_kwargs.items():
+            if isinstance(v, torch.nn.Module):
+                v = build_recorded_module(v)
+            kwargs[k] = v
+
+        # support custom build fn
+        if hasattr(meta_module, "_build_fn"):
+            build_callable = meta_module._build_fn
+        else:
+            build_callable = meta_module.__class__
+        builded_module = build_callable(*args, **kwargs)
+
+        # if submodules have custom _build_fn/_post_fn, rebuild and substitute them
+        for submodule_name, submodule in list(meta_module.named_modules())[1:]:
+            if hasattr(submodule, "_build_fn") or hasattr(submodule, "_post_fn"):
+                builded_submodule = build_recorded_module(submodule)
+                recursive_setattr(builded_module, submodule_name, builded_submodule)
+
+    # support custom post process fn
+    if hasattr(meta_module, "_post_fn"):
+        builded_module = meta_module._post_fn(builded_module)
+
+    return builded_module

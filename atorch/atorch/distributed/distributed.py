@@ -8,6 +8,7 @@ import torch
 import torch.distributed as dist
 import torch.distributed.rpc as torch_rpc
 from distutils.util import strtobool
+from torch.distributed.constants import default_pg_timeout
 from torch.distributed.distributed_c10d import _get_default_group
 
 from atorch.common.log_utils import default_logger as logger
@@ -29,6 +30,8 @@ class _DistributedContext:
     PARALLEL_GROUP = None
     PARALLEL_GROUPS_AND_RANKS = None
     PARALLEL_CONFIG = None
+    PARALLEL_INSTANCE_NUM = None
+    PARALLEL_INSTANCE_INDEX = None
     COWORKER_NUM_PER_NODE = None
     STORE = None
     PREFIX_STORE_COUNT = 0
@@ -55,7 +58,7 @@ class ParallelGroupContextManager:
         _DistributedContext.PG_NAME_PREFIX = self.old_name
 
 
-def _prefix_pg_name(name):
+def _prefix_pg_name(name=""):
     return _DistributedContext.PG_NAME_PREFIX + name
 
 
@@ -108,7 +111,9 @@ def parallel_rank(name):
 
 
 def parallel_config():
-    return _DistributedContext.PARALLEL_CONFIG
+    if _DistributedContext.PARALLEL_CONFIG is not None:
+        return _DistributedContext.PARALLEL_CONFIG[_prefix_pg_name()]
+    return None
 
 
 def parallel_group_size(name):
@@ -117,6 +122,18 @@ def parallel_group_size(name):
         and _prefix_pg_name(name) in _DistributedContext.PARALLEL_GROUP_SIZE
     ):
         return _DistributedContext.PARALLEL_GROUP_SIZE[_prefix_pg_name(name)]
+    return None
+
+
+def parallel_instance_num():
+    if _DistributedContext.PARALLEL_INSTANCE_NUM is not None:
+        return _DistributedContext.PARALLEL_INSTANCE_NUM[_prefix_pg_name()]
+    return None
+
+
+def parallel_instance_index():
+    if _DistributedContext.PARALLEL_INSTANCE_INDEX is not None:
+        return _DistributedContext.PARALLEL_INSTANCE_INDEX[_prefix_pg_name()]
     return None
 
 
@@ -203,6 +220,7 @@ def _check_env():
     if not world_size:
         logger.warning("WORLD_SIZE env not set. Set as 1")
         os.environ["WORLD_SIZE"] = "1"
+        world_size = 1
 
     master_addr = os.getenv("MASTER_ADDR")
     if not master_addr:
@@ -223,6 +241,7 @@ def _check_env():
         if not nproc_per_node:
             logger.warning("NPROC_PER_NODE env not set. Set as 1")
             os.environ["NPROC_PER_NODE"] = "1"
+            nproc_per_node = 1
         else:
             os.environ["NPROC_PER_NODE"] = nproc_per_node
 
@@ -239,14 +258,14 @@ def _check_env():
 
     node_size = os.getenv("NODE_SIZE")
     if not node_size:
-        logger.warning("NODE_SIZE env not set. Set as 1")
-        os.environ["NODE_SIZE"] = "1"
+        node_size = max(int(world_size) // int(nproc_per_node), 1)
+        logger.warning(f"NODE_SIZE env not set. Set as {node_size}")
+        os.environ["NODE_SIZE"] = str(node_size)
 
 
-def get_pg_ranks(slicing_dim, rank_order):
+def _get_pg_ranks(slicing_dim, rank_order, offset, total_size):
     pg_ranks = {}
     stride = 1
-    total_size = np.prod([p[1] for p in slicing_dim])
     for (name, size) in slicing_dim:
         mask = [True] * total_size
         ranks_list = []
@@ -258,7 +277,7 @@ def get_pg_ranks(slicing_dim, rank_order):
             ranks = []
             next_index = index
             for i in range(size):
-                ranks.append(rank_order[next_index])
+                ranks.append(rank_order[offset + next_index])
                 assert mask[next_index] is True
                 mask[next_index] = False
                 next_index += stride
@@ -269,12 +288,46 @@ def get_pg_ranks(slicing_dim, rank_order):
     return pg_ranks
 
 
+def get_pg_ranks(slicing_dim, rank_order):
+    # Return: a list of pg_ranks : List(Dict(name, List(List(int))))
+    # The list length is parallel_instance_num.
+    total_size = np.prod([p[1] for p in slicing_dim])
+    instance_num = world_size() // total_size
+    offset = 0
+    result = []
+    for _ in range(instance_num):
+        pg_ranks = _get_pg_ranks(slicing_dim, rank_order, offset, total_size)
+        result.append(pg_ranks)
+        offset += total_size
+    return result
+
+
+def get_ranks_in_same_group(parallel_mode, my_rank=0):
+    # Return Dict(name, List(int)): name is pg name, List(int) is the list of ranks in the same group with my_rank.
+    slicing_dim = parallel_mode[0]
+    rank_order = parallel_mode[1]
+    if rank_order is None:
+        rank_order = list(range(world_size()))
+    all_pg_ranks = get_pg_ranks(slicing_dim, rank_order)
+    all_ranks_in_same_group = {}
+    for (name, _) in slicing_dim:
+        for pg_ranks in all_pg_ranks:
+            named_ranks = pg_ranks[name]
+            for ranks in named_ranks:
+                if my_rank in ranks:
+                    all_ranks_in_same_group[name] = ranks
+                    break
+    return all_ranks_in_same_group
+
+
 def create_parallel_group(parallel_config):
     """
     Create additional groups for mixed parallel when needed.
-    parallel_config: (List[Tuple[str, int]], Optional(List(int)))
-    The first item is a list of (name, size) for mixed parallel. MUL(size) should equal to the number of processes.
-    The second item for rank order, which is optional. if None, using the numeric order.
+    parallel_config: (List[Tuple[str, int]], Oneof(List(int), None), Optional(Bool))
+    The first item is a list of (name, size) for mixed parallel.
+    MUL(size) should equal to the number of processes if support_multi_parallel_instance is False.
+    The second item for rank order. if None, using the numeric order.
+    The third item is for support_multi_parallel_instance, which is optional with default value as False.
     For example, ([("tensor", 4), ("pipeline", 2), ("data", 2)], None) would create:
     4 process groups for "tensor" [0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10, 11], [12, 13, 14, 15]
     8 process groups for "pipeline" [0, 4], [1, 5], [2, 6], [3, 7], [8, 12], [9, 13], [10, 14], [11, 15]
@@ -283,31 +336,44 @@ def create_parallel_group(parallel_config):
     assert _DistributedContext.INITIALIZED or torch.distributed.is_initialized(), "distributed should be initialized"
     slicing_dim = parallel_config[0]
     rank_order = parallel_config[1]
+    support_multi_parallel_instance = parallel_config[2] if len(parallel_config) > 2 else False
     assert len(slicing_dim) > 0, "parallel_config should not be empty"
     multiplication = np.prod([p[1] for p in slicing_dim])
-    if world_size() != multiplication:
-        raise ValueError(
-            f"Multiplication of parallel_config sizes({multiplication}) should equal to world_size({world_size()}). "
-            f"Please check your parallel_config: {parallel_config}"
-        )
+    if not support_multi_parallel_instance:
+        if world_size() != multiplication:
+            raise ValueError(
+                f"Multiplication of parallel_config size({multiplication}) should equal to world_size({world_size()}). "
+                f"Please check your parallel_config: {parallel_config}"
+            )
     if rank_order is None:
         rank_order = list(range(world_size()))
 
-    new_config = [slicing_dim, rank_order]
+    new_config = [slicing_dim, rank_order, support_multi_parallel_instance]
     if _DistributedContext.PARALLEL_CONFIG is None:
-        _DistributedContext.PARALLEL_CONFIG = new_config
-    elif isinstance(_DistributedContext.PARALLEL_CONFIG, list):
-        _DistributedContext.PARALLEL_CONFIG = (_DistributedContext.PARALLEL_CONFIG, new_config)
+        _DistributedContext.PARALLEL_CONFIG = {_prefix_pg_name(): new_config}
     else:
-        _DistributedContext.PARALLEL_CONFIG = _DistributedContext.PARALLEL_CONFIG + (new_config,)
-    _DistributedContext.PARALLEL_GROUP_SIZE = {}
-    _DistributedContext.PARALLEL_RANK = {}
-    _DistributedContext.PARALLEL_GROUP = {}
+        _DistributedContext.PARALLEL_CONFIG[_prefix_pg_name()] = new_config
+
+    if _DistributedContext.PARALLEL_GROUP_SIZE is None:
+        _DistributedContext.PARALLEL_GROUP_SIZE = {}
+    if _DistributedContext.PARALLEL_RANK is None:
+        _DistributedContext.PARALLEL_RANK = {}
+    if _DistributedContext.PARALLEL_GROUP is None:
+        _DistributedContext.PARALLEL_GROUP = {}
+    if _DistributedContext.PARALLEL_INSTANCE_NUM is None:
+        _DistributedContext.PARALLEL_INSTANCE_NUM = {}
+    if _DistributedContext.PARALLEL_INSTANCE_INDEX is None:
+        _DistributedContext.PARALLEL_INSTANCE_INDEX = {}
+
+    instance_num = world_size() // multiplication
+    instance_index = rank() // multiplication if rank() < instance_num * multiplication else None
+    _DistributedContext.PARALLEL_INSTANCE_NUM[_prefix_pg_name()] = instance_num
+    _DistributedContext.PARALLEL_INSTANCE_INDEX[_prefix_pg_name()] = instance_index
 
     has_pipe = False
 
-    if len(slicing_dim) == 1:
-        # only one slicing dim, use global pg.
+    if len(slicing_dim) == 1 and world_size() == multiplication:
+        # only one slicing dim with one parallel instance, use global pg.
         name, size = slicing_dim[0]
         assert name not in _DistributedContext.PARALLEL_GROUP, f"group name {name} already used"
         _DistributedContext.PARALLEL_GROUP_SIZE[_prefix_pg_name(name)] = size
@@ -317,19 +383,22 @@ def create_parallel_group(parallel_config):
             has_pipe = True
     else:
         all_pg_ranks = get_pg_ranks(slicing_dim, rank_order)
-        _DistributedContext.PARALLEL_GROUPS_AND_RANKS = {}
+        if _DistributedContext.PARALLEL_GROUPS_AND_RANKS is None:
+            _DistributedContext.PARALLEL_GROUPS_AND_RANKS = {}
         for (name, size) in slicing_dim:
             if name == "pipe":
                 has_pipe = True
             _DistributedContext.PARALLEL_GROUP_SIZE[_prefix_pg_name(name)] = size
-            named_ranks = all_pg_ranks[name]
+
             group_and_ranks = []
-            for ranks in named_ranks:
-                group = dist.new_group(ranks)
-                group_and_ranks.append((group, ranks))
-                if rank() in ranks:
-                    _DistributedContext.PARALLEL_GROUP[_prefix_pg_name(name)] = group
-                    _DistributedContext.PARALLEL_RANK[_prefix_pg_name(name)] = ranks.index(rank())
+            for idx in range(instance_num):
+                named_ranks = all_pg_ranks[idx][name]
+                for ranks in named_ranks:
+                    group = dist.new_group(ranks)
+                    group_and_ranks.append((group, ranks))
+                    if rank() in ranks:
+                        _DistributedContext.PARALLEL_GROUP[_prefix_pg_name(name)] = group
+                        _DistributedContext.PARALLEL_RANK[_prefix_pg_name(name)] = ranks.index(rank())
             _DistributedContext.PARALLEL_GROUPS_AND_RANKS[_prefix_pg_name(name)] = group_and_ranks
 
     if has_pipe:
@@ -354,6 +423,8 @@ def destroy_parallel_group(destroy_rpc=True):
     _DistributedContext.PARALLEL_GROUP = None
     _DistributedContext.PARALLEL_GROUPS_AND_RANKS = None
     _DistributedContext.PARALLEL_CONFIG = None
+    _DistributedContext.PARALLEL_INSTANCE_NUM = None
+    _DistributedContext.PARALLEL_INSTANCE_INDEX = None
 
 
 def _build_pippy_rpc_networks(num_worker_threads=64, rpc_timeout=1800, init_method="env://"):
@@ -546,6 +617,7 @@ def init_distributed(
     coworker_num_per_node=0,
     elastic_or_fault_tolerant=False,
     set_cuda_device_using_local_rank=False,
+    timeout: timedelta = default_pg_timeout,
 ):
     """
     Initializes the distributed contexts. Support DDP.
@@ -556,6 +628,27 @@ def init_distributed(
         elastic_or_fault_tolerant (bool): If True, supports elastic training or fault-tolerant training.
         set_cuda_device_using_local_rank (bool):
            If True, set cuda device using local rank.
+        timeout (timedelta, optional): Timeout for operations executed against
+            the process group. Default value equals 30 minutes.
+            This is applicable for the ``gloo`` backend. For ``nccl``, this is
+            applicable only if the environment variable ``NCCL_BLOCKING_WAIT``
+            or ``NCCL_ASYNC_ERROR_HANDLING`` is set to 1. When
+            ``NCCL_BLOCKING_WAIT`` is set, this is the duration for which the
+            process will block and wait for collectives to complete before
+            throwing an exception. When ``NCCL_ASYNC_ERROR_HANDLING`` is set,
+            this is the duration after which collectives will be aborted
+            asynchronously and the process will crash. ``NCCL_BLOCKING_WAIT``
+            will provide errors to the user which can be caught and handled,
+            but due to its blocking nature, it has a performance overhead. On
+            the other hand, ``NCCL_ASYNC_ERROR_HANDLING`` has very little
+            performance overhead, but crashes the process on errors. This is
+            done since CUDA execution is async and it is no longer safe to
+            continue executing user code since failed async NCCL operations
+            might result in subsequent CUDA operations running on corrupted
+            data. Only one of these two environment variables should be set.
+            For ``ucc``, blocking wait is supported similar to NCCL. However,
+            async error handling is done differently since with UCC we have
+            progress thread and not watch-dog thread.
     Return:
         True if initialized successfully. False otherwise.
     """
@@ -582,7 +675,6 @@ def init_distributed(
                 return False
         elif backend == "accl":
             try:
-                # noqa: F401
                 import torch_accl  # noqa: F401
             except ImportError:
                 logger.error("import torch_accl failed")
@@ -593,12 +685,12 @@ def init_distributed(
     _check_env()
 
     # init local_rank, rank, world_size, coworker_size from env
-    _DistributedContext.LOCAL_RANK = int(os.getenv("LOCAL_RANK"))
-    _DistributedContext.RANK = int(os.getenv("RANK"))
-    _DistributedContext.WORLD_SIZE = int(os.getenv("WORLD_SIZE"))
-    _DistributedContext.COWORKER_SIZE = int(os.getenv("COWORKER_SIZE"))
-    _DistributedContext.NPROC_PER_NODE = int(os.getenv("NPROC_PER_NODE"))
-    _DistributedContext.NODE_SIZE = int(os.getenv("NODE_SIZE"))
+    _DistributedContext.LOCAL_RANK = int(os.getenv("LOCAL_RANK"))  # type: ignore
+    _DistributedContext.RANK = int(os.getenv("RANK"))  # type: ignore
+    _DistributedContext.WORLD_SIZE = int(os.getenv("WORLD_SIZE"))  # type: ignore
+    _DistributedContext.COWORKER_SIZE = int(os.getenv("COWORKER_SIZE"))  # type: ignore
+    _DistributedContext.NPROC_PER_NODE = int(os.getenv("NPROC_PER_NODE"))  # type: ignore
+    _DistributedContext.NODE_SIZE = int(os.getenv("NODE_SIZE"))  # type: ignore
     _DistributedContext.COWORKER_NUM_PER_NODE = coworker_num_per_node
     _CoworkerContext.USE_ELASTIC_DATALOADER = bool(strtobool(os.getenv("USE_ELASTIC_DATALOADER", "False")))
 
@@ -626,6 +718,7 @@ def init_distributed(
                 init_method="env://",
                 world_size=ddp_group_size,
                 rank=rank(),
+                timeout=timeout,
             )
             if not torch.distributed.is_initialized():
                 logger.error("Failed to init_process_group")

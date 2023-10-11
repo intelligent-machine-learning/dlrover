@@ -13,11 +13,10 @@
 
 import os
 
-from dlrover.python.common.constants import NodeType
+from dlrover.python.common.constants import NodeType, PlatformType
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.args import parse_master_args
-from dlrover.python.master.master import Master
 from dlrover.python.scheduler.factory import new_job_args
 from dlrover.python.scheduler.job import JobArgs
 
@@ -30,17 +29,25 @@ def update_context(job_args: JobArgs):
             _dlrover_context.auto_worker_enabled = node_args.auto_scale
         elif node_type == NodeType.PS:
             _dlrover_context.auto_ps_enabled = node_args.auto_scale
+    _dlrover_context.relaunch_always = job_args.relaunch_always
+    _dlrover_context.set_params_from_brain()
     _dlrover_context.print_config()
 
 
 def run(args):
     job_args = new_job_args(args.platform, args.job_name, args.namespace)
     job_args.initilize()
-    logger.info("Job args : %s", job_args.toJSON())
+    logger.info("Job args : %s", job_args.to_json(indent=4))
     _dlrover_context.config_master_port(port=args.port)
-    _dlrover_context.relaunch_error = args.relaunch_error
-    update_context(job_args)
-    master = Master(_dlrover_context.master_port, job_args)
+    if job_args.platform == PlatformType.LOCAL:
+        from dlrover.python.master.local_master import LocalJobMaster
+
+        master = LocalJobMaster(_dlrover_context.master_port, job_args)
+    else:
+        from dlrover.python.master.dist_master import DistributedJobMaster
+
+        update_context(job_args)
+        master = DistributedJobMaster(_dlrover_context.master_port, job_args)
     master.prepare()
     return master.run()
 

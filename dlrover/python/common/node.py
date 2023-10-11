@@ -14,14 +14,13 @@
 import copy
 import time
 
-from kubernetes.utils.quantity import parse_quantity
-
 from dlrover.python.common.constants import (
     NodeExitReason,
     NodeResourceLimit,
     NodeStatus,
     PriorityClass,
 )
+from dlrover.python.common.grpc import ParallelConfig
 from dlrover.python.common.serialize import JsonSerializable
 
 
@@ -42,8 +41,36 @@ class NodeResource(JsonSerializable):
         memory: float, memory MB.
         gpu_type: str, the type of GPU.
         gpu_num: int,
+        gpu_stats: list of GPUMetric, a list of GPUMetric dataclass objects,
+        each containing GPU statistics.
+            - index (int): The index of the GPU.
+            - total_memory_mb (int): Total GPU memory in megabytes.
+            - used_memory_mb (int): Used GPU memory in megabytes.
+            - gpu_utilization (float): GPU utilization in percentage (0.0 to
+              100.0).
         image: the image name of the node.
         priority: the priority classs of the node.
+    Example:
+    To create an instance of NodeResource with the following attributes:
+    - cpu: 4.0
+    - memory: 8192
+    - gpu_type: "nvidia.com"
+    - gpu_num: 1
+    - gpu_stats: [GPUMetric(index=0, total_memory_mb=8192, used_memory_mb=2048,
+    gpu_utilization=80.0)]
+    - image: "ubuntu:20.04"
+    - priority: "high"
+
+    >>> resource = NodeResource(
+    ...     cpu=4.0,
+    ...     memory=8192,
+    ...     gpu_type="nvidia.com",
+    ...     gpu_num=1,
+    ...     gpu_stats=[GPUStats(index=0, total_memory_mb=8192,
+    ...     used_memory_mb=2048, gpu_utilization=80.0)],
+    ...     image="ubuntu:20.04",
+    ...     priority="high"
+    ... )
     """
 
     def __init__(
@@ -52,6 +79,7 @@ class NodeResource(JsonSerializable):
         memory,
         gpu_type="",
         gpu_num=0,
+        gpu_stats=[],
         priority="",
         **kwargs,
     ):
@@ -59,6 +87,7 @@ class NodeResource(JsonSerializable):
         self.memory = memory
         self.gpu_type = gpu_type
         self.gpu_num = gpu_num
+        self.gpu_stats = gpu_stats
         self.kwargs = kwargs
         self.image = ""
         self.priority = priority
@@ -90,18 +119,6 @@ class NodeResource(JsonSerializable):
                 gpu_type = key
                 gpu_num = int(resource[key])
         return NodeResource(cpu, memory, gpu_type, gpu_num)
-
-    @classmethod
-    def convert_memory_to_mb(cls, memory: str):
-        return int(parse_quantity(memory) / 1024 / 1024)
-
-    @classmethod
-    def convert_memory_to_byte(cls, memory: str):
-        return parse_quantity(memory)
-
-    @classmethod
-    def convert_cpu_to_decimal(cls, cpu: str):
-        return round(float(parse_quantity(cpu)), 1)
 
 
 class NodeGroupResource(JsonSerializable):
@@ -147,6 +164,7 @@ class Node(object):
         used_resource: the resource usage of the node.
         init_time: the timestamp to initialize the node object.
         host_name: the name of the host where the node is placed.
+        host_ip: the ip of host node.
     """
 
     def __init__(
@@ -164,6 +182,8 @@ class Node(object):
         relaunchable=True,
         service_addr=None,
         host_name=None,
+        host_ip=None,
+        paral_config=None,
     ):
         self.type = node_type
         self.id = node_id
@@ -187,6 +207,9 @@ class Node(object):
         self.init_time = time.time()
         self.eval_time = 0
         self.host_name = host_name
+        self.host_ip = host_ip
+        self.hang = False
+        self.paral_config = ParallelConfig()
 
     def inc_relaunch_count(self):
         self.relaunch_count += 1
@@ -197,6 +220,7 @@ class Node(object):
         start_time=None,
         create_time=None,
         host_name=None,
+        host_ip=None,
     ):
         if name is not None:
             self.name = name
@@ -206,18 +230,20 @@ class Node(object):
             self.create_time = create_time
         if host_name:
             self.host_name = host_name
+        if host_ip:
+            self.host_ip = host_ip
 
     def update_status(self, status=None):
         if status is not None:
             self.status = status
 
-    def update_resource_usage(self, cpu, memory):
+    def update_resource_usage(self, cpu, memory, gpu_stats=[]):
         self.used_resource.cpu = round(cpu, 2)
         self.used_resource.memory = memory
-        if cpu < 0.1:
-            self.start_hang_time = time.time()
-        else:
-            self.start_hang_time = 0
+        self.used_resource.gpu_stats = gpu_stats
+
+    def update_paral_config(self, paral_config):
+        self.paral_config = paral_config
 
     def update_service_address(self, service_addr):
         self.service_addr = service_addr
@@ -228,6 +254,8 @@ class Node(object):
         new_node.name = None
         new_node.status = NodeStatus.INITIAL
         new_node.start_time = None
+        new_node.create_time = None
+        new_node.finish_time = None
         new_node.is_released = False
         new_node.relaunchable = True
         new_node.init_time = time.time()
@@ -286,10 +314,11 @@ class Node(object):
 
     def __repr__(self):
         return (
-            "name:" + str(self.name) + ";"
-            "rank_index:" + str(self.rank_index) + ";"
-            "type:" + str(self.type) + ";"
-            "status:" + str(self.status) + ";"
-            "addr:" + str(self.service_addr) + ";"
-            "is_released:" + str(self.is_released) + ";"
+            f"name:{self.name};"
+            f"rank_index:{self.rank_index};"
+            f"type:{self.type};"
+            f"status:{self.status};"
+            f"addr:{self.service_addr};"
+            f"is_released:{self.is_released};"
+            f"priroity:{self.config_resource.priority}"
         )

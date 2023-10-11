@@ -20,6 +20,7 @@ from dlrover.python.common.constants import (
     ElasticJobLabel,
     ExitCode,
     NodeExitReason,
+    NodeStatus,
     NodeType,
     ScalePlanLabel,
 )
@@ -27,7 +28,11 @@ from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
 from dlrover.python.master.resource.optimizer import ResourcePlan
 from dlrover.python.master.watcher.base_watcher import NodeEvent, NodeWatcher
-from dlrover.python.scheduler.kubernetes import k8sClient
+from dlrover.python.scheduler.kubernetes import (
+    convert_cpu_to_decimal,
+    convert_memory_to_mb,
+    k8sClient,
+)
 
 
 def _get_start_timestamp(pod_status_obj):
@@ -48,9 +53,7 @@ def _get_pod_exit_reason(pod):
         and pod.status.container_statuses[0].state.terminated
     ):
         terminated = pod.status.container_statuses[0].state.terminated
-        pod_name = pod.metadata.name
         exit_code = terminated.exit_code
-        logger.warning(f"Pod {pod_name} exits with exitcode {exit_code}")
         if terminated.reason == "OOMKilled" or exit_code == ExitCode.OOM_CODE:
             return NodeExitReason.OOM
         elif exit_code in [ExitCode.KILLED_CODE, ExitCode.TERMED_CODE]:
@@ -94,30 +97,33 @@ def _convert_pod_event_to_node_event(event):
     pod_id = int(evt_obj.metadata.labels[ElasticJobLabel.REPLICA_INDEX_KEY])
     pod_name = evt_obj.metadata.name
     host_name = evt_obj.spec.node_name
+    host_ip = evt_obj.status.host_ip
 
     resource = _parse_container_resource(evt_obj.spec.containers[0])
+    status = evt_obj.status.phase
+    if evt_obj.metadata.deletion_timestamp:
+        status = NodeStatus.DELETED
+
     node = Node(
         node_type=pod_type,
         node_id=pod_id,
         name=pod_name,
         rank_index=rank,
-        status=evt_obj.status.phase,
+        status=status,
         start_time=_get_start_timestamp(evt_obj.status),
         config_resource=resource,
         host_name=host_name,
+        host_ip=host_ip,
     )
+    node.create_time = evt_obj.metadata.creation_timestamp
     node.set_exit_reason(_get_pod_exit_reason(evt_obj))
     node_event = NodeEvent(event_type=evt_type, node=node)
     return node_event
 
 
 def _parse_container_resource(container):
-    cpu = NodeResource.convert_cpu_to_decimal(
-        container.resources.requests["cpu"]
-    )
-    memory = NodeResource.convert_memory_to_mb(
-        container.resources.requests["memory"]
-    )
+    cpu = convert_cpu_to_decimal(container.resources.requests["cpu"])
+    memory = convert_memory_to_mb(container.resources.requests["memory"])
     return NodeResource(cpu, memory)
 
 
@@ -241,10 +247,10 @@ class K8sScalePlanWatcher:
         for replica, spec in (
             scaler_crd["spec"].get("replicaResourceSpecs", {}).items()
         ):
-            cpu = NodeResource.convert_cpu_to_decimal(
+            cpu = convert_cpu_to_decimal(
                 spec.get("resource", {}).get("cpu", "0")
             )
-            memory = NodeResource.convert_memory_to_mb(
+            memory = convert_memory_to_mb(
                 spec.get("resource", {}).get("memory", "0Mi")
             )
             resource_plan.node_group_resources[replica] = NodeGroupResource(
@@ -252,16 +258,16 @@ class K8sScalePlanWatcher:
             )
 
         for pod in scaler_crd["spec"].get("migratePods", []):
-            cpu = NodeResource.convert_cpu_to_decimal(
+            cpu = convert_cpu_to_decimal(
                 pod["resource"].get("cpu", "0"),
             )
-            memory = NodeResource.convert_memory_to_mb(
+            memory = convert_memory_to_mb(
                 pod["resource"].get("memory", "0Mi"),
             )
             resource_plan.node_resources[pod["name"]] = NodeResource(
                 cpu, memory
             )
-        logger.info("Get a manual resource plan %s", resource_plan.toJSON())
+        logger.info("Get a manual resource plan %s", resource_plan.to_json())
         return resource_plan
 
     def _set_owner_to_scaleplan(self, scale_crd):

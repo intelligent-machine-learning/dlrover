@@ -15,6 +15,8 @@ import logging
 import sys
 import typing
 
+logging.basicConfig(level=logging.INFO)
+
 _DEFAULT_LOGGER = "dlrover.logger"
 
 _DEFAULT_FORMATTER = logging.Formatter(
@@ -27,7 +29,7 @@ _ch.setFormatter(_DEFAULT_FORMATTER)
 
 _DEFAULT_HANDLERS = [_ch]
 
-_LOGGER_CACHE = {}  # type: typing.Dict[str, logging.Logger]
+_LOGGER_CACHE: typing.Dict[str, logging.Logger] = {}
 
 
 def get_logger(name, level="INFO", handlers=None, update=False):

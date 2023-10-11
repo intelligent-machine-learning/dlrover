@@ -38,6 +38,7 @@ class AnalyserConstants(object):
     TIMELINE_SIGNAL_FILE_NAME = "aprof.done"
     PROF_SIGNAL_FILE_NAME = "aprof_txt.done"
     GPU_UTILIZATION = "gpu_utility"
+    HFU = "hfu"
 
 
 class AutoAccelerateExtraArgs(Enum):
@@ -45,10 +46,19 @@ class AutoAccelerateExtraArgs(Enum):
     SAMPLE_BATCH = "sample_batch"
     BATCH_SIZE = "batch_size"  # total batch size. Equals to batch_size_per_process * ddp_size
     EXPAND_SAMPLE_BATCH = "expand_sample_batch"  # whether to expand sample batch
+    SAMPLER_SEED = "sampler_seed"
 
     @classmethod
     def all(cls):
         return [variable.value for variable in list(cls)]
+
+
+class DataConstants(object):
+    CUSTOM_PROCESS_FN = "custom_process_fn"
+    DFS_KWARGS = "dfs_kwargs"
+    IS_CHUNK = "is_chunk"
+    IS_MEDIABASE = "is_mediabase"
+    JSONL_VERSION = "jsonl_version"
 
 
 class GPUCapability:
@@ -57,6 +67,10 @@ class GPUCapability:
     """
 
     TFLOPS = {
-        "FP16": {"NVIDIA A100-SXM4-80GB": 312, "Tesla V100-SXM2-32GB": 125},
-        "FP32": {"NVIDIA A100-SXM4-80GB": 19.5, "Tesla V100-SXM2-32GB": 15.7},
+        "FP16": {"NVIDIA A100-SXM4-80GB": 312, "Tesla V100-SXM2-32GB": 125, "NVIDIA A800-SXM4-80GB": 312},
+        "FP32": {"NVIDIA A100-SXM4-80GB": 19.5, "Tesla V100-SXM2-32GB": 15.7, "NVIDIA A800-SXM4-80GB": 19.5},
     }
+
+
+class MediaBase:
+    MEDIABASE_PREFIX = "mediabase://"

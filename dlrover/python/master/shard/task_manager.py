@@ -18,6 +18,7 @@ from collections.abc import Callable
 from typing import Dict, List
 
 from dlrover.proto import elastic_training_pb2
+from dlrover.python.common import grpc
 from dlrover.python.common.constants import NodeType
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
@@ -27,7 +28,6 @@ from dlrover.python.master.shard.base_dataset_manager import (
 )
 from dlrover.python.master.shard.batch_dataset_manager import (
     BatchDatasetManager,
-    DoingTask,
 )
 from dlrover.python.master.shard.dataset_splitter import DatasetSplitter
 
@@ -63,10 +63,8 @@ class TaskManager(object):
         task_type=elastic_training_pb2.NONE,
     ):
         logger.info(
-            "New %s dataset with batch size = %s, dataset size = %s",
-            dataset_name,
-            batch_size,
-            dataset_size,
+            f"New {task_type} dataset {dataset_name} with, "
+            f"batch size = {batch_size} dataset size = {dataset_size}"
         )
 
         with self._lock:
@@ -119,7 +117,7 @@ class TaskManager(object):
     def get_dataset(self, dataset_name):
         return self._datasets.get(dataset_name, None)
 
-    def report_dataset_task(self, request, success):
+    def report_dataset_task(self, request: grpc.TaskResult, success: bool):
         """Report if the task is successful or not"""
 
         task_id = request.task_id
@@ -161,9 +159,9 @@ class TaskManager(object):
     def recover_tasks(self, node_type, node_id):
         """Recover doing tasks for a dead worker if needed"""
         for name, dataset in self._datasets.items():
-            doing_tasks: Dict[int, DoingTask] = dataset.get_doing_tasks()
+            doing_tasks = dataset.doing
             if not doing_tasks:
-                return
+                continue
             ids = [
                 task_id
                 for task_id, doing_task in doing_tasks.items()
@@ -171,14 +169,17 @@ class TaskManager(object):
                 and doing_task.node_type == node_type
             ]
             if not ids:
-                return
-            request = elastic_training_pb2.ReportTaskResultRequest()
+                continue
+            request = grpc.TaskResult()
+            recover_tasks = []
             for id in ids:
                 request.task_id = id
                 request.dataset_name = name
+                recover_tasks.append(id)
                 self.report_dataset_task(request, False)
             logger.info(
-                "Recover tasks of dataset %s assigned to %s-%d",
+                "Recover tasks %s of dataset %s assigned to %s-%d",
+                recover_tasks,
                 name,
                 node_type,
                 node_id,
@@ -204,9 +205,11 @@ class TaskManager(object):
 
     def _check_and_reassign_timeout_tasks(self):
         """Check whether there are timeout tasks periodically."""
-        logger.info("Start the thread to monitor timeout tasks")
+        logger.info("Start the thread to monitor timeout tasks.")
         while True:
             for _, dataset in self._datasets.items():
+                # Copy doing task list because the doing list will pop items
+                # in the following loop.
                 doing_tasks = dataset.doing.copy()
                 cur = time.time()
                 for task_id, doing_task in doing_tasks.items():
@@ -227,6 +230,7 @@ class TaskManager(object):
                             doing_task.node_id,
                             task_id,
                         )
+                        dataset.report_task_status(task_id, success=False)
                         self._invoke_task_timeout_callback(doing_task.node_id)
                         break
             time.sleep(30)

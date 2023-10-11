@@ -12,10 +12,14 @@
 # limitations under the License.
 
 from abc import ABCMeta, abstractmethod
-from typing import List
+from dataclasses import dataclass
+from typing import List, Optional
+
+from deprecated import deprecated
 
 from dlrover.python.common.constants import DatasetType
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.common.serialize import JsonSerializable
 from dlrover.python.master.watcher.base_watcher import Node
 
 
@@ -23,11 +27,11 @@ class CustomMetricKey(object):
     INIT_TRAINING_TIME = "init_training_time"
 
 
-class TrainingHyperParams(object):
-    def __init__(self, batch_size=0, epoch=0, max_steps=0):
-        self.batch_size = batch_size
-        self.epoch = epoch
-        self.max_steps = max_steps
+@dataclass
+class TrainingHyperParams(JsonSerializable):
+    batch_size: Optional[int] = 0
+    epoch: Optional[int] = 0
+    max_steps: Optional[int] = 0
 
 
 class DatasetMetric(metaclass=ABCMeta):
@@ -108,6 +112,10 @@ class TextDatasetMetric(DatasetMetric):
         return self.storage_size
 
 
+@deprecated(
+    version="0.3.0",
+    reason="You should use dlrover.python.common.grpc.TensorStats",
+)
 class TensorStats(object):
     """TensorStats contains tensor statistics of a deep learning model"""
 
@@ -117,6 +125,10 @@ class TensorStats(object):
         self.max_variable_size = max_variable_size
 
 
+@deprecated(
+    version="0.3.0",
+    reason="You should use dlrover.python.common.grpc.OpStats",
+)
 class OpStats(object):
     """TensorStats contains OP statistics of a deep learning model"""
 
@@ -130,6 +142,10 @@ class OpStats(object):
         self.flops = flops
 
 
+@deprecated(
+    version="0.3.0",
+    reason="You should use dlrover.python.common.grpc.ModelInfo",
+)
 class ModelMetric(object):
     """ModelMetric contains profiling data of a model."""
 

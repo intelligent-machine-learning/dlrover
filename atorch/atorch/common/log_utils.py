@@ -1,7 +1,12 @@
+import hashlib
 import logging
+import os
 import sys
 import time
+import traceback
 import typing  # type: ignore # noqa: F401
+
+import atorch
 
 _DEFAULT_LOGGER = "atorch.logger"
 
@@ -30,18 +35,41 @@ def get_logger(name, level="INFO", handlers=None, update=False):
 default_logger = get_logger(_DEFAULT_LOGGER)
 
 
+logged_messages = set()
+
+
+# Function to log a message only once
+def log_once(message):
+    call_stack = repr(traceback.extract_stack()[:-1])
+    message_hash = hashlib.md5((call_stack + message).encode("utf-8")).hexdigest()
+    if message_hash not in logged_messages:
+        logging.info(message)
+        logged_messages.add(message_hash)
+
+
 class DashBoardWriter(object):
     def __init__(self, logdir="./"):
         from torch.utils.tensorboard import SummaryWriter
 
         self.writer = SummaryWriter(logdir)
 
-    def add_scalar(self, key, value, n_iter: int):
-        self.writer.add_scalar(key, value, n_iter)
+    def add_scalars(self, stats, n_iter, name=None):
 
-    def add_scalars(self, name, stats, n_iter):
-        for k, v in stats.items():
-            self.add_scalar(name + "/" + k, v, n_iter)
+        key_val_list = []
+
+        def find_key_value(prefix, stats):
+            for key, value in stats.items():
+                if not isinstance(value, dict):
+                    key_val_list.append((prefix + key, value))
+                else:
+                    find_key_value(prefix + key + "/", value)
+
+        find_key_value("", stats)
+        print(key_val_list)
+
+        for item in key_val_list:
+            key, val = item
+            self.writer.add_scalar(key, val, n_iter)
 
     def flush(self):
         self.writer.flush()
@@ -59,7 +87,7 @@ class TimeStats:
         self.time_statics[key] = value
 
     def to_dashboard(self, dashboard_writer=None, n_iter=None):
-        dashboard_writer.add_scalars(self.name, self.time_statics, n_iter)
+        dashboard_writer.add_scalars(self.time_statics, n_iter, name=self.name)
         dashboard_writer.flush()
 
 
@@ -82,3 +110,6 @@ class Timer:
         self.end()
         if self.time_stats:
             self.time_stats[self.name] = self.elapsed_time
+            if os.environ.get("ATORCH_DEBUG"):
+                rank = atorch.local_rank()
+                default_logger.info("{} on rank {} cost: {} s".format(self.name, rank, self.elapsed_time))

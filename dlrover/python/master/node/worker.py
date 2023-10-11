@@ -118,7 +118,6 @@ class WorkerManager(TrainingNodeManager):
                 worker.
             new_node_name_fn: A callable function to generate a node name of
                 worker.
-            use_ddp: bool, whether workers use DDP to train a model.
         """
         super(WorkerManager, self).__init__(worker_nodes, new_node_name_fn)
         self._job_resource = job_resource
@@ -136,18 +135,13 @@ class WorkerManager(TrainingNodeManager):
             )
         )
         alive_workers = []
-        completed_worker_num = 0
         for worker in self._nodes.values():
             if worker.status in ALIVE_STATUS:
                 alive_workers.append(worker)
-            elif worker.status in [NodeStatus.SUCCEEDED, NodeStatus.FINISHED]:
-                completed_worker_num += 1
         alive_num = len(alive_workers)
         with self._lock:
-            if num > alive_num + completed_worker_num:
-                plan = self._scale_up_workers(
-                    num - alive_num - completed_worker_num
-                )
+            if num > alive_num:
+                plan = self._scale_up_workers(num - alive_num)
             elif num < alive_num:
                 plan = self._scale_down_workers(alive_num - num, alive_workers)
         return plan
@@ -217,7 +211,7 @@ class WorkerManager(TrainingNodeManager):
             ]:
                 worker.relaunchable = False
                 logger.info(
-                    "Remove the worker %s after the worker-0 completed",
+                    "Remove the worker %s after the chief completed",
                     worker.name,
                 )
                 worker.is_released = True
@@ -251,12 +245,16 @@ class WorkerManager(TrainingNodeManager):
             plan.remove_nodes.append(old_node)
         return plan
 
-    def remove_not_participated_workers(self, workers):
-        """Remove workers which do not participate in the training."""
+    def remove_not_joined_rdzv_workers(self, worker_ranks: List[int]):
+        """Remove workers which do not participate in the training.
+        Args:
+            worker_ranks: The rank of worker which does not join rendezvous.
+        """
         plan = ScalePlan()
-        for worker_id, worker in self._nodes.items():
-            if worker.name in workers:
-                p = self.remove_node(worker_id)
+        for node_id, node in self._nodes.items():
+            if node.rank_index in worker_ranks:
+                p = self.remove_node(node.id)
+                self._nodes[node_id].relaunchable = False
                 if p:
                     plan.merge(p)
         return plan

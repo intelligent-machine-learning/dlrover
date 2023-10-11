@@ -13,6 +13,7 @@
 
 import json
 import os
+import threading
 import time
 
 from dlrover.python.common.log import default_logger as logger
@@ -35,16 +36,18 @@ def is_tf_chief():
 
 
 @singleton
-class TrainingProcessReporter(object):
+class TFTrainingProcessReporter(object):
     def __init__(self):
         self._resource_monitor = ResourceMonitor()
         self._last_timestamp = 0
         self._start_time = 0
         self.called_in_tf_hook = False
         self._is_tf_chief = is_tf_chief()
+        self._master_client = GlobalMasterClient.MASTER_CLIENT
 
     def set_start_time(self):
         if self._start_time == 0:
+            self._resource_monitor.start()
             timestamp = int(time.time())
             self._last_timestamp = timestamp
             self._start_time = timestamp
@@ -63,8 +66,63 @@ class TrainingProcessReporter(object):
                 self._resource_monitor.report_resource()
                 logger.info("Report global step = {}".format(step))
                 self._last_timestamp = timestamp
-                GlobalMasterClient.MASTER_CLIENT.report_global_step(
-                    step, self._last_timestamp
+                self._master_client.report_global_step(
+                    step,
+                    self._last_timestamp,
                 )
         except Exception as e:
             logger.warning(e)
+
+
+@singleton
+class TorchTrainingMonitor(object):
+    def __init__(self, metrics_path):
+        self._resource_monitor = ResourceMonitor()
+        self._last_timestamp = 0
+        self._start_time = 0
+        self._group_rank = int(os.getenv("WORKER_RANK", "0"))
+        self._master_client = GlobalMasterClient.MASTER_CLIENT
+        if os.path.exists(metrics_path):
+            os.remove(metrics_path)
+        self._metrics_path = metrics_path
+
+    def start(self):
+        self._resource_monitor.start()
+        self._resource_monitor.start_monitor_cpu()
+        thread = threading.Thread(
+            target=self._periodically_report_step,
+            name="report-step",
+            daemon=True,
+        )
+        thread.start()
+
+    def stop(self):
+        self._resource_monitor.stop()
+
+    def report_resource_with_step(self):
+        if self._group_rank != 0:
+            return
+        try:
+            if not os.path.exists(self._metrics_path):
+                return
+            with open(self._metrics_path, "r") as f:
+                record = json.load(f)
+                step = record.get("step", 0)
+                timestamp = record.get("timestamp", 0)
+            if step > 0 and timestamp - self._last_timestamp > 15:
+                self._resource_monitor.report_resource()
+                logger.info("Report global step = {}".format(step))
+                self._last_timestamp = timestamp
+                self._master_client.report_global_step(
+                    step,
+                    self._last_timestamp,
+                )
+        except Exception as e:
+            logger.warning(e)
+
+    def _periodically_report_step(self):
+        if self._group_rank != 0:
+            return
+        while True:
+            self.report_resource_with_step()
+            time.sleep(15)

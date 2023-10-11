@@ -15,7 +15,7 @@ import unittest
 
 from dlrover.python.common.constants import JobOptStage, NodeType
 from dlrover.python.common.node import Node, NodeResource
-from dlrover.python.master.resource.local_optimizer import LocalOptimizer
+from dlrover.python.master.resource.local_optimizer import PSLocalOptimizer
 from dlrover.python.master.stats.training_metrics import RuntimeMetric
 from dlrover.python.scheduler.job import ResourceLimits
 
@@ -23,7 +23,7 @@ from dlrover.python.scheduler.job import ResourceLimits
 class LocalOptimizerTest(unittest.TestCase):
     def setUp(self) -> None:
         limits = ResourceLimits(10, 8192)
-        self._optimizer = LocalOptimizer("1111", limits)
+        self._optimizer = PSLocalOptimizer("1111", limits)
         for i in range(10):
             nodes = []
             ps = Node(

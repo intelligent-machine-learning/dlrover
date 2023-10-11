@@ -20,7 +20,7 @@ spec:
                 command:
                   - /bin/bash
                   - -c
-                  - "python -m model_zoo.tf_estimator.iris_dnn_elastic"
+                  - "python -m examples.tensorflow.iris_dnn_elastic"
     worker:
       replicas: 0
       restartCount: 3
@@ -34,4 +34,4 @@ spec:
                 command:
                   - /bin/bash
                   - -c
-                  - "python -m model_zoo.tf_estimator.iris_dnn_elastic"
+                  - "python -m examples.tensorflow.iris_dnn_elastic"
