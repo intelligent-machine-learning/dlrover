@@ -1,61 +1,71 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
+from typing import Any, Callable, Dict, Iterable, Optional, Tuple, Union
 
 import numpy as np
 import torch
-from torch.optim.optimizer import Optimizer
-
-from typing import Any, Callable, Dict, Iterable, Optional, Tuple, Union
-
 from torch import Tensor
-
 
 Params = Union[Iterable[Tensor], Iterable[Dict[str, Any]]]
 
 LossClosure = Callable[[], float]
 OptLossClosure = Optional[LossClosure]
 Betas2 = Tuple[float, float]
+State = Dict[str, Any]
 OptFloat = Optional[float]
+Nus2 = Tuple[float, float]
 
 __all__ = ("AGD",)
 
 
-class AGD(Optimizer):
+class AGD(torch.optim.Optimizer):
+    r"""AGD: an Auto-switchable Optimizer using Stepwise Gradient Difference as Preconditioning Matrix.
+    Arguments:
+        params (Params): Collection of parameters to be optimized, or an iterable of dictionaries specifying separate groups.
+        lr (float, optional): The learning rate. Default is 1e-3.
+        betas (tuple of 2 floats, optional): Coefficients used for computing running averages of gradient and its square. Default is (0.9, 0.999).
+        delta (float, optional): Small constant for numerical stability to prevent division by zero. Default is 1e-5.
+        weight_decay (float, optional): Weight decay coefficient. Default is 0.0.
+        amsgrad (bool, optional): If set to True, applies the AMSGrad variant of the optimizer. Default is False.
+        win (bool, optional): If set to True, applies the Win variant of the optimizer. Default is False.
+        clip (bool, optional): Total update clip to prevent abnormal updates. Default is None.
+    """
+
     def __init__(
-            self,
-            params: Params,
-            lr: float = 1e-3,
-            betas: Betas2 = (0.9, 0.999),
-            delta: float = 1e-5,
-            weight_decay: float = 0.0,
-            amsgrad: bool = False,
-            win: bool = False
+        self,
+        params: Params,
+        lr: float = 1e-3,
+        betas: Betas2 = (0.9, 0.999),
+        delta: float = 1e-5,
+        weight_decay: float = 0.0,
+        amsgrad: bool = False,
+        win: bool = False,
+        clip: float = None,
     ) -> None:
-        print("using agd")
         if lr <= 0.0:
             raise ValueError("Invalid learning rate: {}".format(lr))
         if delta < 0.0:
             raise ValueError("Invalid delta value: {}".format(delta))
         if not 0.0 <= betas[0] < 1.0:
-            raise ValueError("Invalid beta parameter at index 0: {}".
-                             format(betas[0]))
+            raise ValueError("Invalid beta parameter at index 0: {}".format(betas[0]))
         if not 0.0 <= betas[1] < 1.0:
-            raise ValueError("Invalid beta parameter at index 1: {}".
-                             format(betas[1]))
+            raise ValueError("Invalid beta parameter at index 1: {}".format(betas[1]))
         if weight_decay < 0.0:
-            raise ValueError("Invalid weight_decay value: {}".
-                             format(weight_decay))
+            raise ValueError("Invalid weight_decay value: {}".format(weight_decay))
 
-        defaults = dict(lr=lr, betas=betas, delta=delta,
-                        weight_decay=weight_decay, amsgrad=amsgrad, win=win)
+        defaults = dict(
+            lr=lr,
+            betas=betas,
+            delta=delta,
+            weight_decay=weight_decay,
+            amsgrad=amsgrad,
+            win=win,
+            clip=clip,
+        )
         super(AGD, self).__init__(params, defaults)
 
     def step(self, closure: OptLossClosure = None) -> OptFloat:
         loss = None
         if closure is not None:
-            with torch.enable_grad():
-                loss = closure()
+            loss = closure()
 
         for group in self.param_groups:
             beta1, beta2 = group["betas"]
@@ -65,7 +75,7 @@ class AGD(Optimizer):
                     continue
                 grad = p.grad.data
                 if grad.is_sparse:
-                    msg = ("AGD does not support sparse gradients.")
+                    msg = "AGD does not support sparse gradients."
                     raise RuntimeError(msg)
 
                 state = self.state[p]
@@ -74,18 +84,21 @@ class AGD(Optimizer):
                     state["step"] = 0
                     # Exponential moving average of gradient values
                     state["exp_avg"] = torch.zeros_like(
-                        p, memory_format=torch.preserve_format)
+                        p, memory_format=torch.preserve_format
+                    )
                     # Exponential moving average of squared gradient values
                     state["exp_avg_sq"] = torch.zeros_like(
-                        p, memory_format=torch.preserve_format)
+                        p, memory_format=torch.preserve_format
+                    )
                     if group["amsgrad"]:
                         # Maintains max of all exp. moving avg. of sq. grad. values
                         state["max_exp_avg_sq"] = torch.zeros_like(
-                            p, memory_format=torch.preserve_format)
+                            p, memory_format=torch.preserve_format
+                        )
                     if group["win"]:
                         state["z"] = torch.zeros_like(
-                            p, memory_format=torch.preserve_format) 
-                        state["z"].add_(p.data.clone(), alpha=1)
+                            p, memory_format=torch.preserve_format
+                        )
 
                 exp_avg, exp_avg_sq = (
                     state["exp_avg"],
@@ -96,42 +109,39 @@ class AGD(Optimizer):
                 exp_avg_old = exp_avg.detach().clone()
                 exp_avg.mul_(beta1).add_(grad, alpha=1 - beta1)
                 bias_correction1_old = 1 - beta1 ** (state["step"] - 1)
-                bias_correction1 = 1 - beta1 ** state["step"]
-                bias_correction2 = 1 - beta2 ** state["step"]
-                h_t = exp_avg / bias_correction1
-                if state["step"] > 1:
-                    h_t -= exp_avg_old / bias_correction1_old
-                exp_avg_sq.mul_(beta2).addcmul_(h_t, h_t, value=1 - beta2)
+                bias_correction1, bias_correction2 = (
+                    1 - beta1 ** state["step"],
+                    1 - beta2 ** state["step"],
+                )
+                update = (
+                    exp_avg * (1 / bias_correction1)
+                    if state["step"] == 1
+                    else exp_avg * (1 / bias_correction1)
+                    - exp_avg_old * (1 / bias_correction1_old)
+                )
+                exp_avg_sq.mul_(beta2).addcmul_(update, update, value=1 - beta2)
 
                 if group["amsgrad"]:
                     max_exp_avg_sq = state["max_exp_avg_sq"]
                     torch.max(max_exp_avg_sq, exp_avg_sq, out=max_exp_avg_sq)
-                    denom = max_exp_avg_sq.sqrt()
+                    update = max_exp_avg_sq.sqrt()
                 else:
-                    denom = exp_avg_sq.sqrt()
+                    update = exp_avg_sq.sqrt()
 
                 delta_adjust = group["delta"] * np.sqrt(bias_correction2)
+                update.clamp_(min=delta_adjust)
 
-                if torch.cuda.is_available():
-                    denom = torch.where(
-                        denom > delta_adjust, denom,
-                        torch.Tensor([delta_adjust]).cuda())
-                else:
-                    denom = np.where(denom > delta_adjust, denom, delta_adjust)
-
-                lr_adjust = group["lr"] * np.sqrt(bias_correction2) / \
-                                bias_correction1
+                lr_adjust = group["lr"] * np.sqrt(bias_correction2) / bias_correction1
+                update = exp_avg / update
+                if group["clip"] is not None:
+                    update.clamp_(min=-group["clip"], max=group["clip"])
                 weight_decay = group["weight_decay"]
                 if not group["win"]:
-                    p.data.mul_(1 - group["lr"] * weight_decay)
-                    p.data.addcdiv_(exp_avg, denom, value=-lr_adjust)
+                    p.data.mul_(1 - group["lr"] * weight_decay).add_(update, alpha=-lr_adjust)
                 else:
                     z = state["z"]
-                    z.data.addcdiv_(exp_avg, denom, value=-lr_adjust)
-                    z.data.mul_(1. / (1. + weight_decay * lr_adjust))
+                    z.data.add_(update, alpha=-lr_adjust).mul_(1.0 / (1.0 + weight_decay * lr_adjust))
                     lr_adjust2 = 2 * lr_adjust
-                    tao = 1. / (3. + lr_adjust2 * weight_decay)
-                    p.data.mul_(tao)
-                    p.data.addcdiv_(exp_avg, denom, value=-tao * lr_adjust2)
-                    p.data.add_(z, alpha=2 * tao)
+                    tao = 1.0 / (3.0 + lr_adjust2 * weight_decay)
+                    p.data.mul_(tao).add_(update, alpha=-tao * lr_adjust2).add_(z, alpha=2 * tao)
         return loss
