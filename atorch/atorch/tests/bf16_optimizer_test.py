@@ -6,7 +6,7 @@ from fairscale.optim.oss import OSS
 
 import atorch
 from atorch.distributed.distributed import reset_distributed
-from atorch.optim.bf16_optimizer import BF16Optimizer
+from atorch.optimizers import BF16Optimizer
 
 
 class BF16OptimizerTest(unittest.TestCase):

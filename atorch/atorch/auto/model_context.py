@@ -28,7 +28,7 @@ from atorch.distributed.distributed import (
     rank,
 )
 from atorch.modules.distributed_modules.materialize_modules import materialize_modules_to_device
-from atorch.optim.bf16_optimizer import BF16Optimizer
+from atorch.optimizers import BF16Optimizer
 from atorch.utils.graph_transform_utils import map_aggregate
 from atorch.utils.version import torch_version
 
