@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+enum StorageCombination {
+  // one level
+  MEM = 0;
+}
+
+enum StorageType {
+  MEM_STORAGE = 0;
+}
+
+message StorageConfig{
+  string storage_path = 1;
+  int64 training_storage_size = 2;
+  int64 inference_storage_size = 3;
+}
+
+message StorageOption{
+  StorageCombination combination = 1;
+  map<int64, StorageConfig> configs = 2;
+}
+

@@ -84,10 +84,30 @@ jobs:
   tfplus-python-test:
     runs-on: ubuntu-latest
     steps:
-      # This step checks out a copy of your repository.
-      - uses: actions/checkout@v3
-      # This step references the directory that contains the action.
-      - uses: ./.github/actions/tfplus-python-test
+      # Checkout the code
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      # Check 'tfplus' changes for PR or set true for direct push
+      - name: Determine if job should run
+        id: run_decision
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "::set-output name=run_job::true"
+          else
+            DIFF=$(git diff --name-only \
+              ${{ github.event.pull_request.base.sha }} HEAD)
+            if echo "$DIFF" | grep -q "tfplus/"; then
+              echo "::set-output name=run_job::true"
+            else
+              echo "::set-output name=run_job::false"
+            fi
+          fi
+      # Run tests if conditions are met
+      - name: Run tfplus tests
+        if: steps.run_decision.outputs.run_job == 'true'
+        uses: ./.github/actions/tfplus-python-test
   tfplus-pre-commit:
     runs-on: ubuntu-latest
     steps:

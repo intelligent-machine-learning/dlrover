@@ -14,6 +14,7 @@
 
 import argparse
 import contextlib
+import functools
 import math
 import os
 import pickle
@@ -24,9 +25,9 @@ import numpy as np
 import torch
 import torch.distributed as dist
 from lora import apply_lora
-from model import GPT, GPTConfig
+from model import GPT, Block, GPTConfig
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
-from torch.distributed.fsdp.wrap import size_based_auto_wrap_policy
+from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import Dataset
 
@@ -101,7 +102,7 @@ def gpt_init(meta_vocab_size=None, args=None):
         dropout=dropout,
     )  # Start with model_args from command line
     # Init a new model from scratch
-    print("Initializing a new model from scratch")
+    log_rank0("Initializing a new model from scratch")
     # Determine the vocab size we'll use for from-scratch training
     if meta_vocab_size is None:
         print(
@@ -246,10 +247,15 @@ def train():
         model = model.to(local_rank)
         if use_fsdp:
             print(f"Running basic FSDP example on local rank {local_rank}.")
+
+            my_auto_wrap_policy = functools.partial(
+                transformer_auto_wrap_policy,
+                transformer_layer_cls={Block},
+            )
             model = FSDP(
                 model,
                 device_id=local_rank,
-                auto_wrap_policy=size_based_auto_wrap_policy,
+                auto_wrap_policy=my_auto_wrap_policy,
             )
         else:
             print(f"Running basic DDP example on local rank {local_rank}.")
