@@ -329,5 +329,5 @@ Use DeepSpeed pipeline engine for 3D parallel.
 
 ## Examples
 
-See [auto_accelerate](../examples/auto_accelerate/README.md) examples for detail.
+See [auto_accelerate examples](../examples/auto_accelerate/README.md) for detail.
 
