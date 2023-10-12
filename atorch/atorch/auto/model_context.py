@@ -374,7 +374,7 @@ class ModelContext(object):
         """
         if self.optim_func is None:
             return None
-	
+
         # model must on cuda device before calling OSS (zero2)
         if "zero2" in self.post_wrappers:
             model_device = next(self.model.parameters()).device
