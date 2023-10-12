@@ -230,6 +230,5 @@ Before is a list of supported optimization methods.
 
 ## Examples
 
-### Fully-Automatic Mode Sample
+See [auto_accelerate](../examples/auto_accelerate/README.md) examples for detail.
 
-### Semi-automatic Mode Sample
