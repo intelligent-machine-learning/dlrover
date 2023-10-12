@@ -86,21 +86,6 @@ def optim_func(model_parameters, **kwargs):
     return optim.Adam(model_parameters, **kwargs)
 
 
-def optim_param_func(model):
-    no_decay = "bias"
-    parameters = [
-        {
-            "params": [p for n, p in model.named_parameters() if no_decay not in n],
-            "weight_decay": 0.01,
-        },
-        {
-            "params": [p for n, p in model.named_parameters() if no_decay in n],
-            "weight_decay": 0.0,
-        },
-    ]
-    return parameters
-
-
 def toy_loss_func(inputs, output):
     loss = nn.MSELoss()
     return loss(inputs["label"], output)
@@ -185,10 +170,3 @@ def get_loss_func(model_type):
         return functools.partial(gpt2_loss_func, vocab_size=vocab_size)
     if model_type == ModelType.LLAMA:
         return llama_loss_func
-
-
-def change_dtype(data, dtype, fp32_only=True):
-    if data.dtype == torch.float32 or not fp32_only:
-        return data.to(dtype)
-    else:
-        return data

@@ -147,7 +147,7 @@ def train(args):
             rank, dp_size = get_data_partition_rank_and_size()
             if dp_size > 1:
                 # strong scaling for batchsize, so adjust per-process batchsize
-                dataloader_args["batch"] = dataloader_args["batch"] // dp_size
+                dataloader_args["batch_size"] = dataloader_args["batch_size"] // dp_size
                 shuffle = dataloader_args.get("shuffle", False)
                 if shuffle:
                     dataloader_args["shuffle"] = False
@@ -171,7 +171,7 @@ def train(args):
             loss.backward()
             optim.step()
             global_step += 1
-            if global_step % args.log_interval == 0:
+            if global_step % args.log_interval == 0 and (atorch.rank() is None or atorch.rank() == 0):
                 cur_time = time.time()
                 time_per_step = (cur_time - start_time) / args.log_interval
                 print(f"[step={global_step-1}]: {time_per_step} sec/step")
