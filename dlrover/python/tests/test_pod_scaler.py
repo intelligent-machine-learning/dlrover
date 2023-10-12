@@ -159,6 +159,7 @@ class PodScalerTest(unittest.TestCase):
                 chief_ids.append(node.id)
         self.assertListEqual(chief_ids, [0])
         self.assertListEqual(worker_ids, [3, 4])
+        scaler._create_node_queue.clear()
 
         scale_plan.node_group_resources = {
             NodeType.WORKER: NodeGroupResource(3, resource),
