@@ -1,84 +1,33 @@
 <h1 align="center"><b>AGD Optimizer</b></h1>
-<h3 align="center"><b>Weighted Sharpness as
-a Regularization Term</b></h3>
+<h3 align="center"><b>an Auto-switchable Optimizer using Stepwise Gradient Difference as Preconditioning Matrix</b></h3>
 
-We present PyTorch code for [Sharpness-Aware Minimization Revisited: Weighted Sharpness as a Regularization Term](https://arxiv.org/abs/2305.158171), KDD'23. The code is based on <https://github.com/davda54/sam>.
+We present PyTorch code for [AGD: an Auto-switchable Optimizer using Stepwise Gradient Difference as Preconditioning Matrix](https://arxiv.org/abs/), NeurIPS 2023.
 
-Deep Neural Networks (DNNs) generalization is known to be closely related to the flatness of minima, leading to the development of Sharpness-Aware Minimization (SAM) for seeking flatter minima and better generalization.
-We propose a more general method, called WSAM, by incorporating sharpness as a regularization term.
-WSAM can achieve improved generalization, or is at least highly competitive, compared to the vanilla optimizer, SAM and its variants.
+AGD employs the gradient difference between the current and previous steps to form the preconditioning matrix, which can dynamically transition between the adaptive and stochastic forms through an automated switching mechanism. Thanks to these dual approaches, AGD attains swifter convergence and superior generalization performance compared to state-of-the-art optimizers.
 
 <p align="center">
-  <img src="wsam_traj.png" alt="WSAM can achieve different minima by choosing
-different 𝛾." width="512"/>
-</p>
-
-<p align="center">
-  <sub><em>WSAM can achieve different (flatter) minima by choosing
-different 𝛾.</em></sub>
+  <img src="agd_beale.gif" alt="Toy example on " width="512"/>
 </p>
 
 ## Usage
 
-Similar to SAM, WSAM can be used in a two-step manner or with a single
-closure-based function.
+AGD can be a drop-in replacement for AdamW.
 
 ```python
-from atorch.optimizers.wsam import WeightedSAM
-from atorch.optimizers.utils import enable_running_stats, disable_running_stats
-
-...
-
-model = YourModel()
-base_optimizer = torch.optim.SGD(model.parameters(), lr=0.001) # initialize the base optimizer
-optimizer = WeightedSAM(model, base_optimizer, rho=0.05, gamma=0.9, adaptive=False, decouple=True, max_norm=None)
-...
-# 1. two-step method
-for input, output in data:
-  enable_running_stats(model)
-  with model.no_sync():
-    # first forward-backward pass
-    loss = loss_function(output, model(input))  # use this loss for any training statistics
-    loss.backward()
-  optimizer.first_step(zero_grad=True)
-  disable_running_stats(model)
-
-  # second forward-backward pass
-  loss_function(output, model(input)).backward()  # make sure to do a full forward pass
-  optimizer.second_step(zero_grad=True)
-...
-# 2. closure-based method
-for input, output in data:
-  def closure():
-    loss = loss_function(output, model(input))
-    loss.backward()
-    return loss
-
-  loss = loss_function(output, model(input))
-  loss.backward()
-  optimizer.step(closure)
-  optimizer.zero_grad()
-...
+from atorch.optimizers.agd import AGD
 ```
 
-## Extra Notes
+## Hyperparameters
 
-- **Regulatization mode**: It is recommended to perform a decoupled update of the sharpness term, as used in our paper.
-- **Gradient clipping**: To ensure training stability, if `max_norm` is not `None`, WSAM will clip gradient norm in both steps.
-- **Gradient sync**: This implementation synchronizes gradients correctly, corresponding to the m-sharpness used in the SAM paper.
-- **Rho selection**: If you try to reproduce ViT results from [this paper](https://arxiv.org/abs/2106.01548), use a larger rho when having less GPUs. For more information, see this related link.
+- `lr`: Empirically set to 1/10 of AdamW's value.
+- `delta`: Please refer to the settings in the paper. For Transformer-like models, you can typically keep the default value at 1e-14.
+- `clip`: Generally, there's no need to set it, but if you encounter training instability, you can try clip=5.
+- Others: Set them based on general empirical guidelines.
 
-<!--
-## Citation
+## AGD's performance on nanoGPT
 
-```text
-@inproceedings{
-yue2023wsam,
-title={Sharpness-Aware Minimization Revisited: Weighted Sharpness as a Regularization Term},
-author={Yun and Yue, Jiadi and Jiang, Zhiling and Ye, Gao and Ning, Yongchao and Liu, Ke and Zhang},
-booktitle={Proceedings of the 29th ACM SIGKDD Conference on Knowledge Discovery \& Data Mining},
-year={2023},
-url={https://openreview.net/forum?id=V9MTso2JW1}
-}
-```
--->
+Given the popularity of large-scale models, we also tested the effectiveness of AGD on nanoGPT. As expected, AGD converges very quickly, providing up to a 1.5x acceleration compared to AdamW. This can significantly save training time and reduce training costs.
+
+<p align="center">
+  <img src="agd_nanogpt.png" width="512"/>
+</p>
