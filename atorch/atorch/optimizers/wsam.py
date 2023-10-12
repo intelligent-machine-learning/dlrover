@@ -60,8 +60,6 @@ class WeightedSAM(torch.optim.Optimizer):
                 self.state[p]["e_w"] = e_w
                 if torch.distributed.is_initialized():
                     dist.all_reduce(p.grad, op=dist.ReduceOp.AVG)
-        if self.max_norm is not None:
-            torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.max_norm)
         for group in self.param_groups:
             for p in group["params"]:
                 if p.grad is None:
