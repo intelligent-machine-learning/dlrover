@@ -1,12 +1,12 @@
 # Running auto_accelerate Codes
 
-## Included source files
+## Source files
 
-train.py: main training code for training model using auto_accelerate API.
+[train.py](./train.py): main training code for training model using auto_accelerate API.
 
-modeling.py: model definition, including loss_func.
+[modeling.py](./modeling.py): model definition, including loss_func.
 
-data.py: fake datasets for training.
+[data.py](./data.py): fake datasets for training.
 
 
 ## Usage
@@ -45,7 +45,7 @@ To launch distributed training, such as 8 process per node training for llama,  
 python -m atorch.distributed.launch --nproc_per_node 8 train.py --model_type llama --distributed [other_args]
 ```
 
-## Samples
+## Examples
 
 Training toy model in fully-automatic mode.
 ```
@@ -65,5 +65,5 @@ python -m atorch.distributed.launch --nproc_per_node 8  train.py --model_type gp
 
 Train llama model in semi-automatic mode, using (fsdp, amp_native, module_replace, checkpoint) optimization strategy, and user provides dataloader.
 ```
-python -m atorch.distributed.launch --nproc_per_node 8  train.py --model_type gpt2 --distributed --hiddien_size 64 --head_num 4 --layer_num 4 --seq_length 32 --load_strategy --use_fsdp --use_amp --use_module_replace --use_checkpointing --user_created_dataloader
+python -m atorch.distributed.launch --nproc_per_node 8  train.py --model_type llama --distributed --hiddien_size 64 --head_num 4 --layer_num 4 --seq_length 32 --load_strategy --use_fsdp --use_amp --use_module_replace --use_checkpointing --user_created_dataloader
 ```

@@ -3,7 +3,7 @@ import time
 
 import torch
 from data import get_dataloader_args, get_dataset
-from modeling import get_loss_func, get_model, get_model_input_format, get_model_type, get_module_type
+from modeling import ModelType, get_loss_func, get_model, get_model_input_format, get_model_type, get_module_type
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 
@@ -110,7 +110,10 @@ def train(args):
             strategy.append(("checkpoint", checkpoint_modules))
 
     # optimizer
-    optim_func = torch.optim.AdamW
+    if model_type == ModelType.LLAMA:
+        optim_func = atorch.optimizers.AGD
+    else:
+        optim_func = torch.optim.AdamW
     optim_args = {"lr": 0.001}
     optim_param_func = optim_grouped_param_func if args.optim_grouped_params else None
 

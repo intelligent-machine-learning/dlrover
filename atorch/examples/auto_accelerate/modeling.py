@@ -123,8 +123,8 @@ def get_model(model_type, config):
         model = MyGPT2Model(model_config)
     elif model_type == ModelType.LLAMA:
         model_config = LlamaConfig()
-        c_s = f"hidden_size={hidden_size},num_attention_heads={head_num},num_hidden_layers={layer_num}, \
-            num_key_value_heads={head_num},max_position_embeddings={seq_length}"
+        c_s = f"hidden_size={hidden_size},num_attention_heads={head_num},num_hidden_layers={layer_num},"
+        c_s += f"num_key_value_heads={head_num},max_position_embeddings={seq_length}"
         model_config.update_from_string(c_s)
         model = LlamaForCausalLM(model_config)
     return model

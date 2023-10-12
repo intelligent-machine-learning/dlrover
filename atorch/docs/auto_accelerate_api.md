@@ -36,7 +36,7 @@ auto_accelerate(
 <table>
   <tr>
     <th>API Parameter</th>
-    <th><code>Description</code></th>
+    <th>Description</th>
   </tr>
   <tr>
     <td>model (torch.nn.Module) </td>
@@ -189,7 +189,7 @@ auto_accelerate returns 3-item tuple (status, result, best_strategy).
 <table>
   <tr>
     <th>Return Item</th>
-    <th><code>Description</code></th>
+    <th>Description</th>
   </tr>
 
 <tr>
@@ -223,10 +223,109 @@ When specifying the optimization strategy using load_strategy, ignore_dryrun_on_
 
 When auto_accelerate succeeds, the returned best_strategy or saved strategy (saved in save_strategy_to_file) can be reused as load_strategy to speedup auto_accelerate.
 
-Before is a list of supported optimization methods.
+Below is a list of supported optimization methods.
 
 
+### parallel_mode
 
+parallel_mode is a special optimization method used to specify (1)
+-  the use of distributed training; 
+- the grouping of different parallel methods if it is a hybrid parallel mode. 
+
+The default configuration is data parallelism, where all processes are in one process group and perform data parallelism.
+
+The configuration format is: 
+
+<code>(List[Tuple[str, int]], Optional(List(int)))</code>
+
+The first item is a list of <code>(name, size)</code>, specifying the groups for hybrid parallelism. The product of all sizes is the number of processes (world_size) in distributed training.
+The second item is the rank order. If it is None, it means sequential rank order.
+For example, <code>([("tensor", 4), ("pipeline", 2), ("data", 2)], None)</code> represents the use of 3D parallelism, with <code>[0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10, 11], [12, 13, 14, 15]</code> 4 groups for tensor parallel, 
+ for "pipeline" <code>[0, 4], [1, 5], [2, 6], [3, 7], [8, 12], [9, 13], [10, 14], [11, 15]</code>  8 process groups for pipeline parallel, and 
+<code>[0, 8], [1, 9], [2, 10], [3, 11], [4, 12], [5, 13], [6, 14], [7, 15]</code> 8 process groups for data parallel.
+
+The supported types for <code>name</code> are: <code>data, zero, tensor, pipeline</code>, corresponding to data parallelism, zero data parallelism, tensor parallelism, and pipeline parallelism, respectively.
+The size of <code>data</code> will be automatically adjusted so that the product of all sizes equals world_size. For example, in training with 16 cards (world_size=16), if no config is specified, the default is <code>([("data", 16)], None)</code>; If config is specified as <code>([("data", 8)], None)</code>, it will be automatically adjusted to <code>([("data", 16)], None)</code>; If set config as <code>([("tensor", 2), ("pipeline", 2), ("data", 2)], None)</code>, it will be automatically changed to <code>([("tensor", 2), ("pipeline", 2), ("data", 4)], None)</code>.
+
+### amp_native
+
+amp_native is an optimization method for automatic mixed precision, which uses the PyTorch-native amp implementation.
+The default configuration is <code>{"dtype": torch.float16}</code>, which uses fp16 for mixed precision.
+It automatically scales and checks gradient values. If there is any exception (inf/nan), it skips that step.
+If you want to use bf16 mixed precision, can set config as <code>{"dtype": torch.bfloat16}</code>.
+For bfloat16, it does not check if the gradients are infinite by default. If you want to check and skip the step, you can add <code>skip_if_nonfinite</code> to the config, such as  <code>{"dtype": torch.bfloat16, "skip_if_nonfinite": True}</code>.
+
+
+### half
+
+Training in half precision. Default configuration is <code>"fp16"</code>. If want to use bfloat16, set config as <code>"bf16"</code>.
+
+### module_replace
+
+Automatic module optimization, which replaces optimizable modules with optimized implementations.
+Supported optimized modules are:
+
+- FlashAttention, already adapted for BertAttention, GPT2Attention, CLIPAttention, LlamaAttention.
+- FusedLayerNorm, replaces LayerNorm.
+
+Flash attention is effective when used with mixed precision or half precision (i.e., in conjunction with amp_native, half). It currently supports GPU with sm version >= 8.0, such as A100, A10, H100, etc.
+
+User-defined module optimization is supported by registering the optimized module in advance:
+
+```
+from atorch.auto.opt_lib.module_replace_optimization import register_replace_pair
+
+supported_dtypes={torch.float32, torch.float16, torch.bfloat16}
+pair_cls = (module_to_be_optimized, optimized_module)
+
+register_replace_pair("my_optimized_module", supported_dtypes=supported_dtypes, pair_cls=pair_cls)
+
+```
+
+### zero1
+
+zero1 uses Zero Redundancy Optimizer to shard optimizer states in data parallel training.
+
+### zero2
+
+Level 2 of ZeRO method, which shards both gradients and optimizer states.
+
+Two implementations are used.
+- (Default) Use pytorch fsdp SHARD_GRAD_OP, thus supports all configurations as in fsdp method below.
+- Use fairscale zero2 implementation. Set config as <code>{"not_use_fsdp", True}</code> to choose this implementation.
+
+
+### fsdp
+
+Use PyTorch-native FSDP implementation for level 3 of ZeRO, which shards model parameters, gradients and optimizer states.
+Configuration support all [FSDP arguments](https://pytorch.org/docs/stable/fsdp.html#torch.distributed.fsdp.FullyShardedDataParallel) plus some ATorch-defined arguments for easy usage.
+ATorchpdefined arguments:
+
+- atorch_wrap_cls: tuple of submodule names or submodule type for fsdp to wrap.
+- atorch_size_based_min_num_params： wrap submoudule based on parameter size. Should not used with atorch_wrap_cls.
+- atorch_ignored_cls: tuple of submodule names or submodule type for fsdp to ignore (not sharded).
+
+Recommended configurations 
+```
+config = {"forward_prefetch": True, "limit_all_gathers": True, "sync_module_states": True, atorch_wrap_cls=tuple_of_main_submodules}
+```
+
+### tensor_parallel
+
+Tensor parallel, which would split modules in Megatron style tensor parallel automatically. The degree of tensor parallelism is specified in parallel_mode configuration, such as <code>("tensor", 8)</code> for degree = 8.
+
+### pipeline_parallel
+
+Pipeline parallel, which would split model in multiple stages automatically. The degree of pipeline parallelism is specified in parallel_mode configuration, such as <code>("pipeline", 4)</code> for degree = 4.
+
+
+### mixed_parallel
+
+Automatically training model with tensor parallel, pipelin parallel, and daa parallel. parallel_mode configuration would specify the degree of each parallelism. For example, <code>([("tensor", 8), ("pipeline", 2), ("data", 2)]</code> specifies 8, 2, 2 for degrees of tensor parallel, pipeline paralllel, and data parallel respectively.
+
+### ds_3d_parallel
+
+Use DeepSpeed pipeline engine for 3D parallel.
 
 ## Examples
 
