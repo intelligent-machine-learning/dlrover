@@ -43,6 +43,10 @@ def parse_args():
     parser.add_argument("--load_strategy", default=False, action="store_true")
     parser.add_argument("--optim_grouped_params", default=False, action="store_true")
     parser.add_argument("--log_interval", type=int, default=10, required=False)
+    parser.add_argument("--use_fsdp", default=False, action="store_true")
+    parser.add_argument("--use_amp", default=False, action="store_true")
+    parser.add_argument("--use_checkpointing", default=False, action="store_true")
+    parser.add_argument("--use_module_replace", default=False, action="store_true")
 
     return parser.parse_args()
 
@@ -82,26 +86,28 @@ def train(args):
         # data parallel if distributed
         strategy = ["parallel_mode"] if args.distributed else []
         # module_replace
-        if torch.cuda.is_available():
+        if torch.cuda.is_available() and args.use_module_replace:
             strategy.append("module_replace")
         # fsdp
-        fsdp_config = {
-            "sync_module_states": True,
-            "limit_all_gathers": True,
-            "forward_prefetch": True,
-            "atorch_wrap_cls": (get_module_type(model_type),),
-        }
-        # use_orig_params if grouped parameters are used in optim.
-        if args.optim_grouped_params:
-            fsdp_config["use_orig_params"] = True
-        strategy.append(("fsdp", fsdp_config))
+        if args.use_fsdp:
+            fsdp_config = {
+                "sync_module_states": True,
+                "limit_all_gathers": True,
+                "forward_prefetch": True,
+                "atorch_wrap_cls": (get_module_type(model_type),),
+            }
+            # use_orig_params if grouped parameters are used in optim.
+            if args.optim_grouped_params:
+                fsdp_config["use_orig_params"] = True
+            strategy.append(("fsdp", fsdp_config))
         # mixed precision
-        if torch.cuda.is_available():
+        if torch.cuda.is_available() and args.use_amp:
             amp_config = {"dtype": torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16}
             strategy.append(("amp_native", amp_config))
         # checkpoint
-        checkpoint_modules = (get_module_type(model_type),)
-        strategy.append(("checkpoint", checkpoint_modules))
+        if args.use_checkpointing:
+            checkpoint_modules = (get_module_type(model_type),)
+            strategy.append(("checkpoint", checkpoint_modules))
 
     # optimizer
     optim_func = torch.optim.AdamW
