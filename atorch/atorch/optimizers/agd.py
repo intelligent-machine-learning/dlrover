@@ -19,16 +19,13 @@ __all__ = ("AGD",)
 class AGD(torch.optim.Optimizer):
     r"""AGD: an Auto-switchable Optimizer using Stepwise Gradient Difference as Preconditioning Matrix.
     Arguments:
-        params (Params): Collection of parameters to be optimized,
-            or an iterable of dictionaries specifying separate groups.
+        params (Params): Collection of parameters to be optimized, or an iterable of dictionaries specifying separate groups.
         lr (float, optional): The learning rate. Default is 1e-3.
-        betas (tuple of 2 floats, optional): Coefficients used for computing running averages of gradient
-            and its square. Default is (0.9, 0.999).
+        betas (tuple of 2 floats, optional): Coefficients used for computing running averages of gradient and its square. Default is (0.9, 0.999).
         delta (float, optional): Small constant for numerical stability to prevent division by zero. Default is 1e-5.
         weight_decay (float, optional): Weight decay coefficient. Default is 0.0.
         weight_decouple (bool, optional): If set to True, use decoupled weight decay. Default is True.
-        fixed_decay (bool, optional): Enables fixed weight decay irrespective of the learning rate.
-            Default setting is False.
+        fixed_decay (bool, optional): Enables fixed weight decay irrespective of the learning rate. Default setting is False.
         amsgrad (bool, optional): Applies the AMSGrad variant of the optimizer. Default is False.
         win (bool, optional): Applies the Win variant of the optimizer. Default is False.
         clip (bool, optional): Total update clip to prevent abnormal updates. Default is None.
@@ -88,8 +85,8 @@ class AGD(torch.optim.Optimizer):
                     raise RuntimeError(msg)
 
                 if not group["win"]:
-                    if group["weight_decouple"]:
-                        if not group["fixed_decay"]:
+                    if self.weight_decouple:
+                        if not self.fixed_decay:
                             p.data.mul_(1.0 - group["lr"] * group["weight_decay"])
                         else:
                             p.data.mul_(1.0 - group["weight_decay"])
@@ -102,14 +99,22 @@ class AGD(torch.optim.Optimizer):
                 if len(state) == 0:
                     state["step"] = 0
                     # Exponential moving average of gradient values
-                    state["exp_avg"] = torch.zeros_like(p, memory_format=torch.preserve_format)
+                    state["exp_avg"] = torch.zeros_like(
+                        p, memory_format=torch.preserve_format
+                    )
                     # Exponential moving average of squared gradient values
-                    state["exp_avg_sq"] = torch.zeros_like(p, memory_format=torch.preserve_format)
+                    state["exp_avg_sq"] = torch.zeros_like(
+                        p, memory_format=torch.preserve_format
+                    )
                     if group["amsgrad"]:
                         # Maintains max of all exp. moving avg. of sq. grad. values
-                        state["max_exp_avg_sq"] = torch.zeros_like(p, memory_format=torch.preserve_format)
+                        state["max_exp_avg_sq"] = torch.zeros_like(
+                            p, memory_format=torch.preserve_format
+                        )
                     if group["win"]:
-                        state["z"] = torch.zeros_like(p, memory_format=torch.preserve_format)
+                        state["z"] = torch.zeros_like(
+                            p, memory_format=torch.preserve_format
+                        )
 
                 exp_avg, exp_avg_sq = (
                     state["exp_avg"],
@@ -127,7 +132,8 @@ class AGD(torch.optim.Optimizer):
                 update = (
                     exp_avg * (1 / bias_correction1)
                     if state["step"] == 1
-                    else exp_avg * (1 / bias_correction1) - exp_avg_old * (1 / bias_correction1_old)
+                    else exp_avg * (1 / bias_correction1)
+                    - exp_avg_old * (1 / bias_correction1_old)
                 )
                 exp_avg_sq.mul_(beta2).addcmul_(update, update, value=1 - beta2)
 
@@ -149,8 +155,12 @@ class AGD(torch.optim.Optimizer):
                     p.data.add_(update, alpha=-lr_adjust)
                 else:
                     z = state["z"]
-                    z.data.add_(update, alpha=-lr_adjust).mul_(1.0 / (1.0 + group["weight_decay"] * lr_adjust))
+                    z.data.add_(update, alpha=-lr_adjust).mul_(
+                        1.0 / (1.0 + group["weight_decay"] * lr_adjust)
+                    )
                     lr_adjust2 = 2 * lr_adjust
                     tao = 1.0 / (3.0 + lr_adjust2 * group["weight_decay"])
-                    p.data.mul_(tao).add_(update, alpha=-tao * lr_adjust2).add_(z, alpha=2 * tao)
+                    p.data.mul_(tao).add_(update, alpha=-tao * lr_adjust2).add_(
+                        z, alpha=2 * tao
+                    )
         return loss
