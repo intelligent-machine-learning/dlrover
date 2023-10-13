@@ -6,7 +6,7 @@ We present PyTorch code for [AGD: an Auto-switchable Optimizer using Stepwise Gr
 AGD employs the gradient difference between the current and previous steps to form the preconditioning matrix, which can dynamically transition between the adaptive and stochastic forms through an automated switching mechanism. Thanks to these dual approaches, AGD attains swifter convergence and superior generalization performance compared to state-of-the-art optimizers.
 
 <p align="center">
-  <img src="agd_beale.gif" alt="Toy example on " width="512"/>
+  <img src="./img/agd_beale.gif" alt="Toy example on " width="512"/>
 </p>
 
 ## Usage
@@ -29,5 +29,5 @@ from atorch.optimizers.agd import AGD
 Given the popularity of large-scale models, we also tested the effectiveness of AGD on nanoGPT. As expected, AGD converges very quickly, providing up to a 1.5x acceleration compared to AdamW. This can significantly save training time and reduce training costs.
 
 <p align="center">
-  <img src="agd_nanogpt.png" width="512"/>
+  <img src="./img/agd_nanogpt.png" width="512"/>
 </p>

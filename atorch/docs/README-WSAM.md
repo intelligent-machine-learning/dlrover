@@ -9,7 +9,7 @@ We propose a more general method, called WSAM, by incorporating sharpness as a r
 WSAM can achieve improved generalization, or is at least highly competitive, compared to the vanilla optimizer, SAM and its variants.
 
 <p align="center">
-  <img src="wsam_traj.png" alt="WSAM can achieve different minima by choosing
+  <img src="./img/wsam_traj.png" alt="WSAM can achieve different minima by choosing
 different 𝛾." width="512"/>
 </p>
 
