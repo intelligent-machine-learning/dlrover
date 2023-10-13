@@ -42,7 +42,7 @@ use_module_replace: if set, add module_replace optimization method in load_strat
 To launch distributed training, such as 8 process per node training for llama,  run:
 
 ```
-python -m atorch.distributed.launch --nproc_per_node 8 train.py --model_type llama --distributed [other_args]
+python -m atorch.distributed.run --nproc_per_node 8 train.py --model_type llama --distributed [other_args]
 ```
 
 ## Examples
@@ -54,16 +54,16 @@ python train.py --model_type toy
 with distributed training.
 
 ```
-python -m atorch.distributed.launch --nproc_per_node 2 train.py --model_type toy --distributed
+python -m atorch.distributed.run --nproc_per_node 2 train.py --model_type toy --distributed
 ```
 
 Train gpt2 model in semi-automatic mode, using (fsdp, amp_native, module_replace) optimization strategy.
 
 ```
-python -m atorch.distributed.launch --nproc_per_node 8  train.py --model_type gpt2 --distributed --hiddien_size 64 --head_num 4 --layer_num 4 --seq_length 32 --load_strategy --use_fsdp --use_amp --use_module_replace
+python -m atorch.distributed.run --nproc_per_node 8  train.py --model_type gpt2 --distributed --hiddien_size 64 --head_num 4 --layer_num 4 --seq_length 32 --load_strategy --use_fsdp --use_amp --use_module_replace
 ```
 
 Train llama model in semi-automatic mode, using (fsdp, amp_native, module_replace, checkpoint) optimization strategy, and user provides dataloader.
 ```
-python -m atorch.distributed.launch --nproc_per_node 8  train.py --model_type llama --distributed --hiddien_size 64 --head_num 4 --layer_num 4 --seq_length 32 --load_strategy --use_fsdp --use_amp --use_module_replace --use_checkpointing --user_created_dataloader
+python -m atorch.distributed.run  --nproc_per_node 8  train.py --model_type llama --distributed --hiddien_size 64 --head_num 4 --layer_num 4 --seq_length 32 --load_strategy --use_fsdp --use_amp --use_module_replace --use_checkpointing --user_created_dataloader
 ```
