@@ -6,6 +6,8 @@ from fairscale.nn.data_parallel import ShardedDataParallel as ShardedDDP
 from fairscale.optim.oss import OSS
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 
+import atorch.utils.patch_fairscale  # noqa: F401
+
 try:
     from torch.distributed.fsdp.wrap import size_based_auto_wrap_policy as auto_wrap_policy
 except ImportError:
