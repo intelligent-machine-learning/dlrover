@@ -374,6 +374,17 @@ class ModelContext(object):
         """
         if self.optim_func is None:
             return None
+
+        # model must on cuda device before calling OSS (zero2)
+        if "zero2" in self.post_wrappers:
+            model_device = next(self.model.parameters()).device
+            if torch.cuda.is_available() and model_device.type != "cuda":
+                if local_rank() is not None:
+                    device = torch.device(type="cuda", index=local_rank())
+                else:
+                    device = torch.device(type="cuda")
+                materialize_modules_to_device(self.model, device)
+
         if not self.check_pipe_model():
             if not self.optim_param_func:
                 optim = self.optim_func(self.model.parameters(), **self.optim_args)
