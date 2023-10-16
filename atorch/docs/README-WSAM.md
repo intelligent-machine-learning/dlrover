@@ -9,7 +9,7 @@ We propose a more general method, called WSAM, by incorporating sharpness as a r
 WSAM can achieve improved generalization, or is at least highly competitive, compared to the vanilla optimizer, SAM and its variants.
 
 <p align="center">
-  <img src="wsam_traj.png" alt="WSAM can achieve different minima by choosing
+  <img src="./img/wsam_traj.png" alt="WSAM can achieve different minima by choosing
 different 𝛾." width="512"/>
 </p>
 
@@ -64,7 +64,7 @@ for input, output in data:
 ## Extra Notes
 
 - **Regulatization mode**: It is recommended to perform a decoupled update of the sharpness term, as used in our paper.
-- **Gradient clipping**: To ensure training stability, if `max_norm` is not `None`, WSAM will clip gradient norm in both steps.
+- **Gradient clipping**: To ensure training stability, if `max_norm` is not `None`, WSAM will perform gradient clipping.
 - **Gradient sync**: This implementation synchronizes gradients correctly, corresponding to the m-sharpness used in the SAM paper.
 - **Rho selection**: If you try to reproduce ViT results from [this paper](https://arxiv.org/abs/2106.01548), use a larger rho when having less GPUs. For more information, see this related link.
 
