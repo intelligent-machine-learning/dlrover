@@ -112,7 +112,26 @@ TODO
 TODO
 
 ## Installation
-TODO
+
+ATorch supports PyTorch with version >= 1.12, and verion 2.1 or above is preferred.
+For example, docker image <code>easydl/atorch:iml_pt210</code> which has PyTorch 2.1 installed can be used.
+
+Install atorch in any PyTorch-preinstalled environment (such as a container created with the docker image above) with <code>pip</code>: 
+
+```
+pip install atorch
+```
+
+To verify that atorch is installed successfully, you run examples to see if succeed.
+
+```
+git clone https://github.com/intelligent-machine-learning/dlrover.git
+cd dlrover/atorch/examples/auto_accelerate
+# Single process train
+python train.py --model_type toy
+# Distributed train
+python -m atorch.distributed.run  --nproc_per_node 2  train.py --model_type llama --distributed --load_strategy --use_fsdp --use_amp --use_module_replace --use_checkpointing
+```
 
 ## Contributing
 TODO
