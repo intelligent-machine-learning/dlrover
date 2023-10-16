@@ -1,4 +1,4 @@
-# Running auto_accelerate Codes
+# Running auto_accelerate Examples
 
 ## Source files
 
