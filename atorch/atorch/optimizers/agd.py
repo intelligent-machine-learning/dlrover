@@ -19,16 +19,16 @@ __all__ = ("AGD",)
 class AGD(torch.optim.Optimizer):
     r"""AGD: an Auto-switchable Optimizer using Stepwise Gradient Difference as Preconditioning Matrix.
     Arguments:
-        params (Params):
-            Collection of parameters to be optimized, or an iterable of dictionaries specifying separate groups.
+        params (Params): Collection of parameters to be optimized,
+            or an iterable of dictionaries specifying separate groups.
         lr (float, optional): The learning rate. Default is 1e-3.
-        betas (tuple of 2 floats, optional):
-            Coefficients used for computing running averages of gradient and its square. Default is (0.9, 0.999).
+        betas (tuple of 2 floats, optional): Coefficients used for computing running averages of gradient
+            and its square. Default is (0.9, 0.999).
         delta (float, optional): Small constant for numerical stability to prevent division by zero. Default is 1e-5.
         weight_decay (float, optional): Weight decay coefficient. Default is 0.0.
         weight_decouple (bool, optional): If set to True, use decoupled weight decay. Default is True.
-        fixed_decay (bool, optional):
-            Enables fixed weight decay irrespective of the learning rate. Default setting is False.
+        fixed_decay (bool, optional): Enables fixed weight decay irrespective of the learning rate.
+            Default setting is False.
         amsgrad (bool, optional): Applies the AMSGrad variant of the optimizer. Default is False.
         win (bool, optional): Applies the Win variant of the optimizer. Default is False.
         clip (bool, optional): Total update clip to prevent abnormal updates. Default is None.
@@ -88,8 +88,8 @@ class AGD(torch.optim.Optimizer):
                     raise RuntimeError(msg)
 
                 if not group["win"]:
-                    if self.weight_decouple:
-                        if not self.fixed_decay:
+                    if group["weight_decouple"]:
+                        if not group["fixed_decay"]:
                             p.data.mul_(1.0 - group["lr"] * group["weight_decay"])
                         else:
                             p.data.mul_(1.0 - group["weight_decay"])
