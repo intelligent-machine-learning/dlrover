@@ -12,9 +12,8 @@
 # limitations under the License.
 
 import argparse
-import datetime
 import os
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import torch
 import torch.distributed as dist

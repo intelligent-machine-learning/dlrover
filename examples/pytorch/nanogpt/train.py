@@ -14,13 +14,12 @@
 
 import argparse
 import contextlib
-import datetime
 import functools
 import math
 import os
 import pickle
 import time
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import numpy as np
 import torch
