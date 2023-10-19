@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import argparse
+import datetime
 import os
 from datetime import timedelta
 
@@ -36,7 +37,7 @@ from dlrover.trainer.torch.elastic.trainer import ElasticTrainer
 
 # Note, we need to set the path of a shared file
 # system like nas, cpfs or hdfs.
-CHEKPOINT_PATH = "./model.pt"
+CHEKPOINT_PATH = "./checkpoint.pt"
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 
 
@@ -165,6 +166,9 @@ def train(args):
         )
         log_rank0("Test model after epoch {}".format(epoch))
         test(model, device, test_loader)
+        if args.save_model:
+            rank = int(os.environ.get("RANK", "0"))
+            save_model(model, epoch, rank, args.use_fsdp)
     dist.barrier()
 
 
@@ -257,6 +261,30 @@ def get_model_optim_state(model, optimizer, use_fsdp=False):
     return model_state, optim_state
 
 
+def save_model(model, epoch, rank, use_fsdp=False):
+    # save
+    if rank == 0:
+        print("--> entering save model state")
+
+    if use_fsdp:
+        save_policy = FullStateDictConfig(offload_to_cpu=True, rank0_only=True)
+        with FSDP.state_dict_type(
+            model, StateDictType.FULL_STATE_DICT, save_policy
+        ):
+            cpu_state = model.state_dict()
+    else:
+        cpu_state = model.state_dict()
+
+    if rank == 0:
+        print("--> saving model ...")
+        currEpoch = "-" + str(epoch) + ".pt"
+        print(f"--> attempting to save model prefix {currEpoch}")
+        time_of_run = datetime.now().strftime("%Y-%m-%d-%I:%M:%S_%p")
+        save_name = "MNIST-CNN-" + time_of_run + "-" + currEpoch
+        print(f"--> saving as model name {save_name}")
+        torch.save(cpu_state, save_name)
+
+
 def test(model, device, test_loader):
     log_rank0("Test the model ...")
     model.eval()
@@ -310,6 +338,12 @@ def arg_parser():
     parser.add_argument("--training_data", type=str, required=True)
     parser.add_argument(
         "--validation_data", type=str, default="", required=True
+    )
+    parser.add_argument(
+        "--save_model",
+        type=bool,
+        default=True,
+        required=False,
     )
     return parser
 

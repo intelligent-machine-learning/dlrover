@@ -14,6 +14,7 @@
 
 import argparse
 import contextlib
+import datetime
 import functools
 import math
 import os
@@ -26,7 +27,9 @@ import torch
 import torch.distributed as dist
 from lora import apply_lora
 from model import GPT, Block, GPTConfig
+from torch.distributed.fsdp import FullStateDictConfig
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
+from torch.distributed.fsdp import StateDictType
 from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import Dataset
@@ -35,6 +38,9 @@ from dlrover.trainer.torch.elastic.dataloader import ElasticDataLoader
 from dlrover.trainer.torch.elastic.trainer import ElasticTrainer
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+
+# We should use a shared storage to persist the checkpiont.
+checkpoint_path = "./checkpoint.pt"
 
 local_rank = None
 master_process = False
@@ -302,6 +308,10 @@ def train():
     # to simulate larger batch size and using the GradScaler
     # if data type is float16
 
+    load_checkpoint(
+        model, optimizer, train_loader.sampler, checkpoint_path, use_fsdp
+    )
+
     for epoch in range(args.epochs):
         for X, Y in train_loader:
             with elastic_trainer.step():
@@ -368,6 +378,94 @@ def train():
                     # Termination conditions
                     if iter_num > max_iters:
                         break
+                    if iter_num % args.checkpoint_step == 0:
+                        save_checkpoint(
+                            iter_num,
+                            model,
+                            optimizer,
+                            train_loader,
+                            checkpoint_path,
+                            use_fsdp,
+                        )
+        if args.save_model:
+            rank = int(os.getenv("RANK", "0"))
+            save_model(model, epoch, rank, use_fsdp)
+
+
+def load_checkpoint(model, optimizer, sampler, ckpt_path, use_fsdp=False):
+    if not os.path.exists(ckpt_path):
+        return
+    print("Checkpoint loaded to rank0 CPU.")
+    checkpoint = torch.load(ckpt_path)
+    sampler.load_state_dict(checkpoint.get("sampler", {}))
+    model_state_dict = checkpoint.get("model", {})
+    model.load_state_dict(model_state_dict)
+    optim_state_dict = checkpoint.get("optimizer", {})
+    if use_fsdp:
+        FSDP.set_state_dict_type(
+            model,
+            StateDictType.FULL_STATE_DICT,
+            FullStateDictConfig(rank0_only=True),
+        )
+        # called from all ranks, though only rank0 has
+        # a valid param for full_osd.
+        optim_state_dict = FSDP.optim_state_dict_to_load(
+            optim_state_dict, model, optimizer
+        )
+        optimizer.load_state_dict(optim_state_dict)
+    else:
+        optimizer.load_state_dict(optim_state_dict)
+
+
+def save_checkpoint(
+    step, model, optimizer, data_loader, ckpt_path, use_fsdp=False
+):
+    log_rank0("Save checkpoint.")
+    msd, osd = get_model_optim_state(model, optimizer, use_fsdp)
+    ssd = data_loader.sampler.state_dict(step, data_loader.batch_size)
+    checkpoint = {"model": msd, "optimizer": osd, "sampler": ssd}
+    rank = dist.get_rank()
+    if rank == 0:
+        torch.save(checkpoint, ckpt_path)
+
+
+def get_model_optim_state(model, optimizer, use_fsdp=False):
+    if use_fsdp:
+        FSDP.set_state_dict_type(
+            model,
+            StateDictType.FULL_STATE_DICT,
+            FullStateDictConfig(rank0_only=True),
+        )
+        model_state = model.state_dict()
+        optim_state = FSDP.optim_state_dict(model, optimizer)
+    else:
+        model_state = model.state_dict()
+        optim_state = optimizer.state_dict()
+    return model_state, optim_state
+
+
+def save_model(model, epoch, rank, use_fsdp=False):
+    # save
+    if rank == 0:
+        print("--> entering save model state")
+
+    if use_fsdp:
+        save_policy = FullStateDictConfig(offload_to_cpu=True, rank0_only=True)
+        with FSDP.state_dict_type(
+            model, StateDictType.FULL_STATE_DICT, save_policy
+        ):
+            cpu_state = model.state_dict()
+    else:
+        cpu_state = model.state_dict()
+
+    if rank == 0:
+        print("--> saving model ...")
+        currEpoch = "-" + str(epoch) + ".pt"
+        print(f"--> attempting to save model prefix {currEpoch}")
+        time_of_run = datetime.now().strftime("%Y-%m-%d-%I:%M:%S_%p")
+        save_name = "MNIST-CNN-" + time_of_run + "-" + currEpoch
+        print(f"--> saving as model name {save_name}")
+        torch.save(cpu_state, save_name)
 
 
 # Determine the device type based on the input string.
@@ -467,6 +565,12 @@ def arg_parser():
     parser.add_argument("--compile", type=str, default="False", required=False)
     parser.add_argument(
         "--use_fsdp", type=str, default="False", required=False
+    )
+    parser.add_argument(
+        "--checkpoint_step", type=int, default=100, required=False
+    )
+    parser.add_argument(
+        "--save_model", type=bool, default=True, required=False
     )
 
     args = parser.parse_args()
