@@ -566,10 +566,9 @@ def launch_agent(
         local_addr=config.local_addr,
         **config.rdzv_configs,
     )
-
-    master_addr = os.environ.get(
-        "MY_POD_IP", socket.gethostbyname(_get_fq_hostname())
-    )
+    master_addr = os.getenv("MY_POD_IP", "")
+    if not master_addr:
+        master_addr = socket.gethostbyname(_get_fq_hostname())
 
     rdzv_handler = MasterRendezvousHandler(
         RendezvousName.ELASTIC_TRAINING,
