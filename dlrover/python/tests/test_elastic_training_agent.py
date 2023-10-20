@@ -34,6 +34,7 @@ from dlrover.python.elastic_agent.torch.training import (
     ElasticTrainingAgent,
     MasterRendezvousHandler,
     NetworkCheckElasticAgent,
+    _get_local_ip,
     _set_paral_config,
 )
 from dlrover.python.tests.test_utils import start_local_master
@@ -141,6 +142,13 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         self.assertEqual(worker.local_rank, 1)
         self.assertEqual(worker.global_rank, 9)
         self.assertEqual(worker.world_size, 16)
+
+    def test_get_local_ip(self):
+        local_ip = _get_local_ip()
+        self.assertNotEqual(local_ip, "")
+        os.environ["MY_POD_IP"] = "127.0.0.1"
+        local_ip = _get_local_ip()
+        self.assertEqual(local_ip, "127.0.0.1")
 
 
 class ElasticTrainingAgentRunTest(unittest.TestCase):
