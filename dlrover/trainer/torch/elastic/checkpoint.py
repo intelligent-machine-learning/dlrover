@@ -116,7 +116,8 @@ class CheckpointManger(object):
                 ckpt_path = os.path.join(ckpt_dir, "checkpoint.pt")
                 torch.save(checkpoint, ckpt_path)
         self._keep_topk_checkpoint()
-        dist.barrier()
+        if dist.is_initialized():
+            dist.barrier()
 
     def _keep_topk_checkpoint(self):
         if not self.max_to_keep or not self._is_rank0():
@@ -152,8 +153,7 @@ class CheckpointManger(object):
             return
         if not ckpt_path:
             if is_fsdp_model:
-                rank = dist.get_rank()
-                ckpt_path = os.path.join(latest_ckpt_dir, f"part-{rank}.pt")
+                ckpt_path = os.path.join(latest_ckpt_dir, f"part-{self.rank}.pt")
             else:
                 ckpt_path = os.path.join(latest_ckpt_dir, "checkpoint.pt")
         if not os.path.exists(ckpt_path):
