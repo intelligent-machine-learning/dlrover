@@ -32,6 +32,11 @@ def init_dir(dir):
     os.makedirs(dir)
 
 
+def sync():
+    if dist.is_initialized():
+        dist.barrier()
+
+
 class CheckpointManger(object):
     """CheckpontManager can save and load checkpoint states.
 
@@ -107,6 +112,7 @@ class CheckpointManger(object):
         ckpt_dir = os.path.join(self.directory, f"{CKPT_DIR_PREFIX}{step}")
         if self._is_rank0():
             init_dir(ckpt_dir)
+        sync()
         if is_fsdp_model:
             ckpt_path = os.path.join(ckpt_dir, f"part-{self.rank}.pt")
             torch.save(checkpoint, ckpt_path)
@@ -116,8 +122,7 @@ class CheckpointManger(object):
                 ckpt_path = os.path.join(ckpt_dir, "checkpoint.pt")
                 torch.save(checkpoint, ckpt_path)
         self._keep_topk_checkpoint()
-        if dist.is_initialized():
-            dist.barrier()
+        sync()
 
     def _keep_topk_checkpoint(self):
         if not self.max_to_keep or not self._is_rank0():
