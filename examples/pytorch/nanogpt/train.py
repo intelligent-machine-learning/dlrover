@@ -33,13 +33,15 @@ from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import Dataset
 
+from dlrover.trainer.torch.elastic.checkpoint import CheckpointManger
 from dlrover.trainer.torch.elastic.dataloader import ElasticDataLoader
+from dlrover.trainer.torch.elastic.sampler import ElasticDistributedSampler
 from dlrover.trainer.torch.elastic.trainer import ElasticTrainer
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 
 # We should use a shared storage to persist the checkpiont.
-checkpoint_path = "./checkpoint.pt"
+checkpoint_dir = "/tmp/nanogpt-ckpt/"
 
 local_rank = None
 master_process = False
@@ -71,16 +73,14 @@ def get_data_loaders(
     data_dir,
     batch_size=32,
     block_size=128,
-    device_type="cpu",
-    device="cpu",
-    use_fsdp="True",
 ):
     train_dataset = GPTDataset(os.path.join(data_dir, "train.bin"), block_size)
     val_dataset = GPTDataset(os.path.join(data_dir, "val.bin"), block_size)
     with open(os.path.join(data_dir, "meta.pkl"), "rb") as f:
         meta = pickle.load(f)
+    sampler = ElasticDistributedSampler(dataset=train_dataset)
     train_loader = ElasticDataLoader(
-        train_dataset, batch_size=batch_size, shuffle=True, pin_memory=True
+        train_dataset, batch_size=batch_size, sampler=sampler, pin_memory=True
     )
     val_loader = ElasticDataLoader(
         val_dataset, batch_size=batch_size, shuffle=False, pin_memory=True
@@ -190,6 +190,7 @@ def train():
     global local_rank
     args = arg_parser()
     setup(args)
+    os.makedirs(checkpoint_dir, exist_ok=True)
     world_size = int(os.getenv("WORLD_SIZE", 1))
     gradient_accumulation_steps = args.gradient_accumulation_steps
     batch_size = args.batch_size
@@ -235,9 +236,6 @@ def train():
         data_dir=args.data_dir,
         batch_size=batch_size,
         block_size=block_size,
-        device_type=device_type,
-        device=device,
-        use_fsdp=use_fsdp,
     )
     model = gpt_init(meta_vocab_size, args=args)
     lora_config = create_lora_config(args)
@@ -307,9 +305,10 @@ def train():
     # to simulate larger batch size and using the GradScaler
     # if data type is float16
 
-    load_checkpoint(
-        model, optimizer, train_loader.sampler, checkpoint_path, use_fsdp
+    ckpt_manager = CheckpointManger(
+        model, optimizer, train_loader, checkpoint_dir
     )
+    ckpt_manager.load()
 
     for epoch in range(args.epochs):
         for X, Y in train_loader:
@@ -378,69 +377,10 @@ def train():
                     if iter_num > max_iters:
                         break
                     if iter_num % args.checkpoint_step == 0:
-                        save_checkpoint(
-                            iter_num,
-                            model,
-                            optimizer,
-                            train_loader,
-                            checkpoint_path,
-                            use_fsdp,
-                        )
+                        ckpt_manager.save(iter_num)
         if args.save_model:
             rank = int(os.getenv("RANK", "0"))
             save_model(model, epoch, rank, use_fsdp)
-
-
-def load_checkpoint(model, optimizer, sampler, ckpt_path, use_fsdp=False):
-    if not os.path.exists(ckpt_path):
-        return
-    print("Checkpoint loaded to rank0 CPU.")
-    checkpoint = torch.load(ckpt_path)
-    sampler.load_state_dict(checkpoint.get("sampler", {}))
-    model_state_dict = checkpoint.get("model", {})
-    model.load_state_dict(model_state_dict)
-    optim_state_dict = checkpoint.get("optimizer", {})
-    if use_fsdp:
-        FSDP.set_state_dict_type(
-            model,
-            StateDictType.FULL_STATE_DICT,
-            FullStateDictConfig(rank0_only=True),
-        )
-        # called from all ranks, though only rank0 has
-        # a valid param for full_osd.
-        optim_state_dict = FSDP.optim_state_dict_to_load(
-            optim_state_dict, model, optimizer
-        )
-        optimizer.load_state_dict(optim_state_dict)
-    else:
-        optimizer.load_state_dict(optim_state_dict)
-
-
-def save_checkpoint(
-    step, model, optimizer, data_loader, ckpt_path, use_fsdp=False
-):
-    log_rank0("Save checkpoint.")
-    msd, osd = get_model_optim_state(model, optimizer, use_fsdp)
-    ssd = data_loader.sampler.state_dict(step, data_loader.batch_size)
-    checkpoint = {"model": msd, "optimizer": osd, "sampler": ssd}
-    rank = dist.get_rank()
-    if rank == 0:
-        torch.save(checkpoint, ckpt_path)
-
-
-def get_model_optim_state(model, optimizer, use_fsdp=False):
-    if use_fsdp:
-        FSDP.set_state_dict_type(
-            model,
-            StateDictType.FULL_STATE_DICT,
-            FullStateDictConfig(rank0_only=True),
-        )
-        model_state = model.state_dict()
-        optim_state = FSDP.optim_state_dict(model, optimizer)
-    else:
-        model_state = model.state_dict()
-        optim_state = optimizer.state_dict()
-    return model_state, optim_state
 
 
 def save_model(model, epoch, rank, use_fsdp=False):
@@ -461,8 +401,8 @@ def save_model(model, epoch, rank, use_fsdp=False):
         print("--> saving model ...")
         currEpoch = "-" + str(epoch) + ".pt"
         print(f"--> attempting to save model prefix {currEpoch}")
-        time_of_run = datetime.now().strftime("%Y-%m-%d-%I:%M:%S_%p")
-        save_name = "MNIST-CNN-" + time_of_run + "-" + currEpoch
+        time_of_run = datetime.now().strftime("%Y-%m-%d-%I-%M-%S")
+        save_name = "nanogpt-" + time_of_run + currEpoch
         print(f"--> saving as model name {save_name}")
         torch.save(cpu_state, save_name)
 
