@@ -100,15 +100,17 @@ class CheckpointManger(object):
             )
         checkpoint = {"model": msd, "optimizer": osd, "sampler": ssd}
         ckpt_dir = os.path.join(self.directory, f"{CKPT_DIR_PREFIX}{step}")
-        init_dir(ckpt_dir)
+        if self.rank == 0:
+            init_dir(ckpt_dir)
         if is_fsdp_model:
             ckpt_path = os.path.join(ckpt_dir, f"part-{self.rank}.pt")
             torch.save(checkpoint, ckpt_path)
-            dist.barrier()
-        elif self.rank == 0:
-            ckpt_path = os.path.join(ckpt_dir, "checkpoint.pt")
-            torch.save(checkpoint, ckpt_path)
+        else:
+            if self.rank == 0:
+                ckpt_path = os.path.join(ckpt_dir, "checkpoint.pt")
+                torch.save(checkpoint, ckpt_path)
         self._keep_topk_checkpoint()
+        dist.barrier()
 
     def _keep_topk_checkpoint(self):
         if not self.max_to_keep:

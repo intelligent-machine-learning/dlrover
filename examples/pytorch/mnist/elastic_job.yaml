@@ -14,7 +14,7 @@ spec:
           containers:
             - name: main
               # yamllint disable-line rule:line-length
-              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:torch201-mnist
+              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:torch201-mnist-test
               imagePullPolicy: Always
               command:
                 - /bin/bash
@@ -34,3 +34,17 @@ spec:
                   cpu: "2"  # turn up when using GPU
                   memory: 3Gi  # turn up when using GPU
                   # nvidia.com/gpu: 1 # optional
+          #     volumeMounts:
+          #       - name: pvc-nas
+          #         mountPath: /nas
+          # volumes:
+          #   - name: pvc-nas
+          #     persistentVolumeClaim:
+          #       claimName: pvc-nas
+    dlrover-master:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: main
+              imagePullPolicy: Always

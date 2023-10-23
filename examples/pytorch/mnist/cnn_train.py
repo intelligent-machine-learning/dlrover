@@ -37,7 +37,7 @@ from dlrover.trainer.torch.elastic.trainer import ElasticTrainer
 
 # Note, we need to set the path of a shared file
 # system like nas, cpfs or hdfs.
-CHEKPOINT_DIR = "/tmp/mnist-ckpt/"
+CHEKPOINT_DIR = "/nas/mnist-ckpt/"
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 
 
@@ -149,6 +149,7 @@ def train(args):
         train_loader,
         CHEKPOINT_DIR,
         rank=rank,
+        max_to_keep=3,
     )
     ckpt_manager.load()
 
@@ -159,6 +160,8 @@ def train(args):
 
     start_epoch = train_loader.sampler.epoch
     for epoch in range(start_epoch, args.num_epochs):
+        # Note: Set epoch into the sampler.
+        train_loader.sampler.set_epoch(epoch)
         elastic_trainer.reset()
         scheduler.step()
         model.train()
@@ -173,9 +176,9 @@ def train(args):
         )
         log_rank0("Test model after epoch {}".format(epoch))
         test(model, device, test_loader)
-        if args.save_model:
-            rank = int(os.environ.get("RANK", "0"))
-            save_model(model, epoch, rank, args.use_fsdp)
+    if args.save_model:
+        rank = int(os.environ.get("RANK", "0"))
+        save_model(model, args.num_epochs, rank, args.use_fsdp)
     dist.barrier()
 
 
