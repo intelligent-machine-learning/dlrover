@@ -83,11 +83,12 @@ DeepSpeed-AutoTuning的特性对比。
 | 配置文件     | 自动生成/手动调整          | 手动配置             |
 | 调整模式     | 单次快速调整/实时微调      | 搜索调整             |
 | 训练精度     | mbs-lr联合调整             | mbs调整              |
+| 调整过程     | 无需重启训练进程           | 需重启训练进程       |
 
 ## 目标
 
 我们的目标是缓解上述痛点，通过自动化发现最佳超参数配置来实现高效的训练速度。我
-们开发了一个性能监控和优化模块，用于分布式深度学习训练，以提高效率和效果。该模
+们开发了深度学习训练的性能监控和动态优化模块来提升训练效率。该模
 块的主要功能包括：
 
 **收集运行时指标**: 在训练期间监控和记录各种性能指标，例如GPU内存使用情况、利用
@@ -209,11 +210,13 @@ except ZeroDivisionError:
 #### 学习率调整
 
 根据`(OSDI 2021) Pollux: Co-adaptive Cluster Scheduling for Goodput-Optimized
-Deep Learning`的研究结果，我们需要在调整batch size的同时保证training efficiency
+Deep Learning`[1]的研究结果，我们需要在调整batch size的同时保证training efficiency
 也就是模型训练精度的效果。
 
 因此，同时我们需要对学习率调整进行协同设计，对于transformer结构模型，通常使用
 AdamW优化器，并使用Square-Root Scaler。
+
+[1] Qiao A, Choe S K, Subramanya S J, et al. Pollux: Co-adaptive cluster scheduling for goodput-optimized deep learning[C]//15th {USENIX} Symposium on Operating Systems Design and Implementation ({OSDI} 21). 2021.
 
 ###### 策略生成
 
@@ -603,19 +606,45 @@ DLRover v2.0
 
 Torch v2.0.1
 
-### nanogpt模型
+Model Link: <https://github.com/intelligent-machine-learning/dlrover/tree/master/examples/pytorch/nanogpt>
+
+## 代码用例
+
+使用DLRover的Elastic组件来包装原有torch的dataloader等组件以启用运行时动态调优。
+
+```python
+    dataloader = ElasticDataLoader(
+        dataset, batch_size=batch_size, shuffle=True, pin_memory=True
+    )
+
+    elastic_trainer = ElasticTrainer(
+        model=model,
+        dataloader=dataloader,
+    )
+    optimizer = elastic_trainer.prepare(optimizer)
+
+    for X, Y in dataloader:
+        with elastic_trainer.step():
+            # Determine and set the learning rate for this iteration
+            lr = get_lr(iter_num, args) if decay_lr else learning_rate
+            for param_group in optimizer.param_groups:
+                param_group["lr"] = lr
+            for micro_step in range(gradient_accumulation_steps):
+```
+
+## nanogpt模型
 
 - **模型参数：** 10.45M
 - **初始批量大小：** 32
 
-#### 调整前
+### 调整前
 
 - **显存：** 2.211Gi (8%)
 - **吞吐量：** 416 samples/s
 
 ![nanogpt_before_adjustment1](https://cdn.nlark.com/yuque/0/2023/png/29623079/1694598008645-5fc5879b-1dd1-4c96-8257-b78113239ff3.png#averageHue=%232a2f37&from=url&id=DUtqo&originHeight=1019&originWidth=2799&originalType=binary&ratio=1.5&rotation=0&showTitle=false&status=done&style=none&title=)
 
-#### 调整后
+### 调整后
 
 - **显存：** 22.336Gi (93%)
 - **吞吐量：** 3372.72 samples/s
@@ -626,19 +655,19 @@ Torch v2.0.1
 
 ![nanogpt_after_adjustment2](https://cdn.nlark.com/yuque/0/2023/png/29623079/1694598071559-18ccdbbb-12ae-46f5-b5d0-f18a1568ad72.png#averageHue=%232b2f37&from=url&id=Izm0p&originHeight=1021&originWidth=2799&originalType=binary&ratio=1.5&rotation=0&showTitle=false&status=done&style=none&title=)
 
-### gpt2-medium模型
+## gpt2-medium模型
 
 - **模型参数：** 393.35M
 - **初始批量大小：** 32
 
-#### 调整前
+### 调整前
 
 - **显存：** 13.284Gi (55%)
 - **吞吐量：** 119.36 samples/s
 
 ![gpt2_before_adjustment](https://cdn.nlark.com/yuque/0/2023/png/29623079/1694596789353-0e3c5f76-9b54-42bc-824a-03898136b715.png#averageHue=%232a2f37&from=url&id=BBl19&originHeight=1014&originWidth=2827&originalType=binary&ratio=1.5&rotation=0&showTitle=false&status=done&style=none&title=)
 
-#### 调整后
+### 调整后
 
 - **显存：** 23.828Gi (99%)
 - **吞吐量：** 238.65 samples/s
@@ -647,14 +676,14 @@ Torch v2.0.1
 
 ![gpt2_after_adjustment](https://cdn.nlark.com/yuque/0/2023/png/29623079/1694597477698-76294d36-b087-4376-9541-c12a1baaa45d.png#averageHue=%232a2f37&from=url&id=Fi6ef&originHeight=1012&originWidth=2814&originalType=binary&ratio=1.5&rotation=0&showTitle=false&status=done&style=none&title=)
 
-### 总结
+## 总结
 
 | 模型        | 参数量  | 初始批量大小 | 调整前显存    | 调整前吞吐量     | 调整后批量大小 | 调整后显存    | 调整后吞吐量      | 吞吐量提升 | 显存使用率提升 |
 | ----------- | ------- | ------------ | ------------- | ---------------- | -------------- | ------------- | ----------------- | ---------- | -------------- |
 | nanogpt     | 10.45M  | 32           | 2.211Gi(8%)   | 416 samples/s    | 1833           | 22.336Gi(93%) | 3372.72 samples/s | 710%       | 85%            |
 | gpt2-medium | 393.35M | 32           | 13.284Gi(55%) | 119.36 samples/s | 111            | 23.828Gi(99%) | 238.65 samples/s  | 50%        | 44%            |
 
-### 分析
+## 分析
 
 **显存使用率与吞吐量：** 在两个模型中，通过`DLRover-autotuing`提高显存使用率，
 都显著地提高了模型的吞吐量。特别是在小型的nanogpt模型中，吞吐量提升显著，达到了
