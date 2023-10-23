@@ -104,6 +104,11 @@ class ElasticLaunchConfig(LaunchConfig):
     auto_tunning: bool = False
     exclude_straggler: bool = False
 
+    def set_node_unit(self, node_unit):
+        """Set the number unint of ndoes."""
+        self.node_unit = node_unit
+        self.rdzv_configs["node_unit"] = node_unit
+
 
 @dataclass
 class ProcessError:
