@@ -153,7 +153,9 @@ class CheckpointManger(object):
             return
         if not ckpt_path:
             if is_fsdp_model:
-                ckpt_path = os.path.join(latest_ckpt_dir, f"part-{self.rank}.pt")
+                ckpt_path = os.path.join(
+                    latest_ckpt_dir, f"part-{self.rank}.pt"
+                )
             else:
                 ckpt_path = os.path.join(latest_ckpt_dir, "checkpoint.pt")
         if not os.path.exists(ckpt_path):
