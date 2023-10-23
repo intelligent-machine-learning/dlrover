@@ -52,6 +52,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
             run_id="test",
         )
         self.config = ElasticLaunchConfig(**launch_config.__dict__)
+        self.config.set_node_unit(2)
         rdzv_parameters = RendezvousParameters(
             backend=self.config.rdzv_backend,
             endpoint=self.config.rdzv_endpoint,
@@ -89,6 +90,10 @@ class ElasticTrainingAgentTest(unittest.TestCase):
 
     def addCleanup(self):
         self._master.stop()
+
+    def test_node_unit(self):
+        node_unit = int(self.rdzv_handler._rdzv_params.get("node_unit", "1"))
+        self.assertEqual(node_unit, 2)
 
     def test_rank0_rendzevous(self):
         node_id = 0
