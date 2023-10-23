@@ -51,7 +51,7 @@ class CheckpointManger(object):
         >>> ckpt_manager = CheckpointManager(
         >>>    model, optimizer, train_dataloader, "/tmp/checkpoint/"
         >>> )
-        >>> ckpt_manager.save(10)
+        >>> ckpt_manager.save(0, 10)
         >>> ckpt_manger.load()
 
     """
@@ -76,7 +76,10 @@ class CheckpointManger(object):
         if self.rank == 0:
             logger.info(log)
 
-    def save(self, step):
+    def _is_rank0(self):
+        return self.rank == 0
+
+    def save(self, epoch, step):
         """
         Save the checkpoint of model, optimizer, dataloader into the directory
         `{self.directory}/checkpoint-{step}/`. If use_fdsp, all ranks will save
@@ -86,9 +89,11 @@ class CheckpointManger(object):
         `checkpoint-{step}/checkpoint.pt`.
 
         Args:
-            step (int): the iteration step.
+            epoch (int): the epoch index.
+            step (int): the iteration step in the epoch.
         """
-        self.log_rank0(f"Save checkpoint of step={step}.")
+        self.log_rank0(f"Save checkpoint of step={step} of epoch={epoch}.")
+        step = step + epoch * len(self.dataloader)
         is_fsdp_model = isinstance(self.model, FSDP)
         msd, osd = get_model_optim_state(
             self.model, self.optimizer, is_fsdp_model
@@ -100,20 +105,21 @@ class CheckpointManger(object):
             )
         checkpoint = {"model": msd, "optimizer": osd, "sampler": ssd}
         ckpt_dir = os.path.join(self.directory, f"{CKPT_DIR_PREFIX}{step}")
-        if self.rank == 0:
+        if self._is_rank0():
             init_dir(ckpt_dir)
         if is_fsdp_model:
             ckpt_path = os.path.join(ckpt_dir, f"part-{self.rank}.pt")
             torch.save(checkpoint, ckpt_path)
         else:
-            if self.rank == 0:
+            # Only rank0 saves the checkpoint for DDP model.
+            if self._is_rank0():
                 ckpt_path = os.path.join(ckpt_dir, "checkpoint.pt")
                 torch.save(checkpoint, ckpt_path)
         self._keep_topk_checkpoint()
         dist.barrier()
 
     def _keep_topk_checkpoint(self):
-        if not self.max_to_keep:
+        if not self.max_to_keep or not self._is_rank0():
             return
         steps = []
         for dir_name in os.listdir(self.directory):

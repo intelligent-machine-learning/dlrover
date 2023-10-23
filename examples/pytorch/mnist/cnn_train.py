@@ -160,12 +160,11 @@ def train(args):
 
     start_epoch = train_loader.sampler.epoch
     for epoch in range(start_epoch, args.num_epochs):
-        # Note: Set epoch into the sampler.
-        train_loader.sampler.set_epoch(epoch)
         elastic_trainer.reset()
         scheduler.step()
         model.train()
         train_epoch(
+            epoch,
             elastic_trainer,
             model,
             optimizer,
@@ -183,6 +182,7 @@ def train(args):
 
 
 def train_epoch(
+    epoch,
     elastic_trainer,
     model,
     optimizer,
@@ -194,7 +194,8 @@ def train_epoch(
     """
     The global batch size will not change if the number of workers changes.
     """
-
+    # Note: Set epoch into the sampler.
+    train_loader.sampler.set_epoch(epoch)
     for _, (data, target) in enumerate(train_loader):
         with elastic_trainer.step(fixed_batch_size):
             optimizer.zero_grad()
@@ -209,7 +210,8 @@ def train_epoch(
                 log_rank0("loss = {}, step = {}".format(loss, train_step))
 
             if train_step > 0 and train_step % 200 == 0:
-                ckpt_manager.save(train_step)
+                ckpt_manager.save(epoch, train_step)
+                print("Finish save checkpoint.")
 
 
 def save_model(model, epoch, rank, use_fsdp=False):

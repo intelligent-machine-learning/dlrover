@@ -380,7 +380,7 @@ def train():
                     if iter_num > max_iters:
                         break
                     if iter_num % args.checkpoint_step == 0:
-                        ckpt_manager.save(iter_num)
+                        ckpt_manager.save(epoch, iter_num)
         if args.save_model:
             rank = int(os.getenv("RANK", "0"))
             save_model(model, epoch, rank, use_fsdp)

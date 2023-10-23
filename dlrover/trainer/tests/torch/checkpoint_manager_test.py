@@ -84,9 +84,9 @@ class CheckpointManagerTest(unittest.TestCase):
                 tmpdirname,
                 max_to_keep=2,
             )
-            ckpt_manager.save(step=10)
-            ckpt_manager.save(step=20)
-            ckpt_manager.save(step=30)
+            ckpt_manager.save(epoch=0, step=10)
+            ckpt_manager.save(epoch=0, step=20)
+            ckpt_manager.save(epoch=0, step=30)
             ckpt_dirs = os.listdir(tmpdirname)
             self.assertEqual(len(ckpt_dirs), 2)
 
