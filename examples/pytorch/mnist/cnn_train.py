@@ -292,12 +292,7 @@ def arg_parser():
     parser.add_argument(
         "--validation_data", type=str, default="", required=True
     )
-    parser.add_argument(
-        "--save_model",
-        type=bool,
-        default=True,
-        required=False,
-    )
+    parser.add_argument("--save_model", action="store_true", required=False)
     return parser
 
 

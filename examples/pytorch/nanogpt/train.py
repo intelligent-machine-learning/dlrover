@@ -213,8 +213,6 @@ def train():
     )  # For later use in torch.autocast
     if device_type == "cuda":
         torch.cuda.set_device(device)
-    # choose ddp or fdsp
-    use_fsdp = args.use_fsdp == "True"
     # Note: float16 data type will automatically use a GradScaler
     dtype = (
         "bfloat16"
@@ -248,7 +246,7 @@ def train():
     if torch.cuda.is_available() and device_type == "cuda":
         # Create model and move it to GPU with id rank
         model = model.to(local_rank)
-        if use_fsdp:
+        if args.use_fsdp:
             print(f"Running basic FSDP example on local rank {local_rank}.")
 
             my_auto_wrap_policy = functools.partial(
@@ -383,7 +381,7 @@ def train():
                         ckpt_manager.save(epoch, iter_num)
         if args.save_model:
             rank = int(os.getenv("RANK", "0"))
-            save_model(model, epoch, rank, use_fsdp)
+            save_model(model, epoch, rank, args.use_fsdp)
 
 
 def save_model(model, epoch, rank, use_fsdp=False):
@@ -505,16 +503,11 @@ def arg_parser():
         Defaults to 'cpu' if not specified.""",
     )
     parser.add_argument("--compile", type=str, default="False", required=False)
-    parser.add_argument(
-        "--use_fsdp", type=str, default="False", required=False
-    )
+    parser.add_argument("--use_fsdp", action="store_true", required=False)
     parser.add_argument(
         "--checkpoint_step", type=int, default=100, required=False
     )
-    parser.add_argument(
-        "--save_model", type=bool, default=True, required=False
-    )
-
+    parser.add_argument("--save_model", action="store_true", required=False)
     args = parser.parse_args()
 
     return args
