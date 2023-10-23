@@ -88,6 +88,7 @@ class PodScaler(Scaler):
         self._pod_stats: Dict[str, int] = {}
         self._init_pod_config_by_job()
         self._job_uid = ""
+        self._master_pod = self._retry_to_get_master_pod()
         threading.Thread(
             target=self._periodic_create_pod, name="pod-creater", daemon=True
         ).start()
@@ -126,6 +127,16 @@ class PodScaler(Scaler):
             else:
                 time.sleep(5)
         raise ValueError("Cannot get the training job %s", self._job_name)
+
+    def _retry_to_get_master_pod(self):
+        master_name = f"elasticjob-{self._job_name}-dlrover-master"
+        for _ in range(3):
+            pod = self._k8s_client.get_pod(master_name)
+            if pod:
+                return pod
+            else:
+                time.sleep(5)
+        raise ValueError(f"{master_name} is not Found!")
 
     def scale(self, plan: ScalePlan):
         """Scale in/out Pods by a ScalePlan."""
@@ -621,10 +632,10 @@ class PodScaler(Scaler):
 
     def _create_job_owner_reference(self):
         owner_ref = k8sClient.create_owner_reference(
-            api_version="elastic.iml.github.io/v1alpha1",
-            kind="ElasticJob",
-            name=self._job["metadata"]["name"],
-            uid=self._job["metadata"]["uid"],
+            api_version="v1",
+            kind="Pod",
+            name=self._master_pod.metadata.name,
+            uid=self._master_pod.metadata.uid,
         )
         return owner_ref
 
