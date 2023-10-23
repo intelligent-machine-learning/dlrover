@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 import torch
 from fairscale.nn.data_parallel import ShardedDataParallel as ShardedDDP
+from fairscale.nn.misc import ParamBucket
 from fairscale.optim.oss import OSS
 from torch import nn
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
@@ -13,6 +14,7 @@ from atorch.auto import auto_accelerate
 from atorch.auto.opt_lib.utils import to_module_class_by_name
 from atorch.auto.opt_lib.zero_optimization import FSDPOptimization, Zero1Optimization, Zero2Optimization
 from atorch.tests.toy_module import ToyCustomModule, create_model_context
+from atorch.utils.patch_fairscale import patch_add_param_as_view, patch_setup_flat_buffers
 from atorch.utils.version import torch_version
 
 
@@ -188,6 +190,10 @@ class ZeroOptimizationTest(unittest.TestCase):
         for param in model_context.model.parameters():
             self.assertEqual(param.device.type, "cpu")
         atorch.reset_distributed()
+
+    def test_fairscale_patch(self):
+        self.assertEqual(OSS._setup_flat_buffers, patch_setup_flat_buffers)
+        self.assertEqual(ParamBucket._add_param_as_view, patch_add_param_as_view)
 
 
 if __name__ == "__main__":

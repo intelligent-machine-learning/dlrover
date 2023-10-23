@@ -1,54 +1,31 @@
-package(
-    default_visibility = ["//visibility:public"],
-)
-
 licenses(["notice"])  # Apache 2.0
-# https://docs.bazel.build/versions/master/be/c-cpp.html#cc_library
-cc_library(
-    name = "demo_lib",
-    hdrs = [
-        "cc/demo.h",
-    ],
-    srcs = [
-        "cc/demo.cc",
-    ],
+
+package(default_visibility = ["//visibility:public"])
+
+
+cc_binary(
+    name = "libtfplus.so",
     copts = [
-        "-std=c++11",
+        "-std=c++17",
         "-DNDEBUG",
     ],
+    linkopts = [
+      '-static-libstdc++',
+    ],
+    linkshared = 1,
     deps = [
-        # ":demo",
+        "//tfplus/kv_variable:python/ops/_kv_variable_ops.so",
     ],
 )
 
 cc_binary(
-    name = "python/_demo.so",
+    name = "libtfplus_opdef.so",
     copts = [
-        "-std=c++11",
+        "-std=c++17",
         "-DNDEBUG",
     ],
-    srcs = [
-        "cc/demo.h",
-        "cc/demo.cc",
-    ],
-    linkshared = True,
+    linkshared = 1,
     deps = [
-        # ":demo_lib",
-    ],
-)
-
-cc_test(
-    name = "cc/demo_test",
-    size = "small",
-    srcs = [
-        "cc/demo_test.cc"
-    ],
-    copts = [
-        "-std=c++11",
-        "-DNDEBUG",
-    ],
-    deps = [
-        ":demo_lib",
-        "@com_google_googletest//:gtest_main",
+        "//tfplus/kv_variable:kv_variable_opdef",
     ],
 )

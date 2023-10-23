@@ -78,6 +78,13 @@ def _set_paral_config():
     os.environ[ConfigPath.ENV_RUNTIME_METRICS] = ConfigPath.RUNTIME_METRICS
 
 
+def _get_local_ip():
+    local_ip = os.getenv("MY_POD_IP", "")
+    if not local_ip:
+        local_ip = socket.gethostbyname(_get_fq_hostname())
+    return local_ip
+
+
 @dataclass
 class ElasticLaunchConfig(LaunchConfig):
     """
@@ -96,6 +103,11 @@ class ElasticLaunchConfig(LaunchConfig):
     node_unit: int = 1
     auto_tunning: bool = False
     exclude_straggler: bool = False
+
+    def set_node_unit(self, node_unit):
+        """Set the number unint of ndoes."""
+        self.node_unit = node_unit
+        self.rdzv_configs["node_unit"] = node_unit
 
 
 @dataclass
@@ -566,11 +578,7 @@ def launch_agent(
         local_addr=config.local_addr,
         **config.rdzv_configs,
     )
-
-    master_addr = os.environ.get(
-        "MY_POD_IP", socket.gethostbyname(_get_fq_hostname())
-    )
-
+    master_addr = _get_local_ip()
     rdzv_handler = MasterRendezvousHandler(
         RendezvousName.ELASTIC_TRAINING,
         rank_id,
@@ -820,9 +828,7 @@ def network_check(
         **config.rdzv_configs,
     )
 
-    master_addr = os.environ.get(
-        "MY_POD_IP", socket.gethostbyname(_get_fq_hostname())
-    )
+    master_addr = _get_local_ip()
     rdzv_handler = MasterRendezvousHandler(
         RendezvousName.NETWORK_CHECK,
         rank_id,
