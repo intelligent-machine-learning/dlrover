@@ -216,9 +216,11 @@ Deep Learning`[1]的研究结果，我们需要在调整batch size的同时保�
 因此，同时我们需要对学习率调整进行协同设计，对于transformer结构模型，通常使用
 AdamW优化器，并使用Square-Root Scaler。
 
-[1] Qiao A, Choe S K, Subramanya S J, et al. Pollux: Co-adaptive cluster scheduling for goodput-optimized deep learning[C]//15th {USENIX} Symposium on Operating Systems Design and Implementation ({OSDI} 21). 2021.
+[1] Qiao A, Choe S K, Subramanya S J, et al. Pollux: Co-adaptive cluster
+scheduling for goodput-optimized deep learning[C]//15th {USENIX} Symposium on
+Operating Systems Design and Implementation ({OSDI} 21). 2021.
 
-###### 策略生成
+##### 策略生成
 
 因此，对于`transformer`结构的模型的基础学习率策略生成如下。
 
