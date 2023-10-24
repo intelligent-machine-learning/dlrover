@@ -234,6 +234,18 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             monitor.report_resource_with_step()
             self.assertEqual(self._master.speed_monitor._global_step, 100)
 
+    def test_pause_to_reset_hardware(self):
+        self.config.reset_hardware = True
+        agent = ElasticTrainingAgent(
+            rank_id=0,
+            config=self.config,
+            entrypoint="echo",
+            spec=self.spec,
+            start_method=self.config.start_method,
+            log_dir=self.config.log_dir,
+        )
+        agent._pause_to_reset_hardware()
+
 
 class NetworkCheckElasticAgentTest(unittest.TestCase):
     def setUp(self) -> None:
