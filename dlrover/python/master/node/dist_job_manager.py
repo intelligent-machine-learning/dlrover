@@ -411,7 +411,7 @@ class DistributedJobManager(JobManager):
                 create_time=event.node.create_time,
                 host_name=event.node.host_name,
                 host_ip=event.node.host_ip,
-                pause_training=event.node.reset_hardware,
+                reset_hardware=event.node.reset_hardware,
             )
 
         # For the given node id, check whether it meets

@@ -511,7 +511,10 @@ class ElasticTrainingAgent(LocalElasticAgent):
         while True:
             paused = self._client.check_hardware_reset()
             if paused:
+                logger.info("Wait for the worker to reset hardware.")
                 time.sleep(15)
+            else:
+                break
 
     def _report_failure_to_master(self, failures: Dict[int, ProcessFailure]):
         errors = {}

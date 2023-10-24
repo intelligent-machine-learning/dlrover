@@ -223,7 +223,7 @@ class Node(object):
         create_time=None,
         host_name=None,
         host_ip=None,
-        pause_training=False,
+        reset_hardware=False,
     ):
         if name is not None:
             self.name = name
@@ -235,7 +235,7 @@ class Node(object):
             self.host_name = host_name
         if host_ip:
             self.host_ip = host_ip
-        self.reset_hardware = pause_training
+        self.reset_hardware = reset_hardware
 
     def update_status(self, status=None):
         if status is not None:

@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import datetime
+import json
 import unittest
 from typing import List
 
@@ -113,13 +114,16 @@ class PodWatcherTest(unittest.TestCase):
         pod = create_pod(labels)
         reset = _need_to_reset_hardware(pod)
         self.assertFalse(reset)
-        pod.metadata.annotations["pod.sigma.ali/scheduled-action"] = {
+        action = {
             "observedTime": "2020-04-30 00:00:00",
             "scheduledExecutionTime": "2020-04-30 00:10:00",
             "scheduledAction": "NPU_RESET",
             "device_ids": ["npu_id_1", "npu_id_2"],
             "eventType": "NPU_reset",
         }
+        pod.metadata.annotations[
+            "pod.sigma.ali/scheduled-action"
+        ] = json.dumps(action)
         reset = _need_to_reset_hardware(pod)
         self.assertTrue(reset)
 
