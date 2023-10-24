@@ -19,22 +19,29 @@ import math
 import os
 import pickle
 import time
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import numpy as np
 import torch
 import torch.distributed as dist
 from lora import apply_lora
 from model import GPT, Block, GPTConfig
+from torch.distributed.fsdp import FullStateDictConfig
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
+from torch.distributed.fsdp import StateDictType
 from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import Dataset
 
+from dlrover.trainer.torch.elastic.checkpoint import CheckpointManger
 from dlrover.trainer.torch.elastic.dataloader import ElasticDataLoader
+from dlrover.trainer.torch.elastic.sampler import ElasticDistributedSampler
 from dlrover.trainer.torch.elastic.trainer import ElasticTrainer
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+
+# We should use a shared storage to persist the checkpiont.
+checkpoint_dir = "/nas/nanogpt-ckpt/"
 
 local_rank = None
 master_process = False
@@ -66,16 +73,14 @@ def get_data_loaders(
     data_dir,
     batch_size=32,
     block_size=128,
-    device_type="cpu",
-    device="cpu",
-    use_fsdp="True",
 ):
     train_dataset = GPTDataset(os.path.join(data_dir, "train.bin"), block_size)
     val_dataset = GPTDataset(os.path.join(data_dir, "val.bin"), block_size)
     with open(os.path.join(data_dir, "meta.pkl"), "rb") as f:
         meta = pickle.load(f)
+    sampler = ElasticDistributedSampler(dataset=train_dataset)
     train_loader = ElasticDataLoader(
-        train_dataset, batch_size=batch_size, shuffle=True, pin_memory=True
+        train_dataset, batch_size=batch_size, sampler=sampler, pin_memory=True
     )
     val_loader = ElasticDataLoader(
         val_dataset, batch_size=batch_size, shuffle=False, pin_memory=True
@@ -185,6 +190,7 @@ def train():
     global local_rank
     args = arg_parser()
     setup(args)
+    os.makedirs(checkpoint_dir, exist_ok=True)
     world_size = int(os.getenv("WORLD_SIZE", 1))
     gradient_accumulation_steps = args.gradient_accumulation_steps
     batch_size = args.batch_size
@@ -207,8 +213,6 @@ def train():
     )  # For later use in torch.autocast
     if device_type == "cuda":
         torch.cuda.set_device(device)
-    # choose ddp or fdsp
-    use_fsdp = args.use_fsdp == "True"
     # Note: float16 data type will automatically use a GradScaler
     dtype = (
         "bfloat16"
@@ -230,9 +234,6 @@ def train():
         data_dir=args.data_dir,
         batch_size=batch_size,
         block_size=block_size,
-        device_type=device_type,
-        device=device,
-        use_fsdp=use_fsdp,
     )
     model = gpt_init(meta_vocab_size, args=args)
     lora_config = create_lora_config(args)
@@ -245,7 +246,7 @@ def train():
     if torch.cuda.is_available() and device_type == "cuda":
         # Create model and move it to GPU with id rank
         model = model.to(local_rank)
-        if use_fsdp:
+        if args.use_fsdp:
             print(f"Running basic FSDP example on local rank {local_rank}.")
 
             my_auto_wrap_policy = functools.partial(
@@ -302,7 +303,15 @@ def train():
     # to simulate larger batch size and using the GradScaler
     # if data type is float16
 
+    rank = dist.get_rank()
+    ckpt_manager = CheckpointManger.init_checkpoint_manager(
+        model, optimizer, train_loader, checkpoint_dir, rank, 3
+    )
+    ckpt_manager.load()
+
     for epoch in range(args.epochs):
+        # Note: set the epoch into the sampler.
+        train_loader.sampler.set_epoch(epoch)
         for X, Y in train_loader:
             with elastic_trainer.step():
                 # Determine and set the learning rate for this iteration
@@ -368,6 +377,35 @@ def train():
                     # Termination conditions
                     if iter_num > max_iters:
                         break
+                    if iter_num % args.checkpoint_step == 0:
+                        ckpt_manager.save(epoch, iter_num)
+        if args.save_model:
+            rank = int(os.getenv("RANK", "0"))
+            save_model(model, epoch, rank, args.use_fsdp)
+
+
+def save_model(model, epoch, rank, use_fsdp=False):
+    # save
+    if rank == 0:
+        print("--> entering save model state")
+
+    if use_fsdp:
+        save_policy = FullStateDictConfig(offload_to_cpu=True, rank0_only=True)
+        with FSDP.state_dict_type(
+            model, StateDictType.FULL_STATE_DICT, save_policy
+        ):
+            cpu_state = model.state_dict()
+    else:
+        cpu_state = model.state_dict()
+
+    if rank == 0:
+        print("--> saving model ...")
+        currEpoch = "-" + str(epoch) + ".pt"
+        print(f"--> attempting to save model prefix {currEpoch}")
+        time_of_run = datetime.now().strftime("%Y-%m-%d-%I-%M-%S")
+        save_name = "nanogpt-" + time_of_run + currEpoch
+        print(f"--> saving as model name {save_name}")
+        torch.save(cpu_state, save_name)
 
 
 # Determine the device type based on the input string.
@@ -465,10 +503,11 @@ def arg_parser():
         Defaults to 'cpu' if not specified.""",
     )
     parser.add_argument("--compile", type=str, default="False", required=False)
+    parser.add_argument("--use_fsdp", action="store_true", required=False)
     parser.add_argument(
-        "--use_fsdp", type=str, default="False", required=False
+        "--checkpoint_step", type=int, default=100, required=False
     )
-
+    parser.add_argument("--save_model", action="store_true", required=False)
     args = parser.parse_args()
 
     return args
