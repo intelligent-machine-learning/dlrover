@@ -31,6 +31,7 @@ from dlrover.python.master.watcher.k8s_watcher import (
     PodWatcher,
     _convert_pod_event_to_node_event,
     _get_pod_exit_reason,
+    _need_to_reset_hardware,
 )
 from dlrover.python.tests.test_utils import (
     create_pod,
@@ -101,6 +102,26 @@ class PodWatcherTest(unittest.TestCase):
         state.terminated = client.V1ContainerStateTerminated(exit_code=1)
         exit_reason = _get_pod_exit_reason(pod)
         self.assertEqual(exit_reason, NodeExitReason.FATAL_ERROR)
+
+    def test_need_to_reset_hardware(self):
+        labels = {
+            ElasticJobLabel.APP_NAME: "test",
+            ElasticJobLabel.REPLICA_TYPE_KEY: NodeType.WORKER,
+            ElasticJobLabel.REPLICA_INDEX_KEY: "0",
+            ElasticJobLabel.RANK_INDEX_KEY: "0",
+        }
+        pod = create_pod(labels)
+        reset = _need_to_reset_hardware(pod)
+        self.assertFalse(reset)
+        pod.metadata.annotations["pod.sigma.ali/scheduled-action"] = {
+            "observedTime": "2020-04-30 00:00:00",
+            "scheduledExecutionTime": "2020-04-30 00:10:00",
+            "scheduledAction": "NPU_RESET",
+            "device_ids": ["npu_id_1", "npu_id_2"],
+            "eventType": "NPU_reset",
+        }
+        reset = _need_to_reset_hardware(pod)
+        self.assertTrue(reset)
 
 
 class ScalePlanWatcherTest(unittest.TestCase):

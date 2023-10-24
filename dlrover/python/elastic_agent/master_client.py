@@ -368,6 +368,11 @@ class MasterClient(object):
         result = self._get(request)
         return result
 
+    def check_hardware_reset(self):
+        request = grpc.CheckHardwareResetRequest()
+        result: grpc.ParallelConfig = self._get(request)
+        return result.paused
+
 
 class LocalDataset(object):
     def __init__(

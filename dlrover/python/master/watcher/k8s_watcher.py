@@ -98,6 +98,7 @@ def _convert_pod_event_to_node_event(event):
     pod_name = evt_obj.metadata.name
     host_name = evt_obj.spec.node_name
     host_ip = evt_obj.status.host_ip
+    reset_hardware = _need_to_reset_hardware(evt_obj)
 
     resource = _parse_container_resource(evt_obj.spec.containers[0])
     status = evt_obj.status.phase
@@ -114,6 +115,7 @@ def _convert_pod_event_to_node_event(event):
         config_resource=resource,
         host_name=host_name,
         host_ip=host_ip,
+        reset_hardware=reset_hardware,
     )
     node.create_time = evt_obj.metadata.creation_timestamp
     node.set_exit_reason(_get_pod_exit_reason(evt_obj))
@@ -125,6 +127,18 @@ def _parse_container_resource(container):
     cpu = convert_cpu_to_decimal(container.resources.requests["cpu"])
     memory = convert_memory_to_mb(container.resources.requests["memory"])
     return NodeResource(cpu, memory)
+
+
+def _need_to_reset_hardware(pod):
+    if not pod.metadata.annotations:
+        return False
+    action_config = pod.metadata.annotations.get(
+        "pod.sigma.ali/scheduled-action", {}
+    )
+    action = action_config.get("scheduledAction", "")
+    if action == "NPU_RESET":
+        return True
+    return False
 
 
 class PodWatcher(NodeWatcher):

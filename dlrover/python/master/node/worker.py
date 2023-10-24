@@ -275,3 +275,14 @@ class WorkerManager(TrainingNodeManager):
             ):
                 return True
         return False
+
+    def check_worker_hardware_reset(self):
+        """Check whether the worker need to reset hardware like NPU.
+
+        Return:
+            bool
+        """
+        for worker in self._nodes.values():
+            if not worker.is_released and worker.reset_hardware:
+                return True
+        return False

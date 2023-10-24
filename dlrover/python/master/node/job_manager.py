@@ -128,6 +128,10 @@ class JobManager(metaclass=ABCMeta):
     def update_node_paral_config(self, node_type, node_id, paral_config):
         pass
 
+    @abstractclassmethod
+    def check_worker_hardware_reset(self):
+        pass
+
     def handle_training_failure(
         self, node_type, node_id, restart_count=-1, error_data="", level=""
     ):
