@@ -16,9 +16,11 @@ import tempfile
 import unittest
 
 import numpy as np
+import torch.distributed as dist
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader, Dataset
 
 from dlrover.trainer.torch.elastic.checkpoint import (
@@ -75,9 +77,9 @@ class CheckpointManagerTest(unittest.TestCase):
             sampler=self.sampler,
         )
 
-    def test_save_load(self):
+    def test_local_save_load(self):
         with tempfile.TemporaryDirectory() as tmpdirname:
-            ckpt_manager = CheckpointManger(
+            ckpt_manager = CheckpointManger.init_checkpoint_manager(
                 self.model,
                 self.optimizer,
                 self.dataloader,
@@ -96,3 +98,33 @@ class CheckpointManagerTest(unittest.TestCase):
 
             ckpt_manager.load()
             self.assertEqual(self.dataloader.sampler.total_size, 60002)
+
+    def test_ddp_save_load(self):
+        os.environ["WORLD_SIZE"] = "1"
+        os.environ["RANK"] = "0"
+        os.environ["MASTER_ADDR"] = "127.0.0.1"
+        os.environ["MASTER_PORT"] = "12345"
+        dist.init_process_group(backend="gloo")
+        model = DDP(self.model)
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            ckpt_manager = CheckpointManger.init_checkpoint_manager(
+                model,
+                self.optimizer,
+                self.dataloader,
+                tmpdirname,
+                max_to_keep=2,
+            )
+            ckpt_manager.save(epoch=0, step=10)
+            ckpt_manager.save(epoch=0, step=20)
+            ckpt_manager.save(epoch=0, step=30)
+            ckpt_dirs = os.listdir(tmpdirname)
+            self.assertEqual(len(ckpt_dirs), 2)
+
+            ckpt_dir = get_latest_checkpoint(tmpdirname)
+            expected_dir = os.path.join(tmpdirname, "checkpoint-30")
+            self.assertEqual(ckpt_dir, expected_dir)
+
+            ckpt_manager.load()
+            self.assertEqual(self.dataloader.sampler.total_size, 60002)
+        dist.destroy_process_group()
+        print(dist.is_initialized())

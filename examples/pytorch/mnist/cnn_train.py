@@ -143,7 +143,7 @@ def train(args):
     )
     scheduler = StepLR(optimizer, step_size=1, gamma=0.5)
     rank = dist.get_rank()
-    ckpt_manager = CheckpointManger(
+    ckpt_manager = CheckpointManger.init_checkpoint_manager(
         model,
         optimizer,
         train_loader,

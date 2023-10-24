@@ -304,7 +304,7 @@ def train():
     # if data type is float16
 
     rank = dist.get_rank()
-    ckpt_manager = CheckpointManger(
+    ckpt_manager = CheckpointManger.init_checkpoint_manager(
         model, optimizer, train_loader, checkpoint_dir, rank, 3
     )
     ckpt_manager.load()
