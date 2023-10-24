@@ -170,7 +170,7 @@ class CheckpointManger(metaclass=ABCMeta):
                 max_to_keep,
             )
         else:
-            raise ValueError(f"Not support model class {model}")
+            raise NotImplementedError(f"Not support model class {model}")
 
 
 class LocalCheckpointManger(CheckpointManger):
