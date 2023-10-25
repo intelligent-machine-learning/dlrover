@@ -86,17 +86,19 @@ class PodScaler(Scaler):
         self._plan = ScalePlan()
         self._ps_addrs: List[str] = []
         self._pod_stats: Dict[str, int] = {}
-        self._init_pod_config_by_job()
         self._job_uid = ""
+        self.api_client = client.ApiClient()
+        self._k8s_client.api_instance
+
+    def start(self):
+        self._job = self._retry_to_get_job()
+        self._init_pod_config_by_job()
         self._master_pod = self._retry_to_get_master_pod()
         threading.Thread(
             target=self._periodic_create_pod, name="pod-creater", daemon=True
         ).start()
-        self.api_client = client.ApiClient()
-        self._k8s_client.api_instance
 
     def _init_pod_config_by_job(self):
-        self._job = self._retry_to_get_job()
         self._distribution_strategy = self._job["spec"].get(
             "distributionStrategy", None
         )
