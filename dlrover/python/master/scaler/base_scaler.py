@@ -54,8 +54,15 @@ class Scaler(metaclass=ABCMeta):
 
     def __init__(self, job_name):
         self._job_name = job_name
+        self._job = None
+        self._job_uid = ""
+
+    @abstractmethod
+    def start(self):
+        """Start the scaler."""
+        pass
 
     @abstractmethod
     def scale(self, plan: ScalePlan):
-        """Scale the job with the plan"""
+        """Scale the job with the plan."""
         pass

@@ -45,7 +45,7 @@ class ActorScaler(Scaler):
         self._namespace = namespace
         self._lock = threading.Lock()
 
-    def _retry_to_get_job(self):
+    def start(self):
         pass
 
     def scale(self, plan: ScalePlan):
