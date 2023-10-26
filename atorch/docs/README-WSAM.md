@@ -5,7 +5,7 @@ a Regularization Term</b></h3>
 [![KDD](https://img.shields.io/badge/KDD-2023-blue)](https://arxiv.org/abs/2305.158171)
 [![arXiv](https://img.shields.io/badge/arXiv-2305.158171-b31b1b.svg)](https://arxiv.org/abs/2305.158171)
 
-We present PyTorch code for [Sharpness-Aware Minimization Revisited: Weighted Sharpness as a Regularization Term](https://arxiv.org/abs/2305.158171), KDD'23. The code is based on <https://github.com/davda54/sam>.
+We present PyTorch code for [Sharpness-Aware Minimization Revisited: Weighted Sharpness as a Regularization Term](https://arxiv.org/abs/2305.15817), KDD'23. The code is based on <https://github.com/davda54/sam>.
 
 Deep Neural Networks (DNNs) generalization is known to be closely related to the flatness of minima, leading to the development of Sharpness-Aware Minimization (SAM) for seeking flatter minima and better generalization.
 We propose a more general method, called WSAM, by incorporating sharpness as a regularization term.
