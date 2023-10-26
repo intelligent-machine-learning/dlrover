@@ -86,16 +86,19 @@ class PodScaler(Scaler):
         self._plan = ScalePlan()
         self._ps_addrs: List[str] = []
         self._pod_stats: Dict[str, int] = {}
-        self._init_pod_config_by_job()
         self._job_uid = ""
-        threading.Thread(
-            target=self._periodic_create_pod, name="pod-creater", daemon=True
-        ).start()
         self.api_client = client.ApiClient()
         self._k8s_client.api_instance
 
-    def _init_pod_config_by_job(self):
+    def start(self):
         self._job = self._retry_to_get_job()
+        self._init_pod_config_by_job()
+        self._master_pod = self._retry_to_get_master_pod()
+        threading.Thread(
+            target=self._periodic_create_pod, name="pod-creater", daemon=True
+        ).start()
+
+    def _init_pod_config_by_job(self):
         self._distribution_strategy = self._job["spec"].get(
             "distributionStrategy", None
         )
@@ -127,11 +130,24 @@ class PodScaler(Scaler):
                 time.sleep(5)
         raise ValueError("Cannot get the training job %s", self._job_name)
 
+    def _retry_to_get_master_pod(self):
+        master_name = f"elasticjob-{self._job_name}-dlrover-master"
+        for _ in range(3):
+            pod = self._k8s_client.get_pod(master_name)
+            if pod:
+                return pod
+            else:
+                time.sleep(5)
+        raise ValueError(f"{master_name} is not Found!")
+
     def scale(self, plan: ScalePlan):
         """Scale in/out Pods by a ScalePlan."""
         with self._lock:
             if plan.empty():
                 return
+            while self._create_node_queue:
+                logger.info("Wait the latest plan completes.")
+                time.sleep(60)
             self._plan = plan
             job_pods = self._list_job_pods()
             logger.info("Scale the job by plan %s", plan.to_json())
@@ -618,10 +634,10 @@ class PodScaler(Scaler):
 
     def _create_job_owner_reference(self):
         owner_ref = k8sClient.create_owner_reference(
-            api_version="elastic.iml.github.io/v1alpha1",
-            kind="ElasticJob",
-            name=self._job["metadata"]["name"],
-            uid=self._job["metadata"]["uid"],
+            api_version="v1",
+            kind="Pod",
+            name=self._master_pod.metadata.name,
+            uid=self._master_pod.metadata.uid,
         )
         return owner_ref
 

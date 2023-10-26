@@ -746,6 +746,7 @@ def create_job_manager(args: JobArgs, speed_monitor) -> DistributedJobManager:
         args.platform, args.job_name, args.namespace
     )
     job_scaler = new_job_scaler(args.platform, args.job_name, args.namespace)
+    job_scaler.start()
 
     return DistributedJobManager(
         job_args=args,

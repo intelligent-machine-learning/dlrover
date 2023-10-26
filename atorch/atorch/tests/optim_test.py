@@ -4,10 +4,8 @@ from copy import deepcopy
 
 import torch
 from torch.autograd import Variable
-from torch.optim.lr_scheduler import ExponentialLR, ReduceLROnPlateau, StepLR
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.testing._internal.common_utils import TestCase
-
-import atorch
 
 
 class TestOptim(TestCase):
@@ -76,14 +74,15 @@ class TestOptim(TestCase):
         state_dict = deepcopy(optimizer.state_dict())
         state_dict_c = deepcopy(optimizer.state_dict())
         optimizer_c.load_state_dict(state_dict_c)
+        # Make sure state_dict_c isn't modified by merely calling load_state_dict
+        self.assertEqual(state_dict, state_dict_c)
         # Run both optimizations in parallel
         for _i in range(20):
             optimizer.step(fn)
             optimizer_c.step(fn_c)
             self.assertEqual(weight, weight_c)
             self.assertEqual(bias, bias_c)
-        # Make sure state dict wasn't modified
-        self.assertEqual(state_dict, state_dict_c)
+
         # Make sure state dict is deterministic with equal but not
         # identical parameters
         self.assertEqual(optimizer.state_dict(), optimizer_c.state_dict())
@@ -110,7 +109,7 @@ class TestOptim(TestCase):
         state_dict_c = deepcopy(optimizer.state_dict())
         optimizer_cuda.load_state_dict(state_dict_c)
 
-        # Make sure state dict wasn't modified
+        # Make sure state_dict_c isn't modified by merely calling load_state_dict
         self.assertEqual(state_dict, state_dict_c)
 
         for _i in range(20):
@@ -170,115 +169,9 @@ class TestOptim(TestCase):
             scheduler_constructors,
         )
 
-    @unittest.skipIf(torch.cuda.is_available(), "Failed on gpu")
-    @unittest.skipIf(True, "Skip outdated optim from apex")
-    def test_adam(self):
-        optimizer = atorch.optim.Adam
-        self._test_basic_cases(lambda weight, bias: optimizer([weight, bias], lr=1e-3))
-        self._test_basic_cases(lambda weight, bias: optimizer(self._build_params_dict(weight, bias, lr=1e-2), lr=1e-3))
-        self._test_basic_cases(lambda weight, bias: optimizer([weight, bias], lr=1e-3, amsgrad=True))
-        self._test_basic_cases(lambda weight, bias: optimizer([weight, bias], lr=1e-3, weight_decay=0.1))
-        self._test_basic_cases(
-            lambda weight, bias: optimizer(
-                self._build_params_dict(weight, bias, lr=1e-2),
-                lr=1e-3,
-                amsgrad=True,
-            )
-        )
-        self._test_basic_cases(
-            lambda weight, bias: optimizer(self._build_params_dict(weight, bias, lr=1e-2), lr=1e-3),
-            [lambda opt: ExponentialLR(opt, gamma=0.9)],
-        )
-        self._test_basic_cases(
-            lambda weight, bias: optimizer([weight, bias], lr=1e-3, amsgrad=True),
-            [lambda opt: ExponentialLR(opt, gamma=0.9), lambda opt: ReduceLROnPlateau(opt)],
-        )
-        self._test_basic_cases(
-            lambda weight, bias: optimizer(
-                self._build_params_dict(weight, bias, lr=1e-2),
-                lr=1e-3,
-                amsgrad=True,
-            ),
-            [lambda opt: StepLR(opt, gamma=0.9, step_size=10), lambda opt: ReduceLROnPlateau(opt)],
-        )
-        with self.assertRaisesRegex(ValueError, "Invalid beta parameter at index 0: 1.0"):
-            optimizer(None, lr=1e-2, betas=(1.0, 0.0))
-
-        with self.assertRaisesRegex(ValueError, "Invalid weight_decay value: -1"):
-            optimizer(None, lr=1e-2, weight_decay=-1)
-
-    @unittest.skipIf(torch.cuda.is_available(), "Failed on gpu")
-    @unittest.skipIf(True, "Skip outdated optim from apex")
-    def test_adamw(self):
-        optimizer = atorch.optim.AdamW
-        self._test_basic_cases(lambda weight, bias: optimizer([weight, bias], lr=1e-3))
-        self._test_basic_cases(lambda weight, bias: optimizer(self._build_params_dict(weight, bias, lr=1e-2), lr=1e-3))
-        self._test_basic_cases(lambda weight, bias: optimizer([weight, bias], lr=1e-3, weight_decay=1))
-        self._test_basic_cases(lambda weight, bias: optimizer([weight, bias], lr=1e-3, weight_decay=1, amsgrad=True))
-        with self.assertRaisesRegex(ValueError, "Invalid weight_decay value: -1"):
-            optimizer(None, lr=1e-2, weight_decay=-1)
-
-    @unittest.skipIf(torch.cuda.is_available(), "Failed on gpu")
-    @unittest.skipIf(True, "Skip outdated optim from apex")
-    def test_adagrad(self):
-        optimizer = atorch.optim.Adagrad
-        self._test_basic_cases(lambda weight, bias: optimizer([weight, bias], lr=1e-1))
-        self._test_basic_cases(lambda weight, bias: optimizer([weight, bias], lr=1e-1, initial_accumulator_value=0.1))
-        self._test_basic_cases(lambda weight, bias: optimizer(self._build_params_dict(weight, bias, lr=1e-2), lr=1e-1))
-        self._test_basic_cases(
-            lambda weight, bias: optimizer(self._build_params_dict(weight, bias, lr=1e-2), lr=1e-1),
-            [lambda opt: ReduceLROnPlateau(opt)],
-        )
-        self._test_basic_cases(
-            lambda weight, bias: optimizer(self._build_params_dict(weight, bias, lr=1e-2), lr=1e-1),
-            [lambda opt: ReduceLROnPlateau(opt), lambda opt: ExponentialLR(opt, gamma=0.99)],
-        )
-        with self.assertRaisesRegex(ValueError, "Invalid lr_decay value: -0.5"):
-            optimizer(None, lr=1e-2, lr_decay=-0.5)
-
-    @unittest.skipIf(torch.cuda.is_available(), "Failed on gpu")
-    @unittest.skipIf(True, "Skip outdated optim from apex")
-    def test_sgd(self):
-        optimizer = atorch.optim.SGD
-        self._test_basic_cases(lambda weight, bias: optimizer([weight, bias], lr=1e-3))
-        self._test_basic_cases(lambda weight, bias: optimizer(self._build_params_dict(weight, bias, lr=1e-2), lr=1e-3))
-        self._test_basic_cases(
-            lambda weight, bias: optimizer(self._build_params_dict_single(weight, bias, lr=1e-2), lr=1e-3)
-        )
-        self._test_basic_cases(lambda weight, bias: optimizer(self._build_params_dict_single(weight, bias, lr=1e-2)))
-        self._test_basic_cases(
-            lambda weight, bias: optimizer([weight, bias], lr=1e-3),
-            [lambda opt: StepLR(opt, gamma=0.9, step_size=10)],
-        )
-        self._test_basic_cases(
-            lambda weight, bias: optimizer([weight, bias], lr=1e-3),
-            [lambda opt: StepLR(opt, gamma=0.9, step_size=10), lambda opt: ReduceLROnPlateau(opt)],
-        )
-        self._test_basic_cases(
-            lambda weight, bias: optimizer([weight, bias], lr=1e-3),
-            [
-                lambda opt: StepLR(opt, gamma=0.99, step_size=10),
-                lambda opt: ExponentialLR(opt, gamma=0.99),
-                lambda opt: ReduceLROnPlateau(opt),
-            ],
-        )
-        self._test_basic_cases(lambda weight, bias: optimizer([weight, bias], lr=1e-3, momentum=1))
-        self._test_basic_cases(lambda weight, bias: optimizer([weight, bias], lr=1e-3, momentum=1, weight_decay=1))
-        self._test_basic_cases(
-            lambda weight, bias: optimizer(
-                [weight, bias],
-                nesterov=True,
-                lr=1e-3,
-                momentum=1,
-                weight_decay=1,
-            )
-        )
-        with self.assertRaisesRegex(ValueError, "Invalid momentum value: -0.5"):
-            optimizer(None, lr=1e-2, momentum=-0.5)
-
     @unittest.skipIf(not torch.cuda.is_available(), "no gpu found here.")
     def test_agd(self):
-        from atorch.optim import AGD
+        from atorch.optimizers import AGD
 
         optimizer = AGD
         self._test_basic_cases(lambda weight, bias: optimizer([weight, bias], lr=1e-3))
@@ -338,7 +231,7 @@ class TestSamOptim(TestCase):
 
     @unittest.skipIf(not torch.cuda.is_available(), "no gpu found here.")
     def test_wsam(self):
-        from atorch.optim import WeightedSAM
+        from atorch.optimizers import WeightedSAM
 
         self._test_basic_cases(WeightedSAM, rho=0.1)
         self._test_basic_cases(WeightedSAM, rho=0.1, gamma=0.5)

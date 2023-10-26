@@ -5,39 +5,35 @@ repos:
     hooks:
       - id: isort
         args: [--settings-path, tfplus/]
-  - repo: https://github.com/psf/black
-    rev: 22.6.0
-    hooks:
-      - id: black
-        args: 
-          - --line-length=120
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v2.4.0
-    hooks:
-      - id: flake8
-        exclude: __init__.py$
-        args: [
-          "--max-line-length=120", 
-        ]
   - repo: local
+  # rev: v1.6.0
     hooks:
       - id: cpplint
         name: cpplint
-        description: Check C++ code style using cpplint.py.
         entry: cpplint
         language: python
         args:
           - --recursive
+          - --filter=-build/header_guard, -build/c++11
           - tfplus/
   # - repo: https://github.com/pre-commit/mirrors-pylint
   - repo: local
-    # rev: v2.17.4
+    # rev: v2.13.9
     hooks:
       - id: pylint
         name: pylint
         entry: pylint
         language: python
+        types: [python]   # Only run pylint on Python files
         args: [
           "--rcfile=tfplus/.pylint", # Link to your config file
-          "--load-plugins=pylint.extensions.docparams", # Load an extension
+          # "--ignore-patterns='(?!.*\\.py$).*'", # Only apply pylint to .py         
         ]
+  - repo: local
+    hooks:
+      - id: copyright_checker
+        name: copyright_checker
+        entry: python tfplus/scripts/codestyle/copyright.py
+        language: system
+        files: \.(go|py|sh|cc|h|hpp)$
+        exclude: \.(deepcopy.go|pb.go)$
