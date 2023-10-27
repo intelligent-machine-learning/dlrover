@@ -150,7 +150,7 @@ class PodScaler(Scaler):
                 logger.info(
                     f"Wait nodes {self._create_node_queue} to completed."
                 )
-                time.sleep(5)
+                time.sleep(15)
             else:
                 break
         with self._lock:
