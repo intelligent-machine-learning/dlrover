@@ -142,12 +142,20 @@ class PodScaler(Scaler):
 
     def scale(self, plan: ScalePlan):
         """Scale in/out Pods by a ScalePlan."""
+        while True:
+            waited = False
+            with self._lock:
+                waited = len(self._create_node_queue) > 0
+            if waited:
+                logger.info(
+                    f"Wait nodes {self._create_node_queue} to completed."
+                )
+                time.sleep(15)
+            else:
+                break
         with self._lock:
             if plan.empty():
                 return
-            while self._create_node_queue:
-                logger.info("Wait the latest plan completes.")
-                time.sleep(60)
             self._plan = plan
             job_pods = self._list_job_pods()
             logger.info("Scale the job by plan %s", plan.to_json())
