@@ -24,6 +24,9 @@ from atorch.optimizers.agd import AGD
 - `clip`: Generally, there's no need to set it, but if you encounter training instability, you can try clip=5.
 - Others: Set them based on general empirical guidelines.
 
+## Demo
+For a more detailed example, please refer to the [demo](https://github.com/intelligent-machine-learning/dlrover/blob/master/atorch/examples/optimizer/README.md).
+
 ## AGD's performance on nanoGPT
 
 Given the popularity of large-scale models, we also tested the effectiveness of AGD on nanoGPT. As expected, AGD converges very quickly, providing up to a 1.5x acceleration compared to AdamW. This can significantly save training time and reduce training costs.
