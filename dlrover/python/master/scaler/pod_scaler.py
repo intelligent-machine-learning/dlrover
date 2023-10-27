@@ -145,7 +145,7 @@ class PodScaler(Scaler):
         while True:
             waited = False
             with self._lock:
-                waited = len(self._create_node_queue)
+                waited = len(self._create_node_queue) > 0
             if waited:
                 logger.info(
                     f"Wait nodes {self._create_node_queue} to completed."
