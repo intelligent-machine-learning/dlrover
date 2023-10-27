@@ -176,6 +176,20 @@ class PodScalerTest(unittest.TestCase):
         self.assertFalse(scale_plan.empty())
         self.assertEqual(len(scaler._create_node_queue), 2)
 
+    def test_scale_thread(self):
+        scaler = PodScaler("elasticjob-sample", "default")
+        scaler.start()
+        scaler._distribution_strategy = DistributionStrategy.PS
+        resource = NodeResource(4, 8192)
+        scale_plan = ScalePlan()
+        scale_plan.launch_nodes.append(Node(NodeType.WORKER, 1, resource))
+        scale_plan.ps_addrs = ["ps-0:22222"]
+        scaler.scale(scale_plan)
+        scale_plan = ScalePlan()
+        scale_plan.launch_nodes.append(Node(NodeType.WORKER, 2, resource))
+        scale_plan.ps_addrs = ["ps-0:22222"]
+        scaler.scale(scale_plan)
+
     def test_new_tf_config(self):
         pod_stats = {NodeType.WORKER: 1}
 
