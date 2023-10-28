@@ -1,0 +1,2502 @@
+[
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @ALXTOKEN: Paul Krugman, Nobel Luddite. I had to tweak the nose of this Bitcoin enemy. He says such foolish things. Here's the link: htt\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "@lopp @_Kevin_Pham @psycho_sage @naval But @ProfFaustus (dum b a ss) said you know nothing about #Bitcoin ... \ud83d\ude02\ud83d\ude02\ud83d\ude02 https://t.co/SBAMFQ2Yiy",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @tippereconomy: Another use case for #blockchain and #Tipper. The #TipperEconomy  can unseat Facebook and change everything! ICO Live No\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "free coins https://t.co/DiuoePJdap",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @payvxofficial: WE are happy to announce that PayVX Presale Phase 1 is now LIVE!\n\nSign up --&gt;&gt; https://t.co/dhprzsSxek\nCurrencies accept\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Copy successful traders automatically with Bitcoin! \ud83d\udcb0\ud83d\udcb0\n\nI copy \"Dividend667\". Do you?\n\n\u27a1\ufe0f https://t.co/qb2NXPknVt\u2026 https://t.co/Q43fKQRYzx",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @bethereumteam: We're revealing our surprise tomorrow! \nAre you ready to celebrate with us? \ud83d\ude2e\n#surprise #presents #crypto #bitcoin #ethe\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "One click to start mining cryptocurrencies together with &gt;45K people. #bitcoin  https://t.co/rjZC2dia2S #PaaS #cloudnetwork",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "first speaker @digitsu\n\n\"how we can get bitcoin to be the greatest CASH in the world\nmedium of exchange, not meant\u2026 https://t.co/kV3S9kT32A",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "@p0nd3ea Bitcoin wasn't built to live on exchanges.",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "@historyinflicks Buddy if I had whatever series of 19th diseases Bannon clearly has I'd want to be a bitcoin too.",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @livemarketcap: ICE Agency Charges Payza and Two Canadian Citizens With Bitcoin Money Laundering\n#Regulation #AML #arrests #Bitcoin #BTC\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @Vaultoro: We have all seen the HTTP protocol error 404 page not found, but did you know the developers of the protocol put in the error\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "@eatBCH @Bitcoin @signalapp @myWickr @Samsung @tipprbot patience is truly a virtue",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @_bitcoinmonster: Bitcoin Monster - Monsterize Your Asset\nCryptocurrency Monster - Masternode Support - High Rewards\n-------------------\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @SteveRichFXCorp: #Breaking #SteveRichFXCorp #News Alert : https://t.co/UUGvxAIMYh is now live! Latest News and Updates on Cryptocurrenc\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @bethereumteam: This month we're celebrating a major #milestone in the project and we're involving our growing community!\nCan you guess\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Copy successful traders automatically with Bitcoin! \ud83d\udcb0\ud83d\udcb0\n\nI copy \"Dividend667\". Do you?\n\n\u27a1\ufe0f https://t.co/soBG18eXy8\u2026 https://t.co/oATyZxmjtl",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Applicature Joins the Ethereum Enterprise Alliance https://t.co/p4tyxekOXk #Cryptocurrency #Crypto #Bitcoin #Btc #PureCryptoNews",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @neolite_token: $NEOLite #AIRDROP\n\nFollow, Retweet &amp; TAG 5 people\nComment your ERC20 address 30,000,000 Supply\nToken symbol: $NLT\n\n(5,00\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "First to USD $0.10\n\n$btc $trx $xvg $xrp $bdc $vibe $appc $eth $ltc $xrp $tron #tron #bitcoin #trader #trading\u2026 https://t.co/Larkz8lR5n",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @payvxofficial: Support PayVX project and let us all stop Identity Theft &amp; Fraud when transacting online. Start using a decentralized pl\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Purchase RSA 2048 bit cracking software. For US$ 10bn/license/year email us on info@automatski.com we need the mone\u2026 https://t.co/Q6ZPfIRDV2",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @RandolphMlny: #Bitcoin #Satoshi #Earn_Money #cryptocurrency #blockchain #Airdrop\nNew Airdrop #Hubtrex \ud83d\udce2\n\n#Hubtrex New Exchange is doing\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @CoinsAirdrops: #Bitcoin #Satoshi #Earn_Money #cryptocurrency #blockchain #Airdrop\nNew Airdrop #Redcoin \ud83d\udce2\n\n#Redcoin distributes free 188\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @bethereumteam: What are Smart Contracts?\nRead more about the technology and what they mean for #Bethereum: https://t.co/Eki5dzkfyp\n#blo\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @BitcoinMagazine: Bug Caught That Allowed Coinbase Users to Garner Unlimited Amounts of Ether #coinbase #ethereum #SmartContracts #BugBo\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @lopp: @psycho_sage @naval Bitcoin is a game where everybody watches everybody else to make sure nobody cheats.",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @jimmysong: How have your spending habits (not investments) changed since investing in Bitcoin?",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @BUY_and_SELL5: Cryptocurrency Market Remains Stable at $350 Billion, Bitcoin at $9,000.\nOver the past 48 hours, after demonstrating a h\u2026",
+        "output": "Negative"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Copy successful traders automatically with Bitcoin! \ud83d\udcb0\ud83d\udcb0\n\nI copy \"Dividend667\". Do you?\n\n\u27a1\ufe0f https://t.co/qb2NXPknVt\u2026 https://t.co/uyCsZq1GLP",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @toshi_mat003: THE MOST INNOVATIVE AND LUCRATIVE WAY TO EARN BITCOIN\nJOIN BITCLUB NETWORK!!!",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Bitcoin Is Now Preparing For A Major Move https://t.co/ztc7cm2sQM",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Should we be crying out for standardisation and regulation of the digital currency Bitcoin? https://t.co/GtpynsyQV5 #tags",
+        "output": "Negative"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @ROOMDAOICO: Twitter gonna block ICO ADVERTISING . \nWhat do you think about it ? \nMy opinion: We don\u2019t give a f@ck, we will move to TELE\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @lopp: @psycho_sage @naval Bitcoin is a game where everybody watches everybody else to make sure nobody cheats.",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "1( Around 2010 I was looking to buy drugs and seeds on silkroad and heard about #bitcoin it was at $1 a coin then..\u2026 https://t.co/DDLwqMeCFF",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @bethereumteam: Create custom group bets and invite your friends, choose the buy in amounts, select what sport to bet on and enjoy the g\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Bitcoin Loses $9k Support After Binance Confusion Shakes Confidence ...  https://t.co/Wmtp4DwlZs",
+        "output": "Negative"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @GymRewards: https://t.co/Bm9sIxiiwU Checkout our #bitcointalk #ANN https://t.co/J5xnJJr7Sa #Gymrewards #tokenssale #ethereum #bitcoin #\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "@aantonop Even if Bitcoin crash tomorrow morning, the technology it\u2019s still revolutionary. A way of simplifying it. #Ihavetobepartofthis",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "1: Bitcoin average price is $8712.32 (-0.39% 1h)\n2: Ethereum average price is $538.523 (-0.43% 1h)\n3: Ripple averag\u2026 https://t.co/NrYWB93wMW",
+        "output": "Negative"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @fanney_aketch: Enter your ETH wallet and follow the bot's instructions to get your 50 ECOM tokens.\nhttps://t.co/g5dwBi8zZP\n\n#airdrop #b\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Would you put $50M into bitcoin?? https://t.co/NYgY5il4SM",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @DrDenaGrayson: \ud83d\uded1BREAKING\ud83d\uded1\n\nRockin' Rod Rosenstein to make a MAJOR CYBER LAW ENFORCEMENT announcement tomorrow\u203c\ufe0f\n\n*TREASURY* Undersecret\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Copy successful traders automatically with Bitcoin! \ud83d\udcb0\ud83d\udcb0\n\nI copy \"Dividend667\". Do you?\n\n\u27a1\ufe0f https://t.co/CffVj3s93L\u2026 https://t.co/673o9jn6Jo",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Copy successful traders automatically with Bitcoin! \ud83d\udcb0\ud83d\udcb0\n\nI copy \"Dividend667\". Do you?\n\n\u27a1\ufe0f https://t.co/GMVxqfof5n\u2026 https://t.co/fbAQJCkjV1",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "I am experimenting whether I can live only with bit coins donated. Please cooperate.\n\n3NKbfJuuMKzNMYMcLqCf5w8TgeGvue7A5 ##bitcoin #Donation",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @bethereumteam: It's been 72 hours since the official launch of our Bounty campaign.\nIs there a stronger crypto community out there?\n#cr\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Bitfury-Backed Bitcoin Miner Secures Canadian Land Deal ...  https://t.co/Fro7EW80bC",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Earn 500 Ramen with airdrop program: https://t.co/gMu9lnCwMO  \n#RamenCoin $RAMEN #airdrop #bounty #ICO #ethereum\u2026 https://t.co/6lL6vYmbLS",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @Buck_Rooney: 1( Around 2010 I was looking to buy drugs and seeds on silkroad and heard about #bitcoin it was at $1 a coin then...told t\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "@_Cryptosaur @TradeSatoshi yeah my bitcoin deposit not showing up... lets just hope it eventually does",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @lopp: @psycho_sage @naval Bitcoin is a game where everybody watches everybody else to make sure nobody cheats.",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "free airdrop\n@rabbi2018 @alamgir39623942 @alamgir1996 @alam201212 @best_rated_ico https://t.co/KijU4Ciz1G",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @CryptoNSleeps: The gem I found on IDEX is $TFD (@TE_FOOD)\n- Established company with ~3 million food products tracked\n- Mobile app laun\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @DrDenaGrayson: \ud83d\uded1BREAKING\ud83d\uded1\n\nRockin' Rod Rosenstein to make a MAJOR CYBER LAW ENFORCEMENT announcement tomorrow\u203c\ufe0f\n\n*TREASURY* Undersecret\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @UPROXX: Twitter CEO Jack Dorsey predicts that #Bitcoin will be the world's \u2018single currency\u2019 within 10 years https://t.co/T8pf7BxDHx ht\u2026",
+        "output": "Negative"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "BTCTN: ICE Agency Charges Payza and Two Canadian Citizens With Bitcoin Money Laundering https://t.co/nMQWbl2KNH\u2026 https://t.co/EUz2PgRMOo",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @giveawaysBTC: Daily .05BTC &amp; Trezor hardware wallet giveaway.\n\nFollow, retweet, and like to enter. \nWinner publicly announced \n\n#bitcoi\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @bethereumteam: Read about what we've achieved together!\nThe #Bethereum army is stronger than ever and growing by numbers. \ud83d\ude80\nVote for us\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Would you put $50M into bitcoin?? https://t.co/IdgxetJv5F",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @UPROXX: Twitter CEO Jack Dorsey predicts that #Bitcoin will be the world's \u2018single currency\u2019 within 10 years https://t.co/T8pf7BxDHx ht\u2026",
+        "output": "Negative"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Help solve every problem in the world!\n\nSolve the underlying problem!\n\nSpread word of #LightningNetwork add this ic\u2026 https://t.co/27omZPaRuK",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @BTCTN: ICE Agency Charges Payza and Two Canadian Citizens With Bitcoin Money Laundering https://t.co/U14wxWVwbR #Bitcoin https://t.co/M\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @DrDenaGrayson: \ud83d\uded1BREAKING\ud83d\uded1\n\nRockin' Rod Rosenstein to make a MAJOR CYBER LAW ENFORCEMENT announcement tomorrow\u203c\ufe0f\n\n*TREASURY* Undersecret\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "\u0e3f value over 1 year: +792.65%, (+$7709.41) [Currently  $8682.015] #bitcoin",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @GymRewards: https://t.co/Bm9sIxiiwU  Checkout our #bitcointalk #ANN https://t.co/J5xnJJr7Sa \u2026 #Gymrewards #tokenssale #ethereum #bitcoi\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Applicature Joins the Ethereum Enterprise Alliance https://t.co/VnUPVmJaqB #crypto #cryptonews #bitcoin https://t.co/xbgj5rmy9a",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @evankirstel: Green light for new national IoT initiative in Trondheim https://t.co/jJhtn5mnn2 #IoT #InternetOfThings #IIoT #IndustrialI\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "@VitalikButerin Cambridge Analytics Is The End of Facebook As We Know It! ZERO TRUST &amp; $36bn FB Stock Value Drop. B\u2026 https://t.co/1poDBD7yFr",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @bethereumteam: Today we're celebrating our #birthday! \ud83c\udf82\nClick on the article to find out what we're doing to #celebrate:\nhttps://t.co/5\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @CoinsAirdrops: #Bitcoin #Satoshi #Earn_Money #cryptocurrency #blockchain #Airdrop\nNew Airdrop #Hubtrex \ud83d\udce2\n\n#Hubtrex New Exchange is doin\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @BlockChainIRPR: ALERT:US SANCTIONS\n#BTC #BITCOIN DOWN TO $7000 #ETH #ETHEREUM HACKED \ud83d\udcc9\n DOWN WHILE US TREASURY TARGETS CRYPTO OMG!!! \n\u27a1\u2026",
+        "output": "Negative"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @ToneVays: #Trading #Bitcoin starts now, from a bar in Moscow #Russia at 2am... i am just full of good ideas... let's take a look at $BT\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "ICE Agency Charges Payza and Two Canadian Citizens With Bitcoin Money Laundering https://t.co/wGTHd5c9tv #Bitcoin https://t.co/lc56YlmksZ",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Copy successful traders automatically with Bitcoin! \ud83d\udcb0\ud83d\udcb0\n\nI copy \"Dividend667\". Do you?\n\n\u27a1\ufe0f https://t.co/qb2NXPknVt\u2026 https://t.co/zRc7CKHePe",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Good Work XYOracleNetwork Project #xyonetwork #ICO #Crowdsale #Bitcoin #Blockchain #Token #ETH \nhttps://t.co/wHP70dWpBp",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @bethereumteam: The whole #betting process in only 5 steps!\nEasy, secure and engaging using: https://t.co/dXpy0T6IUp\n#socialbetting #onl\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @StormPlayApp: [BONUS BOLTS]\nUse the following template to refer your friends and earn some extra Bolts! \n\u201cPlay games and try apps to ea\u2026",
+        "output": "Negative"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Bitcoin $BTC Price Analysis and Forecast for 03/23/18 \u2014 Steemit https://t.co/nhIbARW8Co",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @DrDenaGrayson: \ud83d\uded1BREAKING\ud83d\uded1\n\nRockin' Rod Rosenstein to make a MAJOR CYBER LAW ENFORCEMENT announcement tomorrow\u203c\ufe0f\n\n*TREASURY* Undersecret\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @NTmoney: Trillion dollar question: do the Bitcoin and Ethereum communities figure out scalability or do new \u201cscalable-first\u201d networks e\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "ICE Agency Charges Payza and Two Canadian Citizens With Bitcoin Money Laundering https://t.co/bW8ADNRZBB",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @lopp: @psycho_sage @naval Bitcoin is a game where everybody watches everybody else to make sure nobody cheats.",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "ICE Agency Charges Payza and Two Canadian Citizens With Bitcoin Money\u00a0Laundering https://t.co/iBUeYLSKBa",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @nfrisbie83: OK Internet... I need your help... let\u2019s break a #worldrecord ... see how much #bitcoin we can cram into my wallet in #24ho\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @APompliano: Reminder: You can't kill Bitcoin",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "In particular, every full node watches every other full node (including watching the miners).  Robots in green eyes\u2026 https://t.co/zhvZWpCCEp",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "https://t.co/0ScptZxYqG \"Satoshi\u2019s Vision Conference Live Stream\" #Bitcoin #Ethereum #Blockchain #Trading",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Embrace the FUD.\n\nThat means more cheap coins for me and less dumb people in Bitcoin.\n\nI'm playing the long game.",
+        "output": "Negative"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "https://t.co/S1kFik6ojh The Bitcoin Fad Is Over https://t.co/lyRv5eeZNR https://t.co/2itZjfSF1U",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "@bethereumteam Click on the article to find out what we're doing to #celebrate:\nhttps://t.co/nYFhCl1xF7 \u2026\u2026 https://t.co/I407k8NMv6",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @WealthE_Coin: As the crypto community grows bigger, government acceptance and regulation will be a big talking point.  Check out this v\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @VergeLife: Enter: $XVG #Vergecurrency ...\n\nRest assured big brother is always watching.\n\nTime to restore your #freedom and #privacy wit\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Bitcoin heading back down.  \\u2026 $BTCUSD https://t.co/CXbIvztYvq",
+        "output": "Negative"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @RichardHeartWin: The #Bitcoin 50/200 daily moving average \"death cross\" missed by $182.1 dollars. 6 minutes ago. https://t.co/6YH45JEX1h",
+        "output": "Negative"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Facebook's data privacy fallout could give a boost to the online ledger underlying bitcoin: Analyst - CNBC\u2026 https://t.co/N3EIezkcN0",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @BeerMoneyFunds: Bank of Japan: No Big Problems With Bitcoin So\u00a0Far https://t.co/WJfMgan0g1 https://t.co/TMJN5Be7Tc",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @bethereumteam: Do you remember the last time you had fun while betting?\nWell, with #Bethereum you will! We're bringing the holy trinity\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @jdegoes: Bitcoin is an eventually consistent protocol that converges when the last block took just over half the energy remaining in th\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Satoshi Vision Tokyo Conference is live!\n\nSBI Bits Jerry Chan is up first!\n\n#BitcoinCash is #Bitcoin\n\nhttps://t.co/br0Z7umhl4",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @APompliano: Reminder: You can't kill Bitcoin",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @DrDenaGrayson: \ud83d\udd25The US Attorney General for Southern District of NY also will attend.\n\nLOTS of *banks* in SDNY. Just sayin'.\ud83d\ude0e\n\nhttps://\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "@earndotcom.  I'm earning bitcoin by answering paid emails and completing microtasks! Join me there and sign up tod\u2026 https://t.co/0VlbHWVDr1",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "@airgeadcoin @VitalikButerin Bitcoin Private mainnet test successfully complete! BTCP blockchain works stably.12 gl\u2026 https://t.co/x6NgfxVvPQ",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "@ericgeller Agree w/@ericgeller\ud83d\udc49\ud83c\udffclikely signals #indictments of state-backed hackers. I believe that these hackers\u2026 https://t.co/q2GAHcaIel",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @bethereumteam: This month we're celebrating a major #milestone in the project and we're involving our growing community!\nCan you guess\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @Nittomata: We've gone from mining GPU's with bitcoin to this... https://t.co/ARj5to00c4",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @bethereumteam: Checkout an interview with our team!\nWe feel that interviews get us even closer to our community. \ud83e\udd1d\nhttps://t.co/AUpyskY\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @RichardHeartWin: #Bitcoin #trading protip: A \"Death cross\" just means that the price in the last 50 days has been going down more than\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @JoeFloccari: BREAKING: The city of Atlanta and the Atlanta Police Department\u2019s computers have been cyber attacked &amp; demanding a ransom.\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Internet Congestion Control provides a description of some of the https://t.co/s4UkiDiIzA #Cybersecurity #Bitcoin https://t.co/szD13Z5nqS",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @APompliano: Reminder: You can't kill Bitcoin",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Internet Congestion Control provides a description of some of the https://t.co/s4UkiDiIzA #Cybersecurity #Bitcoin https://t.co/szD13Z5nqS",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Internet Congestion Control provides a description of some of the https://t.co/TbVklxn1Lj #Cybersecurity #Bitcoin https://t.co/k6XiPaqqog",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Grab your F.ree bitcoins here :) Totall legit sites\nhttps://t.co/aOZpXZKCnj  #bitcoin #free #litecoin #tradebitcoin\u2026 https://t.co/fT1gFJllRA",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @minervasupports: #Giveaway $100 in $ETH!\n\n-Like\n-Retweet\n-Follow\n-Comment down below with your #Ethereum (preferably) ERC20 address.\n\nL\u2026",
+        "output": "Negative"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @DrDenaGrayson: \ud83d\uded1BREAKING\ud83d\uded1\n\nRockin' Rod Rosenstein to make a MAJOR CYBER LAW ENFORCEMENT announcement tomorrow\u203c\ufe0f\n\n*TREASURY* Undersecret\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @bethereumteam: We have been attending a lot of conferences lately! We gathered a great deal of positive first hand feedback from the co\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @bethereumteam: What are Smart Contracts?\nRead more about the technology and what they mean for #Bethereum: https://t.co/Eki5dzkfyp\n#blo\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @DrDenaGrayson: \ud83d\uded1BREAKING\ud83d\uded1\n\nRockin' Rod Rosenstein to make a MAJOR CYBER LAW ENFORCEMENT announcement tomorrow\u203c\ufe0f\n\n*TREASURY* Undersecret\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @bethereumteam: Some of you already correctly guessed the reason for our #Celebration!\nWe are one of the strongest #crypto communities a\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @tippereconomy: Another use case for #blockchain and #Tipper. The #TipperEconomy  can unseat Facebook and change everything! ICO Live No\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @DrDenaGrayson: @ericgeller Agree w/@ericgeller\ud83d\udc49\ud83c\udffclikely signals #indictments of state-backed hackers. I believe that these hackers will\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @BitschoolAI: We are very pleased to announce we are starting our amazing $1,500,000 #AIRDROP referral, where the TOP PRIZE is an AMAZIN\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @CoinsAirdrops: #Bitcoin #Satoshi #Earn_Money #cryptocurrency #blockchain #Airdrop\nNew Airdrop #YooMiPHA \ud83d\udce2\n\n#YooMiPHA AI Personal Health\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Earn 50 ETH participating in airdrop click on the link below and join \nhttps://t.co/zayzx6fvaR\n#crypto #altcoin\u2026 https://t.co/2z5UkOZaVX",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @RichardHeartWin: #Bitcoin #trading protip: A \"Death cross\" just means that the price in the last 50 days has been going down more than\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @Stephaniefishm4: Terrorism and Financial Intelligence also... \n\nGLOBAL FINANCIAL TERRORISM via cyber capabilities... \n\nBITCOIN IS POISO\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "A practical guide to tapping into the abundant ideas and talent ou https://t.co/77h6eAiZIb #Cybersecurity #Bitcoin https://t.co/4ZgI9VQhv7",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Long/Short Bitcoin swings with up to 100x Leverage at BitMEX!\n\n10% Fee Discount using the link below \ud83d\udcb0\ud83d\udcb0\n\n\u2192\u2026 https://t.co/r4KLJVVD0B",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "A practical guide to tapping into the abundant ideas and talent ou https://t.co/xbO9s25Unj #Cybersecurity #Bitcoin https://t.co/TQNp2MN7lY",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @SmartTaylorApp: Buy pressure: China and the USA are forbidden to buy TAY until after the token sale. What do you think it will hapen th\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "very good https://t.co/Nj4bM0oyPi",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "EOS Eyes Bull Reversal After 70 Percent Spike - https://t.co/1ZmPFsg8x7\n#cryptocurrency #bitcoin #ethereum",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @icospection: 24 Hour 0.1 $ETH @streamityorg #Giveaway!\n\nRules:\n1. Retweet\n2. Write about https://t.co/P3ro4CDt0Y!\n3. ETH address (Post\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "HUGE \u26cf\ufe0f discount \u23f0 Bitcoin to C? https://t.co/OIHbsgGEBX \ud83c\udf89 -30% HF18BDAY30 \u2192 https://t.co/u06gO4KLZt https://t.co/pP5f0nq0wr",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "As data hiding detection and forensic techniques have matured, peo https://t.co/oO6MIXnpII #Cybersecurity #Bitcoin https://t.co/GEjgM7KviP",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "if you new to airdropping or you want latest airdrop coin #follow me ASAP #Airdrop #Bounty #ICO #BTC\u2026 https://t.co/KQ8mQzZLEP",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Would you put $50M into bitcoin?? https://t.co/APcbigaU6E",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @crypto_baas: This is the reason why privacy coins will get a huge demand very soon. \n\n@Vergecurrency in particular because it\u2019s the mos\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @BoostTM: #Bitcoin #Giveaway\n\n\ud83d\udd390.5 BTC for 1 Winner\ud83d\udd39\n\n-Join https://t.co/G2A1GF5vbm\n-Follow\n-RT\n\n#Airdrop #live #Token #Ethereum #Giveaw\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "BITCOIN SOON TO REACH NEW ALL TIME HIGHS! // BITCOIN CASH\u00a0PR https://t.co/N0eOlqniRG https://t.co/MvBs2Mugx1",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @SmartTaylorApp: Voil\u00e0! First video-demo of the Crypto Trading Assistant App released: https://t.co/a5LaYI22K5  . What do you think?\n\n#T\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @DrDenaGrayson: \ud83d\uded1BREAKING\ud83d\uded1\n\nRockin' Rod Rosenstein to make a MAJOR CYBER LAW ENFORCEMENT announcement tomorrow\u203c\ufe0f\n\n*TREASURY* Undersecret\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @Crypto__Insider: \u203c\ufe0f\u203c\ufe0f#Giveaway $200 in ETH\u203c\ufe0f\u203c\ufe0f\n-Like\ud83d\udc4d\n-Retweet\u270c\ufe0f\n-Follow\ud83d\udc4c\n-DM me your address\ud83d\udce9\n\n#BTC #bitcoin #litecoin #ltc #ripple #x\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "#Crypto ICE Agency Charges Payza and Two Canadian Citizens With Bitcoin Money Laundering - https://t.co/f1ZGI2RG48",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "BITCOIN SOON TO REACH NEW ALL TIME HIGHS! // BITCOIN CASH\u00a0PR https://t.co/Z5VnWa7BWZ https://t.co/omqV9UCeoR",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @WealthE_Coin: As the crypto community grows bigger, government acceptance and regulation will be a big talking point.  Check out this v\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "As data hiding detection and forensic techniques have matured, peo https://t.co/YpJ0Q0Ij7c #Cybersecurity #Bitcoin https://t.co/XVJKROj0Nm",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @nfrisbie83: OK Internet... I need your help... let\u2019s break a #worldrecord ... see how much #bitcoin we can cram into my wallet in #24ho\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @TuurDemeester: Dutch court considers bitcoins a \"transferrable value\", declaring the debtor should pay his debt in bitcoin - as was agr\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @lopp: @psycho_sage @naval Bitcoin is a game where everybody watches everybody else to make sure nobody cheats.",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @SmartTaylorApp: The price decline of ETH against the US Dollar is making the price of TAY in USD this week lower than the first week's\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Your expert guide to building Microsoft\u00ae SharePoint\u00ae applications https://t.co/L6112PPrrN #Cybersecurity #Bitcoin https://t.co/xwnrYkPPlp",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Want to trade #Cryptos? Click now! https://t.co/z3EtSwndgb #cryptocurrencies #bitcoin",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Okay first of all we all know jack doesn't know anything about anything, and second of all isn't it already collaps\u2026 https://t.co/8mmdedy2kF",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "@LordRay23 is STILL knocking down the charts! Almost 6 hours of #TechnicalAnalysis on @HypedOnCrypto #crypto #btc\u2026 https://t.co/NnvtctWyug",
+        "output": "Negative"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @_bitcoinmonster: Bitcoin Monster - Monsterize Your Asset\nCryptocurrency Monster - Masternode Support - High Rewards\n-------------------\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Would you put $50M into bitcoin?? https://t.co/sO2wXqgRhj",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT BTCTN: ICE Agency Charges Payza and Two Canadian Citizens With Bitcoin Money Laundering https://t.co/uIqJphfE1N\u2026 https://t.co/x85RZUOtPu",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Your expert guide to building Microsoft\u00ae SharePoint\u00ae applications https://t.co/jHKxmdyj3m #Cybersecurity #Bitcoin https://t.co/xyl94ehrVf",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "As data hiding detection and forensic techniques have matured, peo https://t.co/YpJ0Q0Ij7c #Cybersecurity #Bitcoin https://t.co/XVJKROj0Nm",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "@CryptoYamamoto https://t.co/br0Z7umhl4\nlive stream is here.\n#BitcoinCash is #Bitcoin",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "@Reddit_BTC \ud83e\udd16: Snowden on Bitcoin: Blasts Public Ledger and Core Developers https://t.co/alyGyijuSk",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @SmartTaylorApp: A flattering statement received in our Taylor Academy Bitcointalk thread. Check others like this in the landing page of\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Snowden on importance of privacy #dash\n\nhttps://t.co/k7DpCAW2h2",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @GymRewards: https://t.co/Bm9sIxiiwU Checkout our #bitcointalk #ANN https://t.co/J5xnJJr7Sa #Gymrewards #tokenssale #ethereum #bitcoin #\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "noiceeee https://t.co/RP94Skfib0",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @nfrisbie83: OK Internet... I need your help... let\u2019s break a #worldrecord ... see how much #bitcoin we can cram into my wallet in #24ho\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @DrDenaGrayson: \ud83d\uded1BREAKING\ud83d\uded1\n\nRockin' Rod Rosenstein to make a MAJOR CYBER LAW ENFORCEMENT announcement tomorrow\u203c\ufe0f\n\n*TREASURY* Undersecret\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @RichardHeartWin: #Bitcoin #trading protip: A \"Death cross\" just means that the price in the last 50 days has been going down more than\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @SmartTaylorApp: Last call: in less than 5 hours there will be no more TAY sold from Taylor. Tokens not sold will be burned: https://t.c\u2026",
+        "output": "Negative"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "@tferriss \"Token Allocation\" ...a critical read, so the algo, designed by humans, withan inherent bias, will determ\u2026 https://t.co/kedZQDVlkg",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @FreeZone_one: We are happy to announce that early registration is open. Hurry up to collect your bonus, the offer is limited, only 12 d\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @WealthE_Coin: As the crypto community grows bigger, government acceptance and regulation will be a big talking point.  Check out this v\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @atlantainformer: City of Atlanta computer systems dealing with cyberattack; ransom note asks for Bitcoin\u00a0payment https://t.co/iUnDt1fiq\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "@kaimanabliss Domination of mining is technically the only way Bitcoin can be \u201ctaken over\u201d.  Unfortunately that has\u2026 https://t.co/OwMbip7Jjo",
+        "output": "Negative"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @Ben_Teitelbaum: Demonstration video, in which Glenn Willen and I walk through how #Blockstream's Liquid Beta can be used to send #bitco\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Would you put $50M into bitcoin?? https://t.co/7FFpE21muM",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "ICE Agency Charges Payza and Two Canadian Citizens With Bitcoin Money Laundering https://t.co/0D3gdezQVD #Bitcoin https://t.co/LxrPOpXm3H",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Would you put $50M into bitcoin?? https://t.co/hUXskrSAbg",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "I liked a @YouTube video https://t.co/k1GLTDOrNc Bitcoin vs Bitcoin Cash, Security, Mining, Capitalism and MSM - John McAfee &amp; Peter",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Fri Mar 23 01:41:52 2018 (0:11)\nUSD : 8712.93\nWght: 0.44\nBlk#: 514742\nSize: 124.4 KB\nTXs:  208\nPool: 68 (0.0 MB)\n#bitcoin",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @DrDenaGrayson: @ericgeller Agree w/@ericgeller\ud83d\udc49\ud83c\udffclikely signals #indictments of state-backed hackers. I believe that these hackers will\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Would you put $50M into bitcoin?? https://t.co/F37nZ6u7Jb",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @OpenPlatformICO: YES! Some of our team members are currently in China attending the #TOKEN2049 event! We will be updating all of you gu\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "This tweet, was the most amazing thing I've read all day. Hahah \ud83d\ude02\ud83d\ude02 https://t.co/85cdChPxLI",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @SmartTaylorApp: How cool is this last minute endorsement? :)\n\n2 HOURS LEFT: https://t.co/kgSfTiqRkR\n\n#TaylorTokenSale #Taylor #TokenSal\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "@MarioCasanova99 @RichardHeartWin Seems more important for stocks than Bitcoin since Bitcoin loves to fake people o\u2026 https://t.co/MoqagcheDw",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @giveawaysBTC: Daily .05BTC &amp; Trezor hardware wallet giveaway.\n\nFollow, retweet, and like to enter. \nWinner publicly announced \n\n#bitcoi\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "CRYPTOLOANS ICO FIRST BLOCKCHAIN PLATFORM FOR SECURE LENDING\nTRADING AND EXCHANGE CRYPTOCURRENCY\u2026 https://t.co/hQ2hQqW5jw",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "#YABTCL - #Bitcoin #Lottery\nDraw #701 - Winning Numbers: 03-10-16-18-46-62",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @bethereumteam: The whole #betting process in only 5 steps!\nEasy, secure and engaging using: https://t.co/dXpy0T6IUp\n#socialbetting #onl\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @DrDenaGrayson: @ericgeller Agree w/@ericgeller\ud83d\udc49\ud83c\udffclikely signals #indictments of state-backed hackers. I believe that these hackers will\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Would you put $50M into bitcoin?? https://t.co/wpQR5vytj4",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @unilot_platform: Hi everybody! \ud83d\udc4b We want to remind you that only 2\ufe0f\u20e3 days left to the end of the first stage of #ICO. On March 2\ufe0f\u20e32\ufe0f\u20e3 w\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Would you put $50M into bitcoin?? https://t.co/GBaWWu4GRX",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @CryptoTrappin: .@JackTatar says to applause at #CryptoWorld: \u201cIf the financial services sector came up with Bitcoin, you\u2019d all have Bit\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "https://t.co/awoH8efOYE|SOHU IS ICO SOLUTION AGENCY.\n\ud83d\udc9d\ud83d\udc9d\ud83d\udc9d#Airdrop Now!!\nUse my referral link:https://t.co/CuEmJjJZdm\u2026 https://t.co/jEUpncB4P8",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @FireLottery: @FireLottery on Cryptocurrency World Expo in Berlin https://t.co/ur2CKmcODQ\n\n#cryptolottery #blockchain #worldexpo #berlin\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @CoinsAirdrops: #Bitcoin #Satoshi #Earn_Money #cryptocurrency #blockchain #Airdrop\nNew Airdrop #ySign \ud83d\udce2\n\n#ySign is distributing free $YS\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @baappay: Another supporting video by our supporter. Keep Supporting us!!!\n#Baappay #cryptocurrency #ICO #Amazingproject #Digitalcurrenc\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Students are Taking a Punt on Cryptos\u2026 With Their Loans - https://t.co/ADFRrFFixx #Crypto #Cryptocurrency\u2026 https://t.co/4WJPpTbOjO",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @BTCTN: ICE Agency Charges Payza and Two Canadian Citizens With Bitcoin Money Laundering https://t.co/U14wxWVwbR #Bitcoin https://t.co/M\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @PeerMountain: Check out again our video to understand how Peer Mountain works :)\n\n#blockchain #cryptocurrency #bitcoin #ethereum #Techn\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @earthtokens: Breaking News - https://t.co/X5oZXzujn3 Digital Currency Exchange hub will list EARTH Token after 15th March 2018 https://\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @GymRewards: https://t.co/Bm9sIxiiwU  Checkout our #bitcointalk #ANN https://t.co/J5xnJJr7Sa \u2026 #Gymrewards #tokenssale #ethereum #bitcoi\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Twitter CEO Jack Dorsey Predicts That Bitcoin Will Be The World\u2019s \u2018Single Currency\u2019 Within 10\u00a0Years\u2026 https://t.co/TKcCdHFFTz",
+        "output": "Negative"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "#power #SelectionSunday #Cryptopia #CryptoNews #cryptocurency #ICO #Bitcoin #ethereum #blockchaintechnology #Market\u2026 https://t.co/8tn2Ouektj",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "@Iam_phranq Bitcoin -Gold (BTG) are becomes best news also attractive new expensive, marely You still don\u0422t own it?\u2026 https://t.co/KGLqdpe5Cc",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Block: 514741 \nSize: 1090.85 kb \nFee: 2.61$/kb \nPrice: 8712.32$ | 55169.43\u00a5 \n#Bitcoin $BTC #BTC $XBT #XBT\u2026 https://t.co/bV7RWvFflv",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Students are Taking a Punt on Cryptos\u2026 With Their Loans: One of the first\u2026 https://t.co/X51PKp6UPa #bitcoin #crypto",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @Egon_01: .@Snowden on #Bitcoin Core (#BTC) &amp; Their Developers \ud83d\ude17\n\n\u201cI don\u2019t think bitcoin will last forever[\u2026]\u201d \n\n[Core] simply need to d\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @NickSzabo4: In particular, every full node watches every other full node (including watching the miners).  Robots in green eyeshades ti\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @RichardHeartWin: #Bitcoin #trading protip: A \"Death cross\" just means that the price in the last 50 days has been going down more than\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Block: 514742 \nSize: 127.44 kb \nFee: 0.41$/kb \nPrice: 8712.32$ | 55169.43\u00a5 \n#Bitcoin $BTC #BTC $XBT #XBT\u2026 https://t.co/puZmjSbEWI",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "CryptoHawk ICO: Revolutionizing for A Better Future https://t.co/B8PxAA8UMm \n#newsoftheweek #Bitcoin #blockchain\u2026 https://t.co/axSm6rNg8n",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Copy successful traders automatically with Bitcoin! \ud83d\udcb0\ud83d\udcb0\n\nI copy \"Dividend667\". Do you?\n\n\u27a1\ufe0f https://t.co/38LkK8JCZj\u2026 https://t.co/KDm6Pw5Uxt",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "$115.00 KnC Neptune Bitcoin ASIC Miner 670 GH/s BTC  BCH SHA-256 #Cryptocurrency #Mining https://t.co/jLClHZmJKh https://t.co/bBIfxw6b1g",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @JennySampson16: Is it #Muellertime? Why yes, yes indeed its looking like it\n#TrumpRussia https://t.co/07nPkEXgmL",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @TuurDemeester: Twitter &amp; Square CEO \u2764 Bitcoin https://t.co/SAdKwHcnUN",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "@GymRewards\nhttps://t.co/kZrE0mE1HV   Checkout our #bitcointalk #ANN https://t.co/zIFrsBt3Wn \u2026 \u2026 #Gymrewards\u2026 https://t.co/nmpARV51mv",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "New #bitcoin block 000000000000000000451731d60b7b0bc228f26b7b946cf3c610d52839d4e61a mined at height 514741.",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @bethereumteam: This month we're celebrating a major #milestone in the project and we're involving our growing community!\nCan you guess\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "@APompliano Bitcoin is not affected by centralized exchange hacks or bans....oh wait.\n\nThis is why the industry nee\u2026 https://t.co/a2732KbgSl",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @bitsonlinecom: China Crypto Thaw? New PBoC Gov. Seems Reform-Minded  -\n#Bitcoin #Cryptocurrency #China #PBOC #news via @axymak  https:/\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @nfrisbie83: OK Internet... I need your help... let\u2019s break a #worldrecord ... see how much #bitcoin we can cram into my wallet in #24ho\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "New #bitcoin block 00000000000000000045b039632035f328a6dbbc05b69dbf562e103fb46bdf60 mined at height 514742.",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @bethereumteam: Today we're celebrating our #birthday! \ud83c\udf82\nClick on the article to find out what we're doing to #celebrate:\nhttps://t.co/5\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Big swings continue as bitcoin briefly dips below $10K US | CBC News https://t.co/N1ueYr59Hf \u279c\u2026 https://t.co/NycC4KWnH1",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @TheEtherCash: https://t.co/cb16TZ2Qko airdrop\nFollow us &amp; Retweet- Only twitter accounts with at least 1000 followers\nSend your Ethereu\u2026",
+        "output": "Negative"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "@cburniske and bitcoin, in that it ushered in the first working example of a alt to fiat which was thought to be im\u2026 https://t.co/AWtrkg2QDL",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @MsxNetwork: #AIRDROP NOW OPEN!\n\nPHASE I for #AION Token Holder\n\nhttps://t.co/8Mbvhqbvem\n\n#microstack #bitcoin #ethereum #blockchain #bo\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "@Arab88612723 @marcdemesel BitcoinPlus is the real 2nd bitcoin",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @bethereumteam: What are Smart Contracts?\nRead more about the technology and what they mean for #Bethereum: https://t.co/Eki5dzkfyp\n#blo\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Long/Short Bitcoin volatility with up to 100x Leverage at BitMEX!\n\n10% Fee Discount below! \ud83e\udd11\ud83d\ude0d\n\n\u25b6\ufe0f\u2026 https://t.co/B3S0tJqLQk",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @DrDenaGrayson: \ud83d\uded1BREAKING\ud83d\uded1\n\nRockin' Rod Rosenstein to make a MAJOR CYBER LAW ENFORCEMENT announcement tomorrow\u203c\ufe0f\n\n*TREASURY* Undersecret\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Deal with XM trading leverage of 888!! \ufe0e and finally bitcoin transactions now can!! \ufe0e account is here https://t.co/AkfPx8jkbi \u2026.",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "\ud83c\udf89 20$ for free registering to Binance \ud83c\udf89\n\n0.1% trading Fee and NO Fee for deposit!\n\nLimited-Time Offer:\u2026 https://t.co/vBKhefTREo",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @dfscoin: 100,000 DFS will get you a Fantasy Gold Masternode (10k FGC) Have you seen the potential profits from running a masternode? Ch\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @DrDenaGrayson: @ericgeller Agree w/@ericgeller\ud83d\udc49\ud83c\udffclikely signals #indictments of state-backed hackers. I believe that these hackers will\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @DrDenaGrayson: \ud83d\uded1BREAKING\ud83d\uded1\n\nRockin' Rod Rosenstein to make a MAJOR CYBER LAW ENFORCEMENT announcement tomorrow\u203c\ufe0f\n\n*TREASURY* Undersecret\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @2ndinfra: Been asked how  #NP2M-#Technology could be combined with #Blockchain\nIt's\n\n#SmartPhone independent\n#One2Many same time\nSepara\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @Acritikey: The company Atstage Inc. has recently launched a 2D video game called, Itadaki Dungeon, which allows players to earn bitcoin\u2026",
+        "output": "Negative"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @DrDenaGrayson: \ud83d\udd25The US Attorney General for Southern District of NY also will attend.\n\nLOTS of *banks* in SDNY. Just sayin'.\ud83d\ude0e\n\nhttps://\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @CyberDomain: Bitcoin Has Made Millionaires Of Ordinary People Do You Need To Le https://t.co/zc5nJx7h8D #Cybersecurity #Bitcoin https:/\u2026",
+        "output": "Negative"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @RandolphMlny: #Bitcoin #Satoshi #Earn_Money #cryptocurrency #blockchain #Airdrop\nNew Airdrop #Hubtrex \ud83d\udce2\n\n#Hubtrex New Exchange is doing\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @OfficialMusards: Our Telegram community is reaching 28k users...\nWe want to thank you all!\nNew features and news on our website, coming\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @CoinsAirdrops: #Bitcoin #Satoshi #Earn_Money #cryptocurrency #blockchain #Airdrop\nNew Airdrop #Bloknetwork \ud83d\udce2\n\n\u2b50\u2b50\u2b50\u2b50\u25aa4/5 Stars \ud83d\udcb0worth 0.0\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Earn bitcoin on a daily basis!\n\n1. Follow @slidecoin \n2. Complete instructions in pinned tweet",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "#ICE Agency Charges Payza and Two Canadian Citizens With #Bitcoin Money Laundering https://t.co/pTr2qK8QZH",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "ICE Agency Charges Payza and Two Canadian Citizens With Bitcoin Money Laundering https://t.co/uE40cxKEuc https://t.co/YedMMtcTMG",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "ICE Agency Charges Payza and Two Canadian Citizens With Bitcoin Money Laundering #Bitcoin #News #Cryptonews\u2026 https://t.co/b7RtMuMvnf",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Bitcoin on the way down $BTCUSD https://t.co/bmUQVc2FrG",
+        "output": "Negative"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "ICE Agency Charges Payza and Two Canadian Citizens With Bitcoin Money Laundering https://t.co/dRUgkNzAx7 https://t.co/K7S1PYygbk",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "ICE Agency Charges Payza and Two Canadian Citizens With Bitcoin Money Laundering https://t.co/sr51LoAH3C https://t.co/BpST8tYFNh",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @bethereumteam: Today we're celebrating our #birthday! \ud83c\udf82\nClick on the article to find out what we're doing to #celebrate:\nhttps://t.co/5\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "South Korea Wants to Set a Desirable Cryptocurrency an... | News-https://t.co/yckdLwkM3m #altcoin #cryptocurrency #ethereum #blockchain",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "ICE Agency Charges Payza and Two Canadian Citizens With Bitcoin Money Laundering https://t.co/2Y4wmoCGgi https://t.co/T7KLJOV9cA",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @XVGWhaleReal: Can you feel it? $XVG ready to wake up again, huge. The summer will belong to #Verge / #Crypto / #Bitcoin. #NextBitcoin h\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "ICE Agency Charges Payza and Two Canadian Citizens With Bitcoin Money Laundering https://t.co/dmihGWW6V4",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Install CryptoTab and mine Bitcoin! https://t.co/M1iiZz9YkE",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @NirvanaLand: #Bitcoin 8000 $ ! Have a good profit, Mining #trend 2017 #BTC #LTC #ETH #DASH https://t.co/0xGqUP3Zdy \nhttps://t.co/zDSALD\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "My bet is either Dfinity telegram hashgraph ethereum or eos take the T https://t.co/iFaIwC8odb",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @white_ethereum: #Airdrop Ethereum White Airdrop round#1. 1000 #EthereumWhite will be giving to everyone who complete the google form. Y\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Tom Lee: \u201cThe Altcoin Bear Rally is Almost at an End,\u201d but still Stick to Bitcoin https://t.co/EGAd6bO3Zc \ud83d\ude80 HowToBu\u2026 https://t.co/FZ03nQ89NO",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "@alexbosworth @Blockstream @rusty_twit Thinking ahead would be \"preventative\" not \"reactive\".\n\n\"Lightening Network\u2026 https://t.co/rbGjoeCBX0",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Would you put $50M into bitcoin?? https://t.co/SIRhHKnKIQ",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @white_ethereum: #Airdrop Ethereum White Airdrop round#1. 1000 #EthereumWhite will be giving to everyone who complete the google form. Y\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @WealthE_Coin: As the crypto community grows bigger, government acceptance and regulation will be a big talking point.  Check out this v\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @bethereumteam: We're revealing our surprise tomorrow! \nAre you ready to celebrate with us? \ud83d\ude2e\n#surprise #presents #crypto #bitcoin #ethe\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @FreeZone_one: Privacy-focused cryptocurrency zcash is gearing up for its first hard fork. #cryptocurrency #investment #investing #crypt\u2026",
+        "output": "Negative"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @DrDenaGrayson: \ud83d\uded1BREAKING\ud83d\uded1\n\nRockin' Rod Rosenstein to make a MAJOR CYBER LAW ENFORCEMENT announcement tomorrow\u203c\ufe0f\n\n*TREASURY* Undersecret\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "1 Bitcoin ( #BTC )\nDollar: 8703.53$ \n\n1 Bitcoin Cash ( #BCH )\nDollar: 1,016.22$ \n\n1 Ethereum ( #ETH )\nDollar: 540.5\u2026 https://t.co/JQPPGELcaM",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Copy successful traders automatically with Bitcoin! \ud83d\udcb0\ud83d\udcb0\n\nI copy \"Dividend667\". Do you?\n\n\u27a1\ufe0f https://t.co/GMVxqfof5n\u2026 https://t.co/bZSxIWn7Zz",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "BTCTN: ICE Agency Charges Payza and Two Canadian Citizens With Bitcoin Money Laundering https://t.co/RpHSyyFx1t\u2026 https://t.co/OUqdzLCig0",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @unicornhub_au: @zilliqa Here is my submission for the #zilliqacontest .  Winning the contest or not, I hope my effort could be little h\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Would you put $50M into bitcoin?? https://t.co/GcnYJDki68",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @unicornhub_au: @zilliqa Here is my submission for the #zilliqacontest .  Winning the contest or not, I hope my effort could be little h\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @bethereumteam: We're revealing our surprise tomorrow! \nAre you ready to celebrate with us? \ud83d\ude2e\n#surprise #presents #crypto #bitcoin #ethe\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @bethereumteam: Do you remember the last time you had fun while betting?\nWell, with #Bethereum you will! We're bringing the holy trinity\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Would you put $50M into bitcoin?? https://t.co/faLRIy5xDT",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @bethereumteam: Today we're celebrating our #birthday! \ud83c\udf82\nClick on the article to find out what we're doing to #celebrate:\nhttps://t.co/5\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "@_Kevin_Pham as said earlier, we in what you refer as shitcoins holder will watch the drama, make a list of the att\u2026 https://t.co/MFkyW8gnnY",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Would you put $50M into bitcoin?? https://t.co/3GEY01jPyh",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @DrDenaGrayson: @ericgeller Agree w/@ericgeller\ud83d\udc49\ud83c\udffclikely signals #indictments of state-backed hackers. I believe that these hackers will\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "I'm not ready for a world of total, unrepentant corruption where up is down and black is white. At least I can opt\u2026 https://t.co/88ERtLHg7E",
+        "output": "Negative"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "#BitcoinGarden | New Faucet Added! https://t.co/rEU7Y4ywZB | Hey it is a listing\u00a0 those who i believe are the best\u2026 https://t.co/uibmLMEAgG",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @BoostTM: #Bitcoin #Giveaway\n\n\ud83d\udd390.5 BTC for 1 Winner\ud83d\udd39\n\n-Join https://t.co/G2A1GF5vbm\n-Follow\n-RT\n\n#Airdrop #live #Token #Ethereum #Giveaw\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @Scotonomist: Bitfury-Backed Bitcoin Miner Secures Canadian Land Deal https://t.co/a0pBAaGGNg via @CoinDesk",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "From ATM to BTM\nGo Denver!  \n#bitcoin #crypto #Decentralization \nhttps://t.co/G5NelMu8E5",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @Crypto__Insider: \u203c\ufe0f\u203c\ufe0f#Giveaway $200 in ETH\u203c\ufe0f\u203c\ufe0f\n-Like\ud83d\udc4d\n-Retweet\u270c\ufe0f\n-Follow\ud83d\udc4c\n-DM me your address\ud83d\udce9\n\n#BTC #bitcoin #litecoin #ltc #ripple #x\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "https://t.co/8hMoOH0z32 - Free Bitcoin Cloud Mining",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Twitter CEO Jack Dorsey Says Bitcoin Will Be the World's Universal Currency - FORTUNE https://t.co/8nze5BffhJ",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @bethereumteam: Do you remember the last time you had fun while betting?\nWell, with #Bethereum you will! We're bringing the holy trinity\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Bitcoin Is Now Preparing For A Major Move https://t.co/ztc7cm2sQM @alessiorastani",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "\u201c...we shall defend our soy milk lattes, no matter how much bitcoin it takes, we shall screech on university ground\u2026 https://t.co/cAec3CEMkz",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "first speaker @Satoshis_Vision @digitsu\n\n\"somewhere along the way 2009 \nthis white paper drops into the community\ni\u2026 https://t.co/D5yNyS1qz4",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @DrDenaGrayson: @ericgeller Agree w/@ericgeller\ud83d\udc49\ud83c\udffclikely signals #indictments of state-backed hackers. I believe that these hackers will\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "@DelgadoMarjon Bitcoin Private mainnet test successfully complete! BTCP blockchain works stably.12 global exchanges\u2026 https://t.co/lmDE8syCpo",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @NewsForBitCoin: GEEK'S GOLD  What exactly is the cryptocurrency Bitcoin and how much is it worth today? BITCOIN has been hailed by some\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Would you put $50M into bitcoin?? https://t.co/HgwyarXn3G",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @bethereumteam: Checkout an interview with our team!\nWe feel that interviews get us even closer to our community. \ud83e\udd1d\nhttps://t.co/AUpyskY\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "ICE Agency Charges Payza and Two Canadian Citizens With Bitcoin Money Laundering https://t.co/aCS2hXKekR #cryptocurrency #blockchain",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "MoneyToken, a good opportunity to bet on a financial company. You can borrow ciphers and get interest for it or bor\u2026 https://t.co/sECjahiyXZ",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Earn bitcoin on a daily basis!\n\n1. Follow @slidecoin \n2. Complete instructions in pinned tweet",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @GymRewards: https://t.co/Bm9sIxiiwU  Checkout our #bitcointalk #ANN https://t.co/J5xnJJr7Sa \u2026 #Gymrewards #tokenssale #ethereum #bitcoi\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "I'm earning bitcoin by answering paid emails and completing microtasks! Join me there and sign up today. https://t.co/qOZ0upD7Jb",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "@coinpricenow Bitcoin -Gold (Bitcoin-Gold) is becomes best news ^&amp;^ fitting new expensive, simply You still don\u0422t o\u2026 https://t.co/HbKMeqg2wB",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @white_ethereum: #Airdrop Ethereum White Airdrop round#1. 1000 #EthereumWhite will be giving to everyone who complete the google form. Y\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @WealthE_Coin: As the crypto community grows bigger, government acceptance and regulation will be a big talking point.  Check out this v\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @GymRewards: https://t.co/Bm9sIxiiwU Checkout our #bitcointalk #ANN https://t.co/J5xnJJr7Sa #Gymrewards #tokenssale #ethereum #bitcoin #\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "ICE Agency Charges Payza and Two Canadian Citizens With Bitcoin Money Laundering https://t.co/R30zQ0g44m #altcoinore",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @CoinsAirdrops: #Bitcoin #Satoshi #Earn_Money #cryptocurrency #blockchain #Airdrop\nNew #Airdrop #CryptoKami \ud83d\udce2\n\nCryptoKami Is A Decentral\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "@PeterDiamandis If governments can regulate airwaves that speech flows across they'll find a way to regulate Bitcoi\u2026 https://t.co/FjWKMDDtta",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @RandolphMlny: #Bitcoin #Satoshi #crypto #blockchain #Airdrop\nQuantadex Exchange Giveaway \ud83d\udce2\n\nSign Up and Receive $250 free\n\n\ud83d\udcb0\ud83d\udcb0\ud83d\udcb0$250 Will\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @RealNewsX2: A life sentence for running a website, #NSA searching #BitCoin users w/o warrant to eliminate #cryptocurrency and judicial\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "@coinsforest Bitcoin -Gold (Bitcoin Gold) and become popularity also fitting new expensive, simply Your still don\u0422t\u2026 https://t.co/rHHiRrl6J5",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "nice https://t.co/ktrxvle625",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @lopp: @psycho_sage @naval Bitcoin is a game where everybody watches everybody else to make sure nobody cheats.",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @Rosenchild: .@Fujitsu_Global's New #Blockchain Technologies to Support Secure Transactions Across Virtual Currencies, including #Bitcoi\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @SmartTaylorApp: Buy pressure: China and the USA are forbidden to buy TAY until after the token sale. What do you think it will hapen th\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "I added a video to a @YouTube playlist https://t.co/nGXzaqMp9f Edward Snowden Gives His Take On Bitcoin",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @_bitcoinmonster: Bitcoin Monster - Monsterize Your Asset\nCryptocurrency Monster - Masternode Support - High Rewards\n-------------------\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "I am playing bitcoin trade, a loss of $ 300,000.\nMy life is over. #bitcoin #givemebitcoin #help\n\n\u3010BTC\u3011\n1PcXbdVubUPmy1xToYyjvho8rS #pleasert",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @IBMBlockchain: We're #LIVE again from #LasVegas with 72 Hours of #Blockchain at 9am PST today! Tune in @coindesk and tweet us any quest\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @TrendSetHipHop: Bitcoin is going way, way down!! Check this guide - start making A LOT more than crypto &amp; join 4 free! \ud83d\udcb0\ud83d\udcb0\ud83d\udd25\ud83d\udc47\ud83c\udffd\nClick here\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @lopp: @psycho_sage @naval Bitcoin is a game where everybody watches everybody else to make sure nobody cheats.",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @SmartTaylorApp: Voil\u00e0! First video-demo of the Crypto Trading Assistant App released: https://t.co/a5LaYI22K5  . What do you think?\n\n#T\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @bethereumteam: Some of you already correctly guessed the reason for our #Celebration!\nWe are one of the strongest #crypto communities a\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "@CryptoShillNye HEY FUCK YOU, TRX IS NEXT BITCOIN BITCH.",
+        "output": "Negative"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @GProductionsNYC: Everyone, please take a moment to process in your fragile minds that #Bitcoin was trading at $991 one year ago today.\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "@NickSzabo4 Monopoly: Bitcoin Edition would be the least fun board game ever \ud83d\ude02",
+        "output": "Negative"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @SmartTaylorApp: The price decline of ETH against the US Dollar is making the price of TAY in USD this week lower than the first week's\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @hidehunt1: Bitcoin vs SEC\nTell Big Government to take a hike \ud83d\udc4eAllow Bitcoin to get a hike\ud83d\udc4d \ud83d\udcb8\ud83d\udcb8\ud83d\udcb8\n@NewRightNetwork \n#bitcoin  https://t.co\u2026",
+        "output": "Negative"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "GET FREE 500 Speedcoins #Cryptocurrency (like #Bitcoin #altcoins). If you never used Bitcoin, start with #Speedcoin https://t.co/EcbLTKlGca",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @coindesk: Bitfury-Backed Bitcoin Miner Secures Canadian Land Deal https://t.co/KohhUadvRf https://t.co/aiSa9Uwql1",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @GymRewards: https://t.co/Bm9sIxiiwU Checkout our #bitcointalk #ANN https://t.co/J5xnJJr7Sa #Gymrewards #tokenssale #ethereum #bitcoin #\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @SmartTaylorApp: A flattering statement received in our Taylor Academy Bitcointalk thread. Check others like this in the landing page of\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "$8,770 it was . $BTC #BTC #bitcoin. No let\u00b4s see if it go all the way down to $8,2k area. :D https://t.co/OPFeskKfNu",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Earn bitcoin on a daily basis!\n\n1. Follow @slidecoin \n2. Complete instructions in pinned tweet",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @DrDenaGrayson: \ud83d\uded1BREAKING\ud83d\uded1\n\nRockin' Rod Rosenstein to make a MAJOR CYBER LAW ENFORCEMENT announcement tomorrow\u203c\ufe0f\n\n*TREASURY* Undersecret\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @DrDenaGrayson: \ud83d\uded1BREAKING\ud83d\uded1\n\nRockin' Rod Rosenstein to make a MAJOR CYBER LAW ENFORCEMENT announcement tomorrow\u203c\ufe0f\n\n*TREASURY* Undersecret\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @SmartTaylorApp: Last call: in less than 5 hours there will be no more TAY sold from Taylor. Tokens not sold will be burned: https://t.c\u2026",
+        "output": "Negative"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Buy bitcoin. Duh. https://t.co/UKDbnr00NW",
+        "output": "Negative"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @bethereumteam: Today we're celebrating our #birthday! \ud83c\udf82\nClick on the article to find out what we're doing to #celebrate:\nhttps://t.co/5\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @boutthatbitcoin: Jack Dorsey expects bitcoin to become the world's 'single currency' in about 10 years https://t.co/S9lqbIi81p by @chen\u2026",
+        "output": "Negative"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Buy Bitcoin and GET 10$ Bonus on Coinbase!!!\nhttps://t.co/IIkTGuUcGF\n\n#Coinbase #BTC #bitcoin #DASH #crypto #iota\u2026 https://t.co/rWyvyAXYNK",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Copy successful traders automatically with Bitcoin! \ud83d\udcb0\ud83d\udcb0\n\nI copy \"Dividend667\". Do you?\n\n\u27a1\ufe0f https://t.co/0lHHGHvLY5\u2026 https://t.co/RfQ2gU7ZqX",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "https://t.co/e0r9jjQIju|Based on blockchain genetic medicine ecological solution.\nOne of the hottest in 2018!!!\nUse\u2026 https://t.co/sPGazZ6QIL",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @white_ethereum: #Airdrop Ethereum White Airdrop round#1. 1000 #EthereumWhite will be giving to everyone who complete the google form. Y\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Copy successful traders automatically with Bitcoin! \ud83d\udcb0\ud83d\udcb0\n\nI copy \"Dividend667\". Do you?\n\n\u27a1\ufe0f https://t.co/2Nppnnk7Pk\u2026 https://t.co/p0MGJ9t406",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Bitfury-Backed Bitcoin Miner Secures Canadian Land Deal https://t.co/K2WTxdGyoZ",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "https://t.co/8hMoOH0z32 - Free Bitcoin Cloud Mining\npart 2",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @kubernan: Healthcare Industry &amp; #Blockchain | CloudExpo #FinTech #Ethrereum #Bitcoin https://t.co/vLM2tdaMm2 #Cloud",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @2ndinfra: Been asked how  #NP2M-#Technology could be combined with #Blockchain\nIt's\n\n#SmartPhone independent\n#One2Many same time\nSepara\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "The latest The bitcoin Daily! https://t.co/IoXFPYzvVs Thanks to @daman7775 #bitcoin #cryptocurrency",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @SmartTaylorApp: How cool is this last minute endorsement? :)\n\n2 HOURS LEFT: https://t.co/kgSfTiqRkR\n\n#TaylorTokenSale #Taylor #TokenSal\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "https://t.co/hfvdXU0oet  ~\u2b50\nDm for custom patches \ud83d\udc96\n. \n#kittenplayshop #irononpatch #patchgame #patches #etsy\u2026 https://t.co/4axbDWok9v",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "BTCTN: ICE Agency Charges Payza and Two Canadian Citizens With Bitcoin Money Laundering https://t.co/hPZTjSx8xe\u2026 https://t.co/yv9dbMy9Nu",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @bethereumteam: This month we're celebrating a major #milestone in the project and we're involving our growing community!\nCan you guess\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Tom Lee: \u201cThe Altcoin Bear Rally is Almost at an End,\u201d but still Stick to\u00a0Bitcoin https://t.co/eiOVONEiwU",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Would you put $50M into bitcoin?? https://t.co/6w2lIRXKiJ",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Bitfury-Backed Bitcoin Miner Secures Canadian Land Deal https://t.co/jdkANha9mf",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @atudor27: \u201c@SocialPlastic can be the new #bitcoin but for the earth.\u201d @DavidKatzPB at #think2018 Learn more about the work @PlasticBank\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "\"This is probably the biggest Bitcoin conference in Tokyo ever.\" \n\n- Jerry Chan, SBI on the Satoshi's Vision Confer\u2026 https://t.co/V5ZXHfNzBg",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Would you put $50M into bitcoin?? https://t.co/3Aa6VcHW40",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "ICE Agency Charges Payza and Two Canadian Citizens With Bitcoin Money Laundering https://t.co/EHTNDb85og #Bitcoin",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @WealthE_Coin: As the crypto community grows bigger, government acceptance and regulation will be a big talking point.  Check out this v\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Tom Lee: \u201cThe Altcoin Bear Rally is Almost at an End,\u201d but still Stick to\u00a0Bitcoin https://t.co/eiOVONEiwU",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "ICE Agency Charges Payza and Two Canadian Citizens With Bitcoin Money Laundering https://t.co/0SKxz09kWn #Bitcoin https://t.co/bfo0Jt8xwv",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @SteveRichFXCorp: #Breaking #SteveRichFXCorp #News Alert : https://t.co/UUGvxAIMYh is now live! Latest News and Updates on Cryptocurrenc\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "BTCTN : ICE Agency Charges Payza and Two Canadian Citizens With Bitcoin Money Laundering https://t.co/6EoESl49uc\u2026 https://t.co/pdy9ILgD4Y",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @DrDenaGrayson: \ud83d\udd25The US Attorney General for Southern District of NY also will attend.\n\nLOTS of *banks* in SDNY. Just sayin'.\ud83d\ude0e\n\nhttps://\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @CryptoCratist: $REQ #altcoins #bitcoin #trading\nMarket: Trending\nTrade Set-Up: Reversal Zone @ Key Support\nTrade Strategy: Swing/Long\n*\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @CoinsAirdrops: #Bitcoin #Satoshi #Earn_Money #cryptocurrency #blockchain #Airdrop\nNew #Airdrop \ud83d\udce2  ### Exclusive #LETBET  ###\n\n#LetBet d\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @bethereumteam: What are Smart Contracts?\nRead more about the technology and what they mean for #Bethereum: https://t.co/Eki5dzkfyp\n#blo\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "ICE Agency Charges Payza and Two Canadian Citizens With Bitcoin Money Laundering https://t.co/OGsQj6ogu3",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Would you put $50M into bitcoin?? https://t.co/zNaYwm36sD",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "ICE Agency Charges Payza and Two Canadian Citizens With Bitcoin Money Laundering - https://t.co/1uVJXKMJ1w https://t.co/xI6Gg7dSNZ",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Would you put $50M into bitcoin?? https://t.co/2pWnwU2GNB",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @bethereumteam: To understand how conventional betting is increasingly depriving people of their money, we must first find out how bookm\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "ICE Agency Charges Payza and Two Canadian Citizens With Bitcoin Money Laundering #ico #cryptocurrency #token",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Anybody that knows how to use bitcoin?",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @RandolphMlny: #Bitcoin #Satoshi #crypto #blockchain #Airdrop\nNew Airdrop #HybridBlock \ud83d\udce2\n\nHybrid Block Airdropping 10,000,000 #Hybrid To\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Would you put $50M into bitcoin?? https://t.co/rm0376xJGW",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @officialELTCOIN: If you're new to ELTCOIN or haven't been following along with what we've been up to, watch @isotowright, ELTCOIN's ama\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @NickSzabo4: In particular, every full node watches every other full node (including watching the miners).  Robots in green eyeshades ti\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @TrendSetHipHop: Bitcoin is going way, way down!! Check this guide - start making A LOT more than crypto &amp; join 4 free! \ud83d\udcb0\ud83d\udcb0\ud83d\udd25\ud83d\udc47\ud83c\udffd\nClick here\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "@edskuiz Bitcoin Gold (BTG) a gaining best news ^&amp;^ becoming extra expensive, just Your still don\u0422t hold it? You gi\u2026 https://t.co/HjR5lsvjO9",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "we also held a bounty campaign for those who did not participate in airdrop. #microstack.network  #MsxNetwork https://t.co/JA74uzwUyd",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Tom Lee: \u201cThe Altcoin Bear Rally is Almost at an End,\u201d but still Stick to Bitcoin - BTCMANAGER https://t.co/eeG5YI0iUP #altcoin",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Would you put $50M into bitcoin?? https://t.co/eg3XgNHxgT",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Would you buy this? $Crypto #Bitcoin https://t.co/tQEs4M9PUm The answer is yes buy once it goes a bit lower",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "@ClamfaceBobpant @JuliusBitzCoinz @justinsuntron People looking at bitcoin and think all coins special tron gonna b\u2026 https://t.co/mnoUfbFIKS",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Bitcoin: Mastering Bitcoin for Starters (Kindle Edition) https://t.co/5d6YGLtMIQ #literature #photooftheday #spafrancorchamps",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @PeerMountain: Security requires safeguards that make it difficult or impossible for criminals to gain access to your information. Read\u2026",
+        "output": "Negative"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Would you put $50M into bitcoin?? https://t.co/G4KXN8OYq2",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @DrDenaGrayson: \ud83d\udd25The US Attorney General for Southern District of NY also will attend.\n\nLOTS of *banks* in SDNY. Just sayin'.\ud83d\ude0e\n\nhttps://\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Would you put $50M into bitcoin?? https://t.co/jB3LBIa2yp",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Would you put $50M into bitcoin?? https://t.co/Z4QqWHD6Wo",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "U.S. Govt. Crypto Subcommittee Hearing: \"Poor or Rushed Policy in https://t.co/yTe1IGYSa9 #bitcoin #ethereum #bitcoinprice #cryptocurrency",
+        "output": "Negative"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @nugget_alex: Wow. #Bitcoin vs #Fiat @JanKasparecArt https://t.co/wbs13sB13g",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "\u2018I Don\u2019t Think Bitcoin Will Last Forever\u2019: NSA Whistleblower Edward\u00a0Snowden https://t.co/osWUrIy3mu https://t.co/Re9TxYovlE",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Bitcoin Price Shrugs Off Child Pornography Report to Top $9000 Again ... #Bitcoin https://t.co/BIY4OS0R4L",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @DrDenaGrayson: \ud83d\uded1BREAKING\ud83d\uded1\n\nRockin' Rod Rosenstein to make a MAJOR CYBER LAW ENFORCEMENT announcement tomorrow\u203c\ufe0f\n\n*TREASURY* Undersecret\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @aaronsevivas: Another Bitcoin Cash meetup.  Another packed room. Cities around the world.\n\nThe writing is on the wall.\n\n#BitcoinCash is\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @lopp: @psycho_sage @naval Bitcoin is a game where everybody watches everybody else to make sure nobody cheats.",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @MsxNetwork: Last day for #AION token holder!\n\nCheck ANN thread for more detail \nhttps://t.co/8Mbvhqbvem\n\nDo not miss it!\n\n#microstack #\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "This also applies to Myron Scholes new \u2018stable crypto coin\u2019. || Centralized State Digital Tokens \u2018Can\u2019t Compete Wit\u2026 https://t.co/G8OOh1alfv",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @JoeFloccari: BREAKING: The city of Atlanta and the Atlanta Police Department\u2019s computers have been cyber attacked &amp; demanding a ransom.\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @cryptomsn: Home of Bitcoin Crypto Currency - https://t.co/O0gPKD0Ie8 \n#BTC #CryptoCurrencyNews #Eth #Ltc https://t.co/76hvwd6DlH",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @bethereumteam: Today we're celebrating our #birthday! \ud83c\udf82\nClick on the article to find out what we're doing to #celebrate:\nhttps://t.co/5\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "#blockchain #btc #crypto #cryptocurrency #bitcoin #Ethereum #ETH 23 \n The first blockchain platform to power sports\u2026 https://t.co/cG1R6U9x77",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @RamenCoin2018: The OFFICIAL @RamenCoin2018 Twitter #Airdrop ROUND 1 is LIVE!\n\nReceive 500 $RAMEN for completing the tasks: https://t.co\u2026",
+        "output": "Negative"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @SteveRichFXCorp: #Breaking #SteveRichFXCorp #News Alert : https://t.co/UUGvxAIMYh is now live! Latest News and Updates on Cryptocurrenc\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Snowden on Bitcoin: Blasts Public Ledger and Core\u00a0Developers https://t.co/yOWp5D3LYr https://t.co/m4SW6JT0Mj",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @SiKNTw1st3d: If you want ECA I would not recommend @CoinFalcon I have heard multiple reports of stolen $eca from this exchange. Please\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @unicornhub_au: @zilliqa Here is my submission for the #zilliqacontest .  Winning the contest or not, I hope my effort could be little h\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @CoinsAirdrops: #Bitcoin #Satoshi #Earn_Money #cryptocurrency #blockchain #Airdrop\n\ud83d\udce2 New Airdrop #ELT \u2b50\u2b50\u2b50\u2b50\u2b50  5/5 stars\n\n#Lendo (50 $ELT)\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @stephanlivera: Bitcoin: Just like UNIX, it does one thing, and does it well https://t.co/CUaNsizlZE",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "@CryptoCobain I want to be a big man can u plzzz give me free bitcoin?",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @bethereumteam: Do you remember the last time you had fun while betting?\nWell, with #Bethereum you will! We're bringing the holy trinity\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @RandolphMlny: #Bitcoin #Satoshi #Earn_Money #cryptocurrency #blockchain #Airdrop\nNew Airdrop #BobsRepair \ud83d\udce2\n\n#BobsRepair #Airdrop 8,000,\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Bitcoin Price Rally Is\u00a0Over https://t.co/10EgBXMeLH https://t.co/CaAnCLNgHu",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @bethereumteam: It's been 72 hours since the official launch of our Bounty campaign.\nIs there a stronger crypto community out there?\n#cr\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @bethereumteam: Checkout an interview with our team!\nWe feel that interviews get us even closer to our community. \ud83e\udd1d\nhttps://t.co/AUpyskY\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @bethereumteam: Today we're celebrating our #birthday! \ud83c\udf82\nClick on the article to find out what we're doing to #celebrate:\nhttps://t.co/5\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "ICE Agency Charges Payza and Two Canadian Citizens With Bitcoin Money Laundering https://t.co/l8BdrliUgF via @BTCTN",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @white_ethereum: #Airdrop Ethereum White Airdrop round#1. 1000 #EthereumWhite will be giving to everyone who complete the google form. Y\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Copy successful traders automatically with Bitcoin! \ud83d\udcb0\ud83d\udcb0\n\nI copy \"Dividend667\". Do you?\n\n\u27a1\ufe0f https://t.co/38LkK8JCZj\u2026 https://t.co/IPbFeBQ3g0",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Durex-Maker Reckitt Avoids $20 Billion Headache By The post Durex-Maker Reckitt Avoids $20 Billion Headache appeare\u2026 https://t.co/HVFiw3e1xs",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @GymRewards: https://t.co/Bm9sIxiiwU  Checkout our #bitcointalk #ANN https://t.co/J5xnJJr7Sa \u2026 #Gymrewards #tokenssale #ethereum #bitcoi\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Bitcoin can earn you lots of money...earn up to $13000 worth of bitcoin with bitcoin code in 24hrs...join now\u2026 https://t.co/GJoSewGub5",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "ICE Agency Charges Payza and Two Canadian Citizens With Bitcoin Money\u00a0Laundering https://t.co/bdboLqtC08 https://t.co/fR7HMulp0p",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @BobTayllor: He also believes there\u2019s 72 genders and a pay gap. His opinion isn\u2019t worth much https://t.co/gz6whuGxX4",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @DrDenaGrayson: \ud83d\uded1BREAKING\ud83d\uded1\n\nRockin' Rod Rosenstein to make a MAJOR CYBER LAW ENFORCEMENT announcement tomorrow\u203c\ufe0f\n\n*TREASURY* Undersecret\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @bethereumteam: Some of you already correctly guessed the reason for our #Celebration!\nWe are one of the strongest #crypto communities a\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @bethereumteam: The whole #betting process in only 5 steps!\nEasy, secure and engaging using: https://t.co/dXpy0T6IUp\n#socialbetting #onl\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "#G20 Nearing Consensus on Bitcoin Not Being Currency - Cryptovest https://t.co/YYoLQv708O",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @bitcoin_dealer: Bitmain Antminer V9 ~4.0TH/s ASIC Bitcoin Miner *IN-HAND* \u00bb Worldwide Shipping \u00ab #CRYPTO https://t.co/rNSGc7l008 https:\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @DrDenaGrayson: \ud83d\uded1BREAKING\ud83d\uded1\n\nRockin' Rod Rosenstein to make a MAJOR CYBER LAW ENFORCEMENT announcement tomorrow\u203c\ufe0f\n\n*TREASURY* Undersecret\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Pablo Escobar's brother is launching a cryptocurrency: Diet Bitcoin  https://t.co/UqbuOHZIke",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "@BitcoinAndroid @Blockstream @adam3us @rusty_twit @Excellion @Ben_Teitelbaum @BitcoinMagazine @Cointelegraph I agre\u2026 https://t.co/HufTucR2QF",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Name: Santiment Network Token\nSymbol: SAN\n24 hour change: -6.09%\nPrice: 1.33817\nRank: 127\nTotal Supply: 83337000.0\u2026 https://t.co/whU1wniiDh",
+        "output": "Negative"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "How do you lead a horse to water? With lots of carrots. #Proverb #bitcoin",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Rent Tallinn apartment RT @ChainiumIO: Come say hello if you\u2019re at the @Blockchain_Conf &amp; #Bitcoin conference in Ta\u2026 https://t.co/VnDq2rMKek",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @tippereconomy: Another use case for #blockchain and #Tipper. The #TipperEconomy  can unseat Facebook and change everything! ICO Live No\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @bethereumteam: What are Smart Contracts?\nRead more about the technology and what they mean for #Bethereum: https://t.co/Eki5dzkfyp\n#blo\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @lopp: @psycho_sage @naval Bitcoin is a game where everybody watches everybody else to make sure nobody cheats.",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @LadyJessMacBeth: \u201c...we shall defend our soy milk lattes, no matter how much bitcoin it takes, we shall screech on university grounds,\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "New bitcoin report for block 514741, there were 13 transactions over $500,000 USD totaling $10,518,621 USD. Full re\u2026 https://t.co/hJW5gZCJ8U",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Bitcoin Falls on Fears of Regulatory Trouble for Big Crypto Exchange https://t.co/M1zmJHqKRP https://t.co/x8jZGaprHn",
+        "output": "Negative"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "@lemon_of_world Bitcoin Private mainnet test successfully complete! BTCP blockchain works stably.12 global exchange\u2026 https://t.co/1tH3HOT9HD",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @NickSzabo4: In particular, every full node watches every other full node (including watching the miners).  Robots in green eyeshades ti\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @bethereumteam: This month we're celebrating a major #milestone in the project and we're involving our growing community!\nCan you guess\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @MsxNetwork: Last day for #AION token holder!\n\nCheck ANN thread for more detail \nhttps://t.co/8Mbvhqbvem\n\nDo not miss it!\n\n#microstack #\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Name: Asch\nSymbol: XAS\n24 hour change: -11.61%\nPrice: 0.725263\nRank: 143\nTotal Supply: 114855331.0\nVolume: 4964100.\u2026 https://t.co/HwwhtYUoXx",
+        "output": "Negative"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @BTCTN: Survey Says 8% of the American Population Now Own Cryptocurrency https://t.co/QiAm8cXRU0 #Bitcoin https://t.co/JvYfgluobE",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Cryptocurrency Exchange Binance to Face Rebuke from Japan's FSA for Operating Without a License #cryptocurrency\u2026 https://t.co/PoUEOrGTda",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @DrDenaGrayson: \ud83d\uded1BREAKING\ud83d\uded1\n\nRockin' Rod Rosenstein to make a MAJOR CYBER LAW ENFORCEMENT announcement tomorrow\u203c\ufe0f\n\n*TREASURY* Undersecret\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @NirvanaLand: #Bitcoin 8000 $ ! Have a good profit, Mining #trend 2017 #BTC #LTC #ETH #DASH https://t.co/0xGqUP3Zdy \nhttps://t.co/zDSALD\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "\u201cSBI Bits has invested in more blockchain companies than Google.\u201d-Jerry Chan\n\n#bitcoincash #bitcoin #satoshivision conference",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Kittens in the Ether? Check out @HypedOnCrypto to learn more about Ethereum. #BTC #LTC #ETH #BITCOIN #LITECOIN\u2026 https://t.co/i3gVWwjiBn",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @SteveRichFXCorp: #Breaking #SteveRichFXCorp #News Alert : https://t.co/UUGvxAIMYh is now live! Latest News and Updates on Cryptocurrenc\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "looking nice https://t.co/pYG2x59Rcw",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "ICE Agency Charges Payza and Two Canadian Citizens With Bitcoin Money Laundering https://t.co/MheU5ulGaN\u2026 https://t.co/2Nl51hwMrC",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @CutebootyPoet: #bitcoin #crypto ICE Agency Charges Payza and Two Canadian Citizens With Bitcoin Money Laundering https://t.co/bM8XXKKtZ\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @payvxofficial: Support PayVX project and let us all stop Identity Theft &amp; Fraud when transacting online. Start using a decentralized pl\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @rogerkver: Thanks to @MoneyToken Bitcoin Cash holders can leverage their BCH holdings into spending cash, while continuing to hold thei\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @CBSEveningNews: DEVELOPING: The City of Atlanta's computer systems are experiencing a major cyberattack. A ransom note asks for Bitcoin\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Name: Modum\nSymbol: MOD\n24 hour change: -7.03%\nPrice: 2.31984\nRank: 191\nTotal Supply: 27266200.0\nVolume: 2000780.0\u2026 https://t.co/LXPYu3Nz6z",
+        "output": "Negative"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @SteveRichFXCorp: #Breaking #SteveRichFXCorp #News Alert : https://t.co/UUGvxAIMYh is now live! Latest News and Updates on Cryptocurrenc\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @SmartTaylorApp: Buy pressure: China and the USA are forbidden to buy TAY until after the token sale. What do you think it will hapen th\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @white_ethereum: #Airdrop Ethereum White Airdrop round#1. 1000 #EthereumWhite will be giving to everyone who complete the google form. Y\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @DrDenaGrayson: @ericgeller Agree w/@ericgeller\ud83d\udc49\ud83c\udffclikely signals #indictments of state-backed hackers. I believe that these hackers will\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "House spending bill restores funding for West Coast earthquake warning system The U.S. Geological Survey\u2019s West Coa\u2026 https://t.co/KDFRFzcDUv",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @white_ethereum: #Airdrop Ethereum White Airdrop round#1. 1000 #EthereumWhite will be giving to everyone who complete the google form. Y\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Bitcoin slumps after Binance is said to face regulatory trouble in Japan - https://t.co/C7hDh8KVjv",
+        "output": "Negative"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @SmartTaylorApp: Voil\u00e0! First video-demo of the Crypto Trading Assistant App released: https://t.co/a5LaYI22K5  . What do you think?\n\n#T\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @sirdavidjcooper: Short Escobar Inc. How is the media going to report the truth though when they are scared shitless.  https://t.co/ClBT\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @_bitcoinmonster: Bitcoin Monster - Monsterize Your Asset\nCryptocurrency Monster - Masternode Support - High Rewards\n-------------------\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Name: Bread\nSymbol: BRD\n24 hour change: -5.35%\nPrice: 0.500904\nRank: 209\nTotal Supply: 88862718.0\nVolume: 1502220.0\u2026 https://t.co/nSSi8gMCP5",
+        "output": "Negative"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @bethereumteam: The whole #betting process in only 5 steps!\nEasy, secure and engaging using: https://t.co/dXpy0T6IUp\n#socialbetting #onl\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @CoinsAirdrops: #Bitcoin #Satoshi #Earn_Money #cryptocurrency #blockchain #Airdrop\nNew Airdrop #Stox \ud83d\udce2\n\n1. Sign-up here : https://t.co/9\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @SmartTaylorApp: The price decline of ETH against the US Dollar is making the price of TAY in USD this week lower than the first week's\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @UppercoinC: #Giveaway $100 in $ETH!\n\n-Like\n-Retweet\n-Follow\n-Comment down below with your #Ethereum (preferably) ERC20 address.\n\nLike a\u2026",
+        "output": "Negative"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "New post (ICE Agency Charges Payza and Two Canadian Citizens With Bitcoin Money Laundering) has been published on A\u2026 https://t.co/VrYsDrSGNI",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @bethereumteam: This month we're celebrating a major #milestone in the project and we're involving our growing community!\nCan you guess\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "The Unbanked Lifestyle \u2013 Cryptocurrency and Cash Combo Increasing In Popularity\nhttps://t.co/9xusZpXxrY\u2026 https://t.co/cSw4ZYkwym",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Changelly #Bitcoin #Ethereum #Monero #Ripple #Litecoin #Dash cryptocurrency exchange - https://t.co/70NXGCzQUl #IT #cloud_computing",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @SmartTaylorApp: A flattering statement received in our Taylor Academy Bitcointalk thread. Check others like this in the landing page of\u2026",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @PeerMountain: Check out again our video to understand how Peer Mountain works :)\n\n#blockchain #cryptocurrency #bitcoin #ethereum #Techn\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @RandolphMlny: #Bitcoin #Satoshi #cryptocurrency #blockchain #Airdrop\nNew Airdrop #BTU \ud83d\udce2\n\n#BTU distributes 4 #BTU Tokens (~ 40 USD) \u2708\ufe0f\ud83d\udcb0\u2026",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Install CryptoTab and mine Bitcoin! https://t.co/5LzMlrQxqT",
+        "output": "Neutral"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": ".@LordRay23 is STILL live! Marathon stream and now there are #stocks! &gt; https://t.co/XZYOBtCZo9 &lt; #stocks\u2026 https://t.co/dvv98ssBL4",
+        "output": "Positive"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "Name: Metaverse ETP\nSymbol: ETP\n24 hour change: -4.1%\nPrice: 0.941506\nRank: 219\nTotal Supply: 57377622.0\nVolume: 12\u2026 https://t.co/HmWCo1RthB",
+        "output": "Negative"
+    },
+    {
+        "instruction": "Detect the sentiment of the tweet.",
+        "input": "RT @SmartTaylorApp: Last call: in less than 5 hours there will be no more TAY sold from Taylor. Tokens not sold will be burned: https://t.c\u2026",
+        "output": "Negative"
+    }
+]
