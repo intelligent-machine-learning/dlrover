@@ -8,19 +8,22 @@ The document describes how to use DLRover to fine-tune the llama2.
 dataset from Kaggle and untar the dataset into the file BTC_Tweets_Updated.csv.
 - Convert the dataset by `python prepare_data.py BTC_Tweets_Updated.csv`.
 
+For convenience, there is a small sampling dataset with 500 samples
+in the `examples/pytorch/llama2/btc_tweets_sentiment.json`
+
 ## Train on a Single Node with Mutliple GPUs
 
 On the node with GPU, we firstly need to install dlrover and the dependencies of the model by
 
 ```bash
 pip install dlrover -U
-pip install -r ./examples/pytorch/llama2/requirements.txt
+pip install -r examples/pytorch/llama2/requirements.txt
 ```
 
 Then, we can use `dlrover-run` to start the training by
 
 ```bash
-dlrover-run --standalone --nproc_per_node=${GPU_NUM} ./examples/pytorch/llama2/llama_ft.py 
+dlrover-run --standalone --nproc_per_node=${GPU_NUM} examples/pytorch/llama2/llama_ft.py 
 ```
 
 `GPU_NUM` is the number of GPUs on the node.
@@ -37,7 +40,7 @@ Build the docker image with the command
 
 ```bash
 docker build -t registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:llama-finetuning \
--f ./examples/pytorch/llama2/llama2.dockerfile .
+-f examples/pytorch/llama2/llama2.dockerfile .
 ```
 
 ## Traing on Mutliple Nodes
@@ -45,5 +48,5 @@ docker build -t registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:llama-finetu
 Use `kubectl` to submit an elastic job.
 
 ```bash
-kubectl -n dlrover apply -f ./examples/pytorch/llama2/elastic_job.yaml
+kubectl -n dlrover apply -f examples/pytorch/llama2/elastic_job.yaml
 ```
