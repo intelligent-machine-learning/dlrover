@@ -273,17 +273,18 @@ class FSDPCheckpointManger(CheckpointManger):
         `checkpoint-{step}/part-{rank}.pt`.
         """
         self.log_rank0(f"Save checkpoint of step={step} of epoch={epoch}.")
-        step = step + epoch * len(self.dataloader)
+        if self.dataloader:
+            step = step + epoch * len(self.dataloader)
         FSDP.set_state_dict_type(
             self.model,
-            StateDictType.FULL_STATE_DICT,
-            FullStateDictConfig(rank0_only=False),
-            FullOptimStateDictConfig(rank0_only=False),
+            StateDictType.SHARDED_STATE_DICT,
         )
         msd = self.model.state_dict()
         osd = FSDP.optim_state_dict(self.model, self.optimizer)
         ssd = {}
-        if isinstance(self.dataloader.sampler, ElasticDistributedSampler):
+        if self.dataloader and isinstance(
+            self.dataloader.sampler, ElasticDistributedSampler
+        ):
             ssd = self.dataloader.sampler.state_dict(
                 step, self.dataloader.batch_size
             )
@@ -307,17 +308,16 @@ class FSDPCheckpointManger(CheckpointManger):
             return
         logger.info(f"Load checkpoint from {ckpt_path}")
         checkpoint = torch.load(ckpt_path)
-        sampler = self.dataloader.sampler
-        if isinstance(sampler, ElasticDistributedSampler):
-            sampler.load_state_dict(checkpoint.get("sampler", {}))
+        if self.dataloader:
+            sampler = self.dataloader.sampler
+            if isinstance(sampler, ElasticDistributedSampler):
+                sampler.load_state_dict(checkpoint.get("sampler", {}))
         model_state_dict = checkpoint.get("model", {})
         optim_state_dict = checkpoint.get("optimizer", {})
 
         FSDP.set_state_dict_type(
             self.model,
-            StateDictType.FULL_STATE_DICT,
-            FullStateDictConfig(rank0_only=False),
-            FullOptimStateDictConfig(rank0_only=False),
+            StateDictType.SHARDED_STATE_DICT,
         )
         self.model.load_state_dict(model_state_dict)
 
