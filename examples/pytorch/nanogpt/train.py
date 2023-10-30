@@ -158,8 +158,8 @@ def get_lr(it, args):
 
 
 def log_rank0(msg):
-    local_rank = int(os.getenv("LOCAL_RANK", 0))
-    if local_rank == 0:
+    rank = int(os.getenv("RANK", 0))
+    if rank == 0:
         print(msg)
 
 
