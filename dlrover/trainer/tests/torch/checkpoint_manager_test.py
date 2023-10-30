@@ -46,11 +46,12 @@ class SimpleNet(nn.Module):
         super(SimpleNet, self).__init__()
         self.fc1 = nn.Linear(128, 64)
         self.fc2 = nn.Linear(64, 10)
+        self.dropout = nn.Dropout(0.5)
 
     def forward(self, x):
         x = self.fc1(x)
         x = F.relu(x)
-        x = self.dropout2(x)
+        x = self.dropout(x)
         x = self.fc2(x)
         output = F.log_softmax(x, dim=1)
         return output
