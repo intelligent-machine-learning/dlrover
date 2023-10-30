@@ -5,9 +5,6 @@ MODEL_NAME_OR_PATH=${MODEL_NAME_OR_PATH:-/path/to/Llama-2-7b-hf}
 # MODEL_NAME_OR_PATH=${MODEL_NAME_OR_PATH:-/path/to/Llama-2-70b-hf}
 
 WORLD_SIZE=${WORLD_SIZE:-1}
-RANK=${RANK:-0}
-MASTER_ADDR=${MASTER_ADDR:-127.0.0.1}
-MASTER_PORT=${MASTER_PORT:-29678}
 
 PIPELINE_PARALLEL_SIZE=${PIPELINE_PARALLEL_SIZE:-4}
 MODEL_PARALLEL_SIZE=${MODEL_PARALLEL_SIZE:-8}
@@ -49,8 +46,8 @@ cat <<EOT > $DS_CONFIG
 EOT
 
 
-nohup python -u -m atorch.distributed.launch --nproc_per_node 8 --nnodes $WORLD_SIZE \
-  --node_rank $RANK --master_addr $MASTER_ADDR --master_port $MASTER_PORT ds_3d_llama2.py \
+nohup python -u -m atorch.distributed.run --fault_tolerant \
+  --nnodes=$WORLD_SIZE --nproc_per_node=8 ds_3d_llama2.py \
   --pipeline_parallel_size $PIPELINE_PARALLEL_SIZE \
   --model_parallel_size $MODEL_PARALLEL_SIZE \
   --block_size $BLOCK_SIZE \

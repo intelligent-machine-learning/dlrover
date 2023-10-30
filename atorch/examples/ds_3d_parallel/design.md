@@ -141,16 +141,16 @@
 
 
 - Omits optim and dataset related batch_fn.
-- The user specifies the module name information of Tensor Paralle Shard, and the customized forward patcheres if some modules in the pipeline need.
+- The user specifies the module name information of Tensor Parallel Shard, and the customized forward patcheres if some modules in the pipeline need.
 # Design
 
 - The main problems with 3D parallelization of the native Torch implementation model:
-   - Graphics memory limitations, large-scale models can`t be instantiated as a whole on a single GPU before slicing. Also efficiency issues.
+   - Graphics memory limitations, large-scale models can't be instantiated as a whole on a single GPU before slicing. Also efficiency issues.
    - Randomness control, model initialization/dropout, etc., need to control the same/different in different parallel dimensions.
 
 ## Record init
 
-- Megatron`s embedded Col/Row Linear has been split horizontally and vertically, and deepspeed LayerSpec delays instantiating the required layers. But Transformers `XXXModel(XXXConfig(…))` instantiates the full model directly.
+- Megatron's embedded Col/Row Linear has been split horizontally and vertically, and deepspeed LayerSpec delays instantiating the required layers. But Transformers `XXXModel(XXXConfig(…))` instantiates the full model directly.
 - Solution: `record_module_init` context manager. Initialize parameters to meta tensor and record each module build-time entry into `_init_args`, `_init_kwargs` attributes for subsequent rebuilds.
 
 <details>
