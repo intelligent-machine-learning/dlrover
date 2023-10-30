@@ -17,10 +17,8 @@ from abc import ABCMeta, abstractmethod
 
 import torch
 import torch.distributed as dist
-from torch.distributed.fsdp import FullStateDictConfig
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.distributed.fsdp import StateDictType
-from torch.distributed.fsdp.api import FullOptimStateDictConfig
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 from dlrover.python.common.log import default_logger as logger
