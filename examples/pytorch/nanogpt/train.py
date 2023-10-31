@@ -253,11 +253,14 @@ def train():
                 transformer_auto_wrap_policy,
                 transformer_layer_cls={Block},
             )
+            cpu_offload = (
+                CPUOffload(offload_params=True) if args.cpu_offload else None
+            )
             model = FSDP(
                 model,
                 device_id=local_rank,
                 auto_wrap_policy=my_auto_wrap_policy,
-                cpu_offload=CPUOffload(offload_params=True),
+                cpu_offload=cpu_offload,
             )
         else:
             print(f"Running basic DDP example on local rank {local_rank}.")
@@ -505,6 +508,7 @@ def arg_parser():
     )
     parser.add_argument("--compile", type=str, default="False", required=False)
     parser.add_argument("--use_fsdp", action="store_true", required=False)
+    parser.add_argument("--cpu_offload", action="store_true", required=False)
     parser.add_argument(
         "--checkpoint_step", type=int, default=100, required=False
     )
