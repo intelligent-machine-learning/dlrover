@@ -134,7 +134,7 @@ class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
         self.assertEqual(num, 6)
 
 
-class NcclCheckRendezvousManagerTest(unittest.TestCase):
+class NetworkCheckRendezvousManagerTest(unittest.TestCase):
     def test_network_check_rdzv(self):
         rdzv_manager = NetworkCheckRendezvousManager()
         rdzv_manager.update_rdzv_params(4, 4, 60, 1)

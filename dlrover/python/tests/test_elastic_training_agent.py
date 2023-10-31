@@ -34,6 +34,7 @@ from dlrover.python.elastic_agent.torch.training import (
     ElasticTrainingAgent,
     MasterRendezvousHandler,
     NetworkCheckElasticAgent,
+    RendezvousOutSyncError,
     _get_local_ip,
     _set_paral_config,
 )
@@ -233,6 +234,13 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
 
             monitor.report_resource_with_step()
             self.assertEqual(self._master.speed_monitor._global_step, 100)
+
+    def test_(self):
+        self._master.rdzv_managers[
+            RendezvousName.NETWORK_CHECK
+        ].join_rendezvous(0, 8)
+        with self.assertRaises(RendezvousOutSyncError):
+            self.rdzv_handler._check_network_rdzv_for_elastic_training()
 
 
 class NetworkCheckElasticAgentTest(unittest.TestCase):

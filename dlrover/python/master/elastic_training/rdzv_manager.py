@@ -63,6 +63,9 @@ class RendezvousManager(metaclass=ABCMeta):
         self._name = ""
         self._latest_rdzv_nodes = []
 
+    def clear_waiting_nodes(self):
+        self._waiting_nodes.clear()
+
     def add_alive_node(self, node: Node):
         """When a node is running, the master will add it to alive list."""
         self._alive_nodes.add(node.id)

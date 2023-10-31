@@ -236,6 +236,13 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         round = rdzv_manager.join_rendezvous(
             request.node_id, request.local_world_size
         )
+        if request.rdzv_name == RendezvousName.NETWORK_CHECK:
+            # The waiting node in the training rdzv should clear if
+            # a worker join network-check rdzv.
+            training_manager = self._rdzv_managers[
+                RendezvousName.ELASTIC_TRAINING
+            ]
+            training_manager.clear_waiting_nodes()
         res = grpc.RendezvousState(round=round)
         return res
 

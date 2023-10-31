@@ -243,7 +243,7 @@ class MasterRendezvousHandler(RendezvousHandler):
         rank = list(world.keys()).index(self._rank_id)
         world_size = len(world)
         logger.info(
-            f"The node{node_name} has joined round {round} of "
+            f"The node {node_name} has joined round {round} of "
             f"the {self._name} rendezvous as rank {rank} in a world of size "
             f"{world_size}."
         )
@@ -458,7 +458,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 super()._initialize_workers(worker_group)
             except RendezvousOutSyncError:
                 logger.info(
-                    "Exit elastic-training rendezvous when there are"
+                    "Exit elastic-training rendezvous when there are "
                     "agents to join the network-check rendezvous."
                 )
             else:
