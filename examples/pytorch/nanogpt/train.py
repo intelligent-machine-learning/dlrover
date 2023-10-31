@@ -26,7 +26,7 @@ import torch
 import torch.distributed as dist
 from lora import apply_lora
 from model import GPT, Block, GPTConfig
-from torch.distributed.fsdp import FullStateDictConfig
+from torch.distributed.fsdp import CPUOffload, FullStateDictConfig
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.distributed.fsdp import StateDictType
 from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
@@ -237,7 +237,7 @@ def train():
     )
     model = gpt_init(meta_vocab_size, args=args)
     lora_config = create_lora_config(args)
-    if lora_config is not None:
+    if lora_config is not None and False:
         log_rank0(f"apply lora config {lora_config}")
         apply_lora(model, **lora_config)
     scaler = torch.cuda.amp.GradScaler(enabled=(dtype == "float16"))
@@ -257,6 +257,7 @@ def train():
                 model,
                 device_id=local_rank,
                 auto_wrap_policy=my_auto_wrap_policy,
+                cpu_offload=CPUOffload(offload_params=True),
             )
         else:
             print(f"Running basic DDP example on local rank {local_rank}.")
