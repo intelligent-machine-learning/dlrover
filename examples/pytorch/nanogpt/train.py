@@ -26,7 +26,7 @@ import torch
 import torch.distributed as dist
 from lora import apply_lora
 from model import GPT, Block, GPTConfig
-from torch.distributed.fsdp import FullStateDictConfig
+from torch.distributed.fsdp import CPUOffload, FullStateDictConfig
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.distributed.fsdp import StateDictType
 from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
@@ -158,8 +158,8 @@ def get_lr(it, args):
 
 
 def log_rank0(msg):
-    local_rank = int(os.getenv("LOCAL_RANK", 0))
-    if local_rank == 0:
+    rank = int(os.getenv("RANK", 0))
+    if rank == 0:
         print(msg)
 
 
@@ -257,6 +257,7 @@ def train():
                 model,
                 device_id=local_rank,
                 auto_wrap_policy=my_auto_wrap_policy,
+                cpu_offload=CPUOffload(offload_params=True),
             )
         else:
             print(f"Running basic DDP example on local rank {local_rank}.")
