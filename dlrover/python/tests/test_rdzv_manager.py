@@ -132,9 +132,12 @@ class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
             rdzv_manager.join_rendezvous(i, 8)
         num = rdzv_manager.num_nodes_waiting()
         self.assertEqual(num, 6)
+        rdzv_manager.clear_waiting_nodes()
+        num = rdzv_manager.num_nodes_waiting()
+        self.assertEqual(num, 0)
 
 
-class NcclCheckRendezvousManagerTest(unittest.TestCase):
+class NetworkCheckRendezvousManagerTest(unittest.TestCase):
     def test_network_check_rdzv(self):
         rdzv_manager = NetworkCheckRendezvousManager()
         rdzv_manager.update_rdzv_params(4, 4, 60, 1)
