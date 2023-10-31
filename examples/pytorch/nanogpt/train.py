@@ -237,7 +237,7 @@ def train():
     )
     model = gpt_init(meta_vocab_size, args=args)
     lora_config = create_lora_config(args)
-    if lora_config is not None and False:
+    if lora_config is not None:
         log_rank0(f"apply lora config {lora_config}")
         apply_lora(model, **lora_config)
     scaler = torch.cuda.amp.GradScaler(enabled=(dtype == "float16"))
