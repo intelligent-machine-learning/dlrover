@@ -105,7 +105,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         elif isinstance(req_message, grpc.JoinRendezvousRequest):
             message = self._join_rendezvous(req_message)
         elif isinstance(req_message, grpc.WaitingNodeNumRequest):
-            message = self._num_nodes_waiting()
+            message = self._num_nodes_waiting(req_message.rdzv_name)
         elif isinstance(req_message, grpc.NetworkReadyRequest):
             message = self._check_fault_node()
         elif isinstance(req_message, grpc.StragglerExistRequest):
@@ -239,11 +239,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         res = grpc.RendezvousState(round=round)
         return res
 
-    def _num_nodes_waiting(self):
-        waiting_num = 0
-        for rdzv_manager in self._rdzv_managers.values():
-            num = rdzv_manager.num_nodes_waiting()
-            waiting_num = max(num, waiting_num)
+    def _num_nodes_waiting(self, rdzv_name):
+        waiting_num = self._rdzv_managers[rdzv_name].num_nodes_waiting()
         res = grpc.RendezvousState(waiting_num=waiting_num)
         return res
 
