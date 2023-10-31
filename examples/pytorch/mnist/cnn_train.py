@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import argparse
+import functools
 import os
 from datetime import datetime, timedelta
 
@@ -22,9 +23,10 @@ import torch.nn.functional as F
 import torch.optim as optim
 import torchvision
 from torch.distributed.elastic.multiprocessing.errors import record
-from torch.distributed.fsdp import FullStateDictConfig
+from torch.distributed.fsdp import CPUOffload, FullStateDictConfig
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.distributed.fsdp import StateDictType
+from torch.distributed.fsdp.wrap import size_based_auto_wrap_policy
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader
@@ -128,7 +130,15 @@ def train(args):
         model = model.to(local_rank)
         if args.use_fsdp:
             print(f"Running basic FSDP example on local rank {local_rank}.")
-            model = FSDP(model)
+            my_auto_wrap_policy = functools.partial(
+                size_based_auto_wrap_policy, min_num_params=1000
+            )
+            model = FSDP(
+                model,
+                device_id=local_rank,
+                auto_wrap_policy=my_auto_wrap_policy,
+                cpu_offload=CPUOffload(offload_params=True),
+            )
         else:
             print(f"Running basic DDP example on local rank {local_rank}.")
             model = DDP(model, device_ids=[local_rank])
