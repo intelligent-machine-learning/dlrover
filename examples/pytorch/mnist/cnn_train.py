@@ -130,7 +130,6 @@ def train(args):
         model = model.to(local_rank)
         if args.use_fsdp:
             print(f"Running basic FSDP example on local rank {local_rank}.")
-            model = FSDP(model)
             my_auto_wrap_policy = functools.partial(
                 size_based_auto_wrap_policy, min_num_params=1000
             )
