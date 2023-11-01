@@ -135,6 +135,11 @@ class RendezvousManager(metaclass=ABCMeta):
                 f"Completed {self._rdzv_round} round "
                 f"rendezvous of {self._name} is {self._rdzv_nodes}"
             )
+            if self._waiting_nodes:
+                logger.warning(
+                    f"Waiting nodes not in {self._rdzv_round} rendezvous "
+                    f"are {self._waiting_nodes}."
+                )
         return rdzv_completed
 
     def not_joined_rdzv_nodes(self):
