@@ -133,11 +133,14 @@ def train(args):
             my_auto_wrap_policy = functools.partial(
                 size_based_auto_wrap_policy, min_num_params=1000
             )
+            cpu_offload = (
+                CPUOffload(offload_params=True) if args.cpu_offload else None
+            )
             model = FSDP(
                 model,
                 device_id=local_rank,
                 auto_wrap_policy=my_auto_wrap_policy,
-                cpu_offload=CPUOffload(offload_params=True),
+                cpu_offload=cpu_offload,
             )
         else:
             print(f"Running basic DDP example on local rank {local_rank}.")
@@ -254,7 +257,6 @@ def test(model, device, test_loader):
     test_loss = 0
     correct = 0
     with torch.no_grad():
-        model = model.to(device)
         for data, target in test_loader:
             target = target.type(torch.LongTensor)
             data, target = data.to(device), target.to(device)
@@ -284,7 +286,8 @@ def arg_parser():
     parser.add_argument("--batch_size", type=int, default=32, required=False)
     parser.add_argument("--num_epochs", type=int, default=1, required=False)
     parser.add_argument("--shuffle", type=bool, default=True, required=False)
-    parser.add_argument("--use_fsdp", type=bool, default=False, required=False)
+    parser.add_argument("--use_fsdp", action="store_true", required=False)
+    parser.add_argument("--cpu_offload", action="store_true", required=False)
     parser.add_argument(
         "--fixed_batch_size", type=bool, default=True, required=False
     )

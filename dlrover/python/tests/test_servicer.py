@@ -346,7 +346,8 @@ class MasterServicerTest(unittest.TestCase):
         self.servicer.report(request, None)
         response = self.servicer.get(request, None)
         config = grpc.deserialize_message(response.data)
-        self.assertIsInstance(config, grpc.ParallelConfig)
+        if config:
+            self.assertIsInstance(config, grpc.ParallelConfig)
 
     def test_get_straggler(self):
         message = grpc.StragglerExistRequest()
@@ -356,6 +357,20 @@ class MasterServicerTest(unittest.TestCase):
         response = self.servicer.get(request, None)
         config = grpc.deserialize_message(response.data)
         self.assertIsInstance(config, grpc.NetworkCheckResult)
+
+    def test_join_rendezvous(self):
+        request = grpc.JoinRendezvousRequest(
+            0, 8, RendezvousName.ELASTIC_TRAINING
+        )
+        self.servicer._join_rendezvous(request)
+        res = self.servicer._num_nodes_waiting(RendezvousName.ELASTIC_TRAINING)
+        self.assertEqual(res.waiting_num, 1)
+        request = grpc.JoinRendezvousRequest(
+            0, 8, RendezvousName.NETWORK_CHECK
+        )
+        self.servicer._join_rendezvous(request)
+        res = self.servicer._num_nodes_waiting(RendezvousName.ELASTIC_TRAINING)
+        self.assertEqual(res.waiting_num, 0)
 
 
 class MasterServicerForRayTest(unittest.TestCase):

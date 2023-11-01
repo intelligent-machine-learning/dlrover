@@ -85,6 +85,10 @@ def _get_local_ip():
     return local_ip
 
 
+class RendezvousOutSyncError(Exception):
+    pass
+
+
 @dataclass
 class ElasticLaunchConfig(LaunchConfig):
     """
@@ -206,6 +210,7 @@ class MasterRendezvousHandler(RendezvousHandler):
         round = self._join_rendezvous()
         start_pending = 0
         while True:
+            self._check_network_rdzv_for_elastic_training()
             group, world = self._client.get_comm_world(
                 self._name, self._rank_id
             )
@@ -238,7 +243,7 @@ class MasterRendezvousHandler(RendezvousHandler):
         rank = list(world.keys()).index(self._rank_id)
         world_size = len(world)
         logger.info(
-            f"The node{node_name} has joined round {round} of "
+            f"The node {node_name} has joined round {round} of "
             f"the {self._name} rendezvous as rank {rank} in a world of size "
             f"{world_size}."
         )
@@ -250,6 +255,18 @@ class MasterRendezvousHandler(RendezvousHandler):
             self._report_failure(err_msg, level=TrainingMsgLevel.WARNING)
         store = self._get_store(round, group)
         return store, world
+
+    def _check_network_rdzv_for_elastic_training(self):
+        """The worker need to exit the elastic-training rendezvous if there are
+        workers to join the network-check rendezvous.
+        """
+        if self._name == RendezvousName.ELASTIC_TRAINING:
+            num = self._client.num_nodes_waiting(RendezvousName.NETWORK_CHECK)
+            if num > 0:
+                raise RendezvousOutSyncError(
+                    "Some workers join the network-check rendezvous"
+                    "not the elastic-training rendezvous."
+                )
 
     def _report_failure(self, err_msg, level):
         if self._rank_id == 0:
@@ -301,7 +318,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
     def __init__(
         self,
         rank_id,
-        config,
+        config: ElasticLaunchConfig,
         entrypoint,
         spec: WorkerSpec,
         start_method="spawn",
@@ -434,9 +451,18 @@ class ElasticTrainingAgent(LocalElasticAgent):
         return workers
 
     def _initialize_workers(self, worker_group):
-        if self._config.network_check:
-            run_network_check(self._config, self._entrypoint)
-        super()._initialize_workers(worker_group)
+        while True:
+            try:
+                if self._config.network_check:
+                    run_network_check(self._config, self._entrypoint)
+                super()._initialize_workers(worker_group)
+            except RendezvousOutSyncError:
+                logger.info(
+                    "Exit elastic-training rendezvous when there are "
+                    "agents to join the network-check rendezvous."
+                )
+            else:
+                break
 
     def _invoke_run(self, role: str = DEFAULT_ROLE) -> RunResult:
         # NOTE: currently only works for a single role
@@ -521,7 +547,12 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
     def _membership_changed(self, role, rdzv_handler: RendezvousHandler):
         # Timeout may happen when to query TCPStore.
-        num_nodes_waiting = rdzv_handler.num_nodes_waiting()
+        if self._config.network_check:
+            num_nodes_waiting = self._client.num_nodes_waiting(
+                RendezvousName.NETWORK_CHECK
+            )
+        else:
+            num_nodes_waiting = rdzv_handler.num_nodes_waiting()
         group_rank = self._worker_group.group_rank
         if num_nodes_waiting > 0:
             logger.info(
