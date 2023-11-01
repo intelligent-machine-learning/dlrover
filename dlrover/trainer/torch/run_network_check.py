@@ -89,6 +89,7 @@ def main(task):
             f"Init process group costs {init_time}."
             f"Execution costs {task_time}s"
         )
+    dist.destroy_process_group()
     return elapsed_time
 
 
