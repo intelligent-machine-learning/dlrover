@@ -45,5 +45,6 @@ class ElasticRunTest(unittest.TestCase):
         self.assertTrue(config.network_check)
         self.assertTrue(config.auto_tunning)
         self.assertEqual(config.node_unit, 4)
+        self.assertListEqual(config.master_port_range, [20000, 30000])
         self.assertEqual(cmd, "/usr/local/bin/python")
         self.assertListEqual(cmd_args, ["-u", "test.py", "--batch_size", "16"])
