@@ -273,12 +273,12 @@ class FSDPCheckpointManger(CheckpointManger):
         self.log_rank0(f"Save checkpoint of step={step} of epoch={epoch}.")
         if self.dataloader:
             step = step + epoch * len(self.dataloader)
-        FSDP.set_state_dict_type(
+        with FSDP.state_dict_type(
             self.model,
             StateDictType.SHARDED_STATE_DICT,
-        )
-        msd = self.model.state_dict()
-        osd = FSDP.optim_state_dict(self.model, self.optimizer)
+        ):
+            msd = self.model.state_dict()
+            osd = FSDP.optim_state_dict(self.model, self.optimizer)
         ssd = {}
         if self.dataloader and isinstance(
             self.dataloader.sampler, ElasticDistributedSampler
@@ -313,18 +313,17 @@ class FSDPCheckpointManger(CheckpointManger):
         model_state_dict = checkpoint.get("model", {})
         optim_state_dict = checkpoint.get("optimizer", {})
 
-        FSDP.set_state_dict_type(
+        with FSDP.state_dict_type(
             self.model,
             StateDictType.SHARDED_STATE_DICT,
-        )
+        ):
+            # called from all ranks, though only rank0 has
+            # a valid param for full_osd.
+            optim_state_dict = FSDP.optim_state_dict_to_load(
+                model=self.model,
+                optim=self.optimizer,
+                optim_state_dict=optim_state_dict,
+            )
         self.model.load_state_dict(model_state_dict)
-
-        # called from all ranks, though only rank0 has
-        # a valid param for full_osd.
-        optim_state_dict = FSDP.optim_state_dict_to_load(
-            model=self.model,
-            optim=self.optimizer,
-            optim_state_dict=optim_state_dict,
-        )
         self.optimizer.load_state_dict(optim_state_dict)
         sync()
