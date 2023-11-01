@@ -81,10 +81,8 @@ def find_free_port_in_range(start, end):
     for port in range(start, end):
         try:
             return find_free_port(port)
-        except OSError as e:
-            logger.info(
-                f"Socket creation attempt failed with {port}.", exc_info=e
-            )
+        except OSError:
+            logger.warning(f"Socket creation attempt failed with {port}.")
     return RuntimeError(f"Fail to find a free port in [{start}, {end})")
 
 
