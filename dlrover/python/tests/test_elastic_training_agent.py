@@ -235,12 +235,27 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             monitor.report_resource_with_step()
             self.assertEqual(self._master.speed_monitor._global_step, 100)
 
-    def test_(self):
+    def test_check_network_rdzv_for_elastic_training(self):
         self._master.rdzv_managers[
             RendezvousName.NETWORK_CHECK
         ].join_rendezvous(0, 8)
         with self.assertRaises(RendezvousOutSyncError):
             self.rdzv_handler._check_network_rdzv_for_elastic_training()
+
+    def test_master_port(self):
+        self.config.network_check = False
+        self.config.set_master_port_range("20000:30000")
+        agent = ElasticTrainingAgent(
+            rank_id=0,
+            config=self.config,
+            entrypoint="echo",
+            spec=self.spec,
+            start_method=self.config.start_method,
+            log_dir=self.config.log_dir,
+        )
+        spec = agent._worker_group.spec
+        agent._set_master_port(spec)
+        self.assertTrue(spec.master_port >= 20000)
 
 
 class NetworkCheckElasticAgentTest(unittest.TestCase):
