@@ -17,7 +17,7 @@ import unittest
 from dlrover.python.common.global_context import Context
 
 
-class GRPCUtilTest(unittest.TestCase):
+class GlobalContextTest(unittest.TestCase):
     def test_config_master_port(self):
         ctx = Context.singleton_instance()
         ctx.config_master_port(50001)
