@@ -408,22 +408,6 @@ class PodScaler(Scaler):
         env.append(
             V1EnvVar(name=NodeEnv.DLROVER_MASTER_ADDR, value=master_service)
         )
-        if self._distribution_strategy == DistributionStrategy.ALLREDUCE:
-            torch_master_ip = self.get_first_worker_host()
-            if torch_master_ip:
-                env.append(
-                    V1EnvVar(name=NodeEnv.RDZV_ENDPOINT, value=torch_master_ip)
-                )
-            else:
-                node_ip_var = V1EnvVar(
-                    name=NodeEnv.RDZV_ENDPOINT,
-                    value_from=V1EnvVarSource(
-                        field_ref=V1ObjectFieldSelector(
-                            field_path="status.podIP"
-                        )
-                    ),
-                )
-                env.append(node_ip_var)
 
         env.append(
             V1EnvVar(
@@ -471,12 +455,6 @@ class PodScaler(Scaler):
             )
         self._patch_tf_config_into_env(pod, node, pod_stats, ps_addrs)
         return pod
-
-    def get_first_worker_host(self):
-        pod = self.get_typed_pod(NodeType.WORKER, 0)
-        if pod:
-            return pod.status.pod_ip
-        return ""
 
     def _patch_tf_config_into_env(self, pod, node: Node, pod_stats, ps_addrs):
         if self._distribution_strategy == DistributionStrategy.PS and ps_addrs:

@@ -1,4 +1,4 @@
-accelerate==0.20.3
+accelerate==0.24.1
 appdirs==1.4.4
 bitsandbytes==0.37.2
 datasets==2.10.1

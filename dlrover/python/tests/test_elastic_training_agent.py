@@ -244,7 +244,6 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
 
     def test_master_port(self):
         self.config.network_check = False
-        self.config.set_master_port_range("20000:30000")
         agent = ElasticTrainingAgent(
             rank_id=0,
             config=self.config,
@@ -254,8 +253,11 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             log_dir=self.config.log_dir,
         )
         spec = agent._worker_group.spec
-        agent._set_master_port(spec)
-        self.assertTrue(spec.master_port >= 20000)
+
+        os.environ["HOST_PORTS"] = "10000,10002,10003"
+        spec.master_port = None
+        agent._set_master_port_from_env(spec)
+        self.assertTrue(spec.master_port in [10000, 10002, 10003])
 
 
 class NetworkCheckElasticAgentTest(unittest.TestCase):
