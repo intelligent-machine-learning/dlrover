@@ -157,7 +157,7 @@ class Context(object):
         if port > 0:
             self.master_port = port
         else:
-            self.master_port = find_free_port_in_range(20000, 30000)
+            self.master_port = find_free_port_in_range()
 
     def get_param_value_from_brain(self, key_name, default_value, dtype=int):
         """TODO: Get the configured value from Brain service."""

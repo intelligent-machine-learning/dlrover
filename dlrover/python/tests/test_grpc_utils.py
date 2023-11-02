@@ -19,6 +19,7 @@ from dlrover.python.common.grpc import (
     deserialize_message,
     find_free_port,
     find_free_port_in_range,
+    find_free_port_in_set,
 )
 
 
@@ -28,6 +29,15 @@ class GRPCUtilTest(unittest.TestCase):
         self.assertTrue(port > 0)
         port = find_free_port_in_range(50001, 65535)
         self.assertTrue(port > 50000)
+
+        port = find_free_port_in_range(50001, 65535, False)
+        self.assertTrue(port > 50000)
+
+        ports = []
+        for i in range(20):
+            ports.append(20000 + i)
+        port = find_free_port_in_set(ports)
+        self.assertTrue(port in ports)
 
     def test_addr_connected(self):
         connected = addr_connected("localhost:80")
