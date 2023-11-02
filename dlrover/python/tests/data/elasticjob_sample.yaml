@@ -63,6 +63,9 @@ spec:
                   - model_zoo.iris.dnn_estimator
                   - --batch_size=32
                   - --training_steps=1000
+                env:
+                - name: HOST_PORTS
+                  value: 1,2,3,4,5
                 volumeMounts:
                   - name: pvc-nas
                     mountPath: "/nas"
