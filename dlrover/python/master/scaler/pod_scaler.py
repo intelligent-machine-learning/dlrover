@@ -605,7 +605,10 @@ class PodScaler(Scaler):
             requests=resource_requests,
             limits=resource_limits,
         )
-        main_container.env = env
+        if main_container.env is None:
+            main_container.env = env
+        else:
+            main_container.env.extend(env)
         main_container.lifecycle = lifecycle
         pod.spec.priority_class_name = priority
         pod.spec.restart_policy = "Never"
