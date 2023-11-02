@@ -57,7 +57,7 @@ from dlrover.python.common.constants import (
     RendezvousName,
     TrainingMsgLevel,
 )
-from dlrover.python.common.grpc import find_free_port_in_set
+from dlrover.python.common.grpc import find_free_port_in_set, find_free_port_in_range
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.config.paral_config_tuner import (
     ParalConfigTuner,
@@ -404,6 +404,10 @@ class ElasticTrainingAgent(LocalElasticAgent):
             except ValueError as e:
                 logger.warn(e)
                 time.sleep(3)
+        if spec.master_port is None:
+            spec.master_port = find_free_port_in_range(20000, 30000)
+        if spec.master_port:
+            logger.info(f"Set the master port as {spec.master_port}")
 
     # pyre-fixme[56]: Pyre was not able to infer the type of the decorator
     #  `torch.distributed.elastic.metrics.prof`.
