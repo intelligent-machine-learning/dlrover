@@ -57,7 +57,10 @@ from dlrover.python.common.constants import (
     RendezvousName,
     TrainingMsgLevel,
 )
-from dlrover.python.common.grpc import find_free_port_in_set, find_free_port_in_range
+from dlrover.python.common.grpc import (
+    find_free_port_in_range,
+    find_free_port_in_set,
+)
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.config.paral_config_tuner import (
     ParalConfigTuner,
@@ -362,7 +365,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         worker_group.group_world_size = group_world_size
 
         if group_rank == 0:
-            self._set_master_port_from_env(spec)
+            spec.master_port = self._get_free_port()
             self._set_master_addr_port(
                 store,
                 spec.master_addr,
@@ -388,26 +391,24 @@ class ElasticTrainingAgent(LocalElasticAgent):
             f"{[worker.world_size for worker in workers]}\n"
         )
 
-    def _set_master_port_from_env(self, spec: WorkerSpec):
+    def _get_free_port(self):
         """Find a free port from the HOST_PORTS in env."""
+        port = None
         host_ports = os.getenv("HOST_PORTS", "")
-        if spec.master_port is not None or not host_ports:
-            return
-        ports = []
-        for port in host_ports.split(","):
-            ports.append(int(port))
-        for _ in range(10):
-            try:
-                port = find_free_port_in_set(ports)
-                spec.master_port = port
-                break
-            except ValueError as e:
-                logger.warn(e)
-                time.sleep(3)
-        if spec.master_port is None:
-            spec.master_port = find_free_port_in_range(20000, 30000)
-        if spec.master_port:
-            logger.info(f"Set the master port as {spec.master_port}")
+        if host_ports:
+            ports = []
+            for port in host_ports.split(","):
+                ports.append(int(port))
+            for _ in range(10):
+                try:
+                    port = find_free_port_in_set(ports)
+                    return port
+                except ValueError as e:
+                    logger.warn(e)
+                    time.sleep(3)
+        else:
+            port = find_free_port_in_range(20000, 30000)
+        return port
 
     # pyre-fixme[56]: Pyre was not able to infer the type of the decorator
     #  `torch.distributed.elastic.metrics.prof`.
