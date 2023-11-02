@@ -57,10 +57,7 @@ from dlrover.python.common.constants import (
     RendezvousName,
     TrainingMsgLevel,
 )
-from dlrover.python.common.grpc import (
-    find_free_port_in_range,
-    find_free_port_in_set,
-)
+from dlrover.python.common.grpc import find_free_port_in_set
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.config.paral_config_tuner import (
     ParalConfigTuner,
@@ -111,21 +108,11 @@ class ElasticLaunchConfig(LaunchConfig):
     node_unit: int = 1
     auto_tunning: bool = False
     exclude_straggler: bool = False
-    master_port_range: List[int] = None  # type: ignore
 
     def set_node_unit(self, node_unit):
         """Set the number unint of ndoes."""
         self.node_unit = node_unit
         self.rdzv_configs["node_unit"] = node_unit
-
-    def set_master_port_range(self, port_range: str):
-        """Set the range to PyTorch Distributed master port."""
-        self.master_port_range = []
-        if not port_range:
-            return
-        ports = port_range.strip().split(":")
-        self.master_port_range.append(int(ports[0]))
-        self.master_port_range.append(int(ports[1]))
 
 
 @dataclass
@@ -375,7 +362,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         worker_group.group_world_size = group_world_size
 
         if group_rank == 0:
-            self._set_master_port(spec)
+            self._set_master_port_from_env(spec)
             self._set_master_addr_port(
                 store,
                 spec.master_addr,
@@ -401,28 +388,22 @@ class ElasticTrainingAgent(LocalElasticAgent):
             f"{[worker.world_size for worker in workers]}\n"
         )
 
-    def _set_master_port(self, spec: WorkerSpec):
+    def _set_master_port_from_env(self, spec: WorkerSpec):
+        """Find a free port from the HOST_PORTS in env."""
         host_ports = os.getenv("HOST_PORTS", "")
-        if spec.master_port is not None:
+        if spec.master_port is not None or not host_ports:
             return
-        if host_ports:
-            ports = []
-            for port in host_ports.split(","):
-                ports.append(int(port))
-            for _ in range(10):
-                try:
-                    port = find_free_port_in_set(ports)
-                    break
-                except ValueError as e:
-                    logger.warn(e)
-                    time.sleep(3)
-            spec.master_port = port
-        elif self._config.master_port_range:
-            port = find_free_port_in_range(
-                self._config.master_port_range[0],
-                self._config.master_port_range[1],
-            )
-            spec.master_port = port
+        ports = []
+        for port in host_ports.split(","):
+            ports.append(int(port))
+        for _ in range(10):
+            try:
+                port = find_free_port_in_set(ports)
+                spec.master_port = port
+                break
+            except ValueError as e:
+                logger.warn(e)
+                time.sleep(3)
 
     # pyre-fixme[56]: Pyre was not able to infer the type of the decorator
     #  `torch.distributed.elastic.metrics.prof`.

@@ -78,7 +78,7 @@ def find_free_port(port=0):
         return s.getsockname()[1]
 
 
-def find_free_port_in_range(start, end, random_port=True):
+def find_free_port_in_range(start=0, end=65535, random_port=True):
     """Find a free port from a range."""
     bind_ports = set()
     while True:
