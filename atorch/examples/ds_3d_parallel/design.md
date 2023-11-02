@@ -1,6 +1,6 @@
 # Goal
-- Large-scale model (100B+ levels) training, in addition to the FSDP zero3 scheme, the community more uses hybrid parallel (data parallel, pipeline parallel, tensor parallel, 3D) scheme. The most widely used frameworks include Megatron-LM (tensor parallelism), deepspeed (pipeline parallelism), that form hybrid parallelism with deep optimization.
-- Megatron-LM provides a Col/Row parallel layer for users to embed in the model definition to obtain tensor parallelism; The deepspeed pipeline needs to transform the model into a sequential list of LayerSpec. The use is complex and the cost of retrofitting is high.
+- For large-scale model training (with 100B+ levels), besides using FSDP/zero3 parallelism, 3D parallelism is widely used in deep learning community. 3D parallelism includes tensor parallel, pipeline parallel, and data parallel. Megatron-LM and DeepSpeed provide excellent 3D parallelism implementation which are popular among users.
+- Megatron-LM offers a Col/Row parallel layer that users can incorporate into the model definition to achieve tensor parallelism. DeepSpeed's pipeline parallel feature requires converting the model into a sequential list of LayerSpec, making its usage complicated especially for non-sequential models.
 
     <details>
     <summary>Megatron-LM embeds ParallelLinear</summary>
@@ -96,8 +96,7 @@
 
 
 
-- The HuggingFace Transformers library provides native torch implementations of a large number of NLP models, which are constantly emerging. Megatron Deepspeed hybrid parallel support is limited.
-- The goal: to reuse deepspeed/megatron capabilities to provide a hybrid parallelism suitable for a wide range of native Torch implementations, and integrate into Atorch auto_accelerate optimization using a low-cost hybrid parallelism scheme.
+- ATorch supports 3D parallel training based on DeepSpeed/Megatron, and supports easy usage by using auto_accelerate with ds_3d_parallel optimization method.
 # User Interface
 - A simple example of using Interface for 3D parallelization of Transformers Model
 
