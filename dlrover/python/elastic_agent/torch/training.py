@@ -57,7 +57,10 @@ from dlrover.python.common.constants import (
     RendezvousName,
     TrainingMsgLevel,
 )
-from dlrover.python.common.grpc import find_free_port_in_range
+from dlrover.python.common.grpc import (
+    find_free_port_in_range,
+    find_free_port_in_set,
+)
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.config.paral_config_tuner import (
     ParalConfigTuner,
@@ -399,7 +402,22 @@ class ElasticTrainingAgent(LocalElasticAgent):
         )
 
     def _set_master_port(self, spec: WorkerSpec):
-        if spec.master_port is None and self._config.master_port_range:
+        host_ports = os.getenv("HOST_PORTS", "")
+        if spec.master_port is not None:
+            return
+        if host_ports:
+            ports = []
+            for port in host_ports.split(","):
+                ports.append(int(port))
+            for _ in range(10):
+                try:
+                    port = find_free_port_in_set(ports)
+                    break
+                except ValueError as e:
+                    logger.warn(e)
+                    time.sleep(3)
+            spec.master_port = port
+        elif self._config.master_port_range:
             port = find_free_port_in_range(
                 self._config.master_port_range[0],
                 self._config.master_port_range[1],

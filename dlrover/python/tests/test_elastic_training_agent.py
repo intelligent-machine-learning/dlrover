@@ -257,6 +257,11 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         agent._set_master_port(spec)
         self.assertTrue(spec.master_port >= 20000)
 
+        os.environ["HOST_PORTS"] = "10000,10002,10003"
+        spec.master_port = None
+        agent._set_master_port(spec)
+        self.assertTrue(spec.master_port in [10000, 10002, 10003])
+
 
 class NetworkCheckElasticAgentTest(unittest.TestCase):
     def setUp(self) -> None:

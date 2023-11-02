@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import pickle
+import random
 import socket
 import telnetlib
 from contextlib import closing
@@ -77,13 +78,33 @@ def find_free_port(port=0):
         return s.getsockname()[1]
 
 
-def find_free_port_in_range(start, end):
-    for port in range(start, end):
+def find_free_port_in_range(start, end, random_port=True):
+    """Find a free port from a range."""
+    bind_ports = set()
+    while True:
+        if random_port:
+            port = random.randint(start, end)
+        else:
+            port = start + len(bind_ports)
+        if port in bind_ports:
+            continue
         try:
             return find_free_port(port)
         except OSError:
             logger.warning(f"Socket creation attempt failed with {port}.")
+            bind_ports.add(port)
+        if len(bind_ports) == end - start:
+            break
     return RuntimeError(f"Fail to find a free port in [{start}, {end})")
+
+
+def find_free_port_in_set(ports):
+    for port in ports:
+        try:
+            return find_free_port(port)
+        except OSError:
+            logger.warning(f"Socket creation attempt failed with {port}.")
+    return ValueError(f"Fail to find a free port in {ports}")
 
 
 def grpc_server_ready(channel) -> bool:
