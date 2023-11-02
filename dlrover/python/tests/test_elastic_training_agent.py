@@ -242,8 +242,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         with self.assertRaises(RendezvousOutSyncError):
             self.rdzv_handler._check_network_rdzv_for_elastic_training()
 
-    def test_master_port(self):
-        self.config.network_check = False
+    def test_get_free_port(self):
         agent = ElasticTrainingAgent(
             rank_id=0,
             config=self.config,
@@ -252,12 +251,14 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             start_method=self.config.start_method,
             log_dir=self.config.log_dir,
         )
-        spec = agent._worker_group.spec
 
         os.environ["HOST_PORTS"] = "10000,10002,10003"
-        spec.master_port = None
-        agent._set_master_port_from_env(spec)
-        self.assertTrue(spec.master_port in [10000, 10002, 10003])
+        port = agent._get_free_port()
+        self.assertTrue(port in [10000, 10002, 10003])
+
+        os.environ["HOST_PORTS"] = ""
+        port = agent._get_free_port()
+        self.assertTrue(port > 20000)
 
 
 class NetworkCheckElasticAgentTest(unittest.TestCase):
