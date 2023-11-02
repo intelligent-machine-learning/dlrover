@@ -10,7 +10,6 @@ import atorch
 from atorch.auto import auto_accelerate
 from atorch.auto.opt_lib.ds_3d_parallel_optimization import DeepSpeed3DParallelConfig
 from atorch.common.util_func import divide
-from atorch.distributed.distributed import create_parallel_group
 from atorch.modules.distributed_modules.cross_entropy import vocab_parallel_cross_entropy
 from atorch.utils.manual_tp_utils import TPInfo
 from atorch.utils.meta_model_utils import record_module_init
@@ -117,13 +116,13 @@ def main():
     pipeline_size = args.pipeline_parallel_size
     data_size = divide(atorch.world_size(), tensor_size * pipeline_size)
     print_rank_0(f"3D parallel: tensor {tensor_size}, data {data_size}, pipeline {pipeline_size}")
-    create_parallel_group(([("tensor", tensor_size), ("data", data_size), ("pipeline", pipeline_size)], None))
 
     llama_config = AutoConfig.from_pretrained(args.model_name_or_path)
     with record_module_init():
         meta_model = LlamaModel(llama_config)
 
     strategy = [
+        ("parallel_mode", ([("tensor", tensor_size), ("data", data_size), ("pipeline", pipeline_size)], None)),
         ("deepspeed_3d_parallel", get_llama_3d_parallel_cfg(args)),
         "module_replace",  # attn fa
     ]

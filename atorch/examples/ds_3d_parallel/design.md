@@ -113,7 +113,6 @@
 
     # init distributed environment and create 3d parallel groups
     atorch.init_distributed("nccl")
-    create_parallel_group(([("tensor", tensor_size), ("data", data_size), ("pipeline", pipeline_size)], None))
 
     # meta model for ds 3d parallel
     with record_module_init():
@@ -124,7 +123,10 @@
             tpinfo=get_xxx_tpinfo(),
             custom_patcher=get_xxx_custom_patcher(),
         )
-    strategy = [("deepspeed_3d_parallel", ds_3d_parallel_cfg),]
+    strategy = [
+        ("parallel_mode", ([("tensor", tensor_size), ("data", data_size), ("pipeline", pipeline_size)], None)),
+        ("deepspeed_3d_parallel", ds_3d_parallel_cfg),
+    ]
 
     # auto_accelerate
     status, result, best_strategy = auto_accelerate(
