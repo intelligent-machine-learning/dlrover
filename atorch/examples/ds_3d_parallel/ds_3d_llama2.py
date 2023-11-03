@@ -46,6 +46,12 @@ def parse_args():
         ),
     )
     parser.add_argument(
+        "--max_steps",
+        type=int,
+        default=100,
+        help=("Max steps for training."),
+    )
+    parser.add_argument(
         "--model_parallel_size", type=int, default=1, help="size of the model parallel. specific for tensor parallel"
     )
     parser.add_argument("--pipeline_parallel_size", type=int, default=1, help="size of the pipeline parallel.")
@@ -152,7 +158,7 @@ def main():
         use_gradient_checkpointing=model.module.activation_checkpoint_interval > 0,
     )
     timestamp = sync_and_time()
-    for iter in range(100):
+    for iter in range(args.max_steps):
         loss = model.train_batch(data_iter)
         new_timestamp = sync_and_time()
         elapsed_time, timestamp = new_timestamp - timestamp, new_timestamp
