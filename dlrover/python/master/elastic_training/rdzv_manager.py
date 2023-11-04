@@ -399,9 +399,9 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         Returns:
             int: the number of rendezvous round.
         """
-        self._node_groups = []
-        self._fault_nodes = set()
-        self._straggler_nodes = set()
+        self._node_groups.clear()
+        self._fault_nodes.clear()
+        self._straggler_nodes.clear()
         return super().join_rendezvous(rank_id, local_world_size)
 
     def check_fault_node(self):
