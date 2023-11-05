@@ -85,7 +85,6 @@ class BrainClient(object):
         if brain_channel:
             self._brain_stub = brain_pb2_grpc.BrainStub(brain_channel)
         else:
-            logger.warning("Cannot initialize brain channel")
             self._brain_stub = None
 
     def available(self):
@@ -273,7 +272,7 @@ def build_brain_client():
     if channel and grpc_server_ready(channel):
         return BrainClient(channel)
     else:
-        logger.warning("The GRPC service of brain is not available.")
+        logger.info("The GRPC service of brain is not available.")
         return BrainClient(None)
 
 

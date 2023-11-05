@@ -42,12 +42,3 @@ spec:
                 capabilities:
                   add:
                     - NET_ADMIN
-    dlrover-master:
-      template:
-        spec:
-          restartPolicy: Never
-          containers:
-            - name: main
-              imagePullPolicy: Always
-              # build the image with docker/master.dockerfile and set it here.
-              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:master
