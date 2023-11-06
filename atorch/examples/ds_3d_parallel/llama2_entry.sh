@@ -1,6 +1,7 @@
 set -x
 
-DATASET_PATH=${DATASET_PATH:-/path/to/wikitext-2-raw-v1}
+# Dataset path, would download in `example_utils.py` if not exist
+DATASET_PATH=${DATASET_PATH:-/cache/wikitext-2-raw-v1}
 
 # Llama model path, download and convert it if not exist
 MODEL_SIZE=${MODEL_SIZE-7B}

@@ -1,15 +1,17 @@
+import os
 import time
 from contextlib import contextmanager
 from itertools import chain
 
 import torch
-from datasets import load_from_disk
+from datasets import load_dataset, load_from_disk
 from deepspeed.utils import RepeatingLoader
 from torch.utils.data.dataloader import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 from transformers import default_data_collator
 
 import atorch
+from atorch.common.log_utils import default_logger as logger
 from atorch.distributed.distributed import parallel_group_size, parallel_rank
 
 
@@ -39,7 +41,24 @@ def main_process_first():
 
 
 def get_data_iter(dataset_path, tokenizer, block_size, train_micro_batch_size_per_gpu):
-    raw_datasets = load_from_disk(dataset_path)
+    if os.path.exists(dataset_path):
+        raw_datasets = load_from_disk(dataset_path)
+    else:
+        wiki_suffix = os.path.basename(os.path.normpath(dataset_path))
+        raw_datasets = {}
+        try:
+            raw_datasets["train"] = load_dataset("wikitext", wiki_suffix, split="train")
+            raw_datasets["validation"] = load_dataset("wikitext", wiki_suffix, split="validation")
+            raw_datasets["test"] = load_dataset("wikitext", wiki_suffix, split="test")
+        except Exception as e:
+            logger.error(e)
+            from modelscope.msdatasets import MsDataset
+
+            raw_datasets["train"] = MsDataset.load("modelscope/wikitext", subset_name=wiki_suffix, split="train")
+            raw_datasets["validation"] = MsDataset.load(
+                "modelscope/wikitext", subset_name=wiki_suffix, split="validation"
+            )
+            raw_datasets["test"] = MsDataset.load("modelscope/wikitext", subset_name=wiki_suffix, split="test")
 
     column_names = raw_datasets["train"].column_names
     text_column_name = "text" if "text" in column_names else column_names[0]
