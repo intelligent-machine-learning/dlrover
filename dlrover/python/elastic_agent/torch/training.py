@@ -234,6 +234,7 @@ class MasterRendezvousHandler(RendezvousHandler):
                         raise TimeoutError(
                             f"Timeout {self.pend_timeout}s to wait more nodes"
                         )
+                    round = self._join_rendezvous()
                     continue
             elif time.time() - start_join > self.join_timeout:
                 timeout = self.join_timeout
