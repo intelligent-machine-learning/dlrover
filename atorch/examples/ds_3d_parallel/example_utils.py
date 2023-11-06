@@ -54,15 +54,15 @@ def get_data_iter(dataset_path, tokenizer, block_size, train_micro_batch_size_pe
             logger.error(e)
             from modelscope.msdatasets import MsDataset
 
-            # model scope cache dataset
-            MsDataset.load("modelscope/wikitext", subset_name=wiki_suffix, split="train")
-            MsDataset.load("modelscope/wikitext", subset_name=wiki_suffix, split="validation")
-            MsDataset.load("modelscope/wikitext", subset_name=wiki_suffix, split="test")
-
-            # datasets load_dataset
-            raw_datasets["train"] = load_dataset("wikitext", wiki_suffix, split="train")
-            raw_datasets["validation"] = load_dataset("wikitext", wiki_suffix, split="validation")
-            raw_datasets["test"] = load_dataset("wikitext", wiki_suffix, split="test")
+            raw_datasets["train"] = MsDataset.load(
+                "modelscope/wikitext", subset_name=wiki_suffix, split="train"
+            ).to_torch_dataset()
+            raw_datasets["validation"] = MsDataset.load(
+                "modelscope/wikitext", subset_name=wiki_suffix, split="validation"
+            ).to_torch_dataset()
+            raw_datasets["test"] = MsDataset.load(
+                "modelscope/wikitext", subset_name=wiki_suffix, split="test"
+            ).to_torch_dataset()
 
     column_names = raw_datasets["train"].column_names
     text_column_name = "text" if "text" in column_names else column_names[0]
