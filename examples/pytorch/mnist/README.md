@@ -8,7 +8,7 @@ with MNIST dataset.
 - Download the dataset from [Kaggle MNIST Dataset](https://www.kaggle.com/datasets/hojjatk/mnist-dataset).
 - Untar the dataset into a directory like `data/mnist_png`.
 
-The directory will has 2 sub-directories like
+There are 2 sub-directories in the directory.
 
 ```text
 |-data
@@ -19,7 +19,7 @@ The directory will has 2 sub-directories like
 
 ## Train on a Single Node with Mutliple GPUs
 
-On the node with GPU, we firstly need to install dlrover and the dependencies of the model by
+Firstly, we need to install dlrover and the dependencies of the model by
 
 ```bash
 pip install dlrover -U

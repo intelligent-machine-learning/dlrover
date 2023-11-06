@@ -17,7 +17,7 @@ This command generates a train.bin, val.bin and meta.pkl and file in `data/nanog
 
 ## Train on a Single Node with Mutliple GPUs
 
-On the node with GPU, we firstly need to install dlrover and the dependencies of the model by
+Firstly, we need to install dlrover and the dependencies of the model by
 
 ```bash
 pip install dlrover -U
