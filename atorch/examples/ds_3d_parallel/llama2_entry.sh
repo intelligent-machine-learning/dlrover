@@ -1,8 +1,22 @@
 set -x
 
 DATASET_PATH=${DATASET_PATH:-/path/to/wikitext-2-raw-v1}
-MODEL_NAME_OR_PATH=${MODEL_NAME_OR_PATH:-/path/to/Llama-2-7b-hf}
-# MODEL_NAME_OR_PATH=${MODEL_NAME_OR_PATH:-/path/to/Llama-2-70b-hf}
+
+# Llama model path, download and convert it if not exist
+MODEL_SIZE=${MODEL_SIZE-7B}
+MODEL_NAME_OR_PATH=${MODEL_NAME_OR_PATH:-/cache/Llama-2-`echo $MODEL_SIZE|tr '[:upper:]' '[:lower:]'`-hf}
+if [ ! -d $MODEL_NAME_OR_PATH ]; then
+  echo "$MODEL_NAME_OR_PATH not cached."
+  pushd /tmp
+  git clone https://github.com/shawwn/llama-dl.git
+  pushd llama-dl
+  sed 's/MODEL_SIZE="7B,13B,30B,65B"/MODEL_SIZE="'$MODEL_SIZE'"/g' llama.sh > llama$MODEL_SIZE.sh
+  sh llama$MODEL_SIZE.sh
+  pip install transformers, sentencepiece
+  python -m transformers.models.llama.convert_llama_weights_to_hf --input_dir=. --model_size=$MODEL_SIZE --output_dir=$MODEL_NAME_OR_PATH
+  popd
+  popd
+fi
 
 WORLD_SIZE=${WORLD_SIZE:-1}
 
