@@ -1,4 +1,4 @@
-# Intro
+## Intro
 - For large-scale model training (with 100B+ levels), besides using FSDP/zero3 parallelism, 3D parallelism is widely used in deep learning community. 3D parallelism includes tensor parallel, pipeline parallel, and data parallel. Megatron-LM and DeepSpeed provide excellent 3D parallelism implementation which are popular among users.
 - Megatron-LM offers a Col/Row parallel layer that users can incorporate into the model definition to achieve tensor parallelism. DeepSpeed's pipeline parallel feature requires converting the model into a sequential list of LayerSpec, making its usage complicated especially for non-sequential models.
 
@@ -98,7 +98,7 @@
 
 - ATorch supports 3D parallel training based on DeepSpeed/Megatron, and supports easy usage by using auto_accelerate with ds_3d_parallel optimization method.
 
-# User Interface
+## User Interface
 - A simple example of using Interface for 3D parallelization of Transformers Model
 
     <details>
@@ -145,7 +145,7 @@
 - Omits optim and dataset related batch_fn.
 - The user specifies the module name information of Tensor Parallel Shard, and the customized forward patcheres if some modules in the pipeline need.
 
-# Related API
+## Related API
 
 - `record_module_init` contextmanager for meta initialization + init args/kwargs recording.
 
@@ -337,7 +337,7 @@
       - `ds_config`: `Dict` for deepspeed config or `str` for json file path. 
       - `batch_fn`:  input adaptation function for deepspeed pipeline (inputs,), (labels,). 
 
-#Example
+## Example
 llama2
 - file entrance
 [ds_3d_llama2.py](ds_3d_llama2.py)
