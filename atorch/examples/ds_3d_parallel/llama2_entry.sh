@@ -1,12 +1,16 @@
 set -x
 
 # Dataset path, would download in `example_utils.py` if not exist
-DATASET_PATH=${DATASET_PATH:-/cache/wikitext-2-raw-v1}
+DATASET_PATH=${DATASET_PATH:-~/.cache//wikitext-2-raw-v1}
 
 # Llama model path, download and convert it if not exist
 MODEL_SIZE=${MODEL_SIZE-7B}
-MODEL_NAME_OR_PATH=${MODEL_NAME_OR_PATH:-/cache/Llama-2-`echo $MODEL_SIZE|tr '[:upper:]' '[:lower:]'`-hf}
-if [ ! -d $MODEL_NAME_OR_PATH ]; then
+MODEL_NAME_OR_PATH=${MODEL_NAME_OR_PATH:-~/.cache//Llama-2-`echo $MODEL_SIZE|tr '[:upper:]' '[:lower:]'`-hf}
+if ! [[ -d $MODEL_NAME_OR_PATH && \
+        -f ${MODEL_NAME_OR_PATH%/}/config.json && \
+        -f ${MODEL_NAME_OR_PATH%/}/tokenizer_config.json && \
+        -f ${MODEL_NAME_OR_PATH%/}/tokenizer.json && \
+        -f ${MODEL_NAME_OR_PATH%/}/tokenizer.model ]]; then
   echo "$MODEL_NAME_OR_PATH not cached."
   pushd /tmp
   git clone https://github.com/shawwn/llama-dl.git
