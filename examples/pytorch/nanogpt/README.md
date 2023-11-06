@@ -1,4 +1,4 @@
-# Pretrin Nano-GPT using DLRover ElasticJob on a k8s cluster
+# Pretrain Nano-GPT using DLRover
 
 The document describes how to use DLRover to pretrain a Nano-GPT model
 on a k8s cluster.
@@ -8,9 +8,12 @@ on a k8s cluster.
 Now that you have your data, let's run the preparation script as follows:
 
 ```bash
-python examples/pytorch/nanogpt/prepare.py --src_data_path data.txt
-This command generates a train.bin and val.bin file in the data directory.
+python  examples/pytorch/nanogpt/prepare.py \
+    --src_data_path=examples/pytorch/nanogpt/data.txt \
+    --output_dir=data/nanogpt/
 ```
+
+This command generates a train.bin, val.bin and meta.pkl and file in `data/nanogpt/`.
 
 ## Train on a Single Node with Mutliple GPUs
 
@@ -25,7 +28,7 @@ Then, we can use `dlrover-run` to start the training by
 ```bash
 dlrover-run --standalone --nproc_per_node=${GPU_NUM} \
     examples/pytorch/nanogpt/train.py \
-    --data_dir examples/pytorch/nanogpt/
+    --data_dir data/nanogpt/
 ```
 
 `GPU_NUM` is the number of GPUs on the node.
@@ -46,7 +49,7 @@ docker build -t ${IMAGE_NAME} -f examples/pytorch/nanogpt/nanogpt.dockerfile .
 
 ## Traing on Mutliple Nodes
 
-Set the `${IMAGE_NAME}` in to lin2 18 of `elastic_job.yaml` and
+Set the `${IMAGE_NAME}` in to line 18 of `elastic_job.yaml` and
 use `kubectl` to submit an elastic job.
 
 ```bash
@@ -57,7 +60,7 @@ We can use the FSDP strategy to pretrain when we have GPUs and only
 use the command in the containers of worker.
 
 ```bash
-"dlrover-run --nnodes=$WORKER_NUM \
+dlrover-run --nnodes=$WORKER_NUM \
     --nproc_per_node=${GPU_NUM_PER_NODE} --max_restarts=1  \
     ./examples/pytorch/nanogpt/train.py  \
     --data_dir '/data/nanogpt/' \
