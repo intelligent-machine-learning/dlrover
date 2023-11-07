@@ -52,7 +52,13 @@ def get_data_iter(dataset_path, tokenizer, block_size, train_micro_batch_size_pe
             raw_datasets["test"] = load_dataset("wikitext", wiki_suffix, split="test")
         except Exception as e:
             logger.error(e)
-            from modelscope.msdatasets import MsDataset
+            try:
+                from modelscope.msdatasets import MsDataset
+            except ModuleNotFoundError:
+                logger.error(
+                    "Can not download dataset from huggingface directyly, "
+                    "you can install modelscope to download from an alternate site."
+                )
 
             raw_datasets["train"] = MsDataset.load(
                 "modelscope/wikitext", subset_name=wiki_suffix, split="train"
