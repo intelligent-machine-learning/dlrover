@@ -54,7 +54,7 @@ ATorch is an extension library of PyTorch developed by Ant Group's AI Infrastruc
 ## Installation
 
 ATorch supports PyTorch with version >= 1.12, and verion 2.1 or above is preferred.
-For example, docker image <code>easydl/atorch:iml_pt210</code> which has PyTorch 2.1 installed can be used.
+For example, you can use docker image <code>easydl/atorch:iml_pt210</code> which has PyTorch 2.1 installed.
 
 ### Install From pypi
 Install atorch in any PyTorch-preinstalled environment (such as a container created with the docker image above) with <code>pip</code>: 
@@ -71,7 +71,7 @@ git clone https://github.com/intelligent-machine-learning/dlrover.git
 cd dlrover/atorch
 # build package
 sh dev/scripts/build.sh
-# install the created package
+# install the created package in dist directory
 pip install dist/atorch-0.1.0.dev0-py3-none-any.whl
 ```
 
@@ -81,7 +81,7 @@ pip install dist/atorch-0.1.0.dev0-py3-none-any.whl
 ### Run Examples
 
 
-To run [auto_accelerate examples](examples/auto_accelerate):
+- To run [auto_accelerate examples](examples/auto_accelerate):
 ```
 cd dlrover/atorch/examples/auto_accelerate
 # Single process train
@@ -90,9 +90,9 @@ python train.py --model_type toy
 python -m atorch.distributed.run  --nproc_per_node 2  train.py --model_type llama --distributed --load_strategy --use_fsdp --use_amp --use_module_replace --use_checkpointing
 ```
 
-[Llama2 pretrain/finetune examples](examples/llama2)
+- [Llama2 pretrain/finetune examples](examples/llama2)
 
-[Optimizer (AGD, WSAM) Examples](examples/optimizer)
+- [Optimizer (AGD, WSAM) Examples](examples/optimizer)
 
 ### Documentations
 
