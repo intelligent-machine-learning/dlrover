@@ -1,4 +1,4 @@
-# Llama2 Pretrain/Finetune in /DS_3D
+# Llama2 Pretrain/Finetune
 
 ## FSDP
 
@@ -18,6 +18,25 @@ sh fsdp_llama2_entry.sh
 
 # use lora
 USE_LORA=1 sh fsdp_llama2_entry.sh
+```
+
+### Different Starting Methods for Fine-tuning and Pre-training
+1、Fine-tuning:
+Specify `--model_name_or_path`, and the script will load the `.bin` files within that directory.
+```shell
+python -m atorch.distributed.run --fault_tolerant --max_restarts=0 \
+    --nproc_per_node="$NUM_GPUS_PER_NODE" \
+    llama2_clm.py \
+    --model_name_or_path $PRETRAINED_MODEL_DIR 
+```
+2、Pre-training: 
+Specify `--config_name` and `--tokenizer_name`. The script will not load the `.bin` files within that directory, and instead initialize a model randomly using `config.json`.
+```shell
+python -m atorch.distributed.run --fault_tolerant --max_restarts=0 \
+    --nproc_per_node="$NUM_GPUS_PER_NODE" \
+    llama2_clm.py \
+    --config_name $PRETRAINED_MODEL_DIR \
+    --tokenizer_name $PRETRAINED_MODEL_DIR \
 ```
 
 ## DS 3D Parallel
