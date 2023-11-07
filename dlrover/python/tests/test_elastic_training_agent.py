@@ -136,7 +136,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         self.rdzv_handler._client.join_rendezvous(
             0, 8, self.rdzv_handler._name
         )
-        store = self.rdzv_handler._get_store(round=0, group=1)
+        store = self.rdzv_handler._get_store(round=1, group=0)
         store.set("MASTER_ADDR", "127.0.0.1".encode())
         store.set("MASTER_PORT", "12345".encode())
         agent._rendezvous(agent._worker_group)
@@ -370,7 +370,7 @@ class MasterRendezvousHandlerTest(unittest.TestCase):
         )
         rdzv_handler._join_rendezvous = mock.MagicMock(return_value=0)
         rdzv_handler._client.get_comm_world = mock.MagicMock(
-            return_value=(0, {1: 8})
+            return_value=(0, 0, {1: 8})
         )
         with self.assertRaises(TimeoutError):
             rdzv_handler.next_rendezvous()

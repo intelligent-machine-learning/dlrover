@@ -308,7 +308,7 @@ class MasterClient(object):
     def get_comm_world(self, rdzv_name, rank_id):
         request = grpc.CommWorldRequest(node_id=rank_id, rdzv_name=rdzv_name)
         result: grpc.RendezvousState = self._get(request)
-        return result.group, result.world
+        return result.round, result.group, result.world
 
     def check_fault_node(self, timeout=300):
         request = grpc.NetworkReadyRequest()

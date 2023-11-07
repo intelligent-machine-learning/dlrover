@@ -198,7 +198,17 @@ class RendezvousManager(metaclass=ABCMeta):
 
     @abstractmethod
     def get_comm_world(self, rank_id):
-        """Get communication world of all alive nodes."""
+        """Get communication world of all alive nodes.
+
+        Args:
+            rank_id: the id of node.
+
+        Returns:
+            rdzv_round: the round index.
+            group: the group index.
+            world: Dict like {0: 8, 1: 8, 2: 8} where the key is the node ID
+            and the value is the local world size of the node.
+        """
         pass
 
     @abstractmethod
@@ -239,6 +249,8 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
             join the rendezvous in waiting_timeout.
 
         Returns:
+            rdzv_round: the round index.
+            group: the group index.
             world: Dict like {0: 8, 1: 8, 2: 8} where the key is the node ID
             and the value is the local world size of the node.
         """
@@ -247,7 +259,7 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
                 rdzv_completed = self._check_rdzv_completed()
                 if rdzv_completed:
                     self._rdzv_round += 1
-            return self._rdzv_round, self._rdzv_nodes
+            return self._rdzv_round, 0, self._rdzv_nodes
 
     def report_network_check_result(self, node_id, normal, elapsed_time):
         return
@@ -297,8 +309,8 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                     self._rdzv_round += 1
             for i, group in enumerate(self._node_groups):
                 if rank_id in group:
-                    return i, group
-            return 0, self._rdzv_nodes
+                    return self._rdzv_round, i, group
+            return self._rdzv_round, 0, self._rdzv_nodes
 
     def _clear_check_status(self):
         self._node_status = {}
@@ -334,7 +346,8 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                 if node_id in self._rdzv_nodes:
                     cur_nodes.append(node_id)
             left, right = 0, len(cur_nodes) - 1
-            while True:
+            group = {}
+            while right >= left:
                 group = {}
                 node0 = cur_nodes[left]
                 node1 = cur_nodes[right]
@@ -344,8 +357,6 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                     node_groups.append(group)
                 left += 1
                 right -= 1
-                if right < left:
-                    break
             if len(group) == 1:
                 if len(node_groups) > 0:
                     node_groups[-1].update(group)
