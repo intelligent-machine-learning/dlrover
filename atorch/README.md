@@ -3,65 +3,27 @@
 
    <img src="docs/img/atorch.png" alt="Editor" width="500">
 
-   ATorch: Make LLMs training more efficient and reproducible for everyone.
+   ATorch: Make large model training more efficient and reproducible for everyone.
 
-   <h3> <a href="https://www.placeholder.com/"> Paper </a> |
-   <a href="https://www.placeholder.com/"> Documentation </a> |
-   <a href="https://www.placeholder.com/"> Examples </a> |
-   <a href="https://www.placeholder.com/"> Blog </a></h3>
+
 
    [![GitHub Repo stars](https://img.shields.io/github/stars/intelligent-machine-learning/dlrover?style=social)](https://github.com/intelligent-machine-learning/dlrover/stargazers)
    [![Build](https://github.com/intelligent-machine-learning/dlrover/actions/workflows/main.yml/badge.svg)](https://github.com/intelligent-machine-learning/dlrover/actions/workflows/main.yml)
-   [![CodeFactor](https://www.codefactor.io/repository/github/intelligent-machine-learning/dlrover/badge)](https://www.codefactor.io/repository/github/intelligent-machine-learning/dlrover)
-   [![HuggingFace badge](https://img.shields.io/badge/%F0%9F%A4%97HuggingFace-Join-yellow)](https://huggingface.co/)
-   [![slack badge](https://img.shields.io/badge/Slack-join-blueviolet?logo=slack&amp)](https://join.slack.com/)
-   [![WeChat badge](https://img.shields.io/badge/微信-加入-green?logo=wechat&amp)](https://huggingface.com/)
-
-
-   | [English](README.md) | [中文](docs/README-zh-Hans.md) |
 
 </div>
 
-## Latest News
-* TODO
 
 ## Table of Contents
 <ul>
- <li><a href="#Why-ATorch">Why ATorch</a> </li>
  <li><a href="#Features">Features</a> </li>
- <li>
-   <a href="#ATorch-Applications">ATorch Applications</a>
-   <ul>
-     <li><a href="#ATorchPretrain">ATorch: Super backend engine supportted Ant LLMs training with over 60% HFU</a></li>
-   </ul>
- </li>
- <li>
-   <a href="#Parallel-Training-Demo">Parallel Training Demo</a>
-   <ul>
-     <li><a href="#LLaMA2">LLaMA2</a></li>
-     <li><a href="#BERT">BERT</a></li>
-   </ul>
- </li>
- <li>
-   <a href="#Single-GPU-Training-Demo">Single GPU Training Demo</a>
-   <ul>
-     <li><a href="#LLaMA2-Single">LLaMA2-Single</a></li>
-   </ul>
- </li>
- <li>
-   <a href="#Installation">Installation</a>
-   <ul>
-     <li><a href="#PyPI">PyPI</a></li>
-     <li><a href="#Install-From-Source">Install From Source</a></li>
-   </ul>
- </li>
- <li><a href="#Community">Community</a></li>
+  <li><a href="#Installation">Installation</a></li>
+ <li><a href="#Getting-Started">Getting Started</a></li>
  <li><a href="#Contributing">Contributing</a></li>
- <li><a href="#Cite-Us">Cite Us</a></li>
+
 </ul>
 
-## Why ATorch
-ATorch is an extension library of PyTorch developed by Ant Group's AI Infrastructure team. By decoupling model definition from training optimization strategy, ATorch supports efficient and easy-to-use model training experience. The design principle is to minimally disrupt the native PyTorch programming style. Through its API, ATorch provides performance optimizations in aspects such as I/O, preprocessing, computation, and communication (including automatic optimization). ATorch has supported large-scale pretraining of LLMs with over 100 billion parameters and thousands of A100/H100 GPUs. We aim to open source it and make these capabilities reproducible for everyone. We also welcome contributions.
+
+ATorch is an extension library of PyTorch developed by Ant Group's AI Infrastructure team. By decoupling model definition from training optimization strategy, ATorch supports efficient and easy-to-use model training experience. The design principle is to minimally disrupt the native PyTorch programming style. Through its API, ATorch provides performance optimizations in aspects such as I/O, preprocessing, computation, and communication (including automatic optimization). ATorch has supported large-scale pretraining of LLMs with over 100 billion parameters and thousands of A100/H100 GPUs. 
 
 ## Features
 * Usability
@@ -87,45 +49,40 @@ ATorch is an extension library of PyTorch developed by Ant Group's AI Infrastruc
   * GPU elastic training
   * Hardware error detect and migration
 
-## ATorch Applications
 
-### ATorch Pretrain LLMs with over thousands GPUs (HFU > 50%)
-
-* Improve the stalibity of training over thousands GPUs by [fault-tolerance and elasticity](../docs/blogs/stabilize_llm_training_cn.md).
-
-### Finetune your LLMs with ATorch RLHF (3x trlx)
-TODO
-
-## Major Model results
-TODO
-
-### LLaMA2
-TODO
-
-### GPT2
-TODO
-
-### GLM
-TODO
-
-### CLIP
-TODO
 
 ## Installation
 
 ATorch supports PyTorch with version >= 1.12, and verion 2.1 or above is preferred.
-For example, docker image <code>easydl/atorch:iml_pt210</code> which has PyTorch 2.1 installed can be used.
+For example, you can use docker image <code>easydl/atorch:iml_pt210</code> which has PyTorch 2.1 installed.
 
+### Install From pypi
 Install atorch in any PyTorch-preinstalled environment (such as a container created with the docker image above) with <code>pip</code>: 
 
 ```
 pip install atorch
 ```
 
-To verify that atorch is installed successfully, you run examples to see if succeed.
+### Install From Source Files
 
 ```
+# clone repository
 git clone https://github.com/intelligent-machine-learning/dlrover.git
+cd dlrover/atorch
+# build package
+sh dev/scripts/build.sh
+# install the created package in dist directory
+pip install dist/atorch-0.1.0.dev0-py3-none-any.whl
+```
+
+
+## Getting Started
+
+### Run Examples
+
+
+- To run [auto_accelerate examples](examples/auto_accelerate):
+```
 cd dlrover/atorch/examples/auto_accelerate
 # Single process train
 python train.py --model_type toy
@@ -133,10 +90,26 @@ python train.py --model_type toy
 python -m atorch.distributed.run  --nproc_per_node 2  train.py --model_type llama --distributed --load_strategy --use_fsdp --use_amp --use_module_replace --use_checkpointing
 ```
 
+- [Llama2 pretrain/finetune examples](examples/llama2)
+
+- [Optimizer (AGD, WSAM) Examples](examples/optimizer)
+
+### Documentations
+
+[auto_accelerate](docs/auto_accelerate_api.md)
+
+[AGD optimizer](docs/README-AGD.md)
+
+[WSAM optimizer](docs/README-WSAM.md)
+
+
+
+
 ## Contributing
-TODO
+Contributions are welcome! If you have any suggestions, ideas, or bug reports, please open an issue or submit a pull request.
+
 ## CI/CD
 
 We leverage the power of [GitHub Actions](https://github.com/features/actions) to automate our development, release and deployment workflows. Please check out this [documentation](.github/workflows/README.md) on how the automated workflows are operated.
 
-## Cite Us
+
