@@ -13,10 +13,20 @@ overhead, and enabling more efficient training on large-scale models.
 ## Configure FSDP for NanoGPT
 
 To replace DDP with FSDP in your existing NanoGPT training configuration,
-simply make the following changes. Use the `kubectl` command to apply the modified training configuration:
+simply make the following changes. Firstly, we should configure `--use_fsdp`
+in the command of worker containers.
 
 ```bash
-kubectl -n dlrover apply -f examples/pytorch/nanogpt/fsdp_elastic_job.yaml
+dlrover-run --nnodes=$WORKER_NUM \
+                  --nproc_per_node=1 --max_restarts=1  \
+                  ./examples/pytorch/nanogpt/train.py  \
+                  --data_dir /data/nanogpt/ --use_fsdp
+```
+
+Use the `kubectl` command to apply the modified training configuration:
+
+```bash
+kubectl -n dlrover apply -f examples/pytorch/nanogpt/elastic_job.yaml
 ```
 
 Upon successful application of the job configuration,
@@ -34,7 +44,7 @@ Here are the results for the two approaches:
 **DDP:**
 
 ```bash
-# parameter settings in examples/pytorch/nanogpt/fsdp_elastic_job.yaml
+# parameter settings in examples/pytorch/nanogpt/elastic_job.yaml
 --n_layer 6 \
 --n_head 6 \
 --n_embd 384
@@ -43,7 +53,7 @@ Here are the results for the two approaches:
 **FSDP (Same Parameter Setting as DDP):**
 
 ```bash
-# parameter settings in examples/pytorch/nanogpt/fsdp_elastic_job.yaml
+# parameter settings in examples/pytorch/nanogpt/elastic_job.yaml
 --n_layer 6 \
 --n_head 6 \
 --n_embd 384
