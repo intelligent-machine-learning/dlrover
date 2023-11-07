@@ -40,7 +40,7 @@ def main_process_first():
     yield from _goes_first(is_main_process())
 
 
-def get_data_iter(dataset_path, tokenizer, block_size, train_micro_batch_size_per_gpu):
+def get_data_iter(dataset_path, tokenizer, block_size, train_micro_batch_size_per_gpu, pre_shift=True):
     if os.path.exists(dataset_path):
         raw_datasets = load_from_disk(dataset_path)
     else:
@@ -94,13 +94,16 @@ def get_data_iter(dataset_path, tokenizer, block_size, train_micro_batch_size_pe
             for k, t in concatenated_examples.items()
         }
 
-        # shift labels
-        _labels = result["input_ids"].copy()
-        result["labels"] = [each_label[1:] + each_label[:1] for each_label in _labels]
+        if pre_shift:
+            # shift labels
+            _labels = result["input_ids"].copy()
+            result["labels"] = [each_label[1:] + each_label[:1] for each_label in _labels]
 
-        # loss_mask drop last token
-        _loss_mask = result["attention_mask"].copy()
-        result["loss_mask"] = [each_loss_mask[:-1] + [0] for each_loss_mask in _loss_mask]
+            # loss_mask drop last token
+            _loss_mask = result["attention_mask"].copy()
+            result["loss_mask"] = [each_loss_mask[:-1] + [0] for each_loss_mask in _loss_mask]
+        else:
+            result["labels"] = result["input_ids"].copy()
 
         # position_ids
         result["position_ids"] = [[i for i in range(block_size)] for _ in range(len(result["input_ids"]))]

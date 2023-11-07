@@ -1,27 +1,6 @@
 set -x
 
-# Dataset path, would download in `example_utils.py` if not exist
-DATASET_PATH=${DATASET_PATH:-~/.cache//wikitext-2-raw-v1}
-
-# Llama model path, download and convert it if not exist
-MODEL_SIZE=${MODEL_SIZE-7B}
-MODEL_NAME_OR_PATH=${MODEL_NAME_OR_PATH:-~/.cache//Llama-2-`echo $MODEL_SIZE|tr '[:upper:]' '[:lower:]'`-hf}
-if ! [[ -d $MODEL_NAME_OR_PATH && \
-        -f ${MODEL_NAME_OR_PATH%/}/config.json && \
-        -f ${MODEL_NAME_OR_PATH%/}/tokenizer_config.json && \
-        -f ${MODEL_NAME_OR_PATH%/}/tokenizer.json && \
-        -f ${MODEL_NAME_OR_PATH%/}/tokenizer.model ]]; then
-  echo "$MODEL_NAME_OR_PATH not cached."
-  pushd /tmp
-  git clone https://github.com/shawwn/llama-dl.git
-  pushd llama-dl
-  sed 's/MODEL_SIZE="7B,13B,30B,65B"/MODEL_SIZE="'$MODEL_SIZE'"/g' llama.sh > llama$MODEL_SIZE.sh
-  sh llama$MODEL_SIZE.sh
-  pip install transformers, sentencepiece
-  python -m transformers.models.llama.convert_llama_weights_to_hf --input_dir=. --model_size=$MODEL_SIZE --output_dir=$MODEL_NAME_OR_PATH
-  popd
-  popd
-fi
+source dataset_model.sh
 
 WORLD_SIZE=${WORLD_SIZE:-1}
 
@@ -65,11 +44,11 @@ cat <<EOT > $DS_CONFIG
 EOT
 
 
-nohup python -u -m atorch.distributed.run --fault_tolerant \
+python -u -m atorch.distributed.run --fault_tolerant \
   --nnodes=$WORLD_SIZE --nproc_per_node=8 ds_3d_llama2.py \
   --pipeline_parallel_size $PIPELINE_PARALLEL_SIZE \
   --model_parallel_size $MODEL_PARALLEL_SIZE \
   --block_size $BLOCK_SIZE \
   --ds_config $DS_CONFIG \
   --model_name_or_path $MODEL_NAME_OR_PATH \
-  --dataset_path $DATASET_PATH >> output.log 2>&1 &
+  --dataset_path $DATASET_PATH
