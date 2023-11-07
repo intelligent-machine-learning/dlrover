@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import json
+import os
 
 import fire
 import pandas as pd
@@ -25,8 +26,8 @@ def sentiment_score_to_name(score: float):
     return "Neutral"
 
 
-def convert_dataset(path):
-    df = pd.read_csv(path)
+def convert_dataset(src_data_path, output_dir=""):
+    df = pd.read_csv(src_data_path)
     dataset_data = [
         {
             "instruction": "Detect the sentiment of the tweet.",
@@ -38,7 +39,12 @@ def convert_dataset(path):
     sample_count = df.shape[0]
     print(f"The dataset has {sample_count} samples.")
 
-    with open("btc_tweets_sentiment.json", "w") as f:
+    if not output_dir:
+        output_dir = os.path.dirname(src_data_path)
+    elif not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    output_path = os.path.join(output_dir, "btc_tweets_sentiment.json")
+    with open(output_path, "w") as f:
         json.dump(dataset_data, f)
 
 

@@ -536,6 +536,7 @@ class ModelContext(object):
                 )
 
         ddp_wrapper_exist = "ddp" in self.post_wrappers
+        ds_3d_parallel_wrapper_exist = "ds_3d_parallel" in self.post_wrappers
         fairscale_zero2_wrapper_exist = "zero2" in self.post_wrappers
         fsdp_wrapper_exist = "fsdp" in self.pre_wrappers or "zero2" in self.pre_wrappers
         tensor_parallel_wrapper_exist = "tp" in self.pre_wrappers
@@ -543,8 +544,8 @@ class ModelContext(object):
         native_dynamo_wrapper_exist = "native_dynamo" in self.pre_wrappers
 
         # remove ddp wrapper when using zero2
-        if ddp_wrapper_exist and (fairscale_zero2_wrapper_exist or fsdp_wrapper_exist):
-            logger.info("Found Zero and ddp wrapper or pipe wrapper, remove ddp wrapper")
+        if ddp_wrapper_exist and (fairscale_zero2_wrapper_exist or fsdp_wrapper_exist or ds_3d_parallel_wrapper_exist):
+            logger.info("Found Zero, ds_3d_parallel, or pipe wrapper, remove ddp wrapper.")
             self.post_wrappers.pop("ddp")
             ddp_wrapper_exist = False
         if fsdp_wrapper_exist and "amp_native" in self.post_wrappers:
