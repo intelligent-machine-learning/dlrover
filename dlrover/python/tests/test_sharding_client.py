@@ -76,20 +76,54 @@ class DataShardClientTest(unittest.TestCase):
     def test_index_sharding_client(self):
         client = IndexShardingClient(
             batch_size=16,
-            num_epochs=2,
+            num_epochs=1,
             dataset_size=100,
             num_minibatches_per_shard=2,
             dataset_name="test",
         )
-        index = client.fetch_sample_index()
-        self.assertEqual(index, 0)
-        sample_count = 1
+        indices = []
         while True:
-            index = client.fetch_sample_index()
-            if not index:
+            try:
+                index = client.fetch_sample_index()
+                indices.append(index)
+            except StopIteration:
+                index = None
+            if index is None:
                 break
-            sample_count += 1
-        self.assertEqual(sample_count, 100)
+        self.assertEqual(len(indices), 100)
+        shuffled = False
+        for i in range(len(indices)):
+            if i != indices[i]:
+                print(i, indices[i])
+                shuffled = True
+                break
+        self.assertFalse(shuffled)
+
+    def test_index_sharding_client_with_shuffle(self):
+        client = IndexShardingClient(
+            batch_size=16,
+            num_epochs=1,
+            dataset_size=100,
+            num_minibatches_per_shard=2,
+            dataset_name="test-0",
+            shuffle=True,
+        )
+        indices = []
+        while True:
+            try:
+                index = client.fetch_sample_index()
+                indices.append(index)
+            except StopIteration:
+                index = None
+            if index is None:
+                break
+        self.assertEqual(len(indices), 100)
+        shuffled = False
+        for i in range(len(indices)):
+            if i != indices[i]:
+                shuffled = True
+                break
+        self.assertTrue(shuffled)
 
 
 if __name__ == "__main__":
