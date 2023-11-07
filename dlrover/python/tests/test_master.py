@@ -129,8 +129,9 @@ class LocalJobMasterTest(unittest.TestCase):
         self.master_client.join_rendezvous(
             0, 8, RendezvousName.ELASTIC_TRAINING
         )
-        group, world = self.master_client.get_comm_world(
+        round, group, world = self.master_client.get_comm_world(
             RendezvousName.ELASTIC_TRAINING, 0
         )
-        self.assertEqual(group, 1)
+        self.assertEqual(round, 1)
+        self.assertEqual(group, 0)
         self.assertEqual(world[0], 8)
