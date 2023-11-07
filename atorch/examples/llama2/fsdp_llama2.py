@@ -237,7 +237,7 @@ def main():
     device = torch.device("cuda:{}".format(atorch.local_rank()))
     model.train()
     timestamp = sync_and_time()
-    for iter, batch in zip(args.max_steps, data_iter):
+    for iter, batch in zip(range(args.max_steps), data_iter):
         batch = prepare_input(batch, device)
         outputs = model(**batch)
         loss = loss_func(None, outputs)

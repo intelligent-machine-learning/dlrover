@@ -1,10 +1,10 @@
 set -x
 
-source dataset_model.sh
+source ./dataset_model.sh
 
 WORLD_SIZE=${WORLD_SIZE:-1}
 
-PER_DEVICE_TRAIN_BATCH_SIZE=${PER_DEVICE_TRAIN_BATCH_SIZE:-16}
+PER_DEVICE_TRAIN_BATCH_SIZE=${PER_DEVICE_TRAIN_BATCH_SIZE:-4}
 BLOCK_SIZE=${BLOCK_SIZE:-4096}
 
 if [ -z "$USE_LORA" ]; then

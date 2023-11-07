@@ -1,6 +1,6 @@
 set -x
 
-source dataset_model.sh
+source ./dataset_model.sh
 
 WORLD_SIZE=${WORLD_SIZE:-1}
 
