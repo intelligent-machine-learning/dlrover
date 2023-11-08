@@ -145,7 +145,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             res.shard.start = task.shard.start
             res.shard.end = task.shard.end
             if task.shard.record_indices:
-                res.shard.indices.extend(task.shard.record_indices)
+                res.shard.indices = task.shard.record_indices
         elif not dataset.completed():
             res.type = elastic_training_pb2.WAIT
         with self._lock:
@@ -253,9 +253,10 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
 
     def _get_comm_world(self, request: grpc.CommWorldRequest):
         rdzv_manager = self._rdzv_managers[request.rdzv_name]
-        group, nodes = rdzv_manager.get_comm_world(request.node_id)
+        rdzv_round, group, nodes = rdzv_manager.get_comm_world(request.node_id)
         res = grpc.RendezvousState(world={})
         res.group = group
+        res.round = rdzv_round
         for rank_id, worker_num in nodes.items():
             res.world[rank_id] = worker_num
         return res

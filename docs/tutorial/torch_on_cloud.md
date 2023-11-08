@@ -39,7 +39,7 @@ kubectl -n dlrover apply -f config/manifests/bases/default-role.yaml
 - Submit a job to train a CNN model with MNIST dataset.
 
 ```bash
-kubectl -n dlrover apply -f examples/pytorch/mnist/ddp_elastic_job.yaml
+kubectl -n dlrover apply -f examples/pytorch/mnist/elastic_job.yaml
 ```
 
 - Check the job status

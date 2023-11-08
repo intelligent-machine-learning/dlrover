@@ -211,11 +211,11 @@ class MasterRendezvousHandler(RendezvousHandler):
             f"rendezvous '{self._name}' with timeout {self.join_timeout}."
         )
         logger.info(msg)
-        round = self._join_rendezvous()
+        self._join_rendezvous()
         start_pending = 0
         while True:
             self._check_network_rdzv_for_elastic_training()
-            group, world = self._client.get_comm_world(
+            round, group, world = self._client.get_comm_world(
                 self._name, self._rank_id
             )
             if world:

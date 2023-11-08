@@ -13,7 +13,7 @@ in the `examples/pytorch/llama2/btc_tweets_sentiment.json`
 
 ## Train on a Single Node with Mutliple GPUs
 
-On the node with GPU, we firstly need to install dlrover and the dependencies of the model by
+Firstly, we need to install dlrover and the dependencies of the model by
 
 ```bash
 pip install dlrover -U
