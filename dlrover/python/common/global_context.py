@@ -153,10 +153,10 @@ class Context(object):
             DefaultValues.HANG_CPU_USAGE_RATE,
         )
 
-    def config_master_port(self, port=None):
+    def config_master_port(self, port=0):
         host_ports_env = os.getenv("HOST_PORTS", "")
         self.master_port = None
-        if port is not None:
+        if port > 0:
             self.master_port = port
         elif host_ports_env:
             ports = []

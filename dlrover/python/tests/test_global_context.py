@@ -23,11 +23,11 @@ class GlobalContextTest(unittest.TestCase):
         ctx.config_master_port(50001)
         self.assertEqual(ctx.master_port, 50001)
         os.environ["HOST_PORTS"] = "20000,20001,20002,20003"
-        ctx.config_master_port()
+        ctx.config_master_port(0)
         self.assertTrue(ctx.master_port in [20000, 20001, 20002, 20003])
         ctx.master_port = None
         os.environ["HOST_PORTS"] = ""
-        ctx.config_master_port()
+        ctx.config_master_port(0)
         self.assertTrue(ctx.master_port > 20000)
 
 
