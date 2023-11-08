@@ -187,6 +187,7 @@ def main():
                 "atorch_wrap_cls": (LlamaDecoderLayer,),
                 "limit_all_gathers": True,
                 "use_orig_params": True,
+                "forward_prefetch": True,
             },
         ),
     ]

@@ -3,6 +3,7 @@ set -x
 source ./dataset_model.sh
 
 WORLD_SIZE=${WORLD_SIZE:-1}
+NUM_GPUS_PER_NODE=$(nvidia-smi -L | wc -l)
 
 PIPELINE_PARALLEL_SIZE=${PIPELINE_PARALLEL_SIZE:-4}
 MODEL_PARALLEL_SIZE=${MODEL_PARALLEL_SIZE:-8}
@@ -45,7 +46,7 @@ EOT
 
 
 python -u -m atorch.distributed.run --fault_tolerant \
-  --nnodes=$WORLD_SIZE --nproc_per_node=8 ds_3d_llama2.py \
+  --nnodes=$WORLD_SIZE --nproc_per_node=$NUM_GPUS_PER_NODE ds_3d_llama2.py \
   --pipeline_parallel_size $PIPELINE_PARALLEL_SIZE \
   --model_parallel_size $MODEL_PARALLEL_SIZE \
   --block_size $BLOCK_SIZE \

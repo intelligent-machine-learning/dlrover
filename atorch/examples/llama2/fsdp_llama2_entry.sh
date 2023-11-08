@@ -3,6 +3,7 @@ set -x
 source ./dataset_model.sh
 
 WORLD_SIZE=${WORLD_SIZE:-1}
+NUM_GPUS_PER_NODE=$(nvidia-smi -L | wc -l)
 
 PER_DEVICE_TRAIN_BATCH_SIZE=${PER_DEVICE_TRAIN_BATCH_SIZE:-4}
 BLOCK_SIZE=${BLOCK_SIZE:-4096}
@@ -21,7 +22,7 @@ fi
 
 python -m atorch.distributed.run --fault_tolerant --max_restarts=0 \
     --nnodes="$WORLD_SIZE" \
-    --nproc_per_node=8 \
+    --nproc_per_node="$NUM_GPUS_PER_NODE" \
     fsdp_llama2.py \
     --block_size $BLOCK_SIZE \
     --model_name_or_path $MODEL_NAME_OR_PATH \

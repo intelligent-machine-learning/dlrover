@@ -2,8 +2,14 @@
 
 This document presents examples of using ATorch to pretrain or finetune the HuggingFace Llama2 model, including FSDP (ZeRO3) and 3D hybrid parallelism approaches.
 
+- Note: 
+    - Llama2 model and wikitext dataset is used in the examples. If you have already downloaded llama2 model, set environment variable: `MODEL_NAME_OR_PATH=llama2_model_directory`. If you have wikitext in your system, set environment variable: `DATASET_PATH=wikitext_data_directory`
+
+    - If llama2 model or wikitext dataset is not present, the training script will automatically download them for you. Note that downloading may take quite some time.
+
 ## FSDP
 
+Fully Sharded Data Parallel (FSDP) is PyTorch's implementation of ZeRO3. This example uses FSDP for distributed training, and can be used with other training optimizations, such as mixed precision, gradient checkpointing, etc.
 
 ### Scripts
 
