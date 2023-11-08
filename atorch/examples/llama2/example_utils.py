@@ -4,7 +4,7 @@ from contextlib import contextmanager
 from itertools import chain
 
 import torch
-from datasets import load_dataset, load_from_disk
+from datasets import load_dataset, load_from_disk, DatasetDict
 from deepspeed.utils import RepeatingLoader
 from torch.utils.data.dataloader import DataLoader
 from torch.utils.data.distributed import DistributedSampler
@@ -45,7 +45,7 @@ def get_data_iter(dataset_path, tokenizer, block_size, train_micro_batch_size_pe
         raw_datasets = load_from_disk(dataset_path)
     else:
         wiki_suffix = os.path.basename(os.path.normpath(dataset_path))
-        raw_datasets = {}
+        raw_datasets = DatasetDict()
         try:
             raw_datasets["train"] = load_dataset("wikitext", wiki_suffix, split="train")
             raw_datasets["validation"] = load_dataset("wikitext", wiki_suffix, split="validation")
