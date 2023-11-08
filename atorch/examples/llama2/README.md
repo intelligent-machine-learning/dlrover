@@ -1,13 +1,15 @@
 # Llama2 Pretrain/Finetune
 
+This document presents examples of using ATorch to pretrain or finetune the HuggingFace Llama2 model, including FSDP (ZeRO3) and 3D hybrid parallelism approaches.
+
 ## FSDP
 
 
 ### Scripts
 
-- file entrance [fsdp_llama2.py](fsdp_llama2.py)
+- training file [fsdp_llama2.py](fsdp_llama2.py)
 
-- starup script [fsdp_llama2_entry.sh](fsdp_llama2_entry.sh)
+- launch script [fsdp_llama2_entry.sh](fsdp_llama2_entry.sh)
 
 ```bash
 cd dlrover/atorch/examples/Llama2
@@ -20,8 +22,8 @@ sh fsdp_llama2_entry.sh
 USE_LORA=1 sh fsdp_llama2_entry.sh
 ```
 
-### Different Starting Methods for Fine-tuning and Pre-training
-1、Fine-tuning:
+### Fine-tuning or Pre-training
+1. Fine-tuning:
 Specify `--model_name_or_path`, and the script will load the `.bin` files within that directory.
 ```shell
 python -m atorch.distributed.run --fault_tolerant --max_restarts=0 \
@@ -29,7 +31,7 @@ python -m atorch.distributed.run --fault_tolerant --max_restarts=0 \
     llama2_clm.py \
     --model_name_or_path $PRETRAINED_MODEL_DIR 
 ```
-2、Pre-training: 
+2. Pre-training: 
 Specify `--config_name` and `--tokenizer_name`. The script will not load the `.bin` files within that directory, and instead initialize a model randomly using `config.json`.
 ```shell
 python -m atorch.distributed.run --fault_tolerant --max_restarts=0 \
@@ -381,9 +383,9 @@ python -m atorch.distributed.run --fault_tolerant --max_restarts=0 \
 
 ### Scripts
 
-- file entrance [ds_3d_llama2.py](ds_3d_llama2.py)
+- training file [ds_3d_llama2.py](ds_3d_llama2.py)
 
-- starup script [ds_3d_llama2_entry.sh](ds_3d_llama2_entry.sh)
+- launch script [ds_3d_llama2_entry.sh](ds_3d_llama2_entry.sh)
 
 ```bash
 cd dlrover/atorch/examples/Llama2
