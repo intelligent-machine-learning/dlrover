@@ -4,7 +4,7 @@ from contextlib import contextmanager
 from itertools import chain
 
 import torch
-from datasets import load_dataset, load_from_disk, DatasetDict
+from datasets import DatasetDict, load_dataset, load_from_disk
 from deepspeed.utils import RepeatingLoader
 from torch.utils.data.dataloader import DataLoader
 from torch.utils.data.distributed import DistributedSampler
