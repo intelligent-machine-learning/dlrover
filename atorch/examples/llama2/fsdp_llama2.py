@@ -15,7 +15,7 @@ from atorch.utils.meta_model_utils import init_empty_weights_with_disk_offload
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Pretrain llama2 with atorch ds 3d.")
+    parser = argparse.ArgumentParser(description="Pretrain llama2 with atorch fsdp.")
     parser.add_argument(
         "--model_name_or_path",
         type=str,
