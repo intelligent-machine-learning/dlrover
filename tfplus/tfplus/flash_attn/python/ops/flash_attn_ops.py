@@ -1,9 +1,23 @@
+# Copyright 2023 The TFPlus Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Ops to use FlashAttentions.
 """
 import math
 
 import tensorflow as tf
 from tensorflow.python import ops
+
 from tfplus.common import _load_library
 
 gen_flash_attention_ops = _load_library("_flash_attention.so")
@@ -33,11 +47,11 @@ def _FMHA_Grad(op, grad):  # pylint: disable=invalid-name
   softmax_lse = op.outputs[1]
 
   dq, dk, dv = gen_flash_attention_ops.fmha_backward(
-      query, key, value,
-      cu_seqlens_q, cu_seqlens_k, out, grad, softmax_lse,
-      max_seqlen_q, max_seqlen_k,
-      rng_state, p_dropout, softmax_scale, zero_tensor, is_causal,
-      return_softmax, num_splits)
+    query, key, value,
+    cu_seqlens_q, cu_seqlens_k, out, grad, softmax_lse,
+    max_seqlen_q, max_seqlen_k,
+    rng_state, p_dropout, softmax_scale, zero_tensor, is_causal,
+    return_softmax, num_splits)
   return [dq, dk, dv, None, None, None, None]
 
 
@@ -47,13 +61,13 @@ class FlashAttentionLayer(tf.keras.layers.Layer):
   Tri Dao, Daniel Y. Fu, Stefano Ermon, Atri Rudra
   Paper: https://arxiv.org/abs/2205.14135
   https://github.com/HazyResearch/flash-attention
-  
+
   FlashAttention currently supports:
     Turing, Ampere, Ada, or Hopper GPUs (e.g., H100, A100, RTX 3090, T4).
     fp16 and bf16 (bf16 requires Ampere, Ada, or Hopper GPUs).
-    Head dimensions that are multiples of 8, up to 128 (e.g., 8, 16, 24, ...). 
+    Head dimensions that are multiples of 8, up to 128 (e.g., 8, 16, 24, ...).
     Head dim > 64 backward requires A100 or H100.
-  
+
   Tensor shapes:
     query: [BatchSize(B), SequenceLength(S), NumHeads(H), DimHead(K)]
     key: [BatchSize(B), SequenceLength(S), NumHeads(H), DimHead(K)]
@@ -64,17 +78,17 @@ class FlashAttentionLayer(tf.keras.layers.Layer):
   def __init__(self, max_query_length, max_key_length, num_heads, dim_head,
                dropout_rate=0.0,
                is_causal=False, num_splits=1, dtype=tf.half, **kwargs):
-    """vim 
+    """vim
     Args:
       max_query_length: maximum query sequence length
       max_key_length: maximum key sequence length
       num_heads: number of heads
-      dim_head: Head dimensions that are multiples of 8, 
-      up to 128 (e.g., 8, 16, 24, ..., 128). 
-      Head dim > 64 backward requires A100 or H100.
-      dropout_rate(float): Dropout probability; 
-                          if greater than 0.0, dropout is applied
-      is_causal(bool): If true, 
+      dim_head: Head dimensions that are multiples of 8,
+                up to 128 (e.g., 8, 16, 24, ..., 128).
+                Head dim > 64 backward requires A100 or H100.
+      dropout_rate(float): Dropout probability;
+                           if greater than 0.0, dropout is applied
+      is_causal(bool): If true,
                        assumes causal attention masking and errors
                        if both attn_mask and is_causal
       num_splits(int): How many SMs per attention matrix.
