@@ -10,7 +10,7 @@ gen_flash_attention_ops = _load_library("_flash_attention.so")
 
 
 @ops.RegisterGradient("FMHAForward")
-def _FMHA_Grad(op, grad, softmax_lse_grad, return_sm_grad, rng_state_grad):  # pylint: disable=invalid-name
+def _FMHA_Grad(op, grad):  # pylint: disable=invalid-name
   """Gradient for fmha_forward op."""
   # Build appropriately shaped IndexedSlices
   query = op.inputs[0]  # B X S, H, K
@@ -32,50 +32,61 @@ def _FMHA_Grad(op, grad, softmax_lse_grad, return_sm_grad, rng_state_grad):  # p
   num_splits = op.get_attr("num_splits")
   softmax_lse = op.outputs[1]
 
-  dq, dk, dv = gen_flash_attention_ops.fmha_backward(query, key, value,
-                                                     cu_seqlens_q, cu_seqlens_k, out, grad, softmax_lse, max_seqlen_q, max_seqlen_k,
-                                                     rng_state, p_dropout, softmax_scale, zero_tensor, is_causal,
-                                                     return_softmax, num_splits)
+  dq, dk, dv = gen_flash_attention_ops.fmha_backward(
+      query, key, value,
+      cu_seqlens_q, cu_seqlens_k, out, grad, softmax_lse,
+      max_seqlen_q, max_seqlen_k,
+      rng_state, p_dropout, softmax_scale, zero_tensor, is_causal,
+      return_softmax, num_splits)
   return [dq, dk, dv, None, None, None, None]
 
 
 class FlashAttentionLayer(tf.keras.layers.Layer):
-  f"""
+  """
   FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness
   Tri Dao, Daniel Y. Fu, Stefano Ermon, Atri Rudra
   Paper: https://arxiv.org/abs/2205.14135
   https://github.com/HazyResearch/flash-attention
   
   FlashAttention currently supports:
-    Turing, Ampere, Ada, or Hopper GPUs (e.g., H100, A100, RTX 3090, T4, RTX 2080).
+    Turing, Ampere, Ada, or Hopper GPUs (e.g., H100, A100, RTX 3090, T4).
     fp16 and bf16 (bf16 requires Ampere, Ada, or Hopper GPUs).
-    Head dimensions that are multiples of 8, up to 128 (e.g., 8, 16, 24, ..., 128). Head dim > 64 backward requires A100 or H100.
+    Head dimensions that are multiples of 8, up to 128 (e.g., 8, 16, 24, ...). 
+    Head dim > 64 backward requires A100 or H100.
   
   Tensor shapes:
     query: [BatchSize(B), SequenceLength(S), NumHeads(H), DimHead(K)]
     key: [BatchSize(B), SequenceLength(S), NumHeads(H), DimHead(K)]
     value:[BatchSize(B), SequenceLength(S), NumHeads(H), DimHead(K)]
-    output: 3d tensor, (BatchSize, SequenceLength, NumHeads*DimHead), hereby heads*d_k = hidden_units
+    output: 3d tensor, (BatchSize, SequenceLength, NumHeads*DimHead)
   """
 
-  def __init__(self, max_query_length, max_key_length, num_heads, dim_head, dropout_rate=0.0,
+  def __init__(self, max_query_length, max_key_length, num_heads, dim_head,
+               dropout_rate=0.0,
                is_causal=False, num_splits=1, dtype=tf.half, **kwargs):
     """vim 
     Args:
       max_query_length: maximum query sequence length
       max_key_length: maximum key sequence length
       num_heads: number of heads
-      dim_head: Head dimensions that are multiples of 8, up to 128 (e.g., 8, 16, 24, ..., 128). Head dim > 64 backward requires A100 or H100.
-      dropout_rate(float): Dropout probability; if greater than 0.0, dropout is applied
-      is_causal(bool): If true, assumes causal attention masking and errors if both attn_mask and is_causal
-      num_splits(int): How many SMs per attention matrix. SelfAttention default is 1
+      dim_head: Head dimensions that are multiples of 8, 
+      up to 128 (e.g., 8, 16, 24, ..., 128). 
+      Head dim > 64 backward requires A100 or H100.
+      dropout_rate(float): Dropout probability; 
+                          if greater than 0.0, dropout is applied
+      is_causal(bool): If true, 
+                       assumes causal attention masking and errors
+                       if both attn_mask and is_causal
+      num_splits(int): How many SMs per attention matrix.
+                       SelfAttention default is 1
     """
     super(FlashAttentionLayer, self).__init__(**kwargs)
     self.num_heads = num_heads
     if dim_head % 8 != 0:
       raise ValueError(
-          "Head dimensions that are multiples of 8, up to 128 (e.g., 8, 16, 24, ..., 128). "
-          "Head dim > 64 backward requires A100 or H100. "
+          "Head dimensions that are multiples of 8,"
+          "up to 128 (e.g., 8, 16, 24, ..., 128)."
+          "Head dim > 64 backward requires A100 or H100."
           "You set to %s" % dim_head
       )
     self.dim_head = dim_head
@@ -87,16 +98,8 @@ class FlashAttentionLayer(tf.keras.layers.Layer):
     self.max_key_length = max_key_length
     self.fa_type = dtype
 
-  def build(self, input_shape):
-    """
-    Args:
-        input_shape: Shape tuple (tuple of integers) or list of shape tuples (one per output tensor of the layer).
-
-    """
-    super(FlashAttentionLayer, self).build(input_shape)
-
   def call(self, query, key, value, mask=None, **kwargs):
-    f"""
+    """
     Args:
         query: Query tensor, dtype: `tf.bfloat16, tf.float16`
         key: Key tensor, dtype: `tf.bfloat16, tf.float16`
@@ -113,10 +116,6 @@ class FlashAttentionLayer(tf.keras.layers.Layer):
     # input value: shape=(B, S, H, K)
 
     # query, key, value: shape=[B x S, H, K]
-    query_shape = query.get_shape()
-    batch_size = query_shape[0]
-    key_shape = key.get_shape()
-    value_shape = value.get_shape()
 
     if mask is not None:
       def calculate(mask):
@@ -149,7 +148,7 @@ class FlashAttentionLayer(tf.keras.layers.Layer):
       key = tf.reshape(key, [-1, self.num_heads, self.dim_head])
       value = tf.reshape(value, [-1, self.num_heads, self.dim_head])
 
-    if mask == None:
+    if mask is None:
       cu_seqlens_k = tf.constant(
           [i * self.max_key_length for i in range(512+1)])
       cu_seqlens_q = tf.constant(
@@ -160,11 +159,12 @@ class FlashAttentionLayer(tf.keras.layers.Layer):
     zero_tensors = False
     # [B X S, H, K] => [B X S, H, K]
     # The attention of the recommendation system currently does not require causal
-    attn_weight, sl, rs, rng_state = gen_flash_attention_ops.fmha_forward(query, key, value, cu_seqlens_q, cu_seqlens_k,
-                                                                          max_len_q, max_len_k,
-                                                                          self.dropout_rate, self.softmax_scale,
-                                                                          zero_tensors, self.is_causal, return_softmax,
-                                                                          self.num_splits)
+    attn_weight = gen_flash_attention_ops.fmha_forward(
+        query, key, value, cu_seqlens_q, cu_seqlens_k,
+        max_len_q, max_len_k,
+        self.dropout_rate, self.softmax_scale,
+        zero_tensors, self.is_causal, return_softmax,
+        self.num_splits)
 
     # output attn_weight: [B, S, H, K]
     attn_weight = tf.reshape(
