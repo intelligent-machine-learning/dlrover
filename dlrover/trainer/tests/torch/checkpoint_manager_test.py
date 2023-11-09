@@ -24,6 +24,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader, Dataset
 
 from dlrover.trainer.torch.elastic.checkpoint import (
+    AsyncCheckpointEngine,
     CheckpointManger,
     get_latest_checkpoint,
 )
@@ -129,3 +130,26 @@ class CheckpointManagerTest(unittest.TestCase):
             self.assertEqual(self.dataloader.sampler.total_size, 60002)
         dist.destroy_process_group()
         print(dist.is_initialized())
+
+
+class AsyncCheckpointEngineTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp_dir = tempfile.TemporaryDirectory()
+        self.engine = AsyncCheckpointEngine(self.tmp_dir, 1, 1)
+
+    def addCleanup(self):
+        self.tmp_dir.cleanup()
+
+    def test_save_memory(self):
+        model = SimpleNet()
+        step = 100
+        state_dict = dict(
+            model=model.state_dict(),
+            step=step,
+        )
+        self.engine.save(step, state_dict)
+        self.assertEqual(self.engine._shm_buffer[("step",)], 100)
+
+        for key, value in state_dict["model"].items():
+            buffer_value = self.engine._shm_buffer[("model", key)]
+            self.assertTrue(value.equal(buffer_value))
