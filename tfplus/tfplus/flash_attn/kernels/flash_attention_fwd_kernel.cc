@@ -15,7 +15,7 @@
 #include "tensorflow/core/framework/shape_inference.h"
 #include "tensorflow/core/framework/tensor.h"
 #include "tensorflow/core/public/session_options.h"
-#include "tensorflow/core/util/cuda_kernel_helper.h"
+#include "tensorflow/core/util/gpu_device_functions.h"
 #include "tfplus/flash_attn/kernels/flash_attention.h"
 #include "tfplus/flash_attn/kernels/fmha.h"
 namespace tfplus {
