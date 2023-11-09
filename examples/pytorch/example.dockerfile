@@ -13,7 +13,8 @@ FROM python:3.8.14 as base
 
 WORKDIR /dlrover
 RUN apt-get update && apt-get install -y sudo vim libgl1-mesa-glx libglib2.0-dev
-RUN pip install deprecated pyparsing torch opencv-python torchvision transformers
+RUN pip install deprecated pyparsing torch==2.0.1 opencv-python==4.7.0.72 torchvision==0.15.2 transformers
+
 COPY ./data /data
 COPY ./examples ./examples
 
