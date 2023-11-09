@@ -8,6 +8,9 @@ build:cuda_clang --config=cuda
 build:cuda_clang --repo_env TF_CUDA_CLANG=1
 build:cuda_clang --@local_config_cuda//:cuda_compiler=clang
 
+# Flag to enable remote config
+common --experimental_repo_remote_exec
+
 build --linkopt="-ldl"
 build --spawn_strategy=standalone
 build --strategy=Genrule=standalone
