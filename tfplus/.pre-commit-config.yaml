@@ -4,7 +4,7 @@ repos:
     rev: v5.10.1
     hooks:
       - id: isort
-        args: [--settings-path, tfplus/]
+        args: [--settings-path, tfplus/, --skip, tfplus/third_party]
   - repo: local
   # rev: v1.6.0
     hooks:
