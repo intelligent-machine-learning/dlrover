@@ -397,6 +397,9 @@ python -m atorch.distributed.run --fault_tolerant --max_restarts=0 \
 cd dlrover/atorch/examples/Llama2
 pip install -r requirements.txt
 
-# Configurable environment variable: DATASET_PATH, MODEL_NAME_OR_PATH, PIPELINE_PARALLEL_SIZE, MODEL_PARALLEL_SIZE, etc.
+# Configurable environment variable: 
+# DATASET_PATH, MODEL_NAME_OR_PATH, PIPELINE_PARALLEL_SIZE, MODEL_PARALLEL_SIZE, etc.
+# e.x. in a 8-gpu system, to run mp-2 dp-2 pp-2, 
+# use `PIPELINE_PARALLEL_SIZE=2 MODEL_PARALLEL_SIZE=2 sh ds_3d_llama2_entry.sh`
 sh ds_3d_llama2_entry.sh
 ```
