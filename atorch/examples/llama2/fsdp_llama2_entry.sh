@@ -20,7 +20,7 @@ else
     "
 fi
 
-python -m atorch.distributed.run --max_restarts=0 \
+python -m atorch.distributed.run \
     --nnodes="$WORLD_SIZE" \
     --nproc_per_node="$NUM_GPUS_PER_NODE" \
     fsdp_llama2.py \

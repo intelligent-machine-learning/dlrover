@@ -45,7 +45,7 @@ cat <<EOT > $DS_CONFIG
 EOT
 
 
-python -u -m atorch.distributed.run --max_restarts=0 \
+python -u -m atorch.distributed.run \
   --nnodes=$WORLD_SIZE --nproc_per_node=$NUM_GPUS_PER_NODE ds_3d_llama2.py \
   --pipeline_parallel_size $PIPELINE_PARALLEL_SIZE \
   --model_parallel_size $MODEL_PARALLEL_SIZE \
