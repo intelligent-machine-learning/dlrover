@@ -1,11 +1,13 @@
 import deepspeed
+import torch
+from deepspeed.runtime.config import DeepSpeedConfig
 from deepspeed.runtime.pipe.topology import PipeModelDataParallelTopology
 from transformers.modeling_utils import PreTrainedModel
 
 from atorch.auto.opt_lib.optimization import Optimization
 from atorch.common.log_utils import default_logger as logger
 from atorch.distributed.distributed import _DistributedContext as dc
-from atorch.distributed.distributed import parallel_config, parallel_group_size
+from atorch.distributed.distributed import parallel_config, parallel_group, parallel_group_size, parallel_rank, rank
 from atorch.modules.distributed_modules.randomizer import get_MDPRInstance, init_randomizer
 from atorch.utils.ds_pipe_utils import PipeModuleFromRecordedMeta
 from atorch.utils.manual_tp_utils import (
@@ -84,9 +86,8 @@ class DeepSpeed3DParallelOptimization(Optimization):
         optim_param_func = model_context.optim_param_func
         loss_fn = model_context.loss_func  # vocab_parallel_cross_entropy if VocabParallelEmbedding
 
-        # init randomizer and patch deepspeed checkpointing get_cuda_rng_tracker
+        # init randomizer
         init_randomizer(cfg.base_seed)
-        deepspeed.checkpointing.get_cuda_rng_tracker = get_MDPRInstance
 
         # huggingface _init_weights custom fn
         if isinstance(model, PreTrainedModel):
@@ -109,6 +110,8 @@ class DeepSpeed3DParallelOptimization(Optimization):
         )
 
         # build pipeline module
+        if rank() == 0:
+            logger.info("Building pipeline module...")
         pipeline_module = PipeModuleFromRecordedMeta(
             model,
             custom_patcher=cfg.custom_patcher,
@@ -117,6 +120,10 @@ class DeepSpeed3DParallelOptimization(Optimization):
             topology=topo,
             loss_fn=loss_fn,
         )
+
+        # patch deepspeed checkpointing get_cuda_rng_tracker, configure deepspeed checkpointing
+        deepspeed.checkpointing.get_cuda_rng_tracker = get_MDPRInstance
+        deepspeed.checkpointing.configure(mock_mpu(), cfg.ds_config, num_checkpoints=pipeline_module.num_layerblock)
 
         # construct optimizer
         optimizer = optim_func(optim_param_func(pipeline_module), **optim_args)
@@ -129,3 +136,49 @@ class DeepSpeed3DParallelOptimization(Optimization):
         model_context.optim = optimizer
         # model_context.loss_fn will not be used, use model.train_batch / eval_batch instead
         return model_context
+
+
+def get_ds_dtype(ds_config):
+    """Get dtype from deepspeed config
+
+    Args:
+        ds_config (Union[str, dict]): deepspeed config
+    """
+    if ds_config is None:
+        return torch.float32
+    ds_config = DeepSpeedConfig(ds_config)
+    if ds_config.fp16_enabled:
+        return torch.float16
+    elif ds_config.bfloat16_enabled:
+        return torch.bfloat16
+    else:
+        return torch.float32
+
+
+def mock_mpu():
+    class MockMPU:
+        def set_mock_fn(self, mock_fn_name, fn):
+            assert mock_fn_name not in self.__dict__, f"{mock_fn_name} has already been mocked."
+            self.__dict__[mock_fn_name] = fn
+
+        def __getattr__(self, mock_fn_name):
+            if mock_fn_name not in self.__dict__:
+                raise AttributeError(
+                    f"{mock_fn_name} is not mocked in {self.__class__.__name__}."
+                    f"This class is mocked for compatible with deepspeed, maybe "
+                    f"missing some attrs, if miss, report error to atorch teams to fix."
+                )
+            super().__getattr__(mock_fn_name)
+
+        def __setattr__(self, __name, __value):
+            raise ValueError("Please mock fn by `set_mock_fn`.")
+
+    mpu = MockMPU()
+    mpu.set_mock_fn("get_data_parallel_group", lambda: parallel_group("data"))
+    mpu.set_mock_fn("get_data_parallel_rank", lambda: parallel_rank("data"))
+    mpu.set_mock_fn("get_data_parallel_world_size", lambda: parallel_group_size("data"))
+    mpu.set_mock_fn("get_model_parallel_group", lambda: parallel_group("tensor"))
+    mpu.set_mock_fn("get_model_parallel_rank", lambda: parallel_rank("tensor"))
+    mpu.set_mock_fn("get_model_parallel_world_size", lambda: parallel_group_size("tensor"))
+    mpu.set_mock_fn("get_model_parallel_src_rank", lambda: torch.distributed.get_rank() - parallel_rank("tensor"))
+    return mpu

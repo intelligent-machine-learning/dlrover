@@ -6,6 +6,8 @@ import time
 import traceback
 import typing  # type: ignore # noqa: F401
 
+import torch
+
 import atorch
 
 _DEFAULT_LOGGER = "atorch.logger"
@@ -51,7 +53,9 @@ class DashBoardWriter(object):
     def __init__(self, logdir="./"):
         from torch.utils.tensorboard import SummaryWriter
 
-        self.writer = SummaryWriter(logdir)
+        self.rank = int(os.environ.get("RANK", 0))
+        if self.rank == 0:
+            self.writer = SummaryWriter(logdir)
 
     def add_scalars(self, stats, n_iter, name=None):
 
@@ -65,14 +69,17 @@ class DashBoardWriter(object):
                     find_key_value(prefix + key + "/", value)
 
         find_key_value("", stats)
-        print(key_val_list)
 
         for item in key_val_list:
             key, val = item
-            self.writer.add_scalar(key, val, n_iter)
+            if self.rank == 0:
+                if isinstance(val, torch.Tensor):
+                    val = val.detach().clone().float().cpu().item()
+                self.writer.add_scalar(key, val, n_iter)
 
     def flush(self):
-        self.writer.flush()
+        if self.rank == 0:
+            self.writer.flush()
 
 
 class TimeStats:

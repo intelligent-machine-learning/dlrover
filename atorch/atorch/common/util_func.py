@@ -117,6 +117,27 @@ def data_to_device(data, device, non_blocking=False):
     return recursively_apply(to_device, data, device, non_blocking=non_blocking)
 
 
+def data_float_to_dtype(inputs, dtype):
+    if isinstance(inputs, (list, tuple)):
+        new_inputs = []
+        for v in inputs:
+            new_inputs.append(data_float_to_dtype(v, dtype))
+        return inputs.__class__(new_inputs)
+    elif isinstance(inputs, dict):
+        new_inputs = {}
+        for k, v in inputs.items():
+            new_inputs[k] = data_float_to_dtype(v, dtype)
+        return new_inputs
+    elif (
+        isinstance(inputs, torch.Tensor)
+        and inputs.dtype != dtype
+        and inputs.dtype in (torch.float32, torch.half, torch.bfloat16)
+    ):
+        return inputs.to(dtype)
+    else:
+        return inputs
+
+
 def ensure_divisibility(numerator, denominator):
     """Ensure that numerator is divisible by the denominator."""
     assert numerator % denominator == 0, "{} is not divisible by {}".format(numerator, denominator)

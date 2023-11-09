@@ -305,7 +305,7 @@ def get_rendezvous_info(args, mode):
             rdzv_id = os.getenv("AISTUDIO_JOB_NAME", f"atorch-{mode}-job")
         args.rdzv_id = rdzv_id
     if not args.standalone:
-        if args.nnodes == "1":
+        if args.nnodes == "1" and "DLROVER_MASTER_ADDR" not in os.environ:
             args.standalone = True
     return args
 

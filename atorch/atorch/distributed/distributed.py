@@ -654,7 +654,7 @@ def init_distributed(
     """
 
     backend = backend.lower()
-    backend_choices = ["nccl", "gloo", "accl"]
+    backend_choices = ["nccl", "gloo", "accl", "hccl"]
     if backend not in backend_choices:
         logger.error("Invalid backend {}. Only support {}".format(backend, backend_choices))
         return False

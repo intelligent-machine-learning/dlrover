@@ -1,7 +1,6 @@
 import multiprocessing as mp
 import os
 import queue
-import types
 
 import grpc
 from torch.utils.data import DataLoader, Dataset, get_worker_info
@@ -87,6 +86,10 @@ def get_elastic_dataloader(
     if usage == "coworker":
         logger.info("A dataloader will be created on coworker. This dataloader should not be used directly by user.")
 
+    edl_master_addr = dataloader_kwargs.pop("edl_master_addr", "")
+    if edl_master_addr:
+        # ElasticDataset needs to connect the dlrover master by GPRC.
+        os.environ["DLROVER_MASTER_ADDR"] = edl_master_addr
     actual_num_epochs = num_epochs + 1
     # Use `num_epochs + 1` instead of `num_epochs`. When using coworkers, at the end of each epoch, if every coworkers
     # get less than a batch of data, the Simple Dataloader on gpu pods cannot get any data. When using elastic
@@ -111,21 +114,6 @@ def get_elastic_dataloader(
         persistent_workers=persistent_workers,
         **dataloader_kwargs,
     )
-
-    if usage == "elastic_training":
-
-        def state_dict(self):
-            return elastic_dataset.state_dict()
-
-        def load_state_dict(self, state):
-            elastic_dataset.load_state_dict(state)
-
-        def get_current_epoch(self):
-            return elastic_dataset.get_epoch()
-
-        elastic_dataloader.state_dict = types.MethodType(state_dict, elastic_dataloader)
-        elastic_dataloader.load_state_dict = types.MethodType(load_state_dict, elastic_dataloader)
-        elastic_dataloader.get_current_epoch = types.MethodType(get_current_epoch, elastic_dataloader)
 
     return elastic_dataloader
 
