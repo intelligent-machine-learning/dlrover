@@ -9,7 +9,7 @@ It is very difficult to keep training a fundational model during a lone time
 without any interruption. Hareware failure, OS failure or network breakdwon
 may oftern happen during the training. Users usually periodically checkpoint
 the model and optimizer states to the storage to resume the training
-after an interruption. Now, It takes a few minutes to use  `torch.save` to 
+after an interruption. Now, It takes a few minutes to use  `torch.save` to
 checkpoint a large fundational model. Frequent checkpointing may waste
 many hours of the accelerator (GPU, NPU, TPU).
 Because, the training must stop until the checkpointing is completed.
@@ -20,7 +20,7 @@ when we train a fundation model using thouands of accelerators.
 
 ## Target
 
-- Shorten the checkpointing time overhead to block the training for 
+- Reduce the checkpointing time overhead to block the training for
  DDP, FSDP, DeepSpeed or Megatron.
 - Speed up loading the checkpoint file when the training restarts.
 - Automatically configure the checkpoint period to improve the efficient
@@ -42,10 +42,9 @@ So, we can copy the weights from GPU to CPU memory in the trainin loop
 and asynchronously save weights from CPU memory to the storage. The solution
 will block the training to save checkpoint with a little time.
 
-### Asynchronously Save Checkpoint by a daemon subprocess of the GPU process.
+### Asynchronously Save Checkpoint by a daemon subprocess of the GPU process
 
 We can start a daemon subprocess in the training process to save the
-
 
 - Start a thread to save states from GPU to CPU memory.
 
@@ -102,7 +101,7 @@ def save_checkpoint_step(step):
     step_queue.put(step, block=False)
 ```
 
-### Asynchronously Save Checkpoint by an independent CPU process.
+### Asynchronously Save Checkpoint by an independent CPU process
 
 If we start a daemon subprocess of the GPU training process, the daemon
 subprocess will exit if the training process fails. In this case, the
@@ -110,19 +109,18 @@ parameters in CPU memory of the daemon subprocess will loss. So, we can
 start an independent CPU process to share the memory with the training
 process to save checkpoint to storage.
 
-
 Allocate the small shared memory to place the meta information of the model and optimizer.
 The meta mainly contains the tensor size of the model and optimizer. The process
 to save checkpoint can allocate another shared memory with the meta.
 
-### Load checkpoint from the multiple-level storage.
+### Load checkpoint from the multiple-level storage
 
 If the training process fails and the elastic agent of PyTorch can restart the
 training process to resume the training, the training process can load the checkpoint
 from the shared memory not from the storage. Loading from the memory is much faster
 than the storage.
 
-## Checkpoint APIs Design.
+## Checkpoint APIs Design
 
 ```Python
 
