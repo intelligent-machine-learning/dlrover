@@ -2,9 +2,9 @@ licenses(["notice"])  # Apache 2.0
 
 package(default_visibility = ["//visibility:public"])
 
-load("@local_config_cuda//cuda:build_defs.bzl", "cuda_cc_library")
+load("@local_config_cuda//cuda:build_defs.bzl", "cuda_library")
 
-cuda_cc_library(
+cuda_library(
   copts = [
     "-O3",
     "-std=c++17",

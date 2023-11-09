@@ -1,8 +1,10 @@
 load("//tf:tf_configure.bzl", "tf_configure")
 load("//third_party:repo.bzl", "tf_http_archive", "tf_mirror_urls")
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+load("//third_party/gpus:cuda_configure.bzl", "cuda_configure")
 
 tf_configure(name = "local_config_tf")
+cuda_configure(name = "local_config_cuda")
 
 tf_http_archive(
     name = "com_google_googletest",
@@ -110,4 +112,23 @@ tf_http_archive(
     strip_prefix = "zlib-1.2.13",
     system_build_file = "//third_party/zlib.BUILD",
     urls = tf_mirror_urls("https://zlib.net/zlib-1.2.13.tar.gz"),
+)
+
+http_archive(
+    name = "cutlass",
+    urls = ["https://github.com/NVIDIA/cutlass/archive/319a389f42b776fae5701afcb943fc03be5b5c25.zip"],
+    build_file = "//third_party:cutlass.BUILD",
+    strip_prefix = "cutlass-319a389f42b776fae5701afcb943fc03be5b5c25",
+)
+
+http_archive(
+    name = "flash_attn",
+    urls = ["https://github.com/Dao-AILab/flash-attention/archive/9818f85fee29ac6b60c9214bce841f8109a18b1b.zip"],  # v1.0.4
+    build_file = "//third_party:flash_attn.BUILD",
+    sha256 = "15f29a1095600ba2a3af688fa96a0a48635edb90fffec56c6eb7c48a4a322d2b",
+    strip_prefix = "flash-attention-9818f85fee29ac6b60c9214bce841f8109a18b1b",
+    patches = [
+        "//third_party:flash_attn.patch",
+    ],
+    patch_args = ["-p1"],
 )
