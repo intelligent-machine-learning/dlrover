@@ -2,19 +2,19 @@ licenses(["notice"])  # Apache 2.0
 
 package(default_visibility = ["//visibility:public"])
 
-load("@local_config_cuda//cuda:build_defs.bzl", "cuda_library")
+load("@local_config_cuda//cuda:build_defs.bzl", "cuda_library", "if_cuda")
 
 cuda_library(
   name = "flash_attn",
-  srcs = [
+  srcs = if_cuda([
     "csrc/flash_attn/src/fmha_fwd_hdim32.cu.cc",
     "csrc/flash_attn/src/fmha_fwd_hdim64.cu.cc",
     "csrc/flash_attn/src/fmha_fwd_hdim128.cu.cc",
     "csrc/flash_attn/src/fmha_bwd_hdim32.cu.cc",
     "csrc/flash_attn/src/fmha_bwd_hdim64.cu.cc",
     "csrc/flash_attn/src/fmha_bwd_hdim128.cu.cc",
-  ],
-  hdrs = [
+  ]),
+  hdrs = if_cuda([
     "csrc/flash_attn/src/fmha/gemm.h",
     "csrc/flash_attn/src/fmha/gmem_tile.h",
     "csrc/flash_attn/src/fmha/kernel_traits.h",
@@ -31,7 +31,7 @@ cuda_library(
     "csrc/flash_attn/src/fmha_fprop_kernel_1xN.h",
     "csrc/flash_attn/src/fmha_kernel.h",
     "csrc/flash_attn/src/philox.cuh",
-  ],
+  ]),
   copts = [
     "-O3",
     "-std=c++17",
@@ -45,7 +45,7 @@ cuda_library(
     "--ptxas-options=-v",
     "-lineinfo"
   ],
-  deps = ["@cutlass//:cutlass",],
+  deps = if_cuda(["@cutlass//:cutlass",]),
   strip_include_prefix = "csrc/flash_attn/src",
 )
 
