@@ -2,6 +2,7 @@ import math
 
 import torch
 import torch.distributed as dist
+from deepspeed.runtime.zero.stage_1_and_2 import DeepSpeedZeroOptimizer
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 
 from atorch.auto.auto_accelerate_context import AutoAccelerateContext
@@ -22,8 +23,13 @@ def clip_grad_norm(model, max_norm, norm_type=2, optimizer=None, process_group_n
         optimizer (optim.Optimizer): optimizer returned by auto_accelerate.
         process_group_name_prefix (str): The prefix name that is used in `ParallelGroupContextManager`
     Returns:
-        Total norm of the parameters (viewed as a single vector).
+        Total norm of the parameters (viewed as a single vector) or None if using ds zero optimizer.
     """
+    if isinstance(optimizer, DeepSpeedZeroOptimizer):
+        assert norm_type == 2, "deep speed zero optimizer only supports L2 norm"
+        optimizer.clip_grad = max_norm
+        return None
+
     if torch_version() >= (1, 12, 1) and torch_version() <= (1, 13, 1):
         from torch.distributed.fsdp.fully_sharded_data_parallel import TrainingState_ as TrainingState
     elif torch_version() >= (2, 0, 0):
@@ -45,6 +51,7 @@ def clip_grad_norm(model, max_norm, norm_type=2, optimizer=None, process_group_n
                 "Before cliping gradient norm, gradient values need to be unscaled. Please pass optimizer "
                 "when calling `clip_grad_norm`."
             )
+
         optimizer.unscale_()
 
     def calculate_grad_norm(parameters, norm_type) -> torch.Tensor:

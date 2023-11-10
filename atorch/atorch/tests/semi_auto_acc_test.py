@@ -4,6 +4,7 @@ import unittest
 
 import torch
 import torch.multiprocessing as mp
+from deepspeed.runtime.zero.stage_1_and_2 import DeepSpeedZeroOptimizer
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 
 import atorch
@@ -122,6 +123,96 @@ def run_wraps(model_context):
                     fsdp_module_counts[t] += 1
     assert fsdp_module_counts[wrap_type_tuple[0]] == 3
     assert fsdp_module_counts[wrap_type_tuple[1]] == 1
+
+
+def run_ds_zero(
+    rank,
+    hidden_size,
+    head_num,
+    layer_num,
+    seq_length,
+    data_size,
+    batch_size,
+):
+    os.environ["LOCAL_RANK"] = str(rank)
+    os.environ["RANK"] = str(rank)
+    backend = "nccl" if torch.cuda.is_available() else "gloo"
+    res = atorch.init_distributed(backend, set_cuda_device_using_local_rank=True)
+    if not res:
+        raise Exception("init failed")
+
+    mc = create_model_context(
+        data_size=data_size,
+        batch_size=batch_size,
+        use_gpt2=True,
+        hidden_size=hidden_size,
+        head_num=head_num,
+        layer_num=layer_num,
+        seq_length=seq_length,
+    )
+
+    def train_with_ds(model_context, dtype, ds_zero, cpu_offload):
+        strategy = ["parallel_mode"]
+        if dtype != torch.float32:
+            strategy.append(("half", "fp16" if dtype == torch.half else "bf16"))
+
+        ds_config = {"use_ds_zero": True}
+        ds_config["cpu_offload"] = cpu_offload
+        if ds_zero == "zero2":
+            ds_config["static_loss_scale"] = 0
+            strategy.append(("zero2", ds_config))
+        else:
+            strategy.append(("zero1", ds_config))
+
+        data_size = len(model_context.dataset)
+
+        status, result, _ = auto_accelerate(
+            model_context.model,
+            model_context.optim_func,
+            model_context.dataset,
+            model_context.loss_func,
+            model_context.prepare_input,
+            model_context.model_input_format,
+            model_context.optim_args,
+            model_context.optim_param_func,
+            model_context.dataloader_args,
+            load_strategy=strategy,
+            ignore_dryrun_on_load_strategy=True,
+        )
+        assert status
+        assert isinstance(result.optim, DeepSpeedZeroOptimizer)
+
+        m_model = result.model
+        m_dataloader = result.dataloader
+        m_optim = result.optim
+        m_prepare_input = result.prepare_input
+        m_loss_func = result.loss_func
+
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        num = run_train(
+            m_model,
+            m_dataloader,
+            m_optim,
+            m_prepare_input,
+            m_loss_func,
+            device,
+            gpt2_model=True,
+            use_optim_backward=result.args["use_optim_backward"],
+        )
+        assert num == data_size // batch_size, f"num={num}"
+
+    dtype_list = [torch.float16, torch.half, torch.float32]
+    cpu_offload_list = [False, True]
+    ds_zero_list = ["zero1", "zero2"]
+
+    for dtype in dtype_list:
+        for ds_zero in ds_zero_list:
+            for cpu_offload in cpu_offload_list:
+                mc_copy = copy.deepcopy(mc)
+                train_with_ds(mc_copy, dtype, ds_zero, cpu_offload)
+
+    atorch.reset_distributed()
 
 
 def run_gpt2_with_strategy(
@@ -362,6 +453,37 @@ class LoadStrategyTest(unittest.TestCase):
         mp.spawn(
             run_gpt2_with_strategy,
             args=(hidden_size, head_num, layer_num, seq_length, data_size, batch_size, False, None, False, True),
+            nprocs=2,
+            join=True,
+            daemon=False,
+            start_method="spawn",
+        )
+
+    @unittest.skipIf(
+        not torch.cuda.is_available() or not torch.cuda.is_bf16_supported(),
+        "Must have GPU with bf16 supported",
+    )
+    def test_ds_zero_bf16(self):
+        os.environ["WORLD_SIZE"] = str(2)
+        os.environ["NPROC_PER_NODE"] = str(2)
+        os.environ["MASTER_ADDR"] = "localhost"
+        os.environ["MASTER_PORT"] = str(find_free_port())
+        hidden_size = 256
+        head_num = 4
+        layer_num = 3
+        seq_length = 128
+        data_size = 16
+        batch_size = 2
+        mp.spawn(
+            run_ds_zero,
+            args=(
+                hidden_size,
+                head_num,
+                layer_num,
+                seq_length,
+                data_size,
+                batch_size,
+            ),
             nprocs=2,
             join=True,
             daemon=False,
