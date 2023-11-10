@@ -36,12 +36,12 @@ NOTES:
 
 __author__ = 'keveman@google.com (Manjunath Kudlur)'
 
-from argparse import ArgumentParser
 import os
-import subprocess
-import re
-import sys
 import pipes
+import re
+import subprocess
+import sys
+from argparse import ArgumentParser
 
 # Template values set by cuda_autoconf.
 CPU_COMPILER = ('%{cpu_compiler}')

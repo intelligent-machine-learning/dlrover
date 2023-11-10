@@ -15,12 +15,12 @@ DESCRIPTION:
 
 __author__ = 'whchung@gmail.com (Wen-Heng (Jack) Chung)'
 
-from argparse import ArgumentParser
 import os
-import subprocess
-import re
-import sys
 import pipes
+import re
+import subprocess
+import sys
+from argparse import ArgumentParser
 
 # Template values set by rocm_configure.bzl.
 CPU_COMPILER = ('%{cpu_compiler}')

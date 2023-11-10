@@ -53,9 +53,9 @@ tf_<library>_header_dir: ...
 tf_<library>_library_dir: ...
 """
 
+import glob
 import io
 import os
-import glob
 import platform
 import re
 import subprocess

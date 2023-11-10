@@ -20,12 +20,12 @@ DESCRIPTION:
   This script is the Windows version of //third_party/gpus/crosstool/crosstool_wrapper_is_not_gcc
 """
 
-from argparse import ArgumentParser
 import os
-import subprocess
 import re
+import subprocess
 import sys
 import tempfile
+from argparse import ArgumentParser
 
 # Template values set by cuda_autoconf.
 CPU_COMPILER = ('%{cpu_compiler}')
