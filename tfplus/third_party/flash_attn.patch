@@ -1,4 +1,4 @@
-tfplus/third_party/flash_attn.patchdiff --git a/csrc/flash_attn/src/fmha.h b/csrc/flash_attn/src/fmha.h
+diff --git a/csrc/flash_attn/src/fmha.h b/csrc/flash_attn/src/fmha.h
 index 2905e6d..a44e53e 100644
 --- a/csrc/flash_attn/src/fmha.h
 +++ b/csrc/flash_attn/src/fmha.h
