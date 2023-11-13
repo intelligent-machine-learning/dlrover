@@ -16,6 +16,7 @@ import multiprocessing
 import os
 import shutil
 from abc import ABCMeta, abstractmethod
+from datetime import timedelta
 
 import torch
 import torch.distributed as dist
@@ -345,7 +346,7 @@ class FSDPCheckpointManger(CheckpointManger):
         sync()
 
 
-class AsyncCheckpointEngine(object):
+class AsyncCheckpointEngine(metaclass=ABCMeta):
     """
     Attributes:
         checkpoint_dir: str, the directory to save the checkpoint.
@@ -374,6 +375,13 @@ class AsyncCheckpointEngine(object):
         self.auto_save = auto_save
         manager = multiprocessing.Manager()
         self._shm_buffer = manager.dict()
+        self._shm_buffer_lock = multiprocessing.Lock()
+        self._checkpoint_step_queue = manager.Queue(maxsize=1)
+        self._sub_process = multiprocessing.Process(
+            target=self._save_cheeckpoint_buffer_to_storage,
+            daemon=True,
+        )
+        self._sub_process.start()
 
     def _check_arguments(self):
         if self.save_mem_interval > self.save_storage_interval:
@@ -405,6 +413,39 @@ class AsyncCheckpointEngine(object):
     def _copy_state_dict_to_buffer(self, state_dict):
         _traverse.traverse_state_dict(state_dict, self._copy_state_to_memory)
 
+    def _save_cheeckpoint_buffer_to_storage(self):
+        while True:
+            step = self._checkpoint_step_queue.get()
+            with self._shm_buffer_lock:
+                checkpoint_step = self._shm_buffer.get(("step",), 0)
+                if step != checkpoint_step:
+                    logger.warning(
+                        "Skip to save the checkpoint to storage at "
+                        f"step {step} due to the step {checkpoint_step} "
+                        "in buffer is outdate."
+                    )
+                    continue
+                logger.info(
+                    f"Save {step} step checkpoint buffer into the storage."
+                )
+                checkpoint_dir = os.path.join(
+                    self.checkpoint_dir, f"{CKPT_DIR_PREFIX}{step}"
+                )
+                self._persist_to_storage(checkpoint_dir)
+                self._wait_all_ranks()
+
+    @abstractmethod
+    def _persist_to_storage(self, checkpoint_dir):
+        """Persist the checkpoint from CPU memory buffer into the storage."""
+        pass
+
+    @abstractmethod
+    def _wait_all_ranks(self):
+        """Check whether all ranks finish saving its checkpointing data
+        in the CPU memory into the storage.
+        """
+        pass
+
     def save(self, step, state_dict):
         """
         Save the state dict if the step is multiple of save_mem_interval.
@@ -415,9 +456,21 @@ class AsyncCheckpointEngine(object):
         """
         if step % self.save_mem_interval != 0:
             return
+        state_dict["step"] = step
         if len(self._shm_buffer) == 0:
             self._make_state_dict_buffer(state_dict)
+        locked = self._shm_buffer_lock.acquire(block=False)
+        if not locked:
+            logger.info(
+                "Skip the save the checkpoint in CPU memory since "
+                "it is saving the latest checkpoint from the "
+                "CPU memory into the storage."
+            )
+            return
         self._copy_state_dict_to_buffer(state_dict)
+        if step % self.save_storage_interval == 0:
+            self._checkpoint_step_queue.put(step)
+        self._shm_buffer_lock.release()
 
     def load(self, resume_path=""):
         """
@@ -438,3 +491,104 @@ class AsyncCheckpointEngine(object):
 
         state_dict = torch.load(resume_path)
         return state_dict
+
+
+class LocalAsyncCkptEngine(AsyncCheckpointEngine):
+    def __init__(
+        self,
+        checkpoint_dir,
+        save_mem_interval,
+        save_storage_interval,
+        max_to_keep=1,
+        auto_save=False,
+    ):
+        super().__init__(
+            checkpoint_dir=checkpoint_dir,
+            save_mem_interval=save_mem_interval,
+            save_storage_interval=save_storage_interval,
+            max_to_keep=max_to_keep,
+            auto_save=auto_save,
+        )
+
+    def _persist_to_storage(self, checkpoint_dir):
+        init_dir(checkpoint_dir)
+        checkpoint_path = os.path.join(checkpoint_dir, "checkpoint.pt")
+        torch.save(self._shm_buffer, checkpoint_path)
+
+    def _wait_all_ranks(self):
+        return
+
+
+class DDPAsyncCkptEngine(AsyncCheckpointEngine):
+    def __init__(
+        self,
+        checkpoint_dir,
+        save_mem_interval,
+        save_storage_interval,
+        max_to_keep=1,
+        auto_save=False,
+    ):
+        super().__init__(
+            checkpoint_dir=checkpoint_dir,
+            save_mem_interval=save_mem_interval,
+            save_storage_interval=save_storage_interval,
+            max_to_keep=max_to_keep,
+            auto_save=auto_save,
+        )
+
+    def _persist_to_storage(self, checkpoint_dir):
+        rank = dist.get_rank()
+        if rank == 0:
+            init_dir(checkpoint_dir)
+            checkpoint_path = os.path.join(checkpoint_dir, "checkpoint.pt")
+            torch.save(self._shm_buffer, checkpoint_path)
+
+    def _wait_all_ranks(self):
+        return
+
+
+class FSDPAsyncCkptEngine(AsyncCheckpointEngine):
+    def __init__(
+        self,
+        checkpoint_dir,
+        save_mem_interval,
+        save_storage_interval,
+        max_to_keep=1,
+        auto_save=False,
+    ):
+        super().__init__(
+            checkpoint_dir=checkpoint_dir,
+            save_mem_interval=save_mem_interval,
+            save_storage_interval=save_storage_interval,
+            max_to_keep=max_to_keep,
+            auto_save=auto_save,
+        )
+        self._saver_group = dist.new_group(
+            backend="gloo", timeout=timedelta(seconds=30)
+        )
+        if dist.is_initialized():
+            self._rank = dist.get_rank()
+        else:
+            self._rank = 0
+
+    def _persist_to_storage(self, checkpoint_dir):
+        init_dir(checkpoint_dir)
+        checkpoint_path = os.path.join(checkpoint_dir, f"part-{self._rank}.pt")
+        torch.save(self._shm_buffer, checkpoint_path)
+
+    def _wait_all_ranks(self, step):
+        world_size = dist.get_world_size()
+        tensor_list = [
+            torch.zeros(1, dtype=torch.int64) for _ in range(world_size)
+        ]
+        tensor = torch.tensor(step, dtype=torch.int64)
+        while True:
+            try:
+                dist.all_gather(tensor_list, tensor, group=self._saver_group)
+            except Exception as e:
+                if "Timed out" in str(e):
+                    continue
+                else:
+                    raise e
+            if sum(tensor_list) == [step] * world_size:
+                return
