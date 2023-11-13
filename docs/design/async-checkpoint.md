@@ -12,7 +12,7 @@ the model and optimizer states to the storage and resume the training
 after an interruption. Now, It takes a few minutes to use  `torch.save` to
 checkpoint a large fundational model. Frequent checkpointing may waste
 many hours of the accelerator (GPU, NPU, TPU) since the training must stop
-until the checkpointing is completed. On the other hand, infrequent checkpoints 
+until the checkpointing is completed. On the other hand, infrequent checkpoints
 ould reduce the overhead but take the risk of wasting more training steps
 when resuming the training from the latest checkpoint file. Reducing the checkpointing
 overhead is necessary to improve the training efficiency and the accelerator utilization
