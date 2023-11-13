@@ -142,3 +142,27 @@ enable_cuda_flag = rule(
     build_setting = config.bool(flag = True),
     attrs = {"enable_override": attr.bool()},
 )
+
+
+
+def cuda_cc_library(
+        name,
+        hdrs,
+        copts = [],
+        include_prefix = None,
+        strip_include_prefix = None,
+        deps = [],
+        **kwargs):
+
+    native.cc_library(
+        name = name,
+        hdrs = hdrs,
+        include_prefix = include_prefix,
+        strip_include_prefix = strip_include_prefix,
+        deps = deps + ["@local_config_cuda//cuda:cuda_headers"],
+        copts = copts + ["-x", "cuda", "-DGOOGLE_CUDA=1", "-nvcc_options=relaxed-constexpr", "-nvcc_options=ftz=true"],
+        visibility = ["//visibility:public"],
+        tags = ["gpu"],
+        **kwargs
+    )
+

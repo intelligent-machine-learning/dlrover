@@ -104,7 +104,7 @@ index 491253b..fea19cb 100644
  namespace fmha {
  
 diff --git a/csrc/flash_attn/src/fmha_block_dgrad_kernel_1xN_loop.h b/csrc/flash_attn/src/fmha_block_dgrad_kernel_1xN_loop.h
-index ce5410f..ddee2bd 100644
+index ce5410f..cd55013 100644
 --- a/csrc/flash_attn/src/fmha_block_dgrad_kernel_1xN_loop.h
 +++ b/csrc/flash_attn/src/fmha_block_dgrad_kernel_1xN_loop.h
 @@ -6,8 +6,8 @@
@@ -124,13 +124,13 @@ index ce5410f..ddee2bd 100644
      const int tidx_global = (bidb * params.h + bidh) * blockDim.x + tidx;
 -    auto seeds = at::cuda::philox::unpack(params.philox_args);
 -    Philox ph(std::get<0>(seeds), tidx_global, std::get<1>(seeds));
-+    auto seeds = unpack(params.philox_args);
-+    Philox ph(seeds.first, tidx_global, seeds.second);
++    // auto args = unpack(params.philox_args);
++    Philox ph(params.philox_args.seed_.val, tidx_global, params.philox_args.offset_.val);
  
      if (loop_steps == 1) {
          compute_block_dq_dk_dv_1xN_one_iter<Kernel_traits, Is_dropout, Is_causal, true, true>(params, ph, 0);
 diff --git a/csrc/flash_attn/src/fmha_block_fprop_kernel_1xN.h b/csrc/flash_attn/src/fmha_block_fprop_kernel_1xN.h
-index 15f865e..fabe1c8 100644
+index 15f865e..fabb7fe 100644
 --- a/csrc/flash_attn/src/fmha_block_fprop_kernel_1xN.h
 +++ b/csrc/flash_attn/src/fmha_block_fprop_kernel_1xN.h
 @@ -31,8 +31,8 @@
@@ -151,9 +151,9 @@ index 15f865e..fabe1c8 100644
 -    auto seeds = at::cuda::philox::unpack(params.philox_args);
 -    Philox ph0(std::get<0>(seeds), tidx_global, std::get<1>(seeds));
 -    Philox ph1(std::get<0>(seeds), tidx_global + blockDim.x, std::get<1>(seeds));
-+    auto seeds = unpack(params.philox_args);
-+    Philox ph0(seeds.first, tidx_global, seeds.second);
-+    Philox ph1(seeds.first, tidx_global + blockDim.x, seeds.second);
++    // auto args = unpack(params.philox_args);
++    Philox ph0(params.philox_args.seed_.val, tidx_global, params.philox_args.offset_.val);
++    Philox ph1(params.philox_args.seed_.val, tidx_global + blockDim.x, params.philox_args.offset_.val);
      constexpr int M = Kernel_traits::Cta_tile_p::M;
      const int STEPS = (params.seqlen_q + M - 1) / M;
  
@@ -264,7 +264,7 @@ index d5ac579..2db1e99 100644
  namespace fmha {
  
 diff --git a/csrc/flash_attn/src/fmha_fprop_kernel_1xN.h b/csrc/flash_attn/src/fmha_fprop_kernel_1xN.h
-index ee5d68d..689d537 100644
+index ee5d68d..c0a8889 100644
 --- a/csrc/flash_attn/src/fmha_fprop_kernel_1xN.h
 +++ b/csrc/flash_attn/src/fmha_fprop_kernel_1xN.h
 @@ -29,9 +29,9 @@
@@ -285,15 +285,15 @@ index ee5d68d..689d537 100644
      // the attention matrix. This way, as long as we have the batch, head, and the location of
      // the 16 x 16 block within the attention matrix, we can generate the exact same dropout pattern.
 -    auto seeds = at::cuda::philox::unpack(params.philox_args);
-+    auto seeds = unpack(params.philox_args);
++    // auto args = unpack(params.philox_args);
      if (bidx == 0 && tidx == 0) {
 -        params.rng_state[0] = std::get<0>(seeds);
 -        params.rng_state[1] = std::get<1>(seeds);
-+        params.rng_state[0] = seeds.first;
-+        params.rng_state[1] = seeds.second;
++        params.rng_state[0] = params.philox_args.seed_.val;
++        params.rng_state[1] = params.philox_args.offset_.val;
      }
 -    Philox ph(std::get<0>(seeds), 0, std::get<1>(seeds) + (bidb * params.h + bidh) * 32 + tidx % 32);
-+    Philox ph(seeds.first, 0, seeds.second + (bidb * params.h + bidh) * 32 + tidx % 32);
++    Philox ph(params.philox_args.seed_.val, 0, params.philox_args.offset_.val + (bidb * params.h + bidh) * 32 + tidx % 32);
      constexpr int M = Kernel_traits::Cta_tile_p::M;
      const int STEPS = (params.seqlen_q + M - 1) / M;
  
@@ -369,10 +369,10 @@ index 6287976..79c742e 100644
  namespace fmha {
  
 diff --git a/csrc/flash_attn/src/philox.cuh b/csrc/flash_attn/src/philox.cuh
-index a1e4c64..25e1884 100644
+index a1e4c64..8fd02e8 100644
 --- a/csrc/flash_attn/src/philox.cuh
 +++ b/csrc/flash_attn/src/philox.cuh
-@@ -2,9 +2,31 @@
+@@ -2,11 +2,43 @@
  // Pytorch also has an implementation of Philox RNG: https://github.com/pytorch/pytorch/blob/master/torch/csrc/jit/codegen/cuda/runtime/random_numbers.cu
  #pragma once
  // Philox CUDA.
@@ -404,14 +404,26 @@ index a1e4c64..25e1884 100644
 +
  class Philox {
  public:
++  // struct PhiloxArgs
++  // {
++  //   uint64_t seed;
++  //   uint64_t offset;
++  //   PhiloxArgs(uint64_t seed_input, uint64_t offset_input)
++  //   {
++  //     seed = seed_input;
++  //     offset = offset_input;
++  //   }
++  // };
    __device__ inline Philox(unsigned long long seed,
-@@ -153,5 +175,29 @@ __device__ __inline__ float4 uniform4(const uint4 x) {
+                            unsigned long long subsequence,
+                            unsigned long long offset)
+@@ -153,5 +185,29 @@ __device__ __inline__ float4 uniform4(const uint4 x) {
    return make_float4(x.x * M_RAN_INVM32, x.y * M_RAN_INVM32, x.z * M_RAN_INVM32,
                       x.w * M_RAN_INVM32);
  }
-+__device__ __forceinline__ std::pair<uint64_t, uint64_t> unpack(PhiloxCudaState arg) {
-+  return std::make_pair(arg.seed_.val, arg.offset_.val);
-+}
++// __device__ __forceinline__ Philox::PhiloxArgs unpack(PhiloxCudaState arg) {
++//   return Philox::PhiloxArgs(arg.seed_.val, arg.offset_.val);
++// }
 +
 +class CUDAPhiloxRandomGenerator{
 + public:
@@ -436,4 +448,3 @@ index a1e4c64..25e1884 100644
  
  } // namespace
 
- 
