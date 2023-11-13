@@ -37,7 +37,7 @@ index 2905e6d..a44e53e 100644
 -    at::PhiloxCudaState philox_args;
 +    PhiloxCudaState philox_args;
      // Pointer to the RNG seed (idx 0) and offset (idx 1).
-     uint64 * rng_state;
+     uint64_t * rng_state;
  
 @@ -203,9 +195,11 @@ void run_fmha_fwd_hdim64(Launch_params<FMHA_fprop_params> &launch_params);
  void run_fmha_fwd_hdim128(Launch_params<FMHA_fprop_params> &launch_params);
@@ -435,3 +435,5 @@ index a1e4c64..25e1884 100644
 +};
  
  } // namespace
+
+ 
