@@ -33,11 +33,11 @@ from dlrover.trainer.torch.elastic.checkpoint import (
 from dlrover.trainer.torch.elastic.sampler import ElasticDistributedSampler
 
 
-def set_torch_dist_env():
+def set_torch_dist_env(port):
     os.environ["WORLD_SIZE"] = "1"
     os.environ["RANK"] = "0"
     os.environ["MASTER_ADDR"] = "127.0.0.1"
-    os.environ["MASTER_PORT"] = "12345"
+    os.environ["MASTER_PORT"] = str(port)
 
 
 class SimpleDataset(Dataset):
@@ -111,7 +111,7 @@ class CheckpointManagerTest(unittest.TestCase):
             self.assertEqual(self.dataloader.sampler.total_size, 60002)
 
     def test_ddp_save_load(self):
-        set_torch_dist_env()
+        set_torch_dist_env(12346)
         dist.init_process_group(backend="gloo")
         model = DDP(self.model)
         with tempfile.TemporaryDirectory() as tmpdirname:
@@ -160,7 +160,7 @@ class AsyncCheckpointEngineTest(unittest.TestCase):
             self.assertEqual(ckpt_dir, expected_dir)
 
     def test_ddp_save(self):
-        set_torch_dist_env()
+        set_torch_dist_env(12347)
         dist.init_process_group(backend="gloo")
         model = SimpleNet()
         model = DDP(model)
