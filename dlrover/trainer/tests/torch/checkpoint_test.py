@@ -13,8 +13,8 @@
 
 import os
 import tempfile
-import unittest
 import time
+import unittest
 
 import numpy as np
 import torch.distributed as dist
@@ -25,9 +25,9 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader, Dataset
 
 from dlrover.trainer.torch.elastic.checkpoint import (
-    LocalAsyncCkptEngine,
-    DDPAsyncCkptEngine,
     CheckpointManger,
+    DDPAsyncCkptEngine,
+    LocalAsyncCkptEngine,
     get_latest_checkpoint,
 )
 from dlrover.trainer.torch.elastic.sampler import ElasticDistributedSampler
@@ -135,11 +135,9 @@ class CheckpointManagerTest(unittest.TestCase):
             ckpt_manager.load()
             self.assertEqual(self.dataloader.sampler.total_size, 60002)
         dist.destroy_process_group()
-        print(dist.is_initialized())
 
 
 class AsyncCheckpointEngineTest(unittest.TestCase):
-
     def test_local_save(self):
         model = SimpleNet()
         step = 100
@@ -180,3 +178,4 @@ class AsyncCheckpointEngineTest(unittest.TestCase):
             ckpt_dir = get_latest_checkpoint(tmpdirname)
             expected_dir = os.path.join(tmpdirname, "checkpoint-100")
             self.assertEqual(ckpt_dir, expected_dir)
+        dist.destroy_process_group()
