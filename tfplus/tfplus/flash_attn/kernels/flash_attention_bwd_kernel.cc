@@ -94,7 +94,8 @@ class FMHABackwardOp : public OpKernel {
     int max_seqlen_q = ((max_seqlen_q_ + 16 - 1) / 16) * 16;
     bool loop = max_seqlen_k > blocksize_c;
     Tensor dq_tmp;
-    if (loop) {
+    if (loop)
+    {
       ctx->allocate_temp(DT_FLOAT, {total_q, num_heads, head_size}, &dq_tmp);
     }
     Tensor softmax_d;
@@ -104,14 +105,18 @@ class FMHABackwardOp : public OpKernel {
     tfplus::set_params_dgrad<T>(
         params, batch_size, max_seqlen_q, max_seqlen_k, num_heads, head_size,
         &query_tensor, &key_tensor, &value_tensor,
-        const_cast<Tensor*>(&output_tensor), dq, dk, dv,
-        reinterpret_cast<void*>(const_cast<int32*>(cu_seqlens_q.tensor<int32, 1>().data())),
-        reinterpret_cast<void*>(const_cast<int32*>(cu_seqlens_k.tensor<int32, 1>().data())),
-        loop ? reinterpret_cast<void*>(dq_tmp.tensor<float, 3>().data())
+        const_cast<Tensor *>(&output_tensor), dq, dk, dv,
+        reinterpret_cast<void *>(
+            const_cast<int32 *>(cu_seqlens_q.tensor<int32, 1>().data())),
+        reinterpret_cast<void *>(
+            const_cast<int32 *>(cu_seqlens_k.tensor<int32, 1>().data())),
+        loop ? reinterpret_cast<void *>(dq_tmp.tensor<float, 3>().data())
              : nullptr,
-        reinterpret_cast<void*>(const_cast<T*>(gradient_tensor.tensor<T, 3>().data())),
-        reinterpret_cast<void*>(const_cast<float*>(softmax_lse_tensor.tensor<float, 3>().data())),
-        reinterpret_cast<void*>(softmax_d.tensor<float, 3>().data()),
+        reinterpret_cast<void *>(
+            const_cast<T *>(gradient_tensor.tensor<T, 3>().data())),
+        reinterpret_cast<void *>(
+            const_cast<float *>(softmax_lse_tensor.tensor<float, 3>().data())),
+        reinterpret_cast<void *>(softmax_d.tensor<float, 3>().data()),
         p_dropout_, softmax_scale_, is_causal_, num_splits_,
         num_heads * head_size, head_size);
     auto stream = GetGpuStream(ctx);

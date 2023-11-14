@@ -14,7 +14,7 @@ repos:
         language: python
         args:
           - --recursive
-          - --filter=-build/header_guard, -build/c++11
+          - --filter=-build/header_guard, -build/c++11, -build/include_subdir
           - tfplus/
   # - repo: https://github.com/pre-commit/mirrors-pylint
   - repo: local

@@ -113,14 +113,16 @@ class FMHAForwardOp : public OpKernel {
         batch_size, max_seqlen_q, max_seqlen_k, num_heads, head_size,
         // devices_points
         &query_tensor, &key_tensor, &value_tensor, output_tensor,
-        reinterpret_cast<void*>(const_cast<int32*>((cu_seqlens_q.tensor<int32, 1>().data()))),
-        reinterpret_cast<void*>(const_cast<int32*>((cu_seqlens_k.tensor<int32, 1>().data()))),
-        loop ? reinterpret_cast<void*>(o_tmp.tensor<float, 3>().data())
+        reinterpret_cast<void *>(
+            const_cast<int32 *>((cu_seqlens_q.tensor<int32, 1>().data()))),
+        reinterpret_cast<void *>(
+            const_cast<int32 *>((cu_seqlens_k.tensor<int32, 1>().data()))),
+        loop ? reinterpret_cast<void *>(o_tmp.tensor<float, 3>().data())
              : nullptr,
-        return_softmax_ ? reinterpret_cast<void*>(
+        return_softmax_ ? reinterpret_cast<void *>(
                               return_sm->tensor<Eigen::half, 4>().data())
                         : nullptr,
-        reinterpret_cast<void*>(softmax_lse->tensor<float, 3>().data()),
+        reinterpret_cast<void *>(softmax_lse->tensor<float, 3>().data()),
         p_dropout_, softmax_scale_, is_causal_, num_splits_,
         num_heads * head_size, head_size);
     // number of times random will be generated per thread, to offset philox
