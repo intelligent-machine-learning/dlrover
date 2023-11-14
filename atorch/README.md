@@ -33,16 +33,16 @@ ATorch is an extension library of PyTorch developed by Ant Group's AI Infrastruc
   * [auto_accelerate](docs/auto_accelerate_api.md) API
   * ATorchTrainer (ongoing work)
 * Solutions for large-scale model training
-  * support efficient large model initialization, checkpoint save/load with elastic resources.
+  * support efficient large model initialization, checkpoint save/load, and restart with elastic resources.
 * Automatic/semi-automatic optimization
   * Acceleration Engine for automatic optimization
   * Semi-automatic optimization supports custom optimization
-* Hybrid parallelism suport (fsdp/zero/ddp/tp/pp hybrid parallel)
-* Compilation optimization (ongoing work)
+* Hybrid parallelism suport (arbitrary combination of fsdp/zero/ddp/tp/sp/pp)
 * High performance operators
   * Flash attention 2 with custom mask support
   * Transformer ops
   * High-performance MOE
+  * sub-graph compilation
 * Checkpointing
 * Mixed precision
 * Communication optimization
@@ -52,9 +52,9 @@ ATorch is an extension library of PyTorch developed by Ant Group's AI Infrastruc
   * [WSAM optimizer](docs/README-WSAM.md)
 * IO/Preprocessing
   * CPU/GPU coworker to speedup data preprocessing 
-  * Pangu storage support
+  * IO optimization for different dataset
 * Elastic and fault tolerance
-  * Hardware error detection and migration
+  * Hardware error detection and migration (with dlrover)
   * GPU elastic training support
   * HangDetector (detecting and automatically restarting distributed training if it hangs)
 
