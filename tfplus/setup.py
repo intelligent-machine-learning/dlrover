@@ -23,6 +23,7 @@ from setuptools.dist import Distribution
 
 USING_SO_FILES = (
     "_kv_variable_ops.so",
+    "_flash_attention.so",
     "libtfplus.so",
     "libtfplus_opdef.so",
     "libkv_variable_opdef.so",

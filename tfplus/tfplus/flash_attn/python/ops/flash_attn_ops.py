@@ -16,7 +16,7 @@
 import math
 
 import tensorflow as tf
-from tensorflow.python import ops
+from tensorflow.python.framework import ops
 
 from tfplus.common import _load_library
 

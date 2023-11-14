@@ -1,1 +1,56 @@
-# TODO
+##############################################################################
+# base image: tensorflow:2.13.0
+# default versions
+# PYTHON_VERSION=3.8
+# TF_VERSION=2.13.0
+##############################################################################
+
+FROM tensorflow/tensorflow:2.13.0-gpu as base
+
+USER root
+WORKDIR /root
+
+ENV BASH_ENV /root/.bashrc
+ENV SHELL /bin/bash
+COPY dev/docker/pip.conf ~/.pip/pip.conf
+
+RUN echo "deb http://mirrors.aliyun.com/ubuntu/ $(lsb_release -cs) main restricted universe multiverse" > /etc/apt/sources.list && \
+    echo "deb http://mirrors.aliyun.com/ubuntu/ $(lsb_release -cs)-security main restricted universe multiverse" >> /etc/apt/sources.list && \
+    echo "deb http://mirrors.aliyun.com/ubuntu/ $(lsb_release -cs)-updates main restricted universe multiverse" >> /etc/apt/sources.list && \
+    echo "deb http://mirrors.aliyun.com/ubuntu/ $(lsb_release -cs)-proposed main restricted universe multiverse" >> /etc/apt/sources.list && \
+    echo "deb http://mirrors.aliyun.com/ubuntu/ $(lsb_release -cs)-backports main restricted universe multiverse" >> /etc/apt/sources.list
+
+RUN apt-get update && apt-get install -y libbz2-dev liblzma-dev
+
+##############################################################################
+# bazel and other tools
+##############################################################################
+FROM base as util-base
+
+RUN cd ~/ && \
+    apt-get install -y wget git vim unzip && \
+    apt-get clean
+
+ARG BAZEL_VERSION=5.3.0
+ARG BAZEL_OS=linux
+ARG BAZEL_LINK_BASE=https://github.com/bazelbuild/bazel/releases/download
+
+# COPY dev/scripts/bazel-3.7.2-installer-linux-x86_64.sh bazel-install.sh
+RUN wget ${BAZEL_LINK_BASE}/${BAZEL_VERSION}/bazel-${BAZEL_VERSION}-installer-${BAZEL_OS}-x86_64.sh -O bazel-install.sh
+RUN /bin/bash -x bazel-install.sh && \
+    rm bazel-install.sh
+
+##############################################################################
+# tfplus requirements
+##############################################################################
+RUN pip install pytest \
+    pylint==2.13.9 \
+    cpplint==1.6.0
+
+
+RUN apt-get install -y cuda-cudart-dev-11-8 \
+    cuda-libraries-dev-11-8 libcusparse-dev-11-8 \
+    libcublas-dev-11-8 libcusolver-dev-11-8 \
+    libcudnn8-dev=8.6.0.163-1+cuda11.8
+
+ENV TFPLUS_DATAPATH=bazel-bin

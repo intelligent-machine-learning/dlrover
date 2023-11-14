@@ -5,8 +5,10 @@
 
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/tensor.h"
-#include "tensorflow/stream_executor/stream.h"
-#include "tfplus/flash_attn/fmha.h"
+// #include "tensorflow/stream_executor/stream.h"
+#include "tensorflow/core/platform/stream_executor.h"
+// #include "tfplus/flash_attn/fmha.h"
+#include "fmha.h"
 
 namespace tfplus {
 using namespace tensorflow;  // NOLINT(build/namespaces)
@@ -34,9 +36,12 @@ void set_params_fprop(FMHA_fprop_params& params,  // NOLINT
   if (data_type == DATA_TYPE_BF16) params.is_bf16 = true;
 
   // Set the pointers and strides.
-  params.q_ptr = reinterpret_cast<void*>(q->tensor<T, 3>().data());
-  params.k_ptr = reinterpret_cast<void*>(k->tensor<T, 3>().data());
-  params.v_ptr = reinterpret_cast<void*>(v->tensor<T, 3>().data());
+  params.q_ptr = reinterpret_cast<void *>(
+      const_cast<T *>(q->tensor<T, 3>().data()));
+  params.k_ptr = reinterpret_cast<void *>(
+      const_cast<T *>(k->tensor<T, 3>().data()));
+  params.v_ptr = reinterpret_cast<void *>(
+      const_cast<T *>(v->tensor<T, 3>().data()));
   params.q_row_stride_in_elts = q_stride0;
   params.k_row_stride_in_elts = q_stride0;
   params.v_row_stride_in_elts = q_stride0;
