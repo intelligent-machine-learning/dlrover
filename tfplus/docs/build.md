@@ -17,8 +17,8 @@ sh build.sh
 To build docker image locally and upload to remote
 ```bash
 # Build Docker image
-# i.e. [CPU] sudo docker build -f dev/docker/Dockerfile.cpu -t easydl/tfplus:tf212_dev .
-# i.e. [GPU] sudo docker build -f dev/docker/Dockerfile.gpu -t easydl/tfplus:tf212_dev_gpu .
+# i.e. [CPU] sudo docker build -f dev/docker/Dockerfile.cpu -t easydl/tfplus:tf213_dev .
+# i.e. [GPU] sudo docker build -f dev/docker/Dockerfile.gpu -t easydl/tfplus:tf213_dev_gpu .
 sudo docker build -f dev/docker/Dockerfile.cpu -t easydl/tfplus:[tag] .
 # push to remote
 sudo docker login --username=xxx
