@@ -94,8 +94,7 @@ class FMHABackwardOp : public OpKernel {
     int max_seqlen_q = ((max_seqlen_q_ + 16 - 1) / 16) * 16;
     bool loop = max_seqlen_k > blocksize_c;
     Tensor dq_tmp;
-    if (loop)
-    {
+    if (loop) {
       ctx->allocate_temp(DT_FLOAT, {total_q, num_heads, head_size}, &dq_tmp);
     }
     Tensor softmax_d;
