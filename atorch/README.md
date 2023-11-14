@@ -47,6 +47,9 @@ ATorch is an extension library of PyTorch developed by Ant Group's AI Infrastruc
 * Mixed precision
 * Communication optimization
   * Cached sharding
+* Effective optimizers for fast training convergence
+  * [AGD optimizer](docs/README-AGD.md)
+  * [WSAM optimizer](docs/README-WSAM.md)
 * IO/Preprocessing
   * CPU/GPU coworker to speedup data preprocessing 
   * Pangu storage support
