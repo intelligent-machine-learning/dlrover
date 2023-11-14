@@ -432,7 +432,7 @@ class AsyncCheckpointEngine(metaclass=ABCMeta):
                     self.checkpoint_dir, f"{CKPT_DIR_PREFIX}{step}"
                 )
                 self._persist_to_storage(checkpoint_dir)
-                self._wait_all_ranks()
+                self._wait_all_ranks(step)
 
     @abstractmethod
     def _persist_to_storage(self, checkpoint_dir):
@@ -440,7 +440,7 @@ class AsyncCheckpointEngine(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def _wait_all_ranks(self):
+    def _wait_all_ranks(self, step):
         """Check whether all ranks finish saving its checkpointing data
         in the CPU memory into the storage.
         """
@@ -515,7 +515,7 @@ class LocalAsyncCkptEngine(AsyncCheckpointEngine):
         checkpoint_path = os.path.join(checkpoint_dir, "checkpoint.pt")
         torch.save(self._shm_buffer, checkpoint_path)
 
-    def _wait_all_ranks(self):
+    def _wait_all_ranks(self, step):
         return
 
 
@@ -543,7 +543,7 @@ class DDPAsyncCkptEngine(AsyncCheckpointEngine):
             checkpoint_path = os.path.join(checkpoint_dir, "checkpoint.pt")
             torch.save(self._shm_buffer, checkpoint_path)
 
-    def _wait_all_ranks(self):
+    def _wait_all_ranks(self, step):
         return
 
 
@@ -581,7 +581,7 @@ class FSDPAsyncCkptEngine(AsyncCheckpointEngine):
         tensor_list = [
             torch.zeros(1, dtype=torch.int64) for _ in range(world_size)
         ]
-        tensor = torch.tensor(step, dtype=torch.int64)
+        tensor = torch.tensor([step], dtype=torch.int64)
         while True:
             try:
                 dist.all_gather(tensor_list, tensor, group=self._saver_group)
@@ -590,5 +590,6 @@ class FSDPAsyncCkptEngine(AsyncCheckpointEngine):
                     continue
                 else:
                     raise e
-            if sum(tensor_list) == [step] * world_size:
+
+            if tensor_list == [step] * world_size:
                 return

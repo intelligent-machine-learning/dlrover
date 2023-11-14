@@ -27,6 +27,7 @@ from torch.utils.data import DataLoader, Dataset
 from dlrover.trainer.torch.elastic.checkpoint import (
     CheckpointManger,
     DDPAsyncCkptEngine,
+    FSDPAsyncCkptEngine,
     LocalAsyncCkptEngine,
     get_latest_checkpoint,
 )
@@ -147,6 +148,12 @@ class AsyncCheckpointEngineTest(unittest.TestCase):
         )
         with tempfile.TemporaryDirectory() as tmpdirname:
             engine = LocalAsyncCkptEngine(tmpdirname, 1, 10)
+            path = os.path.join(tmpdirname, "checkpoint-10")
+            engine._persist_to_storage(path)
+            engine._wait_all_ranks(10)
+
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            engine = LocalAsyncCkptEngine(tmpdirname, 1, 10)
             engine.save(step, state_dict)
             time.sleep(0.2)
             self.assertEqual(engine._shm_buffer[("step",)], 100)
@@ -170,6 +177,12 @@ class AsyncCheckpointEngineTest(unittest.TestCase):
             step=step,
         )
         with tempfile.TemporaryDirectory() as tmpdirname:
+            engine = DDPAsyncCkptEngine(tmpdirname, 1, step)
+            path = os.path.join(tmpdirname, "checkpoint-100")
+            engine._persist_to_storage(path)
+            engine._wait_all_ranks(step)
+
+        with tempfile.TemporaryDirectory() as tmpdirname:
             engine = DDPAsyncCkptEngine(tmpdirname, 1, 10)
             engine.save(step, state_dict)
             time.sleep(0.2)
@@ -179,3 +192,12 @@ class AsyncCheckpointEngineTest(unittest.TestCase):
             expected_dir = os.path.join(tmpdirname, "checkpoint-100")
             self.assertEqual(ckpt_dir, expected_dir)
         dist.destroy_process_group()
+
+    def test_fsdp_save(self):
+        set_torch_dist_env(12348)
+        dist.init_process_group(backend="gloo")
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            engine = FSDPAsyncCkptEngine(tmpdirname, 1, 10)
+            path = os.path.join(tmpdirname, "checkpoint-10")
+            engine._persist_to_storage(path)
+            engine._wait_all_ranks(10)
