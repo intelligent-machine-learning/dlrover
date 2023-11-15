@@ -9,6 +9,7 @@
 
    [![GitHub Repo stars](https://img.shields.io/github/stars/intelligent-machine-learning/dlrover?style=social)](https://github.com/intelligent-machine-learning/dlrover/stargazers)
    [![Build](https://github.com/intelligent-machine-learning/dlrover/actions/workflows/main.yml/badge.svg)](https://github.com/intelligent-machine-learning/dlrover/actions/workflows/main.yml)
+   [![PyPI Status Badge](https://badge.fury.io/py/atorch.svg)](https://pypi.org/project/atorch/)
 
 </div>
 
@@ -26,37 +27,43 @@
 ATorch is an extension library of PyTorch developed by Ant Group's AI Infrastructure team. By decoupling model definition from training optimization strategy, ATorch supports efficient and easy-to-use model training experience. The design principle is to minimally disrupt the native PyTorch programming style. Through its API, ATorch provides performance optimizations in aspects such as I/O, preprocessing, computation, and communication (including automatic optimization). ATorch has supported large-scale pretraining of LLMs with over 100 billion parameters and thousands of A100/H100 GPUs. 
 
 ## Features
-* Usability
-  * Fast deployment of runtime environment (images and installation packages)
+
+![atorch_diagram](docs/img/atorch_fig.png)
+* Easy-to-use interface
+  * [auto_accelerate](docs/auto_accelerate_api.md) API
+  * ATorchTrainer (ongoing work)
 * Solutions for large-scale model training
-* Automated optimization
-  * auto_accelerate for automatic optimization
-* IO/Preprocessing
-  * Recommended storage for training data
-  * Accessing the Pangu cluster
-  * CPU/GPU cooperation to optimize data preprocessing
-* Customized operator optimization 
+  * support efficient large model initialization, checkpoint save/load, and restart with elastic resources.
+* Automatic/semi-automatic optimization
+  * Acceleration Engine for automatic optimization
+  * Semi-automatic optimization supports custom optimization
+* Hybrid parallelism suport (arbitrary combination of fsdp/zero/ddp/tp/sp/pp)
+* High performance operators
+  * Flash attention 2 with custom mask support
+  * Transformer ops
   * High-performance MOE
-  * Flash Attention 2
-  * Transformer operator
+  * sub-graph compilation
+* Checkpointing
 * Mixed precision
 * Communication optimization
-  * Cashed sharding
-* Hybrid parallelism
-* Compilation optimization
-* Elastic fault tolerance
+  * Cached sharding
+* Effective optimizers for fast training convergence
+  * [AGD optimizer](docs/README-AGD.md)
+  * [WSAM optimizer](docs/README-WSAM.md)
+* IO/Preprocessing
+  * CPU/GPU coworker to speedup data preprocessing 
+  * IO optimization for different dataset
+* Elastic and fault tolerance
+  * Hardware error detection and migration (with dlrover)
+  * GPU elastic training support
   * HangDetector (detecting and automatically restarting distributed training if it hangs)
-  * GPU elastic training
-  * Hardware error detect and migration
-
-
 
 ## Installation
 
 ATorch supports PyTorch with version >= 1.12, and verion 2.1 or above is preferred.
 For example, you can use docker image <code>easydl/atorch:iml_pt210</code> which has PyTorch 2.1 installed.
 
-### Install From pypi
+### Install From PyPI
 Install atorch in any PyTorch-preinstalled environment (such as a container created with the docker image above) with <code>pip</code>: 
 
 ```
