@@ -15,9 +15,11 @@
 #include "tensorflow/core/framework/shape_inference.h"
 #include "tensorflow/core/framework/tensor.h"
 #include "tensorflow/core/public/session_options.h"
-#include "tensorflow/core/util/cuda_kernel_helper.h"
+#include "tensorflow/core/util/gpu_kernel_helper.h"
 #include "tfplus/flash_attn/kernels/flash_attention.h"
-#include "tfplus/flash_attn/kernels/fmha.h"
+// #include "tfplus/flash_attn/kernels/fmha.h"
+#include "fmha.h"
+
 namespace tfplus {
 using namespace tensorflow;  // NOLINT(build/namespaces)
 
@@ -55,17 +57,17 @@ class FMHAForwardOp : public OpKernel {
     const Tensor& cu_seqlens_k = ctx->input(4);
     const Tensor& max_seqlen_q_tensor = ctx->input(5);
     const Tensor& max_seqlen_k_tensor = ctx->input(6);
-    int max_seqlen_q_ =
-        *reinterpret_cast<int*>(max_seqlen_q_tensor.flat<int32>().data());
-    int max_seqlen_k_ =
-        *reinterpret_cast<int*>(max_seqlen_k_tensor.flat<int32>().data());
+    int32 max_seqlen_q_ =
+        *(max_seqlen_q_tensor.flat<int32>().data());
+    int32 max_seqlen_k_ =
+        *(max_seqlen_k_tensor.flat<int32>().data());
     // Check the shapes of the input tensors
     Tensor* output_tensor = nullptr;
     OP_REQUIRES_OK(
         ctx, ctx->allocate_output(0, query_tensor.shape(), &output_tensor));
 
     Launch_params<FMHA_fprop_params> launch_params(
-        &dprops_, GetCudaStream(ctx), is_dropout_, return_softmax_);
+        &dprops_, GetGpuStream(ctx), is_dropout_, return_softmax_);
 
     int batch_size = cu_seqlens_q.NumElements() - 1;
     const int total_q = query_tensor.dim_size(0);
@@ -111,14 +113,16 @@ class FMHAForwardOp : public OpKernel {
         batch_size, max_seqlen_q, max_seqlen_k, num_heads, head_size,
         // devices_points
         &query_tensor, &key_tensor, &value_tensor, output_tensor,
-        reinterpret_cast<void*>(cu_seqlens_q.tensor<int32, 1>().data()),
-        reinterpret_cast<void*>(cu_seqlens_k.tensor<int32, 1>().data()),
-        loop ? reinterpret_cast<void*>(o_tmp.tensor<float, 3>().data())
+        reinterpret_cast<void *>(
+            const_cast<int32 *>((cu_seqlens_q.tensor<int32, 1>().data()))),
+        reinterpret_cast<void *>(
+            const_cast<int32 *>((cu_seqlens_k.tensor<int32, 1>().data()))),
+        loop ? reinterpret_cast<void *>(o_tmp.tensor<float, 3>().data())
              : nullptr,
-        return_softmax_ ? reinterpret_cast<void*>(
+        return_softmax_ ? reinterpret_cast<void *>(
                               return_sm->tensor<Eigen::half, 4>().data())
                         : nullptr,
-        reinterpret_cast<void*>(softmax_lse->tensor<float, 3>().data()),
+        reinterpret_cast<void *>(softmax_lse->tensor<float, 3>().data()),
         p_dropout_, softmax_scale_, is_causal_, num_splits_,
         num_heads * head_size, head_size);
     // number of times random will be generated per thread, to offset philox

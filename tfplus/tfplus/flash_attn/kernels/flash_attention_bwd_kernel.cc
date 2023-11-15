@@ -15,9 +15,11 @@
 #include "tensorflow/core/framework/shape_inference.h"
 #include "tensorflow/core/framework/tensor.h"
 #include "tensorflow/core/public/session_options.h"
-#include "tensorflow/core/util/cuda_kernel_helper.h"
+#include "tensorflow/core/util/gpu_kernel_helper.h"
 #include "tfplus/flash_attn/kernels/flash_attention.h"
-#include "tfplus/flash_attn/kernels/fmha.h"
+// #include "tfplus/flash_attn/kernels/fmha.h"
+#include "fmha.h"
+
 namespace tfplus {
 using namespace tensorflow;  // NOLINT(build/namespaces)
 
@@ -58,10 +60,10 @@ class FMHABackwardOp : public OpKernel {
     const Tensor& max_seqlen_q_tensor = ctx->input(8);
     const Tensor& max_seqlen_k_tensor = ctx->input(9);
     const Tensor& rng_state_tensor = ctx->input(10);
-    int max_seqlen_q_ =
-        *reinterpret_cast<int*>(max_seqlen_q_tensor.flat<int32>().data());
-    int max_seqlen_k_ =
-        *reinterpret_cast<int*>(max_seqlen_k_tensor.flat<int32>().data());
+    int32 max_seqlen_q_ =
+        *max_seqlen_q_tensor.flat<int32>().data();
+    int32 max_seqlen_k_ =
+        *max_seqlen_k_tensor.flat<int32>().data();
     // Check the shapes of the input tensors
     Tensor* dq = nullptr;
     OP_REQUIRES_OK(ctx, ctx->allocate_output(0, query_tensor.shape(), &dq));
@@ -102,17 +104,21 @@ class FMHABackwardOp : public OpKernel {
     tfplus::set_params_dgrad<T>(
         params, batch_size, max_seqlen_q, max_seqlen_k, num_heads, head_size,
         &query_tensor, &key_tensor, &value_tensor,
-        const_cast<Tensor*>(&output_tensor), dq, dk, dv,
-        reinterpret_cast<void*>(cu_seqlens_q.tensor<int32, 1>().data()),
-        reinterpret_cast<void*>(cu_seqlens_k.tensor<int32, 1>().data()),
-        loop ? reinterpret_cast<void*>(dq_tmp.tensor<float, 3>().data())
+        const_cast<Tensor *>(&output_tensor), dq, dk, dv,
+        reinterpret_cast<void *>(
+            const_cast<int32 *>(cu_seqlens_q.tensor<int32, 1>().data())),
+        reinterpret_cast<void *>(
+            const_cast<int32 *>(cu_seqlens_k.tensor<int32, 1>().data())),
+        loop ? reinterpret_cast<void *>(dq_tmp.tensor<float, 3>().data())
              : nullptr,
-        reinterpret_cast<void*>(gradient_tensor.tensor<T, 3>().data()),
-        reinterpret_cast<void*>(softmax_lse_tensor.tensor<float, 3>().data()),
-        reinterpret_cast<void*>(softmax_d.tensor<float, 3>().data()),
+        reinterpret_cast<void *>(
+            const_cast<T *>(gradient_tensor.tensor<T, 3>().data())),
+        reinterpret_cast<void *>(
+            const_cast<float *>(softmax_lse_tensor.tensor<float, 3>().data())),
+        reinterpret_cast<void *>(softmax_d.tensor<float, 3>().data()),
         p_dropout_, softmax_scale_, is_causal_, num_splits_,
         num_heads * head_size, head_size);
-    auto stream = GetCudaStream(ctx);
+    auto stream = GetGpuStream(ctx);
     launch(params, stream, /*configure=*/true, dprops_);
 
     // number of times random will be generated per thread, to offset philox
