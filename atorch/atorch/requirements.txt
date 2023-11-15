@@ -1,6 +1,7 @@
 deepspeed==0.10.0
 fairscale==0.4.1
 transformers==4.31.0
+flash-attn
 networkx
 pyomo
 pynvml==11.4.1
