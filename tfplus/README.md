@@ -45,6 +45,7 @@ Another optional installation method is local building, which requires more time
 ```shell
 git clone https://github.com/intelligent-machine-learning/dlrover.git
 cd dlrover
+# For GPU image: easydl/tfplus:tf213_dev_gpu
 docker run -it --net=host -v ${PWD}:/v -w /v easydl/tfplus:tf213_dev /bin/bash
 
 # Then, execute the build script in the initiated Docker container:

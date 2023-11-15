@@ -17,7 +17,8 @@ sh build.sh
 To build docker image locally and upload to remote
 ```bash
 # Build Docker image
-# i.e. sudo docker build -f dev/docker/Dockerfile.cpu -t easydl/tfplus:tf212_dev .
+# i.e. [CPU] sudo docker build -f dev/docker/Dockerfile.cpu -t easydl/tfplus:tf213_dev .
+# i.e. [GPU] sudo docker build -f dev/docker/Dockerfile.gpu -t easydl/tfplus:tf213_dev_gpu .
 sudo docker build -f dev/docker/Dockerfile.cpu -t easydl/tfplus:[tag] .
 # push to remote
 sudo docker login --username=xxx
@@ -58,6 +59,6 @@ pip install -U dist/tfplus-*.whl
 
 Additionally, users can specify the download link of Bazel by passing argument `--build-arg BAZEL_LINK_BASE=my_bazel_link_base` to docker build command. For example, assuming that `my_bazel_link_base` is `http://xxx/common/bazel`, we can enable to use this custom link as follows:
 ```bash
-# Build Docker image using custom Bazel download link
+# Build Docker image using custom Bazel download link. Please using `Dockerfile.gpu`` for GPU image building.
 docker build -f dev/docker/Dockerfile.cpu -t easydl/tfplus[tag] --build-arg BAZEL_LINK_BASE=*** .
 ```

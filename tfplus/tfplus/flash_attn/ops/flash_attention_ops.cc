@@ -33,7 +33,7 @@ REGISTER_OP("FMHAForward")
       TF_RETURN_IF_ERROR(c->WithRank(c->input(1), 3, &key_shape));
       TF_RETURN_IF_ERROR(c->WithRank(c->input(2), 3, &value_shape));
       c->set_output(0, c->input(0));
-      return Status::OK();
+      return OkStatus();
     });
 
 REGISTER_OP("FMHABackward")
@@ -63,5 +63,6 @@ REGISTER_OP("FMHABackward")
       c->set_output(0, c->input(0));
       c->set_output(1, c->input(1));
       c->set_output(2, c->input(2));
-      return Status::OK();
+      return OkStatus();
     });
+
