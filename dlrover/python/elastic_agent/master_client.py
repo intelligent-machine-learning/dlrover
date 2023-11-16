@@ -293,8 +293,12 @@ class MasterClient(object):
 
     def num_nodes_waiting(self, rdzv_name):
         request = grpc.WaitingNodeNumRequest(rdzv_name=rdzv_name)
-        result: grpc.RendezvousState = self._get(request)
-        return result.waiting_num
+        try:
+            result: grpc.RendezvousState = self._get(request)
+            return result.waiting_num
+        except Exception:
+            logger.warning("Fail to query the number of waiting nodes.")
+            return 0
 
     def join_rendezvous(self, rank_id, local_world_size, rdzv_name=""):
         request = grpc.JoinRendezvousRequest(

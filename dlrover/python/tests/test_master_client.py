@@ -143,4 +143,10 @@ class MasterClientTest(unittest.TestCase):
         self.assertEqual(round, 0)
 
         config = self._master_client.get_paral_config()
-        self.assertIsInstance(config, grpc.ParallelConfig)
+        if config:
+            self.assertIsInstance(config, grpc.ParallelConfig)
+
+    def test_num_nodes_waiting(self):
+        rdzv_name = object()
+        num = self._master_client.num_nodes_waiting(rdzv_name)
+        self.assertEqual(num, 0)

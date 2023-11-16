@@ -181,12 +181,11 @@ class RendezvousManager(metaclass=ABCMeta):
         the next round rendezvous only when the number of waiting nodes
         is bigger than the number unit of nodes.
         """
-        with self._lock:
-            if self._has_node_restart():
-                return len(self._waiting_nodes)
-            elif len(self._waiting_nodes) >= self._node_unit:
-                return len(self._waiting_nodes)
-            return 0
+        if self._has_node_restart():
+            return len(self._waiting_nodes)
+        elif len(self._waiting_nodes) >= self._node_unit:
+            return len(self._waiting_nodes)
+        return 0
 
     def _has_node_restart(self):
         """The node will restart training processes if it
