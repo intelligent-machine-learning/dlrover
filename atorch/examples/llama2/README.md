@@ -403,3 +403,24 @@ pip install -r requirements.txt
 # use `PIPELINE_PARALLEL_SIZE=2 MODEL_PARALLEL_SIZE=2 sh ds_3d_llama2_entry.sh`
 sh ds_3d_llama2_entry.sh
 ```
+
+### Performance
+- Model: Llama2-7b
+- Cluster: 8 A100-80GB GPUs in each node, with NVLink and RDMA
+
+| Method | Use LoRA | Num of GPUs | TP | PP | DP | Batch Per GPU | Grad Accu Steps | Global Batch Size | TFLOPs | Mem Max allocated(MB) |
+|--------|----------|------------:|---:|---:|---:|--------------:|----------------:|------------------:|-------:|-----------------------|
+|   FSDP | Yes      |           8 | /  | /  |  8 |             4 |               1 |                32 | 171.39 | 33338.1               |
+| FSDP   | No       |           8 | /  | /  |  8 |             4 |               1 |                32 | 181.85 | 39596.3               |
+|   FSDP | Yes      |          16 | /  | /  | 16 |             4 |               1 |                64 | 166.52 | 31695.5               |
+| FSDP   | No       |          16 | /  | /  | 16 |             4 |               1 |                64 | 175.54 | 34776.7               |
+|   FSDP | Yes      |          32 | /  | /  | 32 |             4 |               1 |               128 | 164.67 | 30890.2               |
+| FSDP   | No       |          32 | /  | /  | 32 |             4 |               1 |               128 | 173.57 | 32366.8               |
+|   FSDP | Yes      |          64 | /  | /  | 64 |             4 |               1 |               256 | 163.60 | 30487.6               |
+| FSDP   | No       |          64 | /  | /  | 64 |             4 |               1 |               256 | 172.14 | 31161.9               |
+| DS 3D  | /        |           8 |  1 |  2 |  4 |             8 |              64 |              2048 | 187.60 | 40006.9               |
+| DS 3D  | /        |           8 |  2 |  1 |  4 |             8 |              64 |              2048 | 144.69 | 38636.6               |
+| DS 3D  | /        |           8 |  2 |  2 |  2 |             8 |              64 |              1024 | 141.39 | 31132.3               |
+| DS 3D  | /        |          16 |  2 |  2 |  4 |             8 |              64 |              2048 | 139.73 | 26309.5               |
+| DS 3D  | /        |          32 |  2 |  2 |  8 |             8 |              64 |              4096 | 139.13 | 23901.8               |
+| DS 3D  | /        |          64 |  2 |  2 | 16 |             8 |              64 |              8192 | 139.25 | 22695.7               |
