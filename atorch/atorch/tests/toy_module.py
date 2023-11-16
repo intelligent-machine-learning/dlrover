@@ -253,7 +253,15 @@ def change_dtype(data, dtype, fp32_only=True):
 
 
 def run_train(
-    model, dataloader, optim, prepare_input, loss_func, device="cpu", input_dtype=torch.float32, gpt2_model=False
+    model,
+    dataloader,
+    optim,
+    prepare_input,
+    loss_func,
+    device="cpu",
+    input_dtype=torch.float32,
+    gpt2_model=False,
+    use_optim_backward=False,
 ):
     for idx, data in enumerate(dataloader):
         pdata = prepare_input(data, device)
@@ -265,6 +273,9 @@ def run_train(
         else:
             output = model(pdata)
         loss = ModelContext.get_loss_from_loss_func_output(loss_func(pdata, output))
-        loss.backward()
+        if use_optim_backward:
+            optim.backward(loss)
+        else:
+            loss.backward()
         optim.step()
     return idx + 1

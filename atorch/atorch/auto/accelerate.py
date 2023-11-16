@@ -15,6 +15,7 @@ from atorch.auto.dry_runner.dry_runner import get_dryrunner
 from atorch.auto.engine.acceleration_engine import AccelerationEngine
 from atorch.auto.engine_client import EngineClient
 from atorch.auto.model_context import ModelContext
+from atorch.auto.opt_lib.ds_3d_parallel_optimization import get_ds_dtype
 from atorch.auto.opt_lib.optimization_library import SEMIAUTO_STRATEGIES, OptimizationLibrary
 from atorch.auto.strategy import Strategy
 from atorch.common.constants import AutoAccelerateExtraArgs
@@ -228,7 +229,7 @@ def run_task(model_context, task, opt_lib=None, dry_runner=None, analyser=None, 
 
 AutoAccelerateResult = collections.namedtuple(
     "AutoAccelerateResult",
-    "model, optim, dataloader, loss_func, prepare_input, lr_scheduler",
+    "model, optim, dataloader, loss_func, prepare_input, lr_scheduler, args",
 )
 
 
@@ -240,6 +241,7 @@ def assemble_result(model_context):
         loss_func=model_context.loss_func,
         prepare_input=model_context.prepare_input,
         lr_scheduler=model_context.lr_scheduler,
+        args=model_context.args,
     )
 
 
@@ -356,7 +358,7 @@ def record_user_defined_half_precision_dtype(strategy):
     str_dtype_map = {"fp16": torch.float16, "bf16": torch.bfloat16}
     for opt in strategy.opt_list:
         opt_name, config = opt[0], opt[1]
-        if opt_name in ("amp_native", "half"):
+        if opt_name in ("amp_native", "half", "deepspeed_3d_parallel"):
             if opt_name == "amp_native":
                 if config is not None:
                     dtype = config.get("dtype")
@@ -378,12 +380,20 @@ def record_user_defined_half_precision_dtype(strategy):
                         raise ValueError(f"'half' optimization only support 'fp16' and 'bf16', but got {dtype}")
                 else:
                     dtype = torch.float16
+            elif opt_name == "deepspeed_3d_parallel":
+                if config is not None:
+                    dtype = get_ds_dtype(config.ds_config)
+                else:
+                    dtype = torch.float32
             if hasattr(AutoAccelerateContext, "half_precision_dtype"):
                 if AutoAccelerateContext.counter not in AutoAccelerateContext.half_precision_dtype:
                     AutoAccelerateContext.half_precision_dtype[AutoAccelerateContext.counter] = dtype
                 else:
                     if dtype != AutoAccelerateContext.half_precision_dtype[AutoAccelerateContext.counter]:
-                        raise ValueError("'amp_native' and 'half' cannot be configured at the same time.")
+                        raise ValueError(
+                            "'amp_native' and 'half' and 'deepspeed_3d_parallel' "
+                            "cannot be configured at the same time."
+                        )
             else:
                 AutoAccelerateContext.add_ac_attr("half_precision_dtype", {AutoAccelerateContext.counter: dtype})
 

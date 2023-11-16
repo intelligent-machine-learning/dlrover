@@ -108,7 +108,9 @@ class PipeModuleFromRecordedMeta(PipelineModule):
         meta_module_list = self.model_to_module_list(meta_model)
         self._ori_module_name = [n for n, m in meta_module_list]
         # the most common cls name is the Layer block, should configured in partition_method/checkpointable_layers
-        self.layerblock_cls_name = Counter([m[1].__class__.__name__ for m in meta_module_list]).most_common()[0][0]
+        self.layerblock_cls_name, self.num_layerblock = Counter(
+            [m[1].__class__.__name__ for m in meta_module_list]
+        ).most_common()[0]
         if custom_patcher is None:
             if is_distributed() and rank() == 0 or not is_distributed():
                 logger.warning(

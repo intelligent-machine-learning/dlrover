@@ -266,14 +266,15 @@ def run(args):
         )
 
     config, cmd, cmd_args = _elastic_config_from_args(args)
-    elastic_launch(
-        config=config,
-        entrypoint=cmd,
-        use_dlrover_launch=use_dlrover_launch,
-    )(*cmd_args)
-
-    if master_handler:
-        master_handler.close()
+    try:
+        elastic_launch(
+            config=config,
+            entrypoint=cmd,
+            use_dlrover_launch=use_dlrover_launch,
+        )(*cmd_args)
+    finally:
+        if master_handler:
+            master_handler.close()
 
 
 @record

@@ -1,7 +1,10 @@
+from functools import partial
+
 import torch
 
 from atorch.auto.opt_lib.optimization import Optimization
 from atorch.common.log_utils import default_logger as logger
+from atorch.common.util_func import data_float_to_dtype
 
 
 class HalfOptimization(Optimization):
@@ -29,5 +32,14 @@ class HalfOptimization(Optimization):
         if wrapper_config not in ("fp16", "bf16"):
             logger.error("Invalid config for half optimization. Should be fp16 or bf16 but get %s", wrapper_config)
         dtype = torch.float16 if wrapper_config == "fp16" else torch.bfloat16
-        model_context.model = model_context.model.to(dtype)
+        from atorch.utils.meta_model_utils import custom_transform_model_keep_checkpoint_name
+
+        model_context.model = custom_transform_model_keep_checkpoint_name(model_context.model, lambda m: m.to(dtype))
+
+        def inputs_to_dtype(data, device, dtype, ori_func):
+            data = ori_func(data, device)
+            return data_float_to_dtype(data, dtype)
+
+        model_context.prepare_input = partial(inputs_to_dtype, dtype=dtype, ori_func=model_context.prepare_input)
+
         return model_context

@@ -123,8 +123,18 @@ class DeviceContext(object):
     def _detect_gpu():
         if torch.cuda.is_available():
             gpu = torch.cuda.get_device_properties(0)
-            compute_capability = "{}.{}".format(gpu.major, gpu.minor)
-            return gpu.name, compute_capability, gpu.total_memory, gpu.multi_processor_count
+            # Ascend NPU does not have major and minor attributes
+            try:
+                major_version, minor_verson = gpu.major, gpu.minor
+            except AttributeError:
+                major_version, minor_verson = 0, 0
+            compute_capability = "{}.{}".format(major_version, minor_verson)
+            # Ascend NPU does not have multi_processor_count attribute
+            try:
+                multi_processor_count = gpu.multi_processor_count
+            except AttributeError:
+                multi_processor_count = 0
+            return gpu.name, compute_capability, gpu.total_memory, multi_processor_count
         else:
             return None, None, 0, 0
 

@@ -24,7 +24,7 @@ persistent=yes
 # usually to register additional checkers.
 load-plugins=
 
-ignore-paths=/home/jenkins/agent/aci/tfplus/distributed/examples
+ignore-paths=^tfplus/third_party/.*$
 
 [MESSAGES CONTROL]
 

@@ -79,6 +79,7 @@ def _layer_norm_bwd_dx_fused(
     Rstd,  # pointer to the 1/std
     Lock,  # pointer to the lock
     stride,  # how much to increase the pointer when moving by 1 row
+    weight_requires_grad,  # whether weight requires grad
     N,  # number of columns in X
     GROUP_SIZE_M: tl.constexpr,
     BLOCK_SIZE_N: tl.constexpr,
@@ -113,19 +114,20 @@ def _layer_norm_bwd_dx_fused(
     dx = (wdy - (xhat * c1 + c2)) * rstd
     # Write dx
     tl.store(DX + cols, dx, mask=mask)
-    # Accumulate partial sums for dw/db
-    partial_dw = (dy * xhat).to(w.dtype)
-    while tl.atomic_cas(Lock, 0, 1) == 1:
-        pass
-    count = tl.load(Count)
-    # First store doesn't accumulate
-    if count == 0:
-        tl.atomic_xchg(Count, 1)
-    else:
-        partial_dw += tl.load(DW, mask=mask)
-    tl.store(DW, partial_dw, mask=mask)
-    # Release the lock
-    tl.atomic_xchg(Lock, 0)
+    if weight_requires_grad:
+        # Accumulate partial sums for dw/db
+        partial_dw = (dy * xhat).to(w.dtype)
+        while tl.atomic_cas(Lock, 0, 1) == 1:
+            pass
+        count = tl.load(Count)
+        # First store doesn't accumulate
+        if count == 0:
+            tl.atomic_xchg(Count, 1)
+        else:
+            partial_dw += tl.load(DW, mask=mask)
+        tl.store(DW, partial_dw, mask=mask)
+        # Release the lock
+        tl.atomic_xchg(Lock, 0)
 
 
 @jit
@@ -179,11 +181,13 @@ class AtorchLayerNormFunc(torch.autograd.Function):
         ctx.BLOCK_SIZE = BLOCK_SIZE
         ctx.num_warps = num_warps
         ctx.eps = eps
+        ctx.weight_requires_grad, ctx.bias_requires_grad = weight.requires_grad, bias.requires_grad
         return y
 
     @staticmethod
     def backward(ctx, dy):
         x, w, m, v = ctx.saved_tensors
+        weight_requires_grad, bias_requires_grad = ctx.weight_requires_grad, ctx.bias_requires_grad
         # heuristics for amount of parallel reduction stream for DW/DB
         N = w.shape[0]
         GROUP_SIZE_M = 64
@@ -221,16 +225,21 @@ class AtorchLayerNormFunc(torch.autograd.Function):
             v,
             locks,
             x_arg.stride(0),
+            weight_requires_grad,
             N,
             BLOCK_SIZE_N=ctx.BLOCK_SIZE,
             GROUP_SIZE_M=GROUP_SIZE_M,
             num_warps=ctx.num_warps,
         )
-        # accumulate partial sums in separate kernel
-        _layer_norm_bwd_dwdb[grid](_dw, dw, GROUP_SIZE_M, N, BLOCK_SIZE_M=32, BLOCK_SIZE_N=128)
-        # myself = dy.mul(x_hat).sum(axis=0)
-        # print((myself-dw).abs().max())
-        db = dy.sum(axis=0)
+        if weight_requires_grad:
+            # accumulate partial sums in separate kernel
+            _layer_norm_bwd_dwdb[grid](_dw, dw, GROUP_SIZE_M, N, BLOCK_SIZE_M=32, BLOCK_SIZE_N=128)
+        else:
+            dw = None
+        if bias_requires_grad:
+            db = dy.sum(axis=0)
+        else:
+            db = None
         return dx, None, dw, db, None
 
 

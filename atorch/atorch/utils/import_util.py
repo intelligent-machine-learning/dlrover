@@ -1,5 +1,6 @@
 import importlib
 import os
+from functools import lru_cache
 
 
 def import_module_from_py_file(file_path):
@@ -16,3 +17,25 @@ def import_module(module_name):
     module_path = module_name.replace("." + func, "")
     module = importlib.import_module(module_path)
     return getattr(module, func)
+
+
+@lru_cache()
+def is_torch_npu_available(check_device=False):
+    try:
+        import torch
+    except (ImportError, ModuleNotFoundError):
+        return False
+    # Checks if `torch_npu` is installed and potentially if a NPU is in the environment
+    if importlib.util.find_spec("torch_npu") is None:
+        return False
+
+    import torch_npu  # noqa: F401
+
+    if check_device:
+        try:
+            # Will raise a RuntimeError if no NPU is found
+            _ = torch.npu.device_count()
+            return torch.npu.is_available()
+        except RuntimeError:
+            return False
+    return hasattr(torch, "npu") and torch.npu.is_available()
