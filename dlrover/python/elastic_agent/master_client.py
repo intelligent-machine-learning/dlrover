@@ -434,7 +434,10 @@ def build_master_client(master_addr=None):
     master_client = None
     logger.info(f"Build master client with addr {master_addr}.")
     if master_addr:
-        master_client = MasterClient(master_addr, node_id, node_type)
+        try:
+            master_client = MasterClient(master_addr, node_id, node_type)
+        except Exception:
+            logger.info("The master is not available now.")
     return master_client
 
 

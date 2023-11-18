@@ -183,6 +183,7 @@ class elastic_launch:
 
 def _launch_dlrover_local_master(master_addr):
     """Launch a subprocess to run the DLrover master."""
+    logger.info(f"Start dlrover master with addr {master_addr}")
     if not master_addr:
         host = "127.0.0.1"
         port = find_free_port()

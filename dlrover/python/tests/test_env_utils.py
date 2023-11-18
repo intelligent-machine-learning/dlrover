@@ -19,6 +19,13 @@ from dlrover.python.common.constants import NodeEnv
 
 
 class EnvUtilsTest(unittest.TestCase):
+
+    def addCleanup():
+        os.environ.pop(NodeEnv.NODE_ID, None)
+        os.environ.pop(NodeEnv.NODE_RANK, None)
+        os.environ.pop(NodeEnv.NODE_NUM, None)
+        os.environ.pop(NodeEnv.WORKER_RANK, None)
+
     def test_get_env(self):
         node_rank = env_utils.get_node_rank()
         self.assertEqual(node_rank, 0)
