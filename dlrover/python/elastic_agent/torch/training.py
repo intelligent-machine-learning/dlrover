@@ -49,6 +49,7 @@ from torch.distributed.elastic.rendezvous import RendezvousParameters
 from torch.distributed.elastic.rendezvous.api import RendezvousHandler
 from torch.distributed.launcher.api import LaunchConfig, _get_entrypoint_name
 
+from dlrover.python.common import env_utils
 from dlrover.python.common.constants import (
     ConfigPath,
     NodeEnv,
@@ -601,7 +602,7 @@ def launch_agent(
         config.run_id = run_id
 
     entrypoint_name = _get_entrypoint_name(entrypoint, args)
-    rank_id = int(os.getenv(NodeEnv.WORKER_RANK, 0))
+    rank_id = env_utils.get_node_rank()
 
     logger.info(
         f"Starting elastic_operator with launch configs:\n"
@@ -855,7 +856,7 @@ def network_check(
         config.run_id = run_id
 
     entrypoint_name = _get_entrypoint_name(entrypoint, args)
-    rank_id = int(os.getenv(NodeEnv.WORKER_RANK, 0))
+    rank_id = env_utils.get_node_rank()
 
     logger.info(
         f"Starting elastic_operator with launch configs:\n"

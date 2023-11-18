@@ -16,6 +16,7 @@ import os
 import threading
 import time
 
+from dlrover.python.common import env_utils
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import singleton
 from dlrover.python.elastic_agent.master_client import GlobalMasterClient
@@ -80,7 +81,7 @@ class TorchTrainingMonitor(object):
         self._resource_monitor = ResourceMonitor()
         self._last_timestamp = 0
         self._start_time = 0
-        self._group_rank = int(os.getenv("WORKER_RANK", "0"))
+        self._group_rank = env_utils.get_node_rank()
         self._master_client = GlobalMasterClient.MASTER_CLIENT
         if os.path.exists(metrics_path):
             os.remove(metrics_path)

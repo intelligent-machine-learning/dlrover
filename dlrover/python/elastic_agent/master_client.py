@@ -18,7 +18,7 @@ import time
 from contextlib import closing
 
 from dlrover.proto import elastic_training_pb2, elastic_training_pb2_grpc
-from dlrover.python.common import grpc
+from dlrover.python.common import env_utils, grpc
 from dlrover.python.common.constants import NetworkFailureReason, NodeEnv
 from dlrover.python.common.log import default_logger as logger
 
@@ -428,13 +428,13 @@ class LocalDataset(object):
 def build_master_client(master_addr=None):
     if master_addr is None:
         master_addr = os.getenv(NodeEnv.DLROVER_MASTER_ADDR, "")
-    worker_id = int(os.getenv(NodeEnv.WORKER_ID, 0))
-    worker_type = os.getenv(NodeEnv.WORKER_TYPE, "worker")
+    node_id = env_utils.get_node_id()
+    node_type = env_utils.get_node_type()
 
     master_client = None
     logger.info(f"Build master client with addr {master_addr}.")
     if master_addr:
-        master_client = MasterClient(master_addr, worker_id, worker_type)
+        master_client = MasterClient(master_addr, node_id, node_type)
     return master_client
 
 
