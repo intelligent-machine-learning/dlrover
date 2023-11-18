@@ -75,7 +75,6 @@ For auto-tuning parallelism configuration, you need to specify:
 import os
 import sys
 import telnetlib
-import tempfile
 import time
 import uuid
 from typing import Callable, List, Tuple, Union

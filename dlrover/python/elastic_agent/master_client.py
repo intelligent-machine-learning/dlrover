@@ -300,17 +300,17 @@ class MasterClient(object):
             logger.warning("Fail to query the number of waiting nodes.")
             return 0
 
-    def join_rendezvous(self, rank_id, local_world_size, rdzv_name=""):
+    def join_rendezvous(self, node_rank, local_world_size, rdzv_name=""):
         request = grpc.JoinRendezvousRequest(
-            node_id=rank_id,
+            node_id=node_rank,
             local_world_size=local_world_size,
             rdzv_name=rdzv_name,
         )
         result: grpc.RendezvousState = self._get(request)
         return result.round
 
-    def get_comm_world(self, rdzv_name, rank_id):
-        request = grpc.CommWorldRequest(node_id=rank_id, rdzv_name=rdzv_name)
+    def get_comm_world(self, rdzv_name, node_rank):
+        request = grpc.CommWorldRequest(node_id=node_rank, rdzv_name=rdzv_name)
         result: grpc.RendezvousState = self._get(request)
         return result.round, result.group, result.world
 
@@ -354,9 +354,9 @@ class MasterClient(object):
         response = self._report(message)
         return response.success
 
-    def report_network_status(self, rank_id, status, elasped_time):
+    def report_network_status(self, node_rank, status, elasped_time):
         message = grpc.NetworkStatus(
-            rank=rank_id, status=status, elasped_time=elasped_time
+            rank=node_rank, status=status, elasped_time=elasped_time
         )
         self._report(message)
 
