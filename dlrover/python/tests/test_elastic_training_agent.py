@@ -25,7 +25,7 @@ from torch.distributed.launcher.api import LaunchConfig
 
 from dlrover.python.common.constants import ConfigPath, RendezvousName
 from dlrover.python.elastic_agent.master_client import (
-    GlobalMasterClient,
+    MasterClient,
     build_master_client,
 )
 from dlrover.python.elastic_agent.monitor.training import TorchTrainingMonitor
@@ -45,7 +45,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
     def setUp(self) -> None:
         _set_paral_config()
         self._master, addr = start_local_master()
-        GlobalMasterClient.MASTER_CLIENT = build_master_client(addr)
+        MasterClient._instance = build_master_client(addr)
         launch_config = LaunchConfig(
             min_nodes=2,
             max_nodes=2,
@@ -160,7 +160,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
 class ElasticTrainingAgentRunTest(unittest.TestCase):
     def setUp(self) -> None:
         self._master, addr = start_local_master()
-        GlobalMasterClient.MASTER_CLIENT = build_master_client(addr)
+        MasterClient._instance = build_master_client(addr)
         launch_config = LaunchConfig(
             min_nodes=1,
             max_nodes=1,
@@ -264,7 +264,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
 class NetworkCheckElasticAgentTest(unittest.TestCase):
     def setUp(self) -> None:
         self._master, addr = start_local_master()
-        GlobalMasterClient.MASTER_CLIENT = build_master_client(addr)
+        MasterClient._instance = build_master_client(addr)
         launch_config = LaunchConfig(
             min_nodes=2,
             max_nodes=2,
@@ -338,7 +338,7 @@ class NetworkCheckElasticAgentTest(unittest.TestCase):
 class MasterRendezvousHandlerTest(unittest.TestCase):
     def setUp(self) -> None:
         self._master, addr = start_local_master()
-        GlobalMasterClient.MASTER_CLIENT = build_master_client(addr)
+        MasterClient._instance = build_master_client(addr)
 
     def tearDown(self):
         self._master.stop()

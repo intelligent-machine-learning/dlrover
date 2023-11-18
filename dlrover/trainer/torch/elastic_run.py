@@ -89,10 +89,6 @@ from torch.distributed.run import config_from_args, get_args_parser
 from dlrover.python.common.constants import NodeEnv
 from dlrover.python.common.grpc import find_free_port
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.elastic_agent.master_client import (
-    GlobalMasterClient,
-    build_master_client,
-)
 from dlrover.python.elastic_agent.torch.training import (
     ElasticLaunchConfig,
     launch_agent,
@@ -247,7 +243,6 @@ def run(args):
         master_handler, master_addr = _launch_dlrover_local_master()
         os.environ[NodeEnv.DLROVER_MASTER_ADDR] = master_addr
     if _check_dlrover_master_available(master_addr):
-        GlobalMasterClient.MASTER_CLIENT = build_master_client(master_addr)
         use_dlrover_launch = True
     else:
         use_dlrover_launch = False

@@ -22,7 +22,7 @@ from dlrover.python.common.constants import NodeEnv
 from dlrover.python.common.grpc import GPUStats
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import singleton
-from dlrover.python.elastic_agent.master_client import GlobalMasterClient
+from dlrover.python.elastic_agent.master_client import MasterClient
 
 
 def get_process_cpu_percent():
@@ -92,6 +92,7 @@ class ResourceMonitor(object):
         self._total_cpu = psutil.cpu_count(logical=True)
         self._gpu_enabled = False
         self._gpu_stats: list[GPUStats] = []
+        self._master_client = MasterClient.singleton_instance()
 
     def start(self):
         if not os.getenv(NodeEnv.DLROVER_MASTER_ADDR, ""):
@@ -158,7 +159,7 @@ class ResourceMonitor(object):
             if self._gpu_enabled:
                 self._gpu_stats = get_gpu_stats()
             current_cpu = round(cpu_percent * self._total_cpu, 2)
-            GlobalMasterClient.MASTER_CLIENT.report_used_resource(
+            self._master_client.report_used_resource(
                 used_mem, current_cpu, self._gpu_stats
             )
             logger.debug(

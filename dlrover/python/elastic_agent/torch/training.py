@@ -65,7 +65,7 @@ from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.config.paral_config_tuner import (
     ParalConfigTuner,
 )
-from dlrover.python.elastic_agent.master_client import GlobalMasterClient
+from dlrover.python.elastic_agent.master_client import MasterClient
 from dlrover.python.elastic_agent.monitor.training import TorchTrainingMonitor
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
 
@@ -167,7 +167,7 @@ class MasterRendezvousHandler(RendezvousHandler):
         self._local_world_size = local_world_size
         self.join_timeout = int(rdzv_params.get("join_timeout", 600))
         self.pend_timeout = float(rdzv_params.get("pend_timeout", "inf"))
-        self._client = GlobalMasterClient.MASTER_CLIENT
+        self._client = MasterClient.singleton_instance()
         self._store = MasterKVStore(self._name, timedelta(seconds=60))
         lastcall_timeout = int(rdzv_params.get("lastcall_timeout", 60))
         node_unit = int(rdzv_params.get("node_unit", "1"))
@@ -339,7 +339,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         self._worker_watchdog: Optional[timer.FileTimerServer] = None
         self._restart_count = 0
         self._remaining_failovers = self._remaining_restarts
-        self._client = GlobalMasterClient.MASTER_CLIENT
+        self._client = MasterClient.singleton_instance()
         if config.auto_tunning:
             self._paral_config_tuner = ParalConfigTuner()
             self._paral_config_tuner.start()
