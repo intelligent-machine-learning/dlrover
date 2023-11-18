@@ -89,7 +89,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
             local_addr=self.config.local_addr,
         )
 
-    def addCleanup(self):
+    def tearDown(self):
         self._master.stop()
 
     def test_node_unit(self):
@@ -204,7 +204,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             local_addr=self.config.local_addr,
         )
 
-    def addCleanup(self):
+    def tearDown(self):
         self._master.stop()
 
     def test_monitor_workers(self):
@@ -307,7 +307,7 @@ class NetworkCheckElasticAgentTest(unittest.TestCase):
             local_addr=self.config.local_addr,
         )
 
-    def addCleanup(self):
+    def tearDown(self):
         self._master.stop()
 
     def test_get_network_check_time(self):

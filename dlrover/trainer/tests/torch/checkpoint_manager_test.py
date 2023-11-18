@@ -137,7 +137,7 @@ class AsyncCheckpointEngineTest(unittest.TestCase):
         self.tmp_dir = tempfile.TemporaryDirectory()
         self.engine = AsyncCheckpointEngine(self.tmp_dir, 1, 1)
 
-    def addCleanup(self):
+    def tearDown(self):
         self.tmp_dir.cleanup()
 
     def test_save_memory(self):
