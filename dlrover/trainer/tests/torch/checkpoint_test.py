@@ -24,12 +24,13 @@ import torch.optim as optim
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader, Dataset
 
+from dlrover.trainer.torch.elastic import checkpoint
 from dlrover.trainer.torch.elastic.checkpoint import (
     CheckpointManger,
     DDPAsyncCkptEngine,
     FSDPAsyncCkptEngine,
     LocalAsyncCkptEngine,
-    get_latest_checkpoint,
+    _get_latest_checkpoint,
 )
 from dlrover.trainer.torch.elastic.sampler import ElasticDistributedSampler
 
@@ -55,8 +56,8 @@ class SimpleDataset(Dataset):
 class SimpleNet(nn.Module):
     def __init__(self):
         super(SimpleNet, self).__init__()
-        self.fc1 = nn.Linear(128, 64)
-        self.fc2 = nn.Linear(64, 10)
+        self.fc1 = nn.Linear(64, 32)
+        self.fc2 = nn.Linear(32, 10)
         self.dropout = nn.Dropout(0.5)
 
     def forward(self, x):
@@ -99,12 +100,16 @@ class CheckpointManagerTest(unittest.TestCase):
                 max_to_keep=2,
             )
             ckpt_manager.save(epoch=0, step=10)
+            time.sleep(0.5)
             ckpt_manager.save(epoch=0, step=20)
+            time.sleep(0.5)
             ckpt_manager.save(epoch=0, step=30)
+            time.sleep(0.5)
             ckpt_dirs = os.listdir(tmpdirname)
+            print(ckpt_dirs)
             self.assertEqual(len(ckpt_dirs), 2)
 
-            ckpt_dir = get_latest_checkpoint(tmpdirname)
+            ckpt_dir = _get_latest_checkpoint(tmpdirname)
             expected_dir = os.path.join(tmpdirname, "checkpoint-30")
             self.assertEqual(ckpt_dir, expected_dir)
 
@@ -124,12 +129,15 @@ class CheckpointManagerTest(unittest.TestCase):
                 max_to_keep=2,
             )
             ckpt_manager.save(epoch=0, step=10)
+            time.sleep(0.2)  # Wait the sub-process to persist
             ckpt_manager.save(epoch=0, step=20)
+            time.sleep(0.2)
             ckpt_manager.save(epoch=0, step=30)
+            time.sleep(0.2)
             ckpt_dirs = os.listdir(tmpdirname)
             self.assertEqual(len(ckpt_dirs), 2)
 
-            ckpt_dir = get_latest_checkpoint(tmpdirname)
+            ckpt_dir = _get_latest_checkpoint(tmpdirname)
             expected_dir = os.path.join(tmpdirname, "checkpoint-30")
             self.assertEqual(ckpt_dir, expected_dir)
 
@@ -139,6 +147,19 @@ class CheckpointManagerTest(unittest.TestCase):
 
 
 class AsyncCheckpointEngineTest(unittest.TestCase):
+    def test_traverse_state_dict(self):
+        def visitor(value):
+            return value
+
+        model = SimpleNet()
+        step = 100
+        state_dict = dict(
+            model=model.state_dict(),
+            step=step,
+        )
+        new_dict = checkpoint.traverse_state_dict(state_dict, visitor)
+        self.assertEqual(new_dict, state_dict)
+
     def test_local_save(self):
         model = SimpleNet()
         step = 100
@@ -146,23 +167,26 @@ class AsyncCheckpointEngineTest(unittest.TestCase):
             model=model.state_dict(),
             step=step,
         )
+        with self.assertRaises(ValueError):
+            LocalAsyncCkptEngine("test", 0)
+        with self.assertRaises(ValueError):
+            LocalAsyncCkptEngine("test", 1, 0)
         with tempfile.TemporaryDirectory() as tmpdirname:
             engine = LocalAsyncCkptEngine(tmpdirname, 1, 10)
             path = os.path.join(tmpdirname, "checkpoint-10")
-            engine._persist_to_storage(path)
-            engine._wait_all_ranks(10)
+            engine._persist_to_storage(state_dict, path)
 
         with tempfile.TemporaryDirectory() as tmpdirname:
             engine = LocalAsyncCkptEngine(tmpdirname, 1, 10)
             engine.save(step, state_dict)
             time.sleep(0.2)
-            self.assertEqual(engine._shm_buffer[("step",)], 100)
+            self.assertEqual(engine._shm_tensor_buffer[("step",)], 100)
 
             for key, value in state_dict["model"].items():
-                buffer_value = engine._shm_buffer[("model", key)]
+                buffer_value = engine._shm_tensor_buffer[("model", key)]
                 self.assertTrue(value.equal(buffer_value))
             self.assertTrue(engine._checkpoint_step_queue.empty())
-            ckpt_dir = get_latest_checkpoint(tmpdirname)
+            ckpt_dir = _get_latest_checkpoint(tmpdirname)
             expected_dir = os.path.join(tmpdirname, "checkpoint-100")
             self.assertEqual(ckpt_dir, expected_dir)
 
@@ -179,8 +203,7 @@ class AsyncCheckpointEngineTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdirname:
             engine = DDPAsyncCkptEngine(tmpdirname, 1, step)
             path = os.path.join(tmpdirname, "checkpoint-100")
-            engine._persist_to_storage(path)
-            engine._wait_all_ranks(step)
+            engine._persist_to_storage(state_dict, path)
 
         with tempfile.TemporaryDirectory() as tmpdirname:
             engine = DDPAsyncCkptEngine(tmpdirname, 1, 10)
@@ -188,7 +211,7 @@ class AsyncCheckpointEngineTest(unittest.TestCase):
             time.sleep(0.2)
             ckpt_dirs = os.listdir(tmpdirname)
             self.assertEqual(len(ckpt_dirs), 1)
-            ckpt_dir = get_latest_checkpoint(tmpdirname)
+            ckpt_dir = _get_latest_checkpoint(tmpdirname)
             expected_dir = os.path.join(tmpdirname, "checkpoint-100")
             self.assertEqual(ckpt_dir, expected_dir)
         dist.destroy_process_group()
@@ -196,8 +219,14 @@ class AsyncCheckpointEngineTest(unittest.TestCase):
     def test_fsdp_save(self):
         set_torch_dist_env(12348)
         dist.init_process_group(backend="gloo")
+        model = SimpleNet()
+        model = DDP(model)
+        step = 100
+        state_dict = dict(
+            model=model.state_dict(),
+            step=step,
+        )
         with tempfile.TemporaryDirectory() as tmpdirname:
             engine = FSDPAsyncCkptEngine(tmpdirname, 1, 10)
             path = os.path.join(tmpdirname, "checkpoint-10")
-            engine._persist_to_storage(path)
-            engine._wait_all_ranks(10)
+            engine._persist_to_storage(state_dict, path)

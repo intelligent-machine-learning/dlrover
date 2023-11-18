@@ -307,9 +307,8 @@ def train():
     # to simulate larger batch size and using the GradScaler
     # if data type is float16
 
-    rank = dist.get_rank()
     ckpt_manager = CheckpointManger.init_checkpoint_manager(
-        model, optimizer, train_loader, checkpoint_dir, rank, 3
+        model, optimizer, train_loader, checkpoint_dir
     )
     ckpt_manager.load()
 
