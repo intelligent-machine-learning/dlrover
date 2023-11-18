@@ -377,9 +377,9 @@ class MasterClient(object):
 
     @classmethod
     def singleton_instance(cls, *args, **kwargs):
-        if not hasattr(MasterClient, "_instance"):
+        if not MasterClient._instance:
             with MasterClient._instance_lock:
-                if not hasattr(MasterClient, "_instance"):
+                if not MasterClient._instance:
                     MasterClient._instance = build_master_client(
                         *args, **kwargs
                     )
