@@ -19,8 +19,7 @@ from dlrover.python.common.constants import NodeEnv
 
 
 class EnvUtilsTest(unittest.TestCase):
-
-    def addCleanup():
+    def tearDown(self):
         os.environ.pop(NodeEnv.NODE_ID, None)
         os.environ.pop(NodeEnv.NODE_RANK, None)
         os.environ.pop(NodeEnv.NODE_NUM, None)
