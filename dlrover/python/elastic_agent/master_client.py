@@ -83,10 +83,12 @@ class MasterClient(object):
         self._host_name = os.getenv("POD_NAME", "")
 
     def __del__(self):
-        self._channel.close()
+        if self._channel:
+            self._channel.close()
 
     def close_channel(self):
-        self._channel.close()
+        if self._channel:
+            self._channel.close()
 
     def open_channel(self):
         self._channel = grpc.build_channel(self._master_addr)
