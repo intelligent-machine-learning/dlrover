@@ -25,6 +25,9 @@ from dlrover.python.scheduler.ray import RayJobArgs
 
 
 class RayJobArgsTest(unittest.TestCase):
+    def tearDown(self):
+        os.remove("test.json")
+
     def test_initialize_params(self):
         file = "data/demo.yaml"
         path = os.path.dirname(__file__)
