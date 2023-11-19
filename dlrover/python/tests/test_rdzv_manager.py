@@ -34,7 +34,7 @@ class MasterKVStoreTest(unittest.TestCase):
         self._master, addr = start_local_master()
         GlobalMasterClient.MASTER_CLIENT = build_master_client(addr)
 
-    def addCleanup(self):
+    def tearDown(self):
         self._master.stop()
 
     def test_kv_store_api(self):
