@@ -171,7 +171,7 @@ NODE_RANK=$RANK DLROVER_MASTER_ADDR=$MASTER_ADDR:$MASTER_PORT \
 dlrover-run --standalone --network-check --nnodes=$NODE_NUM --nproc_per_node=$NUM_TRAINERS  train_script.py
 ```
 
-**Note**: 
+**Note**:
 
 - `dlrover-run` extends `torchrun` which dynamically configures `MASTER_ADDR` and `MASTER_PORT`
 for training processes. We can use the static `MASTER_ADDR` and `MASTER_PORT` of PyTorchJob as the address
