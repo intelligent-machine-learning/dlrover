@@ -17,7 +17,7 @@ import threading
 import time
 import traceback
 
-from dlrover.python.elastic_agent.master_client import GlobalMasterClient
+from dlrover.python.elastic_agent.master_client import MasterClient
 from dlrover.trainer.constants.tf_constants import TFConstants
 from dlrover.trainer.tensorflow.executor.estimator_executor import (
     EstimatorExecutor,
@@ -29,7 +29,7 @@ from dlrover.trainer.tensorflow.util import common_util
 from dlrover.trainer.util.conf_util import get_conf
 from dlrover.trainer.util.log_util import default_logger as logger
 
-master_client = GlobalMasterClient.MASTER_CLIENT
+master_client = MasterClient.singleton_instance()
 
 
 class TFRayWorker:

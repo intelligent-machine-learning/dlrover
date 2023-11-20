@@ -13,12 +13,12 @@
 
 import time
 
-from dlrover.python.elastic_agent.master_client import GlobalMasterClient
+from dlrover.python.elastic_agent.master_client import MasterClient
 
 
 class SyncClient(object):
     def __init__(self):
-        self._master_client = GlobalMasterClient.MASTER_CLIENT
+        self._master_client = MasterClient.singleton_instance()
 
     def join_sync(self, sync_name):
         """Join a synchronizationg group."""

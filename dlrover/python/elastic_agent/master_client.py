@@ -12,8 +12,8 @@
 # limitations under the License.
 
 import os
-import random
 import socket
+import threading
 import time
 from contextlib import closing
 
@@ -59,6 +59,9 @@ class MasterClient(object):
         mc.get_task(...)
     """
 
+    _instance_lock = threading.Lock()
+    _instance = None
+
     def __init__(self, master_addr, node_id, node_type):
         """Initialize a master client.
         Args:
@@ -80,10 +83,12 @@ class MasterClient(object):
         self._host_name = os.getenv("POD_NAME", "")
 
     def __del__(self):
-        self._channel.close()
+        if self._channel:
+            self._channel.close()
 
     def close_channel(self):
-        self._channel.close()
+        if self._channel:
+            self._channel.close()
 
     def open_channel(self):
         self._channel = grpc.build_channel(self._master_addr)
@@ -372,57 +377,15 @@ class MasterClient(object):
         result = self._get(request)
         return result
 
-
-class LocalDataset(object):
-    def __init__(
-        self,
-        batch_size,
-        num_epochs,
-        dataset_size,
-        shuffle,
-        num_minibatches_per_shard,
-        task_type=elastic_training_pb2.NONE,
-    ):
-        self._batch_size = batch_size
-        self._num_epochs = num_epochs
-        self._dataset_size = dataset_size
-        self._shuffle = shuffle
-        self._records_per_shard = batch_size * num_minibatches_per_shard
-        self._todo = []
-        self._epoch = 0
-        self._task_type = task_type
-
-    def create_tasks(self):
-        start = 0
-        if self._records_per_shard <= 0:
-            raise ValueError(
-                "records_per_shard {} can not be less than 1".format(
-                    self._records_per_shard
-                )
-            )
-        while start < self._dataset_size:
-            end = min(start + self._records_per_shard, self._dataset_size)
-            self._todo.append((start, end))
-            start = end
-        if self._shuffle:
-            random.shuffle(self._todo)
-
-    def get_task(self, task_type=None):
-        start = -1
-        end = -1
-        if not self._todo and self._epoch < self._num_epochs:
-            self.create_tasks()
-            self._epoch += 1
-        if self._todo:
-            start, end = self._todo.pop(0)
-        return start, end
-
-    def get_current_epoch(self):
-        return self._epoch
-
-    def reset(self):
-        self._epoch = 0
-        self._todo = []
+    @classmethod
+    def singleton_instance(cls, *args, **kwargs):
+        if not MasterClient._instance:
+            with MasterClient._instance_lock:
+                if not MasterClient._instance:
+                    MasterClient._instance = build_master_client(
+                        *args, **kwargs
+                    )
+        return MasterClient._instance
 
 
 def build_master_client(master_addr=None):
@@ -439,7 +402,3 @@ def build_master_client(master_addr=None):
         except Exception:
             logger.info("The master is not available now.")
     return master_client
-
-
-class GlobalMasterClient(object):
-    MASTER_CLIENT = build_master_client()
