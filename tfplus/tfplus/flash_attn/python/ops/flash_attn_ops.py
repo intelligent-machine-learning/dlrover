@@ -120,16 +120,11 @@ class FlashAttentionLayer(tf.keras.layers.Layer):
         value: Value tensor, dtype: `tf.bfloat16, tf.float16`
         mask: attention mask, dtyoe: `tf.float32`
     Tensor shapes:
-        inputs[0] [BatchSize(B), SequenceLength(S), NumHeads(H), DimHead(K)]
+        inputs[0] [BatchSize(B), SequenceLength(S), HiddenSize]
                 HiddenSize = NumHeads(H) x DimHead(K)
     Returns:
-         shape=[BatchSize(B), SequenceLength(S), NumHeads(H), DimHead(K)]
+         shape=[BatchSize(B), SequenceLength(S), HiddenSize]
     """
-    # input query: shape=(B, S, H, K)
-    # input key: shape=(B, S, H, K)
-    # input value: shape=(B, S, H, K)
-
-    # query, key, value: shape=[B x S, H, K]
 
     if mask is not None:
       def calculate(mask):
@@ -150,28 +145,23 @@ class FlashAttentionLayer(tf.keras.layers.Layer):
       mask = tf.reshape(mask, [-1])
       indices = tf.where(tf.not_equal(mask, 0))
 
-      query = tf.reshape(query, [-1, self.num_heads, self.dim_head])
       key = tf.reshape(key, [-1, self.num_heads * self.dim_head])
       key = tf.gather(key, indices)
       key = tf.reshape(key, [-1, self.num_heads, self.dim_head])
       value = tf.reshape(value, [-1, self.num_heads * self.dim_head])
       value = tf.gather(value, indices)
       value = tf.reshape(value, [-1, self.num_heads, self.dim_head])
-    else:
-      query = tf.reshape(query, [-1, self.num_heads, self.dim_head])
-      key = tf.reshape(key, [-1, self.num_heads, self.dim_head])
-      value = tf.reshape(value, [-1, self.num_heads, self.dim_head])
 
     if mask is None:
+      batch_size = query.shape[0]
       cu_seqlens_k = tf.constant(
-          [i * self.max_key_length for i in range(512+1)])
+          [i * self.max_key_length for i in range(batch_size+1)])
       cu_seqlens_q = tf.constant(
-          [i * self.max_query_length for i in range(512+1)])
+          [i * self.max_query_length for i in range(batch_size+1)])
       max_len_q = self.max_query_length
       max_len_k = self.max_key_length
     return_softmax = False
     zero_tensors = False
-    # [B X S, H, K] => [B X S, H, K]
     # The attention of the recommendation system currently does not require causal
     attn_weight = gen_flash_attention_ops.fmha_forward(
         query, key, value, cu_seqlens_q, cu_seqlens_k,
@@ -180,15 +170,12 @@ class FlashAttentionLayer(tf.keras.layers.Layer):
         zero_tensors, self.is_causal, return_softmax,
         self.num_splits)
 
-    # output attn_weight: [B, S, H, K]
-    attn_weight = tf.reshape(
-        attn_weight, [-1, self.max_query_length, self.num_heads, self.dim_head])
     tf.logging.info(
         'self attention output shape {}'.format(attn_weight))
     return attn_weight
 
   def compute_output_shape(self, input_shape):
-    return input_shape[0][:2] + (self.num_heads, self.dim_head)
+    return input_shape[0][:2] + (self.num_heads * self.dim_head)
 
   def get_config(self):
     config = {'dropout_rate': self.dropout_rate}
