@@ -75,7 +75,6 @@ For auto-tuning parallelism configuration, you need to specify:
 import os
 import sys
 import telnetlib
-import tempfile
 import time
 import uuid
 from typing import Callable, List, Tuple, Union
@@ -86,6 +85,7 @@ from torch.distributed.elastic.multiprocessing.errors import record
 from torch.distributed.launcher.api import launch_agent as torch_launch_agent
 from torch.distributed.run import config_from_args, get_args_parser
 
+from dlrover.python.common import env_utils
 from dlrover.python.common.constants import NodeEnv
 from dlrover.python.common.grpc import find_free_port
 from dlrover.python.common.log import default_logger as logger
@@ -177,18 +177,16 @@ class elastic_launch:
             )
 
 
-def _launch_dlrover_local_master():
+def _launch_dlrover_local_master(master_addr):
     """Launch a subprocess to run the DLrover master."""
+    logger.info(f"Start dlrover master with addr {master_addr}")
+    if not master_addr:
+        host = "127.0.0.1"
+        port = find_free_port()
+    else:
+        host = master_addr.split(":")[0]
+        port = int(master_addr.split(":")[1])
     cmd = os.getenv("PYTHON_EXEC", sys.executable)
-    host = "127.0.0.1"
-    port = find_free_port()
-    root_dir = "/tmp/dlrover_master/"
-    os.makedirs(root_dir, exist_ok=True)
-    log_dir = tempfile.mkdtemp(prefix="", dir=root_dir)
-    job_name = log_dir.split("/")[-1]
-    stdout = os.path.join(log_dir, "stdout.log")
-    stderr = os.path.join(log_dir, "stderror.log")
-    logger.info(f"The master log file:\n stdout: {stdout} \n stderr: {stderr}")
     args = (
         "-u",
         "-m",
@@ -196,11 +194,11 @@ def _launch_dlrover_local_master():
         "--port",
         f"{port}",
         "--job_name",
-        f"standalone-{job_name}",
+        "dlrover-training",
         "--platform",
         "local",
     )
-    handler = SubprocessHandler(cmd, args, {}, stdout, stderr)
+    handler = SubprocessHandler(cmd, args, {}, "", "")
     dlrover_master_addr = f"{host}:{port}"
     return handler, dlrover_master_addr
 
@@ -239,8 +237,10 @@ def run(args):
     master_handler = None
     master_addr = os.getenv(NodeEnv.DLROVER_MASTER_ADDR, "")
     use_dlrover_launch = False
-    if args.standalone:
-        master_handler, master_addr = _launch_dlrover_local_master()
+    node_rank = env_utils.get_node_rank()
+    if args.standalone and node_rank == 0:
+        # Only start the dlrover master on the rank-0 node.
+        master_handler, master_addr = _launch_dlrover_local_master(master_addr)
         os.environ[NodeEnv.DLROVER_MASTER_ADDR] = master_addr
     if _check_dlrover_master_available(master_addr):
         use_dlrover_launch = True

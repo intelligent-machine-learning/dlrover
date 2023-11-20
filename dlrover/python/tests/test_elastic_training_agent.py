@@ -89,7 +89,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
             local_addr=self.config.local_addr,
         )
 
-    def addCleanup(self):
+    def tearDown(self):
         self._master.stop()
 
     def test_node_unit(self):
@@ -99,7 +99,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
     def test_rank0_rendzevous(self):
         node_id = 0
         agent = ElasticTrainingAgent(
-            rank_id=node_id,
+            node_rank=node_id,
             config=self.config,
             entrypoint="python",
             spec=self.spec,
@@ -125,14 +125,14 @@ class ElasticTrainingAgentTest(unittest.TestCase):
     def test_rank1_rendzevous(self):
         node_id = 1
         agent = ElasticTrainingAgent(
-            rank_id=node_id,
+            node_rank=node_id,
             config=self.config,
             entrypoint="python",
             spec=self.spec,
             start_method=self.config.start_method,
             log_dir=self.config.log_dir,
         )
-        self.rdzv_handler._rank_id = node_id
+        self.rdzv_handler._node_rank = node_id
         self.rdzv_handler._client.join_rendezvous(
             0, 8, self.rdzv_handler._name
         )
@@ -204,13 +204,13 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             local_addr=self.config.local_addr,
         )
 
-    def addCleanup(self):
+    def tearDown(self):
         self._master.stop()
 
     def test_monitor_workers(self):
         self.config.network_check = False
         agent = ElasticTrainingAgent(
-            rank_id=0,
+            node_rank=0,
             config=self.config,
             entrypoint="echo",
             spec=self.spec,
@@ -244,7 +244,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
 
     def test_get_free_port(self):
         agent = ElasticTrainingAgent(
-            rank_id=0,
+            node_rank=0,
             config=self.config,
             entrypoint="echo",
             spec=self.spec,
@@ -307,13 +307,13 @@ class NetworkCheckElasticAgentTest(unittest.TestCase):
             local_addr=self.config.local_addr,
         )
 
-    def addCleanup(self):
+    def tearDown(self):
         self._master.stop()
 
     def test_get_network_check_time(self):
         node_id = 0
         agent = NetworkCheckElasticAgent(
-            rank_id=node_id,
+            node_rank=node_id,
             config=self.config,
             entrypoint="python",
             spec=self.spec,

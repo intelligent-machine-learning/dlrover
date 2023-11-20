@@ -30,7 +30,7 @@ class MasterClientTest(unittest.TestCase):
         self._master, addr = start_local_master()
         self._master_client = build_master_client(addr)
 
-    def addCleanup(self):
+    def tearDown(self):
         self._master.stop()
 
     def test_open_channel(self):
