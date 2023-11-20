@@ -15,8 +15,7 @@ import json
 import unittest
 
 from dlrover.python.elastic_agent.master_client import (
-    GlobalMasterClient,
-    LocalDataset,
+    MasterClient,
     build_master_client,
 )
 from dlrover.python.elastic_agent.sharding.client import (
@@ -29,24 +28,10 @@ from dlrover.python.tests.test_utils import start_local_master
 class DataShardClientTest(unittest.TestCase):
     def setUp(self) -> None:
         self._master, addr = start_local_master()
-        GlobalMasterClient.MASTER_CLIENT = build_master_client(addr)
+        MasterClient._instance = build_master_client(addr)
 
-    def addCleanup(self):
+    def tearDown(self):
         self._master.stop()
-
-    def test_local_dataset(self):
-        dataset = LocalDataset(
-            batch_size=16,
-            num_epochs=2,
-            dataset_size=100,
-            shuffle=False,
-            num_minibatches_per_shard=2,
-        )
-        dataset.create_tasks()
-        self.assertEqual(len(dataset._todo), 4)
-        start, end = dataset.get_task()
-        self.assertEqual(start, 0)
-        self.assertEqual(end, 32)
 
     def test_sharding_client(self):
         data_shard_service = ShardingClient(

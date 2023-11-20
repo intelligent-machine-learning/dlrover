@@ -17,6 +17,7 @@ import time
 import unittest
 
 import numpy as np
+import torch
 import torch.distributed as dist
 import torch.nn as nn
 import torch.nn.functional as F
@@ -24,6 +25,7 @@ import torch.optim as optim
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader, Dataset
 
+from dlrover.python.common import grpc
 from dlrover.trainer.torch.elastic import checkpoint
 from dlrover.trainer.torch.elastic.checkpoint import (
     CheckpointManger,
@@ -69,33 +71,36 @@ class SimpleNet(nn.Module):
         return output
 
 
-class CheckpointManagerTest(unittest.TestCase):
-    def setUp(self):
-        self.model = SimpleNet()
-        self.optimizer = optim.SGD(
-            self.model.parameters(),
-            lr=0.01,
-            momentum=0.001,
-        )
-        self.dataset = SimpleDataset()
-        self.sampler = ElasticDistributedSampler(
-            dataset=self.dataset,
-            num_replicas=2,
-            rank=0,
-            shuffle=False,
-        )
-        self.dataloader = DataLoader(
-            self.dataset,
-            batch_size=4,
-            sampler=self.sampler,
-        )
+def create_torch_modules():
+    model = SimpleNet()
+    optimizer = optim.SGD(
+        model.parameters(),
+        lr=0.01,
+        momentum=0.001,
+    )
+    dataset = SimpleDataset()
+    sampler = ElasticDistributedSampler(
+        dataset=dataset,
+        num_replicas=2,
+        rank=0,
+        shuffle=False,
+    )
+    dataloader = DataLoader(
+        dataset,
+        batch_size=4,
+        sampler=sampler,
+    )
+    return model, optimizer, dataloader
 
+
+class LocalCheckpointManagerTest(unittest.TestCase):
     def test_local_save_load(self):
+        model, optimizer, dataloader = create_torch_modules()
         with tempfile.TemporaryDirectory() as tmpdirname:
             ckpt_manager = CheckpointManger.init_checkpoint_manager(
-                self.model,
-                self.optimizer,
-                self.dataloader,
+                model,
+                optimizer,
+                dataloader,
                 tmpdirname,
                 max_to_keep=2,
             )
@@ -114,17 +119,22 @@ class CheckpointManagerTest(unittest.TestCase):
             self.assertEqual(ckpt_dir, expected_dir)
 
             ckpt_manager.load()
-            self.assertEqual(self.dataloader.sampler.total_size, 60002)
+            self.assertEqual(dataloader.sampler.total_size, 60002)
+            ckpt_manager._save_engine.close()
 
+
+class DDPCheckpointManagerTest(unittest.TestCase):
     def test_ddp_save_load(self):
-        set_torch_dist_env(12346)
+        port = grpc.find_free_port()
+        set_torch_dist_env(port)
         dist.init_process_group(backend="gloo")
-        model = DDP(self.model)
+        model, optimizer, dataloader = create_torch_modules()
+        model = DDP(model)
         with tempfile.TemporaryDirectory() as tmpdirname:
             ckpt_manager = CheckpointManger.init_checkpoint_manager(
                 model,
-                self.optimizer,
-                self.dataloader,
+                optimizer,
+                dataloader,
                 tmpdirname,
                 max_to_keep=2,
             )
@@ -142,7 +152,8 @@ class CheckpointManagerTest(unittest.TestCase):
             self.assertEqual(ckpt_dir, expected_dir)
 
             ckpt_manager.load()
-            self.assertEqual(self.dataloader.sampler.total_size, 60002)
+            self.assertEqual(dataloader.sampler.total_size, 60002)
+            ckpt_manager._save_engine.close()
         dist.destroy_process_group()
 
 
@@ -159,6 +170,16 @@ class AsyncCheckpointEngineTest(unittest.TestCase):
         )
         new_dict = checkpoint.traverse_state_dict(state_dict, visitor)
         self.assertEqual(new_dict, state_dict)
+
+    def test_create_tensor_meta(self):
+        engine = LocalAsyncCkptEngine("test", 1, 10)
+        value = torch.rand((10, 10), dtype=torch.float32)
+        meta = engine._create_tensor_meta(value)
+        self.assertEqual(meta.numel, 100)
+        self.assertEqual(meta.element_size, 4)
+        self.assertEqual(meta.offset, 0)
+        self.assertEqual(meta.shape, (10, 10))
+        self.assertEqual(meta.dtype, np.float32)
 
     def test_local_save(self):
         model = SimpleNet()
@@ -180,18 +201,23 @@ class AsyncCheckpointEngineTest(unittest.TestCase):
             engine = LocalAsyncCkptEngine(tmpdirname, 1, 10)
             engine.save(step, state_dict)
             time.sleep(0.2)
-            self.assertEqual(engine._shm_tensor_buffer[("step",)], 100)
+            restore_state_dict = engine._read_state_dict_from_buf(
+                engine._shm_tensor_buffer
+            )
+            self.assertEqual(restore_state_dict["step"], 100)
 
             for key, value in state_dict["model"].items():
-                buffer_value = engine._shm_tensor_buffer[("model", key)]
-                self.assertTrue(value.equal(buffer_value))
+                buffer_value = restore_state_dict["model"][key]
+                self.assertTrue(torch.equal(value, buffer_value))
             self.assertTrue(engine._checkpoint_step_queue.empty())
             ckpt_dir = _get_latest_checkpoint(tmpdirname)
             expected_dir = os.path.join(tmpdirname, "checkpoint-100")
             self.assertEqual(ckpt_dir, expected_dir)
+            engine.close()
 
     def test_ddp_save(self):
-        set_torch_dist_env(12347)
+        port = grpc.find_free_port()
+        set_torch_dist_env(port)
         dist.init_process_group(backend="gloo")
         model = SimpleNet()
         model = DDP(model)
@@ -204,6 +230,7 @@ class AsyncCheckpointEngineTest(unittest.TestCase):
             engine = DDPAsyncCkptEngine(tmpdirname, 1, step)
             path = os.path.join(tmpdirname, "checkpoint-100")
             engine._persist_to_storage(state_dict, path)
+            engine.close()
 
         with tempfile.TemporaryDirectory() as tmpdirname:
             engine = DDPAsyncCkptEngine(tmpdirname, 1, 10)
@@ -214,10 +241,12 @@ class AsyncCheckpointEngineTest(unittest.TestCase):
             ckpt_dir = _get_latest_checkpoint(tmpdirname)
             expected_dir = os.path.join(tmpdirname, "checkpoint-100")
             self.assertEqual(ckpt_dir, expected_dir)
+            engine.close()
         dist.destroy_process_group()
 
     def test_fsdp_save(self):
-        set_torch_dist_env(12348)
+        port = grpc.find_free_port()
+        set_torch_dist_env(port)
         dist.init_process_group(backend="gloo")
         model = SimpleNet()
         model = DDP(model)
@@ -230,3 +259,4 @@ class AsyncCheckpointEngineTest(unittest.TestCase):
             engine = FSDPAsyncCkptEngine(tmpdirname, 1, 10)
             path = os.path.join(tmpdirname, "checkpoint-10")
             engine._persist_to_storage(state_dict, path)
+            engine.close()

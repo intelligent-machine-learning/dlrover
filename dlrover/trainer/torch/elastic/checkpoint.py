@@ -13,10 +13,10 @@
 
 import multiprocessing
 import os
-import shutil
-import time
 import random
+import shutil
 import string
+import time
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
 from datetime import timedelta
@@ -32,7 +32,6 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.trainer.torch.elastic.sampler import ElasticDistributedSampler
-
 
 CKPT_DIR_PREFIX = "checkpoint-"
 
@@ -457,13 +456,26 @@ class AsyncCheckpointEngine(metaclass=ABCMeta):
             self._saver_group = None
         random_name = get_random_string(8)
         self._shm_name = f"tensor_buffer_{random_name}_{self._rank}"
-        self._persist_thread = multiprocessing.Process(
+        self._persist_proc = multiprocessing.Process(
             name=f"persist-process-rank-{self._rank}",
             target=self._persist_memory_buffer_to_storage,
             daemon=True,
         )
-        self._persist_thread.start()
         self._check_arguments()
+
+    def _start_persist_proc(self):
+        if not self._persist_proc.is_alive():
+            self._persist_proc.start()
+
+    def __del__(self):
+        self.close()
+
+    def close(self):
+        self._manager.shutdown()
+        if self._persist_proc.is_alive():
+            self._persist_proc.kill()
+        if self._shm_tensor_buffer:
+            self._shm_tensor_buffer.close()
 
     def _check_arguments(self):
         if self.max_to_keep == 0:
@@ -586,13 +598,17 @@ class AsyncCheckpointEngine(metaclass=ABCMeta):
                     f"Save step-{step} checkpoint from  memory "
                     f"into the storage {checkpoint_dir}."
                 )
-                meta_dict = {}
-                meta_dict.update(self._tensor_meta_buffer)
-                state_dict = traverse_state_dict(
-                    meta_dict,
-                    lambda x: self._read_tensor_from_buf(x, shm_tensor_buffer),
-                )
+                state_dict = self._read_state_dict_from_buf(shm_tensor_buffer)
                 self._persist_to_storage(state_dict, checkpoint_dir)
+
+    def _read_state_dict_from_buf(self, shm_tensor_buffer):
+        meta_dict = {}
+        meta_dict.update(self._tensor_meta_buffer)
+        state_dict = traverse_state_dict(
+            meta_dict,
+            lambda x: self._read_tensor_from_buf(x, shm_tensor_buffer),
+        )
+        return state_dict
 
     def _read_tensor_from_buf(self, value, shm_tensor_buffer):
         """
@@ -629,6 +645,7 @@ class AsyncCheckpointEngine(metaclass=ABCMeta):
         state_dict["step"] = step
         if self._shm_tensor_buffer is None:
             self._make_state_dict_buffer(state_dict)
+        self._start_persist_proc()
         acquired = self._shm_buffer_lock.acquire(block=False)
         all_rank_ready = self._check_all_rank_ready(acquired)
         if not all_rank_ready:

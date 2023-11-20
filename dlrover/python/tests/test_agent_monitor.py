@@ -24,9 +24,16 @@ from dlrover.python.elastic_agent.monitor.training import (
     TFTrainingProcessReporter,
     is_tf_chief,
 )
+from dlrover.python.tests.test_utils import start_local_master
 
 
 class ResourceMonitorTest(unittest.TestCase):
+    def setUp(self):
+        self.master_proc, self.addr = start_local_master()
+
+    def tearDown(self):
+        self.master_proc.stop()
+
     def test_resource_monitor(self):
         gpu_stats: list[GPUStats] = [
             GPUStats(
@@ -37,7 +44,7 @@ class ResourceMonitorTest(unittest.TestCase):
             )
         ]
         mock_env = {
-            NodeEnv.DLROVER_MASTER_ADDR: "127.0.0.1:12345",
+            NodeEnv.DLROVER_MASTER_ADDR: self.addr,
             NodeEnv.AUTO_MONITOR_WORKLOAD: "true",
         }
 
