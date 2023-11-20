@@ -406,6 +406,7 @@ class FSDPCheckpointManger(CheckpointManger):
         model_state_dict = checkpoint.get("model", {})
         optim_state_dict = checkpoint.get("optimizer", {})
 
+        #  TODO: use shard_state_dict to checkpoint.
         with FSDP.state_dict_type(
             self.model,
             StateDictType.FULL_STATE_DICT,
