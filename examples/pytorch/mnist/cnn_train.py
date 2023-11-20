@@ -155,14 +155,11 @@ def train(args):
         model.parameters(), lr=args.learning_rate, momentum=args.momentum
     )
     scheduler = StepLR(optimizer, step_size=1, gamma=0.5)
-    rank = dist.get_rank()
     ckpt_manager = CheckpointManger.init_checkpoint_manager(
         model,
         optimizer,
         train_loader,
         CHEKPOINT_DIR,
-        rank=rank,
-        max_to_keep=3,
     )
     ckpt_manager.load()
 
