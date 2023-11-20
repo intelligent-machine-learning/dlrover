@@ -386,8 +386,6 @@ class PodScaler(Scaler):
         env: List[V1EnvVar] = []
         env = append_pod_ip_to_env(env)
 
-        env.append(V1EnvVar(name=NodeEnv.WORKER_TYPE, value=node.type))
-        env.append(V1EnvVar(name=NodeEnv.WORKER_ID, value=str(node.id)))
         env.append(V1EnvVar(name=NodeEnv.JOB_NAME, value=self._job_name))
         env.append(V1EnvVar(name=NodeEnv.JOB_UID, value=self._job_uid))
 
@@ -398,6 +396,17 @@ class PodScaler(Scaler):
         worker_num = self._config_worker_num
         if worker_num == 0:
             worker_num = pod_stats.get(node.type, 0)
+
+        env.append(V1EnvVar(name=NodeEnv.NODE_TYPE, value=node.type))
+        env.append(V1EnvVar(name=NodeEnv.NODE_ID, value=str(node.id)))
+        env.append(V1EnvVar(name=NodeEnv.NODE_NUM, value=str(worker_num)))
+        env.append(
+            V1EnvVar(name=NodeEnv.NODE_RANK, value=str(node.rank_index))
+        )
+
+        # Deprecated env vars
+        env.append(V1EnvVar(name=NodeEnv.WORKER_TYPE, value=node.type))
+        env.append(V1EnvVar(name=NodeEnv.WORKER_ID, value=str(node.id)))
         env.append(V1EnvVar(name=NodeEnv.WORKER_NUM, value=str(worker_num)))
         env.append(
             V1EnvVar(name=NodeEnv.WORKER_RANK, value=str(node.rank_index))
