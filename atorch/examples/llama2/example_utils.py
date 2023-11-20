@@ -151,6 +151,7 @@ def compute_llama2_training_flops(
     intermediate_size,
     num_layers,
     use_gradient_checkpointing=False,
+    use_lora=False,
 ):
     """Returns:
     hardware flops
@@ -161,6 +162,7 @@ def compute_llama2_training_flops(
     (APPENDIX: FLOATING-POINT OPERATIONS)
 
     Assuming that backward pass has twice FLOPs as many as forward pass. Only matrix multiplication FLOPs are computed.
+    Note: for LoRA, assuming bw pass has the same FLOPs as fw.
     """
     attention_forward_flops = (
         8 * batch_size * sequence_length * hidden_size**2 + 4 * batch_size * sequence_length**2 * hidden_size
@@ -171,10 +173,14 @@ def compute_llama2_training_flops(
     decoder_layer_forward_flops = attention_forward_flops + two_mlps_forward_flops
     # forward FLOPs without gradient checkpointing
     forward_flops_wo_gc = num_layers * decoder_layer_forward_flops + logits_forward_flops
+    mul_factor = 2 if use_lora else 3
     if not use_gradient_checkpointing:
-        return forward_flops_wo_gc * 3, forward_flops_wo_gc * 3
+        return forward_flops_wo_gc * mul_factor, forward_flops_wo_gc * mul_factor
     else:
-        return num_layers * decoder_layer_forward_flops * 4 + logits_forward_flops * 3, forward_flops_wo_gc * 3
+        return (
+            num_layers * decoder_layer_forward_flops * (mul_factor + 1) + logits_forward_flops * mul_factor,
+            forward_flops_wo_gc * mul_factor,
+        )
 
 
 def sync_and_time():
