@@ -133,7 +133,7 @@ By practice, DLRover is an ideal component to build an end-to-end industrial onl
 We can use `dlrover-run` to run the training script which
 `torchrun` or `torch.distributed.run` can run.
 
-### Local Run to Train a PyTorch Model.
+### Local Run to Train a PyTorch Model
 
 We run DLRover locally like
 
@@ -142,9 +142,9 @@ pip install dlrover[torch]
 dlrover-run --standalone --nproc_per_node=$NUM_TRAINERS train_scripts.py
 ```
 
-### Distributed Run to Train a PyTorch Model.
+### Distributed Run to Train a PyTorch Model
 
-#### Run in a DLRover ElasticJob.
+#### Run in a DLRover ElasticJob
 
 Firstly, the user need to deploy the DLRover elasticjob controller in a kubernetes
 cluster by followding the [tutorial](docs/deployment/controller.md).
@@ -160,7 +160,7 @@ dlrover-run --network-check --nnodes=$NODE_NUM --nproc_per_node=$NUM_TRAINERS tr
 `--nnodes` is the number of nodes and `--nproc_per_node` is the number of process
 on each node. They are the same as the arguments of [torchrun](https://pytorch.org/docs/stable/elastic/run.html).
 
-#### Run in other k8s Jobs.
+#### Run in other k8s Jobs
 
 We can also use `dlrover-run` in other k8s jobs like [kubeflow/PyTorchJob](https://www.kubeflow.org/docs/components/training/pytorch/).
 We need to set the `NODE_RANK` and `DLROVER_MASTER_ADDR` before `dlrover-run`.
