@@ -296,7 +296,7 @@ Two implementations are provided.
 
 Level 2 of ZeRO method, which shards both gradients and optimizer states.
 
-Two implementations are provided.
+Three implementations are provided.
 - (Default) Use pytorch fsdp SHARD_GRAD_OP, thus supports all configurations as in fsdp method below.
 - Use fairscale zero2 implementation. Set config as <code>{"not_use_fsdp", True}</code> to choose this implementation.
 - Use DeepSpeed zero2 implementation.  Set config as <code>{"use_ds_zero", True}</code> to choose this implementation.
