@@ -147,9 +147,8 @@ dlrover-run --standalone --nproc_per_node=$NUM_TRAINERS train_scripts.py
 #### Run in a DLRover ElasticJob
 
 Firstly, the user need to deploy the DLRover elasticjob controller in a kubernetes
-cluster by followding the [tutorial](docs/deployment/controller.md).
-
-The, we need to install `dlrover[torch]` and execute `dlrover-run` in
+cluster by followding the [tutorial](docs/deployment/controller.md). Then, we need
+to install `dlrover[torch]` and execute `dlrover-run` in
 the command of the Pod container like the example [torch_mnist_job.yaml](examples/pytorch/mnist/elastic_job.yaml).
 
 ```bash
@@ -169,13 +168,17 @@ into environments. We can run `dlrover-run` like
 
 ```bash
 NODE_RANK=$RANK DLROVER_MASTER_ADDR=$MASTER_ADDR:$MASTER_PORT \
-dlrover-run --standalone --network-check \
---nnodes=4 --nproc_per_node=2  train_script.py
+dlrover-run --standalone --network-check --nnodes=$NODE_NUM --nproc_per_node=$NUM_TRAINERS  train_script.py
 ```
 
-Note: `dlrover-run` extends `torchrun` which dynamically configure `MASTER_ADDR` and `MASTER_PORT`
+**Note**:
+
+- `dlrover-run` extends `torchrun` which dynamically configures `MASTER_ADDR` and `MASTER_PORT`
 for training processes. We can use the static `MASTER_ADDR` and `MASTER_PORT` of PyTorchJob as the address
 of DLRover job master.
+
+- The elastic scheduling of DLRover to restore or scale up/down Pods
+is not enabled without DLRover ElasticJob.
 
 ### Train a TensorFlow Model
 
