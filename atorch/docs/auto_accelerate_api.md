@@ -202,7 +202,10 @@ auto_accelerate returns 3-item tuple (status, result, best_strategy).
 <tr>
     <td>result (namedtuple)</td>
     <td>
-        namedtuple(model, optim, dataloader, loss_func, prepare_input) for resulting model, optimizer, dataloader, loss_func, prepare_input.
+    namedtuple(model, optim, dataloader, loss_func, prepare_input, args) for resulting model, optimizer, dataloader, loss_func, prepare_input, args. <br>
+    args includes:<br>
+    - use_optim_backward: if True, use <code>optim.backward(loss)</code> instead of <code>loss.bacward()</code> for backward pass.<br>
+    - requires_set_gradient_accumulation_boundary: if True, when gradient accumulation is used in traning, call <code>optim.set_gradient_accumulation_boundary(True)</code> in accumulation boundary training pass.    
     </td>
 </tr>
 <tr>
@@ -284,15 +287,19 @@ register_replace_pair("my_optimized_module", supported_dtypes=supported_dtypes, 
 
 ### zero1
 
-zero1 uses Zero Redundancy Optimizer to shard optimizer states in data parallel training.
+zero1 uses Zero Redundancy Optimizer (zero1) to shard optimizer states in data parallel training.
+Two implementations are provided.
+- (Default) Use fairscale zero2 implementation.
+- Use DeepSpeed zero1 implementation.  Set config as <code>{"use_ds_zero", True}</code> to choose this implementation.
 
 ### zero2
 
 Level 2 of ZeRO method, which shards both gradients and optimizer states.
 
-Two implementations are used.
+Two implementations are provided.
 - (Default) Use pytorch fsdp SHARD_GRAD_OP, thus supports all configurations as in fsdp method below.
 - Use fairscale zero2 implementation. Set config as <code>{"not_use_fsdp", True}</code> to choose this implementation.
+- Use DeepSpeed zero2 implementation.  Set config as <code>{"use_ds_zero", True}</code> to choose this implementation.
 
 
 ### fsdp
