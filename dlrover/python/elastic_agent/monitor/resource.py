@@ -58,7 +58,11 @@ def get_used_memory():
 def get_gpu_stats(gpus=[]):
     """ "Get the used gpu info of the container"""
     if not gpus:
-        device_count = pynvml.nvmlDeviceGetCount()
+        try:
+            device_count = pynvml.nvmlDeviceGetCount()
+        except Exception:
+            logger.warning("No GPU is available.")
+            device_count = 0
         gpus = list(range(device_count))
     gpu_stats: list[GPUStats] = []
     for i in gpus:
