@@ -168,8 +168,7 @@ into environments. We can run `dlrover-run` like
 
 ```bash
 NODE_RANK=$RANK DLROVER_MASTER_ADDR=$MASTER_ADDR:$MASTER_PORT \
-dlrover-run --standalone --network-check \
---nnodes=4 --nproc_per_node=2  train_script.py
+dlrover-run --standalone --network-check --nnodes=$NODE_NUM --nproc_per_node=$NUM_TRAINERS  train_script.py
 ```
 
 **Note**: 
