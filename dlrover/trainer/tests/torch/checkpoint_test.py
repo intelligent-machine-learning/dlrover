@@ -260,3 +260,4 @@ class AsyncCheckpointEngineTest(unittest.TestCase):
             path = os.path.join(tmpdirname, "checkpoint-10")
             engine._persist_to_storage(state_dict, path)
             engine.close()
+        dist.destroy_process_group()
