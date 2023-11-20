@@ -26,8 +26,10 @@ from typing import Callable, List, Mapping, Tuple
 import numpy as np
 import torch
 import torch.distributed as dist
+from torch.distributed.fsdp import FullStateDictConfig
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.distributed.fsdp import StateDictType
+from torch.distributed.fsdp.api import FullOptimStateDictConfig
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 from dlrover.python.common.log import default_logger as logger
@@ -156,16 +158,13 @@ class CheckpointManger(metaclass=ABCMeta):
         self.dataloader = dataloader
         self.checkpoint_dir = checkpoint_dir
         if dist.is_initialized():
-            self.rank = dist.get_rank()
+            self._rank = dist.get_rank()
         else:
-            self.rank = 0
+            self._rank = 0
 
-    def log_rank0(self, log):
-        if self.rank == 0:
+    def _log_rank0(self, log):
+        if self._rank == 0:
             logger.info(log)
-
-    def _is_rank0(self):
-        return self.rank == 0
 
     @abstractmethod
     def save(self, epoch, step):
@@ -257,7 +256,7 @@ class LocalCheckpointManger(CheckpointManger):
         max_to_keep=1,
     ):
         super().__init__(model, optimizer, dataloader, checkpoint_dir)
-        self._save_engine = LocalAsyncCkptEngine(
+        self._save_engine = AsyncCheckpointEngine(
             checkpoint_dir,
             save_storage_interval=save_storage_interval,
             max_to_keep=max_to_keep,
@@ -314,7 +313,7 @@ class DDPCheckpointManger(CheckpointManger):
         max_to_keep=1,
     ):
         super().__init__(model, optimizer, dataloader, checkpoint_dir)
-        self._save_engine = DDPAsyncCkptEngine(
+        self._save_engine = AsyncCheckpointEngine(
             checkpoint_dir,
             save_storage_interval=save_storage_interval,
             max_to_keep=max_to_keep,
@@ -325,7 +324,7 @@ class DDPCheckpointManger(CheckpointManger):
         Save the checkpoint of model, optimizer, dataloader into the directory
         `{self.directory}/checkpoint-{step}/checkpoint.pt`.
         """
-        self.log_rank0(f"Save checkpoint of step={step} of epoch={epoch}.")
+        self._log_rank0(f"Save checkpoint of step={step} of epoch={epoch}.")
         step = step + epoch * len(self.dataloader)
         msd = self.model.state_dict()
         osd = self.optimizer.state_dict()
@@ -362,7 +361,7 @@ class FSDPCheckpointManger(CheckpointManger):
         max_to_keep=1,
     ):
         super().__init__(model, optimizer, dataloader, checkpoint_dir)
-        self._save_engine = LocalAsyncCkptEngine(
+        self._save_engine = AsyncCheckpointEngine(
             checkpoint_dir,
             save_storage_interval=save_storage_interval,
             max_to_keep=max_to_keep,
@@ -375,12 +374,14 @@ class FSDPCheckpointManger(CheckpointManger):
         the part of the model and optimizer states into the file
         `checkpoint-{step}/part-{rank}.pt`.
         """
-        self.log_rank0(f"Save checkpoint of step={step} of epoch={epoch}.")
+        self._log_rank0(f"Save checkpoint of step={step} of epoch={epoch}.")
         if self.dataloader:
             step = step + epoch * len(self.dataloader)
         with FSDP.state_dict_type(
             self.model,
-            StateDictType.SHARDED_STATE_DICT,
+            StateDictType.FULL_STATE_DICT,
+            FullStateDictConfig(rank0_only=False),
+            FullOptimStateDictConfig(rank0_only=False),
         ):
             msd = self.model.state_dict()
             osd = FSDP.optim_state_dict(self.model, self.optimizer)
@@ -392,7 +393,7 @@ class FSDPCheckpointManger(CheckpointManger):
                 step, self.dataloader.batch_size
             )
         checkpoint = {"model": msd, "optimizer": osd, "sampler": ssd}
-        self._save_engine.save(checkpoint)
+        self._save_engine.save(step, checkpoint)
 
     def load(self, resuming_path=None):
         checkpoint = self._save_engine.load(resuming_path)
@@ -407,7 +408,9 @@ class FSDPCheckpointManger(CheckpointManger):
 
         with FSDP.state_dict_type(
             self.model,
-            StateDictType.SHARDED_STATE_DICT,
+            StateDictType.FULL_STATE_DICT,
+            FullStateDictConfig(rank0_only=False),
+            FullOptimStateDictConfig(rank0_only=False),
         ):
             # called from all ranks, though only rank0 has
             # a valid param for full_osd.
@@ -421,7 +424,7 @@ class FSDPCheckpointManger(CheckpointManger):
         _sync()
 
 
-class AsyncCheckpointEngine(metaclass=ABCMeta):
+class AsyncCheckpointEngine(object):
     """
     Attributes:
         checkpoint_dir: str, the directory to save the checkpoint.
@@ -462,10 +465,7 @@ class AsyncCheckpointEngine(metaclass=ABCMeta):
             daemon=True,
         )
         self._check_arguments()
-
-    def _start_persist_proc(self):
-        if not self._persist_proc.is_alive():
-            self._persist_proc.start()
+        self._persist_proc.start()
 
     def __del__(self):
         self.close()
@@ -626,10 +626,13 @@ class AsyncCheckpointEngine(metaclass=ABCMeta):
         else:
             return value
 
-    @abstractmethod
     def _persist_to_storage(self, state_dict, checkpoint_dir):
         """Persist the checkpoint from CPU memory buffer into the storage."""
-        pass
+        if self._rank == 0:
+            _init_dir(checkpoint_dir)
+            checkpoint_path = os.path.join(checkpoint_dir, "checkpoint.pt")
+            torch.save(state_dict, checkpoint_path)
+            _keep_topk_checkpoint(self.checkpoint_dir, self.max_to_keep)
 
     @timer
     def save(self, step, state_dict):
@@ -645,7 +648,6 @@ class AsyncCheckpointEngine(metaclass=ABCMeta):
         state_dict["step"] = step
         if self._shm_tensor_buffer is None:
             self._make_state_dict_buffer(state_dict)
-        self._start_persist_proc()
         acquired = self._shm_buffer_lock.acquire(block=False)
         all_rank_ready = self._check_all_rank_ready(acquired)
         if not all_rank_ready:
@@ -674,7 +676,6 @@ class AsyncCheckpointEngine(metaclass=ABCMeta):
         dist.all_reduce(t, group=self._saver_group)
         return t == 0
 
-    @abstractmethod
     def load(self, resume_path=""):
         """
         Load the state dict from the CPU memory if the state dict is complete
@@ -689,96 +690,14 @@ class AsyncCheckpointEngine(metaclass=ABCMeta):
         Returns:
             A dict.
         """
-        pass
-
-
-class LocalAsyncCkptEngine(AsyncCheckpointEngine):
-    def __init__(
-        self,
-        checkpoint_dir,
-        save_storage_interval=1,
-        max_to_keep=1,
-    ):
-        super().__init__(
-            checkpoint_dir=checkpoint_dir,
-            save_storage_interval=save_storage_interval,
-            max_to_keep=max_to_keep,
-        )
-
-    @timer
-    def _persist_to_storage(self, state_dict, checkpoint_dir):
-        _init_dir(checkpoint_dir)
-        checkpoint_path = os.path.join(checkpoint_dir, "checkpoint.pt")
-        torch.save(state_dict, checkpoint_path)
-        _keep_topk_checkpoint(self.checkpoint_dir, self.max_to_keep)
-
-    def load(self, resuming_path=""):
-        if not resuming_path:
+        if not resume_path:
             latest_ckpt_dir = _get_latest_checkpoint(self.checkpoint_dir)
             if not latest_ckpt_dir:
                 return {}
-            resuming_path = os.path.join(latest_ckpt_dir, "checkpoint.pt")
+            resume_path = os.path.join(latest_ckpt_dir, "checkpoint.pt")
 
-        if not os.path.exists(resuming_path):
+        if not os.path.exists(resume_path):
             return {}
-        logger.info(f"Load checkpoint from {resuming_path}")
-        checkpoint = torch.load(resuming_path)
-        return checkpoint
-
-
-class DDPAsyncCkptEngine(LocalAsyncCkptEngine):
-    def __init__(
-        self,
-        checkpoint_dir,
-        save_storage_interval=1,
-        max_to_keep=1,
-    ):
-        super().__init__(
-            checkpoint_dir=checkpoint_dir,
-            save_storage_interval=save_storage_interval,
-            max_to_keep=max_to_keep,
-        )
-
-    @timer
-    def _persist_to_storage(self, state_dict, checkpoint_dir):
-        if self._rank == 0:
-            _init_dir(checkpoint_dir)
-            checkpoint_path = os.path.join(checkpoint_dir, "checkpoint.pt")
-            torch.save(state_dict, checkpoint_path)
-            _keep_topk_checkpoint(self.checkpoint_dir, self.max_to_keep)
-
-
-class FSDPAsyncCkptEngine(AsyncCheckpointEngine):
-    def __init__(
-        self,
-        checkpoint_dir,
-        save_storage_interval=1,
-        max_to_keep=1,
-    ):
-        super().__init__(
-            checkpoint_dir=checkpoint_dir,
-            save_storage_interval=save_storage_interval,
-            max_to_keep=max_to_keep,
-        )
-
-    @timer
-    def _persist_to_storage(self, state_dict, checkpoint_dir):
-        if self._rank == 0:
-            _init_dir(checkpoint_dir)
-        checkpoint_path = os.path.join(checkpoint_dir, f"part-{self._rank}.pt")
-        torch.save(state_dict, checkpoint_path)
-        _keep_topk_checkpoint(self.checkpoint_dir, self.max_to_keep)
-
-    def load(self, resuming_path=None):
-        if not resuming_path:
-            latest_ckpt_dir = _get_latest_checkpoint(self.checkpoint_dir)
-            if not latest_ckpt_dir:
-                return
-            resuming_path = os.path.join(
-                latest_ckpt_dir, f"part-{self._rank}.pt"
-            )
-        if not os.path.exists(resuming_path):
-            return {}
-        logger.info(f"Load checkpoint from {resuming_path}")
-        checkpoint = torch.load(resuming_path)
+        logger.info(f"Load checkpoint from {resume_path}")
+        checkpoint = torch.load(resume_path)
         return checkpoint

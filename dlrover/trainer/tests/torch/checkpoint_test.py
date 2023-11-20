@@ -28,10 +28,8 @@ from torch.utils.data import DataLoader, Dataset
 from dlrover.python.common import grpc
 from dlrover.trainer.torch.elastic import checkpoint
 from dlrover.trainer.torch.elastic.checkpoint import (
+    AsyncCheckpointEngine,
     CheckpointManger,
-    DDPAsyncCkptEngine,
-    FSDPAsyncCkptEngine,
-    LocalAsyncCkptEngine,
     _get_latest_checkpoint,
 )
 from dlrover.trainer.torch.elastic.sampler import ElasticDistributedSampler
@@ -172,7 +170,7 @@ class AsyncCheckpointEngineTest(unittest.TestCase):
         self.assertEqual(new_dict, state_dict)
 
     def test_create_tensor_meta(self):
-        engine = LocalAsyncCkptEngine("test", 1, 10)
+        engine = AsyncCheckpointEngine("test", 1, 10)
         value = torch.rand((10, 10), dtype=torch.float32)
         meta = engine._create_tensor_meta(value)
         self.assertEqual(meta.numel, 100)
@@ -189,16 +187,16 @@ class AsyncCheckpointEngineTest(unittest.TestCase):
             step=step,
         )
         with self.assertRaises(ValueError):
-            LocalAsyncCkptEngine("test", 0)
+            AsyncCheckpointEngine("test", 0)
         with self.assertRaises(ValueError):
-            LocalAsyncCkptEngine("test", 1, 0)
+            AsyncCheckpointEngine("test", 1, 0)
         with tempfile.TemporaryDirectory() as tmpdirname:
-            engine = LocalAsyncCkptEngine(tmpdirname, 1, 10)
+            engine = AsyncCheckpointEngine(tmpdirname, 1, 10)
             path = os.path.join(tmpdirname, "checkpoint-10")
             engine._persist_to_storage(state_dict, path)
 
         with tempfile.TemporaryDirectory() as tmpdirname:
-            engine = LocalAsyncCkptEngine(tmpdirname, 1, 10)
+            engine = AsyncCheckpointEngine(tmpdirname, 1, 10)
             engine.save(step, state_dict)
             time.sleep(0.2)
             restore_state_dict = engine._read_state_dict_from_buf(
@@ -214,50 +212,3 @@ class AsyncCheckpointEngineTest(unittest.TestCase):
             expected_dir = os.path.join(tmpdirname, "checkpoint-100")
             self.assertEqual(ckpt_dir, expected_dir)
             engine.close()
-
-    def test_ddp_save(self):
-        port = grpc.find_free_port()
-        set_torch_dist_env(port)
-        dist.init_process_group(backend="gloo")
-        model = SimpleNet()
-        model = DDP(model)
-        step = 100
-        state_dict = dict(
-            model=model.state_dict(),
-            step=step,
-        )
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            engine = DDPAsyncCkptEngine(tmpdirname, 1, step)
-            path = os.path.join(tmpdirname, "checkpoint-100")
-            engine._persist_to_storage(state_dict, path)
-            engine.close()
-
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            engine = DDPAsyncCkptEngine(tmpdirname, 1, 10)
-            engine.save(step, state_dict)
-            time.sleep(0.2)
-            ckpt_dirs = os.listdir(tmpdirname)
-            self.assertEqual(len(ckpt_dirs), 1)
-            ckpt_dir = _get_latest_checkpoint(tmpdirname)
-            expected_dir = os.path.join(tmpdirname, "checkpoint-100")
-            self.assertEqual(ckpt_dir, expected_dir)
-            engine.close()
-        dist.destroy_process_group()
-
-    def test_fsdp_save(self):
-        port = grpc.find_free_port()
-        set_torch_dist_env(port)
-        dist.init_process_group(backend="gloo")
-        model = SimpleNet()
-        model = DDP(model)
-        step = 100
-        state_dict = dict(
-            model=model.state_dict(),
-            step=step,
-        )
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            engine = FSDPAsyncCkptEngine(tmpdirname, 1, 10)
-            path = os.path.join(tmpdirname, "checkpoint-10")
-            engine._persist_to_storage(state_dict, path)
-            engine.close()
-        dist.destroy_process_group()
