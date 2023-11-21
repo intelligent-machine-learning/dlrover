@@ -212,3 +212,25 @@ class AsyncCheckpointEngineTest(unittest.TestCase):
             expected_dir = os.path.join(tmpdirname, "checkpoint-100")
             self.assertEqual(ckpt_dir, expected_dir)
             engine.close()
+
+    def test_load(self):
+        model = SimpleNet()
+        step = 100
+        state_dict = dict(
+            model=model.state_dict(),
+            step=step,
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            engine = AsyncCheckpointEngine(tmpdirname, 1, 10)
+            path = os.path.join(tmpdirname, "checkpoint-10/checkpoint.pt")
+            os.makedirs(os.path.dirname(path))
+            torch.save(state_dict, path)
+            path = os.path.join(tmpdirname, "checkpoint-20/checkpoint.pt")
+            os.makedirs(os.path.dirname(path))
+            with open(path, "w") as f:
+                f.write("A error checkpoint\n")
+            loaded_state_dict = engine._load_from_historic_checkpoint()
+            for key, value in state_dict["model"].items():
+                loaded_value = loaded_state_dict["model"][key]
+                self.assertTrue(torch.equal(value, loaded_value))
