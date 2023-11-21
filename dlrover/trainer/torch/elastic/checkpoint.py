@@ -140,10 +140,22 @@ class CheckpointManger(metaclass=ABCMeta):
             The sampler of DataLoader should be an instance of
             `dlrover.trainer.torch.elastic.ElasticDistribuedSampler`.
         checkpoint_dir (str): the directory to save the checkpoint states.
-        rank (int): the rank of process in the communication world.
-        max_to_keep (int): the max number of checkpoint to keep. The oldest
-            checkpoint files will be removed if the number of checkpoints
-            is bigger than max_to_kep.
+        save_storage_interval (int, optinal): The step inverval to save the
+            checkoint state dict into the storage. Default: ``1``.
+        max_to_keep (int, optinal): the max number of checkpoint to keep. The
+            oldest checkpoint files will be removed if the number of
+            checkpoints is bigger than max_to_kep. Default: ``1``.
+
+    Example::
+        >>> ckpt_manager = LocalCheckpointManger(
+        >>>    model=model,
+        >>>    optimizer=optimizer,
+        >>>    dataloader=train_dataloader,
+        >>>    checkpoint_dir="/tmp/checkpoint/",
+        >>>    save_storage_interval=5,
+        >>> )
+        >>> ckpt_manager.save(0, 10)
+        >>> ckpt_manger.load()
     """
 
     def __init__(
@@ -152,6 +164,8 @@ class CheckpointManger(metaclass=ABCMeta):
         optimizer,
         dataloader,
         checkpoint_dir,
+        save_storage_interval=1,
+        max_to_keep=1,
     ):
         self.model = model
         self.optimizer = optimizer
@@ -161,6 +175,11 @@ class CheckpointManger(metaclass=ABCMeta):
             self._rank = dist.get_rank()
         else:
             self._rank = 0
+        self._save_engine = AsyncCheckpointEngine(
+            checkpoint_dir,
+            save_storage_interval=save_storage_interval,
+            max_to_keep=max_to_keep,
+        )
 
     def _log_rank0(self, log):
         if self._rank == 0:
@@ -234,16 +253,9 @@ class CheckpointManger(metaclass=ABCMeta):
 
 
 class LocalCheckpointManger(CheckpointManger):
-    """The manager saves and loads checkpoint states of the local
+    """
+    The manager saves and loads checkpoint states of the local
     model and optimizer without distributed execution.
-
-    Example::
-        >>> ckpt_manager = LocalCheckpointManger(
-        >>>    model, optimizer, train_dataloader, "/tmp/checkpoint/"
-        >>> )
-        >>> ckpt_manager.save(0, 10)
-        >>> ckpt_manger.load()
-
     """
 
     def __init__(
@@ -252,7 +264,7 @@ class LocalCheckpointManger(CheckpointManger):
         optimizer,
         dataloader,
         checkpoint_dir,
-        save_storage_interval,
+        save_storage_interval=1,
         max_to_keep=1,
     ):
         super().__init__(model, optimizer, dataloader, checkpoint_dir)
@@ -293,14 +305,8 @@ class LocalCheckpointManger(CheckpointManger):
 
 
 class DDPCheckpointManger(CheckpointManger):
-    """DDPCheckpontManager saves and loads checkpoint states of a DDP model.
-
-    Example::
-        >>> ckpt_manager = CheckpointManager(
-        >>>    model, optimizer, train_dataloader, "/tmp/checkpoint/"
-        >>> )
-        >>> ckpt_manager.save(0, 10)
-        >>> ckpt_manger.load()
+    """
+    DDPCheckpontManager saves and loads checkpoint states of a DDP model.
     """
 
     def __init__(
@@ -351,21 +357,9 @@ class DDPCheckpointManger(CheckpointManger):
 
 
 class FSDPCheckpointManger(CheckpointManger):
-    def __init__(
-        self,
-        model,
-        optimizer,
-        dataloader,
-        checkpoint_dir,
-        save_storage_interval=1,
-        max_to_keep=1,
-    ):
-        super().__init__(model, optimizer, dataloader, checkpoint_dir)
-        self._save_engine = AsyncCheckpointEngine(
-            checkpoint_dir,
-            save_storage_interval=save_storage_interval,
-            max_to_keep=max_to_keep,
-        )
+    """
+    DDPCheckpontManager saves and loads checkpoint states of a DDP model.
+    """
 
     def save(self, epoch, step):
         """
@@ -427,11 +421,26 @@ class FSDPCheckpointManger(CheckpointManger):
 
 class AsyncCheckpointEngine(object):
     """
+    The `save` of the engine only writes the state dict into the shared memory.
+    A subprocess will asychronously save the state dict into the storage.
+    Writing to memory is significantly quicker than writing to storage.
+    The engine.save only block the training with a little time.
+
     Attributes:
         checkpoint_dir: str, the directory to save the checkpoint.
-        max_to_keep: int, the number of checkpoint files to keep.
         save_storage_interval: int, the interval of iteration steps to save
             the model and optimizer states from CPU memory to the storage.
+        max_to_keep: int, the number of checkpoint files to keep.
+
+    Examples::
+        >>> engine = AsyncCheckpointEngine(
+        >>>     checkpoint_dir="/tmp/checkpoint/"
+        >>>     save_storage_interval=5,
+        >>>     max_to_keep=1,
+        >>> )
+        >>> state_dict = model.state_dict()
+        >>> engine.save(step=100, state_dict=state_dict)
+        >>> sate_dict = engine.load()
     """
 
     def __init__(
@@ -684,12 +693,14 @@ class AsyncCheckpointEngine(object):
         the storage.
 
         Args:
-            resume_path: str, If the resume_path is an empty
+            resume_path (str, optional): , If the resume_path is an empty
                 string, the function will load the latest checkpoint file in
                 the checkpoint directory.
 
         Returns:
-            A dict.
+            dict:
+                a dictionary containing a whole state of the modules in the
+                checkpointing file.
         """
         if not resume_path:
             latest_ckpt_dir = _get_latest_checkpoint(self.checkpoint_dir)
