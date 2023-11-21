@@ -76,7 +76,10 @@ def _get_latest_checkpoint(checkpoint_dir):
             continue
         step = int(fn.split("-")[-1])
         max_step = step if step > max_step else max_step
-    path = os.path.join(checkpoint_dir, f"{CKPT_DIR_PREFIX}{max_step}")
+    if max_step > 0:
+        path = os.path.join(checkpoint_dir, f"{CKPT_DIR_PREFIX}{max_step}")
+    else:
+        path = ""
     return path
 
 
@@ -101,6 +104,26 @@ def _keep_topk_checkpoint(checkpoint_dir, max_to_keep):
     for step in remove_steps:
         dir_name = os.path.join(checkpoint_dir, f"{CKPT_DIR_PREFIX}{step}")
         shutil.rmtree(dir_name)
+
+
+def _convert_torch_dtype_to_numpy(torch_dtype):
+    dtype_map = {
+        torch.float32: np.float32,
+        torch.float: np.float32,
+        torch.float64: np.float64,
+        torch.double: np.double,
+        torch.float16: np.float16,
+        torch.half: np.half,
+        torch.uint8: np.uint8,
+        torch.int8: np.int8,
+        torch.int16: np.int16,
+        torch.short: np.short,
+        torch.int32: np.int32,
+        torch.int: np.int32,
+        torch.long: np.int64,
+        torch.bool: np.dtype("bool"),
+    }
+    return dtype_map[torch_dtype]
 
 
 def traverse_state_dict(value: object, visitor: Callable[[object], None]):
@@ -454,7 +477,6 @@ class AsyncCheckpointEngine(object):
         self.save_storage_interval = save_storage_interval
         self._manager = multiprocessing.Manager()
         self._tensor_meta_buffer = self._manager.dict()
-        self._memory_buffer = None
         self._shm_tensor_buffer = None
         self._shm_buffer_lock = multiprocessing.Lock()
         self._buffer_size = 0
@@ -493,13 +515,6 @@ class AsyncCheckpointEngine(object):
         if self.save_storage_interval == 0:
             raise ValueError("save_storage_interval cannot be 0.")
 
-    def _allocate_tensor_memory(self, value):
-        if not torch.is_tensor(value):
-            return value
-        pin_memory = False if value.device.type == "cpu" else True
-        t = torch.empty_like(value.cpu(), pin_memory=pin_memory)
-        return t
-
     def _create_tensor_meta(self, value):
         """
         Create a tensor meta of a tensor and compute the total
@@ -507,9 +522,10 @@ class AsyncCheckpointEngine(object):
         """
         if not torch.is_tensor(value):
             return value
+        dtype = _convert_torch_dtype_to_numpy(value.dtype)
         meta = TensorMeta(
             shape=tuple(value.shape),
-            dtype=value.numpy().dtype,
+            dtype=dtype,
             element_size=value.element_size(),
             numel=value.numel(),
             offset=self._buffer_size,
@@ -521,12 +537,7 @@ class AsyncCheckpointEngine(object):
         """
         Make the shared memory to store the state dict.
         """
-        self._memory_buffer = traverse_state_dict(
-            state_dict, self._allocate_tensor_memory
-        )
-        meta_dict = traverse_state_dict(
-            self._memory_buffer, self._create_tensor_meta
-        )
+        meta_dict = traverse_state_dict(state_dict, self._create_tensor_meta)
         self._tensor_meta_buffer.update(meta_dict)
         self._shm_tensor_buffer = shared_memory.SharedMemory(
             create=True,
@@ -539,43 +550,35 @@ class AsyncCheckpointEngine(object):
         Copy the state dict from CPU memory buffer into the shared memory.
         """
 
-        def _tarverse_copy(origin_value, target_value, meta):
-            if isinstance(origin_value, Mapping):
-                for k, ov in origin_value.items():
-                    if isinstance(ov, (Mapping, List)):
-                        tv = target_value[k]
+        def _tarverse_copy(value, meta):
+            if isinstance(value, Mapping):
+                for k, v in value.items():
+                    if isinstance(v, (Mapping, List)):
                         m = meta[k]
-                        _tarverse_copy(ov, tv, m)
-                    elif torch.is_tensor(ov):
-                        tv = target_value[k]
-                        tv.copy_(ov)
+                        _tarverse_copy(v, m)
+                    elif torch.is_tensor(v):
                         m = meta[k]
-                        self._write_shared_memory(tv, m)
+                        self._write_shared_memory(v, m)
                     else:
-                        target_value[k] = ov
-            elif isinstance(origin_value, List):
-                for i, ov in enumerate(origin_value):
-                    if isinstance(ov, (Mapping, List)):
-                        tv = target_value[i]
+                        meta[k] = v
+            elif isinstance(value, List):
+                for i, v in enumerate(value):
+                    if isinstance(v, (Mapping, List)):
                         m = meta[i]
-                        _tarverse_copy(ov, tv, m)
-                    elif torch.is_tensor(ov):
-                        tv = target_value[i]
-                        tv.copy_(ov)
+                        _tarverse_copy(v, m)
+                    elif torch.is_tensor(v):
                         m = meta[i]
-                        self._write_shared_memory(tv, m)
+                        self._write_shared_memory(v, m)
                     else:
-                        target_value[i] = ov
+                        meta[i] = v
 
-        _tarverse_copy(
-            state_dict, self._memory_buffer, self._tensor_meta_buffer
-        )
+        _tarverse_copy(state_dict, self._tensor_meta_buffer)
 
     def _write_shared_memory(self, value, meta: TensorMeta):
         """
         Write a CPU tensor into the shared memory.
         """
-        data_array = value.numpy()
+        data_array = value.cpu().numpy()
         write_array = np.ndarray(
             data_array.shape,
             dtype=data_array.dtype,

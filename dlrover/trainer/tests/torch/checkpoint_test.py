@@ -179,6 +179,16 @@ class AsyncCheckpointEngineTest(unittest.TestCase):
         self.assertEqual(meta.shape, (10, 10))
         self.assertEqual(meta.dtype, np.float32)
 
+    def test_convert_torch_dtype_to_numpy(self):
+        np_dtype = checkpoint._convert_torch_dtype_to_numpy(torch.float32)
+        self.assertEqual(np_dtype, np.float32)
+
+        np_dtype = checkpoint._convert_torch_dtype_to_numpy(torch.float)
+        self.assertEqual(np_dtype, np.float32)
+
+        np_dtype = checkpoint._convert_torch_dtype_to_numpy(torch.int32)
+        self.assertEqual(np_dtype, np.int32)
+
     def test_local_save(self):
         model = SimpleNet()
         step = 100

@@ -16,7 +16,7 @@ import subprocess
 import time
 import unittest
 
-from dlrover.python.elastic_agent.master_client import GlobalMasterClient, build_master_client
+from dlrover.python.elastic_agent.master_client import MasterClient, build_master_client
 
 from atorch.common.util_func import find_free_port
 from atorch.data.elastic_dataset import SimpleElasticDataset
@@ -34,7 +34,7 @@ class SimpleElasticDatasetTest(unittest.TestCase):
         self._master_proc = subprocess.Popen(args)
         addr = f"localhost:{port}"
         time.sleep(3)  # Wait the master starts.
-        GlobalMasterClient.MASTER_CLIENT = build_master_client(addr)
+        MasterClient._instance = build_master_client(addr)
         self.dataset = SimpleElasticDataset(
             name="test",
             data_process_fn=data_process,
