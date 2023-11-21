@@ -702,14 +702,30 @@ class AsyncCheckpointEngine(object):
                 a dictionary containing a whole state of the modules in the
                 checkpointing file.
         """
-        if not resume_path:
+        if resume_path:
+            state_dict = torch.load(resume_path)
+        else:
+            state_dict = self._load_from_historic_checkpoint()
+        return state_dict
+
+    def _load_from_historic_checkpoint(self):
+        """Locd checkpoint from the lastest complete checkpoint."""
+        while True:
             latest_ckpt_dir = _get_latest_checkpoint(self.checkpoint_dir)
             if not latest_ckpt_dir:
                 return {}
-            resume_path = os.path.join(latest_ckpt_dir, "checkpoint.pt")
 
-        if not os.path.exists(resume_path):
-            return {}
-        logger.info(f"Load checkpoint from {resume_path}")
-        checkpoint = torch.load(resume_path)
-        return checkpoint
+            resume_path = os.path.join(latest_ckpt_dir, "checkpoint.pt")
+            if not os.path.exists(resume_path):
+                shutil.rmtree(latest_ckpt_dir)
+                continue
+            try:
+                state_dict = torch.load(resume_path)
+                logger.info(f"Load checkpoint from {resume_path}")
+                return state_dict
+            except Exception:
+                logger.warning(
+                    f"Fail to load checkpoint from {resume_path}."
+                    " Roll back to the last checkpoint file."
+                )
+                shutil.rmtree(latest_ckpt_dir)
