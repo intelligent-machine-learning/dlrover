@@ -58,7 +58,7 @@ def _initialize_affine_weight(
     world_size = parallel_group_size(group_name)
     if world_size == 1:
         if master_weight is not None:
-            weight = master_weight
+            weight.data.copy_(master_weight)
         elif init_method is not None:
             init_method(weight)
         if return_master_weight:
