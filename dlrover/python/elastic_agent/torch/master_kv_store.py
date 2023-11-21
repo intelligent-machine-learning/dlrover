@@ -17,7 +17,7 @@ from typing import Dict, Optional
 
 from torch.distributed import Store
 
-from dlrover.python.elastic_agent.master_client import GlobalMasterClient
+from dlrover.python.elastic_agent.master_client import MasterClient
 
 
 class MasterKVStore(Store):
@@ -35,7 +35,7 @@ class MasterKVStore(Store):
     ):
         super().__init__()
 
-        self.client = GlobalMasterClient.MASTER_CLIENT
+        self.client = MasterClient.singleton_instance()
         self.prefix = prefix
 
         if timeout is not None:

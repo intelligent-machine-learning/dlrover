@@ -13,6 +13,7 @@
 
 import json
 import os
+import tempfile
 import unittest
 
 from dlrover.python.common.constants import (
@@ -30,8 +31,10 @@ class RayJobArgsTest(unittest.TestCase):
         path = os.path.dirname(__file__)
         file_path = os.path.join(path, file)
         data = parse_yaml_file(file_path)
-        with open("test.json", "w") as f:
-            json.dump(data, f)
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            path = os.path.join(tmpdirname, "test.json")
+            with open("test.json", "w") as f:
+                json.dump(data, f)
 
         params = RayJobArgs(PlatformType.RAY, "default", "test")
         self.assertEqual(params.job_name, "test")

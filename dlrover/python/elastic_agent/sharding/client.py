@@ -20,7 +20,7 @@ from multiprocessing import SimpleQueue
 from dlrover.proto import elastic_training_pb2
 from dlrover.python.common import grpc
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.elastic_agent.master_client import GlobalMasterClient
+from dlrover.python.elastic_agent.master_client import MasterClient
 from dlrover.python.elastic_agent.monitor.training import (
     TFTrainingProcessReporter,
 )
@@ -71,7 +71,7 @@ class ShardingClient(object):
         num_minibatches_per_shard=_DEFAULT_MINI_BATCH_NUM_PER_SHARD,
         storage_type="",
     ):
-        self._mc = GlobalMasterClient.MASTER_CLIENT
+        self._mc = MasterClient.singleton_instance()
         self._batch_size = batch_size
         self._num_epochs = num_epochs
         self._dataset_size = dataset_size

@@ -153,7 +153,7 @@ class RendezvousManager(metaclass=ABCMeta):
 
     def join_rendezvous(
         self,
-        rank_id,
+        node_rank,
         local_world_size,
     ):
         """The node joins the current rond rendezvous.
@@ -165,9 +165,9 @@ class RendezvousManager(metaclass=ABCMeta):
             int: the number of rendezvous round.
         """
         with self._lock:
-            if rank_id in self._waiting_nodes:
+            if node_rank in self._waiting_nodes:
                 return self._rdzv_round
-            self._waiting_nodes[rank_id] = local_world_size
+            self._waiting_nodes[node_rank] = local_world_size
             self._rdzv_nodes = {}
             self._lastcall_time = time.time()
         return self._rdzv_round
@@ -190,17 +190,17 @@ class RendezvousManager(metaclass=ABCMeta):
     def _has_node_restart(self):
         """The node will restart training processes if it
         re-joins the rendezvous."""
-        for rank_id in self._waiting_nodes.keys():
-            if rank_id in self._latest_rdzv_nodes:
+        for node_rank in self._waiting_nodes.keys():
+            if node_rank in self._latest_rdzv_nodes:
                 return True
         return False
 
     @abstractmethod
-    def get_comm_world(self, rank_id):
+    def get_comm_world(self, node_rank):
         """Get communication world of all alive nodes.
 
         Args:
-            rank_id: the id of node.
+            node_rank: the id of node.
 
         Returns:
             rdzv_round: the round index.
@@ -238,7 +238,7 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
         super().__init__()
         self._name = RendezvousName.ELASTIC_TRAINING
 
-    def get_comm_world(self, rank_id):
+    def get_comm_world(self, node_rank):
         """Return the communication world if a round rendezvous is completed.
         The rendezvous is completed if one of the following conditions
         is satisfied:
@@ -289,7 +289,7 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         self._fault_nodes = set()
         self._straggler_nodes = set()
 
-    def get_comm_world(self, rank_id):
+    def get_comm_world(self, node_rank):
         """Return the communication world if a round rendezvous is completed.
         The rendezvous is completed if one of the following conditions.
         """
@@ -307,7 +307,7 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                     self._reported_nodes = set()
                     self._rdzv_round += 1
             for i, group in enumerate(self._node_groups):
-                if rank_id in group:
+                if node_rank in group:
                     return self._rdzv_round, i, group
             return self._rdzv_round, 0, self._rdzv_nodes
 
@@ -398,12 +398,13 @@ class NetworkCheckRendezvousManager(RendezvousManager):
 
     def join_rendezvous(
         self,
-        rank_id,
+        node_rank,
         local_world_size,
     ):
         """The node joins the current rond rendezvous.
         Args:
-            rank_id: the node ID which is unique in an ElasticJob of DLrover.
+            node_rank: the node rank which is unique in an
+                ElasticJob of DLrover.
             local_world_size: the local world size of a node.
 
         Returns:
@@ -412,7 +413,7 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         self._node_groups.clear()
         self._fault_nodes.clear()
         self._straggler_nodes.clear()
-        return super().join_rendezvous(rank_id, local_world_size)
+        return super().join_rendezvous(node_rank, local_world_size)
 
     def check_fault_node(self):
         """Check whether the job has fault nodes. Each task contains 2 rounds

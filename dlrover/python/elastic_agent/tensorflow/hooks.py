@@ -20,7 +20,7 @@ from tensorflow.python.training.session_run_hook import (
 
 from dlrover.python.common.grpc import ModelInfo, OpStats, TensorStats
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.elastic_agent.master_client import GlobalMasterClient
+from dlrover.python.elastic_agent.master_client import MasterClient
 from dlrover.python.elastic_agent.monitor.training import (
     TFTrainingProcessReporter,
     is_tf_chief,
@@ -69,7 +69,7 @@ class ReportModelInfoHook(SessionRunHook):
         self._global_step = 0
         self._op_stats = None
         self._tensor_stats = None
-        self._master_client = GlobalMasterClient.MASTER_CLIENT
+        self._master_client = MasterClient.singleton_instance()
         super(ReportModelInfoHook, self).__init__()
 
     def begin(self):

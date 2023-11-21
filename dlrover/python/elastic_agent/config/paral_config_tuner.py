@@ -24,7 +24,7 @@ from dlrover.python.common.grpc import (
 )
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import singleton
-from dlrover.python.elastic_agent.master_client import GlobalMasterClient
+from dlrover.python.elastic_agent.master_client import MasterClient
 
 
 @singleton
@@ -33,7 +33,7 @@ class ParalConfigTuner(object):
         """
         Parallelism config tuner for updating parallelism config file.
         """
-        self._master_client = GlobalMasterClient.MASTER_CLIENT
+        self._master_client = MasterClient.singleton_instance()
         self.config_dir = os.path.dirname(
             os.environ[ConfigPath.ENV_PARAL_CONFIG]
         )

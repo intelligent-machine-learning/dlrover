@@ -16,9 +16,10 @@ import os
 import threading
 import time
 
+from dlrover.python.common import env_utils
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import singleton
-from dlrover.python.elastic_agent.master_client import GlobalMasterClient
+from dlrover.python.elastic_agent.master_client import MasterClient
 from dlrover.python.elastic_agent.monitor.resource import ResourceMonitor
 
 
@@ -43,7 +44,7 @@ class TFTrainingProcessReporter(object):
         self._start_time = 0
         self.called_in_tf_hook = False
         self._is_tf_chief = is_tf_chief()
-        self._master_client = GlobalMasterClient.MASTER_CLIENT
+        self._master_client = MasterClient.singleton_instance()
 
     def set_start_time(self):
         if self._start_time == 0:
@@ -80,8 +81,8 @@ class TorchTrainingMonitor(object):
         self._resource_monitor = ResourceMonitor()
         self._last_timestamp = 0
         self._start_time = 0
-        self._group_rank = int(os.getenv("WORKER_RANK", "0"))
-        self._master_client = GlobalMasterClient.MASTER_CLIENT
+        self._master_client = MasterClient.singleton_instance()
+        self._group_rank = env_utils.get_node_rank()
         if os.path.exists(metrics_path):
             os.remove(metrics_path)
         self._metrics_path = metrics_path

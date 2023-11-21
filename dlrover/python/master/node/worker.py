@@ -151,7 +151,7 @@ class WorkerManager(TrainingNodeManager):
         plan = ScalePlan()
         for _ in range(up_num):
             worker_id = next(self._node_id_iter)
-            task_id = next(self._rank_id_iter)
+            task_id = next(self._node_rank_iter)
             worker_resource = self._job_resource.get_node_group_resource(
                 NodeType.WORKER
             ).node_resource

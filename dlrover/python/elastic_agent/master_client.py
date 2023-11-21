@@ -12,13 +12,13 @@
 # limitations under the License.
 
 import os
-import random
 import socket
+import threading
 import time
 from contextlib import closing
 
 from dlrover.proto import elastic_training_pb2, elastic_training_pb2_grpc
-from dlrover.python.common import grpc
+from dlrover.python.common import env_utils, grpc
 from dlrover.python.common.constants import NetworkFailureReason, NodeEnv
 from dlrover.python.common.log import default_logger as logger
 
@@ -59,6 +59,9 @@ class MasterClient(object):
         mc.get_task(...)
     """
 
+    _instance_lock = threading.Lock()
+    _instance = None
+
     def __init__(self, master_addr, node_id, node_type):
         """Initialize a master client.
         Args:
@@ -80,10 +83,12 @@ class MasterClient(object):
         self._host_name = os.getenv("POD_NAME", "")
 
     def __del__(self):
-        self._channel.close()
+        if self._channel:
+            self._channel.close()
 
     def close_channel(self):
-        self._channel.close()
+        if self._channel:
+            self._channel.close()
 
     def open_channel(self):
         self._channel = grpc.build_channel(self._master_addr)
@@ -300,17 +305,17 @@ class MasterClient(object):
             logger.warning("Fail to query the number of waiting nodes.")
             return 0
 
-    def join_rendezvous(self, rank_id, local_world_size, rdzv_name=""):
+    def join_rendezvous(self, node_rank, local_world_size, rdzv_name=""):
         request = grpc.JoinRendezvousRequest(
-            node_id=rank_id,
+            node_id=node_rank,
             local_world_size=local_world_size,
             rdzv_name=rdzv_name,
         )
         result: grpc.RendezvousState = self._get(request)
         return result.round
 
-    def get_comm_world(self, rdzv_name, rank_id):
-        request = grpc.CommWorldRequest(node_id=rank_id, rdzv_name=rdzv_name)
+    def get_comm_world(self, rdzv_name, node_rank):
+        request = grpc.CommWorldRequest(node_id=node_rank, rdzv_name=rdzv_name)
         result: grpc.RendezvousState = self._get(request)
         return result.round, result.group, result.world
 
@@ -354,9 +359,9 @@ class MasterClient(object):
         response = self._report(message)
         return response.success
 
-    def report_network_status(self, rank_id, status, elasped_time):
+    def report_network_status(self, node_rank, status, elasped_time):
         message = grpc.NetworkStatus(
-            rank=rank_id, status=status, elasped_time=elasped_time
+            rank=node_rank, status=status, elasped_time=elasped_time
         )
         self._report(message)
 
@@ -372,71 +377,28 @@ class MasterClient(object):
         result = self._get(request)
         return result
 
-
-class LocalDataset(object):
-    def __init__(
-        self,
-        batch_size,
-        num_epochs,
-        dataset_size,
-        shuffle,
-        num_minibatches_per_shard,
-        task_type=elastic_training_pb2.NONE,
-    ):
-        self._batch_size = batch_size
-        self._num_epochs = num_epochs
-        self._dataset_size = dataset_size
-        self._shuffle = shuffle
-        self._records_per_shard = batch_size * num_minibatches_per_shard
-        self._todo = []
-        self._epoch = 0
-        self._task_type = task_type
-
-    def create_tasks(self):
-        start = 0
-        if self._records_per_shard <= 0:
-            raise ValueError(
-                "records_per_shard {} can not be less than 1".format(
-                    self._records_per_shard
-                )
-            )
-        while start < self._dataset_size:
-            end = min(start + self._records_per_shard, self._dataset_size)
-            self._todo.append((start, end))
-            start = end
-        if self._shuffle:
-            random.shuffle(self._todo)
-
-    def get_task(self, task_type=None):
-        start = -1
-        end = -1
-        if not self._todo and self._epoch < self._num_epochs:
-            self.create_tasks()
-            self._epoch += 1
-        if self._todo:
-            start, end = self._todo.pop(0)
-        return start, end
-
-    def get_current_epoch(self):
-        return self._epoch
-
-    def reset(self):
-        self._epoch = 0
-        self._todo = []
+    @classmethod
+    def singleton_instance(cls, *args, **kwargs):
+        if not MasterClient._instance:
+            with MasterClient._instance_lock:
+                if not MasterClient._instance:
+                    MasterClient._instance = build_master_client(
+                        *args, **kwargs
+                    )
+        return MasterClient._instance
 
 
 def build_master_client(master_addr=None):
     if master_addr is None:
         master_addr = os.getenv(NodeEnv.DLROVER_MASTER_ADDR, "")
-    worker_id = int(os.getenv(NodeEnv.WORKER_ID, 0))
-    worker_type = os.getenv(NodeEnv.WORKER_TYPE, "worker")
+    node_id = env_utils.get_node_id()
+    node_type = env_utils.get_node_type()
 
     master_client = None
     logger.info(f"Build master client with addr {master_addr}.")
     if master_addr:
-        master_client = MasterClient(master_addr, worker_id, worker_type)
+        try:
+            master_client = MasterClient(master_addr, node_id, node_type)
+        except Exception:
+            logger.info("The master is not available now.")
     return master_client
-
-
-class GlobalMasterClient(object):
-    MASTER_CLIENT = build_master_client()
