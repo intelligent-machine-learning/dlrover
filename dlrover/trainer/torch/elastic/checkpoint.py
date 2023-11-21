@@ -431,6 +431,16 @@ class AsyncCheckpointEngine(object):
         save_storage_interval: int, the interval of iteration steps to save
             the model and optimizer states from CPU memory to the storage.
         max_to_keep: int, the number of checkpoint files to keep.
+
+    Examples::
+        >>> engine = AsyncCheckpointEngine(
+        >>>     checkpoint_dir="/tmp/checkpoint/"
+        >>>     save_storage_interval=5,
+        >>>     max_to_keep=1,
+        >>> )
+        >>> state_dict = model.state_dict()
+        >>> engine.save(step=100, state_dict=state_dict)
+        >>> sate_dict = engine.load()
     """
 
     def __init__(
