@@ -306,16 +306,19 @@ Three implementations are provided.
 
 Use PyTorch-native FSDP implementation for level 3 of ZeRO, which shards model parameters, gradients and optimizer states.
 Configuration support all [FSDP arguments](https://pytorch.org/docs/stable/fsdp.html#torch.distributed.fsdp.FullyShardedDataParallel) plus some ATorch-defined arguments for easy usage.
-ATorchpdefined arguments:
+ATorch-defined arguments:
 
 - atorch_wrap_cls: tuple of submodule names or submodule type for fsdp to wrap.
 - atorch_size_based_min_num_params： wrap submoudule based on parameter size. Should not used with atorch_wrap_cls.
 - atorch_ignored_cls: tuple of submodule names or submodule type for fsdp to ignore (not sharded).
+- fsdp_wrap_params_outmost: if True, wrap trainable parameters together in an outmost fsdp wrap. You may get better performance for finetuning with a small percentage of trainable parameters, such as LORA.
 
-Recommended configurations 
+Recommended configurations
 ```
 config = {"forward_prefetch": True, "limit_all_gathers": True, "sync_module_states": True, atorch_wrap_cls=tuple_of_main_submodules}
 ```
+
+Add <code>{"use_orig_params": True}</code> if multiple parameter groups with different hyperparamters are used in optimizer.  Try add <code>{"fsdp_wrap_params_outmost": True}</code> for LORA finetuning to see if any performance improvement.
 
 ### tensor_parallel
 
