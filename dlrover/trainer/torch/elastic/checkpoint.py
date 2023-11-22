@@ -515,10 +515,10 @@ class AsyncCheckpointEngine(object):
 
     def close(self):
         self._manager.shutdown()
-        if self._persist_proc.is_alive():
-            self._persist_proc.kill()
         if self._shm_tensor_buffer:
             self._shm_tensor_buffer.close()
+        if self._persist_proc.is_alive():
+            self._persist_proc.kill()
 
     def _check_arguments(self):
         if self.max_to_keep == 0:
