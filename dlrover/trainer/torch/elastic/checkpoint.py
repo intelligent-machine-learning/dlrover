@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import ctypes
 import multiprocessing
 import os
 import random
@@ -178,6 +179,7 @@ class CheckpointManger(metaclass=ABCMeta):
         >>>    save_storage_interval=5,
         >>> )
         >>> ckpt_manager.save(0, 10)
+        >>> ckpt_manager.wait_saving_latest_ckpt()
         >>> ckpt_manger.load()
     """
 
@@ -230,6 +232,12 @@ class CheckpointManger(metaclass=ABCMeta):
             checkpoint from the file with the maximum step.
         """
         pass
+
+    def wait_saving_latest_ckpt(self):
+        """
+        Wait until the saving process finishes saving the latest checkpoint.
+        """
+        self._save_engine.wait()
 
     @classmethod
     def init_checkpoint_manager(
@@ -463,6 +471,7 @@ class AsyncCheckpointEngine(object):
         >>> )
         >>> state_dict = model.state_dict()
         >>> engine.save(step=100, state_dict=state_dict)
+        >>> engine.wait()
         >>> sate_dict = engine.load()
     """
 
@@ -480,7 +489,9 @@ class AsyncCheckpointEngine(object):
         self._shm_tensor_buffer = None
         self._shm_buffer_lock = multiprocessing.Lock()
         self._buffer_size = 0
-        self._checkpoint_step_queue = multiprocessing.Queue(maxsize=1)
+        self._latest_step = 0
+        self._latest_finish_step = multiprocessing.Value(ctypes.c_int, 0)
+        self._to_save_step_queue = multiprocessing.Queue(maxsize=1)
         if dist.is_initialized():
             self._rank = dist.get_rank()
             self._saver_group = dist.new_group(
@@ -598,7 +609,7 @@ class AsyncCheckpointEngine(object):
         logger.info("Start the process to persist the state dict.")
         shm_tensor_buffer = None
         while True:
-            step = self._checkpoint_step_queue.get()
+            step = self._to_save_step_queue.get()
             if not shm_tensor_buffer:
                 shm_tensor_buffer = shared_memory.SharedMemory(
                     name=self._shm_name,
@@ -613,6 +624,7 @@ class AsyncCheckpointEngine(object):
                 )
                 state_dict = self._read_state_dict_from_buf(shm_tensor_buffer)
                 self._persist_to_storage(state_dict, checkpoint_dir)
+                self._latest_finish_step.value = step
 
     def _read_state_dict_from_buf(self, shm_tensor_buffer):
         meta_dict = {}
@@ -674,7 +686,8 @@ class AsyncCheckpointEngine(object):
             return
         self._copy_state_dict_to_shm(state_dict)
         if step % self.save_storage_interval == 0:
-            self._checkpoint_step_queue.put(step)
+            self._to_save_step_queue.put(step)
+            self._latest_step = step
         if acquired:
             self._shm_buffer_lock.release()
 
@@ -732,3 +745,12 @@ class AsyncCheckpointEngine(object):
                     " Roll back to the last checkpoint file."
                 )
                 shutil.rmtree(latest_ckpt_dir)
+
+    def wait(self):
+        """
+        Wait until the saving process finishes saving the latest checkpoint.
+        """
+        while self._latest_step > 0:
+            if self._latest_finish_step.value == self._latest_step:
+                break
+            time.sleep(0.1)

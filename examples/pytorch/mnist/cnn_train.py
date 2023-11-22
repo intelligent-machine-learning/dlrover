@@ -185,6 +185,7 @@ def train(args):
         )
         log_rank0("Test model after epoch {}".format(epoch))
         test(model, device, test_loader)
+    ckpt_manager.wait_saving_latest_ckpt()
     if args.save_model:
         rank = int(os.environ.get("RANK", "0"))
         save_model(model, args.num_epochs, rank, args.use_fsdp)
