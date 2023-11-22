@@ -53,6 +53,8 @@ class TaskManager(object):
         self._worker_start_task_time: Dict[int, float] = {}
         self._task_timeout_callbacks: List[Callable] = []
         self._speed_monitor = speed_monitor
+        self._paral_eval_count = 0
+        self._paral_eval_started = False
 
     def new_dataset(
         self,
@@ -106,9 +108,13 @@ class TaskManager(object):
                     )
                     self._speed_monitor.reset_running_speed_monitor()
                     self._speed_monitor.set_worker_start_eval_time(node_id)
+                    if not self._paral_eval_started:
+                        self._paral_eval_count += 1
+                        self._paral_eval_started = True
                 if task.task_type == elastic_training_pb2.TRAINING:
                     self._speed_monitor.add_running_worker(node_type, node_id)
                     self._speed_monitor.update_worker_eval_time(node_id)
+                    self._paral_eval_started = False
                 self._worker_start_task_time[node_id] = time.time()
                 return task
             else:
@@ -283,3 +289,6 @@ class TaskManager(object):
             if dataset.get_completed_step() > 0:
                 return True
         return False
+
+    def get_paral_eval_count(self):
+        return self._paral_eval_count
