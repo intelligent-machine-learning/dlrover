@@ -366,12 +366,20 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
         if group_rank == 0:
             spec.master_port = self._get_free_port()
-            self._set_master_addr_port(
-                store,
-                spec.master_addr,
-                spec.master_port,
-                spec.local_addr,
-            )
+            if hasattr(spec, "local_addr"):
+                self._set_master_addr_port(
+                    store,
+                    spec.master_addr,
+                    spec.master_port,
+                    spec.local_addr,
+                )
+            else:
+                # Compatible with torch 1.x
+                self._set_master_addr_port(
+                    store,
+                    spec.master_addr,
+                    spec.master_port,
+                )
 
         master_addr, master_port = self._get_master_addr_port(store)
 
@@ -630,7 +638,6 @@ def launch_agent(
         run_id=config.run_id,
         min_nodes=config.min_nodes,
         max_nodes=config.max_nodes,
-        local_addr=config.local_addr,
         **config.rdzv_configs,
     )
     master_addr = _get_local_ip()
@@ -651,7 +658,6 @@ def launch_agent(
         redirects=config.redirects,
         tee=config.tee,
         master_addr=master_addr,
-        local_addr=config.local_addr,
     )
 
     agent = ElasticTrainingAgent(
@@ -879,7 +885,6 @@ def network_check(
         run_id=config.run_id,
         min_nodes=config.min_nodes,
         max_nodes=config.max_nodes,
-        local_addr=config.local_addr,
         **config.rdzv_configs,
     )
 
