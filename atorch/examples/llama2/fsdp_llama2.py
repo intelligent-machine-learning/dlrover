@@ -188,6 +188,7 @@ def main():
                 "limit_all_gathers": True,
                 "use_orig_params": True,
                 "forward_prefetch": True,
+                "wrap_trainable_outmost": args.peft_type is not None,
             },
         ),
     ]
@@ -232,6 +233,7 @@ def main():
         llama_config.intermediate_size,
         llama_config.num_hidden_layers,
         use_gradient_checkpointing=args.gradient_checkpointing,
+        use_lora=args.peft_type is not None,
     )
 
     # train
