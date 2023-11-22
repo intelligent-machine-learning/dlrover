@@ -103,13 +103,12 @@ class LocalCheckpointManagerTest(unittest.TestCase):
                 max_to_keep=2,
             )
             ckpt_manager.save(epoch=0, step=10)
-            time.sleep(0.5)
+            ckpt_manager.wait_saving_latest_ckpt()
             ckpt_manager.save(epoch=0, step=20)
-            time.sleep(0.5)
+            ckpt_manager.wait_saving_latest_ckpt()
             ckpt_manager.save(epoch=0, step=30)
-            time.sleep(0.5)
+            ckpt_manager.wait_saving_latest_ckpt()
             ckpt_dirs = os.listdir(tmpdirname)
-            print(ckpt_dirs)
             self.assertEqual(len(ckpt_dirs), 2)
 
             ckpt_dir = _get_latest_checkpoint(tmpdirname)
@@ -137,11 +136,11 @@ class DDPCheckpointManagerTest(unittest.TestCase):
                 max_to_keep=2,
             )
             ckpt_manager.save(epoch=0, step=10)
-            time.sleep(0.2)  # Wait the sub-process to persist
+            ckpt_manager.wait_saving_latest_ckpt()
             ckpt_manager.save(epoch=0, step=20)
-            time.sleep(0.2)
+            ckpt_manager.wait_saving_latest_ckpt()
             ckpt_manager.save(epoch=0, step=30)
-            time.sleep(0.2)
+            ckpt_manager.wait_saving_latest_ckpt()
             ckpt_dirs = os.listdir(tmpdirname)
             self.assertEqual(len(ckpt_dirs), 2)
 
@@ -217,7 +216,7 @@ class AsyncCheckpointEngineTest(unittest.TestCase):
             for key, value in state_dict["model"].items():
                 buffer_value = restore_state_dict["model"][key]
                 self.assertTrue(torch.equal(value, buffer_value))
-            self.assertTrue(engine._checkpoint_step_queue.empty())
+            self.assertTrue(engine._to_save_step_queue.empty())
             ckpt_dir = _get_latest_checkpoint(tmpdirname)
             expected_dir = os.path.join(tmpdirname, "checkpoint-100")
             self.assertEqual(ckpt_dir, expected_dir)
