@@ -20,6 +20,9 @@ from datetime import timedelta
 import torch
 import torch.distributed as dist
 
+import torch_npu
+from torch_npu.contrib import transfer_to_npu
+
 from dlrover.python.common.constants import ConfigPath
 from dlrover.python.common.log import default_logger as logger
 
@@ -27,10 +30,10 @@ FAULT_CHECK_TASK = "fault-check"
 STRAGGLER_CHECK_TASK = "straggler-check"
 
 
-def bm_all_gather(shape, use_cuda):
+def bm_all_gather(shape, use_gpu):
     world_size = dist.get_world_size()
     local_rank = int(os.environ["LOCAL_RANK"])
-    device = torch.device(f"cuda:{local_rank}" if use_cuda else "cpu")
+    device = torch.device(f"cuda:{local_rank}" if use_gpu else "cpu")
     data = torch.randn(shape, dtype=torch.float32).to(device)
     tensor_list = [
         torch.zeros_like(data).to(device) for _ in range(world_size)
@@ -65,22 +68,28 @@ def write_time_to_file(time, local_rank):
         f.write(json.dumps(data))
 
 
-def main(task):
+def main(task, npu):
     use_cuda = torch.cuda.is_available()
     start_init = time.time()
-    if use_cuda:
+
+    use_gpu = True
+    if npu:
+        dist.init_process_group("hccl", timeout=timedelta(seconds=180))
+    elif use_cuda:
         dist.init_process_group("nccl", timeout=timedelta(seconds=180))
     else:
         dist.init_process_group("gloo", timeout=timedelta(seconds=180))
+        use_gpu = False
+
     init_time = round(time.time() - start_init, 3)
     task_time = 0
     if task == FAULT_CHECK_TASK:
         shape = 1 << 20
-        task_time = bm_all_gather(shape, use_cuda)
+        task_time = bm_all_gather(shape, use_gpu)
     elif task == STRAGGLER_CHECK_TASK:
-        task_time = matmul(use_cuda)
+        task_time = matmul(use_gpu)
         shape = 1 << 24
-        task_time += bm_all_gather(shape, use_cuda)
+        task_time += bm_all_gather(shape, use_gpu)
     local_rank = int(os.environ["LOCAL_RANK"])
     elapsed_time = round(init_time + task_time, 3)
     write_time_to_file(elapsed_time, local_rank)
@@ -102,11 +111,16 @@ def arg_parser():
         choices=[FAULT_CHECK_TASK, STRAGGLER_CHECK_TASK],
         required=False,
     )
+    parser.add_argument(
+        "--nup",
+        action="store_true",
+        required=False,
+    )
     return parser
 
 
 if __name__ == "__main__":
     parser = arg_parser()
     args = parser.parse_args()
-    main(args.task)
+    main(args.task, args.nup)
     logger.info("Finish testing machine.")
