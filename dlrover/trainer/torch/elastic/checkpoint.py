@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import ctypes
 import multiprocessing
 import os
 import random
@@ -76,7 +77,10 @@ def _get_latest_checkpoint(checkpoint_dir):
             continue
         step = int(fn.split("-")[-1])
         max_step = step if step > max_step else max_step
-    path = os.path.join(checkpoint_dir, f"{CKPT_DIR_PREFIX}{max_step}")
+    if max_step > 0:
+        path = os.path.join(checkpoint_dir, f"{CKPT_DIR_PREFIX}{max_step}")
+    else:
+        path = ""
     return path
 
 
@@ -101,6 +105,26 @@ def _keep_topk_checkpoint(checkpoint_dir, max_to_keep):
     for step in remove_steps:
         dir_name = os.path.join(checkpoint_dir, f"{CKPT_DIR_PREFIX}{step}")
         shutil.rmtree(dir_name)
+
+
+def _convert_torch_dtype_to_numpy(torch_dtype):
+    dtype_map = {
+        torch.float32: np.float32,
+        torch.float: np.float32,
+        torch.float64: np.float64,
+        torch.double: np.double,
+        torch.float16: np.float16,
+        torch.half: np.half,
+        torch.uint8: np.uint8,
+        torch.int8: np.int8,
+        torch.int16: np.int16,
+        torch.short: np.short,
+        torch.int32: np.int32,
+        torch.int: np.int32,
+        torch.long: np.int64,
+        torch.bool: np.dtype("bool"),
+    }
+    return dtype_map[torch_dtype]
 
 
 def traverse_state_dict(value: object, visitor: Callable[[object], None]):
@@ -155,6 +179,7 @@ class CheckpointManger(metaclass=ABCMeta):
         >>>    save_storage_interval=5,
         >>> )
         >>> ckpt_manager.save(0, 10)
+        >>> ckpt_manager.wait_saving_latest_ckpt()
         >>> ckpt_manger.load()
     """
 
@@ -207,6 +232,12 @@ class CheckpointManger(metaclass=ABCMeta):
             checkpoint from the file with the maximum step.
         """
         pass
+
+    def wait_saving_latest_ckpt(self):
+        """
+        Wait until the saving process finishes saving the latest checkpoint.
+        """
+        self._save_engine.wait()
 
     @classmethod
     def init_checkpoint_manager(
@@ -440,6 +471,7 @@ class AsyncCheckpointEngine(object):
         >>> )
         >>> state_dict = model.state_dict()
         >>> engine.save(step=100, state_dict=state_dict)
+        >>> engine.wait()
         >>> sate_dict = engine.load()
     """
 
@@ -454,11 +486,12 @@ class AsyncCheckpointEngine(object):
         self.save_storage_interval = save_storage_interval
         self._manager = multiprocessing.Manager()
         self._tensor_meta_buffer = self._manager.dict()
-        self._memory_buffer = None
         self._shm_tensor_buffer = None
         self._shm_buffer_lock = multiprocessing.Lock()
         self._buffer_size = 0
-        self._checkpoint_step_queue = multiprocessing.Queue(maxsize=1)
+        self._latest_step = 0
+        self._latest_finish_step = multiprocessing.Value(ctypes.c_int, 0)
+        self._to_save_step_queue = multiprocessing.Queue(maxsize=1)
         if dist.is_initialized():
             self._rank = dist.get_rank()
             self._saver_group = dist.new_group(
@@ -482,23 +515,16 @@ class AsyncCheckpointEngine(object):
 
     def close(self):
         self._manager.shutdown()
-        if self._persist_proc.is_alive():
-            self._persist_proc.kill()
         if self._shm_tensor_buffer:
             self._shm_tensor_buffer.close()
+        if self._persist_proc.is_alive():
+            self._persist_proc.kill()
 
     def _check_arguments(self):
         if self.max_to_keep == 0:
             raise ValueError("max_to_keep cannot be 0.")
         if self.save_storage_interval == 0:
             raise ValueError("save_storage_interval cannot be 0.")
-
-    def _allocate_tensor_memory(self, value):
-        if not torch.is_tensor(value):
-            return value
-        pin_memory = False if value.device.type == "cpu" else True
-        t = torch.empty_like(value.cpu(), pin_memory=pin_memory)
-        return t
 
     def _create_tensor_meta(self, value):
         """
@@ -507,9 +533,10 @@ class AsyncCheckpointEngine(object):
         """
         if not torch.is_tensor(value):
             return value
+        dtype = _convert_torch_dtype_to_numpy(value.dtype)
         meta = TensorMeta(
             shape=tuple(value.shape),
-            dtype=value.numpy().dtype,
+            dtype=dtype,
             element_size=value.element_size(),
             numel=value.numel(),
             offset=self._buffer_size,
@@ -521,12 +548,7 @@ class AsyncCheckpointEngine(object):
         """
         Make the shared memory to store the state dict.
         """
-        self._memory_buffer = traverse_state_dict(
-            state_dict, self._allocate_tensor_memory
-        )
-        meta_dict = traverse_state_dict(
-            self._memory_buffer, self._create_tensor_meta
-        )
+        meta_dict = traverse_state_dict(state_dict, self._create_tensor_meta)
         self._tensor_meta_buffer.update(meta_dict)
         self._shm_tensor_buffer = shared_memory.SharedMemory(
             create=True,
@@ -539,43 +561,35 @@ class AsyncCheckpointEngine(object):
         Copy the state dict from CPU memory buffer into the shared memory.
         """
 
-        def _tarverse_copy(origin_value, target_value, meta):
-            if isinstance(origin_value, Mapping):
-                for k, ov in origin_value.items():
-                    if isinstance(ov, (Mapping, List)):
-                        tv = target_value[k]
+        def _tarverse_copy(value, meta):
+            if isinstance(value, Mapping):
+                for k, v in value.items():
+                    if isinstance(v, (Mapping, List)):
                         m = meta[k]
-                        _tarverse_copy(ov, tv, m)
-                    elif torch.is_tensor(ov):
-                        tv = target_value[k]
-                        tv.copy_(ov)
+                        _tarverse_copy(v, m)
+                    elif torch.is_tensor(v):
                         m = meta[k]
-                        self._write_shared_memory(tv, m)
+                        self._write_shared_memory(v, m)
                     else:
-                        target_value[k] = ov
-            elif isinstance(origin_value, List):
-                for i, ov in enumerate(origin_value):
-                    if isinstance(ov, (Mapping, List)):
-                        tv = target_value[i]
+                        meta[k] = v
+            elif isinstance(value, List):
+                for i, v in enumerate(value):
+                    if isinstance(v, (Mapping, List)):
                         m = meta[i]
-                        _tarverse_copy(ov, tv, m)
-                    elif torch.is_tensor(ov):
-                        tv = target_value[i]
-                        tv.copy_(ov)
+                        _tarverse_copy(v, m)
+                    elif torch.is_tensor(v):
                         m = meta[i]
-                        self._write_shared_memory(tv, m)
+                        self._write_shared_memory(v, m)
                     else:
-                        target_value[i] = ov
+                        meta[i] = v
 
-        _tarverse_copy(
-            state_dict, self._memory_buffer, self._tensor_meta_buffer
-        )
+        _tarverse_copy(state_dict, self._tensor_meta_buffer)
 
     def _write_shared_memory(self, value, meta: TensorMeta):
         """
         Write a CPU tensor into the shared memory.
         """
-        data_array = value.numpy()
+        data_array = value.cpu().numpy()
         write_array = np.ndarray(
             data_array.shape,
             dtype=data_array.dtype,
@@ -595,7 +609,7 @@ class AsyncCheckpointEngine(object):
         logger.info("Start the process to persist the state dict.")
         shm_tensor_buffer = None
         while True:
-            step = self._checkpoint_step_queue.get()
+            step = self._to_save_step_queue.get()
             if not shm_tensor_buffer:
                 shm_tensor_buffer = shared_memory.SharedMemory(
                     name=self._shm_name,
@@ -610,6 +624,7 @@ class AsyncCheckpointEngine(object):
                 )
                 state_dict = self._read_state_dict_from_buf(shm_tensor_buffer)
                 self._persist_to_storage(state_dict, checkpoint_dir)
+                self._latest_finish_step.value = step
 
     def _read_state_dict_from_buf(self, shm_tensor_buffer):
         meta_dict = {}
@@ -671,7 +686,8 @@ class AsyncCheckpointEngine(object):
             return
         self._copy_state_dict_to_shm(state_dict)
         if step % self.save_storage_interval == 0:
-            self._checkpoint_step_queue.put(step)
+            self._to_save_step_queue.put(step)
+            self._latest_step = step
         if acquired:
             self._shm_buffer_lock.release()
 
@@ -729,3 +745,12 @@ class AsyncCheckpointEngine(object):
                     " Roll back to the last checkpoint file."
                 )
                 shutil.rmtree(latest_ckpt_dir)
+
+    def wait(self):
+        """
+        Wait until the saving process finishes saving the latest checkpoint.
+        """
+        while self._latest_step > 0:
+            if self._latest_finish_step.value == self._latest_step:
+                break
+            time.sleep(0.1)
