@@ -183,6 +183,7 @@ def create_pod(labels):
         metadata=client.V1ObjectMeta(
             name="test-worker-0",
             labels=labels,
+            annotations={},
         ),
         status=status,
     )

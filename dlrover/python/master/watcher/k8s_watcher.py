@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 from typing import List
 
 from kubernetes import watch
@@ -99,6 +100,9 @@ def _convert_pod_event_to_node_event(event):
     host_name = evt_obj.spec.node_name
     host_ip = evt_obj.status.host_ip
 
+    restart = _verify_restarting_training(evt_obj)
+    logger.info(f"{evt_obj.metadata.name} resets hardware {restart}")
+
     resource = _parse_container_resource(evt_obj.spec.containers[0])
     status = evt_obj.status.phase
     if evt_obj.metadata.deletion_timestamp:
@@ -114,6 +118,7 @@ def _convert_pod_event_to_node_event(event):
         config_resource=resource,
         host_name=host_name,
         host_ip=host_ip,
+        restart_training=restart,
     )
     node.create_time = evt_obj.metadata.creation_timestamp
     node.set_exit_reason(_get_pod_exit_reason(evt_obj))
@@ -125,6 +130,21 @@ def _parse_container_resource(container):
     cpu = convert_cpu_to_decimal(container.resources.requests["cpu"])
     memory = convert_memory_to_mb(container.resources.requests["memory"])
     return NodeResource(cpu, memory)
+
+
+def _verify_restarting_training(pod):
+    if not pod.metadata.annotations:
+        return False
+    action_str = pod.metadata.annotations.get(
+        "pod.sigma.ali/scheduled-action", ""
+    )
+    if not action_str:
+        return False
+    action_config = json.loads(action_str)
+    action = action_config.get("scheduledAction", "")
+    if action == "RestartTrain_Observe":
+        return True
+    return False
 
 
 class PodWatcher(NodeWatcher):
@@ -178,6 +198,7 @@ class PodWatcher(NodeWatcher):
             resource = _parse_container_resource(pod.spec.containers[0])
             status = pod.status.phase
             start_time = _get_start_timestamp(pod.status)
+            restart_training = _verify_restarting_training(pod)
             node = Node(
                 node_type=pod_type,
                 node_id=pod_id,
@@ -186,6 +207,7 @@ class PodWatcher(NodeWatcher):
                 status=status,
                 start_time=start_time,
                 config_resource=resource,
+                restart_training=restart_training,
             )
             node.set_exit_reason(_get_pod_exit_reason(pod))
             nodes.append(node)

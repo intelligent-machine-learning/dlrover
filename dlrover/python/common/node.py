@@ -183,7 +183,8 @@ class Node(object):
         service_addr=None,
         host_name=None,
         host_ip=None,
-        paral_config=None,
+        paral_config=ParallelConfig(),
+        restart_training=False,
     ):
         self.type = node_type
         self.id = node_id
@@ -209,7 +210,8 @@ class Node(object):
         self.host_name = host_name
         self.host_ip = host_ip
         self.hang = False
-        self.paral_config = ParallelConfig()
+        self.paral_config = paral_config
+        self.restart_training = restart_training
 
     def inc_relaunch_count(self):
         self.relaunch_count += 1
@@ -221,6 +223,7 @@ class Node(object):
         create_time=None,
         host_name=None,
         host_ip=None,
+        restart_training=False,
     ):
         if name is not None:
             self.name = name
@@ -232,6 +235,7 @@ class Node(object):
             self.host_name = host_name
         if host_ip:
             self.host_ip = host_ip
+        self.restart_training = restart_training
 
     def update_status(self, status=None):
         if status is not None:

@@ -358,6 +358,15 @@ class MasterServicerTest(unittest.TestCase):
         config = grpc.deserialize_message(response.data)
         self.assertIsInstance(config, grpc.NetworkCheckResult)
 
+    def test_check_hardware_reset(self):
+        message = grpc.CheckHardwareResetRequest()
+        request = elastic_training_pb2.Message()
+        request.data = message.serialize()
+        response = self.servicer.get(request, None)
+        config = grpc.deserialize_message(response.data)
+        self.assertIsInstance(config, grpc.ParallelConfig)
+        self.assertFalse(config.restart)
+
     def test_join_rendezvous(self):
         request = grpc.JoinRendezvousRequest(
             0, 8, RendezvousName.ELASTIC_TRAINING
