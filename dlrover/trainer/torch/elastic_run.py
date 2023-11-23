@@ -73,11 +73,11 @@ For auto-tuning parallelism configuration, you need to specify:
 """
 
 import os
+import socket
 import sys
 import telnetlib
 import time
 import uuid
-import socket
 from typing import Callable, List, Tuple, Union
 
 from torch.distributed.argparse_util import check_env, env
