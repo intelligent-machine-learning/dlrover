@@ -102,6 +102,11 @@ def get_data_partition_rank_and_size():
     return drank, data_size
 
 
+def get_mc_default_args():
+    args = {"use_optim_backward": False, "requires_set_gradient_accumulation_boundary": False}
+    return args
+
+
 class ModelContext(object):
     """
     Model context contains model training related objects,
@@ -155,6 +160,7 @@ class ModelContext(object):
         self._check_data_related_args()
         self.tp_status = False
         self.sampler_seed = self.extra_args.get("sampler_seed", 0)  # pytorch DistributedSamper default seed is 0
+        self.args = get_mc_default_args()
 
     def update_tp_status(self, status):
         self.tp_status = status
@@ -376,7 +382,7 @@ class ModelContext(object):
             return None
 
         # model must on cuda device before calling OSS (zero2)
-        if "zero2" in self.post_wrappers:
+        if "zero2" in self.post_wrappers or "ds_zero" in self.post_wrappers:
             model_device = next(self.model.parameters()).device
             if torch.cuda.is_available() and model_device.type != "cuda":
                 if local_rank() is not None:
@@ -384,6 +390,23 @@ class ModelContext(object):
                 else:
                     device = torch.device(type="cuda")
                 materialize_modules_to_device(self.model, device)
+
+        if "ds_zero" in self.post_wrappers:
+            # sync model parameters/buffers.
+            module_states = []
+            for param in self.model.parameters():
+                module_states.append(param.detach())
+
+            for buffer in self.model.buffers():
+                module_states.append(buffer.detach())
+
+            src = 0
+            process_group, ranks = parallel_group_and_ranks("zero")
+            if process_group is None:
+                process_group, ranks = parallel_group_and_ranks("data")
+            if ranks is not None:
+                src = ranks[0]
+            torch.distributed._broadcast_coalesced(process_group, module_states, int(250 * 1024 * 1024), src)
 
         if not self.check_pipe_model():
             if not self.optim_param_func:
@@ -398,8 +421,15 @@ class ModelContext(object):
                 )
             logger.info(f"successfully construct optimizer at {rank()}")
 
-        # Use BF16Optimizer if using half with bf16
-        if "half" in self.pre_wrappers and self.pre_wrappers["half"][1] == "bf16":
+        # Use BF16Optimizer if using half with bf16 and not using ds zero
+        if (
+            "half" in self.pre_wrappers
+            and self.pre_wrappers["half"][1] == "bf16"
+            and "ds_zero" not in self.post_wrappers
+            and "zero2" not in self.post_wrappers
+            and "fsdp" not in self.pre_wrappers
+            and "ds_3d_parallel" not in self.post_wrappers
+        ):
             model_device = next(self.model.parameters()).device
             # model must on cuda device before calling BF16Optimizer
             if torch.cuda.is_available() and model_device.type != "cuda":
@@ -536,6 +566,8 @@ class ModelContext(object):
                 )
 
         ddp_wrapper_exist = "ddp" in self.post_wrappers
+        ds_zero_wrapper_exist = "ds_zero" in self.post_wrappers
+        ds_3d_parallel_wrapper_exist = "ds_3d_parallel" in self.post_wrappers
         fairscale_zero2_wrapper_exist = "zero2" in self.post_wrappers
         fsdp_wrapper_exist = "fsdp" in self.pre_wrappers or "zero2" in self.pre_wrappers
         tensor_parallel_wrapper_exist = "tp" in self.pre_wrappers
@@ -543,8 +575,10 @@ class ModelContext(object):
         native_dynamo_wrapper_exist = "native_dynamo" in self.pre_wrappers
 
         # remove ddp wrapper when using zero2
-        if ddp_wrapper_exist and (fairscale_zero2_wrapper_exist or fsdp_wrapper_exist):
-            logger.info("Found Zero and ddp wrapper or pipe wrapper, remove ddp wrapper")
+        if ddp_wrapper_exist and (
+            fairscale_zero2_wrapper_exist or fsdp_wrapper_exist or ds_zero_wrapper_exist or ds_3d_parallel_wrapper_exist
+        ):
+            logger.info("Found Zero, ds_3d_parallel, or pipe wrapper, remove ddp wrapper.")
             self.post_wrappers.pop("ddp")
             ddp_wrapper_exist = False
         if fsdp_wrapper_exist and "amp_native" in self.post_wrappers:

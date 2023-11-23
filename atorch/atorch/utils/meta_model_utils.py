@@ -731,3 +731,24 @@ def build_recorded_module(meta_module):
         builded_module = meta_module._post_fn(builded_module)
 
     return builded_module
+
+
+def custom_transform_model_keep_checkpoint_name(model, transform_fn):
+    """After some transform, attr named `checkpoint_name` in model will be removed.
+    This will cause error when we transform from meta to device.
+    """
+    offload_checkpoint_name = {}
+    for name, param in model.named_parameters():
+        if hasattr(param, "checkpoint_name"):
+            offload_checkpoint_name[name] = param.checkpoint_name
+    for name, buf in model.named_buffers():
+        if hasattr(buf, "checkpoint_name"):
+            offload_checkpoint_name[name] = buf.checkpoint_name
+    m = transform_fn(model)
+    for name, param in m.named_parameters():
+        if name in offload_checkpoint_name:
+            setattr(param, "checkpoint_name", offload_checkpoint_name[name])
+    for name, buf in m.named_buffers():
+        if name in offload_checkpoint_name:
+            setattr(buf, "checkpoint_name", offload_checkpoint_name[name])
+    return m

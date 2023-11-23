@@ -216,8 +216,7 @@ def mock_list_namespaced_pod(label_selector):
     )
 
 
-def create_task_manager(dataset_name="test"):
-    task_manager = TaskManager(False, SpeedMonitor())
+def create_test_dataset_splitter(dataset_name="test"):
     splitter = new_dataset_splitter(
         False,
         100,
@@ -226,6 +225,12 @@ def create_task_manager(dataset_name="test"):
         dataset_name,
         "table",
     )
+    return splitter
+
+
+def create_task_manager(dataset_name="test"):
+    task_manager = TaskManager(False, SpeedMonitor())
+    splitter = create_test_dataset_splitter(dataset_name)
     task_manager.new_dataset(
         batch_size=10,
         dataset_size=1000,

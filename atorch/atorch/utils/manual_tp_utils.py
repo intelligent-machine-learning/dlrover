@@ -6,7 +6,7 @@ from transformers.pytorch_utils import Conv1D
 
 from atorch.common.log_utils import default_logger as logger
 from atorch.common.util_func import divide, is_wrapped_by_context_manager
-from atorch.distributed.distributed import parallel_group, parallel_group_size
+from atorch.distributed.distributed import parallel_group, parallel_group_size, rank
 from atorch.modules.distributed_modules.layers import ColumnParallelLinear, RowParallelLinear, VocabParallelEmbedding
 from atorch.modules.distributed_modules.mappings import copy_to_group
 from atorch.modules.distributed_modules.randomizer import get_randomizer
@@ -219,7 +219,8 @@ def _print_tp_tree(registry_dict):
                     # coalesced child with same str
                     child_ret[child_content] = child_ret.get(child_content, []) + [first_line.strip()]
                 for child_content in child_ret:
-                    ret += "  " * (level + 1) + "[" + ", ".join(child_ret[child_content]) + "]\n" + child_content
+                    layer_name_lst = child_ret[child_content]
+                    ret += "  " * (level + 1) + f"[{layer_name_lst[0]}...{layer_name_lst[-1]}]\n" + child_content
             else:
                 for child in self.children.values():
                     ret += child.__str__(level + 1)
@@ -233,7 +234,8 @@ def _print_tp_tree(registry_dict):
                 cur_node.children[cur_name] = node(cur_name)
             cur_node = cur_node.children[cur_name]
         cur_node.value += " -> " + content
-    logger.info("Tensor Parallel Sharding Tree:\n" + str(root))
+    if rank() == 0:
+        logger.info(("Tensor Parallel Sharding Tree:\n" + str(root)).replace('"', "").replace("'", ""))
 
 
 def vocab_parallel_logit_helper(embed, lm_output):

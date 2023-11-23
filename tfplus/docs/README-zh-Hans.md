@@ -44,6 +44,7 @@ python -c "import tfplus; print(tfplus.__version__)"
 ```shell
 git clone https://github.com/intelligent-machine-learning/dlrover.git
 cd dlrover
+# For GPU image: easydl/tfplus:tf213_dev_gpu
 docker run -it --net=host -v ${PWD}:/v -w /v easydl/tfplus:tf213_dev /bin/bash
 
 # 然后，在启动的 Docker 容器中执行构建脚本：

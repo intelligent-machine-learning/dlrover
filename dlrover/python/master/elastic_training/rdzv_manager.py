@@ -63,6 +63,9 @@ class RendezvousManager(metaclass=ABCMeta):
         self._name = ""
         self._latest_rdzv_nodes = []
 
+    def clear_waiting_nodes(self):
+        self._waiting_nodes.clear()
+
     def add_alive_node(self, node: Node):
         """When a node is running, the master will add it to alive list."""
         self._alive_nodes.add(node.id)
@@ -132,6 +135,11 @@ class RendezvousManager(metaclass=ABCMeta):
                 f"Completed {self._rdzv_round} round "
                 f"rendezvous of {self._name} is {self._rdzv_nodes}"
             )
+            if self._waiting_nodes:
+                logger.warning(
+                    f"Waiting nodes not in {self._rdzv_round} rendezvous "
+                    f"are {self._waiting_nodes}."
+                )
         return rdzv_completed
 
     def not_joined_rdzv_nodes(self):
@@ -145,7 +153,7 @@ class RendezvousManager(metaclass=ABCMeta):
 
     def join_rendezvous(
         self,
-        rank_id,
+        node_rank,
         local_world_size,
     ):
         """The node joins the current rond rendezvous.
@@ -157,9 +165,9 @@ class RendezvousManager(metaclass=ABCMeta):
             int: the number of rendezvous round.
         """
         with self._lock:
-            if rank_id in self._waiting_nodes:
+            if node_rank in self._waiting_nodes:
                 return self._rdzv_round
-            self._waiting_nodes[rank_id] = local_world_size
+            self._waiting_nodes[node_rank] = local_world_size
             self._rdzv_nodes = {}
             self._lastcall_time = time.time()
         return self._rdzv_round
@@ -173,24 +181,33 @@ class RendezvousManager(metaclass=ABCMeta):
         the next round rendezvous only when the number of waiting nodes
         is bigger than the number unit of nodes.
         """
-        with self._lock:
-            if self._has_node_restart():
-                return len(self._waiting_nodes)
-            elif len(self._waiting_nodes) >= self._node_unit:
-                return len(self._waiting_nodes)
-            return 0
+        if self._has_node_restart():
+            return len(self._waiting_nodes)
+        elif len(self._waiting_nodes) >= self._node_unit:
+            return len(self._waiting_nodes)
+        return 0
 
     def _has_node_restart(self):
         """The node will restart training processes if it
         re-joins the rendezvous."""
-        for rank_id in self._waiting_nodes.keys():
-            if rank_id in self._latest_rdzv_nodes:
+        for node_rank in self._waiting_nodes.keys():
+            if node_rank in self._latest_rdzv_nodes:
                 return True
         return False
 
     @abstractmethod
-    def get_comm_world(self, rank_id):
-        """Get communication world of all alive nodes."""
+    def get_comm_world(self, node_rank):
+        """Get communication world of all alive nodes.
+
+        Args:
+            node_rank: the id of node.
+
+        Returns:
+            rdzv_round: the round index.
+            group: the group index.
+            world: Dict like {0: 8, 1: 8, 2: 8} where the key is the node ID
+            and the value is the local world size of the node.
+        """
         pass
 
     @abstractmethod
@@ -221,7 +238,7 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
         super().__init__()
         self._name = RendezvousName.ELASTIC_TRAINING
 
-    def get_comm_world(self, rank_id):
+    def get_comm_world(self, node_rank):
         """Return the communication world if a round rendezvous is completed.
         The rendezvous is completed if one of the following conditions
         is satisfied:
@@ -231,6 +248,8 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
             join the rendezvous in waiting_timeout.
 
         Returns:
+            rdzv_round: the round index.
+            group: the group index.
             world: Dict like {0: 8, 1: 8, 2: 8} where the key is the node ID
             and the value is the local world size of the node.
         """
@@ -239,7 +258,7 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
                 rdzv_completed = self._check_rdzv_completed()
                 if rdzv_completed:
                     self._rdzv_round += 1
-            return self._rdzv_round, self._rdzv_nodes
+            return self._rdzv_round, 0, self._rdzv_nodes
 
     def report_network_check_result(self, node_id, normal, elapsed_time):
         return
@@ -267,10 +286,10 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         self._reported_nodes = set()
         self._node_groups: List[Dict[int, int]] = []
         self._check_round = 2
-        self._fault_nodes: List[int] = []
-        self._straggler_nodes: List[int] = []
+        self._fault_nodes = set()
+        self._straggler_nodes = set()
 
-    def get_comm_world(self, rank_id):
+    def get_comm_world(self, node_rank):
         """Return the communication world if a round rendezvous is completed.
         The rendezvous is completed if one of the following conditions.
         """
@@ -288,9 +307,9 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                     self._reported_nodes = set()
                     self._rdzv_round += 1
             for i, group in enumerate(self._node_groups):
-                if rank_id in group:
-                    return i, group
-            return 0, self._rdzv_nodes
+                if node_rank in group:
+                    return self._rdzv_round, i, group
+            return self._rdzv_round, 0, self._rdzv_nodes
 
     def _clear_check_status(self):
         self._node_status = {}
@@ -326,7 +345,8 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                 if node_id in self._rdzv_nodes:
                     cur_nodes.append(node_id)
             left, right = 0, len(cur_nodes) - 1
-            while True:
+            group = {}
+            while right >= left:
                 group = {}
                 node0 = cur_nodes[left]
                 node1 = cur_nodes[right]
@@ -336,8 +356,6 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                     node_groups.append(group)
                 left += 1
                 right -= 1
-                if right < left:
-                    break
             if len(group) == 1:
                 if len(node_groups) > 0:
                     node_groups[-1].update(group)
@@ -380,21 +398,22 @@ class NetworkCheckRendezvousManager(RendezvousManager):
 
     def join_rendezvous(
         self,
-        rank_id,
+        node_rank,
         local_world_size,
     ):
         """The node joins the current rond rendezvous.
         Args:
-            rank_id: the node ID which is unique in an ElasticJob of DLrover.
+            node_rank: the node rank which is unique in an
+                ElasticJob of DLrover.
             local_world_size: the local world size of a node.
 
         Returns:
             int: the number of rendezvous round.
         """
-        self._node_groups = []
-        self._fault_nodes = []
-        self._straggler_nodes = []
-        return super().join_rendezvous(rank_id, local_world_size)
+        self._node_groups.clear()
+        self._fault_nodes.clear()
+        self._straggler_nodes.clear()
+        return super().join_rendezvous(node_rank, local_world_size)
 
     def check_fault_node(self):
         """Check whether the job has fault nodes. Each task contains 2 rounds
@@ -402,16 +421,14 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         """
         with self._lock:
             reason = ""
-            if len(self._reported_nodes) < len(self._rdzv_nodes):
+            all_joined = len(self._reported_nodes) >= len(self._rdzv_nodes)
+            if not all_joined:
                 reason = NetworkFailureReason.WAITING_NODE
-            elif self._fault_nodes:
-                reason = NetworkFailureReason.NODE_FAILURE
-            else:
-                self._fault_nodes = []
+            elif len(self._fault_nodes) == 0:
                 for node_id, status in self._node_status.items():
                     if not status:
-                        self._fault_nodes.append(node_id)
-                if self._fault_nodes:
+                        self._fault_nodes.add(node_id)
+                if len(self._fault_nodes) > 0:
                     logger.warning(f"Fault nodes {self._fault_nodes}")
                 stragglers = self._detect_stragglers()
                 if not self._fault_nodes and not stragglers:
@@ -419,9 +436,9 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                         math.ceil(self._rdzv_round / self._check_round)
                         * self._check_round
                     )
-                else:
-                    reason = NetworkFailureReason.NODE_FAILURE
-            return self._fault_nodes, reason
+            if all_joined and len(self._fault_nodes) > 0:
+                reason = NetworkFailureReason.NODE_FAILURE
+            return list(self._fault_nodes), reason
 
     def get_straggler(self):
         """Detect whether there is the straggler according to the
@@ -434,14 +451,12 @@ class NetworkCheckRendezvousManager(RendezvousManager):
             stragglers: Dict[int, float] = {}
             if len(self._reported_nodes) < len(self._rdzv_nodes):
                 reason = NetworkFailureReason.WAITING_NODE
-            elif self._straggler_nodes:
-                return self._straggler_nodes, reason
-            else:
+            elif len(self._straggler_nodes) == 0:
                 stragglers = self._detect_stragglers()
                 if stragglers:
                     logger.warning(f"Straggler: {stragglers}.")
-                self._straggler_nodes = list(stragglers.keys())
-            return self._straggler_nodes, reason
+                self._straggler_nodes.update(stragglers)
+            return list(self._straggler_nodes), reason
 
     def _detect_stragglers(self):
         """Detect wether there is the straggler in the job."""

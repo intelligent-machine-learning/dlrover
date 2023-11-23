@@ -23,7 +23,7 @@ from dlrover.trainer.torch.elastic_run import (
 
 class ElasticRunTest(unittest.TestCase):
     def test_launch_local_master(self):
-        handler, addr = _launch_dlrover_local_master()
+        handler, addr = _launch_dlrover_local_master("")
         available = _check_dlrover_master_available(addr)
         self.assertTrue(available)
         handler.close()

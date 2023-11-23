@@ -62,7 +62,9 @@ class DryRunner(object):
         pipe_group, pipe_ranks = parallel_group_and_ranks("pipe")
         status = True
         results = None
-        device = "cuda:{}".format(local_rank()) if torch.cuda.is_available() else "cpu"
+        # for ascend npu compability
+        device = local_rank() if torch.cuda.is_available() else "cpu"
+        device = torch.device(device)
         if torch.cuda.is_available():
             torch.cuda.reset_peak_memory_stats(device)
         compute_total_time = 0
@@ -89,7 +91,10 @@ class DryRunner(object):
                         output = model(data)
                     loss = ModelContext.get_loss_from_loss_func_output(loss_func(data, output))
                     if pipe_ranks is None:
-                        loss.backward()
+                        if model_context.args["use_optim_backward"]:
+                            optim.backward(loss)
+                        else:
+                            loss.backward()
                     optim.step()
                     if lr_scheduler is not None:
                         lr_scheduler.step()

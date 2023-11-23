@@ -1,0 +1,10 @@
+accelerate==0.24.1
+appdirs==1.4.4
+bitsandbytes==0.37.2
+datasets==2.10.1
+fire==0.5.0
+peft
+transformers==4.31.0
+sentencepiece==0.1.97
+tensorboardX==2.6
+gradio==3.23.0

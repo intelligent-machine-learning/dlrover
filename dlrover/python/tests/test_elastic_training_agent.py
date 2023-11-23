@@ -25,7 +25,7 @@ from torch.distributed.launcher.api import LaunchConfig
 
 from dlrover.python.common.constants import ConfigPath, RendezvousName
 from dlrover.python.elastic_agent.master_client import (
-    GlobalMasterClient,
+    MasterClient,
     build_master_client,
 )
 from dlrover.python.elastic_agent.monitor.training import TorchTrainingMonitor
@@ -34,6 +34,7 @@ from dlrover.python.elastic_agent.torch.training import (
     ElasticTrainingAgent,
     MasterRendezvousHandler,
     NetworkCheckElasticAgent,
+    RendezvousOutSyncError,
     _get_local_ip,
     _set_paral_config,
 )
@@ -44,7 +45,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
     def setUp(self) -> None:
         _set_paral_config()
         self._master, addr = start_local_master()
-        GlobalMasterClient.MASTER_CLIENT = build_master_client(addr)
+        MasterClient._instance = build_master_client(addr)
         launch_config = LaunchConfig(
             min_nodes=2,
             max_nodes=2,
@@ -88,7 +89,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
             local_addr=self.config.local_addr,
         )
 
-    def addCleanup(self):
+    def tearDown(self):
         self._master.stop()
 
     def test_node_unit(self):
@@ -98,7 +99,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
     def test_rank0_rendzevous(self):
         node_id = 0
         agent = ElasticTrainingAgent(
-            rank_id=node_id,
+            node_rank=node_id,
             config=self.config,
             entrypoint="python",
             spec=self.spec,
@@ -124,18 +125,18 @@ class ElasticTrainingAgentTest(unittest.TestCase):
     def test_rank1_rendzevous(self):
         node_id = 1
         agent = ElasticTrainingAgent(
-            rank_id=node_id,
+            node_rank=node_id,
             config=self.config,
             entrypoint="python",
             spec=self.spec,
             start_method=self.config.start_method,
             log_dir=self.config.log_dir,
         )
-        self.rdzv_handler._rank_id = node_id
+        self.rdzv_handler._node_rank = node_id
         self.rdzv_handler._client.join_rendezvous(
             0, 8, self.rdzv_handler._name
         )
-        store = self.rdzv_handler._get_store(round=0, group=1)
+        store = self.rdzv_handler._get_store(round=1, group=0)
         store.set("MASTER_ADDR", "127.0.0.1".encode())
         store.set("MASTER_PORT", "12345".encode())
         agent._rendezvous(agent._worker_group)
@@ -159,7 +160,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
 class ElasticTrainingAgentRunTest(unittest.TestCase):
     def setUp(self) -> None:
         self._master, addr = start_local_master()
-        GlobalMasterClient.MASTER_CLIENT = build_master_client(addr)
+        MasterClient._instance = build_master_client(addr)
         launch_config = LaunchConfig(
             min_nodes=1,
             max_nodes=1,
@@ -203,13 +204,13 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             local_addr=self.config.local_addr,
         )
 
-    def addCleanup(self):
+    def tearDown(self):
         self._master.stop()
 
     def test_monitor_workers(self):
         self.config.network_check = False
         agent = ElasticTrainingAgent(
-            rank_id=0,
+            node_rank=0,
             config=self.config,
             entrypoint="echo",
             spec=self.spec,
@@ -234,10 +235,35 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             monitor.report_resource_with_step()
             self.assertEqual(self._master.speed_monitor._global_step, 100)
 
+    def test_check_network_rdzv_for_elastic_training(self):
+        self._master.rdzv_managers[
+            RendezvousName.NETWORK_CHECK
+        ].join_rendezvous(0, 8)
+        with self.assertRaises(RendezvousOutSyncError):
+            self.rdzv_handler._check_network_rdzv_for_elastic_training()
+
+    def test_get_free_port(self):
+        agent = ElasticTrainingAgent(
+            node_rank=0,
+            config=self.config,
+            entrypoint="echo",
+            spec=self.spec,
+            start_method=self.config.start_method,
+            log_dir=self.config.log_dir,
+        )
+
+        os.environ["HOST_PORTS"] = "10000,10002,10003"
+        port = agent._get_free_port()
+        self.assertTrue(port in [10000, 10002, 10003])
+
+        os.environ["HOST_PORTS"] = ""
+        port = agent._get_free_port()
+        self.assertTrue(port > 20000)
+
     def test_pause_to_reset_hardware(self):
         self.config.reset_hardware = True
         agent = ElasticTrainingAgent(
-            rank_id=0,
+            node_rank=0,
             config=self.config,
             entrypoint="echo",
             spec=self.spec,
@@ -250,7 +276,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
 class NetworkCheckElasticAgentTest(unittest.TestCase):
     def setUp(self) -> None:
         self._master, addr = start_local_master()
-        GlobalMasterClient.MASTER_CLIENT = build_master_client(addr)
+        MasterClient._instance = build_master_client(addr)
         launch_config = LaunchConfig(
             min_nodes=2,
             max_nodes=2,
@@ -293,13 +319,13 @@ class NetworkCheckElasticAgentTest(unittest.TestCase):
             local_addr=self.config.local_addr,
         )
 
-    def addCleanup(self):
+    def tearDown(self):
         self._master.stop()
 
     def test_get_network_check_time(self):
         node_id = 0
         agent = NetworkCheckElasticAgent(
-            rank_id=node_id,
+            node_rank=node_id,
             config=self.config,
             entrypoint="python",
             spec=self.spec,
@@ -324,7 +350,7 @@ class NetworkCheckElasticAgentTest(unittest.TestCase):
 class MasterRendezvousHandlerTest(unittest.TestCase):
     def setUp(self) -> None:
         self._master, addr = start_local_master()
-        GlobalMasterClient.MASTER_CLIENT = build_master_client(addr)
+        MasterClient._instance = build_master_client(addr)
 
     def tearDown(self):
         self._master.stop()
@@ -356,7 +382,7 @@ class MasterRendezvousHandlerTest(unittest.TestCase):
         )
         rdzv_handler._join_rendezvous = mock.MagicMock(return_value=0)
         rdzv_handler._client.get_comm_world = mock.MagicMock(
-            return_value=(0, {1: 8})
+            return_value=(0, 0, {1: 8})
         )
         with self.assertRaises(TimeoutError):
             rdzv_handler.next_rendezvous()

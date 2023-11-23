@@ -1,0 +1,450 @@
+diff --git a/csrc/flash_attn/src/fmha.h b/csrc/flash_attn/src/fmha.h
+index 2905e6d..a44e53e 100644
+--- a/csrc/flash_attn/src/fmha.h
++++ b/csrc/flash_attn/src/fmha.h
+@@ -25,22 +25,14 @@
+  *
+  ******************************************************************************/
+ 
+-#pragma once
++// #pragma once
++#ifndef TFPLUS_FMHA_H_
++#define TFPLUS_FMHA_H_
+ 
+ #include <cuda.h>
+ #include <vector>
+-
+-#ifdef OLD_GENERATOR_PATH
+-#include <ATen/CUDAGeneratorImpl.h>
+-#else
+-#include <ATen/cuda/CUDAGeneratorImpl.h>
+-#endif
+-
+-#include <ATen/cuda/CUDAContext.h>
+-#include <ATen/cuda/detail/UnpackRaw.cuh>
+-
+-#include <fmha_utils.h>
+-
++#include "philox.cuh"
++#include "fmha_utils.h"
+ 
+ constexpr int TOTAL_DIM = 0;
+ constexpr int H_DIM = 1;
+@@ -124,7 +116,7 @@ struct FMHA_fprop_params : public Qkv_params {
+     uint32_t scale_dropout;
+ 
+     // Random state.
+-    at::PhiloxCudaState philox_args;
++    PhiloxCudaState philox_args;
+     // Pointer to the RNG seed (idx 0) and offset (idx 1).
+     uint64_t * rng_state;
+ 
+@@ -203,9 +195,11 @@ void run_fmha_fwd_hdim64(Launch_params<FMHA_fprop_params> &launch_params);
+ void run_fmha_fwd_hdim128(Launch_params<FMHA_fprop_params> &launch_params);
+ 
+ void run_fmha_bwd_hdim32(FMHA_dgrad_params &params, cudaStream_t stream, const bool configure);
+-void run_fmha_bwd_hdim64(FMHA_dgrad_params &params, cudaStream_t stream, const bool configure);
++void run_fmha_bwd_hdim64(FMHA_dgrad_params &params, cudaStream_t stream, const bool configure, cudaDeviceProp& dprops);
+ void run_fmha_bwd_hdim128(FMHA_dgrad_params &params, cudaStream_t stream, const bool configure);
+ 
+ void run_fmha_block_fp16_sm80(Launch_params<FMHA_fprop_params> &launch_params, const bool configure);
+ 
+ void run_fmha_block_dgrad_fp16_sm80(const FMHA_dgrad_params &params, cudaStream_t stream);
++
++#endif  // TFPLUS_FMHA_H_
+\ No newline at end of file
+diff --git a/csrc/flash_attn/src/fmha/gemm.h b/csrc/flash_attn/src/fmha/gemm.h
+index a142f0b..a11bcb1 100644
+--- a/csrc/flash_attn/src/fmha/gemm.h
++++ b/csrc/flash_attn/src/fmha/gemm.h
+@@ -27,14 +27,14 @@
+ 
+ #pragma once
+ 
+-#include <fmha/utils.h>
++#include "utils.h"
+ 
+ #include "cutlass/cutlass.h"
+ #include "cutlass/gemm/warp/default_mma_tensor_op.h"
+ #include "cutlass/layout/layout.h"
+-#include <cutlass/arch/mma.h>
+-#include <cutlass/array.h>
+-#include <cutlass/numeric_types.h>
++#include "cutlass/arch/mma.h"
++#include "cutlass/array.h"
++#include "cutlass/numeric_types.h"
+ 
+ namespace fmha {
+ 
+diff --git a/csrc/flash_attn/src/fmha/gmem_tile.h b/csrc/flash_attn/src/fmha/gmem_tile.h
+index e0bd24c..e08f41e 100644
+--- a/csrc/flash_attn/src/fmha/gmem_tile.h
++++ b/csrc/flash_attn/src/fmha/gmem_tile.h
+@@ -30,7 +30,7 @@
+ #include <cuda_fp16.h>
+ #include <cuda_bf16.h>
+ 
+-#include <fmha/utils.h>
++#include "utils.h"
+ 
+ namespace fmha {
+ 
+diff --git a/csrc/flash_attn/src/fmha/smem_tile.h b/csrc/flash_attn/src/fmha/smem_tile.h
+index 491253b..fea19cb 100644
+--- a/csrc/flash_attn/src/fmha/smem_tile.h
++++ b/csrc/flash_attn/src/fmha/smem_tile.h
+@@ -28,8 +28,7 @@
+ #pragma once
+ 
+ #include "utils.h"
+-#include <fmha/utils.h>
+-#include <fmha/gemm.h>
++#include "gemm.h"
+ 
+ namespace fmha {
+ 
+diff --git a/csrc/flash_attn/src/fmha_block_dgrad_kernel_1xN_loop.h b/csrc/flash_attn/src/fmha_block_dgrad_kernel_1xN_loop.h
+index ce5410f..cd55013 100644
+--- a/csrc/flash_attn/src/fmha_block_dgrad_kernel_1xN_loop.h
++++ b/csrc/flash_attn/src/fmha_block_dgrad_kernel_1xN_loop.h
+@@ -6,8 +6,8 @@
+ #include "fmha_fprop_kernel_1xN.h"
+ #include "fmha_kernel.h"
+ #include "fmha_blockmask.h"
+-#include <fmha/kernel_traits.h>
+-#include <fmha/gemm.h>
++#include "fmha/kernel_traits.h"
++#include "fmha/gemm.h"
+ 
+ namespace fmha {
+ 
+@@ -745,8 +745,8 @@ inline __device__ void compute_block_dq_dk_dv_1xN(const Params &params) {
+     const int tidx = threadIdx.x;
+ 
+     const int tidx_global = (bidb * params.h + bidh) * blockDim.x + tidx;
+-    auto seeds = at::cuda::philox::unpack(params.philox_args);
+-    Philox ph(std::get<0>(seeds), tidx_global, std::get<1>(seeds));
++    // auto args = unpack(params.philox_args);
++    Philox ph(params.philox_args.seed_.val, tidx_global, params.philox_args.offset_.val);
+ 
+     if (loop_steps == 1) {
+         compute_block_dq_dk_dv_1xN_one_iter<Kernel_traits, Is_dropout, Is_causal, true, true>(params, ph, 0);
+diff --git a/csrc/flash_attn/src/fmha_block_fprop_kernel_1xN.h b/csrc/flash_attn/src/fmha_block_fprop_kernel_1xN.h
+index 15f865e..fabb7fe 100644
+--- a/csrc/flash_attn/src/fmha_block_fprop_kernel_1xN.h
++++ b/csrc/flash_attn/src/fmha_block_fprop_kernel_1xN.h
+@@ -31,8 +31,8 @@
+ #include "fmha_fprop_kernel_1xN.h"
+ #include "fmha_kernel.h"
+ #include "fmha_blockmask.h"
+-#include <fmha/kernel_traits.h>
+-#include <fmha/gemm.h>
++#include "fmha/kernel_traits.h"
++#include "fmha/gemm.h"
+ 
+ namespace fmha {
+ 
+@@ -508,9 +508,9 @@ inline __device__ void device_block_1xN_loop(const Params &params) {
+     const int tidx = threadIdx.x;
+ 
+     const int tidx_global = (bidb * params.h + bidh) * blockDim.x * 2 + tidx;
+-    auto seeds = at::cuda::philox::unpack(params.philox_args);
+-    Philox ph0(std::get<0>(seeds), tidx_global, std::get<1>(seeds));
+-    Philox ph1(std::get<0>(seeds), tidx_global + blockDim.x, std::get<1>(seeds));
++    // auto args = unpack(params.philox_args);
++    Philox ph0(params.philox_args.seed_.val, tidx_global, params.philox_args.offset_.val);
++    Philox ph1(params.philox_args.seed_.val, tidx_global + blockDim.x, params.philox_args.offset_.val);
+     constexpr int M = Kernel_traits::Cta_tile_p::M;
+     const int STEPS = (params.seqlen_q + M - 1) / M;
+ 
+diff --git a/csrc/flash_attn/src/fmha_blockmask.h b/csrc/flash_attn/src/fmha_blockmask.h
+index bbd33d6..c49c669 100644
+--- a/csrc/flash_attn/src/fmha_blockmask.h
++++ b/csrc/flash_attn/src/fmha_blockmask.h
+@@ -27,12 +27,12 @@
+ 
+ #pragma once
+ 
+-#include <fmha.h>
+-#include <fmha/utils.h>
+-#include <fmha/smem_tile.h>
+-#include <fmha/gmem_tile.h>
+-#include <fmha/mask.h>
+-#include <fmha/softmax.h>
++#include "fmha.h"
++#include "fmha/utils.h"
++#include "fmha/smem_tile.h"
++#include "fmha/gmem_tile.h"
++#include "fmha/mask.h"
++#include "fmha/softmax.h"
+ 
+ namespace fmha {
+ 
+diff --git a/csrc/flash_attn/src/fmha_bwd_hdim128.cu b/csrc/flash_attn/src/fmha_bwd_hdim128.cu.cc
+similarity index 100%
+rename from csrc/flash_attn/src/fmha_bwd_hdim128.cu
+rename to csrc/flash_attn/src/fmha_bwd_hdim128.cu.cc
+diff --git a/csrc/flash_attn/src/fmha_bwd_hdim32.cu b/csrc/flash_attn/src/fmha_bwd_hdim32.cu.cc
+similarity index 100%
+rename from csrc/flash_attn/src/fmha_bwd_hdim32.cu
+rename to csrc/flash_attn/src/fmha_bwd_hdim32.cu.cc
+diff --git a/csrc/flash_attn/src/fmha_bwd_hdim64.cu b/csrc/flash_attn/src/fmha_bwd_hdim64.cu.cc
+similarity index 80%
+rename from csrc/flash_attn/src/fmha_bwd_hdim64.cu
+rename to csrc/flash_attn/src/fmha_bwd_hdim64.cu.cc
+index 3091605..e0e97e1 100644
+--- a/csrc/flash_attn/src/fmha_bwd_hdim64.cu
++++ b/csrc/flash_attn/src/fmha_bwd_hdim64.cu.cc
+@@ -4,24 +4,23 @@
+ 
+ #include "fmha_bwd_launch_template.h"
+ 
+-void run_fmha_bwd_hdim64(FMHA_dgrad_params &params, cudaStream_t stream, const bool configure) {
++void run_fmha_bwd_hdim64(FMHA_dgrad_params &params, cudaStream_t stream, const bool configure, cudaDeviceProp& dprops) {
+     FP16_SWITCH(params.is_bf16, ([&] {
+-        auto dprops = at::cuda::getCurrentDeviceProperties();
+         if (params.seqlen_k == 128) {
+             using Kernel_traits = FMHA_kernel_traits<128, 64, 16, 1, 8, 0x08u, elem_type>;
+             run_fmha_bwd_loop<Kernel_traits>(params, stream, configure);
+         } else if (params.seqlen_k >= 256) {
+-            if ((dprops->major == 8 && dprops->minor == 0) || (dprops->major == 9 && dprops->minor == 0)) {
++            if ((dprops.major == 8 && dprops.minor == 0) || (dprops.major == 9 && dprops.minor == 0)) {
+                 // Don't share smem for K & V, and don't keep V in registers
+                 // This speeds things up by 2-3% by avoiding register spills, but it
+                 // uses more shared memory, which is fine on A100 and H100 but not other GPUs.
+                 // For other GPUs, we keep V in registers.
+                 using Kernel_traits = FMHA_kernel_traits<256, 64, 16, 1, 8, 0x100u, elem_type>;
+                 run_fmha_bwd_loop<Kernel_traits>(params, stream, configure);
+-            } else if (dprops->major == 8 && dprops->minor > 0) {
++            } else if (dprops.major == 8 && dprops.minor > 0) {
+                 using Kernel_traits = FMHA_kernel_traits<256, 64, 16, 1, 8, 0x08u, elem_type>;
+                 run_fmha_bwd_loop<Kernel_traits>(params, stream, configure);
+-            } else if (dprops->major == 7 && dprops->minor == 5) {
++            } else if (dprops.major == 7 && dprops.minor == 5) {
+                 using Kernel_traits = FMHA_kernel_traits<128, 64, 16, 1, 8, 0x08u, elem_type>;
+                 run_fmha_bwd_loop<Kernel_traits>(params, stream, configure);
+             }
+diff --git a/csrc/flash_attn/src/fmha_bwd_launch_template.h b/csrc/flash_attn/src/fmha_bwd_launch_template.h
+index 032c4a1..4a710f3 100644
+--- a/csrc/flash_attn/src/fmha_bwd_launch_template.h
++++ b/csrc/flash_attn/src/fmha_bwd_launch_template.h
+@@ -88,13 +88,17 @@ void run_fmha_bwd_loop(FMHA_dgrad_params &params, cudaStream_t stream, const boo
+             int ctas_per_sm;
+             cudaError status_ = cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+                 &ctas_per_sm, kernel, Kernel_traits::THREADS, smem_size_dq_dk_dv);
+-            auto dprops = at::cuda::getCurrentDeviceProperties();
++            // auto dprops = at::cuda::getCurrentDeviceProperties();
++            cudaDeviceProp prop;
++            int current_device;
++            cudaGetDevice(&current_device);
++            cudaGetDeviceProperties(&prop, current_device);
+             // printf("CTAS_PER_SM = %d, nSMs = %d\n", ctas_per_sm, dprops->multiProcessorCount);
+             constexpr int M = Kernel_traits::Cta_tile_p::M;
+             // We don't want more than 10 splits due to numerical error.
+             // Numerical error on dk/dv scales as sqrt(num_splits).
+             params.num_splits = num_splits_heuristic_bwd(
+-                params.b * params.h, dprops->multiProcessorCount,
++                params.b * params.h, prop.multiProcessorCount,
+                 ctas_per_sm, params.seqlen_k, blocksize_c, params.is_causal
+             );
+         }
+diff --git a/csrc/flash_attn/src/fmha_dgrad_kernel_1xN_loop.h b/csrc/flash_attn/src/fmha_dgrad_kernel_1xN_loop.h
+index d5ac579..2db1e99 100644
+--- a/csrc/flash_attn/src/fmha_dgrad_kernel_1xN_loop.h
++++ b/csrc/flash_attn/src/fmha_dgrad_kernel_1xN_loop.h
+@@ -5,8 +5,8 @@
+ 
+ #include "fmha_fprop_kernel_1xN.h"
+ #include "fmha_kernel.h"
+-#include <fmha/kernel_traits.h>
+-#include <fmha/gemm.h>
++#include "fmha/kernel_traits.h"
++#include "fmha/gemm.h"
+ 
+ namespace fmha {
+ 
+diff --git a/csrc/flash_attn/src/fmha_fprop_kernel_1xN.h b/csrc/flash_attn/src/fmha_fprop_kernel_1xN.h
+index ee5d68d..c0a8889 100644
+--- a/csrc/flash_attn/src/fmha_fprop_kernel_1xN.h
++++ b/csrc/flash_attn/src/fmha_fprop_kernel_1xN.h
+@@ -29,9 +29,9 @@
+ #pragma once
+ 
+ #include "fmha_kernel.h"
+-#include <fmha/kernel_traits.h>
+-#include <fmha/gemm.h>
+-#include <fmha/utils.h>
++#include "fmha/kernel_traits.h"
++#include "fmha/gemm.h"
++#include "fmha/utils.h"
+ 
+ namespace fmha {
+ 
+@@ -679,12 +679,12 @@ inline __device__ void device_1xN_loop(const Params &params) {
+     // (within a warp). We use the subsequence to store the location of the 16 x 16 blocks within
+     // the attention matrix. This way, as long as we have the batch, head, and the location of
+     // the 16 x 16 block within the attention matrix, we can generate the exact same dropout pattern.
+-    auto seeds = at::cuda::philox::unpack(params.philox_args);
++    // auto args = unpack(params.philox_args);
+     if (bidx == 0 && tidx == 0) {
+-        params.rng_state[0] = std::get<0>(seeds);
+-        params.rng_state[1] = std::get<1>(seeds);
++        params.rng_state[0] = params.philox_args.seed_.val;
++        params.rng_state[1] = params.philox_args.offset_.val;
+     }
+-    Philox ph(std::get<0>(seeds), 0, std::get<1>(seeds) + (bidb * params.h + bidh) * 32 + tidx % 32);
++    Philox ph(params.philox_args.seed_.val, 0, params.philox_args.offset_.val + (bidb * params.h + bidh) * 32 + tidx % 32);
+     constexpr int M = Kernel_traits::Cta_tile_p::M;
+     const int STEPS = (params.seqlen_q + M - 1) / M;
+ 
+diff --git a/csrc/flash_attn/src/fmha_fwd_hdim128.cu b/csrc/flash_attn/src/fmha_fwd_hdim128.cu.cc
+similarity index 100%
+rename from csrc/flash_attn/src/fmha_fwd_hdim128.cu
+rename to csrc/flash_attn/src/fmha_fwd_hdim128.cu.cc
+diff --git a/csrc/flash_attn/src/fmha_fwd_hdim32.cu b/csrc/flash_attn/src/fmha_fwd_hdim32.cu.cc
+similarity index 100%
+rename from csrc/flash_attn/src/fmha_fwd_hdim32.cu
+rename to csrc/flash_attn/src/fmha_fwd_hdim32.cu.cc
+diff --git a/csrc/flash_attn/src/fmha_fwd_hdim64.cu b/csrc/flash_attn/src/fmha_fwd_hdim64.cu.cc
+similarity index 100%
+rename from csrc/flash_attn/src/fmha_fwd_hdim64.cu
+rename to csrc/flash_attn/src/fmha_fwd_hdim64.cu.cc
+diff --git a/csrc/flash_attn/src/fmha_fwd_launch_template.h b/csrc/flash_attn/src/fmha_fwd_launch_template.h
+index ec1d3df..cec206c 100644
+--- a/csrc/flash_attn/src/fmha_fwd_launch_template.h
++++ b/csrc/flash_attn/src/fmha_fwd_launch_template.h
+@@ -1,7 +1,7 @@
+ // Copyright (c) 2022, Tri Dao.
+ 
+ #pragma once
+-
++#include <cuda.h>
+ #include <vector>
+ 
+ #include <cuda_fp16.h>
+@@ -73,11 +73,17 @@ void run_fmha_fwd_loop(Launch_params<FMHA_fprop_params> &launch_params) {
+             int ctas_per_sm;
+             cudaError status_ = cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+                 &ctas_per_sm, kernel, Kernel_traits::THREADS, smem_size);
+-            auto dprops = at::cuda::getCurrentDeviceProperties();
++            // auto dprops = at::cuda::getCurrentDeviceProperties();
+             // printf("CTAS_PER_SM = %d, nSMs = %d\n", ctas_per_sm, dprops->multiProcessorCount);
++            // TODO(jianmu.scj): get real device id
++            cudaDeviceProp prop;
++            int current_device;
++            cudaGetDevice(&current_device);
++            cudaGetDeviceProperties(&prop, current_device);
++            
+             constexpr int M = Kernel_traits::Cta_tile_p::M;
+             launch_params.params.num_splits = num_splits_heuristic_fwd(
+-                launch_params.params.b * launch_params.params.h, dprops->multiProcessorCount,
++                launch_params.params.b * launch_params.params.h, prop.multiProcessorCount,
+                 ctas_per_sm,
+                 /*max_splits=*/std::min(30, (launch_params.params.seqlen_q + M - 1 / M))
+             );
+diff --git a/csrc/flash_attn/src/fmha_kernel.h b/csrc/flash_attn/src/fmha_kernel.h
+index 6287976..79c742e 100644
+--- a/csrc/flash_attn/src/fmha_kernel.h
++++ b/csrc/flash_attn/src/fmha_kernel.h
+@@ -27,14 +27,14 @@
+ 
+ #pragma once
+ 
+-#include <philox.cuh>
++#include "philox.cuh"
+ 
+-#include <fmha.h>
+-#include <fmha/utils.h>
+-#include <fmha/smem_tile.h>
+-#include <fmha/gmem_tile.h>
+-#include <fmha/mask.h>
+-#include <fmha/softmax.h>
++#include "fmha.h"
++#include "fmha/utils.h"
++#include "fmha/smem_tile.h"
++#include "fmha/gmem_tile.h"
++#include "fmha/mask.h"
++#include "fmha/softmax.h"
+ 
+ namespace fmha {
+ 
+diff --git a/csrc/flash_attn/src/philox.cuh b/csrc/flash_attn/src/philox.cuh
+index a1e4c64..8fd02e8 100644
+--- a/csrc/flash_attn/src/philox.cuh
++++ b/csrc/flash_attn/src/philox.cuh
+@@ -2,11 +2,43 @@
+ // Pytorch also has an implementation of Philox RNG: https://github.com/pytorch/pytorch/blob/master/torch/csrc/jit/codegen/cuda/runtime/random_numbers.cu
+ #pragma once
+ // Philox CUDA.
+-
++#include <mutex>
++#include <random>
+ namespace {
+ 
++struct PhiloxCudaState {
++  PhiloxCudaState() = default;
++  PhiloxCudaState(uint64_t seed,
++                  uint64_t offset) {
++    seed_.val = seed;
++    offset_.val = offset;
++  }
++  // Public members, directly accessible by unpack.
++  // If we made them private with getters/setters, the getters/setters
++  // would have to be __device__, and we can't declare __device__ in ATen.
++  union Payload {
++    uint64_t val;
++    int64_t* ptr;
++  };
++
++  Payload seed_;
++  Payload offset_;
++  uint32_t offset_intragraph_ = 0;
++  bool captured_ = false;
++};
++
+ class Philox {
+ public:
++  // struct PhiloxArgs
++  // {
++  //   uint64_t seed;
++  //   uint64_t offset;
++  //   PhiloxArgs(uint64_t seed_input, uint64_t offset_input)
++  //   {
++  //     seed = seed_input;
++  //     offset = offset_input;
++  //   }
++  // };
+   __device__ inline Philox(unsigned long long seed,
+                            unsigned long long subsequence,
+                            unsigned long long offset)
+@@ -153,5 +185,29 @@ __device__ __inline__ float4 uniform4(const uint4 x) {
+   return make_float4(x.x * M_RAN_INVM32, x.y * M_RAN_INVM32, x.z * M_RAN_INVM32,
+                      x.w * M_RAN_INVM32);
+ }
++// __device__ __forceinline__ Philox::PhiloxArgs unpack(PhiloxCudaState arg) {
++//   return Philox::PhiloxArgs(arg.seed_.val, arg.offset_.val);
++// }
++
++class CUDAPhiloxRandomGenerator{
++ public:
++  CUDAPhiloxRandomGenerator() {
++    std::random_device rd;
++    seed_ = ((((uint64_t)rd()) << 32) + rd()) & 0x1FFFFFFFFFFFFF;
++    philox_offset_per_thread_ = 0;
++  }
++
++  PhiloxCudaState philox_cuda_state(uint64_t increment) {
++    // rounds increment up to the nearest multiple of 4
++    increment = ((increment + 3) / 4) * 4;
++    uint64_t offset = this->philox_offset_per_thread_;
++    this->philox_offset_per_thread_ += increment;
++    return PhiloxCudaState(this->seed_, offset);
++  }
++  std::mutex mutex_;
++ private:
++  uint64_t seed_;
++  uint64_t philox_offset_per_thread_;
++};
+ 
+ } // namespace
+

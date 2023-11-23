@@ -11,10 +11,11 @@ spec:
       replicas: 4
       template:
         spec:
+          restartPolicy: Always
           containers:
             - name: main
               # yamllint disable-line rule:line-length
-              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:torch201-mnist
+              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:pytorch-example
               imagePullPolicy: Always
               command:
                 - /bin/bash
@@ -34,3 +35,10 @@ spec:
                   cpu: "2"  # turn up when using GPU
                   memory: 3Gi  # turn up when using GPU
                   # nvidia.com/gpu: 1 # optional
+          #     volumeMounts:
+          #       - name: pvc-nas
+          #         mountPath: /nas
+          # volumes:
+          #   - name: pvc-nas
+          #     persistentVolumeClaim:
+          #       claimName: pvc-nas

@@ -1279,7 +1279,9 @@ class FlashAttnModule(nn.Module):
 class LlamaAttentionFA(LlamaAttention):
     def __new__(cls, src_module):
         assert src_module is not None and isinstance(src_module, LlamaAttention)
-        new_module = copy.deepcopy(src_module)
+        from atorch.utils.meta_model_utils import custom_transform_model_keep_checkpoint_name
+
+        new_module = custom_transform_model_keep_checkpoint_name(src_module, lambda x: copy.deepcopy(x))
         new_module.__class__ = cls
         return new_module
 
@@ -1336,9 +1338,15 @@ class LlamaAttentionFA(LlamaAttention):
 
         past_key_value = (key_states, value_states) if use_cache else None
 
-        # FA Compute
-        # FA note: llama pre-add causal mask and padding mask, convert back to padding mask
-        key_padding_mask = attention_mask[:, 0, -1, :] == 0
+        # FA Compute #######
+        if len(attention_mask.shape) == 4:
+            # FA note: llama pre-add causal mask and padding mask, convert back to padding mask
+            key_padding_mask = attention_mask[:, 0, -1, :] == 0
+        elif len(attention_mask.shape) == 2:
+            # if attention_mask is not processed and remained key padding mask format
+            key_padding_mask = attention_mask
+        else:
+            raise ValueError(f"Attention mask format not supported, {attention_mask.dtype}, {attention_mask.shape}")
         attn_output = self.FA(
             query_states.transpose(1, 2),
             key_states.transpose(1, 2),

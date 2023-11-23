@@ -1,5 +1,7 @@
 import functools
+import types
 from copy import copy
+from functools import partial
 
 import torch
 from fairscale.nn.data_parallel import ShardedDataParallel as ShardedDDP
@@ -130,13 +132,25 @@ class Zero1Optimization(Optimization):
         # skip zero1 optimization when user did not pass optim_func
         if model_context.optim_func is None:
             return model_context
-        new_optim_args = {}
-        new_optim_args["optim"] = model_context.optim_func
-        new_optim_args["group"] = parallel_group("data")
-        new_optim_args.update(model_context.optim_args)
 
-        model_context.optim_func = OSS
-        model_context.optim_args = new_optim_args
+        config = copy(config) or {}
+        use_ds_zero = config.pop("use_ds_zero", False)
+        if use_ds_zero:
+            config["zero2"] = False
+            model_context.add_wrapper(
+                "ds_zero",
+                apply_ds_zero_wrapper,
+                config,
+                is_pre_wrapper=False,
+            )
+        else:
+            new_optim_args = {}
+            new_optim_args["optim"] = model_context.optim_func
+            new_optim_args["group"] = parallel_group("data")
+            new_optim_args.update(model_context.optim_args)
+
+            model_context.optim_func = OSS
+            model_context.optim_args = new_optim_args
 
         return model_context
 
@@ -162,8 +176,17 @@ class Zero2Optimization(Optimization):
         if model_context.optim_func is None:
             return model_context
         config = copy(config) or {}
+        use_ds_zero = config.pop("use_ds_zero", False)
         not_use_fsdp = config.pop("not_use_fsdp", False)
-        if not_use_fsdp or torch_version() < (1, 12, 0) or not torch.cuda.is_available():
+        if use_ds_zero:
+            config["zero2"] = True
+            model_context.add_wrapper(
+                "ds_zero",
+                apply_ds_zero_wrapper,
+                config,
+                is_pre_wrapper=False,
+            )
+        elif not_use_fsdp or torch_version() < (1, 12, 0) or not torch.cuda.is_available():
             # use fairscale zero2 with OSS
             new_optim_args = {}
             new_optim_args["optim"] = model_context.optim_func
@@ -303,7 +326,9 @@ class FSDPOptimization(Optimization):
             if not cpu_offload:
                 # Initialize modules' params on gpu and set device id
                 # support meta
-                if is_meta(model_context.model):
+                if "param_init_fn" in wrapper_config:
+                    logger.info("`param_init_fn` has been set, use `param_init_fn` in config")
+                elif is_meta(model_context.model):
                     from atorch.utils import meta_model_utils
                     from atorch.utils.meta_model_utils import _find_tied_weights, _retie_weights
 
@@ -390,3 +415,104 @@ class FSDPOptimization(Optimization):
             model_context.model.to(local_rank())
 
         return model_context
+
+
+def apply_ds_zero_wrapper(model_context, wrapper_name, wrapper_config):
+    from deepspeed import comm as ds_dist
+    from deepspeed.runtime.zero.stage_1_and_2 import DeepSpeedZeroOptimizer
+
+    try:
+        # Exists for ds version >= 0.10.1
+        from deepspeed.utils.timer import NoopTimer
+    except ImportError:
+
+        class NoopTimer:
+            class Timer:
+                def start(self):
+                    ...
+
+                def reset(self):
+                    ...
+
+                def stop(self, **kwargs):
+                    ...
+
+                def elapsed(self, **kwargs):
+                    return 0
+
+                def mean(self):
+                    return 0
+
+            def __init__(self):
+                self.timer = self.Timer()
+
+            def __call__(self, name):
+                return self.timer
+
+            def get_timers(self):
+                return {}
+
+            def log(self, names, normalizer=1.0, reset=True, memory_breakdown=False, ranks=None):
+                ...
+
+            def get_mean(self, names, normalizer=1.0, reset=True):
+                ...
+
+    zero2 = wrapper_config.get("zero2")
+    model_dtype = torch.float32
+    if "half" in model_context.pre_wrappers:
+        model_dtype = torch.bfloat16 if model_context.pre_wrappers["half"][1] == "bf16" else torch.half
+
+    ds_config_defaults = {
+        "static_loss_scale": 1.0,
+        "dynamic_loss_args": None,
+        "clip_grad": 0,
+        "cpu_offload": False,
+        "allgather_bucket_size": 5e8,
+        "reduce_bucket_size": 5e8,
+    }
+
+    ds_optim_config = {name: wrapper_config.get(name, ds_config_defaults[name]) for name in ds_config_defaults}
+    ds_optim_config["partition_grads"] = zero2
+    ds_optim_config["contiguous_gradients"] = zero2
+    ds_optim_config["overlap_comm"] = zero2
+    ds_optim_config["dynamic_loss_scale"] = model_dtype == torch.half
+    param_names = {param: name for name, param in model_context.model.named_parameters()}
+    pg = parallel_group("zero") or parallel_group("data")
+
+    ds_dist.init_distributed(dist_backend="nccl", dist_init_required=None)
+
+    model_context.optim = DeepSpeedZeroOptimizer(
+        model_context.optim, param_names, timers=NoopTimer(), dp_process_group=pg, **ds_optim_config
+    )
+
+    model_context.args["use_optim_backward"] = True
+    model_context.args["requires_set_gradient_accumulation_boundary"] = True
+    if zero2:
+        # call optim.overlapping_partition_gradients_reduce_epilogue() after optim.backward()
+        def new_backward(self, loss, ori_backward, *args, **kargs):
+            ori_backward(loss, *args, **kargs)
+            self.overlapping_partition_gradients_reduce_epilogue()
+
+        model_context.optim.backward = types.MethodType(
+            partial(new_backward, ori_backward=model_context.optim.backward), model_context.optim
+        )
+    else:  # zero1
+        # call optim.reduce_gradients() before optim.step()
+        def new_step(self, ori_step, *args, **kargs):
+            self.is_gradient_accumulation_boundary = True
+            self.reduce_gradients()
+            ori_step(*args, **kargs)
+
+        model_context.optim.step = types.MethodType(
+            partial(new_step, ori_step=model_context.optim.step), model_context.optim
+        )
+
+    def set_gradient_accumulation_boundary(self, is_boundary=True):
+        self.is_gradient_accumulation_boundary = is_boundary
+
+    model_context.optim.set_gradient_accumulation_boundary = types.MethodType(
+        set_gradient_accumulation_boundary, model_context.optim
+    )
+
+    return model_context

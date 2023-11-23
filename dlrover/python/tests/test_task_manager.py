@@ -14,10 +14,14 @@
 import json
 import unittest
 
+from dlrover.proto import elastic_training_pb2
 from dlrover.python.common.constants import NodeType
 from dlrover.python.common.grpc import TaskResult
 from dlrover.python.master.shard.task_manager import DatasetShardCheckpoint
-from dlrover.python.tests.test_utils import create_task_manager
+from dlrover.python.tests.test_utils import (
+    create_task_manager,
+    create_test_dataset_splitter,
+)
 
 
 class TaskMangerTest(unittest.TestCase):
@@ -101,3 +105,39 @@ class TaskMangerTest(unittest.TestCase):
         dataset._latest_task_end_time = 3600
         hang = task_manager.task_hanged()
         self.assertTrue(hang)
+
+    def test_paral_eval_count(self):
+        task_manager = create_task_manager()
+        eval_ds = "test-eval"
+        splitter = create_test_dataset_splitter(eval_ds)
+        task_manager.new_dataset(
+            batch_size=10,
+            dataset_size=1000,
+            dataset_name=eval_ds,
+            dataset_splitter=splitter,
+            task_type=elastic_training_pb2.EVALUATION,
+        )
+        eval_count = task_manager.get_paral_eval_count()
+        self.assertEqual(eval_count, 0)
+        task_manager.get_dataset_task(
+            NodeType.WORKER,
+            0,
+            "test-eval",
+        )
+        task_manager.get_dataset_task(
+            NodeType.WORKER,
+            0,
+            "test",
+        )
+        task_manager.get_dataset_task(
+            NodeType.WORKER,
+            0,
+            "test-eval",
+        )
+        task_manager.get_dataset_task(
+            NodeType.WORKER,
+            0,
+            "test",
+        )
+        eval_count = task_manager.get_paral_eval_count()
+        self.assertEqual(eval_count, 2)

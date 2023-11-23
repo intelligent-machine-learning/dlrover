@@ -12,8 +12,9 @@
 # limitations under the License.
 
 import argparse
+import functools
 import os
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import torch
 import torch.distributed as dist
@@ -22,21 +23,23 @@ import torch.nn.functional as F
 import torch.optim as optim
 import torchvision
 from torch.distributed.elastic.multiprocessing.errors import record
-from torch.distributed.fsdp import FullStateDictConfig
+from torch.distributed.fsdp import CPUOffload, FullStateDictConfig
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.distributed.fsdp import StateDictType
+from torch.distributed.fsdp.wrap import size_based_auto_wrap_policy
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader
 from torchvision import transforms
 
+from dlrover.trainer.torch.elastic.checkpoint import CheckpointManger
 from dlrover.trainer.torch.elastic.dataloader import ElasticDataLoader
 from dlrover.trainer.torch.elastic.sampler import ElasticDistributedSampler
 from dlrover.trainer.torch.elastic.trainer import ElasticTrainer
 
 # Note, we need to set the path of a shared file
 # system like nas, cpfs or hdfs.
-CHEKPOINT_PATH = "./model.pt"
+CHEKPOINT_DIR = "/nas/mnist-ckpt/"
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 
 
@@ -127,7 +130,18 @@ def train(args):
         model = model.to(local_rank)
         if args.use_fsdp:
             print(f"Running basic FSDP example on local rank {local_rank}.")
-            model = FSDP(model)
+            my_auto_wrap_policy = functools.partial(
+                size_based_auto_wrap_policy, min_num_params=1000
+            )
+            cpu_offload = (
+                CPUOffload(offload_params=True) if args.cpu_offload else None
+            )
+            model = FSDP(
+                model,
+                device_id=local_rank,
+                auto_wrap_policy=my_auto_wrap_policy,
+                cpu_offload=cpu_offload,
+            )
         else:
             print(f"Running basic DDP example on local rank {local_rank}.")
             model = DDP(model, device_ids=[local_rank])
@@ -141,8 +155,13 @@ def train(args):
         model.parameters(), lr=args.learning_rate, momentum=args.momentum
     )
     scheduler = StepLR(optimizer, step_size=1, gamma=0.5)
-
-    load_checkpoint(model, optimizer, sampler, CHEKPOINT_PATH, args.use_fsdp)
+    ckpt_manager = CheckpointManger.init_checkpoint_manager(
+        model,
+        optimizer,
+        train_loader,
+        CHEKPOINT_DIR,
+    )
+    ckpt_manager.load()
 
     elastic_trainer = ElasticTrainer(model, dataloader=train_loader)
     optimizer, scheduler = elastic_trainer.prepare(optimizer, scheduler)
@@ -155,32 +174,39 @@ def train(args):
         scheduler.step()
         model.train()
         train_epoch(
+            epoch,
             elastic_trainer,
             model,
             optimizer,
             train_loader,
             device,
-            args.use_fsdp,
+            ckpt_manager,
             args.fixed_batch_size,
         )
         log_rank0("Test model after epoch {}".format(epoch))
         test(model, device, test_loader)
+    ckpt_manager.wait_saving_latest_ckpt()
+    if args.save_model:
+        rank = int(os.environ.get("RANK", "0"))
+        save_model(model, args.num_epochs, rank, args.use_fsdp)
     dist.barrier()
 
 
 def train_epoch(
+    epoch,
     elastic_trainer,
     model,
     optimizer,
     train_loader,
     device,
-    use_fsdp=False,
+    ckpt_manager: CheckpointManger,
     fixed_batch_size=False,
 ):
     """
     The global batch size will not change if the number of workers changes.
     """
-
+    # Note: Set epoch into the sampler.
+    train_loader.sampler.set_epoch(epoch)
     for _, (data, target) in enumerate(train_loader):
         with elastic_trainer.step(fixed_batch_size):
             optimizer.zero_grad()
@@ -195,66 +221,32 @@ def train_epoch(
                 log_rank0("loss = {}, step = {}".format(loss, train_step))
 
             if train_step > 0 and train_step % 200 == 0:
-                save_checkpoint(
-                    train_step,
-                    model,
-                    optimizer,
-                    train_loader,
-                    CHEKPOINT_PATH,
-                    use_fsdp,
-                )
+                ckpt_manager.save(epoch, train_step)
+                print("Finish save checkpoint.")
 
 
-def load_checkpoint(model, optimizer, sampler, ckpt_path, use_fsdp=False):
-    if not os.path.exists(ckpt_path):
-        return
-    print("Checkpoint loaded to rank0 CPU.")
-    checkpoint = torch.load(ckpt_path)
-    sampler.load_state_dict(checkpoint.get("sampler", {}))
-    model_state_dict = checkpoint.get("model", {})
-    model.load_state_dict(model_state_dict)
-    optim_state_dict = checkpoint.get("optimizer", {})
-    if use_fsdp:
-        FSDP.set_state_dict_type(
-            model,
-            StateDictType.FULL_STATE_DICT,
-            FullStateDictConfig(rank0_only=True),
-        )
-        # called from all ranks, though only rank0 has
-        # a valid param for full_osd.
-        optim_state_dict = FSDP.optim_state_dict_to_load(
-            optim_state_dict, model, optimizer
-        )
-        optimizer.load_state_dict(optim_state_dict)
-    else:
-        optimizer.load_state_dict(optim_state_dict)
-
-
-def save_checkpoint(
-    step, model, optimizer, data_loader, ckpt_path, use_fsdp=False
-):
-    log_rank0("Save checkpoint.")
-    msd, osd = get_model_optim_state(model, optimizer, use_fsdp)
-    ssd = data_loader.sampler.state_dict(step, data_loader.batch_size)
-    checkpoint = {"model": msd, "optimizer": osd, "sampler": ssd}
-    rank = dist.get_rank()
+def save_model(model, epoch, rank, use_fsdp=False):
+    # save
     if rank == 0:
-        torch.save(checkpoint, ckpt_path)
+        print("--> entering save model state")
 
-
-def get_model_optim_state(model, optimizer, use_fsdp=False):
     if use_fsdp:
-        FSDP.set_state_dict_type(
-            model,
-            StateDictType.FULL_STATE_DICT,
-            FullStateDictConfig(rank0_only=True),
-        )
-        model_state = model.state_dict()
-        optim_state = FSDP.optim_state_dict(model, optimizer)
+        save_policy = FullStateDictConfig(offload_to_cpu=True, rank0_only=True)
+        with FSDP.state_dict_type(
+            model, StateDictType.FULL_STATE_DICT, save_policy
+        ):
+            cpu_state = model.state_dict()
     else:
-        model_state = model.state_dict()
-        optim_state = optimizer.state_dict()
-    return model_state, optim_state
+        cpu_state = model.state_dict()
+
+    if rank == 0:
+        print("--> saving model ...")
+        currEpoch = "-" + str(epoch) + ".pt"
+        print(f"--> attempting to save model prefix {currEpoch}")
+        time_of_run = datetime.now().strftime("%Y-%m-%d-%I-%M-%S")
+        save_name = "MNIST-CNN-" + time_of_run + currEpoch
+        print(f"--> saving as model name {save_name}")
+        torch.save(cpu_state, save_name)
 
 
 def test(model, device, test_loader):
@@ -263,7 +255,6 @@ def test(model, device, test_loader):
     test_loss = 0
     correct = 0
     with torch.no_grad():
-        model = model.to(device)
         for data, target in test_loader:
             target = target.type(torch.LongTensor)
             data, target = data.to(device), target.to(device)
@@ -293,7 +284,8 @@ def arg_parser():
     parser.add_argument("--batch_size", type=int, default=32, required=False)
     parser.add_argument("--num_epochs", type=int, default=1, required=False)
     parser.add_argument("--shuffle", type=bool, default=True, required=False)
-    parser.add_argument("--use_fsdp", type=bool, default=False, required=False)
+    parser.add_argument("--use_fsdp", action="store_true", required=False)
+    parser.add_argument("--cpu_offload", action="store_true", required=False)
     parser.add_argument(
         "--fixed_batch_size", type=bool, default=True, required=False
     )
@@ -311,6 +303,7 @@ def arg_parser():
     parser.add_argument(
         "--validation_data", type=str, default="", required=True
     )
+    parser.add_argument("--save_model", action="store_true", required=False)
     return parser
 
 

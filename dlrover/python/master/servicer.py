@@ -105,7 +105,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         elif isinstance(req_message, grpc.JoinRendezvousRequest):
             message = self._join_rendezvous(req_message)
         elif isinstance(req_message, grpc.WaitingNodeNumRequest):
-            message = self._num_nodes_waiting()
+            message = self._num_nodes_waiting(req_message.rdzv_name)
         elif isinstance(req_message, grpc.NetworkReadyRequest):
             message = self._check_fault_node()
         elif isinstance(req_message, grpc.StragglerExistRequest):
@@ -147,7 +147,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             res.shard.start = task.shard.start
             res.shard.end = task.shard.end
             if task.shard.record_indices:
-                res.shard.indices.extend(task.shard.record_indices)
+                res.shard.indices = task.shard.record_indices
         elif not dataset.completed():
             res.type = elastic_training_pb2.WAIT
         with self._lock:
@@ -238,22 +238,27 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         round = rdzv_manager.join_rendezvous(
             request.node_id, request.local_world_size
         )
+        if request.rdzv_name == RendezvousName.NETWORK_CHECK:
+            # The waiting node in the training rdzv should clear if
+            # a worker join network-check rdzv.
+            training_manager = self._rdzv_managers[
+                RendezvousName.ELASTIC_TRAINING
+            ]
+            training_manager.clear_waiting_nodes()
         res = grpc.RendezvousState(round=round)
         return res
 
-    def _num_nodes_waiting(self):
-        waiting_num = 0
-        for rdzv_manager in self._rdzv_managers.values():
-            num = rdzv_manager.num_nodes_waiting()
-            waiting_num = max(num, waiting_num)
+    def _num_nodes_waiting(self, rdzv_name):
+        waiting_num = self._rdzv_managers[rdzv_name].num_nodes_waiting()
         res = grpc.RendezvousState(waiting_num=waiting_num)
         return res
 
     def _get_comm_world(self, request: grpc.CommWorldRequest):
         rdzv_manager = self._rdzv_managers[request.rdzv_name]
-        group, nodes = rdzv_manager.get_comm_world(request.node_id)
+        rdzv_round, group, nodes = rdzv_manager.get_comm_world(request.node_id)
         res = grpc.RendezvousState(world={})
         res.group = group
+        res.round = rdzv_round
         for rank_id, worker_num in nodes.items():
             res.world[rank_id] = worker_num
         return res

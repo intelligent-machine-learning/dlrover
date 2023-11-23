@@ -14,8 +14,8 @@
 import os
 import threading
 
+from dlrover.python.common import grpc
 from dlrover.python.common.constants import UserEnv
-from dlrover.python.common.grpc import find_free_port_in_range
 from dlrover.python.common.log import default_logger as logger
 
 
@@ -92,7 +92,7 @@ class Context(object):
         self.auto_worker_enabled = False
         self.auto_ps_enabled = False
         self.is_tfv1_ps = False
-        self.master_port = 0
+        self.master_port = None
         self.relaunch_always = False
 
     def set_params_from_brain(self):
@@ -154,10 +154,20 @@ class Context(object):
         )
 
     def config_master_port(self, port=0):
+        host_ports_env = os.getenv("HOST_PORTS", "")
+        self.master_port = None
         if port > 0:
             self.master_port = port
-        else:
-            self.master_port = find_free_port_in_range(50001, 65535)
+        elif host_ports_env:
+            ports = []
+            for port in host_ports_env.split(","):
+                ports.append(int(port))
+            try:
+                self.master_port = grpc.find_free_port_in_set(ports)
+            except ValueError as e:
+                logger.warning(e)
+        if self.master_port is None:
+            self.master_port = grpc.find_free_port_in_range(20000, 30000)
 
     def get_param_value_from_brain(self, key_name, default_value, dtype=int):
         """TODO: Get the configured value from Brain service."""

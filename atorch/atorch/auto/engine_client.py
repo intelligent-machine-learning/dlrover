@@ -14,11 +14,11 @@ class EngineClient(object):
         self.client = self.create_client(addr)
 
     def create_client(self, addr):
-        """Return a AutoAccelerationClient defined in easydl."""
+        """Return a AutoAccelerationClient defined in engine."""
         return build_auto_acc_client(addr, self.process_id) if build_auto_acc_client is not None else None
 
     def get_task(self):
-        """Get task from easydl."""
+        """Get task from engine."""
         if self.client is None:
             logger.warning("AutoAccelerationClient is None. Cannot call `get_task`. Just return.")
             return

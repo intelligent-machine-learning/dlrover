@@ -202,7 +202,10 @@ auto_accelerate returns 3-item tuple (status, result, best_strategy).
 <tr>
     <td>result (namedtuple)</td>
     <td>
-        namedtuple(model, optim, dataloader, loss_func, prepare_input) for resulting model, optimizer, dataloader, loss_func, prepare_input.
+    namedtuple(model, optim, dataloader, loss_func, prepare_input, args) for resulting model, optimizer, dataloader, loss_func, prepare_input, args. <br>
+    args includes:<br>
+    - use_optim_backward: if True, use <code>optim.backward(loss)</code> instead of <code>loss.bacward()</code> for backward pass.<br>
+    - requires_set_gradient_accumulation_boundary: if True, when gradient accumulation is used in traning, call <code>optim.set_gradient_accumulation_boundary(True)</code> in accumulation boundary training pass.    
     </td>
 </tr>
 <tr>
@@ -284,31 +287,38 @@ register_replace_pair("my_optimized_module", supported_dtypes=supported_dtypes, 
 
 ### zero1
 
-zero1 uses Zero Redundancy Optimizer to shard optimizer states in data parallel training.
+zero1 uses Zero Redundancy Optimizer (zero1) to shard optimizer states in data parallel training.
+Two implementations are provided.
+- (Default) Use fairscale zero2 implementation.
+- Use DeepSpeed zero1 implementation.  Set config as <code>{"use_ds_zero", True}</code> to choose this implementation.
 
 ### zero2
 
 Level 2 of ZeRO method, which shards both gradients and optimizer states.
 
-Two implementations are used.
+Three implementations are provided.
 - (Default) Use pytorch fsdp SHARD_GRAD_OP, thus supports all configurations as in fsdp method below.
 - Use fairscale zero2 implementation. Set config as <code>{"not_use_fsdp", True}</code> to choose this implementation.
+- Use DeepSpeed zero2 implementation.  Set config as <code>{"use_ds_zero", True}</code> to choose this implementation.
 
 
 ### fsdp
 
 Use PyTorch-native FSDP implementation for level 3 of ZeRO, which shards model parameters, gradients and optimizer states.
 Configuration support all [FSDP arguments](https://pytorch.org/docs/stable/fsdp.html#torch.distributed.fsdp.FullyShardedDataParallel) plus some ATorch-defined arguments for easy usage.
-ATorchpdefined arguments:
+ATorch-defined arguments:
 
 - atorch_wrap_cls: tuple of submodule names or submodule type for fsdp to wrap.
 - atorch_size_based_min_num_params： wrap submoudule based on parameter size. Should not used with atorch_wrap_cls.
 - atorch_ignored_cls: tuple of submodule names or submodule type for fsdp to ignore (not sharded).
+- fsdp_wrap_params_outmost: if True, wrap trainable parameters together in an outmost fsdp wrap. You may get better performance for finetuning with a small percentage of trainable parameters, such as LORA.
 
-Recommended configurations 
+Recommended configurations
 ```
 config = {"forward_prefetch": True, "limit_all_gathers": True, "sync_module_states": True, atorch_wrap_cls=tuple_of_main_submodules}
 ```
+
+Add <code>{"use_orig_params": True}</code> if multiple parameter groups with different hyperparamters are used in optimizer.  Try add <code>{"fsdp_wrap_params_outmost": True}</code> for LORA finetuning to see if any performance improvement.
 
 ### tensor_parallel
 

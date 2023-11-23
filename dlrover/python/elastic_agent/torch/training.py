@@ -49,19 +49,23 @@ from torch.distributed.elastic.rendezvous import RendezvousParameters
 from torch.distributed.elastic.rendezvous.api import RendezvousHandler
 from torch.distributed.launcher.api import LaunchConfig, _get_entrypoint_name
 
+from dlrover.python.common import env_utils
 from dlrover.python.common.constants import (
     ConfigPath,
-    NodeEnv,
     NodeErrorMessage,
     NodeStatus,
     RendezvousName,
     TrainingMsgLevel,
 )
+from dlrover.python.common.grpc import (
+    find_free_port_in_range,
+    find_free_port_in_set,
+)
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.config.paral_config_tuner import (
     ParalConfigTuner,
 )
-from dlrover.python.elastic_agent.master_client import GlobalMasterClient
+from dlrover.python.elastic_agent.master_client import MasterClient
 from dlrover.python.elastic_agent.monitor.training import TorchTrainingMonitor
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
 
@@ -83,6 +87,10 @@ def _get_local_ip():
     if not local_ip:
         local_ip = socket.gethostbyname(_get_fq_hostname())
     return local_ip
+
+
+class RendezvousOutSyncError(Exception):
+    pass
 
 
 @dataclass
@@ -128,7 +136,7 @@ class MasterRendezvousHandler(RendezvousHandler):
 
     Args:
         name: the name of rendezvous.
-        rank_id: the node rank id.
+        node_rank: the node rank.
         rdzv_params: RendezvousParameters instance. We can set timeout of
             rendezvous in the rdzv_params.config. Now we set:
             join_timeout: the timeout to join the rendevous. The timeout
@@ -150,17 +158,17 @@ class MasterRendezvousHandler(RendezvousHandler):
     def __init__(
         self,
         name,
-        rank_id,
+        node_rank,
         rdzv_params: RendezvousParameters,
         local_world_size,
     ):
         self._name = name
-        self._rank_id = rank_id
+        self._node_rank = node_rank
         self._rdzv_params = rdzv_params
         self._local_world_size = local_world_size
         self.join_timeout = int(rdzv_params.get("join_timeout", 600))
         self.pend_timeout = float(rdzv_params.get("pend_timeout", "inf"))
-        self._client = GlobalMasterClient.MASTER_CLIENT
+        self._client = MasterClient.singleton_instance()
         self._store = MasterKVStore(self._name, timedelta(seconds=60))
         lastcall_timeout = int(rdzv_params.get("lastcall_timeout", 60))
         node_unit = int(rdzv_params.get("node_unit", "1"))
@@ -186,7 +194,7 @@ class MasterRendezvousHandler(RendezvousHandler):
         ID and local world size.
         """
         round = self._client.join_rendezvous(
-            self._rank_id, self._local_world_size, rdzv_name=self._name
+            self._node_rank, self._local_world_size, rdzv_name=self._name
         )
         return round
 
@@ -204,14 +212,15 @@ class MasterRendezvousHandler(RendezvousHandler):
             f"rendezvous '{self._name}' with timeout {self.join_timeout}."
         )
         logger.info(msg)
-        round = self._join_rendezvous()
+        self._join_rendezvous()
         start_pending = 0
         while True:
-            group, world = self._client.get_comm_world(
-                self._name, self._rank_id
+            self._check_network_rdzv_for_elastic_training()
+            round, group, world = self._client.get_comm_world(
+                self._name, self._node_rank
             )
             if world:
-                if self._rank_id in world:
+                if self._node_rank in world:
                     break
                 else:
                     logger.info(
@@ -236,10 +245,10 @@ class MasterRendezvousHandler(RendezvousHandler):
                 raise TimeoutError(err_msg)
             time.sleep(3)
         world = dict(sorted(world.items()))
-        rank = list(world.keys()).index(self._rank_id)
+        rank = list(world.keys()).index(self._node_rank)
         world_size = len(world)
         logger.info(
-            f"The node{node_name} has joined round {round} of "
+            f"The node {node_name} has joined round {round} of "
             f"the {self._name} rendezvous as rank {rank} in a world of size "
             f"{world_size}."
         )
@@ -252,8 +261,20 @@ class MasterRendezvousHandler(RendezvousHandler):
         store = self._get_store(round, group)
         return store, world
 
+    def _check_network_rdzv_for_elastic_training(self):
+        """The worker need to exit the elastic-training rendezvous if there are
+        workers to join the network-check rendezvous.
+        """
+        if self._name == RendezvousName.ELASTIC_TRAINING:
+            num = self._client.num_nodes_waiting(RendezvousName.NETWORK_CHECK)
+            if num > 0:
+                raise RendezvousOutSyncError(
+                    "Some workers join the network-check rendezvous"
+                    "not the elastic-training rendezvous."
+                )
+
     def _report_failure(self, err_msg, level):
-        if self._rank_id == 0:
+        if self._node_rank == 0:
             self._client.report_failures(err_msg, 0, level)
 
     def _get_store(self, round, group) -> Store:
@@ -301,7 +322,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
     def __init__(
         self,
-        rank_id,
+        node_rank,
         config: ElasticLaunchConfig,
         entrypoint,
         spec: WorkerSpec,
@@ -310,7 +331,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         log_dir: Optional[str] = None,
     ):
         super().__init__(spec, exit_barrier_timeout)
-        self._rank_id = rank_id
+        self._node_rank = node_rank
         self._config = config
         self._entrypoint = entrypoint
         self._start_method = start_method
@@ -319,7 +340,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         self._worker_watchdog: Optional[timer.FileTimerServer] = None
         self._restart_count = 0
         self._remaining_failovers = self._remaining_restarts
-        self._client = GlobalMasterClient.MASTER_CLIENT
+        self._client = MasterClient.singleton_instance()
         if config.auto_tunning:
             self._paral_config_tuner = ParalConfigTuner()
             self._paral_config_tuner.start()
@@ -336,21 +357,30 @@ class ElasticTrainingAgent(LocalElasticAgent):
         store, world = spec.rdzv_handler.next_rendezvous()
         self._store = store
         group_world_size = len(world)
-        group_rank = list(world.keys()).index(self._rank_id)
+        group_rank = list(world.keys()).index(self._node_rank)
 
-        workers = self._assign_worker_ranks(self._rank_id, world, spec)
+        workers = self._assign_worker_ranks(self._node_rank, world, spec)
         worker_group.workers = workers
         worker_group.store = store
         worker_group.group_rank = group_rank
         worker_group.group_world_size = group_world_size
 
         if group_rank == 0:
-            self._set_master_addr_port(
-                store,
-                spec.master_addr,
-                spec.master_port,
-                spec.local_addr,
-            )
+            spec.master_port = self._get_free_port()
+            if hasattr(spec, "local_addr"):
+                self._set_master_addr_port(
+                    store,
+                    spec.master_addr,
+                    spec.master_port,
+                    spec.local_addr,
+                )
+            else:
+                # Compatible with torch 1.x
+                self._set_master_addr_port(
+                    store,
+                    spec.master_addr,
+                    spec.master_port,
+                )
 
         master_addr, master_port = self._get_master_addr_port(store)
 
@@ -369,6 +399,25 @@ class ElasticTrainingAgent(LocalElasticAgent):
             f"  global_world_sizes="
             f"{[worker.world_size for worker in workers]}\n"
         )
+
+    def _get_free_port(self):
+        """Find a free port from the HOST_PORTS in env."""
+        port = None
+        host_ports = os.getenv("HOST_PORTS", "")
+        if host_ports:
+            ports = []
+            for port in host_ports.split(","):
+                ports.append(int(port))
+            for _ in range(10):
+                try:
+                    port = find_free_port_in_set(ports)
+                    return port
+                except ValueError as e:
+                    logger.warn(e)
+                    time.sleep(3)
+        else:
+            port = find_free_port_in_range(20000, 30000)
+        return port
 
     # pyre-fixme[56]: Pyre was not able to infer the type of the decorator
     #  `torch.distributed.elastic.metrics.prof`.
@@ -435,9 +484,18 @@ class ElasticTrainingAgent(LocalElasticAgent):
         return workers
 
     def _initialize_workers(self, worker_group):
-        if self._config.network_check:
-            run_network_check(self._config, self._entrypoint)
-        super()._initialize_workers(worker_group)
+        while True:
+            try:
+                if self._config.network_check:
+                    run_network_check(self._config, self._entrypoint)
+                super()._initialize_workers(worker_group)
+            except RendezvousOutSyncError:
+                logger.info(
+                    "Exit elastic-training rendezvous when there are "
+                    "agents to join the network-check rendezvous."
+                )
+            else:
+                break
 
     def _invoke_run(self, role: str = DEFAULT_ROLE) -> RunResult:
         # NOTE: currently only works for a single role
@@ -538,7 +596,12 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
     def _membership_changed(self, role, rdzv_handler: RendezvousHandler):
         # Timeout may happen when to query TCPStore.
-        num_nodes_waiting = rdzv_handler.num_nodes_waiting()
+        if self._config.network_check:
+            num_nodes_waiting = self._client.num_nodes_waiting(
+                RendezvousName.NETWORK_CHECK
+            )
+        else:
+            num_nodes_waiting = rdzv_handler.num_nodes_waiting()
         group_rank = self._worker_group.group_rank
         if num_nodes_waiting > 0:
             logger.info(
@@ -563,7 +626,7 @@ def launch_agent(
         config.run_id = run_id
 
     entrypoint_name = _get_entrypoint_name(entrypoint, args)
-    rank_id = int(os.getenv(NodeEnv.WORKER_RANK, 0))
+    node_rank = env_utils.get_node_rank()
 
     logger.info(
         f"Starting elastic_operator with launch configs:\n"
@@ -592,13 +655,12 @@ def launch_agent(
         run_id=config.run_id,
         min_nodes=config.min_nodes,
         max_nodes=config.max_nodes,
-        local_addr=config.local_addr,
         **config.rdzv_configs,
     )
     master_addr = _get_local_ip()
     rdzv_handler = MasterRendezvousHandler(
         RendezvousName.ELASTIC_TRAINING,
-        rank_id,
+        node_rank,
         rdzv_parameters,
         local_world_size=config.nproc_per_node,
     )
@@ -613,11 +675,10 @@ def launch_agent(
         redirects=config.redirects,
         tee=config.tee,
         master_addr=master_addr,
-        local_addr=config.local_addr,
     )
 
     agent = ElasticTrainingAgent(
-        rank_id=rank_id,
+        node_rank=node_rank,
         config=config,
         entrypoint=entrypoint,
         spec=spec,
@@ -682,7 +743,7 @@ class NetworkCheckElasticAgent(ElasticTrainingAgent):
 
     def __init__(
         self,
-        rank_id,
+        node_rank,
         config,
         entrypoint,
         spec: WorkerSpec,
@@ -691,7 +752,7 @@ class NetworkCheckElasticAgent(ElasticTrainingAgent):
         log_dir: Optional[str] = None,
     ):
         super().__init__(
-            rank_id,
+            node_rank,
             config,
             entrypoint,
             spec,
@@ -723,7 +784,7 @@ class NetworkCheckElasticAgent(ElasticTrainingAgent):
             )
             status = NodeStatus.SUCCEEDED if result else NodeStatus.FAILED
             self._client.report_network_status(
-                self._rank_id,
+                self._node_rank,
                 status,
                 elapsed_time,
             )
@@ -749,13 +810,13 @@ class NetworkCheckElasticAgent(ElasticTrainingAgent):
                     continue
             else:
                 return True
-        if self._rank_id in fault_nodes:
+        if self._node_rank in fault_nodes:
             self._client.report_failures(
                 NodeErrorMessage.NETWORKER_ERROR,
                 level=TrainingMsgLevel.NODE_ERROR,
             )
             raise RuntimeError("The node network is breakdown.")
-        elif self._config.exclude_straggler and self._rank_id in stragglers:
+        elif self._config.exclude_straggler and self._node_rank in stragglers:
             raise RuntimeError("The node is a straggler and exits.")
         return True
 
@@ -817,7 +878,7 @@ def network_check(
         config.run_id = run_id
 
     entrypoint_name = _get_entrypoint_name(entrypoint, args)
-    rank_id = int(os.getenv(NodeEnv.WORKER_RANK, 0))
+    node_rank = env_utils.get_node_rank()
 
     logger.info(
         f"Starting elastic_operator with launch configs:\n"
@@ -841,14 +902,13 @@ def network_check(
         run_id=config.run_id,
         min_nodes=config.min_nodes,
         max_nodes=config.max_nodes,
-        local_addr=config.local_addr,
         **config.rdzv_configs,
     )
 
     master_addr = _get_local_ip()
     rdzv_handler = MasterRendezvousHandler(
         RendezvousName.NETWORK_CHECK,
-        rank_id,
+        node_rank,
         rdzv_parameters,
         local_world_size=config.nproc_per_node,
     )
@@ -864,7 +924,7 @@ def network_check(
     )
 
     agent = NetworkCheckElasticAgent(
-        rank_id=rank_id,
+        node_rank=node_rank,
         config=config,
         entrypoint=entrypoint,
         spec=spec,

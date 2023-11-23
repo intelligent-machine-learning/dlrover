@@ -1,18 +1,23 @@
-from abc import abstractmethod
-from typing import Any
+# Copyright 2023 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
-from atorch.common.log_utils import default_logger as logger
+from abc import ABCMeta, abstractmethod
 
-try:
-    from dlrover.trainer.torch import elastic_dataset as dlrover_ds
-
-    BaseElasticDataset: Any = dlrover_ds.ElasticDataset
-except ImportError:
-    logger.warning("Please install dlrover[torch] to use elastic dataset.")
-    BaseElasticDataset = object
+from torch.utils.data import Dataset
 
 
-class ElasticDataset(BaseElasticDataset):
+class ElasticDataset(Dataset, metaclass=ABCMeta):
+
     """Using ElasticDataset, the node can read samples without
     duplicates with other nodes in an epoch. DLRover master
     will dispatch the index of sample in a dataset to one node.
@@ -62,23 +67,33 @@ class ElasticDataset(BaseElasticDataset):
         shuffle=False,
         num_minibatches_per_shard=2,
     ):
-        super(ElasticDataset, self).__init__(
-            name=name,
-            dataset_size=dataset_size,
+        from dlrover.python.elastic_agent.sharding.client import IndexShardingClient
+
+        self._shard_client = IndexShardingClient(
+            dataset_name=name,
             batch_size=batch_size,
-            epochs=epochs,
+            num_epochs=epochs,
+            dataset_size=dataset_size,
             shuffle=shuffle,
             num_minibatches_per_shard=num_minibatches_per_shard,
+            storage_type="text",
         )
+
+    def __len__(self):
+        return self._shard_client.get_total_sample_num()
+
+    def __getitem__(self, _):
+        index = self._shard_client.fetch_sample_index()
+        return self.read_sample(index)
+
+    def report_batch_done(self, batch_size=None):
+        """After updating models using the samples, the dataset need to
+        report the batch completion."""
+        self._shard_client.report_batch_done(batch_size)
 
     @abstractmethod
     def read_sample(self, index):
-        """Implement to read and process sample data by the index.
-        For example, we can build a list with the link or path of
-        all samples. Then, we can get the link from the list by
-        an index and read the sample with the link. Users may need
-        to build the list with samples when using ElasticDataset.
-        """
+        """Implement to read sample data by the index."""
         pass
 
 

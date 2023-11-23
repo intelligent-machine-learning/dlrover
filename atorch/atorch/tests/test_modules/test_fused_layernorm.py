@@ -149,6 +149,35 @@ class FusedLayerNormTest(unittest.TestCase):
                 # )
                 pass
 
+    def get_clear_kernel_df(self, path):
+        with open(path) as f:
+            traceEvents = json.load(f)["traceEvents"]
+        df = pd.DataFrame(traceEvents)
+        df["cat"] = df["cat"].str.lower()
+        kernel_df = df.query("cat == 'kernel'")
+        cat2kernelname = {  # forward kernel/y grad backward/ w+b backward
+            "torch": ["vectorized_layer_norm_kernel", "layer_norm_grad_input_kernel", "GammaBetaBackwardCUDAKernel"],
+            "atorch": ["_layer_norm_fwd_fused", "_layer_norm_bwd_dx_fused", "_layer_norm_bwd_dwdb", "sum_functor"],
+            "apex": [
+                "cuApplyLayerNorm",
+                "cuComputeGradInput",
+                "cuComputePartGradGammaBeta",
+            ],
+        }
+        all_kernelnames = []
+        for kernel_list in cat2kernelname.values():
+            all_kernelnames.extend(kernel_list)
+
+        def convert_fn(name):
+            for kernelname in all_kernelnames:
+                if kernelname in name:
+                    return kernelname
+            else:
+                return name
+
+        kernel_df["name"] = kernel_df["name"].apply(convert_fn)
+        return kernel_df.query("name ==@all_kernelnames")
+
     @unittest.skipIf(torch.__version__ < (2, 0), "triton need torch 2.0")
     def test_layernorm_trace(self):
         M, N = 4096, 4096
@@ -222,11 +251,8 @@ class FusedLayerNormTest(unittest.TestCase):
             # self.assertLess(atorch_cost, apex_cost)
 
         prof.export_chrome_trace("layernorm_trace_%s.json" % dtype)
-        with open("layernorm_trace_%s.json" % dtype) as f:
-            traceEvents = json.load(f)["traceEvents"]
-        df = pd.DataFrame(traceEvents)
-        df["cat"] = df["cat"].str.lower()
-        kernel_df = df.query("cat == 'kernel'")
+        kernel_df = self.get_clear_kernel_df("layernorm_trace_%s.json" % dtype)
+
         cat2kernelname = {  # forward kernel/y grad backward/ w+b backward
             "torch": ["vectorized_layer_norm_kernel", "layer_norm_grad_input_kernel", "GammaBetaBackwardCUDAKernel"],
             "atorch": ["_layer_norm_fwd_fused", "_layer_norm_bwd_dx_fused", "_layer_norm_bwd_dwdb", "sum_functor"],
@@ -236,18 +262,7 @@ class FusedLayerNormTest(unittest.TestCase):
                 "cuComputePartGradGammaBeta",
             ],
         }
-        all_kernelnames = []
-        for kernel_list in cat2kernelname.values():
-            all_kernelnames.extend(kernel_list)
 
-        def convert_fn(name):
-            for kernelname in all_kernelnames:
-                if kernelname in name:
-                    return kernelname
-            else:
-                return name
-
-        kernel_df["name"] = kernel_df["name"].apply(convert_fn)
         cat2times = {key: 0 for key in cat2kernelname}
         for key, kernelnames in cat2kernelname.items():
             for kernelname in kernelnames:
@@ -259,3 +274,94 @@ class FusedLayerNormTest(unittest.TestCase):
         )
         # self.assertLess(cat2times["atorch"], cat2times["torch"])
         # self.assertLess(cat2times["atorch"], cat2times["apex"])
+
+    @unittest.skipIf(torch.__version__ < (2, 0), "triton need torch 2.0")
+    def test_frozen_layer(self):
+        device = torch.cuda.current_device()
+
+        class SimpleModule(torch.nn.Module):
+            def __init__(self, input_shape, output_shape, layernorm_cls=AtorchLayerNorm):
+                super().__init__()
+                self.linear1 = torch.nn.Linear(input_shape, input_shape)
+                self.layernorm1 = layernorm_cls(input_shape)
+                self.linear2 = torch.nn.Linear(input_shape, output_shape)
+                self.layernorm2 = layernorm_cls(input_shape)
+
+            def forward(self, x):
+                x = self.linear1(x)
+                x = self.layernorm1(x)
+                x = self.linear2(x)
+                x = self.layernorm2(x)
+
+                return x
+
+        B, S, H = 64, 128, 512
+        # expect_counts , kernel number:
+
+        # GammaBetaBackwardCUDAKernel
+        # _layer_norm_bwd_dwdb
+        # _layer_norm_bwd_dx_fused
+        # _layer_norm_fwd_fused
+        # layer_norm_grad_input_kernel
+        # sum_functor
+        # vectorized_layer_norm_kernel
+        for weight_grad, bias_grad, expect_counts in [
+            [
+                True,
+                True,
+                [2, 2, 2, 2, 2, 8, 2],
+            ],
+            [
+                True,
+                False,
+                [2, 2, 2, 2, 2, 6, 2],
+            ],
+            [False, True, [2, 1, 2, 2, 2, 8, 2]],
+            [False, False, [1, 1, 2, 2, 2, 6, 2]],
+        ]:
+            # example: when weight_grad=False, bias_grad=False, there are one GammaBetaBackwardCUDAKernel,
+            with self.subTest("weight_grad=%s bias_grad=%s" % (weight_grad, bias_grad)):
+                model = SimpleModule(H, H)
+                model.to(device)
+                model.layernorm1.weight.requires_grad_(weight_grad)
+                model.layernorm1.bias.requires_grad_(bias_grad)
+
+                model_torch = SimpleModule(H, H, torch.nn.LayerNorm)
+                model_torch.to(device)
+                model_torch.layernorm1.weight.requires_grad_(weight_grad)
+                model_torch.layernorm1.bias.requires_grad_(bias_grad)
+
+                x = torch.randn(B, S, H, device=device, requires_grad=True)
+                with torch.profiler.profile(
+                    activities=[
+                        torch.profiler.ProfilerActivity.CPU,
+                        torch.profiler.ProfilerActivity.CUDA,
+                    ],
+                    with_stack=True,
+                    with_modules=True,
+                ) as prof:
+                    y = model(x)
+                    dy = torch.randn_like(y)
+                    y.backward(dy)
+                    model_torch(x).backward(dy)
+                prof.export_chrome_trace("layernorm_frozen_trace.json")
+
+                if not weight_grad:
+                    self.assertIsNone(model.layernorm1.weight.grad)
+                    self.assertIsNone(model_torch.layernorm1.weight.grad)
+                else:
+                    self.assertIsNotNone(model.layernorm1.weight.grad)
+                    self.assertIsNotNone(model_torch.layernorm1.weight.grad)
+
+                if not bias_grad:
+                    self.assertIsNone(model.layernorm1.bias.grad)
+                    self.assertIsNone(model_torch.layernorm1.bias.grad)
+                else:
+                    self.assertIsNotNone(model.layernorm1.bias.grad)
+                    self.assertIsNotNone(model_torch.layernorm1.bias.grad)
+                self.assertIsNotNone(model.linear1.weight.grad)
+                self.assertIsNotNone(model_torch.linear1.weight.grad)
+                self.assertIsNotNone(model.linear1.bias.grad)
+                self.assertIsNotNone(model_torch.linear1.bias.grad)
+                kernel_df = self.get_clear_kernel_df("layernorm_frozen_trace.json")
+                self.assertListEqual(kernel_df.groupby("name").count().sort_index()["cat"].tolist(), expect_counts)

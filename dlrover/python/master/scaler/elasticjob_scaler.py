@@ -160,6 +160,8 @@ class ElasticJobScaler(Scaler):
         self._namespace = namespace
         self._scaleplan_name = self._job_name + "-scaleplan"
         self._scaleplan_index = 0
+
+    def start(self):
         self._job = self._retry_to_get_job()
         self._job_uid = self._job["metadata"]["uid"]
 

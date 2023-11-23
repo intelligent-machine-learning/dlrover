@@ -86,16 +86,19 @@ class PodScaler(Scaler):
         self._plan = ScalePlan()
         self._ps_addrs: List[str] = []
         self._pod_stats: Dict[str, int] = {}
-        self._init_pod_config_by_job()
         self._job_uid = ""
-        threading.Thread(
-            target=self._periodic_create_pod, name="pod-creater", daemon=True
-        ).start()
         self.api_client = client.ApiClient()
         self._k8s_client.api_instance
 
-    def _init_pod_config_by_job(self):
+    def start(self):
         self._job = self._retry_to_get_job()
+        self._init_pod_config_by_job()
+        self._master_pod = self._retry_to_get_master_pod()
+        threading.Thread(
+            target=self._periodic_create_pod, name="pod-creater", daemon=True
+        ).start()
+
+    def _init_pod_config_by_job(self):
         self._distribution_strategy = self._job["spec"].get(
             "distributionStrategy", None
         )
@@ -127,14 +130,32 @@ class PodScaler(Scaler):
                 time.sleep(5)
         raise ValueError("Cannot get the training job %s", self._job_name)
 
+    def _retry_to_get_master_pod(self):
+        master_name = f"elasticjob-{self._job_name}-dlrover-master"
+        for _ in range(3):
+            pod = self._k8s_client.get_pod(master_name)
+            if pod:
+                return pod
+            else:
+                time.sleep(5)
+        raise ValueError(f"{master_name} is not Found!")
+
     def scale(self, plan: ScalePlan):
         """Scale in/out Pods by a ScalePlan."""
+        while True:
+            waited = False
+            with self._lock:
+                waited = len(self._create_node_queue) > 0
+            if waited:
+                logger.info(
+                    f"Wait nodes {self._create_node_queue} to completed."
+                )
+                time.sleep(15)
+            else:
+                break
         with self._lock:
             if plan.empty():
                 return
-            while self._create_node_queue:
-                logger.info("Wait the latest plan completes.")
-                time.sleep(60)
             self._plan = plan
             job_pods = self._list_job_pods()
             logger.info("Scale the job by plan %s", plan.to_json())
@@ -365,8 +386,6 @@ class PodScaler(Scaler):
         env: List[V1EnvVar] = []
         env = append_pod_ip_to_env(env)
 
-        env.append(V1EnvVar(name=NodeEnv.WORKER_TYPE, value=node.type))
-        env.append(V1EnvVar(name=NodeEnv.WORKER_ID, value=str(node.id)))
         env.append(V1EnvVar(name=NodeEnv.JOB_NAME, value=self._job_name))
         env.append(V1EnvVar(name=NodeEnv.JOB_UID, value=self._job_uid))
 
@@ -377,6 +396,17 @@ class PodScaler(Scaler):
         worker_num = self._config_worker_num
         if worker_num == 0:
             worker_num = pod_stats.get(node.type, 0)
+
+        env.append(V1EnvVar(name=NodeEnv.NODE_TYPE, value=node.type))
+        env.append(V1EnvVar(name=NodeEnv.NODE_ID, value=str(node.id)))
+        env.append(V1EnvVar(name=NodeEnv.NODE_NUM, value=str(worker_num)))
+        env.append(
+            V1EnvVar(name=NodeEnv.NODE_RANK, value=str(node.rank_index))
+        )
+
+        # Deprecated env vars
+        env.append(V1EnvVar(name=NodeEnv.WORKER_TYPE, value=node.type))
+        env.append(V1EnvVar(name=NodeEnv.WORKER_ID, value=str(node.id)))
         env.append(V1EnvVar(name=NodeEnv.WORKER_NUM, value=str(worker_num)))
         env.append(
             V1EnvVar(name=NodeEnv.WORKER_RANK, value=str(node.rank_index))
@@ -387,22 +417,6 @@ class PodScaler(Scaler):
         env.append(
             V1EnvVar(name=NodeEnv.DLROVER_MASTER_ADDR, value=master_service)
         )
-        if self._distribution_strategy == DistributionStrategy.ALLREDUCE:
-            torch_master_ip = self.get_first_worker_host()
-            if torch_master_ip:
-                env.append(
-                    V1EnvVar(name=NodeEnv.RDZV_ENDPOINT, value=torch_master_ip)
-                )
-            else:
-                node_ip_var = V1EnvVar(
-                    name=NodeEnv.RDZV_ENDPOINT,
-                    value_from=V1EnvVarSource(
-                        field_ref=V1ObjectFieldSelector(
-                            field_path="status.podIP"
-                        )
-                    ),
-                )
-                env.append(node_ip_var)
 
         env.append(
             V1EnvVar(
@@ -450,12 +464,6 @@ class PodScaler(Scaler):
             )
         self._patch_tf_config_into_env(pod, node, pod_stats, ps_addrs)
         return pod
-
-    def get_first_worker_host(self):
-        pod = self.get_typed_pod(NodeType.WORKER, 0)
-        if pod:
-            return pod.status.pod_ip
-        return ""
 
     def _patch_tf_config_into_env(self, pod, node: Node, pod_stats, ps_addrs):
         if self._distribution_strategy == DistributionStrategy.PS and ps_addrs:
@@ -606,7 +614,10 @@ class PodScaler(Scaler):
             requests=resource_requests,
             limits=resource_limits,
         )
-        main_container.env = env
+        if main_container.env is None:
+            main_container.env = env
+        else:
+            main_container.env.extend(env)
         main_container.lifecycle = lifecycle
         pod.spec.priority_class_name = priority
         pod.spec.restart_policy = "Never"
@@ -621,10 +632,10 @@ class PodScaler(Scaler):
 
     def _create_job_owner_reference(self):
         owner_ref = k8sClient.create_owner_reference(
-            api_version="elastic.iml.github.io/v1alpha1",
-            kind="ElasticJob",
-            name=self._job["metadata"]["name"],
-            uid=self._job["metadata"]["uid"],
+            api_version="v1",
+            kind="Pod",
+            name=self._master_pod.metadata.name,
+            uid=self._master_pod.metadata.uid,
         )
         return owner_ref
 

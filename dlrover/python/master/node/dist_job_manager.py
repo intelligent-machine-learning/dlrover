@@ -694,6 +694,7 @@ class DistributedJobManager(JobManager):
         node_hang = self._worker_manager.running_nodes_hanged()
         node_hang.extend(self._chief_manager.running_nodes_hanged())
         node_hang.extend(self._ps_manager.running_nodes_hanged())
+        node_hang.extend(self._evaluator_manager.running_nodes_hanged())
         if node_hang:
             return all(node_hang)
         return False
@@ -750,6 +751,7 @@ def create_job_manager(args: JobArgs, speed_monitor) -> DistributedJobManager:
         args.platform, args.job_name, args.namespace
     )
     job_scaler = new_job_scaler(args.platform, args.job_name, args.namespace)
+    job_scaler.start()
 
     return DistributedJobManager(
         job_args=args,

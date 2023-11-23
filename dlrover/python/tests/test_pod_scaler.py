@@ -34,6 +34,7 @@ class PodScalerTest(unittest.TestCase):
 
     def test_init_pod_template(self):
         scaler = PodScaler("elasticjob-sample", "default")
+        scaler.start()
         self.assertEqual(
             scaler._distribution_strategy,
             DistributionStrategy.PS,
@@ -57,6 +58,7 @@ class PodScalerTest(unittest.TestCase):
 
     def test_create_pod(self):
         scaler = PodScaler("elasticjob-sample", "default")
+        scaler.start()
         scaler._init_pod_config_by_job()
         scaler._distribution_strategy = DistributionStrategy.PS
         resource = NodeResource(4, 8192)
@@ -86,6 +88,7 @@ class PodScalerTest(unittest.TestCase):
         env_worker_num = 0
         env_job_name = ""
         env_job_uid = ""
+        host_ports = ""
         for env in main_container.env:
             if env.name == "WORKER_NUM":
                 env_worker_num = int(env.value)
@@ -93,10 +96,13 @@ class PodScalerTest(unittest.TestCase):
                 env_job_name = env.value
             elif env.name == "JOB_UID":
                 env_job_uid = env.value
+            elif env.name == "HOST_PORTS":
+                host_ports = env.value
 
         self.assertEqual(env_worker_num, 2)
         self.assertEqual(env_job_name, "elasticjob-sample")
         self.assertEqual(env_job_uid, "111-222")
+        self.assertEqual(host_ports, "1,2,3,4,5")
 
         node = Node(NodeType.CHIEF, 0, resource, rank_index=0)
         pod = scaler._create_pod(node, pod_stats, ps_addrs)
@@ -120,6 +126,7 @@ class PodScalerTest(unittest.TestCase):
 
     def test_create_service(self):
         scaler = PodScaler("elasticjob-sample", "default")
+        scaler.start()
         service = scaler._create_service_obj(
             name="elasticjob-sample-edljob-worker-0",
             port="2222",
@@ -172,6 +179,20 @@ class PodScalerTest(unittest.TestCase):
         scaler.scale(scale_plan)
         self.assertFalse(scale_plan.empty())
         self.assertEqual(len(scaler._create_node_queue), 2)
+
+    def test_scale_thread(self):
+        scaler = PodScaler("elasticjob-sample", "default")
+        scaler.start()
+        scaler._distribution_strategy = DistributionStrategy.PS
+        resource = NodeResource(4, 8192)
+        scale_plan = ScalePlan()
+        scale_plan.launch_nodes.append(Node(NodeType.WORKER, 1, resource))
+        scale_plan.ps_addrs = ["ps-0:22222"]
+        scaler.scale(scale_plan)
+        scale_plan = ScalePlan()
+        scale_plan.launch_nodes.append(Node(NodeType.WORKER, 2, resource))
+        scale_plan.ps_addrs = ["ps-0:22222"]
+        scaler.scale(scale_plan)
 
     def test_new_tf_config(self):
         pod_stats = {NodeType.WORKER: 1}
