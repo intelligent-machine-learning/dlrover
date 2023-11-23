@@ -28,7 +28,7 @@ from dlrover.python.tests.test_utils import start_local_master
 class MasterClientTest(unittest.TestCase):
     def setUp(self) -> None:
         self._master, addr = start_local_master()
-        self._master_client = build_master_client(addr)
+        self._master_client = build_master_client(addr, 0.5)
 
     def tearDown(self):
         self._master.stop()

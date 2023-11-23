@@ -45,7 +45,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
     def setUp(self) -> None:
         _set_paral_config()
         self._master, addr = start_local_master()
-        MasterClient._instance = build_master_client(addr)
+        MasterClient._instance = build_master_client(addr, 0.5)
         launch_config = LaunchConfig(
             min_nodes=2,
             max_nodes=2,
@@ -160,7 +160,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
 class ElasticTrainingAgentRunTest(unittest.TestCase):
     def setUp(self) -> None:
         self._master, addr = start_local_master()
-        MasterClient._instance = build_master_client(addr)
+        MasterClient._instance = build_master_client(addr, 0.5)
         launch_config = LaunchConfig(
             min_nodes=1,
             max_nodes=1,
@@ -264,7 +264,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
 class NetworkCheckElasticAgentTest(unittest.TestCase):
     def setUp(self) -> None:
         self._master, addr = start_local_master()
-        MasterClient._instance = build_master_client(addr)
+        MasterClient._instance = build_master_client(addr, 0.5)
         launch_config = LaunchConfig(
             min_nodes=2,
             max_nodes=2,
@@ -338,7 +338,7 @@ class NetworkCheckElasticAgentTest(unittest.TestCase):
 class MasterRendezvousHandlerTest(unittest.TestCase):
     def setUp(self) -> None:
         self._master, addr = start_local_master()
-        MasterClient._instance = build_master_client(addr)
+        MasterClient._instance = build_master_client(addr, 0.5)
 
     def tearDown(self):
         self._master.stop()

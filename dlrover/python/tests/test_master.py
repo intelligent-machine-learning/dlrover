@@ -108,7 +108,7 @@ class DistributedJobMasterTest(unittest.TestCase):
 class LocalJobMasterTest(unittest.TestCase):
     def setUp(self) -> None:
         self._master, addr = start_local_master()
-        self.master_client = build_master_client(addr)
+        self.master_client = build_master_client(addr, 0.5)
 
     def tearDown(self):
         self._master.stop()

@@ -32,7 +32,7 @@ from dlrover.python.tests.test_utils import start_local_master
 class MasterKVStoreTest(unittest.TestCase):
     def setUp(self) -> None:
         self._master, addr = start_local_master()
-        MasterClient._instance = build_master_client(addr)
+        MasterClient._instance = build_master_client(addr, 0.5)
 
     def tearDown(self):
         self._master.stop()
