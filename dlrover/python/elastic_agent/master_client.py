@@ -49,8 +49,15 @@ def retry_grpc_request(func):
 class MasterClient(object):
     """MasterClient provides some APIs connect with the master
     service via gRPC call.
+    Args:
+        master_addr: the master address
+        node_id (int), the unique and ordered node ID assigned
+        by dlrover command-line.
+        node_type: the job type of node contains "worker", "ps"
+            "evaluator" and "chief".
+        timeout (int): the timeout second of grpc requests.
 
-    Usage:
+    Examples::
         channel = elasticai_api.util.grpc_utils.build_channel(
             "localhost:50001"
         )
@@ -62,15 +69,8 @@ class MasterClient(object):
     _instance_lock = threading.Lock()
     _instance = None
 
-    def __init__(self, master_addr, node_id, node_type):
-        """Initialize a master client.
-        Args:
-            master_addr: the master address
-
-            worker_id: int
-            the unique and ordered worker ID assigned
-            by dlrover command-line.
-        """
+    def __init__(self, master_addr, node_id, node_type, timeout=5):
+        self._timeout = timeout
         self._master_addr = master_addr
         self._channel = grpc.build_channel(master_addr)
         logger.info("dlrover master addr is %s" % self._master_addr)
@@ -103,13 +103,13 @@ class MasterClient(object):
             _, port = sock.getsockname()
             return port
 
-    @retry_grpc_request
+    # @retry_grpc_request
     def _report(self, message: grpc.Message):
         request = elastic_training_pb2.Message()
         request.node_id = self._node_id
         request.node_type = self._node_type
         request.data = message.serialize()
-        return self._stub.report(request, timeout=5)
+        return self._stub.report(request, timeout=self._timeout)
 
     @retry_grpc_request
     def _get(self, message: grpc.Message):
@@ -117,7 +117,7 @@ class MasterClient(object):
         request.node_id = self._node_id
         request.node_type = self._node_type
         request.data = message.serialize()
-        response = self._stub.get(request, timeout=5)
+        response = self._stub.get(request, timeout=self._timeout)
         res_message = grpc.deserialize_message(response.data)
         return res_message
 
@@ -397,7 +397,15 @@ class MasterClient(object):
         return MasterClient._instance
 
 
-def build_master_client(master_addr=None):
+def build_master_client(master_addr=None, timeout=5):
+    """
+    Build a master client.
+
+    Args:
+        master_addr (str): the address of the job master, the format
+            is "{IP}:{PORT}"
+        timeout (int): the timeout second of grpc requests.
+    """
     if master_addr is None:
         master_addr = os.getenv(NodeEnv.DLROVER_MASTER_ADDR, "")
     node_id = env_utils.get_node_id()
@@ -407,7 +415,9 @@ def build_master_client(master_addr=None):
     logger.info(f"Build master client with addr {master_addr}.")
     if master_addr:
         try:
-            master_client = MasterClient(master_addr, node_id, node_type)
+            master_client = MasterClient(
+                master_addr, node_id, node_type, timeout
+            )
         except Exception:
             logger.info("The master is not available now.")
     return master_client

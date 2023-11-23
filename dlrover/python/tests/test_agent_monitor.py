@@ -19,6 +19,10 @@ from unittest.mock import patch
 
 from dlrover.python.common.constants import NodeEnv
 from dlrover.python.common.grpc import GPUStats
+from dlrover.python.elastic_agent.master_client import (
+    MasterClient,
+    build_master_client,
+)
 from dlrover.python.elastic_agent.monitor.resource import ResourceMonitor
 from dlrover.python.elastic_agent.monitor.training import (
     TFTrainingProcessReporter,
@@ -30,6 +34,7 @@ from dlrover.python.tests.test_utils import start_local_master
 class ResourceMonitorTest(unittest.TestCase):
     def setUp(self):
         self.master_proc, self.addr = start_local_master()
+        MasterClient._instance = build_master_client(self.addr, 0.5)
 
     def tearDown(self):
         self.master_proc.stop()

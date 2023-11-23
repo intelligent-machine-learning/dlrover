@@ -63,6 +63,9 @@ class RendezvousManager(metaclass=ABCMeta):
         self._name = ""
         self._latest_rdzv_nodes = []
 
+    def get_rdzv_round(self):
+        return self._rdzv_round
+
     def clear_waiting_nodes(self):
         self._waiting_nodes.clear()
 
