@@ -45,7 +45,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
     def setUp(self) -> None:
         _set_paral_config()
         self._master, addr = start_local_master()
-        MasterClient._instance = build_master_client(addr)
+        MasterClient._instance = build_master_client(addr, 0.5)
         launch_config = LaunchConfig(
             min_nodes=2,
             max_nodes=2,
@@ -160,7 +160,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
 class ElasticTrainingAgentRunTest(unittest.TestCase):
     def setUp(self) -> None:
         self._master, addr = start_local_master()
-        MasterClient._instance = build_master_client(addr)
+        MasterClient._instance = build_master_client(addr, 0.5)
         launch_config = LaunchConfig(
             min_nodes=1,
             max_nodes=1,
@@ -260,11 +260,23 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         port = agent._get_free_port()
         self.assertTrue(port > 20000)
 
+    def test_restart_training(self):
+        self.config.restart = True
+        agent = ElasticTrainingAgent(
+            node_rank=0,
+            config=self.config,
+            entrypoint="echo",
+            spec=self.spec,
+            start_method=self.config.start_method,
+            log_dir=self.config.log_dir,
+        )
+        agent._stop_workers_to_restart()
+
 
 class NetworkCheckElasticAgentTest(unittest.TestCase):
     def setUp(self) -> None:
         self._master, addr = start_local_master()
-        MasterClient._instance = build_master_client(addr)
+        MasterClient._instance = build_master_client(addr, 0.5)
         launch_config = LaunchConfig(
             min_nodes=2,
             max_nodes=2,
@@ -338,7 +350,7 @@ class NetworkCheckElasticAgentTest(unittest.TestCase):
 class MasterRendezvousHandlerTest(unittest.TestCase):
     def setUp(self) -> None:
         self._master, addr = start_local_master()
-        MasterClient._instance = build_master_client(addr)
+        MasterClient._instance = build_master_client(addr, 0.5)
 
     def tearDown(self):
         self._master.stop()
