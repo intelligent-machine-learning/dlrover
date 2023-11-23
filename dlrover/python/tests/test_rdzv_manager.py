@@ -59,6 +59,8 @@ class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
     def test_max_nodes(self):
         rdzv_manager = ElasticTrainingRendezvousManager()
         rdzv_manager.update_rdzv_params(3, 3, 60, 1)
+        rdzv_round = rdzv_manager.get_rdzv_round()
+        self.assertEqual(rdzv_round, 0)
         rdzv_manager._alive_nodes = [0, 1, 2]
         rdzv_manager.join_rendezvous(0, 8)
         rdzv_manager.join_rendezvous(1, 8)
