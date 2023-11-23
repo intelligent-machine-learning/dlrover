@@ -260,6 +260,18 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         port = agent._get_free_port()
         self.assertTrue(port > 20000)
 
+    def test_restart_training(self):
+        self.config.restart = True
+        agent = ElasticTrainingAgent(
+            node_rank=0,
+            config=self.config,
+            entrypoint="echo",
+            spec=self.spec,
+            start_method=self.config.start_method,
+            log_dir=self.config.log_dir,
+        )
+        agent._stop_workers_to_restart()
+
 
 class NetworkCheckElasticAgentTest(unittest.TestCase):
     def setUp(self) -> None:

@@ -430,6 +430,12 @@ class ParallelConfigRequest(Message):
 
 
 @dataclass
+class CheckHardwareResetRequest(Message):
+    pass
+
+
+@dataclass
 class ParallelConfig(Message):
     dataloader: DataLoaderConfig = DataLoaderConfig()
     optimizer: OptimizerConfig = OptimizerConfig()
+    restart: bool = False

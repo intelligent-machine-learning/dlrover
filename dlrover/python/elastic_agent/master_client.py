@@ -377,6 +377,15 @@ class MasterClient(object):
         result = self._get(request)
         return result
 
+    def need_to_restart_training(self):
+        request = grpc.CheckHardwareResetRequest()
+        try:
+            result: grpc.ParallelConfig = self._get(request)
+            return result.restart
+        except Exception:
+            logger.warning("Fail to verify restarting training processes.")
+            return False
+
     @classmethod
     def singleton_instance(cls, *args, **kwargs):
         if not MasterClient._instance:

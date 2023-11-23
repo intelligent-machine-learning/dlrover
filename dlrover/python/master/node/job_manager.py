@@ -128,6 +128,17 @@ class JobManager(metaclass=ABCMeta):
     def update_node_paral_config(self, node_type, node_id, paral_config):
         pass
 
+    @abstractclassmethod
+    def verify_restarting_worker_training(self):
+        """
+        Verify the necessity of restarting the training process
+        on the worker nodes.
+
+        Returns:
+            bool
+        """
+        pass
+
     def handle_training_failure(
         self, node_type, node_id, restart_count=-1, error_data="", level=""
     ):

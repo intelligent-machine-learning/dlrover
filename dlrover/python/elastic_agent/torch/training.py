@@ -514,6 +514,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         while True:
             assert self._worker_group.state != WorkerState.INIT
             time.sleep(monitor_interval)
+            self._stop_workers_to_restart()
             try:
                 run_result: RunResult = self._monitor_workers(
                     self._worker_group
@@ -556,6 +557,16 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     self._restart_workers(self._worker_group)
             else:
                 raise Exception(f"[{role}] Worker group in {state.name} state")
+
+    def _stop_workers_to_restart(self):
+        """
+        The agent query from the dlrover job master to check whether to restart
+        workers. If true, the agent firstly stops all workers.
+        """
+        restart = self._client.need_to_restart_training()
+        if not restart:
+            return
+        self._stop_workers(self._worker_group)
 
     def _report_failure_to_master(self, failures: Dict[int, ProcessFailure]):
         errors = {}

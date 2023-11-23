@@ -169,3 +169,20 @@ class WorkerManagerTest(unittest.TestCase):
 
         wait = worker_manager.wait_worker_restart()
         self.assertFalse(wait)
+
+    def test_verify_restarting_training(self):
+        worker_manager = WorkerManager(
+            self._job_nodes[NodeType.WORKER],
+            self._job_resource,
+            3,
+            self._elastic_job.get_node_service_addr,
+            self._elastic_job.get_node_name,
+        )
+        reset = worker_manager.verify_restarting_training()
+        self.assertFalse(reset)
+        worker_manager._nodes[0].restart_training = True
+        reset = worker_manager.verify_restarting_training()
+        self.assertTrue(reset)
+        worker_manager._nodes[0].is_released = True
+        reset = worker_manager.verify_restarting_training()
+        self.assertFalse(reset)
