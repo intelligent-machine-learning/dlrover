@@ -217,7 +217,7 @@ def _check_dlrover_master_available(addr, timeout=120):
         except (socket.timeout, ConnectionRefusedError):
             time.sleep(1)
 
-        if time.time() - start_time > 120:
+        if time.time() - start_time > timeout:
             return False
 
 
