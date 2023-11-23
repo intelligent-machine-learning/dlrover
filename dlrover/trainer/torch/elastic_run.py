@@ -77,6 +77,7 @@ import sys
 import telnetlib
 import time
 import uuid
+import socket
 from typing import Callable, List, Tuple, Union
 
 from torch.distributed.argparse_util import check_env, env
@@ -203,19 +204,20 @@ def _launch_dlrover_local_master(master_addr):
     return handler, dlrover_master_addr
 
 
-def _check_dlrover_master_available(addr, timeout=60):
-    """Check whether the master grpc servicer is available."""
+def _check_dlrover_master_available(addr, timeout=120):
+    """Verify that the master grpc servicer is available."""
     host = addr.split(":")[0]
     port = int(addr.split(":")[1])
     start_time = time.time()
     while True:
         try:
-            telnetlib.Telnet(host=host, port=port, timeout=1)
+            telnetlib.Telnet(host=host, port=port, timeout=3)
             logger.info("DLRover job master starts!")
             return True
-        except ConnectionRefusedError:
+        except (socket.timeout, ConnectionRefusedError):
             time.sleep(1)
-        if time.time() - start_time > 60:
+
+        if time.time() - start_time > 120:
             return False
 
 
