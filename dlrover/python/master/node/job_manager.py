@@ -129,7 +129,14 @@ class JobManager(metaclass=ABCMeta):
         pass
 
     @abstractclassmethod
-    def check_worker_hardware_reset(self):
+    def verify_restarting_worker_training(self):
+        """
+        Verify the necessity of restarting the training process
+        on the worker nodes.
+
+        Returns:
+            bool
+        """
         pass
 
     def handle_training_failure(

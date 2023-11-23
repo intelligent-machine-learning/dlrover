@@ -439,4 +439,3 @@ class ParallelConfig(Message):
     dataloader: DataLoaderConfig = DataLoaderConfig()
     optimizer: OptimizerConfig = OptimizerConfig()
     restart: bool = False
-    paused: bool = False

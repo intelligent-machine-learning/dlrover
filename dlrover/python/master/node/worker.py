@@ -276,13 +276,21 @@ class WorkerManager(TrainingNodeManager):
                 return True
         return False
 
-    def check_worker_hardware_reset(self):
-        """Check whether the worker need to reset hardware like NPU.
+    def verify_restarting_training(self):
+        """
+        Verify if the worker requires restarting the training process.
+        The worker will restart the training processes if any of the
+        following conditions are met:
+            1. RestartTrain action in the Pod annotations.
+            2. One training process crashes in the worker.
 
         Return:
             bool
         """
+        restart = False
         for worker in self._nodes.values():
-            if not worker.is_released and worker.reset_hardware:
-                return True
-        return False
+            if not worker.is_released and worker.restart_training:
+                restart = True
+                # Set False to avoid restart repeatedly.
+                worker.restart_training = False
+        return restart

@@ -32,7 +32,6 @@ class ElasticRunTest(unittest.TestCase):
         args = [
             "--network_check",
             "--auto_tunning",
-            "--reset_hardware",
             "--node_unit",
             "4",
             "--nnodes",
@@ -47,6 +46,5 @@ class ElasticRunTest(unittest.TestCase):
         self.assertTrue(config.auto_tunning)
         self.assertEqual(config.node_unit, 4)
         self.assertEqual(config.rdzv_configs["node_unit"], 4)
-        self.assertTrue(config.reset_hardware)
         self.assertEqual(cmd, "/usr/local/bin/python")
         self.assertListEqual(cmd_args, ["-u", "test.py", "--batch_size", "16"])

@@ -100,8 +100,8 @@ def _convert_pod_event_to_node_event(event):
     host_name = evt_obj.spec.node_name
     host_ip = evt_obj.status.host_ip
 
-    reset_hardware = _need_to_reset_hardware(evt_obj)
-    logger.info(f"{evt_obj.metadata.name} resets hardware {reset_hardware}")
+    restart = _verify_restarting_training(evt_obj)
+    logger.info(f"{evt_obj.metadata.name} resets hardware {restart}")
 
     resource = _parse_container_resource(evt_obj.spec.containers[0])
     status = evt_obj.status.phase
@@ -118,7 +118,7 @@ def _convert_pod_event_to_node_event(event):
         config_resource=resource,
         host_name=host_name,
         host_ip=host_ip,
-        reset_hardware=reset_hardware,
+        restart_training=restart,
     )
     node.create_time = evt_obj.metadata.creation_timestamp
     node.set_exit_reason(_get_pod_exit_reason(evt_obj))
@@ -132,7 +132,7 @@ def _parse_container_resource(container):
     return NodeResource(cpu, memory)
 
 
-def _need_to_reset_hardware(pod):
+def _verify_restarting_training(pod):
     if not pod.metadata.annotations:
         return False
     action_str = pod.metadata.annotations.get(
@@ -142,7 +142,7 @@ def _need_to_reset_hardware(pod):
         return False
     action_config = json.loads(action_str)
     action = action_config.get("scheduledAction", "")
-    if action == "NPU_RESET":
+    if action == "RestartTrain_Observe":
         return True
     return False
 
@@ -198,7 +198,7 @@ class PodWatcher(NodeWatcher):
             resource = _parse_container_resource(pod.spec.containers[0])
             status = pod.status.phase
             start_time = _get_start_timestamp(pod.status)
-            reset_hardware = _need_to_reset_hardware(pod)
+            restart_training = _verify_restarting_training(pod)
             node = Node(
                 node_type=pod_type,
                 node_id=pod_id,
@@ -207,7 +207,7 @@ class PodWatcher(NodeWatcher):
                 status=status,
                 start_time=start_time,
                 config_resource=resource,
-                reset_hardware=reset_hardware,
+                restart_training=restart_training,
             )
             node.set_exit_reason(_get_pod_exit_reason(pod))
             nodes.append(node)

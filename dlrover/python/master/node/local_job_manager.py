@@ -148,7 +148,7 @@ class LocalJobManager(JobManager):
     def update_allreduce_node_unit(self, node_unit):
         pass
 
-    def check_worker_hardware_reset(self):
+    def verify_restarting_worker_training(self):
         return False
 
     def get_opt_strategy(self) -> ParallelConfig:

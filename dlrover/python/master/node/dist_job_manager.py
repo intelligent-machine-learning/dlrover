@@ -411,7 +411,7 @@ class DistributedJobManager(JobManager):
                 create_time=event.node.create_time,
                 host_name=event.node.host_name,
                 host_ip=event.node.host_ip,
-                reset_hardware=event.node.reset_hardware,
+                restart_training=event.node.restart_training,
             )
 
         # For the given node id, check whether it meets
@@ -735,8 +735,8 @@ class DistributedJobManager(JobManager):
         node = self._job_nodes[node_type][node_id]
         node.update_paral_config(paral_config)
 
-    def check_worker_hardware_reset(self):
-        return self._worker_manager.check_worker_hardware_reset()
+    def verify_restarting_worker_training(self):
+        return self._worker_manager.verify_restarting_training()
 
 
 def create_job_manager(args: JobArgs, speed_monitor) -> DistributedJobManager:

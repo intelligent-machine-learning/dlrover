@@ -365,7 +365,7 @@ class MasterServicerTest(unittest.TestCase):
         response = self.servicer.get(request, None)
         config = grpc.deserialize_message(response.data)
         self.assertIsInstance(config, grpc.ParallelConfig)
-        self.assertFalse(config.paused)
+        self.assertFalse(config.restart)
 
     def test_join_rendezvous(self):
         request = grpc.JoinRendezvousRequest(

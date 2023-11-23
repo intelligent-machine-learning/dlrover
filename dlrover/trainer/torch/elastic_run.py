@@ -126,14 +126,6 @@ def parse_args(args):
         "the argument is True. The argument only works when network-check "
         "is True.",
     )
-    parser.add_argument(
-        "--reset_hardware",
-        "--reset-hardware",
-        action=check_env,
-        help="Bool, whether to wait the node reset the hardware like "
-        "the ascend NPU. We need to stop the training processes and restart "
-        "them after the NPU is reseted.",
-    )
     return parser.parse_args(args)
 
 
@@ -237,7 +229,6 @@ def _elastic_config_from_args(
     elastic_config.exclude_straggler = getattr(
         args, "exclude_straggler", False
     )
-    elastic_config.reset_hardware = getattr(args, "reset_hardware", False)
     elastic_config.set_node_unit(getattr(args, "node_unit", 1))
     return elastic_config, cmd, cmd_args
 

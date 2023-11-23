@@ -111,7 +111,6 @@ class ElasticLaunchConfig(LaunchConfig):
     node_unit: int = 1
     auto_tunning: bool = False
     exclude_straggler: bool = False
-    reset_hardware: bool = False
 
     def set_node_unit(self, node_unit):
         """Set the number unint of ndoes."""
@@ -515,7 +514,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         while True:
             assert self._worker_group.state != WorkerState.INIT
             time.sleep(monitor_interval)
-            self._pause_to_reset_hardware()
+            self._stop_workers_to_restart()
             try:
                 run_result: RunResult = self._monitor_workers(
                     self._worker_group
@@ -559,20 +558,15 @@ class ElasticTrainingAgent(LocalElasticAgent):
             else:
                 raise Exception(f"[{role}] Worker group in {state.name} state")
 
-    def _pause_to_reset_hardware(self):
-        if not self._config.reset_hardware:
-            return
-        paused = self._client.check_hardware_reset()
-        if not paused:
+    def _stop_workers_to_restart(self):
+        """
+        The agent query from the dlrover job master to check whether to restart
+        workers. If true, the agent firstly stops all workers.
+        """
+        restart = self._client.need_to_restart_training()
+        if not restart:
             return
         self._stop_workers(self._worker_group)
-        while True:
-            paused = self._client.check_hardware_reset()
-            if paused:
-                logger.info("Wait for the worker to reset hardware.")
-                time.sleep(15)
-            else:
-                break
 
     def _report_failure_to_master(self, failures: Dict[int, ProcessFailure]):
         errors = {}
