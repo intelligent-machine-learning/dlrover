@@ -196,7 +196,7 @@ The following figure shows the checkpointing process in sequence diagram.
 <img src="../figures/async-ckpt-sequence.jpg" alt="Async Checkpoint Classes" width="1000">
 </div>
 
-### Auto Save when the Training Process Fails
+### Last Words when the Training Process Fails
 
 When any of the training processes fails, or the agent is killed by SIGTERM, we can automatically
 save the latest checkpointing state into the storage.
