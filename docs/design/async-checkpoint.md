@@ -42,7 +42,7 @@ So, we can copy the weights from GPU to CPU memory in the trainin loop
 and asynchronously save weights from CPU memory to the storage. The solution
 will block the training to save checkpoint with a little time.
 
-## A daemon Subprocess of the Training Process Asynchronously Saves Checkpoint to the Storage.
+## A daemon Subprocess of the Training Process Asynchronously Saves Checkpoint to the Storage
 
 We can start a daemon subprocess in the training process to save the
 
@@ -54,7 +54,6 @@ We can start a daemon subprocess in the training process to save the
 We can start a subprocess in the training process and share the
 tensor buffer by the shared memory of multiprocessing.
 
-
 ## The ElasticAgent Asynchronously Saves the Checkpoint into Storage
 
 If we start a daemon subprocess of the GPU training process, the daemon
@@ -62,7 +61,7 @@ subprocess will exit if the training process fails. In this case, the
 parameters in CPU memory of the daemon subprocess will be cleaned. So, the elastic agent
 in the main process can allocate the shared memory with the training
 process. The training process saves the state dict to the shared memroy and
-the agent save them into the storage. 
+the agent save them into the storage.
 
 The agent and training process need to do the following steps:
 
@@ -74,8 +73,8 @@ training process firstly saves the state dict into the memory.
 the training process to copy the state dict from GPU to the shared CPU memory.
 - The agent saves the state dict in the shared memory into the storage when one of the conditions
 is satisifed:
-    - The training process notifies the agent to save the storage with a checkpointing path.
-    - The training process fails. If one training process fails, the job master needs
+  - The training process notifies the agent to save the storage with a checkpointing path.
+  - The training process fails. If one training process fails, the job master needs
     to notify all agents to save the buffer into the storage.
 - One of agents on nodes checks the integrity of the checkpointing file.
 
@@ -160,8 +159,6 @@ class SaveEngine(object):
         """Check the integrity of the checkpointing files."""
 ```
 
-
-
 The meta class stores the checkpoint tensor meta information.
 
 ```Python
@@ -210,7 +207,6 @@ class Lock(object):
 
 The distributed queue is implemented for the training process to notify
 the agent to save the state dict from the shared memory into the storage.
-
 
 ```Python
 class Queue(object):
