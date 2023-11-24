@@ -5,26 +5,26 @@ to resume training.
 
 ## Background
 
-It is very difficult to keep training a fundational model during a long time period
-without any interruption. Hareware failure, OS failure or network breakdwon
-may oftern happen during the training. Users usually periodically checkpoint
+It is very difficult to keep training a foundational model during a long time period
+without any interruption. Hardware failure, OS failure or network breakdown
+may often happen during the training. Users usually periodically checkpoint
 the model and optimizer states to the storage and resume the training
 after an interruption. Now, It takes a few minutes to use  `torch.save` to
-checkpoint a large fundational model. Frequent checkpointing may waste
+checkpoint a large foundational model. Frequent checkpointing may waste
 many hours of the accelerator (GPU, NPU, TPU) since the training must stop
 until the checkpointing is completed. On the other hand, infrequent checkpoints
 could reduce the overhead but take the risk of wasting more training steps
 when resuming the training from the latest checkpoint file. Reducing the checkpointing
 overhead is necessary to improve the training efficiency and the accelerator utilization
-when we train a fundation model using thouands of accelerators.
+when we train a foundation model using thousands of accelerators.
 
 ## Target
 
 - Reduce the checkpointing time overhead to block the training for
- DDP, FSDP, DeepSpeed or Megatron.
+  DDP, FSDP, DeepSpeed or Megatron.
 - Speed up loading the checkpoint file when the training restarts.
 - Automatically configure the checkpoint period to improve the efficient
-training time as soon as possible if the failure probability is given.
+  training time as soon as possible if the failure probability is given.
 
 ## Design
 
@@ -38,7 +38,7 @@ Save a checkpoint in PyTorch contains the following steps:
 By experiments to save a checkpoint of 3GB GPT model from A100 to a disk, we find
 the 1st step needs 2.3s, the 2nd step needs 0.12s, the 3rd and 4th steps
 need 6.5s. So, it is very fast to copy the model parameters from GPU to the CPU memory.
-So, we can copy the weights from GPU to CPU memory in the trainin loop
+So, we can copy the weights from GPU to CPU memory in the training loop
 and asynchronously save weights from CPU memory to the storage. The solution
 will block the training to save checkpoint with a little time.
 
@@ -53,6 +53,7 @@ We can start a daemon subprocess in the training process to save the
 ```Python
 
 import torch.distributed.checkpoint._traverse as _traverse
+
 
 def alloc_memory(path, value):
     print(path[0])
@@ -70,14 +71,16 @@ def make_state_dict_buffer(state_dict):
 
 import torch.distributed.checkpoint._traverse as _traverse
 
+
 def copy_state_to_memory(path, value):
     buffer[path[0]].copy_(value)
+
 
 def copy_state_dict_to_buffer(state_dict):
     _traverse.traverse_state_dict(state_dict, copy_state_to_memory)
 ```
 
-- Start a subprocess to asynchrounously save states to storage.
+- Start a subprocess to asynchronously save states to storage.
 
 We can start a subprocess in the training process and share the
 tensor buffer by the shared memory of multiprocessing.
@@ -96,6 +99,7 @@ def periodically_save():
         step = step_queue.pop()
         path = os.path.join(ckpt_dir, str(step))
         torch.save(shard_memory["model"], path)
+
 
 def save_checkpoint_step(step):
     step_queue.put(step, block=False)
@@ -119,6 +123,93 @@ If the training process fails and the elastic agent of PyTorch can restart the
 training process to resume the training, the training process can load the checkpoint
 from the shared memory not from the storage. Loading from the memory is much faster
 than the storage.
+
+## The ElasticAgent Asynchronously Saves the Checkpoint into Storage
+
+If we start a daemon subprocess of the GPU training process, the daemon
+subprocess will exit if the training process fails. In this case, the
+parameters in CPU memory of the daemon subprocess will be cleaned. So, the elastic agent
+in the main process can allocate the shared memory with the training
+process. The training process saves the state dict to the shared memory and
+the agent save them into the storage.
+
+### The Classes Design
+
+As we need a global thread to keep and sync the checkpointing state in storage, and an agent
+thread per node to save the checkpointing state into the storage, we design three classes to
+implement the checkpointing process.
+
+<div align="center">
+<img src="../figures/async-ckpt-classes.jpg" alt="Async Checkpoint Classes" width="1000">
+</div>
+
+- **GlobalCkptManager**
+    - Only one instance runs in the Rank 0 Agent process.
+    - The class is responsible for keeping the consistency of the checkpointing state in the shared
+      memory and the storage.
+    - Get the read lock of shared memory and notify all agents to save the checkpointing state
+      into the storage, update the checkpointing tracker file in the storage.
+- **AgentCkptManger**
+    - One instance runs in each agent process.
+    - Responsible for saving the checkpointing state from shared memory into the storage.
+    - Notify the GlobalCkptManager when the saving procedure is completed.
+- **TrainCkptManger**
+    - One instance runs in each training process.
+    - Responsible for saving the checkpointing state from GPU to shared memory.
+    - Notify the GlobalCkptManager when we need to save the checkpointing state into the storage.
+
+### Async Checkpointing Saving Steps
+
+<div align="center">
+<img src="../figures/async-ckpt-steps.jpg" alt="Async Checkpoint Classes" width="1000">
+</div>
+
+The agent and training process need to do the following steps:
+
+- Init Process - first checkpoint to memory
+
+    - The agent monitors the training process to create the mata of model and
+      optimizer state dict.
+    - The training process notifies GlobalCkptManager the checkpointing meta when the
+      training process firstly saves the state dict into the memory.
+    - GlobalCkptManager acquire the lock of the shared memory and notify all agents to
+      allocate the shared memory with the checkpointing meta.
+    - The TrainCkptManger acquires the lock of the shared memory and copies the state dict
+      from GPU to the shared memory.
+
+- Training Loop
+
+    - TrainCkptManager acquires the lock of the shared memory and copies the state dict
+      from GPU to the shared memory.
+    - TrainCkptManager notifies GlobalCkptManager to save the checkpointing state into the
+      storage if the iteration step is multiple of the save_interval.
+    - GlobalCkptManager acquires the lock of the shared memory and notifies all agents to
+      save the checkpointing state into the storage.
+    - AgentCkptManger write the checkpointing state into the storage and notifies
+      GlobalCkptManager when finished.
+    - GlobalCkptManager commits the checkpointing and modify tracker file after all agents
+      finish the writing.
+
+The following figure shows the checkpointing process in sequence diagram.
+
+<div align="center">
+<img src="../figures/async-ckpt-sequence.jpg" alt="Async Checkpoint Classes" width="1000">
+</div>
+
+### Auto Save when the Training Process Fails
+
+When any of the training processes fails, or the agent is killed by SIGTERM, we can automatically
+save the latest checkpointing state into the storage.
+
+### Consistency of the Checkpointing State
+
+For the shared memory checkpointing consistency and correctness, we use a distributed lock
+to protect the shared memory. If the Agent writing process takes too long time, for training
+efficiency, the TrainCkptManager will skip a memory checkpointing and keep training.
+
+For the storage checkpointing consistency and correctness, every agent will write the checkpoint
+to a temporary directory, and the GlobalCkptManager will commit the checkpointing after all agents
+finish the writing.
 
 ## Checkpoint APIs Design
 
@@ -146,7 +237,6 @@ class AsyncCheckpointEngine(object):
         save_storage_interval=0,
         auto_save=False,
     ):
-
         pass
 
     def save(self, step, state_dict):
