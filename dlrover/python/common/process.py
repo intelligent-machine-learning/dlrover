@@ -1,11 +1,23 @@
+# Copyright 2023 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import os
+import pickle
 import socket
 import threading
 import time
-import pickle
 from dataclasses import dataclass
 from typing import Dict
-
 
 SOCKER_TEMP_FILE_DIR = "/tmp/checkpoint/"
 
@@ -36,7 +48,7 @@ def _create_socket_client(path):
 
     Args:
         path (str): a file path.
-    
+
     """
     client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     client.connect(path)
@@ -71,6 +83,7 @@ class SharedLock(object):
             Otherwise, the lock need to create a socket client to access
             the lock.
     """
+
     def __init__(self, name="", create=False):
         self._name = name
         self._lock = threading.Lock()
@@ -84,7 +97,8 @@ class SharedLock(object):
         if self._create:
             self._server = _create_socket_server(self._path)
             t = threading.Thread(
-                target=self._sync_lock_status, daemon=True,
+                target=self._sync_lock_status,
+                daemon=True,
             )
             t.start()
 
@@ -93,7 +107,6 @@ class SharedLock(object):
             connection, _ = self._server.accept()
             try:
                 recv_data = connection.recv(256)
-                print(recv_data)
                 msg: SocketRequest = pickle.loads(recv_data)
                 response = LockResponse()
                 if msg.method == "acquire":
@@ -101,8 +114,7 @@ class SharedLock(object):
                 elif msg.method == "release":
                     self.release()
                 response.status = SUCCESS_CODE
-            except Exception as e:
-                print(e)
+            except Exception:
                 response = LockResponse()
                 response.status = ERROR_CODE
             send_data = pickle.dumps(response)
@@ -149,7 +161,6 @@ class SharedLock(object):
             recv_data = client.recv(256)
             client.close()
             response: LockResponse = pickle.loads(recv_data)
-            print(response)
             if response.status == SUCCESS_CODE:
                 return response
             else:
