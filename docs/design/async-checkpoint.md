@@ -144,15 +144,15 @@ implement the checkpointing process.
 </div>
 
 - **AgentCkptManger**
-    - One instance runs in each agent process.
+  - One instance runs in each agent process.
       memory and the storage.
-    - Get the Shared lock of shared memory and save the checkpoint state into the storage.
-    - One of Agent check if all agents finish the writing and commit the checkpoint. 
+  - Get the Shared lock of shared memory and save the checkpoint state into the storage.
+  - One of Agent check if all agents finish the writing and commit the checkpoint.
 
 - **TrainCkptManger**
-    - One instance runs in each training process.
-    - Is responsible for coping the checkpointing state from GPU to shared memory.
-    - Notifies the AgentCkptManger to save the checkpoint state into the storage.
+  - One instance runs in each training process.
+  - Is responsible for coping the checkpointing state from GPU to shared memory.
+  - Notifies the AgentCkptManger to save the checkpoint state into the storage.
 
 ### Async Checkpointing Saving Steps
 
