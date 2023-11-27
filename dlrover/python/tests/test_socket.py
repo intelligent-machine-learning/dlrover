@@ -13,7 +13,7 @@
 
 import unittest
 
-from dlrover.python.common.socket import SharedLock
+from dlrover.python.common.process import SharedLock
 
 
 class SharedLockTest(unittest.TestCase):
