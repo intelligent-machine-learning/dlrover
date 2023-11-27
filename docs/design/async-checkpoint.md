@@ -85,15 +85,6 @@ training process to resume the training, the training process can load the check
 from the shared memory not from the storage. Loading from the memory is much faster
 than the storage.
 
-## The ElasticAgent Asynchronously Saves the Checkpoint into Storage
-
-If we start a daemon subprocess of the GPU training process, the daemon
-subprocess will exit if the training process fails. In this case, the
-parameters in CPU memory of the daemon subprocess will be cleaned. So, the elastic agent
-in the main process can allocate the shared memory with the training
-process. The training process saves the state dict to the shared memory and
-the agent save them into the storage.
-
 ### The Classes Design
 
 As we need a global thread to keep and sync the checkpointing state in storage, and an agent
