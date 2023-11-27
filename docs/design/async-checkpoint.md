@@ -143,20 +143,16 @@ implement the checkpointing process.
 <img src="../figures/async-ckpt-classes.jpg" alt="Async Checkpoint Classes" width="1000">
 </div>
 
-- **GlobalCkptManager**
-    - Only one instance runs in the Rank 0 Agent process.
-    - The class is responsible for keeping the consistency of the checkpointing state in the shared
-      memory and the storage.
-    - Get the read lock of shared memory and notify all agents to save the checkpointing state
-      into the storage, update the checkpointing tracker file in the storage.
 - **AgentCkptManger**
     - One instance runs in each agent process.
-    - Responsible for saving the checkpointing state from shared memory into the storage.
-    - Notify the GlobalCkptManager when the saving procedure is completed.
+      memory and the storage.
+    - Get the Shared lock of shared memory and save the checkpoint state into the storage.
+    - One of Agent check if all agents finish the writing and commit the checkpoint. 
+
 - **TrainCkptManger**
     - One instance runs in each training process.
-    - Responsible for saving the checkpointing state from GPU to shared memory.
-    - Notify the GlobalCkptManager when we need to save the checkpointing state into the storage.
+    - Is responsible for coping the checkpointing state from GPU to shared memory.
+    - Notifies the AgentCkptManger to save the checkpoint state into the storage.
 
 ### Async Checkpointing Saving Steps
 
@@ -166,29 +162,17 @@ implement the checkpointing process.
 
 The agent and training process need to do the following steps:
 
-- Init Process - first checkpoint to memory
-
-    - The agent monitors the training process to create the mata of model and
-      optimizer state dict.
-    - The training process notifies GlobalCkptManager the checkpointing meta when the
-      training process firstly saves the state dict into the memory.
-    - GlobalCkptManager acquire the lock of the shared memory and notify all agents to
-      allocate the shared memory with the checkpointing meta.
-    - The TrainCkptManger acquires the lock of the shared memory and copies the state dict
-      from GPU to the shared memory.
-
-- Training Loop
-
-    - TrainCkptManager acquires the lock of the shared memory and copies the state dict
-      from GPU to the shared memory.
-    - TrainCkptManager notifies GlobalCkptManager to save the checkpointing state into the
-      storage if the iteration step is multiple of the save_interval.
-    - GlobalCkptManager acquires the lock of the shared memory and notifies all agents to
-      save the checkpointing state into the storage.
-    - AgentCkptManger write the checkpointing state into the storage and notifies
-      GlobalCkptManager when finished.
-    - GlobalCkptManager commits the checkpointing and modify tracker file after all agents
-      finish the writing.
+1. The agent monitors the training process to create the mata of model and
+  optimizer state dict.
+2. TrainCkptManager acquires the shared lock and update the meta of model and optimizer
+  state dict.
+3. TrainCkptManager copy the state dict from GPU to the shared memory.
+4. TrainCkptManager releases the shared lock.
+5. TrainCkptManager notifies the AgentCkptManager to save the checkpointing state into the
+  storage.
+6. AgentCkptManager acquires the shared lock and write the checkpoint state into the storage.
+7. AgentCkptManager in rank 0 checks if all agents finish the writing and commit the checkpoint.
+8. AgentCkptManager releases the shared lock.
 
 The following figure shows the checkpointing process in sequence diagram.
 
@@ -199,16 +183,16 @@ The following figure shows the checkpointing process in sequence diagram.
 ### Last Words when the Training Process Fails
 
 When any of the training processes fails, or the agent is killed by SIGTERM, we can automatically
-save the latest checkpointing state into the storage.
+save the latest checkpoint state into the storage.
 
 ### Consistency of the Checkpointing State
 
-For the shared memory checkpointing consistency and correctness, we use a distributed lock
+For the shared memory checkpointing consistency and correctness, we use a shared lock
 to protect the shared memory. If the Agent writing process takes too long time, for training
 efficiency, the TrainCkptManager will skip a memory checkpointing and keep training.
 
 For the storage checkpointing consistency and correctness, every agent will write the checkpoint
-to a temporary directory, and the GlobalCkptManager will commit the checkpointing after all agents
+to a temporary directory, and one of the AgentCkptManager will commit the checkpointing after all agents
 finish the writing.
 
 ## Checkpoint APIs Design
