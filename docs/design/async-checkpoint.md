@@ -193,11 +193,11 @@ class CheckpointMeta(object):
         self.tensor_meta_dict = tensor_meta_dict
 ```
 
-The distributed lock is implemented to avoid conflicts when multiple
+The shared lock between local processes is implemented to avoid conflicts when multiple
 processes concurrently read and write to the shared memory.
 
 ```Python
-class Lock(object):
+class SharedLock(object):
     def acquire(self) -> bool:
         """Acquire a lock shared with multiple processes."""
 
@@ -205,11 +205,11 @@ class Lock(object):
         """Release the lock."""
 ```
 
-The distributed queue is implemented for the training process to notify
+The shared queue between local processes is implemented for the training process to notify
 the agent to save the state dict from the shared memory into the storage.
 
 ```Python
-class Queue(object):
+class SharedQueue(object):
     def put(self, obj, block=True, timeout=None):
         """Put a value into the queue."""
 
