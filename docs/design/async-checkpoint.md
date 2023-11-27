@@ -42,87 +42,17 @@ So, we can copy the weights from GPU to CPU memory in the training loop
 and asynchronously save weights from CPU memory to the storage. The solution
 will block the training to save checkpoint with a little time.
 
-### Asynchronously Save Checkpoint by a daemon subprocess of the GPU process
+## A daemon Subprocess of the Training Process Asynchronously Saves Checkpoint to the Storage
 
 We can start a daemon subprocess in the training process to save the
 
 - Start a thread to save states from GPU to CPU memory.
-
-1. Make the memory buffer to place Torch tensors of states.
-
-```Python
-
-import torch.distributed.checkpoint._traverse as _traverse
-
-
-def alloc_memory(path, value):
-    print(path[0])
-    buffer[path[0]] = torch.empty_like(value.cpu(), pin_memory=True)
-
-
-def make_state_dict_buffer(state_dict):
-    _traverse.traverse_state_dict(state_dict, alloc_memory)
-
-```
-
+- Make the memory buffer to place Torch tensors of states.
 - Write state dict to pinned memory.
-
-```python
-
-import torch.distributed.checkpoint._traverse as _traverse
-
-
-def copy_state_to_memory(path, value):
-    buffer[path[0]].copy_(value)
-
-
-def copy_state_dict_to_buffer(state_dict):
-    _traverse.traverse_state_dict(state_dict, copy_state_to_memory)
-```
-
-- Start a subprocess to asynchronously save states to storage.
+- Start a subprocess to asynchrounously save states to storage.
 
 We can start a subprocess in the training process and share the
 tensor buffer by the shared memory of multiprocessing.
-
-```Python
-import multiprocessing
-
-manager = multiprocessing.Manager()
-share_memory = manager.dict()
-step_queue = multiprocessing.Queue(maxsize=1)
-
-
-def periodically_save():
-    while True:
-        step = step_queue.get()
-        step = step_queue.pop()
-        path = os.path.join(ckpt_dir, str(step))
-        torch.save(shard_memory["model"], path)
-
-
-def save_checkpoint_step(step):
-    step_queue.put(step, block=False)
-```
-
-### Asynchronously Save Checkpoint by an independent CPU process
-
-If we start a daemon subprocess of the GPU training process, the daemon
-subprocess will exit if the training process fails. In this case, the
-parameters in CPU memory of the daemon subprocess will loss. So, we can
-start an independent CPU process to share the memory with the training
-process to save checkpoint to storage.
-
-Allocate the small shared memory to place the meta information of the model and optimizer.
-The meta mainly contains the tensor size of the model and optimizer. The process
-to save checkpoint can allocate another shared memory with the meta.
-
-### Load checkpoint from the multiple-level storage
-
-If the training process fails and the elastic agent of PyTorch can restart the
-training process to resume the training, the training process can load the checkpoint
-from the shared memory not from the storage. Loading from the memory is much faster
-than the storage.
 
 ## The ElasticAgent Asynchronously Saves the Checkpoint into Storage
 
@@ -130,8 +60,30 @@ If we start a daemon subprocess of the GPU training process, the daemon
 subprocess will exit if the training process fails. In this case, the
 parameters in CPU memory of the daemon subprocess will be cleaned. So, the elastic agent
 in the main process can allocate the shared memory with the training
-process. The training process saves the state dict to the shared memory and
+process. The training process saves the state dict to the shared memroy and
 the agent save them into the storage.
+
+The agent and training process need to do the following steps:
+
+- The agent monitors the training process to create the mata of model and
+optimizer state dict.
+- The training process notifies to the agent the checkpointing meta when the
+training process firstly saves the state dict into the memory.
+- The agent allocates the shared memory with the checkpointing meta and notifies
+the training process to copy the state dict from GPU to the shared CPU memory.
+- The agent saves the state dict in the shared memory into the storage when one of the conditions
+is satisifed:
+  - The training process notifies the agent to save the storage with a checkpointing path.
+  - The training process fails. If one training process fails, the job master needs
+    to notify all agents to save the buffer into the storage.
+- One of agents on nodes checks the integrity of the checkpointing file.
+
+### Load checkpoint from the multiple-level storage
+
+If the training process fails and the elastic agent of PyTorch can restart the
+training process to resume the training, the training process can load the checkpoint
+from the shared memory not from the storage. Loading from the memory is much faster
+than the storage.
 
 ### The Classes Design
 
@@ -166,7 +118,7 @@ The agent and training process need to do the following steps:
   optimizer state dict.
 2. TrainCkptManager acquires the shared lock and update the meta of model and optimizer
   state dict.
-3. TrainCkptManager copy the state dict from GPU to the shared memory.
+3. TrainCkptManager copies the state dict from GPU to the shared memory.
 4. TrainCkptManager releases the shared lock.
 5. TrainCkptManager notifies the AgentCkptManager to save the checkpointing state into the
   storage.
@@ -197,9 +149,12 @@ finish the writing.
 
 ## Checkpoint APIs Design
 
+The engine asynchronously in the training process creates the meta of state dict
+and write the state dict into the shared memory.
+
 ```Python
 
-class AsyncCheckpointEngine(object):
+class CheckpointEngine(object):
     """
     Attributes:
         checkpoint_dir: str, the directory to save the checkpoint.
@@ -208,9 +163,6 @@ class AsyncCheckpointEngine(object):
             optimizer states into the CPU memory.
         save_storage_interval: int, the interval of iteration steps to save the model
             and optimizer states from CPU memory to the storage.
-        auto_save: bool, the checkpoint manager will automatically configure the
-            interval to save checkpoint into memory and storage according to
-            the time of iteration step.
     """
 
     def __init__(
@@ -233,6 +185,9 @@ class AsyncCheckpointEngine(object):
         """
         pass
 
+    def create_tensor_meta_dict(self, state_dict):
+        """Create tensor meta dict with the state_dict."""
+
     def load(self, resume_path=""):
         """
         Load the state dict from the CPU memory if the state dict is complete in
@@ -247,4 +202,96 @@ class AsyncCheckpointEngine(object):
             A dict.
         """
         pass
+```
+
+The engine allocates the shared memory in the main process and save the state dict from
+the shared memory into the storage.
+
+```Python
+class SaveEngine(object):
+    def allocate_shared_memory(self, tensor_meta_dict):
+        """Allocate the shared memory with the tensor meta dict."""
+
+    def save(self, path):
+        """Save the state dict from the shared memory into the storage if it receives
+        a saving signal from the training process."""
+
+    def check_integrity(self, path):
+        """Check the integrity of the checkpointing files."""
+```
+
+The meta class stores the checkpoint tensor meta information.
+
+```Python
+class TensorMeta(object):
+    """
+    TensorMeta is used to restore the tensor from the memory buffer.
+
+    Args:
+        shape (tuple(int)): tensor shape.
+        dtype (torch.dtype): tensor dtype.
+        element_size (int): the size of each element.
+        numel (int): the element number of tensor.
+        offset (int): the offset in the memory buffer. 
+    """
+    shape: Tuple[int] = None  # type: ignore
+    dtype: torch.dtype = None  # type: ignore
+    element_size: int = 0
+    numel: int = 0
+    offset: int = 0
+
+
+class CheckpointMeta(object):
+    """
+    CheckpointMeta stores the tensor meta of state dict of a rank.
+
+    Args:
+        rank (int): the rank of training process.
+    """
+
+    def __init__(self, rank, tensor_meta_dict):
+        self.rank = rank
+        self.tensor_meta_dict = tensor_meta_dict
+```
+
+The shared lock between local processes is implemented to avoid conflicts when multiple
+processes concurrently read and write to the shared memory.
+
+```Python
+class SharedLock(object):
+    def acquire(self) -> bool:
+        """Acquire a lock shared with multiple processes."""
+
+    def release(self) -> None:
+        """Release the lock."""
+```
+
+The shared queue between local processes is implemented for the training process to notify
+the agent to save the state dict from the shared memory into the storage.
+
+```Python
+class SharedQueue(object):
+    def put(self, obj, block=True, timeout=None):
+        """Put a value into the queue."""
+
+    def get(self, block=True, timeout=None):
+        """Get the value and remove it from the queue."""
+
+    def qsize(self):
+        """The size fo queue."""
+
+    def empty(self):
+        """Verify the queue is empty."""
+```
+
+The shared dictionary across multiple processes on a node.
+
+```Python
+class SharedDict(object):
+    def update(self, new_dict):
+        """Update the shared Dict with a new Dict"""
+
+    def get(self):
+        """Returna a Python Dict from the shared Dict."""
+
 ```
