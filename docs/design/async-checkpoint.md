@@ -127,7 +127,7 @@ The agent and training process need to do the following steps:
   optimizer state dict.
 2. TrainCkptManager acquires the shared lock and update the meta of model and optimizer
   state dict.
-3. TrainCkptManager copy the state dict from GPU to the shared memory.
+3. TrainCkptManager copies the state dict from GPU to the shared memory.
 4. TrainCkptManager releases the shared lock.
 5. TrainCkptManager notifies the AgentCkptManager to save the checkpointing state into the
   storage.
