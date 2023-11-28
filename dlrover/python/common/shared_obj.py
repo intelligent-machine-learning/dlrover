@@ -428,10 +428,10 @@ class SharedDict(object):
             bs = pickle.dumps(new_dict)
             bs_size = len(bs)
             try:
+                self._shared_queue.put(1)
                 # Firstly send the size of the message.
                 os.write(self._fd, bs_size.to_bytes(4, "big"))
                 os.write(self._fd, bs)
-                self._shared_queue.put(1)
             except Exception:
                 logger.info("The recv processs has breakdown.")
 
