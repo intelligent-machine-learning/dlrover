@@ -13,7 +13,11 @@
 
 import unittest
 
-from dlrover.python.common.process import SharedLock
+from dlrover.python.common.shared_obj import (
+    SharedDict,
+    SharedLock,
+    SharedQueue,
+)
 
 
 class SharedLockTest(unittest.TestCase):
@@ -29,3 +33,31 @@ class SharedLockTest(unittest.TestCase):
         acquired = client_lock.acquire(blocking=False)
         self.assertTrue(acquired)
         client_lock.release()
+
+    def test_shared_queue(self):
+        name = "test"
+        server_queue = SharedQueue(name, create=True)
+        client_queue = SharedQueue(name, create=False)
+        server_queue.put(2)
+        qsize = server_queue.qsize()
+        self.assertEqual(qsize, 1)
+        value = server_queue.get()
+        self.assertEqual(value, 2)
+        client_queue.put(3)
+        qsize = client_queue.qsize()
+        self.assertEqual(qsize, 1)
+        qsize = client_queue.qsize()
+        self.assertEqual(qsize, 1)
+        value = client_queue.get()
+        self.assertEqual(value, 3)
+
+    def test_shared_dict(self):
+        name = "test"
+        read_dict = SharedDict(name=name, create=True)
+        write_dict = SharedDict(name=name, create=False)
+        new_dict = {"a": 1, "b": 2}
+        write_dict.update(new_dict=new_dict)
+        new_dict["a"] = 4
+        write_dict.update(new_dict=new_dict)
+        d = read_dict.get()
+        self.assertDictEqual(d, new_dict)
