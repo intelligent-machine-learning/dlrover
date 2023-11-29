@@ -20,8 +20,11 @@ from datetime import timedelta
 import torch
 import torch.distributed as dist
 
-import torch_npu
-from torch_npu.contrib import transfer_to_npu
+try:
+    import torch_npu  # type: ignore
+    from torch_npu.contrib import transfer_to_npu  # type: ignore
+except (ModuleNotFoundError, ImportError) as e:
+    pass
 
 from dlrover.python.common.constants import ConfigPath
 from dlrover.python.common.log import default_logger as logger
@@ -68,28 +71,29 @@ def write_time_to_file(time, local_rank):
         f.write(json.dumps(data))
 
 
-def main(task, npu):
+def main(task):
     use_cuda = torch.cuda.is_available()
     start_init = time.time()
 
-    use_gpu = True
-    if npu:
-        dist.init_process_group("hccl", timeout=timedelta(seconds=180))
-    elif use_cuda:
-        dist.init_process_group("nccl", timeout=timedelta(seconds=180))
-    else:
-        dist.init_process_group("gloo", timeout=timedelta(seconds=180))
-        use_gpu = False
+    protocol = "gloo"
+    if use_cuda:
+        device = torch.cuda.get_device_name()
+        if "Ascend" in device:
+            protocol = "hccl"
+        else:
+            protocol = "nccl"
+
+    dist.init_process_group(protocol, timeout=timedelta(seconds=180))
 
     init_time = round(time.time() - start_init, 3)
     task_time = 0
     if task == FAULT_CHECK_TASK:
         shape = 1 << 20
-        task_time = bm_all_gather(shape, use_gpu)
+        task_time = bm_all_gather(shape, use_cuda)
     elif task == STRAGGLER_CHECK_TASK:
-        task_time = matmul(use_gpu)
+        task_time = matmul(use_cuda)
         shape = 1 << 24
-        task_time += bm_all_gather(shape, use_gpu)
+        task_time += bm_all_gather(shape, use_cuda)
     local_rank = int(os.environ["LOCAL_RANK"])
     elapsed_time = round(init_time + task_time, 3)
     write_time_to_file(elapsed_time, local_rank)
@@ -111,16 +115,11 @@ def arg_parser():
         choices=[FAULT_CHECK_TASK, STRAGGLER_CHECK_TASK],
         required=False,
     )
-    parser.add_argument(
-        "--nup",
-        action="store_true",
-        required=False,
-    )
     return parser
 
 
 if __name__ == "__main__":
     parser = arg_parser()
     args = parser.parse_args()
-    main(args.task, args.nup)
+    main(args.task)
     logger.info("Finish testing machine.")
