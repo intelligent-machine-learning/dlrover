@@ -21,9 +21,9 @@ import torch
 import torch.distributed as dist
 
 try:
-    import torch_npu  # type: ignore
-    from torch_npu.contrib import transfer_to_npu  # type: ignore
-except (ModuleNotFoundError, ImportError) as e:
+    import torch_npu  # noqa: F401
+    from torch_npu.contrib import transfer_to_npu  # noqa: F401
+except (ModuleNotFoundError, ImportError) as e:  # noqa: F841
     pass
 
 from dlrover.python.common.constants import ConfigPath
