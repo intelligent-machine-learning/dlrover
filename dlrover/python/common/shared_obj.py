@@ -459,7 +459,7 @@ class SharedMemory(shared_memory.SharedMemory):
     hereby allowing a new training process to commence utilizing
     the existing shared memory to load checkpoint.
 
-    Note: We must explicitly unlink the SharedMemory to avoid memory leak.
+    Note:: We must explicitly unlink the SharedMemory to avoid memory leak.
     """
 
     # Defaults; enables close() and unlink() to run without errors.
