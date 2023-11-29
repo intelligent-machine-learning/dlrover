@@ -453,7 +453,7 @@ class SharedDict(object):
 class SharedMemory(shared_memory.SharedMemory):
     """
     Customization of the SharedMemory is necessary, as the
-    'resource.tracker.ResourceTracker' in Python will unlink and remove the
+    'resource_tracker.ResourceTracker' in Python will unlink and remove the
     file if one process fails. Our objective is to ensure that the training
     process does not unlink the shared memory upon failure, 
     hereby allowing a new training process to commence utilizing
