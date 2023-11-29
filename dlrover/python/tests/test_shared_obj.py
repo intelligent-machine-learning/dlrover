@@ -11,14 +11,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import unittest
 
 from dlrover.python.common.shared_obj import (
     SharedDict,
     SharedLock,
-    SharedQueue,
     SharedMemory,
+    SharedQueue,
 )
 
 
@@ -68,6 +67,10 @@ class SharedLockTest(unittest.TestCase):
 class SharedMemoryTest(unittest.TestCase):
     def test_unlink(self):
         fanme = "test-shm"
+        with self.assertRaises(ValueError):
+            shm = SharedMemory(name=fanme, create=True, size=-1)
+        with self.assertRaises(ValueError):
+            shm = SharedMemory(name=fanme, create=True, size=0)
         shm = SharedMemory(name=fanme, create=True, size=1024)
         shm.buf[0:4] = b"abcd"
         shm.close()

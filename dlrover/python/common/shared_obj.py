@@ -11,18 +11,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import mmap
 import os
 import pickle
 import queue
 import socket
 import threading
 import time
-import mmap
-import _posixshmem
-from multiprocessing import shared_memory
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
+from multiprocessing import shared_memory
 from typing import Dict
+
+import _posixshmem
 
 from .log import default_logger as logger
 
@@ -455,7 +456,7 @@ class SharedMemory(shared_memory.SharedMemory):
     Customization of the SharedMemory is necessary, as the
     'resource_tracker.ResourceTracker' in Python will unlink and remove the
     file if one process fails. Our objective is to ensure that the training
-    process does not unlink the shared memory upon failure, 
+    process does not unlink the shared memory upon failure,
     hereby allowing a new training process to commence utilizing
     the existing shared memory to load checkpoint.
 
@@ -477,7 +478,9 @@ class SharedMemory(shared_memory.SharedMemory):
         if create:
             self._flags = os.O_CREAT | os.O_EXCL | os.O_RDWR
             if size == 0:
-                raise ValueError("'size' must be a positive number different from zero")
+                raise ValueError(
+                    "'size' must be a positive number different from zero"
+                )
         if name is None and not self._flags & os.O_EXCL:
             raise ValueError("'name' can only be None if create=True")
 
@@ -486,9 +489,7 @@ class SharedMemory(shared_memory.SharedMemory):
                 name = shared_memory._make_filename()
                 try:
                     self._fd = _posixshmem.shm_open(
-                        name,
-                        self._flags,
-                        mode=self._mode
+                        name, self._flags, mode=self._mode
                     )
                 except FileExistsError:
                     continue
@@ -496,11 +497,7 @@ class SharedMemory(shared_memory.SharedMemory):
                 break
         else:
             name = "/" + name if self._prepend_leading_slash else name
-            self._fd = _posixshmem.shm_open(
-                name,
-                self._flags,
-                mode=self._mode
-            )
+            self._fd = _posixshmem.shm_open(name, self._flags, mode=self._mode)
             self._name = name
         try:
             if create and size:
