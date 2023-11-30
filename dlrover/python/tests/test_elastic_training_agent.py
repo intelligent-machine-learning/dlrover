@@ -14,6 +14,7 @@
 import json
 import os
 import shutil
+import socket
 import tempfile
 import time
 import unittest
@@ -156,7 +157,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
     def test_get_local_ip(self):
         local_ip = _get_local_ip()
         self.assertNotEqual(local_ip, "")
-        os.environ["MY_POD_IP"] = "127.0.0.1"
+        os.environ["POD_IP"] = "127.0.0.1"
         local_ip = _get_local_ip()
         self.assertEqual(local_ip, "127.0.0.1")
 
@@ -259,6 +260,14 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         os.environ["HOST_PORTS"] = "10000,10002,10003"
         port = agent._get_free_port()
         self.assertTrue(port in [10000, 10002, 10003])
+
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.bind(("", 10000))
+        os.environ["HOST_PORTS"] = "10000"
+        port = agent._get_free_port()
+        print(port)
+        s.close()
+        self.assertTrue(port != 10000)
 
         os.environ["HOST_PORTS"] = ""
         port = agent._get_free_port()

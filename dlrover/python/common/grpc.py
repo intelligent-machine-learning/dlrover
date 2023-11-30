@@ -93,9 +93,9 @@ def find_free_port_in_range(start=0, end=65535, random_port=True):
         except OSError:
             logger.warning(f"Socket creation attempt failed with {port}.")
             bind_ports.add(port)
-        if len(bind_ports) == end - start:
+        if len(bind_ports) == end - start + 1:
             break
-    return RuntimeError(f"Fail to find a free port in [{start}, {end})")
+    raise RuntimeError(f"Fail to find a free port in [{start}, {end})")
 
 
 def find_free_port_in_set(ports):
@@ -104,7 +104,7 @@ def find_free_port_in_set(ports):
             return find_free_port(port)
         except OSError:
             logger.warning(f"Socket creation attempt failed with {port}.")
-    return ValueError(f"Fail to find a free port in {ports}")
+    raise RuntimeError(f"Fail to find a free port in {ports}")
 
 
 def grpc_server_ready(channel) -> bool:
