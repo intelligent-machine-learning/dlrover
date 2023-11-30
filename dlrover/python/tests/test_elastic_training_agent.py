@@ -153,7 +153,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
     def test_get_local_ip(self):
         local_ip = _get_local_ip()
         self.assertNotEqual(local_ip, "")
-        os.environ["MY_POD_IP"] = "127.0.0.1"
+        os.environ["POD_IP"] = "127.0.0.1"
         local_ip = _get_local_ip()
         self.assertEqual(local_ip, "127.0.0.1")
 

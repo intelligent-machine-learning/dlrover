@@ -83,7 +83,7 @@ def _set_paral_config():
 
 
 def _get_local_ip():
-    local_ip = os.getenv("MY_POD_IP", "")
+    local_ip = os.getenv("POD_IP", "")
     if not local_ip:
         local_ip = socket.gethostbyname(_get_fq_hostname())
     return local_ip
