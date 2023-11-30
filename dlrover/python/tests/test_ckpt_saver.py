@@ -12,6 +12,8 @@
 # limitations under the License.
 
 import os
+import tempfile
+import time
 import unittest
 
 import numpy as np
@@ -19,11 +21,16 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from dlrover.python.common.multi_process import SharedMemory
+from dlrover.python.common.multi_process import SharedMemory, SharedQueue
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
+    _WIRTING_SHM,
+    CheckpointSaver,
+    NoShardingCheckpointEngine,
     NoShardingSaver,
-    convert_torch_dtype_to_numpy,
-    traverse_state_dict,
+    ShardingCheckpointEngine,
+    _clean_shm_handler,
+    _convert_torch_dtype_to_numpy,
+    _traverse_state_dict,
 )
 
 
@@ -51,8 +58,20 @@ class SimpleNet(nn.Module):
 
 
 class CheckpointSaverTest(unittest.TestCase):
+    def test_create_checkpoint_saver(self):
+        CheckpointSaver.start_async_saving_ckpt(num_proc=8)
+        sq = SharedQueue(name="factory", create=False)
+        args = {"checkpoint_dir": "test_dir"}
+        sq.put(("NoShardingSaver", args))
+        for _ in range(10):
+            if CheckpointSaver._saver_instance is None:
+                time.sleep(0.5)
+            else:
+                break
+        self.assertEqual(CheckpointSaver._saver_instance.num_proc, 8)
+
     def test_close_saver(self):
-        saver = NoShardingSaver()
+        saver = NoShardingSaver("test_ckpt")
         saver._tensor_shm = SharedMemory(name="test", create=True, size=1024)
         saver.close()
         saver.close()
@@ -67,15 +86,44 @@ class CheckpointSaverTest(unittest.TestCase):
             model=model.state_dict(),
             step=step,
         )
-        new_dict = traverse_state_dict(state_dict, visitor)
+        new_dict = _traverse_state_dict(state_dict, visitor)
         self.assertEqual(new_dict, state_dict)
 
     def test_convert_torch_dtype_to_numpy(self):
-        np_dtype = convert_torch_dtype_to_numpy(torch.float32)
+        np_dtype = _convert_torch_dtype_to_numpy(torch.float32)
         self.assertEqual(np_dtype, np.float32)
 
-        np_dtype = convert_torch_dtype_to_numpy(torch.float)
+        np_dtype = _convert_torch_dtype_to_numpy(torch.float)
         self.assertEqual(np_dtype, np.float32)
 
-        np_dtype = convert_torch_dtype_to_numpy(torch.int32)
+        np_dtype = _convert_torch_dtype_to_numpy(torch.int32)
         self.assertEqual(np_dtype, np.int32)
+
+    def test_save_to_storage(self):
+        model = SimpleNet()
+        step = 100
+        state_dict = dict(
+            model=model.state_dict(),
+            step=step,
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            CheckpointSaver._saver_instance = NoShardingSaver(tmpdir)
+            sq = SharedQueue(name="factory", create=True)
+            saving_engine = NoShardingCheckpointEngine(tmpdir)
+            saving_engine.save_to_memory(state_dict, step)
+            self.assertFalse(saving_engine._meta_dict[_WIRTING_SHM])
+            saver: CheckpointSaver = CheckpointSaver.get_ckpt_saver()
+            saver._tensor_shm = SharedMemory(name=saver._shm_name)
+            saver.save_shm_to_storage()
+            ckpt_files = os.listdir(tmpdir)
+            self.assertEqual(len(ckpt_files), 1)
+            sq.close()
+            _clean_shm_handler(None, None)
+
+    def test_sharding_checkpoint_engine(self):
+        os.environ["LOCAL_RANK"] = "1"
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            engine = ShardingCheckpointEngine(tmpdirname)
+            self.assertEqual(
+                engine._shared_ckpt_meta._name, "checkpoint_meta_local_rank_1"
+            )

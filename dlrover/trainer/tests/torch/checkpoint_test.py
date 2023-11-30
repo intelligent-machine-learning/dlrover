@@ -26,14 +26,13 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader, Dataset
 
 from dlrover.python.common import grpc
-from dlrover.python.elastic_agent.torch.ckpt_saver import CheckpointSaver
-from dlrover.trainer.torch.elastic.checkpoint import (
-    CheckpointManger,
+from dlrover.python.elastic_agent.torch.ckpt_saver import (
+    CheckpointSaver,
     NoShardingCheckpointEngine,
-    ShardingCheckpointEngine,
     _create_shared_memory,
     _get_latest_checkpoint,
 )
+from dlrover.trainer.torch.elastic.checkpoint import CheckpointManger
 from dlrover.trainer.torch.elastic.sampler import ElasticDistributedSampler
 
 
@@ -103,6 +102,7 @@ def _wait_async_saving_finished(dir_name, step):
 
 class CheckpointManagerTest(unittest.TestCase):
     def setUp(self):
+        CheckpointSaver._saver_instance = None
         CheckpointSaver.start_async_saving_ckpt()
 
     def test_create_shared_memory(self):
@@ -172,11 +172,3 @@ class CheckpointManagerTest(unittest.TestCase):
                 loaded_value = loaded_state_dict["model"][key]
                 self.assertTrue(torch.equal(value, loaded_value))
             engine.close()
-
-    def test_sharding_checkpoint_engine(self):
-        os.environ["LOCAL_RANK"] = "1"
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            engine = ShardingCheckpointEngine(tmpdirname)
-            self.assertEqual(
-                engine._shared_ckpt_meta._name, "checkpoint_meta_local_rank_1"
-            )
