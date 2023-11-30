@@ -30,6 +30,8 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import CheckpointSaver
 from dlrover.trainer.torch.elastic.checkpoint import (
     CheckpointManger,
     NoShardingCheckpointEngine,
+    ShardingCheckpointEngine,
+    _create_shared_memory,
     _get_latest_checkpoint,
 )
 from dlrover.trainer.torch.elastic.sampler import ElasticDistributedSampler
@@ -103,6 +105,10 @@ class CheckpointManagerTest(unittest.TestCase):
     def setUp(self):
         CheckpointSaver.start_async_saving_ckpt()
 
+    def test_create_shared_memory(self):
+        shm = _create_shared_memory("test", False)
+        self.assertIsNone(shm)
+
     def test_ddp_save_load(self):
         os.environ["LOCAL_RANK"] = "0"
         port = grpc.find_free_port()
@@ -144,7 +150,7 @@ class CheckpointManagerTest(unittest.TestCase):
         self.assertEqual(meta.dtype, np.float32)
         engine.close()
 
-    def test_load(self):
+    def test_load_no_sharding(self):
         model = SimpleNet()
         step = 100
         state_dict = dict(
@@ -166,3 +172,9 @@ class CheckpointManagerTest(unittest.TestCase):
                 loaded_value = loaded_state_dict["model"][key]
                 self.assertTrue(torch.equal(value, loaded_value))
             engine.close()
+
+    def test_sharding_checkpoint_engine(self):
+        os.environ["LOCAL_RANK"] = "1"
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            engine = ShardingCheckpointEngine(tmpdirname)
+            self.assertEqual(engine._shared_ckpt_meta._name, "checkpoint_meta_local_rank_1")

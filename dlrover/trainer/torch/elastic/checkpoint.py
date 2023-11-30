@@ -159,7 +159,6 @@ class CheckpointEngine(metaclass=ABCMeta):
 
     def __init__(self, checkpoint_dir):
         self.checkpoint_dir = checkpoint_dir
-
         if dist.is_initialized():
             self._rank = dist.get_rank()
             self._local_rank = int(os.environ["LOCAL_RANK"])
@@ -168,7 +167,7 @@ class CheckpointEngine(metaclass=ABCMeta):
             )
         else:
             self._rank = 0
-            self._local_rank = 0
+            self._local_rank = int(os.getenv("LOCAL_RANK", 0))
             self._saver_group = None
 
         self._buffer_size = 0
@@ -443,9 +442,9 @@ class ShardingCheckpointEngine(CheckpointEngine):
         super().__init__(checkpoint_dir)
 
     def _notify_agent_to_create_saver(self):
-        queue = SharedQueue(name="factory")
-        queue.put("ShardingSaver")
-        queue.close()
+        # TODO: implement the saver in the agent to support saving
+        # sharding state dict.
+        pass
 
     def _init_shared_objs(self):
         meta_name = CKPT_META_NAME_PREFIX + str(self._local_rank)
@@ -566,7 +565,7 @@ class CheckpointManger(metaclass=ABCMeta):
             self._local_rank = int(os.environ["LOCAL_RANK"])
         else:
             self._rank = 0
-            self._local_rank = 0
+            self._local_rank = int(os.getenv("LOCAL_RANK", 0))
 
     def _log_rank0(self, log):
         if self._rank == 0:
