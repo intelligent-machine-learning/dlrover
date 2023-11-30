@@ -220,7 +220,7 @@ class CheckpointEngine(metaclass=ABCMeta):
             return value
         dtype = convert_torch_dtype_to_numpy(value.dtype)
         meta = TensorMeta(
-            shape=tuple(value.shape),
+            shape=tuple(value.shape),  # type: ignore
             dtype=dtype,
             element_size=value.element_size(),
             numel=value.numel(),

@@ -18,7 +18,7 @@ import threading
 import time
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Callable, List, Mapping, Tuple
+from typing import Callable, List, Mapping, Tuple
 
 import numpy as np
 import torch
@@ -121,7 +121,7 @@ def read_tensor_from_buf(value, shm_tensor_buffer):
 
 @dataclass
 class TensorMeta(object):
-    shape: Tuple[Any] = None  # type: ignore
+    shape: Tuple[int] = None  # type: ignore
     dtype: torch.dtype = None  # type: ignore
     element_size: int = 0
     numel: int = 0
