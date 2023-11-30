@@ -449,7 +449,7 @@ class ShardedCheckpointEngine(CheckpointEngine):
 
     def _init_shared_objs(self):
         meta_name = CKPT_META_NAME_PREFIX + str(self._local_rank)
-        self._shared_ckpt_meta = SharedDict(name=meta_name, recv=False)
+        self._shared_ckpt_meta = SharedDict(name=meta_name, create=False)
         lock_name = SHM_LOCK_NAME_PREFIX + str(self._local_rank)
         self._shm_buffer_lock = SharedLock(name=lock_name, create=False)
         qname = SAVE_STEP_QNAME_PREFIX + str(self._local_rank)
@@ -497,7 +497,7 @@ class NoShardingCheckpointEngine(CheckpointEngine):
         created by the local rank 0 on a node.
         """
         meta_name = CKPT_META_NAME_PREFIX + str(0)
-        self._shared_ckpt_meta = SharedDict(name=meta_name, recv=False)
+        self._shared_ckpt_meta = SharedDict(name=meta_name, create=False)
         lock_name = SHM_LOCK_NAME_PREFIX + str(0)
         self._shm_buffer_lock = SharedLock(name=lock_name, create=False)
         qname = SAVE_STEP_QNAME_PREFIX + str(0)

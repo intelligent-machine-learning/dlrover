@@ -175,7 +175,7 @@ class NoShardingSaver(CheckpointSaver):
         qname = SAVE_STEP_QNAME_PREFIX + str(0)
         self._to_save_queue = SharedQueue(name=qname, create=True)
         meta_name = CKPT_META_NAME_PREFIX + str(0)
-        self._shared_ckpt_meta = SharedDict(name=meta_name, recv=True)
+        self._shared_ckpt_meta = SharedDict(name=meta_name, create=True)
         lock_name = SHM_LOCK_NAME_PREFIX + str(0)
         self._shm_lock = SharedLock(name=lock_name, create=True)
         self._shm_name = TENSOR_SHM_NAME_PREFIX + str(0)

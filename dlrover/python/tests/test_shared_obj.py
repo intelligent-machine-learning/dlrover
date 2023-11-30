@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pickle
 import unittest
 
 from dlrover.python.common.shared_obj import (
@@ -55,17 +54,16 @@ class SharedLockTest(unittest.TestCase):
 
     def test_shared_dict(self):
         name = "test"
-        read_dict = SharedDict(name=name, recv=True)
-        write_dict = SharedDict(name=name, recv=False)
+        server_dict = SharedDict(name=name, create=True)
+        client_dict = SharedDict(name=name, create=False)
         new_dict = {"a": 1, "b": 2}
-        write_dict.update(new_dict=new_dict)
+        client_dict.update(new_dict=new_dict)
         new_dict["a"] = 4
-        write_dict.update(new_dict=new_dict)
-        d = read_dict.get()
+        client_dict.update(new_dict=new_dict)
+        d = server_dict.get()
         self.assertDictEqual(d, new_dict)
-        with open(read_dict._local_saving_file, "rb") as f:
-            store_d = pickle.load(f)
-            self.assertDictEqual(store_d, new_dict)
+        d = client_dict.get()
+        self.assertDictEqual(d, new_dict)
 
 
 class SharedMemoryTest(unittest.TestCase):

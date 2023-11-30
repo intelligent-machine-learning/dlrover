@@ -63,6 +63,29 @@ def _create_socket_client(path):
     return client
 
 
+def _socket_send(socket: socket.socket, message):
+    """
+    In the protocol, the first 4 bytes is the size of message.
+    """
+    head = len(message).to_bytes(4, "big")
+    send_data = head + message
+    socket.send(send_data)
+
+
+def _socket_recv(socket: socket.socket):
+    """
+    In the protocol, the first 4 bytes is the size of message.
+    """
+    recv_data = socket.recv(1024)
+    head = recv_data[0:4]
+    message = recv_data[4:]
+    message_len = int.from_bytes(head, "big")
+    while len(message) < message_len:
+        recv_data = socket.recv(1024)
+        message += recv_data
+    return message
+
+
 @dataclass
 class SocketRequest(object):
     """
@@ -152,9 +175,9 @@ class LocalSocketComm(metaclass=ABCMeta):
     def _request(self, request: SocketRequest):
         """Create a socket client to requet the shared object."""
         client = _create_socket_client(self._socket_file)
-        send_data = pickle.dumps(request)
-        client.send(send_data)
-        recv_data = client.recv(256)
+        message = pickle.dumps(request)
+        _socket_send(client, message)
+        recv_data = _socket_recv(client)
         client.close()
         response: LockAcquireResponse = pickle.loads(recv_data)
         return response
@@ -184,7 +207,7 @@ class SharedLock(LocalSocketComm):
         while True:
             connection, _ = self._server.accept()
             try:
-                recv_data = connection.recv(256)
+                recv_data = _socket_recv(connection)
                 msg: SocketRequest = pickle.loads(recv_data)
                 response = LockAcquireResponse()
                 if msg.method == "acquire":
@@ -196,7 +219,7 @@ class SharedLock(LocalSocketComm):
                 response = LockAcquireResponse()
                 response.status = ERROR_CODE
             send_data = pickle.dumps(response)
-            connection.send(send_data)
+            _socket_send(connection, send_data)
 
     def acquire(self, blocking=True):
         """
@@ -292,7 +315,7 @@ class SharedQueue(LocalSocketComm):
         while True:
             connection, _ = self._server.accept()
             try:
-                recv_data = connection.recv(256)
+                recv_data = _socket_recv(connection)
                 msg: SocketRequest = pickle.loads(recv_data)
                 response = SocketResponse()
                 if msg.method == "put":
@@ -310,8 +333,8 @@ class SharedQueue(LocalSocketComm):
             except Exception:
                 response = SocketResponse()
                 response.status = ERROR_CODE
-            send_data = pickle.dumps(response)
-            connection.send(send_data)
+            message = pickle.dumps(response)
+            _socket_send(connection, message)
 
     def put(self, obj, block=True, timeout=None):
         """Put an object into the queue."""
@@ -364,100 +387,55 @@ class SharedQueue(LocalSocketComm):
 
 
 @dataclass
-class DictGetResponse(SocketResponse):
+class DictMessage(SocketResponse):
     """
     The response to get the dict of shared dict using local socket.
 
     Attributes:
-        obj (object): the return value to get an obj from a shared queue.
+        meta_dict (dict): the return value to get an obj from a shared queue.
     """
 
-    obj: object = None
+    meta_dict: object = None
 
 
-@dataclass
-class DictUpdateResponse(SocketResponse):
-    """
-    The response to get the size of a shared queue using local socket.
-
-    Attributes:
-        size (int): the size of a queue.
-    """
-
-    size: int = 0
-
-
-class SharedDict(object):
+class SharedDict(LocalSocketComm):
     """
     A shared dict between local processes.
 
     Args:
         name (str): the shared dictionary name, one process can update the
             dict with the same name of another process by local socket.
-        recv (bool): If ture, the instance will receive the dict from the
+        create (bool): If ture, the instance will receive the dict from the
             sending process to update its dict.
     """
 
-    def __init__(self, name="", recv=False):
-        self._name = name
-        self._recv = recv
-        fname = self.__class__.__name__.lower() + "_" + self._name + ".sock"
-        self._fifo_file = os.path.join(TMP_DIR, fname)
-        self._fifo_fd = None
-        fname = self.__class__.__name__.lower() + "_" + self._name + ".pt"
-        self._local_saving_file = fname
-        self._init_by_file()
+    def __init__(self, name="", create=False):
+        super().__init__(name, create)
 
-        try:
-            os.mkfifo(self._fifo_file, 0o666)
-        except FileExistsError:
-            pass
-        if self._recv:
-            self._dict = {}
-            self._shared_queue = SharedQueue(
-                name=f"shard_dict_{name}", create=self._recv
-            )
-            threading.Thread(
-                target=self._sync, daemon=True, name=f"{name}-receiver"
-            ).start()
-        else:
-            self._dict = {}
-            self._shared_queue = SharedQueue(
-                name=f"shard_dict_{name}", create=self._recv
-            )
-
-    def _init_by_file(self):
-        if os.path.exists(self._local_saving_file):
-            with open(self._local_saving_file, "rb") as f:
-                self._dict = pickle.load(f)
-
-    def __del__(self):
-        self.close()
-
-    def close(self):
-        try:
-            os.unlink(self._fifo_file)
-        except FileNotFoundError:
-            pass
+        self._dict = {}
+        self._shared_queue = SharedQueue(
+            name=f"shard_dict_{name}", create=self._create
+        )
 
     def _sync(self):
-        if self._recv:
-            self._fifo_fd = os.open(self._fifo_file, os.O_RDONLY)
         while True:
-            recv_bytes = os.read(self._fifo_fd, 4)
-            msg_size = int.from_bytes(recv_bytes, "big")
-            total_bytes = b""
-            while True:
-                buffer_size = 1024 * 1024
-                recv_bytes = os.read(self._fifo_fd, buffer_size)
-                total_bytes += recv_bytes
-                if len(total_bytes) == msg_size:
-                    break
-            d = pickle.loads(total_bytes)
-            with open(self._local_saving_file, "wb") as f:
-                f.write(total_bytes)
-            self._dict.update(d)
-            self._shared_queue.get()
+            connection, _ = self._server.accept()
+            try:
+                recv_data = _socket_recv(connection)
+                msg: SocketRequest = pickle.loads(recv_data)
+                response = DictMessage()
+                if msg.method == "update":
+                    self.update(**msg.args)
+                    self._shared_queue.get(1)
+                elif msg.method == "get":
+                    response = DictMessage()
+                    response.meta_dict = self.get(**msg.args)
+                response.status = SUCCESS_CODE
+            except Exception:
+                response = SocketResponse()
+                response.status = ERROR_CODE
+            message = pickle.dumps(response)
+            _socket_send(connection, message)
 
     def update(self, new_dict):
         """
@@ -467,16 +445,12 @@ class SharedDict(object):
             new_dict (dict): a new dict to update.
         """
         self._dict.update(new_dict)
-        if not self._recv:
-            if not self._fifo_fd:
-                self._fifo_fd = os.open(self._fifo_file, os.O_WRONLY)
-            bs = pickle.dumps(new_dict)
-            bs_size = len(bs)
+        if not self._server:
+            args = {"new_dict": new_dict}
+            request = SocketRequest(method="update", args=args)
             try:
                 self._shared_queue.put(1)
-                # Firstly send the size of the message.
-                os.write(self._fifo_fd, bs_size.to_bytes(4, "big"))
-                os.write(self._fifo_fd, bs)
+                self._request(request)
             except Exception:
                 logger.info("The recv processs has breakdown.")
 
@@ -487,10 +461,16 @@ class SharedDict(object):
         If the writing instance sends the dict into the FIFO, the get method
         should wait for the sync thread to update the dict.
         """
-        if self._recv:
+        if self._server:
             while not self._shared_queue.empty():
                 time.sleep(0.1)
-        return self._dict
+            return self._dict
+        else:
+            request = SocketRequest(method="get", args={})
+            response: DictMessage = self._request(request)
+            if response.status == SUCCESS_CODE:
+                return response.meta_dict
+            return {}
 
 
 class SharedMemory(shared_memory.SharedMemory):
