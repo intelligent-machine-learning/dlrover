@@ -499,7 +499,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 break
 
     def _invoke_run(self, role: str = DEFAULT_ROLE) -> RunResult:
-        # NOTE: currently only works for a single role
+        # Start a thread to save the checkpointing state dict from
+        # the shared memory to the storage.
+        CheckpointSaver.start_async_saving_ckpt()
 
         spec = self._worker_group.spec
         role = spec.role
@@ -588,7 +590,17 @@ class ElasticTrainingAgent(LocalElasticAgent):
     def _restart_workers(self, worker_group: WorkerGroup):
         self._restart_count += 1
         self._remaining_restarts -= 1
+        self._save_ckpt_to_storage()
         super()._restart_workers(worker_group)
+
+    def _save_ckpt_to_storage(self):
+        """
+        The agent can save the checkpointing state dict in the shared
+        memory into the storage before restarting training processes.
+        """
+        saver: CheckpointSaver = CheckpointSaver.get_ckpt_saver()
+        if saver:
+            saver.save_shm_to_storage()
 
     def _membership_changed(self, role, rdzv_handler: RendezvousHandler):
         # Timeout may happen when to query TCPStore.
@@ -681,8 +693,6 @@ def launch_agent(
         start_method=config.start_method,
         log_dir=config.log_dir,
     )
-
-    CheckpointSaver.start_async_saving_ckpt()
 
     shutdown_rdzv = True
     try:

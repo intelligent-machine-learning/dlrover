@@ -26,14 +26,14 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader, Dataset
 
 from dlrover.python.common import grpc
-from dlrover.python.elastic_agent.torch.ckpt_saver import CheckpointSaver
-from dlrover.trainer.torch.elastic.checkpoint import (
-    CheckpointManger,
+from dlrover.python.elastic_agent.torch.ckpt_saver import (
+    CheckpointSaver,
     NoShardingCheckpointEngine,
     ShardingCheckpointEngine,
     _create_shared_memory,
     _get_latest_checkpoint,
 )
+from dlrover.trainer.torch.elastic.checkpoint import CheckpointManger
 from dlrover.trainer.torch.elastic.sampler import ElasticDistributedSampler
 
 
