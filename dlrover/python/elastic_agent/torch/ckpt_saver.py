@@ -301,6 +301,7 @@ class NoShardingSaver(CheckpointSaver):
         """
         if self._tensor_shm is None:
             return
+        self._shm_lock.release()
         self._shm_lock.acquire()
         meta_dict = self._shared_ckpt_meta.get()
         step = meta_dict["step"]
@@ -367,7 +368,7 @@ class CheckpointEngine(metaclass=ABCMeta):
         self._shm_name = ""
         self._tensor_shm: SharedMemory = None
         self._shared_ckpt_meta: SharedDict = None
-        self._shm_buffer_lock: SharedLock = None
+        self._shm_lock: SharedLock = None
         self._to_save_queue: SharedQueue = None
         self._notify_agent_to_create_saver()
         self._init_shared_objs()
@@ -378,8 +379,8 @@ class CheckpointEngine(metaclass=ABCMeta):
     def close(self):
         if self._shared_ckpt_meta:
             self._shared_ckpt_meta.close()
-        if self._shm_buffer_lock:
-            self._shm_buffer_lock.close()
+        if self._shm_lock:
+            self._shm_lock.close()
         if self._to_save_queue:
             self._to_save_queue.close()
         if self._tensor_shm:
@@ -496,7 +497,7 @@ class CheckpointEngine(metaclass=ABCMeta):
         state_dict["step"] = step
         if self._tensor_shm is None:
             self._make_state_dict_buffer(state_dict)
-        acquired = self._shm_buffer_lock.acquire(blocking=False)
+        acquired = self._shm_lock.acquire(blocking=False)
         all_rank_ready = self._check_all_rank_ready(acquired)
         if not all_rank_ready:
             logger.info(
@@ -505,12 +506,12 @@ class CheckpointEngine(metaclass=ABCMeta):
                 "checkpoint from the CPU memory into the storage."
             )
             if acquired:
-                self._shm_buffer_lock.release()
+                self._shm_lock.release()
             return
         self._copy_state_dict_to_shm(state_dict)
 
         if acquired:
-            self._shm_buffer_lock.release()
+            self._shm_lock.release()
         self._cached_step = step
 
     def _check_all_rank_ready(self, ready):
@@ -641,7 +642,7 @@ class ShardingCheckpointEngine(CheckpointEngine):
         meta_name = CKPT_META_NAME_PREFIX + str(self._local_rank)
         self._shared_ckpt_meta = SharedDict(name=meta_name, create=False)
         lock_name = SHM_LOCK_NAME_PREFIX + str(self._local_rank)
-        self._shm_buffer_lock = SharedLock(name=lock_name, create=False)
+        self._shm_lock = SharedLock(name=lock_name, create=False)
         qname = SAVE_STEP_QNAME_PREFIX + str(self._local_rank)
         self._to_save_queue = SharedQueue(name=qname, create=False)
         self._shm_name = TENSOR_SHM_NAME_PREFIX + str(self._local_rank)
@@ -671,7 +672,7 @@ class NoShardingCheckpointEngine(CheckpointEngine):
         meta_name = CKPT_META_NAME_PREFIX + str(0)
         self._shared_ckpt_meta = SharedDict(name=meta_name, create=False)
         lock_name = SHM_LOCK_NAME_PREFIX + str(0)
-        self._shm_buffer_lock = SharedLock(name=lock_name, create=False)
+        self._shm_lock = SharedLock(name=lock_name, create=False)
         qname = SAVE_STEP_QNAME_PREFIX + str(0)
         self._to_save_queue = SharedQueue(name=qname, create=False)
         self._shm_name = TENSOR_SHM_NAME_PREFIX + str(0)
