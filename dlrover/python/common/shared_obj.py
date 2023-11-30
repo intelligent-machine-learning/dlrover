@@ -115,13 +115,19 @@ class LocalSocketComm(metaclass=ABCMeta):
 
     def __init__(self, name="", create=False):
         self._name = name
-        self._file = self._create_socket_path()
+        self._socket_file = self._create_socket_path()
         self._create = create
         self._server = None
         self._init_socket()
 
     def __del__(self):
-        os.unlink(self._file)
+        self.close()
+
+    def close(self):
+        try:
+            os.unlink(self._socket_file)
+        except FileNotFoundError:
+            pass
 
     def _create_socket_path(self):
         """Create a file path for the local socket."""
@@ -131,7 +137,7 @@ class LocalSocketComm(metaclass=ABCMeta):
     def _init_socket(self):
         """Initialze a socket server."""
         if self._create:
-            self._server = _create_socket_server(self._file)
+            self._server = _create_socket_server(self._socket_file)
             t = threading.Thread(
                 target=self._sync,
                 daemon=True,
@@ -145,7 +151,7 @@ class LocalSocketComm(metaclass=ABCMeta):
 
     def _request(self, request: SocketRequest):
         """Create a socket client to requet the shared object."""
-        client = _create_socket_client(self._file)
+        client = _create_socket_client(self._socket_file)
         send_data = pickle.dumps(request)
         client.send(send_data)
         recv_data = client.recv(256)
@@ -357,63 +363,99 @@ class SharedQueue(LocalSocketComm):
             return False
 
 
-# The process uses FIFO pipe not the local socket to transfer
-# the tensor meta dict. Because, the local socket needs buffers
-# at both the sending end and receiving end. The FIFO only need
-# one buffer. The size of tensor meta dict may be large. Local socket
-# may need double memory buffer size to transfer the dict.
+@dataclass
+class DictGetResponse(SocketResponse):
+    """
+    The response to get the dict of shared dict using local socket.
+
+    Attributes:
+        obj (object): the return value to get an obj from a shared queue.
+    """
+
+    obj: object = None
+
+
+@dataclass
+class DictUpdateResponse(SocketResponse):
+    """
+    The response to get the size of a shared queue using local socket.
+
+    Attributes:
+        size (int): the size of a queue.
+    """
+
+    size: int = 0
+
+
 class SharedDict(object):
     """
-    A shared dict is used in two processes. One process updates the dict
-    and another uses the dict.
+    A shared dict between local processes.
 
     Args:
         name (str): the shared dictionary name, one process can update the
-            dict with the same name  of another process by fifo pipe.
-        create (bool): If ture, the instance reads the dict from the fifo.
-            Otherwist, the instance writes the dict into the fifo.
+            dict with the same name of another process by local socket.
+        recv (bool): If ture, the instance will receive the dict from the
+            sending process to update its dict.
     """
 
-    def __init__(self, name="", create=False):
+    def __init__(self, name="", recv=False):
         self._name = name
-        self._create = create
-        fname = self.__class__.__name__.lower() + "_" + self._name + ".fifo"
-        self._file = os.path.join(TMP_DIR, fname)
-        self._fd = None
+        self._recv = recv
+        fname = self.__class__.__name__.lower() + "_" + self._name + ".sock"
+        self._fifo_file = os.path.join(TMP_DIR, fname)
+        self._fifo_fd = None
+        fname = self.__class__.__name__.lower() + "_" + self._name + ".pt"
+        self._local_saving_file = fname
+        self._init_by_file()
 
-        if not os.path.exists(self._file):
-            os.mkfifo(self._file, 0o666)
-        if self._create:
+        try:
+            os.mkfifo(self._fifo_file, 0o666)
+        except FileExistsError:
+            pass
+        if self._recv:
             self._dict = {}
             self._shared_queue = SharedQueue(
-                name=f"shard_dict_{name}", create=self._create
+                name=f"shard_dict_{name}", create=self._recv
             )
             threading.Thread(
                 target=self._sync, daemon=True, name=f"{name}-receiver"
             ).start()
         else:
-            self._dict = None
+            self._dict = {}
             self._shared_queue = SharedQueue(
-                name=f"shard_dict_{name}", create=self._create
+                name=f"shard_dict_{name}", create=self._recv
             )
 
+    def _init_by_file(self):
+        if os.path.exists(self._local_saving_file):
+            with open(self._local_saving_file, "rb") as f:
+                self._dict = pickle.load(f)
+
     def __del__(self):
-        os.unlink(self._file)
+        self.close()
+
+    def close(self):
+        try:
+            os.unlink(self._fifo_file)
+        except FileNotFoundError:
+            pass
 
     def _sync(self):
-        if self._create:
-            self._fd = os.open(self._file, os.O_RDONLY)
+        if self._recv:
+            self._fifo_fd = os.open(self._fifo_file, os.O_RDONLY)
         while True:
-            recv_bytes = os.read(self._fd, 4)
+            recv_bytes = os.read(self._fifo_fd, 4)
             msg_size = int.from_bytes(recv_bytes, "big")
             total_bytes = b""
             while True:
                 buffer_size = 1024 * 1024
-                recv_bytes = os.read(self._fd, buffer_size)
+                recv_bytes = os.read(self._fifo_fd, buffer_size)
                 total_bytes += recv_bytes
                 if len(total_bytes) == msg_size:
                     break
             d = pickle.loads(total_bytes)
+            with open(self._local_saving_file, "wb") as f:
+                f.write(total_bytes)
             self._dict.update(d)
             self._shared_queue.get()
 
@@ -424,18 +466,17 @@ class SharedDict(object):
         Args:
             new_dict (dict): a new dict to update.
         """
-        if self._create:
-            self._dict.update(new_dict)
-        else:
-            if not self._fd:
-                self._fd = os.open(self._file, os.O_WRONLY)
+        self._dict.update(new_dict)
+        if not self._recv:
+            if not self._fifo_fd:
+                self._fifo_fd = os.open(self._fifo_file, os.O_WRONLY)
             bs = pickle.dumps(new_dict)
             bs_size = len(bs)
             try:
                 self._shared_queue.put(1)
                 # Firstly send the size of the message.
-                os.write(self._fd, bs_size.to_bytes(4, "big"))
-                os.write(self._fd, bs)
+                os.write(self._fifo_fd, bs_size.to_bytes(4, "big"))
+                os.write(self._fifo_fd, bs)
             except Exception:
                 logger.info("The recv processs has breakdown.")
 
@@ -446,8 +487,9 @@ class SharedDict(object):
         If the writing instance sends the dict into the FIFO, the get method
         should wait for the sync thread to update the dict.
         """
-        while not self._shared_queue.empty():
-            time.sleep(0.1)
+        if self._recv:
+            while not self._shared_queue.empty():
+                time.sleep(0.1)
         return self._dict
 
 

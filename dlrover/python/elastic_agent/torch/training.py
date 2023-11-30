@@ -67,6 +67,7 @@ from dlrover.python.elastic_agent.config.paral_config_tuner import (
 )
 from dlrover.python.elastic_agent.master_client import MasterClient
 from dlrover.python.elastic_agent.monitor.training import TorchTrainingMonitor
+from dlrover.python.elastic_agent.torch.ckpt_saver import CheckpointSaver
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
 
 __all__ = ["launch_agent"]
@@ -680,6 +681,8 @@ def launch_agent(
         start_method=config.start_method,
         log_dir=config.log_dir,
     )
+
+    CheckpointSaver.start_async_saving_ckpt()
 
     shutdown_rdzv = True
     try:
