@@ -177,4 +177,6 @@ class CheckpointManagerTest(unittest.TestCase):
         os.environ["LOCAL_RANK"] = "1"
         with tempfile.TemporaryDirectory() as tmpdirname:
             engine = ShardingCheckpointEngine(tmpdirname)
-            self.assertEqual(engine._shared_ckpt_meta._name, "checkpoint_meta_local_rank_1")
+            self.assertEqual(
+                engine._shared_ckpt_meta._name, "checkpoint_meta_local_rank_1"
+            )
