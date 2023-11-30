@@ -59,7 +59,11 @@ def _create_socket_client(path):
 
     """
     client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    client.connect(path)
+    for _ in range(3):
+        try:
+            client.connect(path)
+        except FileNotFoundError:
+            time.sleep(1)
     return client
 
 

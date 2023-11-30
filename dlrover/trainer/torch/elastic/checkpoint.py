@@ -432,9 +432,9 @@ class CheckpointEngine(metaclass=ABCMeta):
                 shutil.rmtree(latest_ckpt_dir)
 
 
-class ShardedCheckpointEngine(CheckpointEngine):
+class ShardingCheckpointEngine(CheckpointEngine):
     """
-    The checkpoint engine to save the sharded model and optimizer state dict
+    The engine to save the sharding model and optimizer state dict
     into the memory and storage. We can use it to save the model and optimizer
     using FSDP, Zero-3 or Megatron-LM.
     """
@@ -459,27 +459,8 @@ class ShardedCheckpointEngine(CheckpointEngine):
 
 class NoShardingCheckpointEngine(CheckpointEngine):
     """
-    The `save` of the engine only writes the state dict into the shared memory.
-    A subprocess will asychronously save the state dict into the storage.
-    Writing to memory is significantly quicker than writing to storage.
-    The engine.save only block the training with a little time.
-
-    Attributes:
-        checkpoint_dir: str, the directory to save the checkpoint.
-        save_storage_interval: int, the interval of iteration steps to save
-            the model and optimizer states from CPU memory to the storage.
-        max_to_keep: int, the number of checkpoint files to keep.
-
-    Examples::
-        >>> engine = NoShardingCheckpointEngine(
-        >>>     checkpoint_dir="/tmp/checkpoint/"
-        >>>     save_storage_interval=5,
-        >>>     max_to_keep=1,
-        >>> )
-        >>> state_dict = model.state_dict()
-        >>> engine.save(step=100, state_dict=state_dict)
-        >>> engine.wait()
-        >>> sate_dict = engine.load()
+    The engine saves the model and optimizer state dict without sharding
+    in a local or DDP job.
     """
 
     def __init__(self, checkpoint_dir):
