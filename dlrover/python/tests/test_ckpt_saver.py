@@ -23,9 +23,11 @@ import torch.nn.functional as F
 
 from dlrover.python.common.multi_process import SharedMemory, SharedQueue
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
+    _WIRTING_SHM,
     CheckpointSaver,
     NoShardingCheckpointEngine,
     NoShardingSaver,
+    ShardingCheckpointEngine,
     _clean_shm_handler,
     _convert_torch_dtype_to_numpy,
     _traverse_state_dict,
@@ -109,6 +111,7 @@ class CheckpointSaverTest(unittest.TestCase):
             sq = SharedQueue(name="factory", create=True)
             saving_engine = NoShardingCheckpointEngine(tmpdir)
             saving_engine.save_to_memory(state_dict, step)
+            self.assertFalse(saving_engine._meta_dict[_WIRTING_SHM])
             saver: CheckpointSaver = CheckpointSaver.get_ckpt_saver()
             saver._tensor_shm = SharedMemory(name=saver._shm_name)
             saver.save_shm_to_storage()
@@ -116,3 +119,11 @@ class CheckpointSaverTest(unittest.TestCase):
             self.assertEqual(len(ckpt_files), 1)
             sq.close()
             _clean_shm_handler(None, None)
+
+    def test_sharding_checkpoint_engine(self):
+        os.environ["LOCAL_RANK"] = "1"
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            engine = ShardingCheckpointEngine(tmpdirname)
+            self.assertEqual(
+                engine._shared_ckpt_meta._name, "checkpoint_meta_local_rank_1"
+            )
