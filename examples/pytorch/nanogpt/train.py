@@ -385,7 +385,6 @@ def train():
         if args.save_model:
             rank = int(os.getenv("RANK", "0"))
             save_model(model, epoch, rank, args.use_fsdp)
-    ckpt_manager.wait_saving_latest_ckpt()
 
 
 def save_model(model, epoch, rank, use_fsdp=False):

@@ -13,7 +13,7 @@
 
 import unittest
 
-from dlrover.python.common.shared_obj import (
+from dlrover.python.common.multi_process import (
     SharedDict,
     SharedLock,
     SharedMemory,
@@ -54,13 +54,15 @@ class SharedLockTest(unittest.TestCase):
 
     def test_shared_dict(self):
         name = "test"
-        read_dict = SharedDict(name=name, create=True)
-        write_dict = SharedDict(name=name, create=False)
+        server_dict = SharedDict(name=name, create=True)
+        client_dict = SharedDict(name=name, create=False)
         new_dict = {"a": 1, "b": 2}
-        write_dict.update(new_dict=new_dict)
+        client_dict.update(new_dict=new_dict)
         new_dict["a"] = 4
-        write_dict.update(new_dict=new_dict)
-        d = read_dict.get()
+        client_dict.update(new_dict=new_dict)
+        d = server_dict.get()
+        self.assertDictEqual(d, new_dict)
+        d = client_dict.get()
         self.assertDictEqual(d, new_dict)
 
 
