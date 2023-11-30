@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import socket
 import unittest
 
 from dlrover.python.common.grpc import (
@@ -38,6 +39,14 @@ class GRPCUtilTest(unittest.TestCase):
             ports.append(20000 + i)
         port = find_free_port_in_set(ports)
         self.assertTrue(port in ports)
+
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.bind(("", 10000))
+        with self.assertRaises(RuntimeError):
+            find_free_port_in_set([10000])
+        with self.assertRaises(RuntimeError):
+            find_free_port_in_range(10000, 10000)
+        s.close()
 
     def test_addr_connected(self):
         connected = addr_connected("localhost:80")

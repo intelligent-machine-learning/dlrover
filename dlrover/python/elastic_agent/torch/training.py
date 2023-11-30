@@ -402,22 +402,19 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
     def _get_free_port(self):
         """Find a free port from the HOST_PORTS in env."""
-        port = None
+        free_port = None
         host_ports = os.getenv("HOST_PORTS", "")
         if host_ports:
             ports = []
             for port in host_ports.split(","):
                 ports.append(int(port))
-            for _ in range(10):
-                try:
-                    port = find_free_port_in_set(ports)
-                    return port
-                except ValueError as e:
-                    logger.warn(e)
-                    time.sleep(3)
-        else:
-            port = find_free_port_in_range(20000, 30000)
-        return port
+            try:
+                free_port = find_free_port_in_set(ports)
+            except RuntimeError as e:
+                logger.warn(e)
+        if not free_port:
+            free_port = find_free_port_in_range(20000, 30000)
+        return free_port
 
     # pyre-fixme[56]: Pyre was not able to infer the type of the decorator
     #  `torch.distributed.elastic.metrics.prof`.
