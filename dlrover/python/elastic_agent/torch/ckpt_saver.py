@@ -179,31 +179,49 @@ class SaverFactory(object):
 
 
 class CheckpointSaver(metaclass=ABCMeta):
+    """
+    CheckpointSaver saves the state dict from the shared memory into
+    the storage.
+
+    Attributes:
+        checkpoint_dir (str): the directory to save the checkpointing state
+            dict to the storage if the training process fails.
+        num_proc (int): the number of training process, i.e. local world size.
+    """
+
     _saver_instance = None
+
+    def __init__(self, checkpoint_dir, num_proc=1):
+        self.checkpoint_dir = checkpoint_dir
+        self.num_proc = num_proc
 
     @abstractmethod
     def _sync_shm_to_storage(self):
         pass
 
     @classmethod
-    def start_async_saving_ckpt(cls):
+    def start_async_saving_ckpt(cls, num_proc=1):
         """
         Start a thread to asynchronously save the checkpoint state dict
         from the shared memory into the storage. Firstly, it waits that
         the training process notify the saver class to create a saver.
+
+        Args:
+            num_proc: the number of training process, i.e. local world size.
         """
         sq = SharedQueue(name="factory", create=True)
 
-        def _save(sq: SharedQueue):
+        def _save():
             class_name, args = sq.get()
             class_def = getattr(sys.modules[__name__], class_name)
             if cls._saver_instance is None:
+                args["num_proc"] = num_proc
                 saver: CheckpointSaver = class_def(**args)
                 cls._saver_instance = saver
             cls._saver_instance._sync_shm_to_storage()
 
         threading.Thread(
-            target=_save, args=(sq,), name="checkpoint-saver", daemon=True
+            target=_save, name="checkpoint-saver", daemon=True
         ).start()
 
     @classmethod
@@ -225,8 +243,8 @@ class NoShardingSaver(CheckpointSaver):
     from the shared memory created by local rank 0 to the storage.
     """
 
-    def __init__(self, checkpoint_dir) -> None:
-        self._checkpoint_dir = checkpoint_dir
+    def __init__(self, checkpoint_dir, num_proc=1) -> None:
+        super().__init__(checkpoint_dir, num_proc)
         self._tensor_shm = None
         # Only local rank 0 save the state dict to memory in DDP.
         qname = SAVE_STEP_QNAME_PREFIX + str(0)
@@ -287,7 +305,7 @@ class NoShardingSaver(CheckpointSaver):
         meta_dict = self._shared_ckpt_meta.get()
         step = meta_dict["step"]
         path = os.path.join(
-            self._checkpoint_dir, f"checkpoint-{step}/checkpoint.pt"
+            self.checkpoint_dir, f"checkpoint-{step}/checkpoint.pt"
         )
         state_dict = _read_state_dict_from_shm(meta_dict, self._tensor_shm)
         self._persist_to_storage(state_dict, path)

@@ -207,7 +207,6 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             master_addr=master_addr,
             local_addr=self.config.local_addr,
         )
-        CheckpointSaver._saver_instance = NoShardingSaver("/tmp/test")
 
     def tearDown(self):
         self._master.stop()
@@ -275,6 +274,8 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             start_method=self.config.start_method,
             log_dir=self.config.log_dir,
         )
+        saver = NoShardingSaver("/tmp/test")
+        CheckpointSaver._saver_instance = saver
         agent._save_ckpt_to_storage()
         agent._stop_workers_to_restart()
 

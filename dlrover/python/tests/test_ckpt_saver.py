@@ -13,6 +13,7 @@
 
 import os
 import tempfile
+import time
 import unittest
 
 import numpy as np
@@ -55,6 +56,18 @@ class SimpleNet(nn.Module):
 
 
 class CheckpointSaverTest(unittest.TestCase):
+    def test_create_checkpoint_saver(self):
+        CheckpointSaver.start_async_saving_ckpt(num_proc=8)
+        sq = SharedQueue(name="factory", create=False)
+        args = {"checkpoint_dir": "test_dir"}
+        sq.put(("NoShardingSaver", args))
+        for _ in range(10):
+            if CheckpointSaver._saver_instance is None:
+                time.sleep(0.5)
+            else:
+                break
+        self.assertEqual(CheckpointSaver._saver_instance.num_proc, 8)
+
     def test_close_saver(self):
         saver = NoShardingSaver("test_ckpt")
         saver._tensor_shm = SharedMemory(name="test", create=True, size=1024)
