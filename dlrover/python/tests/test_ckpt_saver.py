@@ -25,6 +25,7 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
     CheckpointSaver,
     NoShardingCheckpointEngine,
     NoShardingSaver,
+    _clean_shm_handler,
     _convert_torch_dtype_to_numpy,
     _traverse_state_dict,
 )
@@ -101,3 +102,4 @@ class CheckpointSaverTest(unittest.TestCase):
             ckpt_files = os.listdir(tmpdir)
             self.assertEqual(len(ckpt_files), 1)
             sq.close()
+            _clean_shm_handler(None, None)

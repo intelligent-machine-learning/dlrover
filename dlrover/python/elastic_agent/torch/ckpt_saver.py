@@ -13,6 +13,7 @@
 
 import os
 import shutil
+import signal
 import sys
 import threading
 import time
@@ -208,6 +209,10 @@ class CheckpointSaver(metaclass=ABCMeta):
     @classmethod
     def get_ckpt_saver(cls):
         return cls._saver_instance
+
+    @abstractmethod
+    def close(self):
+        pass
 
     @abstractmethod
     def save_shm_to_storage(self):
@@ -684,3 +689,14 @@ class NoShardingCheckpointEngine(CheckpointEngine):
         """
         if self._rank == 0:
             super().save_to_storage(state_dict, path, step)
+
+
+def _clean_shm_handler(signum, frame):
+    """Clean the shared memory from ^C and "killall python" etc."""
+    saver: CheckpointSaver = CheckpointSaver.get_ckpt_saver()
+    if saver:
+        saver.close()
+
+
+signal.signal(signal.SIGINT, _clean_shm_handler)
+signal.signal(signal.SIGTERM, _clean_shm_handler)
