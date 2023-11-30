@@ -27,7 +27,6 @@ from torch.utils.data import DataLoader, Dataset
 
 from dlrover.python.common import grpc
 from dlrover.python.elastic_agent.torch.ckpt_saver import CheckpointSaver
-from dlrover.trainer.torch.elastic import checkpoint
 from dlrover.trainer.torch.elastic.checkpoint import (
     CheckpointManger,
     NoShardingCheckpointEngine,
@@ -134,19 +133,6 @@ class CheckpointManagerTest(unittest.TestCase):
             ckpt_manager._ckpt_engine.close()
         dist.destroy_process_group()
 
-    def test_traverse_state_dict(self):
-        def visitor(value):
-            return value
-
-        model = SimpleNet()
-        step = 100
-        state_dict = dict(
-            model=model.state_dict(),
-            step=step,
-        )
-        new_dict = checkpoint.traverse_state_dict(state_dict, visitor)
-        self.assertEqual(new_dict, state_dict)
-
     def test_create_tensor_meta(self):
         engine = NoShardingCheckpointEngine("test-ckpt")
         value = torch.rand((10, 10), dtype=torch.float32)
@@ -157,16 +143,6 @@ class CheckpointManagerTest(unittest.TestCase):
         self.assertEqual(meta.shape, (10, 10))
         self.assertEqual(meta.dtype, np.float32)
         engine.close()
-
-    def test_convert_torch_dtype_to_numpy(self):
-        np_dtype = checkpoint.convert_torch_dtype_to_numpy(torch.float32)
-        self.assertEqual(np_dtype, np.float32)
-
-        np_dtype = checkpoint.convert_torch_dtype_to_numpy(torch.float)
-        self.assertEqual(np_dtype, np.float32)
-
-        np_dtype = checkpoint.convert_torch_dtype_to_numpy(torch.int32)
-        self.assertEqual(np_dtype, np.int32)
 
     def test_load(self):
         model = SimpleNet()

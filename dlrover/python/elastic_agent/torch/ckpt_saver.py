@@ -15,7 +15,6 @@ import os
 import shutil
 import sys
 import threading
-import time
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
 from typing import Callable, List, Mapping, Tuple
@@ -24,7 +23,7 @@ import numpy as np
 import torch
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.common.shared_obj import (
+from dlrover.python.common.multi_process import (
     SharedDict,
     SharedLock,
     SharedMemory,
@@ -37,17 +36,6 @@ SAVE_STEP_QNAME_PREFIX = "checkpoint_lock_rank_"
 CKPT_META_NAME_PREFIX = "checkpoint_meta_local_rank_"
 TENSOR_SHM_NAME_PREFIX = "checkpoint_shm_local_rank_"
 SHM_LOCK_NAME_PREFIX = "shm_local_rank_"
-
-
-def timer(func):
-    def wrapper(*args, **kwargs):
-        start = time.time()
-        result = func(*args, **kwargs)
-        t = round(time.time() - start, 3)
-        logger.info(f"Function {func.__name__} cost {t}s")
-        return result
-
-    return wrapper
 
 
 def _init_dir(dir):
@@ -181,9 +169,15 @@ class NoShardingSaver(CheckpointSaver):
         self._shm_name = TENSOR_SHM_NAME_PREFIX + str(0)
 
     def __del__(self):
+        self.close()
+
+    def close(self):
         if self._tensor_shm:
             self._tensor_shm.close()
             self._tensor_shm.unlink()
+        self._to_save_queue.close()
+        self._shared_ckpt_meta.close()
+        self._shm_lock.close()
 
     def _save_shm_to_storage(self):
         """

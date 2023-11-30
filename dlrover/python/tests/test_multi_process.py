@@ -13,7 +13,7 @@
 
 import unittest
 
-from dlrover.python.common.shared_obj import (
+from dlrover.python.common.multi_process import (
     SharedDict,
     SharedLock,
     SharedMemory,

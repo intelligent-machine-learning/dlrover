@@ -28,7 +28,7 @@ from torch.distributed.fsdp.api import FullOptimStateDictConfig
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.common.shared_obj import (
+from dlrover.python.common.multi_process import (
     SharedDict,
     SharedLock,
     SharedMemory,

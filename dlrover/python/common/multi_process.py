@@ -550,4 +550,7 @@ class SharedMemory(shared_memory.SharedMemory):
         called once (and only once) across all processes which have access
         to the shared memory block."""
         if self._name:
-            _posixshmem.shm_unlink(self._name)
+            try:
+                _posixshmem.shm_unlink(self._name)
+            except FileNotFoundError:
+                pass
