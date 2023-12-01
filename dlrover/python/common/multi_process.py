@@ -152,11 +152,9 @@ class LocalSocketComm(metaclass=ABCMeta):
         self._server = None
         self._init_socket()
 
-    def __del__(self):
-        self.close()
-
     def close(self):
         try:
+            logger.info(f"Unlink the socket file {self._socket_file}")
             os.unlink(self._socket_file)
         except FileNotFoundError:
             pass
