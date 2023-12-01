@@ -11,21 +11,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import importlib
 import os
 import shutil
 import signal
-import sys
 import threading
 import time
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Callable, List, Mapping, Tuple
+from typing import Callable, Dict, List, Mapping, Tuple
 
 import numpy as np
 import torch
 import torch.distributed as dist
 
+from dlrover.python.common import env_utils
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.multi_process import (
     SharedDict,
@@ -162,6 +163,13 @@ def _get_latest_checkpoint(checkpoint_dir):
 
 
 @dataclass
+class SaverClassMeta:
+    module_path: str = ""
+    class_name: str = ""
+    init_args: Dict[str, str] = None  # type: ignore
+
+
+@dataclass
 class TensorMeta(object):
     shape: Tuple[int] = None  # type: ignore
     dtype: torch.dtype = None  # type: ignore
@@ -201,7 +209,7 @@ class CheckpointSaver(metaclass=ABCMeta):
         pass
 
     @classmethod
-    def start_async_saving_ckpt(cls, num_proc=1):
+    def start_async_saving_ckpt(cls):
         """
         Start a thread to asynchronously save the checkpoint state dict
         from the shared memory into the storage. Firstly, it waits that
@@ -213,11 +221,11 @@ class CheckpointSaver(metaclass=ABCMeta):
         sq = SharedQueue(name="factory", create=True)
 
         def _save():
-            class_name, args = sq.get()
-            class_def = getattr(sys.modules[__name__], class_name)
+            class_meta: SaverClassMeta = sq.get()
+            module = importlib.import_module(class_meta.module_path)
+            class_def = getattr(module, class_meta.class_name)
             if cls._saver_instance is None:
-                args["num_proc"] = num_proc
-                saver: CheckpointSaver = class_def(**args)
+                saver: CheckpointSaver = class_def(**class_meta.init_args)
                 cls._saver_instance = saver
             cls._saver_instance._sync_shm_to_storage()
 
@@ -692,8 +700,16 @@ class NoShardingCheckpointEngine(CheckpointEngine):
 
     def _notify_agent_to_create_saver(self):
         queue = SharedQueue(name="factory")
-        args = {"checkpoint_dir": self.checkpoint_dir}
-        queue.put(("NoShardingSaver", args))
+        num_proc = env_utils.get_local_world_size()
+        class_meta = SaverClassMeta(
+            module_path="dlrover.python.elastic_agent.torch.ckpt_saver",
+            class_name="NoShardingSaver",
+            init_args={
+                "checkpoint_dir": self.checkpoint_dir,
+                "num_proc": num_proc,
+            },
+        )
+        queue.put(class_meta)
         queue.close()
 
     def _init_shared_objs(self):

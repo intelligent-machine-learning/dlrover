@@ -47,3 +47,7 @@ class EnvUtilsTest(unittest.TestCase):
 
         node_type = env_utils.get_node_type()
         self.assertEqual(node_type, "worker")
+
+        os.environ["LOCAL_WORLD_SIZE"] = "8"
+        size = env_utils.get_local_world_size()
+        self.assertEqual(size, 8)

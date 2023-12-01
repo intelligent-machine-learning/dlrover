@@ -28,6 +28,7 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
     CheckpointSaver,
     NoShardingCheckpointEngine,
     NoShardingSaver,
+    SaverClassMeta,
     ShardingCheckpointEngine,
     _convert_torch_dtype_to_numpy,
     _traverse_state_dict,
@@ -59,10 +60,17 @@ class SimpleNet(nn.Module):
 
 class CheckpointSaverTest(unittest.TestCase):
     def test_create_checkpoint_saver(self):
-        CheckpointSaver.start_async_saving_ckpt(num_proc=8)
+        CheckpointSaver.start_async_saving_ckpt()
         sq = SharedQueue(name="factory", create=False)
-        args = {"checkpoint_dir": "test_dir"}
-        sq.put(("NoShardingSaver", args))
+        class_meta = SaverClassMeta(
+            module_path="dlrover.python.elastic_agent.torch.ckpt_saver",
+            class_name="NoShardingSaver",
+            init_args={
+                "checkpoint_dir": "test_ckpt",
+                "num_proc": 8,
+            },
+        )
+        sq.put(class_meta)
         for _ in range(10):
             if CheckpointSaver._saver_instance is None:
                 time.sleep(0.5)
