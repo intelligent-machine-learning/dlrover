@@ -541,6 +541,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 return run_result
             elif state in {WorkerState.UNHEALTHY, WorkerState.FAILED}:
                 self._report_failure_to_master(run_result.failures)
+                self._save_ckpt_to_storage()
                 if self._remaining_failovers > 0:
                     logger.info(
                         f"[{role}] Worker group {state.name}. "
@@ -556,9 +557,19 @@ class ElasticTrainingAgent(LocalElasticAgent):
             elif state == WorkerState.HEALTHY:
                 # membership changes do not count as retries
                 if self._membership_changed(role, rdzv_handler):
+                    self._save_ckpt_to_storage()
                     self._restart_workers(self._worker_group)
             else:
                 raise Exception(f"[{role}] Worker group in {state.name} state")
+
+    def _save_ckpt_to_storage(self):
+        """
+        The agent can save the checkpointing state dict in the shared
+        memory into the storage before restarting training processes.
+        """
+        saver: CheckpointSaver = CheckpointSaver.get_ckpt_saver()
+        if saver:
+            saver.save_shm_to_storage()
 
     def _stop_workers_to_restart(self):
         """
@@ -588,17 +599,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
     def _restart_workers(self, worker_group: WorkerGroup):
         self._restart_count += 1
         self._remaining_restarts -= 1
-        self._save_ckpt_to_storage()
         super()._restart_workers(worker_group)
-
-    def _save_ckpt_to_storage(self):
-        """
-        The agent can save the checkpointing state dict in the shared
-        memory into the storage before restarting training processes.
-        """
-        saver: CheckpointSaver = CheckpointSaver.get_ckpt_saver()
-        if saver:
-            saver.save_shm_to_storage()
 
     def _membership_changed(self, role, rdzv_handler: RendezvousHandler):
         # Timeout may happen when to query TCPStore.

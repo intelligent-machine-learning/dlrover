@@ -30,6 +30,7 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
     ShardingCheckpointEngine,
     _clean_shm_handler,
     _convert_torch_dtype_to_numpy,
+    _save_shm_before_exiting,
     _traverse_state_dict,
 )
 
@@ -114,7 +115,7 @@ class CheckpointSaverTest(unittest.TestCase):
             self.assertFalse(saving_engine._meta_dict[_WIRTING_SHM])
             saver: CheckpointSaver = CheckpointSaver.get_ckpt_saver()
             saver._tensor_shm = SharedMemory(name=saver._shm_name)
-            saver.save_shm_to_storage()
+            _save_shm_before_exiting(None, None)
             ckpt_files = os.listdir(tmpdir)
             self.assertEqual(len(ckpt_files), 1)
             sq.close()

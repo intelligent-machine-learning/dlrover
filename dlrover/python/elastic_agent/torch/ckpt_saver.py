@@ -726,5 +726,15 @@ def _clean_shm_handler(signum, frame):
         saver.close()
 
 
+def _save_shm_before_exiting(signum, frame):
+    """Save the state dict from the shared memory into the storage
+    before the process exits.
+    """
+    saver: CheckpointSaver = CheckpointSaver.get_ckpt_saver()
+    if saver:
+        saver.save_shm_to_storage()
+        saver.close()
+
+
 signal.signal(signal.SIGINT, _clean_shm_handler)
-signal.signal(signal.SIGTERM, _clean_shm_handler)
+signal.signal(signal.SIGTERM, _save_shm_before_exiting)
