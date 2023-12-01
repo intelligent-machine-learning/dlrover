@@ -646,7 +646,7 @@ class NoShardingCheckpointEngine(CheckpointEngine):
         """
         Copy the state dict from CPU memory buffer into the shared memory.
         """
-        meta_dict = self._shared_ckpt_meta.get(sync=False)
+        meta_dict = self._shared_ckpt_meta.get(local=True)
         meta_dict[_WIRTING_SHM] = True
         self._shared_ckpt_meta.update(meta_dict)
         _tarverse_copy_to_shm(state_dict, meta_dict, self._tensor_shm.buf)

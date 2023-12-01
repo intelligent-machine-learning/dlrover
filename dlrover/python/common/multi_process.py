@@ -444,17 +444,16 @@ class SharedDict(LocalSocketComm):
             message = pickle.dumps(response)
             _socket_send(connection, message)
 
-    def update(self, new_dict, sync=True):
+    def update(self, new_dict):
         """
         Update the dict to the remote shared dict.
 
         Args:
             new_dict (dict): a new dict to update.
-            sync (bool): update the shared dict in all processes if True.
         """
         if new_dict:
             self._dict.update(new_dict)
-        if sync and not self._server:
+        if not self._server:
             args = {"new_dict": self._dict}
             request = SocketRequest(method="update", args=args)
             try:
@@ -463,7 +462,7 @@ class SharedDict(LocalSocketComm):
             except Exception:
                 logger.info("The recv processs has breakdown.")
 
-    def get(self, sync=True):
+    def get(self, local=False):
         """
         Returns a Python Dict from the remote shared Dict.
 
@@ -471,9 +470,9 @@ class SharedDict(LocalSocketComm):
         should wait for the sync thread to update the dict.
 
         Args:
-            sync (bool): get the shared dict from another process.
+            local (bool): If true, returns the local dict.
         """
-        if not sync:
+        if local:
             return self._dict
         if self._server:
             while not self._shared_queue.empty():
