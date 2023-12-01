@@ -45,6 +45,8 @@ def _keep_topk_checkpoint(checkpoint_dir, max_to_keep):
         max_to_keep: the number of checkpoint files to keep.
     """
     steps = []
+    if not os.path.exists(checkpoint_dir):
+        return
     for dir_name in os.listdir(checkpoint_dir):
         if not dir_name.startswith(CKPT_DIR_PREFIX):
             continue

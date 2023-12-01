@@ -57,9 +57,9 @@ class SharedLockTest(unittest.TestCase):
         server_dict = SharedDict(name=name, create=True)
         client_dict = SharedDict(name=name, create=False)
         new_dict = {"a": 1, "b": 2}
-        client_dict.update(new_dict=new_dict)
+        client_dict.update(new_dict)
         new_dict["a"] = 4
-        client_dict.update(new_dict=new_dict)
+        client_dict.update(new_dict)
         d = server_dict.get()
         self.assertDictEqual(d, new_dict)
         d = client_dict.get()

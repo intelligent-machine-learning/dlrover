@@ -152,11 +152,9 @@ class LocalSocketComm(metaclass=ABCMeta):
         self._server = None
         self._init_socket()
 
-    def __del__(self):
-        self.close()
-
     def close(self):
         try:
+            logger.info(f"Unlink the socket file {self._socket_file}")
             os.unlink(self._socket_file)
         except FileNotFoundError:
             pass
@@ -448,14 +446,15 @@ class SharedDict(LocalSocketComm):
 
     def update(self, new_dict):
         """
-        Update the shared Dict with a new Dict.
+        Update the dict to the remote shared dict.
 
         Args:
             new_dict (dict): a new dict to update.
         """
-        self._dict.update(new_dict)
+        if new_dict:
+            self._dict.update(new_dict)
         if not self._server:
-            args = {"new_dict": new_dict}
+            args = {"new_dict": self._dict}
             request = SocketRequest(method="update", args=args)
             try:
                 self._shared_queue.put(1)
@@ -463,13 +462,18 @@ class SharedDict(LocalSocketComm):
             except Exception:
                 logger.info("The recv processs has breakdown.")
 
-    def get(self):
+    def get(self, local=False):
         """
-        Returns a Python Dict from the shared Dict.
+        Returns a Python Dict from the remote shared Dict.
 
         If the writing instance sends the dict into the FIFO, the get method
         should wait for the sync thread to update the dict.
+
+        Args:
+            local (bool): If true, returns the local dict.
         """
+        if local:
+            return self._dict
         if self._server:
             while not self._shared_queue.empty():
                 time.sleep(0.1)
@@ -478,8 +482,8 @@ class SharedDict(LocalSocketComm):
             request = SocketRequest(method="get", args={})
             response: DictMessage = self._request(request)
             if response.status == SUCCESS_CODE:
-                return response.meta_dict
-            return {}
+                self._dict.update(response.meta_dict)
+            return self._dict
 
 
 class SharedMemory(shared_memory.SharedMemory):
