@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import os
+import signal
 import tempfile
 import time
 import unittest
@@ -28,7 +29,6 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
     NoShardingCheckpointEngine,
     NoShardingSaver,
     ShardingCheckpointEngine,
-    _clean_shm_handler,
     _convert_torch_dtype_to_numpy,
     _traverse_state_dict,
 )
@@ -114,11 +114,15 @@ class CheckpointSaverTest(unittest.TestCase):
             self.assertFalse(saving_engine._meta_dict[_WIRTING_SHM])
             saver: CheckpointSaver = CheckpointSaver.get_ckpt_saver()
             saver._tensor_shm = SharedMemory(name=saver._shm_name)
-            saver.save_shm_to_storage()
+            CheckpointSaver.register_signal_handler()
+            handler = signal.getsignal(signal.SIGTERM)
+            handler(None, None)
+            with self.assertRaises(KeyboardInterrupt):
+                handler = signal.getsignal(signal.SIGINT)
+                handler(None, None)
             ckpt_files = os.listdir(tmpdir)
             self.assertEqual(len(ckpt_files), 1)
             sq.close()
-            _clean_shm_handler(None, None)
 
     def test_sharding_checkpoint_engine(self):
         os.environ["LOCAL_RANK"] = "1"
