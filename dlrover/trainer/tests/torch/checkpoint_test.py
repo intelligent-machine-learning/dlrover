@@ -31,6 +31,7 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
     NoShardingCheckpointEngine,
     _create_shared_memory,
     _get_latest_checkpoint,
+    _load_from_historic_checkpoint,
 )
 from dlrover.trainer.torch.elastic.checkpoint import CheckpointManger
 from dlrover.trainer.torch.elastic.sampler import ElasticDistributedSampler
@@ -167,7 +168,9 @@ class CheckpointManagerTest(unittest.TestCase):
             os.makedirs(os.path.dirname(path))
             with open(path, "w") as f:
                 f.write("A error checkpoint\n")
-            loaded_state_dict = engine._load_from_historic_checkpoint()
+            loaded_state_dict = _load_from_historic_checkpoint(
+                engine.checkpoint_dir
+            )
             for key, value in state_dict["model"].items():
                 loaded_value = loaded_state_dict["model"][key]
                 self.assertTrue(torch.equal(value, loaded_value))

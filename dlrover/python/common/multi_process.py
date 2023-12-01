@@ -419,7 +419,7 @@ class SharedDict(LocalSocketComm):
     def __init__(self, name="", create=False):
         super().__init__(name, create)
 
-        self.dict = {}
+        self._dict = {}
         self._shared_queue = SharedQueue(
             name=f"shard_dict_{name}", create=self._create
         )
@@ -431,12 +431,12 @@ class SharedDict(LocalSocketComm):
                 recv_data = _socket_recv(connection)
                 msg: SocketRequest = pickle.loads(recv_data)
                 response = DictMessage()
-                if msg.method == "sync_update":
-                    self.sync_update(**msg.args)
+                if msg.method == "update":
+                    self.update(**msg.args)
                     self._shared_queue.get(1)
-                elif msg.method == "sync_get":
+                elif msg.method == "get":
                     response = DictMessage()
-                    response.meta_dict = self.sync_get(**msg.args)
+                    response.meta_dict = self.get(**msg.args)
                 response.status = SUCCESS_CODE
             except Exception:
                 response = SocketResponse()
@@ -444,41 +444,47 @@ class SharedDict(LocalSocketComm):
             message = pickle.dumps(response)
             _socket_send(connection, message)
 
-    def sync_update(self, new_dict=None):
+    def update(self, new_dict, sync=True):
         """
         Update the dict to the remote shared dict.
 
         Args:
             new_dict (dict): a new dict to update.
+            sync (bool): update the shared dict in all processes if True.
         """
         if new_dict:
-            self.dict.update(new_dict)
-        if not self._server:
-            args = {"new_dict": self.dict}
-            request = SocketRequest(method="sync_update", args=args)
+            self._dict.update(new_dict)
+        if sync and not self._server:
+            args = {"new_dict": self._dict}
+            request = SocketRequest(method="update", args=args)
             try:
                 self._shared_queue.put(1)
                 self._request(request)
             except Exception:
                 logger.info("The recv processs has breakdown.")
 
-    def sync_get(self):
+    def get(self, sync=True):
         """
         Returns a Python Dict from the remote shared Dict.
 
         If the writing instance sends the dict into the FIFO, the get method
         should wait for the sync thread to update the dict.
+
+        Args:
+            sync (bool): get the shared dict from another process.
         """
+        if not sync:
+            return self._dict
         if self._server:
             while not self._shared_queue.empty():
                 time.sleep(0.1)
-            return self.dict
+            return self._dict
         else:
-            request = SocketRequest(method="sync_get", args={})
+            request = SocketRequest(method="get", args={})
             response: DictMessage = self._request(request)
             if response.status == SUCCESS_CODE:
-                self.dict.update(response.meta_dict)
-            return self.dict
+                self._dict.update(response.meta_dict)
+            return self._dict
 
 
 class SharedMemory(shared_memory.SharedMemory):

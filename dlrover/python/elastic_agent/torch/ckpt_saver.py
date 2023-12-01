@@ -381,7 +381,7 @@ class NoShardingSaver(CheckpointSaver):
                 "Save checkpoint from the shared memory "
                 f"into the storage {path}."
             )
-            meta_dict = self._shared_ckpt_meta.sync_get()
+            meta_dict = self._shared_ckpt_meta.get()
             state_dict = _read_state_dict_from_shm(meta_dict, self._tensor_shm)
             self._persist_to_storage(state_dict, path)
             self._shm_lock.release()
@@ -408,7 +408,7 @@ class NoShardingSaver(CheckpointSaver):
             # when writing the state dict into the shared memory. The shared
             # memory may be dirty and the saver cannot save it to the storage.
             return
-        meta_dict = self._shared_ckpt_meta.sync_get()
+        meta_dict = self._shared_ckpt_meta.get()
         step = meta_dict["step"]
         path = os.path.join(
             self.checkpoint_dir, f"checkpoint-{step}/checkpoint.pt"
@@ -635,8 +635,7 @@ class NoShardingCheckpointEngine(CheckpointEngine):
         """
         meta_dict = _traverse_state_dict(state_dict, self._create_tensor_meta)
 
-        # Update the meta dict in the main process.
-        self._shared_ckpt_meta.sync_update(meta_dict)
+        self._shared_ckpt_meta.update(meta_dict)
         self._tensor_shm = _create_shared_memory(
             name=self._shm_name,
             create=True,
@@ -647,15 +646,12 @@ class NoShardingCheckpointEngine(CheckpointEngine):
         """
         Copy the state dict from CPU memory buffer into the shared memory.
         """
-        meta_dict = self._shared_ckpt_meta.dict
+        meta_dict = self._shared_ckpt_meta.get(sync=False)
         meta_dict[_WIRTING_SHM] = True
-        self._shared_ckpt_meta.sync_update(meta_dict)
-        _tarverse_copy_to_shm(
-            state_dict, self._shared_ckpt_meta.dict, self._tensor_shm.buf
-        )
-        # Update the meta dict in the main process.
+        self._shared_ckpt_meta.update(meta_dict)
+        _tarverse_copy_to_shm(state_dict, meta_dict, self._tensor_shm.buf)
         meta_dict[_WIRTING_SHM] = False
-        self._shared_ckpt_meta.sync_update(meta_dict)
+        self._shared_ckpt_meta.update(meta_dict)
 
     @timer
     def save_to_storage(self, state_dict, path, step):
@@ -709,7 +705,7 @@ class NoShardingCheckpointEngine(CheckpointEngine):
             )
         if not self._tensor_shm:
             return None
-        meta_dict = self._shared_ckpt_meta.sync_get()
+        meta_dict = self._shared_ckpt_meta.get()
         if meta_dict.get(_WIRTING_SHM, False):
             return None
         state_dict = _read_state_dict_from_shm(meta_dict, self._tensor_shm)
