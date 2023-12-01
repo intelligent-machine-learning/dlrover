@@ -501,8 +501,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
     def _invoke_run(self, role: str = DEFAULT_ROLE) -> RunResult:
         # Start a thread to save the checkpointing state dict from
         # the shared memory to the storage.
-        proc_num = self._worker_group.spec.local_world_size
-        CheckpointSaver.start_async_saving_ckpt(proc_num)
+        CheckpointSaver.start_async_saving_ckpt()
 
         spec = self._worker_group.spec
         role = spec.role
