@@ -229,6 +229,31 @@ class CheckpointSaver(metaclass=ABCMeta):
     def get_ckpt_saver(cls):
         return cls._saver_instance
 
+    @classmethod
+    def register_signal_handler(cls):
+        sigint_handler = signal.getsignal(signal.SIGINT)
+        sigterm_handler = signal.getsignal(signal.SIGTERM)
+
+        def _clean_shm_handler(signum, frame):
+            """Clean the shared memory from ^C and "killall python" etc."""
+            if cls._saver_instance:
+                cls._saver_instance.close()
+            if callable(sigint_handler):
+                sigint_handler(signum, frame)
+
+        def _save_shm_before_exiting(signum, frame):
+            """Save the state dict from the shared memory into the storage
+            before the process exits.
+            """
+            if cls._saver_instance:
+                cls._saver_instance.save_shm_to_storage()
+                cls._saver_instance.close()
+            if callable(sigterm_handler):
+                sigterm_handler(signum, frame)
+
+        signal.signal(signal.SIGINT, _clean_shm_handler)
+        signal.signal(signal.SIGTERM, _save_shm_before_exiting)
+
     @abstractmethod
     def close(self):
         pass
@@ -717,24 +742,3 @@ class NoShardingCheckpointEngine(CheckpointEngine):
         """
         if self._rank == 0:
             super().save_to_storage(state_dict, path, step)
-
-
-def _clean_shm_handler(signum, frame):
-    """Clean the shared memory from ^C and "killall python" etc."""
-    saver: CheckpointSaver = CheckpointSaver.get_ckpt_saver()
-    if saver:
-        saver.close()
-
-
-def _save_shm_before_exiting(signum, frame):
-    """Save the state dict from the shared memory into the storage
-    before the process exits.
-    """
-    saver: CheckpointSaver = CheckpointSaver.get_ckpt_saver()
-    if saver:
-        saver.save_shm_to_storage()
-        saver.close()
-
-
-signal.signal(signal.SIGINT, _clean_shm_handler)
-signal.signal(signal.SIGTERM, _save_shm_before_exiting)

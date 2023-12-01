@@ -487,6 +487,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 if self._config.network_check:
                     run_network_check(self._config, self._entrypoint)
                 super()._initialize_workers(worker_group)
+                # We need to register handler after starting workers because
+                # the PContext start_worker will overwrite the handler.
+                CheckpointSaver.register_signal_handler()
             except RendezvousOutSyncError:
                 logger.info(
                     "Exit elastic-training rendezvous when there are "
