@@ -118,7 +118,8 @@ class CheckpointSaverTest(unittest.TestCase):
             sq = SharedQueue(name="factory", create=True)
             saving_engine = NoShardingCheckpointEngine(tmpdir)
             saving_engine.save_to_memory(state_dict, step)
-            self.assertFalse(saving_engine._meta_dict[_WIRTING_SHM])
+            meta_dict = saving_engine._shared_ckpt_meta.dict
+            self.assertFalse(meta_dict[_WIRTING_SHM])
             saver: CheckpointSaver = CheckpointSaver.get_ckpt_saver()
             saver._tensor_shm = SharedMemory(name=saver._shm_name)
             CheckpointSaver.register_signal_handler()
