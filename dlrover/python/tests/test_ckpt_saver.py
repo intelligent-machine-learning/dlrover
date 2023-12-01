@@ -29,7 +29,6 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
     NoShardingCheckpointEngine,
     NoShardingSaver,
     SaverClassMeta,
-    ShardingCheckpointEngine,
     _convert_torch_dtype_to_numpy,
     _traverse_state_dict,
 )
@@ -131,11 +130,3 @@ class CheckpointSaverTest(unittest.TestCase):
             ckpt_files = os.listdir(tmpdir)
             self.assertEqual(len(ckpt_files), 1)
             sq.close()
-
-    def test_sharding_checkpoint_engine(self):
-        os.environ["LOCAL_RANK"] = "1"
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            engine = ShardingCheckpointEngine(tmpdirname)
-            self.assertEqual(
-                engine._shared_ckpt_meta._name, "checkpoint_meta_local_rank_1"
-            )

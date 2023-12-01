@@ -30,6 +30,14 @@ def get_local_world_size():
     return int(os.getenv("LOCAL_WORLD_SIZE", 1))
 
 
+def get_group_world_size():
+    return int(os.getenv("GROUP_WORLD_SIZE", 1))
+
+
+def get_torch_restart_count():
+    return int(os.getenv("TORCHELASTIC_RESTART_COUNT", 0))
+
+
 def get_node_id():
     """Get the node ID."""
     node_id = int(os.getenv(NodeEnv.NODE_ID, 0))
