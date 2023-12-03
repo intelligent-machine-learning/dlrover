@@ -22,7 +22,6 @@ from dataclasses import dataclass
 from datetime import timedelta
 from typing import Callable, Dict, List, Mapping, Tuple
 
-import numpy as np
 import torch
 import torch.distributed as dist
 
@@ -77,27 +76,6 @@ def _init_dir(dir):
     os.makedirs(dir)
 
 
-def _convert_torch_dtype_to_numpy(torch_dtype):
-    """Conver the torch dtype to numpy dtype."""
-    dtype_map = {
-        torch.float32: np.float32,
-        torch.float: np.float32,
-        torch.float64: np.float64,
-        torch.double: np.double,
-        torch.float16: np.float16,
-        torch.half: np.half,
-        torch.uint8: np.uint8,
-        torch.int8: np.int8,
-        torch.int16: np.int16,
-        torch.short: np.short,
-        torch.int32: np.int32,
-        torch.int: np.int32,
-        torch.long: np.int64,
-        torch.bool: np.dtype("bool"),
-    }
-    return dtype_map[torch_dtype]
-
-
 def _traverse_state_dict(value: object, visitor: Callable[[object], None]):
     """
     Invoke ``visitor`` for each value recursively in ``state_dict``.
@@ -129,13 +107,13 @@ def _read_tensor_from_buf(value, shm_tensor_buffer):
     Read a tensor from the buffer of shared memory.
     """
     if isinstance(value, TensorMeta):
-        data_array = np.frombuffer(
+        shm_tensor = torch.frombuffer(
             buffer=shm_tensor_buffer.buf,
             dtype=value.dtype,
             offset=value.offset,
             count=value.numel,
         )
-        value = torch.reshape(torch.tensor(data_array), value.shape)
+        value = shm_tensor.reshape(value.shape)
         return value
     else:
         return value
@@ -213,21 +191,14 @@ def _tarverse_copy_to_shm(value, meta, buffer):
                 meta[i] = v
 
 
-def _write_shared_memory(value, meta: TensorMeta, buffer):
+def _write_shared_memory(value: torch.Tensor, meta: TensorMeta, buffer):
     """
     Write a CPU tensor into the shared memory.
     """
-    data_array = value.cpu().numpy()
-    write_array = np.ndarray(
-        data_array.shape,
-        dtype=data_array.dtype,
-        buffer=buffer,
-        offset=meta.offset,
-    )
-    if data_array.shape == ():
-        write_array.fill(data_array)
-    else:
-        write_array[:] = data_array[:]
+    shm_tensor = torch.frombuffer(
+        buffer, dtype=value.dtype, count=value.numel(), offset=meta.offset
+    ).reshape(value.shape)
+    shm_tensor.copy_(value)
 
 
 def _load_from_historic_checkpoint(checkpoint_dir):
@@ -270,10 +241,6 @@ class CheckpointSaver(metaclass=ABCMeta):
         self.checkpoint_dir = checkpoint_dir
         self.num_proc = num_proc
 
-    @abstractmethod
-    def _sync_shm_to_storage(self):
-        pass
-
     @classmethod
     def start_async_saving_ckpt(cls):
         """
@@ -298,6 +265,10 @@ class CheckpointSaver(metaclass=ABCMeta):
         threading.Thread(
             target=_save, name="checkpoint-saver", daemon=True
         ).start()
+
+    @abstractmethod
+    def _sync_shm_to_storage(self):
+        pass
 
     @classmethod
     def get_ckpt_saver(cls):
@@ -618,10 +589,9 @@ class NoShardingCheckpointEngine(CheckpointEngine):
         """
         if not torch.is_tensor(value):
             return value
-        dtype = _convert_torch_dtype_to_numpy(value.dtype)
         meta = TensorMeta(
             shape=tuple(value.shape),  # type: ignore
-            dtype=dtype,
+            dtype=value.dtype,
             element_size=value.element_size(),
             numel=value.numel(),
             offset=self._buffer_size,

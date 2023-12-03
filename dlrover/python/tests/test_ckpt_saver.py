@@ -17,7 +17,6 @@ import tempfile
 import time
 import unittest
 
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -29,7 +28,8 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
     NoShardingCheckpointEngine,
     NoShardingSaver,
     SaverClassMeta,
-    _convert_torch_dtype_to_numpy,
+    _create_shared_memory,
+    _load_from_historic_checkpoint,
     _traverse_state_dict,
 )
 
@@ -96,16 +96,6 @@ class CheckpointSaverTest(unittest.TestCase):
         new_dict = _traverse_state_dict(state_dict, visitor)
         self.assertEqual(new_dict, state_dict)
 
-    def test_convert_torch_dtype_to_numpy(self):
-        np_dtype = _convert_torch_dtype_to_numpy(torch.float32)
-        self.assertEqual(np_dtype, np.float32)
-
-        np_dtype = _convert_torch_dtype_to_numpy(torch.float)
-        self.assertEqual(np_dtype, np.float32)
-
-        np_dtype = _convert_torch_dtype_to_numpy(torch.int32)
-        self.assertEqual(np_dtype, np.int32)
-
     def test_save_to_storage(self):
         model = SimpleNet()
         step = 100
@@ -131,3 +121,49 @@ class CheckpointSaverTest(unittest.TestCase):
             ckpt_files = os.listdir(tmpdir)
             self.assertEqual(len(ckpt_files), 1)
             sq.close()
+
+
+class CheckpointEngineTest(unittest.TestCase):
+    def setUp(self):
+        CheckpointSaver._saver_instance = None
+        CheckpointSaver.start_async_saving_ckpt()
+
+    def test_create_shared_memory(self):
+        shm = _create_shared_memory("test", False)
+        self.assertIsNone(shm)
+
+    def test_create_tensor_meta(self):
+        engine = NoShardingCheckpointEngine("test-ckpt")
+        value = torch.rand((10, 10), dtype=torch.float32)
+        meta = engine._create_tensor_meta(value)
+        self.assertEqual(meta.numel, 100)
+        self.assertEqual(meta.element_size, 4)
+        self.assertEqual(meta.offset, 0)
+        self.assertEqual(meta.shape, (10, 10))
+        self.assertEqual(meta.dtype, torch.float32)
+        engine.close()
+
+    def test_load_no_sharding(self):
+        model = SimpleNet()
+        step = 100
+        state_dict = dict(
+            model=model.state_dict(),
+            step=step,
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            engine = NoShardingCheckpointEngine(tmpdirname)
+            path = os.path.join(tmpdirname, "checkpoint-10/checkpoint.pt")
+            os.makedirs(os.path.dirname(path))
+            torch.save(state_dict, path)
+            path = os.path.join(tmpdirname, "checkpoint-20/checkpoint.pt")
+            os.makedirs(os.path.dirname(path))
+            with open(path, "w") as f:
+                f.write("A error checkpoint\n")
+            loaded_state_dict = _load_from_historic_checkpoint(
+                engine.checkpoint_dir
+            )
+            for key, value in state_dict["model"].items():
+                loaded_value = loaded_state_dict["model"][key]
+                self.assertTrue(torch.equal(value, loaded_value))
+            engine.close()

@@ -28,10 +28,7 @@ from torch.utils.data import DataLoader, Dataset
 from dlrover.python.common import grpc
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     CheckpointSaver,
-    NoShardingCheckpointEngine,
-    _create_shared_memory,
     _get_latest_checkpoint,
-    _load_from_historic_checkpoint,
 )
 from dlrover.trainer.torch.elastic.checkpoint import CheckpointManger
 from dlrover.trainer.torch.elastic.sampler import ElasticDistributedSampler
@@ -106,10 +103,6 @@ class CheckpointManagerTest(unittest.TestCase):
         CheckpointSaver._saver_instance = None
         CheckpointSaver.start_async_saving_ckpt()
 
-    def test_create_shared_memory(self):
-        shm = _create_shared_memory("test", False)
-        self.assertIsNone(shm)
-
     def test_ddp_save_load(self):
         os.environ["LOCAL_RANK"] = "0"
         port = grpc.find_free_port()
@@ -117,6 +110,7 @@ class CheckpointManagerTest(unittest.TestCase):
         dist.init_process_group(backend="gloo")
         model, optimizer, dataloader = create_torch_modules()
         model = DDP(model)
+        msd = model.state_dict()
         with tempfile.TemporaryDirectory() as tmpdirname:
             ckpt_manager = CheckpointManger.init_checkpoint_manager(
                 model,
@@ -137,41 +131,11 @@ class CheckpointManagerTest(unittest.TestCase):
 
             ckpt_manager.load()
             self.assertEqual(dataloader.sampler.total_size, 60002)
+            resume_msd = ckpt_manager.model.state_dict()
+            self.assertTrue(
+                torch.equal(
+                    msd["module.fc1.weight"], resume_msd["module.fc1.weight"]
+                )
+            )
             ckpt_manager._ckpt_engine.close()
         dist.destroy_process_group()
-
-    def test_create_tensor_meta(self):
-        engine = NoShardingCheckpointEngine("test-ckpt")
-        value = torch.rand((10, 10), dtype=torch.float32)
-        meta = engine._create_tensor_meta(value)
-        self.assertEqual(meta.numel, 100)
-        self.assertEqual(meta.element_size, 4)
-        self.assertEqual(meta.offset, 0)
-        self.assertEqual(meta.shape, (10, 10))
-        self.assertEqual(meta.dtype, np.float32)
-        engine.close()
-
-    def test_load_no_sharding(self):
-        model = SimpleNet()
-        step = 100
-        state_dict = dict(
-            model=model.state_dict(),
-            step=step,
-        )
-
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            engine = NoShardingCheckpointEngine(tmpdirname)
-            path = os.path.join(tmpdirname, "checkpoint-10/checkpoint.pt")
-            os.makedirs(os.path.dirname(path))
-            torch.save(state_dict, path)
-            path = os.path.join(tmpdirname, "checkpoint-20/checkpoint.pt")
-            os.makedirs(os.path.dirname(path))
-            with open(path, "w") as f:
-                f.write("A error checkpoint\n")
-            loaded_state_dict = _load_from_historic_checkpoint(
-                engine.checkpoint_dir
-            )
-            for key, value in state_dict["model"].items():
-                loaded_value = loaded_state_dict["model"][key]
-                self.assertTrue(torch.equal(value, loaded_value))
-            engine.close()
