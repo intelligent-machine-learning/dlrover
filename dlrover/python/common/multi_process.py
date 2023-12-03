@@ -65,7 +65,7 @@ def _create_socket_client(path):
             client.connect(path)
             connected = True
             break
-        except FileNotFoundError:
+        except (FileNotFoundError, ConnectionRefusedError):
             time.sleep(0.1)
     if not connected:
         client.connect(path)
@@ -460,7 +460,7 @@ class SharedDict(LocalSocketComm):
                 self._shared_queue.put(1)
                 self._request(request)
             except Exception:
-                logger.info("The recv processs has breakdown.")
+                logger.info("The recv process has breakdown.")
 
     def get(self, local=False):
         """
