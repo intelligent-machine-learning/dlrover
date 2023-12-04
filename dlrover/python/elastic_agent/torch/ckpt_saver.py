@@ -315,8 +315,8 @@ class NoShardingSaver(CheckpointSaver):
     from the shared memory created by local rank 0 to the storage.
     """
 
-    def __init__(self, checkpoint_dir, num_proc=1) -> None:
-        super().__init__(checkpoint_dir, num_proc)
+    def __init__(self, checkpoint_dir, num_shard=1) -> None:
+        super().__init__(checkpoint_dir, num_shard)
         self._tensor_shm = None
         # Only local rank 0 save the state dict to memory in DDP.
         qname = _SAVE_STEP_QNAME_PREFIX + str(0)
@@ -399,10 +399,10 @@ class ShardingSaver(CheckpointSaver, ABC):
 
     STAGE_DIR = "._dlrover_ckpt_stage"
 
-    def __init__(self, checkpoint_dir, num_proc=1) -> None:
-        super().__init__(checkpoint_dir, num_proc)
+    def __init__(self, checkpoint_dir, num_shard=1) -> None:
+        super().__init__(checkpoint_dir, num_shard)
         self._tensor_shm: List[Optional[SharedMemory]] = [
-            None for _ in range(num_proc)
+            None for _ in range(num_shard)
         ]
         self._shared_ckpt_meta = []
         self._shm_lock = []
@@ -413,7 +413,7 @@ class ShardingSaver(CheckpointSaver, ABC):
         self._to_save_queue = SharedQueue(name=qname, create=True)
 
         # Each rank has a shared memory to store the state dict
-        for i in range(num_proc):
+        for i in range(num_shard):
             meta_name = _CKPT_META_NAME_PREFIX + str(i)
             self._shared_ckpt_meta.append(
                 SharedDict(name=meta_name, create=True)
@@ -834,13 +834,13 @@ class NoShardingCheckpointEngine(CheckpointEngine):
             self._shm_lock.release()
             return
         queue = SharedQueue(name="factory")
-        num_proc = env_utils.get_local_world_size()
+        num_shard = env_utils.get_local_world_size()
         class_meta = SaverClassMeta(
             module_path="dlrover.python.elastic_agent.torch.ckpt_saver",
             class_name="NoShardingSaver",
             init_args={
                 "checkpoint_dir": self.checkpoint_dir,
-                "num_proc": num_proc,
+                "num_shard": num_shard,
             },
         )
         queue.put(class_meta)
@@ -1067,7 +1067,7 @@ class ShardingCheckpointEngine(CheckpointEngine, ABC):
                 return
 
             queue = SharedQueue(name="factory")
-            num_proc = env_utils.get_local_world_size()
+            num_shard = env_utils.get_local_world_size()
 
             # get class module_path
             clazz = self.get_saver_class()
@@ -1079,7 +1079,7 @@ class ShardingCheckpointEngine(CheckpointEngine, ABC):
                 class_name=class_name,
                 init_args={
                     "checkpoint_dir": self.checkpoint_dir,
-                    "num_proc": num_proc,
+                    "num_shard": num_shard,
                 },
             )
             queue.put(class_meta)
