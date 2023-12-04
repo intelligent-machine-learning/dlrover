@@ -17,10 +17,11 @@ import shutil
 import signal
 import threading
 import time
-from abc import ABCMeta, abstractmethod
+from abc import ABCMeta, abstractmethod, ABC
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Callable, Dict, List, Mapping, Tuple
+from typing import Callable, Dict, List, Mapping, Tuple, Optional
+from concurrent.futures import ThreadPoolExecutor
 
 import torch
 import torch.distributed as dist
@@ -307,6 +308,9 @@ class CheckpointSaver(metaclass=ABCMeta):
     def save_shm_to_storage(self):
         pass
 
+    def __del__(self):
+        self.close()
+
 
 class NoShardingSaver(CheckpointSaver):
     """
@@ -325,9 +329,6 @@ class NoShardingSaver(CheckpointSaver):
         lock_name = _SHM_LOCK_NAME_PREFIX + str(0)
         self._shm_lock = SharedLock(name=lock_name, create=True)
         self._shm_name = _TENSOR_SHM_NAME_PREFIX + str(0)
-
-    def __del__(self):
-        self.close()
 
     def close(self):
         if self._tensor_shm:
@@ -390,6 +391,262 @@ class NoShardingSaver(CheckpointSaver):
         logger.info(
             "Save the checkpointing state dict from the shared "
             f"memory to {path}."
+        )
+
+
+class ShardingSaver(CheckpointSaver, ABC):
+    """
+    This saver will save the state dict for all ranks, because the state
+    dict is sharded across all ranks.
+    """
+
+    STAGE_DIR = "._edl_stage"
+
+    def __init__(self, checkpoint_dir, num_proc=1) -> None:
+        super().__init__(checkpoint_dir, num_proc)
+        self._tensor_shm: List[Optional[SharedMemory]] = [None for _ in range(num_proc)]
+        self._shared_ckpt_meta = []
+        self._shm_lock = []
+        self._shm_name = []
+
+        # Only local rank 0 will notify the agent to save status to storage
+        qname = _SAVE_STEP_QNAME_PREFIX + str(0)
+        self._to_save_queue = SharedQueue(name=qname, create=True)
+
+        # Each rank has a shared memory to store the state dict
+        for i in range(num_proc):
+            meta_name = _CKPT_META_NAME_PREFIX + str(i)
+            self._shared_ckpt_meta.append(SharedDict(name=meta_name, create=True))
+            lock_name = _SHM_LOCK_NAME_PREFIX + str(i)
+            self._shm_lock.append(SharedLock(name=lock_name, create=True))
+            shm_name = _TENSOR_SHM_NAME_PREFIX + str(i)
+            self._shm_name.append(shm_name)
+
+        self._node_num = env_utils.get_node_num()
+        self._node_rank = env_utils.get_node_rank()
+        self._is_agent_rank_0 = self._node_rank == 0
+        self._executor = ThreadPoolExecutor(max_workers=self.num_proc, thread_name_prefix="ckpt_saver-")
+
+        self._writing_storage = False
+
+    @abstractmethod
+    def persist_to_storage(self, state_dict, path):
+        """
+        Persist the checkpoint from CPU memory buffer into the storage.
+        """
+
+    @abstractmethod
+    def update_track_file(self, step):
+        pass
+
+    def get_ckpt_name(self, step):
+        """User can override the method to define the checkpoint name."""
+        return f"checkpoint-{step}"
+
+    def _get_ckpt_path(self, step):
+        return os.path.join(self.checkpoint_dir, self.get_ckpt_name(step))
+
+    def _persist_to_storage(self, state_dict, path, step):
+        """Persist the checkpoint from CPU memory buffer into the storage."""
+        # save to tmp dir for each local rank
+        if state_dict["step"] != step:
+            raise RuntimeError(f"state_dict step {state_dict['step']} != step {step}")
+
+        self.persist_to_storage(state_dict, path)
+
+    def _get_stage_path(self):
+        """Stage directory for the checkpointing state dict."""
+        return os.path.join(self.checkpoint_dir, self.STAGE_DIR)
+
+    def close(self):
+        for shm in self._tensor_shm:
+            if shm:
+                shm.close()
+                shm.unlink()
+
+        self._to_save_queue.close()
+
+        for d in self._shared_ckpt_meta:
+            d.close()
+
+        for lock in self._shm_lock:
+            lock.close()
+
+        self._executor.shutdown()
+
+    def _sync_shm_to_storage(self):
+        """
+        The loop to persist the state dict from the memory
+        buffer into the storage.
+        """
+        logger.info("ShardingSaver Start saving the checkpointing state dict to storage.")
+
+        while True:
+            step = self._to_save_queue.get()
+            logger.info("ShardingSaver save checkpoint to storage, step: %s", step)
+            self._save_shm_to_storage(step)
+
+    def _save_shm_to_storage(self, step):
+        logger.info(f"Rank {self._node_rank} start save checkpoint to storage, step: {step}")
+        self._writing_storage = True
+        ckpt_path = self._get_ckpt_path(step)
+
+        if os.path.exists(ckpt_path):
+            logger.info(f"Checkpoint for step {step} already exists, skip")
+            self._writing_storage = False
+            return
+
+        def _save_stage(local_rank: int, write_path: str):
+            try:
+                if not self._tensor_shm[local_rank]:
+                    self._tensor_shm[local_rank] = SharedMemory(name=self._shm_name[local_rank])
+
+                self._shm_lock[local_rank].acquire()
+                logger.info(
+                    f"Local rank {local_rank} Save checkpoint from the shared memory "
+                    f"into the storage {write_path}."
+                )
+                meta_dict = self._shared_ckpt_meta[local_rank].get()
+                state_dict = _read_state_dict_from_shm(meta_dict, self._tensor_shm[0])
+
+                self._persist_to_storage(state_dict, write_path, step)
+                self._shm_lock[local_rank].release()
+                return True
+
+            except Exception as e:
+                logger.error(f"Rank {local_rank} save checkpoint failed, error: {e}", exc_info=True)
+                self._shm_lock[local_rank].release()
+                return False
+
+        stage_path = os.path.join(self._get_stage_path(), str(step))
+        os.makedirs(stage_path, exist_ok=True)
+
+        step_done_path = os.path.join(self._get_stage_path(), str(step) + ".done")
+        os.makedirs(step_done_path, exist_ok=True)
+
+        step_done_file = os.path.join(step_done_path, str(self._node_rank))
+
+        write_success = False
+        if os.path.exists(step_done_file):
+            logger.info(f"Rank {self._node_rank} already done for step {step}")
+            write_success = True
+        else:
+            # save to stage path for each local rank
+            futures = []
+            for i in range(self.num_proc):
+                future = self._executor.submit(_save_stage, i, stage_path)
+                futures.append(future)
+
+            success_count = 0
+            for (i, future) in enumerate(futures):
+                if future.result():
+                    success_count += 1
+                else:
+                    logger.error(f"Rank {i} save checkpoint failed for step {step}")
+
+            if success_count == self.num_proc:
+                # all local rank done success
+                with open(step_done_file, "w") as f:
+                    f.write("done")
+                write_success = True
+
+        if not write_success:
+            logger.error(f"Rank {self._node_rank} save checkpoint failed for step {step}")
+            return
+
+        # commit checkpoint
+        if self._is_agent_rank_0:
+            self._commit_checkpoint(step, step_done_dir=step_done_path, tmp_path=stage_path, target_path=ckpt_path)
+
+        self._writing_storage = False
+
+    def _commit_checkpoint(self, step, step_done_dir, tmp_path, target_path, timeout=60):
+        logger.info(f"Start commit checkpoint tmp_path: {tmp_path}, path: {target_path}")
+        start_time = time.time()
+        while True:
+
+            # check all local rank done
+            logger.info(f"Check all agent done for step_done_dir {step_done_dir}, node_num: {self._node_num}")
+            if len(os.listdir(step_done_dir)) == self._node_num:
+                # all local rank done
+                logger.info(f"All agent done for step {tmp_path}")
+
+                # commit checkpoint
+                shutil.move(tmp_path, target_path)
+
+                self.update_track_file(step)
+
+                # clean stage dir
+                shutil.rmtree(step_done_dir)
+                logger.info(f"Commit checkpoint tmp_path: {tmp_path}, path: {target_path}")
+                break
+
+            # timeout
+            elapsed_time = time.time() - start_time
+            if elapsed_time > timeout:
+                logger.error(f"Commit checkpoint timeout, tmp_path: {tmp_path},"
+                             f"path: {target_path}, elapsed_time: {elapsed_time}")
+                # clean stage dir
+                shutil.rmtree(tmp_path)
+                shutil.rmtree(step_done_dir)
+                break
+
+            time.sleep(10)
+
+    def _acquire_all_locks(self):
+        acquired = []
+        for lock in self._shm_lock:
+            acquired.append(lock.acquire(blocking=False))
+
+        if not all(acquired):
+            for i, lock in enumerate(self._shm_lock):
+                if acquired[i]:
+                    lock.release()
+            return False
+
+        return True
+
+    def save_shm_to_storage(self):
+        """
+        Save the state dict in the shared memory into the storage. The agent
+        can call the method to save the state dict into the storage if the
+        training process fails or the agent wants to restart training
+        processes.
+        """
+        logger.info("Agent terminated, save latest checkpoint to storage")
+        if any([not shm for shm in self._tensor_shm]):
+            return
+
+        if self._writing_storage:
+            logger.info("Saver is writing to storage, waiting...")
+            start = time.time()
+            while self._writing_storage:
+                time.sleep(10)
+                elapsed_time = time.time() - start
+                if elapsed_time > 120:
+                    logger.error("Saver writing to storage, timeout")
+                    return
+
+        if not self._acquire_all_locks():
+            # The training process does not release the lock because it fails
+            # when writing the state dict into the shared memory. The shared
+            # memory may be dirty and the saver cannot save it to the storage.
+            return
+
+        meta_dict = self._shared_ckpt_meta[0].get()
+        step = meta_dict["step"]
+        # we need to release the locks before save to storage
+
+        for lock in self._shm_lock:
+            lock.release()
+        self._save_shm_to_storage(step)
+
+        for lock in self._shm_lock:
+            lock.release()
+
+        logger.info(
+            "Save the checkpointing state dict from the shared "
+            f"memory to storage, step: {step}."
         )
 
 
@@ -703,3 +960,174 @@ class NoShardingCheckpointEngine(CheckpointEngine):
         else:
             state_dict = _load_from_historic_checkpoint(self.checkpoint_dir)
         return state_dict
+
+
+class ShardingCheckpointEngine(CheckpointEngine, ABC):
+    """
+    The engine to save the sharding model and optimizer state dict
+    into the memory and storage. We can use it to save the model and optimizer
+    using FSDP, Zero-3 or Megatron-LM.
+    """
+
+    def __init__(self, checkpoint_dir):
+        self.checkpoint_dir = checkpoint_dir
+        if dist.is_initialized():
+            self._rank = dist.get_rank()
+            self._local_rank = int(os.environ["LOCAL_RANK"])
+            self._saver_group = dist.new_group(
+                ranks=[i for i in range(dist.get_world_size())],
+                backend="gloo",
+                timeout=timedelta(seconds=30),
+            )
+
+        else:
+            self._rank = 0
+            self._local_rank = int(os.getenv("LOCAL_RANK", 0))
+            self._saver_group = None
+
+        self._buffer_size = 0
+        self._cached_step = 0
+        self._restart_count = env_utils.get_torch_restart_count()
+
+        meta_name = _CKPT_META_NAME_PREFIX + str(self._local_rank)
+        self._shared_ckpt_meta = SharedDict(name=meta_name, create=False)
+        lock_name = _SHM_LOCK_NAME_PREFIX + str(self._local_rank)
+        self._shm_lock = SharedLock(name=lock_name, create=False)
+
+        if self._rank == 0:
+            self._to_save_queue = SharedQueue(name=_SAVE_STEP_QNAME_PREFIX + str(0), create=False)
+        else:
+            self._to_save_queue = None
+
+        self._shm_name = _TENSOR_SHM_NAME_PREFIX + str(self._local_rank)
+        self._tensor_shm = None
+        self._notify_agent_to_create_saver()
+
+    def _notify_agent_to_create_saver(self):
+        if self._rank == 0:
+
+            if self._restart_count > 0:
+                logger.info(f"Restart count is {self._restart_count}, release lock")
+                self._shm_lock.release()
+                return
+
+            queue = SharedQueue(name="factory")
+            num_proc = env_utils.get_local_world_size()
+
+            # get class module_path
+            clazz = self.get_saver_class()
+            module_path = clazz.__module__
+            class_name = clazz.__name__
+
+            class_meta = SaverClassMeta(
+                module_path=module_path,
+                class_name=class_name,
+                init_args={
+                    "checkpoint_dir": self.checkpoint_dir,
+                    "num_proc": num_proc,
+                },
+            )
+            queue.put(class_meta)
+            queue.close()
+
+    @abstractmethod
+    def get_saver_class(self):
+        pass
+
+    @timer
+    def save_to_memory(self, state_dict, step):
+
+        if "step" not in state_dict:
+            state_dict["step"] = step
+
+        if _WIRTING_SHM in state_dict:
+            raise ValueError(f"state_dict cannot have the key {_WIRTING_SHM}.")
+
+        if self._tensor_shm is None:
+            self._make_state_dict_buffer(state_dict)
+
+        acquired = self._shm_lock.acquire(blocking=False)
+        all_rank_ready = _check_all_rank_ready(self._saver_group, acquired)
+        if not all_rank_ready:
+            logger.info(
+                f"Rank {self._rank} skips the save the checkpoint "
+                f"in CPU memory since it is saving the latest "
+                "checkpoint from the CPU memory into the storage."
+            )
+            if acquired:
+                self._shm_lock.release()
+            return
+        self._copy_state_dict_to_shm(state_dict)
+
+        if acquired:
+            self._shm_lock.release()
+        self._cached_step = step
+
+    @timer
+    def _copy_state_dict_to_shm(self, state_dict):
+        """
+        Copy the state dict from CPU memory buffer into the shared memory.
+        """
+        meta_dict = self._shared_ckpt_meta.get(local=True)
+        meta_dict[_WIRTING_SHM] = True
+        self._shared_ckpt_meta.update(meta_dict)
+        _tarverse_copy_to_shm(state_dict, meta_dict, self._tensor_shm.buf)
+        meta_dict[_WIRTING_SHM] = False
+        self._shared_ckpt_meta.update(meta_dict)
+
+    def _create_tensor_meta(self, value: torch.Tensor):
+        """
+        Create a tensor meta of a tensor and compute the total
+        size of the state dict.
+        """
+        if not torch.is_tensor(value):
+            return value
+        meta = TensorMeta(
+            shape=tuple(value.shape),  # type: ignore
+            dtype=value.dtype,
+            element_size=value.element_size(),
+            numel=value.numel(),
+            offset=self._buffer_size,
+        )
+        self._buffer_size += value.numel() * value.element_size()
+        return meta
+
+    def _make_state_dict_buffer(self, state_dict):
+        """
+        Make the shared memory to store the state dict.
+        """
+        meta_dict = _traverse_state_dict(state_dict, self._create_tensor_meta)
+
+        self._shared_ckpt_meta.update(meta_dict)
+        self._tensor_shm = _create_shared_memory(
+            name=self._shm_name,
+            create=True,
+            size=self._buffer_size,
+        )
+
+    @abstractmethod
+    def load(self, resume_path=""):
+        pass
+
+    def close(self):
+        if self._tensor_shm:
+            self._tensor_shm.close()
+
+    def _init_shared_objs(self):
+        meta_name = _CKPT_META_NAME_PREFIX + str(self._local_rank)
+        self._shared_ckpt_meta = SharedDict(name=meta_name, create=False)
+        lock_name = _SHM_LOCK_NAME_PREFIX + str(self._local_rank)
+        self._shm_lock = SharedLock(name=lock_name, create=False)
+        self._shm_name = _TENSOR_SHM_NAME_PREFIX + str(self._local_rank)
+
+        # only agent rank 0 notify saver to save
+        if self._local_rank == 0:
+            qname = _SAVE_STEP_QNAME_PREFIX + str(self._local_rank)
+            self._to_save_queue = SharedQueue(name=qname, create=False)
+
+    def save_to_storage(self, state_dict, path, step):
+        if step > self._cached_step:
+            self.save_to_memory(state_dict, step)
+
+        if self._local_rank == 0:
+            self._to_save_queue.put(step)
