@@ -17,11 +17,11 @@ import shutil
 import signal
 import threading
 import time
-from abc import ABCMeta, abstractmethod, ABC
+from abc import ABC, ABCMeta, abstractmethod
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Callable, Dict, List, Mapping, Tuple, Optional
-from concurrent.futures import ThreadPoolExecutor
+from typing import Callable, Dict, List, Mapping, Optional, Tuple
 
 import torch
 import torch.distributed as dist
@@ -404,7 +404,9 @@ class ShardingSaver(CheckpointSaver, ABC):
 
     def __init__(self, checkpoint_dir, num_proc=1) -> None:
         super().__init__(checkpoint_dir, num_proc)
-        self._tensor_shm: List[Optional[SharedMemory]] = [None for _ in range(num_proc)]
+        self._tensor_shm: List[Optional[SharedMemory]] = [
+            None for _ in range(num_proc)
+        ]
         self._shared_ckpt_meta = []
         self._shm_lock = []
         self._shm_name = []
@@ -416,7 +418,9 @@ class ShardingSaver(CheckpointSaver, ABC):
         # Each rank has a shared memory to store the state dict
         for i in range(num_proc):
             meta_name = _CKPT_META_NAME_PREFIX + str(i)
-            self._shared_ckpt_meta.append(SharedDict(name=meta_name, create=True))
+            self._shared_ckpt_meta.append(
+                SharedDict(name=meta_name, create=True)
+            )
             lock_name = _SHM_LOCK_NAME_PREFIX + str(i)
             self._shm_lock.append(SharedLock(name=lock_name, create=True))
             shm_name = _TENSOR_SHM_NAME_PREFIX + str(i)
@@ -425,7 +429,9 @@ class ShardingSaver(CheckpointSaver, ABC):
         self._node_num = env_utils.get_node_num()
         self._node_rank = env_utils.get_node_rank()
         self._is_agent_rank_0 = self._node_rank == 0
-        self._executor = ThreadPoolExecutor(max_workers=self.num_proc, thread_name_prefix="ckpt_saver-")
+        self._executor = ThreadPoolExecutor(
+            max_workers=self.num_proc, thread_name_prefix="ckpt_saver-"
+        )
 
         self._writing_storage = False
 
@@ -450,7 +456,9 @@ class ShardingSaver(CheckpointSaver, ABC):
         """Persist the checkpoint from CPU memory buffer into the storage."""
         # save to tmp dir for each local rank
         if state_dict["step"] != step:
-            raise RuntimeError(f"state_dict step {state_dict['step']} != step {step}")
+            raise RuntimeError(
+                f"state_dict step {state_dict['step']} != step {step}"
+            )
 
         self.persist_to_storage(state_dict, path)
 
@@ -479,15 +487,21 @@ class ShardingSaver(CheckpointSaver, ABC):
         The loop to persist the state dict from the memory
         buffer into the storage.
         """
-        logger.info("ShardingSaver Start saving the checkpointing state dict to storage.")
+        logger.info(
+            "ShardingSaver Start saving the checkpointing state dict to storage."
+        )
 
         while True:
             step = self._to_save_queue.get()
-            logger.info("ShardingSaver save checkpoint to storage, step: %s", step)
+            logger.info(
+                "ShardingSaver save checkpoint to storage, step: %s", step
+            )
             self._save_shm_to_storage(step)
 
     def _save_shm_to_storage(self, step):
-        logger.info(f"Rank {self._node_rank} start save checkpoint to storage, step: {step}")
+        logger.info(
+            f"Rank {self._node_rank} start save checkpoint to storage, step: {step}"
+        )
         self._writing_storage = True
         ckpt_path = self._get_ckpt_path(step)
 
@@ -499,7 +513,9 @@ class ShardingSaver(CheckpointSaver, ABC):
         def _save_stage(local_rank: int, write_path: str):
             try:
                 if not self._tensor_shm[local_rank]:
-                    self._tensor_shm[local_rank] = SharedMemory(name=self._shm_name[local_rank])
+                    self._tensor_shm[local_rank] = SharedMemory(
+                        name=self._shm_name[local_rank]
+                    )
 
                 self._shm_lock[local_rank].acquire()
                 logger.info(
@@ -507,21 +523,28 @@ class ShardingSaver(CheckpointSaver, ABC):
                     f"into the storage {write_path}."
                 )
                 meta_dict = self._shared_ckpt_meta[local_rank].get()
-                state_dict = _read_state_dict_from_shm(meta_dict, self._tensor_shm[0])
+                state_dict = _read_state_dict_from_shm(
+                    meta_dict, self._tensor_shm[0]
+                )
 
                 self._persist_to_storage(state_dict, write_path, step)
                 self._shm_lock[local_rank].release()
                 return True
 
             except Exception as e:
-                logger.error(f"Rank {local_rank} save checkpoint failed, error: {e}", exc_info=True)
+                logger.error(
+                    f"Rank {local_rank} save checkpoint failed, error: {e}",
+                    exc_info=True,
+                )
                 self._shm_lock[local_rank].release()
                 return False
 
         stage_path = os.path.join(self._get_stage_path(), str(step))
         os.makedirs(stage_path, exist_ok=True)
 
-        step_done_path = os.path.join(self._get_stage_path(), str(step) + ".done")
+        step_done_path = os.path.join(
+            self._get_stage_path(), str(step) + ".done"
+        )
         os.makedirs(step_done_path, exist_ok=True)
 
         step_done_file = os.path.join(step_done_path, str(self._node_rank))
@@ -542,7 +565,9 @@ class ShardingSaver(CheckpointSaver, ABC):
                 if future.result():
                     success_count += 1
                 else:
-                    logger.error(f"Rank {i} save checkpoint failed for step {step}")
+                    logger.error(
+                        f"Rank {i} save checkpoint failed for step {step}"
+                    )
 
             if success_count == self.num_proc:
                 # all local rank done success
@@ -551,22 +576,35 @@ class ShardingSaver(CheckpointSaver, ABC):
                 write_success = True
 
         if not write_success:
-            logger.error(f"Rank {self._node_rank} save checkpoint failed for step {step}")
+            logger.error(
+                f"Rank {self._node_rank} save checkpoint failed for step {step}"
+            )
             return
 
         # commit checkpoint
         if self._is_agent_rank_0:
-            self._commit_checkpoint(step, step_done_dir=step_done_path, tmp_path=stage_path, target_path=ckpt_path)
+            self._commit_checkpoint(
+                step,
+                step_done_dir=step_done_path,
+                tmp_path=stage_path,
+                target_path=ckpt_path,
+            )
 
         self._writing_storage = False
 
-    def _commit_checkpoint(self, step, step_done_dir, tmp_path, target_path, timeout=60):
-        logger.info(f"Start commit checkpoint tmp_path: {tmp_path}, path: {target_path}")
+    def _commit_checkpoint(
+        self, step, step_done_dir, tmp_path, target_path, timeout=60
+    ):
+        logger.info(
+            f"Start commit checkpoint tmp_path: {tmp_path}, path: {target_path}"
+        )
         start_time = time.time()
         while True:
 
             # check all local rank done
-            logger.info(f"Check all agent done for step_done_dir {step_done_dir}, node_num: {self._node_num}")
+            logger.info(
+                f"Check all agent done for step_done_dir {step_done_dir}, node_num: {self._node_num}"
+            )
             if len(os.listdir(step_done_dir)) == self._node_num:
                 # all local rank done
                 logger.info(f"All agent done for step {tmp_path}")
@@ -578,14 +616,18 @@ class ShardingSaver(CheckpointSaver, ABC):
 
                 # clean stage dir
                 shutil.rmtree(step_done_dir)
-                logger.info(f"Commit checkpoint tmp_path: {tmp_path}, path: {target_path}")
+                logger.info(
+                    f"Commit checkpoint tmp_path: {tmp_path}, path: {target_path}"
+                )
                 break
 
             # timeout
             elapsed_time = time.time() - start_time
             if elapsed_time > timeout:
-                logger.error(f"Commit checkpoint timeout, tmp_path: {tmp_path},"
-                             f"path: {target_path}, elapsed_time: {elapsed_time}")
+                logger.error(
+                    f"Commit checkpoint timeout, tmp_path: {tmp_path},"
+                    f"path: {target_path}, elapsed_time: {elapsed_time}"
+                )
                 # clean stage dir
                 shutil.rmtree(tmp_path)
                 shutil.rmtree(step_done_dir)
@@ -995,7 +1037,9 @@ class ShardingCheckpointEngine(CheckpointEngine, ABC):
         self._shm_lock = SharedLock(name=lock_name, create=False)
 
         if self._rank == 0:
-            self._to_save_queue = SharedQueue(name=_SAVE_STEP_QNAME_PREFIX + str(0), create=False)
+            self._to_save_queue = SharedQueue(
+                name=_SAVE_STEP_QNAME_PREFIX + str(0), create=False
+            )
         else:
             self._to_save_queue = None
 
@@ -1007,7 +1051,9 @@ class ShardingCheckpointEngine(CheckpointEngine, ABC):
         if self._rank == 0:
 
             if self._restart_count > 0:
-                logger.info(f"Restart count is {self._restart_count}, release lock")
+                logger.info(
+                    f"Restart count is {self._restart_count}, release lock"
+                )
                 self._shm_lock.release()
                 return
 
