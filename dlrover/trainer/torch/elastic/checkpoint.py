@@ -56,9 +56,13 @@ def _keep_topk_checkpoint(checkpoint_dir, max_to_keep):
     steps = sorted(steps)
     if len(steps) <= max_to_keep:
         return
-    remove_steps = steps[: -1 * max_to_keep]
+    if max_to_keep == 0:
+        remove_steps = steps
+    else:
+        remove_steps = steps[: -1 * max_to_keep]
     for step in remove_steps:
         dir_name = os.path.join(checkpoint_dir, f"{CKPT_DIR_PREFIX}{step}")
+        logger.info(f"Remove the checkpoint directory {dir_name}")
         shutil.rmtree(dir_name)
 
 
@@ -151,9 +155,13 @@ class CheckpointManger(metaclass=ABCMeta):
         The manager loads the states from the files in the
         checkpoint direcotry to the model, optimizer and sampler.
 
-        resuming_path (str, optinoal): The manager will load checkpoint from
-            the path. If the path is None, the manager will load the state
-            checkpoint from the file with the maximum step.
+        Args:
+            resuming_path (str, optinoal): The manager will load checkpoint
+                from the path. If the path is None, the manager will load
+                the state checkpoint from the file with the maximum step.
+
+        Return:
+            A dict: a state dict.
         """
         pass
 
@@ -256,7 +264,7 @@ class LocalCheckpointManger(CheckpointManger):
         """
         checkpoint = self._ckpt_engine.load(resuming_path)
         if not checkpoint:
-            return
+            return {}
         sampler = self.dataloader.sampler
         if isinstance(sampler, ElasticDistributedSampler):
             sampler.load_state_dict(checkpoint.get("sampler", {}))
@@ -264,6 +272,7 @@ class LocalCheckpointManger(CheckpointManger):
         optim_state_dict = checkpoint.get("optimizer", {})
         self.model.load_state_dict(model_state_dict)
         self.optimizer.load_state_dict(optim_state_dict)
+        return checkpoint
 
 
 class DDPCheckpointManger(LocalCheckpointManger):
@@ -293,8 +302,9 @@ class DDPCheckpointManger(LocalCheckpointManger):
         """
         Load teh state dict from checkpointing data to the model and optimizer.
         """
-        super().load(resuming_path=resuming_path)
+        checkpoint = super().load(resuming_path=resuming_path)
         _sync()
+        return checkpoint
 
 
 class FSDPCheckpointManger(CheckpointManger):
@@ -358,9 +368,9 @@ class FSDPCheckpointManger(CheckpointManger):
         """
         Load teh state dict from checkpointing data to the model and optimizer.
         """
-        checkpoint = self._save_engine.load(resuming_path)
+        checkpoint = self._ckpt_engine.load(resuming_path)
         if not checkpoint:
-            return
+            return {}
         if self.dataloader:
             sampler = self.dataloader.sampler
             if isinstance(sampler, ElasticDistributedSampler):
@@ -385,3 +395,4 @@ class FSDPCheckpointManger(CheckpointManger):
         self.model.load_state_dict(model_state_dict)
         self.optimizer.load_state_dict(optim_state_dict)
         _sync()
+        return checkpoint
