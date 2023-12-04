@@ -544,6 +544,7 @@ class NoShardingCheckpointEngine(CheckpointEngine):
         if self._tensor_shm:
             self._tensor_shm.close()
 
+    @timer
     def save_to_memory(self, state_dict, step):
         """
         Synchonously Saves the state dict into the shared memory with the main
@@ -668,15 +669,15 @@ class NoShardingCheckpointEngine(CheckpointEngine):
         Returns:
             A dict.
         """
+        meta_dict = self._shared_ckpt_meta.get()
+        if not meta_dict or meta_dict.get(_WIRTING_SHM, False):
+            return None
         if self._tensor_shm is None:
             self._tensor_shm = _create_shared_memory(
                 self._shm_name,
                 create=False,
             )
         if not self._tensor_shm:
-            return None
-        meta_dict = self._shared_ckpt_meta.get()
-        if meta_dict.get(_WIRTING_SHM, False):
             return None
         state_dict = _read_state_dict_from_shm(meta_dict, self._tensor_shm)
         return state_dict
