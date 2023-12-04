@@ -233,14 +233,14 @@ class CheckpointSaver(metaclass=ABCMeta):
     Attributes:
         checkpoint_dir (str): the directory to save the checkpointing state
             dict to the storage if the training process fails.
-        num_proc (int): the number of training process, i.e. local world size.
+        num_shard (int): the number of param sharding.
     """
 
     _saver_instance = None
 
-    def __init__(self, checkpoint_dir, num_proc=1):
+    def __init__(self, checkpoint_dir, num_shard=1):
         self.checkpoint_dir = checkpoint_dir
-        self.num_proc = num_proc
+        self.num_shard = num_shard
 
     @classmethod
     def start_async_saving_ckpt(cls):
@@ -248,9 +248,6 @@ class CheckpointSaver(metaclass=ABCMeta):
         Start a thread to asynchronously save the checkpoint state dict
         from the shared memory into the storage. Firstly, it waits that
         the training process notify the saver class to create a saver.
-
-        Args:
-            num_proc: the number of training process, i.e. local world size.
         """
         sq = SharedQueue(name="factory", create=True)
 
@@ -400,7 +397,7 @@ class ShardingSaver(CheckpointSaver, ABC):
     dict is sharded across all ranks.
     """
 
-    STAGE_DIR = "._edl_stage"
+    STAGE_DIR = "._dlrover_ckpt_stage"
 
     def __init__(self, checkpoint_dir, num_proc=1) -> None:
         super().__init__(checkpoint_dir, num_proc)
@@ -430,7 +427,7 @@ class ShardingSaver(CheckpointSaver, ABC):
         self._node_rank = env_utils.get_node_rank()
         self._is_agent_rank_0 = self._node_rank == 0
         self._executor = ThreadPoolExecutor(
-            max_workers=self.num_proc, thread_name_prefix="ckpt_saver-"
+            max_workers=self.num_shard, thread_name_prefix="ckpt_saver-"
         )
 
         self._writing_storage = False
@@ -442,7 +439,7 @@ class ShardingSaver(CheckpointSaver, ABC):
         """
 
     @abstractmethod
-    def update_track_file(self, step):
+    def update_tracker_file(self, step):
         pass
 
     def get_ckpt_name(self, step):
@@ -499,6 +496,9 @@ class ShardingSaver(CheckpointSaver, ABC):
             self._save_shm_to_storage(step)
 
     def _save_shm_to_storage(self, step):
+        """
+        Save all the local state dict in the shared memory into the storage for step.
+        """
         logger.info(
             f"Rank {self._node_rank} start save checkpoint to storage, step: {step}"
         )
@@ -524,7 +524,7 @@ class ShardingSaver(CheckpointSaver, ABC):
                 )
                 meta_dict = self._shared_ckpt_meta[local_rank].get()
                 state_dict = _read_state_dict_from_shm(
-                    meta_dict, self._tensor_shm[0]
+                    meta_dict, self._tensor_shm[local_rank]
                 )
 
                 self._persist_to_storage(state_dict, write_path, step)
@@ -556,7 +556,7 @@ class ShardingSaver(CheckpointSaver, ABC):
         else:
             # save to stage path for each local rank
             futures = []
-            for i in range(self.num_proc):
+            for i in range(self.num_shard):
                 future = self._executor.submit(_save_stage, i, stage_path)
                 futures.append(future)
 
@@ -569,7 +569,7 @@ class ShardingSaver(CheckpointSaver, ABC):
                         f"Rank {i} save checkpoint failed for step {step}"
                     )
 
-            if success_count == self.num_proc:
+            if success_count == self.num_shard:
                 # all local rank done success
                 with open(step_done_file, "w") as f:
                     f.write("done")
@@ -595,6 +595,12 @@ class ShardingSaver(CheckpointSaver, ABC):
     def _commit_checkpoint(
         self, step, step_done_dir, tmp_path, target_path, timeout=60
     ):
+        """
+        Commit checkpoint from stage dir to target dir.
+
+        This method is called by agent rank 0, it will check if all agent rank write
+        finish, if true, it will commit checkpoint from stage dir to target dir.
+        """
         logger.info(
             f"Start commit checkpoint tmp_path: {tmp_path}, path: {target_path}"
         )
@@ -612,7 +618,7 @@ class ShardingSaver(CheckpointSaver, ABC):
                 # commit checkpoint
                 shutil.move(tmp_path, target_path)
 
-                self.update_track_file(step)
+                self.update_tracker_file(step)
 
                 # clean stage dir
                 shutil.rmtree(step_done_dir)
@@ -633,9 +639,13 @@ class ShardingSaver(CheckpointSaver, ABC):
                 shutil.rmtree(step_done_dir)
                 break
 
-            time.sleep(10)
+            time.sleep(2)
 
     def _acquire_all_locks(self):
+        """
+        Acquire all locks of the shared memory, if not all locks are acquired,
+        we should release acquired locks.
+        """
         acquired = []
         for lock in self._shm_lock:
             acquired.append(lock.acquire(blocking=False))
@@ -1017,7 +1027,6 @@ class ShardingCheckpointEngine(CheckpointEngine, ABC):
             self._rank = dist.get_rank()
             self._local_rank = int(os.environ["LOCAL_RANK"])
             self._saver_group = dist.new_group(
-                ranks=[i for i in range(dist.get_world_size())],
                 backend="gloo",
                 timeout=timedelta(seconds=30),
             )
@@ -1150,10 +1159,6 @@ class ShardingCheckpointEngine(CheckpointEngine, ABC):
             create=True,
             size=self._buffer_size,
         )
-
-    @abstractmethod
-    def load(self, resume_path=""):
-        pass
 
     def close(self):
         if self._tensor_shm:
