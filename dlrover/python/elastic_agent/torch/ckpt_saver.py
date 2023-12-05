@@ -335,10 +335,7 @@ class CheckpointSaver(metaclass=ABCMeta):
 
     _saver_instance = None
 
-    def __init__(
-        self,
-        checkpoint_dir,
-    ):
+    def __init__(self, checkpoint_dir):
         self.checkpoint_dir = checkpoint_dir
 
     @classmethod
