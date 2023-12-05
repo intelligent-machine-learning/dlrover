@@ -485,7 +485,8 @@ class ShardingSaver(CheckpointSaver, ABC):
         buffer into the storage.
         """
         logger.info(
-            "ShardingSaver Start saving the checkpointing state dict to storage."
+            "ShardingSaver Start saving the checkpointing state dict to "
+            "storage."
         )
 
         while True:
@@ -497,10 +498,12 @@ class ShardingSaver(CheckpointSaver, ABC):
 
     def _save_shm_to_storage(self, step):
         """
-        Save all the local state dict in the shared memory into the storage for step.
+        Save all the local state dict in the shared memory into the storage
+        for step.
         """
         logger.info(
-            f"Rank {self._node_rank} start save checkpoint to storage, step: {step}"
+            f"Rank {self._node_rank} start save checkpoint to storage, "
+            f"step: {step}"
         )
         self._writing_storage = True
         ckpt_path = self._get_ckpt_path(step)
@@ -519,8 +522,8 @@ class ShardingSaver(CheckpointSaver, ABC):
 
                 self._shm_lock[local_rank].acquire()
                 logger.info(
-                    f"Local rank {local_rank} Save checkpoint from the shared memory "
-                    f"into the storage {write_path}."
+                    f"Local rank {local_rank} Save checkpoint from the shared "
+                    f"memory into the storage {write_path}."
                 )
                 meta_dict = self._shared_ckpt_meta[local_rank].get()
                 state_dict = _read_state_dict_from_shm(
@@ -577,7 +580,8 @@ class ShardingSaver(CheckpointSaver, ABC):
 
         if not write_success:
             logger.error(
-                f"Rank {self._node_rank} save checkpoint failed for step {step}"
+                f"Rank {self._node_rank} save checkpoint failed for "
+                f"step {step}"
             )
             return
 
@@ -598,18 +602,21 @@ class ShardingSaver(CheckpointSaver, ABC):
         """
         Commit checkpoint from stage dir to target dir.
 
-        This method is called by agent rank 0, it will check if all agent rank write
-        finish, if true, it will commit checkpoint from stage dir to target dir.
+        This method is called by agent rank 0, it will check if all agent rank
+        write finish, if true, it will commit checkpoint from stage dir to
+        target dir.
         """
         logger.info(
-            f"Start commit checkpoint tmp_path: {tmp_path}, path: {target_path}"
+            f"Start commit checkpoint tmp_path: {tmp_path}, "
+            f"path: {target_path}"
         )
         start_time = time.time()
         while True:
 
             # check all local rank done
             logger.info(
-                f"Check all agent done for step_done_dir {step_done_dir}, node_num: {self._node_num}"
+                f"Check all agent done for step_done_dir {step_done_dir}, "
+                f"node_num: {self._node_num}"
             )
             if len(os.listdir(step_done_dir)) == self._node_num:
                 # all local rank done
@@ -623,7 +630,8 @@ class ShardingSaver(CheckpointSaver, ABC):
                 # clean stage dir
                 shutil.rmtree(step_done_dir)
                 logger.info(
-                    f"Commit checkpoint tmp_path: {tmp_path}, path: {target_path}"
+                    f"Commit checkpoint tmp_path: {tmp_path}, "
+                    f"path: {target_path}"
                 )
                 break
 
