@@ -66,7 +66,7 @@ def _create_socket_client(path):
             connected = True
             break
         except (FileNotFoundError, ConnectionRefusedError):
-            time.sleep(0.2)
+            time.sleep(0.1)
     if not connected:
         client.connect(path)
     return client
