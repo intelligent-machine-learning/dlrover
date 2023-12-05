@@ -614,10 +614,6 @@ class ShardingSaver(CheckpointSaver, ABC):
         while True:
 
             # check all local rank done
-            logger.info(
-                f"Check all agent done for step_done_dir {step_done_dir}, "
-                f"node_num: {self._node_num}"
-            )
             if len(os.listdir(step_done_dir)) == self._node_num:
                 # all local rank done
                 logger.info(f"All agent done for step {tmp_path}")
