@@ -70,7 +70,7 @@ class CheckpointSaverTest(unittest.TestCase):
             class_name="NoShardingSaver",
             init_args={
                 "checkpoint_dir": "test_ckpt",
-                "num_proc": 8,
+                "num_shard": 8,
             },
         )
         sq.put(class_meta)
@@ -79,7 +79,7 @@ class CheckpointSaverTest(unittest.TestCase):
                 time.sleep(0.5)
             else:
                 break
-        self.assertEqual(CheckpointSaver._saver_instance.num_proc, 8)
+        self.assertEqual(CheckpointSaver._saver_instance.num_shard, 8)
 
     def test_close_saver(self):
         saver = NoShardingSaver("test_ckpt")
@@ -201,6 +201,10 @@ class ShardingCheckpointEngineTest(unittest.TestCase):
         CheckpointSaver._saver_instance = None
         CheckpointSaver.start_async_saving_ckpt()
 
+    def tearDown(self):
+        os.environ.pop(NodeEnv.NODE_NUM, None)
+        os.environ.pop(NodeEnv.NODE_RANK, None)
+
     def test_create_tensor_meta(self):
         engine = SimpleShardingCheckpointEngine("test-ckpt")
         value = torch.rand((10, 10), dtype=torch.float32)
@@ -223,7 +227,7 @@ class ShardingCheckpointEngineTest(unittest.TestCase):
             saving_engine = SimpleShardingCheckpointEngine(tmpdir)
             saving_engine.save_to_storage(state_dict, "", step)
             tmp = Path(tmpdir)
-            time.sleep(2)
+            time.sleep(3)
             # list the files in tmpdir recursively
             saved_file = tmp / "checkpoint-100/checkpoint.pt"
             self.assertTrue(saved_file.exists())
