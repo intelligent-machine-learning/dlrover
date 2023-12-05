@@ -231,14 +231,14 @@ class SharedMemoryHandler(object):
 
     Args:
         local_rank (int): the local rank of the process on a node.
-        on_host (bool): the handler is on the host if True, otherwise,
+        host (bool): the handler is on the host if True, otherwise,
             the handler is on the device.
     """
 
-    def __init__(self, local_rank, on_host=True):
+    def __init__(self, local_rank, host=True):
         self._buffer_size = 0
         meta_name = _CKPT_META_NAME_PREFIX + str(local_rank)
-        self._tensor_meta = SharedDict(name=meta_name, create=on_host)
+        self._tensor_meta = SharedDict(name=meta_name, create=host)
         self._shm_name = _TENSOR_SHM_NAME_PREFIX + str(local_rank)
         self._tensor_shm = None
 
@@ -583,7 +583,7 @@ class NoShardingCheckpointEngine(CheckpointEngine):
         self._shm_lock = SharedLock(name=lock_name, create=False)
         qname = _SAVE_STEP_QNAME_PREFIX + str(0)
         self._to_save_queue = SharedQueue(name=qname, create=False)
-        self._shm_handler = SharedMemoryHandler(0, on_host=False)
+        self._shm_handler = SharedMemoryHandler(0, host=False)
         self._notify_agent_to_create_saver()
 
     def _get_saver_ranks(self):

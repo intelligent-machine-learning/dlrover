@@ -136,7 +136,7 @@ class CheckpointEngineTest(unittest.TestCase):
         self.assertIsNone(shm)
 
     def test_create_tensor_meta(self):
-        shm_handler = SharedMemoryHandler(0, on_host=False)
+        shm_handler = SharedMemoryHandler(0, host=False)
         value = torch.rand((10, 10), dtype=torch.float32)
         meta = shm_handler._create_tensor_meta(value)
         self.assertEqual(meta.numel, 100)
