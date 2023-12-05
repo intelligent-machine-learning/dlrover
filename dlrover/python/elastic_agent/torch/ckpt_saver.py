@@ -495,15 +495,15 @@ class ShardingSaver(CheckpointSaver, ABC):
         super().__init__(checkpoint_dir)
 
         self.num_shard = num_shard
-        self._shm_handlers = [
+        self._shm_handlers: List[SharedMemoryHandler] = [
             SharedMemoryHandler(i) for i in range(self.num_shard)
         ]
-        self._shm_lock = []
-        self._shm_name = []
+        self._shm_lock: List[SharedLock] = []
+        self._shm_name: List[str] = []
 
         # Only local rank 0 will notify the agent to save status to storage
         qname = _SAVE_STEP_QNAME_PREFIX + str(0)
-        self._to_save_queue = SharedQueue(name=qname, create=True)
+        self._to_save_queue: SharedQueue = SharedQueue(name=qname, create=True)
 
         # Each rank has a shared memory to store the state dict
         for i in range(self.num_shard):
@@ -530,12 +530,9 @@ class ShardingSaver(CheckpointSaver, ABC):
     def update_tracker_file(self, step):
         pass
 
-    def get_ckpt_name(self, step):
+    def get_ckpt_path(self, step):
         """User can override the method to define the checkpoint name."""
-        return f"checkpoint-{step}"
-
-    def _get_ckpt_path(self, step):
-        return os.path.join(self.checkpoint_dir, self.get_ckpt_name(step))
+        return os.path.join(self.checkpoint_dir, f"checkpoint-{step}")
 
     def _persist_to_storage(self, state_dict, path, step):
         """Persist the checkpoint from CPU memory buffer into the storage."""
@@ -590,7 +587,7 @@ class ShardingSaver(CheckpointSaver, ABC):
             f"step: {step}"
         )
         self._writing_storage = True
-        ckpt_path = self._get_ckpt_path(step)
+        ckpt_path = self.get_ckpt_path(step)
 
         if os.path.exists(ckpt_path):
             logger.info(f"Checkpoint for step {step} already exists, skip")
@@ -773,10 +770,8 @@ class ShardingSaver(CheckpointSaver, ABC):
 
         for lock in self._shm_lock:
             lock.release()
-        self._save_shm_to_storage(step)
 
-        for lock in self._shm_lock:
-            lock.release()
+        self._save_shm_to_storage(step)
 
         logger.info(
             "Save the checkpointing state dict from the shared "
