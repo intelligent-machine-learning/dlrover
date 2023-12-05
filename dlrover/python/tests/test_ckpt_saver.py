@@ -22,6 +22,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from dlrover.python.common.constants import NodeEnv
 from dlrover.python.common.multi_process import (
     SharedDict,
     SharedMemory,
@@ -29,7 +30,7 @@ from dlrover.python.common.multi_process import (
 )
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     _CKPT_META_NAME_PREFIX,
-    _WIRTING_SHM,
+    _WRITING_SHM,
     CheckpointSaver,
     NoShardingCheckpointEngine,
     NoShardingSaver,
@@ -38,6 +39,8 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
     _create_shared_memory,
     _load_from_historic_checkpoint,
     _traverse_state_dict,
+    ShardingSaver,
+    ShardingCheckpointEngine,
 )
 
 
@@ -143,7 +146,7 @@ class CheckpointSaverTest(unittest.TestCase):
             saving_engine = NoShardingCheckpointEngine(tmpdir)
             saving_engine.save_to_memory(state_dict, step)
             meta_dict = saving_engine._shm_handler._tensor_meta._dict
-            self.assertFalse(meta_dict[_WIRTING_SHM])
+            self.assertFalse(meta_dict[_WRITING_SHM])
             saver: NoShardingSaver = CheckpointSaver.get_ckpt_saver()
             saver._shm_handler._tensor_shm = SharedMemory(
                 name=saver._shm_handler._shm_name
