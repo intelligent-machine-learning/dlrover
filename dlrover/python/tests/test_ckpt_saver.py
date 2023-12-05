@@ -205,17 +205,6 @@ class ShardingCheckpointEngineTest(unittest.TestCase):
         os.environ.pop(NodeEnv.NODE_NUM, None)
         os.environ.pop(NodeEnv.NODE_RANK, None)
 
-    def test_create_tensor_meta(self):
-        engine = SimpleShardingCheckpointEngine("test-ckpt")
-        value = torch.rand((10, 10), dtype=torch.float32)
-        meta = engine._create_tensor_meta(value)
-        self.assertEqual(meta.numel, 100)
-        self.assertEqual(meta.element_size, 4)
-        self.assertEqual(meta.offset, 0)
-        self.assertEqual(meta.shape, (10, 10))
-        self.assertEqual(meta.dtype, torch.float32)
-        engine.close()
-
     def test_save_to_storage(self):
         model = SimpleNet()
         step = 100
