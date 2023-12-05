@@ -16,11 +16,13 @@ import signal
 import tempfile
 import time
 import unittest
+from pathlib import Path
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from dlrover.python.common.constants import NodeEnv
 from dlrover.python.common.multi_process import (
     SharedDict,
     SharedMemory,
@@ -28,11 +30,13 @@ from dlrover.python.common.multi_process import (
 )
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     _CKPT_META_NAME_PREFIX,
-    _WIRTING_SHM,
+    _WRITING_SHM,
     CheckpointSaver,
     NoShardingCheckpointEngine,
     NoShardingSaver,
     SaverClassMeta,
+    ShardingCheckpointEngine,
+    ShardingSaver,
     SharedMemoryHandler,
     _create_shared_memory,
     _load_from_historic_checkpoint,
@@ -142,7 +146,7 @@ class CheckpointSaverTest(unittest.TestCase):
             saving_engine = NoShardingCheckpointEngine(tmpdir)
             saving_engine.save_to_memory(state_dict, step)
             meta_dict = saving_engine._shm_handler._tensor_meta._dict
-            self.assertFalse(meta_dict[_WIRTING_SHM])
+            self.assertFalse(meta_dict[_WRITING_SHM])
             saver: NoShardingSaver = CheckpointSaver.get_ckpt_saver()
             saver._shm_handler._tensor_shm = SharedMemory(
                 name=saver._shm_handler._shm_name
@@ -193,3 +197,63 @@ class CheckpointEngineTest(unittest.TestCase):
                 loaded_value = loaded_state_dict["model"][key]
                 self.assertTrue(torch.equal(value, loaded_value))
             engine.close()
+
+
+class SimpleShardingSaver(ShardingSaver):
+    def persist_to_storage(self, state_dict, path):
+        state_file = os.path.join(path, "checkpoint.pt")
+        torch.save(state_dict, state_file)
+
+    def get_tracker_file(self):
+        return os.path.join(self.checkpoint_dir, "tracker.txt")
+
+    def update_tracker_file(self, step):
+        with open(self.get_tracker_file(), "w") as f:
+            f.write(str(step))
+
+
+class SimpleShardingCheckpointEngine(ShardingCheckpointEngine):
+    def get_saver_class(self):
+        return SimpleShardingSaver
+
+    def load(self, resume_path=""):
+        pass
+
+
+class ShardingCheckpointEngineTest(unittest.TestCase):
+    def setUp(self):
+        os.environ[NodeEnv.NODE_NUM] = "1"
+        os.environ[NodeEnv.NODE_RANK] = "0"
+        CheckpointSaver._saver_instance = None
+        CheckpointSaver.start_async_saving_ckpt()
+
+    def tearDown(self):
+        os.environ.pop(NodeEnv.NODE_NUM, None)
+        os.environ.pop(NodeEnv.NODE_RANK, None)
+
+    def test_save_to_storage(self):
+        model = SimpleNet()
+        step = 100
+        state_dict = dict(
+            model=model.state_dict(),
+            step=step,
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            saving_engine = SimpleShardingCheckpointEngine(tmpdir)
+            saving_engine.save_to_storage(state_dict, "", step)
+            tmp = Path(tmpdir)
+            time.sleep(3)
+            # list the files in tmpdir recursively
+            saved_file = tmp / "checkpoint-100/checkpoint.pt"
+            self.assertTrue(saved_file.exists())
+
+            tracker_file = tmp / "tracker.txt"
+            self.assertTrue(tracker_file.exists())
+
+            self.assertEqual(tracker_file.read_text(), "100")
+            state = torch.load(saved_file)
+            self.assertEqual(state["step"], step)
+
+            saver: CheckpointSaver = CheckpointSaver.get_ckpt_saver()
+            saver.close()
+            saving_engine.close()
