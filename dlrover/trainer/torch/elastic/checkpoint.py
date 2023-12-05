@@ -262,7 +262,7 @@ class LocalCheckpointManger(CheckpointManger):
         """
         Load teh state dict from checkpointing data to the model and optimizer.
         """
-        checkpoint = self._ckpt_engine.load(resuming_path)
+        step, checkpoint = self._ckpt_engine.load(resuming_path)
         if not checkpoint:
             return {}
         sampler = self.dataloader.sampler
@@ -272,7 +272,7 @@ class LocalCheckpointManger(CheckpointManger):
         optim_state_dict = checkpoint.get("optimizer", {})
         self.model.load_state_dict(model_state_dict)
         self.optimizer.load_state_dict(optim_state_dict)
-        return checkpoint
+        return step
 
 
 class DDPCheckpointManger(LocalCheckpointManger):
@@ -368,7 +368,7 @@ class FSDPCheckpointManger(CheckpointManger):
         """
         Load teh state dict from checkpointing data to the model and optimizer.
         """
-        checkpoint = self._ckpt_engine.load(resuming_path)
+        step, checkpoint = self._ckpt_engine.load(resuming_path)
         if not checkpoint:
             return {}
         if self.dataloader:
@@ -395,4 +395,4 @@ class FSDPCheckpointManger(CheckpointManger):
         self.model.load_state_dict(model_state_dict)
         self.optimizer.load_state_dict(optim_state_dict)
         _sync()
-        return checkpoint
+        return step

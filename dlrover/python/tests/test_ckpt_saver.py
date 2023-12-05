@@ -28,6 +28,7 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
     NoShardingCheckpointEngine,
     NoShardingSaver,
     SaverClassMeta,
+    SharedMemoryHandler,
     _create_shared_memory,
     _load_from_historic_checkpoint,
     _traverse_state_dict,
@@ -64,10 +65,7 @@ class CheckpointSaverTest(unittest.TestCase):
         class_meta = SaverClassMeta(
             module_path="dlrover.python.elastic_agent.torch.ckpt_saver",
             class_name="NoShardingSaver",
-            init_args={
-                "checkpoint_dir": "test_ckpt",
-                "num_proc": 8,
-            },
+            init_args={"checkpoint_dir": "test_ckpt"},
         )
         sq.put(class_meta)
         for _ in range(10):
@@ -75,11 +73,14 @@ class CheckpointSaverTest(unittest.TestCase):
                 time.sleep(0.5)
             else:
                 break
-        self.assertEqual(CheckpointSaver._saver_instance.num_proc, 8)
 
     def test_close_saver(self):
         saver = NoShardingSaver("test_ckpt")
-        saver._tensor_shm = SharedMemory(name="test", create=True, size=1024)
+        saver._shm_handler._tensor_shm = SharedMemory(
+            name="test",
+            create=True,
+            size=1024,
+        )
         saver.close()
         saver.close()
 
@@ -108,10 +109,12 @@ class CheckpointSaverTest(unittest.TestCase):
             sq = SharedQueue(name="factory", create=True)
             saving_engine = NoShardingCheckpointEngine(tmpdir)
             saving_engine.save_to_memory(state_dict, step)
-            meta_dict = saving_engine._shared_ckpt_meta._dict
+            meta_dict = saving_engine._shm_handler._tensor_meta._dict
             self.assertFalse(meta_dict[_WIRTING_SHM])
-            saver: CheckpointSaver = CheckpointSaver.get_ckpt_saver()
-            saver._tensor_shm = SharedMemory(name=saver._shm_name)
+            saver: NoShardingSaver = CheckpointSaver.get_ckpt_saver()
+            saver._shm_handler._tensor_shm = SharedMemory(
+                name=saver._shm_handler._shm_name
+            )
             CheckpointSaver.register_signal_handler()
             handler = signal.getsignal(signal.SIGTERM)
             handler(None, None)
@@ -120,7 +123,7 @@ class CheckpointSaverTest(unittest.TestCase):
                 handler(None, None)
             ckpt_files = os.listdir(tmpdir)
             self.assertEqual(len(ckpt_files), 1)
-            sq.close()
+            sq.unlink()
 
 
 class CheckpointEngineTest(unittest.TestCase):
@@ -133,15 +136,15 @@ class CheckpointEngineTest(unittest.TestCase):
         self.assertIsNone(shm)
 
     def test_create_tensor_meta(self):
-        engine = NoShardingCheckpointEngine("test-ckpt")
+        shm_handler = SharedMemoryHandler(0, on_host=False)
         value = torch.rand((10, 10), dtype=torch.float32)
-        meta = engine._create_tensor_meta(value)
+        meta = shm_handler._create_tensor_meta(value)
         self.assertEqual(meta.numel, 100)
         self.assertEqual(meta.element_size, 4)
         self.assertEqual(meta.offset, 0)
         self.assertEqual(meta.shape, (10, 10))
         self.assertEqual(meta.dtype, torch.float32)
-        engine.close()
+        shm_handler.close()
 
     def test_load_no_sharding(self):
         model = SimpleNet()
