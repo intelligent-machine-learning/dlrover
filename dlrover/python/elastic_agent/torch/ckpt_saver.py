@@ -278,11 +278,7 @@ class SharedMemoryHandler(object):
 
         meta_dict = _traverse_state_dict(state_dict, self._create_tensor_meta)
         self._tensor_meta.update(meta_dict)
-        self._tensor_shm = _create_shared_memory(
-            name=self._shm_name,
-            create=True,
-            size=self._buffer_size,
-        )
+        self.init_tensor_shm(create=True, size=self._buffer_size)
 
     def save_state_dict(self, state_dict):
         """
@@ -309,10 +305,7 @@ class SharedMemoryHandler(object):
         if not meta_dict or meta_dict.get(_WIRTING_SHM, False):
             return step, {}
         if self._tensor_shm is None:
-            self._tensor_shm = _create_shared_memory(
-                self._shm_name,
-                create=False,
-            )
+            self.init_tensor_shm(create=False)
         if not self._tensor_shm:
             return step, {}
 
@@ -321,6 +314,11 @@ class SharedMemoryHandler(object):
 
     def empty(self):
         return self._tensor_shm is None
+
+    def init_tensor_shm(self, create=False, size=0):
+        self._tensor_shm = _create_shared_memory(
+            self._shm_name, create=create, size=size
+        )
 
 
 class CheckpointSaver(metaclass=ABCMeta):
