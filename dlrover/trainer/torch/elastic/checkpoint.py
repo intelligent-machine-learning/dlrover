@@ -161,6 +161,7 @@ class CheckpointManger(metaclass=ABCMeta):
                 the state checkpoint from the file with the maximum step.
 
         Return:
+            step (int): the iteration step.
             A dict: a state dict.
         """
         pass
@@ -264,7 +265,7 @@ class LocalCheckpointManger(CheckpointManger):
         """
         step, checkpoint = self._ckpt_engine.load(resuming_path)
         if not checkpoint:
-            return {}
+            return step, {}
         sampler = self.dataloader.sampler
         if isinstance(sampler, ElasticDistributedSampler):
             sampler.load_state_dict(checkpoint.get("sampler", {}))
@@ -272,7 +273,7 @@ class LocalCheckpointManger(CheckpointManger):
         optim_state_dict = checkpoint.get("optimizer", {})
         self.model.load_state_dict(model_state_dict)
         self.optimizer.load_state_dict(optim_state_dict)
-        return step
+        return step, {}
 
 
 class DDPCheckpointManger(LocalCheckpointManger):
@@ -302,9 +303,9 @@ class DDPCheckpointManger(LocalCheckpointManger):
         """
         Load teh state dict from checkpointing data to the model and optimizer.
         """
-        checkpoint = super().load(resuming_path=resuming_path)
+        step, checkpoint = super().load(resuming_path=resuming_path)
         _sync()
-        return checkpoint
+        return step, checkpoint
 
 
 class FSDPCheckpointManger(CheckpointManger):
