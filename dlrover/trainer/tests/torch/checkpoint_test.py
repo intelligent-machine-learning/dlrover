@@ -100,42 +100,45 @@ def _wait_async_saving_finished(dir_name, step):
 
 class CheckpointManagerTest(unittest.TestCase):
     def setUp(self):
-        CheckpointSaver._saver_instance = None
-        CheckpointSaver.start_async_saving_ckpt()
+        if CheckpointSaver._saver_instance is None:
+            CheckpointSaver.start_async_saving_ckpt()
 
     def test_ddp_save_load(self):
         os.environ["LOCAL_RANK"] = "0"
         port = grpc.find_free_port()
         set_torch_dist_env(port)
         dist.init_process_group(backend="gloo")
-        model, optimizer, dataloader = create_torch_modules()
-        model = DDP(model)
-        msd = model.state_dict()
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            ckpt_manager = CheckpointManger.init_checkpoint_manager(
-                model,
-                optimizer,
-                dataloader,
-                tmpdirname,
-                max_to_keep=2,
-            )
-            for step in [10, 20, 30]:
-                ckpt_manager.save(epoch=0, step=step)
-                _wait_async_saving_finished(tmpdirname, step)
-            ckpt_dirs = os.listdir(tmpdirname)
-            self.assertEqual(len(ckpt_dirs), 2)
-
-            ckpt_dir = _get_latest_checkpoint(tmpdirname)
-            expected_dir = os.path.join(tmpdirname, "checkpoint-30")
-            self.assertEqual(ckpt_dir, expected_dir)
-
-            ckpt_manager.load()
-            self.assertEqual(dataloader.sampler.total_size, 60002)
-            resume_msd = ckpt_manager.model.state_dict()
-            self.assertTrue(
-                torch.equal(
-                    msd["module.fc1.weight"], resume_msd["module.fc1.weight"]
+        try:
+            model, optimizer, dataloader = create_torch_modules()
+            model = DDP(model)
+            msd = model.state_dict()
+            with tempfile.TemporaryDirectory() as tmpdirname:
+                ckpt_manager = CheckpointManger.init_checkpoint_manager(
+                    model,
+                    optimizer,
+                    dataloader,
+                    tmpdirname,
+                    max_to_keep=2,
                 )
-            )
-            ckpt_manager._ckpt_engine.close()
-        dist.destroy_process_group()
+                for step in [10, 20, 30]:
+                    ckpt_manager.save(epoch=0, step=step)
+                    _wait_async_saving_finished(tmpdirname, step)
+                ckpt_dirs = os.listdir(tmpdirname)
+                self.assertEqual(len(ckpt_dirs), 2)
+
+                ckpt_dir = _get_latest_checkpoint(tmpdirname)
+                expected_dir = os.path.join(tmpdirname, "checkpoint-30")
+                self.assertEqual(ckpt_dir, expected_dir)
+
+                ckpt_manager.load()
+                self.assertEqual(dataloader.sampler.total_size, 60002)
+                resume_msd = ckpt_manager.model.state_dict()
+                self.assertTrue(
+                    torch.equal(
+                        msd["module.fc1.weight"],
+                        resume_msd["module.fc1.weight"],
+                    )
+                )
+                ckpt_manager._ckpt_engine.close()
+        finally:
+            dist.destroy_process_group()
