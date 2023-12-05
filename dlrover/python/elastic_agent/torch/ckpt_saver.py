@@ -275,7 +275,9 @@ class SharedMemoryHandler(object):
         Copy the state dict from CPU memory buffer into the shared memory.
         """
         if self._tensor_shm is None:
-            meta_dict = _traverse_state_dict(state_dict, self._create_tensor_meta)
+            meta_dict = _traverse_state_dict(
+                state_dict, self._create_tensor_meta
+            )
             self.init_tensor_shm(create=True, size=self._buffer_size)
         else:
             meta_dict = self._tensor_meta.get(local=True)
