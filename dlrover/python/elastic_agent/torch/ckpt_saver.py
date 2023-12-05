@@ -320,6 +320,18 @@ class SharedMemoryHandler(object):
             self._shm_name, create=create, size=size
         )
 
+    def get_iteration_step(self):
+        """
+        Get the iteration step of checkpointing state dict in the shared
+        memory.
+
+        Returns:
+            step (int).
+        """
+        meta_dict = self._tensor_meta.get()
+        step = meta_dict.get("step", 0)
+        return step
+
 
 class CheckpointSaver(metaclass=ABCMeta):
     """

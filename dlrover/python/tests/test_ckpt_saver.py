@@ -115,6 +115,8 @@ class CheckpointSaverTest(unittest.TestCase):
             saver._shm_handler._tensor_shm = SharedMemory(
                 name=saver._shm_handler._shm_name
             )
+            mem_step = saving_engine._shm_handler.get_iteration_step()
+            self.assertEqual(mem_step, step)
             CheckpointSaver.register_signal_handler()
             handler = signal.getsignal(signal.SIGTERM)
             handler(None, None)
