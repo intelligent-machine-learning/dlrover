@@ -224,6 +224,115 @@ def _load_from_historic_checkpoint(checkpoint_dir):
             shutil.rmtree(latest_ckpt_dir)
 
 
+class SharedMemoryHandler(object):
+    """
+    The handler to write and read the shared memory with the state dict
+    of PyTorch Module.
+
+    Args:
+        local_rank (int): the local rank of the process on a node.
+        host (bool): the handler is on the host if True, otherwise,
+            the handler is on the device.
+    """
+
+    def __init__(self, local_rank, host=True):
+        self._buffer_size = 0
+        meta_name = _CKPT_META_NAME_PREFIX + str(local_rank)
+        self._tensor_meta = SharedDict(name=meta_name, create=host)
+        self._shm_name = _TENSOR_SHM_NAME_PREFIX + str(local_rank)
+        self._tensor_shm = None
+
+    def close(self):
+        if self._tensor_shm:
+            self._tensor_shm.close()
+
+    def unlink(self):
+        if self._tensor_shm:
+            self._tensor_shm.unlink()
+        if self._tensor_meta:
+            self._tensor_meta.unlink()
+
+    def _create_tensor_meta(self, value: torch.Tensor):
+        """
+        Create a tensor meta of a tensor and compute the total
+        size of the state dict.
+        """
+        if not torch.is_tensor(value):
+            return value
+        meta = TensorMeta(
+            shape=tuple(value.shape),  # type: ignore
+            dtype=value.dtype,
+            element_size=value.element_size(),
+            numel=value.numel(),
+            offset=self._buffer_size,
+        )
+        self._buffer_size += value.numel() * value.element_size()
+        return meta
+
+    def make_state_dict_buffer(self, state_dict):
+        """
+        Make the shared memory to store the state dict.
+        """
+        if self._tensor_shm is not None:
+            return
+
+        meta_dict = _traverse_state_dict(state_dict, self._create_tensor_meta)
+        self._tensor_meta.update(meta_dict)
+        self.init_tensor_shm(create=True, size=self._buffer_size)
+
+    def save_state_dict(self, state_dict):
+        """
+        Copy the state dict from CPU memory buffer into the shared memory.
+        """
+        meta_dict = self._tensor_meta.get(local=True)
+        meta_dict[_WIRTING_SHM] = True
+        self._tensor_meta.update(meta_dict)
+        _tarverse_copy_to_shm(state_dict, meta_dict, self._tensor_shm.buf)
+        meta_dict[_WIRTING_SHM] = False
+        self._tensor_meta.update(meta_dict)
+
+        meta_dict = self._tensor_meta.get(local=True)
+
+    def load_state_dict(self):
+        """
+        Load the state dict from the shared memory.
+
+        Returns:
+            A dict.
+        """
+        meta_dict = self._tensor_meta.get()
+        step = meta_dict.get("step", 0)
+        if not meta_dict or meta_dict.get(_WIRTING_SHM, False):
+            return step, {}
+        if self._tensor_shm is None:
+            self.init_tensor_shm(create=False)
+        if not self._tensor_shm:
+            return step, {}
+
+        state_dict = _read_state_dict_from_shm(meta_dict, self._tensor_shm)
+        return step, state_dict
+
+    def empty(self):
+        return self._tensor_shm is None
+
+    def init_tensor_shm(self, create=False, size=0):
+        self._tensor_shm = _create_shared_memory(
+            self._shm_name, create=create, size=size
+        )
+
+    def get_iteration_step(self):
+        """
+        Get the iteration step of checkpointing state dict in the shared
+        memory.
+
+        Returns:
+            step (int).
+        """
+        meta_dict = self._tensor_meta.get()
+        step = meta_dict.get("step", 0)
+        return step
+
+
 class CheckpointSaver(metaclass=ABCMeta):
     """
     CheckpointSaver saves the state dict from the shared memory into
@@ -232,14 +341,12 @@ class CheckpointSaver(metaclass=ABCMeta):
     Attributes:
         checkpoint_dir (str): the directory to save the checkpointing state
             dict to the storage if the training process fails.
-        num_proc (int): the number of training process, i.e. local world size.
     """
 
     _saver_instance = None
 
-    def __init__(self, checkpoint_dir, num_proc=1):
+    def __init__(self, checkpoint_dir):
         self.checkpoint_dir = checkpoint_dir
-        self.num_proc = num_proc
 
     @classmethod
     def start_async_saving_ckpt(cls):
@@ -314,28 +421,24 @@ class NoShardingSaver(CheckpointSaver):
     from the shared memory created by local rank 0 to the storage.
     """
 
-    def __init__(self, checkpoint_dir, num_proc=1) -> None:
-        super().__init__(checkpoint_dir, num_proc)
-        self._tensor_shm = None
+    def __init__(self, checkpoint_dir) -> None:
+        super().__init__(checkpoint_dir)
         # Only local rank 0 save the state dict to memory in DDP.
+        self._shm_handler = SharedMemoryHandler(0)
         qname = _SAVE_STEP_QNAME_PREFIX + str(0)
         self._to_save_queue = SharedQueue(name=qname, create=True)
-        meta_name = _CKPT_META_NAME_PREFIX + str(0)
-        self._shared_ckpt_meta = SharedDict(name=meta_name, create=True)
         lock_name = _SHM_LOCK_NAME_PREFIX + str(0)
         self._shm_lock = SharedLock(name=lock_name, create=True)
-        self._shm_name = _TENSOR_SHM_NAME_PREFIX + str(0)
 
     def __del__(self):
         self.close()
 
     def close(self):
-        if self._tensor_shm:
-            self._tensor_shm.close()
-            self._tensor_shm.unlink()
-        self._to_save_queue.close()
-        self._shared_ckpt_meta.close()
-        self._shm_lock.close()
+        if self._shm_handler:
+            self._shm_handler.close()
+            self._shm_handler.unlink()
+        self._to_save_queue.unlink()
+        self._shm_lock.unlink()
 
     def _sync_shm_to_storage(self):
         """
@@ -345,15 +448,12 @@ class NoShardingSaver(CheckpointSaver):
         logger.info("Async checkpoint saver starts!")
         while True:
             path = self._to_save_queue.get()
-            if not self._tensor_shm:
-                self._tensor_shm = SharedMemory(name=self._shm_name)
             self._shm_lock.acquire()
             logger.info(
                 "Save checkpoint from the shared memory "
                 f"into the storage {path}."
             )
-            meta_dict = self._shared_ckpt_meta.get()
-            state_dict = _read_state_dict_from_shm(meta_dict, self._tensor_shm)
+            _, state_dict = self._shm_handler.load_state_dict()
             self._persist_to_storage(state_dict, path)
             self._shm_lock.release()
 
@@ -371,7 +471,7 @@ class NoShardingSaver(CheckpointSaver):
         training process fails or the agent wants to restart training
         processes.
         """
-        if self._tensor_shm is None:
+        if self._shm_handler.empty():
             return
         acquired = self._shm_lock.acquire()
         if not acquired:
@@ -379,18 +479,17 @@ class NoShardingSaver(CheckpointSaver):
             # when writing the state dict into the shared memory. The shared
             # memory may be dirty and the saver cannot save it to the storage.
             return
-        meta_dict = self._shared_ckpt_meta.get()
-        step = meta_dict["step"]
-        path = os.path.join(
-            self.checkpoint_dir, f"checkpoint-{step}/checkpoint.pt"
-        )
-        state_dict = _read_state_dict_from_shm(meta_dict, self._tensor_shm)
-        self._persist_to_storage(state_dict, path)
+        step, state_dict = self._shm_handler.load_state_dict()
+        if state_dict:
+            path = os.path.join(
+                self.checkpoint_dir, f"checkpoint-{step}/checkpoint.pt"
+            )
+            self._persist_to_storage(state_dict, path)
+            logger.info(
+                "Save the checkpointing state dict from the shared "
+                f"memory to {path}."
+            )
         self._shm_lock.release()
-        logger.info(
-            "Save the checkpointing state dict from the shared "
-            f"memory to {path}."
-        )
 
 
 class CheckpointEngine(metaclass=ABCMeta):
@@ -492,14 +591,11 @@ class NoShardingCheckpointEngine(CheckpointEngine):
         self._cached_step = 0
         self._restart_count = env_utils.get_torch_restart_count()
 
-        meta_name = _CKPT_META_NAME_PREFIX + str(0)
-        self._shared_ckpt_meta = SharedDict(name=meta_name, create=False)
         lock_name = _SHM_LOCK_NAME_PREFIX + str(0)
         self._shm_lock = SharedLock(name=lock_name, create=False)
         qname = _SAVE_STEP_QNAME_PREFIX + str(0)
         self._to_save_queue = SharedQueue(name=qname, create=False)
-        self._shm_name = _TENSOR_SHM_NAME_PREFIX + str(0)
-        self._tensor_shm = None
+        self._shm_handler = SharedMemoryHandler(0, host=False)
         self._notify_agent_to_create_saver()
 
     def _get_saver_ranks(self):
@@ -525,24 +621,19 @@ class NoShardingCheckpointEngine(CheckpointEngine):
             self._shm_lock.release()
             return
         queue = SharedQueue(name="factory")
-        num_proc = env_utils.get_local_world_size()
         class_meta = SaverClassMeta(
             module_path="dlrover.python.elastic_agent.torch.ckpt_saver",
             class_name="NoShardingSaver",
-            init_args={
-                "checkpoint_dir": self.checkpoint_dir,
-                "num_proc": num_proc,
-            },
+            init_args={"checkpoint_dir": self.checkpoint_dir},
         )
         queue.put(class_meta)
-        queue.close()
+        queue.unlink()
 
     def __del__(self):
         self.close()
 
     def close(self):
-        if self._tensor_shm:
-            self._tensor_shm.close()
+        self._shm_handler.close()
 
     @timer
     def save_to_memory(self, state_dict, step):
@@ -564,8 +655,7 @@ class NoShardingCheckpointEngine(CheckpointEngine):
         if _WIRTING_SHM in state_dict:
             raise ValueError(f"state_dict cannot have the key {_WIRTING_SHM}.")
 
-        if self._tensor_shm is None:
-            self._make_state_dict_buffer(state_dict)
+        self._shm_handler.make_state_dict_buffer(state_dict)
         acquired = self._shm_lock.acquire(blocking=False)
         all_rank_ready = _check_all_rank_ready(self._saver_group, acquired)
         if not all_rank_ready:
@@ -577,52 +667,11 @@ class NoShardingCheckpointEngine(CheckpointEngine):
             if acquired:
                 self._shm_lock.release()
             return
-        self._copy_state_dict_to_shm(state_dict)
+        self._shm_handler.save_state_dict(state_dict)
 
         if acquired:
             self._shm_lock.release()
         self._cached_step = step
-
-    def _create_tensor_meta(self, value: torch.Tensor):
-        """
-        Create a tensor meta of a tensor and compute the total
-        size of the state dict.
-        """
-        if not torch.is_tensor(value):
-            return value
-        meta = TensorMeta(
-            shape=tuple(value.shape),  # type: ignore
-            dtype=value.dtype,
-            element_size=value.element_size(),
-            numel=value.numel(),
-            offset=self._buffer_size,
-        )
-        self._buffer_size += value.numel() * value.element_size()
-        return meta
-
-    def _make_state_dict_buffer(self, state_dict):
-        """
-        Make the shared memory to store the state dict.
-        """
-        meta_dict = _traverse_state_dict(state_dict, self._create_tensor_meta)
-
-        self._shared_ckpt_meta.update(meta_dict)
-        self._tensor_shm = _create_shared_memory(
-            name=self._shm_name,
-            create=True,
-            size=self._buffer_size,
-        )
-
-    def _copy_state_dict_to_shm(self, state_dict):
-        """
-        Copy the state dict from CPU memory buffer into the shared memory.
-        """
-        meta_dict = self._shared_ckpt_meta.get(local=True)
-        meta_dict[_WIRTING_SHM] = True
-        self._shared_ckpt_meta.update(meta_dict)
-        _tarverse_copy_to_shm(state_dict, meta_dict, self._tensor_shm.buf)
-        meta_dict[_WIRTING_SHM] = False
-        self._shared_ckpt_meta.update(meta_dict)
 
     @timer
     def save_to_storage(self, state_dict, path, step):
@@ -656,31 +705,12 @@ class NoShardingCheckpointEngine(CheckpointEngine):
         Returns:
             A dict.
         """
-        state_dict = self._load_from_shared_memory()
+        step, state_dict = self._shm_handler.load_state_dict()
         if state_dict:
-            return state_dict
+            return step, state_dict
         state_dict = self._load_from_storage(resume_path)
-        return state_dict
-
-    def _load_from_shared_memory(self):
-        """
-        Load the state dict from the shared memory.
-
-        Returns:
-            A dict.
-        """
-        meta_dict = self._shared_ckpt_meta.get()
-        if not meta_dict or meta_dict.get(_WIRTING_SHM, False):
-            return None
-        if self._tensor_shm is None:
-            self._tensor_shm = _create_shared_memory(
-                self._shm_name,
-                create=False,
-            )
-        if not self._tensor_shm:
-            return None
-        state_dict = _read_state_dict_from_shm(meta_dict, self._tensor_shm)
-        return state_dict
+        step = state_dict.get("step", 0)
+        return step, state_dict
 
     def _load_from_storage(self, resume_path=""):
         """

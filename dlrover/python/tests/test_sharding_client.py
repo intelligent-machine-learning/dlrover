@@ -88,7 +88,7 @@ class DataShardClientTest(unittest.TestCase):
         client = IndexShardingClient(
             batch_size=16,
             num_epochs=1,
-            dataset_size=100,
+            dataset_size=1000,
             num_minibatches_per_shard=2,
             dataset_name="test-0",
             shuffle=True,
@@ -102,7 +102,7 @@ class DataShardClientTest(unittest.TestCase):
                 index = None
             if index is None:
                 break
-        self.assertEqual(len(indices), 100)
+        self.assertEqual(len(indices), 1000)
         shuffled = False
         for i in range(len(indices)):
             if i != indices[i]:
