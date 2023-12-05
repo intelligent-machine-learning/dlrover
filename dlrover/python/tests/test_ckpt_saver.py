@@ -21,8 +21,13 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from dlrover.python.common.multi_process import SharedMemory, SharedQueue
+from dlrover.python.common.multi_process import (
+    SharedDict,
+    SharedMemory,
+    SharedQueue,
+)
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
+    _CKPT_META_NAME_PREFIX,
     _WIRTING_SHM,
     CheckpointSaver,
     NoShardingCheckpointEngine,
@@ -56,6 +61,33 @@ class SimpleNet(nn.Module):
         x = self.fc2(x)
         output = F.log_softmax(x, dim=1)
         return output
+
+
+class SharedMemoryHandlerTest(unittest.TestCase):
+    def setUp(self):
+        local_rank = 1
+        SharedDict(_CKPT_META_NAME_PREFIX + str(local_rank), create=True)
+        self._shm_handler = SharedMemoryHandler(local_rank, host=False)
+
+    def tearDown(self):
+        self._shm_handler.close()
+
+    def test_create_tensor_meta(self):
+        value = torch.rand((10, 10), dtype=torch.float32)
+        meta = self._shm_handler._create_tensor_meta(value)
+        self.assertEqual(meta.numel, 100)
+        self.assertEqual(meta.element_size, 4)
+        self.assertEqual(meta.offset, 0)
+        self.assertEqual(meta.shape, (10, 10))
+        self.assertEqual(meta.dtype, torch.float32)
+
+    def test_load_state_dict(self):
+        step, state_dict = self._shm_handler.load_state_dict()
+        self.assertEqual(step, 0)
+        self.assertDictEqual(state_dict, {})
+        self._shm_handler._tensor_meta.update({"step": 100})
+        step, state_dict = self._shm_handler.load_state_dict()
+        self.assertEqual(step, 100)
 
 
 class CheckpointSaverTest(unittest.TestCase):
@@ -136,17 +168,6 @@ class CheckpointEngineTest(unittest.TestCase):
     def test_create_shared_memory(self):
         shm = _create_shared_memory("test", False)
         self.assertIsNone(shm)
-
-    def test_create_tensor_meta(self):
-        shm_handler = SharedMemoryHandler(0, host=False)
-        value = torch.rand((10, 10), dtype=torch.float32)
-        meta = shm_handler._create_tensor_meta(value)
-        self.assertEqual(meta.numel, 100)
-        self.assertEqual(meta.element_size, 4)
-        self.assertEqual(meta.offset, 0)
-        self.assertEqual(meta.shape, (10, 10))
-        self.assertEqual(meta.dtype, torch.float32)
-        shm_handler.close()
 
     def test_load_no_sharding(self):
         model = SimpleNet()
