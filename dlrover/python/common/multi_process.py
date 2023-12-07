@@ -133,6 +133,18 @@ class LockAcquireResponse(SocketResponse):
     acquired: bool = False
 
 
+@dataclass
+class LockedResponse(SocketResponse):
+    """
+    A response to acquire the status of a lock.
+
+    Attributes:
+        locked (bool): Ture if the lock is locked.
+    """
+
+    locked: bool = False
+
+
 class LocalSocketComm(metaclass=ABCMeta):
     """
     Local socket for processes to communicate.
@@ -215,14 +227,17 @@ class SharedLock(LocalSocketComm):
             try:
                 recv_data = _socket_recv(connection)
                 msg: SocketRequest = pickle.loads(recv_data)
-                response = LockAcquireResponse()
                 if msg.method == "acquire":
+                    response = LockAcquireResponse()
                     response.acquired = self.acquire(**msg.args)
+                elif msg.method == "locked":
+                    response = LockedResponse()
+                    response.locked = self.locked()
                 elif msg.method == "release":
                     self.release()
                 response.status = SUCCESS_CODE
             except Exception:
-                response = LockAcquireResponse()
+                response = SocketResponse()
                 response.status = ERROR_CODE
             send_data = pickle.dumps(response)
             _socket_send(connection, send_data)
@@ -259,6 +274,16 @@ class SharedLock(LocalSocketComm):
                 args={},
             )
             self._request(request)
+
+    def locked(self):
+        if self._server:
+            return self._lock.locked()
+        else:
+            request = SocketRequest(
+                method="locked",
+                args={},
+            )
+            return self._request(request)
 
 
 @dataclass

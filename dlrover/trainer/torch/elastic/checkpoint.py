@@ -132,10 +132,9 @@ class CheckpointManger(metaclass=ABCMeta):
                 _keep_topk_checkpoint(
                     self.checkpoint_dir, self.max_to_keep - 1
                 )
-            ckpt_dir = os.path.join(
-                self.checkpoint_dir, f"{CKPT_DIR_PREFIX}{step}"
+            ckpt_path = os.path.join(
+                self.checkpoint_dir, f"{CKPT_DIR_PREFIX}{step}.pt"
             )
-            ckpt_path = os.path.join(ckpt_dir, "checkpoint.pt")
             engine.save_to_storage(state_dict, ckpt_path, step)
 
     @abstractmethod
