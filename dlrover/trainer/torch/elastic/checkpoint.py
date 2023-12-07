@@ -14,6 +14,7 @@
 import os
 import shutil
 from abc import ABCMeta, abstractmethod
+from typing import Dict
 
 import torch.distributed as dist
 from torch.distributed.fsdp import FullStateDictConfig
@@ -22,6 +23,7 @@ from torch.distributed.fsdp import StateDictType
 from torch.distributed.fsdp.api import FullOptimStateDictConfig
 from torch.nn.parallel import DistributedDataParallel as DDP
 
+from dlrover.python.common.constants import CheckpointConstant
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     CheckpointEngine,
@@ -44,16 +46,20 @@ def _keep_topk_checkpoint(checkpoint_dir, max_to_keep):
         checkpoint_dir: the directory to save checkpoint files.
         max_to_keep: the number of checkpoint files to keep.
     """
-    steps = []
+    step_names: Dict[int, str] = {}
     if not os.path.exists(checkpoint_dir):
         return
-    for dir_name in os.listdir(checkpoint_dir):
-        if not dir_name.startswith(CKPT_DIR_PREFIX):
+    for ckpt_name in os.listdir(checkpoint_dir):
+        if not ckpt_name.startswith(CheckpointConstant.CKPT_NAME_PREFIX):
             continue
-        step = int(dir_name.split("-")[-1])
-        steps.append(step)
+        name = ckpt_name.split("-")[-1]
+        if name.endswith(".pt"):
+            step = int(name.split(".")[0])
+        else:
+            step = int(name)
+        step_names[step] = ckpt_name
 
-    steps = sorted(steps)
+    steps = sorted(list(step_names.keys()))
     if len(steps) <= max_to_keep:
         return
     if max_to_keep == 0:
@@ -61,9 +67,12 @@ def _keep_topk_checkpoint(checkpoint_dir, max_to_keep):
     else:
         remove_steps = steps[: -1 * max_to_keep]
     for step in remove_steps:
-        dir_name = os.path.join(checkpoint_dir, f"{CKPT_DIR_PREFIX}{step}")
-        logger.info(f"Remove the checkpoint directory {dir_name}")
-        shutil.rmtree(dir_name)
+        ckpt_name = os.path.join(checkpoint_dir, step_names[step])
+        logger.info(f"Remove the checkpoint {ckpt_name}")
+        if os.path.isfile(ckpt_name):
+            os.remove(ckpt_name)
+        else:
+            shutil.rmtree(ckpt_name)
 
 
 class CheckpointManger(metaclass=ABCMeta):
@@ -120,22 +129,23 @@ class CheckpointManger(metaclass=ABCMeta):
         if self._rank == 0:
             logger.info(log)
 
-    def _engine_save(self, engine: CheckpointEngine, state_dict, step):
+    def _engine_save(self, engine: CheckpointEngine, step, state_dict):
         """
         The each rank has the complete state dict without sharding. Only
         the locak rank 0 on each node saves the state dict into the shared
         memory and only the rank 0 saves the state dict into the storage.
         """
-        engine.save_to_memory(state_dict, step)
+        ckpt_path = os.path.join(
+            self.checkpoint_dir,
+            f"{CheckpointConstant.CKPT_NAME_PREFIX}{step}.pt",
+        )
+        engine.save_to_memory(step, state_dict, ckpt_path)
         if step % self.save_storage_interval == 0:
             if self._rank == 0:
                 _keep_topk_checkpoint(
                     self.checkpoint_dir, self.max_to_keep - 1
                 )
-            ckpt_path = os.path.join(
-                self.checkpoint_dir, f"{CKPT_DIR_PREFIX}{step}.pt"
-            )
-            engine.save_to_storage(state_dict, ckpt_path, step)
+            engine.save_to_storage(step, state_dict, ckpt_path)
 
     @abstractmethod
     def save(self, epoch, step):
@@ -255,16 +265,17 @@ class LocalCheckpointManger(CheckpointManger):
             "optimizer": osd,
             "sampler": ssd,
             "epoch": epoch,
+            "step": step,
         }
-        self._engine_save(self._ckpt_engine, checkpoint, step)
+        self._engine_save(self._ckpt_engine, step, checkpoint)
 
     def load(self, resuming_path=None):
         """
         Load teh state dict from checkpointing data to the model and optimizer.
         """
-        step, checkpoint = self._ckpt_engine.load(resuming_path)
+        checkpoint = self._ckpt_engine.load(resuming_path)
         if not checkpoint:
-            return step, {}
+            return {}
         sampler = self.dataloader.sampler
         if isinstance(sampler, ElasticDistributedSampler):
             sampler.load_state_dict(checkpoint.get("sampler", {}))
@@ -272,7 +283,7 @@ class LocalCheckpointManger(CheckpointManger):
         optim_state_dict = checkpoint.get("optimizer", {})
         self.model.load_state_dict(model_state_dict)
         self.optimizer.load_state_dict(optim_state_dict)
-        return step, {}
+        return checkpoint
 
 
 class DDPCheckpointManger(LocalCheckpointManger):
@@ -302,9 +313,9 @@ class DDPCheckpointManger(LocalCheckpointManger):
         """
         Load teh state dict from checkpointing data to the model and optimizer.
         """
-        step, checkpoint = super().load(resuming_path=resuming_path)
+        checkpoint = super().load(resuming_path=resuming_path)
         _sync()
-        return step, checkpoint
+        return checkpoint
 
 
 class FSDPCheckpointManger(CheckpointManger):
@@ -368,7 +379,7 @@ class FSDPCheckpointManger(CheckpointManger):
         """
         Load teh state dict from checkpointing data to the model and optimizer.
         """
-        step, checkpoint = self._ckpt_engine.load(resuming_path)
+        checkpoint = self._ckpt_engine.load(resuming_path)
         if not checkpoint:
             return {}
         if self.dataloader:
@@ -395,4 +406,4 @@ class FSDPCheckpointManger(CheckpointManger):
         self.model.load_state_dict(model_state_dict)
         self.optimizer.load_state_dict(optim_state_dict)
         _sync()
-        return step
+        return checkpoint

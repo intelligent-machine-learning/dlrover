@@ -122,7 +122,11 @@ class CheckpointManagerTest(unittest.TestCase):
                     ckpt_manager.save(epoch=0, step=step)
                     _wait_async_saving_finished(tmpdirname, step)
                 ckpt_dirs = os.listdir(tmpdirname)
-                self.assertEqual(len(ckpt_dirs), 2)
+                ckpt_num = 0
+                for d in ckpt_dirs:
+                    if d.endswith(".pt"):
+                        ckpt_num += 1
+                self.assertEqual(ckpt_num, 2)
 
                 tracer_file = os.path.join(
                     tmpdirname, CheckpointConstant.TRACER_FILE_NAME

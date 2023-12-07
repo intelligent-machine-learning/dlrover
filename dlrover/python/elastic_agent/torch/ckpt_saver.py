@@ -79,7 +79,6 @@ class CheckpointShardConfig:
 @dataclass
 class SaveEvent:
     step: int = 0
-    path: str = ""
 
 
 def timer(func):
@@ -91,12 +90,6 @@ def timer(func):
         return result
 
     return wrapper
-
-
-def _init_dir(dir):
-    if os.path.exists(dir):
-        shutil.rmtree(dir)
-    os.makedirs(dir)
 
 
 def _traverse_state_dict(value: object, visitor: Callable[[object], None]):
@@ -592,38 +585,32 @@ class TorchNativeSaver(CheckpointSaver):
         step_done_dir = self._get_checkpoint_done_dir(step)
         os.makedirs(step_done_dir, exist_ok=True)
 
-        step_done_file = os.path.join(step_done_dir, str(self._node_rank))
-
         write_success = False
-        if os.path.exists(step_done_file):
-            logger.info(f"Rank {self._node_rank} already done for step {step}")
-            write_success = True
-        else:
-            # save to stage path for each local rank
-            futures: List[Future] = []
-            for i in range(self.local_shard_num):
-                ckpt_config = self._shm_handlers[i].get_checkpoint_config()
-                future: Future = self._executor.submit(
-                    self._save_shard,
-                    step,
-                    i,
-                    ckpt_config.ckpt_name,
-                    step_done_dir,
+        # save to stage path for each local rank
+        futures: List[Future] = []
+        for i in range(self.local_shard_num):
+            ckpt_config = self._shm_handlers[i].get_checkpoint_config()
+            future: Future = self._executor.submit(
+                self._save_shard,
+                step,
+                i,
+                ckpt_config.ckpt_name,
+                step_done_dir,
+            )
+            futures.append(future)
+
+        success_count = 0
+        for (i, future) in enumerate(futures):
+            if future.result():
+                success_count += 1
+            else:
+                logger.error(
+                    f"Fail to save checkpoint shared {i} for step {step}"
                 )
-                futures.append(future)
 
-            success_count = 0
-            for (i, future) in enumerate(futures):
-                if future.result():
-                    success_count += 1
-                else:
-                    logger.error(
-                        f"Fail to save checkpoint shared {i} for step {step}"
-                    )
-
-            if success_count == self.local_shard_num:
-                write_success = True
-                self._latest_step = step
+        if success_count == self.local_shard_num:
+            write_success = True
+            self._latest_step = step
 
         if not write_success:
             logger.error(
@@ -641,7 +628,7 @@ class TorchNativeSaver(CheckpointSaver):
     def persist_to_storage(self, state_dict, path):
         """Persist the checkpoint from CPU memory buffer into the storage."""
         checkpoint_dir = os.path.dirname(path)
-        _init_dir(checkpoint_dir)
+        os.makedirs(checkpoint_dir, exist_ok=True)
         torch.save(state_dict, path)
 
     def commit_checkpoint(self, step, step_done_dir, timeout=600):

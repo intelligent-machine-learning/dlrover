@@ -257,7 +257,7 @@ class SharedLock(LocalSocketComm):
                 args={"blocking": blocking},
             )
             response = self._request(request)
-            if response:
+            if response.status == SUCCESS_CODE:
                 return response.acquired
             return False
 
