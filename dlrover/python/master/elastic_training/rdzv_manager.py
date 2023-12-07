@@ -62,6 +62,9 @@ class RendezvousManager(metaclass=ABCMeta):
         self._node_unit = 1
         self._name = ""
         self._latest_rdzv_nodes = []
+        self._start_rdzv_ts = 0
+        self._node_rdzv_times: Dict[int, int] = {}
+        self._latest_log_nodes_time = 0
 
     def get_rdzv_round(self):
         return self._rdzv_round
@@ -134,16 +137,32 @@ class RendezvousManager(metaclass=ABCMeta):
                 - set(self._rdzv_nodes.items())
             )
             self._lastcall_time = 0
-            logger.info(
-                f"Completed {self._rdzv_round} round "
-                f"rendezvous of {self._name} is {self._rdzv_nodes}"
-            )
+            self._log_rendezvous_info()
             if self._waiting_nodes:
                 logger.warning(
                     f"Waiting nodes not in {self._rdzv_round} rendezvous "
                     f"are {self._waiting_nodes}."
                 )
+        elif time.time() - self._latest_log_nodes_time > 60:
+            self._latest_log_nodes_time = time.time()
+            logger.info(f"Nodes in rendezvous are {self._rdzv_nodes}")
         return rdzv_completed
+
+    def _log_rendezvous_info(self):
+        logger.info(
+            f"Completed {self._rdzv_round} round "
+            f"rendezvous of {self._name} is {self._rdzv_nodes} \n"
+            "The times of nodes to join rendezvous "
+            f"are {self._node_rdzv_times}."
+        )
+        self._node_rdzv_times.clear()
+        if self._start_rdzv_ts > 0:
+            rdzv_time = round(time.time() - self._start_rdzv_ts, 2)
+            logger.info(
+                f"Elapsed time to complete the {self._rdzv_round} "
+                f"round rendzvous is {rdzv_time}s"
+            )
+        self._start_rdzv_ts = 0
 
     def not_joined_rdzv_nodes(self):
         """Return workers which do not join a rendezvous."""
@@ -168,11 +187,18 @@ class RendezvousManager(metaclass=ABCMeta):
             int: the number of rendezvous round.
         """
         with self._lock:
+            if not self._waiting_nodes:
+                self._start_rdzv_ts = time.time()
+                logger.info(f"Start the {self._rdzv_round} round rendezvous.")
             if node_rank in self._waiting_nodes:
                 return self._rdzv_round
             self._waiting_nodes[node_rank] = local_world_size
             self._rdzv_nodes = {}
             self._lastcall_time = time.time()
+            self._node_rdzv_times[node_rank] = round(
+                self._lastcall_time - self._start_rdzv_ts, 2
+            )
+
         return self._rdzv_round
 
     def num_nodes_waiting(self):
@@ -300,6 +326,8 @@ class NetworkCheckRendezvousManager(RendezvousManager):
             if not self._node_groups:
                 rdzv_completed = self._check_rdzv_completed()
                 if rdzv_completed:
+                    self._fault_nodes.clear()
+                    self._straggler_nodes.clear()
                     self._node_groups = self._group_nodes(self._rdzv_round)
                     logger.info(
                         f"Round {self._rdzv_round} "
@@ -414,8 +442,6 @@ class NetworkCheckRendezvousManager(RendezvousManager):
             int: the number of rendezvous round.
         """
         self._node_groups.clear()
-        self._fault_nodes.clear()
-        self._straggler_nodes.clear()
         return super().join_rendezvous(node_rank, local_world_size)
 
     def check_fault_node(self):
