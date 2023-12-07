@@ -64,6 +64,9 @@ class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
         rdzv_manager._alive_nodes = [0, 1, 2]
         rdzv_manager.join_rendezvous(0, 8)
         rdzv_manager.join_rendezvous(1, 8)
+        round, _, world = rdzv_manager.get_comm_world(0)
+        self.assertEqual(round, 0)
+        self.assertDictEqual(world, {})
         self.assertEqual(len(rdzv_manager._waiting_nodes), 2)
         self.assertEqual(len(rdzv_manager._rdzv_nodes), 0)
         rdzv_manager.join_rendezvous(2, 8)

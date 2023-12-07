@@ -145,7 +145,9 @@ class RendezvousManager(metaclass=ABCMeta):
                 )
         elif time.time() - self._latest_log_nodes_time > 60:
             self._latest_log_nodes_time = time.time()
-            logger.info(f"Nodes in rendezvous are {self._rdzv_nodes}")
+            logger.info(
+                f"Waiting nodes in rendezvous are {self._waiting_nodes}"
+            )
         return rdzv_completed
 
     def _log_rendezvous_info(self):
