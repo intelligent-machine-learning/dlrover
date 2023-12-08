@@ -1065,17 +1065,16 @@ class NoShardingCheckpointEngine(CheckpointEngine):
         else:
             func = TorchNativeSaver.get_checkpoint_tracker_filename
             tracker_filename = func(self.checkpoint_dir)
+            if not os.path.exists(tracker_filename):
+                return {}
             with open(tracker_filename, "r") as f:
                 metastring = f.read().strip()
             iteration = int(metastring)
-            ckpt_name = self._get_checkpoint_name(iteration)
-            logger.info(f"Load the state dict from {ckpt_name}")
-            state_dict = torch.load(ckpt_name)
+            name = f"{CheckpointConstant.CKPT_NAME_PREFIX}{iteration}.pt"
+            path = os.path.join(self.checkpoint_dir, name)
+            logger.info(f"Load the state dict from {path}")
+            state_dict = torch.load(path)
             return state_dict
-
-    def _get_checkpoint_name(self, step):
-        name = f"{CheckpointConstant.CKPT_NAME_PREFIX}{step}.pt"
-        return os.path.join(self.checkpoint_dir, name)
 
 
 class ShardingCheckpointEngine(CheckpointEngine):
@@ -1226,6 +1225,8 @@ class MegatronCheckpointEngine(ShardingCheckpointEngine):
         else:
             func = TorchNativeSaver.get_checkpoint_tracker_filename
             tracker_filename = func(self.checkpoint_dir)
+            if not os.path.exists(tracker_filename):
+                return {}
             with open(tracker_filename, "r") as f:
                 metastring = f.read().strip()
             iteration = int(metastring)

@@ -318,6 +318,9 @@ class ShardingCheckpointEngineTest(unittest.TestCase):
             os.makedirs(os.path.dirname(path), exist_ok=True)
             torch.save(state_dict, path)
 
+            sd = engine._load_from_storage()
+            self.assertDictEqual(sd, {})
+
             tracker_file = TorchNativeSaver.get_checkpoint_tracker_filename(
                 tmpdir
             )
