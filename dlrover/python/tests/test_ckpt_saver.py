@@ -94,8 +94,15 @@ class SharedMemoryHandlerTest(unittest.TestCase):
 
 
 class CheckpointSaverTest(unittest.TestCase):
-    def test_create_checkpoint_saver(self):
+    def setUp(self) -> None:
+        CheckpointSaver._saver_instance = None
         CheckpointSaver.start_async_saving_ckpt()
+
+    def tearDown(self) -> None:
+        if CheckpointSaver._saver_instance:
+            CheckpointSaver._saver_instance.close()
+
+    def test_create_checkpoint_saver(self):
         sq = SharedQueue(name="factory", create=False)
         class_meta = SaverClassMeta(
             module_path=TorchNativeSaver.__module__,
@@ -174,6 +181,10 @@ class CheckpointEngineTest(unittest.TestCase):
         CheckpointSaver._saver_instance = None
         CheckpointSaver.start_async_saving_ckpt()
 
+    def tearDown(self) -> None:
+        if CheckpointSaver._saver_instance:
+            CheckpointSaver._saver_instance.close()
+
     def test_create_shared_memory(self):
         shm = _create_shared_memory("test", False)
         self.assertIsNone(shm)
@@ -240,6 +251,8 @@ class ShardingCheckpointEngineTest(unittest.TestCase):
     def tearDown(self):
         os.environ.pop(NodeEnv.NODE_NUM, None)
         os.environ.pop(NodeEnv.NODE_RANK, None)
+        if CheckpointSaver._saver_instance:
+            CheckpointSaver._saver_instance.close()
 
     def test_save_to_storage(self):
         model = SimpleNet()

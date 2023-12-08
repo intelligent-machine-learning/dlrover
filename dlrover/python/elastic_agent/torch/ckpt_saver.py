@@ -39,7 +39,7 @@ from dlrover.python.common.multi_process import (
 _SAVE_STEP_QNAME_PREFIX = "checkpoint_lock_rank_"
 _CKPT_META_NAME_PREFIX = "checkpoint_meta_shard_"
 _TENSOR_SHM_NAME_PREFIX = "checkpoint_shm_shard_"
-_SHM_LOCK_NAME_PREFIX = "shm_shard__"
+_SHM_LOCK_NAME_PREFIX = "shm_shard_"
 _DLROVER_CKPT_KEY = "_DLORVER_CKPT_CONFIG"
 
 

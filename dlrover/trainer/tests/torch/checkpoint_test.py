@@ -98,8 +98,12 @@ def _wait_async_saving_finished(dir_name, step):
 
 class CheckpointManagerTest(unittest.TestCase):
     def setUp(self):
-        if CheckpointSaver._saver_instance is None:
-            CheckpointSaver.start_async_saving_ckpt()
+        CheckpointSaver._saver_instance = None
+        CheckpointSaver.start_async_saving_ckpt()
+
+    def tearDown(self) -> None:
+        if CheckpointSaver._saver_instance:
+            CheckpointSaver._saver_instance.close()
 
     def test_ddp_save_load(self):
         os.environ["LOCAL_RANK"] = "0"
