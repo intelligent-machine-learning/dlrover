@@ -31,6 +31,7 @@ from dlrover.python.common.multi_process import (
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     _CKPT_META_NAME_PREFIX,
     _DLROVER_CKPT_KEY,
+    AsyncCheckpointSaver,
     AtorchFSDPShardingSaver,
     CheckpointSaver,
     CheckpointShardConfig,
@@ -39,7 +40,6 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
     SaverClassMeta,
     ShardingCheckpointEngine,
     SharedMemoryHandler,
-    TorchNativeSaver,
     _create_shared_memory,
     _traverse_state_dict,
 )
@@ -106,8 +106,8 @@ class CheckpointSaverTest(unittest.TestCase):
     def test_create_checkpoint_saver(self):
         sq = SharedQueue(name="factory", create=False)
         class_meta = SaverClassMeta(
-            module_path=TorchNativeSaver.__module__,
-            class_name=TorchNativeSaver.__name__,
+            module_path=AsyncCheckpointSaver.__module__,
+            class_name=AsyncCheckpointSaver.__name__,
             init_args={"checkpoint_dir": "test_ckpt"},
         )
         sq.put(class_meta)
@@ -118,7 +118,7 @@ class CheckpointSaverTest(unittest.TestCase):
                 break
 
     def test_close_saver(self):
-        saver = TorchNativeSaver("test_ckpt")
+        saver = AsyncCheckpointSaver("test_ckpt")
         try:
             SharedMemory(name="test").unlink()
         except Exception:
@@ -152,7 +152,7 @@ class CheckpointSaverTest(unittest.TestCase):
             step=step,
         )
         with tempfile.TemporaryDirectory() as tmpdir:
-            CheckpointSaver._saver_instance = TorchNativeSaver(tmpdir)
+            CheckpointSaver._saver_instance = AsyncCheckpointSaver(tmpdir)
             sq = SharedQueue(name="factory", create=True)
             saving_engine = NoShardingCheckpointEngine(tmpdir)
             saving_engine.save_to_memory(step, state_dict)
@@ -160,7 +160,7 @@ class CheckpointSaverTest(unittest.TestCase):
             ckpt_config: CheckpointShardConfig = meta_dict[_DLROVER_CKPT_KEY]
             self.assertFalse(ckpt_config.writing_shm)
             self.assertEqual(ckpt_config.step, step)
-            saver: TorchNativeSaver = CheckpointSaver.get_ckpt_saver()
+            saver: AsyncCheckpointSaver = CheckpointSaver.get_ckpt_saver()
             saver._shm_handlers[0]._tensor_shm = SharedMemory(
                 name=saver._shm_handlers[0]._shm_name
             )
@@ -183,7 +183,7 @@ class CheckpointSaverTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             step_done_dir = os.path.join(tmpdir, ".done/10/")
             os.makedirs(step_done_dir, exist_ok=True)
-            saver = TorchNativeSaver(tmpdir)
+            saver = AsyncCheckpointSaver(tmpdir)
             saver.global_shard_num = 1
             saver.commit_checkpoint(100, step_done_dir, 2)
 
@@ -304,7 +304,7 @@ class ShardingCheckpointEngineTest(unittest.TestCase):
             self.assertEqual(local_shard_num, 1)
 
             saver_class = engine.get_saver_class()
-            self.assertEqual(saver_class, TorchNativeSaver)
+            self.assertEqual(saver_class, AsyncCheckpointSaver)
 
             step = 100
             path = engine._get_checkpoint_name(step)
@@ -321,8 +321,8 @@ class ShardingCheckpointEngineTest(unittest.TestCase):
             sd = engine._load_from_storage()
             self.assertDictEqual(sd, {})
 
-            tracker_file = TorchNativeSaver.get_checkpoint_tracker_filename(
-                tmpdir
+            tracker_file = (
+                AsyncCheckpointSaver.get_checkpoint_tracker_filename(tmpdir)
             )
             with open(tracker_file, "w") as f:
                 f.write(str(step))
