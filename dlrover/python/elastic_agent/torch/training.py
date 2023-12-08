@@ -542,6 +542,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 self._exit_barrier()
                 return run_result
             elif state in {WorkerState.UNHEALTHY, WorkerState.FAILED}:
+                logger.error(f"The worker fails with {run_result.failures}")
                 self._report_failure_to_master(run_result.failures)
                 self._save_ckpt_to_storage()
                 if self._remaining_failovers > 0:
