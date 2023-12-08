@@ -34,6 +34,7 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
     AtorchFSDPShardingSaver,
     CheckpointSaver,
     CheckpointShardConfig,
+    MegatronCheckpointEngine,
     NoShardingCheckpointEngine,
     SaverClassMeta,
     ShardingCheckpointEngine,
@@ -163,6 +164,9 @@ class CheckpointSaverTest(unittest.TestCase):
             saver._shm_handlers[0]._tensor_shm = SharedMemory(
                 name=saver._shm_handlers[0]._shm_name
             )
+            saver._writing_storage = True
+            saver.save_shm_to_storage(timeout=2)
+            saver._writing_storage = False
             conf = saving_engine._shm_handler.get_checkpoint_config()
             self.assertEqual(conf.step, step)
             CheckpointSaver.register_signal_handler()
@@ -174,6 +178,14 @@ class CheckpointSaverTest(unittest.TestCase):
             ckpt_files = os.listdir(tmpdir)
             self.assertEqual(len(ckpt_files), 1)
             sq.unlink()
+
+    def test_commit_checkpoint(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            step_done_dir = os.path.join(tmpdir, ".done/10/")
+            os.makedirs(step_done_dir, exist_ok=True)
+            saver = TorchNativeSaver(tmpdir)
+            saver.global_shard_num = 1
+            saver.commit_checkpoint(100, step_done_dir, 2)
 
 
 class CheckpointEngineTest(unittest.TestCase):
@@ -199,6 +211,8 @@ class CheckpointEngineTest(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmpdirname:
             engine = NoShardingCheckpointEngine(tmpdirname)
+            engine._restart_count = 1
+            engine._notify_agent_to_create_saver()
             path = os.path.join(tmpdirname, "checkpoint-10.pt")
             torch.save(state_dict, path)
             tracer_file = os.path.join(
@@ -280,3 +294,38 @@ class ShardingCheckpointEngineTest(unittest.TestCase):
             saver: CheckpointSaver = CheckpointSaver.get_ckpt_saver()
             saver.close()
             saving_engine.close()
+
+    def test_megatron_engine(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            engine = MegatronCheckpointEngine(tmpdir)
+            global_shard_num = engine.get_global_shard_num()
+            self.assertEqual(global_shard_num, 1)
+            local_shard_num = engine.get_local_shard_num()
+            self.assertEqual(local_shard_num, 1)
+
+            saver_class = engine.get_saver_class()
+            self.assertEqual(saver_class, TorchNativeSaver)
+
+            step = 100
+            path = engine._get_checkpoint_name(step)
+            expected_path = os.path.join(
+                tmpdir, "iter_0000100/mp_rank_00/model_optim_rng.pt"
+            )
+            self.assertEqual(path, expected_path)
+
+            tensor = torch.rand(4, 4)
+            state_dict = {"weights": tensor}
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            torch.save(state_dict, path)
+
+            tracker_file = TorchNativeSaver.get_checkpoint_tracker_filename(
+                tmpdir
+            )
+            with open(tracker_file, "w") as f:
+                f.write(str(step))
+            sd = engine._load_from_storage(path)
+            self.assertTrue(torch.equal(sd["weights"], tensor))
+            sd = engine._load_from_storage()
+            self.assertTrue(torch.equal(sd["weights"], tensor))
+            sd = engine.load()
+            self.assertTrue(torch.equal(sd["weights"], tensor))

@@ -494,7 +494,7 @@ class CheckpointSaver(metaclass=ABCMeta):
         os.makedirs(done_dir, exist_ok=True)
         return done_dir
 
-    def save_shm_to_storage(self):
+    def save_shm_to_storage(self, timeout=120):
         """
         Save the state dict in the shared memory into the storage. The agent
         can call the method to save the state dict into the storage if the
@@ -508,9 +508,9 @@ class CheckpointSaver(metaclass=ABCMeta):
             logger.info("Saver is writing to storage, waiting...")
             start = time.time()
             while self._writing_storage:
-                time.sleep(10)
+                time.sleep(2)
                 elapsed_time = time.time() - start
-                if elapsed_time > 120:
+                if elapsed_time > timeout:
                     logger.error("Saver writing to storage, timeout")
                     return
         if self._any_rank_locked():
@@ -1061,6 +1061,7 @@ class NoShardingCheckpointEngine(CheckpointEngine):
         """
         if resume_path:
             state_dict = torch.load(resume_path)
+            return state_dict
         else:
             func = TorchNativeSaver.get_checkpoint_tracker_filename
             tracker_filename = func(self.checkpoint_dir)
@@ -1135,8 +1136,6 @@ class MegatronCheckpointEngine(ShardingCheckpointEngine):
     """
 
     def __init__(self, checkpoint_dir):
-        super().__init__(checkpoint_dir)
-
         if dist.is_initialized():
             from megatron import mpu
 
@@ -1151,6 +1150,8 @@ class MegatronCheckpointEngine(ShardingCheckpointEngine):
             self._dp_rank = 0
             self._pp_world_size = 1
             self._tp_world_size = 1
+
+        super().__init__(checkpoint_dir)
 
     @timer
     def save_to_storage(self, step, state_dict, path):
@@ -1221,6 +1222,7 @@ class MegatronCheckpointEngine(ShardingCheckpointEngine):
         """
         if resume_path:
             state_dict = torch.load(resume_path)
+            return state_dict
         else:
             func = TorchNativeSaver.get_checkpoint_tracker_filename
             tracker_filename = func(self.checkpoint_dir)
