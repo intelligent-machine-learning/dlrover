@@ -372,8 +372,9 @@ class FSDPCheckpointManger(CheckpointManger):
             "optimizer": osd,
             "sampler": ssd,
             "epoch": epoch,
+            "step": step,
         }
-        self._engine_save(self._ckpt_engine, checkpoint, step)
+        self._engine_save(self._ckpt_engine, step, checkpoint)
 
     def load(self, resuming_path=None):
         """

@@ -291,7 +291,11 @@ class SharedMemoryHandler(object):
         return state_dict
 
     def empty(self):
-        return self._tensor_shm is None
+        meta_dict = self._tensor_meta.get()
+        config: CheckpointShardConfig = meta_dict.get(_DLROVER_CKPT_KEY, None)
+        if config is None or config.step == 0:
+            return True
+        return False
 
     def init_tensor_shm(self, create=False, size=0):
         self._tensor_shm = _create_shared_memory(
@@ -502,6 +506,9 @@ class CheckpointSaver(metaclass=ABCMeta):
         processes.
         """
         if any([handler.empty() for handler in self._shm_handlers]):
+            logger.info(
+                "Skip because no any memory buffer with the state dict."
+            )
             return
 
         if self._writing_storage:
@@ -1038,6 +1045,7 @@ class NoShardingCheckpointEngine(CheckpointEngine):
         """
         state_dict = self._shm_handler.load_state_dict()
         if state_dict:
+            logger.info("Load the state dict from the CPU memory buffer.")
             state_dict.pop(_DLROVER_CKPT_KEY, None)
             return state_dict
         state_dict = self._load_from_storage(resume_path)
