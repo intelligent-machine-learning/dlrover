@@ -79,6 +79,7 @@ class CheckpointShardConfig:
 @dataclass
 class SaveEvent:
     step: int = 0
+    global_shard_num: int = 0
 
 
 def timer(func):
@@ -228,6 +229,13 @@ class SharedMemoryHandler(object):
         if self._tensor_meta:
             self._tensor_meta.unlink()
 
+    def reset(self):
+        self.close()
+        if self._tensor_shm:
+            self._tensor_shm.unlink()
+        self._tensor_meta.set({})
+        self._tensor_shm = None
+
     def _create_tensor_meta(self, value: torch.Tensor):
         """
         Create a tensor meta of a tensor and compute the total
@@ -263,10 +271,11 @@ class SharedMemoryHandler(object):
             writing_shm=True,
         )
         meta_dict[_DLROVER_CKPT_KEY] = conf
-        self._tensor_meta.update(meta_dict)
+        self._tensor_meta.set(meta_dict)
         _traverse_copy_to_shm(state_dict, meta_dict, self._tensor_shm.buf)
         conf.writing_shm = False
-        self._tensor_meta.update(meta_dict)
+        self._tensor_meta.set(meta_dict)
+        logger.info("122222221")
 
     def load_state_dict(self):
         """
@@ -349,7 +358,7 @@ class CheckpointSaver(metaclass=ABCMeta):
         # The latest step to save the checkpoint.
         self._latest_step = 0
         qname = _SAVE_STEP_QNAME_PREFIX + str(0)
-        self._to_save_queue = SharedQueue(name=qname, create=True)
+        self._event_queue = SharedQueue(name=qname, create=True)
         for i in range(self.local_shard_num):
             self._shm_handlers.append(SharedMemoryHandler(i))
             lock_name = _SHM_LOCK_NAME_PREFIX + str(i)
@@ -419,7 +428,7 @@ class CheckpointSaver(metaclass=ABCMeta):
                 self._shm_handlers[i].close()
                 self._shm_handlers[i].unlink()
             self._shm_locks[i].unlink()
-        self._to_save_queue.unlink()
+        self._event_queue.unlink()
         self._executor.shutdown()
 
     def _sync_shm_to_storage(self):
@@ -429,11 +438,25 @@ class CheckpointSaver(metaclass=ABCMeta):
         """
         logger.info("Async checkpoint saver starts!")
         while True:
-            event: SaveEvent = self._to_save_queue.get()
-            logger.info(
-                f"ShardingSaver save checkpoint to storage, event {event}"
-            )
-            self.save_step_checkpoint(event.step)
+            event: SaveEvent = self._event_queue.get()
+            if (
+                event.global_shard_num > 0
+                and event.global_shard_num != self.global_shard_num
+            ):
+                logger.info(
+                    "Reset the shard memory because the number of "
+                    "global shards changes"
+                )
+                self._reset_shared_memory()
+            elif event.step > 0:
+                logger.info(
+                    f"ShardingSaver save checkpoint to storage, event {event}"
+                )
+                self.save_step_checkpoint(event.step)
+
+    def _reset_shared_memory(self):
+        for shm_handler in self._shm_handlers:
+            shm_handler.reset()
 
     def _save_shard(
         self, step, local_shard_id: int, ckpt_path: str, step_done_dir: str
@@ -899,11 +922,11 @@ class CheckpointEngine(metaclass=ABCMeta):
         self._restart_count = env_utils.get_torch_restart_count()
         # queue for agent to save to storage, only rank 0
         if self._rank == 0:
-            self._to_save_queue = SharedQueue(
+            self._event_queue = SharedQueue(
                 name=_SAVE_STEP_QNAME_PREFIX + str(0), create=False
             )
         else:
-            self._to_save_queue = None  # type: ignore
+            self._event_queue = None  # type: ignore
         # lock for shared memory
         local_shard_num = self.get_local_shard_num()
         self.local_shard_id = self._local_rank % local_shard_num
@@ -913,6 +936,7 @@ class CheckpointEngine(metaclass=ABCMeta):
             self.local_shard_id, host=False
         )
         self._notify_agent_to_create_saver()
+        self._update_saver_config()
 
     def __del__(self):
         self.close()
@@ -948,6 +972,13 @@ class CheckpointEngine(metaclass=ABCMeta):
 
         queue.put(class_meta)
         queue.unlink()
+
+    def _update_saver_config(self):
+        """Update the sharding configuration to the saver."""
+        if self._local_rank == 0:
+            global_shard_num = self.get_global_shard_num()
+            event: SaveEvent = SaveEvent(global_shard_num=global_shard_num)
+            self._event_queue.put(event)
 
     @timer
     def save_to_memory(self, step, state_dict, path=""):
@@ -1120,7 +1151,7 @@ class NoShardingCheckpointEngine(CheckpointEngine):
             self.save_to_memory(step, state_dict, path)
         event = SaveEvent(step)
         if self._local_rank == 0:
-            self._to_save_queue.put(event)
+            self._event_queue.put(event)
 
     def load(self, resume_path=""):
         """
@@ -1173,7 +1204,7 @@ class NoShardingCheckpointEngine(CheckpointEngine):
             return state_dict
 
 
-class ShardingCheckpointEngine(CheckpointEngine):
+class FSDPShardingCheckpointEngine(CheckpointEngine):
     """
     The engine to save the sharding model and optimizer state dict
     shared across all ranks into the memory and storage.
@@ -1193,10 +1224,10 @@ class ShardingCheckpointEngine(CheckpointEngine):
 
         save_event = SaveEvent(step=step)
         if self._local_rank == 0:
-            self._to_save_queue.put(save_event)
+            self._event_queue.put(save_event)
 
 
-class MegatronCheckpointEngine(ShardingCheckpointEngine):
+class MegatronCheckpointEngine(CheckpointEngine):
     """
     The checkpoint engine synchronously writes the state dict into
     the shared memory and notify the agent in main process to
@@ -1247,6 +1278,26 @@ class MegatronCheckpointEngine(ShardingCheckpointEngine):
             self._tp_world_size = 1
 
         super().__init__(checkpoint_dir)
+        if dist.is_initialized():
+            self._saver_group = dist.new_group(
+                backend="gloo",
+                timeout=timedelta(seconds=30),
+            )
+
+    def _get_saver_ranks(self):
+        """
+        Get the ranks which need to save the sharding state dict into
+        the memory.
+        """
+        world_size = dist.get_world_size()
+        local_world_size = env_utils.get_local_world_size()
+        save_ranks = []
+        local_shard_num = self.get_local_shard_num()
+        for i in range(world_size):
+            local_rank = i % local_world_size
+            if local_rank < local_shard_num:
+                save_ranks.append(i)
+        return save_ranks
 
     @timer
     def save_to_storage(self, step, state_dict, path):
@@ -1264,13 +1315,13 @@ class MegatronCheckpointEngine(ShardingCheckpointEngine):
                 path is not defined, the engine will save the state dict into
                 the shared memory not the storage.
         """
-        if self._dp_rank != 0:
+        if self._dp_rank != 0 or self._local_rank != 0:
             return
         if step > self._cached_step:
             self.save_to_memory(step, state_dict, path)
         if path:
             event = SaveEvent(step)
-            self._to_save_queue.put(event)
+            self._event_queue.put(event)
 
     def get_local_shard_num(self):
         local_world_size = env_utils.get_local_world_size()

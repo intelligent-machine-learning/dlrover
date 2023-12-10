@@ -14,6 +14,7 @@
 import os
 import signal
 import tempfile
+import threading
 import time
 import unittest
 from pathlib import Path
@@ -35,10 +36,10 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
     AtorchFSDPShardingSaver,
     CheckpointSaver,
     CheckpointShardConfig,
+    FSDPShardingCheckpointEngine,
     MegatronCheckpointEngine,
     NoShardingCheckpointEngine,
     SaverClassMeta,
-    ShardingCheckpointEngine,
     SharedMemoryHandler,
     _create_shared_memory,
     _traverse_state_dict,
@@ -68,6 +69,15 @@ class SimpleNet(nn.Module):
         return output
 
 
+class ShardingEngineDemo(NoShardingCheckpointEngine):
+    def __init__(self, checkpoint_dir, global_shard_num=1):
+        self._global_shard_num = global_shard_num
+        super().__init__(checkpoint_dir)
+
+    def get_global_shard_num(self):
+        return self._global_shard_num
+
+
 class SharedMemoryHandlerTest(unittest.TestCase):
     def setUp(self):
         local_rank = 1
@@ -89,7 +99,7 @@ class SharedMemoryHandlerTest(unittest.TestCase):
     def test_load_state_dict(self):
         state_dict = self._shm_handler.load_state_dict()
         self.assertDictEqual(state_dict, {})
-        self._shm_handler._tensor_meta.update({"step": 100})
+        self._shm_handler._tensor_meta.set({"step": 100})
         meta_dict = self._shm_handler._tensor_meta.get()
         self.assertDictEqual(meta_dict, {"step": 100})
 
@@ -116,6 +126,7 @@ class CheckpointSaverTest(unittest.TestCase):
                 time.sleep(0.5)
             else:
                 break
+        self.assertIsNotNone(CheckpointSaver._saver_instance)
 
     def test_close_saver(self):
         saver = AsyncCheckpointSaver("test_ckpt")
@@ -155,6 +166,7 @@ class CheckpointSaverTest(unittest.TestCase):
             CheckpointSaver._saver_instance = AsyncCheckpointSaver(tmpdir)
             sq = SharedQueue(name="factory", create=True)
             saving_engine = NoShardingCheckpointEngine(tmpdir)
+            sq.unlink()
             saving_engine.save_to_memory(step, state_dict)
             meta_dict = saving_engine._shm_handler._tensor_meta._dict
             ckpt_config: CheckpointShardConfig = meta_dict[_DLROVER_CKPT_KEY]
@@ -177,7 +189,33 @@ class CheckpointSaverTest(unittest.TestCase):
                 handler(None, None)
             ckpt_files = os.listdir(tmpdir)
             self.assertEqual(len(ckpt_files), 1)
+            saver.close()
+
+    def test_shard_num_changes(self):
+        model = SimpleNet()
+        step = 100
+        state_dict = dict(
+            model=model.state_dict(),
+            step=step,
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            saver = AsyncCheckpointSaver(tmpdir)
+            threading.Thread(
+                target=saver._sync_shm_to_storage, daemon=True
+            ).start()
+            # Mock a shared queue for the engine.
+            sq = SharedQueue(name="factory", create=True)
+            saving_engine = ShardingEngineDemo(tmpdir, 1)
             sq.unlink()
+            saving_engine.save_to_memory(step, state_dict)
+            sq = SharedQueue(name="factory", create=True)
+            saving_engine = ShardingEngineDemo(tmpdir, 2)
+            sq.unlink()
+            self.assertTrue(saver._shm_handlers[0].empty())
+            self.assertIsNone(saver._shm_handlers[0]._tensor_shm)
+            saving_engine.save_to_memory(step, state_dict)
+            self.assertFalse(saver._shm_handlers[0].empty())
+            saver.close()
 
     def test_commit_checkpoint(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -241,7 +279,7 @@ class SimpleShardingSaver(AtorchFSDPShardingSaver):
             f.write(str(step))
 
 
-class SimpleShardingCheckpointEngine(ShardingCheckpointEngine):
+class SimpleShardingCheckpointEngine(FSDPShardingCheckpointEngine):
     def get_saver_class(self):
         return SimpleShardingSaver
 

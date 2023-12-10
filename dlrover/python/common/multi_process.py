@@ -455,8 +455,8 @@ class SharedDict(LocalSocketComm):
                 recv_data = _socket_recv(connection)
                 msg: SocketRequest = pickle.loads(recv_data)
                 response = DictMessage()
-                if msg.method == "update":
-                    self.update(**msg.args)
+                if msg.method == "set":
+                    self.set(**msg.args)
                     self._shared_queue.get(1)
                 elif msg.method == "get":
                     response = DictMessage()
@@ -468,18 +468,18 @@ class SharedDict(LocalSocketComm):
             message = pickle.dumps(response)
             _socket_send(connection, message)
 
-    def update(self, new_dict):
+    def set(self, new_dict):
         """
-        Update the dict to the remote shared dict.
+        Set the dict to the remote shared dict.
 
         Args:
-            new_dict (dict): a new dict to update.
+            new_dict (dict): a new dict to set.
         """
-        if new_dict:
-            self._dict.update(new_dict)
+        self._dict = new_dict
+        logger.info(f"{self._server}, self dict = {self._dict}")
         if not self._server:
             args = {"new_dict": self._dict}
-            request = SocketRequest(method="update", args=args)
+            request = SocketRequest(method="set", args=args)
             try:
                 self._shared_queue.put(1)
                 self._request(request)
@@ -506,7 +506,7 @@ class SharedDict(LocalSocketComm):
             request = SocketRequest(method="get", args={})
             response: DictMessage = self._request(request)
             if response.status == SUCCESS_CODE:
-                self._dict.update(response.meta_dict)
+                self._dict = response.meta_dict
             return self._dict
 
 
