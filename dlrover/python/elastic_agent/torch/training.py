@@ -18,6 +18,7 @@ import socket
 import tempfile
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, List, Optional, Union
@@ -69,7 +70,6 @@ from dlrover.python.elastic_agent.master_client import MasterClient
 from dlrover.python.elastic_agent.monitor.training import TorchTrainingMonitor
 from dlrover.python.elastic_agent.torch.ckpt_saver import CheckpointSaver
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
-from concurrent.futures import ThreadPoolExecutor
 
 __all__ = ["launch_agent"]
 
