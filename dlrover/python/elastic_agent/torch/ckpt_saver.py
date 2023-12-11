@@ -1193,7 +1193,7 @@ class NoShardingCheckpointEngine(CheckpointEngine):
                 checkpointing file.
         """
         if resume_path:
-            state_dict = torch.load(resume_path, map_location='cpu')
+            state_dict = torch.load(resume_path, map_location="cpu")
             return state_dict
         else:
             func = AsyncCheckpointSaver.get_checkpoint_tracker_filename
@@ -1206,7 +1206,7 @@ class NoShardingCheckpointEngine(CheckpointEngine):
             name = f"{CheckpointConstant.CKPT_NAME_PREFIX}{iteration}.pt"
             path = os.path.join(self.checkpoint_dir, name)
             logger.info(f"Load the state dict from {path}")
-            state_dict = torch.load(path, map_location='cpu')
+            state_dict = torch.load(path, map_location="cpu")
             return state_dict
 
 
@@ -1378,7 +1378,7 @@ class MegatronCheckpointEngine(CheckpointEngine):
                 checkpointing file.
         """
         if resume_path:
-            state_dict = torch.load(resume_path, map_location='cpu')
+            state_dict = torch.load(resume_path, map_location="cpu")
             return state_dict
         else:
             func = AsyncCheckpointSaver.get_checkpoint_tracker_filename
@@ -1389,7 +1389,7 @@ class MegatronCheckpointEngine(CheckpointEngine):
                 metastring = f.read().strip()
             iteration = int(metastring)
             ckpt_name = self._get_checkpoint_name(iteration)
-            state_dict = torch.load(ckpt_name, map_location='cpu')
+            state_dict = torch.load(ckpt_name, map_location="cpu")
             return state_dict
 
     def _get_checkpoint_name(self, step):
