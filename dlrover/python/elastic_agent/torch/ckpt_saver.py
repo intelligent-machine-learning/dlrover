@@ -42,6 +42,9 @@ _TENSOR_SHM_NAME_PREFIX = "checkpoint_shm_shard_"
 _SHM_LOCK_NAME_PREFIX = "shm_shard_"
 _DLROVER_CKPT_KEY = "_DLORVER_CKPT_CONFIG"
 
+_SAVE_EVENT_NAME = "SAVE_CHECKPOINT"
+_UPDATE_EVENT_NAME = "UPDATE_SHARD_NUM"
+
 
 @dataclass
 class SaverClassMeta:
@@ -78,6 +81,7 @@ class CheckpointShardConfig:
 
 @dataclass
 class SaveEvent:
+    name: str = ""
     step: int = 0
     global_shard_num: int = 0
 
@@ -439,7 +443,7 @@ class CheckpointSaver(metaclass=ABCMeta):
         while True:
             event: SaveEvent = self._event_queue.get()
             if (
-                event.global_shard_num > 0
+                event.name == _UPDATE_EVENT_NAME
                 and event.global_shard_num != self.global_shard_num
             ):
                 logger.info(
@@ -447,7 +451,7 @@ class CheckpointSaver(metaclass=ABCMeta):
                     "global shards changes"
                 )
                 self._reset_shared_memory()
-            elif event.step > 0:
+            elif event.name == _SAVE_EVENT_NAME:
                 logger.info(
                     f"ShardingSaver save checkpoint to storage, event {event}"
                 )
@@ -976,7 +980,10 @@ class CheckpointEngine(metaclass=ABCMeta):
         """Update the sharding configuration to the saver."""
         if self._local_rank == 0:
             global_shard_num = self.get_global_shard_num()
-            event: SaveEvent = SaveEvent(global_shard_num=global_shard_num)
+            event: SaveEvent = SaveEvent(
+                name=_UPDATE_EVENT_NAME,
+                global_shard_num=global_shard_num,
+            )
             self._event_queue.put(event)
 
     @timer
@@ -1148,7 +1155,7 @@ class NoShardingCheckpointEngine(CheckpointEngine):
             return
         if step > self._cached_step:
             self.save_to_memory(step, state_dict, path)
-        event = SaveEvent(step)
+        event = SaveEvent(name=_SAVE_EVENT_NAME, step=step)
         if self._local_rank == 0:
             self._event_queue.put(event)
 
@@ -1221,7 +1228,7 @@ class FSDPShardingCheckpointEngine(CheckpointEngine):
         if step > self._cached_step:
             self.save_to_memory(step, state_dict, path)
 
-        save_event = SaveEvent(step=step)
+        save_event = SaveEvent(name=_SAVE_EVENT_NAME, step=step)
         if self._local_rank == 0:
             self._event_queue.put(save_event)
 
@@ -1324,7 +1331,7 @@ class MegatronCheckpointEngine(CheckpointEngine):
         if self._dp_rank != 0 or self._local_rank != 0:
             return
         if path:
-            event = SaveEvent(step)
+            event = SaveEvent(name=_SAVE_EVENT_NAME, step=step)
             self._event_queue.put(event)
 
     def get_local_shard_num(self):
