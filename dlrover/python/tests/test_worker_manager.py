@@ -100,11 +100,14 @@ class WorkerManagerTest(unittest.TestCase):
             self._elastic_job.get_node_service_addr,
             self._elastic_job.get_node_name,
         )
+        failed_worker = self._job_nodes[NodeType.WORKER][4]
+        failed_worker.status = NodeStatus.FAILED
         plan = worker_manager.relaunch_node(
-            self._job_nodes[NodeType.WORKER][4]
+            failed_worker, remove_exited_node=True
         )
         self.assertEqual(plan.launch_nodes[0].config_resource.cpu, 16)
         self.assertEqual(worker_manager._nodes[5].id, 5)
+        self.assertEqual(plan.remove_nodes[0].config_resource.cpu, 16)
 
     def test_relaunch_chief_node(self):
         tf_master_node = Node(
