@@ -560,7 +560,7 @@ class DistributedJobManager(JobManager):
             for _, node in nodes.items():
                 if not node.is_released and node.exited():
                     scale_plan.remove_nodes.append(node)
-        if not scale_plan.remove_nodes:
+        if len(scale_plan.remove_nodes) > 0:
             logger.info(f"Remove exited nodes {scale_plan.remove_nodes}")
             self._scaler.scale(scale_plan)
 
