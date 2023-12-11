@@ -101,7 +101,8 @@ def _convert_pod_event_to_node_event(event):
     host_ip = evt_obj.status.host_ip
 
     restart = _verify_restarting_training(evt_obj)
-    logger.info(f"{evt_obj.metadata.name} resets hardware {restart}")
+    if restart:
+        logger.info(f"{evt_obj.metadata.name} need to restart.")
 
     resource = _parse_container_resource(evt_obj.spec.containers[0])
     status = evt_obj.status.phase
