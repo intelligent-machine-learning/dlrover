@@ -188,10 +188,9 @@ class TrainingNodeManager(object):
         plan.remove_nodes.append(worker)
         return plan
 
-    def relaunch_node(self, node: Node):
+    def relaunch_node(self, node: Node, remove_exited_node=False):
         plan = ScalePlan()
         with self._lock:
-            node.is_released = True
             new_id = next(self._node_id_iter)
             relaunch_node = node.get_relaunch_node_info(new_id)
             self._nodes[new_id] = relaunch_node
@@ -207,6 +206,9 @@ class TrainingNodeManager(object):
                 relaunch_count=relaunch_node.relaunch_count,
             )
         )
+        if remove_exited_node and not node.is_released and node.exited():
+            node.is_released = True
+            plan.remove_nodes.append(node)
         return plan
 
     def reduce_pending_node_resource(self):
