@@ -614,7 +614,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         if self._save_ckpt_future:
             # Waiting the thread to save checkpoint finishes.
             self._save_ckpt_future.result(timeout=600)
-        super()._start_workers(worker_group)
+        return super()._start_workers(worker_group)
 
     def _membership_changed(self, role, rdzv_handler: RendezvousHandler):
         # Timeout may happen when to query TCPStore.
