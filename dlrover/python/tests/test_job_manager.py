@@ -460,6 +460,7 @@ class DistributedJobManagerTest(unittest.TestCase):
         manager._remove_exited_node = True
         manager._job_nodes[NodeType.WORKER][0].status = NodeStatus.FAILED
         manager.clear_exited_nodes()
+        self.assertTrue(manager._job_nodes[NodeType.WORKER][0].is_released)
 
         for node in manager._job_nodes[NodeType.PS].values():
             node.status = NodeStatus.PENDING

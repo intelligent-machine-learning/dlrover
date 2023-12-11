@@ -310,7 +310,8 @@ def train():
     ckpt_manager = CheckpointManger.init_checkpoint_manager(
         model, optimizer, train_loader, checkpoint_dir
     )
-    ckpt_manager.load()
+    ckpt_dict = ckpt_manager.load()
+    iter_num = ckpt_dict.get("step", 0)
 
     for epoch in range(args.epochs):
         # Note: set the epoch into the sampler.

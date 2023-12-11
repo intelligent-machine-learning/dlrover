@@ -267,3 +267,8 @@ class ConfigPath(object):
     ENV_RUNTIME_METRICS = "RUNTIME_METRICS_PATH"
     RUNTIME_METRICS = "/tmp/dlrover/runtime_metrics.json"
     NETWORK_CHECK_DATA_DIR = "/tmp/dlrover/network_check/"
+
+
+class CheckpointConstant(object):
+    CKPT_NAME_PREFIX = "checkpoint-"
+    TRACER_FILE_NAME = "latest_checkpointed_iteration.txt"

@@ -30,6 +30,10 @@ def get_local_world_size():
     return int(os.getenv("LOCAL_WORLD_SIZE", 1))
 
 
+def get_local_rank():
+    return int(os.getenv("LOCAL_RANK", 0))
+
+
 def get_group_world_size():
     return int(os.getenv("GROUP_WORLD_SIZE", 1))
 

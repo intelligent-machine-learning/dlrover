@@ -28,11 +28,13 @@ class SharedLockTest(unittest.TestCase):
         client_lock = SharedLock(name, create=False)
         acquired = server_lock.acquire()
         self.assertTrue(acquired)
+        self.assertTrue(server_lock.locked())
         acquired = client_lock.acquire(blocking=False)
         self.assertFalse(acquired)
         server_lock.release()
         acquired = client_lock.acquire(blocking=False)
         self.assertTrue(acquired)
+        self.assertTrue(server_lock.locked())
         client_lock.release()
 
     def test_shared_queue(self):
@@ -57,9 +59,9 @@ class SharedLockTest(unittest.TestCase):
         server_dict = SharedDict(name=name, create=True)
         client_dict = SharedDict(name=name, create=False)
         new_dict = {"a": 1, "b": 2}
-        client_dict.update(new_dict)
+        client_dict.set(new_dict)
         new_dict["a"] = 4
-        client_dict.update(new_dict)
+        client_dict.set(new_dict)
         d = server_dict.get()
         self.assertDictEqual(d, new_dict)
         d = client_dict.get()
