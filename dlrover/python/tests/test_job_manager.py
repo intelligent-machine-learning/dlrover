@@ -457,6 +457,10 @@ class DistributedJobManagerTest(unittest.TestCase):
         msg = manager.early_stop()
         self.assertTrue(msg == "")
 
+        manager._remove_exited_node = True
+        manager._job_nodes[NodeType.WORKER][0].status = NodeStatus.FAILED
+        manager.clear_exited_nodes()
+
         for node in manager._job_nodes[NodeType.PS].values():
             node.status = NodeStatus.PENDING
             node.create_time = datetime.now() + timedelta(days=-1)

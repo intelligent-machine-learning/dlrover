@@ -175,6 +175,7 @@ class DistributedJobMaster(JobMaster):
                 if msg:
                     self.request_stop(False, msg)
                     continue
+                self.job_manager.clear_exited_nodes()
                 if self.job_manager and self.job_manager.all_workers_exited():
                     if self.job_manager.pend_without_workers():
                         time.sleep(30)

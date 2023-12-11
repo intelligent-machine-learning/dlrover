@@ -103,6 +103,7 @@ class DistributedJobManager(JobManager):
         job_scaler=None,
         error_monitor=None,
     ):
+        self._remove_exited_node = job_args.remove_exited_node
         self._job_resource = JobResource()
         node_restart_count: Dict[str, int] = {}
         for type, node_args in job_args.node_args.items():
@@ -531,17 +532,37 @@ class DistributedJobManager(JobManager):
 
     def _relaunch_node(self, node: Node):
         if node.type == NodeType.WORKER:
-            plan = self._worker_manager.relaunch_node(node)
+            plan = self._worker_manager.relaunch_node(
+                node, self._remove_exited_node
+            )
         elif node.type == NodeType.PS:
-            plan = self._ps_manager.relaunch_node(node)
+            plan = self._ps_manager.relaunch_node(
+                node, self._remove_exited_node
+            )
         elif node.type == NodeType.EVALUATOR:
-            plan = self._evaluator_manager.relaunch_node(node)
+            plan = self._evaluator_manager.relaunch_node(
+                node, self._remove_exited_node
+            )
         elif node.type == NodeType.CHIEF or node.type == NodeType.MASTER:
-            plan = self._chief_manager.relaunch_node(node)
+            plan = self._chief_manager.relaunch_node(
+                node, self._remove_exited_node
+            )
         else:
             logger.error("Not support node type %s", node.type)
         self._set_ps_addrs_in_plan(plan)
         self._scaler.scale(plan)
+
+    def clear_exited_nodes(self):
+        if not self._remove_exited_node:
+            return
+        scale_plan = ScalePlan()
+        for _, nodes in self._job_nodes.items():
+            for _, node in nodes.items():
+                if not node.is_released and node.exited():
+                    scale_plan.remove_nodes.append(node)
+        if not scale_plan.remove_nodes:
+            logger.info(f"Remove exited nodes {scale_plan.remove_nodes}")
+            self._scaler.scale(scale_plan)
 
     def all_workers_exited(self):
         return (

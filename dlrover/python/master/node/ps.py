@@ -79,7 +79,7 @@ class ParameterServerManager(TrainingNodeManager):
                 self._training_ps_cluster.append(node)
                 self._next_training_ps_cluster.append(node)
 
-    def relaunch_node(self, node: Node):
+    def relaunch_node(self, node: Node, remove_exited_node=False):
         plan = ScalePlan()
         with self._lock:
             node.is_released = True
@@ -101,6 +101,8 @@ class ParameterServerManager(TrainingNodeManager):
             )
         )
         self._ps_cluster_changed = True
+        if remove_exited_node and not node.is_released and node.exited():
+            plan.remove_nodes.append(node)
         return plan
 
     def adjust_ps(self, ps_resource: NodeGroupResource):
