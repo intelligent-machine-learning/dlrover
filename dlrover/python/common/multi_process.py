@@ -133,6 +133,18 @@ class LockAcquireResponse(SocketResponse):
     acquired: bool = False
 
 
+@dataclass
+class LockedResponse(SocketResponse):
+    """
+    A response to acquire the status of a lock.
+
+    Attributes:
+        locked (bool): Ture if the lock is locked.
+    """
+
+    locked: bool = False
+
+
 class LocalSocketComm(metaclass=ABCMeta):
     """
     Local socket for processes to communicate.
@@ -215,14 +227,17 @@ class SharedLock(LocalSocketComm):
             try:
                 recv_data = _socket_recv(connection)
                 msg: SocketRequest = pickle.loads(recv_data)
-                response = LockAcquireResponse()
                 if msg.method == "acquire":
+                    response = LockAcquireResponse()
                     response.acquired = self.acquire(**msg.args)
+                elif msg.method == "locked":
+                    response = LockedResponse()
+                    response.locked = self.locked()
                 elif msg.method == "release":
                     self.release()
                 response.status = SUCCESS_CODE
             except Exception:
-                response = LockAcquireResponse()
+                response = SocketResponse()
                 response.status = ERROR_CODE
             send_data = pickle.dumps(response)
             _socket_send(connection, send_data)
@@ -242,7 +257,7 @@ class SharedLock(LocalSocketComm):
                 args={"blocking": blocking},
             )
             response = self._request(request)
-            if response:
+            if response.status == SUCCESS_CODE:
                 return response.acquired
             return False
 
@@ -259,6 +274,16 @@ class SharedLock(LocalSocketComm):
                 args={},
             )
             self._request(request)
+
+    def locked(self):
+        if self._server:
+            return self._lock.locked()
+        else:
+            request = SocketRequest(
+                method="locked",
+                args={},
+            )
+            return self._request(request)
 
 
 @dataclass
@@ -430,8 +455,8 @@ class SharedDict(LocalSocketComm):
                 recv_data = _socket_recv(connection)
                 msg: SocketRequest = pickle.loads(recv_data)
                 response = DictMessage()
-                if msg.method == "update":
-                    self.update(**msg.args)
+                if msg.method == "set":
+                    self.set(**msg.args)
                     self._shared_queue.get(1)
                 elif msg.method == "get":
                     response = DictMessage()
@@ -443,18 +468,17 @@ class SharedDict(LocalSocketComm):
             message = pickle.dumps(response)
             _socket_send(connection, message)
 
-    def update(self, new_dict):
+    def set(self, new_dict):
         """
-        Update the dict to the remote shared dict.
+        Set the dict to the remote shared dict.
 
         Args:
-            new_dict (dict): a new dict to update.
+            new_dict (dict): a new dict to set.
         """
-        if new_dict:
-            self._dict.update(new_dict)
+        self._dict = new_dict
         if not self._server:
             args = {"new_dict": self._dict}
-            request = SocketRequest(method="update", args=args)
+            request = SocketRequest(method="set", args=args)
             try:
                 self._shared_queue.put(1)
                 self._request(request)
@@ -481,7 +505,7 @@ class SharedDict(LocalSocketComm):
             request = SocketRequest(method="get", args={})
             response: DictMessage = self._request(request)
             if response.status == SUCCESS_CODE:
-                self._dict.update(response.meta_dict)
+                self._dict = response.meta_dict
             return self._dict
 
 

@@ -26,10 +26,8 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader, Dataset
 
 from dlrover.python.common import grpc
-from dlrover.python.elastic_agent.torch.ckpt_saver import (
-    CheckpointSaver,
-    _get_latest_checkpoint,
-)
+from dlrover.python.common.constants import CheckpointConstant
+from dlrover.python.elastic_agent.torch.ckpt_saver import CheckpointSaver
 from dlrover.trainer.torch.elastic.checkpoint import CheckpointManger
 from dlrover.trainer.torch.elastic.sampler import ElasticDistributedSampler
 
@@ -91,7 +89,7 @@ def create_torch_modules():
 
 
 def _wait_async_saving_finished(dir_name, step):
-    ckpt_path = os.path.join(dir_name, f"checkpoint-{step}/checkpoint.pt")
+    ckpt_path = os.path.join(dir_name, f"checkpoint-{step}.pt")
     while True:
         if os.path.exists(ckpt_path):
             return
@@ -100,8 +98,12 @@ def _wait_async_saving_finished(dir_name, step):
 
 class CheckpointManagerTest(unittest.TestCase):
     def setUp(self):
-        if CheckpointSaver._saver_instance is None:
-            CheckpointSaver.start_async_saving_ckpt()
+        CheckpointSaver._saver_instance = None
+        CheckpointSaver.start_async_saving_ckpt()
+
+    def tearDown(self) -> None:
+        if CheckpointSaver._saver_instance:
+            CheckpointSaver._saver_instance.close()
 
     def test_ddp_save_load(self):
         os.environ["LOCAL_RANK"] = "0"
@@ -124,11 +126,18 @@ class CheckpointManagerTest(unittest.TestCase):
                     ckpt_manager.save(epoch=0, step=step)
                     _wait_async_saving_finished(tmpdirname, step)
                 ckpt_dirs = os.listdir(tmpdirname)
-                self.assertEqual(len(ckpt_dirs), 2)
+                ckpt_num = 0
+                for d in ckpt_dirs:
+                    if d.endswith(".pt"):
+                        ckpt_num += 1
+                self.assertEqual(ckpt_num, 2)
 
-                ckpt_dir = _get_latest_checkpoint(tmpdirname)
-                expected_dir = os.path.join(tmpdirname, "checkpoint-30")
-                self.assertEqual(ckpt_dir, expected_dir)
+                tracer_file = os.path.join(
+                    tmpdirname, CheckpointConstant.TRACER_FILE_NAME
+                )
+                with open(tracer_file, "r") as f:
+                    restored_step = int(f.read())
+                self.assertEqual(step, restored_step)
 
                 ckpt_manager.load()
                 self.assertEqual(dataloader.sampler.total_size, 60002)
