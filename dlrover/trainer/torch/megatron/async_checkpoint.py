@@ -51,7 +51,7 @@ class DlroverCheckpointSaver(object):
         self.engine = MegatronCheckpointEngine(checkpoint_dir)
 
 
-def async_save_to_storage(iteration, model, optimizer, opt_param_scheduler):
+def save_to_storage(iteration, model, optimizer, opt_param_scheduler):
     """
     Asynchronously save the the checkpointing state dict into the storage.
     The method will not wait for saving the checkpointing to the storage.
@@ -81,7 +81,7 @@ def async_save_to_storage(iteration, model, optimizer, opt_param_scheduler):
         torch.distributed.barrier()
 
 
-def sync_save_to_memory(iteration, model, optimizer, opt_param_scheduler):
+def save_to_memory(iteration, model, optimizer, opt_param_scheduler):
     """
     Synchronously save the the checkpointing state dict into the CPU memory.
     """
