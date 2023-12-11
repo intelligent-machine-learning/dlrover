@@ -69,6 +69,7 @@ from dlrover.python.elastic_agent.master_client import MasterClient
 from dlrover.python.elastic_agent.monitor.training import TorchTrainingMonitor
 from dlrover.python.elastic_agent.torch.ckpt_saver import CheckpointSaver
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
+from concurrent.futures import ThreadPoolExecutor
 
 __all__ = ["launch_agent"]
 
@@ -346,6 +347,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
             self._paral_config_tuner = ParalConfigTuner()
             self._paral_config_tuner.start()
 
+        self._save_ckpt_pool = ThreadPoolExecutor(max_workers=1)
+        self._save_ckpt_future = None
+
     @prof
     def _rendezvous(self, worker_group: WorkerGroup) -> None:
         r"""
@@ -572,7 +576,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
         """
         saver: CheckpointSaver = CheckpointSaver.get_ckpt_saver()
         if saver:
-            saver.save_shm_to_storage()
+            self._save_ckpt_future = self._save_ckpt_pool.submit(
+                saver.save_shm_to_storage
+            )
 
     def _stop_workers_to_restart(self):
         """
@@ -603,6 +609,12 @@ class ElasticTrainingAgent(LocalElasticAgent):
         self._restart_count += 1
         self._remaining_restarts -= 1
         super()._restart_workers(worker_group)
+
+    def _start_workers(self, worker_group: WorkerGroup):
+        if self._save_ckpt_future:
+            # Waiting the thread to save checkpoint finishes.
+            self._save_ckpt_future.result(timeout=600)
+        super()._start_workers(worker_group)
 
     def _membership_changed(self, role, rdzv_handler: RendezvousHandler):
         # Timeout may happen when to query TCPStore.
