@@ -275,7 +275,6 @@ class SharedMemoryHandler(object):
         _traverse_copy_to_shm(state_dict, meta_dict, self._tensor_shm.buf)
         conf.writing_shm = False
         self._tensor_meta.set(meta_dict)
-        logger.info("122222221")
 
     def load_state_dict(self):
         """
@@ -1279,7 +1278,10 @@ class MegatronCheckpointEngine(CheckpointEngine):
 
         super().__init__(checkpoint_dir)
         if dist.is_initialized():
+            saver_ranks = self._get_saver_ranks()
+            logger.info(f"Saver ranks of Megatron-LM is {saver_ranks}")
             self._saver_group = dist.new_group(
+                ranks=saver_ranks,
                 backend="gloo",
                 timeout=timedelta(seconds=30),
             )
@@ -1315,10 +1317,12 @@ class MegatronCheckpointEngine(CheckpointEngine):
                 path is not defined, the engine will save the state dict into
                 the shared memory not the storage.
         """
-        if self._dp_rank != 0 or self._local_rank != 0:
-            return
         if step > self._cached_step:
             self.save_to_memory(step, state_dict, path)
+
+        # Only local rank 0 to notify the saving event to the agent.
+        if self._dp_rank != 0 or self._local_rank != 0:
+            return
         if path:
             event = SaveEvent(step)
             self._event_queue.put(event)

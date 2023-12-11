@@ -476,7 +476,6 @@ class SharedDict(LocalSocketComm):
             new_dict (dict): a new dict to set.
         """
         self._dict = new_dict
-        logger.info(f"{self._server}, self dict = {self._dict}")
         if not self._server:
             args = {"new_dict": self._dict}
             request = SocketRequest(method="set", args=args)
