@@ -757,8 +757,10 @@ class DistributedJobManager(JobManager):
         node = self._job_nodes[node_type][node_id]
         node.update_paral_config(paral_config)
 
-    def verify_restarting_worker_training(self):
-        return self._worker_manager.verify_restarting_training()
+    def verify_restarting_worker_training(self, node_type, node_id):
+        if node_type != NodeType.WORKER:
+            return False
+        return self._worker_manager.verify_restarting_training(node_id)
 
 
 def create_job_manager(args: JobArgs, speed_monitor) -> DistributedJobManager:
