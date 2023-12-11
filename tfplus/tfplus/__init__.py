@@ -17,6 +17,7 @@ import os
 
 from tensorflow.python.platform import tf_logging as logging
 
+from tfplus.flash_attn.python.ops import flash_attn_ops
 from tfplus.kv_variable.python import training as train
 from tfplus.kv_variable.python.ops import kv_variable_ops, variable_scope
 from tfplus.kv_variable.python.ops.kv_variable_ops import (

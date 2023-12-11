@@ -213,6 +213,13 @@ class Node(object):
         self.paral_config = paral_config
         self.restart_training = restart_training
 
+    def exited(self):
+        return self.status in [
+            NodeStatus.FAILED,
+            NodeStatus.SUCCEEDED,
+            NodeStatus.FINISHED,
+        ]
+
     def inc_relaunch_count(self):
         self.relaunch_count += 1
 

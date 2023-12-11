@@ -67,6 +67,7 @@ from dlrover.python.elastic_agent.config.paral_config_tuner import (
 )
 from dlrover.python.elastic_agent.master_client import MasterClient
 from dlrover.python.elastic_agent.monitor.training import TorchTrainingMonitor
+from dlrover.python.elastic_agent.torch.ckpt_saver import CheckpointSaver
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
 
 __all__ = ["launch_agent"]
@@ -83,7 +84,7 @@ def _set_paral_config():
 
 
 def _get_local_ip():
-    local_ip = os.getenv("MY_POD_IP", "")
+    local_ip = os.getenv("POD_IP", "")
     if not local_ip:
         local_ip = socket.gethostbyname(_get_fq_hostname())
     return local_ip
@@ -402,22 +403,19 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
     def _get_free_port(self):
         """Find a free port from the HOST_PORTS in env."""
-        port = None
+        free_port = None
         host_ports = os.getenv("HOST_PORTS", "")
         if host_ports:
             ports = []
             for port in host_ports.split(","):
                 ports.append(int(port))
-            for _ in range(10):
-                try:
-                    port = find_free_port_in_set(ports)
-                    return port
-                except ValueError as e:
-                    logger.warn(e)
-                    time.sleep(3)
-        else:
-            port = find_free_port_in_range(20000, 30000)
-        return port
+            try:
+                free_port = find_free_port_in_set(ports)
+            except RuntimeError as e:
+                logger.warn(e)
+        if not free_port:
+            free_port = find_free_port_in_range(20000, 30000)
+        return free_port
 
     # pyre-fixme[56]: Pyre was not able to infer the type of the decorator
     #  `torch.distributed.elastic.metrics.prof`.
@@ -489,6 +487,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 if self._config.network_check:
                     run_network_check(self._config, self._entrypoint)
                 super()._initialize_workers(worker_group)
+                # We need to register handler after starting workers because
+                # the PContext start_worker will overwrite the handler.
+                CheckpointSaver.register_signal_handler()
             except RendezvousOutSyncError:
                 logger.info(
                     "Exit elastic-training rendezvous when there are "
@@ -498,7 +499,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 break
 
     def _invoke_run(self, role: str = DEFAULT_ROLE) -> RunResult:
-        # NOTE: currently only works for a single role
+        # Start a thread to save the checkpointing state dict from
+        # the shared memory to the storage.
+        CheckpointSaver.start_async_saving_ckpt()
 
         spec = self._worker_group.spec
         role = spec.role
@@ -539,7 +542,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 self._exit_barrier()
                 return run_result
             elif state in {WorkerState.UNHEALTHY, WorkerState.FAILED}:
+                logger.error(f"The worker fails with {run_result.failures}")
                 self._report_failure_to_master(run_result.failures)
+                self._save_ckpt_to_storage()
                 if self._remaining_failovers > 0:
                     logger.info(
                         f"[{role}] Worker group {state.name}. "
@@ -555,9 +560,19 @@ class ElasticTrainingAgent(LocalElasticAgent):
             elif state == WorkerState.HEALTHY:
                 # membership changes do not count as retries
                 if self._membership_changed(role, rdzv_handler):
+                    self._save_ckpt_to_storage()
                     self._restart_workers(self._worker_group)
             else:
                 raise Exception(f"[{role}] Worker group in {state.name} state")
+
+    def _save_ckpt_to_storage(self):
+        """
+        The agent can save the checkpointing state dict in the shared
+        memory into the storage before restarting training processes.
+        """
+        saver: CheckpointSaver = CheckpointSaver.get_ckpt_saver()
+        if saver:
+            saver.save_shm_to_storage()
 
     def _stop_workers_to_restart(self):
         """

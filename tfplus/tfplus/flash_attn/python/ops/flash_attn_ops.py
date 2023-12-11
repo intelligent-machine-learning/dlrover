@@ -22,7 +22,6 @@ from tfplus.common import _load_library
 
 gen_flash_attention_ops = _load_library("_flash_attention.so")
 
-
 @ops.RegisterGradient("FMHAForward")
 def _FMHA_Grad(op, grad):  # pylint: disable=invalid-name
   """Gradient for fmha_forward op."""
@@ -123,9 +122,11 @@ class FlashAttentionLayer(tf.keras.layers.Layer):
         inputs[0] [BatchSize(B), SequenceLength(S), HiddenSize]
                 HiddenSize = NumHeads(H) x DimHead(K)
     Returns:
-         shape=[BatchSize(B), SequenceLength(S), HiddenSize]
+         shape=[BatchSize(B), SequenceLength(S), NumHeads(H), DimHead(K)]
     """
 
+    query = tf.cast(query, self.fa_type)
+    batch_size = query.shape[0]
     if mask is not None:
       def calculate(mask):
         cu_seqlens = tf.reduce_sum(mask, -1)
@@ -151,9 +152,12 @@ class FlashAttentionLayer(tf.keras.layers.Layer):
       value = tf.reshape(value, [-1, self.num_heads * self.dim_head])
       value = tf.gather(value, indices)
       value = tf.reshape(value, [-1, self.num_heads, self.dim_head])
+    else:
+      query = tf.reshape(query, [-1, self.num_heads, self.dim_head])
+      key = tf.reshape(key, [-1, self.num_heads, self.dim_head])
+      value = tf.reshape(value, [-1, self.num_heads, self.dim_head])
 
     if mask is None:
-      batch_size = query.shape[0]
       cu_seqlens_k = tf.constant(
           [i * self.max_key_length for i in range(batch_size+1)])
       cu_seqlens_q = tf.constant(
@@ -162,7 +166,7 @@ class FlashAttentionLayer(tf.keras.layers.Layer):
       max_len_k = self.max_key_length
     return_softmax = False
     zero_tensors = False
-    # The attention of the recommendation system currently does not require causal
+
     attn_weight = gen_flash_attention_ops.fmha_forward(
         query, key, value, cu_seqlens_q, cu_seqlens_k,
         max_len_q, max_len_k,
@@ -170,12 +174,15 @@ class FlashAttentionLayer(tf.keras.layers.Layer):
         zero_tensors, self.is_causal, return_softmax,
         self.num_splits)
 
-    tf.logging.info(
-        'self attention output shape {}'.format(attn_weight))
+    # output attn_weight: [B, S, H, K]
+    attn_weight = tf.reshape(
+        attn_weight[0], [-1, self.max_query_length, self.num_heads,
+                        self.dim_head])
+
     return attn_weight
 
   def compute_output_shape(self, input_shape):
-    return input_shape[0][:2] + (self.num_heads * self.dim_head)
+    return input_shape[0][:2] + (self.num_heads, self.dim_head)
 
   def get_config(self):
     config = {'dropout_rate': self.dropout_rate}

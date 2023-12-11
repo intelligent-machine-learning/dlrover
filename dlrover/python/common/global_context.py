@@ -164,7 +164,7 @@ class Context(object):
                 ports.append(int(port))
             try:
                 self.master_port = grpc.find_free_port_in_set(ports)
-            except ValueError as e:
+            except RuntimeError as e:
                 logger.warning(e)
         if self.master_port is None:
             self.master_port = grpc.find_free_port_in_range(20000, 30000)

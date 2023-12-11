@@ -4,7 +4,7 @@ build:cuda --@local_config_cuda//:enable_cuda
 build:cuda --action_env=TF_CUDA_VERSION="11"
 build:cuda --action_env=TF_CUDNN_VERSION="8"
 build:cuda --action_env=TF_NEED_CUDA="1"
-build:cuda --repo_env=TF_CUDA_COMPUTE_CAPABILITIES="sm_75,compute_80"
+build:cuda --action_env=TF_CUDA_COMPUTE_CAPABILITIES="sm_75,compute_80"
 
 # This config refers to building CUDA op kernels with clang.
 build:cuda_clang --config=cuda

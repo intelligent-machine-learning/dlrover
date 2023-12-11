@@ -14,6 +14,7 @@
 import json
 import os
 import shutil
+import socket
 import tempfile
 import time
 import unittest
@@ -29,6 +30,10 @@ from dlrover.python.elastic_agent.master_client import (
     build_master_client,
 )
 from dlrover.python.elastic_agent.monitor.training import TorchTrainingMonitor
+from dlrover.python.elastic_agent.torch.ckpt_saver import (
+    CheckpointSaver,
+    NoShardingSaver,
+)
 from dlrover.python.elastic_agent.torch.training import (
     ElasticLaunchConfig,
     ElasticTrainingAgent,
@@ -152,7 +157,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
     def test_get_local_ip(self):
         local_ip = _get_local_ip()
         self.assertNotEqual(local_ip, "")
-        os.environ["MY_POD_IP"] = "127.0.0.1"
+        os.environ["POD_IP"] = "127.0.0.1"
         local_ip = _get_local_ip()
         self.assertEqual(local_ip, "127.0.0.1")
 
@@ -256,6 +261,14 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         port = agent._get_free_port()
         self.assertTrue(port in [10000, 10002, 10003])
 
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.bind(("", 10000))
+        os.environ["HOST_PORTS"] = "10000"
+        port = agent._get_free_port()
+        print(port)
+        s.close()
+        self.assertTrue(port != 10000)
+
         os.environ["HOST_PORTS"] = ""
         port = agent._get_free_port()
         self.assertTrue(port > 20000)
@@ -270,6 +283,9 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             start_method=self.config.start_method,
             log_dir=self.config.log_dir,
         )
+        saver = NoShardingSaver("/tmp/test")
+        CheckpointSaver._saver_instance = saver
+        agent._save_ckpt_to_storage()
         agent._stop_workers_to_restart()
 
 

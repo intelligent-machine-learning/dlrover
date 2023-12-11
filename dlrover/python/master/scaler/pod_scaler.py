@@ -49,13 +49,13 @@ class FakeKubeResponse:
 
 def append_pod_ip_to_env(env):
     pod_ip_var = V1EnvVar(
-        name="MY_POD_IP",
+        name="POD_IP",
         value_from=V1EnvVarSource(
             field_ref=V1ObjectFieldSelector(field_path="status.podIP")
         ),
     )
     node_ip_var = V1EnvVar(
-        name="MY_NODE_IP",
+        name="NODE_IP",
         value_from=V1EnvVarSource(
             field_ref=V1ObjectFieldSelector(field_path="status.hostIP")
         ),
