@@ -181,11 +181,11 @@ class WorkerManagerTest(unittest.TestCase):
             self._elastic_job.get_node_service_addr,
             self._elastic_job.get_node_name,
         )
-        reset = worker_manager.verify_restarting_training()
+        reset = worker_manager.verify_restarting_training(0)
         self.assertFalse(reset)
         worker_manager._nodes[0].restart_training = True
-        reset = worker_manager.verify_restarting_training()
+        reset = worker_manager.verify_restarting_training(0)
         self.assertTrue(reset)
         worker_manager._nodes[0].is_released = True
-        reset = worker_manager.verify_restarting_training()
+        reset = worker_manager.verify_restarting_training(0)
         self.assertFalse(reset)

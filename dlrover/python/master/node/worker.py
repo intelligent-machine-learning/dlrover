@@ -276,7 +276,7 @@ class WorkerManager(TrainingNodeManager):
                 return True
         return False
 
-    def verify_restarting_training(self):
+    def verify_restarting_training(self, node_id):
         """
         Verify if the worker requires restarting the training process.
         The worker will restart the training processes if any of the
@@ -284,13 +284,16 @@ class WorkerManager(TrainingNodeManager):
             1. RestartTrain action in the Pod annotations.
             2. One training process crashes in the worker.
 
+        args:
+            node_id: the worker node id.
+
         Return:
             bool
         """
         restart = False
-        for worker in self._nodes.values():
-            if not worker.is_released and worker.restart_training:
-                restart = True
-                # Set False to avoid restart repeatedly.
-                worker.restart_training = False
+        worker = self._nodes[node_id]
+        if not worker.is_released:
+            restart = worker.restart_training
+            # Set False to avoid restart repeatedly.
+            worker.restart_training = False
         return restart
