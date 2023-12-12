@@ -347,7 +347,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
             self._paral_config_tuner = ParalConfigTuner()
             self._paral_config_tuner.start()
 
-        self._save_ckpt_pool = ThreadPoolExecutor(max_workers=1)
+        self._save_ckpt_executor = ThreadPoolExecutor(max_workers=1)
         self._save_ckpt_future = None
 
     @prof
@@ -576,7 +576,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         """
         saver: CheckpointSaver = CheckpointSaver.get_ckpt_saver()
         if saver:
-            self._save_ckpt_future = self._save_ckpt_pool.submit(
+            self._save_ckpt_future = self._save_ckpt_executor.submit(
                 saver.save_shm_to_storage
             )
 
@@ -633,6 +633,10 @@ class ElasticTrainingAgent(LocalElasticAgent):
             )
             return True
         return False
+
+    def stop_executor(self):
+        """Shutdown the executor to save the checkpoint."""
+        self._save_ckpt_executor.shutdown()
 
 
 def launch_agent(
@@ -743,6 +747,7 @@ def launch_agent(
     finally:
         if shutdown_rdzv:
             spec.rdzv_handler.shutdown()
+        agent.stop_executor()
         monitor.stop()
 
 
