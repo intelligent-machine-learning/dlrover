@@ -394,8 +394,8 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
             self._job_stage = JobOptStage.PS_INITIAL
         elif self._job_stage == JobOptStage.PS_INITIAL:
             plan = self._get_ps_resource_plan()
-            self._job_stage = JobOptStage.RUNNING
-        elif self._job_stage == JobOptStage.RUNNING:
+            self._job_stage = JobOptStage.PS_RUNNING
+        elif self._job_stage == JobOptStage.PS_RUNNING:
             plan = self._get_ps_resource_plan()
             if plan.empty():
                 plan = self._get_worker_resource_at_running()
@@ -440,7 +440,7 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
     def _get_worker_resource_at_stable_phase(self, optimizer_config={}):
         optimizer_config[_WORKER_OPTIMIZE_PHASE] = OptimizeWorkerPhase.STABLE
         plan = self._resource_optimizer.generate_opt_plan(
-            JobOptStage.WORKER_INITIAL, optimizer_config
+            JobOptStage.WORKER_RUNNING, optimizer_config
         )
         if not plan:
             return

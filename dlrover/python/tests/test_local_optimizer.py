@@ -59,7 +59,7 @@ class LocalOptimizerTest(unittest.TestCase):
         node = Node(NodeType.WORKER, 0, config_resource=NodeResource(4, 4096))
         node.used_resource = NodeResource(2.4, 2048)
         plan = self._optimizer.generate_oom_recovery_plan(
-            [node], JobOptStage.RUNNING
+            [node], JobOptStage.PS_RUNNING
         )
         self.assertEqual(plan.node_resources[node.name].memory, 8192)
 

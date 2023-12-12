@@ -82,7 +82,7 @@ class PSLocalOptimizer(ResourceOptimizer):
             plan = self._generate_worker_resoruce()
         if stage == JobOptStage.PS_INITIAL:
             plan = self._generate_ps_initial_resource()
-        if stage == JobOptStage.RUNNING:
+        if stage == JobOptStage.PS_RUNNING:
             plan = self._generate_job_running_resource()
         plan = convert_memory_to_mb(plan)
         if plan.empty():
