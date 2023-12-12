@@ -424,3 +424,103 @@ sh ds_3d_llama2_entry.sh
 | DS 3D | /        |          16 |  2 |  2 |  4 |             8 |              64 |              2048 | 154.84 | 49.6 | 26309.4               |
 | DS 3D | /        |          32 |  2 |  2 |  8 |             8 |              64 |              4096 | 154.44 | 49.5 | 23901.8               |
 | DS 3D | /        |          64 |  2 |  2 | 16 |             8 |              64 |              8192 | 153.93 | 49.3 | 22695.7               |
+
+
+
+## Automatic Training Optimization 
+### Introductin
+If the users are not sure what the strategy to achieve the largest throughput, auto_accelerate is able to automatically searching the best strategy given models and hardware conditions. This function is based on Bayesian Optimization (BO)implemented by [HEBO](https://github.com/huawei-noah/HEBO) aiming to find the strategy with largest training throughput efficiently. BO is a machine learning technique used for optimizing black-box functions that are expensive to evaluate. Specifically, BO learn the mapping from strategies to throughput using the data from dryrun, which run few training steps. Moreover, BO recommends the potential high-throughput strategy to achieve the throughput from dryrun, and update the mapping iteratively. This iterative process continues until the desired optimization criteria are met or a predefined budget is exhausted.
+
+### Usage
+In this section,an example is presented to show how to automatically search the best strategy. Specifically, we utilize 8 A100 to train the LLAMA2 7B model on wikitext-103-raw-v1. The shell script to run the experiment is given as follows
+```bash
+NUM_GPUS_PER_NODE=$(nvidia-smi -L | wc -l)
+WORLD_SIZE=${WORLD_SIZE:-1}
+NUM_GPUS=$((NUM_GPUS_PER_NODE * WORLD_SIZE))
+PER_DEVICE_TRAIN_BATCH_SIZE=4
+TOTAL_TRAIN_BATCH_SIZE=$((NUM_GPUS_PER_NODE * WORLD_SIZE * PER_DEVICE_TRAIN_BATCH_SIZE))
+export BO_SG_MAX_IETR=12
+export RANDOM_SAMPLE=4
+python -m atorch.distributed.run --fault_tolerant --max_restarts=0 \
+    --nnodes="$WORLD_SIZE" \
+    --nproc_per_node="$NUM_GPUS_PER_NODE" \
+    bayes_opt_sg_llama2.py \
+    --dataset_path $DATASET_DIR \
+    --config_name $PRETRAINED_MODEL_DIR \
+    --tokenizer_name $PRETRAINED_MODEL_DIR \
+    --num_train_epochs 3 \
+    --block_size 2048 \
+    --total_train_batch_size $TOTAL_TRAIN_BATCH_SIZE \
+    --per_device_eval_batch_size 4 \
+    --seed 42 \
+    --preprocessing_num_workers 12 \
+    --dataloader_num_workers 0 \
+    --output_dir /tmp/test-llama2 \
+    --ignore_mismatched_sizes \
+    --ignore_dryrun_on_load_strategy
+
+```
+Note that PRETRAINED_MODEL_DIR and DATASET_DIR are the paths of model and dataset respectively. Also BO_SG_MAX_IETR is the maximum search rounds of the Bayesian optimization and RANDOM_SAMPLE is the initial sampling steps of BO. The block size is the sequence length of the input data. In the `llama2_clm.py`, the auto_accelerate function is called as follows
+
+```python
+    status, result, best_strategy = auto_accelerate(
+        model,
+        torch.optim.AdamW,
+        train_dataset,
+        loss_func=my_loss_func,
+        prepare_input=my_prepare_input,
+        model_input_format="unpack_dict",
+        optim_args={"lr": args.learning_rate},
+        optim_param_func=partial(optim_param_func, args=args),
+        dataloader_args=dataloader_args,
+        excluded=[],
+        included=[{"atorch_wrap_cls": ('LlamaDecoderLayer')}],
+        verbose=True
+    )
+```
+where `strategy` is set None, and included/excluded is used to specify the strategies to be searched. Specifically, `excluded=['zero1']` means zero1 is not in the candidates and never be chosen in the search. `included=['zero1']` means that zero1 is chosen in zero optimization method group.
+
+
+### Scripts
+
+- training file [bayes_opt_sg_llama2.py](bayes_opt_sg_llama2.py)
+
+- launch script [bayes_opt_sg_llama2_entry.sh](bayes_opt_sg_llama2_entry.sh)
+
+
+### Results
+With the above scripts, the best strategy is found as follows
+
+| batch size per gpu               | Strategy |  DryRun Throughput (samples/s)  | 
+|:----------------------------|:-----------------:|:-------:|
+| 4  |     module_replace+ amp_native+zero2+ddp   | 11.28  |
+
+
+Strategy:
+```
+        amp        zero             parallel_mode  module_replace  checkpoint
+0   NotChosen   NotChosen  {"data": 8, "tensor": 1}       NotChosen   NotChosen
+1  amp_native  zero2_fsdp  {"data": 8, "tensor": 1}  module_replace  checkpoint
+2  amp_native        fsdp  {"data": 8, "tensor": 1}  module_replace  checkpoint
+3  amp_native  zero2_fsdp  {"data": 8, "tensor": 1}  module_replace  checkpoint
+4  amp_native        fsdp  {"data": 8, "tensor": 1}  module_replace  checkpoint
+5  amp_native   NotChosen  {"data": 8, "tensor": 1}  module_replace   NotChosen
+6  amp_native       zero1  {"data": 8, "tensor": 1}  module_replace  checkpoint
+7  NotChosen        zero2  {"data": 8, "tensor": 1}  NotChosen         NotChosen
+```
+
+Corresponding Dryrun Throughput
+
+```
+[[ -0.        ]
+ [-11.28738554]
+ [-11.15851216]
+ [-11.27479499]
+ [-11.16217471]
+ [ -0.        ]
+ [ -0.        ]
+ [ -0.        ]
+ ]
+ ```
+
+The zero throughput in the above means that OOM occurs due to the unappropriated strategy combination.
