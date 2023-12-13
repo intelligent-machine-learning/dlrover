@@ -242,7 +242,9 @@ class PSJobResourceOptimizerTest(unittest.TestCase):
         self.assertEqual(ps.node_resource.memory, _MEMORY)
         self.assertEqual(ps.node_resource.cpu, 16)
         self.assertEqual(ps.count, 2)
-        self.assertEqual(self._job_optimizer.get_job_stage(), JobOptStage.PS_RUNNING)
+        self.assertEqual(
+            self._job_optimizer.get_job_stage(), JobOptStage.PS_RUNNING
+        )
 
         ps_resource = NodeGroupResource(3, NodeResource(2, 1024))
         worker_resource = NodeGroupResource(5, NodeResource(0, 0))
@@ -260,6 +262,7 @@ class PSJobResourceOptimizerTest(unittest.TestCase):
         self.assertEqual(ps.node_resource.cpu, 2)
         self.assertEqual(ps.count, 3)
         self.assertEqual(job_optimizer.get_job_stage(), JobOptStage.PS_RUNNING)
+
 
 class AllreduceResourceOptimizerTest(unittest.TestCase):
     def test_free_node_plan(self):
