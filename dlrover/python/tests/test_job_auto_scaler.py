@@ -61,8 +61,10 @@ class JobAutoScalerTest(unittest.TestCase):
             6, NodeResource(4, 4096)
         )
         plan.node_resources["test-edljob-worker-0"] = NodeResource(8, 8192)
+        plan.node_resources["test-edljob-worker-1"] = NodeResource(8, 8192)
         plan.node_resources["test-edljob-ps-1"] = NodeResource(8, 8192)
         auto_scaler._ps_manager._nodes[1].status = NodeStatus.RUNNING
+        auto_scaler._worker_manager._nodes[0].critical = True
         scale_plan = auto_scaler.execute_job_optimization_plan(plan)
         self.assertEqual(len(manager._ps_manager._nodes), 4)
         self.assertEqual(len(manager._worker_manager._nodes), 7)
@@ -71,6 +73,7 @@ class JobAutoScalerTest(unittest.TestCase):
         remove_node = scale_plan.remove_nodes[0]
         self.assertTrue(remove_node.migrated)
         self.assertTrue(remove_node.is_released)
+        self.assertEqual(remove_node.name, "test-edljob-worker-1")
 
         ps_addrs = []
         for i in [0, 3, 2]:
