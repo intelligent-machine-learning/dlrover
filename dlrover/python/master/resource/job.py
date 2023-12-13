@@ -217,6 +217,12 @@ class PSJobResourceOptimizer(JobResourceOptimizer):
         self._job_stage = JobOptStage.CREATE
         self._last_ps_change_time = 0.0
 
+    def set_job_stage(self, stage):
+        self._job_stage = stage
+
+    def get_job_stage(self):
+        return self._job_stage
+
     def get_config_resource(self):
         job_config = JobResource()
         worker_config = self._original_worker_resource
