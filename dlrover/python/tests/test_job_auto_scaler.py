@@ -68,6 +68,8 @@ class JobAutoScalerTest(unittest.TestCase):
         self.assertEqual(len(manager._worker_manager._nodes), 7)
         self.assertEqual(len(scale_plan.remove_nodes), 1)
         self.assertEqual(len(scale_plan.launch_nodes), 5)
+        remove_node = scale_plan.remove_nodes[0]
+        self.assertTrue(remove_node.migrated)
 
         ps_addrs = []
         for i in [0, 3, 2]:

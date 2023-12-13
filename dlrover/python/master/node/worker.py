@@ -230,6 +230,7 @@ class WorkerManager(TrainingNodeManager):
         for name, resource in workers.items():
             old_node_id = int(name.split("-")[-1])
             old_node = self._nodes[old_node_id]
+            old_node.migrated = True
             node_id = next(self._node_id_iter)
             task_id = old_node.rank_index
             new_node = Node(
