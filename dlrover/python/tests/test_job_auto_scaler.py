@@ -73,6 +73,7 @@ class JobAutoScalerTest(unittest.TestCase):
         remove_node = scale_plan.remove_nodes[0]
         self.assertTrue(remove_node.migrated)
         self.assertTrue(remove_node.is_released)
+        self.assertFalse(remove_node.relaunchable)
         self.assertEqual(remove_node.name, "test-edljob-worker-1")
 
         ps_addrs = []

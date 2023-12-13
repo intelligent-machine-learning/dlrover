@@ -231,6 +231,7 @@ class WorkerManager(TrainingNodeManager):
             old_node_id = int(name.split("-")[-1])
             old_node = self._nodes[old_node_id]
             old_node.migrated = True
+            old_node.relaunchable = False
             old_node.is_released = True
             if old_node.critical:
                 continue
