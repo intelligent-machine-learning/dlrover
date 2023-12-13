@@ -230,11 +230,11 @@ class WorkerManager(TrainingNodeManager):
         for name, resource in workers.items():
             old_node_id = int(name.split("-")[-1])
             old_node = self._nodes[old_node_id]
+            if old_node.critical:
+                continue
             old_node.migrated = True
             old_node.relaunchable = False
             old_node.is_released = True
-            if old_node.critical:
-                continue
             node_id = next(self._node_id_iter)
             task_id = old_node.rank_index
             new_node = Node(
