@@ -129,7 +129,7 @@ class JobManager(metaclass=ABCMeta):
         pass
 
     @abstractclassmethod
-    def verify_restarting_worker_training(self):
+    def verify_restarting_worker_training(self, node_type, node_id):
         """
         Verify the necessity of restarting the training process
         on the worker nodes.

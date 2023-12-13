@@ -123,7 +123,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         elif isinstance(req_message, grpc.ParallelConfigRequest):
             message = self._get_paral_config()
         elif isinstance(req_message, grpc.CheckHardwareResetRequest):
-            message = self._need_to_restart_training()
+            message = self._need_to_restart_training(node_type, node_id)
 
         if message:
             response.data = message.serialize()
@@ -274,8 +274,10 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             res = grpc.ParallelConfig()
         return res
 
-    def _need_to_restart_training(self):
-        restart = self._job_manager.verify_restarting_worker_training()
+    def _need_to_restart_training(self, node_type, node_id):
+        restart = self._job_manager.verify_restarting_worker_training(
+            node_type, node_id
+        )
         res = grpc.ParallelConfig()
         res.restart = restart
         return res
