@@ -231,6 +231,7 @@ class WorkerManager(TrainingNodeManager):
             old_node_id = int(name.split("-")[-1])
             old_node = self._nodes[old_node_id]
             old_node.migrated = True
+            old_node.is_released = True
             node_id = next(self._node_id_iter)
             task_id = old_node.rank_index
             new_node = Node(
