@@ -235,7 +235,6 @@ class PSTrainingAutoScaler(JobAutoScaler):
         if len(workers) > 0:
             plan = self._worker_manager.migrate_workers(workers)
             scale_plan.merge(plan)
-
         logger.info("Migration plan = %s", scale_plan.to_json())
         return scale_plan
 
