@@ -256,6 +256,7 @@ class ParameterServerManager(TrainingNodeManager):
                 and node.status == NodeStatus.RUNNING
             ):
                 if node not in self._pre_dropped_ps:
+                    node.migrated = True
                     self._pre_dropped_ps.append(node)
 
     def get_total_request_cpu(self):

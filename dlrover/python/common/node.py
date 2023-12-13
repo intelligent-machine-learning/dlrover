@@ -212,6 +212,7 @@ class Node(object):
         self.hang = False
         self.paral_config = paral_config
         self.restart_training = restart_training
+        self.migrated = False
 
     def exited(self):
         return self.status in [
