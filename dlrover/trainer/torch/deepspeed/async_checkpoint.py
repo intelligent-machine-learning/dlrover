@@ -1,30 +1,61 @@
-from deepspeed.runtime.checkpoint_engine.torch_checkpoint_engine import CheckpointEngine
+# Copyright 2023 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import os
+import shutil
+
+import torch
+from deepspeed.runtime.checkpoint_engine.torch_checkpoint_engine import (
+    CheckpointEngine,
+)
 from deepspeed.runtime.engine import DeepSpeedEngine
-from dlrover.python.elastic_agent.torch.ckpt_saver import DeepSpeedCheckpointEngine
+
+from dlrover.python.common.constants import CheckpointConstant
+from dlrover.python.elastic_agent.torch.ckpt_saver import (
+    DeepSpeedCheckpointEngine,
+)
 
 
 class AsyncSaveEngine(CheckpointEngine):
-
     def __init__(self):
         self.model_sd = None
         self.model_path = ""
         self.optimizer_sd = None
         self.optimizer_path = ""
-    
+
     def create(self, tag):
         # create checkpoint on give tag for save/load.
         pass
 
     def save(self, state_dict, path: str):
-        if "optimizer_state_dict" in state_dict:
-            self.optimizer_sd = state_dict
-            self.optimizer_path = path
-        else:
+        if CheckpointConstant.OPTIM_STATES_NAME in path:
             self.model_sd = state_dict
             self.model_path = path
+        elif CheckpointConstant.MODEL_STATES_NAME in path:
+            self.optimizer_sd = state_dict
+            self.optimizer_path = path
 
     def load(self, path: str, map_location=None):
-        pass
+        if CheckpointConstant.MODEL_STATES_NAME in path:
+            if self.model_sd:
+                return self.model_sd
+            else:
+                return torch.load(path, map_location=map_location)
+        elif CheckpointConstant.OPTIM_STATES_NAME in path:
+            if self.optimizer_sd:
+                return self.optimizer_sd
+            else:
+                return torch.load(path, map_location=map_location)
 
     def commit(self, tag):
         # to tell checkpoint services if all files are ready.
@@ -32,39 +63,102 @@ class AsyncSaveEngine(CheckpointEngine):
 
 
 class DeepSpeedCheckpointManger(object):
+    """
+    The manager can synchronously save the DeepSpeedEngine checkpoint
+    to the memory and asynchronously save the checkpointing states
+    into the storage.
+
+    Args:
+        engine (DeepSpeedEngine): a DeepSpeedEngine instance.
+        checkpoint_dir: the directory to save the checkpoint.
+
+    Examples::
+        >>> engine = deepspeed.initialize(...)
+        >>> ckpt_manager = DeepSpeedCheckpointManger(engine, save_dir)
+        >>> if step % 10 == 0:
+        >>>     ckpt_manager.save_checkpoint_to_memory(save_dir, tag)
+        >>> if step % 100 == 0:
+        >>>     ckpt_manager.save_checkpoint_to_storage(save_dir, tag)
+    """
     def __init__(self, engine: DeepSpeedEngine, checkpoint_dir):
         self.engine = engine
-        self.engine.checkpoint_engine = AsyncSaveEngine()
-        dp_size = self.engine.dp_world_size()
+        self.checkpoint_dir = checkpoint_dir
+        self._ckpt_engine = AsyncSaveEngine()
+        self.engine.checkpoint_engine = self._ckpt_engine
+        dp_size = self.engine.dp_world_size
         self._async_save_engine = DeepSpeedCheckpointEngine(
             checkpoint_dir,
             dp_size=dp_size,
         )
 
-    def save_checkpoint_to_memory(self, save_dir, tag=None, client_state={}, save_latest=True):
+    def save_checkpoint_to_memory(
+        self, save_dir, tag=None, client_state={}, save_latest=True
+    ):
         self.engine.save_checkpoint(save_dir, tag, client_state, save_latest)
         state_dict = self._merge_model_and_optmizer_state_dict()
         self._async_save_engine.save_to_memory(
             tag,
             state_dict,
-            model_path=self.engine.checkpoint_engine.model_path,
-            optimizer_path=self.engine.checkpoint_engine.optimizer_path
+            model_path=self._ckpt_engine.model_path,
+            optimizer_path=self._ckpt_engine.optimizer_path,
         )
 
-    def save_checkpoint_to_storage(self, save_dir, tag=None, client_state={}, save_latest=True):
+        ckpt_dir = os.path.dirname(self._ckpt_engine.model_path)
+        if self.engine.global_rank == 0:
+            try:
+                tracer_file = os.path.join(self.checkpoint_dir, "latest")
+                os.remove(tracer_file)
+                shutil.rmtree(ckpt_dir)
+            except Exception:
+                pass
+
+    def save_checkpoint_to_storage(
+        self, save_dir, tag=None, client_state={}, save_latest=True
+    ):
         self.engine.save_checkpoint(save_dir, tag, client_state, save_latest)
         state_dict = self._merge_model_and_optmizer_state_dict()
         self._async_save_engine.save_to_storage(
             tag,
             state_dict,
-            model_path=self.engine.checkpoint_engine.model_path,
-            optimizer_path=self.engine.checkpoint_engine.optimizer_path
+            model_path=self._ckpt_engine.model_path,
+            optimizer_path=self._ckpt_engine.optimizer_path,
         )
 
     def _merge_model_and_optmizer_state_dict(self):
         merged_state_dict = {}
-        if self.engine.checkpoint_engine.model_sd:
-            merged_state_dict["deepspeed_model"] = self.engine.checkpoint_engine.model_sd
-        if self.engine.checkpoint_engine.optimizer_sd:
-            merged_state_dict["deepspeed_optimizer"] = self.engine.checkpoint_engine.optimizer_sd
+        if self._ckpt_engine.model_sd:
+            merged_state_dict[
+                CheckpointConstant.MODEL_STATES_NAME
+            ] = self._ckpt_engine.model_sd
+        if self._ckpt_engine.optimizer_sd:
+            merged_state_dict[
+                CheckpointConstant.OPTIM_STATES_NAME
+            ] = self._ckpt_engine.optimizer_sd
         return merged_state_dict
+
+    def load_checkpoint(
+        self,
+        load_dir,
+        tag=None,
+        load_module_strict=True,
+        load_optimizer_states=True,
+        load_lr_scheduler_states=True,
+        load_module_only=False,
+        custom_load_fn=None,
+    ):
+        state_dict = self._async_save_engine.load()
+        self._ckpt_engine.model_sd = state_dict.get(
+            CheckpointConstant.MODEL_STATES_NAME, {}
+        )
+        self._ckpt_engine.optimizer_sd = state_dict.get(
+            CheckpointConstant.OPTIM_STATES_NAME, {}
+        )
+        self.engine.load_checkpoint(
+            load_dir=load_dir,
+            tag=tag,
+            load_module_strict=load_module_strict,
+            load_optimizer_states=load_optimizer_states,
+            load_lr_scheduler_states=load_lr_scheduler_states,
+            load_module_only=load_module_only,
+            custom_load_fn=custom_load_fn,
+        )

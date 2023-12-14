@@ -62,7 +62,6 @@ class TensorMeta:
     offset: int = 0
 
 
-
 @dataclass
 class CheckpointShardConfig:
     """
@@ -87,6 +86,7 @@ class SingleFileCheckpointConfig(CheckpointShardConfig):
     Attrbiutes:
         path (str): the path to save the checkpoint shard.
     """
+
     path: str = ""
 
 
@@ -101,6 +101,7 @@ class DeepSpeedCheckpointConfig(CheckpointShardConfig):
         optimizer_path (str): the path to save the checkpoint
             shard of optimizer.
     """
+
     model_path: str = ""
     optimizer_path: str = ""
 
@@ -154,14 +155,17 @@ def _read_tensor_from_buf(value, shm_tensor_buffer):
     Read a tensor from the buffer of shared memory.
     """
     if isinstance(value, TensorMeta):
-        shm_tensor = torch.frombuffer(
-            buffer=shm_tensor_buffer.buf,
-            dtype=value.dtype,
-            offset=value.offset,
-            count=value.numel,
-        )
-        value = shm_tensor.reshape(value.shape)
-        return value
+        if value.numel == 0:
+            return torch.tensor([], dtype=value.dtype)
+        else:
+            shm_tensor = torch.frombuffer(
+                buffer=shm_tensor_buffer.buf,
+                dtype=value.dtype,
+                offset=value.offset,
+                count=value.numel,
+            )
+            value = shm_tensor.reshape(value.shape)
+            return value
     else:
         return value
 
@@ -225,6 +229,8 @@ def _write_shared_memory(value: torch.Tensor, meta: TensorMeta, buffer):
     """
     Write a CPU tensor into the shared memory.
     """
+    if value.numel() == 0:
+        return
     shm_tensor = torch.frombuffer(
         buffer, dtype=value.dtype, count=value.numel(), offset=meta.offset
     ).reshape(value.shape)
@@ -283,11 +289,11 @@ class SharedMemoryHandler(object):
         self._buffer_size += value.numel() * value.element_size()
         return meta
 
-    def save_state_dict(self, state_dict, ckpt_conf: SingleFileCheckpointConfig):
+    def save_state_dict(self, state_dict, ckpt_conf: CheckpointShardConfig):
         """
         Copy the state dict from CPU memory buffer into the shared memory.
         """
-        if self._tensor_shm is None:
+        if not self._tensor_shm:
             meta_dict = _traverse_state_dict(
                 state_dict, self._create_tensor_meta
             )
@@ -296,6 +302,7 @@ class SharedMemoryHandler(object):
             meta_dict = self._tensor_meta.get(local=True)
         ckpt_conf.writing_shm = True
         meta_dict[_DLROVER_CKPT_KEY] = ckpt_conf
+
         self._tensor_meta.set(meta_dict)
         _traverse_copy_to_shm(state_dict, meta_dict, self._tensor_shm.buf)
         ckpt_conf.writing_shm = False
@@ -482,7 +489,11 @@ class CheckpointSaver(metaclass=ABCMeta):
             shm_handler.reset()
 
     def _save_shard(
-        self, step, local_shard_id: int, ckpt_config: CheckpointShardConfig, step_done_dir: str
+        self,
+        step,
+        local_shard_id: int,
+        ckpt_config: CheckpointShardConfig,
+        step_done_dir: str,
     ):
         """Save the shard of state dict into the storage."""
         try:
@@ -692,7 +703,9 @@ class AsyncCheckpointSaver(CheckpointSaver):
         futures: List[Future] = []
         for i in range(self.local_shard_num):
             default_config = SingleFileCheckpointConfig()
-            ckpt_config = self._shm_handlers[i].get_checkpoint_config(default_config)
+            ckpt_config = self._shm_handlers[i].get_checkpoint_config(
+                default_config
+            )
             future: Future = self._executor.submit(
                 self._save_shard,
                 step,
@@ -728,7 +741,9 @@ class AsyncCheckpointSaver(CheckpointSaver):
 
         self._writing_storage = False
 
-    def persist_to_storage(self, state_dict, ckpt_config: SingleFileCheckpointConfig):
+    def persist_to_storage(
+        self, state_dict, ckpt_config: SingleFileCheckpointConfig
+    ):
         """Persist the checkpoint from CPU memory buffer into the storage."""
         checkpoint_dir = os.path.dirname(ckpt_config.path)
         os.makedirs(checkpoint_dir, exist_ok=True)
@@ -925,7 +940,6 @@ class AtorchFSDPShardingSaver(CheckpointSaver):
 
 
 class DeepSpeedCheckpointSaver(AsyncCheckpointSaver):
-
     @classmethod
     def get_checkpoint_tracker_filename(cls, checkpoint_dir):
         """
@@ -941,18 +955,20 @@ class DeepSpeedCheckpointSaver(AsyncCheckpointSaver):
         fname = "latest"
         return os.path.join(checkpoint_dir, fname)
 
-    def persist_to_storage(self, state_dict, ckpt_config: DeepSpeedCheckpointConfig):
+    def persist_to_storage(  # type: ignore
+        self, state_dict, ckpt_config: DeepSpeedCheckpointConfig
+    ):
         """Persist the checkpoint from CPU memory buffer into the storage."""
         state_dict
         if self._is_agent_rank_0:
             checkpoint_dir = os.path.dirname(ckpt_config.model_path)
             os.makedirs(checkpoint_dir, exist_ok=True)
-            model_sd = state_dict.get("deepspeed_model", {})
+            model_sd = state_dict.get(CheckpointConstant.MODEL_STATES_NAME, {})
             if model_sd and ckpt_config.model_path:
                 torch.save(model_sd, ckpt_config.model_path)
         checkpoint_dir = os.path.dirname(ckpt_config.optimizer_path)
         os.makedirs(checkpoint_dir, exist_ok=True)
-        optimizer_sd = state_dict.get("deepspeed_optimizer", {})
+        optimizer_sd = state_dict.get(CheckpointConstant.OPTIM_STATES_NAME, {})
         if optimizer_sd and ckpt_config.optimizer_path:
             torch.save(optimizer_sd, ckpt_config.optimizer_path)
 
@@ -1064,8 +1080,10 @@ class CheckpointEngine(metaclass=ABCMeta):
             path=path,
         )
         self._save_state_dict_to_memory(state_dict, conf)
-    
-    def _save_state_dict_to_memory(self, state_dict, conf: CheckpointShardConfig):
+
+    def _save_state_dict_to_memory(
+        self, state_dict, conf: CheckpointShardConfig
+    ):
         if self._local_rank != self.local_shard_id:
             return
 
@@ -1436,8 +1454,8 @@ class DeepSpeedCheckpointEngine(CheckpointEngine):
     """
 
     def __init__(self, checkpoint_dir, dp_size=1):
-        super().__init__(checkpoint_dir)
         self.dp_size = dp_size
+        super().__init__(checkpoint_dir)
         if dist.is_initialized():
             saver_ranks = self._get_saver_ranks()
             logger.info(f"Saver ranks of DeepSpeed is {saver_ranks}")
@@ -1488,7 +1506,9 @@ class DeepSpeedCheckpointEngine(CheckpointEngine):
         self._save_state_dict_to_memory(state_dict, conf)
 
     @timer
-    def save_to_storage(self, step, state_dict, path):
+    def save_to_storage(
+        self, step, state_dict, model_path="", optimizer_path=""
+    ):
         """
         Asynchonously saves the state dict into the storage. It synchonously
         saves the state dict into the shared memory and put the path
@@ -1497,19 +1517,19 @@ class DeepSpeedCheckpointEngine(CheckpointEngine):
         Only rank 0 saves the state dict into the storage.
 
         Args:
-            step (int): the iteration step.
+            step (int): the global iteration step.
             state_dict (dict): the state dict of model and optimizer to save.
-            path (str): optional, the file path to save the checkpoint. If the
-                path is not defined, the engine will save the state dict into
-                the shared memory not the storage.
+            model_path (str): the storage path to save the model state dict.
+            optimizer_path (str): the storage path to save the optimizer
+                state dict.
         """
         if step > self._cached_step:
-            self.save_to_memory(step, state_dict, path)
+            self.save_to_memory(step, state_dict, model_path, optimizer_path)
 
         # Only local rank 0 to notify the saving event to the agent.
         if self._local_rank != 0:
             return
-        if path:
+        if model_path or optimizer_path:
             event = SaveEvent(name=_SAVE_EVENT_NAME, step=step)
             self._event_queue.put(event)
 
@@ -1522,9 +1542,9 @@ class DeepSpeedCheckpointEngine(CheckpointEngine):
         return self.dp_size
 
     def get_saver_class(self):
-        return AsyncCheckpointSaver
+        return DeepSpeedCheckpointSaver
 
-    def load(self, resume_path=""):
+    def load(self, resume_model_path="", resume_optimizer_path=""):
         """
         The method firstly try to load the state dict from the shared memory.
         If there is no state dict in the shared memory, the method will
@@ -1536,10 +1556,14 @@ class DeepSpeedCheckpointEngine(CheckpointEngine):
         state_dict = self._shm_handler.load_state_dict()
         if state_dict:
             return state_dict
-        state_dict = self._load_from_storage(resume_path)
+        state_dict = self._load_from_storage(
+            resume_model_path, resume_optimizer_path
+        )
         return state_dict
 
-    def _load_from_storage(self, resume_model_path="", resume_optimizer_path=""):
+    def _load_from_storage(
+        self, resume_model_path="", resume_optimizer_path=""
+    ):
         """
         Load the DeepSpeedEngine state dict from the storage.
 
@@ -1556,8 +1580,8 @@ class DeepSpeedCheckpointEngine(CheckpointEngine):
         ds_state_dict = {}
         if resume_model_path:
             sd = torch.load(resume_model_path, map_location="cpu")
-            ds_state_dict["deepspeed_model"] = sd
+            ds_state_dict[CheckpointConstant.MODEL_STATES_NAME] = sd
         if resume_optimizer_path:
             sd = torch.load(resume_model_path, map_location="cpu")
-            ds_state_dict["deepspeed_optimizer"] = sd
+            ds_state_dict[CheckpointConstant.OPTIM_STATES_NAME] = sd
         return ds_state_dict
