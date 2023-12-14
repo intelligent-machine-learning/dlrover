@@ -196,7 +196,7 @@ a model with DLRover.
 ## What's Next?
 
 - Aysnchronously save the checkpoint to the storage.
-  - Significantly reduce the time overhead to block training to save the checkpoint.
+  - Significantly reduce checkpoint saving/restore time which blocks training.
   - Save the checkpoint from the CPU memory even if the training process fails.
 - Fine-grained automatic distributed training for GPU Synchronous jobs
   - hybrid-parallel mode
