@@ -17,6 +17,7 @@ from unittest import mock
 from dlrover.proto import brain_pb2
 from dlrover.python.brain.client import build_brain_client
 from dlrover.python.common.constants import (
+    JobOptStage,
     MemoryUnit,
     NodeResourceLimit,
     NodeType,
@@ -232,6 +233,35 @@ class PSJobResourceOptimizerTest(unittest.TestCase):
 
         job_optimizer._adjust_oom_ps_resource(oom_ps)
         self.assertEqual(oom_ps.config_resource.memory, 18432)
+
+    def test_get_job_resource_plan(self):
+        self._job_optimizer.set_job_stage(JobOptStage.PS_INITIAL)
+        self._job_optimizer.get_job_resource_plan()
+
+        ps = self._job_optimizer._ps_resource
+        self.assertEqual(ps.node_resource.memory, _MEMORY)
+        self.assertEqual(ps.node_resource.cpu, 16)
+        self.assertEqual(ps.count, 2)
+        self.assertEqual(
+            self._job_optimizer.get_job_stage(), JobOptStage.PS_RUNNING
+        )
+
+        ps_resource = NodeGroupResource(3, NodeResource(2, 1024))
+        worker_resource = NodeGroupResource(5, NodeResource(0, 0))
+        job_optimizer = PSJobResourceOptimizer(
+            worker_resource, ps_resource, OptimizeMode.CLUSTER, "aa0_uuid"
+        )
+        job_optimizer._resource_optimizer = BrainResoureOptimizer(
+            "1111", ResourceLimits(100, 102400)
+        )
+        job_optimizer._resource_optimizer._brain_client = self._client
+        job_optimizer.set_job_stage(JobOptStage.PS_RUNNING)
+        job_optimizer.get_job_resource_plan()
+        ps = job_optimizer._ps_resource
+        self.assertEqual(ps.node_resource.memory, 1024)
+        self.assertEqual(ps.node_resource.cpu, 2)
+        self.assertEqual(ps.count, 3)
+        self.assertEqual(job_optimizer.get_job_stage(), JobOptStage.PS_RUNNING)
 
 
 class AllreduceResourceOptimizerTest(unittest.TestCase):

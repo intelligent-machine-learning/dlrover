@@ -153,7 +153,8 @@ class JobOptStage(object):
     CREATE = "job_stage_create"
     PS_INITIAL = "job_stage_ps_initial"
     WORKER_INITIAL = "job_stage_worker_initial"
-    RUNNING = "job_stage_running"
+    PS_RUNNING = "job_stage_ps_running"
+    WORKER_RUNNING = "job_stage_worker_running"
 
 
 class OptimizeWorkerPhase(object):
