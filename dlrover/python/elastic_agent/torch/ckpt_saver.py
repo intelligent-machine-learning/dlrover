@@ -1453,8 +1453,9 @@ class DeepSpeedCheckpointEngine(CheckpointEngine):
         dp_size (int): the world size of data parallelism.
     """
 
-    def __init__(self, checkpoint_dir, dp_size=1):
-        self.dp_size = dp_size
+    def __init__(self, checkpoint_dir, global_shard_num=1, zero_stage=0):
+        self.global_shard_num = global_shard_num
+        self.zero_stage = zero_stage
         super().__init__(checkpoint_dir)
         if dist.is_initialized():
             saver_ranks = self._get_saver_ranks()
@@ -1539,7 +1540,7 @@ class DeepSpeedCheckpointEngine(CheckpointEngine):
         return min(local_world_size, global_shard_num)
 
     def get_global_shard_num(self):
-        return self.dp_size
+        return self.global_shard_num
 
     def get_saver_class(self):
         return DeepSpeedCheckpointSaver
@@ -1554,6 +1555,15 @@ class DeepSpeedCheckpointEngine(CheckpointEngine):
             A dict.
         """
         state_dict = self._shm_handler.load_state_dict()
+        msd_name = CheckpointConstant.MODEL_STATES_NAME
+        if msd_name not in state_dict and self.zero_stage in [1, 2]:
+            local_rank_0_shm_handler = SharedMemoryHandler(0, host=False)
+            # For stage 1,2, the model is not partitioned and only local rank 0
+            # saves the model state dict into the CPU memory. Other local ranks
+            # need get the model state dict from the shared memory of local
+            # rank 0.
+            sd = local_rank_0_shm_handler.load_state_dict()
+            state_dict[msd_name] = sd[msd_name]
         if state_dict:
             return state_dict
         state_dict = self._load_from_storage(

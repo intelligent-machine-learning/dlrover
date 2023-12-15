@@ -80,15 +80,20 @@ class DeepSpeedCheckpointManger(object):
         >>> if step % 100 == 0:
         >>>     ckpt_manager.save_checkpoint_to_storage(save_dir, tag)
     """
+
     def __init__(self, engine: DeepSpeedEngine, checkpoint_dir):
         self.engine = engine
+        self.engine.save_non_zero_checkpoint = True
         self.checkpoint_dir = checkpoint_dir
         self._ckpt_engine = AsyncSaveEngine()
         self.engine.checkpoint_engine = self._ckpt_engine
-        dp_size = self.engine.dp_world_size
+        global_shard_num = 1
+        if self.engine.zero_optimization:
+            global_shard_num = self.engine.optimizer.partition_count
         self._async_save_engine = DeepSpeedCheckpointEngine(
             checkpoint_dir,
-            dp_size=dp_size,
+            global_shard_num=global_shard_num,
+            zero_stage=self.engine.zero_optimization_stage,
         )
 
     def save_checkpoint_to_memory(
