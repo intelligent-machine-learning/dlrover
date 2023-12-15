@@ -15,11 +15,14 @@ import os
 import shutil
 
 import torch
+import torch.distributed as dist
 from deepspeed.runtime.checkpoint_engine.torch_checkpoint_engine import (
     CheckpointEngine,
 )
 from deepspeed.runtime.engine import DeepSpeedEngine
+from deepspeed.runtime.zero.config import ZeroStageEnum
 
+from dlrover.python.common import env_utils
 from dlrover.python.common.constants import CheckpointConstant
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     DeepSpeedCheckpointEngine,
@@ -38,10 +41,11 @@ class AsyncSaveEngine(CheckpointEngine):
         pass
 
     def save(self, state_dict, path: str):
-        if CheckpointConstant.OPTIM_STATES_NAME in path:
+        print(f"Save shadow path {path}")
+        if CheckpointConstant.MODEL_STATES_NAME in path:
             self.model_sd = state_dict
             self.model_path = path
-        elif CheckpointConstant.MODEL_STATES_NAME in path:
+        elif CheckpointConstant.OPTIM_STATES_NAME in path:
             self.optimizer_sd = state_dict
             self.optimizer_path = path
 
@@ -83,18 +87,24 @@ class DeepSpeedCheckpointManger(object):
 
     def __init__(self, engine: DeepSpeedEngine, checkpoint_dir):
         self.engine = engine
-        self.engine.save_non_zero_checkpoint = True
         self.checkpoint_dir = checkpoint_dir
         self._ckpt_engine = AsyncSaveEngine()
         self.engine.checkpoint_engine = self._ckpt_engine
         global_shard_num = 1
-        if self.engine.zero_optimization:
-            global_shard_num = self.engine.optimizer.partition_count
+        if self.engine.zero_optimization():
+            global_shard_num = dist.get_world_size(
+                self.engine.optimizer.dp_process_group
+            )
+        print(f"model shard number = {global_shard_num}")
+        zero_stage = self.engine.zero_optimization_stage()
         self._async_save_engine = DeepSpeedCheckpointEngine(
             checkpoint_dir,
             global_shard_num=global_shard_num,
-            zero_stage=self.engine.zero_optimization_stage,
+            zero_stage=zero_stage,
         )
+        self._local_rank = env_utils.get_local_rank()
+        if zero_stage < ZeroStageEnum.weights and self._local_rank == 0:
+            self.engine.save_non_zero_checkpoint = True
 
     def save_checkpoint_to_memory(
         self, save_dir, tag=None, client_state={}, save_latest=True

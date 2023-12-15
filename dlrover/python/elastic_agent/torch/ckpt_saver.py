@@ -186,7 +186,14 @@ def _create_shared_memory(name, create, size=0):
             size=size,
         )
     except FileExistsError:
+        logger.warning(f"Clear the existing file of the shared memory!")
         shm = SharedMemory(name=name)
+        shm.unlink()
+        shm = SharedMemory(
+            name=name,
+            create=create,
+            size=size,
+        )
     return shm
 
 
@@ -959,17 +966,16 @@ class DeepSpeedCheckpointSaver(AsyncCheckpointSaver):
         self, state_dict, ckpt_config: DeepSpeedCheckpointConfig
     ):
         """Persist the checkpoint from CPU memory buffer into the storage."""
-        state_dict
-        if self._is_agent_rank_0:
+        model_sd = state_dict.get(CheckpointConstant.MODEL_STATES_NAME, {})
+        if model_sd and ckpt_config.model_path:
             checkpoint_dir = os.path.dirname(ckpt_config.model_path)
             os.makedirs(checkpoint_dir, exist_ok=True)
-            model_sd = state_dict.get(CheckpointConstant.MODEL_STATES_NAME, {})
-            if model_sd and ckpt_config.model_path:
-                torch.save(model_sd, ckpt_config.model_path)
-        checkpoint_dir = os.path.dirname(ckpt_config.optimizer_path)
-        os.makedirs(checkpoint_dir, exist_ok=True)
+            torch.save(model_sd, ckpt_config.model_path)
+        
         optimizer_sd = state_dict.get(CheckpointConstant.OPTIM_STATES_NAME, {})
         if optimizer_sd and ckpt_config.optimizer_path:
+            checkpoint_dir = os.path.dirname(ckpt_config.optimizer_path)
+            os.makedirs(checkpoint_dir, exist_ok=True)
             torch.save(optimizer_sd, ckpt_config.optimizer_path)
 
 
