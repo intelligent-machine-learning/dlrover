@@ -29,6 +29,8 @@ to improve the training performance and resources utilization.
 
 ## Latest News
 
+- [2023/11] [ATorch supporting efficient and easy-to-use model training is released.](atorch/README.md)
+- [2023/10] [AGD: an Auto-switchable Optimizer using Stepwise Gradient Difference as Preconditioning Matrix, NeurIPS 2023.](atorch/docs/README-AGD.md)
 - [2023/09] [Weighted Sharpness-Aware Minimization (WSAM) has been accepted by KDD'23.](atorch/docs/README-WSAM.md)
 - [2023/08] [DLRover improves the stability of pre-trained model training over thousands of GPUs.](docs/blogs/stabilize_llm_training_cn.md)
 - [2023/04] [DLRover auto-scales nodes of a DeepRec distributed training job.](docs/blogs/deeprec_autoscale_cn.md)
@@ -74,7 +76,7 @@ can reduce the overhead to restore the training.
 |             Step to restore training            |  Failure without DLRover  |   PS failure with DLRover  | Worker failure with DLRover |
 |:-----------------------------------------------:|:-------------------------:|:--------------------------:|:---------------------------:|
 |                  Restore action                 |        Restart Job        |      Restart failed PS     |    Restart failed workers   |
-| Schedule node, pull image and install packages | All nodes               |         Only new PS        |     Only new workers        |
+| Schedule node, pull image and install packages  |   All nodes               |         Only new PS        |     Only new workers        |
 |                  Start session                  |         all nodes         |          all nodes         |       Only new workers      |
 |                 Initialize Graph                |            Yes            |             Yes            |       Only new workers      |
 |                Restore checkpoint               |            Yes            |             Yes            |              No             |
@@ -193,6 +195,9 @@ a model with DLRover.
 
 ## What's Next?
 
+- Aysnchronously save the checkpoint to the storage.
+  - Significantly reduce checkpoint saving/restore time which blocks training.
+  - Save the checkpoint from the CPU memory even if the training process fails.
 - Fine-grained automatic distributed training for GPU Synchronous jobs
   - hybrid-parallel mode
   - adapted hyper parameters adjustment with dynamic resources
@@ -212,3 +217,5 @@ Please refer to the [DEVELOPMENT](docs/developer_guide.md)
 [Train a PyTorch Model on Kubernetes](docs/tutorial/torch_on_cloud.md)
 
 [Train a GPT Model on Kubernetes](docs/tutorial/torch_ddp_nanogpt.md)
+
+[Train a llama2 model.](examples/pytorch/llama2/README.md)
