@@ -41,7 +41,6 @@ class AsyncSaveEngine(CheckpointEngine):
         pass
 
     def save(self, state_dict, path: str):
-        print(f"Save shadow path {path}")
         if CheckpointConstant.MODEL_STATES_NAME in path:
             self.model_sd = state_dict
             self.model_path = path
