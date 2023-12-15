@@ -156,14 +156,15 @@ def _create_shared_memory(name, create, size=0):
             size=size,
         )
     except FileExistsError:
-        logger.warning("Clear the existing file of the shared memory!")
         shm = SharedMemory(name=name)
-        shm.unlink()
-        shm = SharedMemory(
-            name=name,
-            create=create,
-            size=size,
-        )
+        if shm.size != size:
+            logger.info("Re-create a new memory buffer.")
+            shm.unlink()
+            shm = SharedMemory(
+                name=name,
+                create=create,
+                size=size,
+            )
     return shm
 
 

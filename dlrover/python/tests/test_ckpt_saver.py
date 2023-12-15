@@ -242,8 +242,8 @@ class CheckpointEngineTest(unittest.TestCase):
         shm = _create_shared_memory("test-repeat", True, size=10240)
         self.assertEqual(shm.size, 10240)
 
-        shm = _create_shared_memory("test-repeat", True, size=10240)
-        self.assertEqual(shm.size, 10240)
+        shm = _create_shared_memory("test-repeat", True, size=102400)
+        self.assertEqual(shm.size, 102400)
 
     def test_load_no_sharding(self):
         model = SimpleNet()
