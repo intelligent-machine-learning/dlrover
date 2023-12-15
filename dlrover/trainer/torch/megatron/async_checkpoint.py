@@ -2,10 +2,7 @@
 
 import torch
 from megatron import get_args
-from megatron.checkpointing import (
-    save_checkpoint,
-    load_checkpoint,
-)
+from megatron.checkpointing import load_checkpoint, save_checkpoint
 
 from dlrover.python.common.singleton import singleton
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
@@ -29,7 +26,9 @@ class DlroverCheckpointSaver(object):
         return state_dict
 
 
-def save_checkpoint_to_storage(iteration, model, optimizer, opt_param_scheduler):
+def save_checkpoint_to_storage(
+    iteration, model, optimizer, opt_param_scheduler
+):
     """
     Asynchronously save the the checkpointing state dict into the storage.
     The method will not wait for saving the checkpointing to the storage.
@@ -43,7 +42,9 @@ def save_checkpoint_to_storage(iteration, model, optimizer, opt_param_scheduler)
     torch.save = torch_save_func
 
 
-def save_checkpoint_to_memory(iteration, model, optimizer, opt_param_scheduler):
+def save_checkpoint_to_memory(
+    iteration, model, optimizer, opt_param_scheduler
+):
     """
     Synchronously save the the checkpointing state dict into the CPU memory.
     """
