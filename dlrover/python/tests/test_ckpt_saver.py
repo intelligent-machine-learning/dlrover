@@ -22,6 +22,7 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.optim as optim
 
 from dlrover.python.common.constants import CheckpointConstant, NodeEnv
 from dlrover.python.common.multi_process import (
@@ -36,6 +37,8 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
     AtorchFSDPShardingSaver,
     CheckpointSaver,
     CheckpointShardConfig,
+    DeepSpeedCheckpointEngine,
+    DeepSpeedCheckpointSaver,
     FSDPShardingCheckpointEngine,
     MegatronCheckpointEngine,
     NoShardingCheckpointEngine,
@@ -179,7 +182,10 @@ class CheckpointSaverTest(unittest.TestCase):
             saver._writing_storage = True
             saver.save_shm_to_storage(timeout=2)
             saver._writing_storage = False
-            conf = saving_engine._shm_handler.get_checkpoint_config()
+            default_config = CheckpointShardConfig()
+            conf = saving_engine._shm_handler.get_checkpoint_config(
+                default_config
+            )
             self.assertEqual(conf.step, step)
             CheckpointSaver.register_signal_handler()
             handler = signal.getsignal(signal.SIGTERM)
@@ -351,11 +357,9 @@ class ShardingCheckpointEngineTest(unittest.TestCase):
             self.assertEqual(saver_class, AsyncCheckpointSaver)
 
             step = 100
-            path = engine._get_checkpoint_name(step)
-            expected_path = os.path.join(
-                tmpdir, "iter_0000100/mp_rank_00/model_optim_rng.pt"
+            path = os.path.join(
+                tmpdir, f"iter_0000{step}/mp_rank_00/model_optim_rng.pt"
             )
-            self.assertEqual(path, expected_path)
 
             tensor = torch.rand(4, 4)
             state_dict = {"weights": tensor}
@@ -372,7 +376,54 @@ class ShardingCheckpointEngineTest(unittest.TestCase):
                 f.write(str(step))
             sd = engine._load_from_storage(path)
             self.assertTrue(torch.equal(sd["weights"], tensor))
-            sd = engine._load_from_storage()
+            sd = engine.load(path)
             self.assertTrue(torch.equal(sd["weights"], tensor))
-            sd = engine.load()
-            self.assertTrue(torch.equal(sd["weights"], tensor))
+
+    def test_deepspeed_engine(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            engine = DeepSpeedCheckpointEngine(
+                tmpdir, global_shard_num=1, zero_stage=1
+            )
+            global_shard_num = engine.get_global_shard_num()
+            self.assertEqual(global_shard_num, 1)
+            local_shard_num = engine.get_local_shard_num()
+            self.assertEqual(local_shard_num, 1)
+
+            saver_class = engine.get_saver_class()
+            self.assertEqual(saver_class, DeepSpeedCheckpointSaver)
+            model = SimpleNet()
+            optimizer = optim.SGD(
+                model.parameters(),
+                lr=0.01,
+                momentum=0.001,
+            )
+            state_dict = dict(
+                model_states=model.state_dict(),
+                optim_states=optimizer.state_dict(),
+            )
+            step = 100
+            model_path = os.path.join(tmpdir, str(step), "model_states.pt")
+            optimizer_path = os.path.join(tmpdir, str(step), "optim_states.pt")
+            engine.save_to_storage(
+                step, state_dict, model_path, optimizer_path
+            )
+            time.sleep(1)  # wait asynchronouly saving
+            self.assertEqual(engine._shm_handler._buffer_size, 9640)
+            self.assertEqual(engine._shm_handler._tensor_shm.size, 9640)
+            restored_state_dict = engine.load()
+            restore_msd = restored_state_dict["model_states"]
+            msd = state_dict["model_states"]
+            for name in msd.keys():
+                self.assertTrue(torch.equal(msd[name], restore_msd[name]))
+            f = DeepSpeedCheckpointSaver.get_checkpoint_tracker_filename
+            tracer_file = f(tmpdir)
+            with open(tracer_file, "r") as f:
+                restored_step = int(f.read())
+                self.assertEqual(restored_step, step)
+
+            restored_state_dict = engine._load_from_storage(
+                resume_model_path=model_path,
+                resume_optimizer_path=optimizer_path,
+            )
+            for name in msd.keys():
+                self.assertTrue(torch.equal(msd[name], restore_msd[name]))
