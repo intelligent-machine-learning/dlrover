@@ -41,7 +41,7 @@ from dlrover.trainer.torch.elastic.trainer import ElasticTrainer
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 
 # We should use a shared storage to persist the checkpiont.
-checkpoint_dir = "/sfs/lan/nanogpt-ckpt/"
+checkpoint_dir = "/nas/nanogpt-ckpt/"
 
 local_rank = None
 master_process = False
