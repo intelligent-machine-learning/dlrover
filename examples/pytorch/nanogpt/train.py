@@ -41,7 +41,7 @@ from dlrover.trainer.torch.elastic.trainer import ElasticTrainer
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 
 # We should use a shared storage to persist the checkpiont.
-checkpoint_dir = "/nas/nanogpt-ckpt/"
+checkpoint_dir = "/sfs/lan/nanogpt-ckpt/"
 
 local_rank = None
 master_process = False
@@ -377,12 +377,15 @@ def train():
                         )
                     iter_num += 1
                     local_iter_num += 1
-
+                    if iter_num % args.checkpoint_step == 0:
+                        ckpt_manager.save(epoch, iter_num)
                     # Termination conditions
                     if iter_num > max_iters:
                         break
-                    if iter_num % args.checkpoint_step == 0:
-                        ckpt_manager.save(epoch, iter_num)
+                if iter_num > max_iters:
+                    break
+        if iter_num > max_iters:
+            break
         if args.save_model:
             rank = int(os.getenv("RANK", "0"))
             save_model(model, epoch, rank, args.use_fsdp)
@@ -477,7 +480,7 @@ def arg_parser():
     parser.add_argument(
         "--learning_rate", type=float, default=6e-4, required=False
     )
-    parser.add_argument("--max_iters", type=int, default=200, required=False)
+    parser.add_argument("--max_iters", type=int, default=2000, required=False)
     parser.add_argument(
         "--weight_decay", type=float, default=1e-1, required=False
     )
