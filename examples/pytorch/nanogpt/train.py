@@ -377,12 +377,15 @@ def train():
                         )
                     iter_num += 1
                     local_iter_num += 1
-
+                    if iter_num % args.checkpoint_step == 0:
+                        ckpt_manager.save(epoch, iter_num)
                     # Termination conditions
                     if iter_num > max_iters:
                         break
-                    if iter_num % args.checkpoint_step == 0:
-                        ckpt_manager.save(epoch, iter_num)
+                if iter_num > max_iters:
+                    break
+        if iter_num > max_iters:
+            break
         if args.save_model:
             rank = int(os.getenv("RANK", "0"))
             save_model(model, epoch, rank, args.use_fsdp)
@@ -477,7 +480,7 @@ def arg_parser():
     parser.add_argument(
         "--learning_rate", type=float, default=6e-4, required=False
     )
-    parser.add_argument("--max_iters", type=int, default=200, required=False)
+    parser.add_argument("--max_iters", type=int, default=2000, required=False)
     parser.add_argument(
         "--weight_decay", type=float, default=1e-1, required=False
     )
