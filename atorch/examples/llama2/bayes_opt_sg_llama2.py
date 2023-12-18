@@ -490,7 +490,7 @@ def main():
         optim_param_func=partial(optim_param_func, args=args),
         dataloader_args=dataloader_args,
         excluded=[],
-        included=[{"atorch_wrap_cls": ("LlamaDecoderLayer")}],
+        included=[],
         verbose=True,
     )
 
