@@ -16,22 +16,17 @@ import shutil
 
 import torch
 import torch.distributed as dist
+from deepspeed.runtime.checkpoint_engine.torch_checkpoint_engine import (
+    CheckpointEngine,
+)
+from deepspeed.runtime.engine import DeepSpeedEngine
+from deepspeed.runtime.zero.config import ZeroStageEnum
 
 from dlrover.python.common import env_utils
 from dlrover.python.common.constants import CheckpointConstant
-from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     DeepSpeedCheckpointEngine,
 )
-
-try:
-    from deepspeed.runtime.checkpoint_engine.torch_checkpoint_engine import (
-        CheckpointEngine,
-    )
-    from deepspeed.runtime.engine import DeepSpeedEngine
-    from deepspeed.runtime.zero.config import ZeroStageEnum
-except ImportError:
-    logger.warning("Please install deepspeed!!")
 
 
 class AsyncSaveEngine(CheckpointEngine):
