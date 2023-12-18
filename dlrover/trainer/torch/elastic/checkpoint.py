@@ -21,11 +21,8 @@ import torch.distributed.checkpoint as dist_cp
 from torch.distributed.checkpoint.optimizer import (
     load_sharded_optimizer_state_dict,
 )
-from torch.distributed.fsdp import FullStateDictConfig
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.distributed.fsdp import StateDictType
-from torch.distributed.fsdp.api import FullOptimStateDictConfig
-from torch.distributed.fsdp.fully_sharded_data_parallel import StateDictType
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 from dlrover.python.common.constants import CheckpointConstant
