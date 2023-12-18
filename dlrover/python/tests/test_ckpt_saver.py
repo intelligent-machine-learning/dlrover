@@ -84,7 +84,7 @@ class ShardingEngineDemo(NoShardingCheckpointEngine):
 class SharedMemoryHandlerTest(unittest.TestCase):
     def setUp(self):
         local_rank = 1
-        os.environ["JOB_NAME"] = "unittest"
+        os.environ[NodeEnv.TORCHELASTIC_RUN_ID] = "unittest"
         SharedDict(_CKPT_META_NAME_PREFIX + str(local_rank), create=True)
         self._shm_handler = SharedMemoryHandler(local_rank, host=False)
 

@@ -179,7 +179,7 @@ class elastic_launch:
             )
 
 
-def _launch_dlrover_local_master(master_addr):
+def _launch_dlrover_local_master(master_addr, job_name):
     """Launch a subprocess to run the DLrover master."""
     logger.info(f"Start dlrover master with addr {master_addr}")
     if not master_addr:
@@ -189,8 +189,6 @@ def _launch_dlrover_local_master(master_addr):
         host = master_addr.split(":")[0]
         port = int(master_addr.split(":")[1])
     cmd = os.getenv("PYTHON_EXEC", sys.executable)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-    job_name = f"standalone_{timestamp}"
     args = (
         "-u",
         "-m",
@@ -202,8 +200,6 @@ def _launch_dlrover_local_master(master_addr):
         "--platform",
         "local",
     )
-    if NodeEnv.JOB_NAME not in os.environ:
-        os.environ[NodeEnv.JOB_NAME] = job_name
     handler = SubprocessHandler(cmd, args, {}, "", "")
     dlrover_master_addr = f"{host}:{port}"
     return handler, dlrover_master_addr
@@ -245,9 +241,14 @@ def run(args):
     master_addr = os.getenv(NodeEnv.DLROVER_MASTER_ADDR, "")
     use_dlrover_launch = False
     node_rank = env_utils.get_node_rank()
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    job_name = os.getenv(NodeEnv.JOB_NAME, f"standalone_{timestamp}")
+    os.environ[NodeEnv.TORCHELASTIC_RUN_ID] = job_name
     if args.standalone and node_rank == 0:
         # Only start the dlrover master on the rank-0 node.
-        master_handler, master_addr = _launch_dlrover_local_master(master_addr)
+        master_handler, master_addr = _launch_dlrover_local_master(
+            master_addr, job_name
+        )
         os.environ[NodeEnv.DLROVER_MASTER_ADDR] = master_addr
     if _check_dlrover_master_available(master_addr):
         use_dlrover_launch = True
@@ -268,6 +269,7 @@ def run(args):
         )
 
     config, cmd, cmd_args = _elastic_config_from_args(args)
+    config.run_id = job_name
     try:
         elastic_launch(
             config=config,

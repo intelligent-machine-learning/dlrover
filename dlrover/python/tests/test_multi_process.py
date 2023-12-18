@@ -25,7 +25,7 @@ from dlrover.python.common.multi_process import (
 class SharedLockTest(unittest.TestCase):
     def test_shared_lock(self):
         name = "test"
-        os.environ["JOB_NAME"] = "test_job"
+        os.environ["TORCHELASTIC_RUN_ID"] = "test_job"
         server_lock = SharedLock(name, create=True)
         self.assertTrue(os.path.exists("/tmp/test_job/sharedlock_test.sock"))
         client_lock = SharedLock(name, create=False)

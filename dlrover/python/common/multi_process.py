@@ -25,6 +25,7 @@ from typing import Dict
 
 import _posixshmem
 
+from .constants import NodeEnv
 from .log import default_logger as logger
 
 TMP_DIR = "/tmp"
@@ -173,7 +174,7 @@ class LocalSocketComm(metaclass=ABCMeta):
     def _create_socket_path(self):
         """Create a file path for the local socket."""
         fname = self.__class__.__name__.lower() + "_" + self._name + ".sock"
-        job_name = os.getenv("JOB_NAME", "")
+        job_name = os.getenv(NodeEnv.TORCHELASTIC_RUN_ID, "")
         if job_name:
             root_dir = os.path.join(TMP_DIR, job_name)
         else:

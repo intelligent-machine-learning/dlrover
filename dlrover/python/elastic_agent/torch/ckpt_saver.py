@@ -260,7 +260,7 @@ class SharedMemoryHandler(object):
         self._buffer_size = 0
         meta_name = _CKPT_META_NAME_PREFIX + str(local_rank)
         self._tensor_meta = SharedDict(name=meta_name, create=host)
-        job_name = os.getenv(NodeEnv.JOB_NAME, "")
+        job_name = os.getenv(NodeEnv.TORCHELASTIC_RUN_ID, "")
         if job_name:
             self._shm_name = (
                 job_name + "_" + _TENSOR_SHM_NAME_PREFIX + str(local_rank)
