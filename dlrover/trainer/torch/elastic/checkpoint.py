@@ -17,10 +17,12 @@ from abc import ABCMeta, abstractmethod
 from typing import Dict
 
 import torch.distributed as dist
-from torch.distributed.fsdp import FullStateDictConfig
+import torch.distributed.checkpoint as dist_cp
+from torch.distributed.checkpoint.optimizer import (
+    load_sharded_optimizer_state_dict,
+)
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.distributed.fsdp import StateDictType
-from torch.distributed.fsdp.api import FullOptimStateDictConfig
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 from dlrover.python.common.constants import CheckpointConstant
@@ -50,7 +52,9 @@ def _keep_topk_checkpoint(checkpoint_dir, max_to_keep):
     if not os.path.exists(checkpoint_dir):
         return
     for ckpt_name in os.listdir(checkpoint_dir):
-        if not ckpt_name.startswith(CheckpointConstant.CKPT_NAME_PREFIX):
+        if not ckpt_name.startswith(
+            CheckpointConstant.CKPT_NAME_PREFIX
+        ) or not ckpt_name.endswith(".pt"):
             continue
         name = ckpt_name.split("-")[-1]
         if name.endswith(".pt"):
@@ -352,14 +356,16 @@ class FSDPCheckpointManger(CheckpointManger):
         self._log_rank0(f"Save checkpoint of step={step} of epoch={epoch}.")
         if self.dataloader:
             step = step + epoch * len(self.dataloader)
+
         with FSDP.state_dict_type(
             self.model,
-            StateDictType.FULL_STATE_DICT,
-            FullStateDictConfig(rank0_only=False),
-            FullOptimStateDictConfig(rank0_only=False),
+            StateDictType.SHARDED_STATE_DICT,
         ):
-            msd = self.model.state_dict()
-            osd = FSDP.optim_state_dict(self.model, self.optimizer)
+            state_dict = {
+                "model": self.model.state_dict(),
+                "optim": FSDP.optim_state_dict(self.model, self.optimizer),
+            }
+
         ssd = {}
         if self.dataloader and isinstance(
             self.dataloader.sampler, ElasticDistributedSampler
@@ -367,44 +373,67 @@ class FSDPCheckpointManger(CheckpointManger):
             ssd = self.dataloader.sampler.state_dict(
                 step, self.dataloader.batch_size
             )
-        checkpoint = {
-            "model": msd,
-            "optimizer": osd,
-            "sampler": ssd,
-            "epoch": epoch,
-            "step": step,
-        }
-        self._engine_save(self._ckpt_engine, step, checkpoint)
+            state_dict["sampler"] = ssd
+        state_dict["epoch"] = epoch
+        state_dict["step"] = step
+        subdir_name = CheckpointConstant.CKPT_NAME_PREFIX + str(step)
+        checkpoint_dir = os.path.join(self.checkpoint_dir, subdir_name)
+        dist_cp.save_state_dict(
+            state_dict=state_dict,
+            storage_writer=dist_cp.FileSystemWriter(checkpoint_dir),
+        )
+        tracer_file = os.path.join(
+            self.checkpoint_dir, CheckpointConstant.TRACER_FILE_NAME
+        )
+        with open(tracer_file, "w") as f:
+            f.write(str(step))
 
     def load(self, resuming_path=None):
         """
         Load teh state dict from checkpointing data to the model and optimizer.
         """
-        checkpoint = self._ckpt_engine.load(resuming_path)
-        if not checkpoint:
-            return {}
+
+        if resuming_path is None:
+            tracer_file = os.path.join(
+                self.checkpoint_dir, CheckpointConstant.TRACER_FILE_NAME
+            )
+            if not os.path.exists(tracer_file):
+                return {}
+            with open(tracer_file, "r") as f:
+                step = f.read()
+                subdir_name = CheckpointConstant.CKPT_NAME_PREFIX + step
+                resuming_path = os.path.join(self.checkpoint_dir, subdir_name)
+        with FSDP.state_dict_type(
+            self.model, StateDictType.SHARDED_STATE_DICT
+        ):
+            # cannot load the optimizer state_dict together
+            # with the model state_dict.
+            state_dict = {
+                "model": self.model.state_dict(),
+                "step": 0,
+                "epoch": 0,
+                "sampler": {},
+            }
+
+            dist_cp.load_state_dict(
+                state_dict=state_dict,
+                storage_reader=dist_cp.FileSystemReader(resuming_path),
+            )
+            self.model.load_state_dict(state_dict["model"])
+
+            optim_state = load_sharded_optimizer_state_dict(
+                model_state_dict=state_dict["model"],
+                optimizer_key="optim",
+                storage_reader=dist_cp.FileSystemReader(resuming_path),
+            )
+
+            flattened_osd = FSDP.optim_state_dict_to_load(
+                self.model, self.optimizer, optim_state["optim"]
+            )
+            self.optimizer.load_state_dict(flattened_osd)
+
         if self.dataloader:
             sampler = self.dataloader.sampler
             if isinstance(sampler, ElasticDistributedSampler):
-                sampler.load_state_dict(checkpoint.get("sampler", {}))
-        model_state_dict = checkpoint.get("model", {})
-        optim_state_dict = checkpoint.get("optimizer", {})
-
-        #  TODO: use shard_state_dict to checkpoint.
-        with FSDP.state_dict_type(
-            self.model,
-            StateDictType.FULL_STATE_DICT,
-            FullStateDictConfig(rank0_only=False),
-            FullOptimStateDictConfig(rank0_only=False),
-        ):
-            # called from all ranks, though only rank0 has
-            # a valid param for full_osd.
-            optim_state_dict = FSDP.optim_state_dict_to_load(
-                model=self.model,
-                optim=self.optimizer,
-                optim_state_dict=optim_state_dict,
-            )
-        self.model.load_state_dict(model_state_dict)
-        self.optimizer.load_state_dict(optim_state_dict)
-        _sync()
-        return checkpoint
+                sampler.load_state_dict(state_dict.get("sampler", {}))
+        return state_dict
