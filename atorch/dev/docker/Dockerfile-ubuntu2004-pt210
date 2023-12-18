@@ -71,7 +71,8 @@ RUN pip install dm-tree setuptools packaging && \
     pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./ && \
     cd .. && rm -rf apex*
 
-RUN pip install https://dlrover.oss-cn-beijing.aliyuncs.com/atorch/libs/flash_attn-2.0.4%2Bglm.mask-cp38-cp38-linux_x86_64.whl -i https://pypi.antfin-inc.com/simple
+# make sure to rebuild fa if you updated py/cuda/... versions are updated.
+RUN pip install https://dlrover.oss-cn-beijing.aliyuncs.com/atorch/libs/flash_attn-2.0.4%2Bglm.mask-cp38-cp38-linux_x86_64.whl
 RUN wget -O catapult.tar.gz https://dlrover.oss-cn-beijing.aliyuncs.com/atorch/libs/catapult.tar.gz && \
     mkdir -p /home/admin/profile/ && \
     tar -zxf catapult.tar.gz -C /home/admin/profile/ && \
@@ -82,6 +83,6 @@ RUN wget -O catapult.tar.gz https://dlrover.oss-cn-beijing.aliyuncs.com/atorch/l
 ##############################################################################
 FROM atorch-fa-base as atorch-base
 COPY atorch/requirements.txt ./
-RUN pip install -r requirements.txt -i https://pypi.antfin-inc.com/simple && \
-    pip install pre-commit grpcio grpcio-tools  -i https://pypi.antfin-inc.com/simple && \
+RUN pip install -r requirements.txt && \
+    pip install pre-commit grpcio grpcio-tools && \
     rm -f ./requirements.txt
