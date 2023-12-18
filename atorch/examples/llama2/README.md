@@ -425,8 +425,6 @@ sh ds_3d_llama2_entry.sh
 | DS 3D | /        |          32 |  2 |  2 |  8 |             8 |              64 |              4096 | 154.44 | 49.5 | 23901.8               |
 | DS 3D | /        |          64 |  2 |  2 | 16 |             8 |              64 |              8192 | 153.93 | 49.3 | 22695.7               |
 
-
-
 ## Automatic Training Optimization 
 ### Introductin
 If the users are not sure what the strategy to achieve the largest throughput, auto_accelerate is able to automatically searching the best strategy given models and hardware conditions. This function is based on Bayesian Optimization (BO)implemented by [HEBO](https://github.com/huawei-noah/HEBO) aiming to find the strategy with largest training throughput efficiently. BO is a machine learning technique used for optimizing black-box functions that are expensive to evaluate. Specifically, BO learn the mapping from strategies to throughput using the data from dryrun, which run few training steps. Moreover, BO recommends the potential high-throughput strategy to achieve the throughput from dryrun, and update the mapping iteratively. This iterative process continues until the desired optimization criteria are met or a predefined budget is exhausted.
@@ -482,10 +480,6 @@ where `strategy` is set None, and included/excluded is used to specify the strat
 
 
 ### Scripts
-
-- training file [bayes_opt_sg_llama2.py](bayes_opt_sg_llama2.py)
-
-- launch script [bayes_opt_sg_llama2_entry.sh](bayes_opt_sg_llama2_entry.sh)
 
 
 ### Results
