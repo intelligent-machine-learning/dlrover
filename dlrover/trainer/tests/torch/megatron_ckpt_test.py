@@ -64,7 +64,7 @@ class MegatrionCheckpointTest(unittest.TestCase):
         if CheckpointSaver._saver_instance:
             CheckpointSaver._saver_instance.close()
 
-    def test_ddp_save_load(self):
+    def test_save_load(self):
         os.environ["LOCAL_RANK"] = "0"
         model = SimpleNet()
         optimizer = optim.SGD(
