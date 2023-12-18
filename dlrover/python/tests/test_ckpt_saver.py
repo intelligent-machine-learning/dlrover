@@ -257,7 +257,7 @@ class CheckpointEngineTest(unittest.TestCase):
             engine = NoShardingCheckpointEngine(tmpdirname)
             engine._restart_count = 1
             engine._notify_agent_to_create_saver()
-            path = os.path.join(tmpdirname, "checkpoint-10.pt")
+            path = os.path.join(tmpdirname, "10.pt")
             torch.save(state_dict, path)
             tracer_file = os.path.join(
                 tmpdirname, CheckpointConstant.TRACER_FILE_NAME
@@ -325,7 +325,7 @@ class ShardingCheckpointEngineTest(unittest.TestCase):
             tmp = Path(tmpdir)
             time.sleep(3)
             # list the files in tmpdir recursively
-            saved_file = tmp / "checkpoint-100/checkpoint.pt"
+            saved_file = tmp / "100/checkpoint.pt"
             self.assertTrue(saved_file.exists())
 
             tracker_file = tmp / "tracker.txt"
