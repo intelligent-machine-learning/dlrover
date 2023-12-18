@@ -16,9 +16,6 @@ import shutil
 
 import torch
 import torch.distributed as dist
-from deepspeed.runtime.checkpoint_engine.torch_checkpoint_engine import (
-    CheckpointEngine,
-)
 
 from dlrover.python.common import env_utils
 from dlrover.python.common.constants import CheckpointConstant
@@ -28,6 +25,9 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
 )
 
 try:
+    from deepspeed.runtime.checkpoint_engine.torch_checkpoint_engine import (
+        CheckpointEngine,
+    )
     from deepspeed.runtime.engine import DeepSpeedEngine
     from deepspeed.runtime.zero.config import ZeroStageEnum
 except ImportError:
