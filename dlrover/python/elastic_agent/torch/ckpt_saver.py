@@ -829,8 +829,7 @@ class AtorchFSDPShardingSaver(CheckpointSaver):
         Args:
             step (int): the iteration step.
         """
-        name = f"{CheckpointConstant.CKPT_NAME_PREFIX}{step}"
-        return os.path.join(self.checkpoint_dir, name)
+        return os.path.join(self.checkpoint_dir, str(step))
 
     def _get_tmp_ckpt_dir(self, step: int):
         """
@@ -1211,7 +1210,7 @@ class NoShardingCheckpointEngine(CheckpointEngine):
             with open(tracker_filename, "r") as f:
                 metastring = f.read().strip()
             iteration = int(metastring)
-            name = f"{CheckpointConstant.CKPT_NAME_PREFIX}{iteration}.pt"
+            name = f"{iteration}.pt"
             path = os.path.join(self.checkpoint_dir, name)
             logger.info(f"Load the state dict from {path}")
             state_dict = torch.load(path, map_location="cpu")

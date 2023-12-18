@@ -41,7 +41,7 @@ from dlrover.trainer.torch.elastic.trainer import ElasticTrainer
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 
 # We should use a shared storage to persist the checkpiont.
-checkpoint_dir = "/nas/nanogpt-ckpt/"
+CHEKPOINT_DIR = "/nas/nanogpt-ckpt/"
 
 local_rank = None
 master_process = False
@@ -190,7 +190,7 @@ def train():
     global local_rank
     args = arg_parser()
     setup(args)
-    os.makedirs(checkpoint_dir, exist_ok=True)
+    os.makedirs(CHEKPOINT_DIR, exist_ok=True)
     world_size = int(os.getenv("WORLD_SIZE", 1))
     gradient_accumulation_steps = args.gradient_accumulation_steps
     batch_size = args.batch_size
@@ -308,7 +308,7 @@ def train():
     # if data type is float16
 
     ckpt_manager = CheckpointManger.init_checkpoint_manager(
-        model, optimizer, train_loader, checkpoint_dir
+        model, optimizer, train_loader, CHEKPOINT_DIR
     )
     ckpt_dict = ckpt_manager.load()
     iter_num = ckpt_dict.get("step", 0)
