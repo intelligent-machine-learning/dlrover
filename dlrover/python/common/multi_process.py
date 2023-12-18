@@ -179,7 +179,7 @@ class LocalSocketComm(metaclass=ABCMeta):
         else:
             root_dir = TMP_DIR
         os.makedirs(root_dir, exist_ok=True)
-        return os.path.join(TMP_DIR, fname)
+        return os.path.join(root_dir, fname)
 
     def _init_socket(self):
         """Initialze a socket server."""

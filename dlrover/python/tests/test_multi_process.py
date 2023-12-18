@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import unittest
 
 from dlrover.python.common.multi_process import (
@@ -24,7 +25,9 @@ from dlrover.python.common.multi_process import (
 class SharedLockTest(unittest.TestCase):
     def test_shared_lock(self):
         name = "test"
+        os.environ["JOB_NAME"] = "test_job"
         server_lock = SharedLock(name, create=True)
+        self.assertTrue(os.path.exists("/tmp/test_job/sharedlock_test.sock"))
         client_lock = SharedLock(name, create=False)
         acquired = server_lock.acquire()
         self.assertTrue(acquired)
