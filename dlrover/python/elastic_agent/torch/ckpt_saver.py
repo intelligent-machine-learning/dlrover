@@ -94,7 +94,7 @@ class SingleFileCheckpointConfig(CheckpointShardConfig):
 class DeepSpeedCheckpointConfig(CheckpointShardConfig):
     """
     The configuration of a checkpointing shard to save the DeepSpeed
-    ZERO-1/2/3 stage.
+    ZERO-0/1/2/3 stage.
 
     Attrbiutes:
         model_path (str): the path to save the checkpoint shard of model.
