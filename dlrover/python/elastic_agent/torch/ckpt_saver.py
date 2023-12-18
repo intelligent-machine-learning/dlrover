@@ -27,7 +27,7 @@ import torch
 import torch.distributed as dist
 
 from dlrover.python.common import env_utils
-from dlrover.python.common.constants import CheckpointConstant
+from dlrover.python.common.constants import CheckpointConstant, NodeEnv
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.multi_process import (
     SharedDict,
@@ -260,7 +260,13 @@ class SharedMemoryHandler(object):
         self._buffer_size = 0
         meta_name = _CKPT_META_NAME_PREFIX + str(local_rank)
         self._tensor_meta = SharedDict(name=meta_name, create=host)
-        self._shm_name = _TENSOR_SHM_NAME_PREFIX + str(local_rank)
+        job_name = os.getenv(NodeEnv.JOB_NAME, "")
+        if job_name:
+            self._shm_name = (
+                job_name + "_" + _TENSOR_SHM_NAME_PREFIX + str(local_rank)
+            )
+        else:
+            self._shm_name = _TENSOR_SHM_NAME_PREFIX + str(local_rank)
         self._tensor_shm = None
 
     def close(self):

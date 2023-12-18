@@ -173,6 +173,12 @@ class LocalSocketComm(metaclass=ABCMeta):
     def _create_socket_path(self):
         """Create a file path for the local socket."""
         fname = self.__class__.__name__.lower() + "_" + self._name + ".sock"
+        job_name = os.getenv("JOB_NAME", "")
+        if job_name:
+            root_dir = os.path.join(TMP_DIR, job_name)
+        else:
+            root_dir = TMP_DIR
+        os.makedirs(root_dir, exist_ok=True)
         return os.path.join(TMP_DIR, fname)
 
     def _init_socket(self):

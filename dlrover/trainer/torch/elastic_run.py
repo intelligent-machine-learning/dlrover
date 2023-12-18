@@ -78,6 +78,7 @@ import sys
 import telnetlib
 import time
 import uuid
+from datetime import datetime
 from typing import Callable, List, Tuple, Union
 
 from torch.distributed.argparse_util import check_env, env
@@ -188,6 +189,8 @@ def _launch_dlrover_local_master(master_addr):
         host = master_addr.split(":")[0]
         port = int(master_addr.split(":")[1])
     cmd = os.getenv("PYTHON_EXEC", sys.executable)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    job_name = f"standalone_{timestamp}"
     args = (
         "-u",
         "-m",
@@ -195,10 +198,12 @@ def _launch_dlrover_local_master(master_addr):
         "--port",
         f"{port}",
         "--job_name",
-        "dlrover-training",
+        job_name,
         "--platform",
         "local",
     )
+    if NodeEnv.JOB_NAME not in os.environ:
+        os.environ[NodeEnv.JOB_NAME] = job_name
     handler = SubprocessHandler(cmd, args, {}, "", "")
     dlrover_master_addr = f"{host}:{port}"
     return handler, dlrover_master_addr
