@@ -427,38 +427,10 @@ sh ds_3d_llama2_entry.sh
 
 ## Automatic Training Optimization 
 ### Introductin
-If the users are not sure what the strategy to achieve the largest throughput, auto_accelerate is able to automatically searching the best strategy given models and hardware conditions. This function is based on Bayesian Optimization (BO)implemented by [HEBO](https://github.com/huawei-noah/HEBO) aiming to find the strategy with largest training throughput efficiently. BO is a machine learning technique used for optimizing black-box functions that are expensive to evaluate. Specifically, BO learn the mapping from strategies to throughput using the data from dryrun, which run few training steps. Moreover, BO recommends the potential high-throughput strategy to achieve the throughput from dryrun, and update the mapping iteratively. This iterative process continues until the desired optimization criteria are met or a predefined budget is exhausted.
+If the users are not sure  which strategy would achieve the largest throughput, auto_accelerate is able to automatically searching the best strategy given models and hardware conditions.  This is achieved using Bayesian Optimization (BO)implemented by [HEBO](https://github.com/huawei-noah/HEBO) aiming to find the strategy with largest training throughput efficiently. BO is a machine learning technique used for optimizing black-box functions that are expensive to evaluate. Specifically, BO learns the mapping from strategies to throughput using the data from dryrun, which run few training steps. Moreover, BO recommends the potential high-throughput strategy to achieve the throughput from dryrun, and updates the mapping iteratively. This iterative process continues until the desired optimization criteria are met or a predefined budget is exhausted.
 
 ### Usage
-In this section,an example is presented to show how to automatically search the best strategy. Specifically, we utilize 8 A100 to train the LLAMA2 7B model on wikitext-103-raw-v1. The shell script to run the experiment is given as follows
-```bash
-NUM_GPUS_PER_NODE=$(nvidia-smi -L | wc -l)
-WORLD_SIZE=${WORLD_SIZE:-1}
-NUM_GPUS=$((NUM_GPUS_PER_NODE * WORLD_SIZE))
-PER_DEVICE_TRAIN_BATCH_SIZE=4
-TOTAL_TRAIN_BATCH_SIZE=$((NUM_GPUS_PER_NODE * WORLD_SIZE * PER_DEVICE_TRAIN_BATCH_SIZE))
-export BO_SG_MAX_IETR=12
-export RANDOM_SAMPLE=4
-python -m atorch.distributed.run --fault_tolerant --max_restarts=0 \
-    --nnodes="$WORLD_SIZE" \
-    --nproc_per_node="$NUM_GPUS_PER_NODE" \
-    bayes_opt_sg_llama2.py \
-    --dataset_path $DATASET_DIR \
-    --config_name $PRETRAINED_MODEL_DIR \
-    --tokenizer_name $PRETRAINED_MODEL_DIR \
-    --num_train_epochs 3 \
-    --block_size 2048 \
-    --total_train_batch_size $TOTAL_TRAIN_BATCH_SIZE \
-    --per_device_eval_batch_size 4 \
-    --seed 42 \
-    --preprocessing_num_workers 12 \
-    --dataloader_num_workers 0 \
-    --output_dir /tmp/test-llama2 \
-    --ignore_mismatched_sizes \
-    --ignore_dryrun_on_load_strategy
-
-```
-Note that PRETRAINED_MODEL_DIR and DATASET_DIR are the paths of model and dataset respectively. Also BO_SG_MAX_IETR is the maximum search rounds of the Bayesian optimization and RANDOM_SAMPLE is the initial sampling steps of BO. The block size is the sequence length of the input data. In the `llama2_clm.py`, the auto_accelerate function is called as follows
+In this section, an example is presented to show how to automatically search the best strategy. Specifically, we utilize 8 A100 to train the LLAMA2 7B model on wikitext-103-raw-v1. The example source code is bayes_opt_sg_llama2.py and you can use bayes_opt_sg_llama2_entry.sh to run the example. Note that PRETRAINED_MODEL_DIR and DATASET_DIR are the paths of model and dataset respectively. Also BO_SG_MAX_IETR is the maximum search rounds of the Bayesian optimization and RANDOM_SAMPLE is the initial sampling steps of BO. The block size is the sequence length of the input data. In the `llama2_clm.py`, the auto_accelerate function is called as follows
 
 ```python
     status, result, best_strategy = auto_accelerate(
