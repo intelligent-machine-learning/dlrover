@@ -102,8 +102,8 @@ class SharedMemoryHandlerTest(unittest.TestCase):
     def test_load_state_dict(self):
         state_dict = self._shm_handler.load_state_dict()
         self.assertDictEqual(state_dict, {})
-        self._shm_handler._tensor_meta.set({"step": 100})
-        meta_dict = self._shm_handler._tensor_meta.get()
+        self._shm_handler.metadata.set({"step": 100})
+        meta_dict = self._shm_handler.metadata.get()
         self.assertDictEqual(meta_dict, {"step": 100})
 
 
@@ -137,7 +137,7 @@ class CheckpointSaverTest(unittest.TestCase):
             SharedMemory(name="test").unlink()
         except Exception:
             pass
-        saver._shm_handlers[0]._tensor_shm = SharedMemory(
+        saver._shm_handlers[0].shared_memory = SharedMemory(
             name="test",
             create=True,
             size=1024,
@@ -171,12 +171,12 @@ class CheckpointSaverTest(unittest.TestCase):
             saving_engine = NoShardingCheckpointEngine(tmpdir)
             sq.unlink()
             saving_engine.save_to_memory(step, state_dict)
-            meta_dict = saving_engine._shm_handler._tensor_meta._dict
+            meta_dict = saving_engine._shm_handler.metadata._dict
             ckpt_config: CheckpointShardConfig = meta_dict[_DLROVER_CKPT_KEY]
             self.assertFalse(ckpt_config.writing_shm)
             self.assertEqual(ckpt_config.step, step)
             saver: AsyncCheckpointSaver = CheckpointSaver.get_ckpt_saver()
-            saver._shm_handlers[0]._tensor_shm = SharedMemory(
+            saver._shm_handlers[0].shared_memory = SharedMemory(
                 name=saver._shm_handlers[0]._shm_name
             )
             saver._writing_storage = True
@@ -218,7 +218,7 @@ class CheckpointSaverTest(unittest.TestCase):
             saving_engine = ShardingEngineDemo(tmpdir, 2)
             sq.unlink()
             self.assertTrue(saver._shm_handlers[0].empty())
-            self.assertIsNone(saver._shm_handlers[0]._tensor_shm)
+            self.assertIsNone(saver._shm_handlers[0].shared_memory)
             saving_engine.save_to_memory(step, state_dict)
             self.assertFalse(saver._shm_handlers[0].empty())
             saver.close()
@@ -409,7 +409,7 @@ class ShardingCheckpointEngineTest(unittest.TestCase):
             )
             time.sleep(1)  # wait asynchronouly saving
             self.assertEqual(engine._shm_handler._buffer_size, 9640)
-            self.assertEqual(engine._shm_handler._tensor_shm.size, 9640)
+            self.assertEqual(engine._shm_handler.shared_memory.size, 9640)
             restored_state_dict = engine.load()
             restore_msd = restored_state_dict["model_states"]
             msd = state_dict["model_states"]
