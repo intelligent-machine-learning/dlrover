@@ -73,10 +73,6 @@ RUN pip install dm-tree setuptools packaging && \
 
 # make sure to rebuild fa if you updated py/cuda/... versions are updated.
 RUN pip install https://dlrover.oss-cn-beijing.aliyuncs.com/atorch/libs/flash_attn-2.0.4%2Bglm.mask-cp38-cp38-linux_x86_64.whl
-RUN wget -O catapult.tar.gz https://dlrover.oss-cn-beijing.aliyuncs.com/atorch/libs/catapult.tar.gz && \
-    mkdir -p /home/admin/profile/ && \
-    tar -zxf catapult.tar.gz -C /home/admin/profile/ && \
-    rm -f catapult.tar.gz
 
 ##############################################################################
 # atorch install
