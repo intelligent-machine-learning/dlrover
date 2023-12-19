@@ -13,6 +13,7 @@
 
 import dataclasses
 import io
+from dataclasses import dataclass
 from typing import Dict, List, Tuple
 
 import torch
@@ -30,10 +31,6 @@ from torch.distributed.checkpoint.filesystem import (
     WriteItem,
     WriteItemType,
     WriteResult,
-    _item_size,
-    _result_from_write_item,
-    _StorageInfo,
-    _StoragePrefix,
     narrow_tensor_by_index,
 )
 from torch.futures import Future
@@ -43,6 +40,13 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
     SharedMemoryHandler,
     TensorMeta,
 )
+
+from .file_reader import StorageInfo
+
+
+@dataclass
+class _StoragePrefix:
+    prefix: str
 
 
 def _write_memory_from_list(
@@ -62,6 +66,17 @@ def _write_memory_from_list(
         return write_results
 
 
+def _tensor_item_size(item: WriteItem) -> int:
+    size = 1
+    assert item.tensor_data is not None
+    # can't use math.prod as PT needs to support older python
+    for s in item.tensor_data.size:
+        size *= s
+
+    dtype = item.tensor_data.properties.dtype
+    return size * torch._utils._element_size(dtype)
+
+
 def _get_buffer_size(
     files: List[Tuple[str, List[WriteItem]]], planner: SavePlanner
 ):
@@ -70,7 +85,7 @@ def _get_buffer_size(
     for _, write_items in files:
         for write_item in write_items:
             if write_item.type != WriteItemType.BYTE_IO:
-                item_size = _item_size(write_item)
+                item_size = _tensor_item_size(write_item)
                 buffer_size += item_size
             else:
                 data = planner.resolve_data(write_item)
@@ -100,8 +115,9 @@ def _write_item(shm: SharedMemory, data, write_item, storage_key):
         shm_tensor.copy_(data)
         length = data.numel() * data.element_size()
 
-    return _result_from_write_item(
-        write_item, length, _StorageInfo(storage_key, offset, length)
+    storage_data = StorageInfo(storage_key, offset, length)
+    return WriteResult(
+        index=write_item.index, size_in_bytes=length, storage_data=storage_data
     )
 
 
@@ -186,7 +202,7 @@ class SharedMemoryWriter(StorageWriter):
 class SharedMemoryReader(StorageReader):
     def __init__(self, shm_handler: SharedMemoryHandler) -> None:
         super().__init__()
-        self.storage_data: Dict[MetadataIndex, _StorageInfo] = dict()
+        self.storage_data: Dict[MetadataIndex, StorageInfo] = dict()
         self.shm_handler = shm_handler
 
     def read_data(self, plan: LoadPlan, planner: LoadPlanner) -> Future[None]:

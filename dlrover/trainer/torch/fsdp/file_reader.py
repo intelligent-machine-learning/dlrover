@@ -14,6 +14,7 @@
 import io
 import os
 import pickle
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Union
 
@@ -25,23 +26,51 @@ from torch.distributed.checkpoint.filesystem import (
     Metadata,
     MetadataIndex,
     ReadItem,
-    SlicedBufferedReader,
     StorageReader,
-    _StorageInfo,
     narrow_tensor_by_index,
 )
 from torch.distributed.checkpoint.metadata import STORAGE_TYPES
 from torch.futures import Future
 
 
+@dataclass
+class StorageInfo:
+    """
+    This is the per entry storage info
+    """
+
+    relative_path: str
+    offset: int
+    length: int
+
+
+class SlicedBufferedReader(io.BufferedReader):
+    def __init__(self, base_stream: io.RawIOBase, offset: int, len: int):
+        super().__init__(base_stream)
+        self.offset = offset
+        self.len = len
+        self.seek(0)
+
+    def seek(self, __offset: int, __whence: int = os.SEEK_SET) -> int:
+        if __whence == os.SEEK_SET:
+            __offset = self.offset + __offset
+        elif __whence == os.SEEK_END:
+            __whence = os.SEEK_SET
+            __offset = (self.offset + self.len) - __offset
+        return super().seek(__offset, __whence)
+
+    def tell(self) -> int:
+        return super().tell() - self.offset
+
+
 class FileReader(StorageReader):
     def __init__(self, path: Union[str, os.PathLike]) -> None:
         super().__init__()
         self.path = Path(path)
-        self.storage_data: Dict[MetadataIndex, _StorageInfo] = dict()
+        self.storage_data: Dict[MetadataIndex, StorageInfo] = dict()
         self.state_dict_metadata: Dict[str, STORAGE_TYPES] = dict()
 
-    def _slice_file(self, file, sinfo: _StorageInfo):
+    def _slice_file(self, file, sinfo: StorageInfo):
         return SlicedBufferedReader(
             io.FileIO(file.fileno(), closefd=False), sinfo.offset, sinfo.length
         )
