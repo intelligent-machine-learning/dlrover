@@ -209,6 +209,9 @@ class NodeEnv(object):
     WORKER_NUM = "WORKER_NUM"
     WORKER_RANK = "WORKER_RANK"
 
+    # process env
+    TORCHELASTIC_RUN_ID = "TORCHELASTIC_RUN_ID"
+
 
 class DatasetType(object):
     TEXT = "text"

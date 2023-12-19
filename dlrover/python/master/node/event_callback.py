@@ -20,12 +20,15 @@ from dlrover.python.common.constants import (
     NodeExitReason,
     NodeType,
 )
+from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.elastic_training.rdzv_manager import (
     RendezvousManager,
 )
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.watcher.base_watcher import Node
+
+_dlrover_ctx = Context.singleton_instance()
 
 
 class ClusterContext(object):
@@ -240,7 +243,7 @@ class AllReduceNodeHandlingCallback(NodeEventCallback):
     @NodeEventCallback.log_callback_exception
     def on_node_succeeded(self, node: Node, cluster_context: ClusterContext):
         node.finish_time = datetime.now()  # type: ignore
-        job_manager = cluster_context.job_manager
+        job_manager = self._master.job_manager
         if node.critical:
             completed = job_manager.all_critical_node_completed()
             if completed:
@@ -274,7 +277,14 @@ class AllReduceNodeHandlingCallback(NodeEventCallback):
             manager.remove_alive_node(node)
 
     def _stop_job_if_needed(self, node: Node):
-        if node.critical and node.is_unrecoverable_failure():
+        stop_node = False
+        if node.exit_reason == NodeExitReason.FATAL_ERROR:
+            if not _dlrover_ctx.relaunch_always:
+                stop_node = True
+        if node.relaunch_count >= node.max_relaunch_count:
+            stop_node = True
+
+        if node.critical and stop_node:
             job_exit_reason = self.get_job_exit_reason(node)
             self._master.request_stop(
                 success=False,
