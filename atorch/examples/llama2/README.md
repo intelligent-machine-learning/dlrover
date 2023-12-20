@@ -1,6 +1,7 @@
 # Llama2 Pretrain/Finetune
 
-This document presents examples of using ATorch to pretrain or finetune the HuggingFace Llama2 model, including FSDP (ZeRO3) and 3D hybrid parallelism approaches.
+
+This document presents examples of using ATorch to pretrain or finetune the HuggingFace Llama2 model, including [FSDP (ZeRO3)](#FSDP), 3D hybrid parallelism for [semi-automatic optimization](#DS-3D-Parallel), and [fully automatic optimization](#Automatic-Training-Optimization).
 
 - Note: 
     - Llama2 model and wikitext dataset is used in the examples. If you have already downloaded llama2 model, set environment variable: `MODEL_NAME_OR_PATH=llama2_model_directory`. If you have wikitext in your system, set environment variable: `DATASET_PATH=wikitext_data_directory`
@@ -9,7 +10,7 @@ This document presents examples of using ATorch to pretrain or finetune the Hugg
 
 ## FSDP
 
-Fully Sharded Data Parallel (FSDP) is PyTorch's implementation of ZeRO3. This example uses FSDP for distributed training, and can be used with other training optimizations, such as mixed precision, gradient checkpointing, etc.
+Fully Sharded Data Parallel (FSDP) is PyTorch's implementation of ZeRO3. This example uses FSDP for distributed training, and can be used with other training optimizations, such as mixed precision, gradient checkpointing, etc. This is implemented by calling auto_accelerate API with load_strategy argument, and load_strategy specifies the training optimization method combination.
 
 ### Scripts
 
@@ -426,36 +427,33 @@ sh ds_3d_llama2_entry.sh
 | DS 3D | /        |          64 |  2 |  2 | 16 |             8 |              64 |              8192 | 153.93 | 49.3 | 22695.7               |
 
 ## Automatic Training Optimization 
-### Introductin
-If the users are not sure  which strategy would achieve the largest throughput, auto_accelerate is able to automatically searching the best strategy given models and hardware conditions.  This is achieved using Bayesian Optimization (BO)implemented by [HEBO](https://github.com/huawei-noah/HEBO) aiming to find the strategy with largest training throughput efficiently. BO is a machine learning technique used for optimizing black-box functions that are expensive to evaluate. Specifically, BO learns the mapping from strategies to throughput using the data from dryrun, which run few training steps. Moreover, BO recommends the potential high-throughput strategy to achieve the throughput from dryrun, and updates the mapping iteratively. This iterative process continues until the desired optimization criteria are met or a predefined budget is exhausted.
 
-### Usage
-In this section, an example is presented to show how to automatically search the best strategy. Specifically, we utilize 8 A100 to train the LLAMA2 7B model on wikitext-103-raw-v1. The example source code is bayes_opt_sg_llama2.py and you can use bayes_opt_sg_llama2_entry.sh to run the example. Note that PRETRAINED_MODEL_DIR and DATASET_DIR are the paths of model and dataset respectively. Also BO_SG_MAX_IETR is the maximum search rounds of the Bayesian optimization and RANDOM_SAMPLE is the initial sampling steps of BO. The block size is the sequence length of the input data. In the `llama2_clm.py`, the auto_accelerate function is called as follows
+If the users are not sure which strategy would achieve the largest throughput, auto_accelerate is able to automatically searching the best strategy given models and hardware conditions.  This is achieved using Bayesian Optimization (BO)implemented by [HEBO](https://github.com/huawei-noah/HEBO) aiming to find the strategy with largest training throughput efficiently. BO is a machine learning technique used for optimizing black-box functions that are expensive to evaluate. Specifically, BO learns the mapping from strategies to throughput using the data from dryrun, which runs few training steps. Moreover, BO recommends the potential high-throughput strategy to achieve the throughput from dryrun, and updates the mapping iteratively. This iterative process continues until the desired optimization criteria are met or a predefined budget is exhausted.
 
-```python
-    status, result, best_strategy = auto_accelerate(
-        model,
-        torch.optim.AdamW,
-        train_dataset,
-        loss_func=my_loss_func,
-        prepare_input=my_prepare_input,
-        model_input_format="unpack_dict",
-        optim_args={"lr": args.learning_rate},
-        optim_param_func=partial(optim_param_func, args=args),
-        dataloader_args=dataloader_args,
-        excluded=[],
-        included=[{"atorch_wrap_cls": ('LlamaDecoderLayer')}],
-        verbose=True
-    )
-```
-where `strategy` is set None, and included/excluded is used to specify the strategies to be searched. Specifically, `excluded=['zero1']` means zero1 is not in the candidates and never be chosen in the search. `included=['zero1']` means that zero1 is chosen in zero optimization method group.
+
+This fully-automatic training example is implemented by calling auto_accelerate API without load_strategy argument, so that BO algorithm would find the best optimization method combination to achieve the largest throughput.
 
 
 ### Scripts
 
 
+- training file [bayes_opt_sg_llama2.py](bayes_opt_sg_llama2.py)
+
+- launch script [bayes_opt_sg_llama2_entry.sh](bayes_opt_sg_llama2_entry.sh)
+
+```bash
+cd dlrover/atorch/examples/Llama2
+
+# Configurable environment variable: DATASET_PATH, MODEL_NAME_OR_PATH, PER_DEVICE_TRAIN_BATCH_SIZE, etc.
+# Change BO_SG_MAX_IETR(the maximum search rounds of the BO), RANDOM_SAMPLE(the initial sampling steps of BO) if needed.
+sh bayes_opt_sg_llama2_entry.sh
+
+```
+
 ### Results
-With the above scripts, the best strategy is found as follows
+
+- Model: Llama2-7b
+- Cluster: 8 A100-80GB (NVLink) GPUs in one node.
 
 | batch size per gpu               | Strategy |  DryRun Throughput (samples/s)  | 
 |:----------------------------|:-----------------:|:-------:|
