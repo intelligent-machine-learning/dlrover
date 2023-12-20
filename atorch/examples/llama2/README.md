@@ -1,6 +1,7 @@
 # Llama2 Pretrain/Finetune
 
-This document presents examples of using ATorch to pretrain or finetune the HuggingFace Llama2 model, including FSDP (ZeRO3) and 3D hybrid parallelism approaches.
+
+This document presents examples of using ATorch to pretrain or finetune the HuggingFace Llama2 model, including [FSDP (ZeRO3)](#FSDP), 3D hybrid parallelism for [semi-automatic optimization](#DS-3D-Parallel), and [fully automatic optimization](#Automatic-Training-Optimization).
 
 - Note: 
     - Llama2 model and wikitext dataset is used in the examples. If you have already downloaded llama2 model, set environment variable: `MODEL_NAME_OR_PATH=llama2_model_directory`. If you have wikitext in your system, set environment variable: `DATASET_PATH=wikitext_data_directory`
@@ -9,7 +10,7 @@ This document presents examples of using ATorch to pretrain or finetune the Hugg
 
 ## FSDP
 
-Fully Sharded Data Parallel (FSDP) is PyTorch's implementation of ZeRO3. This example uses FSDP for distributed training, and can be used with other training optimizations, such as mixed precision, gradient checkpointing, etc.
+Fully Sharded Data Parallel (FSDP) is PyTorch's implementation of ZeRO3. This example uses FSDP for distributed training, and can be used with other training optimizations, such as mixed precision, gradient checkpointing, etc. This is implemented by calling auto_accelerate API with load_strategy argument, and load_strategy specifies the training optimization method combination.
 
 ### Scripts
 
@@ -424,3 +425,66 @@ sh ds_3d_llama2_entry.sh
 | DS 3D | /        |          16 |  2 |  2 |  4 |             8 |              64 |              2048 | 154.84 | 49.6 | 26309.4               |
 | DS 3D | /        |          32 |  2 |  2 |  8 |             8 |              64 |              4096 | 154.44 | 49.5 | 23901.8               |
 | DS 3D | /        |          64 |  2 |  2 | 16 |             8 |              64 |              8192 | 153.93 | 49.3 | 22695.7               |
+
+## Automatic Training Optimization 
+
+If the users are not sure which strategy would achieve the largest throughput, auto_accelerate is able to automatically searching the best strategy given models and hardware conditions.  This is achieved using Bayesian Optimization (BO)implemented by [HEBO](https://github.com/huawei-noah/HEBO) aiming to find the strategy with largest training throughput efficiently. BO is a machine learning technique used for optimizing black-box functions that are expensive to evaluate. Specifically, BO learns the mapping from strategies to throughput using the data from dryrun, which runs few training steps. Moreover, BO recommends the potential high-throughput strategy to achieve the throughput from dryrun, and updates the mapping iteratively. This iterative process continues until the desired optimization criteria are met or a predefined budget is exhausted.
+
+
+This fully-automatic training example is implemented by calling auto_accelerate API without load_strategy argument, so that BO algorithm would find the best optimization method combination to achieve the largest throughput.
+
+
+### Scripts
+
+
+- training file [bayes_opt_sg_llama2.py](bayes_opt_sg_llama2.py)
+
+- launch script [bayes_opt_sg_llama2_entry.sh](bayes_opt_sg_llama2_entry.sh)
+
+```bash
+cd dlrover/atorch/examples/Llama2
+
+# Configurable environment variable: DATASET_PATH, MODEL_NAME_OR_PATH, PER_DEVICE_TRAIN_BATCH_SIZE, etc.
+# Change BO_SG_MAX_IETR(the maximum search rounds of the BO), RANDOM_SAMPLE(the initial sampling steps of BO) if needed.
+sh bayes_opt_sg_llama2_entry.sh
+
+```
+
+### Results
+
+- Model: Llama2-7b
+- Cluster: 8 A100-80GB (NVLink) GPUs in one node.
+
+| batch size per gpu               | Strategy |  DryRun Throughput (samples/s)  | 
+|:----------------------------|:-----------------:|:-------:|
+| 4  |     module_replace+ amp_native+zero2+ddp   | 11.28  |
+
+
+Strategy:
+```
+        amp        zero             parallel_mode  module_replace  checkpoint
+0   NotChosen   NotChosen  {"data": 8, "tensor": 1}       NotChosen   NotChosen
+1  amp_native  zero2_fsdp  {"data": 8, "tensor": 1}  module_replace  checkpoint
+2  amp_native        fsdp  {"data": 8, "tensor": 1}  module_replace  checkpoint
+3  amp_native  zero2_fsdp  {"data": 8, "tensor": 1}  module_replace  checkpoint
+4  amp_native        fsdp  {"data": 8, "tensor": 1}  module_replace  checkpoint
+5  amp_native   NotChosen  {"data": 8, "tensor": 1}  module_replace   NotChosen
+6  amp_native       zero1  {"data": 8, "tensor": 1}  module_replace  checkpoint
+7  NotChosen        zero2  {"data": 8, "tensor": 1}  NotChosen         NotChosen
+```
+
+Corresponding Dryrun Throughput
+
+```
+[[ 0.        ]
+ [11.28738554]
+ [11.15851216]
+ [11.27479499]
+ [11.16217471]
+ [ 0.        ]
+ [ 0.        ]
+ [ 0.        ]
+ ]
+ ```
+
+The zero throughput in the above means that OOM occurs due to the unappropriated strategy combination.
