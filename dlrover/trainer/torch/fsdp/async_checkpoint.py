@@ -15,9 +15,6 @@ import os
 
 import torch.distributed as dist
 import torch.distributed.checkpoint as dist_cp
-from torch.distributed.checkpoint.optimizer import (
-    load_sharded_optimizer_state_dict,
-)
 
 from dlrover.python.common import env_utils
 from dlrover.python.common.log import default_logger as logger
@@ -34,9 +31,10 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
 
 from .file_reader import FileReader
 from .shared_memory import SharedMemoryReader, SharedMemoryWriter
+from dlrover.trainer.torch.checkpoint import CheckpointManger, StorageType
 
 
-class FsdpCheckpointManager(CheckpointEngine):
+class FsdpCheckpointEngine(CheckpointEngine):
     def __init__(self, checkpoint_dir: str):
         super().__init__(checkpoint_dir)
         self._shm_writer = SharedMemoryWriter(shm_handler=self._shm_handler)
@@ -83,6 +81,15 @@ class FsdpCheckpointManager(CheckpointEngine):
             state_dict=state_dict,
             storage_writer=self._shm_writer,
         )
+
+        # Broadcast dcp metadata and no sharding data to all ranks
+        # and all ranks can restore the state dict from the CPU
+        # memory with those metada.
+
+        bcast_list = [self._shm_writer.metadata]
+        dist.broadcast_object_list(bcast_list, src=0)
+        self._shm_writer.metadata = bcast_list[0]
+
         conf.path = os.path.join(path, self._shm_writer.file_name)
         meta_dict = {_DLROVER_CKPT_KEY: conf}
         meta_dict.update(self._shm_writer.metadata)
@@ -127,46 +134,26 @@ class FsdpCheckpointManager(CheckpointEngine):
         """Get the number of model shards on all nodes."""
         return dist.get_world_size()
 
-    def load(self, resume_path="", model_state_dict={}):
-        """
-        Load the checkpointing state dict from the resume path.
-
-        Returns:
-            A dict.
-        """
-        pass
-
-        if not self._shm_handler.empty():
-            state_dict = {
-                "model": model_state_dict,
-                # cannot load the optimizer state_dict together with the
-                # model state_dict
-            }
-
-            dist_cp.load_state_dict(
-                state_dict=state_dict, storage_reader=self._shm_reader
-            )
-
-            optim_state = load_sharded_optimizer_state_dict(
-                model_state_dict=state_dict["model"],
-                optimizer_key="optim",
-                storage_reader=self._shm_reader,
-            )
-            return state_dict["model"], optim_state["optim"]
+    def get_storage_reader(self, resume_path):
+        if self._shm_handler.empty():
+            return self._shm_reader
         else:
-            state_dict = {
-                "model": model_state_dict,
-                # cannot load the optimizer state_dict together
-                # with the model state_dict
-            }
+            return FileReader(resume_path)
 
-            dist_cp.load_state_dict(
-                state_dict=state_dict, storage_reader=FileReader(resume_path)
-            )
 
-            optim_state = load_sharded_optimizer_state_dict(
-                model_state_dict=state_dict["model"],
-                optimizer_key="optim",
-                storage_reader=FileReader(resume_path),
-            )
-            return state_dict["model"], optim_state["optim"]
+class FsdpCheckpointManager(CheckpointManger):
+    def __init__(self, checkpoint_dir: str):
+        self._engine = FsdpCheckpointEngine(checkpoint_dir)
+    
+    def save_checkpoint(self, step, state_dict, path, storage_type=StorageType.DISK):
+        if storage_type == StorageType.DISK and not path:
+            raise ValueError("path cannot be empty if storage type is disk!")
+        if storage_type == StorageType.MEMORY:
+            self._engine.save_to_memory(step, state_dict, path)
+        elif storage_type == StorageType.DISK:
+            self._engine.save_to_storage(step, state_dict, path)
+        else:
+            raise ValueError(f"No support storage type {storage_type}")
+
+    def get_storage_reader(self, resume_path=""):
+        return self._engine.get_storage_reader(resume_path)

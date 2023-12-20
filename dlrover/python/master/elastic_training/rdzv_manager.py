@@ -191,7 +191,10 @@ class RendezvousManager(metaclass=ABCMeta):
         with self._lock:
             if not self._waiting_nodes:
                 self._start_rdzv_ts = time.time()
-                logger.info(f"Start the {self._rdzv_round} round rendezvous.")
+                logger.info(
+                    f"Start the {self._rdzv_round} round "
+                    f"{self._name} rendezvous."
+                )
             if node_rank in self._waiting_nodes:
                 return self._rdzv_round
             self._waiting_nodes[node_rank] = local_world_size

@@ -98,8 +98,9 @@ class FileReader(StorageReader):
                             req.storage_index.fqn
                         ]
                         tensor = torch.frombuffer(
-                            bytes, dtype=tensor_meta.properties.dtype
-                        )
+                            bytes.getbuffer(),
+                            dtype=tensor_meta.properties.dtype,
+                        ).reshape(req.lengths)
                         tensor = narrow_tensor_by_index(
                             tensor, req.storage_offsets, req.lengths
                         )

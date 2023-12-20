@@ -22,8 +22,6 @@ from torch.distributed.checkpoint.filesystem import (
     LoadItemType,
     LoadPlan,
     LoadPlanner,
-    Metadata,
-    MetadataIndex,
     SavePlan,
     SavePlanner,
     StorageReader,
@@ -33,13 +31,16 @@ from torch.distributed.checkpoint.filesystem import (
     WriteResult,
     narrow_tensor_by_index,
 )
+from torch.distributed.checkpoint.metadata import (
+    STORAGE_TYPES,
+    Metadata,
+    MetadataIndex,
+    TensorStorageMetadata,
+)
 from torch.futures import Future
 
 from dlrover.python.common.multi_process import SharedMemory
-from dlrover.python.elastic_agent.torch.ckpt_saver import (
-    SharedMemoryHandler,
-    TensorMeta,
-)
+from dlrover.python.elastic_agent.torch.ckpt_saver import SharedMemoryHandler
 
 from .file_reader import StorageInfo
 
@@ -51,19 +52,27 @@ class _StoragePrefix:
 
 def _write_memory_from_list(
     shm: SharedMemory,
-    files: List,
+    files: List[Tuple[str, WriteItem]],
     planner: SavePlanner,
 ):
-    for storage_key, write_items in files:
-        write_results = []
-        for write_item in write_items:
-            data = planner.resolve_data(write_item)
-            if torch.is_tensor(data):
-                data = data.detach()
-            write_results.append(
-                _write_item(shm, data, write_item, storage_key)
-            )
-        return write_results
+    write_results = []
+    offset = 0
+    no_shard_data: Dict[str, STORAGE_TYPES] = {}
+    for storage_key, write_item in files:
+        data = planner.resolve_data(write_item)
+        if torch.is_tensor(data):
+            data = data.detach()
+
+        # Only rank-0 has the no sharding data and we need to broadcast
+        # no sharding data to all ranks. All ranks can load the state dict
+        # from the CPU memory.
+        if write_item.type != WriteItemType.SHARD:
+            no_shard_data[write_item.index.fqn] = data
+        offset, write_result = _write_item(
+            shm, offset, data, write_item, storage_key
+        )
+        write_results.append(write_result)
+    return write_results, no_shard_data
 
 
 def _tensor_item_size(item: WriteItem) -> int:
@@ -77,31 +86,19 @@ def _tensor_item_size(item: WriteItem) -> int:
     return size * torch._utils._element_size(dtype)
 
 
-def _get_buffer_size(
-    files: List[Tuple[str, List[WriteItem]]], planner: SavePlanner
-):
+def _get_buffer_size(files: List[Tuple[str, WriteItem]], planner: SavePlanner):
     buffer_size = 0
-    tensor_matadata = {}
-    for _, write_items in files:
-        for write_item in write_items:
-            if write_item.type != WriteItemType.BYTE_IO:
-                item_size = _tensor_item_size(write_item)
-                buffer_size += item_size
-            else:
-                data = planner.resolve_data(write_item)
-                tensor_matadata[write_item.index.fqn] = TensorMeta(
-                    shape=data.shape,
-                    dtype=data.dtype,
-                    element_size=data.element_size(),
-                    numel=data.numel(),
-                    offset=buffer_size,
-                )
-                buffer_size += data.getbuffer().nbytes
-    return buffer_size, tensor_matadata
+    for _, write_item in files:
+        if write_item.type != WriteItemType.BYTE_IO:
+            item_size = _tensor_item_size(write_item)
+            buffer_size += item_size
+        else:
+            data = planner.resolve_data(write_item)
+            buffer_size += data.getbuffer().nbytes
+    return buffer_size
 
 
-def _write_item(shm: SharedMemory, data, write_item, storage_key):
-    offset = 0
+def _write_item(shm: SharedMemory, offset, data, write_item, storage_key):
     if write_item.type == WriteItemType.BYTE_IO:
         assert isinstance(data, io.BytesIO)
         data_buf = data.getbuffer()
@@ -116,23 +113,16 @@ def _write_item(shm: SharedMemory, data, write_item, storage_key):
         length = data.numel() * data.element_size()
 
     storage_data = StorageInfo(storage_key, offset, length)
-    return WriteResult(
+    write_result = WriteResult(
         index=write_item.index, size_in_bytes=length, storage_data=storage_data
     )
+    offset += length
+    return offset, write_result
 
 
 class SharedMemoryWriter(StorageWriter):
     """
-    Basic implementation of StorageWriter using file IO.
-
-    This implementation makes the following assumptions and simplifications:
-
-    * The checkpoint path is an empty or non-existing directory.
-    * File creation is atomic
-
-    The checkpoint consist of one file per write request plus
-    a `.metadata` file with the serialized metadata.
-
+    Basic implementation of StorageWriter using the shared memory.
     """
 
     def __init__(
@@ -143,8 +133,7 @@ class SharedMemoryWriter(StorageWriter):
         Initialize the writer pointing to `path`
 
         Args:
-            path: diretory where the checkpoint will be writen to.
-            shm_handler:
+            shm_handler: A handler to write and read the shared memory.
         """
         super().__init__()
         self.file_name = ""
@@ -167,9 +156,7 @@ class SharedMemoryWriter(StorageWriter):
         return new_plans
 
     def write_data(
-        self,
-        plan: SavePlan,
-        planner: SavePlanner,
+        self, plan: SavePlan, planner: SavePlanner
     ) -> List[WriteResult]:
         storage_plan: _StoragePrefix = plan.storage_data
         file_count = 0
@@ -179,15 +166,17 @@ class SharedMemoryWriter(StorageWriter):
         for bucket in plan.items:
             files.append((self.file_name, bucket))
         if self.shm_handler.empty():
-            buffer_size, tensor_metadata = _get_buffer_size(files, planner)
-            self.metadata.update(tensor_metadata)
+            buffer_size = _get_buffer_size(files, planner)
             self.shm_handler.init_tensor_shm(create=True, size=buffer_size)
-        write_results = _write_memory_from_list(
+        write_results, no_shard_data = _write_memory_from_list(
             shm=self.shm_handler.shared_memory,
             files=files,
             planner=planner,
         )
-        return write_results
+        self.metadata["no_shard_data"] = no_shard_data
+        fut: Future[List[WriteResult]] = Future()
+        fut.set_result(write_results)
+        return fut
 
     def finish(
         self, metadata: Metadata, results: List[List[WriteResult]]
@@ -200,29 +189,61 @@ class SharedMemoryWriter(StorageWriter):
 
 
 class SharedMemoryReader(StorageReader):
+    """
+    Basic implementation of StorageReader using the shared memory.
+
+    Args:
+        shm_handler: A handler to write and read the shared memory.
+    """
+
     def __init__(self, shm_handler: SharedMemoryHandler) -> None:
         super().__init__()
         self.storage_data: Dict[MetadataIndex, StorageInfo] = dict()
         self.shm_handler = shm_handler
+        self.state_dict_metadata: Dict[str, STORAGE_TYPES] = dict()
+        self.no_shard_data: Dict[str, STORAGE_TYPES] = {}
 
     def read_data(self, plan: LoadPlan, planner: LoadPlanner) -> Future[None]:
         # group requests by file
         for read_item in plan.items:
             item_md = self.storage_data[read_item.storage_index]
-            if read_item.type == LoadItemType.BYTE_IO:
-                bytes = self.shm_handler.shared_memory.buf[
-                    item_md.offset : item_md.length  # noqa E203
-                ]
-                planner.load_bytes(read_item, bytes)
+            pickled = False
+            if not read_item.storage_index.offset:
+                data = self.no_shard_data[read_item.storage_index.fqn]
+                if isinstance(data, io.BytesIO):
+                    bytes_io = data
+                else:
+                    bytes_io = io.BytesIO()
+                    torch.save(data, bytes_io)
+                bytes_io.seek(0)
+                pickled = True
             else:
-                metadata = self.shm_handler.metadata.get()
-                tensor_meta: TensorMeta = metadata[read_item.storage_index.fqn]
-                tensor = torch.frombuffer(
-                    buffer=self.shm_handler.shared_memory.buf,
-                    dtype=tensor_meta.dtype,
-                    offset=item_md.offset,
-                    count=tensor_meta.numel,
+                end = item_md.offset + item_md.length
+                bytes_view = self.shm_handler.shared_memory.buf[
+                    item_md.offset : end  # noqa E203
+                ]
+                bytes_io = io.BytesIO(bytes_view)
+                bytes_io.seek(0)
+
+            if read_item.type == LoadItemType.BYTE_IO:
+                planner.load_bytes(read_item, bytes_io)
+            else:
+                tensor_metadata: TensorStorageMetadata = (
+                    self.state_dict_metadata[read_item.storage_index.fqn]
                 )
+                if pickled:
+                    tensor = torch.load(bytes_io)
+                else:
+                    tensor_dtype = tensor_metadata.properties.dtype
+                    tensor_shape = read_item.lengths
+
+                    numel = 1
+                    for i in tensor_shape:
+                        numel = numel * i
+                    tensor = torch.frombuffer(
+                        buffer=bytes_io.getbuffer(),
+                        dtype=tensor_dtype,
+                    ).reshape(tensor_shape)
                 tensor = narrow_tensor_by_index(
                     tensor, read_item.storage_offsets, read_item.lengths
                 )
@@ -243,12 +264,15 @@ class SharedMemoryReader(StorageReader):
     # Implementating the abstract function in StorageReader
     def read_metadata(self) -> Metadata:
         cached_meta = self.shm_handler.metadata.get()
-        return cached_meta["dcp_metadata"]
+        dcp_metadata = cached_meta["dcp_metadata"]
+        self.no_shard_data = cached_meta["no_shard_data"]
+        return dcp_metadata
 
     def set_up_storage_reader(
         self, metadata: Metadata, is_coordinator: bool
     ) -> None:
         self.storage_data = metadata.storage_data
+        self.state_dict_metadata = metadata.state_dict_metadata
         assert self.storage_data is not None
 
     def prepare_local_plan(self, plan: LoadPlan) -> LoadPlan:
