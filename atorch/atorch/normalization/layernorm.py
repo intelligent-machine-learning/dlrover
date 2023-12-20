@@ -203,7 +203,7 @@ class AtorchLayerNormFunc(torch.autograd.Function):
         # TODO: dtype=x.dtype will loss precision; but dtype=torch.float32 will be slow
         _dw = torch.empty((GROUP_SIZE_M, w.shape[0]), dtype=x.dtype, device=w.device)
 
-        ## need store fp32 to keep acc
+        # need store fp32 to keep acc
         dw = torch.empty((w.shape[0],), dtype=w.dtype, device=w.device)
         # db = torch.zeros((w.shape[0],), dtype=x.dtype, device=w.device)
         dx = torch.empty_like(dy)
