@@ -1,13 +1,11 @@
 import multiprocessing as mp
 import os
-import sys
 from datetime import timedelta
 
 import numpy as np
 import torch
 import torch.distributed as dist
 import torch.distributed.rpc as torch_rpc
-from distutils.util import strtobool
 from torch.distributed.constants import default_pg_timeout
 from torch.distributed.distributed_c10d import _get_default_group
 
