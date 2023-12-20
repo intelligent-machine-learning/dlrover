@@ -31,7 +31,7 @@ class BOProblem(Problem):
     def _evaluate(self, x: np.ndarray, out: dict, *args, **kwargs):
         num_x = x.shape[0]
         xcont = x[:, : self.space.num_numeric].astype(float)
-        xenum = x[:, self.space.num_numeric :].round().astype(int)  # noqa: E203
+        xenum = x[:, self.space.num_numeric :].astype(float).round().astype(int)
         if self.fix is not None:
             df_x = self.space.inverse_transform(xcont, xenum)
             for k, v in self.fix.items():
@@ -42,7 +42,7 @@ class BOProblem(Problem):
         out["F"] = acq_eval[:, : self.acq.num_obj]
 
         if self.acq.num_constr > 0:
-            out["G"] = acq_eval[:, -1 * self.acq.num_constr :]  # noqa: E203
+            out["G"] = acq_eval[:, -1 * self.acq.num_constr :]
 
 
 class EvolutionOpt:
@@ -71,7 +71,7 @@ class EvolutionOpt:
                 opt_range = self.space.opt_ub - self.space.opt_lb
                 sobol_samp = sobol_samp * opt_range + self.space.opt_lb
                 x = sobol_samp[:, : self.space.num_numeric]
-                xe = sobol_samp[:, self.space.num_numeric :].round().astype(int)  # noqa: E203
+                xe = sobol_samp[:, self.space.num_numeric :].round().astype(int)
                 for i, n in enumerate(self.space.numeric_names):
                     if self.space.paras[n].is_discrete_after_transform:
                         x[:, i] = x[:, i].round()
@@ -151,7 +151,7 @@ class EvolutionOpt:
 
         self.res = res
         opt_xcont = opt_x[:, : self.space.num_numeric]
-        opt_xenum = opt_x[:, self.space.num_numeric :]  # noqa: E203
+        opt_xenum = opt_x[:, self.space.num_numeric :]
         df_opt = self.space.inverse_transform(opt_xcont, opt_xenum)
         if fix_input is not None:
             for k, v in fix_input.items():

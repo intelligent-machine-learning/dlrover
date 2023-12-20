@@ -279,12 +279,6 @@ def parse_args(args=None):
         help="Launch `coworker_size` CPU pods to accelerate IO and " "preprocessing",
     )
     parser.add_argument(
-        "--use_elastic_dataloader",
-        default=False,
-        action="store_true",
-        help="Use coworker with elasticdl's dynamic data sharding",
-    )
-    parser.add_argument(
         "--rank_log_dir",
         type=str,
         default="",
@@ -375,10 +369,6 @@ def main(args):
         coworker_size = args.coworker_size
     if coworker_size >= 0:
         current_env["COWORKER_SIZE"] = str(coworker_size)
-    use_elastic_dataloader = args.use_elastic_dataloader
-    if coworker_size == 0 and use_elastic_dataloader is True:
-        use_elastic_dataloader = False
-    current_env["USE_ELASTIC_DATALOADER"] = str(use_elastic_dataloader)
 
     # world size in terms of number of processes
     nnodes = 1
@@ -499,7 +489,7 @@ def main(args):
             stdout = open(f"{path}/{dist_rank}.stdout", mode)
             stderr = open(f"{path}/{dist_rank}.stderr", mode)
 
-        if is_gpu_pod or use_elastic_dataloader is False:
+        if is_gpu_pod:
             process = subprocess.Popen(
                 cmd, env=current_env, stdout=stdout, stderr=stderr, universal_newlines=universal_newlines
             )
@@ -512,15 +502,11 @@ def main(args):
                 coworker0_cmd = [
                     "python",
                     "-m",
-                    "elasticdl.python.master.main",
+                    "dlrover.python.master.main",
                     "--job_name",
                     "dynamic_sharding_svc",
-                    "--need_pod_manager",
-                    "False",
-                    "--distribution_strategy",
-                    "Local",
-                    "--task_fault_tolerance",
-                    "False",
+                    "--platform",
+                    "local",
                     "--port",
                     "{}".format(free_port),
                 ]

@@ -92,7 +92,7 @@ class Planner(object):
     def select_algos(self):
         # select a list of algorithms
         # TODO: when multiple algorithms are added, need to select smartly.
-        self.algos = ["combination_sg"]
+        self.algos = ["bo_sg"]
 
     def plan(self):
         # Return is_done, tasks, new_strategy_num, algos

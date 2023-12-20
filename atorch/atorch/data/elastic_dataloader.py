@@ -28,7 +28,6 @@ def get_elastic_dataloader(
     num_epochs,
     batch_size,
     data_process_fn,
-    usage="elastic_training",
     shuffle=True,
     num_workers=0,
     collate_fn=None,
@@ -39,32 +38,14 @@ def get_elastic_dataloader(
     **dataloader_kwargs,
 ):
     """
-    This function has two usages:
-    1. Elastic Training.
-    During elastic training, scale-up or scale-down leads to restart all workers. It is recommended that users save
-    checkpoint every several training steps to save training progress. While nn.Modules, optimizers and schedulers
-    have `state_dict` and `load_state_dict` method so that training can be restarted with exactly the same state as
-    it was stopped, Dataloader and Sampler don't have state_dict and load_state_dict methods.
-
-    `get_elastic_dataloader` wraps EasyDL Dynamic Data Sharding Service, which is specialized in elastic
-    training. Dataloader returned by `get_elastic_dataloader` can have its state saved and loaded. So
-    users can continue training at specific epoch index and batch index. Users counld save and load dataloader's state
-     just as nn.Module and Optimizer.
-
-    >>> dataloader = get_elastic_dataloader()
-    >>> state = dataloader.state_dict() # save
-    >>> dataloader.load_state_dict(state) # load
-
-    2. Coworkers.
-    This function will be called by `build_coworker_dataloader_with_elasticdl` and will create a dataloader on
-    coworkers.
+    This function will be called by `build_coworker_dataloader_with_elasticdl` and create a dataloader on
+    coworkers using dynamic sharding.
 
     Args:
         dataset_size: The size of dataset(number of data).
         num_epochs: Number of training epochs.
         batch_size: Training batch size.
         data_process_fn: Data transformation function.
-        task_type: "train", "eval" or "predict".
         shuffle: Set to True to have the data reshuffled at every epoch.
         num_workers: Same as `num_workers` of `torch.utils.data.DataLoader`.
         collate_fn: Same as `collate_fn` of `torch.utils.data.DataLoader`.
@@ -81,11 +62,6 @@ def get_elastic_dataloader(
     Returns:
         A dataloader
     """
-    if not isinstance(usage, str) or usage.lower() not in ("elastic_training", "coworker"):
-        raise RuntimeError(f"usage should be either 'elastic_training' or 'coworker', but got {usage}")
-    if usage == "coworker":
-        logger.info("A dataloader will be created on coworker. This dataloader should not be used directly by user.")
-
     edl_master_addr = dataloader_kwargs.pop("edl_master_addr", "")
     if edl_master_addr:
         # ElasticDataset needs to connect the dlrover master by GPRC.
@@ -266,11 +242,7 @@ def build_coworker_dataloader_with_elasticdl(
         On gpu pods, returns a Simple Dataloader.
     """
     if coworker_size() is None:
-        raise ValueError(
-            "Cannot get the number of coworkers(atorch.coworker_size() is None). Please make sure that "
-            "`--use_elastic_dataloader` flag is added when launch training job by "
-            "`atorch.distributed.launch` and that `atorch.init_distributed()` is called in your script."
-        )
+        raise ValueError("Cannot get the number of coworkers(atorch.coworker_size() is None).")
     if coworker_size() < 2:
         raise RuntimeError("There must be at least 2 coworkers.")
     training_world_size = world_size() - coworker_size()
@@ -278,11 +250,7 @@ def build_coworker_dataloader_with_elasticdl(
         # On coworker 1 ~ n
         coworker_addrs_dict = coworker_addrs()
         if coworker_addrs_dict is None:
-            raise ValueError(
-                "Cannot get the addresses and ports of coworkers. Please add"
-                " `--use_elastic_dataloader` flag when launch training by "
-                "atorch.distributed.launch."
-            )
+            raise ValueError("Cannot get the addresses and ports of coworkers.")
         coworker0_rank = training_world_size
         coworker0_ip_and_port = coworker_addrs_dict[coworker0_rank]
         elastic_dataloader = get_elastic_dataloader(
@@ -290,8 +258,6 @@ def build_coworker_dataloader_with_elasticdl(
             num_epochs,
             batch_size,
             data_process_fn,
-            usage="coworker",
-            task_type="train",
             shuffle=shuffle,
             num_workers=os.cpu_count(),
             collate_fn=custom_collate_fn,
@@ -344,11 +310,7 @@ def build_coworker_dataloader_with_elasticdl(
     elif rank() < training_world_size:
         gpu_pod_addresses = gpu_pod_addrs()
         if gpu_pod_addresses is None:
-            raise ValueError(
-                "Cannot get the addresses of gpu pods. Please add "
-                "`--use_elastic_dataloader` flag when launch training by "
-                "atorch.distributed.launch."
-            )
+            raise ValueError("Cannot get the addresses of gpu pods.")
         # gpu pod workers
         global_rank_of_local_worker0 = rank() // nproc_per_node() * nproc_per_node()
         data_info_service_ip_and_port = gpu_pod_addresses[global_rank_of_local_worker0]

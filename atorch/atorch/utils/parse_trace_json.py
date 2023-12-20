@@ -53,9 +53,18 @@ def analyze_gpu_kernel(df, verbose=False):
     total_gpu_rate = (gpu_time) / (gpu_kernel_start_end - gpu_kernel_start)
     # gemm、elementwise
     # consider gpu kernel will overlap
+    elementwise_sub = {
+        "mul": "MulFunctor",
+        "add": "CUDAFunctor_add",
+        "cast": "WithCast",
+        "sub": "CUDAFunctor_sub",
+        "div": "DivFunctor",
+    }
     op_times = {
         "gemm": gpu_kernel_df[gpu_kernel_df.name.str.contains("gemm")]["dur"].sum(),
-        "elementwise": gpu_kernel_df[gpu_kernel_df.name.str.contains("elementwise")]["dur"].sum(),
+        "elementwise": {
+            "total": gpu_kernel_df[gpu_kernel_df.name.str.contains("elementwise")]["dur"].sum(),
+        },
         "layernorm": gpu_kernel_df[
             gpu_kernel_df.name.str.contains("cuApplyLayerNorm")  # forward
             ^ gpu_kernel_df.name.str.contains("cuComputeGradInput")  # backward
@@ -68,6 +77,19 @@ def analyze_gpu_kernel(df, verbose=False):
             )
         ]["dur"].sum(),
     }
+    elementwise_df = gpu_kernel_df[gpu_kernel_df.name.str.contains("elementwise")]
+    for key, funcname in elementwise_sub.items():
+        op_times["elementwise"][key] = elementwise_df[elementwise_df.name.str.contains(funcname)]["dur"].sum()
+    # "copy": "direct_copy_kernel_cuda" # exclude WithCast
+
+    op_times["elementwise"]["copy"] = (
+        elementwise_df[elementwise_df.name.str.contains("direct_copy_kernel_cuda")]["dur"].sum()
+        - op_times["elementwise"]["cast"]
+    )
+    elementwise_other = op_times["elementwise"]["total"]
+    for key in ["mul", "add", "sub", "div", "copy", "cast"]:
+        elementwise_other -= op_times["elementwise"][key]
+    op_times["elementwise"]["other"] = elementwise_other
     return {"op_cat_times": op_times, "gpu_time_us": gpu_time, "total_gpu_rate": total_gpu_rate}
 
 
@@ -168,7 +190,6 @@ def analyze_communicate_overlap(df, verbose=False):
                 compute_idx += 1
 
             else:
-
                 overlap_time += current_comm_op.finish_time - current_compute_op.ts
                 current_comm_overlap_time += current_comm_op.finish_time - current_compute_op.ts
 

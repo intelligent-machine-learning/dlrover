@@ -21,7 +21,7 @@ def hook_set_master_addr_port():
                 if local_dir is not None:
                     master_addr = local_dir
                 else:
-                    master_addr = os.environ.get("POD_IP", socket.gethostbyname(_get_fq_hostname()))
+                    master_addr = os.environ.get("POD_IP") or socket.gethostbyname(_get_fq_hostname())
 
         store.set("MASTER_ADDR", master_addr.encode(encoding="UTF-8"))
         store.set("MASTER_PORT", str(master_port).encode(encoding="UTF-8"))

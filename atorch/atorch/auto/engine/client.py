@@ -68,14 +68,15 @@ class AutoAccelerationClient(object):
         task_result.process_id = self._process_id
         task_result.status = status
         task_result.task_type = task_type
-        if task_type == "DRYRUN":
-            task_result.dryrun_result = result
-        elif task_type == "TUNE":
-            for opt in result:
-                method = acceleration_pb2.OptimizationMethod(name=opt[0], config=opt[1], tunable=opt[2])
-                task_result.strategy.opt.append(method)
-        elif task_type == "ANALYSE":
-            task_result.model_meta = result
+        if status:
+            if task_type == "DRYRUN":
+                task_result.dryrun_result = result
+            elif task_type == "TUNE":
+                for opt in result:
+                    method = acceleration_pb2.OptimizationMethod(name=opt[0], config=opt[1], tunable=opt[2])
+                    task_result.strategy.opt.append(method)
+            elif task_type == "ANALYSE":
+                task_result.model_meta = result
         self._stub.report_task_result(task_result)
 
 
@@ -87,7 +88,3 @@ def build_auto_acc_client(addr=None, process_id=None):
     channel = build_channel(addr)
     auto_acc_client = AutoAccelerationClient(channel, process_id)
     return auto_acc_client
-
-
-class GlobalAutoAccelerationClient(object):
-    AUTO_ACC_CLIENT = build_auto_acc_client()

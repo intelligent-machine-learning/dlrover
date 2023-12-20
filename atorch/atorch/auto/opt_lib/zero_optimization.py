@@ -23,7 +23,7 @@ from atorch.common.log_utils import default_logger as logger
 from atorch.distributed.distributed import local_rank, parallel_group, parallel_group_size
 from atorch.modules.distributed_modules.materialize_modules import materialize_modules_to_device
 from atorch.utils.meta_model_utils import is_meta
-from atorch.utils.version import torch_version
+from atorch.utils.version import get_version, torch_version
 
 
 def _skip_match_module_child_wrap_policy_pre_2(
@@ -418,6 +418,7 @@ class FSDPOptimization(Optimization):
 
 
 def apply_ds_zero_wrapper(model_context, wrapper_name, wrapper_config):
+    import deepspeed as ds
     from deepspeed import comm as ds_dist
     from deepspeed.runtime.zero.stage_1_and_2 import DeepSpeedZeroOptimizer
 
@@ -467,7 +468,6 @@ def apply_ds_zero_wrapper(model_context, wrapper_name, wrapper_config):
         "static_loss_scale": 1.0,
         "dynamic_loss_args": None,
         "clip_grad": 0,
-        "cpu_offload": False,
         "allgather_bucket_size": 5e8,
         "reduce_bucket_size": 5e8,
     }
@@ -479,6 +479,17 @@ def apply_ds_zero_wrapper(model_context, wrapper_name, wrapper_config):
     ds_optim_config["dynamic_loss_scale"] = model_dtype == torch.half
     param_names = {param: name for name, param in model_context.model.named_parameters()}
     pg = parallel_group("zero") or parallel_group("data")
+
+    ds_version = get_version(ds)
+    if ds_version >= (0, 10, 1):
+        # use offload_optimizer_config instead of cpu_offload
+        cpu_offload = ds_optim_config.pop("cpu_offload", False)
+        if "offload_optimizer_config" not in ds_optim_config and cpu_offload:
+            from deepspeed.runtime.zero.offload_config import DeepSpeedZeroOffloadOptimizerConfig, OffloadDeviceEnum
+
+            ds_optim_config["offload_optimizer_config"] = DeepSpeedZeroOffloadOptimizerConfig(
+                device=OffloadDeviceEnum.cpu, pin_memory=True
+            )
 
     ds_dist.init_distributed(dist_backend="nccl", dist_init_required=None)
 
