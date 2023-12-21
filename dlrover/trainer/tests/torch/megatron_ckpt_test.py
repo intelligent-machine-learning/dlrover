@@ -113,7 +113,7 @@ class MegatrionCheckpointTest(unittest.TestCase):
             self.assertEqual(
                 ckpt_manager.engine._shm_handler._buffer_size, 9640
             )
-            tensor_meta = ckpt_manager.engine._shm_handler._tensor_meta.get()
+            tensor_meta = ckpt_manager.engine._shm_handler.metadata.get()
             self.assertEqual(tensor_meta["iteration"], 10)
             self.assertIsNotNone(tensor_meta["model_states"])
             tracer_file = os.path.join(

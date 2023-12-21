@@ -13,6 +13,7 @@
 
 import importlib
 import os
+import pickle
 import shutil
 import signal
 import threading
@@ -21,6 +22,7 @@ from abc import ABCMeta, abstractmethod
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import timedelta
+from pathlib import Path
 from typing import Callable, Dict, List, Mapping, Tuple
 
 import torch
@@ -198,7 +200,7 @@ def _create_shared_memory(name, create, size=0):
     return shm
 
 
-def _check_all_rank_ready(group, ready):
+def check_all_rank_ready(group, ready):
     """
     Check weather all ranks are ready.
     """
@@ -259,7 +261,6 @@ class SharedMemoryHandler(object):
     def __init__(self, local_rank, host=True):
         self._buffer_size = 0
         meta_name = _CKPT_META_NAME_PREFIX + str(local_rank)
-        self._tensor_meta = SharedDict(name=meta_name, create=host)
         job_name = os.getenv(NodeEnv.TORCHELASTIC_RUN_ID, "")
         if job_name:
             self._shm_name = (
@@ -267,24 +268,25 @@ class SharedMemoryHandler(object):
             )
         else:
             self._shm_name = _TENSOR_SHM_NAME_PREFIX + str(local_rank)
-        self._tensor_shm = None
+        self.shared_memory = None
+        self.metadata = SharedDict(name=meta_name, create=host)
 
     def close(self):
-        if self._tensor_shm:
-            self._tensor_shm.close()
+        if self.shared_memory:
+            self.shared_memory.close()
 
     def unlink(self):
-        if self._tensor_shm:
-            self._tensor_shm.unlink()
-        if self._tensor_meta:
-            self._tensor_meta.unlink()
+        if self.shared_memory:
+            self.shared_memory.unlink()
+        if self.metadata:
+            self.metadata.unlink()
 
     def reset(self):
         self.close()
-        if self._tensor_shm:
-            self._tensor_shm.unlink()
-        self._tensor_meta.set({})
-        self._tensor_shm = None
+        if self.shared_memory:
+            self.shared_memory.unlink()
+        self.metadata.set({})
+        self.shared_memory = None
 
     def _create_tensor_meta(self, value: torch.Tensor):
         """
@@ -307,20 +309,20 @@ class SharedMemoryHandler(object):
         """
         Copy the state dict from CPU memory buffer into the shared memory.
         """
-        if not self._tensor_shm:
+        if not self.shared_memory:
             meta_dict = _traverse_state_dict(
                 state_dict, self._create_tensor_meta
             )
             self.init_tensor_shm(create=True, size=self._buffer_size)
         else:
-            meta_dict = self._tensor_meta.get(local=True)
+            meta_dict = self.metadata.get(local=True)
         ckpt_conf.writing_shm = True
         meta_dict[_DLROVER_CKPT_KEY] = ckpt_conf
 
-        self._tensor_meta.set(meta_dict)
-        _traverse_copy_to_shm(state_dict, meta_dict, self._tensor_shm.buf)
+        self.metadata.set(meta_dict)
+        _traverse_copy_to_shm(state_dict, meta_dict, self.shared_memory.buf)
         ckpt_conf.writing_shm = False
-        self._tensor_meta.set(meta_dict)
+        self.metadata.set(meta_dict)
 
     def load_state_dict(self):
         """
@@ -330,29 +332,29 @@ class SharedMemoryHandler(object):
             Tuple(int, dict): The first value is the iteration step,
                 the second value is the state dict.
         """
-        meta_dict = self._tensor_meta.get()
+        meta_dict = self.metadata.get()
         default_config = CheckpointShardConfig()
         config = meta_dict.get(_DLROVER_CKPT_KEY, default_config)
         if not meta_dict or config.writing_shm:
             return {}
-        if self._tensor_shm is None:
+        if self.shared_memory is None:
             self.init_tensor_shm(create=False)
-        if not self._tensor_shm:
+        if not self.shared_memory:
             return {}
 
-        state_dict = _read_state_dict_from_shm(meta_dict, self._tensor_shm)
+        state_dict = _read_state_dict_from_shm(meta_dict, self.shared_memory)
         state_dict.pop(_DLROVER_CKPT_KEY, None)
         return state_dict
 
     def empty(self):
-        meta_dict = self._tensor_meta.get()
+        meta_dict = self.metadata.get()
         config: CheckpointShardConfig = meta_dict.get(_DLROVER_CKPT_KEY, None)
         if config is None or config.step == 0:
             return True
         return False
 
     def init_tensor_shm(self, create=False, size=0):
-        self._tensor_shm = _create_shared_memory(
+        self.shared_memory = _create_shared_memory(
             self._shm_name, create=create, size=size
         )
 
@@ -364,7 +366,7 @@ class SharedMemoryHandler(object):
         Returns:
             A CheckpointShardConfig instance.
         """
-        meta_dict = self._tensor_meta.get()
+        meta_dict = self.metadata.get()
         config = meta_dict.get(_DLROVER_CKPT_KEY, default_config)
         return config
 
@@ -531,9 +533,7 @@ class CheckpointSaver(metaclass=ABCMeta):
                 f"Local rank {local_shard_id} Save checkpoint from the shared "
                 f"memory into the storage {ckpt_config}."
             )
-            state_dict = shm_handler.load_state_dict()
-            state_dict.pop(_DLROVER_CKPT_KEY, None)
-            self.persist_to_storage(state_dict, ckpt_config)
+            self.persist_to_storage(local_shard_id, ckpt_config)
             shm_lock.release()
             global_shard_id = (
                 self.local_shard_num * self._node_rank + local_shard_id
@@ -623,12 +623,12 @@ class CheckpointSaver(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def persist_to_storage(self, state_dict, ckpt_config):
+    def persist_to_storage(self, local_shard_id, ckpt_config):
         """
         Persist the state dict to a storage path.
 
         Args:
-            state_dict (dict): the state dict of PyTorch modules.
+            local_shard_id (int): the index of local shard.
             ckpt_config : the checkpoint config with the path to
                 save the storage.
         """
@@ -756,9 +756,13 @@ class AsyncCheckpointSaver(CheckpointSaver):
         self._writing_storage = False
 
     def persist_to_storage(
-        self, state_dict, ckpt_config: SingleFileCheckpointConfig
+        self,
+        local_shard_id: int,
+        ckpt_config: SingleFileCheckpointConfig,
     ):
         """Persist the checkpoint from CPU memory buffer into the storage."""
+        state_dict = self._shm_handlers[local_shard_id].load_state_dict()
+        state_dict.pop(_DLROVER_CKPT_KEY, None)
         checkpoint_dir = os.path.dirname(ckpt_config.path)
         os.makedirs(checkpoint_dir, exist_ok=True)
         torch.save(state_dict, ckpt_config.path)
@@ -970,9 +974,13 @@ class DeepSpeedCheckpointSaver(AsyncCheckpointSaver):
         return os.path.join(checkpoint_dir, fname)
 
     def persist_to_storage(  # type: ignore
-        self, state_dict, ckpt_config: DeepSpeedCheckpointConfig
+        self,
+        local_shard_id: int,
+        ckpt_config: DeepSpeedCheckpointConfig,
     ):
         """Persist the checkpoint from CPU memory buffer into the storage."""
+        state_dict = self._shm_handlers[local_shard_id].load_state_dict()
+        state_dict.pop(_DLROVER_CKPT_KEY, None)
         model_sd = state_dict.get(CheckpointConstant.MODEL_STATES_NAME, {})
         if model_sd and ckpt_config.model_path:
             checkpoint_dir = os.path.dirname(ckpt_config.model_path)
@@ -984,6 +992,38 @@ class DeepSpeedCheckpointSaver(AsyncCheckpointSaver):
             checkpoint_dir = os.path.dirname(ckpt_config.optimizer_path)
             os.makedirs(checkpoint_dir, exist_ok=True)
             torch.save(optimizer_sd, ckpt_config.optimizer_path)
+
+
+class FsdpCheckpointSaver(AsyncCheckpointSaver):
+    def persist_to_storage(
+        self,
+        local_shard_id: int,
+        ckpt_config: SingleFileCheckpointConfig,
+    ):
+        """
+        Persist the state dict to a storage path.
+
+        Args:
+            local_shard_id (int): the index of local shard.
+            ckpt_config : the checkpoint config with the path to
+                save the storage.
+        """
+        shm_handler = self._shm_handlers[local_shard_id]
+        with open(ckpt_config.path, "wb") as stream:
+            stream.write(shm_handler.shared_memory.buf)
+            os.fsync(stream.fileno())
+
+        if self._is_agent_rank_0 and local_shard_id == 0:
+            parent_path = Path(os.path.dirname(ckpt_config.path))
+            meta_dict = shm_handler.metadata.get()
+            dcp_metadata = meta_dict.get("dcp_metadata", {})
+            if dcp_metadata:
+                with (parent_path / ".metadata.tmp").open("wb") as f:
+                    pickle.dump(dcp_metadata, f)
+                    os.fsync(f.fileno())
+                (parent_path / ".metadata.tmp").rename(
+                    parent_path / ".metadata"
+                )
 
 
 class CheckpointEngine(metaclass=ABCMeta):
@@ -1105,7 +1145,7 @@ class CheckpointEngine(metaclass=ABCMeta):
             )
 
         acquired = self._shm_lock.acquire(blocking=False)
-        all_rank_ready = _check_all_rank_ready(self._saver_group, acquired)
+        all_rank_ready = check_all_rank_ready(self._saver_group, acquired)
         if not all_rank_ready:
             logger.info(
                 f"Rank {self._rank} skips the save the checkpoint "
