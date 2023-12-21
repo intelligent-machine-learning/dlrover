@@ -112,7 +112,7 @@ class DeepSpeedCheckpointTest(unittest.TestCase):
                 ckpt_manager._async_save_engine._shm_handler._buffer_size, 9640
             )
             tensor_meta = (
-                ckpt_manager._async_save_engine._shm_handler._tensor_meta.get()
+                ckpt_manager._async_save_engine._shm_handlermetadata.get()
             )
             ds_ckpt_config = tensor_meta["_DLORVER_CKPT_CONFIG"]
             self.assertEqual(ds_ckpt_config.step, str(step))
