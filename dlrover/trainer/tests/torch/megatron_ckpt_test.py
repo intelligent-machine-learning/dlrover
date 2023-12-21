@@ -109,7 +109,9 @@ class MegatrionCheckpointTest(unittest.TestCase):
 
             ckpt_manager = MegatronCheckpointManager(tmpdirname)
             save_checkpoint_to_memory(10, model, optimizer, None)
-            self.assertFalse(ckpt_manager.engine._shm_handler.empty())
+            self.assertFalse(
+                ckpt_manager.engine._shm_handler.no_checkpint_state()
+            )
             self.assertEqual(
                 ckpt_manager.engine._shm_handler._buffer_size, 9640
             )

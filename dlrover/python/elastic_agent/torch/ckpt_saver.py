@@ -346,7 +346,12 @@ class SharedMemoryHandler(object):
         state_dict.pop(_DLROVER_CKPT_KEY, None)
         return state_dict
 
-    def empty(self):
+    def no_checkpint_state(self):
+        """
+        The handler lazily initializes the shared memory. The shared memory
+        of the handler on the host may be None even if the handler on the
+        device has saved state dict.
+        """
         meta_dict = self.metadata.get()
         config: CheckpointShardConfig = meta_dict.get(_DLROVER_CKPT_KEY, None)
         if config is None or config.step == 0:
@@ -515,7 +520,7 @@ class CheckpointSaver(metaclass=ABCMeta):
         try:
             shm_handler = self._shm_handlers[local_shard_id]
             shm_lock = self._shm_locks[local_shard_id]
-            if shm_handler.empty():
+            if shm_handler.shared_memory is None:
                 shm_handler.init_tensor_shm(create=False)
 
             shm_lock.acquire()
@@ -573,7 +578,9 @@ class CheckpointSaver(metaclass=ABCMeta):
         training process fails or the agent wants to restart training
         processes.
         """
-        if any([handler.empty() for handler in self._shm_handlers]):
+        if any(
+            [handler.no_checkpint_state() for handler in self._shm_handlers]
+        ):
             logger.info(
                 "Skip because no any memory buffer with the state dict."
             )
@@ -1009,10 +1016,11 @@ class FsdpCheckpointSaver(AsyncCheckpointSaver):
                 save the storage.
         """
         shm_handler = self._shm_handlers[local_shard_id]
+        checkpoint_dir = os.path.dirname(ckpt_config.path)
+        os.makedirs(checkpoint_dir, exist_ok=True)
         with open(ckpt_config.path, "wb") as stream:
             stream.write(shm_handler.shared_memory.buf)
             os.fsync(stream.fileno())
-
         if self._is_agent_rank_0 and local_shard_id == 0:
             parent_path = Path(os.path.dirname(ckpt_config.path))
             meta_dict = shm_handler.metadata.get()
