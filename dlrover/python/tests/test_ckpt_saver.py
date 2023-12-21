@@ -250,7 +250,7 @@ class FsdpCheckpointSaverTest(unittest.TestCase):
             saver._shm_handlers[0].metadata.set({"dcp_metadata": dcp_metadata})
             saver._is_agent_rank_0 = True
             saver.persist_to_storage(0, ckpt_config)
-            files = os.listdir(os.path.dirname(path))
+            files = sorted(os.listdir(os.path.dirname(path)))
             self.assertListEqual(files, [".metadata", "__0_0.dist_cp"])
 
 
