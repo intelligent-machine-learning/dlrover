@@ -159,13 +159,18 @@ class FsdpCheckpointTest(unittest.TestCase):
         CheckpointSaver._saver_instance = None
         CheckpointSaver.start_async_saving_ckpt()
         os.environ["LOCAL_RANK"] = "0"
+        os.environ["LOCAL_WORLD_SIZE"] = "1"
         port = grpc.find_free_port()
         set_torch_dist_env(port)
         dist.init_process_group(backend="gloo")
 
     def tearDown(self) -> None:
+        os.environ.pop("LOCAL_RANK", None)
+        os.environ.pop("LOCAL_WORLD_SIZE", None)
         self.shm.unlink()
         dist.destroy_process_group()
+        if CheckpointSaver._saver_instance:
+            CheckpointSaver._saver_instance.close()
 
     def test_tensor_item_size(self):
         item = _make_tensor_write_item()

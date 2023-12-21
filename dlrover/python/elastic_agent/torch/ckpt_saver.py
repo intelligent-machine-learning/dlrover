@@ -44,8 +44,10 @@ _TENSOR_SHM_NAME_PREFIX = "checkpoint_shm_shard_"
 _SHM_LOCK_NAME_PREFIX = "shm_shard_"
 _DLROVER_CKPT_KEY = "_DLORVER_CKPT_CONFIG"
 
+# TODO: use a enum class
 _SAVE_EVENT_NAME = "SAVE_CHECKPOINT"
 _UPDATE_EVENT_NAME = "UPDATE_SHARD_NUM"
+_EXIT_EVENT_NAME = "EXIT"
 
 
 @dataclass
@@ -474,6 +476,10 @@ class CheckpointSaver(metaclass=ABCMeta):
 
     def close(self):
         """Clear the resource of the shared objects."""
+        event = SaveEvent(name=_EXIT_EVENT_NAME)
+        if not self._event_queue.empty():
+            self._event_queue._queue.get()
+        self._event_queue.put(event)
         for i in range(self.local_shard_num):
             if self._shm_handlers[i]:
                 self._shm_handlers[i].close()
@@ -504,6 +510,8 @@ class CheckpointSaver(metaclass=ABCMeta):
                     f"ShardingSaver save checkpoint to storage, event {event}"
                 )
                 self.save_step_checkpoint(event.step)
+            elif event.name == _EXIT_EVENT_NAME:
+                break
 
     def _reset_shared_memory(self):
         for shm_handler in self._shm_handlers:
