@@ -22,8 +22,6 @@ from typing import List
 
 import torch
 import torch.distributed as dist
-import torch.nn as nn
-import torch.nn.functional as F
 from torch.distributed._shard.sharded_tensor import ones
 from torch.distributed._shard.sharding_spec import ChunkShardingSpec
 from torch.distributed.checkpoint.default_planner import (
@@ -153,22 +151,6 @@ def _write_state_dict_to_shm(shared_memory, files, state_dict):
     metadata = Metadata(state_dict_metadata)
     writer.finish(metadata, [write_results])
     return writer
-
-
-class SimpleNet(nn.Module):
-    def __init__(self):
-        super(SimpleNet, self).__init__()
-        self.fc1 = nn.Linear(64, 32)
-        self.fc2 = nn.Linear(32, 10)
-        self.dropout = nn.Dropout(0.5)
-
-    def forward(self, x):
-        x = self.fc1(x)
-        x = F.relu(x)
-        x = self.dropout(x)
-        x = self.fc2(x)
-        output = F.log_softmax(x, dim=1)
-        return output
 
 
 class FsdpCheckpointTest(unittest.TestCase):
