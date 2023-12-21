@@ -7,7 +7,7 @@ import torch
 import torch.nn
 
 try:
-    from atorch.optim.adam_offload import PartitionAdam
+    from atorch.optimizers.adam_offload import PartitionAdam
 
     is_apex_available = True
 except (ModuleNotFoundError, ImportError):
@@ -18,10 +18,17 @@ except (ModuleNotFoundError, ImportError):
 @unittest.skipIf(not is_apex_available, "PartitionAdam import error, need apex and gpu")
 class OffloadOptimizerTest(unittest.TestCase):
     def test_optimizer_state_dict(self):
-        model = torch.nn.Linear(10, 20)
-
+        device = torch.device("cuda")
+        model = torch.nn.Linear(10, 20).to(device)
         optimizer = PartitionAdam([{"params": model.parameters()}])
+
+        x = torch.randn(10, 10, device=device)
+        y = model(x)
+        dy = torch.randn_like(y)
+        y.backward(dy)
+
         optimizer.state_dict()
+        optimizer.step()
 
 
 if __name__ == "__main__":

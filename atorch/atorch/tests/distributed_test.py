@@ -3,12 +3,14 @@ import os
 import subprocess
 import sys
 import unittest
+from datetime import timedelta
 
 import numpy as np
 import torch
-import torch.distributed.rpc as rpc
+import torch.distributed as dist
 
 import atorch
+from atorch.common.util_func import find_free_port, get_ip_address
 from atorch.distributed.distributed import ParallelGroupContextManager
 from atorch.distributed.distributed import _DistributedContext
 from atorch.distributed.distributed import _DistributedContext as dc
@@ -244,45 +246,50 @@ class ParallelGroupTest(unittest.TestCase):
         run_dist_code("test_pg_dist_with_4node_without_atorch_init", nproc=4)
 
 
-def mul(a, b):
-    return a * b
-
-
-def call_coworker():
-    a, b = 2.0, 3.0
-    return rpc.rpc_sync("1", mul, args=(a, b))
-
-
 def rpc_code(backend):
     res = atorch.init_distributed(backend)
     if not res:
         raise Exception("init failed")
-    res = call_coworker()
-    rpc.shutdown()
-    assert res == 6.0, "res should be 6.0"
+    from atorch.distributed.distributed import coworker_addrs
+
+    port = int(os.getenv("MASTER_PORT2", -1))
+    co_addr_ip = coworker_addrs()
+    store_port = int(co_addr_ip[1].split(":")[1])
+    assert port == store_port
+    destroy_parallel_group()
 
 
-class RpcTest(unittest.TestCase):
+class CoworkerTest(unittest.TestCase):
     def test_one_worker_and_one_coworker(self):
+        port = find_free_port()
+        ip = get_ip_address()
         cmd = [sys.executable, "-u"]
         path = os.path.abspath(__file__)
         cmd.append(path)
         cmd.append("test_rpc")
         current_env = os.environ.copy()
         common_env = {
+            "RANK": "0",
             "LOCAL_RANK": "0",
             "WORLD_SIZE": "2",
             "COWORKER_SIZE": "1",
-            "MASTER_ADDR": "127.0.0.1",
-            "MASTER_PORT": "29500",
-            "MASTER_PORT2": "29501",
+            "MASTER_ADDR": ip,
+            "MASTER_PORT2": str(port),
         }
+        store = dist.TCPStore(
+            ip,
+            port,
+            is_master=True,
+            timeout=timedelta(seconds=90),
+        )
+        ip_and_port = ip + ":" + str(port)
+        store.set(str(1), ip_and_port)
         processes = []
-        for node_rank in range(2):
-            common_env["RANK"] = str(node_rank)
-            current_env.update(common_env)
-            process = subprocess.Popen(cmd, env=current_env)
-            processes.append((process, None, None))
+        port = find_free_port()
+        common_env["MASTER_PORT"] = str(port)
+        current_env.update(common_env)
+        process = subprocess.Popen(cmd, env=current_env)
+        processes.append((process, None, None))
         check_process_loop(processes)
 
 

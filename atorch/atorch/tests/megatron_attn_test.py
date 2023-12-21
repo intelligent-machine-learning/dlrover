@@ -13,6 +13,7 @@ from transformers.models.clip.modeling_clip import CLIPAttention
 
 import atorch
 from atorch.common.log_utils import default_logger as logger
+from atorch.common.util_func import find_free_port
 from atorch.distributed.distributed import create_parallel_group
 from atorch.modules.distributed_modules.transformer import MegatronBertAttention, MegatronCLIPAttention
 
@@ -110,7 +111,7 @@ class TestMegatronOperator(unittest.TestCase):
     @unittest.skipIf(torch.cuda.device_count() < 2, "run with gpu_num >=2")
     def test_megatron_bert_attn(self):
         os.environ["MASTER_ADDR"] = "localhost"  #
-        os.environ["MASTER_PORT"] = "5000"
+        os.environ["MASTER_PORT"] = str(find_free_port())
         world_size = 2
         mp.spawn(
             _run_megatron_bert_attn,
@@ -123,7 +124,7 @@ class TestMegatronOperator(unittest.TestCase):
     def test_megatron_clip_attn(self):
         world_size = 2
         os.environ["MASTER_ADDR"] = "localhost"  #
-        os.environ["MASTER_PORT"] = "5000"
+        os.environ["MASTER_PORT"] = str(find_free_port())
         mp.spawn(
             _run_megatron_clip_attn,
             args=(world_size,),

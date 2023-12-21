@@ -306,6 +306,7 @@ class Analyser(object):
             "GPTNeoXMLP",
             "ResidualAttentionBlock",
             "BertLayer",
+            "LlamaDecoderLayer",
         ]
         submodule_names_set = set()
         for m in model.modules():

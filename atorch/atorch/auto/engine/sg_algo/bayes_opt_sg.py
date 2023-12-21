@@ -1,5 +1,7 @@
+import os
 import pickle
 import warnings
+from typing import List
 
 import numpy as np
 import pandas as pd
@@ -27,23 +29,16 @@ Output:
 
 """
 
-NOT_COMPATIBLE_OPTS = [
-    "amp_apex_o1+zero2_fairscale",
-    "amp_apex_o2+zero2_fairscale",
-    "amp_apex_o1+zero2_fsdp",
-    "amp_apex_o2+zero2_fsdp",
-    "amp_apex_o1+fsdp",
-    "amp_apex_o2+fsdp",
-    "amp_apex_o2+zero1",
-]
+NOT_COMPATIBLE_OPTS: List[str] = []
 
 
 class BOAlgorithm(StrategyGenerationAlgorithm):
-    def __init__(self, max_iter=30, max_patience=8):
+    def __init__(self, max_iter=30, max_patience=8, random_sample=3):
         super().__init__("bo_sg")
         self.new_strategy_num = 0
-        self.max_iter = max_iter
-        self.max_patience = max_patience
+        self.max_iter = int(os.getenv("BO_SG_MAX_IETR", max_iter))
+        self.max_patience = int(os.getenv("MAX_PATIENCE", max_patience))
+        self.random_sample = int(os.getenv("RANDOM_SAMPLE", random_sample))
         warnings.filterwarnings("ignore", category=DeprecationWarning)
 
     def add_strategy(self, executor, strategy):
@@ -69,7 +64,7 @@ class BOAlgorithm(StrategyGenerationAlgorithm):
         # get the bo search space
         space = DesignSpace().parse(config)
         # initilize bo optimizer
-        opt = HEBO(space)
+        opt = HEBO(space, rand_sample=self.random_sample)
 
         # transform edl strategy to hebo format
         X, y = transform_finished_strategies_to_hebo(space, groups, finished_strategies, included_opts)
@@ -80,8 +75,8 @@ class BOAlgorithm(StrategyGenerationAlgorithm):
 
         # verbose bo searching
         if executor.verbose:
-            logger.info(X)
-            logger.info(y)
+            logger.info(f"\n{X}")
+            logger.info(f"\n{y}")
 
         # if the space is small and a few forbidden strategies exist,
         # bo could get no feasible strategy
@@ -103,11 +98,13 @@ class BOAlgorithm(StrategyGenerationAlgorithm):
                 # after 3 times, output baseline
                 rec = pd.DataFrame(
                     columns=space.para_names,
-                    data=["NotChosen"] * len(space.para_names),
+                    data=[["NotChosen"] * len(space.para_names)],
                 )
                 break
-
-        return rec, opt.best_y
+        try:
+            return rec, opt.best_y
+        except RuntimeError:
+            return rec, None
 
     def strategy_generate(self, executor):
         # Return is_done, tasks, new_strategy_num
@@ -155,10 +152,10 @@ class BOAlgorithm(StrategyGenerationAlgorithm):
 
             for strategy in edl_rec:
                 self.add_strategy(executor, strategy)
-            try:
+            if best_y:
                 logger.info(f"bo iters:{iterations} with patiences:{patience}")
                 logger.info(f"best throughput is {-1 * best_y}")
-            except RuntimeError:
+            else:
                 logger.info(f"bo iters:{iterations} with patiences:{patience}")
 
         return False, tasks, self.new_strategy_num

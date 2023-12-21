@@ -182,6 +182,84 @@ class TestOptim(TestCase):
         with self.assertRaisesRegex(ValueError, "Invalid weight_decay value: -1"):
             optimizer(None, lr=1e-2, weight_decay=-1)
 
+    @unittest.skipIf(not torch.cuda.is_available(), "no gpu found here.")
+    def test_q_adamw(self):
+        from atorch.optimizers.low_bit import Q_AdamW
+
+        optimizer = Q_AdamW
+        self._test_basic_cases(lambda weight, bias: optimizer([weight, bias], lr=1e-3))
+        self._test_basic_cases(lambda weight, bias: optimizer(self._build_params_dict(weight, bias, lr=1e-2), lr=1e-3))
+        self._test_basic_cases(lambda weight, bias: optimizer([weight, bias], lr=1e-3, eps=1e-8))
+        self._test_basic_cases(lambda weight, bias: optimizer([weight, bias], lr=1e-3, weight_decay=1e-2))
+        self._test_basic_cases(lambda weight, bias: optimizer([weight, bias], lr=1e-3, q_bits=8))
+        with self.assertRaisesRegex(ValueError, "Invalid q_bits value: 0"):
+            optimizer(None, lr=1e-3, q_bits=0)
+        with self.assertRaisesRegex(ValueError, "Invalid q_bits value: 9"):
+            optimizer(None, lr=1e-3, q_bits=9)
+        with self.assertRaisesRegex(ValueError, "Invalid q_bits value: 3.5"):
+            optimizer(None, lr=1e-3, q_bits=3.5)
+
+    @unittest.skipIf(not torch.cuda.is_available(), "no gpu found here.")
+    def test_q_agd(self):
+        from atorch.optimizers.low_bit import Q_AGD
+
+        optimizer = Q_AGD
+        self._test_basic_cases(lambda weight, bias: optimizer([weight, bias], lr=1e-3))
+        self._test_basic_cases(lambda weight, bias: optimizer(self._build_params_dict(weight, bias, lr=1e-2), lr=1e-3))
+        self._test_basic_cases(lambda weight, bias: optimizer([weight, bias], lr=1e-3, delta=1e-8))
+        self._test_basic_cases(lambda weight, bias: optimizer([weight, bias], lr=1e-3, weight_decay=1e-2))
+        self._test_basic_cases(lambda weight, bias: optimizer([weight, bias], lr=1e-3, amsgrad=True))
+        self._test_basic_cases(lambda weight, bias: optimizer([weight, bias], lr=1e-3, q_bits=8))
+        with self.assertRaisesRegex(ValueError, "Invalid q_bits value: 0"):
+            optimizer(None, lr=1e-3, q_bits=0)
+        with self.assertRaisesRegex(ValueError, "Invalid q_bits value: 9"):
+            optimizer(None, lr=1e-3, q_bits=9)
+        with self.assertRaisesRegex(ValueError, "Invalid q_bits value: 3.5"):
+            optimizer(None, lr=1e-3, q_bits=3.5)
+
+    @unittest.skipIf(not torch.cuda.is_available(), "no gpu found here.")
+    def test_q_came(self):
+        from atorch.optimizers.low_bit import Q_CAME
+
+        optimizer = Q_CAME
+        self._test_basic_cases(lambda weight, bias: optimizer([weight, bias], lr=1e-3))
+        self._test_basic_cases(lambda weight, bias: optimizer(self._build_params_dict(weight, bias, lr=1e-2), lr=1e-3))
+        self._test_basic_cases(lambda weight, bias: optimizer([weight, bias], lr=1e-3, eps=(1e-30, 1e-16)))
+        self._test_basic_cases(lambda weight, bias: optimizer([weight, bias], lr=1e-3, weight_decay=1e-2))
+        self._test_basic_cases(lambda weight, bias: optimizer([weight, bias], lr=1e-3, q_bits=8))
+        with self.assertRaisesRegex(ValueError, "Invalid q_bits value: 0"):
+            optimizer(None, lr=1e-3, q_bits=0)
+        with self.assertRaisesRegex(ValueError, "Invalid q_bits value: 9"):
+            optimizer(None, lr=1e-3, q_bits=9)
+        with self.assertRaisesRegex(ValueError, "Invalid q_bits value: 3.5"):
+            optimizer(None, lr=1e-3, q_bits=3.5)
+
+    @unittest.skipIf(not torch.cuda.is_available(), "no gpu found here.")
+    def test_q_adafactor(self):
+        from atorch.optimizers.low_bit import Q_Adafactor
+
+        optimizer = Q_Adafactor
+        self._test_basic_cases(lambda weight, bias: optimizer([weight, bias], lr=1e-3))
+        self._test_basic_cases(lambda weight, bias: optimizer(self._build_params_dict(weight, bias, lr=1e-2), lr=1e-3))
+        self._test_basic_cases(lambda weight, bias: optimizer([weight, bias], lr=1e-3, eps2=(1e-30, 1e-3)))
+        self._test_basic_cases(lambda weight, bias: optimizer([weight, bias], lr=1e-3, beta1=0.9))
+        self._test_basic_cases(
+            lambda weight, bias: optimizer(
+                [weight, bias], lr=1e-3, weight_decay=1e-2, scale_parameter=False, relative_step=False
+            )
+        )
+        self._test_basic_cases(
+            lambda weight, bias: optimizer(
+                [weight, bias], lr=1e-3, scale_parameter=False, relative_step=False, q_bits=8
+            )
+        )
+        with self.assertRaisesRegex(ValueError, "Invalid q_bits value: 0"):
+            optimizer(None, lr=1e-3, q_bits=0)
+        with self.assertRaisesRegex(ValueError, "Invalid q_bits value: 9"):
+            optimizer(None, lr=1e-3, q_bits=9)
+        with self.assertRaisesRegex(ValueError, "Invalid q_bits value: 3.5"):
+            optimizer(None, lr=1e-3, q_bits=3.5)
+
 
 class TestSamOptim(TestCase):
     def setUp(self):

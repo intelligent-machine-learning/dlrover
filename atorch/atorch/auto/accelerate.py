@@ -78,9 +78,9 @@ def run_finish_task(model_context, strategy, opt_lib):
             create_optim=model_context.optim_func is not None,
             create_dataloader=model_context.dataset is not None,
         )
-    except Exception as e:
-        traceback.print_exc()
-        logger.error(f"model_transform failed: {e}")
+    except Exception:
+        tb_info = traceback.format_exc()
+        logger.error(f"model_transform failed: {tb_info}")
         status = False
     return status, result
 
@@ -508,7 +508,7 @@ def auto_accelerate(
     if "time_limit" in kargs:
         time_limit = kargs["time_limit"]
 
-    ignore_dryrun_on_load_strategy = kargs.get("ignore_dryrun_on_load_strategy", False) and load_strategy is not None
+    ignore_dryrun_on_load_strategy = kargs.get("ignore_dryrun_on_load_strategy", True) and load_strategy is not None
     skip_dryrun = if_skip_dryrun(model_context, ignore_dryrun_on_load_strategy)
 
     if hasattr(AutoAccelerateContext, "skip_dryrun"):
@@ -643,7 +643,7 @@ def create_extra_args_for_auto_accelerate(**kwargs):
 
 def if_skip_dryrun(model_context, ignore_dryrun_on_load_strategy=False):
     if ignore_dryrun_on_load_strategy is True:
-        logger.info("Found ignore_dryrun_on_load_strategy is True, skip dryrun.")
+        logger.info("Dryrun will be skipped. Set ignore_dryrun_on_load_strategy to False if you want to dryrun.")
         return True
     optim_func_str = "optim_func" if model_context.optim_func is None else ""
     loss_func_str = "loss_func" if model_context.loss_func is None else ""

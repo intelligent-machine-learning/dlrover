@@ -7,6 +7,7 @@ import torch.multiprocessing as mp
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 
 import atorch
+from atorch.common.util_func import find_free_port
 from atorch.distributed.distributed import (
     ParallelGroupContextManager,
     create_parallel_group,
@@ -304,7 +305,7 @@ class TestMegatronAttnNoRotary(unittest.TestCase):
     @unittest.skipIf(torch.cuda.device_count() <= 2, "run with gpu_num >=2")
     def test_megatron_glm_attn(self):
         os.environ["MASTER_ADDR"] = "localhost"  #
-        os.environ["MASTER_PORT"] = "5001"
+        os.environ["MASTER_PORT"] = str(find_free_port())
         world_size = 2
         mp.spawn(
             _run_megatron_glm_attn_no_rotary,
@@ -318,7 +319,7 @@ class TestMegatronAttnRotary(unittest.TestCase):
     @unittest.skipIf(torch.cuda.device_count() < 2, "run with cpu or gpu_num >=2")
     def test_megatron_glm_attn(self):
         os.environ["MASTER_ADDR"] = "localhost"  #
-        os.environ["MASTER_PORT"] = "5001"
+        os.environ["MASTER_PORT"] = str(find_free_port())
         world_size = 2
         mp.spawn(
             _run_megatron_glm_attn_rotary,
@@ -332,7 +333,7 @@ class TestMegatronGLMBlock(unittest.TestCase):
     @unittest.skipIf(torch.cuda.device_count() < 2, "run with gpu_num >=2")
     def test_megatron_glm_block(self):
         os.environ["MASTER_ADDR"] = "localhost"  #
-        os.environ["MASTER_PORT"] = "5001"
+        os.environ["MASTER_PORT"] = str(find_free_port())
         world_size = 2
         mp.spawn(
             _run_megatron_glm_block,
@@ -346,7 +347,7 @@ class TestMegatronGLMStack(unittest.TestCase):
     @unittest.skipIf(torch.cuda.device_count() < 2, "run with cpu or gpu_num >=2")
     def test_megatron_glm_stack(self):
         os.environ["MASTER_ADDR"] = "localhost"  #
-        os.environ["MASTER_PORT"] = "5001"
+        os.environ["MASTER_PORT"] = str(find_free_port())
         world_size = 2
         mp.spawn(
             _run_megatron_glm_stack,
@@ -504,6 +505,7 @@ def _run_glm_model_fsdp_to_tp_hybrid(rank, world_size):
     init_dist(rank, world_size)
     torch.manual_seed(1)
     config = GLMConfig()
+    config.num_layers = 2
     config.output_predict = True
     if torch.cuda.is_available():
         device = atorch.local_rank()
@@ -526,7 +528,7 @@ def _run_glm_model_fsdp_to_tp_hybrid(rank, world_size):
     with torch.no_grad():
         res1 = fsdp_model(input_ids=FakeInput.input_ids, attention_mask=FakeInput.attention_mask)
 
-    for _ in range(3):
+    for _ in range(2):
         with ParallelGroupContextManager(prefix_name):
             pg, ranks = parallel_group_and_ranks("tensor")
             # Note: transformation of glm from FSDP to TP must be
@@ -546,8 +548,8 @@ def _run_glm_model_fsdp_to_tp_hybrid(rank, world_size):
                 attention_mask = torch.ones((4, 10)).to(device)
 
             res2 = megatron_glm_model(input_ids=FakeInput.input_ids, attention_mask=FakeInput.attention_mask)
-    res = torch.norm(res1.last_hidden_states - res2.last_hidden_states, p=-1)
-    assert res == 0
+            res = torch.norm(res1.last_hidden_states - res2.last_hidden_states, p=-1)
+            assert res == 0
     reset_distributed()
 
 
@@ -555,8 +557,8 @@ class TestGLMModel(unittest.TestCase):
     @unittest.skipIf(torch.cuda.device_count() < 2, "run with gpu_num >=2")
     def test_run_glm_model(self):
 
-        os.environ["MASTER_ADDR"] = "localhost"  #
-        os.environ["MASTER_PORT"] = "5001"
+        os.environ["MASTER_ADDR"] = "localhost"
+        os.environ["MASTER_PORT"] = str(find_free_port())
         world_size = 2
         mp.spawn(
             _run_glm_model,
@@ -570,8 +572,8 @@ class TestGLMModelFSDPtoTP(unittest.TestCase):
     @unittest.skipIf(torch.cuda.device_count() < 2, "gpu_num >=2")
     def test_run_glm_model_fsdp_to_tp(self):
 
-        os.environ["MASTER_ADDR"] = "localhost"  #
-        os.environ["MASTER_PORT"] = "5001"
+        os.environ["MASTER_ADDR"] = "localhost"
+        os.environ["MASTER_PORT"] = str(find_free_port())
         world_size = 2
         mp.spawn(
             _run_glm_model_fsdp_to_tp,
@@ -585,8 +587,8 @@ class TestGLMMLPFSDPtoTPHybrid(unittest.TestCase):
     @unittest.skipIf(torch.cuda.device_count() < 4, "run with gpu_num >=4")
     def test_run_glm_mlp_fsdp_to_hybrid_tp(self):
 
-        os.environ["MASTER_ADDR"] = "localhost"  #
-        os.environ["MASTER_PORT"] = "5001"
+        os.environ["MASTER_ADDR"] = "localhost"
+        os.environ["MASTER_PORT"] = str(find_free_port())
         world_size = 4
         mp.spawn(
             _run_glm_mlp_fsdp_to_hp_hybrid,
@@ -601,8 +603,8 @@ class TestGLMModelFSDPtoTPHybrid(unittest.TestCase):
     @unittest.skipIf(torch.cuda.device_count() < 4, "run with gpu_num >=4")
     def test_run_glm_model_fsdp_to_hybrid_tp(self):
 
-        os.environ["MASTER_ADDR"] = "localhost"  #
-        os.environ["MASTER_PORT"] = "5001"
+        os.environ["MASTER_ADDR"] = "localhost"
+        os.environ["MASTER_PORT"] = str(find_free_port())
         world_size = 4
         mp.spawn(
             _run_glm_model_fsdp_to_tp_hybrid,

@@ -1,6 +1,6 @@
 from atorch.auto.engine.sg_algo.hebo.models.base_model import BaseModel
-from atorch.auto.engine.sg_algo.hebo.models.gp.gpy_wgp import GPyGP
-from atorch.auto.engine.sg_algo.hebo.models.rf.rf import RF
+from atorch.auto.engine.sg_algo.hebo.models.gauss_process.gpy_wgp import GPyGP
+from atorch.auto.engine.sg_algo.hebo.models.random_forest.rf import RF
 
 model_dict = {"gpy": GPyGP, "rf": RF}
 

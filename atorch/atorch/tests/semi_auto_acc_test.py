@@ -468,10 +468,10 @@ class LoadStrategyTest(unittest.TestCase):
         os.environ["NPROC_PER_NODE"] = str(2)
         os.environ["MASTER_ADDR"] = "localhost"
         os.environ["MASTER_PORT"] = str(find_free_port())
-        hidden_size = 256
+        hidden_size = 64
         head_num = 4
-        layer_num = 3
-        seq_length = 128
+        layer_num = 2
+        seq_length = 32
         data_size = 16
         batch_size = 2
         mp.spawn(

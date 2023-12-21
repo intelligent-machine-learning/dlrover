@@ -2,13 +2,13 @@ import pickle
 import unittest
 from unittest import mock
 
-from atorch.auto.engine.client import GlobalAutoAccelerationClient
+from atorch.auto.engine.client import build_auto_acc_client
 from atorch.protos import acceleration_pb2
 
 
 class AutoAccelerationClient(unittest.TestCase):
     def setUp(self):
-        self.client = GlobalAutoAccelerationClient.AUTO_ACC_CLIENT
+        self.client = build_auto_acc_client()
 
     def test_get_analyse_task(self):
         method = acceleration_pb2.AnalysisMethod()

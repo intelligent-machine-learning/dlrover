@@ -9,6 +9,7 @@ from torch.nn import init
 from torch.nn.parameter import Parameter
 
 import atorch
+from atorch.common.util_func import find_free_port
 from atorch.distributed.distributed import create_parallel_group
 from atorch.modules.distributed_modules.cross_entropy import vocab_parallel_cross_entropy
 from atorch.modules.distributed_modules.layers import ParallelEmbedding, VocabParallelEmbedding
@@ -237,7 +238,7 @@ class TestVocabParallelEmbedding(unittest.TestCase):
     @unittest.skipIf(torch.cuda.device_count() < 2, "run with gpu_num >=2")
     def test_run_megatron_vocab_parallel_embedding(self):
         os.environ["MASTER_ADDR"] = "localhost"  #
-        os.environ["MASTER_PORT"] = "5001"
+        os.environ["MASTER_PORT"] = str(find_free_port())
         world_size = 2
         mp.spawn(
             _run_megatron_vocab_parallel_embedding,
@@ -251,7 +252,7 @@ class TestVocabParallelCrossEntropy(unittest.TestCase):
     @unittest.skipIf(torch.cuda.device_count() < 2, "run with gpu_num >=2")
     def test_run_megatron_vocab_parallel_embedding(self):
         os.environ["MASTER_ADDR"] = "localhost"  #
-        os.environ["MASTER_PORT"] = "5001"
+        os.environ["MASTER_PORT"] = str(find_free_port())
         world_size = 2
         mp.spawn(
             _run_megatron_vocab_parallel_cross_entropy,
@@ -266,7 +267,7 @@ class TestParallelEmbedding(unittest.TestCase):
     def test_run_megatron_parallel_embedding(self):
 
         os.environ["MASTER_ADDR"] = "localhost"  #
-        os.environ["MASTER_PORT"] = "5001"
+        os.environ["MASTER_PORT"] = str(find_free_port())
         world_size = 2
         mp.spawn(
             _run_megatron_parallel_embedding,

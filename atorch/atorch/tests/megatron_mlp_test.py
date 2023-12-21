@@ -12,6 +12,7 @@ from transformers.activations import gelu
 
 import atorch
 from atorch.common.log_utils import default_logger as logger
+from atorch.common.util_func import find_free_port
 from atorch.distributed.distributed import _DistributedContext, create_parallel_group
 from atorch.modules.distributed_modules.layers import ColumnParallelLinear, RowParallelLinear, _initialize_affine_weight
 from atorch.modules.distributed_modules.transformer import MegatronGLMMLP
@@ -180,7 +181,7 @@ class TestRowParallelLinear(unittest.TestCase):
 
         world_size = 2
         os.environ["MASTER_ADDR"] = "localhost"  #
-        os.environ["MASTER_PORT"] = "5000"
+        os.environ["MASTER_PORT"] = str(find_free_port())
         mp.spawn(
             _run_row_paralle_linear,
             args=(world_size,),
@@ -197,7 +198,7 @@ class TestColumnParallelLinear(unittest.TestCase):
 
         world_size = 2
         os.environ["MASTER_ADDR"] = "localhost"  #
-        os.environ["MASTER_PORT"] = "5000"
+        os.environ["MASTER_PORT"] = str(find_free_port())
         mp.spawn(
             _run_column_paralle_linear,
             args=(world_size,),
@@ -214,7 +215,7 @@ class TestMegatronMLP(unittest.TestCase):
 
         world_size = 2
         os.environ["MASTER_ADDR"] = "localhost"  #
-        os.environ["MASTER_PORT"] = "5000"
+        os.environ["MASTER_PORT"] = str(find_free_port())
         mp.spawn(
             _run_megatron_mlp,
             args=(world_size,),

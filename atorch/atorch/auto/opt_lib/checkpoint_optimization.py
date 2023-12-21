@@ -1,3 +1,5 @@
+import inspect
+from collections.abc import MutableMapping
 from functools import partial
 from typing import Callable
 
@@ -42,6 +44,14 @@ class CheckpointOptimization(Optimization):
         # wrapper_config should be a module class or tuple of module classes
         # A HACK to read in amp_config for tp checkpointing
         from atorch.auto.auto_accelerate_context import AutoAccelerateContext
+
+        if isinstance(wrapper_config, MutableMapping):
+            temp = wrapper_config
+            wrapper_config = wrapper_config["wrap_class"]
+            other_config = temp
+        else:
+            # this is for compatiable
+            other_config = {}
 
         counter = AutoAccelerateContext.counter
         if hasattr(AutoAccelerateContext, "tp_amp_config"):
@@ -103,12 +113,36 @@ class CheckpointOptimization(Optimization):
                     checkpoint_wrapper,
                 )
 
-                # need to set CheckpointImpl.NO_REENTRANT before 20230906 nightly
-                checkpoint_wrapper_non_entrant = partial(
-                    checkpoint_wrapper, checkpoint_impl=CheckpointImpl.NO_REENTRANT
-                )
+                # check by signature of func
+                params = inspect.signature(checkpoint_wrapper).parameters
+                need_patch = params["checkpoint_impl"].default != CheckpointImpl.NO_REENTRANT
+
+                assert other_config is not None  # for mypy
+                # default to `need_patch`
+                no_reentrant = other_config.pop("no_reentrant", need_patch)
+                selective_offload = other_config.pop("selective_offload", None)
+                checkpoint_impl = CheckpointImpl.NO_REENTRANT if no_reentrant else CheckpointImpl.REENTRANT
+                checkpoint_wrapper_fn_kwargs = {"checkpoint_impl": checkpoint_impl}
+                if selective_offload is not None:
+                    if checkpoint_impl == CheckpointImpl.REENTRANT:
+                        raise ValueError("selective offloading don't support `CheckpointImpl.REENTRANT`")
+                    if "offload_args" not in selective_offload or "num_layers" not in selective_offload:
+                        raise ValueError("`offload_args` or `num_layers` is not passed")
+
+                    from .selective_offloading_checkpoint import (
+                        OffloadOpManagerArgs,
+                        get_selective_offloading_checkpoint_modes,
+                    )
+
+                    args = [OffloadOpManagerArgs(*arg) for arg in selective_offload["offload_args"]]
+                    num_layers = selective_offload["num_layers"]
+                    context_fn = get_selective_offloading_checkpoint_modes(args, num_layers)
+                    checkpoint_wrapper_fn_kwargs["context_fn"] = context_fn
+                    logger.info(f"selective_offloading_checkpoint is on, {selective_offload}")
+
+                checkpoint_wrapper_fn = partial(checkpoint_wrapper, **checkpoint_wrapper_fn_kwargs)
                 apply_activation_checkpointing = partial(
-                    apply_activation_checkpointing, checkpoint_wrapper_fn=checkpoint_wrapper_non_entrant
+                    apply_activation_checkpointing, checkpoint_wrapper_fn=checkpoint_wrapper_fn
                 )
             except ImportError:
                 logger.warning("Checkpoint not supported, thus ignored!")
