@@ -251,7 +251,7 @@ class FsdpCheckpointSaverTest(unittest.TestCase):
             saver._is_agent_rank_0 = True
             saver.persist_to_storage(0, ckpt_config)
             files = os.listdir(os.path.dirname(path))
-            self.assertEqual(files, [".metadata", "__0_0.dist_cp"])
+            self.assertListEqual(files, [".metadata", "__0_0.dist_cp"])
 
 
 class CheckpointEngineTest(unittest.TestCase):
