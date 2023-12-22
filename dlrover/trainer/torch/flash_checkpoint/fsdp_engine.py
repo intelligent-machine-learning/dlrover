@@ -177,7 +177,7 @@ class SharedMemoryWriter(StorageWriter):
             files.append((self.file_name, bucket))
         if self.shm_handler.no_checkpint_state():
             buffer_size = _get_buffer_size(files, planner)
-            self.shm_handler.init_tensor_shm(create=True, size=buffer_size)
+            self.shm_handler.init_shared_memory(create=True, size=buffer_size)
         write_results, no_shard_data = _write_memory_from_list(
             shm=self.shm_handler.shared_memory,
             files=files,

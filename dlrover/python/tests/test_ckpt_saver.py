@@ -22,27 +22,22 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.optim as optim
 
-from dlrover.python.common.constants import CheckpointConstant, NodeEnv
+from dlrover.python.common.constants import NodeEnv
 from dlrover.python.common.multi_process import (
     SharedDict,
     SharedMemory,
     SharedQueue,
 )
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
-    _CKPT_META_NAME_PREFIX,
-    _DLROVER_CKPT_KEY,
+    DLROVER_CKPT_CONFIG_KEY,
     AsyncCheckpointSaver,
-    AtorchFSDPShardingSaver,
-    CheckpointSaver,
+    CheckpointEvent,
+    CheckpointEventType,
     CheckpointShardConfig,
-    DeepSpeedCheckpointEngine,
-    DeepSpeedCheckpointSaver,
-    FsdpCheckpointSaver,
-    FSDPShardingCheckpointEngine,
-    MegatronCheckpointEngine,
-    NoShardingCheckpointEngine,
+    CheckpointSharedObjPrefix,
+    CommonDirCheckpointSaver,
+    FsdpDcpSaver,
     SaverClassMeta,
     SharedMemoryHandler,
     SingleFileCheckpointConfig,
@@ -74,20 +69,13 @@ class SimpleNet(nn.Module):
         return output
 
 
-class ShardingEngineDemo(NoShardingCheckpointEngine):
-    def __init__(self, checkpoint_dir, global_shard_num=1):
-        self._global_shard_num = global_shard_num
-        super().__init__(checkpoint_dir)
-
-    def get_global_shard_num(self):
-        return self._global_shard_num
-
-
 class SharedMemoryHandlerTest(unittest.TestCase):
     def setUp(self):
         local_rank = 1
         os.environ[NodeEnv.TORCHELASTIC_RUN_ID] = "unittest"
-        SharedDict(_CKPT_META_NAME_PREFIX + str(local_rank), create=True)
+        SharedDict(
+            CheckpointSharedObjPrefix.META_NAME + str(local_rank), create=True
+        )
         self._shm_handler = SharedMemoryHandler(local_rank, host=False)
 
     def tearDown(self):
@@ -112,30 +100,30 @@ class SharedMemoryHandlerTest(unittest.TestCase):
 
 class CheckpointSaverTest(unittest.TestCase):
     def setUp(self) -> None:
-        CheckpointSaver._saver_instance = None
-        CheckpointSaver.start_async_saving_ckpt()
+        AsyncCheckpointSaver._saver_instance = None
+        AsyncCheckpointSaver.start_async_saving_ckpt()
 
     def tearDown(self) -> None:
-        if CheckpointSaver._saver_instance:
-            CheckpointSaver._saver_instance.close()
+        if AsyncCheckpointSaver._saver_instance:
+            AsyncCheckpointSaver._saver_instance.close()
 
     def test_create_checkpoint_saver(self):
         sq = SharedQueue(name="factory", create=False)
         class_meta = SaverClassMeta(
-            module_path=AsyncCheckpointSaver.__module__,
-            class_name=AsyncCheckpointSaver.__name__,
+            module_path=CommonDirCheckpointSaver.__module__,
+            class_name=CommonDirCheckpointSaver.__name__,
             init_args={"checkpoint_dir": "test_ckpt"},
         )
         sq.put(class_meta)
         for _ in range(10):
-            if CheckpointSaver._saver_instance is None:
+            if AsyncCheckpointSaver._saver_instance is None:
                 time.sleep(0.5)
             else:
                 break
-        self.assertIsNotNone(CheckpointSaver._saver_instance)
+        self.assertIsNotNone(AsyncCheckpointSaver._saver_instance)
 
     def test_close_saver(self):
-        saver = AsyncCheckpointSaver("test_ckpt")
+        saver = CommonDirCheckpointSaver("test_ckpt")
         try:
             SharedMemory(name="test").unlink()
         except Exception:
@@ -161,109 +149,6 @@ class CheckpointSaverTest(unittest.TestCase):
         new_dict = _traverse_state_dict(state_dict, visitor)
         self.assertEqual(new_dict, state_dict)
 
-    def test_save_to_storage(self):
-        model = SimpleNet()
-        step = 100
-        state_dict = dict(
-            model=model.state_dict(),
-            step=step,
-        )
-        with tempfile.TemporaryDirectory() as tmpdir:
-            CheckpointSaver._saver_instance = AsyncCheckpointSaver(tmpdir)
-            sq = SharedQueue(name="factory", create=True)
-            saving_engine = NoShardingCheckpointEngine(tmpdir)
-            sq.unlink()
-            saving_engine.save_to_memory(step, state_dict)
-            meta_dict = saving_engine._shm_handler.metadata._dict
-            ckpt_config: CheckpointShardConfig = meta_dict[_DLROVER_CKPT_KEY]
-            self.assertFalse(ckpt_config.writing_shm)
-            self.assertEqual(ckpt_config.step, step)
-            saver: AsyncCheckpointSaver = CheckpointSaver.get_ckpt_saver()
-            saver._shm_handlers[0].shared_memory = SharedMemory(
-                name=saver._shm_handlers[0]._shm_name
-            )
-            saver._writing_storage = True
-            saver.save_shm_to_storage(timeout=2)
-            saver._writing_storage = False
-            default_config = CheckpointShardConfig()
-            conf = saving_engine._shm_handler.get_checkpoint_config(
-                default_config
-            )
-            self.assertEqual(conf.step, step)
-            CheckpointSaver.register_signal_handler()
-            handler = signal.getsignal(signal.SIGTERM)
-            handler(None, None)
-            with self.assertRaises(KeyboardInterrupt):
-                handler = signal.getsignal(signal.SIGINT)
-                handler(None, None)
-            ckpt_files = os.listdir(tmpdir)
-            self.assertEqual(len(ckpt_files), 1)
-            saver.close()
-
-    def test_shard_num_changes(self):
-        model = SimpleNet()
-        step = 100
-        state_dict = dict(
-            model=model.state_dict(),
-            step=step,
-        )
-        with tempfile.TemporaryDirectory() as tmpdir:
-            saver = AsyncCheckpointSaver(tmpdir)
-            threading.Thread(
-                target=saver._sync_shm_to_storage, daemon=True
-            ).start()
-            # Mock a shared queue for the engine.
-            sq = SharedQueue(name="factory", create=True)
-            saving_engine = ShardingEngineDemo(tmpdir, 1)
-            sq.unlink()
-            saving_engine.save_to_memory(step, state_dict)
-            sq = SharedQueue(name="factory", create=True)
-            saving_engine = ShardingEngineDemo(tmpdir, 2)
-            sq.unlink()
-            time.sleep(0.3)
-            self.assertTrue(saver._shm_handlers[0].no_checkpint_state())
-            self.assertIsNone(saver._shm_handlers[0].shared_memory)
-            saving_engine.save_to_memory(step, state_dict)
-            self.assertFalse(saver._shm_handlers[0].no_checkpint_state())
-            saver.close()
-
-    def test_commit_checkpoint(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            step_done_dir = os.path.join(tmpdir, ".done/10/")
-            os.makedirs(step_done_dir, exist_ok=True)
-            saver = AsyncCheckpointSaver(tmpdir)
-            saver.global_shard_num = 1
-            saver.commit_checkpoint(100, step_done_dir, 2)
-
-
-class FsdpCheckpointSaverTest(unittest.TestCase):
-    def test_persist_storage(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            saver = FsdpCheckpointSaver(tmpdir)
-            step = 100
-            path = os.path.join(tmpdir, str(step), "__0_0.dist_cp")
-            os.makedirs(os.path.dirname(path), exist_ok=True)
-            ckpt_config = SingleFileCheckpointConfig(
-                step=step, writing_shm=False, path=path
-            )
-            saver._shm_handlers[0].init_tensor_shm(create=True, size=1024)
-            dcp_metadata = {"weighits": 10}
-            saver._shm_handlers[0].metadata.set({"dcp_metadata": dcp_metadata})
-            saver._is_agent_rank_0 = True
-            saver.persist_to_storage(0, ckpt_config)
-            files = sorted(os.listdir(os.path.dirname(path)))
-            self.assertListEqual(files, [".metadata", "__0_0.dist_cp"])
-
-
-class CheckpointEngineTest(unittest.TestCase):
-    def setUp(self):
-        CheckpointSaver._saver_instance = None
-        CheckpointSaver.start_async_saving_ckpt()
-
-    def tearDown(self) -> None:
-        if CheckpointSaver._saver_instance:
-            CheckpointSaver._saver_instance.close()
-
     def test_create_shared_memory(self):
         shm = _create_shared_memory("test", False)
         self.assertIsNone(shm)
@@ -273,74 +158,7 @@ class CheckpointEngineTest(unittest.TestCase):
 
         shm = _create_shared_memory("test-repeat", True, size=102400)
         self.assertEqual(shm.size, 102400)
-
-    def test_load_no_sharding(self):
-        model = SimpleNet()
-        step = 100
-        state_dict = dict(
-            model=model.state_dict(),
-            step=step,
-        )
-
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            engine = NoShardingCheckpointEngine(tmpdirname)
-            engine._restart_count = 1
-            engine._notify_agent_to_create_saver()
-            path = os.path.join(tmpdirname, "checkpoint-10.pt")
-            torch.save(state_dict, path)
-            tracer_file = os.path.join(
-                tmpdirname, CheckpointConstant.TRACER_FILE_NAME
-            )
-            with open(tracer_file, "w") as f:
-                f.write("10")
-
-            loaded_state_dict = engine.load()
-            for key, value in state_dict["model"].items():
-                loaded_value = loaded_state_dict["model"][key]
-                self.assertTrue(torch.equal(value, loaded_value))
-            engine.close()
-
-
-class SimpleShardingSaver(AtorchFSDPShardingSaver):
-    def persist_to_storage(self, local_shard_id, path):
-        state_dict = self._shm_handlers[local_shard_id].load_state_dict()
-        state_file = os.path.join(path, "checkpoint.pt")
-        torch.save(state_dict, state_file)
-
-    def get_tracker_file(self):
-        return os.path.join(self.checkpoint_dir, "tracker.txt")
-
-    def update_tracker_file(self, step):
-        with open(self.get_tracker_file(), "w") as f:
-            f.write(str(step))
-
-
-class SimpleShardingCheckpointEngine(FSDPShardingCheckpointEngine):
-    def get_saver_class(self):
-        return SimpleShardingSaver
-
-    def get_global_shard_num(self):
-        return 1
-
-    def get_local_shard_num(self):
-        return 1
-
-    def load(self, resume_path=""):
-        pass
-
-
-class ShardingCheckpointEngineTest(unittest.TestCase):
-    def setUp(self):
-        os.environ[NodeEnv.NODE_NUM] = "1"
-        os.environ[NodeEnv.NODE_RANK] = "0"
-        CheckpointSaver._saver_instance = None
-        CheckpointSaver.start_async_saving_ckpt()
-
-    def tearDown(self):
-        os.environ.pop(NodeEnv.NODE_NUM, None)
-        os.environ.pop(NodeEnv.NODE_RANK, None)
-        if CheckpointSaver._saver_instance:
-            CheckpointSaver._saver_instance.close()
+        shm.unlink()
 
     def test_save_to_storage(self):
         model = SimpleNet()
@@ -350,104 +168,73 @@ class ShardingCheckpointEngineTest(unittest.TestCase):
             step=step,
         )
         with tempfile.TemporaryDirectory() as tmpdir:
-            saving_engine = SimpleShardingCheckpointEngine(tmpdir)
-            saving_engine.save_to_storage(step, state_dict, "")
-            tmp = Path(tmpdir)
-            time.sleep(3)
-            # list the files in tmpdir recursively
-            saved_file = tmp / "checkpoint-100/checkpoint.pt"
-            self.assertTrue(saved_file.exists())
-
-            tracker_file = tmp / "tracker.txt"
-            self.assertTrue(tracker_file.exists())
-
-            self.assertEqual(tracker_file.read_text(), "100")
-            state = torch.load(saved_file)
-            self.assertEqual(state["step"], step)
-
-            saver: CheckpointSaver = CheckpointSaver.get_ckpt_saver()
+            saver = CommonDirCheckpointSaver(tmpdir)
+            path = Path(tmpdir) / "checkpoint.pt"
+            ckpt_config = SingleFileCheckpointConfig(step=100, path=path)
+            saver._shm_handlers[0].save_state_dict(state_dict, ckpt_config)
+            meta_dict = saver._shm_handlers[0].metadata.get()
+            ckpt_config: CheckpointShardConfig = meta_dict[
+                DLROVER_CKPT_CONFIG_KEY
+            ]
+            self.assertFalse(ckpt_config.writing_shm)
+            self.assertEqual(ckpt_config.step, step)
+            saver._shm_handlers[0].shared_memory = SharedMemory(
+                name=saver._shm_handlers[0]._shm_name
+            )
+            AsyncCheckpointSaver._saver_instance = saver
+            AsyncCheckpointSaver.register_signal_handler()
+            handler = signal.getsignal(signal.SIGTERM)
+            handler(None, None)
+            with self.assertRaises(KeyboardInterrupt):
+                handler = signal.getsignal(signal.SIGINT)
+                handler(None, None)
+            ckpt_files = os.listdir(tmpdir)
+            self.assertEqual(len(ckpt_files), 3)
             saver.close()
-            saving_engine.close()
 
-    def test_megatron_engine(self):
+    def test_shard_num_changes(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            engine = MegatronCheckpointEngine(tmpdir)
-            global_shard_num = engine.get_global_shard_num()
-            self.assertEqual(global_shard_num, 1)
-            local_shard_num = engine.get_local_shard_num()
-            self.assertEqual(local_shard_num, 1)
-
-            saver_class = engine.get_saver_class()
-            self.assertEqual(saver_class, AsyncCheckpointSaver)
-
-            step = 100
-            path = os.path.join(
-                tmpdir, f"iter_0000{step}/mp_rank_00/model_optim_rng.pt"
+            saver = CommonDirCheckpointSaver(tmpdir)
+            saver.global_shard_num = 1
+            threading.Thread(
+                target=saver._sync_shm_to_storage, daemon=True
+            ).start()
+            sq = SharedQueue(name="factory", create=True)
+            saver._shm_handlers[0].init_shared_memory(create=True, size=1024)
+            saver._shm_handlers[0].metadata.set({"step": 100})
+            event = CheckpointEvent(
+                type=CheckpointEventType.UPDATE_SHARD, global_shard_num=2
             )
+            saver._event_queue.put(event)
+            sq.unlink()
+            time.sleep(0.3)
+            self.assertTrue(saver._shm_handlers[0].no_checkpint_state())
+            self.assertIsNone(saver._shm_handlers[0].shared_memory)
+            saver.close()
 
-            tensor = torch.rand(4, 4)
-            state_dict = {"weights": tensor}
+    def test_commit_checkpoint(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            step_done_dir = os.path.join(tmpdir, ".done/10/")
+            os.makedirs(step_done_dir, exist_ok=True)
+            saver = CommonDirCheckpointSaver(tmpdir)
+            saver.global_shard_num = 1
+            saver.commit_checkpoint(100, step_done_dir, 2)
+
+
+class FsdpCheckpointSaverTest(unittest.TestCase):
+    def test_persist_storage(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            saver = FsdpDcpSaver(tmpdir)
+            step = 100
+            path = os.path.join(tmpdir, str(step), "__0_0.dist_cp")
             os.makedirs(os.path.dirname(path), exist_ok=True)
-            torch.save(state_dict, path)
-
-            sd = engine._load_from_storage()
-            self.assertDictEqual(sd, {})
-
-            tracker_file = (
-                AsyncCheckpointSaver.get_checkpoint_tracker_filename(tmpdir)
+            ckpt_config = SingleFileCheckpointConfig(
+                step=step, writing_shm=False, path=path
             )
-            with open(tracker_file, "w") as f:
-                f.write(str(step))
-            sd = engine._load_from_storage(path)
-            self.assertTrue(torch.equal(sd["weights"], tensor))
-            sd = engine.load(path)
-            self.assertTrue(torch.equal(sd["weights"], tensor))
-
-    def test_deepspeed_engine(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            engine = DeepSpeedCheckpointEngine(
-                tmpdir, global_shard_num=1, zero_stage=1
-            )
-            global_shard_num = engine.get_global_shard_num()
-            self.assertEqual(global_shard_num, 1)
-            local_shard_num = engine.get_local_shard_num()
-            self.assertEqual(local_shard_num, 1)
-
-            saver_class = engine.get_saver_class()
-            self.assertEqual(saver_class, DeepSpeedCheckpointSaver)
-            model = SimpleNet()
-            optimizer = optim.SGD(
-                model.parameters(),
-                lr=0.01,
-                momentum=0.001,
-            )
-            state_dict = dict(
-                model_states=model.state_dict(),
-                optim_states=optimizer.state_dict(),
-            )
-            step = 100
-            model_path = os.path.join(tmpdir, str(step), "model_states.pt")
-            optimizer_path = os.path.join(tmpdir, str(step), "optim_states.pt")
-            engine.save_to_storage(
-                step, state_dict, model_path, optimizer_path
-            )
-            time.sleep(1)  # wait asynchronouly saving
-            self.assertEqual(engine._shm_handler._buffer_size, 9640)
-            self.assertEqual(engine._shm_handler.shared_memory.size, 9640)
-            restored_state_dict = engine.load()
-            restore_msd = restored_state_dict["model_states"]
-            msd = state_dict["model_states"]
-            for name in msd.keys():
-                self.assertTrue(torch.equal(msd[name], restore_msd[name]))
-            f = DeepSpeedCheckpointSaver.get_checkpoint_tracker_filename
-            tracer_file = f(tmpdir)
-            with open(tracer_file, "r") as f:
-                restored_step = int(f.read())
-                self.assertEqual(restored_step, step)
-
-            restored_state_dict = engine._load_from_storage(
-                resume_model_path=model_path,
-                resume_optimizer_path=optimizer_path,
-            )
-            for name in msd.keys():
-                self.assertTrue(torch.equal(msd[name], restore_msd[name]))
+            saver._shm_handlers[0].init_shared_memory(create=True, size=1024)
+            dcp_metadata = {"weighits": 10}
+            saver._shm_handlers[0].metadata.set({"dcp_metadata": dcp_metadata})
+            saver._is_agent_rank_0 = True
+            saver.persist_to_storage(0, ckpt_config)
+            files = sorted(os.listdir(os.path.dirname(path)))
+            self.assertListEqual(files, [".metadata", "__0_0.dist_cp"])

@@ -21,12 +21,11 @@ import time
 from abc import ABCMeta, abstractmethod
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
-from datetime import timedelta
+from enum import Enum, auto
 from pathlib import Path
 from typing import Callable, Dict, List, Mapping, Tuple
 
 import torch
-import torch.distributed as dist
 
 from dlrover.python.common import env_utils
 from dlrover.python.common.constants import CheckpointConstant, NodeEnv
@@ -38,16 +37,27 @@ from dlrover.python.common.multi_process import (
     SharedQueue,
 )
 
-_SAVE_STEP_QNAME_PREFIX = "checkpoint_lock_rank_"
-_CKPT_META_NAME_PREFIX = "checkpoint_meta_shard_"
-_TENSOR_SHM_NAME_PREFIX = "checkpoint_shm_shard_"
-_SHM_LOCK_NAME_PREFIX = "shm_shard_"
-_DLROVER_CKPT_KEY = "_DLORVER_CKPT_CONFIG"
+DLROVER_CKPT_CONFIG_KEY = "_DLORVER_CKPT_CONFIG"
 
-# TODO: use a enum class
-_SAVE_EVENT_NAME = "SAVE_CHECKPOINT"
-_UPDATE_EVENT_NAME = "UPDATE_SHARD_NUM"
-_EXIT_EVENT_NAME = "EXIT"
+
+class CheckpointSharedObjPrefix:
+    SAVE_STEP_QNAME = "checkpoint_lock_rank_"
+    META_NAME = "checkpoint_meta_"
+    SHM_NAME = "checkpoint_shm_"
+    SHM_LOCK_NAME = "shm_lock_"
+
+
+class CheckpointEventType(Enum):
+    SAVE = auto()
+    UPDATE_SHARD = auto()
+    EXIT = auto()
+
+
+@dataclass
+class CheckpointEvent:
+    type: CheckpointEventType = CheckpointEventType.SAVE
+    step: int = 0
+    global_shard_num: int = 0
 
 
 @dataclass
@@ -108,13 +118,6 @@ class DeepSpeedCheckpointConfig(CheckpointShardConfig):
 
     model_path: str = ""
     optimizer_path: str = ""
-
-
-@dataclass
-class SaveEvent:
-    name: str = ""
-    step: int = 0
-    global_shard_num: int = 0
 
 
 def timer(func):
@@ -202,18 +205,6 @@ def _create_shared_memory(name, create, size=0):
     return shm
 
 
-def check_all_rank_ready(group, ready):
-    """
-    Check weather all ranks are ready.
-    """
-    if not group:
-        return ready
-    value = 0 if ready else 1
-    t = torch.tensor([value], dtype=torch.int64)
-    dist.all_reduce(t, group=group)
-    return t == 0
-
-
 def _traverse_copy_to_shm(value, meta, buffer):
     if isinstance(value, Mapping):
         for k, v in value.items():
@@ -262,14 +253,19 @@ class SharedMemoryHandler(object):
 
     def __init__(self, local_rank, host=True):
         self._buffer_size = 0
-        meta_name = _CKPT_META_NAME_PREFIX + str(local_rank)
+        meta_name = CheckpointSharedObjPrefix.META_NAME + str(local_rank)
         job_name = os.getenv(NodeEnv.TORCHELASTIC_RUN_ID, "")
         if job_name:
             self._shm_name = (
-                job_name + "_" + _TENSOR_SHM_NAME_PREFIX + str(local_rank)
+                job_name
+                + "_"
+                + CheckpointSharedObjPrefix.SHM_NAME
+                + str(local_rank)
             )
         else:
-            self._shm_name = _TENSOR_SHM_NAME_PREFIX + str(local_rank)
+            self._shm_name = CheckpointSharedObjPrefix.SHM_NAME + str(
+                local_rank
+            )
         self.shared_memory = None
         self.metadata = SharedDict(name=meta_name, create=host)
 
@@ -315,11 +311,11 @@ class SharedMemoryHandler(object):
             meta_dict = _traverse_state_dict(
                 state_dict, self._create_tensor_meta
             )
-            self.init_tensor_shm(create=True, size=self._buffer_size)
+            self.init_shared_memory(create=True, size=self._buffer_size)
         else:
             meta_dict = self.metadata.get(local=True)
         ckpt_conf.writing_shm = True
-        meta_dict[_DLROVER_CKPT_KEY] = ckpt_conf
+        meta_dict[DLROVER_CKPT_CONFIG_KEY] = ckpt_conf
 
         self.metadata.set(meta_dict)
         _traverse_copy_to_shm(state_dict, meta_dict, self.shared_memory.buf)
@@ -336,16 +332,16 @@ class SharedMemoryHandler(object):
         """
         meta_dict = self.metadata.get()
         default_config = CheckpointShardConfig()
-        config = meta_dict.get(_DLROVER_CKPT_KEY, default_config)
+        config = meta_dict.get(DLROVER_CKPT_CONFIG_KEY, default_config)
         if not meta_dict or config.writing_shm:
             return {}
         if self.shared_memory is None:
-            self.init_tensor_shm(create=False)
+            self.init_shared_memory(create=False)
         if not self.shared_memory:
             return {}
 
         state_dict = _read_state_dict_from_shm(meta_dict, self.shared_memory)
-        state_dict.pop(_DLROVER_CKPT_KEY, None)
+        state_dict.pop(DLROVER_CKPT_CONFIG_KEY, None)
         return state_dict
 
     def no_checkpint_state(self):
@@ -355,12 +351,14 @@ class SharedMemoryHandler(object):
         device has saved state dict.
         """
         meta_dict = self.metadata.get()
-        config: CheckpointShardConfig = meta_dict.get(_DLROVER_CKPT_KEY, None)
+        config: CheckpointShardConfig = meta_dict.get(
+            DLROVER_CKPT_CONFIG_KEY, None
+        )
         if config is None or config.step == 0:
             return True
         return False
 
-    def init_tensor_shm(self, create=False, size=0):
+    def init_shared_memory(self, create=False, size=0):
         self.shared_memory = _create_shared_memory(
             self._shm_name, create=create, size=size
         )
@@ -374,14 +372,14 @@ class SharedMemoryHandler(object):
             A CheckpointShardConfig instance.
         """
         meta_dict = self.metadata.get()
-        config = meta_dict.get(_DLROVER_CKPT_KEY, default_config)
+        config = meta_dict.get(DLROVER_CKPT_CONFIG_KEY, default_config)
         return config
 
 
-class CheckpointSaver(metaclass=ABCMeta):
+class AsyncCheckpointSaver(metaclass=ABCMeta):
     """
-    CheckpointSaver saves the state dict from the shared memory into
-    the storage.
+    CheckpointSaver asynchronously saves the state dict from the shared memory
+    into the storage.
 
     Attributes:
         checkpoint_dir (str): the directory to save the checkpointing state
@@ -410,11 +408,11 @@ class CheckpointSaver(metaclass=ABCMeta):
         self._writing_storage = False
         # The latest step to save the checkpoint.
         self._latest_step = 0
-        qname = _SAVE_STEP_QNAME_PREFIX + str(0)
+        qname = CheckpointSharedObjPrefix.SAVE_STEP_QNAME + str(0)
         self._event_queue = SharedQueue(name=qname, create=True)
         for i in range(self.local_shard_num):
             self._shm_handlers.append(SharedMemoryHandler(i))
-            lock_name = _SHM_LOCK_NAME_PREFIX + str(i)
+            lock_name = CheckpointSharedObjPrefix.SHM_LOCK_NAME + str(i)
             self._shm_locks.append(SharedLock(name=lock_name, create=True))
         self._executor = ThreadPoolExecutor(
             max_workers=self.local_shard_num, thread_name_prefix="ckpt_saver-"
@@ -437,7 +435,7 @@ class CheckpointSaver(metaclass=ABCMeta):
             module = importlib.import_module(class_meta.module_path)
             class_def = getattr(module, class_meta.class_name)
             if cls._saver_instance is None:
-                saver: CheckpointSaver = class_def(**class_meta.init_args)
+                saver: AsyncCheckpointSaver = class_def(**class_meta.init_args)
                 cls._saver_instance = saver
             cls._saver_instance._sync_shm_to_storage()
 
@@ -476,7 +474,7 @@ class CheckpointSaver(metaclass=ABCMeta):
 
     def close(self):
         """Clear the resource of the shared objects."""
-        event = SaveEvent(name=_EXIT_EVENT_NAME)
+        event = CheckpointEvent(type=CheckpointEventType.EXIT)
         if not self._event_queue.empty():
             self._event_queue._queue.get()
         self._event_queue.put(event)
@@ -495,9 +493,9 @@ class CheckpointSaver(metaclass=ABCMeta):
         """
         logger.info("Async checkpoint saver starts!")
         while True:
-            event: SaveEvent = self._event_queue.get()
+            event: CheckpointEvent = self._event_queue.get()
             if (
-                event.name == _UPDATE_EVENT_NAME
+                event.type == CheckpointEventType.UPDATE_SHARD
                 and event.global_shard_num != self.global_shard_num
             ):
                 logger.info(
@@ -505,12 +503,12 @@ class CheckpointSaver(metaclass=ABCMeta):
                     "global shards changes"
                 )
                 self._reset_shared_memory()
-            elif event.name == _SAVE_EVENT_NAME:
+            elif event.type == CheckpointEventType.SAVE:
                 logger.info(
                     f"ShardingSaver save checkpoint to storage, event {event}"
                 )
                 self.save_step_checkpoint(event.step)
-            elif event.name == _EXIT_EVENT_NAME:
+            elif event.type == CheckpointEventType.EXIT:
                 break
 
     def _reset_shared_memory(self):
@@ -529,7 +527,7 @@ class CheckpointSaver(metaclass=ABCMeta):
             shm_handler = self._shm_handlers[local_shard_id]
             shm_lock = self._shm_locks[local_shard_id]
             if shm_handler.shared_memory is None:
-                shm_handler.init_tensor_shm(create=False)
+                shm_handler.init_shared_memory(create=False)
 
             shm_lock.acquire()
             default_config = CheckpointShardConfig()
@@ -675,16 +673,15 @@ class CheckpointSaver(metaclass=ABCMeta):
         pass
 
 
-class AsyncCheckpointSaver(CheckpointSaver):
+class CommonDirCheckpointSaver(AsyncCheckpointSaver):
     """
     The saver asynchronously save the checkpointing state dict from
-    the shared memory to the storage. It launches threads to save
-    each shard in the shared memory. The thread saves each shard
-    to a unique path and writes a done file after the saving is
-    finshied. The path is generated by the training framework like
-    Megatron-LM, DeepSpeed or users' definition. The saver updates
-    the tracer file with the step if the number of done file is equal
-    to the number of shard.
+    the shared memory to the storage. It launches threads to directly save
+    each shard into the path configured by users. The thread saves each shard
+    to a unique path and writes a done file after the saving is finshied.
+    The path is generated by the training framework like Megatron-LM,
+    DeepSpeed or users' definition. The saver updates the tracer file with
+    the step if the number of done file is equal to the number of shard.
     """
 
     @classmethod
@@ -777,7 +774,7 @@ class AsyncCheckpointSaver(CheckpointSaver):
     ):
         """Persist the checkpoint from CPU memory buffer into the storage."""
         state_dict = self._shm_handlers[local_shard_id].load_state_dict()
-        state_dict.pop(_DLROVER_CKPT_KEY, None)
+        state_dict.pop(DLROVER_CKPT_CONFIG_KEY, None)
         checkpoint_dir = os.path.dirname(ckpt_config.path)
         os.makedirs(checkpoint_dir, exist_ok=True)
         torch.save(state_dict, ckpt_config.path)
@@ -820,9 +817,11 @@ class AsyncCheckpointSaver(CheckpointSaver):
             time.sleep(2)
 
 
-class AtorchFSDPShardingSaver(CheckpointSaver):
+class TempDirCheckpointSaver(AsyncCheckpointSaver):
     """
-    This saver saves the FSDP sharding state dict across all ranks.
+    This saver firstly saves the checkpoint shards into the temporary
+    directory and move the directory into the common directory configured
+    by users.
     """
 
     def save_step_checkpoint(self, step):
@@ -972,7 +971,7 @@ class AtorchFSDPShardingSaver(CheckpointSaver):
             time.sleep(2)
 
 
-class DeepSpeedCheckpointSaver(AsyncCheckpointSaver):
+class DeepSpeedCheckpointSaver(CommonDirCheckpointSaver):
     @classmethod
     def get_checkpoint_tracker_filename(cls, checkpoint_dir):
         """
@@ -995,7 +994,7 @@ class DeepSpeedCheckpointSaver(AsyncCheckpointSaver):
     ):
         """Persist the checkpoint from CPU memory buffer into the storage."""
         state_dict = self._shm_handlers[local_shard_id].load_state_dict()
-        state_dict.pop(_DLROVER_CKPT_KEY, None)
+        state_dict.pop(DLROVER_CKPT_CONFIG_KEY, None)
         model_sd = state_dict.get(CheckpointConstant.MODEL_STATES_NAME, {})
         if model_sd and ckpt_config.model_path:
             checkpoint_dir = os.path.dirname(ckpt_config.model_path)
@@ -1009,7 +1008,9 @@ class DeepSpeedCheckpointSaver(AsyncCheckpointSaver):
             torch.save(optimizer_sd, ckpt_config.optimizer_path)
 
 
-class FsdpCheckpointSaver(AsyncCheckpointSaver):
+class FsdpDcpSaver(CommonDirCheckpointSaver):
+    """The saver saves the distributed checkpoint of FSDP into the storage."""
+
     def persist_to_storage(
         self,
         local_shard_id: int,
@@ -1040,627 +1041,3 @@ class FsdpCheckpointSaver(AsyncCheckpointSaver):
                 (parent_path / ".metadata.tmp").rename(
                     parent_path / ".metadata"
                 )
-
-
-class CheckpointEngine(metaclass=ABCMeta):
-    """
-    The engine runs in the training process and is called by the
-    training program. It synchronously saves the checkpointing
-    state dict into the CPU memory buffer and notifies the checkpoint
-    saver to save the checkpoint from CPU memory buffer to the storage.
-
-    Args:
-        checkpoint_dir (str): the directory to save checkpoint.
-    """
-
-    def __init__(self, checkpoint_dir: str):
-        self.checkpoint_dir = checkpoint_dir
-        if dist.is_initialized():
-            self._rank = dist.get_rank()
-            self._local_rank = int(os.environ["LOCAL_RANK"])
-        else:
-            self._rank = 0
-            self._local_rank = int(os.getenv("LOCAL_RANK", 0))
-        self._saver_group = None
-        self._cached_step = 0
-        self._restart_count = env_utils.get_torch_restart_count()
-        # queue for agent to save to storage, only rank 0
-        if self._rank == 0:
-            self._event_queue = SharedQueue(
-                name=_SAVE_STEP_QNAME_PREFIX + str(0), create=False
-            )
-        else:
-            self._event_queue = None  # type: ignore
-        # lock for shared memory
-        local_shard_num = self.get_local_shard_num()
-        self.local_shard_id = self._local_rank % local_shard_num
-        lock_name = _SHM_LOCK_NAME_PREFIX + str(self.local_shard_id)
-        self._shm_lock = SharedLock(name=lock_name, create=False)
-        self._shm_handler = SharedMemoryHandler(
-            self.local_shard_id, host=False
-        )
-        self._notify_agent_to_create_saver()
-        self._update_saver_config()
-
-    def __del__(self):
-        self.close()
-
-    def close(self):
-        """Close the shared memory."""
-        self._shm_handler.close()
-
-    def _notify_agent_to_create_saver(self):
-        """Notify the agent in the main process to create a checkpoint saver"""
-        if self._local_rank != 0:
-            return
-        if self._restart_count > 0:
-            # Only local rank 0 notify to initialize the saver in
-            # the main process at the first start.
-            # Avoid the lock is locked by a failed process.
-            self._shm_lock.release()
-            return
-        queue = SharedQueue(name="factory")
-
-        local_shard_num = self.get_local_shard_num()
-        global_shard_num = self.get_global_shard_num()
-        clazz = self.get_saver_class()
-        class_meta = SaverClassMeta(
-            module_path=clazz.__module__,
-            class_name=clazz.__name__,
-            init_args={
-                "checkpoint_dir": self.checkpoint_dir,
-                "local_shard_num": local_shard_num,
-                "global_shard_num": global_shard_num,
-            },
-        )
-
-        queue.put(class_meta)
-        queue.unlink()
-
-    def _update_saver_config(self):
-        """Update the sharding configuration to the saver."""
-        if self._local_rank == 0:
-            global_shard_num = self.get_global_shard_num()
-            event: SaveEvent = SaveEvent(
-                name=_UPDATE_EVENT_NAME,
-                global_shard_num=global_shard_num,
-            )
-            self._event_queue.put(event)
-
-    @timer
-    def save_to_memory(self, step, state_dict, path=""):
-        """
-        Synchronously Saves the state dict into the shared memory with the main
-        process. If the agent in the main process is saving the shared memory
-        into the storage, the method will skip to write the shared memory.
-        Only local rank 0 save the state dict into the memory because the
-        state dict is replicated across all ranks.
-
-        Args:
-            step (int): the global iteration step.
-            state_dict (dict): the state dict of model and optimizer to save.
-            path (str): the storage path to save the state dict.
-                Note, the path is used to save the state dict to storage
-                only if the training process fails.
-        """
-        conf = SingleFileCheckpointConfig(
-            step=step,
-            path=path,
-        )
-        self._save_state_dict_to_memory(state_dict, conf)
-
-    def _save_state_dict_to_memory(
-        self, state_dict, conf: CheckpointShardConfig
-    ):
-        if self._local_rank != self.local_shard_id:
-            return
-
-        if _DLROVER_CKPT_KEY in state_dict:
-            raise ValueError(
-                f"The state_dict cannot have the key {_DLROVER_CKPT_KEY}."
-            )
-
-        acquired = self._shm_lock.acquire(blocking=False)
-        all_rank_ready = check_all_rank_ready(self._saver_group, acquired)
-        if not all_rank_ready:
-            logger.info(
-                f"Rank {self._rank} skips the save the checkpoint "
-                f"in CPU memory since it is saving the latest "
-                "checkpoint from the CPU memory into the storage."
-            )
-            if acquired:
-                self._shm_lock.release()
-            return
-        self._shm_handler.save_state_dict(state_dict, conf)
-
-        if acquired:
-            self._shm_lock.release()
-        self._cached_step = conf.step
-
-    @abstractmethod
-    def get_saver_class(self):
-        """
-        Get a CheckpointSaver class.
-        """
-        pass
-
-    @abstractmethod
-    def get_local_shard_num(self):
-        """Get the number of model shards on the node."""
-        pass
-
-    @abstractmethod
-    def get_global_shard_num(self):
-        """Get the number of model shards on all nodes."""
-        pass
-
-    @abstractmethod
-    def save_to_storage(self, step, state_dict, path):
-        """
-        Save the state_dict into the path of storage.
-
-        Args:
-            step (int): the iteration step.
-            state_dict (dict): the state dict of model and optimizer to save.
-            path (str): optional, the file path to save the checkpoint. If the
-                path is not defined, the engine will save the state dict into
-                the shared memory not the storage.
-        """
-        pass
-
-    @abstractmethod
-    def load(self, resume_path=""):
-        """
-        Load the checkpointing state dict from the resume path.
-
-        Returns:
-            A dict.
-        """
-        pass
-
-
-class NoShardingCheckpointEngine(CheckpointEngine):
-    """
-    The checkpoint engine synchronously writes the state dict into
-    the shared memory and notify the agent in main process to
-    asynchronously save the state dict from the shared memory into
-    the storage. Writing to memory is significantly quicker
-    than writing to storage. The engine only blocks the training
-    with a little time. Users can frequently call `save_to_memory` in
-    the training loop and call `save_to_storage`.
-
-    If the training process fail, the agent in main process can continuely
-    saves the the state dict from the shared memory into the storage.
-    The engine saves the model and optimizer state dict without sharding
-    in a local or DDP job.
-
-    Attributes:
-        checkpoint_dir (str):  the directory to save the temp checkpoint
-            if the training process fails.
-
-    Examples::
-        >>> engine = NoShardingCheckpointEngine(
-        >>>     checkpoint_dir="/tmp/checkpoint/"
-        >>> )
-        >>> for step, data in enumerate(dataloader):
-        >>>     ...
-        >>>     state_dict = model.state_dict()
-        >>>     path = f"/tmp/checkpoint-{step}.pt"
-        >>>     if step % 5 == 0:
-        >>>         engine.save_to_memory(step, state_dict, path)
-        >>>     elif step % 100 == 0:
-        >>>         engine.save_to_storage(step, state_dict, path)
-        >>> sate_dict = engine.load()
-    """
-
-    def __init__(self, checkpoint_dir):
-        super().__init__(checkpoint_dir)
-        if dist.is_initialized():
-            saver_ranks = self._get_saver_ranks()
-            self._saver_group = dist.new_group(
-                ranks=saver_ranks,
-                backend="gloo",
-                timeout=timedelta(seconds=30),
-            )
-
-    def _get_saver_ranks(self):
-        """
-        Only the local rank 0 in each node saves the state dict into the
-        memory. They need to synchronize the saving status.
-        """
-        group_size = env_utils.get_group_world_size()
-        local_world_size = env_utils.get_local_world_size()
-        save_ranks = []
-        for i in range(group_size):
-            saver_rank = i * local_world_size
-            save_ranks.append(saver_rank)
-        return save_ranks
-
-    def get_local_shard_num(self):
-        return 1
-
-    def get_global_shard_num(self):
-        return 1
-
-    def get_saver_class(self):
-        return AsyncCheckpointSaver
-
-    @timer
-    def save_to_storage(self, step, state_dict, path):
-        """
-        Asynchronously saves the state dict into the storage. It synchronously
-        saves the state dict into the shared memory and put the path
-        into a shared queue. The agent in the main process waits for the queue
-        for save the state dict in the shared memory into the storage.
-        Only rank 0 saves the state dict into the storage.
-
-        Args:
-            state_dict (dict): the state dict of model and optimizer to save.
-            ckpt_name (str): the storage path to save the state dict.
-                Note, the ckpt_name is used to save the state dict to storage
-                only if the training process fails.
-            path (int): the iteration step.
-        """
-        if self._rank != 0:
-            return
-        if step > self._cached_step:
-            self.save_to_memory(step, state_dict, path)
-        event = SaveEvent(name=_SAVE_EVENT_NAME, step=step)
-        if self._local_rank == 0:
-            self._event_queue.put(event)
-
-    def load(self, resume_path=""):
-        """
-        The method firstly try to load the state dict from the shared memory.
-        If there is no state dict in the shared memory, the method will
-        load the state dict from the storage.
-
-        Returns:
-            A dict.
-        """
-        state_dict = self._shm_handler.load_state_dict()
-        if state_dict:
-            logger.info("Load the state dict from the CPU memory buffer.")
-            state_dict.pop(_DLROVER_CKPT_KEY, None)
-            return state_dict
-        state_dict = self._load_from_storage(resume_path)
-        return state_dict
-
-    def _load_from_storage(self, resume_path=""):
-        """
-        Load the state dict from the CPU memory if the state dict is complete
-        in CPU memory. Otherwise, the function will load the state dict from
-        the storage.
-
-        Args:
-            resume_path (str, optional): , If the resume_path is an empty
-                string, the function will load the latest checkpoint file in
-                the checkpoint directory.
-
-        Returns:
-            A dict:
-                a dictionary containing a whole state of the modules in the
-                checkpointing file.
-        """
-        if resume_path:
-            state_dict = torch.load(resume_path, map_location="cpu")
-            return state_dict
-        else:
-            func = AsyncCheckpointSaver.get_checkpoint_tracker_filename
-            tracker_filename = func(self.checkpoint_dir)
-            if not os.path.exists(tracker_filename):
-                return {}
-            with open(tracker_filename, "r") as f:
-                metastring = f.read().strip()
-            iteration = int(metastring)
-            name = f"{CheckpointConstant.CKPT_NAME_PREFIX}{iteration}.pt"
-            path = os.path.join(self.checkpoint_dir, name)
-            logger.info(f"Load the state dict from {path}")
-            state_dict = torch.load(path, map_location="cpu")
-            return state_dict
-
-
-class FSDPShardingCheckpointEngine(CheckpointEngine):
-    """
-    The engine to save the sharding model and optimizer state dict
-    shared across all ranks into the memory and storage.
-    """
-
-    def __init__(self, checkpoint_dir):
-        super().__init__(checkpoint_dir)
-        if dist.is_initialized():
-            self._saver_group = dist.new_group(
-                backend="gloo",
-                timeout=timedelta(seconds=30),
-            )
-
-    def save_to_storage(self, step, state_dict, path):
-        if step > self._cached_step:
-            self.save_to_memory(step, state_dict, path)
-
-        save_event = SaveEvent(name=_SAVE_EVENT_NAME, step=step)
-        if self._local_rank == 0:
-            self._event_queue.put(save_event)
-
-
-class MegatronCheckpointEngine(CheckpointEngine):
-    """
-    The checkpoint engine synchronously writes the state dict of
-    Megatron-LM model and optimizer into
-    the shared memory and notify the agent in main process to
-    asynchronously save the state dict from the shared memory into
-    the storage.
-
-    Attributes:
-        checkpoint_dir (str):  the directory to save the temp checkpoint
-            if the training process fails.
-    """
-
-    def __init__(self, checkpoint_dir):
-        if dist.is_initialized():
-            from megatron import mpu
-
-            self._tp_rank = mpu.get_tensor_model_parallel_rank()
-            self._pp_rank = mpu.get_pipeline_model_parallel_rank()
-            self._pp_world_size = mpu.get_pipeline_model_parallel_world_size()
-            self._tp_world_size = mpu.get_tensor_model_parallel_world_size()
-            self._dp_rank = mpu.get_data_parallel_rank()
-        else:
-            self._tp_rank = 0
-            self._pp_rank = 0
-            self._dp_rank = 0
-            self._pp_world_size = 1
-            self._tp_world_size = 1
-
-        super().__init__(checkpoint_dir)
-        if dist.is_initialized():
-            saver_ranks = self._get_saver_ranks()
-            logger.info(f"Saver ranks of Megatron-LM is {saver_ranks}")
-            self._saver_group = dist.new_group(
-                ranks=saver_ranks,
-                backend="gloo",
-                timeout=timedelta(seconds=30),
-            )
-
-    def _get_saver_ranks(self):
-        """
-        Get the ranks which need to save the sharding state dict into
-        the memory.
-        """
-        world_size = dist.get_world_size()
-        local_world_size = env_utils.get_local_world_size()
-        save_ranks = []
-        local_shard_num = self.get_local_shard_num()
-        for i in range(world_size):
-            local_rank = i % local_world_size
-            if local_rank < local_shard_num:
-                save_ranks.append(i)
-        return save_ranks
-
-    @timer
-    def save_to_storage(self, step, state_dict, path):
-        """
-        Asynchonously saves the state dict into the storage. It synchonously
-        saves the state dict into the shared memory and put the path
-        into a shared queue. The agent in the main process waits for the queue
-        for save the state dict in the shared memory into the storage.
-        Only rank 0 saves the state dict into the storage.
-
-        Args:
-            step (int): the iteration step.
-            state_dict (dict): the state dict of model and optimizer to save.
-            path (str): optional, the file path to save the checkpoint. If the
-                path is not defined, the engine will save the state dict into
-                the shared memory not the storage.
-        """
-        if step > self._cached_step:
-            self.save_to_memory(step, state_dict, path)
-
-        # Only local rank 0 to notify the saving event to the agent.
-        if self._dp_rank != 0 or self._local_rank != 0:
-            return
-        if path:
-            event = SaveEvent(name=_SAVE_EVENT_NAME, step=step)
-            self._event_queue.put(event)
-
-    def get_local_shard_num(self):
-        local_world_size = env_utils.get_local_world_size()
-        global_shard_num = self.get_global_shard_num()
-        return min(local_world_size, global_shard_num)
-
-    def get_global_shard_num(self):
-        num = self._pp_world_size * self._tp_world_size
-        return num
-
-    def get_saver_class(self):
-        return AsyncCheckpointSaver
-
-    def load(self, resume_path=""):
-        """
-        The method firstly try to load the state dict from the shared memory.
-        If there is no state dict in the shared memory, the method will
-        load the state dict from the storage.
-
-        Returns:
-            A dict.
-        """
-        state_dict = self._shm_handler.load_state_dict()
-        if state_dict:
-            return state_dict
-        state_dict = self._load_from_storage(resume_path)
-        return state_dict
-
-    def _load_from_storage(self, resume_path=""):
-        """
-        Load the state dict from the storage.
-        Args:
-            resume_path (str, optional): , If the resume_path is an empty
-                string, the function will load the latest checkpoint file in
-                the checkpoint directory.
-
-        Returns:
-            A dict:
-                a dictionary containing a whole state of the modules in the
-                checkpointing file.
-        """
-        if resume_path:
-            state_dict = torch.load(resume_path, map_location="cpu")
-            return state_dict
-        return {}
-
-
-class DeepSpeedCheckpointEngine(CheckpointEngine):
-    """
-    The checkpoint engine synchronously writes the state dict of
-    `DeepSpeedEngine` into the shared memory and notify the agent
-    in main process to asynchronously save the state dict from the shared
-    memory into the storage.
-
-    Attributes:
-        checkpoint_dir (str):  the directory to save the temp checkpoint
-            if the training process fails.
-        dp_size (int): the world size of data parallelism.
-    """
-
-    def __init__(self, checkpoint_dir, global_shard_num=1, zero_stage=0):
-        self.global_shard_num = global_shard_num
-        self.zero_stage = zero_stage
-        super().__init__(checkpoint_dir)
-        if dist.is_initialized():
-            saver_ranks = self._get_saver_ranks()
-            logger.info(f"Saver ranks of DeepSpeed is {saver_ranks}")
-            self._saver_group = dist.new_group(
-                ranks=saver_ranks,
-                backend="gloo",
-                timeout=timedelta(seconds=30),
-            )
-
-    def _get_saver_ranks(self):
-        """
-        Get the ranks which need to save the sharding state dict into
-        the memory.
-        """
-        world_size = dist.get_world_size()
-        local_world_size = env_utils.get_local_world_size()
-        save_ranks = []
-        local_shard_num = self.get_local_shard_num()
-        for i in range(world_size):
-            local_rank = i % local_world_size
-            if local_rank < local_shard_num:
-                save_ranks.append(i)
-        return save_ranks
-
-    @timer
-    def save_to_memory(
-        self, step, state_dict, model_path="", optimizer_path=""
-    ):
-        """
-        Synchronously Saves the state dict into the shared memory with the main
-        process. If the agent in the main process is saving the shared memory
-        into the storage, the method will skip to write the shared memory.
-        Only local rank 0 save the state dict into the memory because the
-        state dict is replicated across all ranks.
-
-        Args:
-            step (int): the global iteration step.
-            state_dict (dict): the state dict of model and optimizer to save.
-            model_path (str): the storage path to save the model state dict.
-            optimizer_path (str): the storage path to save the optimizer
-                state dict.
-        """
-        conf = DeepSpeedCheckpointConfig(
-            step=step,
-            model_path=model_path,
-            optimizer_path=optimizer_path,
-        )
-        self._save_state_dict_to_memory(state_dict, conf)
-
-    @timer
-    def save_to_storage(
-        self, step, state_dict, model_path="", optimizer_path=""
-    ):
-        """
-        Asynchonously saves the state dict into the storage. It synchonously
-        saves the state dict into the shared memory and put the path
-        into a shared queue. The agent in the main process waits for the queue
-        for save the state dict in the shared memory into the storage.
-        Only rank 0 saves the state dict into the storage.
-
-        Args:
-            step (int): the global iteration step.
-            state_dict (dict): the state dict of model and optimizer to save.
-            model_path (str): the storage path to save the model state dict.
-            optimizer_path (str): the storage path to save the optimizer
-                state dict.
-        """
-        if step > self._cached_step:
-            self.save_to_memory(step, state_dict, model_path, optimizer_path)
-
-        # Only local rank 0 to notify the saving event to the agent.
-        if self._local_rank != 0:
-            return
-        if model_path or optimizer_path:
-            event = SaveEvent(name=_SAVE_EVENT_NAME, step=step)
-            self._event_queue.put(event)
-
-    def get_local_shard_num(self):
-        local_world_size = env_utils.get_local_world_size()
-        global_shard_num = self.get_global_shard_num()
-        return min(local_world_size, global_shard_num)
-
-    def get_global_shard_num(self):
-        return self.global_shard_num
-
-    def get_saver_class(self):
-        return DeepSpeedCheckpointSaver
-
-    def load(self, resume_model_path="", resume_optimizer_path=""):
-        """
-        The method firstly try to load the state dict from the shared memory.
-        If there is no state dict in the shared memory, the method will
-        load the state dict from the storage.
-
-        Returns:
-            A dict.
-        """
-        state_dict = self._shm_handler.load_state_dict()
-        msd_name = CheckpointConstant.MODEL_STATES_NAME
-        if msd_name not in state_dict and self.zero_stage in [1, 2]:
-            local_rank_0_shm_handler = SharedMemoryHandler(0, host=False)
-            # For stage 1,2, the model is not partitioned and only local rank 0
-            # saves the model state dict into the CPU memory. Other local ranks
-            # need get the model state dict from the shared memory of local
-            # rank 0.
-            sd = local_rank_0_shm_handler.load_state_dict()
-            state_dict[msd_name] = sd[msd_name]
-        if state_dict:
-            return state_dict
-        state_dict = self._load_from_storage(
-            resume_model_path, resume_optimizer_path
-        )
-        return state_dict
-
-    def _load_from_storage(
-        self, resume_model_path="", resume_optimizer_path=""
-    ):
-        """
-        Load the DeepSpeedEngine state dict from the storage.
-
-        Args:
-            resume_path (str, optional): , If the resume_path is an empty
-                string, the function will load the latest checkpoint file in
-                the checkpoint directory.
-
-        Returns:
-            A dict:
-                a dictionary containing a whole state of the modules in the
-                checkpointing file.
-        """
-        ds_state_dict = {}
-        if resume_model_path:
-            sd = torch.load(resume_model_path, map_location="cpu")
-            ds_state_dict[CheckpointConstant.MODEL_STATES_NAME] = sd
-        if resume_optimizer_path:
-            sd = torch.load(resume_model_path, map_location="cpu")
-            ds_state_dict[CheckpointConstant.OPTIM_STATES_NAME] = sd
-        return ds_state_dict

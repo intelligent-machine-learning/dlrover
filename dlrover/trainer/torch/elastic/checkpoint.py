@@ -27,11 +27,11 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 
 from dlrover.python.common.constants import CheckpointConstant
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.elastic_agent.torch.ckpt_saver import (
-    CheckpointEngine,
-    NoShardingCheckpointEngine,
-)
 from dlrover.trainer.torch.elastic.sampler import ElasticDistributedSampler
+from dlrover.trainer.torch.flash_checkpoint.ddp_engine import (
+    DdpCheckpointEngine,
+)
+from dlrover.trainer.torch.flash_checkpoint.engine import CheckpointEngine
 
 CKPT_DIR_PREFIX = "checkpoint-"
 
@@ -246,7 +246,7 @@ class LocalCheckpointManger(CheckpointManger):
             save_storage_interval,
             max_to_keep,
         )
-        self._ckpt_engine = NoShardingCheckpointEngine(
+        self._ckpt_engine = DdpCheckpointEngine(
             checkpoint_dir,
         )
 
@@ -344,7 +344,7 @@ class FSDPCheckpointManger(CheckpointManger):
             save_storage_interval,
             max_to_keep,
         )
-        self._ckpt_engine = NoShardingCheckpointEngine(checkpoint_dir)
+        self._ckpt_engine = DdpCheckpointEngine(checkpoint_dir)
 
     def save(self, epoch, step):
         """

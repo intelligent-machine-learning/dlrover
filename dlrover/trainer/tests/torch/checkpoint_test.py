@@ -27,7 +27,7 @@ from torch.utils.data import DataLoader, Dataset
 
 from dlrover.python.common import grpc
 from dlrover.python.common.constants import CheckpointConstant
-from dlrover.python.elastic_agent.torch.ckpt_saver import CheckpointSaver
+from dlrover.python.elastic_agent.torch.ckpt_saver import AsyncCheckpointSaver
 from dlrover.trainer.torch.elastic.checkpoint import CheckpointManger
 from dlrover.trainer.torch.elastic.sampler import ElasticDistributedSampler
 
@@ -98,12 +98,12 @@ def _wait_async_saving_finished(dir_name, step):
 
 class CheckpointManagerTest(unittest.TestCase):
     def setUp(self):
-        CheckpointSaver._saver_instance = None
-        CheckpointSaver.start_async_saving_ckpt()
+        AsyncCheckpointSaver._saver_instance = None
+        AsyncCheckpointSaver.start_async_saving_ckpt()
 
     def tearDown(self) -> None:
-        if CheckpointSaver._saver_instance:
-            CheckpointSaver._saver_instance.close()
+        if AsyncCheckpointSaver._saver_instance:
+            AsyncCheckpointSaver._saver_instance.close()
 
     def test_ddp_save_load(self):
         os.environ["LOCAL_RANK"] = "0"
