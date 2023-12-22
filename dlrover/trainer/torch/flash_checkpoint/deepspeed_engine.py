@@ -25,10 +25,9 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
     DeepSpeedCheckpointConfig,
     DeepSpeedCheckpointSaver,
     SharedMemoryHandler,
-    timer,
 )
 
-from .engine import CheckpointEngine
+from .engine import CheckpointEngine, timer
 
 
 class DeepSpeedCheckpointEngine(CheckpointEngine):

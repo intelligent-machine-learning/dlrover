@@ -120,17 +120,6 @@ class DeepSpeedCheckpointConfig(CheckpointShardConfig):
     optimizer_path: str = ""
 
 
-def timer(func):
-    def wrapper(*args, **kwargs):
-        start = time.time()
-        result = func(*args, **kwargs)
-        t = round(time.time() - start, 3)
-        logger.info(f"Function {func.__name__} cost {t}s")
-        return result
-
-    return wrapper
-
-
 def _traverse_state_dict(value: object, visitor: Callable[[object], None]):
     """
     Invoke ``visitor`` for each value recursively in ``state_dict``.

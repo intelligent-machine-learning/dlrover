@@ -22,10 +22,9 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
     CheckpointEvent,
     CheckpointEventType,
     CommonDirCheckpointSaver,
-    timer,
 )
 
-from .engine import CheckpointEngine
+from .engine import CheckpointEngine, timer
 
 
 class MegatronCheckpointEngine(CheckpointEngine):

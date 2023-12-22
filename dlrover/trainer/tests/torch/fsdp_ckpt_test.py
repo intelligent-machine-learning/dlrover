@@ -14,6 +14,7 @@
 import io
 import os
 import unittest
+import time
 from typing import List
 
 import torch
@@ -55,7 +56,12 @@ from dlrover.trainer.torch.flash_checkpoint.fsdp_engine import (
     _tensor_item_size,
     _write_item,
     _write_memory_from_list,
+    FsdpCheckpointEngine,
 )
+import tempfile
+import pickle
+from pathlib import Path
+from dlrover.trainer.torch.flash_checkpoint.fsdp_engine import FileReader
 
 _OPTIMIZER_KEY = "optimizer.params.group"
 _MODEL_TENSOR_KEY = "model.weights"
@@ -267,3 +273,77 @@ class FsdpCheckpointTest(unittest.TestCase):
         load_planner = DefaultLoadPlanner()
         load_planner.set_up_planner(state_dict, dcp_metadata, True)
         reader.read_data(load_plan, load_planner)
+
+    def test_file_reader(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = Path(tmpdir)
+            files, state_dict = _maker_state_dict_files()
+            write_items: List[WriteItem] = []
+            for _, item in files:
+                write_items.append(item)
+            writer = _write_state_dict_to_shm(self.shm, files, state_dict)
+
+            self.assertTrue("dcp_metadata" in writer.metadata)
+            with (tmpdir / ".metadata").open("wb") as f:
+                pickle.dump(writer.metadata["dcp_metadata"], f)
+                os.fsync(f.fileno())
+            with open(tmpdir / "__0_0.distcp", "wb") as f:
+                f.write(writer.shm_handler.shared_memory.buf)
+
+            reader = FileReader(tmpdir)
+            metadata = reader.read_metadata()
+            reader.set_up_storage_reader(metadata, True)
+
+            bytesio_item = write_items[0]
+            read_bytesio_item = ReadItem(
+                LoadItemType.BYTE_IO,
+                bytesio_item.index,
+                dest_offsets=None,
+                storage_index=bytesio_item.index,
+                storage_offsets=None,
+                lengths=None,
+            )
+            tensor_item = write_items[1]
+            read_tensor_item = ReadItem(
+                LoadItemType.TENSOR,
+                tensor_item.index,
+                dest_offsets=torch.Size([0, 0]),
+                storage_index=tensor_item.index,
+                storage_offsets=torch.Size([0, 0]),
+                lengths=torch.Size([2, 4]),
+            )
+            load_plan = LoadPlan([read_bytesio_item, read_tensor_item])
+
+            reader.prepare_local_plan(load_plan)
+            reader.prepare_global_plan([load_plan])
+
+            load_planner = DefaultLoadPlanner()
+            load_planner.set_up_planner(state_dict, metadata, True)
+            reader.read_data(load_plan, load_planner)
+
+    def test_fsdp_engine(self):
+        step = 100
+        state_dict = {
+            _OPTIMIZER_KEY: {"learning_rate": 0.1},
+        }
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = Path(tmpdir)
+            engine = (tmpdir)
+            path = tmpdir / str(step)
+            engine = FsdpCheckpointEngine(tmpdir)
+            engine.save_to_storage(step, state_dict, path=path,)
+            self.assertEqual(engine._cached_step, 100)
+            time.sleep(1)
+            files = sorted(os.listdir(tmpdir))
+            self.assertListEqual(
+                files,
+                [
+                    "._dlrover_ckpt_stage",
+                    "100",
+                    "latest_checkpointed_iteration.txt",
+                ],
+            )
+            files = sorted(os.listdir(path))
+            self.assertListEqual(files, [".metadata", "__0_0.distcp"])
+            reader = engine.load(path)
+            self.assertTrue(isinstance(reader, SharedMemoryReader))

@@ -14,15 +14,20 @@
 import dataclasses
 import io
 import os
+import pickle
 from dataclasses import dataclass
-from typing import Dict, List, Tuple
+from pathlib import Path
+from typing import Dict, List, Tuple, Union
 
 import torch
+import torch.distributed as dist
+import torch.distributed.checkpoint as dist_cp
 from torch.distributed.checkpoint.filesystem import (
     DEFAULT_SUFFIX,
     LoadItemType,
     LoadPlan,
     LoadPlanner,
+    ReadItem,
     SavePlan,
     SavePlanner,
     StorageReader,
@@ -40,8 +45,19 @@ from torch.distributed.checkpoint.metadata import (
 )
 from torch.futures import Future
 
+from dlrover.python.common import env_utils
+from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.multi_process import SharedMemory
-from dlrover.python.elastic_agent.torch.ckpt_saver import SharedMemoryHandler
+from dlrover.python.elastic_agent.torch.ckpt_saver import (
+    DLROVER_CKPT_CONFIG_KEY,
+    CheckpointEvent,
+    CheckpointEventType,
+    FsdpDcpSaver,
+    SharedMemoryHandler,
+    SingleFileCheckpointConfig,
+)
+
+from .engine import CheckpointEngine, check_all_rank_ready, timer
 
 
 @dataclass
@@ -310,3 +326,202 @@ class SlicedBufferedReader(io.BufferedReader):
 
     def tell(self) -> int:
         return super().tell() - self.offset
+
+
+class FileReader(StorageReader):
+    def __init__(self, path: Union[str, os.PathLike]) -> None:
+        super().__init__()
+        self.path = Path(path)
+        self.storage_data: Dict[MetadataIndex, _StorageInfo] = dict()
+        self.state_dict_metadata: Dict[str, STORAGE_TYPES] = dict()
+
+    def _slice_file(self, file, sinfo: _StorageInfo):
+        return SlicedBufferedReader(
+            io.FileIO(file.fileno(), closefd=False), sinfo.offset, sinfo.length
+        )
+
+    def read_data(self, plan: LoadPlan, planner: LoadPlanner) -> Future[None]:
+        # group requests by file
+        per_file: Dict[str, List[ReadItem]] = dict()
+        for read_item in plan.items:
+            item_md = self.storage_data[read_item.storage_index]
+            path = item_md.relative_path
+            per_file.setdefault(path, []).append(read_item)
+
+        for relative_path, reqs in per_file.items():
+            with (self.path / relative_path).open("rb") as file:
+                for req in reqs:
+                    item_md = self.storage_data[req.storage_index]
+                    file_slice = self._slice_file(file, item_md)
+                    bytes = io.BytesIO(file_slice.read(item_md.length))
+                    bytes.seek(0)
+                    if req.type == LoadItemType.BYTE_IO:
+                        planner.load_bytes(req, bytes)
+                    else:
+                        tensor_meta = self.state_dict_metadata[
+                            req.storage_index.fqn
+                        ]
+                        tensor = torch.frombuffer(
+                            bytes.getbuffer(),
+                            dtype=tensor_meta.properties.dtype,
+                        ).reshape(req.lengths)
+                        tensor = narrow_tensor_by_index(
+                            tensor, req.storage_offsets, req.lengths
+                        )
+                        target_tensor = planner.resolve_tensor(req).detach()
+
+                        err_msg = (
+                            f"req {req.storage_index} mismatch sizes "
+                            f"{target_tensor.size()} vs {tensor.size()}"
+                        )
+                        assert target_tensor.size() == tensor.size(), err_msg
+                        target_tensor.copy_(tensor)
+                        planner.commit_tensor(req, target_tensor)
+
+        fut: Future = Future()
+        fut.set_result(None)
+        return fut
+
+    # Implementating the abstract function in StorageReader
+    def read_metadata(self) -> Metadata:
+        with (self.path / ".metadata").open("rb") as metadata_file:
+            return pickle.load(metadata_file)
+
+    def set_up_storage_reader(
+        self, metadata: Metadata, is_coordinator: bool
+    ) -> None:
+        self.storage_data = metadata.storage_data
+        self.state_dict_metadata = metadata.state_dict_metadata
+        assert self.storage_data is not None
+
+    def prepare_local_plan(self, plan: LoadPlan) -> LoadPlan:
+        return plan
+
+    def prepare_global_plan(
+        self, global_plan: List[LoadPlan]
+    ) -> List[LoadPlan]:
+        return global_plan
+
+
+class FsdpCheckpointEngine(CheckpointEngine):
+    """
+    A engine to save FSDP distributed checkpoint into the memory
+    and storage.
+    """
+
+    def __init__(self, checkpoint_dir: str):
+        super().__init__(checkpoint_dir)
+        self._shm_writer = SharedMemoryWriter(shm_handler=self._shm_handler)
+        self._shm_reader = SharedMemoryReader(self._shm_handler)
+
+    @timer
+    def save_to_memory(self, step, state_dict, path=""):
+        """
+        Synchronously Saves the state dict into the shared memory with the main
+        process. If the agent in the main process is saving the shared memory
+        into the storage, the method will skip to write the shared memory.
+        Only local rank 0 save the state dict into the memory because the
+        state dict is replicated across all ranks.
+
+        Args:
+            step (int): the global iteration step.
+            state_dict (dict): the state dict of model and optimizer to save.
+            path (str): the storage path to save the state dict.
+                Note, the path is used to save the state dict to storage
+                only if the training process fails.
+        """
+        if self._local_rank != self.local_shard_id:
+            return
+
+        conf = SingleFileCheckpointConfig(
+            step=step,
+            path=path,
+        )
+
+        acquired = self._shm_lock.acquire(blocking=False)
+        all_rank_ready = check_all_rank_ready(self._saver_group, acquired)
+        if not all_rank_ready:
+            logger.info(
+                f"Rank {self._rank} skips the save the checkpoint "
+                f"in CPU memory since it is saving the latest "
+                "checkpoint from the CPU memory into the storage."
+            )
+            if acquired:
+                self._shm_lock.release()
+            return
+
+        conf.writing_shm = True
+        dist_cp.save_state_dict(
+            state_dict=state_dict,
+            storage_writer=self._shm_writer,
+        )
+
+        # Broadcast dcp metadata and no sharding data to all ranks
+        # and all ranks can restore the state dict from the CPU
+        # memory with those metada.
+
+        bcast_list = [self._shm_writer.metadata]
+        dist.broadcast_object_list(bcast_list, src=0)
+        self._shm_writer.metadata = bcast_list[0]
+
+        conf.path = os.path.join(path, self._shm_writer.file_name)
+        meta_dict = {DLROVER_CKPT_CONFIG_KEY: conf}
+        meta_dict.update(self._shm_writer.metadata)
+        self._shm_handler.metadata.set(meta_dict)
+        conf.writing_shm = False
+        if acquired:
+            self._shm_lock.release()
+        self._cached_step = conf.step
+
+    def save_to_storage(self, step, state_dict, path):
+        """
+        Save the state_dict into the path of storage.
+
+        Args:
+            step (int): the iteration step.
+            state_dict (dict): the state dict of model and optimizer to save.
+            path (str): optional, the file path to save the checkpoint. If the
+                path is not defined, the engine will save the state dict into
+                the shared memory not the storage.
+        """
+        if step > self._cached_step:
+            self.save_to_memory(step, state_dict, path)
+
+        # Only local rank 0 on each node notifies the event to save.
+        if self._local_rank != 0:
+            return
+        if path:
+            event = CheckpointEvent(name=CheckpointEventType.SAVE, step=step)
+            self._event_queue.put(event)
+
+    def get_saver_class(self):
+        """
+        Get a CheckpointSaver class.
+        """
+        return FsdpDcpSaver
+
+    def get_local_shard_num(self):
+        """Get the number of model shards on the node."""
+        return env_utils.get_local_world_size()
+
+    def get_global_shard_num(self):
+        """Get the number of model shards on all nodes."""
+        return dist.get_world_size()
+
+    def load(self, resume_path=""):
+        """
+        Get the checkpoint reader to read the state dict. The method
+        firstly returns a shared memory reader if the shared memory
+        has state dict. Otherwise, the method returns a file reader
+        with the resume_path.
+
+        Args:
+            resume_path (str): the resuming path to load the
+                checkpointing state dict from the storage.
+        """
+        if not self._shm_handler.no_checkpint_state():
+            return self._shm_reader
+        else:
+            if not resume_path:
+                raise ValueError("resume_path cannot be empty.")
+            return FileReader(resume_path)
