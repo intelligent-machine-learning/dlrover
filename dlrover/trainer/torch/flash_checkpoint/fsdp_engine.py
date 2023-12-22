@@ -491,7 +491,7 @@ class FsdpCheckpointEngine(CheckpointEngine):
         if self._local_rank != 0:
             return
         if path:
-            event = CheckpointEvent(name=CheckpointEventType.SAVE, step=step)
+            event = CheckpointEvent(type=CheckpointEventType.SAVE, step=step)
             self._event_queue.put(event)
 
     def get_saver_class(self):
