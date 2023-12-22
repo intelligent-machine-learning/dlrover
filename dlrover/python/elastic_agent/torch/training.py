@@ -68,7 +68,7 @@ from dlrover.python.elastic_agent.config.paral_config_tuner import (
 )
 from dlrover.python.elastic_agent.master_client import MasterClient
 from dlrover.python.elastic_agent.monitor.training import TorchTrainingMonitor
-from dlrover.python.elastic_agent.torch.ckpt_saver import CheckpointSaver
+from dlrover.python.elastic_agent.torch.ckpt_saver import AsyncCheckpointSaver
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
 
 __all__ = ["launch_agent"]
@@ -493,7 +493,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 super()._initialize_workers(worker_group)
                 # We need to register handler after starting workers because
                 # the PContext start_worker will overwrite the handler.
-                CheckpointSaver.register_signal_handler()
+                AsyncCheckpointSaver.register_signal_handler()
             except RendezvousOutSyncError:
                 logger.info(
                     "Exit elastic-training rendezvous when there are "
@@ -505,7 +505,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
     def _invoke_run(self, role: str = DEFAULT_ROLE) -> RunResult:
         # Start a thread to save the checkpointing state dict from
         # the shared memory to the storage.
-        CheckpointSaver.start_async_saving_ckpt()
+        AsyncCheckpointSaver.start_async_saving_ckpt()
 
         spec = self._worker_group.spec
         role = spec.role
@@ -573,7 +573,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         The agent can save the checkpointing state dict in the shared
         memory into the storage before restarting training processes.
         """
-        saver: CheckpointSaver = CheckpointSaver.get_ckpt_saver()
+        saver: AsyncCheckpointSaver = AsyncCheckpointSaver.get_ckpt_saver()
         if saver:
             self._save_ckpt_future = self._save_ckpt_executor.submit(
                 saver.save_shm_to_storage

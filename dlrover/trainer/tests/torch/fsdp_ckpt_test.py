@@ -45,7 +45,7 @@ from torch.distributed.checkpoint.planner import (
 from dlrover.python.common import grpc
 from dlrover.python.common.multi_process import SharedMemory
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
-    CheckpointSaver,
+    AsyncCheckpointSaver,
     SharedMemoryHandler,
 )
 from dlrover.trainer.torch.flash_checkpoint.fsdp_engine import (
@@ -149,8 +149,8 @@ def _write_state_dict_to_shm(shared_memory, files, state_dict):
 class FsdpCheckpointTest(unittest.TestCase):
     def setUp(self):
         self.shm = SharedMemory(name="test_write_item", create=True, size=1024)
-        CheckpointSaver._saver_instance = None
-        CheckpointSaver.start_async_saving_ckpt()
+        AsyncCheckpointSaver._saver_instance = None
+        AsyncCheckpointSaver.start_async_saving_ckpt()
         os.environ["LOCAL_RANK"] = "0"
         os.environ["LOCAL_WORLD_SIZE"] = "1"
         port = grpc.find_free_port()
@@ -162,8 +162,8 @@ class FsdpCheckpointTest(unittest.TestCase):
         os.environ.pop("LOCAL_WORLD_SIZE", None)
         self.shm.unlink()
         dist.destroy_process_group()
-        if CheckpointSaver._saver_instance:
-            CheckpointSaver._saver_instance.close()
+        if AsyncCheckpointSaver._saver_instance:
+            AsyncCheckpointSaver._saver_instance.close()
 
     def test_tensor_item_size(self):
         item = _make_tensor_write_item()

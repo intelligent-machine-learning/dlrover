@@ -21,7 +21,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 
-from dlrover.python.elastic_agent.torch.ckpt_saver import CheckpointSaver
+from dlrover.python.elastic_agent.torch.ckpt_saver import AsyncCheckpointSaver
 from dlrover.trainer.torch.deepspeed.async_checkpoint import (
     DeepSpeedCheckpointManger,
 )
@@ -85,12 +85,12 @@ class SimpleNet(nn.Module):
 
 class DeepSpeedCheckpointTest(unittest.TestCase):
     def setUp(self):
-        CheckpointSaver._saver_instance = None
-        CheckpointSaver.start_async_saving_ckpt()
+        AsyncCheckpointSaver._saver_instance = None
+        AsyncCheckpointSaver.start_async_saving_ckpt()
 
     def tearDown(self) -> None:
-        if CheckpointSaver._saver_instance:
-            CheckpointSaver._saver_instance.close()
+        if AsyncCheckpointSaver._saver_instance:
+            AsyncCheckpointSaver._saver_instance.close()
 
     def test_save_load(self):
         os.environ["LOCAL_RANK"] = "0"
