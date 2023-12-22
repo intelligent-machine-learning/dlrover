@@ -24,7 +24,7 @@ from deepspeed.runtime.zero.config import ZeroStageEnum
 
 from dlrover.python.common import env_utils
 from dlrover.python.common.constants import CheckpointConstant
-from dlrover.python.elastic_agent.torch.ckpt_saver import (
+from dlrover.trainer.torch.flash_checkpoint.deepspeed_engine import (
     DeepSpeedCheckpointEngine,
 )
 

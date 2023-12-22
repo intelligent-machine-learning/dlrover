@@ -31,7 +31,7 @@ except ImportError:
     logger.warning("Please check the magatron.checkpointing exists.")
 
 from dlrover.python.common.singleton import singleton
-from dlrover.python.elastic_agent.torch.ckpt_saver import (
+from dlrover.trainer.torch.flash_checkpoint.megatron_engine import (
     MegatronCheckpointEngine,
 )
 

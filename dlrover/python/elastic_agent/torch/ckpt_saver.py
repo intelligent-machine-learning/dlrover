@@ -20,8 +20,8 @@ import threading
 import time
 from abc import ABCMeta, abstractmethod
 from concurrent.futures import Future, ThreadPoolExecutor
-from enum import Enum, auto
 from dataclasses import dataclass
+from enum import Enum, auto
 from pathlib import Path
 from typing import Callable, Dict, List, Mapping, Tuple
 
@@ -37,11 +37,10 @@ from dlrover.python.common.multi_process import (
     SharedQueue,
 )
 
-
 DLROVER_CKPT_CONFIG_KEY = "_DLORVER_CKPT_CONFIG"
 
 
-class CheckpointSharedObjPrefix():
+class CheckpointSharedObjPrefix:
     SAVE_STEP_QNAME = "checkpoint_lock_rank_"
     META_NAME = "checkpoint_meta_"
     SHM_NAME = "checkpoint_shm_"
@@ -258,10 +257,15 @@ class SharedMemoryHandler(object):
         job_name = os.getenv(NodeEnv.TORCHELASTIC_RUN_ID, "")
         if job_name:
             self._shm_name = (
-                job_name + "_" + CheckpointSharedObjPrefix.SHM_NAME + str(local_rank)
+                job_name
+                + "_"
+                + CheckpointSharedObjPrefix.SHM_NAME
+                + str(local_rank)
             )
         else:
-            self._shm_name = CheckpointSharedObjPrefix.SHM_NAME + str(local_rank)
+            self._shm_name = CheckpointSharedObjPrefix.SHM_NAME + str(
+                local_rank
+            )
         self.shared_memory = None
         self.metadata = SharedDict(name=meta_name, create=host)
 
@@ -347,7 +351,9 @@ class SharedMemoryHandler(object):
         device has saved state dict.
         """
         meta_dict = self.metadata.get()
-        config: CheckpointShardConfig = meta_dict.get(DLROVER_CKPT_CONFIG_KEY, None)
+        config: CheckpointShardConfig = meta_dict.get(
+            DLROVER_CKPT_CONFIG_KEY, None
+        )
         if config is None or config.step == 0:
             return True
         return False
@@ -1004,6 +1010,7 @@ class DeepSpeedCheckpointSaver(CommonDirCheckpointSaver):
 
 class FsdpDcpSaver(CommonDirCheckpointSaver):
     """The saver saves the distributed checkpoint of FSDP into the storage."""
+
     def persist_to_storage(
         self,
         local_shard_id: int,

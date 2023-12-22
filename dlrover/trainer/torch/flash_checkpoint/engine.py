@@ -1,22 +1,36 @@
-import os
-from abc import abstractmethod, ABCMeta
-import torch.distributed as dist
-import torch
+# Copyright 2023 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
-from dlrover.python.elastic_agent.torch.ckpt_saver import (
-    timer,
-    CheckpointEvent,
-    SharedMemoryHandler,
-    CheckpointEventType,
-    SaverClassMeta,
-    CheckpointSharedObjPrefix,
-    DLROVER_CKPT_CONFIG_KEY,
-    SingleFileCheckpointConfig,
-    CheckpointShardConfig,
-)
-from dlrover.python.common.log import default_logger as logger
+import os
+from abc import ABCMeta, abstractmethod
+
+import torch
+import torch.distributed as dist
+
 from dlrover.python.common import env_utils
-from dlrover.python.common.multi_process import SharedQueue, SharedLock
+from dlrover.python.common.log import default_logger as logger
+from dlrover.python.common.multi_process import SharedLock, SharedQueue
+from dlrover.python.elastic_agent.torch.ckpt_saver import (
+    DLROVER_CKPT_CONFIG_KEY,
+    CheckpointEvent,
+    CheckpointEventType,
+    CheckpointShardConfig,
+    CheckpointSharedObjPrefix,
+    SaverClassMeta,
+    SharedMemoryHandler,
+    SingleFileCheckpointConfig,
+    timer,
+)
 
 
 def check_all_rank_ready(group, ready):
@@ -62,14 +76,17 @@ class CheckpointEngine(metaclass=ABCMeta):
         # queue for agent to save to storage, only rank 0
         if self._rank == 0:
             self._event_queue = SharedQueue(
-                name=CheckpointSharedObjPrefix.SAVE_STEP_QNAME + str(0), create=False
+                name=CheckpointSharedObjPrefix.SAVE_STEP_QNAME + str(0),
+                create=False,
             )
         else:
             self._event_queue = None  # type: ignore
         # lock for shared memory
         local_shard_num = self.get_local_shard_num()
         self.local_shard_id = self._local_rank % local_shard_num
-        lock_name = CheckpointSharedObjPrefix.SHM_LOCK_NAME + str(self.local_shard_id)
+        lock_name = CheckpointSharedObjPrefix.SHM_LOCK_NAME + str(
+            self.local_shard_id
+        )
         self._shm_lock = SharedLock(name=lock_name, create=False)
         self._shm_handler = SharedMemoryHandler(
             self.local_shard_id, host=False
@@ -152,7 +169,8 @@ class CheckpointEngine(metaclass=ABCMeta):
 
         if DLROVER_CKPT_CONFIG_KEY in state_dict:
             raise ValueError(
-                f"The state_dict cannot have the key {DLROVER_CKPT_CONFIG_KEY}."
+                "The state_dict can not have the key "
+                f"{DLROVER_CKPT_CONFIG_KEY}."
             )
 
         acquired = self._shm_lock.acquire(blocking=False)

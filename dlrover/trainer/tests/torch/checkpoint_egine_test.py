@@ -1,3 +1,16 @@
+# Copyright 2023 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import os
 import tempfile
 import time
@@ -9,17 +22,22 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 
-from dlrover.python.common.constants import NodeEnv, CheckpointConstant
+from dlrover.python.common.constants import CheckpointConstant, NodeEnv
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
-    CommonDirCheckpointSaver,
-    TempDirCheckpointSaver,
     AsyncCheckpointSaver,
+    CommonDirCheckpointSaver,
     DeepSpeedCheckpointSaver,
+    TempDirCheckpointSaver,
 )
-from dlrover.trainer.torch.flash_checkpoint.engine import CheckpointEngine
-from dlrover.trainer.torch.flash_checkpoint.ddp_engine import DdpCheckpointEngine
-from dlrover.trainer.torch.flash_checkpoint.deepspeed_engine import DeepSpeedCheckpointEngine
-from dlrover.trainer.torch.flash_checkpoint.megatron_engine import MegatronCheckpointEngine
+from dlrover.trainer.torch.flash_checkpoint.ddp_engine import (
+    DdpCheckpointEngine,
+)
+from dlrover.trainer.torch.flash_checkpoint.deepspeed_engine import (
+    DeepSpeedCheckpointEngine,
+)
+from dlrover.trainer.torch.flash_checkpoint.megatron_engine import (
+    MegatronCheckpointEngine,
+)
 
 
 class SimpleNet(nn.Module):
@@ -52,7 +70,7 @@ class SimpleShardingSaver(TempDirCheckpointSaver):
             f.write(str(step))
 
 
-class SimpleShardingCheckpointEngine(CheckpointEngine):
+class SimpleShardingCheckpointEngine(DdpCheckpointEngine):
     def get_saver_class(self):
         return SimpleShardingSaver
 
@@ -131,7 +149,9 @@ class ShardingCheckpointEngineTest(unittest.TestCase):
             self.assertDictEqual(sd, {})
 
             tracker_file = (
-                CommonDirCheckpointSaver.get_checkpoint_tracker_filename(tmpdir)
+                CommonDirCheckpointSaver.get_checkpoint_tracker_filename(
+                    tmpdir
+                )
             )
             with open(tracker_file, "w") as f:
                 f.write(str(step))

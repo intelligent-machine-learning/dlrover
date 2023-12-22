@@ -30,17 +30,19 @@ from dlrover.python.common.multi_process import (
     SharedQueue,
 )
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
-    CheckpointSharedObjPrefix,
     DLROVER_CKPT_CONFIG_KEY,
-    CommonDirCheckpointSaver,
     AsyncCheckpointSaver,
+    CheckpointEvent,
+    CheckpointEventType,
     CheckpointShardConfig,
+    CheckpointSharedObjPrefix,
+    CommonDirCheckpointSaver,
     FsdpDcpSaver,
     SaverClassMeta,
     SharedMemoryHandler,
     SingleFileCheckpointConfig,
-    _traverse_state_dict,
     _create_shared_memory,
+    _traverse_state_dict,
 )
 
 
@@ -67,20 +69,13 @@ class SimpleNet(nn.Module):
         return output
 
 
-class ShardingEngineDemo(NoShardingCheckpointEngine):
-    def __init__(self, checkpoint_dir, global_shard_num=1):
-        self._global_shard_num = global_shard_num
-        super().__init__(checkpoint_dir)
-
-    def get_global_shard_num(self):
-        return self._global_shard_num
-
-
 class SharedMemoryHandlerTest(unittest.TestCase):
     def setUp(self):
         local_rank = 1
         os.environ[NodeEnv.TORCHELASTIC_RUN_ID] = "unittest"
-        SharedDict(CheckpointSharedObjPrefix.META_NAME + str(local_rank), create=True)
+        SharedDict(
+            CheckpointSharedObjPrefix.META_NAME + str(local_rank), create=True
+        )
         self._shm_handler = SharedMemoryHandler(local_rank, host=False)
 
     def tearDown(self):
@@ -153,7 +148,7 @@ class CheckpointSaverTest(unittest.TestCase):
         )
         new_dict = _traverse_state_dict(state_dict, visitor)
         self.assertEqual(new_dict, state_dict)
-    
+
     def test_create_shared_memory(self):
         shm = _create_shared_memory("test", False)
         self.assertIsNone(shm)
@@ -176,18 +171,17 @@ class CheckpointSaverTest(unittest.TestCase):
             saver = CommonDirCheckpointSaver(tmpdir)
             path = Path(tmpdir) / "checkpoint.pt"
             ckpt_config = SingleFileCheckpointConfig(step=100, path=path)
-            saver._shm_handlers[0].init_shared_memory(create=True, size=10240)
             saver._shm_handlers[0].save_state_dict(state_dict, ckpt_config)
-            meta_dict = saver._shm_handlers[0].get_checkpoint_config()
-            ckpt_config: CheckpointShardConfig = meta_dict[DLROVER_CKPT_CONFIG_KEY]
+            meta_dict = saver._shm_handlers[0].metadata.get()
+            ckpt_config: CheckpointShardConfig = meta_dict[
+                DLROVER_CKPT_CONFIG_KEY
+            ]
             self.assertFalse(ckpt_config.writing_shm)
             self.assertEqual(ckpt_config.step, step)
             saver._shm_handlers[0].shared_memory = SharedMemory(
                 name=saver._shm_handlers[0]._shm_name
             )
-            saver._writing_storage = True
-            saver.save_shm_to_storage(timeout=2)
-            saver._writing_storage = False
+            AsyncCheckpointSaver._saver_instance = saver
             AsyncCheckpointSaver.register_signal_handler()
             handler = signal.getsignal(signal.SIGTERM)
             handler(None, None)
@@ -195,34 +189,27 @@ class CheckpointSaverTest(unittest.TestCase):
                 handler = signal.getsignal(signal.SIGINT)
                 handler(None, None)
             ckpt_files = os.listdir(tmpdir)
-            self.assertEqual(len(ckpt_files), 1)
+            self.assertEqual(len(ckpt_files), 3)
             saver.close()
 
     def test_shard_num_changes(self):
-        model = SimpleNet()
-        step = 100
-        state_dict = dict(
-            model=model.state_dict(),
-            step=step,
-        )
         with tempfile.TemporaryDirectory() as tmpdir:
             saver = CommonDirCheckpointSaver(tmpdir)
+            saver.global_shard_num = 1
             threading.Thread(
                 target=saver._sync_shm_to_storage, daemon=True
             ).start()
-            # Mock a shared queue for the engine.
             sq = SharedQueue(name="factory", create=True)
-            saving_engine = ShardingEngineDemo(tmpdir, 1)
-            sq.unlink()
-            saving_engine.save_to_memory(step, state_dict)
-            sq = SharedQueue(name="factory", create=True)
-            saving_engine = ShardingEngineDemo(tmpdir, 2)
+            saver._shm_handlers[0].init_shared_memory(create=True, size=1024)
+            saver._shm_handlers[0].metadata.set({"step": 100})
+            event = CheckpointEvent(
+                type=CheckpointEventType.UPDATE_SHARD, global_shard_num=2
+            )
+            saver._event_queue.put(event)
             sq.unlink()
             time.sleep(0.3)
             self.assertTrue(saver._shm_handlers[0].no_checkpint_state())
             self.assertIsNone(saver._shm_handlers[0].shared_memory)
-            saving_engine.save_to_memory(step, state_dict)
-            self.assertFalse(saver._shm_handlers[0].no_checkpint_state())
             saver.close()
 
     def test_commit_checkpoint(self):
