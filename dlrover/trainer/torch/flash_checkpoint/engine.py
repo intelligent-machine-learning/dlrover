@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import os
+import time
 from abc import ABCMeta, abstractmethod
 
 import torch
@@ -29,7 +30,6 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
     SaverClassMeta,
     SharedMemoryHandler,
     SingleFileCheckpointConfig,
-    timer,
 )
 
 
@@ -43,6 +43,17 @@ def check_all_rank_ready(group, ready):
     t = torch.tensor([value], dtype=torch.int64)
     dist.all_reduce(t, group=group)
     return t == 0
+
+
+def timer(func):
+    def wrapper(*args, **kwargs):
+        start = time.time()
+        result = func(*args, **kwargs)
+        t = round(time.time() - start, 3)
+        logger.info(f"Function {func.__name__} cost {t}s")
+        return result
+
+    return wrapper
 
 
 class CheckpointEngine(metaclass=ABCMeta):
