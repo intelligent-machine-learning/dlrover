@@ -13,8 +13,11 @@
 
 import io
 import os
-import unittest
+import pickle
+import tempfile
 import time
+import unittest
+from pathlib import Path
 from typing import List
 
 import torch
@@ -50,18 +53,15 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
     SharedMemoryHandler,
 )
 from dlrover.trainer.torch.flash_checkpoint.fsdp_engine import (
+    FileReader,
+    FsdpCheckpointEngine,
     SharedMemoryReader,
     SharedMemoryWriter,
     _get_buffer_size,
     _tensor_item_size,
     _write_item,
     _write_memory_from_list,
-    FsdpCheckpointEngine,
 )
-import tempfile
-import pickle
-from pathlib import Path
-from dlrover.trainer.torch.flash_checkpoint.fsdp_engine import FileReader
 
 _OPTIMIZER_KEY = "optimizer.params.group"
 _MODEL_TENSOR_KEY = "model.weights"
@@ -328,10 +328,14 @@ class FsdpCheckpointTest(unittest.TestCase):
         }
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir = Path(tmpdir)
-            engine = (tmpdir)
+            engine = tmpdir
             path = tmpdir / str(step)
             engine = FsdpCheckpointEngine(tmpdir)
-            engine.save_to_storage(step, state_dict, path=path,)
+            engine.save_to_storage(
+                step,
+                state_dict,
+                path=path,
+            )
             self.assertEqual(engine._cached_step, 100)
             time.sleep(1)
             files = sorted(os.listdir(tmpdir))
