@@ -105,9 +105,8 @@ class DeepSpeedCheckpointTest(unittest.TestCase):
             engine = MockDeepSpeedEngine(model, optimizer)
             ckpt_manager = DeepSpeedCheckpointManger(engine, tmpdirname)
             ckpt_manager.save_checkpoint_to_memory(tmpdirname, str(step))
-            self.assertFalse(
-                ckpt_manager._async_save_engine._shm_handler.empty()
-            )
+            shm_handler = ckpt_manager._async_save_engine._shm_handler
+            self.assertFalse(shm_handler.no_checkpint_state())
             self.assertEqual(
                 ckpt_manager._async_save_engine._shm_handler._buffer_size, 9640
             )
