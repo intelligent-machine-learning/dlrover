@@ -220,10 +220,11 @@ class CheckpointSaverTest(unittest.TestCase):
             sq = SharedQueue(name="factory", create=True)
             saving_engine = ShardingEngineDemo(tmpdir, 2)
             sq.unlink()
-            self.assertTrue(saver._shm_handlers[0].empty())
+            time.sleep(0.3)
+            self.assertTrue(saver._shm_handlers[0].no_checkpint_state())
             self.assertIsNone(saver._shm_handlers[0].shared_memory)
             saving_engine.save_to_memory(step, state_dict)
-            self.assertFalse(saver._shm_handlers[0].empty())
+            self.assertFalse(saver._shm_handlers[0].no_checkpint_state())
             saver.close()
 
     def test_commit_checkpoint(self):
