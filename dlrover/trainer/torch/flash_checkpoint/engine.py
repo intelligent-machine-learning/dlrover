@@ -33,7 +33,7 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
 )
 
 
-def check_all_rank_ready(group, ready):
+def check_all_rank_ready(group: dist.ProcessGroup, ready):
     """
     Check weather all ranks are ready.
     """
@@ -43,6 +43,24 @@ def check_all_rank_ready(group, ready):
     t = torch.tensor([value], dtype=torch.int64)
     dist.all_reduce(t, group=group)
     return t == 0
+
+
+def verify_all_rank_step_consistent(group: dist.ProcessGroup, step):
+    """
+    Verify wether the step in all ranks are consistent.
+    """
+    if not group:
+        return True
+    if group.size() == 1:
+        return True
+    t = torch.tensor([step])
+    world_size = group.size()
+    outputs = [torch.Tensor([0.0]) for _ in range(world_size)]
+    dist.all_gather(outputs, t)
+    for step in outputs:
+        if not torch.equal(step, outputs[0]):
+            return False
+    return True
 
 
 def timer(func):
@@ -200,6 +218,17 @@ class CheckpointEngine(metaclass=ABCMeta):
         if acquired:
             self._shm_lock.release()
         self._cached_step = conf.step
+
+    def get_state_dict_from_memory(self):
+        state_dict = {}
+        default_config = CheckpointShardConfig()
+        config = self._shm_handler.get_checkpoint_config(default_config)
+        passed = verify_all_rank_step_consistent(
+            self._saver_group, config.step
+        )
+        if passed:
+            state_dict = self._shm_handler.load_state_dict()
+        return state_dict
 
     @abstractmethod
     def get_saver_class(self):

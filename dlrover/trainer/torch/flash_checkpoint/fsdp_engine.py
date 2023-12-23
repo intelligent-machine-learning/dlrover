@@ -57,7 +57,12 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
     SingleFileCheckpointConfig,
 )
 
-from .engine import CheckpointEngine, check_all_rank_ready, timer
+from .engine import (
+    CheckpointEngine,
+    check_all_rank_ready,
+    timer,
+    verify_all_rank_step_consistent,
+)
 
 
 @dataclass
@@ -519,7 +524,12 @@ class FsdpCheckpointEngine(CheckpointEngine):
             resume_path (str): the resuming path to load the
                 checkpointing state dict from the storage.
         """
-        if not self._shm_handler.no_checkpint_state():
+        default_config = SingleFileCheckpointConfig()
+        config = self._shm_handler.get_checkpoint_config(default_config)
+        passed = verify_all_rank_step_consistent(
+            self._saver_group, config.step
+        )
+        if passed and not self._shm_handler.no_checkpint_state():
             return self._shm_reader
         else:
             if not resume_path:

@@ -144,17 +144,17 @@ class DeepSpeedCheckpointEngine(CheckpointEngine):
         Returns:
             A dict.
         """
-        state_dict = self._shm_handler.load_state_dict()
-        msd_name = CheckpointConstant.MODEL_STATES_NAME
-        if msd_name not in state_dict and self.zero_stage in [1, 2]:
-            local_rank_0_shm_handler = SharedMemoryHandler(0, host=False)
-            # For stage 1,2, the model is not partitioned and only local rank 0
-            # saves the model state dict into the CPU memory. Other local ranks
-            # need get the model state dict from the shared memory of local
-            # rank 0.
-            sd = local_rank_0_shm_handler.load_state_dict()
-            state_dict[msd_name] = sd[msd_name]
+        state_dict = self.get_state_dict_from_memory()
         if state_dict:
+            msd_name = CheckpointConstant.MODEL_STATES_NAME
+            if msd_name not in state_dict and self.zero_stage in [1, 2]:
+                local_rank_0_shm_handler = SharedMemoryHandler(0, host=False)
+                # For stage 1,2, the model is not partitioned and only local
+                # rank 0 saves the model state dict into the CPU memory. Other
+                # local ranks need get the model state dict from the shared
+                # memory of local rank 0.
+                sd = local_rank_0_shm_handler.load_state_dict()
+                state_dict[msd_name] = sd[msd_name]
             return state_dict
         state_dict = self._load_from_storage(
             resume_model_path, resume_optimizer_path
