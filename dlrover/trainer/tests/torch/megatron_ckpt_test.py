@@ -150,3 +150,6 @@ class MegatrionCheckpointTest(unittest.TestCase):
             files = os.listdir(tmpdirname + "/20")
             self.assertEqual(files, ["checkpoint.pt"])
             load_checkpoint(model, optimizer, None)
+
+            with self.assertRaises(ValueError):
+                save_checkpoint(20, model, optimizer, None, storage_type=2)

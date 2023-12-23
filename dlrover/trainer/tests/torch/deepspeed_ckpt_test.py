@@ -143,3 +143,8 @@ class DeepSpeedCheckpointTest(unittest.TestCase):
             files = os.listdir(tmpdirname + "/100")
             self.assertEqual(files, ["optim_states.pt", "model_states.pt"])
             checkpointer.load_checkpoint(tmpdirname, str(step))
+
+            with self.assertRaises(ValueError):
+                checkpointer.save_checkpoint(
+                    tmpdirname, str(step), storage_type=2
+                )

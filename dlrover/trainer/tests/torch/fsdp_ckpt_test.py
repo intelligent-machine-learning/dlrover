@@ -52,6 +52,10 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
     AsyncCheckpointSaver,
     SharedMemoryHandler,
 )
+from dlrover.trainer.torch.flash_checkpoint.fsdp import (
+    FsdpCheckpointer,
+    StorageType,
+)
 from dlrover.trainer.torch.flash_checkpoint.fsdp_engine import (
     FileReader,
     FsdpCheckpointEngine,
@@ -351,3 +355,40 @@ class FsdpCheckpointTest(unittest.TestCase):
             self.assertListEqual(files, [".metadata", "__0_0.distcp"])
             reader = engine.load(path)
             self.assertTrue(isinstance(reader, SharedMemoryReader))
+
+    def test_fsdp_checkpointer(self):
+        step = 100
+        state_dict = {
+            _OPTIMIZER_KEY: {"learning_rate": 0.1},
+        }
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = Path(tmpdir)
+            checkpointer = FsdpCheckpointer(tmpdir)
+            path = tmpdir / str(step)
+            engine = checkpointer._engine
+            checkpointer.save_checkpoint(
+                step, state_dict, path=path, storage_type=StorageType.MEMORY
+            )
+            checkpointer.save_checkpoint(
+                step, state_dict, path=path, storage_type=StorageType.DISK
+            )
+            self.assertEqual(engine._cached_step, 100)
+            time.sleep(1)
+            files = sorted(os.listdir(tmpdir))
+            self.assertListEqual(
+                files,
+                [
+                    "._dlrover_ckpt_stage",
+                    "100",
+                    "latest_checkpointed_iteration.txt",
+                ],
+            )
+            files = sorted(os.listdir(path))
+            self.assertListEqual(files, [".metadata", "__0_0.distcp"])
+            reader = checkpointer.load_checkpoint(path)
+            self.assertTrue(isinstance(reader, SharedMemoryReader))
+
+            with self.assertRaises(ValueError):
+                checkpointer.save_checkpoint(
+                    step, state_dict, path=path, storage_type=2
+                )
