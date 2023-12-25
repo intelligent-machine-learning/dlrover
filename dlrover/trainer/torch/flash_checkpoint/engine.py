@@ -51,7 +51,7 @@ def verify_all_rank_step_consistent(group: dist.ProcessGroup, step):
     """
     if not group:
         return True
-    t = torch.tensor([step])
+    t = torch.tensor([float(step)])
     world_size = group.size()
     outputs = [torch.Tensor([0.0]) for _ in range(world_size)]
     dist.all_gather(outputs, t)
