@@ -22,8 +22,9 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 from dlrover.python.elastic_agent.torch.ckpt_saver import AsyncCheckpointSaver
-from dlrover.trainer.torch.deepspeed.async_checkpoint import (
-    DeepSpeedCheckpointManger,
+from dlrover.trainer.torch.flash_checkpoint.deepspeed import (
+    DeepSpeedCheckpointer,
+    StorageType,
 )
 
 
@@ -103,15 +104,17 @@ class DeepSpeedCheckpointTest(unittest.TestCase):
         step = 100
         with tempfile.TemporaryDirectory() as tmpdirname:
             engine = MockDeepSpeedEngine(model, optimizer)
-            ckpt_manager = DeepSpeedCheckpointManger(engine, tmpdirname)
-            ckpt_manager.save_checkpoint_to_memory(tmpdirname, str(step))
-            shm_handler = ckpt_manager._async_save_engine._shm_handler
+            checkpointer = DeepSpeedCheckpointer(engine, tmpdirname)
+            checkpointer.save_checkpoint(
+                tmpdirname, str(step), storage_type=StorageType.MEMORY
+            )
+            shm_handler = checkpointer._async_save_engine._shm_handler
             self.assertFalse(shm_handler.no_checkpint_state())
             self.assertEqual(
-                ckpt_manager._async_save_engine._shm_handler._buffer_size, 9640
+                checkpointer._async_save_engine._shm_handler._buffer_size, 9640
             )
             tensor_meta = (
-                ckpt_manager._async_save_engine._shm_handler.metadata.get()
+                checkpointer._async_save_engine._shm_handler.metadata.get()
             )
             ds_ckpt_config = tensor_meta["_DLORVER_CKPT_CONFIG"]
             self.assertEqual(ds_ckpt_config.step, str(step))
@@ -123,7 +126,9 @@ class DeepSpeedCheckpointTest(unittest.TestCase):
             tracer_file = os.path.join(tmpdirname, "latest")
             self.assertFalse(os.path.exists(tracer_file))
 
-            ckpt_manager.save_checkpoint_to_storage(tmpdirname, str(step))
+            checkpointer.save_checkpoint(
+                tmpdirname, str(step), storage_type=StorageType.DISK
+            )
             # Wait asynchronously saving.
             while True:
                 if "100" in os.listdir(tmpdirname):
@@ -137,4 +142,9 @@ class DeepSpeedCheckpointTest(unittest.TestCase):
 
             files = os.listdir(tmpdirname + "/100")
             self.assertEqual(files, ["optim_states.pt", "model_states.pt"])
-            ckpt_manager.load_checkpoint(tmpdirname, str(step))
+            checkpointer.load_checkpoint(tmpdirname, str(step))
+
+            with self.assertRaises(ValueError):
+                checkpointer.save_checkpoint(
+                    tmpdirname, str(step), storage_type=2
+                )

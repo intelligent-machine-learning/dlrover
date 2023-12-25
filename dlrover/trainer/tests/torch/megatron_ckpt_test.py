@@ -24,12 +24,12 @@ import torch.optim as optim
 
 from dlrover.python.common.constants import CheckpointConstant
 from dlrover.python.elastic_agent.torch.ckpt_saver import AsyncCheckpointSaver
-from dlrover.trainer.torch.megatron import async_checkpoint
-from dlrover.trainer.torch.megatron.async_checkpoint import (
+from dlrover.trainer.torch.flash_checkpoint import megatron
+from dlrover.trainer.torch.flash_checkpoint.checkpointer import StorageType
+from dlrover.trainer.torch.flash_checkpoint.megatron import (
     MegatronCheckpointManager,
-    load_latest_checkpoint,
-    save_checkpoint_to_memory,
-    save_checkpoint_to_storage,
+    load_checkpoint,
+    save_checkpoint,
 )
 
 
@@ -58,7 +58,7 @@ class MegatrionCheckpointTest(unittest.TestCase):
         AsyncCheckpointSaver._saver_instance = None
         AsyncCheckpointSaver.start_async_saving_ckpt()
         mock_func = mock_get_tracker_filename
-        async_checkpoint.get_checkpoint_tracker_filename = mock_func
+        megatron.get_checkpoint_tracker_filename = mock_func
 
     def tearDown(self) -> None:
         if AsyncCheckpointSaver._saver_instance:
@@ -80,7 +80,9 @@ class MegatrionCheckpointTest(unittest.TestCase):
                 args.save = tempfile
                 return args
 
-            def save_checkpoint(iteration, model, optimizer, opt_scheduler):
+            def mock_save_checkpoint(
+                iteration, model, optimizer, opt_scheduler
+            ):
                 state_dict = {
                     "iteration": iteration,
                     "model_states": model.state_dict(),
@@ -91,7 +93,7 @@ class MegatrionCheckpointTest(unittest.TestCase):
                 )
                 torch.save(state_dict, path)
 
-            def load_checkpoint(
+            def mock_load_checkpoint(
                 model,
                 optimizer,
                 opt_param_scheduler,
@@ -103,12 +105,14 @@ class MegatrionCheckpointTest(unittest.TestCase):
                 model.load_state_dict(state_dict["model_states"])
                 optimizer.load_state_dict(state_dict["optim_states"])
 
-            async_checkpoint.save_checkpoint = save_checkpoint
-            async_checkpoint.load_checkpoint = load_checkpoint
-            async_checkpoint.get_args = get_args
+            megatron.megatron_save = mock_save_checkpoint
+            megatron.megatron_load = mock_load_checkpoint
+            megatron.get_args = get_args
 
             ckpt_manager = MegatronCheckpointManager(tmpdirname)
-            save_checkpoint_to_memory(10, model, optimizer, None)
+            save_checkpoint(
+                10, model, optimizer, None, storage_type=StorageType.MEMORY
+            )
             self.assertFalse(
                 ckpt_manager.engine._shm_handler.no_checkpint_state()
             )
@@ -129,7 +133,9 @@ class MegatrionCheckpointTest(unittest.TestCase):
                 restored_step = int(f.read())
             self.assertEqual(restored_step, 10)
 
-            save_checkpoint_to_storage(20, model, optimizer, None)
+            save_checkpoint(
+                20, model, optimizer, None, storage_type=StorageType.DISK
+            )
 
             # Wait asynchronously saving.
             while True:
@@ -143,4 +149,7 @@ class MegatrionCheckpointTest(unittest.TestCase):
             self.assertEqual(restored_step, 20)
             files = os.listdir(tmpdirname + "/20")
             self.assertEqual(files, ["checkpoint.pt"])
-            load_latest_checkpoint(model, optimizer, None)
+            load_checkpoint(model, optimizer, None)
+
+            with self.assertRaises(ValueError):
+                save_checkpoint(20, model, optimizer, None, storage_type=2)

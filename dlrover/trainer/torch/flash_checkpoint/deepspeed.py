@@ -28,6 +28,8 @@ from dlrover.trainer.torch.flash_checkpoint.deepspeed_engine import (
     DeepSpeedCheckpointEngine,
 )
 
+from .checkpointer import StorageType
+
 
 class AsyncSaveEngine(CheckpointEngine):
     def __init__(self):
@@ -65,7 +67,7 @@ class AsyncSaveEngine(CheckpointEngine):
         pass
 
 
-class DeepSpeedCheckpointManger(object):
+class DeepSpeedCheckpointer(object):
     """
     The manager can synchronously save the DeepSpeedEngine checkpoint
     to the memory and asynchronously save the checkpointing states
@@ -77,7 +79,7 @@ class DeepSpeedCheckpointManger(object):
 
     Examples::
         >>> engine = deepspeed.initialize(...)
-        >>> ckpt_manager = DeepSpeedCheckpointManger(engine, save_dir)
+        >>> ckpt_manager = DeepSpeedCheckpointer(engine, save_dir)
         >>> if step % 10 == 0:
         >>>     ckpt_manager.save_checkpoint_to_memory(save_dir, tag)
         >>> if step % 100 == 0:
@@ -104,7 +106,26 @@ class DeepSpeedCheckpointManger(object):
         if zero_stage < ZeroStageEnum.weights and self._local_rank == 0:
             self.engine.save_non_zero_checkpoint = True
 
-    def save_checkpoint_to_memory(
+    def save_checkpoint(
+        self,
+        save_dir,
+        tag=None,
+        client_state={},
+        save_latest=True,
+        storage_type=StorageType.DISK,
+    ):
+        if storage_type == StorageType.MEMORY:
+            self._save_checkpoint_to_memory(
+                save_dir, tag, client_state, save_latest
+            )
+        elif storage_type == StorageType.DISK:
+            self._save_checkpoint_to_storage(
+                save_dir, tag, client_state, save_latest
+            )
+        else:
+            raise ValueError(f"No support storage type {storage_type}")
+
+    def _save_checkpoint_to_memory(
         self, save_dir, tag=None, client_state={}, save_latest=True
     ):
         torch_save_func = torch.save
@@ -128,7 +149,7 @@ class DeepSpeedCheckpointManger(object):
             except Exception:
                 pass
 
-    def save_checkpoint_to_storage(
+    def _save_checkpoint_to_storage(
         self, save_dir, tag=None, client_state={}, save_latest=True
     ):
         torch_save_func = torch.save
