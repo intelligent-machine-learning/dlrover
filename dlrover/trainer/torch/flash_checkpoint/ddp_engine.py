@@ -118,7 +118,7 @@ class DdpCheckpointEngine(CheckpointEngine):
         Returns:
             A dict.
         """
-        state_dict = self._shm_handler.load_state_dict()
+        state_dict = self.get_state_dict_from_memory()
         if state_dict:
             logger.info("Load the state dict from the CPU memory buffer.")
             state_dict.pop(DLROVER_CKPT_CONFIG_KEY, None)

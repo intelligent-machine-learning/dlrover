@@ -21,10 +21,11 @@ from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     CheckpointEvent,
     CheckpointEventType,
+    CheckpointShardConfig,
     CommonDirCheckpointSaver,
 )
 
-from .engine import CheckpointEngine, timer
+from .engine import CheckpointEngine, timer, verify_all_rank_step_consistent
 
 
 class MegatronCheckpointEngine(CheckpointEngine):
@@ -128,7 +129,15 @@ class MegatronCheckpointEngine(CheckpointEngine):
         Returns:
             A dict.
         """
-        state_dict = self._shm_handler.load_state_dict()
+        state_dict = {}
+        default_config = CheckpointShardConfig()
+        config = self._shm_handler.get_checkpoint_config(default_config)
+        if config.step > 0:
+            passed = verify_all_rank_step_consistent(
+                self._saver_group, config.step
+            )
+            if passed:
+                state_dict = self._shm_handler.load_state_dict()
         if state_dict:
             return state_dict
         state_dict = self._load_from_storage(resume_path)
