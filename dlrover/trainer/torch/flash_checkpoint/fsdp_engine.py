@@ -482,7 +482,8 @@ class FsdpCheckpointEngine(CheckpointEngine):
         if acquired:
             self._shm_lock.release()
         self._cached_step = conf.step
-        dist.barrier(group=self._saver_group)
+        if dist.is_initialized():
+            dist.barrier(group=self._saver_group)
 
     def save_to_storage(self, step, state_dict, path):
         """
