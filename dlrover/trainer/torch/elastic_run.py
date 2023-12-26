@@ -233,6 +233,7 @@ def _elastic_config_from_args(
         args, "exclude_straggler", False
     )
     elastic_config.set_node_unit(getattr(args, "node_unit", 1))
+    elastic_config.npu = getattr(args, "npu", False)
     return elastic_config, cmd, cmd_args
 
 
