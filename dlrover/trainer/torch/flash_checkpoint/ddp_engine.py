@@ -146,8 +146,9 @@ class DdpCheckpointEngine(CheckpointEngine):
             state_dict = torch.load(resume_path, map_location="cpu")
             return state_dict
         else:
-            func = CommonDirCheckpointSaver.get_checkpoint_tracker_filename
-            tracker_filename = func(self.checkpoint_dir)
+            tracker_filename = os.path.join(
+                self.checkpoint_dir, CheckpointConstant.TRACER_FILE_NAME
+            )
             if not os.path.exists(tracker_filename):
                 return {}
             with open(tracker_filename, "r") as f:

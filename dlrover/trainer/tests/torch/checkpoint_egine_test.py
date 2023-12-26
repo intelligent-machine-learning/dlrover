@@ -25,8 +25,8 @@ import torch.optim as optim
 from dlrover.python.common.constants import CheckpointConstant, NodeEnv
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     AsyncCheckpointSaver,
-    CommonDirCheckpointSaver,
     DeepSpeedCheckpointSaver,
+    MegatronCheckpointSaver,
     TempDirCheckpointSaver,
 )
 from dlrover.trainer.torch.flash_checkpoint.ddp_engine import (
@@ -133,7 +133,7 @@ class ShardingCheckpointEngineTest(unittest.TestCase):
             self.assertEqual(local_shard_num, 1)
 
             saver_class = engine.get_saver_class()
-            self.assertEqual(saver_class, CommonDirCheckpointSaver)
+            self.assertEqual(saver_class, MegatronCheckpointSaver)
 
             step = 100
             path = os.path.join(
@@ -145,10 +145,8 @@ class ShardingCheckpointEngineTest(unittest.TestCase):
             os.makedirs(os.path.dirname(path), exist_ok=True)
             torch.save(state_dict, path)
 
-            tracker_file = (
-                CommonDirCheckpointSaver.get_checkpoint_tracker_filename(
-                    tmpdir
-                )
+            tracker_file = os.path.join(
+                tmpdir, CheckpointConstant.TRACER_FILE_NAME
             )
             with open(tracker_file, "w") as f:
                 f.write(str(step))

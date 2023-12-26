@@ -7,3 +7,7 @@ flag_management:
         threshold: 1%
       - type: patch
         target: 75%
+cli:
+  plugins:
+    pycoverage:
+      report_type: "json"

@@ -673,21 +673,6 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
     the step if the number of done file is equal to the number of shard.
     """
 
-    @classmethod
-    def get_checkpoint_tracker_filename(cls, checkpoint_dir):
-        """
-        Get the path of tracker file to record the latest checkpointing
-        step.
-
-        Args:
-            checkpoint_dir (str): the checkpoint directory.
-
-        Returns:
-            str: the path of tracker file.
-        """
-        fname = CheckpointConstant.TRACER_FILE_NAME
-        return os.path.join(checkpoint_dir, fname)
-
     def update_tracker_file(self, step):
         """
         Write the step into the tracker file.
@@ -695,8 +680,8 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
         Args:
             step (int): the checkpointing step.
         """
-        tracker_filename = self.get_checkpoint_tracker_filename(
-            self.checkpoint_dir
+        tracker_filename = os.path.join(
+            self.checkpoint_dir, CheckpointConstant.TRACER_FILE_NAME
         )
         with open(tracker_filename, "w") as f:
             f.write(str(step))
