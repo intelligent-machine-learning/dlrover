@@ -1,13 +1,35 @@
-flag_management:
-  default_rules:
-    carryforward: true
-    statuses:
-      - type: project
-        target: 75%
-        threshold: 1%
-      - type: patch
-        target: 75%
-cli:
-  plugins:
-    pycoverage:
-      report_type: "json"
+coverage:
+  status:
+    project:
+      default:
+        # basic
+        target: 80%
+        threshold: 5%
+        base: auto 
+        flags: 
+          - unit
+        paths: 
+          - "!dlrover/python/tests/"
+          - "!dlrover/trainer/tests/"
+       # advanced settings
+        branches: 
+          - master
+        if_ci_failed: error #success, failure, error, ignore
+        informational: false
+        only_pulls: false
+    patch:
+      default:
+        # basic
+        target: 80%
+        threshold: 5%
+        base: auto 
+        flags: 
+          - unit
+        paths: 
+          - "src"
+       # advanced settings
+        branches: 
+          - master
+        if_ci_failed: error #success, failure, error, ignore
+        informational: false
+        only_pulls: false
