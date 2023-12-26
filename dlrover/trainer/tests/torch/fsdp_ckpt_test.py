@@ -348,7 +348,7 @@ class FsdpCheckpointTest(unittest.TestCase):
                 [
                     "._dlrover_ckpt_stage",
                     "100",
-                    "latest_checkpointed_iteration.txt",
+                    "dlrover_latest.txt",
                 ],
             )
             files = sorted(os.listdir(path))
@@ -380,7 +380,7 @@ class FsdpCheckpointTest(unittest.TestCase):
                 [
                     "._dlrover_ckpt_stage",
                     "100",
-                    "latest_checkpointed_iteration.txt",
+                    "dlrover_latest.txt",
                 ],
             )
             files = sorted(os.listdir(path))
