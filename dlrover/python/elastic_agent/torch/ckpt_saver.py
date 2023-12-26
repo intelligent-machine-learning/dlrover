@@ -961,20 +961,19 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
 
 
 class DeepSpeedCheckpointSaver(CommonDirCheckpointSaver):
-    @classmethod
-    def get_checkpoint_tracker_filename(cls, checkpoint_dir):
+    def update_tracker_file(self, step):
         """
-        Get the path of tracker file to record the latest checkpointing
-        step.
+        Write the step into the tracker file.
 
         Args:
-            checkpoint_dir (str): the checkpoint directory.
-
-        Returns:
-            str: the path of tracker file.
+            step (int): the checkpointing step.
         """
-        fname = "latest"
-        return os.path.join(checkpoint_dir, fname)
+        tracker_filename = os.path.join(self.checkpoint_dir, "dlrover_latest")
+        with open(tracker_filename, "w") as f:
+            f.write(str(step))
+        ds_tracker_filename = os.path.join(self.checkpoint_dir, "latest")
+        with open(ds_tracker_filename, "w") as f:
+            f.write(str(step))
 
     def persist_to_storage(  # type: ignore
         self,

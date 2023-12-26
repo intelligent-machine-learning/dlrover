@@ -13,7 +13,6 @@
 
 from datetime import timedelta
 
-import torch
 import torch.distributed as dist
 
 from dlrover.python.common import env_utils
@@ -21,11 +20,10 @@ from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     CheckpointEvent,
     CheckpointEventType,
-    CheckpointShardConfig,
     CommonDirCheckpointSaver,
 )
 
-from .engine import CheckpointEngine, timer, verify_all_rank_step_consistent
+from .engine import CheckpointEngine, timer
 
 
 class MegatronCheckpointEngine(CheckpointEngine):
@@ -129,15 +127,7 @@ class MegatronCheckpointEngine(CheckpointEngine):
         Returns:
             A dict.
         """
-        state_dict = {}
-        default_config = CheckpointShardConfig()
-        config = self._shm_handler.get_checkpoint_config(default_config)
-        if config.step > 0:
-            passed = verify_all_rank_step_consistent(
-                self._saver_group, config.step
-            )
-            if passed:
-                state_dict = self._shm_handler.load_state_dict()
+        state_dict = self.get_state_dict_from_memory()
         if state_dict:
             return state_dict
         state_dict = self._load_from_storage(resume_path)
@@ -157,6 +147,8 @@ class MegatronCheckpointEngine(CheckpointEngine):
                 checkpointing file.
         """
         if resume_path:
-            state_dict = torch.load(resume_path, map_location="cpu")
+            from torch.serialization import load as torch_load
+
+            state_dict = torch_load(resume_path, map_location="cpu")
             return state_dict
         return {}

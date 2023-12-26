@@ -11,9 +11,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 from datetime import timedelta
 
-import torch
 import torch.distributed as dist
 
 from dlrover.python.common import env_utils
@@ -154,34 +154,8 @@ class DeepSpeedCheckpointEngine(CheckpointEngine):
                 # local ranks need get the model state dict from the shared
                 # memory of local rank 0.
                 sd = local_rank_0_shm_handler.load_state_dict()
-                state_dict[msd_name] = sd[msd_name]
-            return state_dict
-        state_dict = self._load_from_storage(
-            resume_model_path, resume_optimizer_path
-        )
+
+                # Deep copy the model state dict because a state dict only can
+                # be loaded by one rank.
+                state_dict[msd_name] = copy.deepcopy(sd[msd_name])
         return state_dict
-
-    def _load_from_storage(
-        self, resume_model_path="", resume_optimizer_path=""
-    ):
-        """
-        Load the DeepSpeedEngine state dict from the storage.
-
-        Args:
-            resume_path (str, optional): , If the resume_path is an empty
-                string, the function will load the latest checkpoint file in
-                the checkpoint directory.
-
-        Returns:
-            A dict:
-                a dictionary containing a whole state of the modules in the
-                checkpointing file.
-        """
-        ds_state_dict = {}
-        if resume_model_path:
-            sd = torch.load(resume_model_path, map_location="cpu")
-            ds_state_dict[CheckpointConstant.MODEL_STATES_NAME] = sd
-        if resume_optimizer_path:
-            sd = torch.load(resume_model_path, map_location="cpu")
-            ds_state_dict[CheckpointConstant.OPTIM_STATES_NAME] = sd
-        return ds_state_dict

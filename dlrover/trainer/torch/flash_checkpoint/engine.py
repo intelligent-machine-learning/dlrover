@@ -51,10 +51,10 @@ def verify_all_rank_step_consistent(group: dist.ProcessGroup, step):
     """
     if not group:
         return True
-    t = torch.tensor([float(step)])
+    t = torch.Tensor([float(step)])
     world_size = group.size()
     outputs = [torch.Tensor([0.0]) for _ in range(world_size)]
-    dist.all_gather(outputs, t)
+    dist.all_gather(outputs, t, group=group)
     for step in outputs:
         if not torch.equal(step, outputs[0]):
             return False
@@ -93,10 +93,9 @@ class CheckpointEngine(metaclass=ABCMeta):
         self.checkpoint_dir = checkpoint_dir
         if dist.is_initialized():
             self._rank = dist.get_rank()
-            self._local_rank = int(os.environ["LOCAL_RANK"])
         else:
             self._rank = 0
-            self._local_rank = int(os.getenv("LOCAL_RANK", 0))
+        self._local_rank = int(os.getenv("LOCAL_RANK", 0))
         self._saver_group = None
         self._cached_step = 0
         self._restart_count = env_utils.get_torch_restart_count()
@@ -221,6 +220,8 @@ class CheckpointEngine(metaclass=ABCMeta):
         state_dict = {}
         default_config = CheckpointShardConfig()
         config = self._shm_handler.get_checkpoint_config(default_config)
+        if config.step == 0:
+            return state_dict
         passed = verify_all_rank_step_consistent(
             self._saver_group, config.step
         )

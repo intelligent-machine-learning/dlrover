@@ -21,14 +21,16 @@ from deepspeed.runtime.checkpoint_engine.torch_checkpoint_engine import (
 )
 from deepspeed.runtime.engine import DeepSpeedEngine
 from deepspeed.runtime.zero.config import ZeroStageEnum
+from torch.serialization import load
 
 from dlrover.python.common import env_utils
 from dlrover.python.common.constants import CheckpointConstant
+from dlrover.python.common.log import default_logger as logger
 from dlrover.trainer.torch.flash_checkpoint.deepspeed_engine import (
     DeepSpeedCheckpointEngine,
 )
 
-from .checkpointer import StorageType
+from .checkpointer import Checkpointer, StorageType
 
 
 class AsyncSaveEngine(CheckpointEngine):
@@ -55,19 +57,19 @@ class AsyncSaveEngine(CheckpointEngine):
             if self.model_sd:
                 return self.model_sd
             else:
-                return torch.load(path, map_location=map_location)
+                return load(path, map_location=map_location)
         elif CheckpointConstant.OPTIM_STATES_NAME in path:
             if self.optimizer_sd:
                 return self.optimizer_sd
             else:
-                return torch.load(path, map_location=map_location)
+                return load(path, map_location=map_location)
 
     def commit(self, tag):
         # to tell checkpoint services if all files are ready.
         pass
 
 
-class DeepSpeedCheckpointer(object):
+class DeepSpeedCheckpointer(Checkpointer):
     """
     The manager can synchronously save the DeepSpeedEngine checkpoint
     to the memory and asynchronously save the checkpointing states
@@ -102,7 +104,9 @@ class DeepSpeedCheckpointer(object):
             global_shard_num=global_shard_num,
             zero_stage=zero_stage,
         )
+        self._latest_ckpt_step = 0
         self._local_rank = env_utils.get_local_rank()
+        self._tracer_file = os.path.join(self.checkpoint_dir, "latest")
         if zero_stage < ZeroStageEnum.weights and self._local_rank == 0:
             self.engine.save_non_zero_checkpoint = True
 
@@ -128,26 +132,43 @@ class DeepSpeedCheckpointer(object):
     def _save_checkpoint_to_memory(
         self, save_dir, tag=None, client_state={}, save_latest=True
     ):
+        self._update_latest_checkpoint_step()
         torch_save_func = torch.save
         torch.save = self._ckpt_engine.save
         self.engine.save_checkpoint(save_dir, tag, client_state, save_latest)
         torch.save = torch_save_func
         state_dict = self._merge_model_and_optmizer_state_dict()
+        self._update_latest_checkpoint_step()
         self._async_save_engine.save_to_memory(
             tag,
             state_dict,
             model_path=self._ckpt_engine.model_path,
             optimizer_path=self._ckpt_engine.optimizer_path,
         )
+        self._clear_empty_checkpoint(tag)
 
-        ckpt_dir = os.path.dirname(self._ckpt_engine.model_path)
-        if self.engine.global_rank == 0:
+    def _clear_empty_checkpoint(self, tag):
+        ckpt_dir = os.path.join(self.checkpoint_dir, str(tag))
+        if os.path.exists(ckpt_dir):
+            shutil.rmtree(ckpt_dir)
+        if self._latest_ckpt_step > 0:
+            with open(self._tracer_file, "w") as f:
+                f.write(str(self._latest_ckpt_step))
+        elif self._latest_ckpt_step == 0 and os.path.exists(self._tracer_file):
+            os.remove(self._tracer_file)
+
+    def _update_latest_checkpoint_step(self):
+        if not os.path.exists(self._tracer_file):
+            return
+        step = 0
+        with open(self._tracer_file, "r") as f:
             try:
-                tracer_file = os.path.join(self.checkpoint_dir, "latest")
-                os.remove(tracer_file)
-                shutil.rmtree(ckpt_dir)
-            except Exception:
-                pass
+                content = f.read().strip()
+                step = int(content)
+            except Exception as e:
+                logger.warning(e)
+        if step > 0:
+            self._latest_ckpt_step = step
 
     def _save_checkpoint_to_storage(
         self, save_dir, tag=None, client_state={}, save_latest=True
@@ -186,6 +207,12 @@ class DeepSpeedCheckpointer(object):
         load_module_only=False,
         custom_load_fn=None,
     ):
+        """
+        Load a checkpointing state dict.
+
+        Args:
+            the same as the DeepSpeedEngine.load_checkpoint.
+        """
         state_dict = self._async_save_engine.load()
         self._ckpt_engine.model_sd = state_dict.get(
             CheckpointConstant.MODEL_STATES_NAME, {}
@@ -195,7 +222,7 @@ class DeepSpeedCheckpointer(object):
         )
         torch_load_func = torch.load
         torch.load = self._ckpt_engine.load
-        self.engine.load_checkpoint(
+        load_path, client_states = self.engine.load_checkpoint(
             load_dir=load_dir,
             tag=tag,
             load_module_strict=load_module_strict,
@@ -205,3 +232,22 @@ class DeepSpeedCheckpointer(object):
             custom_load_fn=custom_load_fn,
         )
         torch.load = torch_load_func
+        return load_path, client_states
+
+    def _check_latest(self):
+        """
+        DeepSpeed engine may overwrite the latest file after calling
+        `save_checkpoint` which only saves the checkpointing state dict
+        into the momery. So, the latest step in "dlrover_latset" is
+        always correct after the dlrover agent saves the checkpointint
+        state dict to the storage.
+        """
+        dlrover_file = os.path.join(self.checkpoint_dir, "dlrover_latest")
+        if not os.path.exists(dlrover_file):
+            return
+        with open(dlrover_file, "r") as f:
+            step = f.read()
+
+        ds_file = os.path.join(self.checkpoint_dir, "latest")
+        with open(ds_file, "w") as f:
+            f.write(step)

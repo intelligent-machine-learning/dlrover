@@ -17,6 +17,7 @@ import os
 import shutil
 
 import torch
+import torch.distributed as dist
 
 from dlrover.python.common.log import default_logger as logger
 
@@ -30,12 +31,18 @@ except ImportError:
 
 from dlrover.python.common.singleton import singleton
 
-from .checkpointer import StorageType
+from .checkpointer import Checkpointer, StorageType
 from .megatron_engine import MegatronCheckpointEngine
 
 
+def _get_rank():
+    if dist.is_initialized():
+        return dist.get_rank()
+    return 0
+
+
 @singleton
-class MegatronCheckpointManager(object):
+class MegatronCheckpointManager(Checkpointer):
     def __init__(self, checkpoint_dir):
         self.state_dict = {}
         self.path = ""
@@ -47,17 +54,23 @@ class MegatronCheckpointManager(object):
         self.state_dict = state_dict
         self.path = path
 
-    def load(self, path):
+    def load(self, path, **kwargs):
         state_dict = self.engine.load(resume_path=path)
         return state_dict
 
     def clear_empty_checkpoint(self, iteration):
-        ckpt_dir = os.path.join(self.engine.checkpoint_dir, str(iteration))
+        ckpt_dir = os.path.join(
+            self.engine.checkpoint_dir, "iter_{:07d}".format(iteration)
+        )
         if os.path.exists(ckpt_dir):
             shutil.rmtree(ckpt_dir)
         if self._latest_ckpt_iteration > 0:
             with open(self._tracer_file, "w") as f:
                 f.write(str(self._latest_ckpt_iteration))
+        elif self._latest_ckpt_iteration == 0 and os.path.exists(
+            self._tracer_file
+        ):
+            os.remove(self._tracer_file)
 
     def update_latest_checkpoint_step(self):
         if not os.path.exists(self._tracer_file):
@@ -100,7 +113,8 @@ def save_checkpoint(
         # and write the iteration into the tracerfile. But async saver only
         # save the state dict into the CPU memory not the storage. The saver
         # need to clear the empty checkpoint directory.
-        saver.clear_empty_checkpoint(iteration)
+        if _get_rank() == 0:
+            saver.clear_empty_checkpoint(iteration)
     elif storage_type == StorageType.DISK:
         args = get_args()
         saver = MegatronCheckpointManager(args.save)
@@ -125,5 +139,8 @@ def load_checkpoint(
     saver = MegatronCheckpointManager(args.save)
     torch_load_func = torch.load
     torch.load = saver.load
-    megatron_load(model, optimizer, opt_param_scheduler, load_arg, strict)
+    iteration = megatron_load(
+        model, optimizer, opt_param_scheduler, load_arg, strict
+    )
     torch.load = torch_load_func
+    return iteration
