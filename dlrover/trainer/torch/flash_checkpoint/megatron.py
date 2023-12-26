@@ -31,7 +31,7 @@ except ImportError:
 
 from dlrover.python.common.singleton import singleton
 
-from .checkpointer import Checkpointer, StorageType
+from .checkpointer import StorageType
 from .megatron_engine import MegatronCheckpointEngine
 
 
@@ -42,7 +42,7 @@ def _get_rank():
 
 
 @singleton
-class MegatronCheckpointManager(Checkpointer):
+class MegatronCheckpointManager(object):
     def __init__(self, checkpoint_dir):
         self.state_dict = {}
         self.path = ""

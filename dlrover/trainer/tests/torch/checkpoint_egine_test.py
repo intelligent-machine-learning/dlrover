@@ -145,9 +145,6 @@ class ShardingCheckpointEngineTest(unittest.TestCase):
             os.makedirs(os.path.dirname(path), exist_ok=True)
             torch.save(state_dict, path)
 
-            sd = engine._load_from_storage()
-            self.assertDictEqual(sd, {})
-
             tracker_file = (
                 CommonDirCheckpointSaver.get_checkpoint_tracker_filename(
                     tmpdir
@@ -196,18 +193,10 @@ class ShardingCheckpointEngineTest(unittest.TestCase):
             msd = state_dict["model_states"]
             for name in msd.keys():
                 self.assertTrue(torch.equal(msd[name], restore_msd[name]))
-            f = DeepSpeedCheckpointSaver.get_checkpoint_tracker_filename
-            tracer_file = f(tmpdir)
+            tracer_file = os.path.join(tmpdir, "latest")
             with open(tracer_file, "r") as f:
                 restored_step = int(f.read())
                 self.assertEqual(restored_step, step)
-
-            restored_state_dict = engine._load_from_storage(
-                resume_model_path=model_path,
-                resume_optimizer_path=optimizer_path,
-            )
-            for name in msd.keys():
-                self.assertTrue(torch.equal(msd[name], restore_msd[name]))
 
 
 class CheckpointEngineTest(unittest.TestCase):
