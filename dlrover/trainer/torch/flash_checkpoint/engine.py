@@ -185,9 +185,9 @@ class CheckpointEngine(metaclass=ABCMeta):
             step=step,
             path=path,
         )
-        self._save_state_dict_to_memory(state_dict, conf)
+        self.save_state_dict_to_memory(state_dict, conf)
 
-    def _save_state_dict_to_memory(
+    def save_state_dict_to_memory(
         self, state_dict, conf: CheckpointShardConfig
     ):
         if self._local_rank != self.local_shard_id:
@@ -215,6 +215,7 @@ class CheckpointEngine(metaclass=ABCMeta):
         if acquired:
             self._shm_lock.release()
         self._cached_step = conf.step
+        dist.barrier(group=self._saver_group)
 
     def get_state_dict_from_memory(self):
         state_dict = {}
@@ -227,6 +228,9 @@ class CheckpointEngine(metaclass=ABCMeta):
         )
         if passed:
             state_dict = self._shm_handler.load_state_dict()
+            logger.info(
+                f"Load step {config.step} checkpoint from the shared memory."
+            )
         return state_dict
 
     @abstractmethod

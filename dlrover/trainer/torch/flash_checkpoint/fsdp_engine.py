@@ -46,6 +46,7 @@ from torch.distributed.checkpoint.metadata import (
 from torch.futures import Future
 
 from dlrover.python.common import env_utils
+from dlrover.python.common.constants import CheckpointConstant
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.multi_process import SharedMemory
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
@@ -199,6 +200,7 @@ class SharedMemoryWriter(StorageWriter):
         if self.shm_handler.no_checkpint_state():
             buffer_size = _get_buffer_size(files, planner)
             self.shm_handler.init_shared_memory(create=True, size=buffer_size)
+        assert self.shm_handler.shared_memory is not None
         write_results, no_shard_data = _write_memory_from_list(
             shm=self.shm_handler.shared_memory,
             files=files,
@@ -235,6 +237,8 @@ class SharedMemoryReader(StorageReader):
         self.no_shard_data: Dict[str, STORAGE_TYPES] = {}
 
     def read_data(self, plan: LoadPlan, planner: LoadPlanner) -> Future[None]:
+        if self.shm_handler.shared_memory is None:
+            self.shm_handler.init_shared_memory()
         for read_item in plan.items:
             item_md = self.storage_data[read_item.storage_index]
             pickled = False
@@ -249,6 +253,7 @@ class SharedMemoryReader(StorageReader):
                 pickled = True
             else:
                 end = item_md.offset + item_md.length
+                assert self.shm_handler.shared_memory is not None
                 bytes_view = self.shm_handler.shared_memory.buf[
                     item_md.offset : end  # noqa E203
                 ]
@@ -477,6 +482,7 @@ class FsdpCheckpointEngine(CheckpointEngine):
         if acquired:
             self._shm_lock.release()
         self._cached_step = conf.step
+        dist.barrier(group=self._saver_group)
 
     def save_to_storage(self, step, state_dict, path):
         """
@@ -526,12 +532,21 @@ class FsdpCheckpointEngine(CheckpointEngine):
         """
         default_config = SingleFileCheckpointConfig()
         config = self._shm_handler.get_checkpoint_config(default_config)
-        passed = verify_all_rank_step_consistent(
-            self._saver_group, config.step
-        )
+        step = config.step
+        passed = verify_all_rank_step_consistent(self._saver_group, step)
         if passed and not self._shm_handler.no_checkpint_state():
+            logger.info(f"Create a shared memory reader with step {step}.")
             return self._shm_reader
         else:
             if not resume_path:
-                raise ValueError("resume_path cannot be empty.")
-            return FileReader(resume_path)
+                tracer_file = os.path.join(
+                    self.checkpoint_dir, CheckpointConstant.TRACER_FILE_NAME
+                )
+                if os.path.exists(tracer_file):
+                    with open(tracer_file, "r") as f:
+                        step = f.read()
+                    resume_path = os.path.join(self.checkpoint_dir, step)
+            if os.path.exists(resume_path):
+                f"Create a storage reader with path {resume_path}."
+                return FileReader(resume_path)
+            return None

@@ -94,7 +94,7 @@ class DeepSpeedCheckpointEngine(CheckpointEngine):
             model_path=model_path,
             optimizer_path=optimizer_path,
         )
-        self._save_state_dict_to_memory(state_dict, conf)
+        self.save_state_dict_to_memory(state_dict, conf)
 
     @timer
     def save_to_storage(
@@ -135,7 +135,7 @@ class DeepSpeedCheckpointEngine(CheckpointEngine):
     def get_saver_class(self):
         return DeepSpeedCheckpointSaver
 
-    def load(self, resume_model_path="", resume_optimizer_path=""):
+    def load(self):
         """
         The method firstly try to load the state dict from the shared memory.
         If there is no state dict in the shared memory, the method will

@@ -160,6 +160,8 @@ class DeepSpeedCheckpointer(Checkpointer):
         by DeepSpeedEngine.save_checkpoint after calling save to
         the memory.
         """
+        if self.engine.global_rank != 0:
+            return
         ckpt_dir = os.path.join(self.checkpoint_dir, str(tag))
         if os.path.exists(ckpt_dir):
             shutil.rmtree(ckpt_dir)

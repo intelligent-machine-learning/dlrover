@@ -385,7 +385,7 @@ class FsdpCheckpointTest(unittest.TestCase):
             )
             files = sorted(os.listdir(path))
             self.assertListEqual(files, [".metadata", "__0_0.distcp"])
-            reader = checkpointer.load_checkpoint(path)
+            reader = checkpointer.get_storage_reader(path)
             self.assertTrue(isinstance(reader, SharedMemoryReader))
 
             with self.assertRaises(ValueError):

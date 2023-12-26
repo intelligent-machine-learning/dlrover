@@ -23,7 +23,7 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
-from typing import Callable, Dict, List, Mapping, Tuple
+from typing import Callable, Dict, List, Mapping, Optional, Tuple
 
 import torch
 
@@ -255,7 +255,7 @@ class SharedMemoryHandler(object):
             self._shm_name = CheckpointSharedObjPrefix.SHM_NAME + str(
                 local_rank
             )
-        self.shared_memory = None
+        self.shared_memory: Optional[SharedMemory] = None
         self.metadata = SharedDict(name=meta_name, create=host)
 
     def close(self):
@@ -307,6 +307,7 @@ class SharedMemoryHandler(object):
         meta_dict[DLROVER_CKPT_CONFIG_KEY] = ckpt_conf
 
         self.metadata.set(meta_dict)
+        assert self.shared_memory is not None
         _traverse_copy_to_shm(state_dict, meta_dict, self.shared_memory.buf)
         ckpt_conf.writing_shm = False
         self.metadata.set(meta_dict)
@@ -480,7 +481,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         The loop to persist the state dict from the memory
         buffer into the storage.
         """
-        logger.info("Async checkpoint saver starts!")
+        logger.info("Async flash checkpoint saver starts!")
         while True:
             event: CheckpointEvent = self._event_queue.get()
             if (
@@ -611,7 +612,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
             self.save_step_checkpoint(step)
             logger.info(
                 "Save the checkpointing state dict from the shared "
-                f"memory to storage, step: {steps}."
+                f"memory to storage, step: {step}."
             )
 
     @abstractmethod
@@ -1029,6 +1030,7 @@ class FsdpDcpSaver(CommonDirCheckpointSaver):
         checkpoint_dir = os.path.dirname(ckpt_config.path)
         os.makedirs(checkpoint_dir, exist_ok=True)
         with open(ckpt_config.path, "wb") as stream:
+            assert shm_handler.shared_memory is not None
             stream.write(shm_handler.shared_memory.buf)
             os.fsync(stream.fileno())
         if self._is_agent_rank_0 and local_shard_id == 0:
@@ -1036,9 +1038,14 @@ class FsdpDcpSaver(CommonDirCheckpointSaver):
             meta_dict = shm_handler.metadata.get()
             dcp_metadata = meta_dict.get("dcp_metadata", {})
             if dcp_metadata:
-                with (parent_path / ".metadata.tmp").open("wb") as f:
-                    pickle.dump(dcp_metadata, f)
-                    os.fsync(f.fileno())
+                with (parent_path / ".metadata.tmp").open("wb") as stream:
+                    pickle.dump(dcp_metadata, stream)
+                    os.fsync(stream.fileno())
                 (parent_path / ".metadata.tmp").rename(
                     parent_path / ".metadata"
                 )
+            tracer_file = os.path.join(
+                self.checkpoint_dir, CheckpointConstant.TRACER_FILE_NAME
+            )
+            with open(tracer_file, "w") as f:
+                f.write(str(ckpt_config.step))

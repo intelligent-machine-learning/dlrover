@@ -13,12 +13,12 @@
 
 
 from .checkpointer import Checkpointer, StorageType
-from .fsdp_engine import FsdpCheckpointEngine
+from .ddp_engine import DdpCheckpointEngine
 
 
-class FsdpCheckpointer(Checkpointer):
+class DdpCheckpointer(Checkpointer):
     def __init__(self, checkpoint_dir: str):
-        self._engine = FsdpCheckpointEngine(checkpoint_dir)
+        self._engine = DdpCheckpointEngine(checkpoint_dir)
 
     def save_checkpoint(
         self, step, state_dict, path, storage_type=StorageType.DISK
@@ -35,7 +35,4 @@ class FsdpCheckpointer(Checkpointer):
             raise ValueError(f"No support storage type {storage_type}")
 
     def load_checkpoint(self, resume_path=""):
-        pass
-
-    def get_storage_reader(self, resume_path=""):
         return self._engine.load(resume_path)
