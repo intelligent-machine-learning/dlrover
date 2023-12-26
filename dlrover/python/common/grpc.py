@@ -14,7 +14,6 @@
 import pickle
 import random
 import socket
-import telnetlib
 from contextlib import closing
 from dataclasses import dataclass
 from typing import Dict, List
@@ -53,6 +52,7 @@ def build_channel(addr):
 
 
 def addr_connected(addr):
+    addr = addr.strip()
     if not addr:
         return False
     host_port = addr.split(":")
@@ -61,14 +61,11 @@ def addr_connected(addr):
     host = host_port[0]
     port = int(host_port[1])
     try:
-        telnetlib.Telnet(host=host, port=port, timeout=3)
-        return True
-    except socket.gaierror:
+        with socket.create_connection((host, port), timeout=5):
+            return True
+    except OSError:
         logger.warning(f"Service {addr} is not connected.")
         return False
-    except Exception as e:
-        logger.error(f"Service {addr} is not connected.", e)
-    return False
 
 
 def find_free_port(port=0):
