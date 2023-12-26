@@ -1,32 +1,9 @@
-coverage:
-  status:
-    project:
-      default:
-        # basic
-        target: 80%
+flag_management:
+  default_rules:
+    carryforward: true
+    statuses:
+      - type: project
+        target: auto
         threshold: 5%
-        base: auto
-        paths:
-          - "!dlrover/python/tests/"
-          - "!dlrover/trainer/tests/"
-       # advanced settings
-        branches:
-          - master
-        if_ci_failed: error  #success, failure, error, ignore
-        informational: false
-        only_pulls: false
-    patch:
-      default:
-        # basic
+      - type: patch
         target: 80%
-        threshold: 5%
-        base: auto
-        paths:
-          - "!dlrover/python/tests/"
-          - "!dlrover/trainer/tests/"
-       # advanced settings
-        branches:
-          - master
-        if_ci_failed: error  #success, failure, error, ignore
-        informational: false
-        only_pulls: false
