@@ -5,16 +5,14 @@ coverage:
         # basic
         target: 80%
         threshold: 5%
-        base: auto 
-        flags: 
-          - unit
-        paths: 
+        base: auto
+        paths:
           - "!dlrover/python/tests/"
           - "!dlrover/trainer/tests/"
        # advanced settings
-        branches: 
+        branches:
           - master
-        if_ci_failed: error #success, failure, error, ignore
+        if_ci_failed: error  #success, failure, error, ignore
         informational: false
         only_pulls: false
     patch:
@@ -22,14 +20,13 @@ coverage:
         # basic
         target: 80%
         threshold: 5%
-        base: auto 
-        flags: 
-          - unit
-        paths: 
-          - "src"
+        base: auto
+        paths:
+          - "!dlrover/python/tests/"
+          - "!dlrover/trainer/tests/"
        # advanced settings
-        branches: 
+        branches:
           - master
-        if_ci_failed: error #success, failure, error, ignore
+        if_ci_failed: error  #success, failure, error, ignore
         informational: false
         only_pulls: false
