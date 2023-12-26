@@ -23,7 +23,9 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 from dlrover.python.common.constants import CheckpointConstant
-from dlrover.python.elastic_agent.torch.ckpt_saver import AsyncCheckpointSaver
+from dlrover.python.elastic_agent.torch.ckpt_saver import (
+    MegatronCheckpointSaver,
+)
 from dlrover.trainer.torch.flash_checkpoint import megatron
 from dlrover.trainer.torch.flash_checkpoint.checkpointer import StorageType
 from dlrover.trainer.torch.flash_checkpoint.megatron import (
@@ -31,10 +33,6 @@ from dlrover.trainer.torch.flash_checkpoint.megatron import (
     load_checkpoint,
     save_checkpoint,
 )
-
-
-def mock_get_tracker_filename(checkpoint_dir):
-    return os.path.join(checkpoint_dir, CheckpointConstant.TRACER_FILE_NAME)
 
 
 class SimpleNet(nn.Module):
@@ -55,14 +53,12 @@ class SimpleNet(nn.Module):
 
 class MegatrionCheckpointTest(unittest.TestCase):
     def setUp(self):
-        AsyncCheckpointSaver._saver_instance = None
-        AsyncCheckpointSaver.start_async_saving_ckpt()
-        mock_func = mock_get_tracker_filename
-        megatron.get_checkpoint_tracker_filename = mock_func
+        MegatronCheckpointSaver._saver_instance = None
+        MegatronCheckpointSaver.start_async_saving_ckpt()
 
     def tearDown(self) -> None:
-        if AsyncCheckpointSaver._saver_instance:
-            AsyncCheckpointSaver._saver_instance.close()
+        if MegatronCheckpointSaver._saver_instance:
+            MegatronCheckpointSaver._saver_instance.close()
 
     def test_save_load(self):
         os.environ["LOCAL_RANK"] = "0"
@@ -122,16 +118,6 @@ class MegatrionCheckpointTest(unittest.TestCase):
             tensor_meta = ckpt_manager.engine._shm_handler.metadata.get()
             self.assertEqual(tensor_meta["iteration"], 10)
             self.assertIsNotNone(tensor_meta["model_states"])
-            tracer_file = os.path.join(
-                tmpdirname, CheckpointConstant.TRACER_FILE_NAME
-            )
-            self.assertFalse(os.path.exists(tracer_file))
-            ckpt_manager._latest_ckpt_iteration = 10
-            ckpt_manager.clear_empty_checkpoint(10)
-            self.assertTrue(os.path.exists(tracer_file))
-            with open(tracer_file, "r") as f:
-                restored_step = int(f.read())
-            self.assertEqual(restored_step, 10)
 
             save_checkpoint(
                 20, model, optimizer, None, storage_type=StorageType.DISK
@@ -143,6 +129,9 @@ class MegatrionCheckpointTest(unittest.TestCase):
                     break
                 time.sleep(0.1)
 
+            tracer_file = os.path.join(
+                tmpdirname, MegatronCheckpointSaver.TRACER_FILE
+            )
             self.assertTrue(os.path.exists(tracer_file))
             with open(tracer_file, "r") as f:
                 restored_step = int(f.read())
@@ -153,3 +142,31 @@ class MegatrionCheckpointTest(unittest.TestCase):
 
             with self.assertRaises(ValueError):
                 save_checkpoint(20, model, optimizer, None, storage_type=2)
+
+    def test_update_tracer_file(self):
+        os.environ["LOCAL_RANK"] = "0"
+        iteration = 100
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            ckpt_dir = os.path.join(
+                tmpdirname, "iter_{:07d}".format(iteration)
+            )
+            os.makedirs(ckpt_dir)
+            ckpt_manager = MegatronCheckpointManager(tmpdirname)
+            ckpt_manager.checkpoint_dir = tmpdirname
+            dlrover_tracer_file = os.path.join(
+                tmpdirname, CheckpointConstant.TRACER_FILE_NAME
+            )
+            with open(dlrover_tracer_file, "w") as f:
+                f.write(str(50))
+            ckpt_manager.update_tracer_file(iteration)
+            self.assertFalse(os.path.exists(ckpt_dir))
+            megatron_tracer_file = os.path.join(
+                tmpdirname, MegatronCheckpointSaver.TRACER_FILE
+            )
+            with open(megatron_tracer_file, "r") as f:
+                step = int(f.read())
+
+            self.assertEqual(step, 50)
+            os.remove(dlrover_tracer_file)
+            ckpt_manager.update_tracer_file(step)
+            self.assertFalse(os.path.exists(megatron_tracer_file))

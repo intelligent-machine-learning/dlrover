@@ -21,7 +21,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 
-from dlrover.python.elastic_agent.torch.ckpt_saver import AsyncCheckpointSaver
+from dlrover.python.common.constants import CheckpointConstant
+from dlrover.python.elastic_agent.torch.ckpt_saver import (
+    DeepSpeedCheckpointSaver,
+)
 from dlrover.trainer.torch.flash_checkpoint.deepspeed import (
     DeepSpeedCheckpointer,
     StorageType,
@@ -86,12 +89,12 @@ class SimpleNet(nn.Module):
 
 class DeepSpeedCheckpointTest(unittest.TestCase):
     def setUp(self):
-        AsyncCheckpointSaver._saver_instance = None
-        AsyncCheckpointSaver.start_async_saving_ckpt()
+        DeepSpeedCheckpointSaver._saver_instance = None
+        DeepSpeedCheckpointSaver.start_async_saving_ckpt()
 
     def tearDown(self) -> None:
-        if AsyncCheckpointSaver._saver_instance:
-            AsyncCheckpointSaver._saver_instance.close()
+        if DeepSpeedCheckpointSaver._saver_instance:
+            DeepSpeedCheckpointSaver._saver_instance.close()
 
     def test_save_load(self):
         os.environ["LOCAL_RANK"] = "0"
@@ -147,3 +150,33 @@ class DeepSpeedCheckpointTest(unittest.TestCase):
                 checkpointer.save_checkpoint(
                     tmpdirname, str(step), storage_type=2
                 )
+
+    def test_update_tracer_file(self):
+        os.environ["LOCAL_RANK"] = "0"
+        model = SimpleNet()
+        optimizer = optim.SGD(
+            model.parameters(),
+            lr=0.01,
+            momentum=0.001,
+        )
+        step = 100
+        engine = MockDeepSpeedEngine(model, optimizer)
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            os.makedirs(os.path.join(tmpdirname, str(step)))
+            checkpointer = DeepSpeedCheckpointer(engine, tmpdirname)
+            dlrover_tracer_file = os.path.join(
+                tmpdirname, CheckpointConstant.TRACER_FILE_NAME
+            )
+            with open(dlrover_tracer_file, "w") as f:
+                f.write(str(50))
+            checkpointer._update_tracer_file(step)
+            ds_tracer_file = os.path.join(
+                tmpdirname, DeepSpeedCheckpointSaver.TRACER_FILE
+            )
+            with open(ds_tracer_file, "r") as f:
+                step = int(f.read())
+
+            self.assertEqual(step, 50)
+            os.remove(dlrover_tracer_file)
+            checkpointer._update_tracer_file(step)
+            self.assertFalse(os.path.exists(ds_tracer_file))

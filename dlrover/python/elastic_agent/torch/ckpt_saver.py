@@ -960,7 +960,9 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
             time.sleep(2)
 
 
-class DeepSpeedCheckpointSaver(CommonDirCheckpointSaver):
+class MegatronCheckpointSaver(CommonDirCheckpointSaver):
+    TRACER_FILE = "latest_checkpointed_iteration.txt"
+
     def update_tracker_file(self, step):
         """
         Write the step into the tracker file.
@@ -968,10 +970,36 @@ class DeepSpeedCheckpointSaver(CommonDirCheckpointSaver):
         Args:
             step (int): the checkpointing step.
         """
-        tracker_filename = os.path.join(self.checkpoint_dir, "dlrover_latest")
+        tracker_filename = os.path.join(
+            self.checkpoint_dir, CheckpointConstant.TRACER_FILE_NAME
+        )
         with open(tracker_filename, "w") as f:
             f.write(str(step))
-        ds_tracker_filename = os.path.join(self.checkpoint_dir, "latest")
+        ds_tracker_filename = os.path.join(
+            self.checkpoint_dir, self.TRACER_FILE
+        )
+        with open(ds_tracker_filename, "w") as f:
+            f.write(str(step))
+
+
+class DeepSpeedCheckpointSaver(CommonDirCheckpointSaver):
+    TRACER_FILE = "latest"
+
+    def update_tracker_file(self, step):
+        """
+        Write the step into the tracker file.
+
+        Args:
+            step (int): the checkpointing step.
+        """
+        tracker_filename = os.path.join(
+            self.checkpoint_dir, CheckpointConstant.TRACER_FILE_NAME
+        )
+        with open(tracker_filename, "w") as f:
+            f.write(str(step))
+        ds_tracker_filename = os.path.join(
+            self.checkpoint_dir, self.TRACER_FILE
+        )
         with open(ds_tracker_filename, "w") as f:
             f.write(str(step))
 

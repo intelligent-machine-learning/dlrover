@@ -25,12 +25,12 @@ from torch.serialization import load
 
 from dlrover.python.common import env_utils
 from dlrover.python.common.constants import CheckpointConstant
-from dlrover.python.common.log import default_logger as logger
-from dlrover.trainer.torch.flash_checkpoint.deepspeed_engine import (
-    DeepSpeedCheckpointEngine,
+from dlrover.python.elastic_agent.torch.ckpt_saver import (
+    DeepSpeedCheckpointSaver,
 )
 
 from .checkpointer import Checkpointer, StorageType
+from .deepspeed_engine import DeepSpeedCheckpointEngine
 
 
 class AsyncSaveEngine(CheckpointEngine):
@@ -83,9 +83,13 @@ class DeepSpeedCheckpointer(Checkpointer):
         >>> engine = deepspeed.initialize(...)
         >>> ckpt_manager = DeepSpeedCheckpointer(engine, save_dir)
         >>> if step % 10 == 0:
-        >>>     ckpt_manager.save_checkpoint_to_memory(save_dir, tag)
+        >>>     ckpt_manager.save_checkpoint(
+        >>>         save_dir, tag, storage_type=StorageType.MEMORY
+        >>>     )
         >>> if step % 100 == 0:
-        >>>     ckpt_manager.save_checkpoint_to_storage(save_dir, tag)
+        >>>     ckpt_manager.save_checkpoint(
+        >>>         save_dir, tag, storage_type=StorageType.DISK
+        >>>     )
     """
 
     def __init__(self, engine: DeepSpeedEngine, checkpoint_dir):
@@ -104,9 +108,13 @@ class DeepSpeedCheckpointer(Checkpointer):
             global_shard_num=global_shard_num,
             zero_stage=zero_stage,
         )
-        self._latest_ckpt_step = 0
         self._local_rank = env_utils.get_local_rank()
-        self._tracer_file = os.path.join(self.checkpoint_dir, "latest")
+        self._ds_tracer_file = os.path.join(
+            self.checkpoint_dir, DeepSpeedCheckpointSaver.TRACER_FILE
+        )
+        self._dlrover_tracer_file = os.path.join(
+            self.checkpoint_dir, CheckpointConstant.TRACER_FILE_NAME
+        )
         if zero_stage < ZeroStageEnum.weights and self._local_rank == 0:
             self.engine.save_non_zero_checkpoint = True
 
@@ -132,43 +140,36 @@ class DeepSpeedCheckpointer(Checkpointer):
     def _save_checkpoint_to_memory(
         self, save_dir, tag=None, client_state={}, save_latest=True
     ):
-        self._update_latest_checkpoint_step()
         torch_save_func = torch.save
         torch.save = self._ckpt_engine.save
         self.engine.save_checkpoint(save_dir, tag, client_state, save_latest)
         torch.save = torch_save_func
         state_dict = self._merge_model_and_optmizer_state_dict()
-        self._update_latest_checkpoint_step()
         self._async_save_engine.save_to_memory(
             tag,
             state_dict,
             model_path=self._ckpt_engine.model_path,
             optimizer_path=self._ckpt_engine.optimizer_path,
         )
-        self._clear_empty_checkpoint(tag)
+        self._update_tracer_file(tag)
 
-    def _clear_empty_checkpoint(self, tag):
+    def _update_tracer_file(self, tag):
+        """
+        The method save_to_memory does not save the state dict into
+        the storage. We need to restore the tracer file modified
+        by DeepSpeedEngine.save_checkpoint after calling save to
+        the memory.
+        """
         ckpt_dir = os.path.join(self.checkpoint_dir, str(tag))
         if os.path.exists(ckpt_dir):
             shutil.rmtree(ckpt_dir)
-        if self._latest_ckpt_step > 0:
-            with open(self._tracer_file, "w") as f:
-                f.write(str(self._latest_ckpt_step))
-        elif self._latest_ckpt_step == 0 and os.path.exists(self._tracer_file):
-            os.remove(self._tracer_file)
-
-    def _update_latest_checkpoint_step(self):
-        if not os.path.exists(self._tracer_file):
-            return
-        step = 0
-        with open(self._tracer_file, "r") as f:
-            try:
-                content = f.read().strip()
-                step = int(content)
-            except Exception as e:
-                logger.warning(e)
-        if step > 0:
-            self._latest_ckpt_step = step
+        if os.path.exists(self._dlrover_tracer_file):
+            with open(self._dlrover_tracer_file, "r") as f:
+                step = f.read()
+            with open(self._ds_tracer_file, "w") as f:
+                f.write(step)
+        elif os.path.exists(self._ds_tracer_file):
+            os.remove(self._ds_tracer_file)
 
     def _save_checkpoint_to_storage(
         self, save_dir, tag=None, client_state={}, save_latest=True

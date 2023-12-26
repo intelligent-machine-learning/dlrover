@@ -20,7 +20,7 @@ from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     CheckpointEvent,
     CheckpointEventType,
-    CommonDirCheckpointSaver,
+    MegatronCheckpointSaver,
 )
 
 from .engine import CheckpointEngine, timer
@@ -116,7 +116,7 @@ class MegatronCheckpointEngine(CheckpointEngine):
         return num
 
     def get_saver_class(self):
-        return CommonDirCheckpointSaver
+        return MegatronCheckpointSaver
 
     def load(self, resume_path=""):
         """
