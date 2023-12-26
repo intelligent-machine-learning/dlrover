@@ -87,9 +87,8 @@ from torch.distributed.elastic.multiprocessing.errors import record
 from torch.distributed.launcher.api import launch_agent as torch_launch_agent
 from torch.distributed.run import config_from_args, get_args_parser
 
-from dlrover.python.common import env_utils
+from dlrover.python.common import env_utils, grpc
 from dlrover.python.common.constants import NodeEnv
-from dlrover.python.common.grpc import find_free_port
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.torch.training import (
     ElasticLaunchConfig,
@@ -184,7 +183,7 @@ def _launch_dlrover_local_master(master_addr, job_name):
     logger.info(f"Start dlrover master with addr {master_addr}")
     if not master_addr:
         host = "127.0.0.1"
-        port = find_free_port()
+        port = grpc.find_free_port()
     else:
         host = master_addr.split(":")[0]
         port = int(master_addr.split(":")[1])
@@ -244,7 +243,8 @@ def run(args):
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     job_name = os.getenv(NodeEnv.JOB_NAME, f"standalone_{timestamp}")
     os.environ[NodeEnv.TORCHELASTIC_RUN_ID] = job_name
-    if args.standalone and node_rank == 0:
+    dlrover_master_ready = grpc.addr_connected(master_addr)
+    if not dlrover_master_ready and node_rank == 0:
         # Only start the dlrover master on the rank-0 node.
         master_handler, master_addr = _launch_dlrover_local_master(
             master_addr, job_name
