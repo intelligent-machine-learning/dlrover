@@ -101,7 +101,6 @@ def parse_args(args):
     parser = get_args_parser()
     parser.add_argument(
         "--accelerator",
-        "--accelerator",
         type=str,
         action=env,
         default="gpu",
