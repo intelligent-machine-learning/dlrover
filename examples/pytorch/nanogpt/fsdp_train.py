@@ -19,27 +19,29 @@ import os
 import time
 
 import torch
-from lora import apply_lora
+import torch.distributed.checkpoint as dist_cp
 from model import Block
+from torch.distributed.checkpoint.optimizer import (
+    load_sharded_optimizer_state_dict,
+)
 from torch.distributed.fsdp import CPUOffload
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.distributed.fsdp import StateDictType
 from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
-import torch.distributed.checkpoint as dist_cp
-from torch.distributed.checkpoint.optimizer import load_sharded_optimizer_state_dict
-
-from dlrover.trainer.torch.flash_checkpoint.fsdp import FsdpCheckpointer, StorageType
-from dlrover.trainer.torch.elastic.trainer import ElasticTrainer
-
 from train_utils import (
     add_train_args,
     cleanup,
-    create_lora_config,
     get_data_loaders,
     get_lr,
     gpt_init,
     log_rank0,
     setup,
+)
+
+from dlrover.trainer.torch.elastic.trainer import ElasticTrainer
+from dlrover.trainer.torch.flash_checkpoint.fsdp import (
+    FsdpCheckpointer,
+    StorageType,
 )
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
@@ -65,11 +67,7 @@ def train():
         gradient_accumulation_steps * world_size * batch_size * block_size
     )  # noqa: E501
     log_rank0(f"tokens per iteration will be: {tokens_per_iter:,}")
-    device = (
-        f"cuda:{local_rank}"
-        if torch.cuda.is_available()
-        else "cpu"
-    )
+    device = f"cuda:{local_rank}" if torch.cuda.is_available() else "cpu"
     device_type = (
         "cuda" if "cuda" in device else "cpu"
     )  # For later use in torch.autocast
@@ -179,9 +177,7 @@ def train():
             # Clip the gradient
             if grad_clip != 0.0:
                 scaler.unscale_(optimizer)
-                torch.nn.utils.clip_grad_norm_(
-                    model.parameters(), grad_clip
-                )
+                torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
             # Step the optimizer and scaler if training in fp16
             scaler.step(optimizer)
             scaler.update()
@@ -199,9 +195,7 @@ def train():
                 # scale up to undo the division above, approximating
                 # the true total loss (exact would have been a sum)
                 lossf = loss.item() * gradient_accumulation_steps
-                if (
-                    local_iter_num >= 5
-                ):  # Let the training loop settle a bit
+                if local_iter_num >= 5:  # Let the training loop settle a bit
                     mfu = raw_model.estimate_mfu(
                         batch_size * gradient_accumulation_steps, dt
                     )
@@ -220,7 +214,14 @@ def train():
                 )
             iter_num += 1
             local_iter_num += 1
-            save_checkpoint(checkpointer, iter_num, model, optimizer, args.save_memory_interval, args.save_storage_interval)
+            save_checkpoint(
+                checkpointer,
+                iter_num,
+                model,
+                optimizer,
+                args.save_memory_interval,
+                args.save_storage_interval,
+            )
             # Termination conditions
             if iter_num > max_iters:
                 break
@@ -236,7 +237,8 @@ def load_checkpoint(checkpointer, model, optimizer):
         state_dict = {
             "model": model.state_dict(),
             "step": 0,
-            # cannot load the optimizer state_dict together with the model state_dict
+            # cannot load the optimizer state_dict together
+            # with the model state_dict
         }
         storage_reader = checkpointer.get_storage_reader()
         if not storage_reader:
@@ -260,7 +262,14 @@ def load_checkpoint(checkpointer, model, optimizer):
         return state_dict["step"]
 
 
-def save_checkpoint(checkpointer, step, model, optimizer, save_memory_interval, save_storage_interval):
+def save_checkpoint(
+    checkpointer,
+    step,
+    model,
+    optimizer,
+    save_memory_interval,
+    save_storage_interval,
+):
     if step % save_memory_interval != 0 and step % save_storage_interval != 0:
         return
     with FSDP.state_dict_type(model, StateDictType.SHARDED_STATE_DICT):
@@ -272,9 +281,13 @@ def save_checkpoint(checkpointer, step, model, optimizer, save_memory_interval, 
         ckpt_dir = os.path.join(checkpoint_dir, str(step))
         print(f"save checkpoint to  {ckpt_dir}")
         if step % save_memory_interval == 0:
-            checkpointer.save_checkpoint(step, state_dict, ckpt_dir, storage_type=StorageType.MEMORY)
+            checkpointer.save_checkpoint(
+                step, state_dict, ckpt_dir, storage_type=StorageType.MEMORY
+            )
         if step % save_storage_interval == 0:
-            checkpointer.save_checkpoint(step, state_dict, ckpt_dir, storage_type=StorageType.DISK)
+            checkpointer.save_checkpoint(
+                step, state_dict, ckpt_dir, storage_type=StorageType.DISK
+            )
 
 
 def arg_parser():

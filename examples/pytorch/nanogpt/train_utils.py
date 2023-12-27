@@ -12,17 +12,18 @@
 # limitations under the License.
 
 
+import argparse
 import math
 import os
 import pickle
 from datetime import timedelta
-import argparse
 
 import numpy as np
 import torch
 import torch.distributed as dist
 from model import GPT, GPTConfig
 from torch.utils.data import Dataset
+
 from dlrover.trainer.torch.elastic.dataloader import ElasticDataLoader
 from dlrover.trainer.torch.elastic.sampler import ElasticDistributedSampler
 

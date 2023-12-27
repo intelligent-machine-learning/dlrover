@@ -30,11 +30,6 @@ import time
 import deepspeed
 import torch
 from lora import apply_lora
-from dlrover.trainer.torch.flash_checkpoint.deepspeed import (
-    StorageType,
-    DeepSpeedCheckpointer,
-)
-
 from train_utils import (
     add_train_args,
     cleanup,
@@ -46,6 +41,10 @@ from train_utils import (
     setup,
 )
 
+from dlrover.trainer.torch.flash_checkpoint.deepspeed import (
+    DeepSpeedCheckpointer,
+    StorageType,
+)
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 
@@ -70,11 +69,7 @@ def train():
         gradient_accumulation_steps * world_size * batch_size * block_size
     )  # noqa: E501
     log_rank0(f"tokens per iteration will be: {tokens_per_iter:,}")
-    device = (
-        f"cuda:{local_rank}"
-        if torch.cuda.is_available()
-        else "cpu"
-    )
+    device = f"cuda:{local_rank}" if torch.cuda.is_available() else "cpu"
     device_type = (
         "cuda" if "cuda" in device else "cpu"
     )  # For later use in torch.autocast
@@ -111,7 +106,7 @@ def train():
         lr=args.learning_rate,
         betas=(args.beta1, args.beta2),
     )
-    
+
     lora_config = create_lora_config(args)
     if lora_config is not None:
         log_rank0(f"apply lora config {lora_config}")
@@ -183,9 +178,7 @@ def train():
                 # scale up to undo the division above, approximating
                 # the true total loss (exact would have been a sum)
                 lossf = loss.item() * gradient_accumulation_steps
-                if (
-                    local_iter_num >= 5
-                ):  # Let the training loop settle a bit
+                if local_iter_num >= 5:  # Let the training loop settle a bit
                     mfu = raw_model.estimate_mfu(
                         batch_size * gradient_accumulation_steps, dt
                     )
@@ -209,9 +202,15 @@ def train():
             if iter_num > max_iters:
                 break
             if iter_num % args.save_memory_interval == 0:
-                checkpointer.save_checkpoint(checkpoint_dir, tag=iter_num, storage_type=StorageType.MEMORY)
+                checkpointer.save_checkpoint(
+                    checkpoint_dir,
+                    tag=iter_num,
+                    storage_type=StorageType.MEMORY,
+                )
             if iter_num % args.save_storage_interval == 0:
-                checkpointer.save_checkpoint(checkpoint_dir, tag=iter_num, storage_type=StorageType.DISK)
+                checkpointer.save_checkpoint(
+                    checkpoint_dir, tag=iter_num, storage_type=StorageType.DISK
+                )
         if iter_num > max_iters:
             break
 
