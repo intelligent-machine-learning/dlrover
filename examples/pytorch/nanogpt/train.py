@@ -143,7 +143,13 @@ def train():
 
     checkpointer = DdpCheckpointer(checkpoint_dir)
 
-    ckpt_dict = checkpointer.load_checkpoint()
+    if args.use_flash_ckpt:
+        ckpt_dict = checkpointer.load_checkpoint()
+    else:
+        ckpt_path = os.path.join(checkpoint_dir, "50.pt")
+        ckpt_dict = torch.load(ckpt_path)
+        model.load_state_dict(ckpt_dict["model"])
+        optimizer.load_state_dict(ckpt_dict["optimizer"])
     iter_num = ckpt_dict.get("step", 0)
 
     for epoch in range(args.epochs):
@@ -210,15 +216,24 @@ def train():
                         )
                     iter_num += 1
                     local_iter_num += 1
-                    save_checkpoint(
-                        checkpointer,
-                        iter_num,
-                        model,
-                        optimizer,
-                        train_loader,
-                        args.save_memory_interval,
-                        args.save_storage_interval,
-                    )
+                    if args.use_flash_ckpt:
+                        flash_save_checkpoint(
+                            checkpointer,
+                            iter_num,
+                            model,
+                            optimizer,
+                            train_loader,
+                            args.save_memory_interval,
+                            args.save_storage_interval,
+                        )
+                    else:
+                        save_checkpoint(
+                            iter_num,
+                            model,
+                            optimizer,
+                            train_loader,
+                            args.save_storage_interval,
+                        )
                     # Termination conditions
                     if iter_num > max_iters:
                         break
@@ -229,6 +244,25 @@ def train():
 
 
 def save_checkpoint(
+    iter_num, model, optimizer, train_loader, save_storage_interval
+):
+    if iter_num % save_storage_interval != 0:
+        return
+    state_dict = {
+        "model": model.state_dict(),
+        "optimizer": optimizer.state_dict(),
+        "step": iter_num,
+    }
+    if isinstance(train_loader.sampler, ElasticDistributedSampler):
+        sampler_sd = train_loader.sampler.state_dict(
+            iter_num, train_loader.batch_size
+        )
+        state_dict["ds_sampler"] = sampler_sd
+    ckpt_path = os.path.join(checkpoint_dir, f"{iter_num}.pt")
+    torch.save(state_dict, ckpt_path)
+
+
+def flash_save_checkpoint(
     checkpointer,
     iter_num,
     model,
@@ -244,7 +278,8 @@ def save_checkpoint(
         return
     state_dict = {
         "model": model.state_dict(),
-        "optimzer": optimizer.state_dict(),
+        "optimizer": optimizer.state_dict(),
+        "step": iter_num,
     }
     if isinstance(train_loader.sampler, ElasticDistributedSampler):
         sampler_sd = train_loader.sampler.state_dict(

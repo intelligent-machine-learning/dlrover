@@ -153,7 +153,10 @@ def train():
 
     checkpointer = FsdpCheckpointer(checkpoint_dir)
 
-    iter_num = load_checkpoint(checkpointer, model, optimizer)
+    if args.use_flash_ckpt:
+        iter_num = flash_load_checkpoint(checkpointer, model, optimizer)
+    else:
+        iter_num = load_checkpoint(0, model, optimizer)
     iter_num = 0 if not iter_num else iter_num
 
     for epoch in range(args.epochs):
@@ -214,14 +217,20 @@ def train():
                 )
             iter_num += 1
             local_iter_num += 1
-            save_checkpoint(
-                checkpointer,
-                iter_num,
-                model,
-                optimizer,
-                args.save_memory_interval,
-                args.save_storage_interval,
-            )
+            if args.use_flash_ckpt:
+                flash_save_checkpoint(
+                    checkpointer,
+                    iter_num,
+                    model,
+                    optimizer,
+                    args.save_memory_interval,
+                    args.save_storage_interval,
+                )
+            else:
+                save_checkpoint(
+                    iter_num, model, optimizer, args.save_storage_interval
+                )
+
             # Termination conditions
             if iter_num > max_iters:
                 break
@@ -231,8 +240,57 @@ def train():
             break
 
 
-def load_checkpoint(checkpointer, model, optimizer):
-    # Load model_2 with parameters saved in CHECKPOINT_DIR
+def load_checkpoint(step, model, optimizer):
+    with FSDP.state_dict_type(model, StateDictType.SHARDED_STATE_DICT):
+        state_dict = {
+            "model": model.state_dict(),
+            "step": 0,
+            # cannot load the optimizer state_dict
+            # together with the model state_dict
+        }
+        ckpt_dir = os.path.join(checkpoint_dir, str(step))
+        if not os.path.exists(ckpt_dir):
+            return
+        storage_reader = dist_cp.FileSystemReader(ckpt_dir)
+        dist_cp.load_state_dict(
+            state_dict=state_dict,
+            storage_reader=storage_reader,
+        )
+        model.load_state_dict(state_dict["model"])
+
+        optim_state = load_sharded_optimizer_state_dict(
+            model_state_dict=state_dict["model"],
+            optimizer_key="optim",
+            storage_reader=storage_reader,
+        )
+
+        flattened_osd = FSDP.optim_state_dict_to_load(
+            model, optimizer, optim_state["optim"]
+        )
+        optimizer.load_state_dict(flattened_osd)
+        return state_dict["step"]
+
+
+def save_checkpoint(step, model, optimizer, save_storage_interval):
+    if step % save_storage_interval != 0:
+        return
+    ckpt_dir = os.path.join(checkpoint_dir, str(step))
+    os.makedirs(ckpt_dir, exist_ok=True)
+    with FSDP.state_dict_type(model, StateDictType.SHARDED_STATE_DICT):
+        state_dict = {
+            "model": model.state_dict(),
+            "optim": FSDP.optim_state_dict(model, optimizer),
+            "step": step,
+        }
+        print(f"save checkpoint to {ckpt_dir}")
+        if step % save_storage_interval == 0:
+            dist_cp.save_state_dict(
+                state_dict=state_dict,
+                storage_writer=dist_cp.FileSystemWriter(ckpt_dir),
+            )
+
+
+def flash_load_checkpoint(checkpointer, model, optimizer):
     with FSDP.state_dict_type(model, StateDictType.SHARDED_STATE_DICT):
         state_dict = {
             "model": model.state_dict(),
@@ -262,7 +320,7 @@ def load_checkpoint(checkpointer, model, optimizer):
         return state_dict["step"]
 
 
-def save_checkpoint(
+def flash_save_checkpoint(
     checkpointer,
     step,
     model,
@@ -279,7 +337,7 @@ def save_checkpoint(
             "step": step,
         }
         ckpt_dir = os.path.join(checkpoint_dir, str(step))
-        print(f"save checkpoint to  {ckpt_dir}")
+        print(f"save checkpoint to {ckpt_dir}")
         if step % save_memory_interval == 0:
             checkpointer.save_checkpoint(
                 step, state_dict, ckpt_dir, storage_type=StorageType.MEMORY
