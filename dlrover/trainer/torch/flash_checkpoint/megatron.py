@@ -17,21 +17,31 @@ import os
 import shutil
 
 import torch
+import torch.distributed as dist
 
 from dlrover.python.common.log import default_logger as logger
 
 try:
     from megatron import get_args
-    from megatron.checkpointing import get_checkpoint_tracker_filename
     from megatron.checkpointing import load_checkpoint as megatron_load
     from megatron.checkpointing import save_checkpoint as megatron_save
 except ImportError:
     logger.warning("Please check the magatron.checkpointing exists.")
 
+from dlrover.python.common.constants import CheckpointConstant
 from dlrover.python.common.singleton import singleton
+from dlrover.python.elastic_agent.torch.ckpt_saver import (
+    MegatronCheckpointSaver,
+)
 
 from .checkpointer import StorageType
 from .megatron_engine import MegatronCheckpointEngine
+
+
+def _get_rank():
+    if dist.is_initialized():
+        return dist.get_rank()
+    return 0
 
 
 @singleton
@@ -39,38 +49,47 @@ class MegatronCheckpointManager(object):
     def __init__(self, checkpoint_dir):
         self.state_dict = {}
         self.path = ""
+        self.checkpoint_dir = checkpoint_dir
         self.engine = MegatronCheckpointEngine(checkpoint_dir)
-        self._tracer_file = get_checkpoint_tracker_filename(checkpoint_dir)
-        self._latest_ckpt_iteration = 0
 
     def save(self, state_dict, path):
         self.state_dict = state_dict
         self.path = path
 
-    def load(self, path):
+    def load(self, path, **kwargs):
         state_dict = self.engine.load(resume_path=path)
         return state_dict
 
-    def clear_empty_checkpoint(self, iteration):
-        ckpt_dir = os.path.join(self.engine.checkpoint_dir, str(iteration))
+    def update_tracer_file(self, iteration: int):
+        """
+        Update the tracer file with the latest step saved in the storage.
+        The `save_checkpoint` of Megatron will modify the tracer file even
+        if the storage_type is StorageType.Memory. We need to restore
+        the tracer file  after saving the checkpoint into the memory.
+
+        Args:
+            iteration (int): the iteration step to save.
+        """
+        ckpt_dir = os.path.join(
+            self.checkpoint_dir, "iter_{:07d}".format(iteration)
+        )
         if os.path.exists(ckpt_dir):
             shutil.rmtree(ckpt_dir)
-        if self._latest_ckpt_iteration > 0:
-            with open(self._tracer_file, "w") as f:
-                f.write(str(self._latest_ckpt_iteration))
 
-    def update_latest_checkpoint_step(self):
-        if not os.path.exists(self._tracer_file):
-            return
-        iteration = 0
-        with open(self._tracer_file, "r") as f:
-            try:
-                content = f.read().strip()
-                iteration = int(content)
-            except Exception as e:
-                logger.warning(e)
-        if iteration > 0:
-            self._latest_ckpt_iteration = iteration
+        megatron_tracer_file = os.path.join(
+            self.checkpoint_dir, MegatronCheckpointSaver.TRACER_FILE
+        )
+
+        dlrover_tracer_file = os.path.join(
+            self.checkpoint_dir, CheckpointConstant.TRACER_FILE_NAME
+        )
+        if os.path.exists(dlrover_tracer_file):
+            with open(dlrover_tracer_file, "r") as f:
+                step = f.read()
+            with open(megatron_tracer_file, "w") as f:
+                f.write(step)
+        elif os.path.exists(megatron_tracer_file):
+            os.remove(megatron_tracer_file)
 
 
 def save_checkpoint(
@@ -89,7 +108,6 @@ def save_checkpoint(
     if storage_type == StorageType.MEMORY:
         args = get_args()
         saver = MegatronCheckpointManager(args.save)
-        saver.update_latest_checkpoint_step()
         torch_save_func = torch.save
         torch.save = saver.save
         megatron_save(iteration, model, optimizer, opt_param_scheduler)
@@ -100,7 +118,8 @@ def save_checkpoint(
         # and write the iteration into the tracerfile. But async saver only
         # save the state dict into the CPU memory not the storage. The saver
         # need to clear the empty checkpoint directory.
-        saver.clear_empty_checkpoint(iteration)
+        if _get_rank() == 0:
+            saver.update_tracer_file(iteration)
     elif storage_type == StorageType.DISK:
         args = get_args()
         saver = MegatronCheckpointManager(args.save)
@@ -125,5 +144,8 @@ def load_checkpoint(
     saver = MegatronCheckpointManager(args.save)
     torch_load_func = torch.load
     torch.load = saver.load
-    megatron_load(model, optimizer, opt_param_scheduler, load_arg, strict)
+    iteration = megatron_load(
+        model, optimizer, opt_param_scheduler, load_arg, strict
+    )
     torch.load = torch_load_func
+    return iteration
