@@ -76,11 +76,11 @@ def main(task):
     start_init = time.time()
 
     protocol = "gloo"
-    if use_cuda:
+    if use_cuda:  # pragma: no cover
         device = torch.cuda.get_device_name()
         if "Ascend" in device:
             protocol = "hccl"
-        else:
+        elif use_cuda:
             protocol = "nccl"
 
     dist.init_process_group(protocol, timeout=timedelta(seconds=180))
