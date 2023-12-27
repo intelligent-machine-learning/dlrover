@@ -113,6 +113,7 @@ class ElasticLaunchConfig(LaunchConfig):
     node_unit: int = 1
     auto_tunning: bool = False
     exclude_straggler: bool = False
+    accelerator: str = "gpu"
 
     def set_node_unit(self, node_unit):
         """Set the number unint of ndoes."""
@@ -702,14 +703,24 @@ def launch_agent(
         master_addr=master_addr,
     )
 
-    agent = ElasticTrainingAgent(
-        node_rank=node_rank,
-        config=config,
-        entrypoint=entrypoint,
-        spec=spec,
-        start_method=config.start_method,
-        log_dir=config.log_dir,
-    )
+    if config.accelerator == "npu":
+        agent = NPUTrainingAgent(
+            node_rank=node_rank,
+            config=config,
+            entrypoint=entrypoint,
+            spec=spec,
+            start_method=config.start_method,
+            log_dir=config.log_dir,
+        )
+    else:
+        agent = ElasticTrainingAgent(
+            node_rank=node_rank,
+            config=config,
+            entrypoint=entrypoint,
+            spec=spec,
+            start_method=config.start_method,
+            log_dir=config.log_dir,
+        )
 
     shutdown_rdzv = True
     try:
@@ -981,3 +992,37 @@ def run_network_check(config, entrypoint):
                 "because of abnormal node."
             )
     return success
+
+
+class NPUTrainingAgent(ElasticTrainingAgent):
+    """
+    An implementation of :py:class:`torchelastic.agent.server.ElasticAgent`
+    that handles host-local workers on NPU cluster.
+    """
+
+    def __init__(
+        self,
+        node_rank,
+        config: ElasticLaunchConfig,
+        entrypoint,
+        spec: WorkerSpec,
+        start_method="spawn",
+        exit_barrier_timeout: float = 300,
+        log_dir: Optional[str] = None,
+    ):
+        super().__init__(
+            node_rank,
+            config,
+            entrypoint,
+            spec,
+            start_method,
+            exit_barrier_timeout,
+            log_dir,
+        )
+
+    @prof
+    def _stop_workers(self, worker_group: WorkerGroup) -> None:
+        cmd = "pkill python"
+        r = os.system(cmd)
+        if r != 0:
+            logger.error("fail to stop python processes")
