@@ -113,7 +113,7 @@ class ElasticLaunchConfig(LaunchConfig):
     node_unit: int = 1
     auto_tunning: bool = False
     exclude_straggler: bool = False
-    npu: bool = False
+    accelerator: str = "gpu"
 
     def set_node_unit(self, node_unit):
         """Set the number unint of ndoes."""
@@ -703,7 +703,7 @@ def launch_agent(
         master_addr=master_addr,
     )
 
-    if config.npu:
+    if config.accelerator == "npu":
         agent = NPUTrainingAgent(
             node_rank=node_rank,
             config=config,
@@ -1001,14 +1001,14 @@ class NPUTrainingAgent(ElasticTrainingAgent):
     """
 
     def __init__(
-            self,
-            node_rank,
-            config: ElasticLaunchConfig,
-            entrypoint,
-            spec: WorkerSpec,
-            start_method="spawn",
-            exit_barrier_timeout: float = 300,
-            log_dir: Optional[str] = None,
+        self,
+        node_rank,
+        config: ElasticLaunchConfig,
+        entrypoint,
+        spec: WorkerSpec,
+        start_method="spawn",
+        exit_barrier_timeout: float = 300,
+        log_dir: Optional[str] = None,
     ):
         super().__init__(
             node_rank,
@@ -1016,14 +1016,13 @@ class NPUTrainingAgent(ElasticTrainingAgent):
             entrypoint,
             spec,
             start_method,
-            start_method,
             exit_barrier_timeout,
             log_dir,
         )
 
     @prof
     def _stop_workers(self, worker_group: WorkerGroup) -> None:
-        cmd = "killall python"
+        cmd = "pkill python"
         r = os.system(cmd)
         if r != 0:
             logger.error("fail to stop python processes")
