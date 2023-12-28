@@ -263,8 +263,12 @@ class SharedMemoryHandler(object):
             self.shared_memory.close()
 
     def unlink(self):
+        if not self.shared_memory:
+            # The shared memory may be created by other processes.
+            self.init_shared_memory()
         if self.shared_memory:
             self.shared_memory.unlink()
+            logger.info(f"Unlink the shared memory {self._shm_name}")
         if self.metadata:
             self.metadata.unlink()
 
