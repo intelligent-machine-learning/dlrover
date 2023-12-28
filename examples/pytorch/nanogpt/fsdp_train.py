@@ -151,12 +151,14 @@ def train():
     # to simulate larger batch size and using the GradScaler
     # if data type is float16
 
-    checkpointer = FsdpCheckpointer(checkpoint_dir)
-
-    if args.use_flash_ckpt:
-        iter_num = flash_load_checkpoint(checkpointer, model, optimizer)
+    start_load_t = time.time()
+    if args.use_native_ckpt:
+        iter_num = native_load_checkpoint(0, model, optimizer)
     else:
-        iter_num = load_checkpoint(0, model, optimizer)
+        checkpointer = FsdpCheckpointer(checkpoint_dir)
+        iter_num = flash_load_checkpoint(checkpointer, model, optimizer)
+    load_time = round(time.time() - start_load_t, 2)
+    print(f"Load checkpoint time : {load_time}s")
     iter_num = 0 if not iter_num else iter_num
 
     for epoch in range(args.epochs):
@@ -217,8 +219,13 @@ def train():
                 )
             iter_num += 1
             local_iter_num += 1
-            if args.use_flash_ckpt:
-                flash_save_checkpoint(
+            start_save_t = time.time()
+            if args.use_native_ckpt:
+                saved = native_save_checkpoint(
+                    iter_num, model, optimizer, args.save_storage_interval
+                )
+            else:
+                saved = flash_save_checkpoint(
                     checkpointer,
                     iter_num,
                     model,
@@ -226,10 +233,9 @@ def train():
                     args.save_memory_interval,
                     args.save_storage_interval,
                 )
-            else:
-                save_checkpoint(
-                    iter_num, model, optimizer, args.save_storage_interval
-                )
+            if saved:
+                save_time = round(time.time() - start_save_t, 2)
+                print(f"Save checkpoint time {save_time}s")
 
             # Termination conditions
             if iter_num > max_iters:
@@ -240,7 +246,7 @@ def train():
             break
 
 
-def load_checkpoint(step, model, optimizer):
+def native_load_checkpoint(step, model, optimizer):
     with FSDP.state_dict_type(model, StateDictType.SHARDED_STATE_DICT):
         state_dict = {
             "model": model.state_dict(),
@@ -271,9 +277,10 @@ def load_checkpoint(step, model, optimizer):
         return state_dict["step"]
 
 
-def save_checkpoint(step, model, optimizer, save_storage_interval):
+def native_save_checkpoint(step, model, optimizer, save_storage_interval):
+    saved = False
     if step % save_storage_interval != 0:
-        return
+        return saved
     ckpt_dir = os.path.join(checkpoint_dir, str(step))
     os.makedirs(ckpt_dir, exist_ok=True)
     with FSDP.state_dict_type(model, StateDictType.SHARDED_STATE_DICT):
@@ -288,6 +295,8 @@ def save_checkpoint(step, model, optimizer, save_storage_interval):
                 state_dict=state_dict,
                 storage_writer=dist_cp.FileSystemWriter(ckpt_dir),
             )
+            saved = True
+    return saved
 
 
 def flash_load_checkpoint(checkpointer, model, optimizer):
@@ -328,8 +337,9 @@ def flash_save_checkpoint(
     save_memory_interval,
     save_storage_interval,
 ):
+    saved = False
     if step % save_memory_interval != 0 and step % save_storage_interval != 0:
-        return
+        return saved
     with FSDP.state_dict_type(model, StateDictType.SHARDED_STATE_DICT):
         state_dict = {
             "model": model.state_dict(),
@@ -342,10 +352,13 @@ def flash_save_checkpoint(
             checkpointer.save_checkpoint(
                 step, state_dict, ckpt_dir, storage_type=StorageType.MEMORY
             )
+            saved = True
         if step % save_storage_interval == 0:
             checkpointer.save_checkpoint(
                 step, state_dict, ckpt_dir, storage_type=StorageType.DISK
             )
+            saved = True
+    return saved
 
 
 def arg_parser():

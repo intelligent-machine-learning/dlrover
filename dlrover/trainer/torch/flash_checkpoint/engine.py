@@ -93,8 +93,10 @@ class CheckpointEngine(metaclass=ABCMeta):
         self.checkpoint_dir = checkpoint_dir
         if dist.is_initialized():
             self._rank = dist.get_rank()
+            self._loader_group = dist.new_group(backend="gloo")
         else:
             self._rank = 0
+            self._loader_group = None
         self._local_rank = int(os.getenv("LOCAL_RANK", 0))
         self._saver_group = None
         self._cached_step = 0
@@ -222,12 +224,10 @@ class CheckpointEngine(metaclass=ABCMeta):
         state_dict = {}
         default_config = CheckpointShardConfig()
         config = self._shm_handler.get_checkpoint_config(default_config)
-        if config.step == 0:
-            return state_dict
         passed = verify_all_rank_step_consistent(
-            self._saver_group, config.step
+            self._loader_group, config.step
         )
-        if passed:
+        if passed and config.step > 0:
             state_dict = self._shm_handler.load_state_dict()
             logger.info(
                 f"Load step {config.step} checkpoint from the shared memory."

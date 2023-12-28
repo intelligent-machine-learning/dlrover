@@ -142,11 +142,14 @@ def train():
     # Forward backward update, with optional gradient accumulation
     # to simulate larger batch size and using the GradScaler
     # if data type is float16
-    if args.use_flash_ckpt:
+    t0 = time.time()
+    if args.use_native_ckpt:
+        model.load_checkpoint(checkpoint_dir)
+    else:
         checkpointer = DeepSpeedCheckpointer(model, checkpoint_dir)
         checkpointer.load_checkpoint(checkpoint_dir)
-    else:
-        model.load_checkpoint(checkpoint_dir)
+    load_time = round(time.time() - t0, 2)
+    print(f"Load checkpoint time {load_time}s")
     iter_num = model.global_steps
     print(f"The restored iteration step is {iter_num}")
 
@@ -199,15 +202,21 @@ def train():
                 )
             iter_num += 1
             local_iter_num += 1
-            if args.use_flash_ckpt:
-                flash_save_checkpoint(
+            start_save_t = time.time()
+            if args.use_native_ckpt:
+                saved = native_save_checkpoint(
+                    model, checkpoint_dir, iter_num, args.save_storage_interval
+                )
+            else:
+                saved = flash_save_checkpoint(
                     checkpointer,
                     iter_num,
                     args.save_memory_interval,
                     args.save_storage_interval,
                 )
-            else:
-                model.save_checkpoint(checkpoint_dir, tag=iter_num)
+            if saved:
+                save_time = round(time.time() - start_save_t, 2)
+                print(f"Save checkpoint time {save_time}s")
 
             # Termination conditions
             if iter_num > max_iters:
@@ -217,22 +226,39 @@ def train():
             break
 
 
+def native_save_checkpoint(
+    model: deepspeed.DeepSpeedEngine,
+    checkpoint_dir,
+    iter_num,
+    save_storage_interval,
+):
+    saved = False
+    if iter_num % save_storage_interval == 0:
+        model.save_checkpoint(checkpoint_dir, tag=iter_num)
+        saved = True
+    return saved
+
+
 def flash_save_checkpoint(
     checkpointer: DeepSpeedCheckpointer,
     iter_num,
     save_memory_interval,
     save_storage_interval,
 ):
+    saved = False
     if iter_num % save_memory_interval == 0:
+        saved = True
         checkpointer.save_checkpoint(
             checkpoint_dir,
             tag=iter_num,
             storage_type=StorageType.MEMORY,
         )
     if iter_num % save_storage_interval == 0:
+        saved = True
         checkpointer.save_checkpoint(
             checkpoint_dir, tag=iter_num, storage_type=StorageType.DISK
         )
+    return saved
 
 
 # Determine the device type based on the input string.

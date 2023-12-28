@@ -143,14 +143,26 @@ def train():
 
     checkpointer = DdpCheckpointer(checkpoint_dir)
 
-    if args.use_flash_ckpt:
-        ckpt_dict = checkpointer.load_checkpoint()
-    else:
+    t0 = time.time()
+    ckpt_dict = {}
+    if args.use_native_ckpt:
         ckpt_path = os.path.join(checkpoint_dir, "50.pt")
         ckpt_dict = torch.load(ckpt_path)
+    else:
+        ckpt_dict = checkpointer.load_checkpoint()
+    read_time = round(time.time() - t0, 2)
+    if "model" in ckpt_dict:
         model.load_state_dict(ckpt_dict["model"])
+    if "optimizer" in ckpt_dict:
         optimizer.load_state_dict(ckpt_dict["optimizer"])
+    if "sampler" in ckpt_dict:
+        train_loader.sampler.load_state_dict(ckpt_dict["sampler"])
     iter_num = ckpt_dict.get("step", 0)
+    load_time = round(time.time() - t0, 2)
+    print(
+        f"Local rank {local_rank}: reading time {read_time}, "
+        f"loading time {load_time}s"
+    )
 
     for epoch in range(args.epochs):
         # Note: set the epoch into the sampler.
@@ -216,8 +228,17 @@ def train():
                         )
                     iter_num += 1
                     local_iter_num += 1
-                    if args.use_flash_ckpt:
-                        flash_save_checkpoint(
+                    start_save_t = time.time()
+                    if args.use_native_ckpt:
+                        saved = native_save_checkpoint(
+                            iter_num,
+                            model,
+                            optimizer,
+                            train_loader,
+                            args.save_storage_interval,
+                        )
+                    else:
+                        saved = flash_save_checkpoint(
                             checkpointer,
                             iter_num,
                             model,
@@ -226,14 +247,10 @@ def train():
                             args.save_memory_interval,
                             args.save_storage_interval,
                         )
-                    else:
-                        save_checkpoint(
-                            iter_num,
-                            model,
-                            optimizer,
-                            train_loader,
-                            args.save_storage_interval,
-                        )
+                    if saved:
+                        save_time = round(time.time() - start_save_t, 2)
+                        print(f"Save checkpoint time {save_time}s")
+
                     # Termination conditions
                     if iter_num > max_iters:
                         break
@@ -243,11 +260,12 @@ def train():
             break
 
 
-def save_checkpoint(
+def native_save_checkpoint(
     iter_num, model, optimizer, train_loader, save_storage_interval
 ):
+    saved = False
     if iter_num % save_storage_interval != 0:
-        return
+        return saved
     state_dict = {
         "model": model.state_dict(),
         "optimizer": optimizer.state_dict(),
@@ -260,6 +278,7 @@ def save_checkpoint(
         state_dict["ds_sampler"] = sampler_sd
     ckpt_path = os.path.join(checkpoint_dir, f"{iter_num}.pt")
     torch.save(state_dict, ckpt_path)
+    saved = True
 
 
 def flash_save_checkpoint(
@@ -271,11 +290,12 @@ def flash_save_checkpoint(
     save_memory_interval,
     save_storage_interval,
 ):
+    saved = False
     if (
         iter_num % save_memory_interval != 0
         and iter_num % save_storage_interval != 0
     ):
-        return
+        return saved
     state_dict = {
         "model": model.state_dict(),
         "optimizer": optimizer.state_dict(),
@@ -286,15 +306,18 @@ def flash_save_checkpoint(
             iter_num, train_loader.batch_size
         )
         state_dict["ds_sampler"] = sampler_sd
-    ckpt_path = os.path.join(checkpoint_dir, f"{iter_num}.pt")
+    ckpt_path = os.path.join(checkpoint_dir, f"checkpoint-{iter_num}.pt")
     if iter_num % save_memory_interval == 0:
         checkpointer.save_checkpoint(
             iter_num, state_dict, ckpt_path, storage_type=StorageType.MEMORY
         )
+        saved = True
     if iter_num % save_storage_interval == 0:
         checkpointer.save_checkpoint(
             iter_num, state_dict, ckpt_path, storage_type=StorageType.DISK
         )
+        saved = True
+    return saved
 
 
 def arg_parser():

@@ -232,5 +232,5 @@ def add_train_args(parser: argparse.ArgumentParser):
         "--save_storage_interval", type=int, default=200, required=False
     )
     parser.add_argument(
-        "--use_flash_ckpt", action="store_true", required=False, default=True
+        "--use_native_ckpt", action="store_true", required=False
     )
