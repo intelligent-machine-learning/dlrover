@@ -231,3 +231,8 @@ class CheckpointEngineTest(unittest.TestCase):
                 loaded_value = loaded_state_dict["model"][key]
                 self.assertTrue(torch.equal(value, loaded_value))
             engine.close()
+
+            with open(tracer_file, "w") as f:
+                f.write("100")
+            state_dict = engine._load_from_storage()
+            self.assertDictEqual(state_dict, {})

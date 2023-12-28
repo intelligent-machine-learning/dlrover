@@ -86,7 +86,7 @@ class DdpCheckpointEngine(CheckpointEngine):
         return CommonDirCheckpointSaver
 
     @timer
-    def save_to_storage(self, step, state_dict, path):
+    def save_to_storage(self, step, state_dict, path=""):
         """
         Asynchronously saves the state dict into the storage. It synchronously
         saves the state dict into the shared memory and put the path
@@ -95,14 +95,17 @@ class DdpCheckpointEngine(CheckpointEngine):
         Only rank 0 saves the state dict into the storage.
 
         Args:
+            step (int): the iteration step.
             state_dict (dict): the state dict of model and optimizer to save.
-            ckpt_name (str): the storage path to save the state dict.
+            path (str): the storage path to save the state dict.
                 Note, the ckpt_name is used to save the state dict to storage
                 only if the training process fails.
-            path (int): the iteration step.
         """
         if self._rank != 0:
             return
+        if not path:
+            name = f"{CheckpointConstant.CKPT_NAME_PREFIX}{step}.pt"
+            path = os.path.join(self.checkpoint_dir, name)
         if step > self._cached_step:
             self.save_to_memory(step, state_dict, path)
         event = CheckpointEvent(type=CheckpointEventType.SAVE, step=step)
@@ -142,6 +145,7 @@ class DdpCheckpointEngine(CheckpointEngine):
                 a dictionary containing a whole state of the modules in the
                 checkpointing file.
         """
+        state_dict = {}
         if resume_path:
             state_dict = torch.load(resume_path, map_location="cpu")
             return state_dict
@@ -150,12 +154,15 @@ class DdpCheckpointEngine(CheckpointEngine):
                 self.checkpoint_dir, CheckpointConstant.TRACER_FILE_NAME
             )
             if not os.path.exists(tracker_filename):
-                return {}
+                return state_dict
             with open(tracker_filename, "r") as f:
                 metastring = f.read().strip()
             iteration = int(metastring)
             name = f"{CheckpointConstant.CKPT_NAME_PREFIX}{iteration}.pt"
             path = os.path.join(self.checkpoint_dir, name)
+            if not os.path.exists(path):
+                logger.warning(f"Checkpoint path {path} is not exist.")
+                return state_dict
             logger.info(f"Load the state dict from {path}")
             state_dict = torch.load(path, map_location="cpu")
             return state_dict
