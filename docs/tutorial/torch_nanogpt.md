@@ -12,12 +12,33 @@ making it possible to conduct tests on GPT models of varying sizes.
 For a more in-depth dive into the fascinating world of NanoGPT, don't hesitate to visit [NanoGPT](https://github.com/karpathy/nanoGPT)
 for the source code and a plethora of other valuable resources.
 
-## Setting Up the DLRover Job Controller
+## Local GPT Training
+
+- Pull the image with the model and data.
+
+```bash
+docker pull registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:pytorch-example
+docker run -it registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:pytorch-example bash
+cd /dlrover/examples/pytorch/nanogpt/
+```
+
+- Local run the training by `dlrover-run`
+
+```bash
+dlrover-run --nnodes=1 --max_restarts=2 --nproc_per_node=2 \
+    train.py --n_layer 48 --n_head 16 --n_embd 1600 \
+    --data_dir './' --epochs 50 --save_memory_interval 50 \
+    --save_storage_interval 500
+```
+
+You also can run the FSDP and DeepSpeed example by using the `fsdp_train.py` and `ds_train.py`.
+
+## Distributed GPT Training on k8s - Let's Dive In
+
+### Setting Up the DLRover Job Controller
 
 Follow the comprehensive guide in the [Controller Deployment](dlrover/docs/deployment/controller.md)
 document to get your DLRover job controller up and running.
-
-## GPT Training - Let's Dive In
 
 ### Getting Started with a Sample YAML
 
@@ -27,7 +48,7 @@ This will be done using NanoGPT with a variety of parameter settings to gauge pe
 Kick off the process with the following command:
 
 ```bash
-kubectl -n dlrover apply -f  examples/pytorch/nanogpt/ddp_elastic_job.yaml
+kubectl -n dlrover apply -f  examples/pytorch/nanogpt/elastic_job.yaml
 ```
 
 Upon successful application of the job configuration,
@@ -85,11 +106,6 @@ iter 3: loss 3.6564, time 4579.50ms, mfu -100.00%, lr 6.00e-04, total time 18.04
 iter 4: loss 3.5026, time 4494.54ms, mfu -100.00%, lr 6.00e-04, total time 22.53s
 iter 5: loss 3.2993, time 4451.15ms, mfu 0.33%, lr 6.00e-04, total time 26.98s
 iter 6: loss 3.3318, time 4391.21ms, mfu 0.33%, lr 6.00e-04, total time 31.38s
-iter 7: loss 3.3833, time 4454.84ms, mfu 0.33%, lr 6.00e-04, total time 35.83s
-iter 8: loss 3.4490, time 4403.01ms, mfu 0.33%, lr 6.00e-04, total time 40.23s
-iter 9: loss 3.3144, time 4499.54ms, mfu 0.33%, lr 6.00e-04, total time 44.73s
-iter 10: loss 3.3144, time 4553.10ms, mfu 0.33%, lr 6.00e-04, total time 49.29s
-[2023-07-26 07:34:33,313] [INFO] [training.py:355:_invoke_run] [default] worker group successfully finished. Waiting 300 seconds for other agents to finish. 
 ```
 
 results with parameter settings 2:
@@ -102,11 +118,6 @@ iter 3: loss 4.2238, time 30203.78ms, mfu -100.00%, lr 6.00e-04, total time 122.
 iter 4: loss 6.1183, time 30100.29ms, mfu -100.00%, lr 6.00e-04, total time 152.54s
 iter 5: loss 5.0796, time 30182.75ms, mfu 0.33%, lr 6.00e-04, total time 182.72s
 iter 6: loss 4.5217, time 30303.39ms, mfu 0.33%, lr 6.00e-04, total time 213.02s
-iter 7: loss 3.4313, time 30299.88ms, mfu 0.33%, lr 6.00e-04, total time 243.32s
-iter 8: loss 3.3948, time 29995.20ms, mfu 0.33%, lr 6.00e-04, total time 273.32s
-iter 9: loss 3.4007, time 30212.14ms, mfu 0.33%, lr 6.00e-04, total time 303.53s
-iter 10: loss 3.3865, time 30167.96ms, mfu 0.33%, lr 6.00e-04, total time 333.70s
-[2023-07-26 07:43:13,012] [INFO] [training.py:355:_invoke_run] [default] worker group successfully finished. Waiting 300 seconds for other agents to finish. 
 ```
 
 Worker-1 Logs
@@ -125,11 +136,6 @@ iter 3: loss 3.7863, time 4537.51ms, mfu -100.00%, lr 6.00e-04, total time 17.98
 iter 4: loss 3.5153, time 4489.47ms, mfu -100.00%, lr 6.00e-04, total time 22.47s
 iter 5: loss 3.3428, time 4567.38ms, mfu 0.32%, lr 6.00e-04, total time 27.04s
 iter 6: loss 3.3700, time 4334.36ms, mfu 0.32%, lr 6.00e-04, total time 31.37s
-iter 7: loss 3.3856, time 4569.72ms, mfu 0.32%, lr 6.00e-04, total time 35.94s
-iter 8: loss 3.3083, time 4384.73ms, mfu 0.32%, lr 6.00e-04, total time 40.33s
-iter 9: loss 3.3264, time 4506.51ms, mfu 0.32%, lr 6.00e-04, total time 44.83s
-iter 10: loss 3.3551, time 4455.05ms, mfu 0.32%, lr 6.00e-04, total time 49.29s
-[2023-07-26 07:34:34,316] [INFO] [training.py:355:_invoke_run] [default] worker group successfully finished. Waiting 300 seconds for other agents to finish.
 ```
 
 results with parameter settings 2:
@@ -142,11 +148,6 @@ iter 3: loss 4.2619, time 30400.66ms, mfu -100.00%, lr 6.00e-04, total time 122.
 iter 4: loss 6.2001, time 29960.20ms, mfu -100.00%, lr 6.00e-04, total time 152.49s
 iter 5: loss 5.0426, time 30222.85ms, mfu 0.32%, lr 6.00e-04, total time 182.71s
 iter 6: loss 4.5057, time 30200.79ms, mfu 0.32%, lr 6.00e-04, total time 212.92s
-iter 7: loss 3.5295, time 30307.59ms, mfu 0.32%, lr 6.00e-04, total time 243.22s
-iter 8: loss 3.3474, time 30105.02ms, mfu 0.32%, lr 6.00e-04, total time 273.33s
-iter 9: loss 3.3891, time 30084.17ms, mfu 0.33%, lr 6.00e-04, total time 303.41s
-iter 10: loss 3.3743, time 30271.93ms, mfu 0.33%, lr 6.00e-04, total time 333.68s
-[2023-07-26 07:43:16,112] [INFO] [training.py:355:_invoke_run] [default] worker group successfully finished. Waiting 300 seconds for other agents to finish.
 ```
 
 ### Building from Docker - Step by Step

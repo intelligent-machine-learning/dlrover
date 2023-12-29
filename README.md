@@ -46,7 +46,7 @@ training job. The actions to restore training in DLRover are:
 2. Restart the process not the node due to software errors.
 3. Restart the failed nodes due to hardward errors.
 
-For detail, we can see [experiments](docs/tutorial/fault_tolerations.md)
+For detail, we can see [experiments](docs/tech_report/fault_tolerance_exps.md)
 of fault-tolerance and elasticity.
 
 #### Fault Tolerance of PyTorch Distributed Training
@@ -212,10 +212,10 @@ Please refer to the [DEVELOPMENT](docs/developer_guide.md)
 
 ## Quick Start
 
-[Train a TensorFlow Estimator on Kubernetes](docs/tutorial/tf_ps_on_cloud.md)
+[Train a TensorFlow Estimator on Kubernetes](docs/tutorial/tf_elasticjob_on_k8s.md)
 
-[Train a PyTorch Model on Kubernetes](docs/tutorial/torch_on_cloud.md)
+[Train a PyTorch Model on Kubernetes](docs/tutorial/torch_elasticjob_on_k8s.md)
 
-[Train a GPT Model on Kubernetes](docs/tutorial/torch_ddp_nanogpt.md)
+[Train a GPT Model.](docs/tutorial/torch_nanogpt.md)
 
 [Train a llama2 model.](examples/pytorch/llama2/README.md)
