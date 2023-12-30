@@ -128,7 +128,7 @@ world，每个 world 内的节点上执行 allgather 任务并将成功与否上
 说明节点6 就是故障节点。然后，DLRover 会重新拉起一个 Pod，替换节点6。
 
 <div align="center">
-<img src="../figures/ft_llm_training/node_healthy_check.jpg" alt="Editor" width="600">
+<img src="../figures/ft_llm_training/node_health_check.jpg" alt="Editor" width="600">
 </div>
 
 ### DLRover 错误日志收集

@@ -62,8 +62,6 @@ use the command in the containers of worker.
 ```bash
 dlrover-run --nnodes=$WORKER_NUM \
     --nproc_per_node=${GPU_NUM_PER_NODE} --max_restarts=1  \
-    ./examples/pytorch/nanogpt/train.py  \
-    --data_dir '/data/nanogpt/' \
-    --gradient_accumulation_steps $((WORKER_NUM * 1)) \
-    --use_fsdp
+    ./examples/pytorch/nanogpt/fsdp_train.py  \
+    --data_dir '/data/nanogpt/' --epochs 50 --checkpoint_step 50 \
 ```

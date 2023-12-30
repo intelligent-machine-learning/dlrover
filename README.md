@@ -212,10 +212,10 @@ Please refer to the [DEVELOPMENT](docs/developer_guide.md)
 
 ## Quick Start
 
-[Train a TensorFlow Estimator on Kubernetes](docs/tutorial/tf_ps_on_cloud.md)
-
 [Train a PyTorch Model on Kubernetes](docs/tutorial/torch_on_cloud.md)
 
 [Train a GPT Model on Kubernetes](docs/tutorial/torch_ddp_nanogpt.md)
 
-[Train a llama2 model.](examples/pytorch/llama2/README.md)
+[Use DLRover to check slow/fault node](docs/tutorial/check_node_health.md)
+
+[Train a TensorFlow Estimator on Kubernetes](docs/tutorial/tf_ps_on_cloud.md)
