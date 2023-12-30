@@ -22,7 +22,7 @@ class DdpCheckpointer(Checkpointer):
 
     Args:
         checkpoint_dir: the directory to save the checkpoint.
-    
+
     Examples::
         >>> checkpointer = DdpCheckpointer(
         >>>     checkpoint_dir="/tmp/checkpoint/"
@@ -41,6 +41,7 @@ class DdpCheckpointer(Checkpointer):
         >>>         )
         >>> sate_dict = engine.load_checkpoint()
     """
+
     def __init__(self, checkpoint_dir: str):
         self._engine = DdpCheckpointEngine(checkpoint_dir)
 

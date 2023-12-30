@@ -61,6 +61,7 @@ class FsdpCheckpointer(Checkpointer):
         >>> )
         >>> optimizer.load_state_dict(flattened_osd)
     """
+
     def __init__(self, checkpoint_dir: str):
         self._engine = FsdpCheckpointEngine(checkpoint_dir)
 
