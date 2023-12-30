@@ -17,6 +17,51 @@ from .fsdp_engine import FsdpCheckpointEngine
 
 
 class FsdpCheckpointer(Checkpointer):
+    """
+    Flash checkpointer saves and loads a FSDP module.
+
+    Args:
+        checkpoint_dir: the directory to save the checkpoint.
+
+    Examples::
+        >>> checkpointer = FsdpCheckpointer(checkpoint_dir)
+        >>> # Save checkpoint
+        >>> with FSDP.state_dict_type(model, StateDictType.SHARDED_STATE_DICT):
+        >>>     state_dict = {
+        >>>         "model": model.state_dict(),
+        >>>         "optim": FSDP.optim_state_dict(model, optimizer),
+        >>>     }
+        >>> ckpt_dir = os.path.join(checkpoint_dir, str(step))
+        >>> if step % save_memory_interval == 0:
+        >>>     checkpointer.save_checkpoint(
+        >>>         step, state_dict, ckpt_dir, storage_type=StorageType.MEMORY
+        >>>     )
+        >>> if step % save_storage_interval == 0:
+        >>>     checkpointer.save_checkpoint(
+        >>>         step, state_dict, ckpt_dir, storage_type=StorageType.DISK
+        >>>     )
+        >>> # Load checkpoint
+        >>> with FSDP.state_dict_type(model, StateDictType.SHARDED_STATE_DICT):
+        >>> state_dict = {"model": model.state_dict()}
+        >>> storage_reader = checkpointer.get_storage_reader()
+        >>> if not storage_reader:
+        >>>     return
+        >>> dist_cp.load_state_dict(
+        >>>     state_dict=state_dict,
+        >>>     storage_reader=storage_reader,
+        >>> )
+        >>> model.load_state_dict(state_dict["model"])
+        >>> optim_state = load_sharded_optimizer_state_dict(
+        >>>     model_state_dict=state_dict["model"],
+        >>>     optimizer_key="optim",
+        >>>     storage_reader=storage_reader,
+        >>> )
+        >>> flattened_osd = FSDP.optim_state_dict_to_load(
+        >>>     model, optimizer, optim_state["optim"]
+        >>> )
+        >>> optimizer.load_state_dict(flattened_osd)
+    """
+
     def __init__(self, checkpoint_dir: str):
         self._engine = FsdpCheckpointEngine(checkpoint_dir)
 

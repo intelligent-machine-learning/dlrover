@@ -17,6 +17,31 @@ from .ddp_engine import DdpCheckpointEngine
 
 
 class DdpCheckpointer(Checkpointer):
+    """
+    Flash checkpointer to save and load a DDP model.
+
+    Args:
+        checkpoint_dir: the directory to save the checkpoint.
+
+    Examples::
+        >>> checkpointer = DdpCheckpointer(
+        >>>     checkpoint_dir="/tmp/checkpoint/"
+        >>> )
+        >>> for step, data in enumerate(dataloader):
+        >>>     ...
+        >>>     state_dict = model.state_dict()
+        >>>     path = f"/tmp/checkpoint-{step}.pt"
+        >>>     if step % 5 == 0:
+        >>>         checkpointer.save_checkpoint(
+        >>>             step, state_dict, path, storage_type=StorageType.Memory
+        >>>         )
+        >>>     elif step % 100 == 0:
+        >>>         checkpointer.save_checkpoint(
+        >>>             step, state_dict, path, storage_type=StorageType.DISK
+        >>>         )
+        >>> sate_dict = engine.load_checkpoint()
+    """
+
     def __init__(self, checkpoint_dir: str):
         self._engine = DdpCheckpointEngine(checkpoint_dir)
 

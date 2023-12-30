@@ -71,23 +71,20 @@ class AsyncSaveEngine(CheckpointEngine):
 
 class DeepSpeedCheckpointer(Checkpointer):
     """
-    The manager can synchronously save the DeepSpeedEngine checkpoint
-    to the memory and asynchronously save the checkpointing states
-    into the storage.
+    Flash checkpointer saves and loads a DeepSpeedEngine module.
 
     Args:
-        engine (DeepSpeedEngine): a DeepSpeedEngine instance.
         checkpoint_dir: the directory to save the checkpoint.
 
     Examples::
         >>> engine = deepspeed.initialize(...)
-        >>> ckpt_manager = DeepSpeedCheckpointer(engine, save_dir)
+        >>> checkpointer = DeepSpeedCheckpointer(engine, save_dir)
         >>> if step % 10 == 0:
-        >>>     ckpt_manager.save_checkpoint(
+        >>>     checkpointer.save_checkpoint(
         >>>         save_dir, tag, storage_type=StorageType.MEMORY
         >>>     )
         >>> if step % 100 == 0:
-        >>>     ckpt_manager.save_checkpoint(
+        >>>     checkpointer.save_checkpoint(
         >>>         save_dir, tag, storage_type=StorageType.DISK
         >>>     )
     """
