@@ -32,7 +32,7 @@ dlrover-run --standalone --nproc_per_node=${GPU_NUM} examples/pytorch/llama2/lla
 
 If we want to train the llama2 with DLRover on multiple nodes, we need to firstly
 deploy the DLRover ElasticJob CRD on the k8s cluster with the
-[tutorial](../../../docs/tutorial/torch_on_cloud.md).
+[tutorial](../../../docs/tutorial/torch_elasticjob_on_k8s.md).
 
 ### Prepare Docker Image
 
