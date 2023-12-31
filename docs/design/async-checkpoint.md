@@ -44,7 +44,7 @@ will block the training to save checkpoint with a little time.
 
 ## A daemon Subprocess of the Training Process Asynchronously Saves Checkpoint to the Storage
 
-We can start a daemon subprocess in the training process to save checkpoint to the storage. 
+We can start a daemon subprocess in the training process to save checkpoint to the storage.
 
 - Start a thread to save states from GPU to CPU memory.
 - Make the memory buffer to place Torch tensors of states.
@@ -149,7 +149,9 @@ finish the writing.
 
 ## Checkpoint APIs Design
 
-The engine synchronously saves the checkpointing state dict into the CPU memory buffer and notifies the checkpoint saver to save the checkpoint from CPU memory buffer to the storage.
+The engine synchronously saves the checkpointing state dict into the CPU memory
+buffer and notifies the checkpoint saver to save the checkpoint from CPU memory
+buffer to the storage.
 
 ```Python
 

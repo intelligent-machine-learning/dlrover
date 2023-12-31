@@ -17,8 +17,7 @@ The start command on a local ndoe:
 
 dlrover-run --nnodes=1 --max_restarts=2 --nproc_per_node=2 \
     ds_train.py --n_layer 36 --n_head 20 --n_embd 1280 \
-    --data_dir './' \
-    --device cuda --ds_config ./ds_config.json \
+    --data_dir './' --ds_config ./ds_config.json \
     --epochs 50 --checkpoint_step 50
 """
 
