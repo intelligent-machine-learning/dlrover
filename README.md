@@ -49,7 +49,7 @@ training job. The actions to restore training in DLRover are:
 For detail, we can see [experiments](docs/tech_report/fault_tolerance_exps.md)
 of fault-tolerance and elasticity.
 
-#### Fault Tolerance and Flash Checkpoint to Reduce Downtime of PyTorch Training.
+#### Fault Tolerance and Flash Checkpoint to Reduce Downtime of PyTorch Training
 
 In addition to fault tolerance, DLRover provides the flash checkpoint to
 save/load checkpoint in seconds. With flash checkpoint, the training can
@@ -205,11 +205,7 @@ Please refer to the [DEVELOPMENT](docs/developer_guide.md)
 
 ## Quick Start
 
-<<<<<<< HEAD
 [Train a PyTorch Model on Kubernetes.](docs/tutorial/torch_elasticjob_on_k8s.md)
-=======
-[Train a PyTorch Model on Kubernetes.](docs/tutorial/torch_on_cloud.md)
->>>>>>> master
 
 [Train a GPT Model on Kubernetes.](docs/tutorial/torch_ddp_nanogpt.md)
 
