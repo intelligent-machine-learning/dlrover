@@ -192,6 +192,9 @@ class CheckpointSaverTest(unittest.TestCase):
             self.assertEqual(len(ckpt_files), 3)
             saver.close()
 
+            saver._node_rank = 1
+            saver.persist_to_storage(0, None)
+
     def test_shard_num_changes(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             saver = DdpCheckpointSaver(tmpdir)

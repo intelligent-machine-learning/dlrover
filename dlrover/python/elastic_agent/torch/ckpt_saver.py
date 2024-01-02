@@ -947,7 +947,7 @@ class DdpCheckpointSaver(CommonDirCheckpointSaver):
         ckpt_config: SingleFileCheckpointConfig,
     ):
         if self._node_rank != 0:
-            logger.info("Skip saving checkpoint because only rank 0 saves.")
+            logger.info("Skip and only rank 0 saves checkpoint in a DDP job.")
             return
         state_dict = self._shm_handlers[local_shard_id].load_state_dict()
         state_dict.pop(DLROVER_CKPT_CONFIG_KEY, None)
@@ -982,9 +982,6 @@ class MegatronCheckpointSaver(CommonDirCheckpointSaver):
         local_shard_id: int,
         ckpt_config: SingleFileCheckpointConfig,
     ):
-        if self._node_rank != 0:
-            logger.info("Skip saving checkpoint because only rank 0 saves.")
-            return
         state_dict = self._shm_handlers[local_shard_id].load_state_dict()
         state_dict.pop(DLROVER_CKPT_CONFIG_KEY, None)
         checkpoint_dir = os.path.dirname(ckpt_config.path)
