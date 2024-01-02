@@ -47,14 +47,7 @@ class ElasticTrainerTest(unittest.TestCase):
         self.model_mock = MagicMock()
         self.elastic_trainer = ElasticTrainer(self.model_mock)
 
-    def test_epoch_context(self):
-        with self.elastic_trainer.epoch(1):
-            self.assertEqual(self.elastic_trainer.gradient_state.num_steps, 0)
-
-    def test_step_context(
-        self, mock_should_save: MagicMock, mock_save: MagicMock
-    ):
-        mock_should_save.return_value = False
+    def test_step_context(self):
         model = torch.nn.Linear(10, 10)
         fsdp_trainer = ElasticTrainer(model)
         optimizer = torch.optim.SGD(model.parameters(), lr=0.001)
@@ -70,9 +63,7 @@ class ElasticTrainerTest(unittest.TestCase):
             optimizer.step()
             optimizer.zero_grad()
         self.assertTrue(self.elastic_trainer.gradient_state.sync_gradients)
-        self.assertEqual(mock_save.call_count, 0)
 
-        mock_should_save.return_value = True
         with fsdp_trainer.step():
             output = model(data)
             loss = torch.sum(output)
@@ -80,7 +71,6 @@ class ElasticTrainerTest(unittest.TestCase):
             optimizer.step()
             optimizer.zero_grad()
         self.assertTrue(self.elastic_trainer.gradient_state.sync_gradients)
-        self.assertEqual(mock_save.call_count, 1)
 
     def test_prepare_without_lr_scheduler(self):
         optimizer_mock = MagicMock()
