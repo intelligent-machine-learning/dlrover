@@ -746,18 +746,6 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
 
         self._writing_storage = False
 
-    def persist_to_storage(
-        self,
-        local_shard_id: int,
-        ckpt_config: SingleFileCheckpointConfig,
-    ):
-        """Persist the checkpoint from CPU memory buffer into the storage."""
-        state_dict = self._shm_handlers[local_shard_id].load_state_dict()
-        state_dict.pop(DLROVER_CKPT_CONFIG_KEY, None)
-        checkpoint_dir = os.path.dirname(ckpt_config.path)
-        os.makedirs(checkpoint_dir, exist_ok=True)
-        torch.save(state_dict, ckpt_config.path)
-
     def commit_checkpoint(self, step: int, step_done_dir: str, timeout=600):
         """
         The node rank 0 will update the tracker file with the step
@@ -950,6 +938,24 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
             time.sleep(2)
 
 
+class DdpCheckpointSaver(CommonDirCheckpointSaver):
+    """Persist the checkpoint from CPU memory buffer into the storage."""
+
+    def persist_to_storage(
+        self,
+        local_shard_id: int,
+        ckpt_config: SingleFileCheckpointConfig,
+    ):
+        if self._node_rank != 0:
+            logger.info("Skip and only rank 0 saves checkpoint in a DDP job.")
+            return
+        state_dict = self._shm_handlers[local_shard_id].load_state_dict()
+        state_dict.pop(DLROVER_CKPT_CONFIG_KEY, None)
+        checkpoint_dir = os.path.dirname(ckpt_config.path)
+        os.makedirs(checkpoint_dir, exist_ok=True)
+        torch.save(state_dict, ckpt_config.path)
+
+
 class MegatronCheckpointSaver(CommonDirCheckpointSaver):
     TRACER_FILE = "latest_checkpointed_iteration.txt"
 
@@ -970,6 +976,17 @@ class MegatronCheckpointSaver(CommonDirCheckpointSaver):
         )
         with open(ds_tracker_filename, "w") as f:
             f.write(str(step))
+
+    def persist_to_storage(
+        self,
+        local_shard_id: int,
+        ckpt_config: SingleFileCheckpointConfig,
+    ):
+        state_dict = self._shm_handlers[local_shard_id].load_state_dict()
+        state_dict.pop(DLROVER_CKPT_CONFIG_KEY, None)
+        checkpoint_dir = os.path.dirname(ckpt_config.path)
+        os.makedirs(checkpoint_dir, exist_ok=True)
+        torch.save(state_dict, ckpt_config.path)
 
 
 class DeepSpeedCheckpointSaver(CommonDirCheckpointSaver):

@@ -36,7 +36,7 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
     CheckpointEventType,
     CheckpointShardConfig,
     CheckpointSharedObjPrefix,
-    CommonDirCheckpointSaver,
+    DdpCheckpointSaver,
     FsdpDcpSaver,
     SaverClassMeta,
     SharedMemoryHandler,
@@ -110,8 +110,8 @@ class CheckpointSaverTest(unittest.TestCase):
     def test_create_checkpoint_saver(self):
         sq = SharedQueue(name="factory", create=False)
         class_meta = SaverClassMeta(
-            module_path=CommonDirCheckpointSaver.__module__,
-            class_name=CommonDirCheckpointSaver.__name__,
+            module_path=DdpCheckpointSaver.__module__,
+            class_name=DdpCheckpointSaver.__name__,
             init_args={"checkpoint_dir": "test_ckpt"},
         )
         sq.put(class_meta)
@@ -123,7 +123,7 @@ class CheckpointSaverTest(unittest.TestCase):
         self.assertIsNotNone(AsyncCheckpointSaver._saver_instance)
 
     def test_close_saver(self):
-        saver = CommonDirCheckpointSaver("test_ckpt")
+        saver = DdpCheckpointSaver("test_ckpt")
         try:
             SharedMemory(name="test").unlink()
         except Exception:
@@ -168,7 +168,7 @@ class CheckpointSaverTest(unittest.TestCase):
             step=step,
         )
         with tempfile.TemporaryDirectory() as tmpdir:
-            saver = CommonDirCheckpointSaver(tmpdir)
+            saver = DdpCheckpointSaver(tmpdir)
             path = Path(tmpdir) / "checkpoint.pt"
             ckpt_config = SingleFileCheckpointConfig(step=100, path=path)
             saver._shm_handlers[0].save_state_dict(state_dict, ckpt_config)
@@ -192,9 +192,12 @@ class CheckpointSaverTest(unittest.TestCase):
             self.assertEqual(len(ckpt_files), 3)
             saver.close()
 
+            saver._node_rank = 1
+            saver.persist_to_storage(0, None)
+
     def test_shard_num_changes(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            saver = CommonDirCheckpointSaver(tmpdir)
+            saver = DdpCheckpointSaver(tmpdir)
             saver.global_shard_num = 1
             threading.Thread(
                 target=saver._sync_shm_to_storage, daemon=True
@@ -216,7 +219,7 @@ class CheckpointSaverTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             step_done_dir = os.path.join(tmpdir, ".done/10/")
             os.makedirs(step_done_dir, exist_ok=True)
-            saver = CommonDirCheckpointSaver(tmpdir)
+            saver = DdpCheckpointSaver(tmpdir)
             saver.global_shard_num = 1
             saver.commit_checkpoint(100, step_done_dir, 2)
 

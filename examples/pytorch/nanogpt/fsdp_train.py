@@ -12,6 +12,15 @@
 # limitations under the License.
 
 
+"""
+The start command on a local ndoe:
+
+dlrover-run --nproc_per_node=2 fsdp_train.py \
+    --n_layer 48 --n_head 16 --n_embd 1600 --data_dir './' \
+    --epochs 50 --save_memory_interval 50 --save_storage_interval 500
+"""
+
+
 import argparse
 import contextlib
 import functools
@@ -46,12 +55,10 @@ from dlrover.trainer.torch.flash_checkpoint.fsdp import (
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 
-# We should use a shared storage to persist the checkpiont.
-checkpoint_dir = "/nas/nanogpt-ckpt-fsdp/"
-
 
 def train():
     args = arg_parser()
+    checkpoint_dir = args.save_dir
     setup()
     os.makedirs(checkpoint_dir, exist_ok=True)
     world_size = int(os.getenv("WORLD_SIZE", 1))
@@ -153,7 +160,7 @@ def train():
 
     start_load_t = time.time()
     if args.use_native_ckpt:
-        iter_num = native_load_checkpoint(0, model, optimizer)
+        iter_num = native_load_checkpoint(0, model, optimizer, checkpoint_dir)
     else:
         checkpointer = FsdpCheckpointer(checkpoint_dir)
         iter_num = flash_load_checkpoint(checkpointer, model, optimizer)
@@ -222,7 +229,11 @@ def train():
             start_save_t = time.time()
             if args.use_native_ckpt:
                 saved = native_save_checkpoint(
-                    iter_num, model, optimizer, args.save_storage_interval
+                    iter_num,
+                    model,
+                    optimizer,
+                    args.save_storage_interval,
+                    checkpoint_dir,
                 )
             else:
                 saved = flash_save_checkpoint(
@@ -232,6 +243,7 @@ def train():
                     optimizer,
                     args.save_memory_interval,
                     args.save_storage_interval,
+                    checkpoint_dir,
                 )
             if saved:
                 save_time = round(time.time() - start_save_t, 2)
@@ -246,7 +258,7 @@ def train():
             break
 
 
-def native_load_checkpoint(step, model, optimizer):
+def native_load_checkpoint(step, model, optimizer, checkpoint_dir):
     with FSDP.state_dict_type(model, StateDictType.SHARDED_STATE_DICT):
         state_dict = {
             "model": model.state_dict(),
@@ -277,7 +289,9 @@ def native_load_checkpoint(step, model, optimizer):
         return state_dict["step"]
 
 
-def native_save_checkpoint(step, model, optimizer, save_storage_interval):
+def native_save_checkpoint(
+    step, model, optimizer, save_storage_interval, checkpoint_dir
+):
     saved = False
     if step % save_storage_interval != 0:
         return saved
@@ -289,7 +303,6 @@ def native_save_checkpoint(step, model, optimizer, save_storage_interval):
             "optim": FSDP.optim_state_dict(model, optimizer),
             "step": step,
         }
-        print(f"save checkpoint to {ckpt_dir}")
         if step % save_storage_interval == 0:
             dist_cp.save_state_dict(
                 state_dict=state_dict,
@@ -336,6 +349,7 @@ def flash_save_checkpoint(
     optimizer,
     save_memory_interval,
     save_storage_interval,
+    checkpoint_dir,
 ):
     saved = False
     if step % save_memory_interval != 0 and step % save_storage_interval != 0:
@@ -347,7 +361,6 @@ def flash_save_checkpoint(
             "step": step,
         }
         ckpt_dir = os.path.join(checkpoint_dir, str(step))
-        print(f"save checkpoint to {ckpt_dir}")
         if step % save_memory_interval == 0:
             checkpointer.save_checkpoint(
                 step, state_dict, ckpt_dir, storage_type=StorageType.MEMORY

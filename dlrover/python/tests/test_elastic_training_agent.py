@@ -32,7 +32,7 @@ from dlrover.python.elastic_agent.master_client import (
 from dlrover.python.elastic_agent.monitor.training import TorchTrainingMonitor
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     AsyncCheckpointSaver,
-    CommonDirCheckpointSaver,
+    DdpCheckpointSaver,
 )
 from dlrover.python.elastic_agent.torch.training import (
     ElasticLaunchConfig,
@@ -284,7 +284,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             start_method=self.config.start_method,
             log_dir=self.config.log_dir,
         )
-        saver = CommonDirCheckpointSaver("/tmp/test")
+        saver = DdpCheckpointSaver("/tmp/test")
         AsyncCheckpointSaver._saver_instance = saver
         agent._save_ckpt_to_storage()
         agent._stop_workers_to_restart()
