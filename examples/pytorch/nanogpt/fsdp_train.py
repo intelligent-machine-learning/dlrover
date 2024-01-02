@@ -12,6 +12,15 @@
 # limitations under the License.
 
 
+"""
+The start command on a local ndoe:
+
+dlrover-run --nproc_per_node=2 fsdp_train.py \
+    --n_layer 48 --n_head 16 --n_embd 1600 --data_dir './' \
+    --epochs 50 --save_memory_interval 50 --save_storage_interval 500
+"""
+
+
 import argparse
 import contextlib
 import functools
