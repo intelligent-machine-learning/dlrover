@@ -7,7 +7,7 @@ of DLRover ElasticJob. In the experiments, we use the chaos enginerring toolkit
 ## Preliminary
 
 - Create a k8s cluster and configure cluster credentials on your local computer.
-- Deploy DLRover ElasticJob on the k8s cluster with the [tutorial](torch_on_cloud.md).
+- Deploy DLRover ElasticJob on the k8s cluster with the [tutorial](../tutorial/torch_elasticjob_on_k8s.md).
 - Build the image with chaosblade like the [example](../../examples/pytorch/mnist/mnist_chaos.dockerfile).
 
 ## Experiments of PyTorch Distributed Job
