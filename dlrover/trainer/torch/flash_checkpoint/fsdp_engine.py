@@ -503,6 +503,9 @@ class FsdpCheckpointEngine(CheckpointEngine):
         if self._local_rank != 0:
             return
         if path:
+            logger.info(
+                "Put a save event to notify the agent persists checkpoint."
+            )
             event = CheckpointEvent(type=CheckpointEventType.SAVE, step=step)
             self._event_queue.put(event)
 

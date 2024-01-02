@@ -47,12 +47,10 @@ from dlrover.trainer.torch.flash_checkpoint.deepspeed import (
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 
-# We should use a shared storage to persist the checkpiont.
-checkpoint_dir = "/nas/nanogpt-ckpt-ds/"
-
 
 def train():
     args = arg_parser()
+    checkpoint_dir = args.save_dir
     setup()
     os.makedirs(checkpoint_dir, exist_ok=True)
     world_size = int(os.getenv("WORLD_SIZE", 1))
@@ -212,6 +210,7 @@ def train():
                     iter_num,
                     args.save_memory_interval,
                     args.save_storage_interval,
+                    checkpoint_dir,
                 )
             if saved:
                 save_time = round(time.time() - start_save_t, 2)
@@ -243,6 +242,7 @@ def flash_save_checkpoint(
     iter_num,
     save_memory_interval,
     save_storage_interval,
+    checkpoint_dir,
 ):
     saved = False
     if iter_num % save_memory_interval == 0:
