@@ -49,18 +49,20 @@ training job. The actions to restore training in DLRover are:
 For detail, we can see [experiments](docs/tech_report/fault_tolerance_exps.md)
 of fault-tolerance and elasticity.
 
-### Flash Checkpoint to Reduce the Time Overhead to Save/Load Checkpoint
+#### Fault Tolerance and Flash Checkpoint to Reduce Downtime of PyTorch Training.
 
-DLRover Flash Checkpoint can save/load checkpoint in seconds and the training
-can frequently do checkpoint with a little time. The actions of flash checkpoint are:
+In addition to fault tolerance, DLRover provides the flash checkpoint to
+save/load checkpoint in seconds. With flash checkpoint, the training can
+frequently save checkpoints and reduce the roll-back step to resume training
+from the latest checkpoint when a failure happens. The actions of flash checkpoint are:
 
 1. Asynchronously persist the checkpoint to the storage.
 2. Persist the checkpoint to the storage once the training process fails.
 3. Load the checkpoint from the host memory after the training process restarts.
 
-After applying the fault tolerance and flash checkpoint of DLRover, the overall goodput
-(the time spent computing useful new steps over the elapsed time of the training job)
-for the largest-scale training job using thousands of GPUs increased from 69% to 95%.
+After applying the fault tolerance and flash checkpoint of DLRover, **the overall goodput
+for the largest-scale training job using thousands of GPUs increased from 69% to 95%** .
+The goodput is the time spent computing useful new steps over the elapsed time of the training job.
 The downtime details are shown:
 
 <div align="center">
@@ -76,8 +78,8 @@ DLRover can recover failed parameter servers and workers to resume training.
 3. DLRover can automatically scale up the parameter servers to fit the model size.
 
 In AntGroup, DLRover manages hundreds of DL training jobs every day on the customized Kubernetes cluster in AntGroup.
-Except for the failed job resulting from code errors, the rate of completed jobs raise 89%
-with tf-operator in KubeFlow to 95%. Other unrecoverable failure reasons of a job are data error,
+Except for the failed job resulting from code errors, *the rate of completed jobs increase from 89%
+with tf-operator in KubeFlow to 95%*. Other unrecoverable failure reasons of a job are data error,
 NaN loss of the model, network breakdown, and so on.
 
 <div align="center">
