@@ -306,15 +306,14 @@ def flash_save_checkpoint(
             iter_num, train_loader.batch_size
         )
         state_dict["ds_sampler"] = sampler_sd
-    ckpt_path = os.path.join(checkpoint_dir, f"checkpoint-{iter_num}.pt")
     if iter_num % save_memory_interval == 0:
         checkpointer.save_checkpoint(
-            iter_num, state_dict, ckpt_path, storage_type=StorageType.MEMORY
+            iter_num, state_dict, storage_type=StorageType.MEMORY
         )
         saved = True
     if iter_num % save_storage_interval == 0:
         checkpointer.save_checkpoint(
-            iter_num, state_dict, ckpt_path, storage_type=StorageType.DISK
+            iter_num, state_dict, storage_type=StorageType.DISK
         )
         saved = True
     return saved
