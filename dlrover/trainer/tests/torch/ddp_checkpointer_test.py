@@ -42,13 +42,14 @@ class SimpleNet(nn.Module):
 
 class DdpCheckpoinerTest(unittest.TestCase):
     def setUp(self) -> None:
+        DdpCheckpointSaver._saver_instance = None
         DdpCheckpointSaver.start_async_saving_ckpt()
 
     def tearDown(self) -> None:
         if DdpCheckpointSaver._saver_instance:
             DdpCheckpointSaver._saver_instance.close()
 
-    def test_ddp_checkppinter(self):
+    def test_ddp_checkpointer(self):
         model = SimpleNet()
         with tempfile.TemporaryDirectory() as tmpdir:
             checkpointer = DdpCheckpointer(tmpdir)

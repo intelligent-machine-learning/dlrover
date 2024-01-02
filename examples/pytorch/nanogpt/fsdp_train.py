@@ -298,7 +298,6 @@ def native_save_checkpoint(step, model, optimizer, save_storage_interval):
             "optim": FSDP.optim_state_dict(model, optimizer),
             "step": step,
         }
-        print(f"save checkpoint to {ckpt_dir}")
         if step % save_storage_interval == 0:
             dist_cp.save_state_dict(
                 state_dict=state_dict,
@@ -356,7 +355,6 @@ def flash_save_checkpoint(
             "step": step,
         }
         ckpt_dir = os.path.join(checkpoint_dir, str(step))
-        print(f"save checkpoint to {ckpt_dir}")
         if step % save_memory_interval == 0:
             checkpointer.save_checkpoint(
                 step, state_dict, ckpt_dir, storage_type=StorageType.MEMORY
