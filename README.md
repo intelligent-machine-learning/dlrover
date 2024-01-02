@@ -203,7 +203,11 @@ Please refer to the [DEVELOPMENT](docs/developer_guide.md)
 
 ## Quick Start
 
+<<<<<<< HEAD
 [Train a PyTorch Model on Kubernetes.](docs/tutorial/torch_elasticjob_on_k8s.md)
+=======
+[Train a PyTorch Model on Kubernetes.](docs/tutorial/torch_on_cloud.md)
+>>>>>>> master
 
 [Train a GPT Model on Kubernetes.](docs/tutorial/torch_ddp_nanogpt.md)
 
