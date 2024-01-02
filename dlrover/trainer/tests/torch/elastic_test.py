@@ -15,7 +15,7 @@ import json
 import os
 import tempfile
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import numpy as np
 import torch
@@ -25,7 +25,6 @@ from dlrover.python.common.constants import ConfigPath
 from dlrover.python.common.grpc import ParallelConfig
 from dlrover.trainer.torch.elastic.dataloader import ElasticDataLoader
 from dlrover.trainer.torch.elastic.trainer import (
-    CheckpointInterval,
     ElasticTrainer,
     _ElasticLRScheduler,
     _ElasticOptimizer,
@@ -43,22 +42,6 @@ class SimpleDataset(Dataset):
         return self.data[index]
 
 
-class CheckpointIntervalTest(unittest.TestCase):
-    def test_steps(self):
-        ci = CheckpointInterval(steps=10)
-        self.assertTrue(ci.should_save(current_step=10))
-        self.assertFalse(ci.should_save(current_step=5))
-
-    def test_epochs(self):
-        ci = CheckpointInterval(epochs=3)
-        self.assertTrue(ci.should_save(current_epoch=3))
-        self.assertFalse(ci.should_save(current_epoch=1))
-
-    def test_invalid_input(self):
-        with self.assertRaises(ValueError):
-            CheckpointInterval(epochs=3, steps=10)
-
-
 class ElasticTrainerTest(unittest.TestCase):
     def setUp(self):
         self.model_mock = MagicMock()
@@ -68,23 +51,12 @@ class ElasticTrainerTest(unittest.TestCase):
         with self.elastic_trainer.epoch(1):
             self.assertEqual(self.elastic_trainer.gradient_state.num_steps, 0)
 
-    @patch(
-        "dlrover.trainer.torch.elastic.trainer.ElasticTrainer._save_fsdp_ckpt"
-    )
-    @patch(
-        "dlrover.trainer.torch.elastic.trainer.CheckpointInterval.should_save"
-    )
     def test_step_context(
         self, mock_should_save: MagicMock, mock_save: MagicMock
     ):
         mock_should_save.return_value = False
         model = torch.nn.Linear(10, 10)
-        fsdp_trainer = ElasticTrainer(
-            model,
-            use_fsdp=True,
-            shared_storage_path="fake://",
-            ckpt_interval=CheckpointInterval(steps=100),
-        )
+        fsdp_trainer = ElasticTrainer(model)
         optimizer = torch.optim.SGD(model.parameters(), lr=0.001)
         optimizer = self.elastic_trainer.prepare(optimizer)
 
