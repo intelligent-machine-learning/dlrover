@@ -1,5 +1,7 @@
 # DLRover 发布 Flash Checkpoint 实现大模型训练的秒级容错
 
+[English](./flash_checkpoint.md)
+
 ## 背景
 
 当前，大模型训练往往使用成百上千加速卡训练几周到几个月不等。在训练过程中，故障导致训练中断经常发生的，
@@ -19,7 +21,7 @@ checkpoint 方案来将训练状态持久化到存储。为了保证训练状态
 <div align="center">
 <img src="../figures/ft_llm_training/checkpoint_overhead.jpg" alt="Editor" width="800">
 
-<text>Checkpoint 的时间损耗</text>
+<text>图1: Checkpoint 的时间损耗</text>
 </div>
 
 低开销的 checkpoint 方案可以大幅降低训练暂停时间，也能支持高频的 checkpoint 来减少容错时浪费的迭代步数
@@ -48,7 +50,7 @@ checkpoint 的时间开销只有将 Tensor 数据从设备内存拷贝到主机�
 <div align="center">
 <img src="../figures/ft_llm_training/async_checkpoint.jpg" alt="Editor" width="800">
 
-<text>Flash Checkpoint 的异步持久化</text>
+<text>图2: Flash Checkpoint 的异步持久化</text>
 </div>
 
 ### 断点续存与内存热加载
@@ -64,8 +66,9 @@ checkpoint 数据并未丢失，新启动的训练进程可以直接读取共享
 
 <div align="center">
 <img src="../figures/ft_llm_training/in-memory_restore.jpg" alt="Editor" width="800">
+
+<text>图3: Flash Checkpoint 的断点续传与内存热加载</text>
 </div>
-<center style="font-size:14px;color:#C0C0C0">Flash Checkpoint 的断点续传与内存热加载</center>
 
 ### 与原生框架一致的 Save/Load 接口
 
@@ -260,16 +263,18 @@ DLRover Flash Checkpoint 更是降低了近百倍的阻塞时间。
 
 <div align="center">
 <img src="../figures/ft_llm_training/checkpoint_save_time.png" alt="Editor" width="800">
+
+<text>图4: checkpoint 持久化的时间开销</text>
 </div>
-<center style="font-size:14px;color:#C0C0C0">checkpoint 持久化的时间开销</center>
 
 下图显示了，可以通过重启训练进程恢复时读取 checkpoint 文件的 IO 时间开销，
 DLRover Flash Checkpoint 直接从共享内存恢复比读 NVMe SSD 快一倍以上，比 NAS 快几十倍。
 
 <div align="center">
 <img src="../figures/ft_llm_training/checkpoint_load_time.jpg" alt="Editor" width="800">
+
+<text>图5: checkpoint 加载时间</text>
 </div>
-<center style="font-size:14px;color:#C0C0C0">checkpoint 加载时间</center>
 
 ### 千卡训练 GLM-65B 模型
 
@@ -280,16 +285,18 @@ checkpoint 需要阻塞训练约 2 min。上线后每次 checkpoint 只需要阻
 
 <div align="center">
 <img src="../figures/ft_llm_training/glm65b_checkpoint_time.jpg" alt="Editor" width="800">
+
+<text>图6: GLM-65B checkpoint 时间</text>
 </div>
-<center style="font-size:14px;color:#C0C0C0;">GLM-65B checkpoint 时间</center>
 
 同时，我们统计一周内上线 Flash Checkpoint 前后 checkpoint 的累积时间开销。可以看出，Flash
 Checkpoint 频次虽然变高了很多20倍，但是累积时间开销却却降低了几十倍。同时，故障浪费的训练时间也降低了约3倍。
 
 <div align="center">
 <img src="../figures/ft_llm_training/glm65b_wasted_time.jpg" alt="Editor" width="800">
+
+<text>图7: 一周内 GLM-65B 训练因为checkpoint浪费的时间</text>
 </div>
-<center style="font-size:14px;color:#C0C0C0">一周内 GLM-65B 训练因为checkpoint浪费的时间</center>
 
 ## 快速开始例子
 

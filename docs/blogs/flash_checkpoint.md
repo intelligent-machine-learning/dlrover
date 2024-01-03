@@ -1,5 +1,7 @@
 # DLRover Releases Flash Checkpoint to Recover Large Model Training From Failure in Seconds
 
+[中文](./flash_checkpoint_cn.md)
+
 ## BackGround
 
 Currently, training large models needs hundreds to thousands of accelerators and runs from
@@ -24,8 +26,9 @@ too many iteration steps after a failure.
 
 <div align="center">
 <img src="../figures/ft_llm_training/checkpoint_overhead.jpg" alt="Editor" width="600">
+
+<text>Figure 1: The Wasted Time of Checkpoint</text>
 </div>
-<center style="font-size:14px;color:#C0C0C0">The Wasted Time of Checkpoint</center>
 
 A low-overhead checkpoint scheme can significantly reduce pause time during training and also support
 high-frequency checkpoints to reduce the number of wasted iteration steps. DLRover has introduced the
@@ -68,8 +71,9 @@ unidirectional bandwidth of up to 32GB/s and the copy can be completed in second
 
 <div align="center">
 <img src="../figures/ft_llm_training/async_checkpoint.jpg" alt="Editor" width="600">
+
+<text>Figure 2: Flash Checkpoint Async Persistence</text>
 </div>
-<center style="font-size:14px;color:#C0C0C0">Flash Checkpoint Async Persist</center>
 
 ### Persist at Break Point and In-Memory Recovery
 
@@ -88,8 +92,9 @@ This can avoid the IO overhead to read the remote storage system.
 
 <div align="center">
 <img src="../figures/ft_llm_training/in-memory_restore.jpg" alt="Editor" width="600">
+
+<text>Figure 3: Flash Checkpoint Persistence at Break Point and In-Memory Recovery</text>
 </div>
-<center style="font-size:14px;color:#C0C0C0">Flash Checkpoint Persist at Break Point and In-Memory Recovery</center>
 
 ### Simple and Easy-to-Use APIs
 
@@ -298,8 +303,9 @@ Compared to NAS remote file systems, FCP reduces the blocking time by nearly a h
 
 <div align="center">
 <img src="../figures/ft_llm_training/checkpoint_save_time.png" alt="Editor" width="600">
+
+<text>Figure 4: The Paused Training Time to Save Checkpoint.</text>
 </div>
-<center style="font-size:14px;color:#C0C0C0">The Time to Persist Checkpoint.</center>
 
 The figure illustrates that the I/O time overhead to read checkpoint files
 when resuming by restarting training processes. With DLRover Flash Checkpoint,
@@ -308,8 +314,9 @@ on the order of seconds wich is much faster than SSD and NAS.
 
 <div align="center">
 <img src="../figures/ft_llm_training/checkpoint_load_time.jpg" alt="Editor" width="600">
+
+<text>Figure 5: The Time to Restore Checkpoint.</text>
 </div>
-<center style="font-size:14px;color:#C0C0C0">The Time to Restore Checkpoint</center>
 
 ### Train GLM-65B on Thousands of GPUs
 
@@ -324,8 +331,9 @@ before and after using DLRover Flash Checkpoint.
 
 <div align="center">
 <img src="../figures/ft_llm_training/glm65b_checkpoint_time.jpg" alt="Editor" width="600">
+
+<text>Figure 6: The Checkpoint Time of GLM-65B.</text>
 </div>
-<center style="font-size:14px;color:#C0C0C0;">The Checkpoint Time of GLM-65B /center>
 
 Additionally, we tracked the cumulative time overhead for checkpointing over the course of a week
 before and after the implementation of Flash Checkpoint. It can be observed that although the frequency
@@ -334,8 +342,9 @@ Meanswhile, the wasted time wasted due to failures has also been reduced by appr
 
 <div align="center">
 <img src="../figures/ft_llm_training/glm65b_wasted_time.jpg" alt="Editor" width="600">
+
+<text>Figure 7: The Wasted time of GLM-65B due to Checkpoint Over a Week.</text>
 </div>
-<center style="font-size:14px;color:#C0C0C0">The Wasted time of GLM-65B due to Checkpoint Over a Week</center>
 
 ### Quick Start Examples
 
