@@ -335,11 +335,13 @@ of Flash Checkpoint has increased by a factor of 20, the cumulative time overhea
 Meanswhile, the wasted time wasted due to failures has also been reduced by approximately 3 times.
 
 <div align="center">
-<img src="../figures/ft_llm_training/glm65b_checkpoint_time.jpg" alt="Editor" width="392"> 
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 
+<img src="../figures/ft_llm_training/glm65b_checkpoint_time.jpg" alt="Editor" width="392">
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 <img src="../figures/ft_llm_training/glm65b_wasted_time.jpg" alt="Editor" width="400">
 
-<text>Figure 6: The Checkpoint Time of GLM-65B. </text>&nbsp;&nbsp;&nbsp;&nbsp; <text> Figure 7: The Wasted time of GLM-65B due to Checkpoint Over a Week.</text>
+<text>Figure 6: The Checkpoint Time of GLM-65B. </text>
+&nbsp;&nbsp;&nbsp;&nbsp;
+<text> Figure 7: The Wasted time of GLM-65B due to Checkpoint Over a Week.</text>
 </div>
 
 ### Quick Start Examples
