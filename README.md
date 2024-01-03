@@ -47,7 +47,14 @@ training job. The actions to restore training in DLRover are:
 3. Restart the failed nodes due to hardward errors.
 
 For detail, we can see [experiments](docs/tech_report/fault_tolerance_exps.md)
-of fault-tolerance and elasticity.
+of fault-tolerance and elasticity. With fault tolerance, the goodput of GLM-65B training
+on thousands of GPUs increased from 69% to 95%**. The goodput is the time spent computing
+useful new steps over the elapsed time of the training job.
+The downtime details are shown:
+
+<div align="center">
+<img src="docs/figures/dlrover-goodput-performance.jpg" alt="Editor" width="600">
+</div>
 
 #### Fault Tolerance and Flash Checkpoint to Reduce Downtime of PyTorch Training
 
@@ -60,14 +67,17 @@ from the latest checkpoint when a failure happens. The actions of flash checkpoi
 2. Persist the checkpoint to the storage once the training process fails.
 3. Load the checkpoint from the host memory after the training process restarts.
 
-After applying the fault tolerance and flash checkpoint of DLRover, **the overall goodput
-for the largest-scale training job using thousands of GPUs increased from 69% to 95%** .
-The goodput is the time spent computing useful new steps over the elapsed time of the training job.
-The downtime details are shown:
-
 <div align="center">
-<img src="docs/figures/dlrover-goodput-performance.jpg" alt="Editor" width="600">
+<img src="docs/figures/ft_llm_training/checkpoint_save_time.png" alt="Editor" width="396">
+<img src="docs/figures/ft_llm_training/checkpoint_load_time.jpg" alt="Editor" width="400">
+
+<text> The Performance of DLRover Flash Checkpoint to Save/Load GPT2-1.5B.</text>
 </div>
+
+The figure illustrates that the I/O time overhead to read checkpoint files
+when resuming by restarting training processes. With DLRover Flash Checkpoint,
+recovery directly from shared memory takes essentially
+on the order of seconds wich is much faster than SSD and NAS.
 
 #### Fault Tolerance Improves the Stability of TensorFlow PS Training
 
