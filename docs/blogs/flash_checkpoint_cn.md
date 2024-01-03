@@ -18,8 +18,9 @@ checkpoint 方案来将训练状态持久化到存储。为了保证训练状态
 
 <div align="center">
 <img src="../figures/ft_llm_training/checkpoint_overhead.jpg" alt="Editor" width="800">
+
+<text>Checkpoint 的时间损耗</text>
 </div>
-<center style="font-size:14px;color:#C0C0C0">Checkpoint 的时间损耗</center>
 
 低开销的 checkpoint 方案可以大幅降低训练暂停时间，也能支持高频的 checkpoint 来减少容错时浪费的迭代步数
 为此，DLRover 推出了 Flash Checkpoint (FCP) 方案，将 checkpoint 时间开销降低到秒级。
@@ -46,8 +47,9 @@ checkpoint 的时间开销只有将 Tensor 数据从设备内存拷贝到主机�
 
 <div align="center">
 <img src="../figures/ft_llm_training/async_checkpoint.jpg" alt="Editor" width="800">
+
+<text>Flash Checkpoint 的异步持久化</text>
 </div>
-<center style="font-size:14px;color:#C0C0C0">Flash Checkpoint 的异步持久化</center>
 
 ### 断点续存与内存热加载
 

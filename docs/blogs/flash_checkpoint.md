@@ -23,7 +23,7 @@ often ranging from a few minutes to several tens of minutes.
 too many iteration steps after a failure.
 
 <div align="center">
-<img src="../figures/ft_llm_training/checkpoint_overhead.jpg" alt="Editor" width="800">
+<img src="../figures/ft_llm_training/checkpoint_overhead.jpg" alt="Editor" width="600">
 </div>
 <center style="font-size:14px;color:#C0C0C0">The Wasted Time of Checkpoint</center>
 
@@ -67,7 +67,7 @@ the communication bandwidth of PCIe. For instance, the PCIe 4.0 used by A100 can
 unidirectional bandwidth of up to 32GB/s and the copy can be completed in seconds.
 
 <div align="center">
-<img src="../figures/ft_llm_training/async_checkpoint.jpg" alt="Editor" width="800">
+<img src="../figures/ft_llm_training/async_checkpoint.jpg" alt="Editor" width="600">
 </div>
 <center style="font-size:14px;color:#C0C0C0">Flash Checkpoint Async Persist</center>
 
@@ -87,7 +87,7 @@ read the checkpoint data from shared memory to load the model and optimizer stat
 This can avoid the IO overhead to read the remote storage system.
 
 <div align="center">
-<img src="../figures/ft_llm_training/in-memory_restore.jpg" alt="Editor" width="800">
+<img src="../figures/ft_llm_training/in-memory_restore.jpg" alt="Editor" width="600">
 </div>
 <center style="font-size:14px;color:#C0C0C0">Flash Checkpoint Persist at Break Point and In-Memory Recovery</center>
 
@@ -297,7 +297,7 @@ on the order of seconds. Compared to high-performance SSD storage, the blocking 
 Compared to NAS remote file systems, FCP reduces the blocking time by nearly a hundredfold.
 
 <div align="center">
-<img src="../figures/ft_llm_training/checkpoint_save_time.png" alt="Editor" width="800">
+<img src="../figures/ft_llm_training/checkpoint_save_time.png" alt="Editor" width="600">
 </div>
 <center style="font-size:14px;color:#C0C0C0">The Time to Persist Checkpoint.</center>
 
@@ -307,7 +307,7 @@ recovery directly from shared memory takes essentially
 on the order of seconds wich is much faster than SSD and NAS.
 
 <div align="center">
-<img src="../figures/ft_llm_training/checkpoint_load_time.jpg" alt="Editor" width="800">
+<img src="../figures/ft_llm_training/checkpoint_load_time.jpg" alt="Editor" width="600">
 </div>
 <center style="font-size:14px;color:#C0C0C0">The Time to Restore Checkpoint</center>
 
@@ -323,7 +323,7 @@ The below figure shows the time overhead for saving and loading checkpoints
 before and after using DLRover Flash Checkpoint.
 
 <div align="center">
-<img src="../figures/ft_llm_training/glm65b_checkpoint_time.jpg" alt="Editor" width="800">
+<img src="../figures/ft_llm_training/glm65b_checkpoint_time.jpg" alt="Editor" width="600">
 </div>
 <center style="font-size:14px;color:#C0C0C0;">The Checkpoint Time of GLM-65B /center>
 
@@ -333,7 +333,7 @@ of Flash Checkpoint has increased by a factor of 20, the cumulative time overhea
 Meanswhile, the wasted time wasted due to failures has also been reduced by approximately 3 times.
 
 <div align="center">
-<img src="../figures/ft_llm_training/glm65b_wasted_time.jpg" alt="Editor" width="800">
+<img src="../figures/ft_llm_training/glm65b_wasted_time.jpg" alt="Editor" width="600">
 </div>
 <center style="font-size:14px;color:#C0C0C0">The Wasted time of GLM-65B due to Checkpoint Over a Week</center>
 
