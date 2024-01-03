@@ -58,7 +58,7 @@ The downtime details are shown:
 
 #### Fault Tolerance and Flash Checkpoint to Reduce Downtime of PyTorch Training
 
-In addition to fault tolerance, DLRover provides the flash checkpoint to
+In addition to fault tolerance, DLRover provides the [flash checkpoint](docs/blogs/flash_checkpoint.md) to
 save/load checkpoint in seconds. With flash checkpoint, the training can
 frequently save checkpoints and reduce the roll-back step to resume training
 from the latest checkpoint when a failure happens. The actions of flash checkpoint are:
