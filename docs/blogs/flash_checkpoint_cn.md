@@ -19,7 +19,7 @@ checkpoint 方案来将训练状态持久化到存储。为了保证训练状态
 3. 低频的 checkpoint 的间隔太长，会导致故障后浪费的迭代步数太多。
 
 <div align="center">
-<img src="../figures/ft_llm_training/checkpoint_overhead.jpg" alt="Editor" width="800">
+<img src="../figures/ft_llm_training/checkpoint_overhead.jpg" alt="Editor" width="600">
 
 <text>图1: Checkpoint 的时间损耗</text>
 </div>
@@ -48,7 +48,7 @@ checkpoint 的时间开销只有将 Tensor 数据从设备内存拷贝到主机�
 的通信带宽决定，比如 A100 使用的 PCIe 4.0 的单向带宽能到 32GB/s，所有每次拷贝的时间能秒级完成。
 
 <div align="center">
-<img src="../figures/ft_llm_training/async_checkpoint.jpg" alt="Editor" width="800">
+<img src="../figures/ft_llm_training/async_checkpoint.jpg" alt="Editor" width="600">
 
 <text>图2: Flash Checkpoint 的异步持久化</text>
 </div>
@@ -65,7 +65,7 @@ checkpoint 数据持久化。
 checkpoint 数据并未丢失，新启动的训练进程可以直接读取共享内存中的 checkpoint 数据来加载模型和优化器状态，从而省去了读取存储系统的 IO 开销。
 
 <div align="center">
-<img src="../figures/ft_llm_training/in-memory_restore.jpg" alt="Editor" width="800">
+<img src="../figures/ft_llm_training/in-memory_restore.jpg" alt="Editor" width="600">
 
 <text>图3: Flash Checkpoint 的断点续传与内存热加载</text>
 </div>
@@ -262,7 +262,7 @@ dlrover-run --nnodes=1 --max_restarts=2 --nproc_per_node=2 train.py
 DLRover Flash Checkpoint 更是降低了近百倍的阻塞时间。
 
 <div align="center">
-<img src="../figures/ft_llm_training/checkpoint_save_time.png" alt="Editor" width="800">
+<img src="../figures/ft_llm_training/checkpoint_save_time.png" alt="Editor" width="600">
 
 <text>图4: checkpoint 持久化的时间开销</text>
 </div>
@@ -271,7 +271,7 @@ DLRover Flash Checkpoint 更是降低了近百倍的阻塞时间。
 DLRover Flash Checkpoint 直接从共享内存恢复比读 NVMe SSD 快一倍以上，比 NAS 快几十倍。
 
 <div align="center">
-<img src="../figures/ft_llm_training/checkpoint_load_time.jpg" alt="Editor" width="800">
+<img src="../figures/ft_llm_training/checkpoint_load_time.jpg" alt="Editor" width="600">
 
 <text>图5: checkpoint 加载时间</text>
 </div>
@@ -284,7 +284,7 @@ checkpoint 需要阻塞训练约 2 min。上线后每次 checkpoint 只需要阻
 250 步持久化到 CPFS。下图显示了使用 DLRover Flash Checkpoint 前后的 save/load checkpoint 的时间开销。
 
 <div align="center">
-<img src="../figures/ft_llm_training/glm65b_checkpoint_time.jpg" alt="Editor" width="800">
+<img src="../figures/ft_llm_training/glm65b_checkpoint_time.jpg" alt="Editor" width="400">
 
 <text>图6: GLM-65B checkpoint 时间</text>
 </div>
@@ -293,7 +293,7 @@ checkpoint 需要阻塞训练约 2 min。上线后每次 checkpoint 只需要阻
 Checkpoint 频次虽然变高了很多20倍，但是累积时间开销却却降低了几十倍。同时，故障浪费的训练时间也降低了约3倍。
 
 <div align="center">
-<img src="../figures/ft_llm_training/glm65b_wasted_time.jpg" alt="Editor" width="800">
+<img src="../figures/ft_llm_training/glm65b_wasted_time.jpg" alt="Editor" width="400">
 
 <text>图7: 一周内 GLM-65B 训练因为checkpoint浪费的时间</text>
 </div>
