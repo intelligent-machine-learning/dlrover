@@ -281,7 +281,8 @@ DLRover Flash Checkpoint 直接从共享内存恢复比读 NVMe SSD 快一倍以
 我们将 DLRover 的 Flash Checkpoint 应用在 1536 张 H800 卡的 FSDP 分布式训练 GLM-65B 的作业上后，
 checkpoint 的时间开销明显降低。上线前，训练进行Checkpoint的频次是每 250 步（约1.5h）保存到 CPFS 中。每次
 checkpoint 需要阻塞训练约 2 min。上线后每次 checkpoint 只需要阻塞训练 0.2s，checkpoint 频次也变成了每 10 步一次。但是依然每
-250 步持久化到 CPFS。下图显示了使用 DLRover Flash Checkpoint 前后的 save/load checkpoint 的时间开销。
+250 步持久化到 CPFS。图 6 显示了使用 DLRover Flash Checkpoint 前后的 save/load checkpoint 的时间开销。
+图 6 中加载 checkpoint 的时间只缩短了一倍，主要原因是 FSDP 是逐层初始化的，时间开销比较大。
 
 同时，我们统计一周内上线 Flash Checkpoint 前后 checkpoint 的累积时间开销。可以看出，Flash
 Checkpoint 频次虽然变高了很多20倍，但是累积时间开销却却降低了几十倍。同时，故障浪费的训练时间也降低了约3倍。
