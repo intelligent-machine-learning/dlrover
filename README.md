@@ -88,8 +88,8 @@ DLRover can recover failed parameter servers and workers to resume training.
 3. DLRover can automatically scale up the parameter servers to fit the model size.
 
 In AntGroup, DLRover manages hundreds of DL training jobs every day on the customized Kubernetes cluster in AntGroup.
-Except for the failed job resulting from code errors, *the rate of completed jobs increase from 89%
-with tf-operator in KubeFlow to 95%*. Other unrecoverable failure reasons of a job are data error,
+Except for the failed job resulting from code errors, **the rate of completed jobs increase from 89%
+with tf-operator in KubeFlow to 95%**. Other unrecoverable failure reasons of a job are data error,
 NaN loss of the model, network breakdown, and so on.
 
 <div align="center">
