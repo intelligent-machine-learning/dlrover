@@ -329,21 +329,17 @@ has increased to once every 10 steps. However, the persistence to CPFS still occ
 The below figure shows the time overhead for saving and loading checkpoints
 before and after using DLRover Flash Checkpoint.
 
-<div align="center">
-<img src="../figures/ft_llm_training/glm65b_checkpoint_time.jpg" alt="Editor" width="600">
-
-<text>Figure 6: The Checkpoint Time of GLM-65B.</text>
-</div>
-
 Additionally, we tracked the cumulative time overhead for checkpointing over the course of a week
 before and after the implementation of Flash Checkpoint. It can be observed that although the frequency
 of Flash Checkpoint has increased by a factor of 20, the cumulative time overhead has decreased by several dozen times.
 Meanswhile, the wasted time wasted due to failures has also been reduced by approximately 3 times.
 
 <div align="center">
-<img src="../figures/ft_llm_training/glm65b_wasted_time.jpg" alt="Editor" width="600">
+<img src="../figures/ft_llm_training/glm65b_checkpoint_time.jpg" alt="Editor" width="392"> 
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 
+<img src="../figures/ft_llm_training/glm65b_wasted_time.jpg" alt="Editor" width="400">
 
-<text>Figure 7: The Wasted time of GLM-65B due to Checkpoint Over a Week.</text>
+<text>Figure 6: The Checkpoint Time of GLM-65B. </text>&nbsp;&nbsp;&nbsp;&nbsp; <text> Figure 7: The Wasted time of GLM-65B due to Checkpoint Over a Week.</text>
 </div>
 
 ### Quick Start Examples

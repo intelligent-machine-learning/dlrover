@@ -283,18 +283,16 @@ checkpoint 的时间开销明显降低。上线前，训练进行Checkpoint的�
 checkpoint 需要阻塞训练约 2 min。上线后每次 checkpoint 只需要阻塞训练 0.2s，checkpoint 频次也变成了每 10 步一次。但是依然每
 250 步持久化到 CPFS。下图显示了使用 DLRover Flash Checkpoint 前后的 save/load checkpoint 的时间开销。
 
-<div align="center">
-<img src="../figures/ft_llm_training/glm65b_checkpoint_time.jpg" alt="Editor" width="400">
-
-<text>图6: GLM-65B checkpoint 时间</text>
-</div>
-
 同时，我们统计一周内上线 Flash Checkpoint 前后 checkpoint 的累积时间开销。可以看出，Flash
 Checkpoint 频次虽然变高了很多20倍，但是累积时间开销却却降低了几十倍。同时，故障浪费的训练时间也降低了约3倍。
 
 <div align="center">
+<img src="../figures/ft_llm_training/glm65b_checkpoint_time.jpg" alt="Editor" width="392">
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 <img src="../figures/ft_llm_training/glm65b_wasted_time.jpg" alt="Editor" width="400">
 
+<text>图6: GLM-65B checkpoint 时间.</text>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 <text>图7: 一周内 GLM-65B 训练因为checkpoint浪费的时间</text>
 </div>
 
