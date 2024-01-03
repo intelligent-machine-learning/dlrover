@@ -101,8 +101,8 @@ class CheckpointEngine(metaclass=ABCMeta):
         self._saver_group = None
         self._cached_step = 0
         self._restart_count = env_utils.get_torch_restart_count()
-        # queue for agent to save to storage, only rank 0
-        if self._rank == 0:
+        # queue for agent to save to storage, only lock rank 0 needs the queue.
+        if self._local_rank == 0:
             self._event_queue = SharedQueue(
                 name=CheckpointSharedObjPrefix.SAVE_STEP_QNAME + str(0),
                 create=False,
@@ -165,6 +165,10 @@ class CheckpointEngine(metaclass=ABCMeta):
                 type=CheckpointEventType.UPDATE_SHARD,
                 global_shard_num=global_shard_num,
             )
+            if self._event_queue is None:
+                raise ValueError(
+                    "The event queue cannot be None on local rank 0."
+                )
             self._event_queue.put(event)
 
     @timer

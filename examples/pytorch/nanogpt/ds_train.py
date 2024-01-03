@@ -18,7 +18,7 @@ The start command on a local ndoe:
 dlrover-run --nnodes=1 --max_restarts=2 --nproc_per_node=2 \
     ds_train.py --n_layer 36 --n_head 20 --n_embd 1280 \
     --data_dir './' --ds_config ./ds_config.json \
-    --epochs 50 --checkpoint_step 50
+    --epochs 50 --save_memory_interval 50 --save_storage_interval 500
 """
 
 import argparse
@@ -47,12 +47,10 @@ from dlrover.trainer.torch.flash_checkpoint.deepspeed import (
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 
-# We should use a shared storage to persist the checkpiont.
-checkpoint_dir = "/nas/nanogpt-ckpt-ds/"
-
 
 def train():
     args = arg_parser()
+    checkpoint_dir = args.save_dir
     setup()
     os.makedirs(checkpoint_dir, exist_ok=True)
     world_size = int(os.getenv("WORLD_SIZE", 1))
@@ -212,6 +210,7 @@ def train():
                     iter_num,
                     args.save_memory_interval,
                     args.save_storage_interval,
+                    checkpoint_dir,
                 )
             if saved:
                 save_time = round(time.time() - start_save_t, 2)
@@ -243,6 +242,7 @@ def flash_save_checkpoint(
     iter_num,
     save_memory_interval,
     save_storage_interval,
+    checkpoint_dir,
 ):
     saved = False
     if iter_num % save_memory_interval == 0:

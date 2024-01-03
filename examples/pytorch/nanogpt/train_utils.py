@@ -234,3 +234,6 @@ def add_train_args(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--use_native_ckpt", action="store_true", required=False
     )
+    parser.add_argument(
+        "--save_dir", type=str, default="/tmp/checkpoint/", required=False
+    )

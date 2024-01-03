@@ -11,6 +11,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+The start command on a local ndoe:
+
+dlrover-run --nproc_per_node=2 train.py \
+    --n_layer 48 --n_head 16 --n_embd 1600 --data_dir './' \
+    --epochs 50 --save_memory_interval 50 --save_storage_interval 500
+"""
+
 
 import argparse
 import contextlib
@@ -40,12 +48,10 @@ from dlrover.trainer.torch.flash_checkpoint.ddp import (
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 
-# We should use a shared storage to persist the checkpiont.
-checkpoint_dir = "/nas/nanogpt-ckpt/"
-
 
 def train():
     args = arg_parser()
+    checkpoint_dir = args.save_dir
     setup()
     os.makedirs(checkpoint_dir, exist_ok=True)
     world_size = int(os.getenv("WORLD_SIZE", 1))
@@ -236,6 +242,7 @@ def train():
                             optimizer,
                             train_loader,
                             args.save_storage_interval,
+                            checkpoint_dir,
                         )
                     else:
                         saved = flash_save_checkpoint(
@@ -261,7 +268,12 @@ def train():
 
 
 def native_save_checkpoint(
-    iter_num, model, optimizer, train_loader, save_storage_interval
+    iter_num,
+    model,
+    optimizer,
+    train_loader,
+    save_storage_interval,
+    checkpoint_dir,
 ):
     saved = False
     if iter_num % save_storage_interval != 0:
@@ -306,15 +318,14 @@ def flash_save_checkpoint(
             iter_num, train_loader.batch_size
         )
         state_dict["ds_sampler"] = sampler_sd
-    ckpt_path = os.path.join(checkpoint_dir, f"checkpoint-{iter_num}.pt")
     if iter_num % save_memory_interval == 0:
         checkpointer.save_checkpoint(
-            iter_num, state_dict, ckpt_path, storage_type=StorageType.MEMORY
+            iter_num, state_dict, storage_type=StorageType.MEMORY
         )
         saved = True
     if iter_num % save_storage_interval == 0:
         checkpointer.save_checkpoint(
-            iter_num, state_dict, ckpt_path, storage_type=StorageType.DISK
+            iter_num, state_dict, storage_type=StorageType.DISK
         )
         saved = True
     return saved

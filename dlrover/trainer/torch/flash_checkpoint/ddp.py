@@ -11,6 +11,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+
+from dlrover.python.common.constants import CheckpointConstant
 
 from .checkpointer import Checkpointer, StorageType
 from .ddp_engine import DdpCheckpointEngine
@@ -43,11 +46,15 @@ class DdpCheckpointer(Checkpointer):
     """
 
     def __init__(self, checkpoint_dir: str):
+        self.checkpoint_dir = checkpoint_dir
         self._engine = DdpCheckpointEngine(checkpoint_dir)
 
     def save_checkpoint(
-        self, step, state_dict, path, storage_type=StorageType.DISK
+        self, step, state_dict, path="", storage_type=StorageType.DISK
     ):
+        if path == "":
+            ckpt_name = f"{CheckpointConstant.CKPT_NAME_PREFIX}{step}.pt"
+            path = os.path.join(self.checkpoint_dir, ckpt_name)
         if storage_type == StorageType.MEMORY:
             self._engine.save_to_memory(step, state_dict, path)
         elif storage_type == StorageType.DISK:

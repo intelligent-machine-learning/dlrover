@@ -24,7 +24,7 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
     DLROVER_CKPT_CONFIG_KEY,
     CheckpointEvent,
     CheckpointEventType,
-    CommonDirCheckpointSaver,
+    DdpCheckpointSaver,
 )
 
 from .engine import CheckpointEngine, timer
@@ -74,6 +74,7 @@ class DdpCheckpointEngine(CheckpointEngine):
         for i in range(group_size):
             saver_rank = i * local_world_size
             save_ranks.append(saver_rank)
+        logger.info(f"The ranks to save checkpoint are {save_ranks}.")
         return save_ranks
 
     def get_local_shard_num(self):
@@ -83,7 +84,7 @@ class DdpCheckpointEngine(CheckpointEngine):
         return 1
 
     def get_saver_class(self):
-        return CommonDirCheckpointSaver
+        return DdpCheckpointSaver
 
     @timer
     def save_to_storage(self, step, state_dict, path=""):
@@ -101,7 +102,7 @@ class DdpCheckpointEngine(CheckpointEngine):
                 Note, the ckpt_name is used to save the state dict to storage
                 only if the training process fails.
         """
-        if self._rank != 0:
+        if self._local_rank != 0:
             return
         if not path:
             name = f"{CheckpointConstant.CKPT_NAME_PREFIX}{step}.pt"
@@ -109,8 +110,9 @@ class DdpCheckpointEngine(CheckpointEngine):
         if step > self._cached_step:
             self.save_to_memory(step, state_dict, path)
         event = CheckpointEvent(type=CheckpointEventType.SAVE, step=step)
-        if self._local_rank == 0:
-            self._event_queue.put(event)
+
+        # Only rank 0 persist the checkpoint to the storage.
+        self._event_queue.put(event)
 
     def load(self, resume_path=""):
         """

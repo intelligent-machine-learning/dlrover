@@ -253,6 +253,7 @@ def mock_k8s_client():
         return_value=True
     )
     k8s_client.create_pod = mock.MagicMock(return_value=True)  # type: ignore
+    k8s_client.delete_pod = mock.MagicMock(return_value=True)  # type: ignore
     k8s_client.create_service = mock.MagicMock(  # type: ignore
         return_value=True
     )
