@@ -1,4 +1,4 @@
-# DLRover Releases Flash Checkpoint to Recover Large Model Training From Failure in Seconds
+# Flash Checkpoint to Recover Large Model Training From Failure in Seconds
 
 [中文](./flash_checkpoint_cn.md)
 

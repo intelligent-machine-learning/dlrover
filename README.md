@@ -27,8 +27,14 @@ instead of dividing equally, faster worker more data.
 - **Automatic Resource Optimization**, Automatically optimize the job resource
 to improve the training performance and resources utilization.
 
+What's more, DLRover provides extension libraries of PyTorch and TensorFlow to Speed Up Training.
+
+[ATorch: an extension library of PyTorch to Speed Up Training of Large LLM.](atorch/README.md)
+[TFPlus: an extension library of TensorFlow to Speed Up Training of Search, Recommendation and Advertisement](tfplus/README.md)
+
 ## Latest News
 
+- [2024/01] [Flash Checkpoint to Recover Large Model Training From Failure in Seconds.](docs/blogs/flash_checkpoint.md)
 - [2023/11] [ATorch supporting efficient and easy-to-use model training is released.](atorch/README.md)
 - [2023/10] [AGD: an Auto-switchable Optimizer using Stepwise Gradient Difference as Preconditioning Matrix, NeurIPS 2023.](atorch/docs/README-AGD.md)
 - [2023/09] [Weighted Sharpness-Aware Minimization (WSAM) has been accepted by KDD'23.](atorch/docs/README-WSAM.md)
