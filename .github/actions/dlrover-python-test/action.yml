@@ -13,5 +13,6 @@ runs:
 https://download.pytorch.org/whl/torch_stable.html \
 && python -m grpc_tools.protoc -I. \
 dlrover/proto/*.proto --python_out=. --grpc_python_out=. \
-&& ROLE_NAME=dlrover-trainer python -m pytest dlrover/python/tests dlrover/trainer/tests \
+&& ROLE_NAME=dlrover-trainer \
+python -m pytest dlrover/python/tests dlrover/trainer/tests \
 --cov-report xml --cov=dlrover "
