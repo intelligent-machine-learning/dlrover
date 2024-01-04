@@ -20,7 +20,6 @@ import torch.distributed as dist
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-import torchvision
 from torch.distributed.elastic.multiprocessing.errors import record
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim.lr_scheduler import StepLR
@@ -98,9 +97,9 @@ def train(args):
     """
     setup()
 
-    train_dataset = datasets.MNIST('./data', train=True,
-                                   transform=transforms.ToTensor(),
-                                   download=True)
+    train_dataset = datasets.MNIST(
+        "./data", train=True, transform=transforms.ToTensor(), download=True
+    )
 
     #  Setup sampler for elastic training.
     sampler = ElasticDistributedSampler(dataset=train_dataset)
@@ -110,9 +109,9 @@ def train(args):
         sampler=sampler,
     )
 
-    test_dataset = datasets.MNIST('./data', train=False,
-                                  transform=transforms.ToTensor(),
-                                  download=True)
+    test_dataset = datasets.MNIST(
+        "./data", train=False, transform=transforms.ToTensor(), download=True
+    )
     test_loader = DataLoader(dataset=test_dataset, batch_size=args.batch_size)
 
     model = Net()
@@ -170,14 +169,14 @@ def train(args):
 
 
 def train_epoch(
-        epoch,
-        elastic_trainer,
-        model,
-        optimizer,
-        train_loader,
-        device,
-        checkpointer: DdpCheckpointer,
-        fixed_batch_size=False,
+    epoch,
+    elastic_trainer,
+    model,
+    optimizer,
+    train_loader,
+    device,
+    checkpointer: DdpCheckpointer,
+    fixed_batch_size=False,
 ):
     """
     The global batch size will not change if the number of workers changes.

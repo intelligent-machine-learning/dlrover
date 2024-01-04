@@ -46,9 +46,7 @@ setup(
     install_requires=install_requires,
     extras_require=extra_require,
     python_requires=">=3.8",
-    packages=find_packages(
-
-    ),
+    packages=find_packages(),
     package_data={
         "": [
             "proto/*",
