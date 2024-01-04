@@ -14,6 +14,7 @@
 import os
 import time
 from abc import ABCMeta, abstractmethod
+from multiprocessing import Process
 
 import torch
 import torch.distributed as dist
@@ -23,6 +24,7 @@ from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.multi_process import SharedLock, SharedQueue
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     DLROVER_CKPT_CONFIG_KEY,
+    AsyncCheckpointSaver,
     CheckpointEvent,
     CheckpointEventType,
     CheckpointShardConfig,
@@ -72,6 +74,34 @@ def timer(func):
     return wrapper
 
 
+def start_async_save():
+    AsyncCheckpointSaver.start_async_saving_ckpt()
+    while True:
+        time.sleep(36000)
+
+
+def start_saver_process():
+    """
+    Start a process to to asynchronously save checkpoint if the training
+    process is not launched by `dlrover-run`. This process will
+    exit and cannot save the checkpoint after the training process exit.
+    It is better to use `dlrover-run` to start the training process.
+    `dlrover-run` can save checkpoint once the training process fails
+    and relaunch new training processes which can restore the checkpoint
+    from the memory not the storage.
+    """
+    local_rank = env_utils.get_local_rank()
+    role_name = os.getenv("ROLE_NAME", "")
+    # Only start the process on local rank 0
+    # if the training process is not launched by dlrover-run.
+    if role_name != "dlrover-trainer" and local_rank == 0:
+        p = Process(target=start_async_save, daemon=True)
+        p.start()
+        logger.info("Start a process to asynchronously save checkpoint.")
+        return p
+    return None
+
+
 class CheckpointEngine(metaclass=ABCMeta):
     """
     The checkpoint engine synchronously writes the state dict into
@@ -89,7 +119,11 @@ class CheckpointEngine(metaclass=ABCMeta):
         checkpoint_dir (str): the directory to save checkpoint.
     """
 
+    saver_proc = None
+
     def __init__(self, checkpoint_dir: str):
+        if not self.saver_proc:
+            self.saver_proc = start_saver_process()
         self.checkpoint_dir = checkpoint_dir
         if dist.is_initialized():
             self._rank = dist.get_rank()

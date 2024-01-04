@@ -278,6 +278,7 @@ def run(args):
 
     config, cmd, cmd_args = _elastic_config_from_args(args)
     config.run_id = job_name
+    config.role = "dlrover-trainer"
     try:
         elastic_launch(
             config=config,
