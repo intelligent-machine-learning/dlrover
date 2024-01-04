@@ -141,55 +141,22 @@ By practice, DLRover is an ideal component to build an end-to-end industrial onl
 
 ## How to Use DLRover to Train Your Models?
 
+### Train a PyTorch Model
+
 We can use `dlrover-run` to run the training script which
 `torchrun` or `torch.distributed.run` can run.
 
-### Local Run to Train a PyTorch Model
-
-We run DLRover locally like
-
 ```bash
 pip install dlrover[torch]
-dlrover-run --standalone --nproc_per_node=$NUM_TRAINERS train_scripts.py
+dlrover-run --nnodes=1 --nproc_per_node=$NUM_TRAINERS train_scripts.py
 ```
 
-### Distributed Run to Train a PyTorch Model
+The more detail tutorials are:
 
-#### Run in a DLRover ElasticJob
-
-Firstly, the user need to deploy the DLRover elasticjob controller in a kubernetes
-cluster by followding the [tutorial](docs/deployment/controller.md). Then, we need
-to install `dlrover[torch]` and execute `dlrover-run` in
-the command of the Pod container like the example [torch_mnist_job.yaml](examples/pytorch/mnist/elastic_job.yaml).
-
-```bash
-pip install dlrover[torch] && \
-dlrover-run --network-check --nnodes=$NODE_NUM --nproc_per_node=$NUM_TRAINERS train_scripts.py
-```
-
-`--nnodes` is the number of nodes and `--nproc_per_node` is the number of process
-on each node. They are the same as the arguments of [torchrun](https://pytorch.org/docs/stable/elastic/run.html).
-
-#### Run in other k8s Jobs
-
-We can also use `dlrover-run` in other k8s jobs like [kubeflow/PyTorchJob](https://www.kubeflow.org/docs/components/training/pytorch/).
-We need to set the `NODE_RANK` and `DLROVER_MASTER_ADDR` before `dlrover-run`.
-For example, the `PyTorchJob` has set the `RANK`, `MASTER_ADDR` and `MASTER_PORT`
-into environments. We can run `dlrover-run` like
-
-```bash
-NODE_RANK=$RANK DLROVER_MASTER_ADDR=$MASTER_ADDR:$MASTER_PORT \
-dlrover-run --network-check --nnodes=$NODE_NUM --nproc_per_node=$NUM_TRAINERS  train_script.py
-```
-
-**Note**:
-
-- `dlrover-run` extends `torchrun` which dynamically configures `MASTER_ADDR` and `MASTER_PORT`
-for training processes. We can use the static `MASTER_ADDR` and `MASTER_PORT` of PyTorchJob as the address
-of DLRover job master.
-
-- The elastic scheduling of DLRover to restore or scale up/down Pods
-is not enabled without DLRover ElasticJob.
+- [Elastic scheduling tutorial](docs/tutorial/torch_elasticjob_on_k8s.md) to
+support elasticity and fault tolerance of Pod on k8s.
+- [Node detection tutorial](docs/tutorial/check_node_health.md) to check the fault or slow node in a distributed job.
+- [Flash Checkpoint](docs/blogs/flash_checkpoint.md) to speed up checkpoint during training.
 
 ### Train a TensorFlow Model
 
