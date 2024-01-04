@@ -74,10 +74,10 @@ from the latest checkpoint when a failure happens. The actions of flash checkpoi
 <text> The Performance of DLRover Flash Checkpoint to Save/Load GPT2-1.5B.</text>
 </div>
 
-The figure illustrates that the I/O time overhead to read checkpoint files
-when resuming by restarting training processes. With DLRover Flash Checkpoint,
-recovery directly from shared memory takes essentially
-on the order of seconds wich is much faster than SSD and NAS.
+The figure illustrates that the I/O time to read checkpoint files
+when resuming training processes. With DLRover Flash Checkpoint,
+recovery could be completed in the order of seconds by loading checkpoints directly from shared memory,
+which is much faster compared to loading checkpoints from SSD and NAS.
 
 #### Fault Tolerance Improves the Stability of TensorFlow PS Training
 
