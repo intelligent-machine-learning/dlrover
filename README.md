@@ -47,11 +47,18 @@ training job. The actions to restore training in DLRover are:
 3. Restart the failed nodes due to hardward errors.
 
 For detail, we can see [experiments](docs/tech_report/fault_tolerance_exps.md)
-of fault-tolerance and elasticity.
+of fault-tolerance and elasticity. With fault tolerance, the goodput of GLM-65B training
+on thousands of GPUs increased from 69% to 95%**. The goodput is the time spent computing
+useful new steps over the elapsed time of the training job.
+The downtime details are shown:
+
+<div align="center">
+<img src="docs/figures/dlrover-goodput-performance.jpg" alt="Editor" width="600">
+</div>
 
 #### Fault Tolerance and Flash Checkpoint to Reduce Downtime of PyTorch Training
 
-In addition to fault tolerance, DLRover provides the flash checkpoint to
+In addition to fault tolerance, DLRover provides the [flash checkpoint](docs/blogs/flash_checkpoint.md) to
 save/load checkpoint in seconds. With flash checkpoint, the training can
 frequently save checkpoints and reduce the roll-back step to resume training
 from the latest checkpoint when a failure happens. The actions of flash checkpoint are:
@@ -60,14 +67,17 @@ from the latest checkpoint when a failure happens. The actions of flash checkpoi
 2. Persist the checkpoint to the storage once the training process fails.
 3. Load the checkpoint from the host memory after the training process restarts.
 
-After applying the fault tolerance and flash checkpoint of DLRover, **the overall goodput
-for the largest-scale training job using thousands of GPUs increased from 69% to 95%** .
-The goodput is the time spent computing useful new steps over the elapsed time of the training job.
-The downtime details are shown:
-
 <div align="center">
-<img src="docs/figures/dlrover-goodput-performance.jpg" alt="Editor" width="600">
+<img src="docs/figures/ft_llm_training/checkpoint_save_time.png" alt="Editor" width="396">
+<img src="docs/figures/ft_llm_training/checkpoint_load_time.jpg" alt="Editor" width="400">
+
+<text> The Performance of DLRover Flash Checkpoint to Save/Load GPT2-1.5B.</text>
 </div>
+
+The figure illustrates that the I/O time to read checkpoint files
+when resuming training processes. With DLRover Flash Checkpoint,
+recovery could be completed in the order of seconds by loading checkpoints directly from shared memory,
+which is much faster compared to loading checkpoints from SSD and NAS.
 
 #### Fault Tolerance Improves the Stability of TensorFlow PS Training
 
@@ -78,8 +88,8 @@ DLRover can recover failed parameter servers and workers to resume training.
 3. DLRover can automatically scale up the parameter servers to fit the model size.
 
 In AntGroup, DLRover manages hundreds of DL training jobs every day on the customized Kubernetes cluster in AntGroup.
-Except for the failed job resulting from code errors, *the rate of completed jobs increase from 89%
-with tf-operator in KubeFlow to 95%*. Other unrecoverable failure reasons of a job are data error,
+Except for the failed job resulting from code errors, **the rate of completed jobs increase from 89%
+with tf-operator in KubeFlow to 95%**. Other unrecoverable failure reasons of a job are data error,
 NaN loss of the model, network breakdown, and so on.
 
 <div align="center">
@@ -188,9 +198,7 @@ a model with DLRover.
 
 ## What's Next?
 
-- Aysnchronously save the checkpoint to the storage.
-  - Significantly reduce checkpoint saving/restore time which blocks training.
-  - Save the checkpoint from the CPU memory even if the training process fails.
+- Multi-node in-memory redundant backup checkpoint to fast failure recovery.
 - Fine-grained automatic distributed training for GPU Synchronous jobs
   - hybrid-parallel mode
   - adapted hyper parameters adjustment with dynamic resources
