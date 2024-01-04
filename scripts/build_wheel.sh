@@ -21,5 +21,5 @@ make -f dlrover/Makefile
 
 # Create dlrover package
 echo "Building the wheel for dlrover."
-rm -rf ./build/lib
+
 python setup.py --quiet bdist_wheel

@@ -45,11 +45,9 @@ setup(
     url="https://github.com/intelligent-machine-learning/dlrover",
     install_requires=install_requires,
     extras_require=extra_require,
-    python_requires=">=3.5",
+    python_requires=">=3.8",
     packages=find_packages(
-        exclude=[
-            "model_zoo*",
-        ]
+
     ),
     package_data={
         "": [
