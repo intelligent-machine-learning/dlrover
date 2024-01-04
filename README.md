@@ -190,6 +190,4 @@ Please refer to the [DEVELOPMENT](docs/developer_guide.md)
 
 [Train a GPT Model on Kubernetes.](docs/tutorial/torch_ddp_nanogpt.md)
 
-[Use DLRover to find slow/fault nodes.](docs/tutorial/check_node_health.md)
-
 [Train a TensorFlow Estimator on Kubernetes.](docs/tutorial/tf_ps_on_cloud.md)
