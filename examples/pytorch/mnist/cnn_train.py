@@ -25,7 +25,7 @@ from torch.distributed.elastic.multiprocessing.errors import record
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader
-from torchvision import transforms
+from torchvision import datasets, transforms
 
 from dlrover.trainer.torch.elastic.dataloader import ElasticDataLoader
 from dlrover.trainer.torch.elastic.sampler import ElasticDistributedSampler
@@ -47,7 +47,7 @@ def log_rank0(msg):
 class Net(nn.Module):
     def __init__(self):
         super(Net, self).__init__()
-        self.conv1 = nn.Conv2d(3, 32, 3, 1)
+        self.conv1 = nn.Conv2d(1, 32, 3, 1)
         self.conv2 = nn.Conv2d(32, 64, 3, 1)
         self.dropout1 = nn.Dropout(0.25)
         self.dropout2 = nn.Dropout(0.5)
@@ -98,22 +98,21 @@ def train(args):
     """
     setup()
 
-    train_data = torchvision.datasets.ImageFolder(
-        root=args.training_data,
-        transform=transforms.ToTensor(),
-    )
+    train_dataset = datasets.MNIST('./data', train=True,
+                                   transform=transforms.ToTensor(),
+                                   download=True)
+
     #  Setup sampler for elastic training.
-    sampler = ElasticDistributedSampler(dataset=train_data)
+    sampler = ElasticDistributedSampler(dataset=train_dataset)
     train_loader = ElasticDataLoader(
-        dataset=train_data,
+        dataset=train_dataset,
         batch_size=args.batch_size,
         sampler=sampler,
     )
 
-    test_dataset = torchvision.datasets.ImageFolder(
-        root=args.validation_data,
-        transform=torchvision.transforms.ToTensor(),
-    )
+    test_dataset = datasets.MNIST('./data', train=False,
+                                  transform=transforms.ToTensor(),
+                                  download=True)
     test_loader = DataLoader(dataset=test_dataset, batch_size=args.batch_size)
 
     model = Net()
@@ -171,14 +170,14 @@ def train(args):
 
 
 def train_epoch(
-    epoch,
-    elastic_trainer,
-    model,
-    optimizer,
-    train_loader,
-    device,
-    checkpointer: DdpCheckpointer,
-    fixed_batch_size=False,
+        epoch,
+        elastic_trainer,
+        model,
+        optimizer,
+        train_loader,
+        device,
+        checkpointer: DdpCheckpointer,
+        fixed_batch_size=False,
 ):
     """
     The global batch size will not change if the number of workers changes.
@@ -279,9 +278,9 @@ def arg_parser():
         default=False,
         help="disable CUDA training",
     )
-    parser.add_argument("--training_data", type=str, required=True)
+    parser.add_argument("--training_data", type=str, required=False)
     parser.add_argument(
-        "--validation_data", type=str, default="", required=True
+        "--validation_data", type=str, default="", required=False
     )
     parser.add_argument("--save_model", action="store_true", required=False)
     return parser
