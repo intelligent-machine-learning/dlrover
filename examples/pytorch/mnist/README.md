@@ -5,6 +5,8 @@ with MNIST dataset.
 
 ## Prepare Data
 
+You can directly use `datasets.MNIST()` to create a dataset, or you can manually download it as follows:
+
 - Download the dataset from [Kaggle MNIST Dataset](https://www.kaggle.com/datasets/hojjatk/mnist-dataset).
 - Untar the dataset into a directory like `data/mnist_png`.
 
@@ -28,7 +30,14 @@ pip install dlrover -U
 Then, we can use `dlrover-run` to start the training by
 
 ```bash
-dlrover-run --standalone --nproc_per_node=${GPU_NUM} \
+dlrover-run --nproc_per_node=${GPU_NUM} \
+    examples/pytorch/mnist/cnn_train.py --num_epochs 5 
+```
+
+or
+
+```bash
+dlrover-run --nproc_per_node=${GPU_NUM} \
     examples/pytorch/mnist/cnn_train.py --num_epochs 5 \
     --training_data data/mnist_png/training/ \
     --validation_data data/mnist_png/testing/ 
