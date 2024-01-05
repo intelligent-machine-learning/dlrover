@@ -97,9 +97,15 @@ def train(args):
     """
     setup()
 
-    train_dataset = datasets.MNIST(
-        "./data", train=True, transform=transforms.ToTensor(), download=True
-    )
+    if args.training_data:
+        train_dataset = datasets.ImageFolder(
+            root=args.training_data,
+            transform=transforms.ToTensor()
+        )
+    else:
+        train_dataset = datasets.MNIST(
+            "./data", train=True, transform=transforms.ToTensor(), download=True
+        )
 
     #  Setup sampler for elastic training.
     sampler = ElasticDistributedSampler(dataset=train_dataset)
@@ -109,9 +115,15 @@ def train(args):
         sampler=sampler,
     )
 
-    test_dataset = datasets.MNIST(
-        "./data", train=False, transform=transforms.ToTensor(), download=True
-    )
+    if args.validation_data:
+        test_dataset = datasets.ImageFolder(
+            root=args.validation_data,
+            transform=transforms.ToTensor()
+        )
+    else:
+        test_dataset = datasets.MNIST(
+            "./data", train=False, transform=transforms.ToTensor(), download=True
+        )
     test_loader = DataLoader(dataset=test_dataset, batch_size=args.batch_size)
 
     model = Net()

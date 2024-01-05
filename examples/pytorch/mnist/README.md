@@ -3,6 +3,22 @@
 The document describes how to use DLRover to train a Pytorch CNN model
 with MNIST dataset.
 
+## Prepare Data
+
+You can directly use `datasets.MNIST()` to create a dataset, or you can manually download it as follows:
+
+- Download the dataset from [Kaggle MNIST Dataset](https://www.kaggle.com/datasets/hojjatk/mnist-dataset).
+- Untar the dataset into a directory like `data/mnist_png`.
+
+There are 2 sub-directories in the directory.
+
+```text
+|-data
+    |-mnist_png
+        |-testing
+        |-training
+```
+
 ## Train on a Single Node with Mutliple GPUs
 
 Firstly, we need to install dlrover and the dependencies of the model by
@@ -12,6 +28,13 @@ pip install dlrover -U
 ```
 
 Then, we can use `dlrover-run` to start the training by
+
+```bash
+dlrover-run --standalone --nproc_per_node=${GPU_NUM} \
+    examples/pytorch/mnist/cnn_train.py --num_epochs 5 
+```
+
+or
 
 ```bash
 dlrover-run --standalone --nproc_per_node=${GPU_NUM} \
