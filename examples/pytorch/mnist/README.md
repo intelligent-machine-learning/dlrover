@@ -30,14 +30,14 @@ pip install dlrover -U
 Then, we can use `dlrover-run` to start the training by
 
 ```bash
-dlrover-run --standalone --nproc_per_node=${GPU_NUM} \
+dlrover-run --nproc_per_node=${GPU_NUM} \
     examples/pytorch/mnist/cnn_train.py --num_epochs 5 
 ```
 
 or
 
 ```bash
-dlrover-run --standalone --nproc_per_node=${GPU_NUM} \
+dlrover-run --nproc_per_node=${GPU_NUM} \
     examples/pytorch/mnist/cnn_train.py --num_epochs 5 \
     --training_data data/mnist_png/training/ \
     --validation_data data/mnist_png/testing/ 
