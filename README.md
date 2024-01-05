@@ -186,6 +186,8 @@ Please refer to the [DEVELOPMENT](docs/developer_guide.md)
 
 ## Quick Start
 
+[An Example of Flash Checkpoint.](examples/pytorch/fcp_demo.py)
+
 [Train a PyTorch Model on Kubernetes.](docs/tutorial/torch_elasticjob_on_k8s.md)
 
 [Train a GPT Model on Kubernetes.](docs/tutorial/torch_ddp_nanogpt.md)
