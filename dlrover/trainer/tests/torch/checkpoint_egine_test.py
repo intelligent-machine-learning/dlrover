@@ -35,6 +35,7 @@ from dlrover.trainer.torch.flash_checkpoint.ddp_engine import (
 from dlrover.trainer.torch.flash_checkpoint.deepspeed_engine import (
     DeepSpeedCheckpointEngine,
 )
+from dlrover.trainer.torch.flash_checkpoint.engine import start_saver_process
 from dlrover.trainer.torch.flash_checkpoint.megatron_engine import (
     MegatronCheckpointEngine,
 )
@@ -96,6 +97,15 @@ class ShardingCheckpointEngineTest(unittest.TestCase):
         os.environ.pop(NodeEnv.NODE_RANK, None)
         if AsyncCheckpointSaver._saver_instance:
             AsyncCheckpointSaver._saver_instance.close()
+
+    def test_start_saver_proc(self):
+        proc = start_saver_process()
+        self.assertIsNone(proc)
+        os.environ["ROLE_NAME"] = "default"
+        proc = start_saver_process()
+        self.assertIsNotNone(proc)
+        proc.kill()
+        os.environ["ROLE_NAME"] = "dlrover-trainer"
 
     def test_save_to_storage(self):
         model = SimpleNet()

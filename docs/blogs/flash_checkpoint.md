@@ -272,8 +272,9 @@ if args.save and iteration % save_memory_interval == 0:
                     opt_param_scheduler, storage_type=StorageType.MEMORY,)
 ```
 
-Note: To use the Flash Checkpoint APIs, the training script needs to be launched with dlrover-run.
-The usage of dlrover-run is consistent with torchrun. The following example demonstrates
+**Note**: To use the Flash Checkpoint, the training script needs to be launched with dlrover-run.
+If we launch the training process by other command like `torchrun`, the training can only
+use the asynchronously persistence. The usage of dlrover-run is consistent with torchrun. The following example demonstrates
 how to start single-node multi-GPU training:
 
 ```bash

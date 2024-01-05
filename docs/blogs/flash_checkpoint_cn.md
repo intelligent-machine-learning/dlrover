@@ -237,8 +237,8 @@ if args.save and iteration % save_memory_interval == 0:
                     opt_param_scheduler, storage_type=StorageType.MEMORY,)
 ```
 
-**注意**：Flash Checkpoint 的 API 需要使用 dlrover-run来启动训练脚本,
-dlrover-run的使用方法与 torchrun保持一致，如下所示启动单机多卡训练：
+**注意**：Flash Checkpoint 的断点续存和内容热加载需要使用`dlrover-run`来启动训练脚本。如果使用其他的方式例如`torchrun`来启动，
+则只能使用异步持久化功能。`dlrover-run` 的使用方法与`torchrun`保持一致，如下所示启动单机多卡训练：
 
 ```bash
 dlrover-run --nnodes=1 --max_restarts=2 --nproc_per_node=2 train.py 
