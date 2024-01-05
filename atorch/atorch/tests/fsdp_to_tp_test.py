@@ -7,6 +7,7 @@ from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 
 import atorch
 from atorch.common.log_utils import default_logger as logger
+from atorch.common.util_func import find_free_port
 from atorch.distributed.distributed import create_parallel_group
 from atorch.modules.distributed_modules.layers import RowParallelLinear
 from atorch.modules.distributed_modules.transformer import MegatronGLMModel
@@ -99,7 +100,7 @@ class TestMegatronLinearFSDPToTP(unittest.TestCase):
 
         world_size = 2
         os.environ["MASTER_ADDR"] = "localhost"  #
-        os.environ["MASTER_PORT"] = "5000"
+        os.environ["MASTER_PORT"] = str(find_free_port())
         mp.spawn(
             _run_linear_fsdp_to_tp,
             args=(world_size,),
@@ -116,7 +117,7 @@ class TestMegatronGLMFSDPToTP(unittest.TestCase):
 
         world_size = 2
         os.environ["MASTER_ADDR"] = "localhost"  #
-        os.environ["MASTER_PORT"] = "5000"
+        os.environ["MASTER_PORT"] = str(find_free_port())
         mp.spawn(
             _run_megatron_glm_fsdp_to_tp,
             args=(world_size,),

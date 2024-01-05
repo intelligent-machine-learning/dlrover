@@ -45,7 +45,7 @@ class SimpleElasticDatasetTest(unittest.TestCase):
             num_minibatches_per_shard=10,
         )
 
-    def tearDown(self):
+    def addCleanup(self):
         self._master_proc.kill()
 
     def test_index_sharding_client(self):

@@ -20,6 +20,12 @@ from datetime import timedelta
 import torch
 import torch.distributed as dist
 
+try:
+    import torch_npu  # noqa: F401
+    from torch_npu.contrib import transfer_to_npu  # noqa: F401
+except (ModuleNotFoundError, ImportError) as e:  # noqa: F841
+    pass
+
 from dlrover.python.common.constants import ConfigPath
 from dlrover.python.common.log import default_logger as logger
 
@@ -27,10 +33,10 @@ FAULT_CHECK_TASK = "fault-check"
 STRAGGLER_CHECK_TASK = "straggler-check"
 
 
-def bm_all_gather(shape, use_cuda):
+def bm_all_gather(shape, use_gpu):
     world_size = dist.get_world_size()
     local_rank = int(os.environ["LOCAL_RANK"])
-    device = torch.device(f"cuda:{local_rank}" if use_cuda else "cpu")
+    device = torch.device(f"cuda:{local_rank}" if use_gpu else "cpu")
     data = torch.randn(shape, dtype=torch.float32).to(device)
     tensor_list = [
         torch.zeros_like(data).to(device) for _ in range(world_size)
@@ -68,10 +74,17 @@ def write_time_to_file(time, local_rank):
 def main(task):
     use_cuda = torch.cuda.is_available()
     start_init = time.time()
-    if use_cuda:
-        dist.init_process_group("nccl", timeout=timedelta(seconds=180))
-    else:
-        dist.init_process_group("gloo", timeout=timedelta(seconds=180))
+
+    protocol = "gloo"
+    if use_cuda:  # pragma: no cover
+        device = torch.cuda.get_device_name()
+        if "Ascend" in device:
+            protocol = "hccl"
+        elif use_cuda:
+            protocol = "nccl"
+
+    dist.init_process_group(protocol, timeout=timedelta(seconds=180))
+
     init_time = round(time.time() - start_init, 3)
     task_time = 0
     if task == FAULT_CHECK_TASK:

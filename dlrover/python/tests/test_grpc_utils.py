@@ -49,6 +49,8 @@ class GRPCUtilTest(unittest.TestCase):
         s.close()
 
     def test_addr_connected(self):
+        connected = addr_connected("")
+        self.assertFalse(connected)
         connected = addr_connected("localhost:80")
         self.assertFalse(connected)
 

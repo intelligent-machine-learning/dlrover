@@ -27,64 +27,75 @@ instead of dividing equally, faster worker more data.
 - **Automatic Resource Optimization**, Automatically optimize the job resource
 to improve the training performance and resources utilization.
 
+What's more, DLRover provides extension libraries of PyTorch and TensorFlow to Speed Up Training.
+
+- [ATorch](atorch/README.md): an extension library of PyTorch to Speed Up Training of Large LLM.
+- [TFPlus](tfplus/README.md): an extension library of TensorFlow to Speed Up Training of Search, Recommendation and Advertisement.
+
 ## Latest News
 
+- [2024/01] [Flash Checkpoint to Recover Large Model Training From Failure in Seconds.](docs/blogs/flash_checkpoint.md)
+- [2023/11] [ATorch supporting efficient and easy-to-use model training is released.](atorch/README.md)
+- [2023/10] [AGD: an Auto-switchable Optimizer using Stepwise Gradient Difference as Preconditioning Matrix, NeurIPS 2023.](atorch/docs/README-AGD.md)
 - [2023/09] [Weighted Sharpness-Aware Minimization (WSAM) has been accepted by KDD'23.](atorch/docs/README-WSAM.md)
 - [2023/08] [DLRover improves the stability of pre-trained model training over thousands of GPUs.](docs/blogs/stabilize_llm_training_cn.md)
 - [2023/04] [DLRover auto-scales nodes of a DeepRec distributed training job.](docs/blogs/deeprec_autoscale_cn.md)
 
 ## Why DLRover?
 
-### Fault Tolerance to Improve the Stability of Job
+### Fault Tolerance to Reduce the Downtime of a Large Scale Training Job
 
 DLRover can restore the training when the process fails without stopping the
 training job. The actions to restore training in DLRover are:
 
-1. Diagnose the failure reason.
+1. Automatically diagnose the failure reason.
 2. Restart the process not the node due to software errors.
 3. Restart the failed nodes due to hardward errors.
 
-For detail, we can see [experiments](docs/tutorial/fault_tolerations.md)
-of fault-tolerance and elasticity.
-
-#### Fault Tolerance of PyTorch Distributed Training
-
-DLRover supports fault tolerance of the process failure and the node failure
-to restore trainig. Compared with restarting a new job, DLRover can
-reduce the overhead to schedule all Pods, pull image and
-install  packages on all nodes.  
-
-|  Step to restore training |  Failure without DLRover  |     Node failure with DLRover     |    Process failure with DLRover   |
-|:-------------------------:|:-------------------------:|:---------------------------------:|:---------------------------------:|
-|       Restore action      |        Restart Job        |        Restart failed nodes       |      Restart training process     |
-|  Schedule node, pull image and install packages   |  All nodes |       Only new nodes      |                 No                |
-| Node health check         |            No             | All nodes execute a simple allgtather task | All nodes execute a allgtather simple task |
-| Start training process    |            Yes            |                Yes                |                Yes                |
+For detail, we can see [experiments](docs/tech_report/fault_tolerance_exps.md)
+of fault-tolerance and elasticity. **With fault tolerance, the goodput of GLM-65B training
+on thousands of GPUs increased from 69% to 95%**. The goodput is the time spent computing
+useful new steps over the elapsed time of the training job.
+The downtime details are shown:
 
 <div align="center">
-<img src="docs/figures/dlrover-allreduce-ft.jpg" alt="Editor" width="600">
+<img src="docs/figures/dlrover-goodput-performance.jpg" alt="Editor" width="600">
 </div>
 
-#### Fault Tolerance of TensorFlow PS Distributed Training
+#### Fault Tolerance and Flash Checkpoint to Reduce Downtime of PyTorch Training
 
-DLRover can recover failed parameter servers and workers to
-resume training. Compared with manual restarting jobs, DLRover
-can reduce the overhead to restore the training.
+In addition to fault tolerance, DLRover provides the [flash checkpoint](docs/blogs/flash_checkpoint.md) to
+save/load checkpoint in seconds. With flash checkpoint, the training can
+frequently save checkpoints and reduce the roll-back step to resume training
+from the latest checkpoint when a failure happens. The actions of flash checkpoint are:
 
-|             Step to restore training            |  Failure without DLRover  |   PS failure with DLRover  | Worker failure with DLRover |
-|:-----------------------------------------------:|:-------------------------:|:--------------------------:|:---------------------------:|
-|                  Restore action                 |        Restart Job        |      Restart failed PS     |    Restart failed workers   |
-| Schedule node, pull image and install packages | All nodes               |         Only new PS        |     Only new workers        |
-|                  Start session                  |         all nodes         |          all nodes         |       Only new workers      |
-|                 Initialize Graph                |            Yes            |             Yes            |       Only new workers      |
-|                Restore checkpoint               |            Yes            |             Yes            |              No             |
+1. Asynchronously persist the checkpoint to the storage.
+2. Persist the checkpoint to the storage once the training process fails.
+3. Load the checkpoint from the host memory after the training process restarts.
 
-What's more, DLRover also can automatic diagnose the reason of failure. For example,
-the OOM is the common error due to user's insufficient memory configuration.
-DLRover can automatically launch a Pod with more memory to recover the OOM node.
+<div align="center">
+<img src="docs/figures/ft_llm_training/checkpoint_save_time.png" alt="Editor" width="396">
+<img src="docs/figures/ft_llm_training/checkpoint_load_time.jpg" alt="Editor" width="400">
+
+<text> The Performance of DLRover Flash Checkpoint to Save/Load GPT2-1.5B.</text>
+</div>
+
+The figure illustrates that the I/O time to read checkpoint files
+when resuming training processes. With DLRover Flash Checkpoint,
+recovery could be completed in the order of seconds by loading checkpoints directly from shared memory,
+which is much faster compared to loading checkpoints from SSD and NAS.
+
+#### Fault Tolerance Improves the Stability of TensorFlow PS Training
+
+DLRover can recover failed parameter servers and workers to resume training.
+
+1. DLRover can automatically launch a Pod with more memory to recover the OOM node.
+2. DLRover can reassign the training data of a failed worker to other workers.
+3. DLRover can automatically scale up the parameter servers to fit the model size.
+
 In AntGroup, DLRover manages hundreds of DL training jobs every day on the customized Kubernetes cluster in AntGroup.
-Except for the failed job resulting from code errors, the rate of completed jobs raise 89%
-with tf-operator in KubeFlow to 95%. Other unrecoverable failure reasons of a job are data error,
+Except for the failed job resulting from code errors, **the rate of completed jobs increase from 89%
+with tf-operator in KubeFlow to 95%**. Other unrecoverable failure reasons of a job are data error,
 NaN loss of the model, network breakdown, and so on.
 
 <div align="center">
@@ -130,55 +141,22 @@ By practice, DLRover is an ideal component to build an end-to-end industrial onl
 
 ## How to Use DLRover to Train Your Models?
 
+### Train a PyTorch Model
+
 We can use `dlrover-run` to run the training script which
 `torchrun` or `torch.distributed.run` can run.
 
-### Local Run to Train a PyTorch Model
-
-We run DLRover locally like
-
 ```bash
 pip install dlrover[torch]
-dlrover-run --standalone --nproc_per_node=$NUM_TRAINERS train_scripts.py
+dlrover-run --nnodes=1 --nproc_per_node=$NUM_TRAINERS train_scripts.py
 ```
 
-### Distributed Run to Train a PyTorch Model
+The more detail tutorials are:
 
-#### Run in a DLRover ElasticJob
-
-Firstly, the user need to deploy the DLRover elasticjob controller in a kubernetes
-cluster by followding the [tutorial](docs/deployment/controller.md). Then, we need
-to install `dlrover[torch]` and execute `dlrover-run` in
-the command of the Pod container like the example [torch_mnist_job.yaml](examples/pytorch/mnist/elastic_job.yaml).
-
-```bash
-pip install dlrover[torch] && \
-dlrover-run --network-check --nnodes=$NODE_NUM --nproc_per_node=$NUM_TRAINERS train_scripts.py
-```
-
-`--nnodes` is the number of nodes and `--nproc_per_node` is the number of process
-on each node. They are the same as the arguments of [torchrun](https://pytorch.org/docs/stable/elastic/run.html).
-
-#### Run in other k8s Jobs
-
-We can also use `dlrover-run` in other k8s jobs like [kubeflow/PyTorchJob](https://www.kubeflow.org/docs/components/training/pytorch/).
-We need to set the `NODE_RANK` and `DLROVER_MASTER_ADDR` before `dlrover-run`.
-For example, the `PyTorchJob` has set the `RANK`, `MASTER_ADDR` and `MASTER_PORT`
-into environments. We can run `dlrover-run` like
-
-```bash
-NODE_RANK=$RANK DLROVER_MASTER_ADDR=$MASTER_ADDR:$MASTER_PORT \
-dlrover-run --standalone --network-check --nnodes=$NODE_NUM --nproc_per_node=$NUM_TRAINERS  train_script.py
-```
-
-**Note**:
-
-- `dlrover-run` extends `torchrun` which dynamically configures `MASTER_ADDR` and `MASTER_PORT`
-for training processes. We can use the static `MASTER_ADDR` and `MASTER_PORT` of PyTorchJob as the address
-of DLRover job master.
-
-- The elastic scheduling of DLRover to restore or scale up/down Pods
-is not enabled without DLRover ElasticJob.
+- [Elastic scheduling tutorial](docs/tutorial/torch_elasticjob_on_k8s.md) to
+support elasticity and fault tolerance of Pod on k8s.
+- [Node detection tutorial](docs/tutorial/check_node_health.md) to check the fault or slow node in a distributed job.
+- [Flash Checkpoint](docs/blogs/flash_checkpoint.md) to speed up checkpoint during training.
 
 ### Train a TensorFlow Model
 
@@ -193,6 +171,7 @@ a model with DLRover.
 
 ## What's Next?
 
+- Multi-node in-memory redundant backup checkpoint to fast failure recovery.
 - Fine-grained automatic distributed training for GPU Synchronous jobs
   - hybrid-parallel mode
   - adapted hyper parameters adjustment with dynamic resources
@@ -207,8 +186,8 @@ Please refer to the [DEVELOPMENT](docs/developer_guide.md)
 
 ## Quick Start
 
-[Train a TensorFlow Estimator on Kubernetes](docs/tutorial/tf_ps_on_cloud.md)
+[Train a PyTorch Model on Kubernetes.](docs/tutorial/torch_elasticjob_on_k8s.md)
 
-[Train a PyTorch Model on Kubernetes](docs/tutorial/torch_on_cloud.md)
+[Train a GPT Model on Kubernetes.](docs/tutorial/torch_ddp_nanogpt.md)
 
-[Train a GPT Model on Kubernetes](docs/tutorial/torch_ddp_nanogpt.md)
+[Train a TensorFlow Estimator on Kubernetes.](docs/tutorial/tf_ps_on_cloud.md)

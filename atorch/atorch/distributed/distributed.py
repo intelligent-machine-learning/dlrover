@@ -1,13 +1,11 @@
 import multiprocessing as mp
 import os
-import sys
 from datetime import timedelta
 
 import numpy as np
 import torch
 import torch.distributed as dist
 import torch.distributed.rpc as torch_rpc
-from distutils.util import strtobool
 from torch.distributed.constants import default_pg_timeout
 from torch.distributed.distributed_c10d import _get_default_group
 
@@ -41,7 +39,6 @@ class _DistributedContext:
 class _CoworkerContext:
     GPU_POD_ADDRS = None
     COWORKER_ADDRS = None
-    USE_ELASTIC_DATALOADER = False
     DATA_INFO_SERVER = None
 
 
@@ -488,30 +485,6 @@ def _destroy_pippy_rpc_network():
     torch_rpc.shutdown()
 
 
-def _build_torch_rpc_networks(ddp_group_size):
-    # init RPC group
-    rpc_rank = rank()
-    rpc_name = str(rpc_rank)
-    rpc_world_size = world_size()
-    master_addr = os.getenv("MASTER_ADDR")
-    master_port2 = os.getenv("MASTER_PORT2")
-    rpc_backend_options = torch_rpc.TensorPipeRpcBackendOptions(
-        init_method="tcp://{}:{}".format(master_addr, master_port2),
-        _transports=["uv"],
-    )
-    torch_rpc.init_rpc(
-        rpc_name,
-        rank=rpc_rank,
-        world_size=rpc_world_size,
-        rpc_backend_options=rpc_backend_options,
-    )
-    if rank() >= ddp_group_size:
-        logger.info("Init coworker's rpc successfully.")
-        torch_rpc.shutdown()
-        logger.info("coworker's rpc shutdown")
-        sys.exit(0)
-
-
 def _build_grpc_networks(ddp_group_size):
     ip_address = get_ip_address()
     free_port = str(find_free_port())
@@ -545,12 +518,11 @@ def _build_grpc_networks(ddp_group_size):
 
 
 def _get_pods_address(ddp_group_size, ip_and_port, rpc_rank, addrs_queue, timeout=60):
-    is_master = rpc_rank == 0
     store = dist.TCPStore(
         os.getenv("MASTER_ADDR"),
         int(os.getenv("MASTER_PORT2")),
         world_size(),
-        is_master,
+        False,
         timeout=timedelta(seconds=timeout),
     )
     if (rpc_rank < ddp_group_size and rpc_rank % nproc_per_node() == 0) or rpc_rank >= ddp_group_size:
@@ -692,7 +664,6 @@ def init_distributed(
     _DistributedContext.NPROC_PER_NODE = int(os.getenv("NPROC_PER_NODE"))  # type: ignore
     _DistributedContext.NODE_SIZE = int(os.getenv("NODE_SIZE"))  # type: ignore
     _DistributedContext.COWORKER_NUM_PER_NODE = coworker_num_per_node
-    _CoworkerContext.USE_ELASTIC_DATALOADER = bool(strtobool(os.getenv("USE_ELASTIC_DATALOADER", "False")))
 
     if coworker_num_per_node >= nproc_per_node():
         logger.error(
@@ -724,10 +695,7 @@ def init_distributed(
                 logger.error("Failed to init_process_group")
                 return False
         if coworker_size() > 0:
-            if _CoworkerContext.USE_ELASTIC_DATALOADER is True:
-                _build_grpc_networks(ddp_group_size)
-            else:
-                _build_torch_rpc_networks(ddp_group_size)
+            _build_grpc_networks(ddp_group_size)
 
     if set_cuda_device_using_local_rank:
         gpu_num = torch.cuda.device_count()
@@ -757,9 +725,7 @@ def reset_distributed():
     torch.distributed.destroy_process_group()
 
     if coworker_size() > 0 and rank() < world_size() - coworker_size():
-        if _CoworkerContext.USE_ELASTIC_DATALOADER is False:
-            torch_rpc.shutdown()
-        elif local_rank() == 0:
+        if local_rank() == 0:
             _get_data_info_server().stop(None)
             logger.info("Data Info Service has stopped.")
 

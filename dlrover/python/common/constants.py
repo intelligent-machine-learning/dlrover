@@ -209,6 +209,9 @@ class NodeEnv(object):
     WORKER_NUM = "WORKER_NUM"
     WORKER_RANK = "WORKER_RANK"
 
+    # process env
+    TORCHELASTIC_RUN_ID = "TORCHELASTIC_RUN_ID"
+
 
 class DatasetType(object):
     TEXT = "text"
@@ -272,4 +275,6 @@ class ConfigPath(object):
 
 class CheckpointConstant(object):
     CKPT_NAME_PREFIX = "checkpoint-"
-    TRACER_FILE_NAME = "latest_checkpointed_iteration.txt"
+    TRACER_FILE_NAME = "dlrover_latest.txt"
+    MODEL_STATES_NAME = "model_states"
+    OPTIM_STATES_NAME = "optim_states"

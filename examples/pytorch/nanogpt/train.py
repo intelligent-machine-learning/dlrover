@@ -11,187 +11,51 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+The start command on a local ndoe:
+
+dlrover-run --nproc_per_node=2 train.py \
+    --n_layer 48 --n_head 16 --n_embd 1600 --data_dir './' \
+    --epochs 50 --save_memory_interval 50 --save_storage_interval 500
+"""
+
 
 import argparse
 import contextlib
-import functools
-import math
 import os
-import pickle
 import time
-from datetime import datetime, timedelta
 
-import numpy as np
 import torch
-import torch.distributed as dist
 from lora import apply_lora
-from model import GPT, Block, GPTConfig
-from torch.distributed.fsdp import CPUOffload, FullStateDictConfig
-from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
-from torch.distributed.fsdp import StateDictType
-from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.utils.data import Dataset
+from train_utils import (
+    add_train_args,
+    cleanup,
+    create_lora_config,
+    get_data_loaders,
+    get_lr,
+    gpt_init,
+    log_rank0,
+    setup,
+)
 
-from dlrover.trainer.torch.elastic.checkpoint import CheckpointManger
-from dlrover.trainer.torch.elastic.dataloader import ElasticDataLoader
 from dlrover.trainer.torch.elastic.sampler import ElasticDistributedSampler
 from dlrover.trainer.torch.elastic.trainer import ElasticTrainer
+from dlrover.trainer.torch.flash_checkpoint.ddp import (
+    DdpCheckpointer,
+    StorageType,
+)
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 
-# We should use a shared storage to persist the checkpiont.
-checkpoint_dir = "/nas/nanogpt-ckpt/"
-
-local_rank = None
-master_process = False
-
-
-class GPTDataset(Dataset):
-    def __init__(self, data_path, block_size=128):
-        self.data = np.memmap(data_path, dtype=np.uint16, mode="r")
-        self.block_size = block_size
-
-    def __len__(self):
-        return len(self.data) - self.block_size
-
-    def __getitem__(self, idx):
-        x = torch.from_numpy(
-            self.data[idx : idx + self.block_size].astype(  # noqa E203
-                np.int64
-            )  # noqa E203
-        )  # noqa
-        y = torch.from_numpy(
-            self.data[idx + 1 : idx + 1 + self.block_size].astype(  # noqa E203
-                np.int64
-            )  # noqa
-        )  # noqa
-        return x, y
-
-
-def get_data_loaders(
-    data_dir,
-    batch_size=32,
-    block_size=128,
-):
-    train_dataset = GPTDataset(os.path.join(data_dir, "train.bin"), block_size)
-    val_dataset = GPTDataset(os.path.join(data_dir, "val.bin"), block_size)
-    with open(os.path.join(data_dir, "meta.pkl"), "rb") as f:
-        meta = pickle.load(f)
-    sampler = ElasticDistributedSampler(dataset=train_dataset)
-    train_loader = ElasticDataLoader(
-        train_dataset, batch_size=batch_size, sampler=sampler, pin_memory=True
-    )
-    val_loader = ElasticDataLoader(
-        val_dataset, batch_size=batch_size, shuffle=False, pin_memory=True
-    )
-    meta_vocab_size = meta["vocab_size"]
-    return train_loader, val_loader, meta_vocab_size
-
-
-def gpt_init(meta_vocab_size=None, args=None):
-    n_layer = args.n_layer
-    n_head = args.n_head
-    n_embd = args.n_embd
-    block_size = args.block_size
-    bias = args.bias
-    dropout = args.dropout
-    # model init
-    model_args = dict(
-        n_layer=n_layer,
-        n_head=n_head,
-        n_embd=n_embd,
-        block_size=block_size,
-        bias=bias,
-        vocab_size=None,
-        dropout=dropout,
-    )  # Start with model_args from command line
-    # Init a new model from scratch
-    log_rank0("Initializing a new model from scratch")
-    # Determine the vocab size we'll use for from-scratch training
-    if meta_vocab_size is None:
-        print(
-            "defaulting to vocab_size of GPT-2 to 50304 "
-            "(50257 rounded up for efficiency)"
-        )
-    model_args["vocab_size"] = (
-        meta_vocab_size if meta_vocab_size is not None else 50304
-    )
-    gptconf = GPTConfig(**model_args)
-    return GPT(gptconf)
-
-
-def create_lora_config(args):
-    if (
-        args.lora_rank is None
-        and args.lora_dropout is None
-        and args.lora_alpha is None
-        and args.lora_targets is None
-    ):
-        return None
-    lora_config = {
-        "rank": args.lora_rank,
-        "dropout": args.lora_dropout,
-        "alpha": args.lora_alpha,
-        "targets": args.lora_targets.split(",") if args.lora_targets else [],
-    }
-    return lora_config
-
-
-# Learning rate decay scheduler (cosine with warmup)
-def get_lr(it, args):
-    learning_rate = args.learning_rate
-    warmup_iters = args.warmup_iters
-    lr_decay_iters = args.lr_decay_iters
-    min_lr = args.min_lr
-    # 1) Linear warmup for warmup_iters steps
-    if it < warmup_iters:
-        return learning_rate * it / warmup_iters
-    # 2) If it > lr_decay_iters, return min learning rate
-    if it > lr_decay_iters:
-        return min_lr
-    # 3) In between, use cosine decay down to min learning rate
-    decay_ratio = (it - warmup_iters) / (lr_decay_iters - warmup_iters)
-    assert 0 <= decay_ratio <= 1
-    coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio))  # coeff ranges 0..1
-    return min_lr + coeff * (learning_rate - min_lr)
-
-
-def log_rank0(msg):
-    rank = int(os.getenv("RANK", 0))
-    if rank == 0:
-        print(msg)
-
-
-def setup(args):
-    global local_rank, master_process
-
-    use_cuda = torch.cuda.is_available() and args.device != "cpu"
-    if use_cuda:
-        dist.init_process_group("nccl", timeout=timedelta(seconds=120))
-    else:
-        dist.init_process_group("gloo", timeout=timedelta(seconds=120))
-    rank = dist.get_rank()
-    local_rank = int(os.getenv("LOCAL_RANK", 0))
-    print(f"rank {rank} is initialized local_rank = {local_rank}")
-    # This process will do logging, checkpointing etc.
-    master_process = rank == 0
-    seed_offset = rank  # Each process gets a different seed
-    torch.manual_seed(1337 + seed_offset)
-    torch.backends.cuda.matmul.allow_tf32 = True  # Allow tf32 on matmul
-    torch.backends.cudnn.allow_tf32 = True  # Allow tf32 on cudnn
-
-
-def cleanup():
-    dist.destroy_process_group()
-
 
 def train():
-    global local_rank
     args = arg_parser()
-    setup(args)
+    checkpoint_dir = args.save_dir
+    setup()
     os.makedirs(checkpoint_dir, exist_ok=True)
     world_size = int(os.getenv("WORLD_SIZE", 1))
+    local_rank = int(os.getenv("LOCAL_RANK", 0))
     gradient_accumulation_steps = args.gradient_accumulation_steps
     batch_size = args.batch_size
     if gradient_accumulation_steps == 0:
@@ -203,14 +67,8 @@ def train():
         gradient_accumulation_steps * world_size * batch_size * block_size
     )  # noqa: E501
     log_rank0(f"tokens per iteration will be: {tokens_per_iter:,}")
-    device = (
-        f"cuda:{local_rank}"
-        if torch.cuda.is_available() and "cuda" in args.device
-        else "cpu"
-    )
-    device_type = (
-        "cuda" if "cuda" in device else "cpu"
-    )  # For later use in torch.autocast
+    device = f"cuda:{local_rank}" if torch.cuda.is_available() else "cpu"
+    device_type = "cuda" if "cuda" in device else "cpu"
     if device_type == "cuda":
         torch.cuda.set_device(device)
     # Note: float16 data type will automatically use a GradScaler
@@ -246,27 +104,9 @@ def train():
     if torch.cuda.is_available() and device_type == "cuda":
         # Create model and move it to GPU with id rank
         model = model.to(local_rank)
-        if args.use_fsdp:
-            print(f"Running basic FSDP example on local rank {local_rank}.")
-
-            my_auto_wrap_policy = functools.partial(
-                transformer_auto_wrap_policy,
-                transformer_layer_cls={Block},
-            )
-            cpu_offload = (
-                CPUOffload(offload_params=True) if args.cpu_offload else None
-            )
-            model = FSDP(
-                model,
-                device_id=local_rank,
-                auto_wrap_policy=my_auto_wrap_policy,
-                cpu_offload=cpu_offload,
-            )
-        else:
-            print(f"Running basic DDP example on local rank {local_rank}.")
-            model = DDP(model, device_ids=[local_rank])
-            print(f"Model device {model.device}")
-
+        print(f"Running basic DDP example on local rank {local_rank}.")
+        model = DDP(model, device_ids=[local_rank])
+        print(f"Model device {model.device}")
     else:
         print(f"Running basic CPU example on device {device}.")
         model = model.to(device)
@@ -307,11 +147,28 @@ def train():
     # to simulate larger batch size and using the GradScaler
     # if data type is float16
 
-    ckpt_manager = CheckpointManger.init_checkpoint_manager(
-        model, optimizer, train_loader, checkpoint_dir
-    )
-    ckpt_dict = ckpt_manager.load()
+    checkpointer = DdpCheckpointer(checkpoint_dir)
+
+    t0 = time.time()
+    ckpt_dict = {}
+    if args.use_native_ckpt:
+        ckpt_path = os.path.join(checkpoint_dir, "50.pt")
+        ckpt_dict = torch.load(ckpt_path)
+    else:
+        ckpt_dict = checkpointer.load_checkpoint()
+    read_time = round(time.time() - t0, 2)
+    if "model" in ckpt_dict:
+        model.load_state_dict(ckpt_dict["model"])
+    if "optimizer" in ckpt_dict:
+        optimizer.load_state_dict(ckpt_dict["optimizer"])
+    if "sampler" in ckpt_dict:
+        train_loader.sampler.load_state_dict(ckpt_dict["sampler"])
     iter_num = ckpt_dict.get("step", 0)
+    load_time = round(time.time() - t0, 2)
+    print(
+        f"Local rank {local_rank}: reading time {read_time}, "
+        f"loading time {load_time}s"
+    )
 
     for epoch in range(args.epochs):
         # Note: set the epoch into the sampler.
@@ -377,144 +234,107 @@ def train():
                         )
                     iter_num += 1
                     local_iter_num += 1
+                    start_save_t = time.time()
+                    if args.use_native_ckpt:
+                        saved = native_save_checkpoint(
+                            iter_num,
+                            model,
+                            optimizer,
+                            train_loader,
+                            args.save_storage_interval,
+                            checkpoint_dir,
+                        )
+                    else:
+                        saved = flash_save_checkpoint(
+                            checkpointer,
+                            iter_num,
+                            model,
+                            optimizer,
+                            train_loader,
+                            args.save_memory_interval,
+                            args.save_storage_interval,
+                        )
+                    if saved:
+                        save_time = round(time.time() - start_save_t, 2)
+                        print(f"Save checkpoint time {save_time}s")
 
                     # Termination conditions
                     if iter_num > max_iters:
                         break
-                    if iter_num % args.checkpoint_step == 0:
-                        ckpt_manager.save(epoch, iter_num)
-        if args.save_model:
-            rank = int(os.getenv("RANK", "0"))
-            save_model(model, epoch, rank, args.use_fsdp)
+                if iter_num > max_iters:
+                    break
+        if iter_num > max_iters:
+            break
 
 
-def save_model(model, epoch, rank, use_fsdp=False):
-    # save
-    if rank == 0:
-        print("--> entering save model state")
+def native_save_checkpoint(
+    iter_num,
+    model,
+    optimizer,
+    train_loader,
+    save_storage_interval,
+    checkpoint_dir,
+):
+    saved = False
+    if iter_num % save_storage_interval != 0:
+        return saved
+    state_dict = {
+        "model": model.state_dict(),
+        "optimizer": optimizer.state_dict(),
+        "step": iter_num,
+    }
+    if isinstance(train_loader.sampler, ElasticDistributedSampler):
+        sampler_sd = train_loader.sampler.state_dict(
+            iter_num, train_loader.batch_size
+        )
+        state_dict["ds_sampler"] = sampler_sd
+    ckpt_path = os.path.join(checkpoint_dir, f"{iter_num}.pt")
+    torch.save(state_dict, ckpt_path)
+    saved = True
 
-    if use_fsdp:
-        save_policy = FullStateDictConfig(offload_to_cpu=True, rank0_only=True)
-        with FSDP.state_dict_type(
-            model, StateDictType.FULL_STATE_DICT, save_policy
-        ):
-            cpu_state = model.state_dict()
-    else:
-        cpu_state = model.state_dict()
 
-    if rank == 0:
-        print("--> saving model ...")
-        currEpoch = "-" + str(epoch) + ".pt"
-        print(f"--> attempting to save model prefix {currEpoch}")
-        time_of_run = datetime.now().strftime("%Y-%m-%d-%I-%M-%S")
-        save_name = "nanogpt-" + time_of_run + currEpoch
-        print(f"--> saving as model name {save_name}")
-        torch.save(cpu_state, save_name)
-
-
-# Determine the device type based on the input string.
-def device_type(string):
-    lower_string = string.lower()
-    if "gpu" in lower_string or "cuda" in lower_string:
-        if lower_string != "cuda":
-            log_rank0(
-                "It seems you are trying to use a cuda device."
-                'The correct argument should be "cuda".'
-                "Automatically using the cuda device."
-            )
-        return "cuda"
-    else:
-        if lower_string != "cpu":
-            log_rank0(
-                f'Unrecognized device type argument "{lower_string}".'
-                "Defaulting to use the cpu device."
-            )
-        return "cpu"
+def flash_save_checkpoint(
+    checkpointer,
+    iter_num,
+    model,
+    optimizer,
+    train_loader,
+    save_memory_interval,
+    save_storage_interval,
+):
+    saved = False
+    if (
+        iter_num % save_memory_interval != 0
+        and iter_num % save_storage_interval != 0
+    ):
+        return saved
+    state_dict = {
+        "model": model.state_dict(),
+        "optimizer": optimizer.state_dict(),
+        "step": iter_num,
+    }
+    if isinstance(train_loader.sampler, ElasticDistributedSampler):
+        sampler_sd = train_loader.sampler.state_dict(
+            iter_num, train_loader.batch_size
+        )
+        state_dict["ds_sampler"] = sampler_sd
+    if iter_num % save_memory_interval == 0:
+        checkpointer.save_checkpoint(
+            iter_num, state_dict, storage_type=StorageType.MEMORY
+        )
+        saved = True
+    if iter_num % save_storage_interval == 0:
+        checkpointer.save_checkpoint(
+            iter_num, state_dict, storage_type=StorageType.DISK
+        )
+        saved = True
+    return saved
 
 
 def arg_parser():
     parser = argparse.ArgumentParser(description="Process training parameters")
-
-    # Data settings
-    parser.add_argument("--data_dir", type=str, required=True)
-    parser.add_argument("--out_dir", type=str, default="out", required=False)
-    parser.add_argument(
-        "--eval_interval", type=int, default=2000, required=False
-    )
-    parser.add_argument("--log_interval", type=int, default=1, required=False)
-    parser.add_argument("--eval_iters", type=int, default=200, required=False)
-    parser.add_argument("--eval_only", action="store_true", required=False)
-    parser.add_argument(
-        "--always_save_checkpoint", action="store_true", required=False
-    )
-    parser.add_argument("--batch_size", type=int, default=32, required=False)
-    parser.add_argument("--block_size", type=int, default=128, required=False)
-    parser.add_argument("--epochs", type=int, default=1, required=False)
-
-    # Model settings
-    parser.add_argument("--n_layer", type=int, default=6, required=False)
-    parser.add_argument("--n_head", type=int, default=6, required=False)
-    parser.add_argument("--n_embd", type=int, default=384, required=False)
-    parser.add_argument("--dropout", type=float, default=0.0, required=False)
-    parser.add_argument("--bias", action="store_true", required=False)
-
-    # LoRA settings
-    parser.add_argument("--lora_rank", type=int, default=4, required=False)
-    parser.add_argument(
-        "--lora_dropout", type=float, default=0.0, required=False
-    )
-    parser.add_argument(
-        "--lora_alpha", type=float, default=1.0, required=False
-    )
-    parser.add_argument(
-        "--lora_targets",
-        type=str,
-        default="wq,wk,wo,wv",
-        required=False,
-        help="comma separated list of targets to apply lora to",
-    )
-    # Optimizer settings
-    parser.add_argument(
-        "--learning_rate", type=float, default=6e-4, required=False
-    )
-    parser.add_argument("--max_iters", type=int, default=200, required=False)
-    parser.add_argument(
-        "--weight_decay", type=float, default=1e-1, required=False
-    )
-    parser.add_argument("--beta1", type=float, default=0.9, required=False)
-    parser.add_argument("--beta2", type=float, default=0.95, required=False)
-    parser.add_argument("--grad_clip", type=float, default=1.0, required=False)
-    parser.add_argument(
-        "--gradient_accumulation_steps", type=int, default=0, required=False
-    )
-
-    # Learning rate decay settings
-    parser.add_argument("--decay_lr", action="store_true", required=False)
-    parser.add_argument("--warmup_iters", type=int, default=0, required=False)
-    parser.add_argument(
-        "--lr_decay_iters", type=int, default=10, required=False
-    )
-    parser.add_argument("--min_lr", type=float, default=6e-5, required=False)
-
-    # System settings
-    parser.add_argument(
-        "--device",
-        type=device_type,
-        default="cpu",
-        required=False,
-        help="""The device to use for computation.
-        Choose from 'cuda' or 'cpu'.
-        Defaults to 'cpu' if not specified.""",
-    )
-    parser.add_argument("--compile", type=str, default="False", required=False)
-    parser.add_argument("--use_fsdp", action="store_true", required=False)
-    parser.add_argument("--cpu_offload", action="store_true", required=False)
-    parser.add_argument(
-        "--checkpoint_step", type=int, default=100, required=False
-    )
-    parser.add_argument("--save_model", action="store_true", required=False)
+    add_train_args(parser)
     args = parser.parse_args()
-
     return args
 
 

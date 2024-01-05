@@ -5,6 +5,7 @@ import torch
 import torch.distributed as dist
 
 from atorch.common.log_utils import default_logger as logger
+from atorch.common.util_func import find_free_port
 
 try:
     from transformers.models.bert import BertConfig
@@ -216,7 +217,7 @@ if __name__ == "__main__":
         global_args = args
         # print(args, os.environ["WORLD_SIZE"])
         os.environ["MASTER_ADDR"] = "127.0.0.1"
-        os.environ["MASTER_PORT"] = "29500"
+        os.environ["MASTER_PORT"] = str(find_free_port())
         unittest.main(argv=[sys.argv[0]] + argv)
     else:
         unittest.main()

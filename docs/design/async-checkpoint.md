@@ -20,7 +20,7 @@ when we train a foundation model using thousands of accelerators.
 
 ## Target
 
-- Reduce the checkpointing time overhead to block the training for
+- Reduce the checkpointing time overhead to accelerate the training for
   DDP, FSDP, DeepSpeed or Megatron.
 - Speed up loading the checkpoint file when the training restarts.
 - Automatically configure the checkpoint period to improve the efficient
@@ -44,7 +44,7 @@ will block the training to save checkpoint with a little time.
 
 ## A daemon Subprocess of the Training Process Asynchronously Saves Checkpoint to the Storage
 
-We can start a daemon subprocess in the training process to save the
+We can start a daemon subprocess in the training process to save checkpoint to the storage.
 
 - Start a thread to save states from GPU to CPU memory.
 - Make the memory buffer to place Torch tensors of states.
@@ -65,10 +65,10 @@ the agent save them into the storage.
 
 The agent and training process need to do the following steps:
 
-- The agent monitors the training process to create the mata of model and
+- The agent monitors the training process to create the meta of model and
 optimizer state dict.
-- The training process notifies to the agent the checkpointing meta when the
-training process firstly saves the state dict into the memory.
+- The training process firstly notifies to the agent the checkpointing meta when the
+training process saves the state dict into the memory.
 - The agent allocates the shared memory with the checkpointing meta and notifies
 the training process to copy the state dict from GPU to the shared CPU memory.
 - The agent saves the state dict in the shared memory into the storage when one of the conditions
@@ -114,7 +114,7 @@ implement the checkpointing process.
 
 The agent and training process need to do the following steps:
 
-1. The agent monitors the training process to create the mata of model and
+1. The agent monitors the training process to create the meta of model and
   optimizer state dict.
 2. TrainCkptManager acquires the shared lock and update the meta of model and optimizer
   state dict.
@@ -149,8 +149,9 @@ finish the writing.
 
 ## Checkpoint APIs Design
 
-The engine asynchronously in the training process creates the meta of state dict
-and write the state dict into the shared memory.
+The engine synchronously saves the checkpointing state dict into the CPU memory
+buffer and notifies the checkpoint saver to save the checkpoint from CPU memory
+buffer to the storage.
 
 ```Python
 
@@ -185,9 +186,6 @@ class CheckpointEngine(object):
         """
         pass
 
-    def create_tensor_meta_dict(self, state_dict):
-        """Create tensor meta dict with the state_dict."""
-
     def load(self, resume_path=""):
         """
         Load the state dict from the CPU memory if the state dict is complete in
@@ -204,20 +202,23 @@ class CheckpointEngine(object):
         pass
 ```
 
-The engine allocates the shared memory in the main process and save the state dict from
-the shared memory into the storage.
+The handler writes and reads the shared memory with the state dict.
 
 ```Python
-class SaveEngine(object):
-    def allocate_shared_memory(self, tensor_meta_dict):
-        """Allocate the shared memory with the tensor meta dict."""
+class SharedMemoryHandler(object):
+    def save_state_dict(self, step, state_dict, ckpt_name=""):
+        """Copy the state dict from CPU memory buffer into the shared memory."""
 
-    def save(self, path):
-        """Save the state dict from the shared memory into the storage if it receives
-        a saving signal from the training process."""
+    def load_state_dict(self):
+        """Load the state dict from the shared memory."""
+```
 
-    def check_integrity(self, path):
-        """Check the integrity of the checkpointing files."""
+CheckpointSaver saves the state dict from the shared memory into the storage.
+
+```Python
+class CheckpointSaver(object):
+    def save_shm_to_storage(self):
+        """Save the state dict in the shared memory into the storage."""
 ```
 
 The meta class stores the checkpoint tensor meta information.
@@ -239,19 +240,6 @@ class TensorMeta(object):
     element_size: int = 0
     numel: int = 0
     offset: int = 0
-
-
-class CheckpointMeta(object):
-    """
-    CheckpointMeta stores the tensor meta of state dict of a rank.
-
-    Args:
-        rank (int): the rank of training process.
-    """
-
-    def __init__(self, rank, tensor_meta_dict):
-        self.rank = rank
-        self.tensor_meta_dict = tensor_meta_dict
 ```
 
 The shared lock between local processes is implemented to avoid conflicts when multiple
@@ -260,7 +248,7 @@ processes concurrently read and write to the shared memory.
 ```Python
 class SharedLock(object):
     def acquire(self) -> bool:
-        """Acquire a lock shared with multiple processes."""
+        """Acquire a lock shared by multiple processes."""
 
     def release(self) -> None:
         """Release the lock."""
@@ -288,10 +276,9 @@ The shared dictionary across multiple processes on a node.
 
 ```Python
 class SharedDict(object):
-    def update(self, new_dict):
-        """Update the shared Dict with a new Dict"""
+    def set(self, new_dict):
+        """Set the dict to the remote shared Dict."""
 
     def get(self):
         """Returna a Python Dict from the shared Dict."""
-
 ```

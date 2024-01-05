@@ -26,7 +26,7 @@ pip install dlrover -U
 Then, we can use `dlrover-run` to start the training by
 
 ```bash
-dlrover-run --standalone --nproc_per_node=${GPU_NUM} \
+dlrover-run --nproc_per_node=${GPU_NUM} \
     examples/pytorch/nanogpt/train.py \
     --data_dir data/nanogpt/
 ```
@@ -37,7 +37,7 @@ dlrover-run --standalone --nproc_per_node=${GPU_NUM} \
 
 If we want to train the Nanogpt with DLRover on multiple nodes, we need to firstly
 deploy the DLRover ElasticJob CRD on the k8s cluster with the
-[tutorial](../../../docs/tutorial/torch_on_cloud.md).
+[tutorial](../../../docs/tutorial/torch_elasticjob_on_k8s.md).
 
 ### Prepare Docker Image
 
@@ -62,8 +62,6 @@ use the command in the containers of worker.
 ```bash
 dlrover-run --nnodes=$WORKER_NUM \
     --nproc_per_node=${GPU_NUM_PER_NODE} --max_restarts=1  \
-    ./examples/pytorch/nanogpt/train.py  \
-    --data_dir '/data/nanogpt/' \
-    --gradient_accumulation_steps $((WORKER_NUM * 1)) \
-    --use_fsdp
+    ./examples/pytorch/nanogpt/fsdp_train.py  \
+    --data_dir '/data/nanogpt/' --epochs 50 --checkpoint_step 50 \
 ```

@@ -68,7 +68,7 @@ from dlrover.python.elastic_agent.config.paral_config_tuner import (
 )
 from dlrover.python.elastic_agent.master_client import MasterClient
 from dlrover.python.elastic_agent.monitor.training import TorchTrainingMonitor
-from dlrover.python.elastic_agent.torch.ckpt_saver import CheckpointSaver
+from dlrover.python.elastic_agent.torch.ckpt_saver import AsyncCheckpointSaver
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
 
 __all__ = ["launch_agent"]
@@ -113,6 +113,7 @@ class ElasticLaunchConfig(LaunchConfig):
     node_unit: int = 1
     auto_tunning: bool = False
     exclude_straggler: bool = False
+    accelerator: str = "gpu"
 
     def set_node_unit(self, node_unit):
         """Set the number unint of ndoes."""
@@ -493,7 +494,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 super()._initialize_workers(worker_group)
                 # We need to register handler after starting workers because
                 # the PContext start_worker will overwrite the handler.
-                CheckpointSaver.register_signal_handler()
+                AsyncCheckpointSaver.register_signal_handler()
             except RendezvousOutSyncError:
                 logger.info(
                     "Exit elastic-training rendezvous when there are "
@@ -505,7 +506,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
     def _invoke_run(self, role: str = DEFAULT_ROLE) -> RunResult:
         # Start a thread to save the checkpointing state dict from
         # the shared memory to the storage.
-        CheckpointSaver.start_async_saving_ckpt()
+        AsyncCheckpointSaver.start_async_saving_ckpt()
 
         spec = self._worker_group.spec
         role = spec.role
@@ -573,7 +574,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         The agent can save the checkpointing state dict in the shared
         memory into the storage before restarting training processes.
         """
-        saver: CheckpointSaver = CheckpointSaver.get_ckpt_saver()
+        saver: AsyncCheckpointSaver = AsyncCheckpointSaver.get_ckpt_saver()
         if saver:
             self._save_ckpt_future = self._save_ckpt_executor.submit(
                 saver.save_shm_to_storage
@@ -702,14 +703,24 @@ def launch_agent(
         master_addr=master_addr,
     )
 
-    agent = ElasticTrainingAgent(
-        node_rank=node_rank,
-        config=config,
-        entrypoint=entrypoint,
-        spec=spec,
-        start_method=config.start_method,
-        log_dir=config.log_dir,
-    )
+    if config.accelerator == "npu":
+        agent = NPUTrainingAgent(
+            node_rank=node_rank,
+            config=config,
+            entrypoint=entrypoint,
+            spec=spec,
+            start_method=config.start_method,
+            log_dir=config.log_dir,
+        )
+    else:
+        agent = ElasticTrainingAgent(
+            node_rank=node_rank,
+            config=config,
+            entrypoint=entrypoint,
+            spec=spec,
+            start_method=config.start_method,
+            log_dir=config.log_dir,
+        )
 
     shutdown_rdzv = True
     try:
@@ -981,3 +992,37 @@ def run_network_check(config, entrypoint):
                 "because of abnormal node."
             )
     return success
+
+
+class NPUTrainingAgent(ElasticTrainingAgent):
+    """
+    An implementation of :py:class:`torchelastic.agent.server.ElasticAgent`
+    that handles host-local workers on NPU cluster.
+    """
+
+    def __init__(
+        self,
+        node_rank,
+        config: ElasticLaunchConfig,
+        entrypoint,
+        spec: WorkerSpec,
+        start_method="spawn",
+        exit_barrier_timeout: float = 300,
+        log_dir: Optional[str] = None,
+    ):
+        super().__init__(
+            node_rank,
+            config,
+            entrypoint,
+            spec,
+            start_method,
+            exit_barrier_timeout,
+            log_dir,
+        )
+
+    @prof
+    def _stop_workers(self, worker_group: WorkerGroup) -> None:
+        cmd = "pkill python"
+        r = os.system(cmd)
+        if r != 0:
+            logger.error("fail to stop python processes")

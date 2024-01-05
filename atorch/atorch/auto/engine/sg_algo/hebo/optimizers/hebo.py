@@ -33,7 +33,7 @@ class HEBO(AbstractOptimizer):
         super().__init__(space)
         self.space = space
         self.es = es
-        self.X = pd.DataFrame(columns=self.space.para_names)
+        self.X = pd.DataFrame(columns=self.space.para_names, dtype=object)
         self.y = np.zeros((0, 1))
         self.model_name = model_name
         if rand_sample:
@@ -63,7 +63,7 @@ class HEBO(AbstractOptimizer):
         opt_range = self.space.opt_ub - self.space.opt_lb
         samp = samp * opt_range + self.space.opt_lb
         x = samp[:, : self.space.num_numeric]
-        xe = samp[:, self.space.num_numeric :]  # noqa: E203
+        xe = samp[:, self.space.num_numeric :]
         for i, n in enumerate(self.space.numeric_names):
             if self.space.paras[n].is_discrete_after_transform:
                 x[:, i] = x[:, i].round()
@@ -129,7 +129,7 @@ class HEBO(AbstractOptimizer):
                 if y.std() < 0.5:
                     raise RuntimeError("Power transformation failed")
 
-            except RuntimeError:
+            except (RuntimeError, ValueError):
                 y = self.y.copy()
 
             num_numeric = self.space.num_numeric

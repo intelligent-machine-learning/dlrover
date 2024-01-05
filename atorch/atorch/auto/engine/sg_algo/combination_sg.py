@@ -34,7 +34,6 @@ class CombinationAlgorithm(StrategyGenerationAlgorithm):
         module_replace_strategy = [("module_replace", pickle.dumps(None), False)]
 
         amp_native_strategy = [("amp_native", pickle.dumps(None), False)]
-        amp_apex_o2_strategy = [("amp_apex_o2", pickle.dumps(None), False)]
         zero2_strategy = [("zero2", pickle.dumps(None), False)]
         fsdp_strategy = [("fsdp", pickle.dumps(None), False)]
 
@@ -46,14 +45,13 @@ class CombinationAlgorithm(StrategyGenerationAlgorithm):
         if executor.total_process > 1:
             p_mode = ([("data", executor.total_process)], None)
             dp_strategy = [("parallel_mode", pickle.dumps(p_mode), False)]
-            self.add_strategy(executor, dp_strategy + amp_apex_o2_strategy)
+            self.add_strategy(executor, dp_strategy)
             for zero_s in zeros:
                 for other_s in others:
                     strategy = dp_strategy + zero_s + other_s
                     if len(strategy) > 1:
                         self.add_strategy(executor, strategy)
         else:
-            self.add_strategy(executor, amp_apex_o2_strategy)
             for other_s in others:
                 if len(other_s) > 0:
                     self.add_strategy(executor, other_s)

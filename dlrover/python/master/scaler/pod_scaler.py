@@ -142,6 +142,8 @@ class PodScaler(Scaler):
 
     def scale(self, plan: ScalePlan):
         """Scale in/out Pods by a ScalePlan."""
+
+        self._remove_nodes(plan)
         while True:
             waited = False
             with self._lock:
@@ -179,11 +181,13 @@ class PodScaler(Scaler):
                     self._scale_down_pods(type, plan, cur_pods)
             for node in plan.launch_nodes:
                 self._create_node_queue.append(node)
-            for node in plan.remove_nodes:
-                removed = self._remove_not_create_pod(node.name)
-                if not removed:
-                    self._k8s_client.delete_pod(node.name)
             self._update_job_pods(job_pods)
+
+    def _remove_nodes(self, plan: ScalePlan):
+        for node in plan.remove_nodes:
+            removed = self._remove_not_create_pod(node.name)
+            if not removed:
+                self._k8s_client.delete_pod(node.name)
 
     def _update_job_pods(self, job_pods: Dict[str, List[Node]]):
         for type in [

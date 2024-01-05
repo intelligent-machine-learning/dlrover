@@ -1,10 +1,12 @@
 import contextlib
 import itertools
 import os
+import tarfile
 import unittest
 from collections.abc import Mapping
 
 import pytest
+import requests
 
 torch = pytest.importorskip("torch", "2.0.9")
 import torch.multiprocessing as mp  # noqa: E402
@@ -58,7 +60,9 @@ def compare_optim(path, model, rank):
     return all(result.values()), reshard_optim_state
 
 
-def run_gpt2_with_strategy(rank, use_bf16, fsdp_config, ckpt_path, is_save, is_load, world_size, compare_range=None):
+def run_gpt2_with_strategy(
+    rank, use_bf16, fsdp_config, ckpt_path, is_save, is_load, world_size, compare_range=None, is_train=False
+):
     hidden_size = 256
     head_num = 4
     layer_num = 3
@@ -73,11 +77,41 @@ def run_gpt2_with_strategy(rank, use_bf16, fsdp_config, ckpt_path, is_save, is_l
         raise Exception("init failed")
     device = "cuda" if torch.cuda.is_available() else "cpu"
     use_fa = torch.cuda.get_device_capability()[0] >= 8
-    ctx = contextlib.nullcontext() if not is_load else init_empty_weights_with_disk_offload(ckpt_path=ckpt_path)
+
+    def func(name):
+        return name
+
+    shard_kwargs = {"name_mapping_func_or_dict": func}
+    ctx = (
+        contextlib.nullcontext()
+        if not is_load
+        else init_empty_weights_with_disk_offload(
+            ckpt_path=ckpt_path, shard_kwargs=shard_kwargs, meta_init_offload_name="1"
+        )
+    )
     with ctx:
         model_context = create_model_context(
             data_size=data_size,
             batch_size=batch_size,
+            use_optim_param_func=True,
+            use_gpt2=True,
+            hidden_size=hidden_size,
+            head_num=head_num,
+            layer_num=layer_num,
+            seq_length=seq_length,
+        )
+    ctx = (
+        contextlib.nullcontext()
+        if not is_load
+        else init_empty_weights_with_disk_offload(
+            ckpt_path=ckpt_path, shard_kwargs=shard_kwargs, meta_init_offload_name="2"
+        )
+    )
+    with ctx:
+        model_context_1 = create_model_context(
+            data_size=data_size,
+            batch_size=batch_size,
+            use_optim_param_func=True,
             use_gpt2=True,
             hidden_size=hidden_size,
             head_num=head_num,
@@ -123,9 +157,31 @@ def run_gpt2_with_strategy(rank, use_bf16, fsdp_config, ckpt_path, is_save, is_l
         model_context.dataloader_args,
         load_strategy=strategy,
         ignore_dryrun_on_load_strategy=True,
+        meta_init_offload_name="1",
+    )
+    status, result_1, best_strategy = auto_accelerate(
+        model_context_1.model,
+        model_context_1.optim_func,
+        model_context_1.dataset,
+        model_context_1.loss_func,
+        model_context_1.prepare_input,
+        model_context_1.model_input_format,
+        model_context_1.optim_args,
+        model_context_1.optim_param_func,
+        model_context_1.dataloader_args,
+        load_strategy=strategy,
+        ignore_dryrun_on_load_strategy=True,
+        meta_init_offload_name="2",
     )
     assert status
     assert len(best_strategy) == len(strategy)
+    if is_load:
+        for (_, p), (_, p1) in zip(result.model.named_parameters(), result_1.model.named_parameters()):
+            r = p == p1
+            if isinstance(r, torch.Tensor):
+                r = r.all().item()
+            if not r:
+                raise ValueError("all auto acc parameters must be same")
     m_model = result.model
     m_dataloader = result.dataloader
     m_optim = result.optim
@@ -140,9 +196,17 @@ def run_gpt2_with_strategy(rank, use_bf16, fsdp_config, ckpt_path, is_save, is_l
                 raise ValueError("optim error")
         m_optim.load_state_dict(reshard_optim_state)
 
-    run_train(
-        m_model, m_dataloader, m_optim, m_prepare_input, m_loss_func, device, input_dtype=input_dtype, gpt2_model=True
-    )
+    if is_train:
+        run_train(
+            m_model,
+            m_dataloader,
+            m_optim,
+            m_prepare_input,
+            m_loss_func,
+            device,
+            input_dtype=input_dtype,
+            gpt2_model=True,
+        )
     if is_save:
         save_fsdp_flat_param(m_model, ckpt_path)
         save_fsdp_optim_param(m_model, m_optim, ckpt_path)
@@ -164,7 +228,27 @@ def run_gpt2_with_strategy(rank, use_bf16, fsdp_config, ckpt_path, is_save, is_l
 
 class FSDPShardSaveLoadTest(unittest.TestCase):
     def setUp(self):
+
         atorch.reset_distributed()
+        url = "http://alps-common.oss-cn-hangzhou-zmf.aliyuncs.com/users/lizhi/test_fsdp_save.tar"
+        target_path = "/tmp/test_fsdp_save.tar"
+        if os.path.exists(target_path):
+            self.has_test_weights = True
+            return
+        response = requests.get(url, stream=True)
+        self.has_test_weights = False
+        if response.status_code == 200:
+            self.has_test_weights = True
+            with open(target_path, "wb") as f:
+                f.write(response.raw.read())
+            extract_direcotry = os.path.dirname(target_path)
+
+            if tarfile.is_tarfile(target_path):
+                with tarfile.open(target_path) as f:
+                    f.extractall(path=extract_direcotry)
+            self.has_test_weights = os.path.exists("/tmp/test_fsdp_save")
+            if not self.has_test_weights:
+                print("There is no weight for testing, generate one")
 
     def tearDown(self):
         atorch.reset_distributed()
@@ -185,12 +269,51 @@ class FSDPShardSaveLoadTest(unittest.TestCase):
         not torch.cuda.is_available() or torch.cuda.device_count() < 4,
         "Must have at least 4 GPUs for gpu test",
     )
+    def test_gpt2_with_exist_weight(self):
+        if not self.has_test_weights:
+            return
+
+        self.assertTrue(self._cmp_param("/tmp/test_fsdp_save/2/block/"))
+        fsdp_config = {
+            "sync_module_states": True,
+            "atorch_wrap_cls": tuple(get_gpt2_module_type(module=i) for i in ("mlp", "attn")),
+        }
+        world_size = 4
+        args = (
+            True,
+            fsdp_config,
+            "/tmp/test_fsdp_save/2/block/",
+            True,
+            True,
+            world_size,
+            ["/tmp/test_fsdp_save/2/block/"],
+            True,
+        )
+        os.environ["WORLD_SIZE"] = str(world_size)
+        os.environ["NPROC_PER_NODE"] = str(world_size)
+        os.environ["MASTER_ADDR"] = "localhost"
+        os.environ["MASTER_PORT"] = str(find_free_port())
+        mp.spawn(
+            run_gpt2_with_strategy,
+            args=args,
+            nprocs=world_size,
+            join=True,
+            daemon=False,
+            start_method="spawn",
+        )
+
+    @unittest.skipIf(
+        not torch.cuda.is_available() or torch.cuda.device_count() < 4,
+        "Must have at least 4 GPUs for gpu test",
+    )
     def test_gpt2_save_and_prepare(self):
         """This test will test different wrap class: block or (mlp, attt), world size (2,3,4).
         Save shard checkpoint and origin checkpoint, compare them.
         Save optim and use FSDP.shard_full_optim_state_dict to reshard optim state, compare the
         reshard optim state.
         """
+        if self.has_test_weights:
+            return
         gpt2block_cls = [["block"], ["mlp", "attn"]]
         world_sizes = [2, 4]
         compare_optim_paths = []

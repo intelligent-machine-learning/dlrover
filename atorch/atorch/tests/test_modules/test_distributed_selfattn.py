@@ -9,6 +9,7 @@ from torch import distributed as dist
 from torch.distributed.distributed_c10d import _get_default_group
 from transformers import set_seed
 
+from atorch.common.util_func import find_free_port
 from atorch.modules.distributed_transformer import DistributedSelfAttention
 
 try:
@@ -367,7 +368,7 @@ if __name__ == "__main__":
     if "WORLD_SIZE" in os.environ:
         # print(args, os.environ["WORLD_SIZE"])
         os.environ["MASTER_ADDR"] = "127.0.0.1"
-        os.environ["MASTER_PORT"] = "29500"
+        os.environ["MASTER_PORT"] = str(find_free_port())
         # global global_args
         global_args = args
         unittest.main(argv=[sys.argv[0]] + argv)

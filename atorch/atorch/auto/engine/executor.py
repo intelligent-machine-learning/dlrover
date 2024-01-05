@@ -149,6 +149,9 @@ class Executor(object):
                     self.generate_tasks_if_needed(last_reported_task_id)
             else:
                 for index in range(self.cur_algo_index, len(self.selected_algos)):
+                    if self.selected_algos[index] == "bo_sg" and ("bo_sg" not in list(self.algo_lib.algorithms.keys())):
+                        self.selected_algos[index] = "combination_sg"
+                        logger.info("BO is not available and degrade to combination. GPy and pymoo==0.5.0 is needed!")
                     is_done, tasks, new_strategy_num = self.algo_lib[self.selected_algos[index]].strategy_generate(self)
                     if is_done:
                         self.cur_algo_index += 1

@@ -3,6 +3,7 @@ from __future__ import absolute_import, unicode_literals
 
 import copy
 import inspect
+import re
 import shutil
 from importlib.metadata import version
 from pathlib import Path
@@ -17,9 +18,9 @@ from torch import nn
 from torch.nn import MultiheadAttention
 
 from atorch.common.log_utils import default_logger as logger
-from atorch.common.log_utils import log_once
 from atorch.common.util_func import divide, split_tensor_along_last_dim
 from atorch.utils.meta_model_utils import is_meta, recursive_empty_param, reload_meta_module
+from atorch.utils.version import torch_version
 
 
 class ImportFailDummyClass:
@@ -51,8 +52,11 @@ if flash_attn is not None:
     _flash_attn_version = packaging.version.Version(version("flash-attn"))
     try:
         from flash_attn.flash_attention import FlashMHA  # cuda version
-    except (ImportError, ModuleNotFoundError):
-        assert _flash_attn_version >= packaging.version.Version("2"), "FlashMHA is deleted in 2.0 release"
+    except (ImportError, ModuleNotFoundError) as e:
+        logger.error(f"Import FlashMHA failed. {e}")
+        assert _flash_attn_version >= packaging.version.Version(
+            "2"
+        ), "FlashMHA is deleted in 2.0 release, but FA1 should has FlashMHA."
         patch_src = Path(__file__).parent.resolve() / "_fa_api_compat_patch"
         patch_dst = Path(flash_attn.__file__).parent.resolve() / "flash_attention.py"
         shutil.copy(patch_src, patch_dst)
@@ -76,6 +80,154 @@ else:
     dropout_add_layer_norm = None
 
 try:
+    import flash_attn_1
+    from flash_attn_1.flash_attn_interface import flash_attn_unpadded_func as flash_attn_1_unpadded_func
+    from flash_attn_1.ops.layer_norm import dropout_add_layer_norm
+
+    has_legacy_fa1 = True
+except (ImportError, ModuleNotFoundError):
+    flash_attn_1 = None
+    has_legacy_fa1 = False
+
+if torch_version() >= (2, 0, 0):  # torch ops seems to differ from 1.x, support pt2.0+ only
+    try:
+        import flash_attn_2_cuda
+
+        _flash_attn_2_cuda_lib = torch.library.Library("flash_attn_2_cuda", "DEF")
+        _flash_attn_2_cuda_lib.define(
+            re.sub(
+                r"\s+",
+                " ",
+                f"""
+            fa2_fwd(Tensor q, Tensor k, Tensor v, Tensor? out_,
+            float p_dropout, float softmax_scale, bool is_causal,
+            {"int window_size_left, int window_size_right, "
+            if _flash_attn_version > packaging.version.Version("2.3.0")
+            else ""}
+            bool return_softmax, Generator? gen_, Tensor? glm_mask)
+             -> (Tensor out, Tensor q_padded, Tensor k_padded,
+            Tensor v_padded, Tensor out_padded, Tensor softmax_lse,
+            Tensor p, Tensor rng_state)""".replace(
+                    "\n", ""
+                ),
+            )
+        )
+        _flash_attn_2_cuda_lib.define(
+            re.sub(
+                r"\s+",
+                " ",
+                f"""
+            fa2_varlen_fwd(Tensor q, Tensor k, Tensor v, Tensor? out_,
+            Tensor cu_seqlens_q, Tensor cu_seqlens_k,
+            {"Tensor? seqused_k, "
+            if _flash_attn_version >= packaging.version.Version("2.3.6")
+            else ""}
+            int max_seqlen_q, int max_seqlen_k, float p_dropout,
+            float softmax_scale, bool zero_tensors, bool is_causal,
+            {"int window_size_left, int window_size_right, "
+            if _flash_attn_version >= packaging.version.Version("2.3.0")
+            else ""}
+            bool return_softmax, Generator? gen_, Tensor? glm_mask)
+             -> (Tensor out, Tensor q_padded, Tensor k_padded,
+            Tensor v_padded, Tensor out_padded, Tensor softmax_lse,
+            Tensor p, Tensor rng_state)""".replace(
+                    "\n", ""
+                ),
+            )
+        )
+        _flash_attn_2_cuda_lib.define(
+            re.sub(
+                r"\s+",
+                " ",
+                f"""
+            fa2_bwd(Tensor dout, Tensor q, Tensor k, Tensor v, Tensor out,
+            Tensor softmax_lse, Tensor? dq_, Tensor? dk_, Tensor? dv_,
+            float p_dropout, float softmax_scale, bool is_causal,
+            {"int window_size_left, int window_size_right, "
+            if _flash_attn_version >= packaging.version.Version("2.3.0")
+            else ""}
+            Generator? gen_, Tensor? glm_mask, Tensor? rng_state)
+             -> (Tensor dq, Tensor dk, Tensor dv, Tensor softmax_d)
+            """.replace(
+                    "\n", ""
+                ),
+            )
+        )
+        _flash_attn_2_cuda_lib.define(
+            re.sub(
+                r"\s+",
+                " ",
+                f"""
+            fa2_varlen_bwd(Tensor dout, Tensor q, Tensor k, Tensor v, Tensor out,
+            Tensor softmax_lse, Tensor? dq_, Tensor? dk_, Tensor? dv_,
+            Tensor cu_seqlens_q, Tensor cu_seqlens_k, int max_seqlen_q, int max_seqlen_k,
+            float p_dropout, float softmax_scale, bool zero_tensors, bool is_causal,
+            {"int window_size_left, int window_size_right, "
+            if _flash_attn_version >= packaging.version.Version("2.3.0")
+            else ""}
+            Generator? gen_, Tensor? glm_mask, Tensor? rng_state)
+             -> (Tensor dq, Tensor dk, Tensor dv, Tensor softmax_d)
+            """.replace(
+                    "\n", ""
+                ),
+            )
+        )
+        _flash_attn_2_cuda_lib.impl("fa2_fwd", flash_attn_2_cuda.fwd, "CUDA")
+        _flash_attn_2_cuda_lib.impl("fa2_varlen_fwd", flash_attn_2_cuda.varlen_fwd, "CUDA")
+        _flash_attn_2_cuda_lib.impl("fa2_bwd", flash_attn_2_cuda.bwd, "CUDA")
+        _flash_attn_2_cuda_lib.impl("fa2_varlen_bwd", flash_attn_2_cuda.varlen_bwd, "CUDA")
+        if _flash_attn_version._version.release <= (2, 3, 6):
+            flash_attn_2_cuda.fwd = torch.ops.flash_attn_2_cuda.fa2_fwd
+            flash_attn_2_cuda.varlen_fwd = torch.ops.flash_attn_2_cuda.fa2_varlen_fwd
+            flash_attn_2_cuda.bwd = torch.ops.flash_attn_2_cuda.fa2_bwd
+            flash_attn_2_cuda.varlen_bwd = torch.ops.flash_attn_2_cuda.fa2_varlen_bwd
+        else:
+            logger.info(f"flash_attn version {_flash_attn_version} not verified for dispatcher.")
+    except (ImportError, ModuleNotFoundError):
+        logger.info("flash_attn_2_cuda lib not founded, not registering to torch dispatcher.")
+
+    try:
+        try:
+            import flash_attn_1_cuda
+        except ModuleNotFoundError:
+            import flash_attn_cuda as flash_attn_1_cuda
+        _flash_attn_1_cuda_lib = torch.library.Library("flash_attn_1_cuda", "DEF")
+        _flash_attn_1_cuda_lib.define(
+            "fa1_fwd(Tensor q, Tensor k, Tensor v, Tensor out, "
+            "Tensor cu_seqlens_q, Tensor cu_seqlens_k, "
+            "int max_seqlen_q_, int max_seqlen_k_, float p_dropout, "
+            "float softmax_scale, bool zero_tensors, bool is_causal, "
+            "bool return_softmax, int num_splits, Generator? gen_, Tensor? attn_mask, Tensor? attn_bias)"
+            " -> (Tensor softmax_lse, Tensor? s)"
+        )
+        _flash_attn_1_cuda_lib.define(
+            "fa1_bwd(Tensor dout, Tensor q, Tensor k, Tensor v, Tensor out, "
+            "Tensor softmax_lse_, Tensor dq, Tensor dk, Tensor dv, "
+            "Tensor cu_seqlens_q, Tensor cu_seqlens_k, int max_seqlen_q_, int max_seqlen_k_, "
+            "float p_dropout, float softmax_scale, bool zero_tensors, bool is_causal, "
+            "int num_splits, Generator? gen_, Tensor? attn_mask, Tensor? attn_bias)"
+            " -> (Tensor softmax_d, Tensor? dbias)"
+        )
+        _flash_attn_1_cuda_lib.impl("fa1_fwd", flash_attn_1_cuda.fwd, "CUDA")
+        _flash_attn_1_cuda_lib.impl("fa1_bwd", flash_attn_1_cuda.bwd, "CUDA")
+
+        def keep_one_tensor_list(func):
+            def _func(*args, **kwargs):
+                output = func(*args, **kwargs)
+                if isinstance(output, torch.Tensor):
+                    return [output]
+                else:
+                    return output
+
+            return _func
+
+        flash_attn_1_cuda.fwd = keep_one_tensor_list(torch.ops.flash_attn_1_cuda.fa1_fwd)
+        flash_attn_1_cuda.bwd = keep_one_tensor_list(torch.ops.flash_attn_1_cuda.fa1_bwd)
+    except (ImportError, ModuleNotFoundError):
+        logger.info("flash_attn_1_cuda lib not founded, not registering to torch dispatcher.")
+
+
+try:
     from apex.amp import _amp_state
 except (ImportError, ModuleNotFoundError):
     _amp_state = None
@@ -97,6 +249,12 @@ def is_glm_mask_supported_fa2():
     if not _flash_attn_version or _flash_attn_version < packaging.version.Version("2"):
         return False
     return "glm_mask" in inspect.signature(flash_attn_func).parameters
+
+
+def is_pack_glm_mask_supported_fa2():
+    if not _flash_attn_version or _flash_attn_version < packaging.version.Version("2"):
+        return False
+    return _flash_attn_version.local == "pack.glm.mask"
 
 
 class MixPrecisionDeepSpeedTransformerFunction(torch.autograd.Function):
@@ -1126,22 +1284,10 @@ def flash_attn_with_mask_bias(q, k, v, mask=None, bias=None, dropout_p=0.0, soft
     Returns:
         out:[b, s_q, nh, hs]
     """
-    # fa2 version check
-    _is_flash_attn_2 = _flash_attn_version >= packaging.version.Version("2")
-    if _is_flash_attn_2:
-        log_once(
-            "fa2 additive mask/bias TODO, only `fa2_with_glm_mask` supported currently. If the mask is "
-            "not None, we assume the mask is a glm-style additive mask, and use argmin to transpose "
-            "it to break_point index mask."
-        )
-        assert bias is None, "using `fa2_with_glm_mask` without bias."
-        if mask is not None and causal is False:
-            causal = True
-            logger.warning("glm_mask must be with causal.")
-        glm_mask = mask[:, 0, 0, :].argmin(-1).int() if mask is not None else None
-        return fa2_with_glm_mask(
-            q, k, v, glm_mask=glm_mask, dropout_p=dropout_p, softmax_scale=softmax_scale, causal=causal
-        )
+    if has_legacy_fa1:
+        _flash_attn_unpadded_func = flash_attn_1_unpadded_func
+    else:
+        _flash_attn_unpadded_func = flash_attn_unpadded_func
 
     b, s_q, nh, hs = q.shape
     _, s_k, _, _ = k.shape
@@ -1181,9 +1327,11 @@ def flash_attn_with_mask_bias(q, k, v, mask=None, bias=None, dropout_p=0.0, soft
         "causal": causal,
     }
     if mask is not None or bias is not None:
-        assert is_additive_mask_bias_supported_fa1(), "Must be attn mask/bias supported version FlashAttn v1"
+        assert (
+            is_additive_mask_bias_supported_fa1() or has_legacy_fa1
+        ), "Must be attn mask/bias supported version FlashAttn v1"
         kwargs.update({"attn_mask": mask, "attn_bias": bias})
-    out = flash_attn_unpadded_func(
+    out = _flash_attn_unpadded_func(
         q,
         k,
         v,
@@ -1226,6 +1374,12 @@ class FlashAttnModule(nn.Module):
     """
     Unified API for FlashAttention, make it a module for train/val dropout_p handling.
     support key_padding_mask; support additive mask/bias in FA1; support break_point index glm-mask in FA2
+
+    Update:: (2.3.6+pack.glm.mask) support startpoint/endpoint index pack glm_mask in torch.int32 dtype and
+    [batch_size, 2, MAX_NUM_PAIR] shape, compat [batch_size] break_point index glm-mask.
+
+    Note:: compat for single q with past key value in decoding, as atorch fa version does not include
+           q/k uneven causal fix in https://github.com/Dao-AILab/flash-attention/issues/282.
     """
 
     def __init__(self, causal=False, softmax_scale=None, attention_dropout=0.0):
@@ -1240,13 +1394,20 @@ class FlashAttnModule(nn.Module):
         """
         b, s_q, nh, hs = q.shape
         _, s_k, _, _ = k.shape
-        if self.causal:
-            assert s_q == s_k, "FA supports causal mask only if query/key length equal"
+
         kwargs = {
             "dropout_p": self.attention_dropout if self.training else 0.0,
             "softmax_scale": self.softmax_scale,
-            "causal": self.causal,
         }
+
+        if s_q == 1:
+            # for single q decoding, not use causal
+            kwargs.update({"causal": False})
+        else:
+            assert (
+                s_q == s_k or not self.causal
+            ), f"Support single query decoding for now, query seq len {s_q}, key seq len {s_k}."
+            kwargs.update({"causal": self.causal})
 
         # FA2 glm_mask
         if glm_mask is not None:
@@ -1256,22 +1417,27 @@ class FlashAttnModule(nn.Module):
 
         # FA1 additive mask
         if additive_mask is not None or additive_bias is not None:
-            assert is_additive_mask_bias_supported_fa1(), "Must be attn mask/bias supported version FlashAttn v1"
+            assert (
+                is_additive_mask_bias_supported_fa1() or has_legacy_fa1
+            ), "Must be attn mask/bias supported version FlashAttn v1"
             assert not self.causal and key_padding_mask is None, "Should not causal/padding mask when additive mask"
             kwargs.update({"mask": additive_mask, "bias": additive_bias})
 
         if key_padding_mask is None or key_padding_mask.bool().all():
-            if _flash_attn_version >= packaging.version.Version("2"):
+            if _flash_attn_version >= packaging.version.Version("2") and "mask" not in kwargs and "bias" not in kwargs:
                 return flash_attn_func(q, k, v, **kwargs)
             else:
                 return flash_attn_with_mask_bias(q, k, v, **kwargs)
         else:
             # unpad input and pad output according key_padding_mask
-            q_unpad, indices, cu_seqlens, max_seqlen = unpad_input(q, key_padding_mask)
-            k_unpad, _, _, _ = unpad_input(k, key_padding_mask)
+            # Note: [2023-12-08] single q decoding, only the last mask meaningful to query
+            q_unpad, indices, cu_seqlens, max_seqlen = unpad_input(
+                q, key_padding_mask[:, -1:] if s_q == 1 else key_padding_mask
+            )
+            k_unpad, k_indices, k_cu_seqlens, k_max_seqlen = unpad_input(k, key_padding_mask)
             v_unpad, _, _, _ = unpad_input(v, key_padding_mask)
             o_unpad = flash_attn_unpadded_func(
-                q_unpad, k_unpad, v_unpad, cu_seqlens, cu_seqlens, max_seqlen, max_seqlen, **kwargs
+                q_unpad, k_unpad, v_unpad, cu_seqlens, k_cu_seqlens, max_seqlen, k_max_seqlen, **kwargs
             )
             return pad_input(o_unpad, indices, b, s_q)
 
@@ -1338,7 +1504,7 @@ class LlamaAttentionFA(LlamaAttention):
 
         past_key_value = (key_states, value_states) if use_cache else None
 
-        # FA Compute #######
+        # FA Compute #
         if len(attention_mask.shape) == 4:
             # FA note: llama pre-add causal mask and padding mask, convert back to padding mask
             key_padding_mask = attention_mask[:, 0, -1, :] == 0
@@ -1353,7 +1519,7 @@ class LlamaAttentionFA(LlamaAttention):
             value_states.transpose(1, 2),
             key_padding_mask=key_padding_mask,
         )
-        # FA Compute End
+        # FA Compute End #
 
         attn_output = attn_output.reshape(bsz, q_len, self.hidden_size)
 

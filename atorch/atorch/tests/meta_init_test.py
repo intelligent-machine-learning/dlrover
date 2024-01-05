@@ -11,6 +11,7 @@ import torch.nn as nn
 
 import atorch
 from atorch.auto.accelerate import auto_accelerate
+from atorch.common.util_func import find_free_port
 from atorch.utils.meta_model_utils import init_empty_weights_with_disk_offload, reload_meta_module
 from atorch.utils.version import torch_version
 
@@ -197,7 +198,7 @@ class TestInitAutoAccelerate(unittest.TestCase):
     def test_init_auto_accelerate(self):
         world_size = 2
         os.environ["MASTER_ADDR"] = "localhost"  #
-        os.environ["MASTER_PORT"] = "5000"
+        os.environ["MASTER_PORT"] = str(find_free_port())
         mp.spawn(
             _test_init_auto_accelerate,
             args=(world_size,),

@@ -1,15 +1,16 @@
-# Adopted from Fairscale
-
 import logging
 import re
-from typing import List, Tuple
+from typing import List, Tuple, Union
 
 import torch
 
 __all__: List[str] = ["torch_version"]
 
 
-def torch_version(version: str = torch.__version__) -> Tuple[int, ...]:
+# Adopted from Fairscale
+def torch_version(
+    version: str = torch.__version__, return_dev: bool = False
+) -> Union[Tuple[int, ...], Tuple[Tuple[int, ...], str]]:
     numbering = re.search(r"^(\d+).(\d+).(\d+)([^\+]*)(\+\S*)?$", version)
     if not numbering:
         return tuple()
@@ -23,4 +24,24 @@ def torch_version(version: str = torch.__version__) -> Tuple[int, ...]:
         # return the pre-release or dev numbering
         logging.warning(f"Pytorch pre-release version {version} - assuming intent to test it")
 
-    return tuple(int(numbering.group(n)) for n in range(1, 4))
+    ver = tuple(int(numbering.group(n)) for n in range(1, 4))
+    if return_dev:
+        return ver, numbering.group(4)
+    else:
+        return ver
+
+
+def get_digit_part(string):
+    match = re.search(r"^\d+", string)
+    if match:
+        return match.group()
+    else:
+        return ""
+
+
+def get_version(package):
+    version = package.__version__
+    numbering = version.split(".")
+    vs = [get_digit_part(x) for x in numbering]
+    digits = [int(x) if x != "" else "" for x in vs]
+    return tuple(digits)

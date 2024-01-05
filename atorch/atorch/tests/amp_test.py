@@ -15,6 +15,7 @@ from atorch.auto.opt_lib.amp_optimization import AmpNativeOptimization, AmpNativ
 from atorch.auto.opt_lib.half_optimization import HalfOptimization
 from atorch.auto.opt_lib.optimization_library import OptimizationLibrary
 from atorch.auto.strategy import Strategy
+from atorch.common.util_func import find_free_port
 from atorch.tests.test_utils import DummyProcessGroup
 from atorch.tests.toy_module import create_model_context, optim_func, run_train
 from atorch.utils.grad_scaler import BF16GradScaler, BF16ShardedGradScaler
@@ -248,6 +249,8 @@ class FSDPNonFiniteChecking(unittest.TestCase):
     )
     def test_skipping_update_params_nonfinite_loss(self):
         world_size = 2
+        os.environ["MASTER_ADDR"] = "localhost"
+        os.environ["MASTER_PORT"] = str(find_free_port())
         mp.spawn(
             _test_skipping_update_params_nonfinite_loss,
             args=(world_size,),
@@ -263,8 +266,6 @@ def _test_skipping_update_params_nonfinite_loss(rank, world_size):
     os.environ["RANK"] = str(rank)
     os.environ["WORLD_SIZE"] = str(world_size)
     os.environ["NPROC_PER_NODE"] = str(world_size)
-    os.environ["MASTER_ADDR"] = "localhost"
-    os.environ["MASTER_PORT"] = "29505"
     dist.init_process_group(backend="nccl", rank=rank, world_size=world_size)
     device = f"cuda:{rank}"
     strategy = Strategy(

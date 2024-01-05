@@ -1,7 +1,10 @@
+import os
 import unittest
 
 from atorch.auto.engine.acceleration_engine import AccelerationEngine
 from atorch.auto.engine.task import TaskType
+
+os.environ["BO_SG_MAX_IETR"] = "2"
 
 
 def process_task(tasks, executor):
@@ -12,7 +15,7 @@ def process_task(tasks, executor):
         if task.task_type == TaskType.TUNE:
             result = task.task_info
         if task.task_type == TaskType.DRYRUN:
-            result = {"throughput": task.task_id + 2.0}
+            result = {"throughput": min(task.task_id + 2.0, 2)}
         if task.task_type != TaskType.WAIT:
             executor.report_task_result(task.task_id, process_id, True, result)
 

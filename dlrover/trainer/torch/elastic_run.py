@@ -78,6 +78,7 @@ import sys
 import telnetlib
 import time
 import uuid
+from datetime import datetime
 from typing import Callable, List, Tuple, Union
 
 from torch.distributed.argparse_util import check_env, env
@@ -86,9 +87,8 @@ from torch.distributed.elastic.multiprocessing.errors import record
 from torch.distributed.launcher.api import launch_agent as torch_launch_agent
 from torch.distributed.run import config_from_args, get_args_parser
 
-from dlrover.python.common import env_utils
+from dlrover.python.common import env_utils, grpc
 from dlrover.python.common.constants import NodeEnv
-from dlrover.python.common.grpc import find_free_port
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.torch.training import (
     ElasticLaunchConfig,
@@ -98,6 +98,13 @@ from dlrover.python.elastic_agent.torch.training import (
 
 def parse_args(args):
     parser = get_args_parser()
+    parser.add_argument(
+        "--accelerator",
+        type=str,
+        action=env,
+        default="gpu",
+        help="The type of accelerator.",
+    )
     parser.add_argument(
         "--network-check",
         "--network_check",
@@ -178,12 +185,12 @@ class elastic_launch:
             )
 
 
-def _launch_dlrover_local_master(master_addr):
+def _launch_dlrover_local_master(master_addr, job_name):
     """Launch a subprocess to run the DLrover master."""
     logger.info(f"Start dlrover master with addr {master_addr}")
     if not master_addr:
         host = "127.0.0.1"
-        port = find_free_port()
+        port = grpc.find_free_port()
     else:
         host = master_addr.split(":")[0]
         port = int(master_addr.split(":")[1])
@@ -195,7 +202,7 @@ def _launch_dlrover_local_master(master_addr):
         "--port",
         f"{port}",
         "--job_name",
-        "dlrover-training",
+        job_name,
         "--platform",
         "local",
     )
@@ -232,6 +239,7 @@ def _elastic_config_from_args(
         args, "exclude_straggler", False
     )
     elastic_config.set_node_unit(getattr(args, "node_unit", 1))
+    elastic_config.accelerator = getattr(args, "accelerator", "gpu")
     return elastic_config, cmd, cmd_args
 
 
@@ -240,9 +248,15 @@ def run(args):
     master_addr = os.getenv(NodeEnv.DLROVER_MASTER_ADDR, "")
     use_dlrover_launch = False
     node_rank = env_utils.get_node_rank()
-    if args.standalone and node_rank == 0:
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    job_name = os.getenv(NodeEnv.JOB_NAME, f"standalone_{timestamp}")
+    os.environ[NodeEnv.TORCHELASTIC_RUN_ID] = job_name
+    dlrover_master_ready = grpc.addr_connected(master_addr)
+    if not dlrover_master_ready and node_rank == 0:
         # Only start the dlrover master on the rank-0 node.
-        master_handler, master_addr = _launch_dlrover_local_master(master_addr)
+        master_handler, master_addr = _launch_dlrover_local_master(
+            master_addr, job_name
+        )
         os.environ[NodeEnv.DLROVER_MASTER_ADDR] = master_addr
     if _check_dlrover_master_available(master_addr):
         use_dlrover_launch = True
@@ -263,6 +277,8 @@ def run(args):
         )
 
     config, cmd, cmd_args = _elastic_config_from_args(args)
+    config.run_id = job_name
+    config.role = "dlrover-trainer"
     try:
         elastic_launch(
             config=config,

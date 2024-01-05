@@ -1,0 +1,21 @@
+{
+    "zero_optimization": {
+        "stage": 1,
+        "overlap_comm": true,
+        "contiguous_gradients": true,
+        "sub_group_size": 1e9,
+        "reduce_bucket_size": "auto",
+        "stage3_prefetch_bucket_size": "auto",
+        "stage3_param_persistence_threshold": "auto",
+        "stage3_max_live_parameters": 1e9,
+        "stage3_max_reuse_distance": 1e9,
+        "stage3_gather_fp16_weights_on_model_save": true
+    },
+  
+    "gradient_accumulation_steps": 1,
+    "gradient_clipping": 0.1,
+    "steps_per_print": 100,
+    "train_batch_size": 256,
+    "train_micro_batch_size_per_gpu": 16,
+    "wall_clock_breakdown": false
+}

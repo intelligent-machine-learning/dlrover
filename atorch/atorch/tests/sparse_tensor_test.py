@@ -5,6 +5,7 @@ import torch
 import torch.distributed as dist
 import torch.multiprocessing as mp
 
+from atorch.common.util_func import find_free_port
 from atorch.utils.sparse import all_reduce_sparse
 
 
@@ -30,7 +31,7 @@ class SparseTensorCommunicationTest(unittest.TestCase):
     @unittest.skipIf(True, "Failed on gpu")
     def test_all_reduce_sparse(self):
         os.environ["MASTER_ADDR"] = "localhost"
-        os.environ["MASTER_PORT"] = "28505"
+        os.environ["MASTER_PORT"] = str(find_free_port())
         world_size = 2
         mp.spawn(run_all_reduce_sparse, args=(world_size,), nprocs=world_size, join=True)
 

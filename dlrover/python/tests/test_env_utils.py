@@ -24,6 +24,7 @@ class EnvUtilsTest(unittest.TestCase):
         os.environ.pop(NodeEnv.NODE_RANK, None)
         os.environ.pop(NodeEnv.NODE_NUM, None)
         os.environ.pop(NodeEnv.WORKER_RANK, None)
+        os.environ.pop("LOCAL_WORLD_SIZE", None)
 
     def test_get_env(self):
         node_rank = env_utils.get_node_rank()

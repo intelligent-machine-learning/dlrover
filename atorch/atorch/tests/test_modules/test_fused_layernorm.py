@@ -13,6 +13,7 @@ from atorch.auto.opt_lib.optimization_library import OptimizationLibrary
 from atorch.auto.strategy import Strategy
 from atorch.normalization import AtorchLayerNorm
 from atorch.normalization import LayerNorm as ApexLayerNorm
+from atorch.utils.parse_trace_json import analyze_gpu_kernel, prepare_df
 
 
 class SimpleLN(torch.nn.Module):
@@ -272,6 +273,11 @@ class FusedLayerNormTest(unittest.TestCase):
         print(
             f"cat2times: atorch={cat2times['atorch']:.3f} native={cat2times['torch']:.3f} apex={cat2times['apex']:.3f}"
         )
+        with open("layernorm_trace_%s.json" % dtype, "r") as fin:
+            json_obj = json.load(fin)  # TODO: iter json_obj,save memory usage
+            df = prepare_df(json_obj)
+            ret = analyze_gpu_kernel(df)
+            print("compute summary:", ret)
         # self.assertLess(cat2times["atorch"], cat2times["torch"])
         # self.assertLess(cat2times["atorch"], cat2times["apex"])
 
