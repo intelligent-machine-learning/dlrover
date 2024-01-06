@@ -5,7 +5,7 @@
 ## BackGround
 
 Currently, training large models needs hundreds to thousands of accelerators and runs from
-several weeks to several months. During the training process, interruptions due to failures often occured.
+several weeks to several months. During the training process, interruptions due to failures often occur.
 Typical issues includes GPU or network failure. To achieve fault tolerance in training, the training system
 must meet the following two requirements:
 
@@ -333,7 +333,7 @@ before and after using DLRover Flash Checkpoint.
 Additionally, we tracked the cumulative time overhead for checkpointing over the course of a week
 before and after the implementation of Flash Checkpoint. It can be observed that although the frequency
 of Flash Checkpoint has increased by a factor of 20, the cumulative time overhead has decreased by several dozen times.
-Meanswhile, the wasted time wasted due to failures has also been reduced by approximately 3 times.
+Meanwhile, the wasted time wasted due to failures has also been reduced by approximately 3 times.
 
 <div align="center">
 <img src="../figures/ft_llm_training/glm65b_checkpoint_time.jpg" alt="Editor" width="392">
@@ -399,7 +399,7 @@ pre-configuring MASTER_ADDR and MASTER_PORT.
 
 Multi-node in-memory redundant backup checkpoint: DLRover's Flash Checkpoint currently allows for direct
 recovery from memory after a process restarts. However, if a node crashes, its memory is also cleared,
-and the training can only restore checkpoint fromstorage system. Subsequently, we will experiment
+and the training can only restore checkpoint from storage system. Subsequently, we will experiment
 with multi-node memory backup of checkpoint model and optimizer states. This way, if some machines fail,
 DLRover can read its own checkpoint data from the memory of other surviving Pods to avoid reading
 from the storage system.
