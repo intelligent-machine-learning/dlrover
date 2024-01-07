@@ -37,7 +37,7 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
 
 def check_all_rank_ready(group: dist.ProcessGroup, ready):
     """
-    Check weather all ranks are ready.
+    Check whether all ranks are ready.
     """
     if not group:
         return ready
@@ -49,7 +49,7 @@ def check_all_rank_ready(group: dist.ProcessGroup, ready):
 
 def verify_all_rank_step_consistent(group: dist.ProcessGroup, step):
     """
-    Verify wether the step in all ranks are consistent.
+    Verify whether the step in all ranks are consistent.
     """
     if not group:
         return True
@@ -112,8 +112,8 @@ class CheckpointEngine(metaclass=ABCMeta):
     with a little time. Users can frequently call `save_to_memory` in
     the training loop and call `save_to_storage`.
 
-    If the training process fail, the agent in main process can continuely
-    saves the the state dict from the shared memory into the storage.
+    If the training process fail, the agent in main process can continuously
+    saves the state dict from the shared memory into the storage.
 
     Args:
         checkpoint_dir (str): the directory to save checkpoint.

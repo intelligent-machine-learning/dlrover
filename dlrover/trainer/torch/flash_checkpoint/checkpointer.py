@@ -46,7 +46,7 @@ class Checkpointer(metaclass=ABCMeta):
             path (str): the storage path to save the state dict.
                 Note, the path is used to save the state dict to storage
                 only if the training process fails.
-            storage_type (StorageType): StorageType.MEMROY or StorageType.DISK.
+            storage_type (StorageType): StorageType.MEMORY or StorageType.DISK.
         """
         pass
 
@@ -54,9 +54,9 @@ class Checkpointer(metaclass=ABCMeta):
     def load_checkpoint(self, resuming_path=None):
         """
         The manager loads the states from the files in the
-        checkpoint direcotry to the model, optimizer and sampler.
+        checkpoint directory to the model, optimizer and sampler.
         Args:
-            resuming_path (str, optinoal): The manager will load checkpoint
+            resuming_path (str, optional): The manager will load checkpoint
                 from the path. If the path is None, the manager will load
                 the state checkpoint from the file with the maximum step.
         Return:
