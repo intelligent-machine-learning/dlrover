@@ -43,8 +43,11 @@ def bm_all_gather(shape, use_gpu):
     ]
 
     start = int(time.time())
+    dist.barrier()
     for _ in range(10):
         dist.all_gather(tensor_list, data)
+    dist.barrier()
+    torch.cuda.synchronize()
     elapsed_time = time.time() - start
     return elapsed_time
 
@@ -85,6 +88,10 @@ def main(task):
 
     dist.init_process_group(protocol, timeout=timedelta(seconds=180))
 
+    if use_cuda:
+        local_rank = int(os.environ["LOCAL_RANK"])
+        torch.cuda.set_device(local_rank)
+
     init_time = round(time.time() - start_init, 3)
     task_time = 0
     if task == FAULT_CHECK_TASK:
@@ -121,5 +128,5 @@ def arg_parser():
 if __name__ == "__main__":
     parser = arg_parser()
     args = parser.parse_args()
-    main(args.task)
-    logger.info("Finish testing machine.")
+    t = main(args.task)
+    logger.info(f"Finish checking node in {t}s.")
