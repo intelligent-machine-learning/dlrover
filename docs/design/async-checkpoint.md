@@ -49,7 +49,7 @@ We can start a daemon subprocess in the training process to save checkpoint to t
 - Start a thread to save states from GPU to CPU memory.
 - Make the memory buffer to place Torch tensors of states.
 - Write state dict to pinned memory.
-- Start a subprocess to asynchrounously save states to storage.
+- Start a subprocess to asynchronously save states to storage.
 
 We can start a subprocess in the training process and share the
 tensor buffer by the shared memory of multiprocessing.
@@ -60,7 +60,7 @@ If we start a daemon subprocess of the GPU training process, the daemon
 subprocess will exit if the training process fails. In this case, the
 parameters in CPU memory of the daemon subprocess will be cleaned. So, the elastic agent
 in the main process can allocate the shared memory with the training
-process. The training process saves the state dict to the shared memroy and
+process. The training process saves the state dict to the shared memory and
 the agent save them into the storage.
 
 The agent and training process need to do the following steps:
@@ -72,7 +72,7 @@ training process saves the state dict into the memory.
 - The agent allocates the shared memory with the checkpointing meta and notifies
 the training process to copy the state dict from GPU to the shared CPU memory.
 - The agent saves the state dict in the shared memory into the storage when one of the conditions
-is satisifed:
+is satisfied:
   - The training process notifies the agent to save the storage with a checkpointing path.
   - The training process fails. If one training process fails, the job master needs
     to notify all agents to save the buffer into the storage.
@@ -280,5 +280,5 @@ class SharedDict(object):
         """Set the dict to the remote shared Dict."""
 
     def get(self):
-        """Returna a Python Dict from the shared Dict."""
+        """Return a Python Dict from the shared Dict."""
 ```

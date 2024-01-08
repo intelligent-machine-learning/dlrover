@@ -4,8 +4,8 @@
 
 ## 背景
 
-当前，大模型训练往往使用成百上千加速卡训练几周到几个月不等。在训练过程中，故障导致训练中断经常发生的，
-常见的故障有 GPU 掉卡等硬件故障、NCCL 超时等网络故障。为了实现训练容错，训练系统必须满足一下两个需求：
+当前，大模型训练往往使用成百上千加速卡训练几周到几个月不等。在训练过程中，故障导致训练中断经常发生.
+常见的故障有 GPU 掉卡等硬件故障、NCCL 超时等网络故障。为了实现训练容错，训练系统必须满足以下两个需求：
 
 1. 故障发生后能快速恢复训练进程开始继续训练。
 2. 训练程序能恢复到故障之前的模型和优化器的状态继续训练。
@@ -24,7 +24,7 @@ checkpoint 方案来将训练状态持久化到存储。为了保证训练状态
 <text>图1: Checkpoint 的时间损耗</text>
 </div>
 
-低开销的 checkpoint 方案可以大幅降低训练暂停时间，也能支持高频的 checkpoint 来减少容错时浪费的迭代步数
+低开销的 checkpoint 方案可以大幅降低训练暂停时间，也能支持高频的 checkpoint 来减少容错时浪费的迭代步数。
 为此，DLRover 推出了 Flash Checkpoint (FCP) 方案，将 checkpoint 时间开销降低到秒级。
 经对比实验，Flash Checkpoint 相比存储到 SSD 的时间开销降低 10 倍，相比存储到 NAS 等远程系统降低约 100 倍。
 应用在千卡 65B 模型训练上后，checkpoint 导致的训练浪费时间降低约5倍，其中持久化时间降低约70倍，有效训练时间从90% 提升至 95%。
@@ -92,13 +92,13 @@ state_dict = {
 # 存储系统的 path
 ckpt_path = os.path.join(checkpoint_dir, f"checkpoint-{iter_num}.pt")
 
-# 将 checkpoint 秒级存入到内存中，可以很高频的写。继续训练进程失败，会自动
+# 将 checkpoint 秒级存入到内存中，可以很高频的写。如果训练进程失败，会自动
 # 将内存中最近的 checkpoint 写入存储。
 if iter_num % save_memory_interval == 0:
     checkpointer.save_checkpoint(
         step, state_dict, ckpt_path, storage_type=StorageType.MEMORY
     )
-# 将 checkpoint 异步存入到存储中，可以低频导出。也可以高频导出，但是高频导出会
+# 将 checkpoint 异步存入到存储中，可以低频导出，也可以高频导出，但是高频导出会
 # 占据很多存储空间，用户需要自行清理老的Checkpoint。
 if iter_num % save_storage_interval == 0:
     checkpointer.save_checkpoint(
@@ -129,13 +129,13 @@ with FSDP.state_dict_type(model, StateDictType.SHARDED_STATE_DICT):
     }
     # 存储系统的 directory
     ckpt_dir = os.path.join(checkpoint_dir, str(step))
-    # 将 checkpoint 秒级存入到内存中，可以很高频的写。继续训练进程失败，会自动
- # 将内存中最近的 checkpoint 写入存储。
+    # 将 checkpoint 秒级存入到内存中，可以很高频的写。如果训练进程失败，会自动
+    # 将内存中最近的 checkpoint 写入存储。
     if step % save_memory_interval == 0:
         checkpointer.save_checkpoint(
             step, state_dict, ckpt_dir, storage_type=StorageType.MEMORY
         )
-    # 将 checkpoint 异步存入到存储中，可以低频导出。也可以高频导出，但是高频导出会
+    # 将 checkpoint 异步存入到存储中，可以低频导出，也可以高频导出，但是高频导出会
     # 占据很多存储空间，用户需要自行清理老的Checkpoint。
     if step % save_storage_interval == 0:
         checkpointer.save_checkpoint(
@@ -237,7 +237,7 @@ if args.save and iteration % save_memory_interval == 0:
                     opt_param_scheduler, storage_type=StorageType.MEMORY,)
 ```
 
-**注意**：Flash Checkpoint 的断点续存和内容热加载需要使用`dlrover-run`来启动训练脚本。如果使用其他的方式例如`torchrun`来启动，
+**注意**：Flash Checkpoint 的断点续存和内存热加载需要使用`dlrover-run`来启动训练脚本。如果使用其他的方式例如`torchrun`来启动，
 则只能使用异步持久化功能。`dlrover-run` 的使用方法与`torchrun`保持一致，如下所示启动单机多卡训练：
 
 ```bash
