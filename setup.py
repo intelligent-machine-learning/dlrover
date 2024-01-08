@@ -33,7 +33,7 @@ extra_require = {
 
 setup(
     name="dlrover",
-    version="0.3.7",
+    version="0.4.0",
     description="An Automatic Distributed Deep Learning Framework",
     long_description="DLRover helps model developers focus on model algorithm"
     " itself, without taking care of any engineering stuff,"
