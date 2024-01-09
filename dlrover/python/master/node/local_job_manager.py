@@ -55,8 +55,8 @@ class LocalJobManager(JobManager):
 
     def start(self):
         self._job_nodes[NodeType.WORKER] = {}
-        worker_num = self._job_args.node_args[NodeType.WORKER].count
-        for i in range(worker_num):
+        worker = self._job_args.node_args[NodeType.WORKER].group_resource
+        for i in range(worker.count):
             self._job_nodes[NodeType.WORKER][i] = Node(
                 node_type=NodeType.WORKER,
                 node_id=i,

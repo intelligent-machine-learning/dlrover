@@ -41,7 +41,9 @@ def run(args):
     _dlrover_context.config_master_port(port=args.port)
     if job_args.platform == PlatformType.LOCAL:
         from dlrover.python.master.local_master import LocalJobMaster
-        job_args.node_args[NodeType.WORKER].count = args.node_num
+
+        worker = job_args.node_args[NodeType.WORKER].group_resource
+        worker.count = args.node_num
         master = LocalJobMaster(_dlrover_context.master_port, job_args)
     else:
         from dlrover.python.master.dist_master import DistributedJobMaster

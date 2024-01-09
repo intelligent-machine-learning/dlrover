@@ -108,4 +108,5 @@ class LocalJobArgs(JobArgs):
     def initilize(self):
         self.distribution_strategy = DistributionStrategy.LOCAL
         self.enable_elastic_scheduling = False
-        self.node_args[NodeType.WORKER] = NodeGroupResource(1, NodeResource(0, 0))
+        worker_group = NodeGroupResource(1, NodeResource(0, 0))
+        self.node_args[NodeType.WORKER] = NodeArgs(worker_group)

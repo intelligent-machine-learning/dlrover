@@ -85,7 +85,11 @@ from torch.distributed.argparse_util import check_env, env
 from torch.distributed.elastic.multiprocessing.api import SubprocessHandler
 from torch.distributed.elastic.multiprocessing.errors import record
 from torch.distributed.launcher.api import launch_agent as torch_launch_agent
-from torch.distributed.run import config_from_args, get_args_parser, parse_min_max_nnodes
+from torch.distributed.run import (
+    config_from_args,
+    get_args_parser,
+    parse_min_max_nnodes,
+)
 
 from dlrover.python.common import env_utils, grpc
 from dlrover.python.common.constants import NodeEnv
@@ -258,7 +262,9 @@ def run(args):
         # Only start the dlrover master on the rank-0 node.
         _, max_nodes = parse_min_max_nnodes(args.nnodes)
         master_handler, master_addr = _launch_dlrover_local_master(
-            master_addr, job_name, max_nodes,
+            master_addr,
+            job_name,
+            max_nodes,
         )
         os.environ[NodeEnv.DLROVER_MASTER_ADDR] = master_addr
     if _check_dlrover_master_available(master_addr):

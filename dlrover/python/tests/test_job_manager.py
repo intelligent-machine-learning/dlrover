@@ -31,9 +31,9 @@ from dlrover.python.common.grpc import (
     OptimizerConfig,
     ParallelConfig,
 )
-from dlrover.python.master.monitor.error_monitor import ErrorLogMonitor
 from dlrover.python.common.node import NodeGroupResource, NodeResource
 from dlrover.python.master.dist_master import DistributedJobMaster
+from dlrover.python.master.monitor.error_monitor import ErrorLogMonitor
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.dist_job_manager import create_job_manager
 from dlrover.python.master.node.event_callback import (
@@ -482,7 +482,7 @@ class LocalJobManagerTest(unittest.TestCase):
     def test_local_job_manager(self):
         args = LocalJobArgs("local", "default", "test")
         args.initilize()
-        args.node_args[NodeType.WORKER].count = 4
+        args.node_args[NodeType.WORKER].group_resource.count = 4
         job_mananger = LocalJobManager(args, error_monitor=ErrorLogMonitor())
         job_mananger.start()
         self.assertEqual(len(job_mananger._job_nodes[NodeType.WORKER]), 4)
