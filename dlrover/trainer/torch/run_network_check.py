@@ -24,6 +24,7 @@ try:
     import torch_npu  # noqa: F401
     from torch_npu.contrib import transfer_to_npu  # noqa: F401
 except (ModuleNotFoundError, ImportError) as e:  # noqa: F841
+    torch_npu = None
     pass
 
 from dlrover.python.common.constants import ConfigPath
@@ -108,6 +109,8 @@ def main(task):
             f"Init process group costs {init_time}."
             f"Execution costs {task_time}s"
         )
+    if torch_npu is not None:
+        torch_npu._npu_shutdown()
     dist.destroy_process_group()
     return elapsed_time
 
