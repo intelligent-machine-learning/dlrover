@@ -328,7 +328,7 @@ spec:
               command:
                 - /bin/bash
                 - -c
-                - "dlrover-run --nnodes=1:$WORKER_NUM \
+                - "dlrover-run --nnodes=1:$NODE_NUM \
                   --nproc_per_node=1 --max_restarts=1  \
                   examples/pytorch/nanogpt/train.py \
                   --data_dir '/data/nanogpt/'"
