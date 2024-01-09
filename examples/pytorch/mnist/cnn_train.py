@@ -44,9 +44,9 @@ def log_rank0(msg):
 
 
 class Net(nn.Module):
-    def __init__(self):
+    def __init__(self, channel=3):
         super(Net, self).__init__()
-        self.conv1 = nn.Conv2d(1, 32, 3, 1)
+        self.conv1 = nn.Conv2d(channel, 32, 3, 1)
         self.conv2 = nn.Conv2d(32, 64, 3, 1)
         self.dropout1 = nn.Dropout(0.25)
         self.dropout2 = nn.Dropout(0.5)
@@ -97,10 +97,12 @@ def train(args):
     """
     setup()
 
+    channel = 1
     if args.training_data:
         train_dataset = datasets.ImageFolder(
             root=args.training_data, transform=transforms.ToTensor()
         )
+        channel = 3
     else:
         train_dataset = datasets.MNIST(
             "./data",
@@ -108,6 +110,7 @@ def train(args):
             transform=transforms.ToTensor(),
             download=True,
         )
+        channel = 1
 
     #  Setup sampler for elastic training.
     sampler = ElasticDistributedSampler(dataset=train_dataset)
@@ -130,7 +133,7 @@ def train(args):
         )
     test_loader = DataLoader(dataset=test_dataset, batch_size=args.batch_size)
 
-    model = Net()
+    model = Net(channel)
 
     if torch.cuda.is_available():
         local_rank = int(os.environ["LOCAL_RANK"])
