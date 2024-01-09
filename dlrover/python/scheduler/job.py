@@ -14,8 +14,8 @@
 from abc import ABCMeta, abstractmethod
 from typing import Dict
 
-from dlrover.python.common.constants import DistributionStrategy
-from dlrover.python.common.node import NodeGroupResource
+from dlrover.python.common.constants import DistributionStrategy, NodeType
+from dlrover.python.common.node import NodeGroupResource, NodeResource
 from dlrover.python.common.serialize import JsonSerializable
 
 
@@ -108,3 +108,4 @@ class LocalJobArgs(JobArgs):
     def initilize(self):
         self.distribution_strategy = DistributionStrategy.LOCAL
         self.enable_elastic_scheduling = False
+        self.node_args[NodeType.WORKER] = NodeGroupResource(1, NodeResource(0, 0))

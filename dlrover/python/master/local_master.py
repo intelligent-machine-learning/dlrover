@@ -50,7 +50,8 @@ class LocalJobMaster(JobMaster):
         )
         self._master_server = self._create_master_grpc_service(port, args)
         self._job_args = args
-        self.speed_monitor.add_running_worker(NodeType.WORKER, 0)
+        for i in range(args.node_args[NodeType.WORKER].count):
+            self.speed_monitor.add_running_worker(NodeType.WORKER, i)
         self.speed_monitor.set_target_worker_num(1)
 
     def _create_master_grpc_service(self, port, params: JobArgs):
