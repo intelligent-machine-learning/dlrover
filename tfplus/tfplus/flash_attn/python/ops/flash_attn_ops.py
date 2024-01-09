@@ -23,7 +23,7 @@ from tfplus.common import _load_library
 gen_flash_attention_ops = _load_library("_flash_attention.so")
 
 @ops.RegisterGradient("FMHAForward")
-def _FMHA_Grad(op, grad):  # pylint: disable=invalid-name
+def _FMHA_Grad(op, *grad):  # pylint: disable=invalid-name
   """Gradient for fmha_forward op."""
   # Build appropriately shaped IndexedSlices
   query = op.inputs[0]  # B X S, H, K
@@ -47,7 +47,7 @@ def _FMHA_Grad(op, grad):  # pylint: disable=invalid-name
 
   dq, dk, dv = gen_flash_attention_ops.fmha_backward(
     query, key, value,
-    cu_seqlens_q, cu_seqlens_k, out, grad, softmax_lse,
+    cu_seqlens_q, cu_seqlens_k, out, grad[0], softmax_lse,
     max_seqlen_q, max_seqlen_k,
     rng_state, p_dropout, softmax_scale, zero_tensor, is_causal,
     return_softmax, num_splits)
