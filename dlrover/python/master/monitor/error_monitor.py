@@ -58,6 +58,6 @@ class ErrorLogMonitor(ErrorMonitor):
 
     def _handle_node_error(self, node: Node, error_data: str):
         logger.error(
-            f"{node.name} on {node.host_name} is breakdown."
+            f"{node.name} on {node.host_name} is breakdown. "
             f"Reason: {error_data}"
         )
