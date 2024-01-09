@@ -47,7 +47,6 @@ def bm_all_gather(shape, use_gpu):
     for _ in range(10):
         dist.all_gather(tensor_list, data)
     dist.barrier()
-    torch.cuda.synchronize()
     elapsed_time = time.time() - start
     return elapsed_time
 
