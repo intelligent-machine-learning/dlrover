@@ -860,9 +860,6 @@ class NetworkCheckElasticAgent(ElasticTrainingAgent):
             raise RuntimeError("The node is a straggler and exits.")
         return True
 
-    def _run_npu_network_check(self, monitor_interval=3, timeout=300):
-        pass
-
     def _run_network_check(self, monitor_interval=3, timeout=300):
         self._initialize_workers(self._worker_group)
         start = time.time()
