@@ -80,6 +80,12 @@ def _build_master_args_parser():
         type=pos_int,
         help="The listening port of master",
     )
+    parser.add_argument(
+        "--node_num",
+        default=1,
+        type=pos_int,
+        help="The number of nodes",
+    )
     add_params(parser)
     return parser
 

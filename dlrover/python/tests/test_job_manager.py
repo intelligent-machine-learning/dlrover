@@ -33,6 +33,7 @@ from dlrover.python.common.grpc import (
 )
 from dlrover.python.common.node import NodeGroupResource, NodeResource
 from dlrover.python.master.dist_master import DistributedJobMaster
+from dlrover.python.master.monitor.error_monitor import ErrorLogMonitor
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.dist_job_manager import create_job_manager
 from dlrover.python.master.node.event_callback import (
@@ -480,9 +481,11 @@ class DistributedJobManagerTest(unittest.TestCase):
 class LocalJobManagerTest(unittest.TestCase):
     def test_local_job_manager(self):
         args = LocalJobArgs("local", "default", "test")
-        job_mananger = LocalJobManager(args)
+        args.initilize()
+        args.node_args[NodeType.WORKER].group_resource.count = 4
+        job_mananger = LocalJobManager(args, error_monitor=ErrorLogMonitor())
         job_mananger.start()
-        self.assertEqual(len(job_mananger._job_nodes[NodeType.WORKER]), 1)
+        self.assertEqual(len(job_mananger._job_nodes[NodeType.WORKER]), 4)
         gpu_stats: list[GPUStats] = [
             GPUStats(
                 index=0,
@@ -506,3 +509,4 @@ class LocalJobManagerTest(unittest.TestCase):
         job_mananger.update_node_paral_config(NodeType.WORKER, 0, paral_config)
         worker = job_mananger._job_nodes[NodeType.WORKER][0]
         self.assertEqual(worker.paral_config, paral_config)
+        job_mananger.handle_training_failure(NodeType.WORKER, 3)
