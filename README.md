@@ -196,7 +196,7 @@ Please refer to the [DEVELOPMENT](docs/developer_guide.md)
 
 ## Community
 
-Welcome to scan the DingTalk QR or search "AI Infra" in WeChat(微信) to join DLRover group
+Welcome to scan the DingTalk QR or search "AI Infra" in WeChat(微信) to join DLRover group.
 The DingTalk QR is:
 
 <div align="center">
