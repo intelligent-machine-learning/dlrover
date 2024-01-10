@@ -296,7 +296,7 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
 
 
 class NetworkCheckRendezvousManager(RendezvousManager):
-    """NcclCheckRendezvousManager runs on the DLRover master. The task
+    """NetworkCheckRendezvousManager runs on the DLRover master. The task
     to check network contains 2 round to execute allgather on all nodes.
     We show the detail to check network assuming there are 4 nodes.
     Round 0: the manager splits nodes into groups and each group contains
@@ -349,7 +349,7 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         self._node_times = {}
 
     def _group_nodes(self, round):
-        """Group nodes into goups.
+        """Group nodes into groups.
         Round 0: group all nodes into a group like {0:8, 1:8, 2:8, 3:8}.
         Round 1: Split nodes into groups and each group contains
             two nodes, like [{0:8, 1:8},{2:8, 3:8}].

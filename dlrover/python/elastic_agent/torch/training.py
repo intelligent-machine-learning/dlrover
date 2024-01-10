@@ -114,6 +114,7 @@ class ElasticLaunchConfig(LaunchConfig):
     auto_tunning: bool = False
     exclude_straggler: bool = False
     accelerator: str = "gpu"
+    check_round: int = 0
 
     def set_node_unit(self, node_unit):
         """Set the number unint of ndoes."""
@@ -201,7 +202,7 @@ class MasterRendezvousHandler(RendezvousHandler):
         return round
 
     def next_rendezvous(self):
-        """The handler will peroidically query the world from the master until
+        """The handler will periodically query the world from the master until
         the world is not empty. The world is a dictionary like
         like {0: 8, 1: 8, 2: 8} where the key is the node ID and the value is
         the local world size. The handler can get its rank by the position
@@ -856,6 +857,9 @@ class NetworkCheckElasticAgent(ElasticTrainingAgent):
         elif self._config.exclude_straggler and self._node_rank in stragglers:
             raise RuntimeError("The node is a straggler and exits.")
         return True
+
+    def _run_npu_network_check(self, monitor_interval=3, timeout=300):
+        pass
 
     def _run_network_check(self, monitor_interval=3, timeout=300):
         self._initialize_workers(self._worker_group)
