@@ -103,7 +103,7 @@ into environments. We can run `dlrover-run` like
 
 ```bash
 NODE_RANK=$RANK DLROVER_MASTER_ADDR=$MASTER_ADDR:$MASTER_PORT \
-dlrover-run --standalone --network-check --nnodes=$NODE_NUM --nproc_per_node=$NUM_TRAINERS  train_script.py
+dlrover-run --network-check --nnodes=$NODE_NUM --nproc_per_node=$NUM_TRAINERS  train_script.py
 ```
 
 Then, we can search the execution time on the master Pod of PyTorchJob.
