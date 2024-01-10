@@ -25,6 +25,9 @@ pip install -r requirements.txt
 # Configurable environment variable: DATASET_PATH, MODEL_NAME_OR_PATH, PER_DEVICE_TRAIN_BATCH_SIZE, etc.
 sh fsdp_llama2_entry.sh
 
+# use fp8
+USE_FP8=1 sh fsdp_llama2_entry.sh
+
 # use lora
 USE_LORA=1 sh fsdp_llama2_entry.sh
 ```
