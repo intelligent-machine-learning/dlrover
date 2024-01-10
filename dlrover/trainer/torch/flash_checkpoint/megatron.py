@@ -14,7 +14,6 @@
 """Input/output checkpointing."""
 
 import os
-import shutil
 
 import torch
 import torch.distributed as dist
@@ -35,6 +34,7 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
 )
 
 from .checkpointer import StorageType
+from .engine import DiskStorage
 from .megatron_engine import MegatronCheckpointEngine
 
 
@@ -46,11 +46,12 @@ def _get_rank():
 
 @singleton
 class MegatronCheckpointManager(object):
-    def __init__(self, checkpoint_dir):
+    def __init__(self, checkpoint_dir, storage=None):
         self.state_dict = {}
         self.path = ""
         self.checkpoint_dir = checkpoint_dir
-        self.engine = MegatronCheckpointEngine(checkpoint_dir)
+        self.storage = DiskStorage() if not storage else storage
+        self.engine = MegatronCheckpointEngine(checkpoint_dir, self.storage)
 
     def save(self, state_dict, path):
         self.state_dict = state_dict
@@ -73,8 +74,7 @@ class MegatronCheckpointManager(object):
         ckpt_dir = os.path.join(
             self.checkpoint_dir, "iter_{:07d}".format(iteration)
         )
-        if os.path.exists(ckpt_dir):
-            shutil.rmtree(ckpt_dir)
+        self.storage.safe_rmtree(ckpt_dir)
 
         megatron_tracer_file = os.path.join(
             self.checkpoint_dir, MegatronCheckpointSaver.TRACER_FILE
@@ -83,13 +83,11 @@ class MegatronCheckpointManager(object):
         dlrover_tracer_file = os.path.join(
             self.checkpoint_dir, CheckpointConstant.TRACER_FILE_NAME
         )
-        if os.path.exists(dlrover_tracer_file):
-            with open(dlrover_tracer_file, "r") as f:
-                step = f.read()
-            with open(megatron_tracer_file, "w") as f:
-                f.write(step)
-        elif os.path.exists(megatron_tracer_file):
-            os.remove(megatron_tracer_file)
+        content = self.storage.read(dlrover_tracer_file)
+        if content:
+            self.storage.write(content, megatron_tracer_file)
+        else:
+            self.storage.safe_remove(megatron_tracer_file)
 
 
 def save_checkpoint(

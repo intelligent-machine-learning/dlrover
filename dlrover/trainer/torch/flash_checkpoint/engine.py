@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import os
+import shutil
 import time
 from abc import ABCMeta, abstractmethod
 from multiprocessing import Process
@@ -22,6 +23,7 @@ import torch.distributed as dist
 from dlrover.python.common import env_utils
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.multi_process import SharedLock, SharedQueue
+from dlrover.python.common.storage import CheckpointStorage
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     DLROVER_CKPT_CONFIG_KEY,
     AsyncCheckpointSaver,
@@ -102,6 +104,45 @@ def start_saver_process():
     return None
 
 
+class DiskStorage(CheckpointStorage):
+    def __init__(self):
+        self._latest_path = ""
+
+    def write(self, content, path):
+        mode = "wb" if isinstance(content, bytes) else "w"
+        with open(path, mode) as stream:
+            stream.write(content)
+            os.fsync(stream.fileno())
+
+    def write_state_dict(self, state_dict, path):
+        torch.save(state_dict, path)
+        self._latest_path = path
+
+    def read(self, path, mode="r"):
+        if not os.path.exists(path):
+            return ""
+        with open(path, mode) as stream:
+            content = stream.read()
+        return content
+
+    def read_state_dict(self, path):
+        return torch.load(path, map_location="cpu")
+
+    def safe_rmtree(self, dir):
+        if os.path.exists(dir):
+            shutil.rmtree(dir)
+
+    def safe_remove(self, path):
+        if os.path.exists(path):
+            os.remove(path)
+
+    def record(self, step):
+        logger.info(
+            f"Finish persisting the checkpoint to {self._latest_path} "
+            f"for step {step}"
+        )
+
+
 class CheckpointEngine(metaclass=ABCMeta):
     """
     The checkpoint engine synchronously writes the state dict into
@@ -121,10 +162,11 @@ class CheckpointEngine(metaclass=ABCMeta):
 
     saver_proc = None
 
-    def __init__(self, checkpoint_dir: str):
+    def __init__(self, checkpoint_dir: str, storage):
         if not self.saver_proc:
             self.saver_proc = start_saver_process()
         self.checkpoint_dir = checkpoint_dir
+        self.storage = storage
         if dist.is_initialized():
             self._rank = dist.get_rank()
             self._loader_group = dist.new_group(backend="gloo")
@@ -183,6 +225,7 @@ class CheckpointEngine(metaclass=ABCMeta):
             class_name=clazz.__name__,
             init_args={
                 "checkpoint_dir": self.checkpoint_dir,
+                "storage": self.storage,
                 "local_shard_num": local_shard_num,
                 "global_shard_num": global_shard_num,
             },

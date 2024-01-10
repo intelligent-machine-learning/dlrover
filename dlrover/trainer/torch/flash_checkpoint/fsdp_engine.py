@@ -419,8 +419,8 @@ class FsdpCheckpointEngine(CheckpointEngine):
     and storage.
     """
 
-    def __init__(self, checkpoint_dir: str):
-        super().__init__(checkpoint_dir)
+    def __init__(self, checkpoint_dir: str, storage):
+        super().__init__(checkpoint_dir, storage)
         self._shm_writer = SharedMemoryWriter(shm_handler=self._shm_handler)
         self._shm_reader = SharedMemoryReader(self._shm_handler)
 
