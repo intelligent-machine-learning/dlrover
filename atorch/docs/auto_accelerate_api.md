@@ -148,7 +148,7 @@ Not None, semi-automaticl model. Supported formats:
 
 
   <tr>
-    <td>ignore_dryrun_on_load_strategy (optional, default False)</td>
+    <td>ignore_dryrun_on_load_strategy (optional, default True)</td>
     <td>
        If True, ignore dryrun when load_strategy is not None.
     </td>
@@ -265,7 +265,8 @@ Training in half precision. Default configuration is <code>"fp16"</code>. If wan
 
 ### fp8
 
-Use the FP8 capability provided by [transformer_engine](https://github.com/NVIDIA/TransformerEngine) (te) to accelerate computation. This optimization method will automatically replace <code>nn.Linear</code> module in the model with <code>te.Linear</code> to speed up computation. fp8 is compatible with other optimization methods such as amp_native, half, fsdp, checkpoint, etc.
+Use the FP8 capability provided by [transformer_engine](https://github.com/NVIDIA/TransformerEngine) (te) to accelerate computation. This optimization method will automatically replace <code>nn.Linear</code> module in the model with <code>te.Linear</code> to speed up computation. fp8 is compatible with other optimization methods such as [amp_native](#amp_native), [half](#half), [fsdp](#fsdp), [checkpoint](#checkpoint), etc. 
+Note that fp8 with checkpoint support for lora([peft](https://github.com/huggingface/peft)) training is not implemented yet.
 
 **Pre-requisites**
 - Hardware support: GPU sm >=8.9 (such as Ada, Hopper, etc.). If not satisfied, fp8 optimization will be ignored.
@@ -367,6 +368,25 @@ config = {"forward_prefetch": True, "limit_all_gathers": True, "sync_module_stat
 ```
 
 Add <code>{"use_orig_params": True}</code> if multiple parameter groups with different hyperparamters are used in optimizer.  Try add <code>{"fsdp_wrap_params_outmost": True}</code> for LORA finetuning to see if any performance improvement.
+
+### checkpoint
+
+Activation checkpoint is a memory-saving method which trade computation for memory. It does not keep activations during forward pass, but uses recomputation in backward pass to generate activations for gradient computation. Configuration is required to indicate which modules would be checkpointed.
+
+Configuration can be a tuple of module types or module names, such as:
+```
+config = (GPT2Attention, GPT2MLP)
+```
+
+There are two checkpoint implementations in PyTorch, no_reentrant and reentrant. no_reentrant is default and its performance is better than reentrant. In some cases such that model definition contains <code>@torch.jit.script</code>, no_reentrant implementation may fail and reentrant should be used. Checkpoint configuration supports dict format to support choosing reentrant implementation.
+```
+config = {
+  "wrap_class": (GPT2Attention, GPT2MLP), # modules to checkpoint
+  "no_reentrant": False,                  # use reentrant implementation
+}
+```
+
+
 
 ### tensor_parallel
 
