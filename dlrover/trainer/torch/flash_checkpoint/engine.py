@@ -104,17 +104,23 @@ def start_saver_process():
     return None
 
 
-class DiskStorage(CheckpointStorage):
+class PosixDiskStorage(CheckpointStorage):
     def __init__(self):
         self._latest_path = ""
 
     def write(self, content, path):
-        mode = "wb" if isinstance(content, bytes) else "w"
+        dir = os.path.dirname(path)
+        os.makedirs(dir, exist_ok=True)
+        mode = "w"
+        if isinstance(content, bytes) or isinstance(content, memoryview):
+            mode = "wb"
         with open(path, mode) as stream:
             stream.write(content)
             os.fsync(stream.fileno())
 
     def write_state_dict(self, state_dict, path):
+        dir = os.path.dirname(path)
+        os.makedirs(dir, exist_ok=True)
         torch.save(state_dict, path)
         self._latest_path = path
 
@@ -126,6 +132,8 @@ class DiskStorage(CheckpointStorage):
         return content
 
     def read_state_dict(self, path):
+        if not os.path.exists(path):
+            return {}
         return torch.load(path, map_location="cpu")
 
     def safe_rmtree(self, dir):
@@ -136,7 +144,10 @@ class DiskStorage(CheckpointStorage):
         if os.path.exists(path):
             os.remove(path)
 
-    def record(self, step):
+    def safe_makedirs(self, dir):
+        os.makedirs(dir, exist_ok=True)
+
+    def commit(self, step):
         logger.info(
             f"Finish persisting the checkpoint to {self._latest_path} "
             f"for step {step}"
@@ -162,7 +173,7 @@ class CheckpointEngine(metaclass=ABCMeta):
 
     saver_proc = None
 
-    def __init__(self, checkpoint_dir: str, storage):
+    def __init__(self, checkpoint_dir: str, storage: CheckpointStorage):
         if not self.saver_proc:
             self.saver_proc = start_saver_process()
         self.checkpoint_dir = checkpoint_dir

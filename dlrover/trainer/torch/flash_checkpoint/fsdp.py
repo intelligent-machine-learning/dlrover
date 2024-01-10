@@ -13,7 +13,7 @@
 
 
 from .checkpointer import Checkpointer, StorageType
-from .engine import DiskStorage
+from .engine import PosixDiskStorage
 from .fsdp_engine import FsdpCheckpointEngine
 
 
@@ -64,7 +64,7 @@ class FsdpCheckpointer(Checkpointer):
     """
 
     def __init__(self, checkpoint_dir: str, storage=None):
-        self.storage = DiskStorage() if not storage else storage
+        self.storage = PosixDiskStorage() if not storage else storage
         self._engine = FsdpCheckpointEngine(checkpoint_dir, self.storage)
 
     def save_checkpoint(

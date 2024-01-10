@@ -1,3 +1,16 @@
+# Copyright 2024 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from abc import ABCMeta, abstractmethod
 
 
@@ -48,7 +61,7 @@ class CheckpointStorage(metaclass=ABCMeta):
             path(str): the file path of storage.
         """
         pass
-    
+
     @abstractmethod
     def safe_rmtree(self, dir):
         pass
@@ -58,9 +71,13 @@ class CheckpointStorage(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def record(self, step):
+    def safe_makedirs(self, dir):
+        pass
+
+    @abstractmethod
+    def commit(self, step):
         """
-        We can implement the method to record the checkpoint step.
+        We can implement the method to commit the checkpoint step.
 
         Args:
             step (int): the iteration step.

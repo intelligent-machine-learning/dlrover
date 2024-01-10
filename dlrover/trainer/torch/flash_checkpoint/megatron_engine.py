@@ -39,7 +39,7 @@ class MegatronCheckpointEngine(CheckpointEngine):
             if the training process fails.
     """
 
-    def __init__(self, checkpoint_dir, storage=None):
+    def __init__(self, checkpoint_dir, storage):
         if dist.is_initialized():
             from megatron import mpu
 
@@ -147,6 +147,6 @@ class MegatronCheckpointEngine(CheckpointEngine):
                 checkpointing file.
         """
         if resume_path:
-            state_dict = self.storage.read(resume_path)
+            state_dict = self.storage.read_state_dict(resume_path)
             return state_dict
         return {}

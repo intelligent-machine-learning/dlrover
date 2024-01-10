@@ -573,7 +573,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         done_dir = os.path.join(
             self.checkpoint_dir, self._STAGE_DIR, str(step) + ".done"
         )
-        os.makedirs(done_dir, exist_ok=True)
+        self.storage.safe_makedirs(done_dir)
         return done_dir
 
     def save_shm_to_storage(self, timeout=120):
@@ -705,7 +705,7 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
         self._writing_storage = True
 
         step_done_dir = self._get_checkpoint_done_dir(step)
-        os.makedirs(step_done_dir, exist_ok=True)
+        self.storage.safe_makedirs(step_done_dir)
 
         write_success = False
         # save to stage path for each local rank
@@ -786,6 +786,7 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
                 break
 
             time.sleep(2)
+        self.storage.commit(step)
 
 
 class TempDirCheckpointSaver(AsyncCheckpointSaver):
@@ -875,7 +876,7 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
         ckpt_name = os.path.join(
             self.checkpoint_dir, self._STAGE_DIR, str(step)
         )
-        os.makedirs(ckpt_name, exist_ok=True)
+        self.storage.safe_makedirs(ckpt_name)
         return ckpt_name
 
     def commit_checkpoint(  # type: ignore
@@ -955,9 +956,7 @@ class DdpCheckpointSaver(CommonDirCheckpointSaver):
             return
         state_dict = self._shm_handlers[local_shard_id].load_state_dict()
         state_dict.pop(DLROVER_CKPT_CONFIG_KEY, None)
-        checkpoint_dir = os.path.dirname(ckpt_config.path)
-        os.makedirs(checkpoint_dir, exist_ok=True)
-        torch.save(state_dict, ckpt_config.path)
+        self.storage.write_state_dict(state_dict, ckpt_config.path)
 
 
 class MegatronCheckpointSaver(CommonDirCheckpointSaver):
@@ -986,9 +985,7 @@ class MegatronCheckpointSaver(CommonDirCheckpointSaver):
     ):
         state_dict = self._shm_handlers[local_shard_id].load_state_dict()
         state_dict.pop(DLROVER_CKPT_CONFIG_KEY, None)
-        checkpoint_dir = os.path.dirname(ckpt_config.path)
-        os.makedirs(checkpoint_dir, exist_ok=True)
-        torch.save(state_dict, ckpt_config.path)
+        self.storage.write_state_dict(state_dict, ckpt_config.path)
 
 
 class DeepSpeedCheckpointSaver(CommonDirCheckpointSaver):
@@ -1020,15 +1017,13 @@ class DeepSpeedCheckpointSaver(CommonDirCheckpointSaver):
         state_dict.pop(DLROVER_CKPT_CONFIG_KEY, None)
         model_sd = state_dict.get(CheckpointConstant.MODEL_STATES_NAME, {})
         if model_sd and ckpt_config.model_path:
-            checkpoint_dir = os.path.dirname(ckpt_config.model_path)
-            os.makedirs(checkpoint_dir, exist_ok=True)
-            torch.save(model_sd, ckpt_config.model_path)
+            self.storage.write_state_dict(model_sd, ckpt_config.model_path)
 
         optimizer_sd = state_dict.get(CheckpointConstant.OPTIM_STATES_NAME, {})
         if optimizer_sd and ckpt_config.optimizer_path:
-            checkpoint_dir = os.path.dirname(ckpt_config.optimizer_path)
-            os.makedirs(checkpoint_dir, exist_ok=True)
-            torch.save(optimizer_sd, ckpt_config.optimizer_path)
+            self.storage.write_state_dict(
+                optimizer_sd, ckpt_config.optimizer_path
+            )
 
 
 class FsdpDcpSaver(CommonDirCheckpointSaver):
@@ -1049,7 +1044,7 @@ class FsdpDcpSaver(CommonDirCheckpointSaver):
         """
         shm_handler = self._shm_handlers[local_shard_id]
         checkpoint_dir = os.path.dirname(ckpt_config.path)
-        os.makedirs(checkpoint_dir, exist_ok=True)
+        self.storage.safe_makedirs(checkpoint_dir)
         assert shm_handler.shared_memory is not None
         self.storage.write(shm_handler.shared_memory.buf, ckpt_config.path)
         if self._is_agent_rank_0 and local_shard_id == 0:

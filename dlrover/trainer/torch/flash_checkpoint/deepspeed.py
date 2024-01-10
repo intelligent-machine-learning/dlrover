@@ -30,7 +30,7 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
 
 from .checkpointer import Checkpointer, StorageType
 from .deepspeed_engine import DeepSpeedCheckpointEngine
-from .engine import DiskStorage
+from .engine import PosixDiskStorage
 
 
 class AsyncSaveEngine(CheckpointEngine):
@@ -58,12 +58,12 @@ class AsyncSaveEngine(CheckpointEngine):
             if self.model_sd:
                 return self.model_sd
             else:
-                return self.storage.read(path)
+                return self.storage.read_state_dict(path)
         elif CheckpointConstant.OPTIM_STATES_NAME in path:
             if self.optimizer_sd:
                 return self.optimizer_sd
             else:
-                return self.storage.read(path)
+                return self.storage.read_state_dict(path)
 
     def commit(self, tag):
         # to tell checkpoint services if all files are ready.
@@ -99,7 +99,7 @@ class DeepSpeedCheckpointer(Checkpointer):
                 self.engine.optimizer.dp_process_group
             )
         zero_stage = self.engine.zero_optimization_stage()
-        self.storage = DiskStorage() if not storage else storage
+        self.storage = PosixDiskStorage() if not storage else storage
         self._async_save_engine = DeepSpeedCheckpointEngine(
             checkpoint_dir,
             storage=self.storage,
@@ -166,7 +166,7 @@ class DeepSpeedCheckpointer(Checkpointer):
         self.storage.safe_rmtree(ckpt_dir)
         content = self.storage.read(self._dlrover_tracer_file)
         if content:
-            self.storage.write(self._ds_tracer_file)
+            self.storage.write(content, self._ds_tracer_file)
         else:
             self.storage.safe_remove(self._ds_tracer_file)
 

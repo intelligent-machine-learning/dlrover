@@ -17,7 +17,7 @@ from dlrover.python.common.constants import CheckpointConstant
 
 from .checkpointer import Checkpointer, StorageType
 from .ddp_engine import DdpCheckpointEngine
-from .engine import DiskStorage
+from .engine import PosixDiskStorage
 
 
 class DdpCheckpointer(Checkpointer):
@@ -48,7 +48,7 @@ class DdpCheckpointer(Checkpointer):
 
     def __init__(self, checkpoint_dir: str, storage=None):
         self.checkpoint_dir = checkpoint_dir
-        self.storage = DiskStorage() if not storage else storage
+        self.storage = PosixDiskStorage() if not storage else storage
         self._engine = DdpCheckpointEngine(checkpoint_dir, self.storage)
 
     def save_checkpoint(

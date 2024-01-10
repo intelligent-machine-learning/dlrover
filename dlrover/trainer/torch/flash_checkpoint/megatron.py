@@ -34,7 +34,7 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
 )
 
 from .checkpointer import StorageType
-from .engine import DiskStorage
+from .engine import PosixDiskStorage
 from .megatron_engine import MegatronCheckpointEngine
 
 
@@ -50,7 +50,7 @@ class MegatronCheckpointManager(object):
         self.state_dict = {}
         self.path = ""
         self.checkpoint_dir = checkpoint_dir
-        self.storage = DiskStorage() if not storage else storage
+        self.storage = PosixDiskStorage() if not storage else storage
         self.engine = MegatronCheckpointEngine(checkpoint_dir, self.storage)
 
     def save(self, state_dict, path):
