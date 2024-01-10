@@ -32,6 +32,7 @@ class ElasticRunTest(unittest.TestCase):
         args = [
             "--network_check",
             "--auto_tunning",
+            "--quick_check",
             "--node_unit",
             "4",
             "--nnodes",
@@ -46,6 +47,7 @@ class ElasticRunTest(unittest.TestCase):
         config, cmd, cmd_args = _elastic_config_from_args(args)
         self.assertTrue(config.network_check)
         self.assertTrue(config.auto_tunning)
+        self.assertTrue(config.quick_check)
         self.assertEqual(config.node_unit, 4)
         self.assertEqual(config.rdzv_configs["node_unit"], 4)
         self.assertEqual(config.accelerator, "npu")

@@ -116,6 +116,12 @@ def parse_args(args):
         help="Whether to check network before starting training process.",
     )
     parser.add_argument(
+        "--quick-check",
+        "--quick_check",
+        action=check_env,
+        help="Whether to check network in a quick way.",
+    )
+    parser.add_argument(
         "--node_unit",
         "--node-unit",
         type=int,
@@ -241,6 +247,7 @@ def _elastic_config_from_args(
     elastic_config = ElasticLaunchConfig(**config.__dict__)
     elastic_config.network_check = getattr(args, "network_check", False)
     elastic_config.auto_tunning = getattr(args, "auto_tunning", False)
+    elastic_config.quick_check = getattr(args, "quick_check", False)
     elastic_config.exclude_straggler = getattr(
         args, "exclude_straggler", False
     )

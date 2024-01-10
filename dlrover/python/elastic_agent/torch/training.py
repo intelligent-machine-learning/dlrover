@@ -110,11 +110,11 @@ class ElasticLaunchConfig(LaunchConfig):
     """
 
     network_check: bool = False
+    quick_check: bool = False
     node_unit: int = 1
     auto_tunning: bool = False
     exclude_straggler: bool = False
     accelerator: str = "gpu"
-    check_round: int = 0
 
     def set_node_unit(self, node_unit):
         """Set the number unint of ndoes."""
@@ -800,6 +800,8 @@ class NetworkCheckElasticAgent(ElasticTrainingAgent):
         )
         self._log_dir = log_dir or tempfile.mkdtemp(prefix="network_check_")
         self._check_round = 2
+        if config.quick_check:
+            self._check_round = 1
         self._config: ElasticLaunchConfig = config
 
     def run(self, role: str = DEFAULT_ROLE) -> bool:
