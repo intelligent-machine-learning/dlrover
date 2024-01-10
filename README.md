@@ -193,3 +193,12 @@ Please refer to the [DEVELOPMENT](docs/developer_guide.md)
 [Train a GPT Model on Kubernetes.](docs/tutorial/torch_ddp_nanogpt.md)
 
 [Train a TensorFlow Estimator on Kubernetes.](docs/tutorial/tf_ps_on_cloud.md)
+
+## Community
+
+Welcome to scan the DingTalk QR or search "AI Infra" in WeChat(微信) to join DLRover group.
+The DingTalk QR is:
+
+<div align="center">
+<img src="docs/figures/dlrover_ding_group.png" alt="Editor" width="400">
+</div>
