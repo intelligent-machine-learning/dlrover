@@ -23,6 +23,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 from dlrover.python.common.constants import CheckpointConstant, NodeEnv
+from dlrover.python.common.storage import PosixDiskStorage
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     AsyncCheckpointSaver,
     DeepSpeedCheckpointSaver,
@@ -35,10 +36,7 @@ from dlrover.trainer.torch.flash_checkpoint.ddp_engine import (
 from dlrover.trainer.torch.flash_checkpoint.deepspeed_engine import (
     DeepSpeedCheckpointEngine,
 )
-from dlrover.trainer.torch.flash_checkpoint.engine import (
-    PosixDiskStorage,
-    start_saver_process,
-)
+from dlrover.trainer.torch.flash_checkpoint.engine import start_saver_process
 from dlrover.trainer.torch.flash_checkpoint.megatron_engine import (
     MegatronCheckpointEngine,
 )
@@ -273,7 +271,10 @@ class PosixDiskStorageTest(unittest.TestCase):
             self.assertFalse(os.path.exists(test_dir))
             state_dict = {"weights": torch.rand(4, 4)}
             ckpt_path = os.path.join(tmpdir, "checkpoint.pt")
-            storage.write_state_dict(state_dict, ckpt_path)
+            storage.write_state_dict(state_dict, ckpt_path, torch.save)
             storage.commit(100)
-            sd = storage.read_state_dict(ckpt_path)
+            sd = storage.read_state_dict(
+                ckpt_path,
+                read_func=lambda path: torch.load(path, map_location="cpu"),
+            )
             self.assertTrue(torch.equal(state_dict["weights"], sd["weights"]))

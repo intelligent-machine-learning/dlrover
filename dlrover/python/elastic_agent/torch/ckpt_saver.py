@@ -956,7 +956,7 @@ class DdpCheckpointSaver(CommonDirCheckpointSaver):
             return
         state_dict = self._shm_handlers[local_shard_id].load_state_dict()
         state_dict.pop(DLROVER_CKPT_CONFIG_KEY, None)
-        self.storage.write_state_dict(state_dict, ckpt_config.path)
+        self.storage.write_state_dict(state_dict, ckpt_config.path, torch.save)
 
 
 class MegatronCheckpointSaver(CommonDirCheckpointSaver):
@@ -985,7 +985,7 @@ class MegatronCheckpointSaver(CommonDirCheckpointSaver):
     ):
         state_dict = self._shm_handlers[local_shard_id].load_state_dict()
         state_dict.pop(DLROVER_CKPT_CONFIG_KEY, None)
-        self.storage.write_state_dict(state_dict, ckpt_config.path)
+        self.storage.write_state_dict(state_dict, ckpt_config.path, torch.save)
 
 
 class DeepSpeedCheckpointSaver(CommonDirCheckpointSaver):
@@ -1017,12 +1017,14 @@ class DeepSpeedCheckpointSaver(CommonDirCheckpointSaver):
         state_dict.pop(DLROVER_CKPT_CONFIG_KEY, None)
         model_sd = state_dict.get(CheckpointConstant.MODEL_STATES_NAME, {})
         if model_sd and ckpt_config.model_path:
-            self.storage.write_state_dict(model_sd, ckpt_config.model_path)
+            self.storage.write_state_dict(
+                model_sd, ckpt_config.model_path, torch.save
+            )
 
         optimizer_sd = state_dict.get(CheckpointConstant.OPTIM_STATES_NAME, {})
         if optimizer_sd and ckpt_config.optimizer_path:
             self.storage.write_state_dict(
-                optimizer_sd, ckpt_config.optimizer_path
+                optimizer_sd, ckpt_config.optimizer_path, torch.save
             )
 
 

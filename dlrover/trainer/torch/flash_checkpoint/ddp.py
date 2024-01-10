@@ -14,10 +14,10 @@
 import os
 
 from dlrover.python.common.constants import CheckpointConstant
+from dlrover.python.common.storage import PosixDiskStorage
 
 from .checkpointer import Checkpointer, StorageType
 from .ddp_engine import DdpCheckpointEngine
-from .engine import PosixDiskStorage
 
 
 class DdpCheckpointer(Checkpointer):

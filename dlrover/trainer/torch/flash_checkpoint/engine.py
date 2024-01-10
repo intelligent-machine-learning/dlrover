@@ -12,7 +12,6 @@
 # limitations under the License.
 
 import os
-import shutil
 import time
 from abc import ABCMeta, abstractmethod
 from multiprocessing import Process
@@ -102,56 +101,6 @@ def start_saver_process():
         logger.info("Start a process to asynchronously save checkpoint.")
         return p
     return None
-
-
-class PosixDiskStorage(CheckpointStorage):
-    def __init__(self):
-        self._latest_path = ""
-
-    def write(self, content, path):
-        dir = os.path.dirname(path)
-        os.makedirs(dir, exist_ok=True)
-        mode = "w"
-        if isinstance(content, bytes) or isinstance(content, memoryview):
-            mode = "wb"
-        with open(path, mode) as stream:
-            stream.write(content)
-            os.fsync(stream.fileno())
-
-    def write_state_dict(self, state_dict, path):
-        dir = os.path.dirname(path)
-        os.makedirs(dir, exist_ok=True)
-        torch.save(state_dict, path)
-        self._latest_path = path
-
-    def read(self, path, mode="r"):
-        if not os.path.exists(path):
-            return ""
-        with open(path, mode) as stream:
-            content = stream.read()
-        return content
-
-    def read_state_dict(self, path):
-        if not os.path.exists(path):
-            return {}
-        return torch.load(path, map_location="cpu")
-
-    def safe_rmtree(self, dir):
-        if os.path.exists(dir):
-            shutil.rmtree(dir)
-
-    def safe_remove(self, path):
-        if os.path.exists(path):
-            os.remove(path)
-
-    def safe_makedirs(self, dir):
-        os.makedirs(dir, exist_ok=True)
-
-    def commit(self, step):
-        logger.info(
-            f"Finish persisting the checkpoint to {self._latest_path} "
-            f"for step {step}"
-        )
 
 
 class CheckpointEngine(metaclass=ABCMeta):

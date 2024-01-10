@@ -13,6 +13,7 @@
 
 from datetime import timedelta
 
+import torch
 import torch.distributed as dist
 
 from dlrover.python.common import env_utils
@@ -147,6 +148,9 @@ class MegatronCheckpointEngine(CheckpointEngine):
                 checkpointing file.
         """
         if resume_path:
-            state_dict = self.storage.read_state_dict(resume_path)
+            state_dict = self.storage.read_state_dict(
+                resume_path,
+                read_func=lambda path: torch.load(path, map_location="cpu"),
+            )
             return state_dict
         return {}

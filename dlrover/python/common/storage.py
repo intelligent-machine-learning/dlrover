@@ -11,7 +11,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+import shutil
 from abc import ABCMeta, abstractmethod
+
+from .log import default_logger as logger
 
 
 class CheckpointStorage(metaclass=ABCMeta):
@@ -32,7 +36,7 @@ class CheckpointStorage(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def write_state_dict(self, state_dict, path):
+    def write_state_dict(self, state_dict, path, write_func):
         """
         Write the state dict of PyTorch into the path of storage.
 
@@ -53,7 +57,7 @@ class CheckpointStorage(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def read_state_dict(self, path):
+    def read_state_dict(self, path, read_func):
         """
         Read state dict from the path.
 
@@ -83,3 +87,54 @@ class CheckpointStorage(metaclass=ABCMeta):
             step (int): the iteration step.
         """
         pass
+
+
+class PosixDiskStorage(CheckpointStorage):
+    def __init__(self):
+        self._latest_path = ""
+
+    def write(self, content, path):
+        dir = os.path.dirname(path)
+        os.makedirs(dir, exist_ok=True)
+        mode = "w"
+        if isinstance(content, bytes) or isinstance(content, memoryview):
+            mode = "wb"
+        with open(path, mode) as stream:
+            stream.write(content)
+            os.fsync(stream.fileno())
+
+    def write_state_dict(self, state_dict, path, write_func=None):
+        dir = os.path.dirname(path)
+        os.makedirs(dir, exist_ok=True)
+        if write_func:
+            write_func(state_dict, path)
+        self._latest_path = path
+
+    def read(self, path, mode="r"):
+        if not os.path.exists(path):
+            return ""
+        with open(path, mode) as stream:
+            content = stream.read()
+        return content
+
+    def read_state_dict(self, path, read_func):
+        if not os.path.exists(path) or not read_func:
+            return {}
+        return read_func(path)
+
+    def safe_rmtree(self, dir):
+        if os.path.exists(dir):
+            shutil.rmtree(dir)
+
+    def safe_remove(self, path):
+        if os.path.exists(path):
+            os.remove(path)
+
+    def safe_makedirs(self, dir):
+        os.makedirs(dir, exist_ok=True)
+
+    def commit(self, step):
+        logger.info(
+            f"Finish persisting the checkpoint to {self._latest_path} "
+            f"for step {step}"
+        )

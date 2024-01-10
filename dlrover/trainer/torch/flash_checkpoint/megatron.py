@@ -29,12 +29,12 @@ except ImportError:
 
 from dlrover.python.common.constants import CheckpointConstant
 from dlrover.python.common.singleton import singleton
+from dlrover.python.common.storage import PosixDiskStorage
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     MegatronCheckpointSaver,
 )
 
 from .checkpointer import StorageType
-from .engine import PosixDiskStorage
 from .megatron_engine import MegatronCheckpointEngine
 
 

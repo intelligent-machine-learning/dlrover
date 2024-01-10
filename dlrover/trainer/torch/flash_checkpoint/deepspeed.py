@@ -23,14 +23,13 @@ from deepspeed.runtime.zero.config import ZeroStageEnum
 
 from dlrover.python.common import env_utils
 from dlrover.python.common.constants import CheckpointConstant
-from dlrover.python.common.storage import CheckpointStorage
+from dlrover.python.common.storage import CheckpointStorage, PosixDiskStorage
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     DeepSpeedCheckpointSaver,
 )
 
 from .checkpointer import Checkpointer, StorageType
 from .deepspeed_engine import DeepSpeedCheckpointEngine
-from .engine import PosixDiskStorage
 
 
 class AsyncSaveEngine(CheckpointEngine):
@@ -54,16 +53,19 @@ class AsyncSaveEngine(CheckpointEngine):
             self.optimizer_path = path
 
     def load(self, path: str, map_location=None):
+        def read_func(path):
+            return torch.load(path, map_location=map_location)
+
         if CheckpointConstant.MODEL_STATES_NAME in path:
             if self.model_sd:
                 return self.model_sd
             else:
-                return self.storage.read_state_dict(path)
+                return self.storage.read_state_dict(path, read_func)
         elif CheckpointConstant.OPTIM_STATES_NAME in path:
             if self.optimizer_sd:
                 return self.optimizer_sd
             else:
-                return self.storage.read_state_dict(path)
+                return self.storage.read_state_dict(path, read_func)
 
     def commit(self, tag):
         # to tell checkpoint services if all files are ready.

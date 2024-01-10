@@ -11,9 +11,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dlrover.python.common.storage import PosixDiskStorage
 
 from .checkpointer import Checkpointer, StorageType
-from .engine import PosixDiskStorage
 from .fsdp_engine import FsdpCheckpointEngine
 
 

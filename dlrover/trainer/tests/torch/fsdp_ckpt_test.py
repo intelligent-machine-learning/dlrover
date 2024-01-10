@@ -48,11 +48,11 @@ from torch.distributed.checkpoint.planner import (
 
 from dlrover.python.common import grpc
 from dlrover.python.common.multi_process import SharedMemory
+from dlrover.python.common.storage import PosixDiskStorage
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     AsyncCheckpointSaver,
     SharedMemoryHandler,
 )
-from dlrover.trainer.torch.flash_checkpoint.engine import PosixDiskStorage
 from dlrover.trainer.torch.flash_checkpoint.fsdp import (
     FsdpCheckpointer,
     StorageType,

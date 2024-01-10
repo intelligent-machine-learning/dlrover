@@ -14,6 +14,7 @@
 import os
 from datetime import timedelta
 
+import torch
 import torch.distributed as dist
 
 from dlrover.python.common import env_utils
@@ -148,7 +149,10 @@ class DdpCheckpointEngine(CheckpointEngine):
         """
         state_dict = {}
         if resume_path:
-            state_dict = self.storage.read_state_dict(resume_path)
+            state_dict = self.storage.read_state_dict(
+                resume_path,
+                read_func=lambda path: torch.load(path, map_location="cpu"),
+            )
             return state_dict
         else:
             tracker_filename = os.path.join(
@@ -161,5 +165,8 @@ class DdpCheckpointEngine(CheckpointEngine):
             name = f"{CheckpointConstant.CKPT_NAME_PREFIX}{iteration}.pt"
             path = os.path.join(self.checkpoint_dir, name)
             logger.info(f"Load the state dict from {path}")
-            state_dict = self.storage.read_state_dict(path)
+            state_dict = self.storage.read_state_dict(
+                path,
+                read_func=lambda path: torch.load(path, map_location="cpu"),
+            )
             return state_dict
