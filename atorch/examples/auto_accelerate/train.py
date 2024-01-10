@@ -38,6 +38,8 @@ def parse_args():
     parser.add_argument("--layer_num", type=int, default=3, required=False)
     parser.add_argument("--seq_length", type=int, default=16, required=False)
     parser.add_argument("--batchsize", type=int, default=8, required=False)
+    parser.add_argument("--in_size", type=int, default=16, required=False)
+    parser.add_argument("--out_size", type=int, default=8, required=False)
     parser.add_argument("--distributed", default=False, action="store_true")
     parser.add_argument("--user_created_dataloader", default=False, action="store_true")
     parser.add_argument("--load_strategy", default=False, action="store_true")
@@ -45,6 +47,7 @@ def parse_args():
     parser.add_argument("--log_interval", type=int, default=10, required=False)
     parser.add_argument("--use_fsdp", default=False, action="store_true")
     parser.add_argument("--use_amp", default=False, action="store_true")
+    parser.add_argument("--use_fp8", default=False, action="store_true")
     parser.add_argument("--use_checkpointing", default=False, action="store_true")
     parser.add_argument("--use_module_replace", default=False, action="store_true")
 
@@ -67,18 +70,31 @@ def train(args):
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    # get model, loss_func,
-    model_config = {
-        "hiddien_size": args.hiddien_size,
-        "head_num": args.head_num,
-        "layer_num": args.layer_num,
-        "seq_length": args.seq_length,
-    }
+    # get model, loss_func
+    if model_type == ModelType.TOY:
+        model_config = {
+            "in_features": args.in_size,
+            "out_features": args.out_size,
+            "num_linears": args.layer_num,
+        }
+    else:
+        model_config = {
+            "hiddien_size": args.hiddien_size,
+            "head_num": args.head_num,
+            "layer_num": args.layer_num,
+            "seq_length": args.seq_length,
+        }
     model = get_model(model_type, model_config)
     print("Get model with class ", model.__class__)
     loss_func = get_loss_func(model_type)
 
-    dataset = get_dataset(model_type, seq_length=args.seq_length, datasize=args.datasize)
+    dataset = get_dataset(
+        model_type,
+        seq_length=args.seq_length,
+        input_size=args.in_size,
+        output_size=args.out_size,
+        datasize=args.datasize
+    )
     dataloader_args = get_dataloader_args(model_type, batch_size=args.batchsize)
 
     strategy = None
@@ -108,6 +124,21 @@ def train(args):
         if args.use_checkpointing:
             checkpoint_modules = (get_module_type(model_type),)
             strategy.append(("checkpoint", checkpoint_modules))
+        # fp8
+        if args.use_fp8:
+            if model_type == ModelType.LLAMA:
+                strategy.append(("fp8", {"include": ("layers",)}))
+            elif model_type == ModelType.TOY:
+                if args.in_size % 16 !=0 or args.out_size % 16 !=0 or args.batchsize % 16 != 0:
+                    print(
+                        "fp8 is ignored. To use fp8 for toy model, " +
+                        "in_size({}), out_size({}) and batchsize({}) must be multiples of 16!".format(
+                        args.in_size, args.out_size, args.batchsize)
+                    )
+                else:
+                    strategy.append("fp8")
+            else:
+                print("fp8 is ignored for gpt2 model")
 
     # optimizer
     if model_type == ModelType.LLAMA:
