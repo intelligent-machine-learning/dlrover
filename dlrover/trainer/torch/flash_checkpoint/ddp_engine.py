@@ -53,8 +53,8 @@ class DdpCheckpointEngine(CheckpointEngine):
         >>> sate_dict = engine.load()
     """
 
-    def __init__(self, checkpoint_dir):
-        super().__init__(checkpoint_dir)
+    def __init__(self, checkpoint_dir, storage):
+        super().__init__(checkpoint_dir, storage)
         if dist.is_initialized():
             saver_ranks = self._get_saver_ranks()
             self._saver_group = dist.new_group(
@@ -149,22 +149,24 @@ class DdpCheckpointEngine(CheckpointEngine):
         """
         state_dict = {}
         if resume_path:
-            state_dict = torch.load(resume_path, map_location="cpu")
+            state_dict = self.storage.read_state_dict(
+                resume_path,
+                read_func=lambda path: torch.load(path, map_location="cpu"),
+            )
             return state_dict
         else:
             tracker_filename = os.path.join(
                 self.checkpoint_dir, CheckpointConstant.TRACER_FILE_NAME
             )
-            if not os.path.exists(tracker_filename):
+            content: str = self.storage.read(tracker_filename)
+            if not content:
                 return state_dict
-            with open(tracker_filename, "r") as f:
-                metastring = f.read().strip()
-            iteration = int(metastring)
+            iteration = int(content.strip())
             name = f"{CheckpointConstant.CKPT_NAME_PREFIX}{iteration}.pt"
             path = os.path.join(self.checkpoint_dir, name)
-            if not os.path.exists(path):
-                logger.warning(f"Checkpoint path {path} is not exist.")
-                return state_dict
             logger.info(f"Load the state dict from {path}")
-            state_dict = torch.load(path, map_location="cpu")
+            state_dict = self.storage.read_state_dict(
+                path,
+                read_func=lambda path: torch.load(path, map_location="cpu"),
+            )
             return state_dict

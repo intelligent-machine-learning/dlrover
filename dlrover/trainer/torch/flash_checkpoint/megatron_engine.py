@@ -13,6 +13,7 @@
 
 from datetime import timedelta
 
+import torch
 import torch.distributed as dist
 
 from dlrover.python.common import env_utils
@@ -39,7 +40,7 @@ class MegatronCheckpointEngine(CheckpointEngine):
             if the training process fails.
     """
 
-    def __init__(self, checkpoint_dir):
+    def __init__(self, checkpoint_dir, storage):
         if dist.is_initialized():
             from megatron import mpu
 
@@ -55,7 +56,7 @@ class MegatronCheckpointEngine(CheckpointEngine):
             self._pp_world_size = 1
             self._tp_world_size = 1
 
-        super().__init__(checkpoint_dir)
+        super().__init__(checkpoint_dir, storage)
         if dist.is_initialized():
             saver_ranks = self._get_saver_ranks()
             logger.info(f"Saver ranks of Megatron-LM is {saver_ranks}")
@@ -147,8 +148,9 @@ class MegatronCheckpointEngine(CheckpointEngine):
                 checkpointing file.
         """
         if resume_path:
-            from torch.serialization import load as torch_load
-
-            state_dict = torch_load(resume_path, map_location="cpu")
+            state_dict = self.storage.read_state_dict(
+                resume_path,
+                read_func=lambda path: torch.load(path, map_location="cpu"),
+            )
             return state_dict
         return {}

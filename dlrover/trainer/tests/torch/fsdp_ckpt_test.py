@@ -48,6 +48,7 @@ from torch.distributed.checkpoint.planner import (
 
 from dlrover.python.common import grpc
 from dlrover.python.common.multi_process import SharedMemory
+from dlrover.python.common.storage import PosixDiskStorage
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     AsyncCheckpointSaver,
     SharedMemoryHandler,
@@ -330,11 +331,12 @@ class FsdpCheckpointTest(unittest.TestCase):
         state_dict = {
             _OPTIMIZER_KEY: {"learning_rate": 0.1},
         }
+        storage = PosixDiskStorage()
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir = Path(tmpdir)
             engine = tmpdir
             path = tmpdir / str(step)
-            engine = FsdpCheckpointEngine(tmpdir)
+            engine = FsdpCheckpointEngine(tmpdir, storage)
             engine.save_to_storage(
                 step,
                 state_dict,

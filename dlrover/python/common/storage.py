@@ -1,0 +1,140 @@
+# Copyright 2024 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import os
+import shutil
+from abc import ABCMeta, abstractmethod
+
+from .log import default_logger as logger
+
+
+class CheckpointStorage(metaclass=ABCMeta):
+    """
+    We can implement interfaces of CheckpointStorage to
+    write/read the data.
+    """
+
+    @abstractmethod
+    def write(self, content, path):
+        """
+        Write the content into the path of storage.
+
+        Args:
+            content (str/bytes): the content to write.
+            path (str): the path of storage.
+        """
+        pass
+
+    @abstractmethod
+    def write_state_dict(self, state_dict, path, write_func):
+        """
+        Write the state dict of PyTorch into the path of storage.
+
+        Args:
+            state_dict (dict): a state dict.
+            path (str): the path of storage.
+        """
+        pass
+
+    @abstractmethod
+    def read(self, path):
+        """
+        Read string from  the path.
+
+        Args:
+            path(str): the file path of storage.
+        """
+        pass
+
+    @abstractmethod
+    def read_state_dict(self, path, read_func):
+        """
+        Read state dict from the path.
+
+        Args:
+            path(str): the file path of storage.
+        """
+        pass
+
+    @abstractmethod
+    def safe_rmtree(self, dir):
+        pass
+
+    @abstractmethod
+    def safe_remove(self, path):
+        pass
+
+    @abstractmethod
+    def safe_makedirs(self, dir):
+        pass
+
+    @abstractmethod
+    def commit(self, step):
+        """
+        We can implement the method to commit the checkpoint step.
+
+        Args:
+            step (int): the iteration step.
+        """
+        pass
+
+
+class PosixDiskStorage(CheckpointStorage):
+    def __init__(self):
+        self._latest_path = ""
+
+    def write(self, content, path):
+        dir = os.path.dirname(path)
+        os.makedirs(dir, exist_ok=True)
+        mode = "w"
+        if isinstance(content, bytes) or isinstance(content, memoryview):
+            mode = "wb"
+        with open(path, mode) as stream:
+            stream.write(content)
+            os.fsync(stream.fileno())
+
+    def write_state_dict(self, state_dict, path, write_func=None):
+        dir = os.path.dirname(path)
+        os.makedirs(dir, exist_ok=True)
+        if write_func:
+            write_func(state_dict, path)
+        self._latest_path = path
+
+    def read(self, path, mode="r"):
+        if not os.path.exists(path):
+            return ""
+        with open(path, mode) as stream:
+            content = stream.read()
+        return content
+
+    def read_state_dict(self, path, read_func):
+        if not os.path.exists(path) or not read_func:
+            return {}
+        return read_func(path)
+
+    def safe_rmtree(self, dir):
+        if os.path.exists(dir):
+            shutil.rmtree(dir)
+
+    def safe_remove(self, path):
+        if os.path.exists(path):
+            os.remove(path)
+
+    def safe_makedirs(self, dir):
+        os.makedirs(dir, exist_ok=True)
+
+    def commit(self, step):
+        logger.info(
+            f"Finish persisting the checkpoint to {self._latest_path} "
+            f"for step {step}"
+        )

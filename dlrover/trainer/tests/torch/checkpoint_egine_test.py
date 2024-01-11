@@ -23,6 +23,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 from dlrover.python.common.constants import CheckpointConstant, NodeEnv
+from dlrover.python.common.storage import PosixDiskStorage
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     AsyncCheckpointSaver,
     DeepSpeedCheckpointSaver,
@@ -99,6 +100,7 @@ class ShardingCheckpointEngineTest(unittest.TestCase):
             AsyncCheckpointSaver._saver_instance.close()
 
     def test_start_saver_proc(self):
+        os.environ["ROLE_NAME"] = "dlrover-trainer"
         proc = start_saver_process()
         self.assertIsNone(proc)
         os.environ["ROLE_NAME"] = "default"
@@ -114,8 +116,9 @@ class ShardingCheckpointEngineTest(unittest.TestCase):
             model=model.state_dict(),
             step=step,
         )
+        storage = PosixDiskStorage()
         with tempfile.TemporaryDirectory() as tmpdir:
-            saving_engine = SimpleShardingCheckpointEngine(tmpdir)
+            saving_engine = SimpleShardingCheckpointEngine(tmpdir, storage)
             saving_engine.save_to_storage(step, state_dict, "")
             tmp = Path(tmpdir)
             time.sleep(3)
@@ -135,8 +138,9 @@ class ShardingCheckpointEngineTest(unittest.TestCase):
             saving_engine.close()
 
     def test_megatron_engine(self):
+        storage = PosixDiskStorage()
         with tempfile.TemporaryDirectory() as tmpdir:
-            engine = MegatronCheckpointEngine(tmpdir)
+            engine = MegatronCheckpointEngine(tmpdir, storage)
             global_shard_num = engine.get_global_shard_num()
             self.assertEqual(global_shard_num, 1)
             local_shard_num = engine.get_local_shard_num()
@@ -166,9 +170,10 @@ class ShardingCheckpointEngineTest(unittest.TestCase):
             self.assertTrue(torch.equal(sd["weights"], tensor))
 
     def test_deepspeed_engine(self):
+        storage = PosixDiskStorage()
         with tempfile.TemporaryDirectory() as tmpdir:
             engine = DeepSpeedCheckpointEngine(
-                tmpdir, global_shard_num=1, zero_stage=1
+                tmpdir, storage, global_shard_num=1, zero_stage=1
             )
             global_shard_num = engine.get_global_shard_num()
             self.assertEqual(global_shard_num, 1)
@@ -224,8 +229,9 @@ class CheckpointEngineTest(unittest.TestCase):
             step=step,
         )
 
+        storage = PosixDiskStorage()
         with tempfile.TemporaryDirectory() as tmpdirname:
-            engine = DdpCheckpointEngine(tmpdirname)
+            engine = DdpCheckpointEngine(tmpdirname, storage)
             engine._restart_count = 1
             engine._notify_agent_to_create_saver()
             path = os.path.join(tmpdirname, "checkpoint-10.pt")
@@ -246,3 +252,29 @@ class CheckpointEngineTest(unittest.TestCase):
                 f.write("100")
             state_dict = engine._load_from_storage()
             self.assertDictEqual(state_dict, {})
+
+
+class PosixDiskStorageTest(unittest.TestCase):
+    def test_posix(self):
+        storage = PosixDiskStorage()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = os.path.join(tmpdir, "test.txt")
+            storage.write("100", tmp_path)
+            content = storage.read(tmp_path)
+            self.assertEqual(content, "100")
+            storage.safe_remove(tmp_path)
+            self.assertFalse(os.path.exists(tmp_path))
+            test_dir = os.path.join(tmpdir, "test")
+            storage.safe_makedirs(test_dir)
+            self.assertTrue(os.path.exists(test_dir))
+            storage.safe_rmtree(tmpdir)
+            self.assertFalse(os.path.exists(test_dir))
+            state_dict = {"weights": torch.rand(4, 4)}
+            ckpt_path = os.path.join(tmpdir, "checkpoint.pt")
+            storage.write_state_dict(state_dict, ckpt_path, torch.save)
+            storage.commit(100)
+            sd = storage.read_state_dict(
+                ckpt_path,
+                read_func=lambda path: torch.load(path, map_location="cpu"),
+            )
+            self.assertTrue(torch.equal(state_dict["weights"], sd["weights"]))
