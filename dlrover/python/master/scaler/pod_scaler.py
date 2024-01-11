@@ -411,9 +411,7 @@ class PodScaler(Scaler):
         # The two env vars is compatible with kubeflow/PytorchJob because
         # users may use the scripts of kubeflow/PytorchJob in the ElasticJob.
         env.append(V1EnvVar(name=NodeEnv.WORLD_SIZE, value=str(worker_num)))
-        env.append(
-            V1EnvVar(name=NodeEnv.RANK, value=str(node.rank_index))
-        )
+        env.append(V1EnvVar(name=NodeEnv.RANK, value=str(node.rank_index)))
 
         # Deprecated env vars
         env.append(V1EnvVar(name=NodeEnv.WORKER_TYPE, value=node.type))
