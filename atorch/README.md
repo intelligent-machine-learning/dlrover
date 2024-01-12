@@ -61,7 +61,7 @@ ATorch is an extension library of PyTorch developed by Ant Group's AI Infrastruc
 ## Installation
 
 ATorch supports PyTorch with version >= 1.12, and verion 2.1 or above is preferred.
-For example, you can use docker image <code>easydl/atorch:iml_pt210</code> which has PyTorch 2.1 installed.
+For example, you can use docker image <code>easydl/atorch:iml_pt210</code> (or aliyun mirror <code>registry.cn-hangzhou.aliyuncs.com/atorch/atorch:iml_pt210</code>) which has PyTorch 2.1 installed.
 
 ### Install From PyPI
 Install atorch in any PyTorch-preinstalled environment (such as a container created with the docker image above) with <code>pip</code>: 
