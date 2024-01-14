@@ -23,20 +23,35 @@ model_type: toy, gpt2, or llama
 - llama: Llama2 model, model size is determined by arguments hiddien_size, head_num, layer_num, seq_length.
 
 datasize: fake dataset size for training, default 200.
+
 epoch: training epoch, default 2.
+
 hiddien_size: for llm (gpt2, llama) model, default 32.
+
 head_num: for llm (gpt2, llama) model, default 32.
+
 layer_num: for llm (gpt2, llama) model, default 32.
+
 seq_length: for llm (gpt2, llama) model, default 32.
+
 batchsize: total batchsize in one training iteration, default 8.
+
 user_created_dataloader: if set, auto_accelerate will not create dataloader, and user is responsible to provide dataloader. Default False.
+
 distributed: if set, running distributed training, default False.
+
 load_strategy: if set, set load_strategy to use semi-automatic mode, default False.
+
 optim_grouped_params: if set, use grouped params for optimizer, default False.
+
 log_interval: log print interval in training, default 10.
+
 use_fsdp: if set, add fsdp optimization method in load_strategy. Default False.
+
 use_amp: if set, add amp_native optimization method in load_strategy. Default False.
+
 use_checkpointing: if set, add checkpoint optimization method in load_strategy. Default False.
+
 use_module_replace: if set, add module_replace optimization method in load_strategy. Default False.
 
 To launch distributed training, such as 8 process per node training for llama,  run:
