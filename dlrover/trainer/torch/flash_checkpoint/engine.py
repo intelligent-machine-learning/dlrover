@@ -15,10 +15,10 @@ import os
 import time
 from abc import ABCMeta, abstractmethod
 from multiprocessing import Process
+from typing import Dict
 
 import torch
 import torch.distributed as dist
-from typing import Dict
 
 from dlrover.python.common import env_utils
 from dlrover.python.common.log import default_logger as logger
