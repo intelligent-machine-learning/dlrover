@@ -119,11 +119,13 @@ class ShardingCheckpointEngineTest(unittest.TestCase):
         storage = PosixDiskStorage()
         with tempfile.TemporaryDirectory() as tmpdir:
             saving_engine = SimpleShardingCheckpointEngine(tmpdir, storage)
-            saving_engine.save_to_storage(step, state_dict, "")
             tmp = Path(tmpdir)
+            saved_file = tmp / "checkpoint-100/checkpoint.pt"
+            sd = {CheckpointConstant.MODEL_STATES_NAME: state_dict}
+            paths = {CheckpointConstant.MODEL_STATES_NAME: saved_file}
+            saving_engine.save_to_storage(step, sd, paths)
             time.sleep(3)
             # list the files in tmpdir recursively
-            saved_file = tmp / "checkpoint-100/checkpoint.pt"
             self.assertTrue(saved_file.exists())
 
             tracker_file = tmp / "tracker.txt"
@@ -131,6 +133,7 @@ class ShardingCheckpointEngineTest(unittest.TestCase):
 
             self.assertEqual(tracker_file.read_text(), "100")
             state = torch.load(saved_file)
+            state = state[CheckpointConstant.MODEL_STATES_NAME]
             self.assertEqual(state["step"], step)
 
             saver: AsyncCheckpointSaver = AsyncCheckpointSaver.get_ckpt_saver()
@@ -164,10 +167,8 @@ class ShardingCheckpointEngineTest(unittest.TestCase):
             )
             with open(tracker_file, "w") as f:
                 f.write(str(step))
-            sd = engine._load_from_storage(path)
-            self.assertTrue(torch.equal(sd["weights"], tensor))
-            sd = engine.load(path)
-            self.assertTrue(torch.equal(sd["weights"], tensor))
+            sd = engine.load()
+            self.assertDictEqual(sd, {})
 
     def test_deepspeed_engine(self):
         storage = PosixDiskStorage()
@@ -188,22 +189,26 @@ class ShardingCheckpointEngineTest(unittest.TestCase):
                 lr=0.01,
                 momentum=0.001,
             )
-            state_dict = dict(
-                model_states=model.state_dict(),
-                optim_states=optimizer.state_dict(),
-            )
             step = 100
             model_path = os.path.join(tmpdir, str(step), "model_states.pt")
-            optimizer_path = os.path.join(tmpdir, str(step), "optim_states.pt")
-            engine.save_to_storage(
-                step, state_dict, model_path, optimizer_path
-            )
+            optim_path = os.path.join(tmpdir, str(step), "optim_states.pt")
+            state_dict = {
+                CheckpointConstant.MODEL_STATES_NAME: model.state_dict(),
+                CheckpointConstant.OPTIM_STATES_NAME: optimizer.state_dict(),
+            }
+            paths = {
+                CheckpointConstant.MODEL_STATES_NAME: model_path,
+                CheckpointConstant.OPTIM_STATES_NAME: optim_path,
+            }
+            engine.save_to_storage(step, state_dict, paths)
             time.sleep(1)  # wait asynchronouly saving
             self.assertEqual(engine._shm_handler._buffer_size, 9640)
             self.assertEqual(engine._shm_handler.shared_memory.size, 9640)
             restored_state_dict = engine.load()
-            restore_msd = restored_state_dict["model_states"]
-            msd = state_dict["model_states"]
+            restore_msd = restored_state_dict[
+                CheckpointConstant.MODEL_STATES_NAME
+            ]
+            msd = state_dict[CheckpointConstant.MODEL_STATES_NAME]
             for name in msd.keys():
                 self.assertTrue(torch.equal(msd[name], restore_msd[name]))
             tracer_file = os.path.join(tmpdir, "latest")
@@ -247,11 +252,6 @@ class CheckpointEngineTest(unittest.TestCase):
                 loaded_value = loaded_state_dict["model"][key]
                 self.assertTrue(torch.equal(value, loaded_value))
             engine.close()
-
-            with open(tracer_file, "w") as f:
-                f.write("100")
-            state_dict = engine._load_from_storage()
-            self.assertDictEqual(state_dict, {})
 
 
 class PosixDiskStorageTest(unittest.TestCase):

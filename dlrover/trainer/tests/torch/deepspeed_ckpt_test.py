@@ -121,10 +121,6 @@ class DeepSpeedCheckpointTest(unittest.TestCase):
             )
             ds_ckpt_config = tensor_meta["_DLORVER_CKPT_CONFIG"]
             self.assertEqual(ds_ckpt_config.step, str(step))
-            model_path = os.path.join(tmpdirname, str(step), "model_states.pt")
-            self.assertEqual(ds_ckpt_config.model_path, model_path)
-            optim_path = os.path.join(tmpdirname, str(step), "optim_states.pt")
-            self.assertEqual(ds_ckpt_config.optimizer_path, optim_path)
             self.assertIsNotNone(tensor_meta["model_states"])
             tracer_file = os.path.join(tmpdirname, "latest")
             self.assertFalse(os.path.exists(tracer_file))

@@ -13,12 +13,12 @@
 
 from datetime import timedelta
 
-import torch
 import torch.distributed as dist
 
 from dlrover.python.common import env_utils
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
+    CheckpointConfig,
     CheckpointEvent,
     CheckpointEventType,
     MegatronCheckpointSaver,
@@ -82,7 +82,23 @@ class MegatronCheckpointEngine(CheckpointEngine):
         return save_ranks
 
     @timer
-    def save_to_storage(self, step, state_dict, path):
+    def save_to_memory(self, step, state_dict, paths):
+        """
+        Synchronously Saves the state dict into the shared memory with the main
+        process. If the agent in the main process is saving the shared memory
+        into the storage, the method will skip to write the shared memory.
+        Only local rank 0 save the state dict into the memory because the
+        state dict is replicated across all ranks.
+
+        Args:
+            step (int): the global iteration step.
+            state_dict (dict): the state dict of model and optimizer to save.
+        """
+        conf = CheckpointConfig(step=step, paths=paths)
+        self.save_state_dict_to_memory(state_dict, conf)
+
+    @timer
+    def save_to_storage(self, step, state_dict, paths):
         """
         Asynchonously saves the state dict into the storage. It synchonously
         saves the state dict into the shared memory and put the path
@@ -93,17 +109,14 @@ class MegatronCheckpointEngine(CheckpointEngine):
         Args:
             step (int): the iteration step.
             state_dict (dict): the state dict of model and optimizer to save.
-            path (str): optional, the file path to save the checkpoint. If the
-                path is not defined, the engine will save the state dict into
-                the shared memory not the storage.
         """
         if step > self._cached_step:
-            self.save_to_memory(step, state_dict, path)
+            self.save_to_memory(step, state_dict, paths)
 
         # Only local rank 0 to notify the saving event to the agent.
         if self._dp_rank != 0 or self._local_rank != 0:
             return
-        if path:
+        if state_dict:
             event = CheckpointEvent(type=CheckpointEventType.SAVE, step=step)
             self._event_queue.put(event)
 
@@ -130,27 +143,5 @@ class MegatronCheckpointEngine(CheckpointEngine):
         """
         state_dict = self.get_state_dict_from_memory()
         if state_dict:
-            return state_dict
-        state_dict = self._load_from_storage(resume_path)
-        return state_dict
-
-    def _load_from_storage(self, resume_path=""):
-        """
-        Load the state dict from the storage.
-        Args:
-            resume_path (str, optional): , If the resume_path is an empty
-                string, the function will load the latest checkpoint file in
-                the checkpoint directory.
-
-        Returns:
-            A dict:
-                a dictionary containing a whole state of the modules in the
-                checkpointing file.
-        """
-        if resume_path:
-            state_dict = self.storage.read_state_dict(
-                resume_path,
-                read_func=lambda path: torch.load(path, map_location="cpu"),
-            )
             return state_dict
         return {}
