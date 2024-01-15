@@ -28,12 +28,12 @@ def optim_grouped_param_func(model):
     return parameters
 
 
-def argsparse_():
+def parse_args():
     parser = argparse.ArgumentParser(description="Process arguments")
     parser.add_argument("--model_type", type=str, required=True)
     parser.add_argument("--datasize", type=int, default=200, required=False)
     parser.add_argument("--epoch", type=int, default=2, required=False)
-    parser.add_argument("--hidden_size", type=int, default=32, required=False)
+    parser.add_argument("--hiddien_size", type=int, default=32, required=False)
     parser.add_argument("--head_num", type=int, default=4, required=False)
     parser.add_argument("--layer_num", type=int, default=3, required=False)
     parser.add_argument("--seq_length", type=int, default=16, required=False)
@@ -69,7 +69,7 @@ def train(args):
 
     # get model, loss_func,
     model_config = {
-        "hidden_size": args.hidden_size,
+        "hiddien_size": args.hiddien_size,
         "head_num": args.head_num,
         "layer_num": args.layer_num,
         "seq_length": args.seq_length,
