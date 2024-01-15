@@ -206,6 +206,12 @@ class CheckpointEngine(metaclass=ABCMeta):
                 raise ValueError(
                     "The event queue cannot be None on local rank 0."
                 )
+            for _ in range(3):
+                try:
+                    self._event_queue.put(event)
+                    return
+                except FileNotFoundError:
+                    time.sleep(3)
             self._event_queue.put(event)
 
     def save_state_dict_to_memory(self, state_dict, conf: CheckpointConfig):
