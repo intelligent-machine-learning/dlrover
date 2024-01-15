@@ -42,7 +42,11 @@ class MegatronCheckpointEngine(CheckpointEngine):
 
     def __init__(self, checkpoint_dir, storage):
         if dist.is_initialized():
-            from megatron import mpu
+            try:
+                from megatron.core import mpu
+            except ImportError:
+                #  Keep back compatibility.
+                from megatron import mpu
 
             self._tp_rank = mpu.get_tensor_model_parallel_rank()
             self._pp_rank = mpu.get_pipeline_model_parallel_rank()
