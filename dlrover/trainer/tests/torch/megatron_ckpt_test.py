@@ -70,6 +70,8 @@ class MegatrionCheckpointTest(unittest.TestCase):
         )
         with tempfile.TemporaryDirectory() as tmpdirname:
 
+            suffix = "model_optim_rng.pt"
+
             def get_args():
                 parser = argparse.ArgumentParser(description="Megatron Test")
                 args, _ = parser.parse_known_args()
@@ -84,9 +86,7 @@ class MegatrionCheckpointTest(unittest.TestCase):
                     "model_states": model.state_dict(),
                     "optim_states": optimizer.state_dict(),
                 }
-                path = os.path.join(
-                    tmpdirname, str(iteration), "checkpoint.pt"
-                )
+                path = os.path.join(tmpdirname, str(iteration), suffix)
                 torch.save(state_dict, path)
 
             def mock_load_checkpoint(
@@ -96,7 +96,7 @@ class MegatrionCheckpointTest(unittest.TestCase):
                 load_arg="load",
                 strict=True,
             ):
-                path = os.path.join(tmpdirname, "20", "checkpoint.pt")
+                path = os.path.join(tmpdirname, "20", suffix)
                 state_dict = torch.load(path)
                 model.load_state_dict(state_dict["model_states"])
                 optimizer.load_state_dict(state_dict["optim_states"])
@@ -115,9 +115,10 @@ class MegatrionCheckpointTest(unittest.TestCase):
             self.assertEqual(
                 ckpt_manager.engine._shm_handler._buffer_size, 9640
             )
-            tensor_meta = ckpt_manager.engine._shm_handler.metadata.get()
-            self.assertEqual(tensor_meta["iteration"], 10)
-            self.assertIsNotNone(tensor_meta["model_states"])
+            meta_dict = ckpt_manager.engine._shm_handler.metadata.get()
+            meta_dict = meta_dict[CheckpointConstant.MODEL_STATES_NAME]
+            self.assertEqual(meta_dict["iteration"], 10)
+            self.assertIsNotNone(meta_dict["model_states"])
 
             save_checkpoint(
                 20, model, optimizer, None, storage_type=StorageType.DISK
@@ -137,7 +138,7 @@ class MegatrionCheckpointTest(unittest.TestCase):
                 restored_step = int(f.read())
             self.assertEqual(restored_step, 20)
             files = os.listdir(tmpdirname + "/20")
-            self.assertEqual(files, ["checkpoint.pt"])
+            self.assertEqual(files, [suffix])
             load_checkpoint(model, optimizer, None)
 
             with self.assertRaises(ValueError):
