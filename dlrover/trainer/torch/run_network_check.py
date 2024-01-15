@@ -34,6 +34,14 @@ FAULT_CHECK_TASK = "fault-check"
 STRAGGLER_CHECK_TASK = "straggler-check"
 
 
+def mock_error():
+    if os.environ.get("MOCK_ERR_RANK"):
+        err_rank = int(os.environ["MOCK_ERR_RANK"])
+        local_rank = int(os.environ["LOCAL_RANK"])
+        if err_rank == local_rank:
+            raise ValueError()
+
+
 def bm_all_gather(shape, use_gpu):
     world_size = dist.get_world_size()
     local_rank = int(os.environ["LOCAL_RANK"])
@@ -49,6 +57,7 @@ def bm_all_gather(shape, use_gpu):
         dist.all_gather(tensor_list, data)
     dist.barrier()
     elapsed_time = time.time() - start
+    mock_error()
     return elapsed_time
 
 
@@ -62,6 +71,7 @@ def matmul(use_cuda, round=10):
     for _ in range(round):
         torch.matmul(tensor1, tensor2)
     elapsed_time = time.time() - start
+    mock_error()
     return elapsed_time
 
 
