@@ -63,7 +63,7 @@ class MegatronCheckpointEngine(CheckpointEngine):
         super().__init__(checkpoint_dir, storage)
         if dist.is_initialized():
             saver_ranks = self._get_saver_ranks()
-            logger.info(f"Saver ranks of Megatron-LM is {saver_ranks}")
+            logger.info(f"Saver ranks of Megatron-LM are {saver_ranks}")
             self._saver_group = dist.new_group(
                 ranks=saver_ranks,
                 backend="gloo",
