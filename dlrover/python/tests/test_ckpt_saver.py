@@ -29,6 +29,7 @@ from dlrover.python.common.multi_process import (
     SharedMemory,
     SharedQueue,
 )
+from dlrover.python.common.storage import PosixDiskStorage
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     DLROVER_CKPT_CONFIG_KEY,
     AsyncCheckpointSaver,
@@ -112,7 +113,10 @@ class CheckpointSaverTest(unittest.TestCase):
         class_meta = SaverClassMeta(
             module_path=DdpCheckpointSaver.__module__,
             class_name=DdpCheckpointSaver.__name__,
-            init_args={"checkpoint_dir": "test_ckpt"},
+            init_args={
+                "checkpoint_dir": "test_ckpt",
+                "storage": PosixDiskStorage(),
+            },
         )
         sq.put(class_meta)
         for _ in range(10):
@@ -123,7 +127,7 @@ class CheckpointSaverTest(unittest.TestCase):
         self.assertIsNotNone(AsyncCheckpointSaver._saver_instance)
 
     def test_close_saver(self):
-        saver = DdpCheckpointSaver("test_ckpt")
+        saver = DdpCheckpointSaver("test_ckpt", PosixDiskStorage())
         try:
             SharedMemory(name="test").unlink()
         except Exception:
@@ -168,7 +172,7 @@ class CheckpointSaverTest(unittest.TestCase):
             step=step,
         )
         with tempfile.TemporaryDirectory() as tmpdir:
-            saver = DdpCheckpointSaver(tmpdir)
+            saver = DdpCheckpointSaver(tmpdir, PosixDiskStorage())
             path = Path(tmpdir) / "checkpoint.pt"
             ckpt_config = SingleFileCheckpointConfig(step=100, path=path)
             saver._shm_handlers[0].save_state_dict(state_dict, ckpt_config)
@@ -197,7 +201,7 @@ class CheckpointSaverTest(unittest.TestCase):
 
     def test_shard_num_changes(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            saver = DdpCheckpointSaver(tmpdir)
+            saver = DdpCheckpointSaver(tmpdir, PosixDiskStorage())
             saver.global_shard_num = 1
             threading.Thread(
                 target=saver._sync_shm_to_storage, daemon=True
@@ -219,7 +223,8 @@ class CheckpointSaverTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             step_done_dir = os.path.join(tmpdir, ".done/10/")
             os.makedirs(step_done_dir, exist_ok=True)
-            saver = DdpCheckpointSaver(tmpdir)
+            storage = PosixDiskStorage()
+            saver = DdpCheckpointSaver(tmpdir, storage)
             saver.global_shard_num = 1
             saver.commit_checkpoint(100, step_done_dir, 2)
 
@@ -227,7 +232,7 @@ class CheckpointSaverTest(unittest.TestCase):
 class FsdpCheckpointSaverTest(unittest.TestCase):
     def test_persist_storage(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            saver = FsdpDcpSaver(tmpdir)
+            saver = FsdpDcpSaver(tmpdir, PosixDiskStorage())
             step = 100
             path = os.path.join(tmpdir, str(step), "__0_0.dist_cp")
             os.makedirs(os.path.dirname(path), exist_ok=True)

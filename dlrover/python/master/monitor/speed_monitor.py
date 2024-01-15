@@ -129,6 +129,15 @@ class SpeedMonitor(object):
     def remove_running_worker(self, type, worker_id):
         if (type, worker_id) in self._workers:
             self._workers.remove((type, worker_id))
+            logger.info(
+                f"Speed monitor removes a worker {type}-{worker_id} and "
+                f"the remaining workers are {self._workers}."
+            )
+        else:
+            logger.info(
+                f"The worker {type}-{worker_id} is not in speed monitor and "
+                f"the remaining workers are {self._workers}."
+            )
 
     @property
     def init_training_time(self):

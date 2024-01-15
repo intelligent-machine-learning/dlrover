@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dlrover.python.common.storage import PosixDiskStorage
 
 from .checkpointer import Checkpointer, StorageType
 from .fsdp_engine import FsdpCheckpointEngine
@@ -62,8 +63,9 @@ class FsdpCheckpointer(Checkpointer):
         >>> optimizer.load_state_dict(flattened_osd)
     """
 
-    def __init__(self, checkpoint_dir: str):
-        self._engine = FsdpCheckpointEngine(checkpoint_dir)
+    def __init__(self, checkpoint_dir: str, storage=None):
+        self.storage = PosixDiskStorage() if not storage else storage
+        self._engine = FsdpCheckpointEngine(checkpoint_dir, self.storage)
 
     def save_checkpoint(
         self, step, state_dict, path, storage_type=StorageType.DISK

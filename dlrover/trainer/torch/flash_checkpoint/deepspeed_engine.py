@@ -43,10 +43,12 @@ class DeepSpeedCheckpointEngine(CheckpointEngine):
         dp_size (int): the world size of data parallelism.
     """
 
-    def __init__(self, checkpoint_dir, global_shard_num=1, zero_stage=0):
+    def __init__(
+        self, checkpoint_dir, storage, global_shard_num=1, zero_stage=0
+    ):
         self.global_shard_num = global_shard_num
         self.zero_stage = zero_stage
-        super().__init__(checkpoint_dir)
+        super().__init__(checkpoint_dir, storage)
         if dist.is_initialized():
             saver_ranks = self._get_saver_ranks()
             logger.info(f"Saver ranks of DeepSpeed is {saver_ranks}")

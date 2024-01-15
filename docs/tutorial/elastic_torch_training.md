@@ -156,7 +156,7 @@ spec:
               command:
                 - /bin/bash
                 - -c
-                - "dlrover-run --nnodes=1:$WORKER_NUM --nproc_per_node=1
+                - "dlrover-run --nnodes=1:$NODE_NUM --nproc_per_node=1
                   --max_restarts=3 \
                   examples/pytorch/mnist_cnn.py \
                   --training_data /data/mnist_png/training/elastic_ds.txt \

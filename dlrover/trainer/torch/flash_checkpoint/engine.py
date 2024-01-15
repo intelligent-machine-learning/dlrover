@@ -22,6 +22,7 @@ import torch.distributed as dist
 from dlrover.python.common import env_utils
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.multi_process import SharedLock, SharedQueue
+from dlrover.python.common.storage import CheckpointStorage
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     DLROVER_CKPT_CONFIG_KEY,
     AsyncCheckpointSaver,
@@ -121,10 +122,11 @@ class CheckpointEngine(metaclass=ABCMeta):
 
     saver_proc = None
 
-    def __init__(self, checkpoint_dir: str):
+    def __init__(self, checkpoint_dir: str, storage: CheckpointStorage):
         if not self.saver_proc:
             self.saver_proc = start_saver_process()
         self.checkpoint_dir = checkpoint_dir
+        self.storage = storage
         if dist.is_initialized():
             self._rank = dist.get_rank()
             self._loader_group = dist.new_group(backend="gloo")
@@ -183,6 +185,7 @@ class CheckpointEngine(metaclass=ABCMeta):
             class_name=clazz.__name__,
             init_args={
                 "checkpoint_dir": self.checkpoint_dir,
+                "storage": self.storage,
                 "local_shard_num": local_shard_num,
                 "global_shard_num": global_shard_num,
             },
