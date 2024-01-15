@@ -26,6 +26,7 @@ from dlrover.python.common.constants import CheckpointConstant, NodeEnv
 from dlrover.python.common.storage import PosixDiskStorage
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     AsyncCheckpointSaver,
+    CheckpointConfig,
     DeepSpeedCheckpointSaver,
     MegatronCheckpointSaver,
     TempDirCheckpointSaver,
@@ -59,10 +60,15 @@ class SimpleNet(nn.Module):
 
 
 class SimpleShardingSaver(TempDirCheckpointSaver):
-    def persist_to_storage(self, local_shard_id, path):
+    def persist_to_storage(
+        self, local_shard_id, ckpt_config: CheckpointConfig
+    ):
         state_dict = self._shm_handlers[local_shard_id].load_state_dict()
-        state_file = os.path.join(path, "checkpoint.pt")
-        torch.save(state_dict, state_file)
+        for sd_name, sd in state_dict.items():
+            if sd_name not in ckpt_config.paths:
+                continue
+            path = ckpt_config.paths[sd_name]
+            torch.save(sd, path)
 
     def get_tracker_file(self):
         return os.path.join(self.checkpoint_dir, "tracker.txt")
@@ -133,7 +139,6 @@ class ShardingCheckpointEngineTest(unittest.TestCase):
 
             self.assertEqual(tracker_file.read_text(), "100")
             state = torch.load(saved_file)
-            state = state[CheckpointConstant.MODEL_STATES_NAME]
             self.assertEqual(state["step"], step)
 
             saver: AsyncCheckpointSaver = AsyncCheckpointSaver.get_ckpt_saver()

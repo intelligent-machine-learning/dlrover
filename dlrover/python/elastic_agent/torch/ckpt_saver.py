@@ -788,22 +788,21 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
             f"step: {step}"
         )
         self._writing_storage = True
-        ckpt_path = self.get_ckpt_path(step)
-
-        if os.path.exists(ckpt_path):
-            logger.info(f"Checkpoint for step {step} already exists, skip")
-            self._writing_storage = False
-            return
-
-        stage_path = self._get_tmp_ckpt_dir(step)
+        temp_dir = self._get_tmp_ckpt_dir(step)
         step_done_dir = self._get_checkpoint_done_dir(step)
 
         write_success = False
         # save to stage path for each local rank
         futures: List[Future] = []
+        ckpt_dir = ""
         for i in range(self.local_shard_num):
+            default_config = CheckpointConfig()
+            ckpt_config = self._shm_handlers[i].get_checkpoint_config(
+                default_config
+            )
+            ckpt_dir = self._replace_path_dir(ckpt_config, temp_dir)
             future = self._executor.submit(
-                self._save_shard, step, i, stage_path, step_done_dir
+                self._save_shard, step, i, ckpt_config, step_done_dir
             )
             futures.append(future)
 
@@ -831,21 +830,37 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
             self.commit_checkpoint(
                 step,
                 step_done_dir=step_done_dir,
-                tmp_path=stage_path,
-                target_path=ckpt_path,
+                tmp_path=temp_dir,
+                target_path=ckpt_dir,
             )
 
         self._writing_storage = False
 
-    def get_ckpt_path(self, step: int):
+    def _replace_path_dir(self, ckpt_config: CheckpointConfig, temp_dir: str):
         """
-        User can override the method to define the checkpoint name.
+        Replace the directory with the temp directory.
 
-        Args:
-            step (int): the iteration step.
+        Returns:
+            str: the original directory.
         """
-        name = f"{CheckpointConstant.CKPT_NAME_PREFIX}{step}"
-        return os.path.join(self.checkpoint_dir, name)
+        ckpt_dir = ""
+        if not ckpt_config.paths:
+            return ckpt_dir
+        tmp_paths = {}
+        for name, path in ckpt_config.paths.items():
+            path = str(path)
+            path_dir = os.path.dirname(path)
+            tmp_paths[name] = path.replace(path_dir, temp_dir)
+            if not ckpt_dir:
+                ckpt_dir = path_dir
+            elif ckpt_dir != path_dir:
+                raise ValueError(
+                    "The directories must be same. The latest dir "
+                    f"is {ckpt_dir} and the current dir  of {name} "
+                    f"is {path_dir}"
+                )
+        ckpt_config.paths = tmp_paths
+        return ckpt_dir
 
     def _get_tmp_ckpt_dir(self, step: int):
         """
