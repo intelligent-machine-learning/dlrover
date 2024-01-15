@@ -6,7 +6,7 @@ The auto_accelerate API provides two ways of usage:
 1. Fully automatic mode: Automatically generates optimization strategy and implements automatic optimization.
 2. Semi-automatic mode: Users specify the method used for optimization strategy through load_strategy, and auto_accelerate automatically configures and implements the optimization strategy.
 
-An optimization strategy consists of multiple optimization methods, including parallel training, GPU memory optimization methods, compute optimization, etc. Supported optimization methods are listed in [doc link]. 
+An optimization strategy consists of multiple optimization methods, including parallel training, GPU memory optimization methods, compute optimization, etc. Supported optimization methods are listed in [doc link](#supported-optimization-methods). 
 
 ## Inputs
 auto_accelerate takes model, optim_func, dataset, loss_func, etc as inputs, and generates optimized model, optimizer, dataloader etc as outputs.
