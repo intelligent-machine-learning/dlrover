@@ -20,9 +20,9 @@ from dlrover.python.common import env_utils
 from dlrover.python.common.constants import CheckpointConstant
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
+    CheckpointConfig,
     CheckpointEvent,
     CheckpointEventType,
-    DeepSpeedCheckpointConfig,
     DeepSpeedCheckpointSaver,
     SharedMemoryHandler,
 )
@@ -43,13 +43,15 @@ class DeepSpeedCheckpointEngine(CheckpointEngine):
         dp_size (int): the world size of data parallelism.
     """
 
-    def __init__(self, checkpoint_dir, global_shard_num=1, zero_stage=0):
+    def __init__(
+        self, checkpoint_dir, storage, global_shard_num=1, zero_stage=0
+    ):
         self.global_shard_num = global_shard_num
         self.zero_stage = zero_stage
-        super().__init__(checkpoint_dir)
+        super().__init__(checkpoint_dir, storage)
         if dist.is_initialized():
             saver_ranks = self._get_saver_ranks()
-            logger.info(f"Saver ranks of DeepSpeed is {saver_ranks}")
+            logger.info(f"Saver ranks of DeepSpeed are {saver_ranks}")
             self._saver_group = dist.new_group(
                 ranks=saver_ranks,
                 backend="gloo",
@@ -72,9 +74,7 @@ class DeepSpeedCheckpointEngine(CheckpointEngine):
         return save_ranks
 
     @timer
-    def save_to_memory(
-        self, step, state_dict, model_path="", optimizer_path=""
-    ):
+    def save_to_memory(self, step, state_dict, paths):
         """
         Synchronously Saves the state dict into the shared memory with the main
         process. If the agent in the main process is saving the shared memory
@@ -85,21 +85,15 @@ class DeepSpeedCheckpointEngine(CheckpointEngine):
         Args:
             step (int): the global iteration step.
             state_dict (dict): the state dict of model and optimizer to save.
-            model_path (str): the storage path to save the model state dict.
-            optimizer_path (str): the storage path to save the optimizer
-                state dict.
+            paths (dict): the key is a category in
+                ["model_states", "optim_states"] of the state dict and
+                the value is the path of storage to save.
         """
-        conf = DeepSpeedCheckpointConfig(
-            step=step,
-            model_path=model_path,
-            optimizer_path=optimizer_path,
-        )
+        conf = CheckpointConfig(step=step, paths=paths)
         self.save_state_dict_to_memory(state_dict, conf)
 
     @timer
-    def save_to_storage(
-        self, step, state_dict, model_path="", optimizer_path=""
-    ):
+    def save_to_storage(self, step, state_dict, paths):
         """
         Asynchonously saves the state dict into the storage. It synchonously
         saves the state dict into the shared memory and put the path
@@ -110,17 +104,17 @@ class DeepSpeedCheckpointEngine(CheckpointEngine):
         Args:
             step (int): the global iteration step.
             state_dict (dict): the state dict of model and optimizer to save.
-            model_path (str): the storage path to save the model state dict.
-            optimizer_path (str): the storage path to save the optimizer
-                state dict.
+            paths (dict): the key is a category in
+                ["model_states", "optim_states"] of the state dict and
+                the value is the path of storage to save.
         """
         if step > self._cached_step:
-            self.save_to_memory(step, state_dict, model_path, optimizer_path)
+            self.save_to_memory(step, state_dict, paths)
 
         # Only local rank 0 to notify the saving event to the agent.
         if self._local_rank != 0:
             return
-        if model_path or optimizer_path:
+        if state_dict:
             event = CheckpointEvent(type=CheckpointEventType.SAVE, step=step)
             self._event_queue.put(event)
 

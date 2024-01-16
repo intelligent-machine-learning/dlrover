@@ -45,7 +45,7 @@ setup(
     url="https://github.com/intelligent-machine-learning/dlrover",
     install_requires=install_requires,
     extras_require=extra_require,
-    python_requires=">=3.6",
+    python_requires=">=3.8",
     packages=find_packages(),
     package_data={
         "": [

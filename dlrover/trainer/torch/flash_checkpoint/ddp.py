@@ -14,6 +14,7 @@
 import os
 
 from dlrover.python.common.constants import CheckpointConstant
+from dlrover.python.common.storage import PosixDiskStorage
 
 from .checkpointer import Checkpointer, StorageType
 from .ddp_engine import DdpCheckpointEngine
@@ -45,9 +46,10 @@ class DdpCheckpointer(Checkpointer):
         >>> sate_dict = engine.load_checkpoint()
     """
 
-    def __init__(self, checkpoint_dir: str):
+    def __init__(self, checkpoint_dir: str, storage=None):
         self.checkpoint_dir = checkpoint_dir
-        self._engine = DdpCheckpointEngine(checkpoint_dir)
+        self.storage = PosixDiskStorage() if not storage else storage
+        self._engine = DdpCheckpointEngine(checkpoint_dir, self.storage)
 
     def save_checkpoint(
         self, step, state_dict, path="", storage_type=StorageType.DISK
@@ -55,14 +57,16 @@ class DdpCheckpointer(Checkpointer):
         if path == "":
             ckpt_name = f"{CheckpointConstant.CKPT_NAME_PREFIX}{step}.pt"
             path = os.path.join(self.checkpoint_dir, ckpt_name)
+        state_dict = {CheckpointConstant.MODEL_STATES_NAME: state_dict}
+        paths = {CheckpointConstant.MODEL_STATES_NAME: path}
         if storage_type == StorageType.MEMORY:
-            self._engine.save_to_memory(step, state_dict, path)
+            self._engine.save_to_memory(step, state_dict, paths)
         elif storage_type == StorageType.DISK:
             if not path:
                 raise ValueError(
                     "path cannot be empty if storage type is disk!"
                 )
-            self._engine.save_to_storage(step, state_dict, path)
+            self._engine.save_to_storage(step, state_dict, paths)
         else:
             raise ValueError(f"No support storage type {storage_type}")
 

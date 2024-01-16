@@ -72,7 +72,7 @@ We can use the FSDP strategy to pretrain when we have GPUs and only
 use the command in the containers of worker.
 
 ```bash
-dlrover-run --network-check --nnodes=3:$WORKER_NUM \
+dlrover-run --network-check --nnodes=3:$NODE_NUM\
     --nproc_per_node=2 --max_restarts=3  \
     examples/pytorch/mnist/cnn_train.py --use_fsdp --num_epochs 5 \
     --training_data /data/mnist_png/training/ \
