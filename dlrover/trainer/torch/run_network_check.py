@@ -39,7 +39,7 @@ def mock_error():
         err_rank = int(os.environ["MOCK_ERR_RANK"])
         local_rank = int(os.environ["LOCAL_RANK"])
         if err_rank == local_rank:
-            raise ValueError()
+            raise ValueError("Mock Value Error!")
 
 
 def bm_all_gather(shape, use_gpu):

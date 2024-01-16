@@ -71,6 +71,12 @@ from dlrover.python.elastic_agent.monitor.training import TorchTrainingMonitor
 from dlrover.python.elastic_agent.torch.ckpt_saver import AsyncCheckpointSaver
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
 
+try:
+    import torch_npu  # noqa: F401
+except (ModuleNotFoundError, ImportError) as e:  # noqa: F841
+    torch_npu = None
+    pass
+
 __all__ = ["launch_agent"]
 
 
@@ -611,6 +617,16 @@ class ElasticTrainingAgent(LocalElasticAgent):
         self._remaining_restarts -= 1
         super()._restart_workers(worker_group)
 
+    def _stop_workers(self, worker_group: WorkerGroup) -> None:
+        """
+        If training is running on NPU, to kill all python processes directly
+        Otherwise, invoke original _stop_workers to stop training
+        """
+        if torch_npu is not None:
+            pkill_python()
+        else:
+            super()._stop_workers(worker_group)
+
     def _start_workers(self, worker_group: WorkerGroup):
         if self._save_ckpt_future:
             # Waiting the thread to save checkpoint finishes.
@@ -860,6 +876,16 @@ class NetworkCheckElasticAgent(ElasticTrainingAgent):
             raise RuntimeError("The node is a straggler and exits.")
         return True
 
+    def _stop_workers(self, worker_group: WorkerGroup) -> None:
+        """
+        If training is running on NPU, to kill all python processes directly
+        Otherwise, invoke original _stop_workers to stop training
+        """
+        if torch_npu is not None:
+            pkill_python()
+        else:
+            super()._stop_workers(worker_group)
+
     def _run_network_check(self, monitor_interval=3, timeout=300):
         self._initialize_workers(self._worker_group)
         start = time.time()
@@ -1025,7 +1051,11 @@ class NPUTrainingAgent(ElasticTrainingAgent):
 
     @prof
     def _stop_workers(self, worker_group: WorkerGroup) -> None:
-        cmd = "pkill python"
-        r = os.system(cmd)
-        if r != 0:
-            logger.error("fail to stop python processes")
+        pkill_python()
+
+
+def pkill_python():
+    cmd = "pkill -9 python"
+    r = os.system(cmd)
+    if r != 0:
+        logger.error("fail to stop python processes")
