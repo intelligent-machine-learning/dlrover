@@ -910,6 +910,12 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
                 # all local rank done
                 logger.info(f"All agent done for step {tmp_path}")
 
+                if os.path.exists(target_path):
+                    if os.path.isdir(target_path):
+                        shutil.rmtree(target_path)
+                    else:
+                        os.remove(target_path)
+
                 # commit checkpoint
                 shutil.move(tmp_path, target_path)
 
