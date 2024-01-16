@@ -191,7 +191,16 @@ class CheckpointEngine(metaclass=ABCMeta):
             },
         )
 
-        queue.put(class_meta)
+        succeed = False
+        for _ in range(3):
+            try:
+                queue.put(class_meta)
+                succeed = True
+                break
+            except FileNotFoundError:
+                time.sleep(3)
+        if not succeed:
+            queue.put(class_meta)
         queue.unlink()
 
     def _update_saver_config(self):
