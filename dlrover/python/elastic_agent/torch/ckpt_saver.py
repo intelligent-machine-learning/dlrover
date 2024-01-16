@@ -78,7 +78,7 @@ class TensorMeta:
 
 
 @dataclass
-class CheckpointShardConfig:
+class CheckpointConfig:
     """
     The configuration of a checkpointing shard on the training process.
 
@@ -86,39 +86,13 @@ class CheckpointShardConfig:
         step (int): the global interation step.
         writing_shm (bool): the flag whether the training process is writing
             the state dict into the shared memory.
+        paths (dict): the key is in ["model_state", "optim_state"] and the
+            value is path.
     """
 
     step: int = 0
     writing_shm: bool = False
-
-
-@dataclass
-class SingleFileCheckpointConfig(CheckpointShardConfig):
-    """
-    The configuration of a checkpointing shard to save the optimizer
-    and model state dict into a file.
-
-    Attributes:
-        path (str): the path to save the checkpoint shard.
-    """
-
-    path: str = ""
-
-
-@dataclass
-class DeepSpeedCheckpointConfig(CheckpointShardConfig):
-    """
-    The configuration of a checkpointing shard to save the DeepSpeed
-    ZERO-0/1/2/3 stage.
-
-    Attributes:
-        model_path (str): the path to save the checkpoint shard of model.
-        optimizer_path (str): the path to save the checkpoint
-            shard of optimizer.
-    """
-
-    model_path: str = ""
-    optimizer_path: str = ""
+    paths: Dict[str, str] = None  # type: ignore
 
 
 def _traverse_state_dict(value: object, visitor: Callable[[object], None]):
@@ -297,7 +271,7 @@ class SharedMemoryHandler(object):
         self._buffer_size += value.numel() * value.element_size()
         return meta
 
-    def save_state_dict(self, state_dict, ckpt_conf: CheckpointShardConfig):
+    def save_state_dict(self, state_dict):
         """
         Copy the state dict from CPU memory buffer into the shared memory.
         """
@@ -308,8 +282,8 @@ class SharedMemoryHandler(object):
             self.init_shared_memory(create=True, size=self._buffer_size)
         else:
             meta_dict = self.metadata.get(local=True)
+        ckpt_conf: CheckpointConfig = meta_dict[DLROVER_CKPT_CONFIG_KEY]
         ckpt_conf.writing_shm = True
-        meta_dict[DLROVER_CKPT_CONFIG_KEY] = ckpt_conf
 
         self.metadata.set(meta_dict)
         assert self.shared_memory is not None
@@ -326,7 +300,7 @@ class SharedMemoryHandler(object):
                 the second value is the state dict.
         """
         meta_dict = self.metadata.get()
-        default_config = CheckpointShardConfig()
+        default_config = CheckpointConfig()
         config = meta_dict.get(DLROVER_CKPT_CONFIG_KEY, default_config)
         if not meta_dict or config.writing_shm:
             return {}
@@ -336,7 +310,6 @@ class SharedMemoryHandler(object):
             return {}
 
         state_dict = _read_state_dict_from_shm(meta_dict, self.shared_memory)
-        state_dict.pop(DLROVER_CKPT_CONFIG_KEY, None)
         return state_dict
 
     def no_checkpint_state(self):
@@ -346,9 +319,7 @@ class SharedMemoryHandler(object):
         device has saved state dict.
         """
         meta_dict = self.metadata.get()
-        config: CheckpointShardConfig = meta_dict.get(
-            DLROVER_CKPT_CONFIG_KEY, None
-        )
+        config: CheckpointConfig = meta_dict.get(DLROVER_CKPT_CONFIG_KEY, None)
         if config is None or config.step == 0:
             return True
         return False
@@ -519,7 +490,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         self,
         step,
         local_shard_id: int,
-        ckpt_config: CheckpointShardConfig,
+        ckpt_config: CheckpointConfig,
         step_done_dir: str,
     ):
         """Save the shard of state dict into the storage."""
@@ -530,7 +501,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 shm_handler.init_shared_memory(create=False)
 
             shm_lock.acquire()
-            default_config = CheckpointShardConfig()
+            default_config = CheckpointConfig()
             config = shm_handler.get_checkpoint_config(default_config)
             if config.step != step:
                 shm_lock.release()
@@ -607,7 +578,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
             return
         steps = []
         for shm_handler in self._shm_handlers:
-            default_config = CheckpointShardConfig()
+            default_config = CheckpointConfig()
             config = shm_handler.get_checkpoint_config(default_config)
             steps.append(config.step)
         if len(set(steps)) > 1:
@@ -711,7 +682,7 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
         # save to stage path for each local rank
         futures: List[Future] = []
         for i in range(self.local_shard_num):
-            default_config = SingleFileCheckpointConfig()
+            default_config = CheckpointConfig()
             ckpt_config = self._shm_handlers[i].get_checkpoint_config(
                 default_config
             )
@@ -788,6 +759,15 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
             time.sleep(2)
         self.storage.commit(step)
 
+    def persist_to_storage(
+        self, local_shard_id: int, ckpt_config: CheckpointConfig
+    ):
+        state_dict = self._shm_handlers[local_shard_id].load_state_dict()
+        for state_name, sd in state_dict.items():
+            if state_name in ckpt_config.paths:
+                path = ckpt_config.paths[state_name]
+                self.storage.write_state_dict(sd, path, torch.save)
+
 
 class TempDirCheckpointSaver(AsyncCheckpointSaver):
     """
@@ -808,22 +788,21 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
             f"step: {step}"
         )
         self._writing_storage = True
-        ckpt_path = self.get_ckpt_path(step)
-
-        if os.path.exists(ckpt_path):
-            logger.info(f"Checkpoint for step {step} already exists, skip")
-            self._writing_storage = False
-            return
-
-        stage_path = self._get_tmp_ckpt_dir(step)
+        temp_dir = self._get_tmp_ckpt_dir(step)
         step_done_dir = self._get_checkpoint_done_dir(step)
 
         write_success = False
         # save to stage path for each local rank
         futures: List[Future] = []
+        ckpt_dir = ""
         for i in range(self.local_shard_num):
+            default_config = CheckpointConfig()
+            ckpt_config = self._shm_handlers[i].get_checkpoint_config(
+                default_config
+            )
+            ckpt_dir = self._replace_path_dir(ckpt_config, temp_dir)
             future = self._executor.submit(
-                self._save_shard, step, i, stage_path, step_done_dir
+                self._save_shard, step, i, ckpt_config, step_done_dir
             )
             futures.append(future)
 
@@ -851,21 +830,37 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
             self.commit_checkpoint(
                 step,
                 step_done_dir=step_done_dir,
-                tmp_path=stage_path,
-                target_path=ckpt_path,
+                tmp_path=temp_dir,
+                target_path=ckpt_dir,
             )
 
         self._writing_storage = False
 
-    def get_ckpt_path(self, step: int):
+    def _replace_path_dir(self, ckpt_config: CheckpointConfig, temp_dir: str):
         """
-        User can override the method to define the checkpoint name.
+        Replace the directory with the temp directory.
 
-        Args:
-            step (int): the iteration step.
+        Returns:
+            str: the original directory.
         """
-        name = f"{CheckpointConstant.CKPT_NAME_PREFIX}{step}"
-        return os.path.join(self.checkpoint_dir, name)
+        ckpt_dir = ""
+        if not ckpt_config.paths:
+            return ckpt_dir
+        tmp_paths = {}
+        for name, path in ckpt_config.paths.items():
+            path = str(path)
+            path_dir = os.path.dirname(path)
+            tmp_paths[name] = path.replace(path_dir, temp_dir)
+            if not ckpt_dir:
+                ckpt_dir = path_dir
+            elif ckpt_dir != path_dir:
+                raise ValueError(
+                    "The directories must be same. The latest dir "
+                    f"is {ckpt_dir} and the current dir  of {name} "
+                    f"is {path_dir}"
+                )
+        ckpt_config.paths = tmp_paths
+        return ckpt_dir
 
     def _get_tmp_ckpt_dir(self, step: int):
         """
@@ -915,6 +910,12 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
                 # all local rank done
                 logger.info(f"All agent done for step {tmp_path}")
 
+                if os.path.exists(target_path):
+                    if os.path.isdir(target_path):
+                        shutil.rmtree(target_path)
+                    else:
+                        os.remove(target_path)
+
                 # commit checkpoint
                 shutil.move(tmp_path, target_path)
 
@@ -946,17 +947,11 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
 class DdpCheckpointSaver(CommonDirCheckpointSaver):
     """Persist the checkpoint from CPU memory buffer into the storage."""
 
-    def persist_to_storage(
-        self,
-        local_shard_id: int,
-        ckpt_config: SingleFileCheckpointConfig,
-    ):
+    def persist_to_storage(self, local_shard_id: int, ckpt_config):
         if self._node_rank != 0:
             logger.info("Skip and only rank 0 saves checkpoint in a DDP job.")
             return
-        state_dict = self._shm_handlers[local_shard_id].load_state_dict()
-        state_dict.pop(DLROVER_CKPT_CONFIG_KEY, None)
-        self.storage.write_state_dict(state_dict, ckpt_config.path, torch.save)
+        super().persist_to_storage(local_shard_id, ckpt_config)
 
 
 class MegatronCheckpointSaver(CommonDirCheckpointSaver):
@@ -978,15 +973,6 @@ class MegatronCheckpointSaver(CommonDirCheckpointSaver):
         )
         self.storage.write(str(step), ds_tracker_filename)
 
-    def persist_to_storage(
-        self,
-        local_shard_id: int,
-        ckpt_config: SingleFileCheckpointConfig,
-    ):
-        state_dict = self._shm_handlers[local_shard_id].load_state_dict()
-        state_dict.pop(DLROVER_CKPT_CONFIG_KEY, None)
-        self.storage.write_state_dict(state_dict, ckpt_config.path, torch.save)
-
 
 class DeepSpeedCheckpointSaver(CommonDirCheckpointSaver):
     TRACER_FILE = "latest"
@@ -1007,26 +993,6 @@ class DeepSpeedCheckpointSaver(CommonDirCheckpointSaver):
         )
         self.storage.write(str(step), ds_tracker_filename)
 
-    def persist_to_storage(  # type: ignore
-        self,
-        local_shard_id: int,
-        ckpt_config: DeepSpeedCheckpointConfig,
-    ):
-        """Persist the checkpoint from CPU memory buffer into the storage."""
-        state_dict = self._shm_handlers[local_shard_id].load_state_dict()
-        state_dict.pop(DLROVER_CKPT_CONFIG_KEY, None)
-        model_sd = state_dict.get(CheckpointConstant.MODEL_STATES_NAME, {})
-        if model_sd and ckpt_config.model_path:
-            self.storage.write_state_dict(
-                model_sd, ckpt_config.model_path, torch.save
-            )
-
-        optimizer_sd = state_dict.get(CheckpointConstant.OPTIM_STATES_NAME, {})
-        if optimizer_sd and ckpt_config.optimizer_path:
-            self.storage.write_state_dict(
-                optimizer_sd, ckpt_config.optimizer_path, torch.save
-            )
-
 
 class FsdpDcpSaver(CommonDirCheckpointSaver):
     """The saver saves the distributed checkpoint of FSDP into the storage."""
@@ -1034,7 +1000,7 @@ class FsdpDcpSaver(CommonDirCheckpointSaver):
     def persist_to_storage(
         self,
         local_shard_id: int,
-        ckpt_config: SingleFileCheckpointConfig,
+        ckpt_config: CheckpointConfig,
     ):
         """
         Persist the state dict to a storage path.
@@ -1045,12 +1011,13 @@ class FsdpDcpSaver(CommonDirCheckpointSaver):
                 save the storage.
         """
         shm_handler = self._shm_handlers[local_shard_id]
-        checkpoint_dir = os.path.dirname(ckpt_config.path)
+        path = ckpt_config.paths[CheckpointConstant.MODEL_STATES_NAME]
+        checkpoint_dir = os.path.dirname(path)
         self.storage.safe_makedirs(checkpoint_dir)
         assert shm_handler.shared_memory is not None
-        self.storage.write(shm_handler.shared_memory.buf, ckpt_config.path)
+        self.storage.write(shm_handler.shared_memory.buf, path)
         if self._is_agent_rank_0 and local_shard_id == 0:
-            parent_path = Path(os.path.dirname(ckpt_config.path))
+            parent_path = Path(os.path.dirname(path))
             meta_dict = shm_handler.metadata.get()
             dcp_metadata = meta_dict.get("dcp_metadata", {})
             if dcp_metadata:

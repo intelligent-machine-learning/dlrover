@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dlrover.python.common.constants import CheckpointConstant
 from dlrover.python.common.storage import PosixDiskStorage
 
 from .checkpointer import Checkpointer, StorageType
@@ -70,8 +71,9 @@ class FsdpCheckpointer(Checkpointer):
     def save_checkpoint(
         self, step, state_dict, path, storage_type=StorageType.DISK
     ):
+        paths = {CheckpointConstant.MODEL_STATES_NAME: path}
         if storage_type == StorageType.MEMORY:
-            self._engine.save_to_memory(step, state_dict, path)
+            self._engine.save_to_memory(step, state_dict, paths)
         elif storage_type == StorageType.DISK:
             if not path:
                 raise ValueError(

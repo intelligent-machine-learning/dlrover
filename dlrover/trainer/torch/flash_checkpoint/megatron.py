@@ -37,6 +37,9 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
 from .checkpointer import StorageType
 from .megatron_engine import MegatronCheckpointEngine
 
+_MODEL_SD_NAME = "model_optim_rng.pt"
+_DIST_OPTIM_SD_NAME = "distrib_optim.pt"
+
 
 def _get_rank():
     if dist.is_initialized():
@@ -48,18 +51,39 @@ def _get_rank():
 class MegatronCheckpointManager(object):
     def __init__(self, checkpoint_dir, storage=None):
         self.state_dict = {}
-        self.path = ""
+        self.paths = {}
         self.checkpoint_dir = checkpoint_dir
         self.storage = PosixDiskStorage() if not storage else storage
         self.engine = MegatronCheckpointEngine(checkpoint_dir, self.storage)
 
-    def save(self, state_dict, path):
-        self.state_dict = state_dict
-        self.path = path
+    def save(self, state_dict, path: str):
+        if path.endswith(_MODEL_SD_NAME):
+            sd_name = CheckpointConstant.MODEL_STATES_NAME
+        elif path.endswith(_DIST_OPTIM_SD_NAME):
+            sd_name = CheckpointConstant.OPTIM_STATES_NAME
+        else:
+            raise ValueError(
+                "MegatronCheckpointer only support the path whose suffix is "
+                f"{_MODEL_SD_NAME} or {_DIST_OPTIM_SD_NAME}."
+            )
+        self.state_dict[sd_name] = state_dict
+        self.paths[sd_name] = path
 
-    def load(self, path, **kwargs):
+    def load(self, path: str, **kwargs):
+        def read_func(path):
+            return torch.load(path, map_location="cpu")
+
         state_dict = self.engine.load(resume_path=path)
-        return state_dict
+
+        sd_name = ""
+        if path.endswith(_MODEL_SD_NAME):
+            sd_name = CheckpointConstant.MODEL_STATES_NAME
+        elif path.endswith(_DIST_OPTIM_SD_NAME):
+            sd_name = CheckpointConstant.OPTIM_STATES_NAME
+        if sd_name in state_dict:
+            return state_dict[sd_name]
+        else:
+            return self.storage.read_state_dict(path, read_func)
 
     def update_tracer_file(self, iteration: int):
         """
@@ -109,7 +133,7 @@ def save_checkpoint(
         torch_save_func = torch.save
         torch.save = saver.save
         megatron_save(iteration, model, optimizer, opt_param_scheduler)
-        saver.engine.save_to_memory(iteration, saver.state_dict, saver.path)
+        saver.engine.save_to_memory(iteration, saver.state_dict, saver.paths)
         torch.save = torch_save_func
 
         # Megatron save_checkpoint will create the directory with the iteration
@@ -124,7 +148,7 @@ def save_checkpoint(
         torch_save_func = torch.save
         torch.save = saver.save
         megatron_save(iteration, model, optimizer, opt_param_scheduler)
-        saver.engine.save_to_storage(iteration, saver.state_dict, saver.path)
+        saver.engine.save_to_storage(iteration, saver.state_dict, saver.paths)
         torch.save = torch_save_func
     else:
         raise ValueError(f"No support storage type {storage_type}")
