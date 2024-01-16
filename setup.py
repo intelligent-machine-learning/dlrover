@@ -14,7 +14,7 @@
 from setuptools import find_packages, setup
 
 install_requires = [
-    "grpcio-tools==1.60.0",
+    "grpcio-tools>=1.58.0",
     "psutil",
     "pynvml",
     "urllib3<1.27,>=1.21.1",
