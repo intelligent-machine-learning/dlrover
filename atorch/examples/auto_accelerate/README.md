@@ -12,7 +12,7 @@
 ## Usage
 
 ```
-train.py [-h] --model_type MODEL_TYPE [--datasize DATASIZE] [--epoch EPOCH] [--hidden_size hidden_size] [--head_num HEAD_NUM] [--layer_num LAYER_NUM] [--seq_length SEQ_LENGTH] [--batchsize BATCHSIZE] [--distributed] [--user_created_dataloader] [--load_strategy] [--optim_grouped_params] [--log_interval LOG_INTERVAL] [--use_fsdp] [--use_amp] [--use_checkpointing] [--use_module_replace]
+train.py [-h] --model_type MODEL_TYPE [--datasize DATASIZE] [--epoch EPOCH] [--hidden_size HIDDEN_SIZE] [--head_num HEAD_NUM] [--layer_num LAYER_NUM] [--seq_length SEQ_LENGTH] [--batchsize BATCHSIZE] [--distributed] [--user_created_dataloader] [--load_strategy] [--optim_grouped_params] [--log_interval LOG_INTERVAL] [--use_fsdp] [--use_amp] [--use_checkpointing] [--use_module_replace]
 ```
 
 model_type: toy, gpt2, or llama
