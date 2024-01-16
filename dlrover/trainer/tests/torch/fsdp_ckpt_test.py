@@ -47,6 +47,7 @@ from torch.distributed.checkpoint.planner import (
 )
 
 from dlrover.python.common import grpc
+from dlrover.python.common.constants import CheckpointConstant
 from dlrover.python.common.multi_process import SharedMemory
 from dlrover.python.common.storage import PosixDiskStorage
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
@@ -336,11 +337,12 @@ class FsdpCheckpointTest(unittest.TestCase):
             tmpdir = Path(tmpdir)
             engine = tmpdir
             path = tmpdir / str(step)
+            paths = {CheckpointConstant.MODEL_STATES_NAME: path}
             engine = FsdpCheckpointEngine(tmpdir, storage)
             engine.save_to_storage(
                 step,
                 state_dict,
-                path=path,
+                paths=paths,
             )
             self.assertEqual(engine._cached_step, 100)
             time.sleep(1)

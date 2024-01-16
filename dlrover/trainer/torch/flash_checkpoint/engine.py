@@ -15,6 +15,7 @@ import os
 import time
 from abc import ABCMeta, abstractmethod
 from multiprocessing import Process
+from typing import Dict
 
 import torch
 import torch.distributed as dist
@@ -26,13 +27,12 @@ from dlrover.python.common.storage import CheckpointStorage
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     DLROVER_CKPT_CONFIG_KEY,
     AsyncCheckpointSaver,
+    CheckpointConfig,
     CheckpointEvent,
     CheckpointEventType,
-    CheckpointShardConfig,
     CheckpointSharedObjPrefix,
     SaverClassMeta,
     SharedMemoryHandler,
-    SingleFileCheckpointConfig,
 )
 
 
@@ -206,41 +206,17 @@ class CheckpointEngine(metaclass=ABCMeta):
                 raise ValueError(
                     "The event queue cannot be None on local rank 0."
                 )
+            for _ in range(3):
+                try:
+                    self._event_queue.put(event)
+                    return
+                except FileNotFoundError:
+                    time.sleep(3)
             self._event_queue.put(event)
 
-    @timer
-    def save_to_memory(self, step, state_dict, path=""):
-        """
-        Synchronously Saves the state dict into the shared memory with the main
-        process. If the agent in the main process is saving the shared memory
-        into the storage, the method will skip to write the shared memory.
-        Only local rank 0 save the state dict into the memory because the
-        state dict is replicated across all ranks.
-
-        Args:
-            step (int): the global iteration step.
-            state_dict (dict): the state dict of model and optimizer to save.
-            path (str): the storage path to save the state dict.
-                Note, the path is used to save the state dict to storage
-                only if the training process fails.
-        """
-        conf = SingleFileCheckpointConfig(
-            step=step,
-            path=path,
-        )
-        self.save_state_dict_to_memory(state_dict, conf)
-
-    def save_state_dict_to_memory(
-        self, state_dict, conf: CheckpointShardConfig
-    ):
+    def save_state_dict_to_memory(self, state_dict, conf: CheckpointConfig):
         if self._local_rank != self.local_shard_id:
             return
-
-        if DLROVER_CKPT_CONFIG_KEY in state_dict:
-            raise ValueError(
-                "The state_dict can not have the key "
-                f"{DLROVER_CKPT_CONFIG_KEY}."
-            )
 
         acquired = self._shm_lock.acquire(blocking=False)
         all_rank_ready = check_all_rank_ready(self._saver_group, acquired)
@@ -253,7 +229,8 @@ class CheckpointEngine(metaclass=ABCMeta):
             if acquired:
                 self._shm_lock.release()
             return
-        self._shm_handler.save_state_dict(state_dict, conf)
+        state_dict[DLROVER_CKPT_CONFIG_KEY] = conf
+        self._shm_handler.save_state_dict(state_dict)
 
         if acquired:
             self._shm_lock.release()
@@ -263,13 +240,14 @@ class CheckpointEngine(metaclass=ABCMeta):
 
     def get_state_dict_from_memory(self):
         state_dict = {}
-        default_config = CheckpointShardConfig()
+        default_config = CheckpointConfig()
         config = self._shm_handler.get_checkpoint_config(default_config)
         passed = verify_all_rank_step_consistent(
             self._loader_group, config.step
         )
         if passed and config.step > 0:
             state_dict = self._shm_handler.load_state_dict()
+            state_dict.pop(DLROVER_CKPT_CONFIG_KEY, None)
             logger.info(
                 f"Load step {config.step} checkpoint from the shared memory."
             )
@@ -293,16 +271,34 @@ class CheckpointEngine(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def save_to_storage(self, step, state_dict, path):
+    def save_to_memory(self, step, state_dict, paths: Dict[str, str]):
+        """
+        Synchronously Saves the state dict into the shared memory with the main
+        process. If the agent in the main process is saving the shared memory
+        into the storage, the method will skip to write the shared memory.
+        Only local rank 0 save the state dict into the memory because the
+        state dict is replicated across all ranks.
+
+        Args:
+            step (int): the global iteration step.
+            state_dict (dict): the state dict of model and optimizer to save.
+            paths (dict): the key is a category in
+                ["model_states", "optim_states"] of the state dict and
+                the value is the path of storage to save.
+        """
+        pass
+
+    @abstractmethod
+    def save_to_storage(self, step, state_dict, paths: Dict[str, str]):
         """
         Save the state_dict into the path of storage.
 
         Args:
             step (int): the iteration step.
             state_dict (dict): the state dict of model and optimizer to save.
-            path (str): optional, the file path to save the checkpoint. If the
-                path is not defined, the engine will save the state dict into
-                the shared memory not the storage.
+            paths (dict): the key is a category in
+                ["model_states", "optim_states"] of the state dict and
+                the value is the path of storage to save.
         """
         pass
 

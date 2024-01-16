@@ -284,7 +284,7 @@ optimizer.load_state_dict(reshard_optim_state)
 
 ```python
 git clone git@github.com:intelligent-machine-learning/dlrover.git
-cd dlrover/go/operator/
+cd dlrover/dlrover/go/operator/
 make deploy IMG=easydl/elasticjob-controller:master
 ```
 
