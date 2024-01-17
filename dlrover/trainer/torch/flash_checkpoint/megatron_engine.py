@@ -99,7 +99,7 @@ class MegatronCheckpointEngine(CheckpointEngine):
             state_dict (dict): the state dict of model and optimizer to save.
         """
         conf = CheckpointConfig(step=step, paths=paths)
-        self.save_state_dict_to_memory(state_dict, conf)
+        return self.save_state_dict_to_memory(state_dict, conf)
 
     @timer
     def save_to_storage(self, step, state_dict, paths):
@@ -114,13 +114,14 @@ class MegatronCheckpointEngine(CheckpointEngine):
             step (int): the iteration step.
             state_dict (dict): the state dict of model and optimizer to save.
         """
+        succeed = False
         if step > self._cached_step:
-            self.save_to_memory(step, state_dict, paths)
+            succeed = self.save_to_memory(step, state_dict, paths)
 
         # Only local rank 0 to notify the saving event to the agent.
         if self._dp_rank != 0 or self._local_rank != 0:
             return
-        if state_dict:
+        if succeed:
             event = CheckpointEvent(type=CheckpointEventType.SAVE, step=step)
             self._event_queue.put(event)
 
