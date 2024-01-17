@@ -37,7 +37,7 @@ ATorch is an extension library of PyTorch developed by Ant Group's AI Infrastruc
 * Automatic/semi-automatic optimization
   * Acceleration Engine for automatic optimization
   * Semi-automatic optimization supports custom optimization
-* Hybrid parallelism suport (arbitrary combination of fsdp/zero/ddp/tp/sp/pp)
+* Hybrid parallelism support (arbitrary combination of fsdp/zero/ddp/tp/sp/pp)
 * High performance operators
   * Flash attention 2 with custom mask support
   * Transformer ops
@@ -60,7 +60,7 @@ ATorch is an extension library of PyTorch developed by Ant Group's AI Infrastruc
 
 ## Installation
 
-ATorch supports PyTorch with version >= 1.12, and verion 2.1 or above is preferred.
+ATorch supports PyTorch with version >= 1.12, and version 2.1 or above is preferred.
 For example, you can use docker image <code>easydl/atorch:iml_pt210</code> (or aliyun mirror <code>registry.cn-hangzhou.aliyuncs.com/atorch/atorch:iml_pt210</code>) which has PyTorch 2.1 installed.
 
 ### Install From PyPI
