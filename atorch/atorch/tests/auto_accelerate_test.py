@@ -117,6 +117,25 @@ class FakeEngine(object):
         pass
 
 
+class FakeEngineManager:
+    def __init__(self, fake_client, fake_engine):
+        from atorch.auto.engine.acceleration_engine import AccelerationEngine
+        from atorch.auto.engine_client import EngineClient
+
+        self.original_client = EngineClient
+        self.original_engine = AccelerationEngine
+        self.fake_client = fake_client
+        self.fake_engine = fake_engine
+
+    def __enter__(self):
+        atorch.auto.engine_client.EngineClient = self.fake_client
+        atorch.auto.engine.acceleration_engine.AccelerationEngine = self.fake_engine
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        atorch.auto.engine_client.EngineClient = self.original_client
+        atorch.auto.engine.acceleration_engine.AccelerationEngine = self.original_engine
+
+
 def func_run_code(data_size, batch_size):
     backend = "nccl" if torch.cuda.is_available() else "gloo"
     res = atorch.init_distributed(backend, set_cuda_device_using_local_rank=True)
@@ -124,18 +143,16 @@ def func_run_code(data_size, batch_size):
         raise Exception("init failed")
     model_context = create_model_context(data_size=data_size, batch_size=batch_size)
 
-    atorch.auto.accelerate.EngineClient = FakeEasyDLClient
-    atorch.auto.accelerate.AccelerationEngine = FakeEngine
-
-    status, res, best_strategy = auto_accelerate(
-        model_context.model,
-        model_context.optim_func,
-        model_context.dataset,
-        loss_func=model_context.loss_func,
-        prepare_input=model_context.prepare_input,
-        optim_args=model_context.optim_args,
-        dataloader_args=model_context.dataloader_args,
-    )
+    with FakeEngineManager(FakeEasyDLClient, FakeEngine):
+        status, res, best_strategy = auto_accelerate(
+            model_context.model,
+            model_context.optim_func,
+            model_context.dataset,
+            loss_func=model_context.loss_func,
+            prepare_input=model_context.prepare_input,
+            optim_args=model_context.optim_args,
+            dataloader_args=model_context.dataloader_args,
+        )
     assert len(best_strategy) == 1
     assert status
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -143,16 +160,16 @@ def func_run_code(data_size, batch_size):
     assert num == data_size // batch_size, f"num={num}"
 
     model_context = create_model_context(data_size=data_size, batch_size=batch_size)
-    atorch.auto.accelerate.EngineClient = FakeEasyDLClientWithFailTask
-    status, _, _ = auto_accelerate(
-        model_context.model,
-        model_context.optim_func,
-        model_context.dataset,
-        loss_func=model_context.loss_func,
-        prepare_input=model_context.prepare_input,
-        optim_args=model_context.optim_args,
-        dataloader_args=model_context.dataloader_args,
-    )
+    with FakeEngineManager(FakeEasyDLClientWithFailTask, FakeEngine):
+        status, _, _ = auto_accelerate(
+            model_context.model,
+            model_context.optim_func,
+            model_context.dataset,
+            loss_func=model_context.loss_func,
+            prepare_input=model_context.prepare_input,
+            optim_args=model_context.optim_args,
+            dataloader_args=model_context.dataloader_args,
+        )
     assert status is False
     atorch.reset_distributed()
 
@@ -228,18 +245,16 @@ def set_seed_code(data_size, batch_size):
     model_context = create_model_context(data_size=data_size, batch_size=batch_size, sampler_seed=seed)
     assert model_context.sampler_seed == 13
 
-    atorch.auto.accelerate.EngineClient = FakeEasyDLClient
-    atorch.auto.accelerate.AccelerationEngine = FakeEngine
-
-    status, res, _ = auto_accelerate(
-        model_context.model,
-        model_context.optim_func,
-        model_context.dataset,
-        loss_func=model_context.loss_func,
-        prepare_input=model_context.prepare_input,
-        optim_args=model_context.optim_args,
-        dataloader_args=model_context.dataloader_args,
-    )
+    with FakeEngineManager(FakeEasyDLClient, FakeEngine):
+        status, res, _ = auto_accelerate(
+            model_context.model,
+            model_context.optim_func,
+            model_context.dataset,
+            loss_func=model_context.loss_func,
+            prepare_input=model_context.prepare_input,
+            optim_args=model_context.optim_args,
+            dataloader_args=model_context.dataloader_args,
+        )
     assert status
     dataloader = res.dataloader
     sampler = dataloader.sampler
@@ -272,13 +287,12 @@ def only_pass_model_code(dp_size):
     if not res:
         raise Exception("init_distributed failed")
     model = ToyModel()
-    atorch.auto.accelerate.EngineClient = FakeEasyDLClientOnlyPass
-    atorch.auto.accelerate.AccelerationEngine = FakeEngine
 
     pg_info = ([("data", dp_size)], None)
     strategy = Strategy([("parallel_mode", pg_info, False)])
 
-    status, res, best_strategy = auto_accelerate(model, load_strategy=strategy)
+    with FakeEngineManager(FakeEasyDLClientOnlyPass, FakeEngine):
+        status, res, best_strategy = auto_accelerate(model, load_strategy=strategy)
     assert len(best_strategy) == 1
     assert status
     assert res.model is not None
@@ -316,11 +330,10 @@ def pass_sample_batch_code(dp_size):
     model = ToyModel()
     batch_size = 2
     sample_batch = [torch.ones([batch_size, 16], dtype=torch.float32), torch.ones([batch_size, 4], dtype=torch.float32)]
-    atorch.auto.accelerate.EngineClient = FakeEasyDLClientPassSampleBatch
-    atorch.auto.accelerate.AccelerationEngine = FakeEngine
 
     pg_info = ([("data", dp_size)], None)
-    strategy = Strategy([("parallel_mode", pg_info, False)])
+    with FakeEngineManager(FakeEasyDLClientPassSampleBatch, FakeEngine):
+        strategy = Strategy([("parallel_mode", pg_info, False)])
 
     status, res, best_strategy = auto_accelerate(
         model,

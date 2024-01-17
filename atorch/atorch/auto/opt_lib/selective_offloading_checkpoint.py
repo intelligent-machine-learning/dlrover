@@ -121,7 +121,7 @@ class OffloadOpManager:
             return x
 
         def _detach_to_cpu(x):
-            if isinstance(x, torch.Tensor) and x.device.type == "cuda":
+            if isinstance(x, torch.Tensor) and x.is_cuda:
                 offload_event_queue.deque_event_and_synchronize()
                 tensor = x.detach()
                 copy_stream.wait_stream(current_stream)

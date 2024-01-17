@@ -1,4 +1,4 @@
-from atorch.auto.opt_lib.amp_optimization import AmpNativeOptimization
+from atorch.auto.opt_lib.amp_optimization import AmpNativeOptimization, Fp8Optimization
 from atorch.auto.opt_lib.checkpoint_optimization import CheckpointOptimization
 from atorch.auto.opt_lib.ds_3d_parallel_optimization import DeepSpeed3DParallelOptimization
 from atorch.auto.opt_lib.dynamo_optimization import NativeDynamoOptimization
@@ -9,6 +9,7 @@ from atorch.auto.opt_lib.parallel_mode_optimization import ParallelModeOptimizat
 from atorch.auto.opt_lib.pipeline_parallel_optimization import PipelineParallelOptimization
 from atorch.auto.opt_lib.tensor_parallel_optimization import TensorParallelOptimization
 from atorch.auto.opt_lib.zero_optimization import FSDPOptimization, Zero1Optimization, Zero2Optimization
+from atorch.common.log_utils import default_logger as logger
 
 SEMIAUTO_STRATEGIES = ("tensor_parallel", "mixed_parallel", "pipeline_parallel")
 
@@ -42,6 +43,7 @@ class OptimizationLibrary(object):
             FSDPOptimization,
             ParallelModeOptimization,
             AmpNativeOptimization,
+            Fp8Optimization,
             TensorParallelOptimization,
             ModuleReplaceOptimization,
             CheckpointOptimization,
@@ -65,5 +67,6 @@ class OptimizationLibrary(object):
                 or (opt.is_tunable is True and tunable is False and config is None)
             ):
                 valid = False
+                logger.error(f"Invalid optimization method: {name}")
                 break
         return valid

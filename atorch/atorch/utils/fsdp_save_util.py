@@ -4,6 +4,7 @@ import pickle
 import struct
 from collections import OrderedDict, defaultdict, deque
 from collections.abc import Mapping
+from enum import Enum, auto, unique
 from pathlib import Path
 from typing import Any, DefaultDict, Dict, List, Tuple
 
@@ -14,24 +15,87 @@ from packaging.version import Version
 from safetensors.torch import _SIZE, _TYPES, _tobytes, safe_open
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 
-from atorch.utils.version import torch_version
-
-if torch_version() <= (1, 13, 1):
-    from torch.distributed.fsdp.fully_sharded_data_parallel import clean_tensor_name
-elif torch_version() >= (2, 0, 0):
+try:
     from torch.distributed.fsdp._common_utils import clean_tensor_name
-else:
-    raise ValueError(f"Unsupported version is {torch.__version__}")
+    from torch.distributed.fsdp.flat_param import _FLAT_PARAM_PADDING_VALUE
+except (ModuleNotFoundError, ImportError):
+    # for import Compatible, we do version check in save/load
+    # those variable will never used.
+    def clean_tensor_name(x):
+        return x
+
+    _FLAT_PARAM_PADDING_VALUE = 42.0
 
 from atorch.common.log_utils import default_logger as logger
 from atorch.distributed.distributed import local_rank, nproc_per_node, parallel_group
 
 TYPES_TO_STR = {v: k for k, v in _TYPES.items()}
+CKPT_VERSION = 1
+
+
+@unique
+class ErrorCode(Enum):
+    NOT_SUPPORT = auto()
+    CHECKPOINT_NOT_FOUND = auto()
+    CHECKPOINT_CORRUPTION = auto()
+    CHECKPOINT_WRAP_CLASS_MISMATCH = auto()
+    UNKNOWN = auto()
+
+    def __str__(self):
+        return (
+            f"{self.name} (Code: {self.value}), "
+            "check https://yuque.antfin.com/ai-infra/atorch-doc/axb2ce53hitd72kg#fDGSW"
+        )
+
+
+class FlatCkptError(ValueError):
+    def __init__(self, message, error_code):
+        # Call the base class constructor with the parameters it needs
+        super().__init__(f"{message}, {error_code}")
 
 
 def version_check():
     if Version(torch.__version__) <= Version("2.0.9"):
-        raise ValueError(f"fsdp save util only support torch>=2.1.0, your version is {torch.__version__}")
+        raise FlatCkptError(
+            f"fsdp save util only support torch>=2.1.0, your version is {torch.__version__}", ErrorCode.NOT_SUPPORT
+        )
+
+
+def _check_is_use_orig_param(fsdp_name, fsdp_unit):
+    name = f"{clean_tensor_name(fsdp_name)}" if fsdp_name else "default_fsdp"
+    if not hasattr(fsdp_unit, "_use_orig_params"):
+        raise FlatCkptError(
+            f"FSDP should build with `use_orig_params` attribute, but FSDP module {name} is not.",
+            ErrorCode.NOT_SUPPORT,
+        )
+
+
+def _check_is_ignore_modules(fsdp_name, fsdp_unit):
+    name = f"{clean_tensor_name(fsdp_name)}" if fsdp_name else "default_fsdp"
+    if getattr(fsdp_unit, "_ignored_modules", []):
+        raise FlatCkptError(
+            f"FSDP should build without `ignore_modules` attribute, but FSDP module {name} has.",
+            ErrorCode.NOT_SUPPORT,
+        )
+
+
+def check_is_support(model):
+    fsdp_units = [
+        m
+        for m in model.named_modules()
+        if isinstance(m[1], torch.distributed.fsdp.fully_sharded_data_parallel.FullyShardedDataParallel)
+    ]
+    checker_fn = [_check_is_use_orig_param, _check_is_ignore_modules]
+    for fsdp_name, fsdp_unit in fsdp_units:
+        _ = [fn(fsdp_name, fsdp_unit) for fn in checker_fn]
+
+
+def safe_open_or_raise(*args, **kwargs):
+    try:
+        fd = safe_open(*args, **kwargs)
+    except Exception as e:
+        raise FlatCkptError(f"open file error, open args: {args}, {kwargs}, {e}", ErrorCode.UNKNOWN)
+    return fd
 
 
 def parse_safetensors_head(path):
@@ -87,22 +151,62 @@ def get_handle(fsdp_unit):
     if hasattr(fsdp_unit, "_handles"):
         if len(fsdp_unit._handles) != 1:
             # currently, num of handles is 1
-            raise ValueError("unknown error, currently, length of handles in FSDP is 1, check version of pytorch")
+            raise FlatCkptError(
+                "unknown error, currently, length of handles in FSDP is 1, check version of pytorch",
+                ErrorCode.NOT_SUPPORT,
+            )
         return fsdp_unit._handles[0]
     elif hasattr(fsdp_unit, "_handle"):
         return fsdp_unit._handle
     else:
-        raise ValueError("unknown error, pytorch version should in 20230431-20230731 check version of pytorch")
+        raise FlatCkptError(
+            "unknown error, pytorch version has tested 20230431-20230731,2.1release check version of pytorch",
+            ErrorCode.NOT_SUPPORT,
+        )
 
 
 def save_fsdp_flat_param(model, path):
     """Save flat param and meta info of each fsdp units.
-    Structure of save path describe as below, it includes 3 parts,
+    This is only working on `use_orig_param` is True.
+    Structure of binary file:
+        There are 3 types of symbol:
+            1. V, the real param value
+            2. P, the padding dues to alignment, pytorch aligns to 16Bytes
+            3. D, the padding dues to world size, this value is always on last rank.
+        Each rank will save splited bianry.
+
+                         alignment
+               param_0    padding      param_n
+               ┌─────┐    /            ┌───────┐
+               │     │   /             │       │
+               ▼     ▼  /              ▼       ▼
+               ┌─────┬───┬───────┬─────┬───────┬─────┐
+    whole flat │VVVVV│PPP│VVVVVVV│PPPPP│VVVVVVV│DDDDD│
+     param     └─────┴───┴───────┴─────┴───────┴─────┘
+                         ▲       ▲             ▲     ▲
+                         │       │             │     │
+                         └───────┘             └─────┘
+                          param_1              world size
+                                                padding
+
+                            │            │
+               ┌─────┬───┬──┼────┬─────┬─┼─────┬─────┐
+               │VVVVV│PPP│VV│VVVV│PPPPP│V│VVVVV│DDDDD│
+               └─────┴───┴──┼────┴─────┴─┼─────┴─────┘
+                   rank_0   │  rank_1    │  rank_n
+                    save    │   save     │   save
+
+    Structure of save path describe as below, it includes 4 parts,
         1. flat_meta.<rank>-<world size>, meta file of each flat param, it saved by pickle.
         2. flat_param.<rank>-<world size>, flat param of each FSDP unit, it saved by safetensors.
         3. buffers, all buffer in model, it saved by safetensors
+        4. ckpt_meta, record meta info about ckpt:
+            1. world_size
+            2. ckpt version
+            3. wrap class, set of tuple, (class's module name, class's name)
     .
     ├── buffers
+    ├── ckpt_meta
     ├── flat_meta.00000-00002
     ├── flat_meta.00001-00002
     ├── flat_param.00000-00002
@@ -130,15 +234,19 @@ def save_fsdp_flat_param(model, path):
             'flat_numel': 26806272
         }
     """
+    check_is_support(model)
     fsdp_units = [
         m
         for m in model.named_modules()
         if isinstance(m[1], torch.distributed.fsdp.fully_sharded_data_parallel.FullyShardedDataParallel)
     ]
-    metas = {}
+    metas = {"flat_param_meta": {}, "param_meta": {}}
+    param_meta = metas["param_meta"]
+    flat_param_meta = metas["flat_param_meta"]
     params = {}
     buffers = {clean_tensor_name(k): v for k, v in model.named_buffers()}
     data_group = parallel_group("data")
+    wrap_class = set()
     for fsdp_name, fsdp_unit in fsdp_units:
         fsdp_flat_handle = get_handle(fsdp_unit)
         meta = fsdp_flat_handle.shard_metadata()
@@ -152,6 +260,12 @@ def save_fsdp_flat_param(model, path):
         shard_info_in_this_rank = [i for i in flat_param._shard_param_infos if i.in_shard]
         if len(shard_info_in_this_rank) != len(data):
             raise ValueError("flat param mismatch")
+        each_flat = {}
+        each_flat["numels"] = flat_param._numels
+        each_flat["flat_numel"] = flat_param.numel()
+        each_flat["numels_with_padding"] = flat_param._numels_with_padding
+        each_flat["is_padding_mask"] = flat_param._is_padding_mask
+        flat_param_meta[name] = each_flat
         for shard_info, each in zip(shard_info_in_this_rank, data):
 
             global_name = (
@@ -161,10 +275,13 @@ def save_fsdp_flat_param(model, path):
             each["pad"] = pad
             each["rank"] = dist.get_rank(data_group)
             each["striped_fsdp_name"] = name
-            each["flat_numel"] = flat_param.numel()
             each["param_offsets"] = (shard_info.offset_in_shard, shard_info.offset_in_shard + shard_info.numel_in_shard)
-            metas[global_name] = each
+
+            param_meta[global_name] = each
         params[name] = flat_param
+        if fsdp_name:
+            origin_module = fsdp_unit._fsdp_wrapped_module
+            wrap_class.add((origin_module.__class__.__module__, origin_module.__class__.__name__))
 
     d = Path(path)
     d.mkdir(parents=True, exist_ok=True)
@@ -174,6 +291,13 @@ def save_fsdp_flat_param(model, path):
         safetensors_dump(buffers, f"{path}/buffers")
     with open(f"{path}/flat_meta.{suffix}", "wb") as f:
         pickle.dump(metas, f)
+
+    if dist.get_rank() != 0:
+        return
+
+    with open(f"{path}/ckpt_meta", "wb") as f:
+        meta = {"version": CKPT_VERSION, "world_size": dist.get_world_size(), "wrap_class": wrap_class}
+        pickle.dump(meta, f)
 
 
 def save_fsdp_optim_param(model, optimizer, path):
@@ -186,6 +310,7 @@ def save_fsdp_optim_param(model, optimizer, path):
     └── optim_param.00001-00002
 
     """
+    check_is_support(model)
     param_mappings = {}
     start_index = 0
     param_to_names = {v: clean_tensor_name(k) for k, v in model.named_parameters()}
@@ -272,7 +397,7 @@ class ShardOptim:
             self.osd_meta = pickle.load(f)
         for i in osd_param_files:
             with open(i, "rb") as f:
-                self.osd_param.append(safetensors.safe_open(i, framework="pt"))
+                self.osd_param.append(safe_open_or_raise(i, framework="pt"))
         self.state_dict = defaultdict(lambda: defaultdict(list))
         for fd in self.osd_param:
             for k in fd.keys():
@@ -369,6 +494,8 @@ class ShardTensorUtil:
         param_meta: record all meta information of original parameter, maybe original parameter
             will across multiple flatten parameters. Key is name of top module, value is meta info
         rank_fds: record all safe open fds, key is rank.
+        param_meta: meta for every `flat_meta` files, key is param name, some params may cross multiple
+            shards, so value is List of dict
         flat_param_segments: Length of each original parameter in flatten parameter, exclude the paddings.
         flat_param_length: Length of each flatten parameter, exclude the paddings.
         """
@@ -381,11 +508,16 @@ class ShardTensorUtil:
         self.load_buffer = None
         self.local_gpus_groups = []
         self.load_parallelism = nproc_per_node()
-        self.param_meta: DefaultDict[str, List]
         self.rank_fds: Dict[int, safetensors._safetensors_rust.safe_open]
         self.flat_param_segments: Dict[Tuple[int, str], List[int]] = {}
         self.flat_param_length: DefaultDict[str, int] = defaultdict(int)
-        self.param_meta, self.rank_fds = self._prepare_meta_and_fds()
+        self.rank_fds: Dict[int, safetensors._safetensors_rust.safe_open] = {}
+        self.param_meta: DefaultDict[str, List[Dict[str, Any]]] = defaultdict(list)
+        self.ckpt_meta: Dict[str, Any] = {}
+        self.flat_param_meta: Dict[str, Dict] = {}
+
+        self._prepare_meta_and_fds()
+
         self.name_mapping_func = None
         if create_param_cb is not None and not callable(create_param_cb):
             raise ValueError("create_param_cb shoule be callable")
@@ -439,9 +571,40 @@ class ShardTensorUtil:
         prefetch = self.load_order.popleft()
         self.load_buffer = self.load_tensor_by_name(prefetch)
 
-    def get_fsdp_init_order(self, model, wrap_cls):
-        """Get parameters' init order of every FSDP unit."""
-        all_names = OrderedDict()
+    def get_fsdp_init_order(self, model, wrap_cls, build_fsdp_load_map=True):
+        """Get parameters' init order of every FSDP unit.
+        Put each FSDP unit name in OrderedDict `init_module_names`,
+        for default FSDP unit, it names to ''.
+        This is use for two cases:
+            1. load_with_intra_nodes, parse fsdp init order for each parameters.
+            2. load_flat_param_by_name, parse fsdp init order for each wrap class.
+        init_module_names looks like this
+          OrderedDict([('transformer.h.0',
+                ['ln_1.weight',
+                 'ln_1.bias',
+                 'attn.c_attn.weight',
+                 'attn.c_proj.weight',
+                 'ln_2.weight',
+                 'ln_2.bias',
+                 'mlp.c_fc.weight',
+                 'mlp.c_proj.weight']),
+               ('transformer.h.1',
+                ['ln_1.weight',
+                 'ln_1.bias',
+                 'attn.c_attn.weight',
+                 'attn.c_proj.weight',
+                 'ln_2.weight',
+                 'ln_2.bias',
+                 'mlp.c_fc.weight',
+                 'mlp.c_proj.weight']),
+               ('',
+                ['transformer.wte.weight',
+                 'transformer.wpe.weight',
+                 'transformer.ln_f.weight',
+                 'transformer.ln_f.bias'])])
+        key is each name of FSDP unit, values is list of name for params/buffer in FSDP unit.
+        """
+        self.init_module_names = OrderedDict()
         default_fsdp_names = []
         tied_weights = set()
 
@@ -454,7 +617,7 @@ class ShardTensorUtil:
                         continue
                     n.append(name)
                     tied_weights.add(id(p))
-                all_names[".".join(name_prefix)] = n
+                self.init_module_names[".".join(name_prefix)] = n
                 return
             n = []
             base = ".".join(name_prefix)
@@ -471,14 +634,15 @@ class ShardTensorUtil:
 
         inner(model, [])
         # empty string `""` is default FSDP wrap unit.
-        all_names[""] = default_fsdp_names
+        self.init_module_names[""] = default_fsdp_names
         self.fsdp_init_order = []
-        for k, v in all_names.items():
+        for k, v in self.init_module_names.items():
             prefix = f"{k}." if k else ""
             for i in v:
                 self.fsdp_init_order.append(f"{prefix}{i}")
 
-        self.get_fsdp_load_map()
+        if build_fsdp_load_map:
+            self.get_fsdp_load_map()
 
     def load_with_intra_nodes(self, name):
         """Load parameters from intra node via broadcasting. For nvidia gpu, we use nvlink.
@@ -527,61 +691,131 @@ class ShardTensorUtil:
                 s.append((rank, max(target_start, seg_start), min(target_end, seg_end)))
         return s
 
-    def _prepare_meta_and_fds(self):
-        """Parse flat param and flat meta files, open safe tensor files."""
-        path = self.path
-        buffers_path = Path(f"{path}/buffers")
-        if buffers_path.exists():
-            self.buffers = safe_open(buffers_path, framework="pt")
-        rank_fds = {}
-        param_meta = defaultdict(list)
-        meta_files = sorted(glob.glob(f"{path}/flat_meta*"))
-        safe_files = sorted(glob.glob(f"{path}/flat_param*"))
-        if len(meta_files) != len(safe_files):
-            raise ValueError(f"Num of meta is not equal to num of param, {len(meta_files)} vs {len(safe_files)}")
-        suffix = safe_files[0].split(".")[-1]
-        total_num = int(suffix.split("-")[-1])
-        if total_num != len(safe_files):
-            raise ValueError(f"Miss ckpt shards, num is {len(safe_files)}, needs {total_num}")
-        self.need_reshard = len(meta_files) != self.world_size
-        self.shard_nums = len(meta_files)
-        for rank, f in enumerate(safe_files):
-            fd = safe_open(f, framework="pt")
+    def _prepare_ckpt_meta(self, world_size):
+        ckpt_meta_path = Path(f"{self.path}/ckpt_meta")
+        if not ckpt_meta_path.exists():
+            self.ckpt_meta = {"version": 0, "world_size": world_size, "wrap_class": set()}
+            return
+        with open(ckpt_meta_path, "rb") as f:
+            self.ckpt_meta = pickle.load(f)
+
+    def _prepare_param_meta(self, param_files, meta_files):
+        # prepare fds and flat param meta
+        for rank, f in enumerate(param_files):
+            fd = safe_open_or_raise(f, framework="pt")
             for key in fd.keys():
                 tensor_length = fd.get_slice(key).get_shape()[0]
                 start = self.flat_param_length[key]
                 self.flat_param_segments[(rank, key)] = [start, start + tensor_length]
                 self.flat_param_length[key] += tensor_length
-            rank_fds[rank] = fd
-        for f in meta_files:
-            with open(f, "rb") as f:
-                data = pickle.load(f)
-            for k, v in data.items():
-                pad = v["pad"]
-                rank = v["rank"]
-                fsdp_unit_name = v["striped_fsdp_name"]
-                # index -1 means end offset
-                self.flat_param_segments[(rank, fsdp_unit_name)][-1] -= pad
-                self.flat_param_length[fsdp_unit_name] -= pad
-                param_meta[k].append(v)
-        return param_meta, rank_fds
+            self.rank_fds[rank] = fd
 
-    def load_flat_param_by_name(self, name):
+        # prepare param meta
+        def _prepare_param_meta_version_0():
+            for f in meta_files:
+                with open(f, "rb") as f:
+                    data = pickle.load(f)
+                for k, v in data.items():
+                    self.param_meta[k].append(v)
+
+        def _prepare_param_meta_version_1():
+            for f in meta_files:
+                with open(f, "rb") as f:
+                    data = pickle.load(f)
+                for k, v in data["param_meta"].items():
+                    self.param_meta[k].append(v)
+                self.flat_param_meta.update(data["flat_param_meta"])
+
+        prepare_fn = {0: _prepare_param_meta_version_0, 1: _prepare_param_meta_version_1}
+        version = self.ckpt_meta["version"]
+        prepare_fn[version]()
+
+    def _prepare_meta_and_fds(self):
+        """Parse flat param and flat meta files, open safe tensor files."""
+        path = self.path
+        buffers_path = Path(f"{path}/buffers")
+        if buffers_path.exists():
+            self.buffers = safe_open_or_raise(buffers_path, framework="pt")
+        meta_files = sorted(glob.glob(f"{path}/flat_meta*"))
+        param_files = sorted(glob.glob(f"{path}/flat_param*"))
+        if len(meta_files) != len(param_files):
+            raise FlatCkptError(
+                f"Num of meta is not equal to num of param, {len(meta_files)} vs {len(param_files)}",
+                ErrorCode.CHECKPOINT_CORRUPTION,
+            )
+        if not param_files:
+            raise FlatCkptError(f"Meet empty directory {path}", ErrorCode.CHECKPOINT_NOT_FOUND)
+        suffix = param_files[0].split(".")[-1]
+        # name like: flat_param.01343-01344
+        total_num = int(suffix.split("-")[-1])
+        if total_num != len(param_files):
+            raise FlatCkptError(
+                f"Miss ckpt shards, num is {len(param_files)}, needs {total_num}, "
+                "maybe the checkpoint path has been saved mutiple times",
+                ErrorCode.CHECKPOINT_CORRUPTION,
+            )
+        self.need_reshard = len(meta_files) != self.world_size
+
+        self.shard_nums = len(meta_files)
+        self._prepare_ckpt_meta(total_num)
+        self._prepare_param_meta(param_files, meta_files)
+
+    def load_flat_param_by_name(self, name, origin_flatten_handle):
         """Load flat parameter, if shards number is not equals to world size,
         we do reshard flat parameters. Only support same wrap class in fsdp transformation.
+
+        Given a list of split flatten param, if `world_size` of current training job is same as ckpt, it's good.
+        If not, we need to reshard, this is how we load `flat_param` directly.
+            1. calculate reshard (request_start, request_end) in each rank, this use flat_param handle which
+                FSDP is using currently.
+            2. remove D in last rank
+            3. use sliding window to scan all flat param shards which is loaded by safetensors, gather all slice shards
+            4. get the new D in this flat handle, create padding D tensor
+            5. concat all shards and padding D tensor together
+
+        some useful infomation:
+            _numels_with_padding: size of each param and it's padding.
+            _is_padding_mask: indicating which number is padding in `_numels_with_padding` pairwisely.
+
+                                     rank_0      rank_1       rank_n
+                                      save    │   save     │   save
+                                 ┌─────┬───┬──┼────┬─────┬─┼─────┬─────┐
+                    ckpt in disk │VVVVV│PPP│VV│VVVV│PPPPP│V│VVVVV│DDDDD│
+                                 └─────┴───┴──┴────┴─────┴─┴─────┴─────┘
+                                                                 ▲
+                                                                 │  same
+                                                                 │ length
+                                    view of current flat param   ▼
+                                 ┌─────┬───┬───────┬─────┬──┬────┬──┐
+                    reshard flat │VVVVV│PPP│VVVVVVV│PPPPP│VV│VVVV│DD│
+                      param      └─────┴───┼───────┼─────┴──┼────┴──┘
+                                   rank_0  │ rank_1│ rank_2 │ rank_n
+                                           │       │        │
+
+             _numels_with_padding   5    3     7      5      6    2
+               _is_padding_mask     ✕    ✓     ✕      ✓      ✕    ✓
+
+
+
+        name: str, the fsdp unit name
+        origin_flatten_handle: FlatParamHandle, current flat param handle
         """
-        fd = self.rank_fds[0]
+
+        new_total_length = origin_flatten_handle.flat_param.size(0)
         shards = []
-        total_length = self.flat_param_length[name]
-        flat_length = fd.get_slice(name).get_shape()[0]
-        pad_num = (self.world_size - total_length % self.world_size) % self.world_size
-        new_total_length = total_length + pad_num
+        # all flat_params are same, pick first to get flat_length.
+        flat_length = self.rank_fds[0].get_slice(name).get_shape()[0]
+        # calulate new shard size dues to new flat param
         each_num = new_total_length // self.world_size
         request_start = self.rank * each_num
         request_end = self.rank * each_num + each_num
-        if self.rank + 1 == self.world_size:
-            # only last rank padding zeros.
-            request_end -= pad_num
+        # only last rank padding _FLAT_PARAM_PADDING_VALUE.
+        pad_num = (
+            origin_flatten_handle.flat_param._numels_with_padding[-1]
+            if self.rank + 1 == self.world_size and origin_flatten_handle.flat_param._is_padding_mask[-1]
+            else 0
+        )
+        request_end -= pad_num
         # given range of parameters, we calculate cusor range of each flat parameter.
         shard_slice = self._get_flat_param_shard_range(name, (request_start, request_end))
         for rank, start, end in shard_slice:
@@ -591,11 +825,14 @@ class ShardTensorUtil:
             local_start = start - rank_offset
             local_end = end - rank_offset  # [start, end] is include, so we add 1
             shards.append(tensor[local_start:local_end])
-        if self.rank + 1 == self.world_size and pad_num:
-            pad_tensor = torch.zeros(pad_num)
+        if pad_num:
+            pad_tensor = (
+                torch.ones(origin_flatten_handle.flat_param._numels_with_padding[-1]) * _FLAT_PARAM_PADDING_VALUE
+            )
             shards.append(pad_tensor)
 
-        return torch.cat(shards)
+        # is we set `use_orig_param`, padding is zero
+        return torch.cat(shards), 0
 
     def check_tensor_not_in_ckpt(self, name):
         return name not in self.buffers.keys() and name not in self.param_meta

@@ -3,7 +3,7 @@ import os
 from dataclasses import dataclass, field
 from datetime import timedelta
 from enum import Enum
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import torch
 from accelerate.state import PartialState
@@ -12,6 +12,7 @@ from transformers.training_args_seq2seq import Seq2SeqTrainingArguments
 from transformers.utils import cached_property
 
 import atorch
+from atorch.utils.trainer_utils import ATORCHSCHEDULER_NAMES, SCHEDULER_NAMES, AtorchSchedulerType
 
 logger = logging.getLogger(__name__)
 
@@ -108,6 +109,36 @@ class AtorchArguments(Seq2SeqTrainingArguments):
         default=None, metadata={"help": "If not None, a file name for saving the acceleration strategy."}
     )
 
+    atorch_checkpoint_cls: Optional[Tuple[Callable]] = field(
+        default=None,
+        metadata={
+            "help": (
+                "Tuple of module classes for gradient checkpointing. Applicable when --gradient_checkpointing is set."
+            )
+        },
+    )
+
+    use_default_data_collator: bool = field(
+        default=False,
+        metadata={
+            "help": (
+                "Whether to use default data collator DataCollatorWithPadding which may decrease the speed of "
+                "data retrieval."
+            )
+        },
+    )
+
+    ignore_write_errors: bool = field(
+        default=False, metadata={"help": ("Whether to ignore write errors when writting to disk.")}
+    )
+
+    async_save: bool = field(default=False, metadata={"help": ("Whether to use multiprocess to save model.")})
+
+    atorch_lr_scheduler_type: Union[AtorchSchedulerType, str] = field(
+        default=None,
+        metadata={"help": "The custom scheduler type to use."},
+    )
+
     # ATorch FSDP config
     atorch_wrap_cls: Optional[Tuple[Callable]] = field(
         default=None, metadata={"help": "Tuple of module classes to wrap with fsdp."}
@@ -118,6 +149,9 @@ class AtorchArguments(Seq2SeqTrainingArguments):
     sync_module_states: bool = field(default=True, metadata={"help": "Whether to sync_module_states"})
     limit_all_gathers: bool = field(default=True, metadata={"help": "Whether to limit_all_gathers"})
     forward_prefetch: bool = field(default=True, metadata={"help": "Whether to forward_prefetch"})
+
+    # ATorch amp config
+    skip_if_nonfinite: bool = field(default=True, metadata={"help": ("Whether to skip if nonfinite.")})
 
     # Other config
     max_shard_size: str = field(
@@ -132,6 +166,7 @@ class AtorchArguments(Seq2SeqTrainingArguments):
     @cached_property
     def _setup_devices(self) -> "torch.device":
         logger.info("PyTorch: setting up devices")
+
         if not torch.distributed.is_initialized():
             atorch.init_distributed(
                 os.getenv("TORCH_DISTRIBUTED_BACKEND", "nccl"), timeout=timedelta(seconds=self.ddp_timeout)
@@ -176,6 +211,18 @@ class AtorchArguments(Seq2SeqTrainingArguments):
             tensorboard_path = os.getenv("ATORCH_TENSORBOARD_PATH")
             tensorboard_path = os.path.expandvars(tensorboard_path) if tensorboard_path else None
             self.logging_dir = tensorboard_path
+
+        # check lr_scheduler_type
+        if self.atorch_lr_scheduler_type is not None and self.atorch_lr_scheduler_type not in ATORCHSCHEDULER_NAMES:
+            raise ValueError(
+                f"lr_scheduler_type={self.atorch_lr_scheduler_type} is invalid, please select one of "
+                f"{SCHEDULER_NAMES + ATORCHSCHEDULER_NAMES}."
+            )
+
         super().__post_init__()
+
         if self.atorch_wrap_cls is not None and not isinstance(self.atorch_wrap_cls, tuple):
             raise ValueError(f"atorch_wrap_cls has {type(self.atorch_wrap_cls)} type, required tuple type.")
+
+        if self.atorch_checkpoint_cls is not None and not isinstance(self.atorch_checkpoint_cls, tuple):
+            raise ValueError(f"atorch_checkpoint_cls has {type(self.atorch_checkpoint_cls)} type, required tuple type.")

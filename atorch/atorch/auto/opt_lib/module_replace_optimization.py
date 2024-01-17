@@ -85,7 +85,7 @@ def _enable_flash_attn_by_attr(model):
     model.apply(lambda m: setattr(m, "use_fa", True) if hasattr(m, "use_fa") else None)
 
 
-def _replace_by_config(model, config=None, gpu_used=False):
+def _replace_by_config(model, config=None, gpu_used=False, verbose=True):
     global REPLACEMENT_PAIRS
     cur_dtype = (
         AutoAccelerateContext.half_precision_dtype[AutoAccelerateContext.counter]
@@ -104,7 +104,7 @@ def _replace_by_config(model, config=None, gpu_used=False):
     for pair_name in config:
         src_module_cls, tgt_module_cls, default_kwargs, _ = REPLACEMENT_PAIRS[pair_name]
         kwargs = default_kwargs if config[pair_name] is None else config[pair_name]
-        model = replace_module(model, src_module_cls, tgt_module_cls, **kwargs)
+        model = replace_module(model, src_module_cls, tgt_module_cls, verbose=verbose, **kwargs)
     # Handles device placement mismatch
     # In case modules are on meta, do nothing and assume defer init is enabled
     if (
@@ -155,7 +155,8 @@ class ModuleReplaceOptimization(Optimization):
         wrapper_config (Dict[str, Dict], optional): {pair_name: replace_config}
             if None, replace all supported pairs with default replace_config
         """
-        if wrapper_config is None:
+        verbose = True if wrapper_config is None else wrapper_config.pop("verbose", True)
+        if wrapper_config is None or len(wrapper_config) == 0:
             wrapper_config = _get_default_replace_config()
 
         tie_weights = {}
@@ -166,7 +167,7 @@ class ModuleReplaceOptimization(Optimization):
             model_context.model = model_context.model.to("meta")
 
         model_context.model = _replace_by_config(
-            model_context.model, config=wrapper_config, gpu_used=model_context.gpu_used
+            model_context.model, config=wrapper_config, gpu_used=model_context.gpu_used, verbose=verbose
         )
         _retie_weights(model_context.model, tie_weights)
         model = model_context.model

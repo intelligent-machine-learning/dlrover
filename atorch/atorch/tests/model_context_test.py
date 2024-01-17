@@ -54,12 +54,14 @@ class ModelContextTest(unittest.TestCase):
             weight_decay_set.add(group["weight_decay"])
         self.assertEqual(weight_decay_set, {0.0, 0.01})
 
+    @unittest.skipIf(torch.cuda.is_available(), "test only on cpu")
     def test_find_unused_parameters(self):
         context = create_model_context(data_size=16, batch_size=2)
         self.assertFalse(context.find_unused_parameters)
         context = create_model_context(data_size=16, batch_size=2, extra_args={"find_unused_parameters": True})
         self.assertTrue(context.find_unused_parameters)
 
+    @unittest.skipIf(torch.cuda.is_available(), "test only on cpu")
     def test_dataloader_shuffle(self):
         class TestDataset(Dataset):
             def __init__(self, size):
@@ -92,6 +94,7 @@ class ModelContextTest(unittest.TestCase):
         _DistributedContext.PARALLEL_RANK = None
 
 
+@unittest.skipIf(torch.cuda.is_available(), "test only on cpu")
 class ModelContextWrapperTest(unittest.TestCase):
     def setUp(self):
         self.context = create_model_context(data_size=2, batch_size=1)
@@ -122,6 +125,25 @@ class ModelContextWrapperTest(unittest.TestCase):
         wrapper_names = [name for name, _ in self.context.post_wrappers.items()]
         wrappers_order = [wrapper_names.index("ddp"), wrapper_names.index("native_dynamo")]
         self.assertListEqual(wrappers_order, [0, 1])
+
+    def test_adjust_pre_wrapper(self):
+        self.context.add_wrapper("native_dynamo", None, None, is_pre_wrapper=True)
+        self.context.add_wrapper("fsdp", None, None, is_pre_wrapper=True)
+        self.context.add_wrapper("module_replace", None, None, is_pre_wrapper=True)
+        self.context.add_wrapper("fp8", None, None, is_pre_wrapper=True)
+        self.context.add_wrapper("half", None, None, is_pre_wrapper=True)
+        self.context.add_wrapper("amp_native", None, None, is_pre_wrapper=False)
+        self.context.adjust_wrappers()
+        self.assertTrue("amp_native" not in self.context.post_wrappers)
+        wrapper_names = [name for name, _ in self.context.pre_wrappers.items()]
+        wrappers_order = [
+            wrapper_names.index("half"),
+            wrapper_names.index("module_replace"),
+            wrapper_names.index("fp8"),
+            wrapper_names.index("fsdp"),
+            wrapper_names.index("native_dynamo"),
+        ]
+        self.assertListEqual(wrappers_order, [0, 1, 2, 3, 4])
 
 
 def use_shm_dataloader_func():

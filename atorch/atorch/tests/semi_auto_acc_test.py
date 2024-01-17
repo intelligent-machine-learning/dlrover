@@ -227,6 +227,7 @@ def run_gpt2_with_strategy(
     zero_size=None,
     bf16_only=False,
     wrap_test_only=False,
+    use_fp8=False,
 ):
     os.environ["LOCAL_RANK"] = str(rank)
     os.environ["RANK"] = str(rank)
@@ -286,6 +287,8 @@ def run_gpt2_with_strategy(
                 ("fsdp", fsdp_config),
                 ("checkpoint", checkpoint_config),
             ]
+        if use_fp8:
+            strategy.append("fp8")
 
     status, result, best_strategy = auto_accelerate(
         model_context.model,
@@ -301,7 +304,10 @@ def run_gpt2_with_strategy(
         ignore_dryrun_on_load_strategy=True,
     )
     assert status
-    assert len(best_strategy) == len(strategy)
+    if atorch.world_size() > 1 or bf16_only:
+        assert len(best_strategy) == len(strategy)
+    else:
+        assert len(best_strategy) == len(strategy) - 1
     if bf16_only:
         assert isinstance(result.optim, BF16Optimizer)
     else:
@@ -432,6 +438,36 @@ class LoadStrategyTest(unittest.TestCase):
             use_bf16=False,
             zero_size=None,
             bf16_only=True,
+        )
+
+    @unittest.skipIf(
+        not torch.cuda.is_available() or not torch.cuda.is_bf16_supported(),
+        "Must have GPU with bf16 supported",
+    )
+    def test_gpt2_fp8(self):
+        os.environ["WORLD_SIZE"] = str(1)
+        os.environ["NPROC_PER_NODE"] = str(1)
+        os.environ["MASTER_ADDR"] = "localhost"
+        os.environ["MASTER_PORT"] = str(find_free_port())
+        hidden_size = 256
+        head_num = 4
+        layer_num = 3
+        seq_length = 128
+        data_size = 16
+        batch_size = 4
+        run_gpt2_with_strategy(
+            0,
+            hidden_size,
+            head_num,
+            layer_num,
+            seq_length,
+            data_size,
+            batch_size,
+            use_bf16=True,
+            zero_size=None,
+            bf16_only=False,
+            wrap_test_only=False,
+            use_fp8=True,
         )
 
     @unittest.skipIf(
