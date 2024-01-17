@@ -1,4 +1,5 @@
 import traceback
+from typing import Optional, Union
 
 from atorch.common.log_utils import default_logger as logger
 
@@ -10,14 +11,33 @@ except (ModuleNotFoundError, ImportError):
     logger.error(f"{traceback.format_exc()}")
 import torch
 
+_device_t = Union[torch.device, str, int, None]
 old_device_capability = torch.cuda.get_device_capability
 
 
-def new_device_capability(device):
-    if device.type != "cpu":
+def new_device_capability(device: Optional[_device_t] = None):
+    """
+
+    Args:
+        device (torch.device or int, optional): device for which to return the
+            device capability. This function is a no-op if this argument is
+            a negative integer. It uses the current device, given by
+            :func:`~torch.cuda.current_device`, if :attr:`device` is ``None``
+            (default).
+    Returns:
+        tuple(int, int): the major and minor cuda capability of the device
+        (8, 0) for npu
+    """
+
+    if isinstance(device, (int, str)) or device is None:
+        return (8, 0)
+    if isinstance(device, torch.device) and device.type != "cpu":
         return (8, 0)
     else:
         return old_device_capability(device)
+
+
+new_device_capability.__doc__ = old_device_capability.__doc__
 
 
 def npu_profile_context(*args, **kwargs):

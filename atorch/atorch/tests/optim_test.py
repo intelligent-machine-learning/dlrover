@@ -7,6 +7,8 @@ from torch.autograd import Variable
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.testing._internal.common_utils import TestCase
 
+from atorch.utils.import_util import is_torch_npu_available
+
 
 class TestOptim(TestCase):
     def _build_params_dict_single(self, weight, bias, **kwargs):
@@ -259,6 +261,74 @@ class TestOptim(TestCase):
             optimizer(None, lr=1e-3, q_bits=9)
         with self.assertRaisesRegex(ValueError, "Invalid q_bits value: 3.5"):
             optimizer(None, lr=1e-3, q_bits=3.5)
+
+    @unittest.skipIf(not is_torch_npu_available(), "no npu found here")
+    def test_npu_adamw(self):
+        from atorch.npu.optim import NpuAdamW
+
+        optimizer = NpuAdamW
+        self._test_basic_cases_template(
+            torch.randn(10, 5).npu(),
+            torch.randn(10).npu(),
+            torch.randn(5).npu(),
+            lambda weight, bias: optimizer([weight, bias], lr=1e-3),
+            [],
+        )
+        self._test_basic_cases_template(
+            torch.randn(10, 5).npu(),
+            torch.randn(10).npu(),
+            torch.randn(5).npu(),
+            lambda weight, bias: optimizer(self._build_params_dict(weight, bias, lr=1e-3), lr=1e-3),
+            [],
+        )
+        self._test_basic_cases_template(
+            torch.randn(10, 5).npu(),
+            torch.randn(10).npu(),
+            torch.randn(5).npu(),
+            lambda weight, bias: optimizer([weight, bias], lr=1e-3, eps=1e-8),
+            [],
+        )
+        self._test_basic_cases_template(
+            torch.randn(10, 5).npu(),
+            torch.randn(10).npu(),
+            torch.randn(5).npu(),
+            lambda weight, bias: optimizer([weight, bias], lr=1e-3, weight_decay=1e-2),
+            [],
+        )
+        with self.assertRaisesRegex(ValueError, "Invalid weight_decay value: -1"):
+            optimizer(None, lr=1e-2, weight_decay=-1)
+
+    @unittest.skipIf(not is_torch_npu_available(), "no npu found here")
+    def test_npu_adamw_compare_with_cpu(self):
+        from atorch.npu.optim import NpuAdamW
+
+        weight_value = torch.randn(10, 5)
+        bias_value = torch.randn(10)
+        input_value = torch.randn(5)
+        weight_cpu = Variable(weight_value, requires_grad=True)
+        bias_cpu = Variable(bias_value, requires_grad=True)
+        input_cpu = Variable(input_value)
+
+        weight_npu = Variable(weight_value.npu(), requires_grad=True)
+        bias_npu = Variable(bias_value.npu(), requires_grad=True)
+        input_npu = Variable(input_value.npu(), requires_grad=True)
+
+        ori_optim = torch.optim.AdamW([weight_cpu, bias_cpu], lr=1e-3)
+        ori_optim.zero_grad()
+        y_cpu = weight_cpu.mv(input_cpu)
+        loss_cpu = (y_cpu + bias_cpu).pow(2).sum()
+        loss_cpu.backward()
+        ori_optim.step()
+
+        npu_optim = NpuAdamW([weight_npu, bias_npu], lr=1e-3)
+        npu_optim.zero_grad()
+        y_npu = weight_npu.mv(input_npu)
+        loss_npu = (y_npu + bias_npu).pow(2).sum()
+        loss_npu.backward()
+        npu_optim.step()
+
+        torch.testing.assert_close(weight_npu.cpu(), weight_cpu)
+        torch.testing.assert_close(bias_npu.cpu(), bias_cpu)
 
 
 class TestSamOptim(TestCase):

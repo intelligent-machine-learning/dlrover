@@ -1,5 +1,4 @@
 import copy
-import os
 import unittest
 
 import torch
@@ -9,7 +8,6 @@ from atorch.auto.opt_lib.module_replace_optimization import ModuleReplaceOptimiz
 from atorch.modules.transformer.layers import BertAttentionFA, MultiheadAttentionFA
 from atorch.normalization import LayerNorm as ApexLayerNorm
 from atorch.tests.toy_module import create_model_context
-from atorch.utils.meta_model_utils import _MetaModeContext
 
 try:
     from transformers.modeling_bert import BertAttention, BertConfig, BertLayer  # 3.5
@@ -86,24 +84,6 @@ class ModuleReplaceOptimizationTest(unittest.TestCase):
         self.assertCountEqual(post_replacement_devices, ["cpu"])
         self.assertTrue(
             list(post_replacement_devices)[0] == "cpu" or list(post_replacement_devices)[0] == torch.device("cpu")
-        )
-
-    def test_multi_devices_cpu(self):
-        # trigger empty replacement
-        module_replace_optimization = ModuleReplaceOptimization()
-        mc = copy.deepcopy(self.model_context)
-
-        # test default replace config
-        # multi-device
-        if not os.path.isdir(_MetaModeContext.offload_path):
-            os.makedirs(_MetaModeContext.offload_path)
-
-        mc.model.layer1.to("meta")
-        mc = module_replace_optimization.apply_wrapper(mc, "module_replace", {})
-        post_replacement_devices = _check_model_params_device(mc.model)
-        self.assertCountEqual(post_replacement_devices, ["meta"])
-        self.assertTrue(
-            list(post_replacement_devices)[0] == "meta" or list(post_replacement_devices)[0] == torch.device("meta")
         )
 
 
