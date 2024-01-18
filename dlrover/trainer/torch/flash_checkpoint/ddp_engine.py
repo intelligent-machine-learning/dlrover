@@ -124,7 +124,7 @@ class DdpCheckpointEngine(CheckpointEngine):
         """
         if self._local_rank != 0:
             return
-        succeed = False
+        succeed = True
         if step > self._cached_step:
             succeed = self.save_to_memory(step, state_dict, paths)
         # Only rank 0 persist the checkpoint to the storage.

@@ -108,15 +108,14 @@ class DeepSpeedCheckpointEngine(CheckpointEngine):
                 ["model_states", "optim_states"] of the state dict and
                 the value is the path of storage to save.
         """
-        succeed = False
+        succeed = True
         if step > self._cached_step:
             succeed = self.save_to_memory(step, state_dict, paths)
 
         # Only local rank 0 to notify the saving event to the agent.
-        if self._local_rank != 0 and not succeed:
-            return
-        event = CheckpointEvent(type=CheckpointEventType.SAVE, step=step)
-        self._event_queue.put(event)
+        if self._local_rank == 0 and succeed:
+            event = CheckpointEvent(type=CheckpointEventType.SAVE, step=step)
+            self._event_queue.put(event)
 
     def get_local_shard_num(self):
         local_world_size = env_utils.get_local_world_size()

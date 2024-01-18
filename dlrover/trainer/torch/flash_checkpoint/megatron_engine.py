@@ -114,7 +114,7 @@ class MegatronCheckpointEngine(CheckpointEngine):
             step (int): the iteration step.
             state_dict (dict): the state dict of model and optimizer to save.
         """
-        succeed = False
+        succeed = True
         if step > self._cached_step:
             succeed = self.save_to_memory(step, state_dict, paths)
 
