@@ -18,11 +18,14 @@ import unittest
 from pathlib import Path
 
 import torch
+import torch.distributed as dist
+import torch.multiprocessing as mp
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 
 from dlrover.python.common.constants import CheckpointConstant, NodeEnv
+from dlrover.python.common.grpc import find_free_port
 from dlrover.python.common.storage import PosixDiskStorage
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     AsyncCheckpointSaver,
@@ -37,10 +40,30 @@ from dlrover.trainer.torch.flash_checkpoint.ddp_engine import (
 from dlrover.trainer.torch.flash_checkpoint.deepspeed_engine import (
     DeepSpeedCheckpointEngine,
 )
-from dlrover.trainer.torch.flash_checkpoint.engine import start_saver_process
+from dlrover.trainer.torch.flash_checkpoint.engine import (
+    check_all_rank_ready,
+    start_saver_process,
+    verify_all_rank_step_consistent,
+)
 from dlrover.trainer.torch.flash_checkpoint.megatron_engine import (
     MegatronCheckpointEngine,
 )
+
+
+def run_rank_sync(rank, ranks, world_size, master_port):
+    os.environ["LOCAL_RANK"] = str(rank)
+    os.environ["RANK"] = str(rank)
+    os.environ["LOCAL_WORLD_SIZE"] = str(world_size)
+    os.environ["WORLD_SIZE"] = str(world_size)
+    os.environ["MASTER_ADDR"] = "localhost"
+    os.environ["MASTER_PORT"] = str(master_port)
+    dist.init_process_group(backend="gloo")
+    group = dist.new_group(ranks=ranks, backend="gloo")
+    ready = check_all_rank_ready(group, True)
+    passed = verify_all_rank_step_consistent(group, 10)
+    if not ready or not passed:
+        raise ValueError("Async fails.")
+    dist.destroy_process_group()
 
 
 class SimpleNet(nn.Module):
@@ -257,6 +280,19 @@ class CheckpointEngineTest(unittest.TestCase):
                 loaded_value = loaded_state_dict["model"][key]
                 self.assertTrue(torch.equal(value, loaded_value))
             engine.close()
+
+    def test_all_rank_sync(self):
+        world_size = 2
+        ranks = [i for i in range(world_size)]
+        port = find_free_port()
+        mp.spawn(
+            run_rank_sync,
+            nprocs=2,
+            args=(ranks, world_size, port),
+            join=True,
+            daemon=False,
+            start_method="spawn",
+        )
 
 
 class PosixDiskStorageTest(unittest.TestCase):

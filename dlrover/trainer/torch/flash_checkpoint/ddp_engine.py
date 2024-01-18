@@ -12,11 +12,9 @@
 # limitations under the License.
 
 import os
-from datetime import timedelta
 from typing import Dict
 
 import torch
-import torch.distributed as dist
 
 from dlrover.python.common import env_utils
 from dlrover.python.common.constants import CheckpointConstant
@@ -56,15 +54,8 @@ class DdpCheckpointEngine(CheckpointEngine):
 
     def __init__(self, checkpoint_dir, storage):
         super().__init__(checkpoint_dir, storage)
-        if dist.is_initialized():
-            saver_ranks = self._get_saver_ranks()
-            self._saver_group = dist.new_group(
-                ranks=saver_ranks,
-                backend="gloo",
-                timeout=timedelta(seconds=30),
-            )
 
-    def _get_saver_ranks(self):
+    def get_saving_ranks(self):
         """
         Only the local rank 0 in each node saves the state dict into the
         memory. They need to synchronize the saving status.
