@@ -424,6 +424,13 @@ class FsdpCheckpointEngine(CheckpointEngine):
         self._shm_writer = SharedMemoryWriter(shm_handler=self._shm_handler)
         self._shm_reader = SharedMemoryReader(self._shm_handler)
 
+    def get_saving_ranks(self):
+        """
+        Only the local rank 0 in each node saves the state dict into the
+        memory. They need to synchronize the saving status.
+        """
+        return None
+
     @timer
     def save_to_memory(self, step, state_dict, paths: Dict[str, str]):
         """
