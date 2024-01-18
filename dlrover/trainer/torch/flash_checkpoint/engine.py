@@ -14,6 +14,7 @@
 import os
 import time
 from abc import ABCMeta, abstractmethod
+from datetime import timedelta
 from multiprocessing import Process
 from typing import Dict
 
@@ -42,8 +43,11 @@ def check_all_rank_ready(group: dist.ProcessGroup, ready):
     """
     if not group:
         return ready
+    backend = dist.get_backend()
+    local_rank = env_utils.get_local_rank()
+    device = "cpu" if backend == "gloo" else f"cuda:{local_rank}"
     value = 0 if ready else 1
-    t = torch.tensor([value], dtype=torch.int64)
+    t = torch.tensor([value], dtype=torch.int32).to(device)
     dist.all_reduce(t, group=group)
     return t == 0
 
@@ -54,9 +58,12 @@ def verify_all_rank_step_consistent(group: dist.ProcessGroup, step):
     """
     if not group:
         return True
-    t = torch.Tensor([float(step)])
+    backend = dist.get_backend()
+    local_rank = env_utils.get_local_rank()
+    device = "cpu" if backend == "gloo" else f"cuda:{local_rank}"
+    t = torch.tensor([float(step)]).to(device)
     world_size = group.size()
-    outputs = [torch.Tensor([0.0]) for _ in range(world_size)]
+    outputs = [torch.tensor([0.0]) for _ in range(world_size)]
     dist.all_gather(outputs, t, group=group)
     for step in outputs:
         if not torch.equal(step, outputs[0]):
@@ -129,7 +136,11 @@ class CheckpointEngine(metaclass=ABCMeta):
         self.storage = storage
         if dist.is_initialized():
             self._rank = dist.get_rank()
-            self._loader_group = dist.new_group(backend="gloo")
+            backend = dist.get_backend()
+            self._loader_group = dist.new_group(
+                backend=backend,
+                timeout=timedelta(seconds=30),
+            )
         else:
             self._rank = 0
             self._loader_group = None
@@ -191,16 +202,7 @@ class CheckpointEngine(metaclass=ABCMeta):
             },
         )
 
-        succeed = False
-        for _ in range(3):
-            try:
-                queue.put(class_meta)
-                succeed = True
-                break
-            except FileNotFoundError:
-                time.sleep(3)
-        if not succeed:
-            queue.put(class_meta)
+        queue.put(class_meta)
         queue.unlink()
 
     def _update_saver_config(self):
@@ -215,17 +217,11 @@ class CheckpointEngine(metaclass=ABCMeta):
                 raise ValueError(
                     "The event queue cannot be None on local rank 0."
                 )
-            for _ in range(3):
-                try:
-                    self._event_queue.put(event)
-                    return
-                except FileNotFoundError:
-                    time.sleep(3)
             self._event_queue.put(event)
 
     def save_state_dict_to_memory(self, state_dict, conf: CheckpointConfig):
         if self._local_rank != self.local_shard_id:
-            return
+            return False
 
         acquired = self._shm_lock.acquire(blocking=False)
         all_rank_ready = check_all_rank_ready(self._saver_group, acquired)
@@ -237,7 +233,7 @@ class CheckpointEngine(metaclass=ABCMeta):
             )
             if acquired:
                 self._shm_lock.release()
-            return
+            return False
         state_dict[DLROVER_CKPT_CONFIG_KEY] = conf
         self._shm_handler.save_state_dict(state_dict)
 
@@ -246,6 +242,7 @@ class CheckpointEngine(metaclass=ABCMeta):
         self._cached_step = conf.step
         if dist.is_initialized():
             dist.barrier(group=self._saver_group)
+        return True
 
     def get_state_dict_from_memory(self):
         state_dict = {}

@@ -3,6 +3,7 @@ import inspect
 import torch
 from deepspeed import DeepSpeedTransformerConfig
 
+import atorch
 from atorch.common.log_utils import default_logger as logger
 from atorch.modules.transformer.layers import MixPrecisionTransformerLayer
 from atorch.utils.meta_model_utils import empty_param, is_meta, recursive_empty_param, reload_meta_module
@@ -123,7 +124,14 @@ def replace_with_deepspeed_transformer(
 
 
 def replace_module(
-    model, src_module_cls, tgt_module_cls, config=None, need_src_module=False, init_from_attr=False, bkup_ori=False
+    model,
+    src_module_cls,
+    tgt_module_cls,
+    verbose=True,
+    config=None,
+    need_src_module=False,
+    init_from_attr=False,
+    bkup_ori=False,
 ):
     r"""replace model's src_module to tgt_module.
 
@@ -168,7 +176,8 @@ def replace_module(
         for name, child in model.named_children():
             child_name = cur_name + "." + name
             if isinstance(child, src_module_cls) and not isinstance(child, tgt_module_cls):
-                logger.info(f"REPLACING {src_module_cls} '{child_name}' to {tgt_module_cls}")
+                if verbose and atorch.local_rank() in (0, None):
+                    logger.info(f"REPLACING {src_module_cls} '{child_name}' to {tgt_module_cls}")
                 if need_src_module:
                     kwargs["src_module"] = child
                 if init_from_attr:

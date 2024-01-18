@@ -6,7 +6,7 @@ The auto_accelerate API provides two ways of usage:
 1. Fully automatic mode: Automatically generates optimization strategy and implements automatic optimization.
 2. Semi-automatic mode: Users specify the method used for optimization strategy through load_strategy, and auto_accelerate automatically configures and implements the optimization strategy.
 
-An optimization strategy consists of multiple optimization methods, including parallel training, GPU memory optimization methods, compute optimization, etc. Supported optimization methods are listed in [doc link]. 
+An optimization strategy consists of multiple optimization methods, including parallel training, GPU memory optimization methods, compute optimization, etc. Supported optimization methods are listed in [doc link](#supported-optimization-methods). 
 
 ## Inputs
 auto_accelerate takes model, optim_func, dataset, loss_func, etc as inputs, and generates optimized model, optimizer, dataloader etc as outputs.
@@ -107,7 +107,7 @@ Note that strong scaling is used, thus batch_size is the global batch_size in tr
 
   <tr>
     <td>distributed_sampler_cls (type, optional)</td>
-    <td>used-defined distributed sampler with same interafce as torch.utils.data.distributed.DistributedSampler. </td>
+    <td>used-defined distributed sampler with same interface as torch.utils.data.distributed.DistributedSampler. </td>
   </tr>
 
   <tr>
@@ -135,7 +135,7 @@ None: use data as model input.
     <td>load_strategy (optional)</td>
     <td>If None, fully-automatic model.
 
-Not None, semi-automaticl model. Supported formats:
+Not None, semi-automatic model. Supported formats:
 
 1. str: strategy(str)
 
@@ -331,7 +331,7 @@ Pipeline parallel, which would split model in multiple stages automatically. The
 
 ### mixed_parallel
 
-Automatically training model with tensor parallel, pipelin parallel, and daa parallel. parallel_mode configuration would specify the degree of each parallelism. For example, <code>([("tensor", 8), ("pipeline", 2), ("data", 2)]</code> specifies 8, 2, 2 for degrees of tensor parallel, pipeline paralllel, and data parallel respectively.
+Automatically training model with tensor parallel, pipeline parallel, and daa parallel. parallel_mode configuration would specify the degree of each parallelism. For example, <code>([("tensor", 8), ("pipeline", 2), ("data", 2)]</code> specifies 8, 2, 2 for degrees of tensor parallel, pipeline parallel, and data parallel respectively.
 
 ### ds_3d_parallel
 

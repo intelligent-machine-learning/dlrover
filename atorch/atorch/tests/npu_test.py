@@ -12,6 +12,9 @@ class NPUPatchTest(unittest.TestCase):
 
         device = torch.device("cuda")
         self.assertIsNotNone(torch.cuda.get_device_capability(device))
+        devices = [0, "cuda", None, device]
+        for device in devices:
+            self.assertIsNotNone(npu.new_device_capability(device))
 
     @unittest.skipIf(not torch.cuda.is_available(), "we test npu patch on gpu/npu environment")
     def test_empty(self):

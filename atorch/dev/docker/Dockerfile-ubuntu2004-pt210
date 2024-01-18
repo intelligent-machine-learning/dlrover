@@ -53,7 +53,7 @@ RUN echo "/usr/local/cuda/lib" >> /etc/ld.so.conf.d/nvidia.conf && \
 RUN apt-get install -y ibverbs-utils rdma-core && \
     apt-get install -y pciutils net-tools opensm
 ##############################################################################
-# apex, flash-attention, fastmoe
+# apex, flash-attention, fastmoe, transformer_engine
 # Apex: 623315a5d1b47b0addf00bbfd15017e5605750bc
 # aistudio
 ##############################################################################
@@ -70,6 +70,10 @@ RUN pip install dm-tree setuptools packaging && \
     MAKEFLAGS="-j$(nproc)" MAX_JOBS=16 \
     pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./ && \
     cd .. && rm -rf apex*
+RUN git clone --branch stable --recursive https://github.com/NVIDIA/TransformerEngine.git && \
+    cd TransformerEngine && \
+    CUDACXX=/usr/local/cuda/bin/nvcc NVTE_FRAMEWORK=pytorch  pip install . && \
+    cd .. && rm -rf TransformerEngine
 
 # make sure to rebuild fa if you updated py/cuda/... versions are updated.
 RUN pip install https://dlrover.oss-cn-beijing.aliyuncs.com/atorch/libs/flash_attn-2.0.4%2Bglm.mask-cp38-cp38-linux_x86_64.whl
