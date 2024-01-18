@@ -12,8 +12,6 @@ from atorch.auto.analyser.analyser import get_analyser
 from atorch.auto.auto_accelerate_context import AutoAccelerateContext
 from atorch.auto.device_context import get_device_context
 from atorch.auto.dry_runner.dry_runner import get_dryrunner
-from atorch.auto.engine.acceleration_engine import AccelerationEngine
-from atorch.auto.engine_client import EngineClient
 from atorch.auto.model_context import ModelContext
 from atorch.auto.opt_lib.ds_3d_parallel_optimization import get_ds_dtype
 from atorch.auto.opt_lib.optimization_library import SEMIAUTO_STRATEGIES, OptimizationLibrary
@@ -582,6 +580,8 @@ def auto_accelerate(
         if strategy is not None:
             strategy = strategy.convert_strategy_to_easydl_format()
         # create AccelerationEngine instance
+        from atorch.auto.engine.acceleration_engine import AccelerationEngine
+
         engine = AccelerationEngine(
             device_context.context,
             included_opts=included,
@@ -600,6 +600,8 @@ def auto_accelerate(
         torch.distributed.broadcast(bcast_port, src=0)
         engine_port = bcast_port.item()
     engine_addr = os.getenv("MASTER_ADDR", "localhost")
+    from atorch.auto.engine_client import EngineClient
+
     engine_client = EngineClient(engine_addr, str(engine_port))
 
     while True:

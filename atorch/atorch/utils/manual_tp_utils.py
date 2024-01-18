@@ -2,7 +2,6 @@ import inspect
 
 import torch
 import torch.nn.functional as F
-from transformers.pytorch_utils import Conv1D
 
 from atorch.common.log_utils import default_logger as logger
 from atorch.common.util_func import divide, is_wrapped_by_context_manager
@@ -67,6 +66,8 @@ def tp_shard_helper(meta_module, tp_layer_cls, **tp_kwargs):
             builded_module = ori_build_fn(*args, **kwargs)
 
         # gpt2 Conv1D compat
+        from transformers.pytorch_utils import Conv1D
+
         if isinstance(builded_module, Conv1D):
             builded_module.in_features, builded_module.out_features = builded_module.weight.shape
             builded_module.weight.data = builded_module.weight.t()

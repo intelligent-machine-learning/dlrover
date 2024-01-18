@@ -120,7 +120,7 @@ spec:
               command:
                 - /bin/bash
                 - -c
-                - "dlrover-run --straggler-detection --nnodes=$WORKER_NUM \
+                - "dlrover-run --straggler-detection --nnodes=$NODE_NUM \
                   --nproc_per_node=2 --max_restarts=3  \
                   examples/pytorch/mnist/cnn_train.py --num_epochs 2 \
                   --training_data /data/mnist_png/training/ \

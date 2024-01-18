@@ -284,7 +284,7 @@ optimizer.load_state_dict(reshard_optim_state)
 
 ```python
 git clone git@github.com:intelligent-machine-learning/dlrover.git
-cd dlrover/go/operator/
+cd dlrover/dlrover/go/operator/
 make deploy IMG=easydl/elasticjob-controller:master
 ```
 
@@ -328,7 +328,7 @@ spec:
               command:
                 - /bin/bash
                 - -c
-                - "dlrover-run --nnodes=1:$WORKER_NUM \
+                - "dlrover-run --nnodes=1:$NODE_NUM \
                   --nproc_per_node=1 --max_restarts=1  \
                   examples/pytorch/nanogpt/train.py \
                   --data_dir '/data/nanogpt/'"

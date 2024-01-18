@@ -209,6 +209,10 @@ class NodeEnv(object):
     WORKER_NUM = "WORKER_NUM"
     WORKER_RANK = "WORKER_RANK"
 
+    # The envs are compatibile with kubeflow/PytorchJob.
+    RANK = "RANK"  # It is the rank of node not the rank of process.
+    WORLD_SIZE = "WORLD_SIZE"  # It is the number of nodes.
+
     # process env
     TORCHELASTIC_RUN_ID = "TORCHELASTIC_RUN_ID"
 

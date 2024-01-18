@@ -29,7 +29,7 @@ and the command in the worker spec is
   command:
     - /bin/bash
     - -c
-    - "dlrover-run --network-check --exclude-straggler --nnodes=3:$WORKER_NUM \
+    - "dlrover-run --network-check --exclude-straggler --nnodes=3:$NODE_NUM \
         --nproc_per_node=2 --max_restarts=3  --rdzv_conf pend_timeout=600 \
         examples/pytorch/mnist/cnn_train.py --num_epochs 5 \
         --training_data /data/mnist_png/training/ \
@@ -102,7 +102,7 @@ and set the command in the yaml of elasticjob like the [example](../../examples/
     - /bin/bash
     - -c
     - "(bash examples/pytorch/mnist/start_chaos.sh cpu-overload &) && \
-        dlrover-run --network-check --exclude-straggler --nnodes=3:$WORKER_NUM \
+        dlrover-run --network-check --exclude-straggler --nnodes=3:$NODE_NUM \
         --nproc_per_node=2 --max_restarts=3  --rdzv_conf pend_timeout=600 \
         examples/pytorch/mnist/cnn_train.py --num_epochs 5 \
         --training_data /data/mnist_png/training/ \
@@ -169,7 +169,7 @@ command:
     - /bin/bash
     - -c
     - "(bash examples/pytorch/mnist/start_chaos.sh kill-process &) && \
-        dlrover-run --network-check --exclude-straggler --nnodes=3:$WORKER_NUM \
+        dlrover-run --network-check --exclude-straggler --nnodes=3:$NODE_NUM \
         --nproc_per_node=2 --max_restarts=3  --rdzv_conf pend_timeout=600 \
         examples/pytorch/mnist/cnn_train.py --num_epochs 5 \
         --training_data /data/mnist_png/training/ \
@@ -270,8 +270,8 @@ elasticjob-chaos-test-dlrover-master          1/1     Running   0             3m
 
 In the experiment, we use the [example](../../examples/pytorch/mnist/elastic_job.yaml)
 to submit an elastic training job. In the job, we set the `min_node=3` and
-`max_node=$WORKER_NUM` as the number of replicas. The ElasticJob will set the replicas
-into the environment `WORKER_NUM`.
+`max_node=$NODE_NUM` as the number of replicas. The ElasticJob will set the replicas
+into the environment `NODE_NUM`.
 
 At first, there are 3 running workers and 1 pending worker due to the insufficient resource.
 
@@ -343,8 +343,8 @@ loss = 0.6941334009170532, step = 100
 
 In the experiment, we use the [example](../../examples/pytorch/mnist/elastic_job.yaml)
 to submit an elastic training job. In the job, we set the `min_node=3` and
-`max_node=$WORKER_NUM` as the number of replicas. The ElasticJob will set the replicas
-into the environment `WORKER_NUM`.
+`max_node=$NODE_NUM` as the number of replicas. The ElasticJob will set the replicas
+into the environment `NODE_NUM`.
 
 At first, there are 4 running workers.
 

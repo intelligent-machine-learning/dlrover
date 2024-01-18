@@ -48,7 +48,7 @@ ElasticJob CRD on the cluster by the following steps.
 
 ```bash
 git clone git@github.com:intelligent-machine-learning/dlrover.git
-cd dlrover/go/operator/
+cd dlrover/dlrover/go/operator/
 make deploy IMG=easydl/elasticjob-controller:master
 # Grant permission for the DLRover master to Access CRDs.
 kubectl -n dlrover apply -f config/manifests/bases/default-role.yaml
@@ -103,7 +103,7 @@ into environments. We can run `dlrover-run` like
 
 ```bash
 NODE_RANK=$RANK DLROVER_MASTER_ADDR=$MASTER_ADDR:$MASTER_PORT \
-dlrover-run --standalone --network-check --nnodes=$NODE_NUM --nproc_per_node=$NUM_TRAINERS  train_script.py
+dlrover-run --network-check --nnodes=$NODE_NUM --nproc_per_node=$NUM_TRAINERS  train_script.py
 ```
 
 Then, we can search the execution time on the master Pod of PyTorchJob.

@@ -13,6 +13,7 @@
 
 import os
 from datetime import timedelta
+from typing import Dict
 
 import torch
 import torch.distributed as dist
@@ -21,7 +22,7 @@ from dlrover.python.common import env_utils
 from dlrover.python.common.constants import CheckpointConstant
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
-    DLROVER_CKPT_CONFIG_KEY,
+    CheckpointConfig,
     CheckpointEvent,
     CheckpointEventType,
     DdpCheckpointSaver,
@@ -53,8 +54,8 @@ class DdpCheckpointEngine(CheckpointEngine):
         >>> sate_dict = engine.load()
     """
 
-    def __init__(self, checkpoint_dir):
-        super().__init__(checkpoint_dir)
+    def __init__(self, checkpoint_dir, storage):
+        super().__init__(checkpoint_dir, storage)
         if dist.is_initialized():
             saver_ranks = self._get_saver_ranks()
             self._saver_group = dist.new_group(
@@ -87,7 +88,26 @@ class DdpCheckpointEngine(CheckpointEngine):
         return DdpCheckpointSaver
 
     @timer
-    def save_to_storage(self, step, state_dict, path=""):
+    def save_to_memory(self, step, state_dict, paths: Dict[str, str]):
+        """
+        Synchronously Saves the state dict into the shared memory with the main
+        process. If the agent in the main process is saving the shared memory
+        into the storage, the method will skip to write the shared memory.
+        Only local rank 0 save the state dict into the memory because the
+        state dict is replicated across all ranks.
+
+        Args:
+            step (int): the global iteration step.
+            state_dict (dict): the state dict of model and optimizer to save.
+            paths (dict): the key is a category in
+                ["model_states", "optim_states"] of the state dict and
+                the value is the path of storage to save.
+        """
+        conf = CheckpointConfig(step=step, paths=paths)
+        self.save_state_dict_to_memory(state_dict, conf)
+
+    @timer
+    def save_to_storage(self, step, state_dict, paths):
         """
         Asynchronously saves the state dict into the storage. It synchronously
         saves the state dict into the shared memory and put the path
@@ -96,19 +116,16 @@ class DdpCheckpointEngine(CheckpointEngine):
         Only rank 0 saves the state dict into the storage.
 
         Args:
-            step (int): the iteration step.
+            step (int): the global iteration step.
             state_dict (dict): the state dict of model and optimizer to save.
-            path (str): the storage path to save the state dict.
-                Note, the ckpt_name is used to save the state dict to storage
-                only if the training process fails.
+            paths (dict): the key is a category in
+                ["model_states", "optim_states"] of the state dict and
+                the value is the path of storage to save.
         """
         if self._local_rank != 0:
             return
-        if not path:
-            name = f"{CheckpointConstant.CKPT_NAME_PREFIX}{step}.pt"
-            path = os.path.join(self.checkpoint_dir, name)
         if step > self._cached_step:
-            self.save_to_memory(step, state_dict, path)
+            self.save_to_memory(step, state_dict, paths)
         event = CheckpointEvent(type=CheckpointEventType.SAVE, step=step)
 
         # Only rank 0 persist the checkpoint to the storage.
@@ -126,8 +143,14 @@ class DdpCheckpointEngine(CheckpointEngine):
         state_dict = self.get_state_dict_from_memory()
         if state_dict:
             logger.info("Load the state dict from the CPU memory buffer.")
-            state_dict.pop(DLROVER_CKPT_CONFIG_KEY, None)
-            return state_dict
+            paths = list(state_dict.keys())
+            if len(paths) > 1:
+                raise ValueError(
+                    "The checkpoint shared memory must has only the"
+                    f"state dict of one path. Now, paths are {paths}"
+                )
+            path = paths[0]
+            return state_dict[path]
         state_dict = self._load_from_storage(resume_path)
         return state_dict
 
@@ -149,22 +172,24 @@ class DdpCheckpointEngine(CheckpointEngine):
         """
         state_dict = {}
         if resume_path:
-            state_dict = torch.load(resume_path, map_location="cpu")
+            state_dict = self.storage.read_state_dict(
+                resume_path,
+                read_func=lambda path: torch.load(path, map_location="cpu"),
+            )
             return state_dict
         else:
             tracker_filename = os.path.join(
                 self.checkpoint_dir, CheckpointConstant.TRACER_FILE_NAME
             )
-            if not os.path.exists(tracker_filename):
+            content: str = self.storage.read(tracker_filename)
+            if not content:
                 return state_dict
-            with open(tracker_filename, "r") as f:
-                metastring = f.read().strip()
-            iteration = int(metastring)
+            iteration = int(content.strip())
             name = f"{CheckpointConstant.CKPT_NAME_PREFIX}{iteration}.pt"
             path = os.path.join(self.checkpoint_dir, name)
-            if not os.path.exists(path):
-                logger.warning(f"Checkpoint path {path} is not exist.")
-                return state_dict
             logger.info(f"Load the state dict from {path}")
-            state_dict = torch.load(path, map_location="cpu")
+            state_dict = self.storage.read_state_dict(
+                path,
+                read_func=lambda path: torch.load(path, map_location="cpu"),
+            )
             return state_dict

@@ -1,5 +1,6 @@
 import collections
 import copy
+import types
 from functools import partialmethod, wraps
 
 import torch
@@ -7,6 +8,7 @@ from fairscale.nn.data_parallel import ShardedDataParallel as ShardedDDP
 from torch.cuda.amp import GradScaler, autocast
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 
+import atorch
 from atorch.distributed.distributed import parallel_group
 from atorch.utils.grad_scaler import BF16GradScaler, BF16ShardedGradScaler
 from atorch.utils.version import torch_version
@@ -16,7 +18,6 @@ if torch_version() >= (1, 12, 0):
 
 else:
     from fairscale.optim.grad_scaler import ShardedGradScaler
-
 
 from atorch.auto.auto_accelerate_context import AutoAccelerateContext
 from atorch.auto.opt_lib.optimization import Optimization
@@ -166,3 +167,202 @@ class AmpNativeOptimizer(torch.optim.Optimizer):
 
     def __setstate__(self, state):
         return self.optimizer.__setstate__(state)
+
+
+# RNG tracker object with lazy init.
+_CUDA_RNG_STATE_TRACKER = None
+
+
+def get_cuda_rng_tracker():
+    global _CUDA_RNG_STATE_TRACKER
+    if _CUDA_RNG_STATE_TRACKER is None:
+        from transformer_engine.pytorch.distributed import CudaRNGStatesTracker
+
+        _CUDA_RNG_STATE_TRACKER = CudaRNGStatesTracker()
+    return _CUDA_RNG_STATE_TRACKER
+
+
+def is_fp8_available():
+    if not torch.cuda.is_available():
+        return False
+    # GPU sm version >= 8.9 (Ada, Hopper, etc)
+    device_capability = torch.cuda.get_device_capability()
+    return isinstance(device_capability, tuple) and device_capability >= (8, 9)
+
+
+class Fp8Optimization(Optimization):
+    def __init__(self):
+        super().__init__("fp8", "amp", False)
+
+    def tune(self, model_context, config=None, strategy=None, apply_transform=True, time_limit=None):
+        if apply_transform:
+            model_context = self.transform(model_context, config)
+        return True, config, model_context
+
+    def transform(self, model_context, config=None):
+        if not is_fp8_available():
+            logger.warning("No fp8-capable devices available, fp8 optimization is ignored!")
+            return model_context
+
+        model_context.add_wrapper("fp8", Fp8Optimization.apply_wrapper, config, is_pre_wrapper=True)
+        return model_context
+
+    @staticmethod
+    def apply_wrapper(model_context, wrapper_name, wrapper_config=None):
+        """config:
+        include: List[str], default None.
+            If None, all nn.Linear module would use te.
+            If not None, nn.Linear module's name should have at least one substring equals to items in include.
+        exclude: List[str], default None.
+            If None, all modules that passing include test would use te.
+            If not None, if a nn.Linear module's name has at least one substring matches exclude, it will not use te.
+        recipe.DelayedScaling's parameter:
+            margin: default 0
+            interval: default 1
+            fp8_format: "HYBRID" (default) or "E4M3"
+            amax_history_len: default 1024
+            amax_compute_algo: “max” (default) or “most_recent”
+            reduce_amax: default True
+        """
+        import transformer_engine.pytorch as te
+        from transformer_engine.common import recipe
+        from transformer_engine.pytorch.utils import check_dim_for_fp8_exec
+
+        config = {} if wrapper_config is None else wrapper_config
+        include = config.get("include", None)
+        exclude = config.get("exclude", None)
+        margin = config.get("margin", 0)
+        interval = config.get("interval", 1)
+        fp8_format = config.get("fp8_format", "HYBRID").upper()
+        amax_history_len = config.get("amax_history_len", 1024)
+        amax_compute_algo = config.get("amax_compute_algo", "max")
+        reduce_amax = config.get("reduce_amax", True)
+        if fp8_format == "HYBRID":
+            fp8_format_type = recipe.Format.HYBRID
+        elif fp8_format == "E4M3":
+            fp8_format_type = recipe.Format.E4M3
+        else:
+            raise f"fp8_format only supports HYBRID and E4M3, not {fp8_format}"
+        verbose = config.get("verbose", False)
+
+        def check_if_replace(key, module, m_include, m_exclude):
+            # return (if_replace, if_excluded, if_shape_incompatible)
+            if not isinstance(module, torch.nn.Linear):
+                return False, False, False
+            pass_check = False
+            if m_exclude is not None:
+                for name in m_exclude:
+                    if name in key:
+                        return False, True, False
+            if m_include is not None:
+                for name in m_include:
+                    if name in key:
+                        pass_check = True
+                        break
+                if not pass_check:
+                    return False, False, False
+            # Backward computation would use transposed weight, so also check transposed weight shape.
+            transposed_shape = torch.Size(
+                [module.weight.shape[1], module.weight.shape[0]] + list(module.weight.shape[2:])
+            )
+            backward_weight = torch.empty(transposed_shape, device="meta")
+            if check_dim_for_fp8_exec(module.weight) and check_dim_for_fp8_exec(backward_weight):
+                return True, False, False
+            else:
+                return False, False, True
+
+        def get_te_module(module):
+            config = {}
+            new_module = None
+            if isinstance(module, torch.nn.Linear):
+                config["in_features"] = module.in_features
+                config["out_features"] = module.out_features
+                config["bias"] = hasattr(module, "bias") and module.bias is not None
+                config["params_dtype"] = module.weight.dtype
+                config["device"] = module.weight.device
+                new_module = te.Linear(**config)
+                with torch.no_grad():
+                    new_module.weight.copy_(module.weight)
+                    if hasattr(module.weight, "checkpoint_name"):
+                        value = getattr(module.weight, "checkpoint_name")
+                        setattr(new_module.weight, "checkpoint_name", value)
+                    if config["bias"]:
+                        new_module.bias.copy_(module.bias)
+                        if hasattr(module.bias, "checkpoint_name"):
+                            value = getattr(module.bias, "checkpoint_name")
+                            setattr(new_module.bias, "checkpoint_name", value)
+            return new_module
+
+        def replace_module_with_te(model, m_include, m_exclude):
+            replaced_num = 0
+            exclude_num = 0
+            shape_incompatible_num = 0
+            for key, module in model.named_modules():
+                if_replace, if_exclude, if_shape_incompatible = check_if_replace(key, module, m_include, m_exclude)
+                if if_replace:
+                    new_module = get_te_module(module)
+                    parent = model.get_submodule(".".join(key.split(".")[:-1]))
+                    target_name = key.split(".")[-1]
+                    setattr(parent, target_name, new_module)
+                    replaced_num += 1
+                    if verbose and atorch.local_rank() in (0, None):
+                        logger.info(f"Replacing {key} with te.Linear.")
+                if if_exclude:
+                    exclude_num += 1
+                if if_shape_incompatible:
+                    shape_incompatible_num += 1
+            return replaced_num, exclude_num, shape_incompatible_num
+
+        # step 1: replace linear with te.Linear
+        te_module_num, te_exclude_num, te_shape_incompatible_num = replace_module_with_te(
+            model_context.model, include, exclude
+        )
+        if te_module_num == 0:
+            logger.warning(
+                "No modules are using fp8, {} excluded, {} shape incompatible".format(
+                    te_exclude_num, te_shape_incompatible_num
+                )
+            )
+            return model_context
+        else:
+            logger.info(
+                "[fp8] {} modules replaced by te.Linear, {} excluded, {} shape incompatible".format(
+                    te_module_num, te_exclude_num, te_shape_incompatible_num
+                )
+            )
+
+        # step 2: fp8_autocast forward, loss_func
+        fp8_recipe = recipe.DelayedScaling(
+            margin=margin,
+            interval=interval,
+            fp8_format=fp8_format_type,
+            amax_history_len=amax_history_len,
+            amax_compute_algo=amax_compute_algo,
+            reduce_amax=reduce_amax,
+        )
+
+        ori_forward_func = model_context.model.forward
+
+        def fp8_run_method(self, *args, **kargs):
+            # TODO: set fp8_group properly if reduce_amax is True and tp is used
+            with te.fp8_autocast(enabled=True, fp8_recipe=fp8_recipe):
+                return ori_forward_func(*args, **kargs)
+
+        model_context.model.forward = types.MethodType(fp8_run_method, model_context.model)
+
+        if model_context.loss_func is not None:
+            old_loss_func = model_context.loss_func
+
+            def fp8_run(*args, **kargs):
+                with te.fp8_autocast(enabled=True, fp8_recipe=fp8_recipe):
+                    return old_loss_func(*args, **kargs)
+
+            model_context.loss_func = fp8_run
+
+        # step 3: record fp8_enabled for checkpoint optimization
+        if hasattr(AutoAccelerateContext, "fp8_enabled"):
+            AutoAccelerateContext.fp8_enabled.update({AutoAccelerateContext.counter: True})
+        else:
+            AutoAccelerateContext.add_ac_attr("fp8_enabled", {AutoAccelerateContext.counter: True})
+
+        return model_context

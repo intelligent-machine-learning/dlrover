@@ -60,7 +60,7 @@ We can use the FSDP strategy to pretrain when we have GPUs and only
 use the command in the containers of worker.
 
 ```bash
-dlrover-run --nnodes=$WORKER_NUM \
+dlrover-run --nnodes=$NODE_NUM \
     --nproc_per_node=${GPU_NUM_PER_NODE} --max_restarts=1  \
     ./examples/pytorch/nanogpt/fsdp_train.py  \
     --data_dir '/data/nanogpt/' --epochs 50 --checkpoint_step 50 \

@@ -381,7 +381,12 @@ def _reload_meta_parameter(module, tensor_name, device, value=None, ckpt_name=No
             kwargs = module._parameters[tensor_name].__dict__
             if "checkpoint_name" in kwargs:
                 del kwargs["checkpoint_name"]
-            new_value = param_cls(new_value, requires_grad=old_value.requires_grad, **kwargs).to(device)
+            if param_cls == torch.nn.parameter.Parameter:
+                new_value = param_cls(new_value, requires_grad=old_value.requires_grad).to(device)
+                for name in kwargs:
+                    setattr(new_value, name, kwargs[name])
+            else:
+                new_value = param_cls(new_value, requires_grad=old_value.requires_grad, **kwargs).to(device)
             if ckpt_name is not None:
                 setattr(new_value, "checkpoint_name", ckpt_name)
             module._parameters[tensor_name] = new_value

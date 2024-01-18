@@ -1,7 +1,13 @@
 import logging
 import os
+from importlib.metadata import version
 
 from .distributed.distributed import coworker_size, init_distributed, local_rank, rank, reset_distributed, world_size
+
+try:
+    __version__ = version("atorch")
+except ImportError:
+    __version__ = "0.0.1dev"
 
 os.environ["PIPPY_PIN_DEVICE"] = "0"
 

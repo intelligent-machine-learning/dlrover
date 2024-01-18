@@ -23,7 +23,7 @@ pip install -r examples/pytorch/llama2/requirements.txt
 Then, we can use `dlrover-run` to start the training by
 
 ```bash
-dlrover-run --standalone --nproc_per_node=${GPU_NUM} examples/pytorch/llama2/llama_ft.py 
+dlrover-run --nproc_per_node=${GPU_NUM} examples/pytorch/llama2/llama_ft.py 
 ```
 
 `GPU_NUM` is the number of GPUs on the node.

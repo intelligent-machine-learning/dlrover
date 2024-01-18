@@ -383,8 +383,8 @@ class ModelContext(object):
 
         # model must on cuda device before calling OSS (zero2)
         if "zero2" in self.post_wrappers or "ds_zero" in self.post_wrappers:
-            model_device = next(self.model.parameters()).device
-            if torch.cuda.is_available() and model_device.type != "cuda":
+            is_cuda = next(self.model.parameters()).is_cuda
+            if torch.cuda.is_available() and not is_cuda:
                 if local_rank() is not None:
                     device = torch.device(type="cuda", index=local_rank())
                 else:
@@ -430,9 +430,9 @@ class ModelContext(object):
             and "fsdp" not in self.pre_wrappers
             and "ds_3d_parallel" not in self.post_wrappers
         ):
-            model_device = next(self.model.parameters()).device
+            is_cuda = next(self.model.parameters()).is_cuda
             # model must on cuda device before calling BF16Optimizer
-            if torch.cuda.is_available() and model_device.type != "cuda":
+            if torch.cuda.is_available() and not is_cuda:
                 if local_rank() is not None:
                     device = torch.device(type="cuda", index=local_rank())
                 else:
@@ -480,11 +480,26 @@ class ModelContext(object):
         else:
             self.post_wrapper_applied = True
 
-    # Order of execution:
-    # Pipe (with amp, to graph only) -> TP -> Checkpoint (if not Pipe)
-    # -> module replace -> amp (if no Pipe) -> Pipe (to driver)
     def adjust_wrappers(self):
-        """Adjust wrappers, remove incompatible wrappers"""
+        """Adjust wrappers, remove incompatible wrappers.
+        pre-wrapper order:
+         - half
+         - module_replace
+         - fp8
+         - fsdp
+         - native_dynamo (if not moved to post-wrapper)
+         post-wrapper list (no order):
+         - zero2
+         - ds_zero
+         - amp_native (ignored if half exists)
+         - checkpoint
+         - ds_3d_parallel
+         - ddp
+        """
+        if "amp_native" in self.post_wrappers and "half" in self.pre_wrappers:
+            logger.info("Both half and amp_native are used, amp_native is removed.")
+            self.post_wrappers.pop("amp_native")
+
         # Pipeline parallelism is conditionally compatible with tensor parallel compilation.
         # To mix pipe and tp, use MixedParallelOptimization instead.
         # We assume MP does not coexists with Pipe/TP
@@ -494,8 +509,6 @@ class ModelContext(object):
             logger.info("Found pipe wrapper, remove all ddp related wrappers")
             if "zero2" in self.pre_wrappers:
                 self.pre_wrappers.pop("zero2")
-            if "zero1" in self.pre_wrappers:
-                self.pre_wrappers.pop("zero1")
             if "fsdp" in self.pre_wrappers:
                 self.pre_wrappers.pop("fsdp")
 
@@ -504,6 +517,9 @@ class ModelContext(object):
                 self.post_wrappers.pop("ddp")
 
         if pipe_wrapper_exist:
+            # Order of execution:
+            # Pipe (with amp, to graph only) -> TP -> Checkpoint (if not Pipe)
+            # -> module replace -> amp (if no Pipe) -> Pipe (to driver)
             if "checkpoint" in self.post_wrappers:
                 ckpt_wrapper = self.post_wrappers.pop("checkpoint")
                 pipe_config = self.pre_wrappers["pipe"][1] or {}
@@ -597,36 +613,20 @@ class ModelContext(object):
                 config,
             )
 
-        # move dynamo_native wrapper behind ddp or fsdp
+        # move dynamo_native wrapper behind ddp or fsdp (fsdp will adjusted later)
         # Note that dynamo_native wrapper and fsdp wrapper are pre-wrappers while ddp wrapper is a post-wrapper.
-        if native_dynamo_wrapper_exist:
-            if fsdp_wrapper_exist:
-                # both dynamo_native wrapper and fsdp wrapper are pre-wrappers
-                native_dynamo_wrapper_index, fsdp_wrapper_index = -1, -1
-                pre_wrappers_list = []
-                for i, (wrapper_name, v) in enumerate(self.pre_wrappers.items()):
-                    pre_wrappers_list.append((wrapper_name, v))
-                    if wrapper_name == "fsdp":
-                        fsdp_wrapper_index = i
-                    elif wrapper_name == "native_dynamo":
-                        native_dynamo_wrapper_index = i
-                if native_dynamo_wrapper_index < fsdp_wrapper_index:
-                    native_dynamo_wrapper = pre_wrappers_list[native_dynamo_wrapper_index]
-                    pre_wrappers_list.insert(fsdp_wrapper_index + 1, native_dynamo_wrapper)
-                    pre_wrappers_list.pop(native_dynamo_wrapper_index)
-                self.pre_wrappers = dict(pre_wrappers_list)
-            elif ddp_wrapper_exist:
-                # ddp wrapper is a post-wrapper. Popping dynamo_native wrapper from pre-wrappers
-                # then insert it after ddp wrapper.
-                post_wrappers_list = []
-                ddp_wrapper_index = -1
-                for i, (wrapper_name, v) in enumerate(self.post_wrappers.items()):
-                    post_wrappers_list.append((wrapper_name, v))
-                    if wrapper_name == "ddp":
-                        ddp_wrapper_index = i
-                    native_dynamo_wrapper = self.pre_wrappers.pop("native_dynamo")
-                    post_wrappers_list.insert(ddp_wrapper_index + 1, ("native_dynamo", native_dynamo_wrapper))
-                self.post_wrappers = dict(post_wrappers_list)
+        if native_dynamo_wrapper_exist and ddp_wrapper_exist and not fsdp_wrapper_exist:
+            # ddp wrapper is a post-wrapper. Popping dynamo_native wrapper from pre-wrappers
+            # then insert it after ddp wrapper.
+            post_wrappers_list = []
+            ddp_wrapper_index = -1
+            for i, (wrapper_name, v) in enumerate(self.post_wrappers.items()):
+                post_wrappers_list.append((wrapper_name, v))
+                if wrapper_name == "ddp":
+                    ddp_wrapper_index = i
+                native_dynamo_wrapper = self.pre_wrappers.pop("native_dynamo")
+                post_wrappers_list.insert(ddp_wrapper_index + 1, ("native_dynamo", native_dynamo_wrapper))
+            self.post_wrappers = dict(post_wrappers_list)
 
         if tensor_parallel_wrapper_exist:
             wrap_cls = None
@@ -700,6 +700,24 @@ class ModelContext(object):
 
                 _insert_amp_config_for_tp_ckpt(amp_config)
 
+        # adjust pre_wrapper order
+        order_wrapper_name = ["half", "module_replace", "fp8", "fsdp", "native_dynamo"]
+        match_names = []
+        for name in self.pre_wrappers:
+            if name in order_wrapper_name:
+                match_names.append(name)
+        if len(order_wrapper_name) > 1:
+            ordered_wrappers = {}
+            for name in self.pre_wrappers:
+                if name not in match_names:
+                    ordered_wrappers[name] = self.pre_wrappers[name]
+                else:
+                    for wrapper_name in order_wrapper_name:
+                        if wrapper_name in match_names:
+                            match_names.remove(wrapper_name)
+                            ordered_wrappers[wrapper_name] = self.pre_wrappers[wrapper_name]
+            self.pre_wrappers = ordered_wrappers
+
     def add_wrapper(self, wrapper_name, wrapper_func, wrapper_config=None, is_pre_wrapper=True):
         """
         wrapper_name: name of the wrapper
@@ -731,7 +749,7 @@ class ModelContext(object):
         if self.check_pipe_model():
             return True
         for p in self.model.parameters():
-            if p.device.type == "cuda":
+            if p.is_cuda:
                 return True
         return False
 

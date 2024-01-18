@@ -25,6 +25,7 @@ from torch.distributed.elastic.rendezvous import RendezvousParameters
 from torch.distributed.launcher.api import LaunchConfig
 
 from dlrover.python.common.constants import ConfigPath, RendezvousName
+from dlrover.python.common.storage import PosixDiskStorage
 from dlrover.python.elastic_agent.master_client import (
     MasterClient,
     build_master_client,
@@ -284,7 +285,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             start_method=self.config.start_method,
             log_dir=self.config.log_dir,
         )
-        saver = DdpCheckpointSaver("/tmp/test")
+        saver = DdpCheckpointSaver("/tmp/test", PosixDiskStorage())
         AsyncCheckpointSaver._saver_instance = saver
         agent._save_ckpt_to_storage()
         agent._stop_workers_to_restart()

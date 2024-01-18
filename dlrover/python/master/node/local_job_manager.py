@@ -55,11 +55,14 @@ class LocalJobManager(JobManager):
 
     def start(self):
         self._job_nodes[NodeType.WORKER] = {}
-        self._job_nodes[NodeType.WORKER][0] = Node(
-            node_type=NodeType.WORKER,
-            node_id=0,
-            status=NodeStatus.RUNNING,
-        )
+        worker = self._job_args.node_args[NodeType.WORKER].group_resource
+        for i in range(worker.count):
+            self._job_nodes[NodeType.WORKER][i] = Node(
+                name=NodeType.WORKER + f"-{i}",
+                node_type=NodeType.WORKER,
+                node_id=i,
+                status=NodeStatus.RUNNING,
+            )
 
     def early_stop(self):
         return False

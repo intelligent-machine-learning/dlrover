@@ -116,7 +116,7 @@ def get_model(model_type, config):
         return model
 
     # llms
-    hidden_size = config["hiddien_size"]
+    hidden_size = config["hidden_size"]
     head_num = config["head_num"]
     layer_num = config["layer_num"]
     seq_length = config["seq_length"]

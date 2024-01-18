@@ -17,7 +17,7 @@ import os
 import pickle
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Tuple, Union
+from typing import Any, Dict, List, Tuple, Union
 
 import torch
 import torch.distributed as dist
@@ -51,11 +51,11 @@ from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.multi_process import SharedMemory
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     DLROVER_CKPT_CONFIG_KEY,
+    CheckpointConfig,
     CheckpointEvent,
     CheckpointEventType,
     FsdpDcpSaver,
     SharedMemoryHandler,
-    SingleFileCheckpointConfig,
 )
 
 from .engine import (
@@ -170,7 +170,7 @@ class SharedMemoryWriter(StorageWriter):
         super().__init__()
         self.file_name = ""
         self.shm_handler = shm_handler
-        self.metadata: Dict[str, object] = {}
+        self.metadata: Dict[str, Any] = {}
 
     def set_up_storage_writer(self, is_coordinator: bool) -> None:
         pass
@@ -419,13 +419,13 @@ class FsdpCheckpointEngine(CheckpointEngine):
     and storage.
     """
 
-    def __init__(self, checkpoint_dir: str):
-        super().__init__(checkpoint_dir)
+    def __init__(self, checkpoint_dir: str, storage):
+        super().__init__(checkpoint_dir, storage)
         self._shm_writer = SharedMemoryWriter(shm_handler=self._shm_handler)
         self._shm_reader = SharedMemoryReader(self._shm_handler)
 
     @timer
-    def save_to_memory(self, step, state_dict, path=""):
+    def save_to_memory(self, step, state_dict, paths: Dict[str, str]):
         """
         Synchronously Saves the state dict into the shared memory with the main
         process. If the agent in the main process is saving the shared memory
@@ -443,11 +443,6 @@ class FsdpCheckpointEngine(CheckpointEngine):
         if self._local_rank != self.local_shard_id:
             return
 
-        conf = SingleFileCheckpointConfig(
-            step=step,
-            path=path,
-        )
-
         acquired = self._shm_lock.acquire(blocking=False)
         all_rank_ready = check_all_rank_ready(self._saver_group, acquired)
         if not all_rank_ready:
@@ -460,6 +455,7 @@ class FsdpCheckpointEngine(CheckpointEngine):
                 self._shm_lock.release()
             return
 
+        conf = CheckpointConfig(step=step)
         conf.writing_shm = True
         dist_cp.save_state_dict(
             state_dict=state_dict,
@@ -469,12 +465,13 @@ class FsdpCheckpointEngine(CheckpointEngine):
         # Broadcast dcp metadata and no sharding data to all ranks
         # and all ranks can restore the state dict from the CPU
         # memory with those metada.
-
         bcast_list = [self._shm_writer.metadata]
         dist.broadcast_object_list(bcast_list, src=0)
         self._shm_writer.metadata = bcast_list[0]
 
-        conf.path = os.path.join(path, self._shm_writer.file_name)
+        model_sd_name = CheckpointConstant.MODEL_STATES_NAME
+        path = os.path.join(paths[model_sd_name], self._shm_writer.file_name)
+        conf.paths = {model_sd_name: path}
         meta_dict = {DLROVER_CKPT_CONFIG_KEY: conf}
         meta_dict.update(self._shm_writer.metadata)
         self._shm_handler.metadata.set(meta_dict)
@@ -485,24 +482,21 @@ class FsdpCheckpointEngine(CheckpointEngine):
         if dist.is_initialized():
             dist.barrier(group=self._saver_group)
 
-    def save_to_storage(self, step, state_dict, path):
+    def save_to_storage(self, step, state_dict, paths: Dict[str, str]):
         """
         Save the state_dict into the path of storage.
 
         Args:
             step (int): the iteration step.
             state_dict (dict): the state dict of model and optimizer to save.
-            path (str): optional, the file path to save the checkpoint. If the
-                path is not defined, the engine will save the state dict into
-                the shared memory not the storage.
         """
         if step > self._cached_step:
-            self.save_to_memory(step, state_dict, path)
+            self.save_to_memory(step, state_dict, paths)
 
         # Only local rank 0 on each node notifies the event to save.
         if self._local_rank != 0:
             return
-        if path:
+        if paths:
             logger.info(
                 "Put a save event to notify the agent persists checkpoint."
             )
@@ -534,7 +528,7 @@ class FsdpCheckpointEngine(CheckpointEngine):
             resume_path (str): the resuming path to load the
                 checkpointing state dict from the storage.
         """
-        default_config = SingleFileCheckpointConfig()
+        default_config = CheckpointConfig()
         config = self._shm_handler.get_checkpoint_config(default_config)
         step = config.step
         passed = verify_all_rank_step_consistent(self._saver_group, step)

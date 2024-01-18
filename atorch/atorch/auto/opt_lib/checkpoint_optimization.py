@@ -113,37 +113,64 @@ class CheckpointOptimization(Optimization):
                     checkpoint_wrapper,
                 )
 
-                # check by signature of func
-                params = inspect.signature(checkpoint_wrapper).parameters
-                need_patch = params["checkpoint_impl"].default != CheckpointImpl.NO_REENTRANT
-
-                assert other_config is not None  # for mypy
-                # default to `need_patch`
-                no_reentrant = other_config.pop("no_reentrant", need_patch)
-                selective_offload = other_config.pop("selective_offload", None)
-                checkpoint_impl = CheckpointImpl.NO_REENTRANT if no_reentrant else CheckpointImpl.REENTRANT
-                checkpoint_wrapper_fn_kwargs = {"checkpoint_impl": checkpoint_impl}
-                if selective_offload is not None:
-                    if checkpoint_impl == CheckpointImpl.REENTRANT:
-                        raise ValueError("selective offloading don't support `CheckpointImpl.REENTRANT`")
-                    if "offload_args" not in selective_offload or "num_layers" not in selective_offload:
-                        raise ValueError("`offload_args` or `num_layers` is not passed")
-
-                    from .selective_offloading_checkpoint import (
-                        OffloadOpManagerArgs,
-                        get_selective_offloading_checkpoint_modes,
-                    )
-
-                    args = [OffloadOpManagerArgs(*arg) for arg in selective_offload["offload_args"]]
-                    num_layers = selective_offload["num_layers"]
-                    context_fn = get_selective_offloading_checkpoint_modes(args, num_layers)
-                    checkpoint_wrapper_fn_kwargs["context_fn"] = context_fn
-                    logger.info(f"selective_offloading_checkpoint is on, {selective_offload}")
-
-                checkpoint_wrapper_fn = partial(checkpoint_wrapper, **checkpoint_wrapper_fn_kwargs)
-                apply_activation_checkpointing = partial(
-                    apply_activation_checkpointing, checkpoint_wrapper_fn=checkpoint_wrapper_fn
+                fp8_enabled = hasattr(AutoAccelerateContext, "fp8_enabled") and AutoAccelerateContext.fp8_enabled.get(
+                    AutoAccelerateContext.counter, False
                 )
+
+                if fp8_enabled:
+                    # use te checkpoint
+                    from transformer_engine.pytorch.distributed import CudaRNGStatesTracker
+                    from transformer_engine.pytorch.distributed import checkpoint as te_checkpoint
+
+                    # patch te checkpoint to support non-tensor inputs/outputs
+                    from atorch.utils.patch_te import patch_te
+
+                    patch_te()
+
+                    _CUDA_RNG_STATE_TRACKER = CudaRNGStatesTracker()
+
+                    def get_cuda_rng_tracker():
+                        return _CUDA_RNG_STATE_TRACKER
+
+                    def te_checkpoint_func(m, *args, **kargs):
+                        return te_checkpoint(m, False, get_cuda_rng_tracker, None, *args, **kargs)
+
+                    checkpoint_wrapper_fn = partial(checkpoint_wrapper, checkpoint_fn=te_checkpoint_func)
+                    apply_activation_checkpointing = partial(
+                        apply_activation_checkpointing, checkpoint_wrapper_fn=checkpoint_wrapper_fn
+                    )
+                else:
+                    # check by signature of func
+                    params = inspect.signature(checkpoint_wrapper).parameters
+                    need_patch = params["checkpoint_impl"].default != CheckpointImpl.NO_REENTRANT
+
+                    assert other_config is not None  # for mypy
+                    # default to `need_patch`
+                    no_reentrant = other_config.pop("no_reentrant", need_patch)
+                    selective_offload = other_config.pop("selective_offload", None)
+                    checkpoint_impl = CheckpointImpl.NO_REENTRANT if no_reentrant else CheckpointImpl.REENTRANT
+                    checkpoint_wrapper_fn_kwargs = {"checkpoint_impl": checkpoint_impl}
+                    if selective_offload is not None:
+                        if checkpoint_impl == CheckpointImpl.REENTRANT:
+                            raise ValueError("selective offloading don't support `CheckpointImpl.REENTRANT`")
+                        if "offload_args" not in selective_offload or "num_layers" not in selective_offload:
+                            raise ValueError("`offload_args` or `num_layers` is not passed")
+
+                        from .selective_offloading_checkpoint import (
+                            OffloadOpManagerArgs,
+                            get_selective_offloading_checkpoint_modes,
+                        )
+
+                        args = [OffloadOpManagerArgs(*arg) for arg in selective_offload["offload_args"]]
+                        num_layers = selective_offload["num_layers"]
+                        context_fn = get_selective_offloading_checkpoint_modes(args, num_layers)
+                        checkpoint_wrapper_fn_kwargs["context_fn"] = context_fn
+                        logger.info(f"selective_offloading_checkpoint is on, {selective_offload}")
+
+                    checkpoint_wrapper_fn = partial(checkpoint_wrapper, **checkpoint_wrapper_fn_kwargs)
+                    apply_activation_checkpointing = partial(
+                        apply_activation_checkpointing, checkpoint_wrapper_fn=checkpoint_wrapper_fn
+                    )
             except ImportError:
                 logger.warning("Checkpoint not supported, thus ignored!")
                 return model_context
