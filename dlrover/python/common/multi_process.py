@@ -38,9 +38,11 @@ def retry_socket(func):
     def wrapper(self, *args, **kwargs):
         retry = kwargs.get("retry", 30)
         succeed = False
-        for _ in range(retry):
+        for i in range(retry):
             try:
-                return func(self, *args, **kwargs)
+                result = func(self, *args, **kwargs)
+                succeed = True
+                return result
             except (FileNotFoundError, ConnectionRefusedError):
                 time.sleep(1)
         if not succeed:
