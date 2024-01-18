@@ -11,12 +11,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import timedelta
-
 import torch.distributed as dist
 
 from dlrover.python.common import env_utils
-from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     CheckpointConfig,
     CheckpointEvent,
@@ -61,16 +58,8 @@ class MegatronCheckpointEngine(CheckpointEngine):
             self._tp_world_size = 1
 
         super().__init__(checkpoint_dir, storage)
-        if dist.is_initialized():
-            saver_ranks = self._get_saver_ranks()
-            logger.info(f"Saver ranks of Megatron-LM are {saver_ranks}")
-            self._saver_group = dist.new_group(
-                ranks=saver_ranks,
-                backend="gloo",
-                timeout=timedelta(seconds=30),
-            )
 
-    def _get_saver_ranks(self):
+    def get_saving_ranks(self):
         """
         Get the ranks which need to save the sharding state dict into
         the memory.
