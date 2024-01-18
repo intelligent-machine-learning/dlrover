@@ -61,9 +61,9 @@ def run_rank_sync(rank, ranks, world_size, master_port):
     group = dist.new_group(ranks=ranks, backend="gloo")
     ready = check_all_rank_ready(group, True)
     passed = verify_all_rank_step_consistent(group, 10)
+    dist.destroy_process_group()
     if not ready or not passed:
         raise ValueError("Async fails.")
-    dist.destroy_process_group()
 
 
 class SimpleNet(nn.Module):
