@@ -49,7 +49,11 @@ def check_all_rank_ready(group: dist.ProcessGroup, ready):
     value = 0 if ready else 1
     t = torch.tensor([value], dtype=torch.int32).to(device)
     dist.all_reduce(t, group=group)
-    return t == 0
+    ready = t == 0
+    del t
+    if "cuda" in device:
+        torch.cuda.empty_cache()
+    return ready
 
 
 def verify_all_rank_step_consistent(group: dist.ProcessGroup, step):
@@ -65,10 +69,14 @@ def verify_all_rank_step_consistent(group: dist.ProcessGroup, step):
     world_size = group.size()
     outputs = [torch.tensor([0.0]) for _ in range(world_size)]
     dist.all_gather(outputs, t, group=group)
+    succeed = True
     for step in outputs:
         if not torch.equal(step, outputs[0]):
-            return False
-    return True
+            succeed = False
+    del t, outputs
+    if "cuda" in device:
+        torch.cuda.empty_cache()
+    return succeed
 
 
 def timer(func):
