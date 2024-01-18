@@ -124,6 +124,20 @@ class PodScalerTest(unittest.TestCase):
         self.assertEqual(pod.spec.volumes[0].name, "pvc-nas")
         self.assertEqual(len(main_container.volume_mounts), 1)
 
+        scaler._distribution_strategy = DistributionStrategy.ALLREDUCE
+        node = Node(NodeType.WORKER, 0, resource, rank_index=0)
+        pod = scaler._create_pod(node, pod_stats, [])
+        main_container = pod.spec.containers[0]
+        world_size = -1
+        rank = -1
+        for env in main_container.env:
+            if env.name == "WORLD_SIZE":
+                world_size = int(env.value)
+            elif env.name == "RANK":
+                rank = int(env.value)
+        self.assertEqual(world_size, 2)
+        self.assertEqual(rank, 0)
+
     def test_create_service(self):
         scaler = PodScaler("elasticjob-sample", "default")
         scaler.start()

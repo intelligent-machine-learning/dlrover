@@ -129,10 +129,13 @@ class DeepSpeedCheckpointTest(unittest.TestCase):
                 tmpdirname, str(step), storage_type=StorageType.DISK
             )
             # Wait asynchronously saving.
+            start = time.time()
             while True:
                 if "100" in os.listdir(tmpdirname):
                     break
                 time.sleep(0.1)
+                if time.time() - start > 10:
+                    break
 
             with open(tracer_file, "r") as f:
                 restored_step = int(f.read())

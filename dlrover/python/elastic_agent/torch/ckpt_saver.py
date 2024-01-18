@@ -918,11 +918,9 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
 
                 # commit checkpoint
                 shutil.move(tmp_path, target_path)
-
-                self.update_tracker_file(step)
-
                 # clean stage dir
                 shutil.rmtree(step_done_dir)
+                self.update_tracker_file(step)
                 logger.info(
                     f"Commit checkpoint tmp_path: {tmp_path}, "
                     f"path: {target_path}"
