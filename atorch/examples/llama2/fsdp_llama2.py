@@ -206,8 +206,8 @@ def main():
     if args.gradient_checkpointing:
         strategy.append(("checkpoint", (LlamaDecoderLayer,)))
     if args.fp8:
-        if args.peft_type is not None and args.gradient_checkpointing:
-            logger.warning("fp8 with gradient checkpointing not supported for lora training yet.")
+        if args.peft_type is not None:
+            logger.warning("fp8 ignored as fp8 for lora training is not implemented yet.")
         else:
             strategy.append(("fp8", {"include": ("layers",)}))
     status, result, best_strategy = auto_accelerate(

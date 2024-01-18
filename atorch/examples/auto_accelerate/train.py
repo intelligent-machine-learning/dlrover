@@ -93,7 +93,7 @@ def train(args):
         seq_length=args.seq_length,
         input_size=args.in_size,
         output_size=args.out_size,
-        datasize=args.datasize
+        datasize=args.datasize,
     )
     dataloader_args = get_dataloader_args(model_type, batch_size=args.batchsize)
 
@@ -129,11 +129,12 @@ def train(args):
             if model_type == ModelType.LLAMA:
                 strategy.append(("fp8", {"include": ("layers",)}))
             elif model_type == ModelType.TOY:
-                if args.in_size % 16 !=0 or args.out_size % 16 !=0 or args.batchsize % 16 != 0:
+                if args.in_size % 16 != 0 or args.out_size % 16 != 0 or args.batchsize % 16 != 0:
                     print(
-                        "fp8 is ignored. To use fp8 for toy model, " +
-                        "in_size({}), out_size({}) and batchsize({}) must be multiples of 16!".format(
-                        args.in_size, args.out_size, args.batchsize)
+                        "fp8 is ignored. To use fp8 for toy model, "
+                        + "in_size({}), out_size({}) and batchsize({}) must be multiples of 16!".format(
+                            args.in_size, args.out_size, args.batchsize
+                        )
                     )
                 else:
                     strategy.append("fp8")

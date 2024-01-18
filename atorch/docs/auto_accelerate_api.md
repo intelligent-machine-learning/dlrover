@@ -266,7 +266,7 @@ Training in half precision. Default configuration is <code>"fp16"</code>. If wan
 ### fp8
 
 Use the FP8 capability provided by [transformer_engine](https://github.com/NVIDIA/TransformerEngine) (te) to accelerate computation. This optimization method will automatically replace <code>nn.Linear</code> module in the model with <code>te.Linear</code> to speed up computation. fp8 is compatible with other optimization methods such as [amp_native](#amp_native), [half](#half), [fsdp](#fsdp), [checkpoint](#checkpoint), etc. 
-Note that fp8 with checkpoint support for lora([peft](https://github.com/huggingface/peft)) training is not implemented yet.
+Note that lora([peft](https://github.com/huggingface/peft)) fp8 training is not supported yet.
 
 **Pre-requisites**
 - Hardware support: GPU sm >=8.9 (such as Ada, Hopper, etc.). If not satisfied, fp8 optimization will be ignored.
@@ -282,6 +282,7 @@ include: List[str], default None.
 exclude: List[str], default None.
     If None, all modules that passing include test would use te.
     If not None, if a nn.Linear module name has at least one substring matches exclude, it will not use te.
+verbose: Bool, default False. If True, print names of those submodules that are replaced by  <code>te.Linear </code>.
 recipe.DelayedScaling parameter:
     margin: default 0
     interval: default 1

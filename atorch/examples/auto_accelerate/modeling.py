@@ -109,9 +109,7 @@ def get_model(model_type, config):
 
     if model_type == ModelType.TOY:
         model = ToyModel(
-            in_features=config["in_features"],
-            out_features=config["out_features"],
-            num_linears=config["num_linears"]
+            in_features=config["in_features"], out_features=config["out_features"], num_linears=config["num_linears"]
         )
         return model
 
