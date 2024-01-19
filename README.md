@@ -19,13 +19,10 @@ any engineering stuff, say, hardware acceleration, distributed running, etc.
 Now, it provides automated operation and maintenance for deep learning
 training jobs on K8s/Ray. Major features as
 
-- **Fault-Tolerance**, single node failover without restarting the entire job.
-- **Auto-Scaling**, Automatically scale up/down resources at both
-node level and CPU/memory level.
-- **Dynamic data sharding**, dynamic dispatch training data to each worker
-instead of dividing equally, faster worker more data.
-- **Automatic Resource Optimization**, Automatically optimize the job resource
-to improve the training performance and resources utilization.
+- **Fault-Tolerance**: The distributed training can continue running in the event of failures.
+- **Flash Checkpoint**: The distributed training can recover failures from the in-memory checkpoint in seconds.
+- **Auto-Scaling**: The distributed training can scale up/down resources to improve the stability, throughput
+and resource utilization.
 
 What's more, DLRover provides extension libraries of PyTorch and TensorFlow to Speed Up Training.
 
