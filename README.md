@@ -67,11 +67,12 @@ The downtime details are shown:
 In addition to fault tolerance, DLRover provides the [flash checkpoint](docs/blogs/flash_checkpoint.md) to
 save/load checkpoint in seconds. With flash checkpoint, the training can
 frequently save checkpoints and reduce the roll-back step to resume training
-from the latest checkpoint when a failure happens. The actions of flash checkpoint are:
+from the latest checkpoint when a failure happens. The features of flash checkpoint are:
 
 1. Asynchronously persist the checkpoint to the storage.
 2. Persist the checkpoint to the storage once the training process fails.
 3. Load the checkpoint from the host memory after the training process restarts.
+4. APIs for DDP, FSDP, DeepSpeed and Megatron-LM.
 
 <div align="center">
 <img src="docs/figures/ft_llm_training/checkpoint_save_time.png" alt="Editor" width="396">
@@ -80,7 +81,7 @@ from the latest checkpoint when a failure happens. The actions of flash checkpoi
 <text> The Performance of DLRover Flash Checkpoint to Save/Load GPT2-1.5B.</text>
 </div>
 
-The figure illustrates that the I/O time to read checkpoint files
+The figure illustrates that the I/O time of different DL frameworks to read checkpoint files
 when resuming training processes. With DLRover Flash Checkpoint,
 recovery could be completed in the order of seconds by loading checkpoints directly from shared memory,
 which is much faster compared to loading checkpoints from SSD and NAS.
