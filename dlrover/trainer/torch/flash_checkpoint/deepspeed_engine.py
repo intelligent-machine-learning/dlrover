@@ -12,13 +12,11 @@
 # limitations under the License.
 
 import copy
-from datetime import timedelta
 
 import torch.distributed as dist
 
 from dlrover.python.common import env_utils
 from dlrover.python.common.constants import CheckpointConstant
-from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     CheckpointConfig,
     CheckpointEvent,
@@ -49,16 +47,8 @@ class DeepSpeedCheckpointEngine(CheckpointEngine):
         self.global_shard_num = global_shard_num
         self.zero_stage = zero_stage
         super().__init__(checkpoint_dir, storage)
-        if dist.is_initialized():
-            saver_ranks = self._get_saver_ranks()
-            logger.info(f"Saver ranks of DeepSpeed are {saver_ranks}")
-            self._saver_group = dist.new_group(
-                ranks=saver_ranks,
-                backend="gloo",
-                timeout=timedelta(seconds=30),
-            )
 
-    def _get_saver_ranks(self):
+    def get_saving_ranks(self):
         """
         Get the ranks which need to save the sharding state dict into
         the memory.
@@ -90,7 +80,7 @@ class DeepSpeedCheckpointEngine(CheckpointEngine):
                 the value is the path of storage to save.
         """
         conf = CheckpointConfig(step=step, paths=paths)
-        self.save_state_dict_to_memory(state_dict, conf)
+        return self.save_state_dict_to_memory(state_dict, conf)
 
     @timer
     def save_to_storage(self, step, state_dict, paths):
@@ -108,13 +98,12 @@ class DeepSpeedCheckpointEngine(CheckpointEngine):
                 ["model_states", "optim_states"] of the state dict and
                 the value is the path of storage to save.
         """
+        succeed = True
         if step > self._cached_step:
-            self.save_to_memory(step, state_dict, paths)
+            succeed = self.save_to_memory(step, state_dict, paths)
 
         # Only local rank 0 to notify the saving event to the agent.
-        if self._local_rank != 0:
-            return
-        if state_dict:
+        if self._local_rank == 0 and succeed:
             event = CheckpointEvent(type=CheckpointEventType.SAVE, step=step)
             self._event_queue.put(event)
 

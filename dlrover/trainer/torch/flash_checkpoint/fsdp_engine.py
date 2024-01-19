@@ -424,6 +424,13 @@ class FsdpCheckpointEngine(CheckpointEngine):
         self._shm_writer = SharedMemoryWriter(shm_handler=self._shm_handler)
         self._shm_reader = SharedMemoryReader(self._shm_handler)
 
+    def get_saving_ranks(self):
+        """
+        Only the local rank 0 in each node saves the state dict into the
+        memory. They need to synchronize the saving status.
+        """
+        return None
+
     @timer
     def save_to_memory(self, step, state_dict, paths: Dict[str, str]):
         """
@@ -441,7 +448,7 @@ class FsdpCheckpointEngine(CheckpointEngine):
                 only if the training process fails.
         """
         if self._local_rank != self.local_shard_id:
-            return
+            return False
 
         acquired = self._shm_lock.acquire(blocking=False)
         all_rank_ready = check_all_rank_ready(self._saver_group, acquired)
@@ -453,7 +460,7 @@ class FsdpCheckpointEngine(CheckpointEngine):
             )
             if acquired:
                 self._shm_lock.release()
-            return
+            return False
 
         conf = CheckpointConfig(step=step)
         conf.writing_shm = True
@@ -481,6 +488,7 @@ class FsdpCheckpointEngine(CheckpointEngine):
         self._cached_step = conf.step
         if dist.is_initialized():
             dist.barrier(group=self._saver_group)
+        return True
 
     def save_to_storage(self, step, state_dict, paths: Dict[str, str]):
         """
@@ -490,13 +498,12 @@ class FsdpCheckpointEngine(CheckpointEngine):
             step (int): the iteration step.
             state_dict (dict): the state dict of model and optimizer to save.
         """
+        succeed = True
         if step > self._cached_step:
-            self.save_to_memory(step, state_dict, paths)
+            succeed = self.save_to_memory(step, state_dict, paths)
 
         # Only local rank 0 on each node notifies the event to save.
-        if self._local_rank != 0:
-            return
-        if paths:
+        if self._local_rank == 0 and succeed:
             logger.info(
                 "Put a save event to notify the agent persists checkpoint."
             )

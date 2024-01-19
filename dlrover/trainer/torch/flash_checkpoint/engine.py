@@ -14,6 +14,7 @@
 import os
 import time
 from abc import ABCMeta, abstractmethod
+from datetime import timedelta
 from multiprocessing import Process
 from typing import Dict
 
@@ -36,16 +37,23 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
 )
 
 
-def check_all_rank_ready(group: dist.ProcessGroup, ready):
+def check_all_rank_ready(group: dist.ProcessGroup, ready: bool):
     """
     Check whether all ranks are ready.
     """
     if not group:
         return ready
+    backend = dist.get_backend(group)
+    local_rank = env_utils.get_local_rank()
+    device = "cpu" if backend == "gloo" else f"cuda:{local_rank}"
     value = 0 if ready else 1
-    t = torch.tensor([value], dtype=torch.int64)
+    t = torch.tensor([value], dtype=torch.int32).to(device)
     dist.all_reduce(t, group=group)
-    return t == 0
+    ready = t == 0
+    del t
+    if "cuda" in device:
+        torch.cuda.empty_cache()
+    return ready
 
 
 def verify_all_rank_step_consistent(group: dist.ProcessGroup, step):
@@ -54,14 +62,21 @@ def verify_all_rank_step_consistent(group: dist.ProcessGroup, step):
     """
     if not group:
         return True
-    t = torch.Tensor([float(step)])
+    backend = dist.get_backend(group)
+    local_rank = env_utils.get_local_rank()
+    device = "cpu" if backend == "gloo" else f"cuda:{local_rank}"
+    t = torch.tensor([float(step)]).to(device)
     world_size = group.size()
-    outputs = [torch.Tensor([0.0]) for _ in range(world_size)]
+    outputs = [torch.tensor([0.0]) for _ in range(world_size)]
     dist.all_gather(outputs, t, group=group)
+    succeed = True
     for step in outputs:
         if not torch.equal(step, outputs[0]):
-            return False
-    return True
+            succeed = False
+    del t, outputs
+    if "cuda" in device:
+        torch.cuda.empty_cache()
+    return succeed
 
 
 def timer(func):
@@ -118,23 +133,44 @@ class CheckpointEngine(metaclass=ABCMeta):
 
     Args:
         checkpoint_dir (str): the directory to save checkpoint.
+        storage: a CheckpointStorage instance to write/read the storage.
+        comm_backend (str): the backend to create a communcation group,
+            default is gloo.
     """
 
     saver_proc = None
 
-    def __init__(self, checkpoint_dir: str, storage: CheckpointStorage):
+    def __init__(
+        self,
+        checkpoint_dir: str,
+        storage: CheckpointStorage,
+        comm_backend: str = "gloo",
+    ):
         if not self.saver_proc:
             self.saver_proc = start_saver_process()
-        self.checkpoint_dir = checkpoint_dir
-        self.storage = storage
         if dist.is_initialized():
             self._rank = dist.get_rank()
-            self._loader_group = dist.new_group(backend="gloo")
+            backend = comm_backend if comm_backend else dist.get_backend()
+            self._loader_group = dist.new_group(
+                backend=backend,
+                timeout=timedelta(seconds=60),
+            )
+
+            saving_ranks = self.get_saving_ranks()
+            logger.info(f"Saving ranks are {saving_ranks}")
+            self._saver_group = dist.new_group(
+                ranks=saving_ranks,
+                backend=backend,
+                timeout=timedelta(seconds=60),
+            )
         else:
             self._rank = 0
             self._loader_group = None
+            self._saver_group = None
+
+        self.checkpoint_dir = checkpoint_dir
+        self.storage = storage
         self._local_rank = int(os.getenv("LOCAL_RANK", 0))
-        self._saver_group = None
         self._cached_step = 0
         self._restart_count = env_utils.get_torch_restart_count()
         # queue for agent to save to storage, only lock rank 0 needs the queue.
@@ -191,16 +227,7 @@ class CheckpointEngine(metaclass=ABCMeta):
             },
         )
 
-        succeed = False
-        for _ in range(3):
-            try:
-                queue.put(class_meta)
-                succeed = True
-                break
-            except FileNotFoundError:
-                time.sleep(3)
-        if not succeed:
-            queue.put(class_meta)
+        queue.put(class_meta)
         queue.unlink()
 
     def _update_saver_config(self):
@@ -215,17 +242,11 @@ class CheckpointEngine(metaclass=ABCMeta):
                 raise ValueError(
                     "The event queue cannot be None on local rank 0."
                 )
-            for _ in range(3):
-                try:
-                    self._event_queue.put(event)
-                    return
-                except FileNotFoundError:
-                    time.sleep(3)
             self._event_queue.put(event)
 
     def save_state_dict_to_memory(self, state_dict, conf: CheckpointConfig):
         if self._local_rank != self.local_shard_id:
-            return
+            return False
 
         acquired = self._shm_lock.acquire(blocking=False)
         all_rank_ready = check_all_rank_ready(self._saver_group, acquired)
@@ -237,7 +258,7 @@ class CheckpointEngine(metaclass=ABCMeta):
             )
             if acquired:
                 self._shm_lock.release()
-            return
+            return False
         state_dict[DLROVER_CKPT_CONFIG_KEY] = conf
         self._shm_handler.save_state_dict(state_dict)
 
@@ -246,6 +267,7 @@ class CheckpointEngine(metaclass=ABCMeta):
         self._cached_step = conf.step
         if dist.is_initialized():
             dist.barrier(group=self._saver_group)
+        return True
 
     def get_state_dict_from_memory(self):
         state_dict = {}
@@ -261,6 +283,10 @@ class CheckpointEngine(metaclass=ABCMeta):
                 f"Load step {config.step} checkpoint from the shared memory."
             )
         return state_dict
+
+    @abstractmethod
+    def get_saving_ranks(self):
+        pass
 
     @abstractmethod
     def get_saver_class(self):

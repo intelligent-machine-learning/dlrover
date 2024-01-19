@@ -19,10 +19,22 @@ from dlrover.python.common.multi_process import (
     SharedLock,
     SharedMemory,
     SharedQueue,
+    retry_socket,
 )
 
 
-class SharedLockTest(unittest.TestCase):
+class SocketTest(object):
+    @retry_socket
+    def test_retry(self, retry):
+        raise FileNotFoundError("test")
+
+
+class SharedObjectTest(unittest.TestCase):
+    def test_retry(self):
+        t = SocketTest()
+        with self.assertRaises(FileNotFoundError):
+            t.test_retry(retry=1)
+
     def test_shared_lock(self):
         name = "test"
         os.environ["TORCHELASTIC_RUN_ID"] = "test_job"

@@ -34,6 +34,23 @@ SUCCESS_CODE = "OK"
 ERROR_CODE = "ERROR"
 
 
+def retry_socket(func):
+    def wrapper(self, *args, **kwargs):
+        retry = kwargs.get("retry", 30)
+        succeed = False
+        for i in range(retry):
+            try:
+                result = func(self, *args, **kwargs)
+                succeed = True
+                return result
+            except (FileNotFoundError, ConnectionRefusedError):
+                time.sleep(1)
+        if not succeed:
+            return func(self, *args, **kwargs)
+
+    return wrapper
+
+
 def _create_socket_server(path):
     """
     Create a socket server.
@@ -197,6 +214,7 @@ class LocalSocketComm(metaclass=ABCMeta):
         """Synchronize the obj between processes."""
         pass
 
+    @retry_socket
     def _request(self, request: SocketRequest):
         """Create a socket client to requet the shared object."""
         client = _create_socket_client(self._socket_file)
