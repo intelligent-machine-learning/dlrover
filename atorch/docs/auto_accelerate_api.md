@@ -148,7 +148,7 @@ Not None, semi-automatic model. Supported formats:
 
 
   <tr>
-    <td>ignore_dryrun_on_load_strategy (optional, default False)</td>
+    <td>ignore_dryrun_on_load_strategy (optional, default True)</td>
     <td>
        If True, ignore dryrun when load_strategy is not None.
     </td>
@@ -263,6 +263,56 @@ For bfloat16, it does not check if the gradients are infinite by default. If you
 
 Training in half precision. Default configuration is <code>"fp16"</code>. If want to use bfloat16, set config as <code>"bf16"</code>.
 
+### fp8
+
+Use the FP8 capability provided by [transformer_engine](https://github.com/NVIDIA/TransformerEngine) (te) to accelerate computation. This optimization method will automatically replace <code>nn.Linear</code> module in the model with <code>te.Linear</code> to speed up computation. fp8 is compatible with other optimization methods such as [amp_native](#amp_native), [half](#half), [fsdp](#fsdp), [checkpoint](#checkpoint), etc. 
+Note that lora([peft](https://github.com/huggingface/peft)) fp8 training is not supported yet.
+
+**Pre-requisites**
+- Hardware support: GPU sm >=8.9 (such as Ada, Hopper, etc.). If not satisfied, fp8 optimization will be ignored.
+- Software support: transformer_engine installed, version >= 1.0.
+- Tensor dimension requirements: For tensor core fp8 computation, tensor dim[0] must be a multiple of 8, and dim[1] must be a multiple of 16. Since the backward computation of <code>nn.Linear</code> during training requires a transpose op, this means that both the weight of <code>nn.Linear</code> and the module's input need dim[0] and dim[1] to be multiples of 16. For weight dimensions, fp8 optimization method will check automatically, and it is up to the users to ensure that the input to <code>nn.Linear</code> also meets this dimension requirement.
+
+**Supported config parameters**
+
+```
+include: List[str], default None.
+    If None, all nn.Linear module can use te.
+    If not None, nn.Linear module name should have at least one substring equals to items in include.
+exclude: List[str], default None.
+    If None, all modules that passing include test would use te.
+    If not None, if a nn.Linear module name has at least one substring matches exclude, it will not use te.
+verbose: Bool, default False. If True, print names of those submodules that are replaced by  <code>te.Linear </code>.
+recipe.DelayedScaling parameter:
+    margin: default 0
+    interval: default 1
+    fp8_format: “HYBRID” (default) or “E4M3”
+    amax_history_len: default 1024
+    amax_compute_algo: “max” (default) or “most_recent”
+    reduce_amax: default True
+```
+
+**Default config**
+```
+{"include": None, "exclude": None, "margin": 0, "interval": 1, "fp8_format": "HYBRID", "amax_history_len": 1024, "amax_compute_algo": "max", "reduce_amax": True}
+```
+
+All <code>nn.Linear</code> instances that pass the "include" and "exclude" conditions and whose weight dim[0] and dim[1] are multiples of 16 will be automatically converted to <code>te.Linear</code>, using <code>recipe.DelayedScaling</code> defined by the config parameters excluding "include" and "exclude" for automatic fp8 computation.
+
+**Example**
+
+In a [llama](https://github.com/huggingface/transformers/blob/53cffeb33c2f46ccef8969da076aa620f70801c4/src/transformers/models/llama/modeling_llama.py#L1106) model, <code>nn.Linear</code> exists not only in the <code>LlamaDecoderLayer</code> but also <code>lm_head</code> . Using fp8 training for <code>nn.Linear</code> in  <code>LlamaDecoderLayer</code> usually does not affect the convergence accuracy, but it has a severe impact when <code>lm_head</code> also uses fp8. In this case, you can use the config so that the module replacement only affects <code>the LlamaDecoderLayer</code> and not the <code>lm_head</code>.
+
+This can be achieved using <code>include</code> config parameter:
+
+<code>config = {"include": ("layers",)}</code>
+
+Or using <code>exclude</code> config parameter:
+
+<code>config = {"exclude": ("lm_head",)}</code>
+
+
+
 ### module_replace
 
 Automatic module optimization, which replaces optimizable modules with optimized implementations.
@@ -319,6 +369,25 @@ config = {"forward_prefetch": True, "limit_all_gathers": True, "sync_module_stat
 ```
 
 Add <code>{"use_orig_params": True}</code> if multiple parameter groups with different hyperparamters are used in optimizer.  Try add <code>{"fsdp_wrap_params_outmost": True}</code> for LORA finetuning to see if any performance improvement.
+
+### checkpoint
+
+Activation checkpoint is a memory-saving method which trade computation for memory. It does not keep activations during forward pass, but uses recomputation in backward pass to generate activations for gradient computation. Configuration is required to indicate which modules would be checkpointed.
+
+Configuration can be a tuple of module types or module names, such as:
+```
+config = (GPT2Attention, GPT2MLP)
+```
+
+There are two checkpoint implementations in PyTorch, no_reentrant and reentrant. no_reentrant is default and its performance is better than reentrant. In some cases such that model definition contains <code>@torch.jit.script</code>, no_reentrant implementation may fail and reentrant should be used. Checkpoint configuration supports dict format to support choosing reentrant implementation.
+```
+config = {
+  "wrap_class": (GPT2Attention, GPT2MLP), # modules to checkpoint
+  "no_reentrant": False,                  # use reentrant implementation
+}
+```
+
+
 
 ### tensor_parallel
 

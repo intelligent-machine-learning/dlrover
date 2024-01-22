@@ -7,9 +7,10 @@ from torch.utils.data import Dataset
 
 
 class ToyDataset(Dataset):
-    def __init__(self, size, data_size=(16,), output_size=(4,)):
+    def __init__(self, size, data_size=(16,), input_size=(16,), output_size=(4,)):
         self.size = size
         self.data_size = data_size
+        self.input_size = input_size
         self.output_size = output_size
 
     def __len__(self):
@@ -17,7 +18,7 @@ class ToyDataset(Dataset):
 
     def __getitem__(self, idx):
         return {
-            "input": np.ones(self.data_size, dtype=np.float32) * idx,
+            "input": np.ones(self.input_size, dtype=np.float32) * idx,
             "label": np.ones(self.output_size, dtype=np.float32),
         }
 
@@ -63,9 +64,9 @@ class BenchmarkLMDataset(Dataset):
         return self.total_samples
 
 
-def get_dataset(model_type, seq_length=128, datasize=1000):
+def get_dataset(model_type, seq_length=128, input_size=16, output_size=8, datasize=1000):
     if model_type == ModelType.TOY:
-        return ToyDataset(size=datasize)
+        return ToyDataset(size=datasize, input_size=input_size, output_size=output_size)
     if model_type == ModelType.GPT2 or model_type == ModelType.LLAMA:
         vocab_size = get_vocab_size(model_type)
         return BenchmarkLMDataset(vocab_size=vocab_size, max_source_positions=seq_length, total_samples=datasize)

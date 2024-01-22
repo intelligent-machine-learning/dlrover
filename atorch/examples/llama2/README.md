@@ -10,7 +10,7 @@ This document presents examples of using ATorch to pretrain or finetune the Hugg
 
 ## FSDP
 
-Fully Sharded Data Parallel (FSDP) is PyTorch's implementation of ZeRO3. This example uses FSDP for distributed training, and can be used with other training optimizations, such as mixed precision, gradient checkpointing, etc. This is implemented by calling auto_accelerate API with load_strategy argument, and load_strategy specifies the training optimization method combination.
+Fully Sharded Data Parallel (FSDP) is PyTorch's implementation of ZeRO3. This example uses FSDP for distributed training, and can be used with other training optimizations, such as mixed precision (fp16/bf16/fp8), gradient checkpointing, etc. This is implemented by calling auto_accelerate API with load_strategy argument, and load_strategy specifies the training optimization method combination.
 
 ### Scripts
 
@@ -25,9 +25,14 @@ pip install -r requirements.txt
 # Configurable environment variable: DATASET_PATH, MODEL_NAME_OR_PATH, PER_DEVICE_TRAIN_BATCH_SIZE, etc.
 sh fsdp_llama2_entry.sh
 
+# use fp8
+USE_FP8=1 sh fsdp_llama2_entry.sh
+
 # use lora
 USE_LORA=1 sh fsdp_llama2_entry.sh
 ```
+
+Note that transformer_engine is required for fp8. Your can use docker image <code>registry.cn-hangzhou.aliyuncs.com/atorch/atorch:pt210_te</code>, which has transformer_engine pre-installed.
 
 ## DS 3D Parallel
 ### Intro
