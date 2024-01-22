@@ -13,6 +13,7 @@
 import copy
 import functools
 import json
+import signal
 import os
 import socket
 import tempfile
@@ -1022,7 +1023,4 @@ class NPUTrainingAgent(ElasticTrainingAgent):
 
     @prof
     def _stop_workers(self, worker_group: WorkerGroup) -> None:
-        cmd = "pkill python"
-        r = os.system(cmd)
-        if r != 0:
-            logger.error("fail to stop python processes")
+        self._shutdown(death_sig=signal.SIGKILL)
