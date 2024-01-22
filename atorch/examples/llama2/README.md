@@ -26,7 +26,7 @@ pip install -r requirements.txt
 bash fsdp_llama2_entry.sh
 
 # use fp8
-USE_FP8=1 sh fsdp_llama2_entry.sh
+USE_FP8=1 bash fsdp_llama2_entry.sh
 
 # use lora
 USE_LORA=1 bash fsdp_llama2_entry.sh

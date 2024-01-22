@@ -77,8 +77,8 @@ pip install atorch
 git clone https://github.com/intelligent-machine-learning/dlrover.git
 cd dlrover/atorch
 # build package, optional set version.
-sh dev/scripts/build.sh [version]
-# install the created package in dist directory. Not that if version is set, file name is different.
+bash dev/scripts/build.sh [version]
+# install the created package in dist directory. Note that if version is set, file name is different.
 pip install dist/atorch-0.1.0.dev0-py3-none-any.whl
 ```
 
