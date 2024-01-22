@@ -8,7 +8,7 @@ runs:
     - "/bin/bash"
     - "-c"
     - "pip install kubernetes grpcio-tools psutil deprecated \
-'ray[default]' pyhocon pytest-cov tensorflow==2.13.0 deepspeed \
+'ray[default]' pyhocon pytest-cov tensorflow==2.13.0 deepspeed==0.12.6 \
 && pip install torch==2.0.1+cpu -f \
 https://download.pytorch.org/whl/torch_stable.html \
 && python -m grpc_tools.protoc -I. \
