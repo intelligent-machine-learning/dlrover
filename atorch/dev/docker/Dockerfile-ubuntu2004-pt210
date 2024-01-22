@@ -72,7 +72,8 @@ RUN pip install dm-tree setuptools packaging && \
     cd .. && rm -rf apex*
 RUN git clone --branch stable --recursive https://github.com/NVIDIA/TransformerEngine.git && \
     cd TransformerEngine && \
-    CUDACXX=/usr/local/cuda/bin/nvcc NVTE_FRAMEWORK=pytorch  pip install . && \
+    CUDACXX=/usr/local/cuda/bin/nvcc NVTE_FRAMEWORK=pytorch  python setup.py bdist_wheel && \
+    pip install dist/transformer_engine*.whl && \
     cd .. && rm -rf TransformerEngine
 
 # make sure to rebuild fa if you updated py/cuda/... versions are updated.
