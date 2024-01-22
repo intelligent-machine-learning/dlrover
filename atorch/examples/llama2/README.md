@@ -23,13 +23,13 @@ cd dlrover/atorch/examples/llama2
 pip install -r requirements.txt
 
 # Configurable environment variable: DATASET_PATH, MODEL_NAME_OR_PATH, PER_DEVICE_TRAIN_BATCH_SIZE, etc.
-sh fsdp_llama2_entry.sh
+bash fsdp_llama2_entry.sh
 
 # use fp8
 USE_FP8=1 sh fsdp_llama2_entry.sh
 
 # use lora
-USE_LORA=1 sh fsdp_llama2_entry.sh
+USE_LORA=1 bash fsdp_llama2_entry.sh
 ```
 
 Note that transformer_engine is required for fp8. Your can use docker image <code>registry.cn-hangzhou.aliyuncs.com/atorch/atorch:pt210_te</code>, which has transformer_engine pre-installed.
@@ -387,8 +387,8 @@ pip install -r requirements.txt
 # Configurable environment variable: 
 # DATASET_PATH, MODEL_NAME_OR_PATH, PIPELINE_PARALLEL_SIZE, MODEL_PARALLEL_SIZE, etc.
 # e.x. in a 8-gpu system, to run mp-2 dp-2 pp-2, 
-# use `PIPELINE_PARALLEL_SIZE=2 MODEL_PARALLEL_SIZE=2 sh ds_3d_llama2_entry.sh`
-sh ds_3d_llama2_entry.sh
+# use `PIPELINE_PARALLEL_SIZE=2 MODEL_PARALLEL_SIZE=2 bash ds_3d_llama2_entry.sh`
+bash ds_3d_llama2_entry.sh
 ```
 
 ### Performance
@@ -450,7 +450,7 @@ cd dlrover/atorch/examples/llama2
 
 # Configurable environment variable: DATASET_PATH, MODEL_NAME_OR_PATH, PER_DEVICE_TRAIN_BATCH_SIZE, etc.
 # Change BO_SG_MAX_IETR(the maximum search rounds of the BO), RANDOM_SAMPLE(the initial sampling steps of BO) if needed.
-sh bayes_opt_sg_llama2_entry.sh
+bash bayes_opt_sg_llama2_entry.sh
 
 ```
 

@@ -1,3 +1,5 @@
+#!/bin/bash
+
 set -x
 
 source ./dataset_model.sh
