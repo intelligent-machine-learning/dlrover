@@ -13,8 +13,8 @@
 import copy
 import functools
 import json
-import signal
 import os
+import signal
 import socket
 import tempfile
 import time
