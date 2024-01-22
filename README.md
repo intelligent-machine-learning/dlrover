@@ -19,13 +19,10 @@ any engineering stuff, say, hardware acceleration, distributed running, etc.
 Now, it provides automated operation and maintenance for deep learning
 training jobs on K8s/Ray. Major features as
 
-- **Fault-Tolerance**, single node failover without restarting the entire job.
-- **Auto-Scaling**, Automatically scale up/down resources at both
-node level and CPU/memory level.
-- **Dynamic data sharding**, dynamic dispatch training data to each worker
-instead of dividing equally, faster worker more data.
-- **Automatic Resource Optimization**, Automatically optimize the job resource
-to improve the training performance and resources utilization.
+- **Fault-Tolerance**: The distributed training can continue running in the event of failures.
+- **Flash Checkpoint**: The distributed training can recover failures from the in-memory checkpoint in seconds.
+- **Auto-Scaling**: The distributed training can scale up/down resources to improve the stability, throughput
+and resource utilization.
 
 What's more, DLRover provides extension libraries of PyTorch and TensorFlow to Speed Up Training.
 
@@ -67,11 +64,12 @@ The downtime details are shown:
 In addition to fault tolerance, DLRover provides the [flash checkpoint](docs/blogs/flash_checkpoint.md) to
 save/load checkpoint in seconds. With flash checkpoint, the training can
 frequently save checkpoints and reduce the roll-back step to resume training
-from the latest checkpoint when a failure happens. The actions of flash checkpoint are:
+from the latest checkpoint when a failure happens. The features of flash checkpoint are:
 
 1. Asynchronously persist the checkpoint to the storage.
 2. Persist the checkpoint to the storage once the training process fails.
 3. Load the checkpoint from the host memory after the training process restarts.
+4. APIs for DDP, FSDP, DeepSpeed and Megatron-LM.
 
 <div align="center">
 <img src="docs/figures/ft_llm_training/checkpoint_save_time.png" alt="Editor" width="396">
@@ -80,7 +78,7 @@ from the latest checkpoint when a failure happens. The actions of flash checkpoi
 <text> The Performance of DLRover Flash Checkpoint to Save/Load GPT2-1.5B.</text>
 </div>
 
-The figure illustrates that the I/O time to read checkpoint files
+The figure illustrates that the I/O time of different DL frameworks to read checkpoint files
 when resuming training processes. With DLRover Flash Checkpoint,
 recovery could be completed in the order of seconds by loading checkpoints directly from shared memory,
 which is much faster compared to loading checkpoints from SSD and NAS.

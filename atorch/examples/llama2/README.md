@@ -19,7 +19,7 @@ Fully Sharded Data Parallel (FSDP) is PyTorch's implementation of ZeRO3. This ex
 - launch script [fsdp_llama2_entry.sh](fsdp_llama2_entry.sh)
 
 ```bash
-cd dlrover/atorch/examples/Llama2
+cd dlrover/atorch/examples/llama2
 pip install -r requirements.txt
 
 # Configurable environment variable: DATASET_PATH, MODEL_NAME_OR_PATH, PER_DEVICE_TRAIN_BATCH_SIZE, etc.
@@ -33,25 +33,6 @@ USE_LORA=1 sh fsdp_llama2_entry.sh
 ```
 
 Note that transformer_engine is required for fp8. Your can use docker image <code>registry.cn-hangzhou.aliyuncs.com/atorch/atorch:pt210_te</code>, which has transformer_engine pre-installed.
-
-### Fine-tuning or Pre-training
-1. Fine-tuning:
-Specify `--model_name_or_path`, and the script will load the `.bin` files within that directory.
-```shell
-python -m atorch.distributed.run --fault_tolerant --max_restarts=0 \
-    --nproc_per_node="$NUM_GPUS_PER_NODE" \
-    llama2_clm.py \
-    --model_name_or_path $PRETRAINED_MODEL_DIR 
-```
-2. Pre-training: 
-Specify `--config_name` and `--tokenizer_name`. The script will not load the `.bin` files within that directory, and instead initialize a model randomly using `config.json`.
-```shell
-python -m atorch.distributed.run --fault_tolerant --max_restarts=0 \
-    --nproc_per_node="$NUM_GPUS_PER_NODE" \
-    llama2_clm.py \
-    --config_name $PRETRAINED_MODEL_DIR \
-    --tokenizer_name $PRETRAINED_MODEL_DIR \
-```
 
 ## DS 3D Parallel
 ### Intro
@@ -400,7 +381,7 @@ python -m atorch.distributed.run --fault_tolerant --max_restarts=0 \
 - launch script [ds_3d_llama2_entry.sh](ds_3d_llama2_entry.sh)
 
 ```bash
-cd dlrover/atorch/examples/Llama2
+cd dlrover/atorch/examples/llama2
 pip install -r requirements.txt
 
 # Configurable environment variable: 
@@ -438,6 +419,24 @@ If the users are not sure which strategy would achieve the largest throughput, a
 
 This fully-automatic training example is implemented by calling auto_accelerate API without load_strategy argument, so that BO algorithm would find the best optimization method combination to achieve the largest throughput.
 
+### Fine-tuning or Pre-training
+1. Fine-tuning:
+Specify `--model_name_or_path`, and the script will load the `.bin` files within that directory.
+```shell
+python -m atorch.distributed.run --fault_tolerant --max_restarts=0 \
+    --nproc_per_node="$NUM_GPUS_PER_NODE" \
+    bayes_opt_sg_llama2.py \
+    --model_name_or_path $PRETRAINED_MODEL_DIR 
+```
+2. Pre-training: 
+Specify `--config_name` and `--tokenizer_name`. The script will not load the `.bin` files within that directory, and instead initialize a model randomly using `config.json`.
+```shell
+python -m atorch.distributed.run --fault_tolerant --max_restarts=0 \
+    --nproc_per_node="$NUM_GPUS_PER_NODE" \
+    bayes_opt_sg_llama2.py \
+    --config_name $PRETRAINED_MODEL_DIR \
+    --tokenizer_name $PRETRAINED_MODEL_DIR \
+```
 
 ### Scripts
 
@@ -447,7 +446,7 @@ This fully-automatic training example is implemented by calling auto_accelerate 
 - launch script [bayes_opt_sg_llama2_entry.sh](bayes_opt_sg_llama2_entry.sh)
 
 ```bash
-cd dlrover/atorch/examples/Llama2
+cd dlrover/atorch/examples/llama2
 
 # Configurable environment variable: DATASET_PATH, MODEL_NAME_OR_PATH, PER_DEVICE_TRAIN_BATCH_SIZE, etc.
 # Change BO_SG_MAX_IETR(the maximum search rounds of the BO), RANDOM_SAMPLE(the initial sampling steps of BO) if needed.
