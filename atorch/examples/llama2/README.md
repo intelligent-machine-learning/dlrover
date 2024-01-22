@@ -32,6 +32,8 @@ USE_FP8=1 sh fsdp_llama2_entry.sh
 USE_LORA=1 sh fsdp_llama2_entry.sh
 ```
 
+Note that transformer_engine is required for fp8. Your can use docker image <code>registry.cn-hangzhou.aliyuncs.com/atorch/atorch:pt210_te</code>, which has transformer_engine pre-installed.
+
 ### Fine-tuning or Pre-training
 1. Fine-tuning:
 Specify `--model_name_or_path`, and the script will load the `.bin` files within that directory.
