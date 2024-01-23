@@ -76,7 +76,6 @@ try:
     import torch_npu  # noqa: F401
 except (ModuleNotFoundError, ImportError) as e:  # noqa: F841
     torch_npu = None
-    pass
 
 __all__ = ["launch_agent"]
 
