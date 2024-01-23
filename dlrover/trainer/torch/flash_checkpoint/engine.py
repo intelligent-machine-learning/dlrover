@@ -66,7 +66,10 @@ def verify_all_rank_step_consistent(group: dist.ProcessGroup, step):
     local_rank = env_utils.get_local_rank()
     device = "cpu" if backend == "gloo" else f"cuda:{local_rank}"
     t = torch.tensor([float(step)]).to(device)
-    world_size = group.size()
+    if group:
+        world_size = group.size()
+    else:
+        world_size = dist.get_world_size()
     outputs = [torch.tensor([0.0]) for _ in range(world_size)]
     dist.all_gather(outputs, t, group=group)
     succeed = True
