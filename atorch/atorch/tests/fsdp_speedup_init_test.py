@@ -6,11 +6,10 @@ import shutil
 import unittest
 
 import pytest
-import torch
 
 torch = pytest.importorskip("torch", minversion="2.0.9")
-if torch.version.git_version != "7bcf7da3a268b435777fe87c7794c382f444e86d" or not torch.cuda.is_available():
-    pytest.skip("requires pytorch 2.1 stable release and gpu", allow_module_level=True)
+if torch.version.git_version != "7bcf7da3a268b435777fe87c7794c382f444e86d":
+    pytest.skip("requires pytorch 2.1 stable release", allow_module_level=True)
 from unittest import mock
 
 import torch.multiprocessing as mp
