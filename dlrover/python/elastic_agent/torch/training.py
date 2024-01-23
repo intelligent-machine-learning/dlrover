@@ -72,6 +72,12 @@ from dlrover.python.elastic_agent.monitor.training import TorchTrainingMonitor
 from dlrover.python.elastic_agent.torch.ckpt_saver import AsyncCheckpointSaver
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
 
+try:
+    import torch_npu  # noqa: F401
+except (ModuleNotFoundError, ImportError) as e:  # noqa: F841
+    torch_npu = None
+    pass
+
 __all__ = ["launch_agent"]
 
 
@@ -505,7 +511,11 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
     @prof
     def _stop_workers(self, worker_group: WorkerGroup) -> None:
-        self._shutdown(death_sig=signal.SIGKILL)
+        if not torch_npu:
+            logger.info("stop workers via SIGKILL")
+            self._shutdown(death_sig=signal.SIGKILL)
+        else:
+            super()._stop_workers(worker_group)
 
     def _invoke_run(self, role: str = DEFAULT_ROLE) -> RunResult:
         # Start a thread to save the checkpointing state dict from
