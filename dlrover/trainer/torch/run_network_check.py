@@ -25,13 +25,20 @@ try:
     from torch_npu.contrib import transfer_to_npu  # noqa: F401
 except (ModuleNotFoundError, ImportError) as e:  # noqa: F841
     torch_npu = None
-    pass
 
 from dlrover.python.common.constants import ConfigPath
 from dlrover.python.common.log import default_logger as logger
 
 FAULT_CHECK_TASK = "fault-check"
 STRAGGLER_CHECK_TASK = "straggler-check"
+
+
+def mock_error():
+    if os.environ.get("MOCK_ERR_RANK"):
+        err_rank = int(os.environ["MOCK_ERR_RANK"])
+        local_rank = int(os.environ["LOCAL_RANK"])
+        if err_rank == local_rank:
+            raise ValueError("Mock network error!")
 
 
 def bm_all_gather(shape, use_gpu):
@@ -49,6 +56,7 @@ def bm_all_gather(shape, use_gpu):
         dist.all_gather(tensor_list, data)
     dist.barrier()
     elapsed_time = time.time() - start
+    mock_error()
     return elapsed_time
 
 

@@ -19,6 +19,7 @@ from dlrover.trainer.torch.run_network_check import (
     FAULT_CHECK_TASK,
     main,
     matmul,
+    mock_error,
 )
 
 
@@ -47,3 +48,20 @@ class TestNetworkCheckScript(unittest.TestCase):
     def test_matmul(self):
         t = matmul(False, 0)
         self.assertTrue(t > 0)
+
+    def test_mock_error(self):
+        raised_error = False
+        try:
+            mock_error()
+        except ValueError:
+            raised_error = True
+        self.assertFalse(raised_error)
+
+        os.environ["MOCK_ERR_RANK"] = "0"
+        os.environ["LOCAL_RANK"] = "0"
+        raised_error = False
+        try:
+            mock_error()
+        except ValueError:
+            raised_error = True
+        self.assertTrue(raised_error)
