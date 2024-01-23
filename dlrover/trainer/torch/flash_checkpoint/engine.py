@@ -205,7 +205,7 @@ class CheckpointEngine(metaclass=ABCMeta):
             if saving_ranks is None:
                 saving_ranks = "all"
             logger.info(
-                f"Create a {backend }commumication group between "
+                f"Create a {backend} commumication group between "
                 f"{saving_ranks} ranks."
             )
 
