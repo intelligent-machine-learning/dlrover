@@ -286,8 +286,6 @@ class CheckpointEngine(metaclass=ABCMeta):
         if acquired:
             self._shm_lock.release()
         self._cached_step = conf.step
-        if dist.is_initialized():
-            dist.barrier(group=self._saver_group)
         return True
 
     def get_state_dict_from_memory(self):
