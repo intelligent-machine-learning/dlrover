@@ -196,7 +196,7 @@ class CheckpointEngine(metaclass=ABCMeta):
                 timeout=timedelta(seconds=60),
             )
         saving_ranks = self.get_saving_ranks()
-        if backend == dist.get_backend() or saving_ranks is None:
+        if backend == dist.get_backend() and saving_ranks is None:
             self._saver_group = None
         else:
             saving_ranks = self.get_saving_ranks()
