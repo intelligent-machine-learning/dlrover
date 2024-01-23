@@ -24,6 +24,7 @@ import torch.distributed as dist
 from dlrover.python.common import env_utils
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.multi_process import SharedLock, SharedQueue
+from dlrover.python.common.singleton import singleton
 from dlrover.python.common.storage import CheckpointStorage
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     DLROVER_CKPT_CONFIG_KEY,
@@ -37,6 +38,12 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
 )
 
 
+@singleton
+class ReadyTensor(object):
+    def __init__(self, device) -> None:
+        self.tensor = torch.tensor([0], dtype=torch.int32).to(device)
+
+
 def check_all_rank_ready(group: dist.ProcessGroup, ready: bool):
     """
     Check whether all ranks are ready.
@@ -46,13 +53,11 @@ def check_all_rank_ready(group: dist.ProcessGroup, ready: bool):
     backend = dist.get_backend(group)
     local_rank = env_utils.get_local_rank()
     device = "cpu" if backend == "gloo" else f"cuda:{local_rank}"
+    rt = ReadyTensor(device)
     value = 0 if ready else 1
-    t = torch.tensor([value], dtype=torch.int32).to(device)
-    dist.all_reduce(t, group=group)
-    ready = t == 0
-    del t
-    if "cuda" in device:
-        torch.cuda.empty_cache()
+    rt.tensor[0] = value
+    dist.all_reduce(rt.tensor, group=group)
+    ready = rt.tensor == 0
     return ready
 
 
@@ -77,8 +82,6 @@ def verify_all_rank_step_consistent(group: dist.ProcessGroup, step):
         if not torch.equal(step, outputs[0]):
             succeed = False
     del t, outputs
-    if "cuda" in device:
-        torch.cuda.empty_cache()
     return succeed
 
 
