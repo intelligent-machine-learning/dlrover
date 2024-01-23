@@ -68,6 +68,16 @@ def append_pod_ip_to_env(env):
     return env
 
 
+def get_main_container(pod: client.V1Pod):
+    if len(pod.spec.containers) == 0:
+        return pod.spec.containers[0]
+    else:
+        for container in pod.spec.containers:
+            if container.name == "main":
+                return container
+
+
+
 class PodScaler(Scaler):
     """PodScaler launches or removes Pods using Kubernetes Python APIs
     by a ScalePlan. After PodScaler receives a ScalePlan, it will
@@ -88,7 +98,6 @@ class PodScaler(Scaler):
         self._pod_stats: Dict[str, int] = {}
         self._job_uid = ""
         self.api_client = client.ApiClient()
-        self._k8s_client.api_instance
 
     def start(self):
         self._job = self._retry_to_get_job()
@@ -618,13 +627,7 @@ class PodScaler(Scaler):
         termination_period=None,
     ):
         pod = copy.deepcopy(pod_template)
-        main_container: Optional[client.V1Container] = None
-        if len(pod.spec.containers) == 0:
-            main_container = pod.spec.containers[0]
-        else:
-            for container in pod.spec.containers:
-                if container.name == "main":
-                    main_container = container
+        main_container: Optional[client.V1Container] = get_main_container(pod)
 
         if main_container is None:
             raise ValueError("The Pod config must have a main container.")
@@ -654,12 +657,16 @@ class PodScaler(Scaler):
         pod.spec.restart_policy = "Never"
         pod.spec.termination_grace_period_seconds = termination_period
 
-        pod.metadata = client.V1ObjectMeta(
-            name=name,
-            labels=labels,
-            owner_references=[self._create_job_owner_reference()],
-            namespace=self._namespace,
-        )
+        if pod.metadata:
+            pod.metadata.name = name
+            pod.metadata.labels.update(labels)
+        else:
+            pod.metadata = client.V1ObjectMeta(
+                name=name,
+                labels=labels,
+                namespace=self._namespace,
+            )
+        pod.metadata.owner_references = [self._create_job_owner_reference()]
         return pod
 
     def _create_job_owner_reference(self):
