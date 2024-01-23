@@ -15,7 +15,7 @@ import copy
 import json
 import threading
 import time
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from kubernetes import client
 from kubernetes.client import V1EnvVar, V1EnvVarSource, V1ObjectFieldSelector
@@ -454,8 +454,8 @@ class PodScaler(Scaler):
         pod = self._create_pod_obj(
             name=pod_name,
             pod_template=pod_template,
-            resource_requests=node.config_resource.to_resource_dict(),
-            resource_limits=node.config_resource.to_resource_dict(),
+            resource_requests=node.config_resource,
+            resource_limits=node.config_resource,
             priority=node.config_resource.priority,
             env=env,
             lifecycle=None,
@@ -609,8 +609,8 @@ class PodScaler(Scaler):
         self,
         name,
         pod_template: client.V1Pod,
-        resource_requests: Dict[str, float],
-        resource_limits: Dict[str, float],
+        resource_requests: NodeResource,
+        resource_limits: NodeResource,
         lifecycle,
         env,
         priority,
@@ -618,22 +618,42 @@ class PodScaler(Scaler):
         termination_period=None,
     ):
         pod = copy.deepcopy(pod_template)
-        main_container: client.V1Container = pod.spec.containers[0]
-        resource_limits = (
-            resource_limits if len(resource_limits) > 0 else resource_requests
-        )
-        main_container.resources = client.V1ResourceRequirements(
-            requests=resource_requests,
-            limits=resource_limits,
-        )
+        main_container: Optional[client.V1Container] = None
+        if len(pod.spec.containers) == 0:
+            main_container = pod.spec.containers[0]
+        else:
+            for container in pod.spec.containers:
+                if container.name == "main":
+                    main_container = container
+
+        if main_container is None:
+            raise ValueError("The Pod config must have a main container.")
+
+        if main_container.resources is None:
+            main_container.resources = client.V1ResourceRequirements(
+                requests=resource_requests.to_resource_dict(),
+                limits=resource_limits.to_resource_dict(),
+            )
+        else:
+            main_container.resources.requests["cpu"] = resource_requests.cpu
+            main_container.resources.requests[
+                "memory"
+            ] = f"{resource_requests.memory}Mi"
+            main_container.resources.limits["cpu"] = resource_limits.cpu
+            main_container.resources.limits[
+                "memory"
+            ] = f"{resource_limits.memory}Mi"
+
         if main_container.env is None:
             main_container.env = env
         else:
             main_container.env.extend(env)
+
         main_container.lifecycle = lifecycle
         pod.spec.priority_class_name = priority
         pod.spec.restart_policy = "Never"
         pod.spec.termination_grace_period_seconds = termination_period
+
         pod.metadata = client.V1ObjectMeta(
             name=name,
             labels=labels,
