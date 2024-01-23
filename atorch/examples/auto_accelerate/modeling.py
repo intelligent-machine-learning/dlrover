@@ -108,7 +108,9 @@ def get_model(model_type, config):
     # config: dict with hidden_size, head_num, layer_num, seq_length for llms
 
     if model_type == ModelType.TOY:
-        model = ToyModel()
+        model = ToyModel(
+            in_features=config["in_features"], out_features=config["out_features"], num_linears=config["num_linears"]
+        )
         return model
 
     # llms

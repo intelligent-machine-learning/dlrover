@@ -1,3 +1,5 @@
+#!/bin/bash
+
 set -x
 
 source ./dataset_model.sh
@@ -20,6 +22,12 @@ else
     "
 fi
 
+if [ -z "$USE_FP8" ]; then
+	FP8_OPT=""
+else
+	FP8_OPT="--fp8"
+fi
+
 python -m atorch.distributed.run \
     --nnodes="$WORLD_SIZE" \
     --nproc_per_node="$NUM_GPUS_PER_NODE" \
@@ -30,4 +38,4 @@ python -m atorch.distributed.run \
     --per_device_train_batch_size $PER_DEVICE_TRAIN_BATCH_SIZE \
     --precision bf16_amp \
     --gradient_checkpointing \
-    $LORA_OPT
+    $LORA_OPT $FP8_OPT

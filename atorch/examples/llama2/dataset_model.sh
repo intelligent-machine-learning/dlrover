@@ -1,3 +1,5 @@
+#!/bin/bash
+
 HOME=$(echo ~)
 
 # Dataset path, would download in `example_utils.py` if not exist
@@ -17,7 +19,7 @@ if ! [[ -d $MODEL_NAME_OR_PATH && \
   git clone https://github.com/shawwn/llama-dl.git
   pushd llama-dl
   sed 's/MODEL_SIZE="7B,13B,30B,65B"/MODEL_SIZE="'$MODEL_SIZE'"/g' llama.sh > llama$MODEL_SIZE.sh
-  sh llama$MODEL_SIZE.sh
+  bash llama$MODEL_SIZE.sh
   pip install transformers sentencepiece
   python -m transformers.models.llama.convert_llama_weights_to_hf --input_dir=. --model_size=$MODEL_SIZE --output_dir=$MODEL_NAME_OR_PATH
   popd

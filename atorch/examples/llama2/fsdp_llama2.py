@@ -103,6 +103,11 @@ def parse_args():
         action="store_true",
         help="Use gradient checkpointing or not.",
     )
+    parser.add_argument(
+        "--fp8",
+        action="store_true",
+        help="Use fp8 or not.",
+    )
     args = parser.parse_args()
 
     return args
@@ -200,6 +205,11 @@ def main():
         strategy.append(("half", "bf16"))
     if args.gradient_checkpointing:
         strategy.append(("checkpoint", (LlamaDecoderLayer,)))
+    if args.fp8:
+        if args.peft_type is not None:
+            logger.warning("fp8 ignored as fp8 for lora training is not implemented yet.")
+        else:
+            strategy.append(("fp8", {"include": ("layers",)}))
     status, result, best_strategy = auto_accelerate(
         model,
         torch.optim.AdamW,
