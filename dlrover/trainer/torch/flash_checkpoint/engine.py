@@ -41,7 +41,7 @@ def check_all_rank_ready(group: dist.ProcessGroup, ready: bool):
     """
     Check whether all ranks are ready.
     """
-    if not group:
+    if not group and not dist.is_initialized():
         return ready
     backend = dist.get_backend(group)
     local_rank = env_utils.get_local_rank()
@@ -60,7 +60,7 @@ def verify_all_rank_step_consistent(group: dist.ProcessGroup, step):
     """
     Verify whether the step in all ranks are consistent.
     """
-    if not group:
+    if not group and not dist.is_initialized():
         return True
     backend = dist.get_backend(group)
     local_rank = env_utils.get_local_rank()
@@ -148,25 +148,6 @@ class CheckpointEngine(metaclass=ABCMeta):
     ):
         if not self.saver_proc:
             self.saver_proc = start_saver_process()
-        if dist.is_initialized():
-            self._rank = dist.get_rank()
-            backend = comm_backend if comm_backend else dist.get_backend()
-            self._loader_group = dist.new_group(
-                backend=backend,
-                timeout=timedelta(seconds=60),
-            )
-
-            saving_ranks = self.get_saving_ranks()
-            logger.info(f"Saving ranks are {saving_ranks}")
-            self._saver_group = dist.new_group(
-                ranks=saving_ranks,
-                backend=backend,
-                timeout=timedelta(seconds=60),
-            )
-        else:
-            self._rank = 0
-            self._loader_group = None
-            self._saver_group = None
 
         self.checkpoint_dir = checkpoint_dir
         self.storage = storage
@@ -191,8 +172,42 @@ class CheckpointEngine(metaclass=ABCMeta):
         self._shm_handler = SharedMemoryHandler(
             self.local_shard_id, host=False
         )
+        self._rank = 0
+        self._loader_group = None
+        self._saver_group = None
+        self._init_sync_group(comm_backend)
         self._notify_agent_to_create_saver()
         self._update_saver_config()
+
+    def _init_sync_group(self, comm_backend):
+        if not dist.is_initialized():
+            return
+
+        self._rank = dist.get_rank()
+        backend = comm_backend if comm_backend else dist.get_backend()
+        if backend == dist.get_backend():
+            self._loader_group = None
+        else:
+            self._loader_group = dist.new_group(
+                backend=backend,
+                timeout=timedelta(seconds=60),
+            )
+        saving_ranks = self.get_saving_ranks()
+        if backend == dist.get_backend() or saving_ranks is None:
+            self._saver_group = None
+        else:
+            saving_ranks = self.get_saving_ranks()
+            self._saver_group = dist.new_group(
+                ranks=saving_ranks,
+                backend=backend,
+                timeout=timedelta(seconds=60),
+            )
+            if saving_ranks is None:
+                saving_ranks = "all"
+            logger.info(
+                f"Create a {backend }commumication group between "
+                f"{saving_ranks} ranks."
+            )
 
     def __del__(self):
         self.close()
