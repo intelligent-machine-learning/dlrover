@@ -60,6 +60,40 @@ def get_pod_name(job_name, pod_type, node_id):
     return "%s-%s" % (job_name + JOB_SUFFIX + pod_type, str(node_id))
 
 
+def get_main_container(pod: client.V1Pod):
+    if len(pod.spec.containers) == 1:
+        return pod.spec.containers[0]
+    else:
+        for container in pod.spec.containers:
+            if container.name == "main":
+                return container
+
+
+def set_container_resource(
+    container: client.V1Container,
+    res_requests: NodeResource,
+    res_limits: NodeResource,
+):
+    if container.resources is None:
+        container.resources = client.V1ResourceRequirements(
+            requests=res_requests.to_resource_dict(),
+            limits=res_limits.to_resource_dict(),
+        )
+    else:
+        res = container.resources
+        if res.requests:
+            res.requests["cpu"] = res_requests.cpu
+            res.requests["memory"] = f"{res_requests.memory}Mi"
+        else:
+            res.requests = res_requests.to_resource_dict()
+
+        if res.limits:
+            res.limits["cpu"] = res_limits.cpu
+            res.limits["memory"] = f"{res_limits.memory}Mi"
+        else:
+            res.limits = res_limits.to_resource_dict()
+
+
 def retry_k8s_request(func):
     def wrapper(self, *args, **kwargs):
         retry = kwargs.get("retry", 5)

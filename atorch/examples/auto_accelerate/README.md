@@ -71,6 +71,6 @@ python -m atorch.distributed.run  --nproc_per_node 8  train.py --model_type llam
 ```
 And adding fp8 for training with GPU with fp8 capability (sm >=8.9).
 ```
-python -m atorch.distributed.run  --nproc_per_node 8  train.py --model_type llama --distributed --hiddien_size 64 --head_num 4 --layer_num 4 --seq_length 32 --load_strategy --use_fsdp --use_amp --use_module_replace --use_checkpointing --use_fp8 --user_created_dataloader
+python -m atorch.distributed.run  --nproc_per_node 8  train.py --model_type llama --distributed --hidden_size 64 --head_num 4 --layer_num 4 --seq_length 32 --load_strategy --use_fsdp --use_amp --use_module_replace --use_checkpointing --use_fp8 --user_created_dataloader
 ```
 
