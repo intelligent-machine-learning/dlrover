@@ -360,6 +360,19 @@ class FsdpCheckpointTest(unittest.TestCase):
             reader = engine.load(path)
             self.assertTrue(isinstance(reader, SharedMemoryReader))
 
+            path = engine._get_track_resume_path()
+            self.assertEqual(path, os.path.join(tmpdir, "100"))
+            tracker_file = os.path.join(
+                tmpdir, CheckpointConstant.TRACER_FILE_NAME
+            )
+            with open(tracker_file, "w") as f:
+                f.write("")
+            path = engine._get_track_resume_path()
+            self.assertEqual(path, "")
+            os.remove(tracker_file)
+            path = engine._get_track_resume_path()
+            self.assertEqual(path, "")
+
     def test_fsdp_checkpointer(self):
         step = 100
         state_dict = {
