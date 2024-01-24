@@ -35,8 +35,10 @@ from dlrover.python.scheduler.kubernetes import (
     NODE_SERVICE_PORTS,
     convert_cpu_to_decimal,
     convert_memory_to_mb,
+    get_main_container,
     get_pod_name,
     k8sClient,
+    set_container_resource,
 )
 
 _dlrover_context = Context.singleton_instance()
@@ -66,15 +68,6 @@ def append_pod_ip_to_env(env):
     else:
         env = [pod_ip_var, node_ip_var]
     return env
-
-
-def get_main_container(pod: client.V1Pod):
-    if len(pod.spec.containers) == 0:
-        return pod.spec.containers[0]
-    else:
-        for container in pod.spec.containers:
-            if container.name == "main":
-                return container
 
 
 class PodScaler(Scaler):
@@ -630,25 +623,9 @@ class PodScaler(Scaler):
 
         if main_container is None:
             raise ValueError("The Pod config must have a main container.")
-
-        if main_container.resources is None:
-            main_container.resources = client.V1ResourceRequirements(
-                requests=resource_requests.to_resource_dict(),
-                limits=resource_limits.to_resource_dict(),
-            )
-        else:
-            res = main_container.resources
-            if res.requests:
-                res.requests["cpu"] = resource_requests.cpu
-                res.requests["memory"] = f"{resource_requests.memory}Mi"
-            else:
-                res.requests = resource_requests.to_resource_dict()
-
-            if res.limits:
-                res.limits["cpu"] = resource_limits.cpu
-                res.limits["memory"] = f"{resource_limits.memory}Mi"
-            else:
-                res.limits = resource_limits.to_resource_dict()
+        set_container_resource(
+            main_container, resource_requests, resource_limits
+        )
 
         if main_container.env is None:
             main_container.env = env
@@ -660,19 +637,18 @@ class PodScaler(Scaler):
         pod.spec.restart_policy = "Never"
         pod.spec.termination_grace_period_seconds = termination_period
 
-        if pod.metadata:
-            pod.metadata.name = name
-            pod.metadata.namespace = self._namespace
-            if pod.metadata.labels:
-                pod.metadata.labels.update(labels)
-            else:
-                pod.metadata.labels = labels
-        else:
+        if not pod.metadata:
             pod.metadata = client.V1ObjectMeta(
                 name=name,
                 namespace=self._namespace,
                 labels=labels,
             )
+        pod.metadata.name = name
+        pod.metadata.namespace = self._namespace
+        if pod.metadata.labels:
+            pod.metadata.labels.update(labels)
+        else:
+            pod.metadata.labels = labels
         pod.metadata.owner_references = [self._create_job_owner_reference()]
         return pod
 
