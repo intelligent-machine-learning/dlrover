@@ -79,12 +79,17 @@ class CheckpointStorage(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def commit(self, step):
+    def safe_move(self, src_path, dst_path):
+        pass
+
+    @abstractmethod
+    def commit(self, step: int, success: bool):
         """
         We can implement the method to commit the checkpoint step.
 
         Args:
             step (int): the iteration step.
+            succeed (bool): whether to persist the checkpoint of step.
         """
         pass
 
@@ -133,8 +138,12 @@ class PosixDiskStorage(CheckpointStorage):
     def safe_makedirs(self, dir):
         os.makedirs(dir, exist_ok=True)
 
-    def commit(self, step):
+    def safe_move(self, src_path, dst_path):
+        if os.path.exists(src_path) and not os.path.exists(dst_path):
+            shutil.move(src_path, dst_path)
+
+    def commit(self, step, success):
         logger.info(
-            f"Finish persisting the checkpoint to {self._latest_path} "
-            f"for step {step}"
+            f"Succeed {success} in persisting the checkpoint to "
+            f"{self._latest_path} for step {step}"
         )
