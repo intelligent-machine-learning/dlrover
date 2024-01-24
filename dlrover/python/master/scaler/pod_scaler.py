@@ -15,7 +15,7 @@ import copy
 import json
 import threading
 import time
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from kubernetes import client
 from kubernetes.client import V1EnvVar, V1EnvVarSource, V1ObjectFieldSelector
@@ -35,8 +35,10 @@ from dlrover.python.scheduler.kubernetes import (
     NODE_SERVICE_PORTS,
     convert_cpu_to_decimal,
     convert_memory_to_mb,
+    get_main_container,
     get_pod_name,
     k8sClient,
+    set_container_resource,
 )
 
 _dlrover_context = Context.singleton_instance()
@@ -88,7 +90,6 @@ class PodScaler(Scaler):
         self._pod_stats: Dict[str, int] = {}
         self._job_uid = ""
         self.api_client = client.ApiClient()
-        self._k8s_client.api_instance
 
     def start(self):
         self._job = self._retry_to_get_job()
@@ -454,8 +455,8 @@ class PodScaler(Scaler):
         pod = self._create_pod_obj(
             name=pod_name,
             pod_template=pod_template,
-            resource_requests=node.config_resource.to_resource_dict(),
-            resource_limits=node.config_resource.to_resource_dict(),
+            resource_requests=node.config_resource,
+            resource_limits=node.config_resource,
             priority=node.config_resource.priority,
             env=env,
             lifecycle=None,
@@ -609,8 +610,8 @@ class PodScaler(Scaler):
         self,
         name,
         pod_template: client.V1Pod,
-        resource_requests: Dict[str, float],
-        resource_limits: Dict[str, float],
+        resource_requests: NodeResource,
+        resource_limits: NodeResource,
         lifecycle,
         env,
         priority,
@@ -618,28 +619,37 @@ class PodScaler(Scaler):
         termination_period=None,
     ):
         pod = copy.deepcopy(pod_template)
-        main_container: client.V1Container = pod.spec.containers[0]
-        resource_limits = (
-            resource_limits if len(resource_limits) > 0 else resource_requests
+        main_container: Optional[client.V1Container] = get_main_container(pod)
+
+        if main_container is None:
+            raise ValueError("The Pod config must have a main container.")
+        set_container_resource(
+            main_container, resource_requests, resource_limits
         )
-        main_container.resources = client.V1ResourceRequirements(
-            requests=resource_requests,
-            limits=resource_limits,
-        )
+
         if main_container.env is None:
             main_container.env = env
         else:
             main_container.env.extend(env)
+
         main_container.lifecycle = lifecycle
         pod.spec.priority_class_name = priority
         pod.spec.restart_policy = "Never"
         pod.spec.termination_grace_period_seconds = termination_period
-        pod.metadata = client.V1ObjectMeta(
-            name=name,
-            labels=labels,
-            owner_references=[self._create_job_owner_reference()],
-            namespace=self._namespace,
-        )
+
+        if not pod.metadata:
+            pod.metadata = client.V1ObjectMeta(
+                name=name,
+                namespace=self._namespace,
+                labels=labels,
+            )
+        pod.metadata.name = name
+        pod.metadata.namespace = self._namespace
+        if pod.metadata.labels:
+            pod.metadata.labels.update(labels)
+        else:
+            pod.metadata.labels = labels
+        pod.metadata.owner_references = [self._create_job_owner_reference()]
         return pod
 
     def _create_job_owner_reference(self):
