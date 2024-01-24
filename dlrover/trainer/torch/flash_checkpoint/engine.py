@@ -24,6 +24,7 @@ import torch.distributed as dist
 from dlrover.python.common import env_utils
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.multi_process import SharedLock, SharedQueue
+from dlrover.python.common.singleton import singleton
 from dlrover.python.common.storage import CheckpointStorage
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     DLROVER_CKPT_CONFIG_KEY,
@@ -37,22 +38,26 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
 )
 
 
+@singleton
+class ReadyTensor(object):
+    def __init__(self, device) -> None:
+        self.tensor = torch.tensor([0], dtype=torch.int32).to(device)
+
+
 def check_all_rank_ready(group: dist.ProcessGroup, ready: bool):
     """
     Check whether all ranks are ready.
     """
-    if not group:
+    if not group and not dist.is_initialized():
         return ready
     backend = dist.get_backend(group)
     local_rank = env_utils.get_local_rank()
     device = "cpu" if backend == "gloo" else f"cuda:{local_rank}"
+    rt = ReadyTensor(device)
     value = 0 if ready else 1
-    t = torch.tensor([value], dtype=torch.int32).to(device)
-    dist.all_reduce(t, group=group)
-    ready = t == 0
-    del t
-    if "cuda" in device:
-        torch.cuda.empty_cache()
+    rt.tensor[0] = value
+    dist.all_reduce(rt.tensor, group=group)
+    ready = rt.tensor == 0
     return ready
 
 
@@ -60,13 +65,16 @@ def verify_all_rank_step_consistent(group: dist.ProcessGroup, step):
     """
     Verify whether the step in all ranks are consistent.
     """
-    if not group:
+    if not group and not dist.is_initialized():
         return True
     backend = dist.get_backend(group)
     local_rank = env_utils.get_local_rank()
     device = "cpu" if backend == "gloo" else f"cuda:{local_rank}"
     t = torch.tensor([float(step)]).to(device)
-    world_size = group.size()
+    if group:
+        world_size = group.size()
+    else:
+        world_size = dist.get_world_size()
     outputs = [torch.tensor([0.0]) for _ in range(world_size)]
     dist.all_gather(outputs, t, group=group)
     succeed = True
@@ -74,8 +82,6 @@ def verify_all_rank_step_consistent(group: dist.ProcessGroup, step):
         if not torch.equal(step, outputs[0]):
             succeed = False
     del t, outputs
-    if "cuda" in device:
-        torch.cuda.empty_cache()
     return succeed
 
 
@@ -148,25 +154,6 @@ class CheckpointEngine(metaclass=ABCMeta):
     ):
         if not self.saver_proc:
             self.saver_proc = start_saver_process()
-        if dist.is_initialized():
-            self._rank = dist.get_rank()
-            backend = comm_backend if comm_backend else dist.get_backend()
-            self._loader_group = dist.new_group(
-                backend=backend,
-                timeout=timedelta(seconds=60),
-            )
-
-            saving_ranks = self.get_saving_ranks()
-            logger.info(f"Saving ranks are {saving_ranks}")
-            self._saver_group = dist.new_group(
-                ranks=saving_ranks,
-                backend=backend,
-                timeout=timedelta(seconds=60),
-            )
-        else:
-            self._rank = 0
-            self._loader_group = None
-            self._saver_group = None
 
         self.checkpoint_dir = checkpoint_dir
         self.storage = storage
@@ -191,8 +178,42 @@ class CheckpointEngine(metaclass=ABCMeta):
         self._shm_handler = SharedMemoryHandler(
             self.local_shard_id, host=False
         )
+        self._rank = 0
+        self._loader_group = None
+        self._saver_group = None
+        self._init_sync_group(comm_backend)
         self._notify_agent_to_create_saver()
         self._update_saver_config()
+
+    def _init_sync_group(self, comm_backend):
+        if not dist.is_initialized():
+            return
+
+        self._rank = dist.get_rank()
+        backend = comm_backend if comm_backend else dist.get_backend()
+        if backend == dist.get_backend():
+            self._loader_group = None
+        else:
+            self._loader_group = dist.new_group(
+                backend=backend,
+                timeout=timedelta(seconds=60),
+            )
+        saving_ranks = self.get_saving_ranks()
+        if backend == dist.get_backend() and saving_ranks is None:
+            self._saver_group = None
+        else:
+            saving_ranks = self.get_saving_ranks()
+            self._saver_group = dist.new_group(
+                ranks=saving_ranks,
+                backend=backend,
+                timeout=timedelta(seconds=60),
+            )
+            if saving_ranks is None:
+                saving_ranks = "all"
+            logger.info(
+                f"Create a {backend} commumication group between "
+                f"{saving_ranks} ranks."
+            )
 
     def __del__(self):
         self.close()
@@ -265,8 +286,6 @@ class CheckpointEngine(metaclass=ABCMeta):
         if acquired:
             self._shm_lock.release()
         self._cached_step = conf.step
-        if dist.is_initialized():
-            dist.barrier(group=self._saver_group)
         return True
 
     def get_state_dict_from_memory(self):
