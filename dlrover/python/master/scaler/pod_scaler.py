@@ -637,14 +637,18 @@ class PodScaler(Scaler):
                 limits=resource_limits.to_resource_dict(),
             )
         else:
-            main_container.resources.requests["cpu"] = resource_requests.cpu
-            main_container.resources.requests[
-                "memory"
-            ] = f"{resource_requests.memory}Mi"
-            main_container.resources.limits["cpu"] = resource_limits.cpu
-            main_container.resources.limits[
-                "memory"
-            ] = f"{resource_limits.memory}Mi"
+            res = main_container.resources
+            if res.requests:
+                res.requests["cpu"] = resource_requests.cpu
+                res.requests["memory"] = f"{resource_requests.memory}Mi"
+            else:
+                res.requests = resource_requests.to_resource_dict()
+
+            if res.limits:
+                res.limits["cpu"] = resource_limits.cpu
+                res.limits["memory"] = f"{resource_limits.memory}Mi"
+            else:
+                res.limits = resource_limits.to_resource_dict()
 
         if main_container.env is None:
             main_container.env = env
