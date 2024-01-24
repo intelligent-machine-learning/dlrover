@@ -345,7 +345,12 @@ class CheckpointEngine(metaclass=ABCMeta):
     @abstractmethod
     def save_to_storage(self, step, state_dict, paths: Dict[str, str]):
         """
-        Save the state_dict into the path of storage.
+        Asynchronously save the state dict into the storage. It firstly
+        synchronously saves the state dict into the shared memory and
+        put the path into a shared queue with the agent. Then, the agent
+        in the main process saves the state dict in the shared memory to the
+        storage. Only rank 0 sends a event to the agent to save
+        the state dict to the storage.
 
         Args:
             step (int): the iteration step.
