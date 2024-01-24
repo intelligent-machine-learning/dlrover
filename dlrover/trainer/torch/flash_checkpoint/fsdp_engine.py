@@ -544,12 +544,14 @@ class FsdpCheckpointEngine(CheckpointEngine):
             return self._shm_reader
         else:
             if not resume_path:
-                tracer_file = os.path.join(
+                tracker_file = os.path.join(
                     self.checkpoint_dir, CheckpointConstant.TRACER_FILE_NAME
                 )
-                if os.path.exists(tracer_file):
-                    with open(tracer_file, "r") as f:
+                if os.path.exists(tracker_file):
+                    with open(tracker_file, "r") as f:
                         step = f.read()
+                    if not step:
+                        return None
                     resume_path = os.path.join(self.checkpoint_dir, step)
             if os.path.exists(resume_path):
                 f"Create a storage reader with path {resume_path}."
