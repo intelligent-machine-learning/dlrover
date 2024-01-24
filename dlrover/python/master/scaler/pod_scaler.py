@@ -77,7 +77,6 @@ def get_main_container(pod: client.V1Pod):
                 return container
 
 
-
 class PodScaler(Scaler):
     """PodScaler launches or removes Pods using Kubernetes Python APIs
     by a ScalePlan. After PodScaler receives a ScalePlan, it will
@@ -659,12 +658,13 @@ class PodScaler(Scaler):
 
         if pod.metadata:
             pod.metadata.name = name
+            pod.metadata.namespace = self._namespace
             pod.metadata.labels.update(labels)
         else:
             pod.metadata = client.V1ObjectMeta(
                 name=name,
-                labels=labels,
                 namespace=self._namespace,
+                labels=labels,
             )
         pod.metadata.owner_references = [self._create_job_owner_reference()]
         return pod
