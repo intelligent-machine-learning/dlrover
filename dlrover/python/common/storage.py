@@ -83,7 +83,7 @@ class CheckpointStorage(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def commit(self, step: int, succeed: bool):
+    def commit(self, step: int, success: bool):
         """
         We can implement the method to commit the checkpoint step.
 
@@ -142,8 +142,8 @@ class PosixDiskStorage(CheckpointStorage):
         if os.path.exists(src_path) and not os.path.exists(dst_path):
             shutil.move(src_path, dst_path)
 
-    def commit(self, step, succeed):
+    def commit(self, step, success):
         logger.info(
-            f"Succeed {succeed} in persisting the checkpoint to "
+            f"Succeed {success} in persisting the checkpoint to "
             f"{self._latest_path} for step {step}"
         )

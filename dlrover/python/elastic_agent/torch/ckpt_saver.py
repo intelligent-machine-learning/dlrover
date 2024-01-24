@@ -733,7 +733,7 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
                 default 600s.
         """
         start_time = time.time()
-        succeed = False
+        suceess = False
         while True:
             if len(os.listdir(step_done_dir)) == self.global_shard_num:
                 # all local rank done
@@ -744,7 +744,7 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
                 logger.info(
                     f"All agents finish saving checkpoint for step {step}"
                 )
-                succeed = True
+                suceess = True
                 break
             # timeout
             elapsed_time = round(time.time() - start_time, 2)
@@ -758,7 +758,7 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
                 break
 
             time.sleep(2)
-        self.storage.commit(step, succeed)
+        self.storage.commit(step, suceess)
 
     def persist_to_storage(
         self, local_shard_id: int, ckpt_config: CheckpointConfig
@@ -904,7 +904,7 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
             f"path: {target_path}"
         )
         start_time = time.time()
-        succeed = False
+        success = False
         while True:
             # check all local rank done
             if len(os.listdir(step_done_dir)) == self.global_shard_num:
@@ -926,7 +926,7 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
                     f"Commit checkpoint tmp_path: {tmp_path}, "
                     f"path: {target_path}"
                 )
-                succeed = True
+                success = True
                 break
 
             # timeout
@@ -942,7 +942,7 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
                 break
 
             time.sleep(2)
-        self.storage.commit(step, succeed)
+        self.storage.commit(step, success)
 
 
 class DdpCheckpointSaver(CommonDirCheckpointSaver):
