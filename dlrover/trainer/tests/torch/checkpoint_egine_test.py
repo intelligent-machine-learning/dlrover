@@ -313,7 +313,7 @@ class PosixDiskStorageTest(unittest.TestCase):
             state_dict = {"weights": torch.rand(4, 4)}
             ckpt_path = os.path.join(tmpdir, "checkpoint.pt")
             storage.write_state_dict(state_dict, ckpt_path, torch.save)
-            storage.commit(100)
+            storage.commit(100, True)
             sd = storage.read_state_dict(
                 ckpt_path,
                 read_func=lambda path: torch.load(path, map_location="cpu"),
