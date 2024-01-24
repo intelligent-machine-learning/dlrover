@@ -14,7 +14,6 @@
 import importlib
 import os
 import pickle
-import shutil
 import signal
 import threading
 import time
@@ -547,6 +546,23 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         self.storage.safe_makedirs(done_dir)
         return done_dir
 
+    def _check_shard_step_consistence(self, step, timeout=15):
+        start_time = time.time()
+        while True:
+            steps = []
+            for i in range(self.local_shard_num):
+                default_config = CheckpointConfig()
+                ckpt_config = self._shm_handlers[i].get_checkpoint_config(
+                    default_config
+                )
+                steps.append(ckpt_config.step)
+            if all(i == step for i in steps):
+                return True
+            time.sleep(1)
+            if time.time() - start_time > timeout:
+                logger.info(f"The cached steps are {steps}")
+                return False
+
     def save_shm_to_storage(self, timeout=120):
         """
         Save the state dict in the shared memory into the storage. The agent
@@ -673,6 +689,13 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
         Args:
             step (int): the iteration step.
         """
+        passed = self._check_shard_step_consistence(step)
+        if not passed:
+            logger.warning(
+                f"Skip persisting the checkpoint of step {step} "
+                "because the cached step in memory are not consistent."
+            )
+            return
         self._writing_storage = True
 
         step_done_dir = self._get_checkpoint_done_dir(step)
@@ -734,16 +757,18 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
                 default 600s.
         """
         start_time = time.time()
+        suceess = False
         while True:
             if len(os.listdir(step_done_dir)) == self.global_shard_num:
                 # all local rank done
                 self.update_tracker_file(step)
 
                 # clean stage dir
-                shutil.rmtree(step_done_dir)
+                self.storage.safe_rmtree(step_done_dir)
                 logger.info(
                     f"All agents finish saving checkpoint for step {step}"
                 )
+                suceess = True
                 break
             # timeout
             elapsed_time = round(time.time() - start_time, 2)
@@ -753,11 +778,11 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
                     f"elapsed_time: {elapsed_time}"
                 )
                 # clean stage dir
-                shutil.rmtree(step_done_dir)
+                self.storage.safe_rmtree(step_done_dir)
                 break
 
             time.sleep(2)
-        self.storage.commit(step)
+        self.storage.commit(step, suceess)
 
     def persist_to_storage(
         self, local_shard_id: int, ckpt_config: CheckpointConfig
@@ -787,6 +812,13 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
             f"Rank {self._node_rank} start save checkpoint to storage, "
             f"step: {step}"
         )
+        passed = self._check_shard_step_consistence(step)
+        if not passed:
+            logger.warning(
+                f"Skip persisting the checkpoint of step {step} "
+                "because the cached step in memory are not consistent."
+            )
+            return
         self._writing_storage = True
         temp_dir = self._get_tmp_ckpt_dir(step)
         step_done_dir = self._get_checkpoint_done_dir(step)
@@ -903,8 +935,8 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
             f"path: {target_path}"
         )
         start_time = time.time()
+        success = False
         while True:
-
             # check all local rank done
             if len(os.listdir(step_done_dir)) == self.global_shard_num:
                 # all local rank done
@@ -912,19 +944,20 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
 
                 if os.path.exists(target_path):
                     if os.path.isdir(target_path):
-                        shutil.rmtree(target_path)
+                        self.storage.safe_rmtree(target_path)
                     else:
-                        os.remove(target_path)
+                        self.storage.safe_remove(target_path)
 
                 # commit checkpoint
-                shutil.move(tmp_path, target_path)
+                self.storage.safe_move(tmp_path, target_path)
                 # clean stage dir
-                shutil.rmtree(step_done_dir)
+                self.storage.safe_rmtree(step_done_dir)
                 self.update_tracker_file(step)
                 logger.info(
                     f"Commit checkpoint tmp_path: {tmp_path}, "
                     f"path: {target_path}"
                 )
+                success = True
                 break
 
             # timeout
@@ -935,11 +968,12 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
                     f"path: {target_path}, elapsed_time: {elapsed_time}"
                 )
                 # clean stage dir
-                shutil.rmtree(tmp_path)
-                shutil.rmtree(step_done_dir)
+                self.storage.safe_rmtree(tmp_path)
+                self.storage.safe_rmtree(step_done_dir)
                 break
 
             time.sleep(2)
+        self.storage.commit(step, success)
 
 
 class DdpCheckpointSaver(CommonDirCheckpointSaver):

@@ -15,6 +15,7 @@ import os
 from typing import Dict
 
 import torch
+import torch.distributed as dist
 
 from dlrover.python.common import env_utils
 from dlrover.python.common.constants import CheckpointConstant
@@ -119,6 +120,8 @@ class DdpCheckpointEngine(CheckpointEngine):
         if step > self._cached_step:
             succeed = self.save_to_memory(step, state_dict, paths)
         # Only rank 0 persist the checkpoint to the storage.
+        if dist.is_initialized():
+            dist.barrier()
         if succeed and self._rank == 0:
             event = CheckpointEvent(type=CheckpointEventType.SAVE, step=step)
             self._event_queue.put(event)
