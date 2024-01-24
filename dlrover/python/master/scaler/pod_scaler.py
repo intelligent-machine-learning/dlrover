@@ -659,7 +659,10 @@ class PodScaler(Scaler):
         if pod.metadata:
             pod.metadata.name = name
             pod.metadata.namespace = self._namespace
-            pod.metadata.labels.update(labels)
+            if pod.metadata.labels:
+                pod.metadata.labels.update(labels)
+            else:
+                pod.metadata.labels = labels
         else:
             pod.metadata = client.V1ObjectMeta(
                 name=name,
