@@ -12,7 +12,9 @@
 # limitations under the License.
 
 import unittest
+
 from kubernetes import client
+
 from dlrover.python.common.node import NodeResource
 from dlrover.python.scheduler.kubernetes import (
     get_main_container,
@@ -25,7 +27,7 @@ class KubernetesTest(unittest.TestCase):
     def test_get_main_container(self):
         labels = {"class": "test"}
         pod = create_pod(labels)
-        main_container = get_main_container(pod,)
+        main_container = get_main_container(pod)
         self.assertEqual(main_container.name, "main")
 
         container = client.V1Container(
