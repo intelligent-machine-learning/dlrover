@@ -107,6 +107,9 @@ class MegatronCheckpointEngine(CheckpointEngine):
         if step > self._cached_step:
             succeed = self.save_to_memory(step, state_dict, paths)
 
+        if dist.is_initialized():
+            dist.barrier()
+
         # Only local rank 0 to notify the saving event to the agent.
         if self._dp_rank != 0 or self._local_rank != 0:
             return

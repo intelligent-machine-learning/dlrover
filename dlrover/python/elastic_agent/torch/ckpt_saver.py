@@ -546,6 +546,23 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         self.storage.safe_makedirs(done_dir)
         return done_dir
 
+    def _check_shard_step_consistence(self, step, timeout=15):
+        start_time = time.time()
+        while True:
+            steps = []
+            for i in range(self.local_shard_num):
+                default_config = CheckpointConfig()
+                ckpt_config = self._shm_handlers[i].get_checkpoint_config(
+                    default_config
+                )
+                steps.append(ckpt_config.step)
+            if all(i == step for i in steps):
+                return True
+            time.sleep(1)
+            if time.time() - start_time > timeout:
+                logger.info(f"The cached steps are {steps}")
+                return False
+
     def save_shm_to_storage(self, timeout=120):
         """
         Save the state dict in the shared memory into the storage. The agent
@@ -796,6 +813,14 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
         # save to stage path for each local rank
         futures: List[Future] = []
         ckpt_dir = ""
+
+        passed = self._check_shard_step_consistence(step)
+        if not passed:
+            logger.warning(
+                f"Skip persisting the checkpoint of step {step} "
+                "because the cached step in memory are not consistent."
+            )
+            return
         for i in range(self.local_shard_num):
             default_config = CheckpointConfig()
             ckpt_config = self._shm_handlers[i].get_checkpoint_config(
