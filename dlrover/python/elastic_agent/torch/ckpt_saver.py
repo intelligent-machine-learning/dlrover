@@ -689,6 +689,13 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
         Args:
             step (int): the iteration step.
         """
+        passed = self._check_shard_step_consistence(step)
+        if not passed:
+            logger.warning(
+                f"Skip persisting the checkpoint of step {step} "
+                "because the cached step in memory are not consistent."
+            )
+            return
         self._writing_storage = True
 
         step_done_dir = self._get_checkpoint_done_dir(step)
@@ -805,6 +812,13 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
             f"Rank {self._node_rank} start save checkpoint to storage, "
             f"step: {step}"
         )
+        passed = self._check_shard_step_consistence(step)
+        if not passed:
+            logger.warning(
+                f"Skip persisting the checkpoint of step {step} "
+                "because the cached step in memory are not consistent."
+            )
+            return
         self._writing_storage = True
         temp_dir = self._get_tmp_ckpt_dir(step)
         step_done_dir = self._get_checkpoint_done_dir(step)
@@ -813,14 +827,6 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
         # save to stage path for each local rank
         futures: List[Future] = []
         ckpt_dir = ""
-
-        passed = self._check_shard_step_consistence(step)
-        if not passed:
-            logger.warning(
-                f"Skip persisting the checkpoint of step {step} "
-                "because the cached step in memory are not consistent."
-            )
-            return
         for i in range(self.local_shard_num):
             default_config = CheckpointConfig()
             ckpt_config = self._shm_handlers[i].get_checkpoint_config(
