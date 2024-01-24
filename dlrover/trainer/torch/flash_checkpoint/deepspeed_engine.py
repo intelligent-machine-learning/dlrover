@@ -102,6 +102,9 @@ class DeepSpeedCheckpointEngine(CheckpointEngine):
         if step > self._cached_step:
             succeed = self.save_to_memory(step, state_dict, paths)
 
+        if dist.is_initialized():
+            dist.barrier()
+
         # Only local rank 0 to notify the saving event to the agent.
         if self._local_rank == 0 and succeed:
             event = CheckpointEvent(type=CheckpointEventType.SAVE, step=step)
