@@ -39,14 +39,23 @@ class DeepSpeedCheckpointEngine(CheckpointEngine):
         checkpoint_dir (str):  the directory to save the temp checkpoint
             if the training process fails.
         dp_size (int): the world size of data parallelism.
+        global_shard_num (int): the number of shards across all ranks.
+        zero_stage (int): the DeepSpeed ZERO Stage number.
+        comm_backend (str): the backend to synchronize when saving the
+            checkpoint to the memory.
     """
 
     def __init__(
-        self, checkpoint_dir, storage, global_shard_num=1, zero_stage=0
+        self,
+        checkpoint_dir,
+        storage,
+        global_shard_num=1,
+        zero_stage=0,
+        comm_backend="",
     ):
         self.global_shard_num = global_shard_num
         self.zero_stage = zero_stage
-        super().__init__(checkpoint_dir, storage)
+        super().__init__(checkpoint_dir, storage, comm_backend)
 
     def get_saving_ranks(self):
         """

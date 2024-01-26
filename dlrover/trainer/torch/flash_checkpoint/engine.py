@@ -75,7 +75,7 @@ def verify_all_rank_step_consistent(group: dist.ProcessGroup, step):
         world_size = group.size()
     else:
         world_size = dist.get_world_size()
-    outputs = [torch.tensor([0.0]) for _ in range(world_size)]
+    outputs = [torch.tensor([0.0]).to(device) for _ in range(world_size)]
     dist.all_gather(outputs, t, group=group)
     succeed = True
     for step in outputs:
@@ -140,8 +140,8 @@ class CheckpointEngine(metaclass=ABCMeta):
     Args:
         checkpoint_dir (str): the directory to save checkpoint.
         storage: a CheckpointStorage instance to write/read the storage.
-        comm_backend (str): the backend to create a communcation group,
-            default is gloo.
+        comm_backend (str): the communcation backend to create a process group,
+            The default is the backend of general main process group.
     """
 
     saver_proc = None
@@ -150,7 +150,7 @@ class CheckpointEngine(metaclass=ABCMeta):
         self,
         checkpoint_dir: str,
         storage: CheckpointStorage,
-        comm_backend: str = "gloo",
+        comm_backend: str = "",
     ):
         if not self.saver_proc:
             self.saver_proc = start_saver_process()

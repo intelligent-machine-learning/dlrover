@@ -34,10 +34,6 @@ class DdpCheckpointEngine(CheckpointEngine):
     """
     Save the checkpoint state dict of DDP model into the memory or storage.
 
-    Attributes:
-        checkpoint_dir (str):  the directory to save the temp checkpoint
-            if the training process fails.
-
     Examples::
         >>> engine = DdpCheckpointEngine(
         >>>     checkpoint_dir="/tmp/checkpoint/"
@@ -53,8 +49,20 @@ class DdpCheckpointEngine(CheckpointEngine):
         >>> sate_dict = engine.load()
     """
 
-    def __init__(self, checkpoint_dir, storage):
-        super().__init__(checkpoint_dir, storage)
+    def __init__(
+        self,
+        checkpoint_dir,
+        storage,
+        local_shard_num=1,
+        global_shard_num=1,
+        comm_backend="",
+    ):
+        if global_shard_num < local_shard_num:
+            global_shard_num = local_shard_num
+            logger.info(f"Set global_shard_num to {local_shard_num}.")
+        self._local_shard_num = local_shard_num
+        self._global_shard_num = global_shard_num
+        super().__init__(checkpoint_dir, storage, comm_backend)
 
     def get_saving_ranks(self):
         """
@@ -65,16 +73,17 @@ class DdpCheckpointEngine(CheckpointEngine):
         local_world_size = env_utils.get_local_world_size()
         save_ranks = []
         for i in range(group_size):
-            saver_rank = i * local_world_size
-            save_ranks.append(saver_rank)
+            for j in range(self._local_shard_num):
+                saver_rank = i * local_world_size + j
+                save_ranks.append(saver_rank)
         logger.info(f"The ranks to save checkpoint are {save_ranks}.")
         return save_ranks
 
     def get_local_shard_num(self):
-        return 1
+        return self._local_shard_num
 
     def get_global_shard_num(self):
-        return 1
+        return self._global_shard_num
 
     def get_saver_class(self):
         return DdpCheckpointSaver
@@ -114,8 +123,6 @@ class DdpCheckpointEngine(CheckpointEngine):
                 ["model_states", "optim_states"] of the state dict and
                 the value is the path of storage to save.
         """
-        if self._local_rank != 0:
-            return
         succeed = True
         if step > self._cached_step:
             succeed = self.save_to_memory(step, state_dict, paths)
@@ -180,7 +187,11 @@ class DdpCheckpointEngine(CheckpointEngine):
             if not content:
                 return state_dict
             iteration = int(content.strip())
-            name = f"{CheckpointConstant.CKPT_NAME_PREFIX}{iteration}.pt"
+            if self._global_shard_num == 1:
+                #  Load the checkpoint saved by rank 0 if no sharding.
+                name = f"{iteration}/rank_{self._rank}.pt"
+            else:
+                name = f"{iteration}/rank_0.pt"
             path = os.path.join(self.checkpoint_dir, name)
             logger.info(f"Load the state dict from {path}")
             state_dict = self.storage.read_state_dict(

@@ -94,6 +94,10 @@ class DeepSpeedCheckpointer(Checkpointer):
 
     Args:
         checkpoint_dir: the directory to save the checkpoint.
+        storage: A CheckpointStorage instance. The checkpointer will
+            use a PosixStorage instance if the storage is not defined.
+        comm_backend (str): the backend to synchronize when saving the
+            checkpoint to the memory.
 
     Examples::
         >>> engine = deepspeed.initialize(...)
@@ -108,7 +112,13 @@ class DeepSpeedCheckpointer(Checkpointer):
         >>>     )
     """
 
-    def __init__(self, engine: DeepSpeedEngine, checkpoint_dir, storage=None):
+    def __init__(
+        self,
+        engine: DeepSpeedEngine,
+        checkpoint_dir,
+        storage=None,
+        comm_backend="",
+    ):
         self.engine = engine
         self.checkpoint_dir = checkpoint_dir
         global_shard_num = 1
@@ -123,6 +133,7 @@ class DeepSpeedCheckpointer(Checkpointer):
             storage=self.storage,
             global_shard_num=global_shard_num,
             zero_stage=zero_stage,
+            comm_backend=comm_backend,
         )
         self._ckpt_engine = AsyncSaveEngine(self._async_save_engine.storage)
         self.engine.checkpoint_engine = self._ckpt_engine
