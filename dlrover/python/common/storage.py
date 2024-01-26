@@ -157,6 +157,6 @@ class PosixDiskStorage(CheckpointStorage):
             f"Succeed {success} in persisting the checkpoint to "
             f"{self._latest_path} for step {step}"
         )
-    
+
     def exists(self, path: str):
         return os.path.exists(path)
