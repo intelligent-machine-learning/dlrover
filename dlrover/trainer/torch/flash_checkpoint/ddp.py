@@ -31,9 +31,12 @@ class DdpCheckpointer(Checkpointer):
         storage: A CheckpointStorage instance. The checkpointer will
             use a PosixStorage instance if the storage is not defined.
         local_shard_num (int): the number of shards on a node,
-            The default is 1.
+            The default is 1. If the model is partitioned on all ranks,
+            you should set the local_shard_num as the number of ranks
+            on a node.
         global_shard_num (int): the number of shards across all ranks.
-            The default is 1.
+            The default is 1.If the model is partitioned on all ranks,
+            you should set the local_shard_num as the number of all ranks.
         comm_backend (str): the communcation backend to create a process group,
             The default is the backend of general main process group.
 
