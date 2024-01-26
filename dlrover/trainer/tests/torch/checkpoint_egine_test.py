@@ -267,6 +267,8 @@ class CheckpointEngineTest(unittest.TestCase):
             engine = DdpCheckpointEngine(tmpdirname, storage)
             engine._restart_count = 1
             engine._notify_agent_to_create_saver()
+            ckpt_dir = os.path.join(tmpdirname, "10")
+            os.makedirs(ckpt_dir, exist_ok=True)
             path = os.path.join(tmpdirname, "10/rank_0.pt")
             torch.save(state_dict, path)
             tracer_file = os.path.join(
