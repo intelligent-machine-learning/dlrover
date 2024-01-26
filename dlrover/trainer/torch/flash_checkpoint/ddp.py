@@ -13,6 +13,8 @@
 
 import os
 
+import torch.distributed as dist
+
 from dlrover.python.common.constants import CheckpointConstant
 from dlrover.python.common.storage import PosixDiskStorage
 
@@ -63,20 +65,21 @@ class DdpCheckpointer(Checkpointer):
         comm_backend="",
     ):
         self.checkpoint_dir = checkpoint_dir
+        self._rank = dist.get_rank()
         self.storage = PosixDiskStorage() if not storage else storage
         self._engine = DdpCheckpointEngine(
-            checkpoint_dir,
-            self.storage,
-            local_shard_num,
-            global_shard_num,
-            comm_backend,
+            checkpoint_dir=checkpoint_dir,
+            storage=self.storage,
+            local_shard_num=local_shard_num,
+            global_shard_num=global_shard_num,
+            comm_backend=comm_backend,
         )
 
     def save_checkpoint(
         self, step, state_dict, path="", storage_type=StorageType.DISK
     ):
         if path == "":
-            ckpt_name = f"{CheckpointConstant.CKPT_NAME_PREFIX}{step}.pt"
+            ckpt_name = f"{step}/rank_{self._rank}.pt"
             path = os.path.join(self.checkpoint_dir, ckpt_name)
         state_dict = {CheckpointConstant.MODEL_STATES_NAME: state_dict}
         paths = {CheckpointConstant.MODEL_STATES_NAME: path}

@@ -486,8 +486,6 @@ class FsdpCheckpointEngine(CheckpointEngine):
         if acquired:
             self._shm_lock.release()
         self._cached_step = conf.step
-        if dist.is_initialized():
-            dist.barrier(group=self._saver_group)
         return True
 
     def save_to_storage(self, step, state_dict, paths: Dict[str, str]):
@@ -501,6 +499,9 @@ class FsdpCheckpointEngine(CheckpointEngine):
         succeed = True
         if step > self._cached_step:
             succeed = self.save_to_memory(step, state_dict, paths)
+
+        if dist.is_initialized():
+            dist.barrier()
 
         # Only local rank 0 on each node notifies the event to save.
         if self._local_rank == 0 and succeed:

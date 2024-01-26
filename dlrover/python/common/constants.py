@@ -278,7 +278,6 @@ class ConfigPath(object):
 
 
 class CheckpointConstant(object):
-    CKPT_NAME_PREFIX = "checkpoint-"
     TRACER_FILE_NAME = "dlrover_latest.txt"
     MODEL_STATES_NAME = "model_states"
     OPTIM_STATES_NAME = "optim_states"
