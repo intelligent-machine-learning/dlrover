@@ -68,7 +68,10 @@ class DdpCheckpointer(Checkpointer):
         comm_backend="",
     ):
         self.checkpoint_dir = checkpoint_dir
-        self._rank = dist.get_rank()
+        if dist.is_initialized():
+            self._rank = dist.get_rank()
+        else:
+            self._rank = 0
         self.storage = PosixDiskStorage() if not storage else storage
         self._engine = DdpCheckpointEngine(
             checkpoint_dir=checkpoint_dir,
