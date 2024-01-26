@@ -705,7 +705,7 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
         if self._node_rank == 0:
             self.storage.safe_makedirs(step_done_dir)
         else:
-            for _ in range(11):
+            for _ in range(30):
                 if self.storage.exists(step_done_dir):
                     break
                 time.sleep(1)
