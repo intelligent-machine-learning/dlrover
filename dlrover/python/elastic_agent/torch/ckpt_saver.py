@@ -702,7 +702,13 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
         self._writing_storage = True
 
         step_done_dir = self._get_checkpoint_done_dir(step)
-        self.storage.safe_makedirs(step_done_dir)
+        if self._node_rank == 0:
+            self.storage.safe_makedirs(step_done_dir)
+        else:
+            for _ in range(11):
+                if self.storage.exists(step_done_dir):
+                    break
+                time.sleep(1)
 
         write_success = False
         # save to stage path for each local rank
