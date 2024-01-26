@@ -511,8 +511,8 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 return
 
             logger.info(
-                f"Local rank {local_shard_id} Save checkpoint from the shared "
-                f"memory into the storage {ckpt_config}."
+                f"Save local checkpoint shard {local_shard_id} from the shared"
+                f" memory into the storage {ckpt_config}."
             )
             self.persist_to_storage(local_shard_id, ckpt_config)
             shm_lock.release()
@@ -521,11 +521,14 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
             )
             step_done_file = os.path.join(step_done_dir, str(global_shard_id))
             self.storage.write("done", step_done_file)
+            logger.info(
+                f"Finish saving the local checkpoint shard {local_shard_id}."
+            )
             return True
 
         except Exception as e:
             logger.error(
-                f"Rank {local_shard_id} save checkpoint failed, error: {e}",
+                f"Fail to save the checkpoint shard {local_shard_id}, error: {e}",
                 exc_info=True,
             )
             shm_lock.release()
