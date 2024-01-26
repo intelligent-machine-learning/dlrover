@@ -34,10 +34,6 @@ class DdpCheckpointEngine(CheckpointEngine):
     """
     Save the checkpoint state dict of DDP model into the memory or storage.
 
-    Attributes:
-        checkpoint_dir (str):  the directory to save the temp checkpoint
-            if the training process fails.
-
     Examples::
         >>> engine = DdpCheckpointEngine(
         >>>     checkpoint_dir="/tmp/checkpoint/"
@@ -53,8 +49,22 @@ class DdpCheckpointEngine(CheckpointEngine):
         >>> sate_dict = engine.load()
     """
 
-    def __init__(self, checkpoint_dir, storage):
-        super().__init__(checkpoint_dir, storage)
+    def __init__(
+        self,
+        checkpoint_dir,
+        storage,
+        local_shard_num=1,
+        global_shard_num=1,
+        comm_backend="",
+    ):
+        if global_shard_num < local_shard_num:
+            raise ValueError(
+                f"The global_shard_num {global_shard_num} cannot be smaller "
+                f"than local_shard_num {local_shard_num}."
+            )
+        self._local_shard_num = local_shard_num
+        self._global_shard_num = global_shard_num
+        super().__init__(checkpoint_dir, storage, comm_backend)
 
     def get_saving_ranks(self):
         """
@@ -71,10 +81,10 @@ class DdpCheckpointEngine(CheckpointEngine):
         return save_ranks
 
     def get_local_shard_num(self):
-        return 1
+        return self._local_shard_num
 
     def get_global_shard_num(self):
-        return 1
+        return self._global_shard_num
 
     def get_saver_class(self):
         return DdpCheckpointSaver

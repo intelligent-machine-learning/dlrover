@@ -26,6 +26,14 @@ class DdpCheckpointer(Checkpointer):
 
     Args:
         checkpoint_dir: the directory to save the checkpoint.
+        storage: A CheckpointStorage instance. The checkpointer will
+            use a PosixStorage instance if the storage is not defined.
+        local_shard_num (int): the number of shards on a node,
+            The default is 1.
+        global_shard_num (int): the number of shards across all ranks.
+            The default is 1.
+        comm_backend (str): the communcation backend to create a process group,
+            The default is the backend of general main process group.
 
     Examples::
         >>> checkpointer = DdpCheckpointer(
@@ -46,10 +54,23 @@ class DdpCheckpointer(Checkpointer):
         >>> sate_dict = engine.load_checkpoint()
     """
 
-    def __init__(self, checkpoint_dir: str, storage=None):
+    def __init__(
+        self,
+        checkpoint_dir: str,
+        storage=None,
+        local_shard_num=1,
+        global_shard_num=1,
+        comm_backend="",
+    ):
         self.checkpoint_dir = checkpoint_dir
         self.storage = PosixDiskStorage() if not storage else storage
-        self._engine = DdpCheckpointEngine(checkpoint_dir, self.storage)
+        self._engine = DdpCheckpointEngine(
+            checkpoint_dir,
+            self.storage,
+            local_shard_num,
+            global_shard_num,
+            comm_backend,
+        )
 
     def save_checkpoint(
         self, step, state_dict, path="", storage_type=StorageType.DISK

@@ -31,13 +31,9 @@ class MegatronCheckpointEngine(CheckpointEngine):
     the shared memory and notify the agent in main process to
     asynchronously save the state dict from the shared memory into
     the storage.
-
-    Attributes:
-        checkpoint_dir (str):  the directory to save the temp checkpoint
-            if the training process fails.
     """
 
-    def __init__(self, checkpoint_dir, storage):
+    def __init__(self, checkpoint_dir, storage, comm_backend=""):
         if dist.is_initialized():
             try:
                 from megatron.core import mpu
@@ -57,7 +53,7 @@ class MegatronCheckpointEngine(CheckpointEngine):
             self._pp_world_size = 1
             self._tp_world_size = 1
 
-        super().__init__(checkpoint_dir, storage)
+        super().__init__(checkpoint_dir, storage, comm_backend)
 
     def get_saving_ranks(self):
         """

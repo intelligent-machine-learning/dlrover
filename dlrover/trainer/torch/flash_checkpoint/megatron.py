@@ -49,12 +49,16 @@ def _get_rank():
 
 @singleton
 class MegatronCheckpointManager(object):
-    def __init__(self, checkpoint_dir, storage=None):
+    def __init__(self, checkpoint_dir, storage=None, comm_backend=""):
         self.state_dict = {}
         self.paths = {}
         self.checkpoint_dir = checkpoint_dir
         self.storage = PosixDiskStorage() if not storage else storage
-        self.engine = MegatronCheckpointEngine(checkpoint_dir, self.storage)
+        self.engine = MegatronCheckpointEngine(
+            checkpoint_dir=checkpoint_dir,
+            storage=self.storage,
+            comm_backend=comm_backend,
+        )
 
     def save(self, state_dict, path: str):
         if path.endswith(_MODEL_SD_NAME):
@@ -120,16 +124,25 @@ def save_checkpoint(
     optimizer,
     opt_param_scheduler,
     storage_type=StorageType.DISK,
+    storage=None,
+    comm_backend="",
 ):
     """
     Synchronously save the the checkpointing state dict into the CPU memory.
 
     Args:
         same as the `megatron.checkpointing.load_checkpoint`
+        storage: A CheckpointStorage instance. The checkpointer will
+            use a PosixStorage instance if the storage is not defined.
+        comm_backend (str): the backend to synchronize when saving the
+            checkpoint to the memory.
     """
+    args = get_args()
+    saver = MegatronCheckpointManager(
+        args.save, storage=storage, comm_backend=comm_backend
+    )
     if storage_type == StorageType.MEMORY:
-        args = get_args()
-        saver = MegatronCheckpointManager(args.save)
+
         torch_save_func = torch.save
         torch.save = saver.save
         megatron_save(iteration, model, optimizer, opt_param_scheduler)
@@ -143,8 +156,6 @@ def save_checkpoint(
         if _get_rank() == 0:
             saver.update_tracer_file(iteration)
     elif storage_type == StorageType.DISK:
-        args = get_args()
-        saver = MegatronCheckpointManager(args.save)
         torch_save_func = torch.save
         torch.save = saver.save
         megatron_save(iteration, model, optimizer, opt_param_scheduler)
@@ -155,7 +166,12 @@ def save_checkpoint(
 
 
 def load_checkpoint(
-    model, optimizer, opt_param_scheduler, load_arg="load", strict=True
+    model,
+    optimizer,
+    opt_param_scheduler,
+    load_arg="load",
+    strict=True,
+    comm_backend="",
 ):
     """Load the checkpointing state dict. The method firstly
     load the state dict from the CPU memory and then from the storage.
@@ -163,7 +179,7 @@ def load_checkpoint(
         same as the `megatron.checkpointing.load_checkpoint`
     """
     args = get_args()
-    saver = MegatronCheckpointManager(args.save)
+    saver = MegatronCheckpointManager(args.save, comm_backend=comm_backend)
     torch_load_func = torch.load
     torch.load = saver.load
     iteration = megatron_load(
