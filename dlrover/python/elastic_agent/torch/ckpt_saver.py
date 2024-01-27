@@ -623,9 +623,12 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 f"memory to storage, step: {step}."
             )
 
-    def release_shm_lock(self):
-        for lock in self._shm_locks:
+    @classmethod
+    def release_shm_lock(cls):
+        """Release all shared lock on the node."""
+        for lock in cls._saver_instance._shm_locks:
             lock.release()
+        logger.info("Relase all the shared locks of shared memory.")
 
     @abstractmethod
     def save_step_checkpoint(self, step: int):
