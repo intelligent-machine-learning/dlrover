@@ -840,6 +840,7 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
             return
         self._writing_storage = True
         temp_dir = self._get_tmp_ckpt_dir(step)
+        self._dist_make_dir(temp_dir)
         step_done_dir = self._get_checkpoint_done_dir(step)
         self._dist_make_dir(step_done_dir)
 
@@ -923,7 +924,6 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
         ckpt_name = os.path.join(
             self.checkpoint_dir, self._STAGE_DIR, str(step)
         )
-        self._dist_make_dir(ckpt_name)
         return ckpt_name
 
     def commit_checkpoint(  # type: ignore
