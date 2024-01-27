@@ -270,6 +270,7 @@ class CheckpointEngine(metaclass=ABCMeta):
             return False
 
         acquired = self._shm_lock.acquire(blocking=False)
+        logger.info(f"Status to acquire the lock: {acquired}.")
         all_rank_ready = check_all_rank_ready(self._saver_group, acquired)
         if not all_rank_ready:
             logger.info(

@@ -525,15 +525,15 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 f"Finish saving the local checkpoint shard {local_shard_id}."
             )
             return True
-
         except Exception as e:
             logger.error(
                 f"Fail to save the checkpoint shard {local_shard_id}, "
                 f"error: {e}",
                 exc_info=True,
             )
-            shm_lock.release()
             return False
+        finally:
+            shm_lock.release()
 
     def _dist_make_dir(self, path, timeout=30):
         if self._node_rank == 0:
@@ -622,6 +622,10 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 "Save the checkpointing state dict from the shared "
                 f"memory to storage, step: {step}."
             )
+
+    def release_shm_lock(self):
+        for lock in self._shm_locks:
+            lock.release()
 
     @abstractmethod
     def save_step_checkpoint(self, step: int):
