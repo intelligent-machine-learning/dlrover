@@ -786,7 +786,7 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
         start_time = time.time()
         suceess = False
         while True:
-            done_files = os.listdir(step_done_dir)
+            done_files = self.storage.listdir(step_done_dir)
             ready_num = len(done_files)
             if ready_num == self.global_shard_num:
                 self.update_tracker_file(step)
@@ -970,7 +970,7 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
         start_time = time.time()
         success = False
         while True:
-            done_files = os.listdir(step_done_dir)
+            done_files = self.storage.listdir(step_done_dir)
             ready_num = len(done_files)
             # Check whether all shards are completed.
             if ready_num == self.global_shard_num:
