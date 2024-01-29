@@ -13,6 +13,8 @@
 
 import os
 
+import torch.distributed as dist
+
 from dlrover.python.common.constants import CheckpointConstant
 from dlrover.python.common.storage import PosixDiskStorage
 
@@ -26,6 +28,17 @@ class DdpCheckpointer(Checkpointer):
 
     Args:
         checkpoint_dir: the directory to save the checkpoint.
+        storage: A CheckpointStorage instance. The checkpointer will
+            use a PosixStorage instance if the storage is not defined.
+        local_shard_num (int): the number of shards on a node,
+            The default is 1. If the model is partitioned on all ranks,
+            you should set the local_shard_num as the number of ranks
+            on a node.
+        global_shard_num (int): the number of shards across all ranks.
+            The default is 1.If the model is partitioned on all ranks,
+            you should set the local_shard_num as the number of all ranks.
+        comm_backend (str): the communcation backend to create a process group,
+            The default is the backend of general main process group.
 
     Examples::
         >>> checkpointer = DdpCheckpointer(
@@ -46,16 +59,33 @@ class DdpCheckpointer(Checkpointer):
         >>> sate_dict = engine.load_checkpoint()
     """
 
-    def __init__(self, checkpoint_dir: str, storage=None):
+    def __init__(
+        self,
+        checkpoint_dir: str,
+        storage=None,
+        local_shard_num=1,
+        global_shard_num=1,
+        comm_backend="",
+    ):
         self.checkpoint_dir = checkpoint_dir
+        if dist.is_initialized():
+            self._rank = dist.get_rank()
+        else:
+            self._rank = 0
         self.storage = PosixDiskStorage() if not storage else storage
-        self._engine = DdpCheckpointEngine(checkpoint_dir, self.storage)
+        self._engine = DdpCheckpointEngine(
+            checkpoint_dir=checkpoint_dir,
+            storage=self.storage,
+            local_shard_num=local_shard_num,
+            global_shard_num=global_shard_num,
+            comm_backend=comm_backend,
+        )
 
     def save_checkpoint(
         self, step, state_dict, path="", storage_type=StorageType.DISK
     ):
         if path == "":
-            ckpt_name = f"{CheckpointConstant.CKPT_NAME_PREFIX}{step}.pt"
+            ckpt_name = f"{step}/rank_{self._rank}.pt"
             path = os.path.join(self.checkpoint_dir, ckpt_name)
         state_dict = {CheckpointConstant.MODEL_STATES_NAME: state_dict}
         paths = {CheckpointConstant.MODEL_STATES_NAME: path}

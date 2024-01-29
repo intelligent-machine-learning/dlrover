@@ -93,14 +93,32 @@ class CheckpointStorage(metaclass=ABCMeta):
         """
         pass
 
+    @abstractmethod
+    def exists(self, path: str):
+        """
+        The method checks whether the path exists.
+
+        Args:
+            path (str): a path.
+        """
+        pass
+
+    @abstractmethod
+    def listdir(self, path: str):
+        """
+        The method list all objects in the path.
+
+        Args:
+            path (str): a path.
+        """
+        pass
+
 
 class PosixDiskStorage(CheckpointStorage):
     def __init__(self):
         self._latest_path = ""
 
     def write(self, content, path):
-        dir = os.path.dirname(path)
-        os.makedirs(dir, exist_ok=True)
         mode = "w"
         if isinstance(content, bytes) or isinstance(content, memoryview):
             mode = "wb"
@@ -147,3 +165,9 @@ class PosixDiskStorage(CheckpointStorage):
             f"Succeed {success} in persisting the checkpoint to "
             f"{self._latest_path} for step {step}"
         )
+
+    def exists(self, path: str):
+        return os.path.exists(path)
+
+    def listdir(self, path: str):
+        return os.listdir(path)

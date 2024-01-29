@@ -75,7 +75,7 @@ def verify_all_rank_step_consistent(group: dist.ProcessGroup, step):
         world_size = group.size()
     else:
         world_size = dist.get_world_size()
-    outputs = [torch.tensor([0.0]) for _ in range(world_size)]
+    outputs = [torch.tensor([0.0]).to(device) for _ in range(world_size)]
     dist.all_gather(outputs, t, group=group)
     succeed = True
     for step in outputs:
@@ -140,8 +140,8 @@ class CheckpointEngine(metaclass=ABCMeta):
     Args:
         checkpoint_dir (str): the directory to save checkpoint.
         storage: a CheckpointStorage instance to write/read the storage.
-        comm_backend (str): the backend to create a communcation group,
-            default is gloo.
+        comm_backend (str): the communcation backend to create a process group,
+            The default is the backend of general main process group.
     """
 
     saver_proc = None
@@ -150,7 +150,7 @@ class CheckpointEngine(metaclass=ABCMeta):
         self,
         checkpoint_dir: str,
         storage: CheckpointStorage,
-        comm_backend: str = "gloo",
+        comm_backend: str = "",
     ):
         if not self.saver_proc:
             self.saver_proc = start_saver_process()
@@ -179,6 +179,8 @@ class CheckpointEngine(metaclass=ABCMeta):
             self.local_shard_id, host=False
         )
         self._rank = 0
+        self._group_rank = 0
+        self._world_size = 1
         self._loader_group = None
         self._saver_group = None
         self._init_sync_group(comm_backend)
@@ -190,6 +192,8 @@ class CheckpointEngine(metaclass=ABCMeta):
             return
 
         self._rank = dist.get_rank()
+        self._group_rank = env_utils.get_group_rank()
+        self._world_size = dist.get_world_size()
         backend = comm_backend if comm_backend else dist.get_backend()
         if backend == dist.get_backend():
             self._loader_group = None
@@ -270,6 +274,7 @@ class CheckpointEngine(metaclass=ABCMeta):
             return False
 
         acquired = self._shm_lock.acquire(blocking=False)
+        logger.info(f"Acquired the lock of shared memory: {acquired}.")
         all_rank_ready = check_all_rank_ready(self._saver_group, acquired)
         if not all_rank_ready:
             logger.info(
@@ -345,7 +350,12 @@ class CheckpointEngine(metaclass=ABCMeta):
     @abstractmethod
     def save_to_storage(self, step, state_dict, paths: Dict[str, str]):
         """
-        Save the state_dict into the path of storage.
+        Asynchronously save the state dict into the storage. It firstly
+        synchronously saves the state dict into the shared memory and
+        put the path into a shared queue with the agent. Then, the agent
+        in the main process saves the state dict in the shared memory to the
+        storage. Only rank 0 sends a event to the agent to save
+        the state dict to the storage.
 
         Args:
             step (int): the iteration step.

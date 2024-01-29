@@ -24,6 +24,10 @@ class FsdpCheckpointer(Checkpointer):
 
     Args:
         checkpoint_dir: the directory to save the checkpoint.
+        storage: A CheckpointStorage instance. The checkpointer will
+            use a PosixStorage instance if the storage is not defined.
+        comm_backend (str): the backend to synchronize when saving the
+            checkpoint to the memory.
 
     Examples::
         >>> checkpointer = FsdpCheckpointer(checkpoint_dir)
@@ -64,9 +68,11 @@ class FsdpCheckpointer(Checkpointer):
         >>> optimizer.load_state_dict(flattened_osd)
     """
 
-    def __init__(self, checkpoint_dir: str, storage=None):
+    def __init__(self, checkpoint_dir: str, storage=None, comm_backend=""):
         self.storage = PosixDiskStorage() if not storage else storage
-        self._engine = FsdpCheckpointEngine(checkpoint_dir, self.storage)
+        self._engine = FsdpCheckpointEngine(
+            checkpoint_dir, self.storage, comm_backend
+        )
 
     def save_checkpoint(
         self, step, state_dict, path, storage_type=StorageType.DISK

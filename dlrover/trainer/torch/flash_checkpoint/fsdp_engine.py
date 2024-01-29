@@ -419,8 +419,8 @@ class FsdpCheckpointEngine(CheckpointEngine):
     and storage.
     """
 
-    def __init__(self, checkpoint_dir: str, storage):
-        super().__init__(checkpoint_dir, storage)
+    def __init__(self, checkpoint_dir: str, storage, comm_backend=""):
+        super().__init__(checkpoint_dir, storage, comm_backend)
         self._shm_writer = SharedMemoryWriter(shm_handler=self._shm_handler)
         self._shm_reader = SharedMemoryReader(self._shm_handler)
 
@@ -486,8 +486,6 @@ class FsdpCheckpointEngine(CheckpointEngine):
         if acquired:
             self._shm_lock.release()
         self._cached_step = conf.step
-        if dist.is_initialized():
-            dist.barrier(group=self._saver_group)
         return True
 
     def save_to_storage(self, step, state_dict, paths: Dict[str, str]):
@@ -501,6 +499,9 @@ class FsdpCheckpointEngine(CheckpointEngine):
         succeed = True
         if step > self._cached_step:
             succeed = self.save_to_memory(step, state_dict, paths)
+
+        if dist.is_initialized():
+            dist.barrier()
 
         # Only local rank 0 on each node notifies the event to save.
         if self._local_rank == 0 and succeed:
@@ -544,14 +545,18 @@ class FsdpCheckpointEngine(CheckpointEngine):
             return self._shm_reader
         else:
             if not resume_path:
-                tracer_file = os.path.join(
-                    self.checkpoint_dir, CheckpointConstant.TRACER_FILE_NAME
-                )
-                if os.path.exists(tracer_file):
-                    with open(tracer_file, "r") as f:
-                        step = f.read()
-                    resume_path = os.path.join(self.checkpoint_dir, step)
+                resume_path = self._get_track_resume_path()
             if os.path.exists(resume_path):
                 f"Create a storage reader with path {resume_path}."
                 return FileReader(resume_path)
             return None
+
+    def _get_track_resume_path(self):
+        tracker_file = os.path.join(
+            self.checkpoint_dir, CheckpointConstant.TRACER_FILE_NAME
+        )
+        step = self.storage.read(tracker_file)
+        if step:
+            return os.path.join(self.checkpoint_dir, step)
+        else:
+            return ""

@@ -510,7 +510,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
     @prof
     def _stop_workers(self, worker_group: WorkerGroup) -> None:
-        if not torch_npu:
+        if torch_npu:
             logger.info("stop workers via SIGKILL")
             self._shutdown(death_sig=signal.SIGKILL)
         else:
@@ -621,6 +621,8 @@ class ElasticTrainingAgent(LocalElasticAgent):
     def _restart_workers(self, worker_group: WorkerGroup):
         self._restart_count += 1
         self._remaining_restarts -= 1
+        # Relase the shared memory lock before starting workers.
+        AsyncCheckpointSaver.release_shm_lock()
         super()._restart_workers(worker_group)
 
     def _start_workers(self, worker_group: WorkerGroup):
