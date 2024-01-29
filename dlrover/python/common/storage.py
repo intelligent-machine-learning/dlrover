@@ -119,8 +119,6 @@ class PosixDiskStorage(CheckpointStorage):
         self._latest_path = ""
 
     def write(self, content, path):
-        dir = os.path.dirname(path)
-        os.makedirs(dir, exist_ok=True)
         mode = "w"
         if isinstance(content, bytes) or isinstance(content, memoryview):
             mode = "wb"
