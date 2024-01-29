@@ -89,6 +89,9 @@ class CheckpointConfig:
             value is path.
     """
 
+    rank: int = 0
+    group_rank: int = 0
+    world_size: int = 0
     step: int = 0
     writing_shm: bool = False
     paths: Dict[str, str] = None  # type: ignore
@@ -518,24 +521,22 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 return
 
             logger.info(
-                f"Save local checkpoint shard {local_shard_id} from the shared"
-                f" memory into the storage {ckpt_config}."
+                f"Saves the checkpoint shard of rank {ckpt_config.rank} from "
+                f"the shared memory into the storage {ckpt_config}."
             )
             self.persist_to_storage(local_shard_id, ckpt_config)
             shm_lock.release()
-            global_shard_id = (
-                self.local_shard_num * self._node_rank + local_shard_id
-            )
-            step_done_file = os.path.join(step_done_dir, str(global_shard_id))
+            step_done_file = os.path.join(step_done_dir, str(ckpt_config.rank))
             self.storage.write("done", step_done_file)
             logger.info(
-                f"Finish saving the local checkpoint shard {local_shard_id}."
+                "Finish saving the checkpoint shard of "
+                f"rank {ckpt_config.rank}."
             )
             return True
         except Exception as e:
             logger.error(
-                f"Fail to save the checkpoint shard {local_shard_id}, "
-                f"error: {e}",
+                f"Fail to save the checkpoint shard of rank {ckpt_config.rank}"
+                f", error: {e}",
                 exc_info=True,
             )
             return False
@@ -973,7 +974,9 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
             ready_num = len(done_files)
             # Check whether all shards are completed.
             if ready_num == self.global_shard_num:
-                logger.info(f"All agent done for step {tmp_path}")
+                logger.info(
+                    f"All agents finish saving checkpoint for step {step}"
+                )
 
                 if os.path.exists(target_path):
                     if os.path.isdir(target_path):
