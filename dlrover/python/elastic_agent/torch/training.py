@@ -510,7 +510,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
     @prof
     def _stop_workers(self, worker_group: WorkerGroup) -> None:
-        if not torch_npu:
+        if torch_npu:
             logger.info("stop workers via SIGKILL")
             self._shutdown(death_sig=signal.SIGKILL)
         else:
