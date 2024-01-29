@@ -387,6 +387,12 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         self._executor = ThreadPoolExecutor(
             max_workers=self.local_shard_num, thread_name_prefix="ckpt_saver-"
         )
+        logger.info(
+            "Initialize the AsyncSaver with arguments: "
+            f"checkpoint_dir={checkpoint_dir}, "
+            f"local_shard_num={local_shard_num}, "
+            f"global_shard_num={global_shard_num}, "
+        )
 
     def __del__(self):
         self.close()
@@ -470,8 +476,9 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
             ):
                 logger.info(
                     "Reset the shard memory because the number of "
-                    "global shards changes"
+                    f"global shards changes to {event.global_shard_num}."
                 )
+                self.global_shard_num = event.global_shard_num
                 self._reset_shared_memory()
             elif event.type == CheckpointEventType.SAVE:
                 logger.info(
@@ -778,10 +785,10 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
         start_time = time.time()
         suceess = False
         while True:
-            if len(os.listdir(step_done_dir)) == self.global_shard_num:
-                # all local rank done
+            done_files = os.listdir(step_done_dir)
+            ready_num = len(done_files)
+            if ready_num == self.global_shard_num:
                 self.update_tracker_file(step)
-
                 # clean stage dir
                 self.storage.safe_rmtree(step_done_dir)
                 logger.info(
@@ -789,18 +796,23 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
                 )
                 suceess = True
                 break
+            logger.info(
+                f"The number of ready shards is {ready_num} "
+                f"!= {self.global_shard_num}."
+            )
             # timeout
             elapsed_time = round(time.time() - start_time, 2)
             if elapsed_time > timeout:
                 logger.error(
                     f"Commit checkpoint timeout for step {step}, "
-                    f"elapsed_time: {elapsed_time}"
+                    f"elapsed_time: {elapsed_time}. The done files "
+                    f"are {done_files}."
                 )
                 # clean stage dir
                 self.storage.safe_rmtree(step_done_dir)
                 break
 
-            time.sleep(2)
+            time.sleep(5)
         self.storage.commit(step, suceess)
 
     def persist_to_storage(
@@ -957,9 +969,10 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
         start_time = time.time()
         success = False
         while True:
-            # check all local rank done
-            if len(os.listdir(step_done_dir)) == self.global_shard_num:
-                # all local rank done
+            done_files = os.listdir(step_done_dir)
+            ready_num = len(done_files)
+            # Check whether all shards are completed.
+            if ready_num == self.global_shard_num:
                 logger.info(f"All agent done for step {tmp_path}")
 
                 if os.path.exists(target_path):
@@ -980,19 +993,25 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
                 success = True
                 break
 
+            logger.info(
+                f"The number of ready shards is {ready_num} "
+                f"!= {self.global_shard_num}."
+            )
+
             # timeout
             elapsed_time = time.time() - start_time
             if elapsed_time > timeout:
                 logger.error(
-                    f"Commit checkpoint timeout, tmp_path: {tmp_path},"
-                    f"path: {target_path}, elapsed_time: {elapsed_time}"
+                    f"Commit checkpoint timeout for step {step}, "
+                    f"elapsed_time: {elapsed_time}. The done files "
+                    f"are {done_files}."
                 )
                 # clean stage dir
                 self.storage.safe_rmtree(tmp_path)
                 self.storage.safe_rmtree(step_done_dir)
                 break
 
-            time.sleep(2)
+            time.sleep(5)
         self.storage.commit(step, success)
 
 

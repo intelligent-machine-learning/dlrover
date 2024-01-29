@@ -103,6 +103,16 @@ class CheckpointStorage(metaclass=ABCMeta):
         """
         pass
 
+    @abstractmethod
+    def listdir(self, path: str):
+        """
+        The method list all objects in the path.
+
+        Args:
+            path (str): a path.
+        """
+        pass
+
 
 class PosixDiskStorage(CheckpointStorage):
     def __init__(self):
@@ -160,3 +170,6 @@ class PosixDiskStorage(CheckpointStorage):
 
     def exists(self, path: str):
         return os.path.exists(path)
+
+    def listdir(self, path: str):
+        return os.listdir(path)
