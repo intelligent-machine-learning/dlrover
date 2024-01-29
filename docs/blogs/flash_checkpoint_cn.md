@@ -210,7 +210,8 @@ checkpointer.load_checkpoint(checkpoint_dir)
 
 #### Megatron-LM
 
-Flash Checkpoint 只是在 Megatron-LM 原生的 save_checkpoint 接口上增加了一个
+Flash Checkpoint 只是在 Megatron-LM ([tag 23.06](https://github.com/NVIDIA/Megatron-LM/tree/23.06))
+原生的 save_checkpoint 接口上增加了一个
 `storage_type` 参数，来控制是存入内存还是存储系统，其他完全一致。load_checkpoint
 与 Megatron-LM 原生的 load_checkpoint 接口完全一致。用户可以无缝切换到 Flash Checkpoint。
 用户只需要将 Megatron-LM 中的 megatron/training.py 文件中的
