@@ -155,10 +155,10 @@ class ShardingCheckpointEngineTest(unittest.TestCase):
             saving_engine.save_to_storage(step, sd, paths)
             time.sleep(3)
             # list the files in tmpdir recursively
-            self.assertTrue(saved_file.exists())
+            self.assertTrue(storage.exists(saved_file))
 
             tracker_file = tmp / "tracker.txt"
-            self.assertTrue(tracker_file.exists())
+            self.assertTrue(storage.exists(tracker_file))
 
             self.assertEqual(tracker_file.read_text(), "100")
             state = torch.load(saved_file)

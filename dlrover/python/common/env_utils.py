@@ -38,6 +38,10 @@ def get_group_world_size():
     return int(os.getenv("GROUP_WORLD_SIZE", 1))
 
 
+def get_group_rank():
+    return int(os.getenv("GROUP_RANK", 1))
+
+
 def get_torch_restart_count():
     return int(os.getenv("TORCHELASTIC_RESTART_COUNT", 0))
 

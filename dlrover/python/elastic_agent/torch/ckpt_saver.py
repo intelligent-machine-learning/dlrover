@@ -89,6 +89,9 @@ class CheckpointConfig:
             value is path.
     """
 
+    rank: int = 0
+    group_rank: int = 0
+    world_size: int = 0
     step: int = 0
     writing_shm: bool = False
     paths: Dict[str, str] = None  # type: ignore
@@ -387,6 +390,12 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         self._executor = ThreadPoolExecutor(
             max_workers=self.local_shard_num, thread_name_prefix="ckpt_saver-"
         )
+        logger.info(
+            "Initialize the AsyncSaver with arguments: "
+            f"checkpoint_dir={checkpoint_dir}, "
+            f"local_shard_num={local_shard_num}, "
+            f"global_shard_num={global_shard_num}, "
+        )
 
     def __del__(self):
         self.close()
@@ -470,8 +479,9 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
             ):
                 logger.info(
                     "Reset the shard memory because the number of "
-                    "global shards changes"
+                    f"global shards changes to {event.global_shard_num}."
                 )
+                self.global_shard_num = event.global_shard_num
                 self._reset_shared_memory()
             elif event.type == CheckpointEventType.SAVE:
                 logger.info(
@@ -511,25 +521,36 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 return
 
             logger.info(
-                f"Local rank {local_shard_id} Save checkpoint from the shared "
-                f"memory into the storage {ckpt_config}."
+                f"Saves the checkpoint shard of rank {ckpt_config.rank} from "
+                f"the shared memory into the storage {ckpt_config}."
             )
             self.persist_to_storage(local_shard_id, ckpt_config)
             shm_lock.release()
-            global_shard_id = (
-                self.local_shard_num * self._node_rank + local_shard_id
-            )
-            step_done_file = os.path.join(step_done_dir, str(global_shard_id))
+            step_done_file = os.path.join(step_done_dir, str(ckpt_config.rank))
             self.storage.write("done", step_done_file)
+            logger.info(
+                "Finish saving the checkpoint shard of "
+                f"rank {ckpt_config.rank}."
+            )
             return True
-
         except Exception as e:
             logger.error(
-                f"Rank {local_shard_id} save checkpoint failed, error: {e}",
+                f"Fail to save the checkpoint shard of rank {ckpt_config.rank}"
+                f", error: {e}",
                 exc_info=True,
             )
-            shm_lock.release()
             return False
+        finally:
+            shm_lock.release()
+
+    def _dist_make_dir(self, path, timeout=30):
+        if self._node_rank == 0:
+            self.storage.safe_makedirs(path)
+        else:
+            for _ in range(timeout):
+                if self.storage.exists(path):
+                    break
+                time.sleep(1)
 
     def _any_rank_locked(self):
         """Verify that the shared memory of any rank is locked."""
@@ -543,7 +564,6 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         done_dir = os.path.join(
             self.checkpoint_dir, self._STAGE_DIR, str(step) + ".done"
         )
-        self.storage.safe_makedirs(done_dir)
         return done_dir
 
     def _check_shard_step_consistence(self, step, timeout=15):
@@ -610,6 +630,13 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 "Save the checkpointing state dict from the shared "
                 f"memory to storage, step: {step}."
             )
+
+    @classmethod
+    def release_shm_lock(cls):
+        """Release all shared lock on the node."""
+        for lock in cls._saver_instance._shm_locks:
+            lock.release()
+        logger.info("Relase all the shared locks of shared memory.")
 
     @abstractmethod
     def save_step_checkpoint(self, step: int):
@@ -699,7 +726,7 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
         self._writing_storage = True
 
         step_done_dir = self._get_checkpoint_done_dir(step)
-        self.storage.safe_makedirs(step_done_dir)
+        self._dist_make_dir(step_done_dir)
 
         write_success = False
         # save to stage path for each local rank
@@ -759,10 +786,10 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
         start_time = time.time()
         suceess = False
         while True:
-            if len(os.listdir(step_done_dir)) == self.global_shard_num:
-                # all local rank done
+            done_files = self.storage.listdir(step_done_dir)
+            ready_num = len(done_files)
+            if ready_num == self.global_shard_num:
                 self.update_tracker_file(step)
-
                 # clean stage dir
                 self.storage.safe_rmtree(step_done_dir)
                 logger.info(
@@ -770,18 +797,23 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
                 )
                 suceess = True
                 break
+            logger.info(
+                f"The number of ready shards is {ready_num} "
+                f"!= {self.global_shard_num}."
+            )
             # timeout
             elapsed_time = round(time.time() - start_time, 2)
             if elapsed_time > timeout:
                 logger.error(
                     f"Commit checkpoint timeout for step {step}, "
-                    f"elapsed_time: {elapsed_time}"
+                    f"elapsed_time: {elapsed_time}. The done files "
+                    f"are {done_files}."
                 )
                 # clean stage dir
                 self.storage.safe_rmtree(step_done_dir)
                 break
 
-            time.sleep(2)
+            time.sleep(5)
         self.storage.commit(step, suceess)
 
     def persist_to_storage(
@@ -821,7 +853,9 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
             return
         self._writing_storage = True
         temp_dir = self._get_tmp_ckpt_dir(step)
+        self._dist_make_dir(temp_dir)
         step_done_dir = self._get_checkpoint_done_dir(step)
+        self._dist_make_dir(step_done_dir)
 
         write_success = False
         # save to stage path for each local rank
@@ -903,7 +937,6 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
         ckpt_name = os.path.join(
             self.checkpoint_dir, self._STAGE_DIR, str(step)
         )
-        self.storage.safe_makedirs(ckpt_name)
         return ckpt_name
 
     def commit_checkpoint(  # type: ignore
@@ -937,10 +970,13 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
         start_time = time.time()
         success = False
         while True:
-            # check all local rank done
-            if len(os.listdir(step_done_dir)) == self.global_shard_num:
-                # all local rank done
-                logger.info(f"All agent done for step {tmp_path}")
+            done_files = self.storage.listdir(step_done_dir)
+            ready_num = len(done_files)
+            # Check whether all shards are completed.
+            if ready_num == self.global_shard_num:
+                logger.info(
+                    f"All agents finish saving checkpoint for step {step}"
+                )
 
                 if os.path.exists(target_path):
                     if os.path.isdir(target_path):
@@ -960,19 +996,25 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
                 success = True
                 break
 
+            logger.info(
+                f"The number of ready shards is {ready_num} "
+                f"!= {self.global_shard_num}."
+            )
+
             # timeout
             elapsed_time = time.time() - start_time
             if elapsed_time > timeout:
                 logger.error(
-                    f"Commit checkpoint timeout, tmp_path: {tmp_path},"
-                    f"path: {target_path}, elapsed_time: {elapsed_time}"
+                    f"Commit checkpoint timeout for step {step}, "
+                    f"elapsed_time: {elapsed_time}. The done files "
+                    f"are {done_files}."
                 )
                 # clean stage dir
                 self.storage.safe_rmtree(tmp_path)
                 self.storage.safe_rmtree(step_done_dir)
                 break
 
-            time.sleep(2)
+            time.sleep(5)
         self.storage.commit(step, success)
 
 
@@ -1045,7 +1087,7 @@ class FsdpDcpSaver(CommonDirCheckpointSaver):
         shm_handler = self._shm_handlers[local_shard_id]
         path = ckpt_config.paths[CheckpointConstant.MODEL_STATES_NAME]
         checkpoint_dir = os.path.dirname(path)
-        self.storage.safe_makedirs(checkpoint_dir)
+        self._dist_make_dir(checkpoint_dir)
         assert shm_handler.shared_memory is not None
         self.storage.write(shm_handler.shared_memory.buf, path)
         if self._is_agent_rank_0 and local_shard_id == 0:

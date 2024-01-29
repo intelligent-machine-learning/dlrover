@@ -179,6 +179,8 @@ class CheckpointEngine(metaclass=ABCMeta):
             self.local_shard_id, host=False
         )
         self._rank = 0
+        self._group_rank = 0
+        self._world_size = 1
         self._loader_group = None
         self._saver_group = None
         self._init_sync_group(comm_backend)
@@ -190,6 +192,8 @@ class CheckpointEngine(metaclass=ABCMeta):
             return
 
         self._rank = dist.get_rank()
+        self._group_rank = env_utils.get_group_rank()
+        self._world_size = dist.get_world_size()
         backend = comm_backend if comm_backend else dist.get_backend()
         if backend == dist.get_backend():
             self._loader_group = None
@@ -270,6 +274,7 @@ class CheckpointEngine(metaclass=ABCMeta):
             return False
 
         acquired = self._shm_lock.acquire(blocking=False)
+        logger.info(f"Acquired the lock of shared memory: {acquired}.")
         all_rank_ready = check_all_rank_ready(self._saver_group, acquired)
         if not all_rank_ready:
             logger.info(
