@@ -83,13 +83,7 @@ class MegatronCheckpointEngine(CheckpointEngine):
             step (int): the global iteration step.
             state_dict (dict): the state dict of model and optimizer to save.
         """
-        conf = CheckpointConfig(
-            rank=self._rank,
-            group_rank=self._group_rank,
-            world_size=self._world_size,
-            step=step,
-            paths=paths,
-        )
+        conf = CheckpointConfig(step=step, paths=paths)
         return self.save_state_dict_to_memory(state_dict, conf)
 
     @timer

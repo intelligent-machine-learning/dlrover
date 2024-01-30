@@ -40,6 +40,8 @@ from .megatron_engine import MegatronCheckpointEngine
 _MODEL_SD_NAME = "model_optim_rng.pt"
 _DIST_OPTIM_SD_NAME = "distrib_optim.pt"
 
+torch_native_save = torch.save
+
 
 def _get_rank():
     if dist.is_initialized():
@@ -61,6 +63,8 @@ class MegatronCheckpointManager(object):
         )
 
     def save(self, state_dict, path: str):
+        if not isinstance(path, str):
+            torch_native_save(state_dict, path)
         if path.endswith(_MODEL_SD_NAME):
             sd_name = CheckpointConstant.MODEL_STATES_NAME
         elif path.endswith(_DIST_OPTIM_SD_NAME):
@@ -143,11 +147,10 @@ def save_checkpoint(
     )
     if storage_type == StorageType.MEMORY:
 
-        torch_save_func = torch.save
         torch.save = saver.save
         megatron_save(iteration, model, optimizer, opt_param_scheduler)
         saver.engine.save_to_memory(iteration, saver.state_dict, saver.paths)
-        torch.save = torch_save_func
+        torch.save = torch_native_save
 
         # Megatron save_checkpoint will create the directory with the iteration
         # and write the iteration into the tracerfile. But async saver only
@@ -156,11 +159,10 @@ def save_checkpoint(
         if _get_rank() == 0:
             saver.update_tracer_file(iteration)
     elif storage_type == StorageType.DISK:
-        torch_save_func = torch.save
         torch.save = saver.save
         megatron_save(iteration, model, optimizer, opt_param_scheduler)
         saver.engine.save_to_storage(iteration, saver.state_dict, saver.paths)
-        torch.save = torch_save_func
+        torch.save = torch_native_save
     else:
         raise ValueError(f"No support storage type {storage_type}")
 
