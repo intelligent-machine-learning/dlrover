@@ -35,7 +35,7 @@ from dlrover.python.common.multi_process import (
     SharedMemory,
     SharedQueue,
 )
-from dlrover.python.common.storage import CheckpointStorage
+from dlrover.python.common.serialize import ClassMeta
 
 DLROVER_CKPT_CONFIG_KEY = "_DLORVER_CKPT_CONFIG"
 
@@ -58,13 +58,6 @@ class CheckpointEvent:
     type: CheckpointEventType = CheckpointEventType.SAVE
     step: int = 0
     global_shard_num: int = 0
-
-
-@dataclass
-class SaverClassMeta:
-    module_path: str = ""
-    class_name: str = ""
-    init_args: Dict[str, str] = None  # type: ignore
 
 
 @dataclass
@@ -349,9 +342,12 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
     CheckpointSaver asynchronously saves the state dict from the shared memory
     into the storage.
 
-    Attributes:
+    Arguments:
         checkpoint_dir (str): the directory to save the checkpointing state
             dict to the storage if the training process fails.
+        storage_meta (tuple[str]): the first element is the module path of the
+            storage class and the second element is the name of
+            the storage class.
         local_shard_num (int): the number of model/optimizer shards
             on the node.
         global_shard_num (int): the number of model/optimizer shards
@@ -364,18 +360,21 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
     def __init__(
         self,
         checkpoint_dir,
-        storage: CheckpointStorage,
+        storage_meta: Tuple[str, str],
         local_shard_num=1,
         global_shard_num=1,
     ) -> None:
         self.checkpoint_dir = checkpoint_dir
         self.local_shard_num = local_shard_num
         self.global_shard_num = global_shard_num
-        self.storage = storage
         self._node_rank = env_utils.get_node_rank()
         self._is_agent_rank_0 = self._node_rank == 0
         self._shm_handlers: List[SharedMemoryHandler] = []
         self._shm_locks: List[SharedLock] = []
+
+        module = importlib.import_module(storage_meta[0])
+        storage_class_def = getattr(module, storage_meta[1])
+        self.storage = storage_class_def()
 
         # Indicate whether the saver is writing state to storage
         self._writing_storage = False
@@ -410,11 +409,11 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         sq = SharedQueue(name="factory", create=True)
 
         def _save():
-            class_meta: SaverClassMeta = sq.get()
+            class_meta: ClassMeta = sq.get()
             module = importlib.import_module(class_meta.module_path)
             class_def = getattr(module, class_meta.class_name)
             if cls._saver_instance is None:
-                saver: AsyncCheckpointSaver = class_def(**class_meta.init_args)
+                saver: AsyncCheckpointSaver = class_def(**class_meta.kwargs)
                 cls._saver_instance = saver
             cls._saver_instance._sync_shm_to_storage()
 
