@@ -360,7 +360,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
     def __init__(
         self,
         checkpoint_dir,
-        storage_meta: Tuple[str, str],
+        storage_meta: ClassMeta,
         local_shard_num=1,
         global_shard_num=1,
     ) -> None:
@@ -372,9 +372,9 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         self._shm_handlers: List[SharedMemoryHandler] = []
         self._shm_locks: List[SharedLock] = []
 
-        module = importlib.import_module(storage_meta[0])
-        storage_class_def = getattr(module, storage_meta[1])
-        self.storage = storage_class_def()
+        module = importlib.import_module(storage_meta.module_path)
+        storage_class_def = getattr(module, storage_meta.class_name)
+        self.storage = storage_class_def(**storage_meta.kwargs)
 
         # Indicate whether the saver is writing state to storage
         self._writing_storage = False
