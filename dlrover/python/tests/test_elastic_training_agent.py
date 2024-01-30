@@ -284,7 +284,8 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             start_method=self.config.start_method,
             log_dir=self.config.log_dir,
         )
-        saver = DdpCheckpointSaver("/tmp/test", PosixDiskStorage())
+        storage = PosixDiskStorage()
+        saver = DdpCheckpointSaver("/tmp/test", storage.get_class_meta())
         AsyncCheckpointSaver._saver_instance = saver
         agent._save_ckpt_to_storage()
         agent._stop_workers_to_restart()
