@@ -100,7 +100,8 @@ This can avoid the IO overhead to read the remote storage system.
 
 To enable users to conveniently apply DLRover's Flash Checkpoint to training jobs,
 DLRover provide APIs to support Distributed Data Parallel (DDP),
-Fully Sharded Data Parallel (FSDP), DeepSpeed, and Megatron-LM.
+Fully Sharded Data Parallel (FSDP), DeepSpeed,
+and [Megatron-LM (tag 23.06)](https://github.com/NVIDIA/Megatron-LM/tree/23.06).
 
 ### DDP
 
