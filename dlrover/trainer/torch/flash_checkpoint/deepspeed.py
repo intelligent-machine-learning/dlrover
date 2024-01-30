@@ -61,6 +61,7 @@ class AsyncSaveEngine(CheckpointEngine):
     def save(self, state_dict, path: str):
         if not isinstance(path, str):
             torch_native_save(state_dict, path)
+            return
         if path.endswith(_DS_MODEL_SD_FILE_SUFFIX):
             sd_name = CheckpointConstant.MODEL_STATES_NAME
         elif path.endswith(_DS_OPTIM_SD_FILE_SUFFIX):
