@@ -65,6 +65,7 @@ class MegatronCheckpointManager(object):
     def save(self, state_dict, path: str):
         if not isinstance(path, str):
             torch_native_save(state_dict, path)
+            return
         if path.endswith(_MODEL_SD_NAME):
             sd_name = CheckpointConstant.MODEL_STATES_NAME
         elif path.endswith(_DIST_OPTIM_SD_NAME):
