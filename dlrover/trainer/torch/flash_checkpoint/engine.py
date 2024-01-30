@@ -270,8 +270,13 @@ class CheckpointEngine(metaclass=ABCMeta):
             self._event_queue.put(event)
 
     def save_state_dict_to_memory(self, state_dict, conf: CheckpointConfig):
+        """Save the state dict into the memory."""
         if self._local_rank != self.local_shard_id:
             return False
+
+        conf.rank = self._rank
+        conf.group_rank = self._group_rank
+        conf.world_size = self._world_size
 
         acquired = self._shm_lock.acquire(blocking=False)
         logger.info(f"Acquired the lock of shared memory: {acquired}.")

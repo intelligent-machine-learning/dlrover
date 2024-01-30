@@ -88,13 +88,7 @@ class DeepSpeedCheckpointEngine(CheckpointEngine):
                 ["model_states", "optim_states"] of the state dict and
                 the value is the path of storage to save.
         """
-        conf = CheckpointConfig(
-            rank=self._rank,
-            group_rank=self._group_rank,
-            world_size=self._world_size,
-            step=step,
-            paths=paths,
-        )
+        conf = CheckpointConfig(step=step, paths=paths)
         return self.save_state_dict_to_memory(state_dict, conf)
 
     @timer
