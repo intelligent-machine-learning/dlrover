@@ -37,9 +37,9 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
     CheckpointEvent,
     CheckpointEventType,
     CheckpointSharedObjPrefix,
+    ClassMeta,
     DdpCheckpointSaver,
     FsdpDcpSaver,
-    SaverClassMeta,
     SharedMemoryHandler,
     _create_shared_memory,
     _traverse_state_dict,
@@ -100,6 +100,7 @@ class SharedMemoryHandlerTest(unittest.TestCase):
 
 class CheckpointSaverTest(unittest.TestCase):
     def setUp(self) -> None:
+        self.storage = PosixDiskStorage()
         AsyncCheckpointSaver._saver_instance = None
         AsyncCheckpointSaver.start_async_saving_ckpt()
 
@@ -109,12 +110,12 @@ class CheckpointSaverTest(unittest.TestCase):
 
     def test_create_checkpoint_saver(self):
         sq = SharedQueue(name="factory", create=False)
-        class_meta = SaverClassMeta(
+        class_meta = ClassMeta(
             module_path=DdpCheckpointSaver.__module__,
             class_name=DdpCheckpointSaver.__name__,
-            init_args={
+            kwargs={
                 "checkpoint_dir": "test_ckpt",
-                "storage": PosixDiskStorage(),
+                "storage_meta": self.storage.get_class_meta(),
             },
         )
         sq.put(class_meta)
@@ -126,7 +127,7 @@ class CheckpointSaverTest(unittest.TestCase):
         self.assertIsNotNone(AsyncCheckpointSaver._saver_instance)
 
     def test_close_saver(self):
-        saver = DdpCheckpointSaver("test_ckpt", PosixDiskStorage())
+        saver = DdpCheckpointSaver("test_ckpt", self.storage.get_class_meta())
         try:
             SharedMemory(name="test").unlink()
         except Exception:
@@ -171,7 +172,7 @@ class CheckpointSaverTest(unittest.TestCase):
             step=step,
         )
         with tempfile.TemporaryDirectory() as tmpdir:
-            saver = DdpCheckpointSaver(tmpdir, PosixDiskStorage())
+            saver = DdpCheckpointSaver(tmpdir, self.storage.get_class_meta())
             path = Path(tmpdir) / "checkpoint.pt"
             paths = {CheckpointConstant.MODEL_STATES_NAME: path}
             ckpt_config = CheckpointConfig(step=100, paths=paths)
@@ -203,7 +204,7 @@ class CheckpointSaverTest(unittest.TestCase):
 
     def test_shard_num_changes(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            saver = DdpCheckpointSaver(tmpdir, PosixDiskStorage())
+            saver = DdpCheckpointSaver(tmpdir, self.storage.get_class_meta())
             saver.global_shard_num = 1
             threading.Thread(
                 target=saver._sync_shm_to_storage, daemon=True
@@ -225,16 +226,16 @@ class CheckpointSaverTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             step_done_dir = os.path.join(tmpdir, ".done/10/")
             os.makedirs(step_done_dir, exist_ok=True)
-            storage = PosixDiskStorage()
-            saver = DdpCheckpointSaver(tmpdir, storage)
+            saver = DdpCheckpointSaver(tmpdir, self.storage.get_class_meta())
             saver.global_shard_num = 1
             saver.commit_checkpoint(100, step_done_dir, 2)
 
 
 class FsdpCheckpointSaverTest(unittest.TestCase):
     def test_persist_storage(self):
+        storage = PosixDiskStorage()
         with tempfile.TemporaryDirectory() as tmpdir:
-            saver = FsdpDcpSaver(tmpdir, PosixDiskStorage())
+            saver = FsdpDcpSaver(tmpdir, storage.get_class_meta())
             step = 100
             path = os.path.join(tmpdir, str(step), "__0_0.dist_cp")
             paths = {CheckpointConstant.MODEL_STATES_NAME: path}

@@ -12,6 +12,8 @@
 # limitations under the License.
 
 import json
+from dataclasses import dataclass, field
+from typing import Dict
 
 
 def to_dict(o):
@@ -29,3 +31,10 @@ class JsonSerializable(object):
             sort_keys=True,
             indent=indent,
         )
+
+
+@dataclass
+class ClassMeta:
+    module_path: str = ""
+    class_name: str = ""
+    kwargs: Dict[str, str] = field(default_factory=dict)
