@@ -41,6 +41,7 @@ _MODEL_SD_NAME = "model_optim_rng.pt"
 _DIST_OPTIM_SD_NAME = "distrib_optim.pt"
 
 torch_native_save = torch.save
+torch_native_load = torch.load
 
 
 def _get_rank():
@@ -61,6 +62,7 @@ class MegatronCheckpointManager(object):
             storage=self.storage,
             comm_backend=comm_backend,
         )
+        self.update_tracer_file(0)
 
     def save(self, state_dict, path: str):
         if not isinstance(path, str):
@@ -79,8 +81,8 @@ class MegatronCheckpointManager(object):
         self.paths[sd_name] = path
 
     def load(self, path: str, **kwargs):
-        def read_func(path):
-            return torch.load(path, map_location="cpu")
+        def load_func(path):
+            return torch_native_load(path, map_location="cpu")
 
         state_dict = self.engine.load(resume_path=path)
 
@@ -92,7 +94,7 @@ class MegatronCheckpointManager(object):
         if sd_name in state_dict:
             return state_dict[sd_name]
         else:
-            return self.storage.read_state_dict(path, read_func)
+            return self.storage.read_state_dict(path, load_func)
 
     def update_tracer_file(self, iteration: int):
         """
@@ -183,10 +185,9 @@ def load_checkpoint(
     """
     args = get_args()
     saver = MegatronCheckpointManager(args.save, comm_backend=comm_backend)
-    torch_load_func = torch.load
     torch.load = saver.load
     iteration = megatron_load(
         model, optimizer, opt_param_scheduler, load_arg, strict
     )
-    torch.load = torch_load_func
+    torch.load = torch_native_load
     return iteration
