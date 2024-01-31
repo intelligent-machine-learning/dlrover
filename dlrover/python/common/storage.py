@@ -16,6 +16,7 @@ import shutil
 from abc import ABCMeta, abstractmethod
 
 from .log import default_logger as logger
+from .serialize import ClassMeta
 
 
 class CheckpointStorage(metaclass=ABCMeta):
@@ -113,6 +114,14 @@ class CheckpointStorage(metaclass=ABCMeta):
         """
         pass
 
+    @abstractmethod
+    def get_class_meta(self):
+        """
+        The method returns a ClassMeta instance which can be used to
+        initialize a new instance of the class.
+        """
+        pass
+
 
 class PosixDiskStorage(CheckpointStorage):
     def __init__(self):
@@ -171,3 +180,10 @@ class PosixDiskStorage(CheckpointStorage):
 
     def listdir(self, path: str):
         return os.listdir(path)
+
+    def get_class_meta(self):
+        class_mata = ClassMeta(
+            module_path=self.__class__.__module__,
+            class_name=self.__class__.__name__,
+        )
+        return class_mata

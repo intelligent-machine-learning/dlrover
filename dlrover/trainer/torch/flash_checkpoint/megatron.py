@@ -13,6 +13,7 @@
 
 """Input/output checkpointing."""
 
+import inspect
 import os
 
 import torch
@@ -40,6 +41,9 @@ from .megatron_engine import MegatronCheckpointEngine
 _MODEL_SD_NAME = "model_optim_rng.pt"
 _DIST_OPTIM_SD_NAME = "distrib_optim.pt"
 
+torch_native_save = torch.save
+torch_native_load = torch.load
+
 
 def _get_rank():
     if dist.is_initialized():
@@ -59,8 +63,12 @@ class MegatronCheckpointManager(object):
             storage=self.storage,
             comm_backend=comm_backend,
         )
+        self.update_tracer_file(0)
 
     def save(self, state_dict, path: str):
+        if not isinstance(path, str):
+            torch_native_save(state_dict, path)
+            return
         if path.endswith(_MODEL_SD_NAME):
             sd_name = CheckpointConstant.MODEL_STATES_NAME
         elif path.endswith(_DIST_OPTIM_SD_NAME):
@@ -74,8 +82,11 @@ class MegatronCheckpointManager(object):
         self.paths[sd_name] = path
 
     def load(self, path: str, **kwargs):
-        def read_func(path):
-            return torch.load(path, map_location="cpu")
+        def load_func(path):
+            return torch_native_load(path, map_location="cpu")
+
+        if not isinstance(path, str):
+            return torch_native_load(path)
 
         state_dict = self.engine.load(resume_path=path)
 
@@ -87,7 +98,7 @@ class MegatronCheckpointManager(object):
         if sd_name in state_dict:
             return state_dict[sd_name]
         else:
-            return self.storage.read_state_dict(path, read_func)
+            return self.storage.read_state_dict(path, load_func)
 
     def update_tracer_file(self, iteration: int):
         """
@@ -123,6 +134,7 @@ def save_checkpoint(
     model,
     optimizer,
     opt_param_scheduler,
+    num_floating_point_operations_so_far=0,
     storage_type=StorageType.DISK,
     storage=None,
     comm_backend="",
@@ -141,13 +153,21 @@ def save_checkpoint(
     saver = MegatronCheckpointManager(
         args.save, storage=storage, comm_backend=comm_backend
     )
+    sig = inspect.signature(megatron_save)
     if storage_type == StorageType.MEMORY:
-
-        torch_save_func = torch.save
         torch.save = saver.save
-        megatron_save(iteration, model, optimizer, opt_param_scheduler)
+        if "num_floating_point_operations_so_far" in sig.parameters:
+            megatron_save(
+                iteration,
+                model,
+                optimizer,
+                opt_param_scheduler,
+                num_floating_point_operations_so_far,
+            )
+        else:
+            megatron_save(iteration, model, optimizer, opt_param_scheduler)
         saver.engine.save_to_memory(iteration, saver.state_dict, saver.paths)
-        torch.save = torch_save_func
+        torch.save = torch_native_save
 
         # Megatron save_checkpoint will create the directory with the iteration
         # and write the iteration into the tracerfile. But async saver only
@@ -156,13 +176,23 @@ def save_checkpoint(
         if _get_rank() == 0:
             saver.update_tracer_file(iteration)
     elif storage_type == StorageType.DISK:
-        torch_save_func = torch.save
         torch.save = saver.save
-        megatron_save(iteration, model, optimizer, opt_param_scheduler)
+        if "num_floating_point_operations_so_far" in sig.parameters:
+            megatron_save(
+                iteration,
+                model,
+                optimizer,
+                opt_param_scheduler,
+                num_floating_point_operations_so_far,
+            )
+        else:
+            megatron_save(iteration, model, optimizer, opt_param_scheduler)
         saver.engine.save_to_storage(iteration, saver.state_dict, saver.paths)
-        torch.save = torch_save_func
+        torch.save = torch_native_save
     else:
         raise ValueError(f"No support storage type {storage_type}")
+
+    saver.state_dict.clear()
 
 
 def load_checkpoint(
@@ -180,10 +210,9 @@ def load_checkpoint(
     """
     args = get_args()
     saver = MegatronCheckpointManager(args.save, comm_backend=comm_backend)
-    torch_load_func = torch.load
     torch.load = saver.load
     iteration = megatron_load(
         model, optimizer, opt_param_scheduler, load_arg, strict
     )
-    torch.load = torch_load_func
+    torch.load = torch_native_load
     return iteration

@@ -15,7 +15,7 @@ import pickle
 import random
 import socket
 from contextlib import closing
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, List
 
 import grpc
@@ -141,7 +141,7 @@ class Shard(Message):
     name: str = ""
     start: int = 0
     end: int = 0
-    indices: List[int] = None  # type: ignore
+    indices: List[int] = field(default_factory=list)
 
 
 @dataclass
@@ -149,7 +149,7 @@ class Task(Message):
     task_id: int = 0
     shard: Shard = Shard()
     type: int = 0
-    extended_config: Dict[str, str] = None  # type: ignore
+    extended_config: Dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -167,7 +167,7 @@ class TensorStats(Message):
     variable_count: int = 0
     total_variable_size: int = 0
     max_variable_size: int = 0
-    kv_embedding_dims: List[int] = None  # type: ignore
+    kv_embedding_dims: List[int] = field(default_factory=list)
 
 
 @dataclass
@@ -195,7 +195,7 @@ class ModelInfo(Message):
 class ResourceStats(Message):
     memory: int = 0  # unit Byte.
     cpu: float = 0.0
-    gpu_stats: List[GPUStats] = None  # type: ignore
+    gpu_stats: List[GPUStats] = field(default_factory=list)
 
 
 @dataclass
@@ -234,7 +234,7 @@ class TaskResult(Message):
     # When error occurred, err_message contains error message in plain text.
     err_message: str = ""
     # statistics of the task being executed.
-    exec_counters: Dict[str, int] = None  # type: ignore
+    exec_counters: Dict[str, int] = field(default_factory=dict)
 
 
 @dataclass
@@ -343,13 +343,13 @@ class StragglerExistRequest(Message):
 
 @dataclass
 class NetworkCheckResult(Message):
-    nodes: List[int] = None  # type: ignore
+    nodes: List[int] = field(default_factory=list)
     reason: str = ""
 
 
 @dataclass
 class RendezvousState(Message):
-    world: Dict[int, int] = None  # type: ignore
+    world: Dict[int, int] = field(default_factory=dict)
     waiting_num: int = 0
     round: int = 0
     group: int = 0
@@ -362,7 +362,7 @@ class PsNodesRequest(Message):
 
 @dataclass
 class PsNodes(Message):
-    nodes: List[NodeMeta] = None  # type: ignore
+    nodes: List[NodeMeta] = field(default_factory=list)
     new_ps_ready: bool = False
     ps_failure: bool = False
 
@@ -384,7 +384,7 @@ class RunningNodesRequest(Message):
 
 @dataclass
 class RunningNodes(Message):
-    nodes: List[NodeMeta] = None  # type: ignore
+    nodes: List[NodeMeta] = field(default_factory=list)
 
 
 @dataclass

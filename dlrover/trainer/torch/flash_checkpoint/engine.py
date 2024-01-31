@@ -33,7 +33,7 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
     CheckpointEvent,
     CheckpointEventType,
     CheckpointSharedObjPrefix,
-    SaverClassMeta,
+    ClassMeta,
     SharedMemoryHandler,
 )
 
@@ -241,12 +241,12 @@ class CheckpointEngine(metaclass=ABCMeta):
         local_shard_num = self.get_local_shard_num()
         global_shard_num = self.get_global_shard_num()
         clazz = self.get_saver_class()
-        class_meta = SaverClassMeta(
+        class_meta = ClassMeta(
             module_path=clazz.__module__,
             class_name=clazz.__name__,
-            init_args={
+            kwargs={
                 "checkpoint_dir": self.checkpoint_dir,
-                "storage": self.storage,
+                "storage_meta": self.storage.get_class_meta(),
                 "local_shard_num": local_shard_num,
                 "global_shard_num": global_shard_num,
             },
@@ -270,8 +270,13 @@ class CheckpointEngine(metaclass=ABCMeta):
             self._event_queue.put(event)
 
     def save_state_dict_to_memory(self, state_dict, conf: CheckpointConfig):
+        """Save the state dict into the memory."""
         if self._local_rank != self.local_shard_id:
             return False
+
+        conf.rank = self._rank
+        conf.group_rank = self._group_rank
+        conf.world_size = self._world_size
 
         acquired = self._shm_lock.acquire(blocking=False)
         logger.info(f"Acquired the lock of shared memory: {acquired}.")

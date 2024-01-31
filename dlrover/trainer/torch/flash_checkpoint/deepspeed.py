@@ -35,6 +35,9 @@ from .deepspeed_engine import DeepSpeedCheckpointEngine
 _DS_MODEL_SD_FILE_SUFFIX = "model_states.pt"
 _DS_OPTIM_SD_FILE_SUFFIX = "optim_states.pt"
 
+torch_native_save = torch.save
+torch_native_load = torch.load
+
 
 class AsyncSaveEngine(CheckpointEngine):
     """
@@ -57,6 +60,9 @@ class AsyncSaveEngine(CheckpointEngine):
         pass
 
     def save(self, state_dict, path: str):
+        if not isinstance(path, str):
+            torch_native_save(state_dict, path)
+            return
         if path.endswith(_DS_MODEL_SD_FILE_SUFFIX):
             sd_name = CheckpointConstant.MODEL_STATES_NAME
         elif path.endswith(_DS_OPTIM_SD_FILE_SUFFIX):
@@ -70,8 +76,8 @@ class AsyncSaveEngine(CheckpointEngine):
         self.paths[sd_name] = path
 
     def load(self, path: str, map_location=None):
-        def read_func(path):
-            return torch.load(path, map_location=map_location)
+        def load_func(path):
+            return torch_native_load(path, map_location=map_location)
 
         sd_name = ""
         if path.endswith(_DS_MODEL_SD_FILE_SUFFIX):
@@ -81,7 +87,7 @@ class AsyncSaveEngine(CheckpointEngine):
         if sd_name in self.state_dict:
             return self.state_dict[sd_name]
         else:
-            return self.storage.read_state_dict(path, read_func)
+            return self.storage.read_state_dict(path, load_func)
 
     def commit(self, tag):
         # to tell checkpoint services if all files are ready.
@@ -169,10 +175,9 @@ class DeepSpeedCheckpointer(Checkpointer):
     def _save_checkpoint_to_memory(
         self, save_dir, tag=None, client_state={}, save_latest=True
     ):
-        torch_save_func = torch.save
         torch.save = self._ckpt_engine.save
         self.engine.save_checkpoint(save_dir, tag, client_state, save_latest)
-        torch.save = torch_save_func
+        torch.save = torch_native_save
         self._async_save_engine.save_to_memory(
             tag,
             self._ckpt_engine.state_dict,
@@ -200,10 +205,9 @@ class DeepSpeedCheckpointer(Checkpointer):
     def _save_checkpoint_to_storage(
         self, save_dir, tag=None, client_state={}, save_latest=True
     ):
-        torch_save_func = torch.save
         torch.save = self._ckpt_engine.save
         self.engine.save_checkpoint(save_dir, tag, client_state, save_latest)
-        torch.save = torch_save_func
+        torch.save = torch_native_save
         self._async_save_engine.save_to_storage(
             tag,
             self._ckpt_engine.state_dict,
@@ -227,7 +231,6 @@ class DeepSpeedCheckpointer(Checkpointer):
             the same as the DeepSpeedEngine.load_checkpoint.
         """
         self._ckpt_engine.state_dict = self._async_save_engine.load()
-        torch_load_func = torch.load
         torch.load = self._ckpt_engine.load
         load_path, client_states = self.engine.load_checkpoint(
             load_dir=load_dir,
@@ -238,5 +241,5 @@ class DeepSpeedCheckpointer(Checkpointer):
             load_module_only=load_module_only,
             custom_load_fn=custom_load_fn,
         )
-        torch.load = torch_load_func
+        torch.load = torch_native_load
         return load_path, client_states
