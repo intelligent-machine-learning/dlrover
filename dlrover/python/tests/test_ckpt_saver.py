@@ -102,6 +102,7 @@ class CheckpointSaverTest(unittest.TestCase):
     def setUp(self) -> None:
         self.storage = PosixDiskStorage()
         AsyncCheckpointSaver._saver_instance = None
+        AsyncCheckpointSaver.register_signal_handler()
         AsyncCheckpointSaver.start_async_saving_ckpt()
 
     def tearDown(self) -> None:
