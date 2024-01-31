@@ -13,6 +13,7 @@
 
 """Input/output checkpointing."""
 
+import inspect
 import os
 
 import torch
@@ -84,6 +85,9 @@ class MegatronCheckpointManager(object):
         def load_func(path):
             return torch_native_load(path, map_location="cpu")
 
+        if not isinstance(path, str):
+            return torch_native_load(path)
+
         state_dict = self.engine.load(resume_path=path)
 
         sd_name = ""
@@ -130,6 +134,7 @@ def save_checkpoint(
     model,
     optimizer,
     opt_param_scheduler,
+    num_floating_point_operations_so_far=0,
     storage_type=StorageType.DISK,
     storage=None,
     comm_backend="",
@@ -148,10 +153,19 @@ def save_checkpoint(
     saver = MegatronCheckpointManager(
         args.save, storage=storage, comm_backend=comm_backend
     )
+    sig = inspect.signature(megatron_save)
     if storage_type == StorageType.MEMORY:
-
         torch.save = saver.save
-        megatron_save(iteration, model, optimizer, opt_param_scheduler)
+        if "num_floating_point_operations_so_far" in sig.parameters:
+            megatron_save(
+                iteration,
+                model,
+                optimizer,
+                opt_param_scheduler,
+                num_floating_point_operations_so_far,
+            )
+        else:
+            megatron_save(iteration, model, optimizer, opt_param_scheduler)
         saver.engine.save_to_memory(iteration, saver.state_dict, saver.paths)
         torch.save = torch_native_save
 
@@ -163,7 +177,16 @@ def save_checkpoint(
             saver.update_tracer_file(iteration)
     elif storage_type == StorageType.DISK:
         torch.save = saver.save
-        megatron_save(iteration, model, optimizer, opt_param_scheduler)
+        if "num_floating_point_operations_so_far" in sig.parameters:
+            megatron_save(
+                iteration,
+                model,
+                optimizer,
+                opt_param_scheduler,
+                num_floating_point_operations_so_far,
+            )
+        else:
+            megatron_save(iteration, model, optimizer, opt_param_scheduler)
         saver.engine.save_to_storage(iteration, saver.state_dict, saver.paths)
         torch.save = torch_native_save
     else:
