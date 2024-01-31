@@ -633,6 +633,8 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
     @classmethod
     def release_shm_lock(cls):
         """Release all shared lock on the node."""
+        if cls._saver_instance is None:
+            return
         for lock in cls._saver_instance._shm_locks:
             lock.release()
         logger.info("Relase all the shared locks of shared memory.")

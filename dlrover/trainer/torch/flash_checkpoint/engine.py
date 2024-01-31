@@ -271,7 +271,7 @@ class CheckpointEngine(metaclass=ABCMeta):
 
     def save_state_dict_to_memory(self, state_dict, conf: CheckpointConfig):
         """Save the state dict into the memory."""
-        if self._local_rank != self.local_shard_id:
+        if self._local_rank != self.local_shard_id or not state_dict:
             return False
 
         conf.rank = self._rank
