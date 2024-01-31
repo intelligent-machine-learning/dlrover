@@ -192,6 +192,8 @@ def save_checkpoint(
     else:
         raise ValueError(f"No support storage type {storage_type}")
 
+    saver.state_dict.clear()
+
 
 def load_checkpoint(
     model,
