@@ -166,15 +166,14 @@ def save_checkpoint(
             )
         else:
             megatron_save(iteration, model, optimizer, opt_param_scheduler)
-        saver.engine.save_to_memory(iteration, saver.state_dict, saver.paths)
-        torch.save = torch_native_save
-
         # Megatron save_checkpoint will create the directory with the iteration
         # and write the iteration into the tracerfile. But async saver only
         # save the state dict into the CPU memory not the storage. The saver
         # need to clear the empty checkpoint directory.
         if _get_rank() == 0:
             saver.update_tracer_file(iteration)
+        saver.engine.save_to_memory(iteration, saver.state_dict, saver.paths)
+        torch.save = torch_native_save
     elif storage_type == StorageType.DISK:
         torch.save = saver.save
         if "num_floating_point_operations_so_far" in sig.parameters:
@@ -187,6 +186,8 @@ def save_checkpoint(
             )
         else:
             megatron_save(iteration, model, optimizer, opt_param_scheduler)
+        if _get_rank() == 0:
+            saver.update_tracer_file(iteration)
         saver.engine.save_to_storage(iteration, saver.state_dict, saver.paths)
         torch.save = torch_native_save
     else:
