@@ -281,7 +281,7 @@ class CheckpointEngine(metaclass=ABCMeta):
         acquired = self._shm_lock.acquire(blocking=False)
         logger.info(f"Acquired the lock of shared memory: {acquired}.")
         all_rank_ready = check_all_rank_ready(self._saver_group, acquired)
-        if not all_rank_ready:
+        if not all_rank_ready or not state_dict:
             logger.info(
                 f"Rank {self._rank} skips the save the checkpoint "
                 f"in CPU memory since it is saving the latest "
