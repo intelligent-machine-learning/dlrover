@@ -19,7 +19,7 @@ import socket
 import threading
 import time
 from abc import ABCMeta, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from multiprocessing import shared_memory
 from typing import Dict
 
@@ -84,7 +84,7 @@ def _create_socket_client(path):
             connected = True
             break
         except (FileNotFoundError, ConnectionRefusedError):
-            time.sleep(0.1)
+            time.sleep(0.5)
     if not connected:
         client.connect(path)
     return client
@@ -124,7 +124,7 @@ class SocketRequest(object):
     """
 
     method: str = ""
-    args: Dict[str, object] = None  # type: ignore
+    args: Dict[str, object] = field(default_factory=dict)
 
 
 @dataclass
