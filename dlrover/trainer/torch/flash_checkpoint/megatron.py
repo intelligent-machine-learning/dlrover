@@ -63,7 +63,6 @@ class MegatronCheckpointManager(object):
             storage=self.storage,
             comm_backend=comm_backend,
         )
-        self.update_tracer_file(0)
 
     def save(self, state_dict, path: str):
         if not isinstance(path, str):
@@ -156,40 +155,45 @@ def save_checkpoint(
     sig = inspect.signature(megatron_save)
     if storage_type == StorageType.MEMORY:
         torch.save = saver.save
-        if "num_floating_point_operations_so_far" in sig.parameters:
-            megatron_save(
-                iteration,
-                model,
-                optimizer,
-                opt_param_scheduler,
-                num_floating_point_operations_so_far,
-            )
-        else:
-            megatron_save(iteration, model, optimizer, opt_param_scheduler)
-        # Megatron save_checkpoint will create the directory with the iteration
-        # and write the iteration into the tracerfile. But async saver only
-        # save the state dict into the CPU memory not the storage. The saver
-        # need to clear the empty checkpoint directory.
-        if _get_rank() == 0:
-            saver.update_tracer_file(iteration)
+        try:
+            if "num_floating_point_operations_so_far" in sig.parameters:
+                megatron_save(
+                    iteration,
+                    model,
+                    optimizer,
+                    opt_param_scheduler,
+                    num_floating_point_operations_so_far,
+                )
+            else:
+                megatron_save(iteration, model, optimizer, opt_param_scheduler)
+        finally:
+            torch.save = torch_native_save
+            # Megatron save_checkpoint will create the directory with the
+            # iteration and write the iteration into the tracerfile. But async
+            # saver only save the state dict into the CPU memory not
+            # the storage. The saver need to clear the empty checkpoint
+            # directory.
+            if _get_rank() == 0:
+                saver.update_tracer_file(iteration)
         saver.engine.save_to_memory(iteration, saver.state_dict, saver.paths)
-        torch.save = torch_native_save
     elif storage_type == StorageType.DISK:
-        torch.save = saver.save
-        if "num_floating_point_operations_so_far" in sig.parameters:
-            megatron_save(
-                iteration,
-                model,
-                optimizer,
-                opt_param_scheduler,
-                num_floating_point_operations_so_far,
-            )
-        else:
-            megatron_save(iteration, model, optimizer, opt_param_scheduler)
-        if _get_rank() == 0:
-            saver.update_tracer_file(iteration)
+        try:
+            torch.save = saver.save
+            if "num_floating_point_operations_so_far" in sig.parameters:
+                megatron_save(
+                    iteration,
+                    model,
+                    optimizer,
+                    opt_param_scheduler,
+                    num_floating_point_operations_so_far,
+                )
+            else:
+                megatron_save(iteration, model, optimizer, opt_param_scheduler)
+        finally:
+            torch.save = torch_native_save
+            if _get_rank() == 0:
+                saver.update_tracer_file(iteration)
         saver.engine.save_to_storage(iteration, saver.state_dict, saver.paths)
-        torch.save = torch_native_save
     else:
         raise ValueError(f"No support storage type {storage_type}")
 
