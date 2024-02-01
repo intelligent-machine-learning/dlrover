@@ -19,6 +19,8 @@ install_requires = [
     "pynvml",
     "urllib3<1.27,>=1.21.1",
     "deprecated",
+    # easydl-sdk<=0.0.6 is not compatiable with dlrover>=0.4.1
+    "easydl-sdk==0.0.7",
 ]
 
 
@@ -32,7 +34,7 @@ extra_require = {
 
 setup(
     name="dlrover",
-    version="0.4.1",
+    version="0.4.2",
     description="An Automatic Distributed Deep Learning Framework",
     long_description="DLRover helps model developers focus on model algorithm"
     " itself, without taking care of any engineering stuff,"
