@@ -190,7 +190,7 @@ class CheckpointEngine(metaclass=ABCMeta):
 
     def _init_sync_group(self, comm_backend):
         if not dist.is_initialized():
-            self._saving_ranks = [1]
+            self._saving_ranks = [0]
             return
 
         self._rank = dist.get_rank()
