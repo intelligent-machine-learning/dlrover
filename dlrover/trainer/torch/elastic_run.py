@@ -131,6 +131,14 @@ def parse_args(args):
         "the argument is True. The argument only works when network-check "
         "is True.",
     )
+    parser.add_argument(
+        "--save-at-breakpoint",
+        "--save_at_breakpoint",
+        action=check_env,
+        help="Bool. If True, the agent in the main process will save the "
+        "checkpoint in the memory to the storage if the training "
+        "process fails.",
+    )
     return parser.parse_args(args)
 
 
@@ -238,6 +246,9 @@ def _elastic_config_from_args(
         args, "exclude_straggler", False
     )
     elastic_config.set_node_unit(getattr(args, "node_unit", 1))
+    elastic_config.save_at_breakpoint = getattr(
+        args, "save_at_breakpoint", False
+    )
     return elastic_config, cmd, cmd_args
 
 

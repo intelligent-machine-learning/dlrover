@@ -119,6 +119,7 @@ class ElasticLaunchConfig(LaunchConfig):
     node_unit: int = 1
     auto_tunning: bool = False
     exclude_straggler: bool = False
+    save_at_breakpoint: bool = False
 
     def set_node_unit(self, node_unit):
         """Set the number unint of ndoes."""
@@ -588,7 +589,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         memory into the storage before restarting training processes.
         """
         saver: AsyncCheckpointSaver = AsyncCheckpointSaver.get_ckpt_saver()
-        if saver:
+        if saver and self._config.save_at_breakpoint:
             self._save_ckpt_future = self._save_ckpt_executor.submit(
                 saver.save_shm_to_storage
             )
