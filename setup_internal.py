@@ -14,13 +14,11 @@
 from setuptools import find_packages, setup
 
 install_requires = [
-    "grpcio-tools==1.58.0",
+    "grpcio-tools>=1.34.1",
     "psutil",
     "pynvml",
     "urllib3<1.27,>=1.21.1",
     "deprecated",
-    # easydl-sdk<=0.0.6 is not compatiable with dlrover>=0.4.1
-    "easydl-sdk==0.0.7",
 ]
 
 
