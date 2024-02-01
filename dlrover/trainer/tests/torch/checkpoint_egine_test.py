@@ -296,6 +296,27 @@ class CheckpointEngineTest(unittest.TestCase):
             start_method="spawn",
         )
 
+    def test_sync_group(self):
+        rank = 0
+        world_size = 1
+        master_port = find_free_port()
+        os.environ["LOCAL_RANK"] = str(rank)
+        os.environ["RANK"] = str(rank)
+        os.environ["LOCAL_WORLD_SIZE"] = str(world_size)
+        os.environ["WORLD_SIZE"] = str(world_size)
+        os.environ["MASTER_ADDR"] = "localhost"
+        os.environ["MASTER_PORT"] = str(master_port)
+
+        dist.init_process_group(backend="gloo")
+        try:
+            storage = PosixDiskStorage()
+            with tempfile.TemporaryDirectory() as tmpdirname:
+                engine = DdpCheckpointEngine(tmpdirname, storage)
+                engine._init_sync_group("gloo")
+                self.assertIsNotNone(engine._saver_group)
+        finally:
+            dist.destroy_process_group()
+
 
 class PosixDiskStorageTest(unittest.TestCase):
     def test_posix(self):
