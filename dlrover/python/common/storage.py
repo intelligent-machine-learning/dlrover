@@ -156,7 +156,7 @@ class PosixDiskStorage(CheckpointStorage):
 
     def safe_rmtree(self, dir):
         if os.path.exists(dir):
-            shutil.rmtree(dir)
+            shutil.rmtree(dir, ignore_errors=True)
 
     def safe_remove(self, path):
         if os.path.exists(path):

@@ -16,7 +16,7 @@ import time
 from abc import ABCMeta, abstractmethod
 from datetime import timedelta
 from multiprocessing import Process
-from typing import Dict
+from typing import Dict, List, Optional
 
 import torch
 import torch.distributed as dist
@@ -36,6 +36,11 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
     ClassMeta,
     SharedMemoryHandler,
 )
+
+
+def _rank0_log(rank, message):
+    if rank == 0:
+        logger.info(message)
 
 
 @singleton
@@ -183,12 +188,14 @@ class CheckpointEngine(metaclass=ABCMeta):
         self._world_size = 1
         self._loader_group = None
         self._saver_group = None
+        self._saving_ranks: Optional[List[int]] = None
         self._init_sync_group(comm_backend)
         self._notify_agent_to_create_saver()
         self._update_saver_config()
 
     def _init_sync_group(self, comm_backend):
         if not dist.is_initialized():
+            self._saving_ranks = [0]
             return
 
         self._rank = dist.get_rank()
@@ -202,22 +209,31 @@ class CheckpointEngine(metaclass=ABCMeta):
                 backend=backend,
                 timeout=timedelta(seconds=60),
             )
-        saving_ranks = self.get_saving_ranks()
-        if backend == dist.get_backend() and saving_ranks is None:
+        self._saving_ranks = self.get_saving_ranks()
+        if backend == dist.get_backend() and self._saving_ranks is None:
             self._saver_group = None
+            message = (
+                "Use the default process group to sync "
+                "when saving checkpoint."
+            )
+            _rank0_log(self._rank, message)
         else:
-            saving_ranks = self.get_saving_ranks()
             self._saver_group = dist.new_group(
-                ranks=saving_ranks,
+                ranks=self._saving_ranks,
                 backend=backend,
                 timeout=timedelta(seconds=60),
             )
-            if saving_ranks is None:
-                saving_ranks = "all"
-            logger.info(
-                f"Create a {backend} commumication group between "
-                f"{saving_ranks} ranks."
-            )
+            if self._saving_ranks:
+                message = (
+                    f"Create a {backend} commumication group to save "
+                    f"checkpoint. Saving ranks are {self._saving_ranks}."
+                )
+            else:
+                message = (
+                    f"Create a {backend} commumication group to save "
+                    "checkpoint. Saving ranks are all ranks."
+                )
+            _rank0_log(self._rank, message)
 
     def __del__(self):
         self.close()
@@ -273,6 +289,8 @@ class CheckpointEngine(metaclass=ABCMeta):
         """Save the state dict into the memory."""
         if self._local_rank != self.local_shard_id:
             return False
+        if self._saving_ranks and self._rank not in self._saving_ranks:
+            return False
 
         conf.rank = self._rank
         conf.group_rank = self._group_rank
@@ -281,7 +299,7 @@ class CheckpointEngine(metaclass=ABCMeta):
         acquired = self._shm_lock.acquire(blocking=False)
         logger.info(f"Acquired the lock of shared memory: {acquired}.")
         all_rank_ready = check_all_rank_ready(self._saver_group, acquired)
-        if not all_rank_ready:
+        if not all_rank_ready or not state_dict:
             logger.info(
                 f"Rank {self._rank} skips the save the checkpoint "
                 f"in CPU memory since it is saving the latest "
