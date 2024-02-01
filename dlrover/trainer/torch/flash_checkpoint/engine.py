@@ -38,6 +38,11 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
 )
 
 
+def _rank0_log(rank, message):
+    if rank == 0:
+        logger.info(message)
+
+
 @singleton
 class ReadyTensor(object):
     def __init__(self, device) -> None:
@@ -207,23 +212,28 @@ class CheckpointEngine(metaclass=ABCMeta):
         self._saving_ranks = self.get_saving_ranks()
         if backend == dist.get_backend() and self._saving_ranks is None:
             self._saver_group = None
+            message = (
+                "Use the default process group to sync "
+                "when saving checkpoint."
+            )
+            _rank0_log(self._rank, message)
         else:
             self._saver_group = dist.new_group(
                 ranks=self._saving_ranks,
                 backend=backend,
                 timeout=timedelta(seconds=60),
             )
-            if self._rank == 0:
-                if self._saving_ranks:
-                    logger.info(
-                        f"Create a {backend} commumication group to save "
-                        f"checkpoint between {self._saving_ranks} ranks."
-                    )
-                else:
-                    logger.info(
-                        f"Create a {backend} commumication group to save "
-                        "checkpoint between all ranks."
-                    )
+            if self._saving_ranks:
+                message = (
+                    f"Create a {backend} commumication group to save "
+                    f"checkpoint. Saving ranks are {self._saving_ranks}."
+                )
+            else:
+                message = (
+                    f"Create a {backend} commumication group to save "
+                    "checkpoint. Saving ranks are all ranks."
+                )
+            _rank0_log(self._rank, message)
 
     def __del__(self):
         self.close()
