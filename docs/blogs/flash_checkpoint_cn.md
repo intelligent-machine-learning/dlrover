@@ -210,8 +210,7 @@ checkpointer.load_checkpoint(checkpoint_dir)
 
 #### Megatron-LM
 
-Flash Checkpoint 只是在 Megatron-LM ([tag 23.06](https://github.com/NVIDIA/Megatron-LM/tree/23.06))
-原生的 save_checkpoint 接口上增加了一个
+Flash Checkpoint 只是在 Megatron-LM 原生的 save_checkpoint 接口上增加了一个
 `storage_type` 参数，来控制是存入内存还是存储系统，其他完全一致。load_checkpoint
 与 Megatron-LM 原生的 load_checkpoint 接口完全一致。用户可以无缝切换到 Flash Checkpoint。
 用户只需要将 Megatron-LM 中的 megatron/training.py 文件中的
@@ -267,6 +266,9 @@ DLRover Flash Checkpoint 更是降低了近百倍的阻塞时间。
 
 <text>图4: checkpoint 持久化的时间开销</text>
 </div>
+
+注意：Megatron-LM 的实验没有开 `distributed_optimizer`。因为 `distributed_optimizer` 保存 checkpoint 的时候
+，rank 0 需要从其他 rank 获取 optimizer 参数后保存。这个过程会耗费比较长的时间。
 
 下图显示了，可以通过重启训练进程恢复时读取 checkpoint 文件的 IO 时间开销，
 DLRover Flash Checkpoint 直接从共享内存恢复比读 NVMe SSD 快一倍以上，比 NAS 快几十倍。

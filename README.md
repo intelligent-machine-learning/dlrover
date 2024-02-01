@@ -69,7 +69,7 @@ from the latest checkpoint when a failure happens. The features of flash checkpo
 1. Asynchronously persist the checkpoint to the storage.
 2. Persist the checkpoint to the storage once the training process fails.
 3. Load the checkpoint from the host memory after the training process restarts.
-4. APIs for DDP, FSDP, DeepSpeed and [Megatron-LM(tag 23.06)](https://github.com/NVIDIA/Megatron-LM/tree/23.06).
+4. APIs for DDP, FSDP, DeepSpeed and Megatron-LM.
 
 <div align="center">
 <img src="docs/figures/ft_llm_training/checkpoint_save_time.png" alt="Editor" width="396">

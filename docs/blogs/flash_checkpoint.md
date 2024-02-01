@@ -100,8 +100,7 @@ This can avoid the IO overhead to read the remote storage system.
 
 To enable users to conveniently apply DLRover's Flash Checkpoint to training jobs,
 DLRover provide APIs to support Distributed Data Parallel (DDP),
-Fully Sharded Data Parallel (FSDP), DeepSpeed,
-and [Megatron-LM (tag 23.06)](https://github.com/NVIDIA/Megatron-LM/tree/23.06).
+Fully Sharded Data Parallel (FSDP), DeepSpeed, and Megatron-LM.
 
 ### DDP
 
@@ -308,6 +307,9 @@ Compared to NAS remote file systems, FCP reduces the blocking time by nearly a h
 
 <text>Figure 4: The Paused Training Time to Save Checkpoint.</text>
 </div>
+
+Note: The experiment has not used `distributed_optimizer` of Megatron-LM. The checkpoint of `distributed_optimizer`
+needs to gather all optimizer shards from other ranks which takes a lone time.
 
 The figure illustrates that the I/O time to read checkpoint files
 when resuming training processes. With DLRover Flash Checkpoint,
