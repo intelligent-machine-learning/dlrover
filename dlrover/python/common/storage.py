@@ -14,7 +14,7 @@
 import os
 import shutil
 from abc import ABCMeta, abstractmethod
-from typing import List
+from typing import List, Callable
 
 from .log import default_logger as logger
 from .serialize import ClassMeta
@@ -192,7 +192,15 @@ class PosixDiskStorage(CheckpointStorage):
 
 class CheckpointDeletionStrategy(metaclass=ABCMeta):
     @abstractmethod
-    def clean_up(self):
+    def clean_up(self, step: int, delete_func: Callable):
+        """
+        Clean up the checkpoint of step.
+
+        Arguments:
+            step (int): the iteration step of a checkpoint.
+            delete_func: A function to remove a directory, the argument
+                is a directory of a folder.
+        """
         pass
 
 
@@ -213,12 +221,12 @@ class KeepStepIntervalStrategy(CheckpointDeletionStrategy):
         self._keep_interval = keep_interval
         self._checkpoint_dir = checkpoint_dir
 
-    def clean_up(self, step):
+    def clean_up(self, step, delete_func):
         if step % self._keep_interval == 0:
             return
         rm_dir = os.path.join(self._checkpoint_dir, str(step))
         try:
-            shutil.rmtree(rm_dir)
+            delete_func(rm_dir)
             print(f"Clean path {rm_dir}")
         except Exception:
             print(f"Fail to clean path {rm_dir}!")
@@ -239,13 +247,13 @@ class KeepLatestStepStrategy(CheckpointDeletionStrategy):
         self._checkpoint_dir = checkpoint_dir
         self._steps: List[int] = []
 
-    def clean_up(self, step):
+    def clean_up(self, step, delete_func):
         self._steps.append(step)
         if len(self._steps) == self._max_to_keep:
             rm_step = self._steps.pop(0)
             rm_dir = os.path.join(self._checkpoint_dir, str(rm_step))
             try:
-                shutil.rmtree(rm_dir)
+                delete_func(rm_dir)
                 print(f"Clean path {rm_dir}")
             except Exception:
                 print(f"Fail to clean path {rm_dir}!")
@@ -280,7 +288,7 @@ class PosixStorageWithDeletion(PosixDiskStorage):
         super().commit(step, success)
         if not success or self._pre_step == step:
             return
-        self._deletion_strategy.clean_up(self._pre_step)
+        self._deletion_strategy.clean_up(self._pre_step, shutil.rmtree)
 
     def get_class_meta(self):
         kwargs = {

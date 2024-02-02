@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import os
+import shutil
 import tempfile
 import unittest
 
@@ -27,12 +28,9 @@ class TestLocalStrategyGenerator(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             deletion_strategy = KeepLatestStepStrategy(3, tmpdir)
             os.makedirs(os.path.join(tmpdir, "1"))
-            os.makedirs(os.path.join(tmpdir, "2"))
-            deletion_strategy.clean_up(1)
-            os.makedirs(os.path.join(tmpdir, "3"))
-            deletion_strategy.clean_up(2)
-            os.makedirs(os.path.join(tmpdir, "4"))
-            deletion_strategy.clean_up(3)
+            for step in range(2, 5):
+                os.makedirs(os.path.join(tmpdir, str(step)))
+                deletion_strategy.clean_up(step - 1, shutil.rmtree)
             self.assertListEqual(sorted(os.listdir(tmpdir)), ["2", "3", "4"])
 
     def test_keep_step_interval_deletion_strategy(self):
@@ -42,7 +40,7 @@ class TestLocalStrategyGenerator(unittest.TestCase):
             for i in range(2, 6):
                 step = i * 2
                 os.makedirs(os.path.join(tmpdir, str(step)))
-                deletion_strategy.clean_up(step - 2)
+                deletion_strategy.clean_up(step - 2, shutil.rmtree)
             self.assertListEqual(sorted(os.listdir(tmpdir)), ["10", "4", "8"])
 
     def test_posix_storage_with_deletion(self):
