@@ -313,7 +313,7 @@ class CheckpointEngineTest(unittest.TestCase):
             with tempfile.TemporaryDirectory() as tmpdirname:
                 engine = DdpCheckpointEngine(tmpdirname, storage)
                 engine._init_sync_group("gloo")
-                self.assertIsNotNone(engine._saver_group)
+                self.assertIsNone(engine._saver_group)
         finally:
             dist.destroy_process_group()
 
