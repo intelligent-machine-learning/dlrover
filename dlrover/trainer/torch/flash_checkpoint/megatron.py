@@ -52,7 +52,7 @@ def _get_rank():
 
 
 @singleton
-class MegatronCheckpointManager(object):
+class MegatronCheckpointer(object):
     def __init__(self, checkpoint_dir, storage=None, comm_backend=""):
         self.state_dict = {}
         self.paths = {}
@@ -149,7 +149,7 @@ def save_checkpoint(
             checkpoint to the memory.
     """
     args = get_args()
-    saver = MegatronCheckpointManager(
+    saver = MegatronCheckpointer(
         args.save, storage=storage, comm_backend=comm_backend
     )
     sig = inspect.signature(megatron_save)
@@ -214,7 +214,7 @@ def load_checkpoint(
         same as the `megatron.checkpointing.load_checkpoint`
     """
     args = get_args()
-    saver = MegatronCheckpointManager(args.save, comm_backend=comm_backend)
+    saver = MegatronCheckpointer(args.save, comm_backend=comm_backend)
     torch.load = saver.load
     iteration = megatron_load(
         model, optimizer, opt_param_scheduler, load_arg, strict

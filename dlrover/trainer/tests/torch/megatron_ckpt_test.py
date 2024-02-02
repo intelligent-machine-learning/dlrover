@@ -29,7 +29,7 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
 from dlrover.trainer.torch.flash_checkpoint import megatron
 from dlrover.trainer.torch.flash_checkpoint.checkpointer import StorageType
 from dlrover.trainer.torch.flash_checkpoint.megatron import (
-    MegatronCheckpointManager,
+    MegatronCheckpointer,
     load_checkpoint,
     save_checkpoint,
 )
@@ -105,7 +105,7 @@ class MegatrionCheckpointTest(unittest.TestCase):
             megatron.megatron_load = mock_load_checkpoint
             megatron.get_args = get_args
 
-            ckpt_manager = MegatronCheckpointManager(tmpdirname)
+            ckpt_manager = MegatronCheckpointer(tmpdirname)
             save_checkpoint(
                 10, model, optimizer, None, storage_type=StorageType.MEMORY
             )
@@ -152,7 +152,7 @@ class MegatrionCheckpointTest(unittest.TestCase):
                 tmpdirname, "iter_{:07d}".format(iteration)
             )
             os.makedirs(ckpt_dir)
-            ckpt_manager = MegatronCheckpointManager(tmpdirname)
+            ckpt_manager = MegatronCheckpointer(tmpdirname)
             ckpt_manager.checkpoint_dir = tmpdirname
             dlrover_tracer_file = os.path.join(
                 tmpdirname, CheckpointConstant.TRACER_FILE_NAME

@@ -1043,10 +1043,8 @@ class MegatronCheckpointSaver(CommonDirCheckpointSaver):
             self.checkpoint_dir, CheckpointConstant.TRACER_FILE_NAME
         )
         self.storage.write(str(step), tracker_filename)
-        ds_tracker_filename = os.path.join(
-            self.checkpoint_dir, self.TRACER_FILE
-        )
-        self.storage.write(str(step), ds_tracker_filename)
+        tracker_filename = os.path.join(self.checkpoint_dir, self.TRACER_FILE)
+        self.storage.write(str(step), tracker_filename)
 
 
 class DeepSpeedCheckpointSaver(CommonDirCheckpointSaver):
