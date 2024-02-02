@@ -14,7 +14,7 @@
 import os
 import shutil
 from abc import ABCMeta, abstractmethod
-from typing import List, Callable
+from typing import Callable, List
 
 from .log import default_logger as logger
 from .serialize import ClassMeta
