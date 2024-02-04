@@ -38,8 +38,8 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
 )
 
 
-def _rank0_log(rank, message):
-    if rank == 0:
+def _local_rank0_log(local_rank, message):
+    if local_rank == 0:
         logger.info(message)
 
 
@@ -216,7 +216,7 @@ class CheckpointEngine(metaclass=ABCMeta):
                 "Use the default process group to sync "
                 "when saving checkpoint."
             )
-            _rank0_log(self._rank, message)
+            _local_rank0_log(self._local_rank, message)
         else:
             self._saver_group = dist.new_group(
                 ranks=self._saving_ranks,
@@ -233,7 +233,7 @@ class CheckpointEngine(metaclass=ABCMeta):
                     f"Create a {backend} commumication group to save "
                     "checkpoint. Saving ranks are all ranks."
                 )
-            _rank0_log(self._rank, message)
+            _local_rank0_log(self._local_rank, message)
 
     def __del__(self):
         self.close()
