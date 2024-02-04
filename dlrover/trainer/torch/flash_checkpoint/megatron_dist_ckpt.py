@@ -50,9 +50,6 @@ from dlrover.trainer.torch.flash_checkpoint.megatron_engine import (
     MegatronDistCheckpointEngine,
 )
 
-_MODEL_SD_NAME = "model_optim_rng.pt"
-_DIST_OPTIM_SD_NAME = "distrib_optim.pt"
-
 
 @singleton
 class MegatronDistCheckpointer(object):
@@ -71,22 +68,6 @@ class MegatronDistCheckpointer(object):
                 storage=self.storage,
                 comm_backend=comm_backend,
             )
-
-    def load(self, path: str, **kwargs):
-        def load_func(path):
-            return torch.load(path, map_location="cpu")
-
-        state_dict = self.engine.load(resume_path=path)
-
-        sd_name = ""
-        if path.endswith(_MODEL_SD_NAME):
-            sd_name = CheckpointConstant.MODEL_STATES_NAME
-        elif path.endswith(_DIST_OPTIM_SD_NAME):
-            sd_name = CheckpointConstant.OPTIM_STATES_NAME
-        if sd_name in state_dict:
-            return state_dict[sd_name]
-        else:
-            return self.storage.read_state_dict(path, load_func)
 
 
 def save_checkpoint(
@@ -199,7 +180,7 @@ def get_dist_optimizer_checkpoint_name(
 
     rank = dist.get_rank()
     common_path = os.path.join(checkpoints_path, directory, f"rank_{rank:05d}")
-    return os.path.join(common_path, _DIST_OPTIM_SD_NAME)
+    return os.path.join(common_path, "distrib_optim.pt")
 
 
 def get_parameter_state(dist_optimizer):
@@ -255,8 +236,6 @@ def load_checkpoint(
     opt_param_scheduler,
     load_arg="load",
     strict=True,
-    storage=None,
-    comm_backend="",
 ):
     """Load a model checkpoint and return the iteration.
     strict (bool): whether to strictly enforce that the keys in
