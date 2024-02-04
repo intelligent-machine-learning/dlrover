@@ -49,7 +49,7 @@ class CheckpointSharedObjPrefix:
 
 class CheckpointEventType(Enum):
     SAVE = auto()
-    UPDATE_SHARD = auto()
+    RESET_SHM = auto()
     EXIT = auto()
 
 
@@ -471,16 +471,13 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         logger.info("Async flash checkpoint saver starts!")
         while True:
             event: CheckpointEvent = self._event_queue.get()
-            if (
-                event.type == CheckpointEventType.UPDATE_SHARD
-                and event.global_shard_num != self.global_shard_num
-            ):
+            if event.type == CheckpointEventType.RESET_SHM:
                 logger.info(
-                    "Reset the shard memory because the number of "
-                    f"global shards changes to {event.global_shard_num}."
+                    "Reset the shared memory after the training starts."
                 )
                 self.global_shard_num = event.global_shard_num
-                self._reset_shared_memory()
+                for shm_handler in self._shm_handlers:
+                    shm_handler.reset()
             elif event.type == CheckpointEventType.SAVE:
                 logger.info(
                     f"ShardingSaver save checkpoint to storage, event {event}"
@@ -488,10 +485,6 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 self.save_step_checkpoint(event.step)
             elif event.type == CheckpointEventType.EXIT:
                 break
-
-    def _reset_shared_memory(self):
-        for shm_handler in self._shm_handlers:
-            shm_handler.reset()
 
     def _save_shard(
         self,

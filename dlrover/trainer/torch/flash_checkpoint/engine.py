@@ -276,7 +276,7 @@ class CheckpointEngine(metaclass=ABCMeta):
         if self._local_rank == 0:
             global_shard_num = self.get_global_shard_num()
             event: CheckpointEvent = CheckpointEvent(
-                type=CheckpointEventType.UPDATE_SHARD,
+                type=CheckpointEventType.RESET_SHM,
                 global_shard_num=global_shard_num,
             )
             if self._event_queue is None:
