@@ -154,7 +154,10 @@ def _create_shared_memory(name, create, size=0):
     except FileExistsError:
         shm = SharedMemory(name=name)
         if shm.size != size:
-            logger.info("Re-create a new memory buffer.")
+            logger.info(
+                f"The old size is {shm.size} and "
+                f"create a new memory buffer with size {size}."
+            )
             shm.unlink()
             shm = SharedMemory(
                 name=name,
@@ -238,14 +241,10 @@ class SharedMemoryHandler(object):
             self.init_shared_memory()
         if self.shared_memory:
             self.shared_memory.unlink()
-            logger.info(f"Unlink the shared memory {self._shm_name}")
         if self.metadata:
             self.metadata.unlink()
 
     def reset(self):
-        self.close()
-        if self.shared_memory:
-            self.shared_memory.unlink()
         self.metadata.set({})
         self.shared_memory = None
 
