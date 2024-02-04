@@ -102,7 +102,7 @@ class CheckpointSaverTest(unittest.TestCase):
     def setUp(self) -> None:
         self.storage = PosixDiskStorage()
         AsyncCheckpointSaver._saver_instance = None
-        AsyncCheckpointSaver.release_shm_lock()
+        AsyncCheckpointSaver.reset()
         AsyncCheckpointSaver.start_async_saving_ckpt()
 
     def tearDown(self) -> None:
@@ -214,7 +214,7 @@ class CheckpointSaverTest(unittest.TestCase):
             saver._shm_handlers[0].init_shared_memory(create=True, size=1024)
             saver._shm_handlers[0].metadata.set({"step": 100})
             event = CheckpointEvent(
-                type=CheckpointEventType.RESET_SHM, global_shard_num=2
+                type=CheckpointEventType.UPDATE_SHARD, global_shard_num=2
             )
             saver._event_queue.put(event)
             sq.unlink()

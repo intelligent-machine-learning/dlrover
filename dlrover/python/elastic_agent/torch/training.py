@@ -623,7 +623,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         self._restart_count += 1
         self._remaining_restarts -= 1
         # Relase the shared memory lock before starting workers.
-        AsyncCheckpointSaver.release_shm_lock()
+        AsyncCheckpointSaver.reset()
         super()._restart_workers(worker_group)
 
     def _start_workers(self, worker_group: WorkerGroup):

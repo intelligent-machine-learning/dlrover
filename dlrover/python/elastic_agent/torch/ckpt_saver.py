@@ -49,7 +49,7 @@ class CheckpointSharedObjPrefix:
 
 class CheckpointEventType(Enum):
     SAVE = auto()
-    RESET_SHM = auto()
+    UPDATE_SHARD = auto()
     EXIT = auto()
 
 
@@ -471,13 +471,11 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         logger.info("Async flash checkpoint saver starts!")
         while True:
             event: CheckpointEvent = self._event_queue.get()
-            if event.type == CheckpointEventType.RESET_SHM:
+            if event.type == CheckpointEventType.UPDATE_SHARD:
                 logger.info(
                     "Reset the shared memory after the training starts."
                 )
                 self.global_shard_num = event.global_shard_num
-                for shm_handler in self._shm_handlers:
-                    shm_handler.reset()
             elif event.type == CheckpointEventType.SAVE:
                 logger.info(
                     f"ShardingSaver save checkpoint to storage, event {event}"
@@ -485,6 +483,12 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 self.save_step_checkpoint(event.step)
             elif event.type == CheckpointEventType.EXIT:
                 break
+
+    def reset_shared_memory(self):
+        for lock in self._shm_locks:
+            lock.release()
+        for shm_handler in self._shm_handlers:
+            shm_handler.reset()
 
     def _save_shard(
         self,
@@ -623,13 +627,12 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
             )
 
     @classmethod
-    def release_shm_lock(cls):
-        """Release all shared lock on the node."""
+    def reset(cls):
+        """Reset the shared memory of all shards."""
         if cls._saver_instance is None:
             return
-        for lock in cls._saver_instance._shm_locks:
-            lock.release()
-        logger.info("Relase all the shared locks of shared memory.")
+        cls._saver_instance.reset_shared_memory()
+        logger.info("Reset all shared memory of shards.")
 
     @abstractmethod
     def save_step_checkpoint(self, step: int):
