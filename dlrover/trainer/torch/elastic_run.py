@@ -102,6 +102,7 @@ from dlrover.python.elastic_agent.torch.training import (
 
 def parse_args(args):
     parser = get_args_parser()
+    parser.allow_abbrev = False
     parser.add_argument(
         "--network-check",
         "--network_check",

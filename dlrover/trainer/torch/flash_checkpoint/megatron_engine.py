@@ -82,6 +82,9 @@ class MegatronCheckpointEngine(CheckpointEngine):
         Args:
             step (int): the global iteration step.
             state_dict (dict): the state dict of model and optimizer to save.
+            paths (dict): the key is a category in
+                ["model_states", "optim_states"] of the state dict and
+                the value is the path of storage to save.
         """
         conf = CheckpointConfig(step=step, paths=paths)
         return self.save_state_dict_to_memory(state_dict, conf)
@@ -98,6 +101,9 @@ class MegatronCheckpointEngine(CheckpointEngine):
         Args:
             step (int): the iteration step.
             state_dict (dict): the state dict of model and optimizer to save.
+            paths (dict): the key is a category in
+                ["model_states", "optim_states"] of the state dict and
+                the value is the path of storage to save.
         """
         succeed = True
         if step > self._cached_step:
@@ -191,6 +197,9 @@ class MegatronDistCheckpointEngine(CheckpointEngine):
         Args:
             step (int): the global iteration step.
             state_dict (dict): the state dict of model and optimizer to save.
+            paths (dict): the key is a category in
+                ["model_states", "optim_states"] of the state dict and
+                the value is the path of storage to save.
         """
         conf = CheckpointConfig(step=step, paths=paths)
         return self.save_state_dict_to_memory(state_dict, conf)
@@ -207,6 +216,9 @@ class MegatronDistCheckpointEngine(CheckpointEngine):
         Args:
             step (int): the iteration step.
             state_dict (dict): the state dict of model and optimizer to save.
+            paths (dict): the key is a category in
+                ["model_states", "optim_states"] of the state dict and
+                the value is the path of storage to save.
         """
         succeed = True
         if step > self._cached_step:

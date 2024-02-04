@@ -145,6 +145,9 @@ def _create_shared_memory(name, create, size=0):
             return SharedMemory(name=name)
         except FileNotFoundError:
             return None
+    if create and size == 0:
+        logger.warning("Cannot create the shared memory with size = 0.")
+        return None
     try:
         shm = SharedMemory(
             name=name,

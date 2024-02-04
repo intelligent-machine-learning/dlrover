@@ -124,9 +124,6 @@ class CheckpointStorage(metaclass=ABCMeta):
 
 
 class PosixDiskStorage(CheckpointStorage):
-    def __init__(self):
-        self._latest_path = ""
-
     def write(self, content, path):
         mode = "w"
         if isinstance(content, bytes) or isinstance(content, memoryview):
@@ -140,7 +137,6 @@ class PosixDiskStorage(CheckpointStorage):
         os.makedirs(dir, exist_ok=True)
         if write_func:
             write_func(state_dict, path)
-        self._latest_path = path
 
     def read(self, path, mode="r"):
         if not os.path.exists(path):
@@ -171,8 +167,7 @@ class PosixDiskStorage(CheckpointStorage):
 
     def commit(self, step, success):
         logger.info(
-            f"Succeed {success} in persisting the checkpoint to "
-            f"{self._latest_path} for step {step}"
+            f"Succeed {success} in persisting the checkpoint of step {step}."
         )
 
     def exists(self, path: str):
