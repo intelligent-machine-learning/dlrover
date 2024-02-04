@@ -219,8 +219,8 @@ class CheckpointSaverTest(unittest.TestCase):
             saver._event_queue.put(event)
             sq.unlink()
             time.sleep(0.3)
+            self.assertEqual(saver.global_shard_num, 2)
             self.assertTrue(saver._shm_handlers[0].no_checkpint_state())
-            self.assertIsNone(saver._shm_handlers[0].shared_memory)
             saver.close()
 
     def test_commit_checkpoint(self):
