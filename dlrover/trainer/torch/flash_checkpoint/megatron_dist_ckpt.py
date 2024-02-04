@@ -55,7 +55,7 @@ _DIST_OPTIM_SD_NAME = "distrib_optim.pt"
 
 
 @singleton
-class MegatronCheckpointer(object):
+class MegatronDistCheckpointer(object):
     def __init__(self, checkpoint_dir, storage=None, comm_backend=""):
         self.storage = PosixDiskStorage() if not storage else storage
         args = get_args()
@@ -102,7 +102,7 @@ def save_checkpoint(
     """Save a model checkpoint."""
     args = get_args()
 
-    checkpointer = MegatronCheckpointer(
+    checkpointer = MegatronDistCheckpointer(
         args.save, storage=storage, comm_backend=comm_backend
     )
 
