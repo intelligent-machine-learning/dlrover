@@ -370,6 +370,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         self._is_agent_rank_0 = self._node_rank == 0
         self._shm_handlers: List[SharedMemoryHandler] = []
         self._shm_locks: List[SharedLock] = []
+        self._stop_commit = False
 
         module = importlib.import_module(storage_meta.module_path)
         storage_class_def = getattr(module, storage_meta.class_name)
@@ -485,6 +486,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 break
 
     def reset_shared_memory(self):
+        self._stop_commit = True
         for lock in self._shm_locks:
             lock.release()
         for shm_handler in self._shm_handlers:
@@ -763,6 +765,7 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
 
         # commit checkpoint
         if self._is_agent_rank_0:
+            self._stop_commit = False
             self.commit_checkpoint(step, step_done_dir)
 
         self._writing_storage = False
@@ -782,6 +785,12 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
         start_time = time.time()
         suceess = False
         while True:
+            if self._stop_commit:
+                logger.info(
+                    "Stop committing the checkpoint because "
+                    "the training processes restarted."
+                )
+                break
             done_files = self.storage.listdir(step_done_dir)
             ready_num = len(done_files)
             if ready_num == self.global_shard_num:
