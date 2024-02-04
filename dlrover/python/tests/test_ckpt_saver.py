@@ -102,7 +102,6 @@ class CheckpointSaverTest(unittest.TestCase):
     def setUp(self) -> None:
         self.storage = PosixDiskStorage()
         AsyncCheckpointSaver._saver_instance = None
-        AsyncCheckpointSaver.reset()
         AsyncCheckpointSaver.start_async_saving_ckpt()
 
     def tearDown(self) -> None:
@@ -126,6 +125,7 @@ class CheckpointSaverTest(unittest.TestCase):
             else:
                 break
         self.assertIsNotNone(AsyncCheckpointSaver._saver_instance)
+        AsyncCheckpointSaver.reset()
 
     def test_close_saver(self):
         saver = DdpCheckpointSaver("test_ckpt", self.storage.get_class_meta())
