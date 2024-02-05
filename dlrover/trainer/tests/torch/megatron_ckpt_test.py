@@ -61,7 +61,6 @@ class SimpleNet(nn.Module):
 class MegatrionCheckpointTest(unittest.TestCase):
     def setUp(self):
         MegatronCheckpointSaver._saver_instance = None
-        MegatronCheckpointSaver.start_async_saving_ckpt()
 
     def tearDown(self) -> None:
         if MegatronCheckpointSaver._saver_instance:
@@ -75,6 +74,7 @@ class MegatrionCheckpointTest(unittest.TestCase):
             lr=0.01,
             momentum=0.001,
         )
+        MegatronCheckpointSaver.start_async_saving_ckpt()
         with tempfile.TemporaryDirectory() as tmpdirname:
 
             suffix = "model_optim_rng.pt"
