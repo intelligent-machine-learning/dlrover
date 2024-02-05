@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import threading
+from typing import Optional
 
 
 def singleton(cls):
@@ -28,7 +29,7 @@ def singleton(cls):
 
 
 class Singleton(object):
-    _instance_lock = None
+    _instance_lock: Optional[threading.Lock] = None
     _instance = None
 
     @classmethod
