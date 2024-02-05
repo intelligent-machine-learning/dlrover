@@ -24,7 +24,7 @@ import torch.distributed as dist
 from dlrover.python.common import env_utils
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.multi_process import SharedLock, SharedQueue
-from dlrover.python.common.singleton import singleton
+from dlrover.python.common.singleton import Singleton
 from dlrover.python.common.storage import CheckpointStorage
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     DLROVER_CKPT_CONFIG_KEY,
@@ -43,8 +43,7 @@ def _local_rank0_log(local_rank, message):
         logger.info(message)
 
 
-@singleton
-class ReadyTensor(object):
+class ReadyTensor(Singleton):
     def __init__(self, device) -> None:
         self.tensor = torch.tensor([0], dtype=torch.int32).to(device)
 
@@ -58,7 +57,7 @@ def check_all_rank_ready(group: dist.ProcessGroup, ready: bool):
     backend = dist.get_backend(group)
     local_rank = env_utils.get_local_rank()
     device = "cpu" if backend == "gloo" else f"cuda:{local_rank}"
-    rt = ReadyTensor(device)
+    rt = ReadyTensor.singleton_instance(device)
     value = 0 if ready else 1
     rt.tensor[0] = value
     dist.all_reduce(rt.tensor, group=group)

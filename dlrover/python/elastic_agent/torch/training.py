@@ -351,7 +351,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         self._remaining_failovers = self._remaining_restarts
         self._client = MasterClient.singleton_instance()
         if config.auto_tunning:
-            self._paral_config_tuner = ParalConfigTuner()
+            self._paral_config_tuner = ParalConfigTuner.singleton_instance()
             self._paral_config_tuner.start()
 
         self._save_ckpt_executor = ThreadPoolExecutor(max_workers=1)
@@ -688,7 +688,9 @@ def launch_agent(
 
     _set_paral_config()
 
-    monitor = TorchTrainingMonitor(ConfigPath.RUNTIME_METRICS)
+    monitor = TorchTrainingMonitor.singleton_instance(
+        ConfigPath.RUNTIME_METRICS
+    )
     if config.auto_tunning:
         monitor.start()
     rdzv_parameters = RendezvousParameters(

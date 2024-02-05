@@ -135,7 +135,7 @@ class MegatrionCheckpointTest(unittest.TestCase):
             tracer_file = os.path.join(
                 tmpdirname, MegatronCheckpointSaver.TRACER_FILE
             )
-            success = True
+            success = False
             start_time = time.time()
             while True:
                 if os.path.exists(tracer_file):
@@ -190,7 +190,6 @@ class MegatrionCheckpointTest(unittest.TestCase):
         checkpointer = MegatronDistCheckpointer(
             "/tmp", use_distributed_optimizer=True
         )
-        MegatronCheckpointSaver._saver_instance = None
         self.assertTrue(
             isinstance(checkpointer.engine, MegatronDistCheckpointEngine)
         )

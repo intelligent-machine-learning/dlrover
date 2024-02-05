@@ -21,7 +21,7 @@ from dlrover.python.brain.client import GlobalBrainClient
 from dlrover.python.common.constants import ReporterType
 from dlrover.python.common.grpc import ModelInfo
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.common.singleton import singleton
+from dlrover.python.common.singleton import Singleton
 from dlrover.python.master.stats.training_metrics import (
     DatasetMetric,
     RuntimeMetric,
@@ -88,16 +88,15 @@ class StatsReporter(metaclass=ABCMeta):
     def new_stats_reporter(cls, job_meta, reporter=None):
         if not reporter or reporter == ReporterType.LOCAL:
             logger.info("New local stats reporter.")
-            return LocalStatsReporter(job_meta)
+            return LocalStatsReporter.singleton_instance(job_meta)
         elif reporter == ReporterType.DLROVER_BRAIN:
             logger.info("New brain stats reporter.")
-            return BrainReporter(job_meta)
+            return BrainReporter.singleton_instance(job_meta)
         else:
             logger.warning("Not support stats collector %s.", reporter)
 
 
-@singleton
-class LocalStatsReporter(StatsReporter):
+class LocalStatsReporter(StatsReporter, Singleton):
     def __init__(self, job_meta):
         self._job_meta = job_meta
         self._runtime_stats: List[RuntimeMetric] = []
@@ -144,8 +143,7 @@ class LocalStatsReporter(StatsReporter):
         return self._runtime_stats
 
 
-@singleton
-class BrainReporter(StatsReporter):
+class BrainReporter(StatsReporter, Singleton):
     def __init__(self, job_meta: JobMeta) -> None:
         self._job_meta = job_meta
         self._brain_client = GlobalBrainClient.BRAIN_CLIENT

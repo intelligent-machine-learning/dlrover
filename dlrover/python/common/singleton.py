@@ -14,14 +14,14 @@
 import threading
 
 
-def singleton(cls):
-    _instance = {}
-    _instace_lock = threading.Lock()
+class Singleton(object):
+    _instance_lock = threading.Lock()
+    _instance = None
 
-    def _singleton(*args, **kwargs):
-        with _instace_lock:
-            if cls not in _instance:
-                _instance[cls] = cls(*args, **kwargs)
-        return _instance[cls]
-
-    return _singleton
+    @classmethod
+    def singleton_instance(cls, *args, **kwargs):
+        if not cls._instance:
+            with cls._instance_lock:
+                if not cls._instance:
+                    cls._instance = cls(*args, **kwargs)
+        return cls._instance

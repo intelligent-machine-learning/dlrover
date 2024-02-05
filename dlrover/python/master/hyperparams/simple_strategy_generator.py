@@ -46,7 +46,9 @@ class SimpleStrategyGenerator(StrategyGenerator):
 
     def __init__(self, job_uuid):
         self._job_uuid = job_uuid
-        self._stats_collector = LocalStatsReporter(JobMeta(job_uuid))
+        self._stats_collector = LocalStatsReporter.singleton_instance(
+            JobMeta(job_uuid)
+        )
 
     def generate_opt_strategy(
         self,

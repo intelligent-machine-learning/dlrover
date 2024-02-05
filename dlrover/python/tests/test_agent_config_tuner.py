@@ -67,7 +67,7 @@ def _set_paral_config():
 class TestParalConfigTuner(unittest.TestCase):
     def setUp(self):
         _set_paral_config()
-        self.tuner = ParalConfigTuner()
+        self.tuner = ParalConfigTuner.singleton_instance()
 
     def test_set_paral_config(self):
         self.assertTrue(os.path.exists(self.tuner.config_dir))

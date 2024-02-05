@@ -42,7 +42,7 @@ except ImportError:
     logger.warning("Please check the magatron.checkpointing exists.")
 
 from dlrover.python.common.constants import CheckpointConstant
-from dlrover.python.common.singleton import singleton
+from dlrover.python.common.singleton import Singleton
 from dlrover.python.common.storage import PosixDiskStorage
 from dlrover.trainer.torch.flash_checkpoint.checkpointer import StorageType
 from dlrover.trainer.torch.flash_checkpoint.megatron_engine import (
@@ -51,8 +51,7 @@ from dlrover.trainer.torch.flash_checkpoint.megatron_engine import (
 )
 
 
-@singleton
-class MegatronDistCheckpointer(object):
+class MegatronDistCheckpointer(Singleton):
     def __init__(
         self,
         checkpoint_dir,
@@ -88,7 +87,7 @@ def save_checkpoint(
     """Save a model checkpoint."""
     args = get_args()
 
-    checkpointer = MegatronDistCheckpointer(
+    checkpointer = MegatronDistCheckpointer.singleton_instance(
         args.save,
         storage=storage,
         comm_backend=comm_backend,

@@ -231,7 +231,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
     def test_report_resource_with_step(self):
         with tempfile.TemporaryDirectory() as tmpdirname:
             config_file = os.path.join(tmpdirname, "runtime_metrics.json")
-            monitor = TorchTrainingMonitor(config_file)
+            monitor = TorchTrainingMonitor.singleton_instance(config_file)
             monitor.report_resource_with_step()
             self.assertEqual(self._master.speed_monitor._global_step, 0)
             record = {"step": 100, "timestamp": time.time()}
