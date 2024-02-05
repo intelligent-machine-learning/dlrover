@@ -82,7 +82,7 @@ class MegatrionCheckpointTest(unittest.TestCase):
             def get_args():
                 parser = argparse.ArgumentParser(description="Megatron Test")
                 args, _ = parser.parse_known_args()
-                args.save = tempfile
+                args.save = tmpdirname
                 return args
 
             def mock_save_checkpoint(
@@ -112,7 +112,7 @@ class MegatrionCheckpointTest(unittest.TestCase):
             megatron.megatron_load = mock_load_checkpoint
             megatron.get_args = get_args
 
-            ckpt_manager = MegatronCheckpointer(tmpdirname)
+            ckpt_manager = MegatronCheckpointer.singleton_instance(tmpdirname)
             save_checkpoint(
                 10, model, optimizer, None, storage_type=StorageType.MEMORY
             )
