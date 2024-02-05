@@ -423,7 +423,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
             try:
                 free_port = find_free_port_in_set(ports)
             except RuntimeError as e:
-                logger.warn(e)
+                logger.warning(e)
         if not free_port:
             free_port = find_free_port_in_range(20000, 30000)
         return free_port

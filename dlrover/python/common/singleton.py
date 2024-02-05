@@ -28,7 +28,7 @@ def singleton(cls):
 
 
 class Singleton(object):
-    _instance_lock = threading.Lock()
+    _instance_lock = None
     _instance = None
 
     @classmethod

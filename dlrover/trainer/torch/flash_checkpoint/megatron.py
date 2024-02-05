@@ -15,6 +15,7 @@
 
 import inspect
 import os
+import threading
 
 import torch
 import torch.distributed as dist
@@ -52,6 +53,8 @@ def _get_rank():
 
 
 class MegatronCheckpointer(Singleton):
+    _instance_lock = threading.Lock()
+
     def __init__(self, checkpoint_dir, storage=None, comm_backend=""):
         self.state_dict = {}
         self.paths = {}

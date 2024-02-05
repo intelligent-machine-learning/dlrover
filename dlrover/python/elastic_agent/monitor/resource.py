@@ -87,6 +87,8 @@ def get_gpu_stats(gpus=[]):
 
 
 class ResourceMonitor(Singleton):
+    _instance_lock = threading.Lock()
+
     def __init__(self):
         """
         The monitor samples the used memory and cpu percent

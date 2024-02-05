@@ -15,6 +15,7 @@
 import os
 import random
 import sys
+import threading
 
 import numpy as np
 import torch
@@ -52,6 +53,8 @@ from dlrover.trainer.torch.flash_checkpoint.megatron_engine import (
 
 
 class MegatronDistCheckpointer(Singleton):
+    _instance_lock = threading.Lock()
+
     def __init__(
         self,
         checkpoint_dir,
