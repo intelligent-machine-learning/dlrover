@@ -132,15 +132,19 @@ class MegatrionCheckpointTest(unittest.TestCase):
             )
 
             # Wait asynchronously saving.
-            while True:
-                if "20" in os.listdir(tmpdirname):
-                    break
-                time.sleep(0.1)
-
             tracer_file = os.path.join(
                 tmpdirname, MegatronCheckpointSaver.TRACER_FILE
             )
-            self.assertTrue(os.path.exists(tracer_file))
+            success = True
+            start_time = time.time()
+            while True:
+                if os.path.exists(tracer_file):
+                    success = True
+                    break
+                time.sleep(0.3)
+                if time.time() - start_time > 30:
+                    break
+            self.assertTrue(success)
             with open(tracer_file, "r") as f:
                 restored_step = int(f.read())
             self.assertEqual(restored_step, 20)
