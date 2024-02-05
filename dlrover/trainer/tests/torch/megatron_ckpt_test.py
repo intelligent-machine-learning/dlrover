@@ -33,6 +33,13 @@ from dlrover.trainer.torch.flash_checkpoint.megatron import (
     load_checkpoint,
     save_checkpoint,
 )
+from dlrover.trainer.torch.flash_checkpoint.megatron_dist_ckpt import (
+    MegatronDistCheckpointer,
+    get_dist_optimizer_checkpoint_name,
+)
+from dlrover.trainer.torch.flash_checkpoint.megatron_engine import (
+    MegatronDistCheckpointEngine,
+)
 
 
 class SimpleNet(nn.Module):
@@ -171,3 +178,21 @@ class MegatrionCheckpointTest(unittest.TestCase):
             os.remove(dlrover_tracer_file)
             ckpt_manager.update_tracer_file(step)
             self.assertFalse(os.path.exists(megatron_tracer_file))
+
+    def test_dist_checkpoint(self):
+        name = get_dist_optimizer_checkpoint_name("/tmp", 100)
+        self.assertEqual(name, "/tmp/iter_0000100/rank_00000/distrib_optim.pt")
+
+        checkpointer = MegatronDistCheckpointer(
+            "/tmp", use_distributed_optimizer=True
+        )
+        self.assertTrue(
+            isinstance(checkpointer.engine, MegatronDistCheckpointEngine)
+        )
+
+        saver_class = checkpointer.engine.get_saver_class()
+        self.assertEqual(saver_class, MegatronCheckpointSaver)
+        global_num = checkpointer.engine.get_global_shard_num()
+        self.assertEqual(global_num, 1)
+        local_num = checkpointer.engine.get_local_shard_num()
+        self.assertEqual(local_num, 1)

@@ -237,7 +237,10 @@ class MegatronDistCheckpointEngine(CheckpointEngine):
         return min(local_world_size, global_shard_num)
 
     def get_global_shard_num(self):
-        num = dist.get_world_size()
+        if dist.is_initialized():
+            num = dist.get_world_size()
+        else:
+            num = 1
         return num
 
     def get_saver_class(self):

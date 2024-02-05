@@ -53,10 +53,15 @@ from dlrover.trainer.torch.flash_checkpoint.megatron_engine import (
 
 @singleton
 class MegatronDistCheckpointer(object):
-    def __init__(self, checkpoint_dir, storage=None, comm_backend=""):
+    def __init__(
+        self,
+        checkpoint_dir,
+        storage=None,
+        comm_backend="",
+        use_distributed_optimizer=False,
+    ):
         self.storage = PosixDiskStorage() if not storage else storage
-        args = get_args()
-        if args.use_distributed_optimizer:
+        if use_distributed_optimizer:
             self.engine = MegatronDistCheckpointEngine(
                 checkpoint_dir=checkpoint_dir,
                 storage=self.storage,
@@ -84,7 +89,10 @@ def save_checkpoint(
     args = get_args()
 
     checkpointer = MegatronDistCheckpointer(
-        args.save, storage=storage, comm_backend=comm_backend
+        args.save,
+        storage=storage,
+        comm_backend=comm_backend,
+        use_distributed_optimizer=args.use_distributed_optimizer,
     )
 
     # Only rank zero of the data parallel writes to the disk.
@@ -152,18 +160,19 @@ def save_checkpoint(
         if not args.no_save_rng:
             model_state_dict["rng_state"] = rng_state
 
-    ckpt_sd = {
-        CheckpointConstant.MODEL_STATES_NAME: model_state_dict,
-        CheckpointConstant.OPTIM_STATES_NAME: dist_opter_state,
-    }
-    paths = {
-        CheckpointConstant.MODEL_STATES_NAME: checkpoint_name,
-        CheckpointConstant.OPTIM_STATES_NAME: optim_checkpoint_name,
-    }
+    ckpt_sds = {}
+    paths = {}
+    if model_state_dict:
+        ckpt_sds[CheckpointConstant.MODEL_STATES_NAME] = model_state_dict
+        paths[CheckpointConstant.MODEL_STATES_NAME] = checkpoint_name
+    if dist_opter_state:
+        ckpt_sds[CheckpointConstant.OPTIM_STATES_NAME] = dist_opter_state
+        ckpt_sds[CheckpointConstant.OPTIM_STATES_NAME] = optim_checkpoint_name
+
     if storage_type == StorageType.MEMORY:
-        checkpointer.engine.save_to_memory(iteration, ckpt_sd, paths)
+        checkpointer.engine.save_to_memory(iteration, ckpt_sds, paths)
     else:
-        checkpointer.engine.save_to_storage(iteration, ckpt_sd, paths)
+        checkpointer.engine.save_to_storage(iteration, ckpt_sds, paths)
 
     # Wait so everyone is done (necessary)
     if torch.distributed.is_initialized():
@@ -178,7 +187,10 @@ def get_dist_optimizer_checkpoint_name(
     else:
         directory = "iter_{:07d}".format(iteration)
 
-    rank = dist.get_rank()
+    if dist.is_initialized():
+        rank = dist.get_rank()
+    else:
+        rank = 0
     common_path = os.path.join(checkpoints_path, directory, f"rank_{rank:05d}")
     return os.path.join(common_path, "distrib_optim.pt")
 
