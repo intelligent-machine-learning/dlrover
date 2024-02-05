@@ -74,7 +74,7 @@ class TFTrainingReporter(Singleton):
             logger.warning(e)
 
 
-class TorchTrainingMonitor(Singleton):
+class TorchTrainingMonitor(object):
     def __init__(self, metrics_path):
         self._resource_monitor = ResourceMonitor.singleton_instance()
         self._last_timestamp = 0
