@@ -347,7 +347,7 @@ def load_checkpoint(
             # Load state dict.
             if optimizer is not None:
                 if not args.use_distributed_optimizer:
-                    optimizer.load_state_dict(model_state_dict['optimizer'])
+                    optimizer.load_state_dict(model_state_dict["optimizer"])
                 else:
                     load_parameter_state_from_state_dict(
                         optimizer, opt_state_dict
