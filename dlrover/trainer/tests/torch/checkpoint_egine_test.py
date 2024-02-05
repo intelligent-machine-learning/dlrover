@@ -120,7 +120,6 @@ class ShardingCheckpointEngineTest(unittest.TestCase):
     def setUp(self):
         os.environ[NodeEnv.NODE_NUM] = "1"
         os.environ[NodeEnv.NODE_RANK] = "0"
-        clear_sock_dir()
         AsyncCheckpointSaver._saver_instance = None
         AsyncCheckpointSaver.start_async_saving_ckpt()
 
@@ -129,6 +128,7 @@ class ShardingCheckpointEngineTest(unittest.TestCase):
         os.environ.pop(NodeEnv.NODE_RANK, None)
         if AsyncCheckpointSaver._saver_instance:
             AsyncCheckpointSaver._saver_instance.close()
+        clear_sock_dir()
 
     def test_start_saver_proc(self):
         os.environ["ROLE_NAME"] = "dlrover-trainer"

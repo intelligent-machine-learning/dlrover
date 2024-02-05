@@ -61,13 +61,13 @@ class SimpleNet(nn.Module):
 
 class MegatrionCheckpointTest(unittest.TestCase):
     def setUp(self):
-        clear_sock_dir()
         MegatronCheckpointSaver._saver_instance = None
         MegatronCheckpointSaver.start_async_saving_ckpt()
 
     def tearDown(self) -> None:
         if MegatronCheckpointSaver._saver_instance:
             MegatronCheckpointSaver._saver_instance.close()
+        clear_sock_dir()
 
     def test_save_load(self):
         os.environ["LOCAL_RANK"] = "0"

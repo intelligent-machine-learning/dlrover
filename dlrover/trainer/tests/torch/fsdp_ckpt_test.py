@@ -161,7 +161,6 @@ def _write_state_dict_to_shm(shared_memory, files, state_dict):
 class FsdpCheckpointTest(unittest.TestCase):
     def setUp(self):
         self.shm = SharedMemory(name="test_write_item", create=True, size=1024)
-        clear_sock_dir()
         AsyncCheckpointSaver._saver_instance = None
         AsyncCheckpointSaver.start_async_saving_ckpt()
         os.environ["LOCAL_RANK"] = "0"
@@ -177,6 +176,7 @@ class FsdpCheckpointTest(unittest.TestCase):
         dist.destroy_process_group()
         if AsyncCheckpointSaver._saver_instance:
             AsyncCheckpointSaver._saver_instance.close()
+        clear_sock_dir()
 
     def test_tensor_item_size(self):
         item = _make_tensor_write_item()

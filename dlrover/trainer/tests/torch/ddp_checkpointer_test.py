@@ -43,13 +43,13 @@ class SimpleNet(nn.Module):
 
 class DdpCheckpoinerTest(unittest.TestCase):
     def setUp(self) -> None:
-        clear_sock_dir()
         DdpCheckpointSaver._saver_instance = None
         DdpCheckpointSaver.start_async_saving_ckpt()
 
     def tearDown(self) -> None:
         if DdpCheckpointSaver._saver_instance:
             DdpCheckpointSaver._saver_instance.close()
+        clear_sock_dir()
 
     def test_ddp_checkpointer(self):
         model = SimpleNet()

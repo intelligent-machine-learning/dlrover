@@ -19,6 +19,7 @@ from dlrover.python.common.multi_process import (
     SharedLock,
     SharedMemory,
     SharedQueue,
+    clear_sock_dir,
     retry_socket,
 )
 
@@ -30,6 +31,9 @@ class SocketTest(object):
 
 
 class SharedObjectTest(unittest.TestCase):
+    def tearDown(self) -> None:
+        clear_sock_dir()
+
     def test_retry(self):
         t = SocketTest()
         with self.assertRaises(FileNotFoundError):
