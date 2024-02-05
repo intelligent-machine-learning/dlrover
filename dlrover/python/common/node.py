@@ -165,6 +165,7 @@ class Node(object):
         init_time: the timestamp to initialize the node object.
         host_name: the name of the host where the node is placed.
         host_ip: the ip of host node.
+        unrecoverable_failure_msg: unrecoverable failure msg.
     """
 
     def __init__(
@@ -213,6 +214,7 @@ class Node(object):
         self.paral_config = paral_config
         self.restart_training = restart_training
         self.migrated = False
+        self.unrecoverable_failure_msg = ""
 
     def exited(self):
         return self.status in [
@@ -277,13 +279,20 @@ class Node(object):
         cpu_memory_overload = (
             self.config_resource.gpu_num == 0
             and self.config_resource.memory >= NodeResourceLimit.MAX_MEMORY
+            and self.exit_reason == NodeExitReason.OOM
         )
-        if (
-            self.relaunch_count >= self.max_relaunch_count
-            or self.exit_reason == NodeExitReason.FATAL_ERROR
-            or cpu_memory_overload
-        ):
+        if self.relaunch_count >= self.max_relaunch_count:
+            self.unrecoverable_failure_msg = "exhausted {} relaunch opportunities".format(self.max_relaunch_count)
             return True
+
+        if self.exit_reason == NodeExitReason.FATAL_ERROR:
+            self.unrecoverable_failure_msg = "fatal error"
+            return True
+
+        if cpu_memory_overload:
+            self.unrecoverable_failure_msg = "oom error and can not add more memory"
+            return True
+
         return False
 
     def set_exit_reason(self, reason):
