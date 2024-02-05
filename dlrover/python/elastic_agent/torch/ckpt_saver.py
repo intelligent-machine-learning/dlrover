@@ -154,7 +154,10 @@ def _create_shared_memory(name, create, size=0):
     except FileExistsError:
         shm = SharedMemory(name=name)
         if shm.size != size:
-            logger.info("Re-create a new memory buffer.")
+            logger.info(
+                f"The old size is {shm.size} and "
+                f"create a new memory buffer with size {size}."
+            )
             shm.unlink()
             shm = SharedMemory(
                 name=name,
@@ -238,14 +241,10 @@ class SharedMemoryHandler(object):
             self.init_shared_memory()
         if self.shared_memory:
             self.shared_memory.unlink()
-            logger.info(f"Unlink the shared memory {self._shm_name}")
         if self.metadata:
             self.metadata.unlink()
 
     def reset(self):
-        self.close()
-        if self.shared_memory:
-            self.shared_memory.unlink()
         self.metadata.set({})
         self.shared_memory = None
 
@@ -371,6 +370,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         self._is_agent_rank_0 = self._node_rank == 0
         self._shm_handlers: List[SharedMemoryHandler] = []
         self._shm_locks: List[SharedLock] = []
+        self._stop_commit = False
 
         module = importlib.import_module(storage_meta.module_path)
         storage_class_def = getattr(module, storage_meta.class_name)
@@ -472,16 +472,11 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         logger.info("Async flash checkpoint saver starts!")
         while True:
             event: CheckpointEvent = self._event_queue.get()
-            if (
-                event.type == CheckpointEventType.UPDATE_SHARD
-                and event.global_shard_num != self.global_shard_num
-            ):
+            if event.type == CheckpointEventType.UPDATE_SHARD:
                 logger.info(
-                    "Reset the shard memory because the number of "
-                    f"global shards changes to {event.global_shard_num}."
+                    "Reset the shared memory after the training starts."
                 )
                 self.global_shard_num = event.global_shard_num
-                self._reset_shared_memory()
             elif event.type == CheckpointEventType.SAVE:
                 logger.info(
                     f"ShardingSaver save checkpoint to storage, event {event}"
@@ -490,7 +485,10 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
             elif event.type == CheckpointEventType.EXIT:
                 break
 
-    def _reset_shared_memory(self):
+    def reset_shared_memory(self):
+        self._stop_commit = True
+        for lock in self._shm_locks:
+            lock.release()
         for shm_handler in self._shm_handlers:
             shm_handler.reset()
 
@@ -631,13 +629,12 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
             )
 
     @classmethod
-    def release_shm_lock(cls):
-        """Release all shared lock on the node."""
+    def reset(cls):
+        """Reset the shared memory of all shards."""
         if cls._saver_instance is None:
             return
-        for lock in cls._saver_instance._shm_locks:
-            lock.release()
-        logger.info("Relase all the shared locks of shared memory.")
+        cls._saver_instance.reset_shared_memory()
+        logger.info("Reset all shared memory of shards.")
 
     @abstractmethod
     def save_step_checkpoint(self, step: int):
@@ -768,6 +765,7 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
 
         # commit checkpoint
         if self._is_agent_rank_0:
+            self._stop_commit = False
             self.commit_checkpoint(step, step_done_dir)
 
         self._writing_storage = False
@@ -787,6 +785,12 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
         start_time = time.time()
         suceess = False
         while True:
+            if self._stop_commit:
+                logger.info(
+                    "Stop committing the checkpoint because "
+                    "the training processes restarted."
+                )
+                break
             done_files = self.storage.listdir(step_done_dir)
             ready_num = len(done_files)
             if ready_num == self.global_shard_num:

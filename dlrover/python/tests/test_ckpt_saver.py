@@ -102,7 +102,6 @@ class CheckpointSaverTest(unittest.TestCase):
     def setUp(self) -> None:
         self.storage = PosixDiskStorage()
         AsyncCheckpointSaver._saver_instance = None
-        AsyncCheckpointSaver.release_shm_lock()
         AsyncCheckpointSaver.start_async_saving_ckpt()
 
     def tearDown(self) -> None:
@@ -126,6 +125,7 @@ class CheckpointSaverTest(unittest.TestCase):
             else:
                 break
         self.assertIsNotNone(AsyncCheckpointSaver._saver_instance)
+        AsyncCheckpointSaver.reset()
 
     def test_close_saver(self):
         saver = DdpCheckpointSaver("test_ckpt", self.storage.get_class_meta())
@@ -219,8 +219,8 @@ class CheckpointSaverTest(unittest.TestCase):
             saver._event_queue.put(event)
             sq.unlink()
             time.sleep(0.3)
+            self.assertEqual(saver.global_shard_num, 2)
             self.assertTrue(saver._shm_handlers[0].no_checkpint_state())
-            self.assertIsNone(saver._shm_handlers[0].shared_memory)
             saver.close()
 
     def test_commit_checkpoint(self):

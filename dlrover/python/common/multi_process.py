@@ -606,3 +606,4 @@ class SharedMemory(shared_memory.SharedMemory):
                 _posixshmem.shm_unlink(self._name)
             except FileNotFoundError:
                 pass
+            logger.info(f"Unlink the shared memory {self._name}")
