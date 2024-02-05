@@ -26,6 +26,7 @@ import torch.optim as optim
 
 from dlrover.python.common.constants import CheckpointConstant, NodeEnv
 from dlrover.python.common.grpc import find_free_port
+from dlrover.python.common.multi_process import clear_sock_dir
 from dlrover.python.common.storage import PosixDiskStorage
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     AsyncCheckpointSaver,
@@ -119,6 +120,7 @@ class ShardingCheckpointEngineTest(unittest.TestCase):
     def setUp(self):
         os.environ[NodeEnv.NODE_NUM] = "1"
         os.environ[NodeEnv.NODE_RANK] = "0"
+        clear_sock_dir()
         AsyncCheckpointSaver._saver_instance = None
         AsyncCheckpointSaver.start_async_saving_ckpt()
 

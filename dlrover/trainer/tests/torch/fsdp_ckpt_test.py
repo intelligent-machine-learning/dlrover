@@ -48,7 +48,7 @@ from torch.distributed.checkpoint.planner import (
 
 from dlrover.python.common import grpc
 from dlrover.python.common.constants import CheckpointConstant
-from dlrover.python.common.multi_process import SharedMemory
+from dlrover.python.common.multi_process import SharedMemory, clear_sock_dir
 from dlrover.python.common.storage import PosixDiskStorage
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     AsyncCheckpointSaver,
@@ -161,6 +161,7 @@ def _write_state_dict_to_shm(shared_memory, files, state_dict):
 class FsdpCheckpointTest(unittest.TestCase):
     def setUp(self):
         self.shm = SharedMemory(name="test_write_item", create=True, size=1024)
+        clear_sock_dir()
         AsyncCheckpointSaver._saver_instance = None
         AsyncCheckpointSaver.start_async_saving_ckpt()
         os.environ["LOCAL_RANK"] = "0"

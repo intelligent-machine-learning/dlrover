@@ -15,6 +15,7 @@ import mmap
 import os
 import pickle
 import queue
+import shutil
 import socket
 import threading
 import time
@@ -28,7 +29,7 @@ import _posixshmem
 from .constants import NodeEnv
 from .log import default_logger as logger
 
-TMP_DIR = "/tmp"
+TMP_DIR = "/tmp/ckpt_sock/"
 
 SUCCESS_CODE = "OK"
 ERROR_CODE = "ERROR"
@@ -49,6 +50,10 @@ def retry_socket(func):
             return func(self, *args, **kwargs)
 
     return wrapper
+
+
+def clear_sock_dir():
+    shutil.rmtree(TMP_DIR, ignore_errors=True)
 
 
 def _create_socket_server(path):
