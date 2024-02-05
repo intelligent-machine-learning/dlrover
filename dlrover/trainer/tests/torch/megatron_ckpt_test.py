@@ -186,6 +186,7 @@ class MegatrionCheckpointTest(unittest.TestCase):
         checkpointer = MegatronDistCheckpointer(
             "/tmp", use_distributed_optimizer=True
         )
+        MegatronCheckpointSaver._saver_instance = None
         self.assertTrue(
             isinstance(checkpointer.engine, MegatronDistCheckpointEngine)
         )
