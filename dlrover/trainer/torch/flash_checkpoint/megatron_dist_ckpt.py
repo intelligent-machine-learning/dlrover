@@ -167,7 +167,7 @@ def save_checkpoint(
         paths[CheckpointConstant.MODEL_STATES_NAME] = checkpoint_name
     if dist_opter_state:
         ckpt_sds[CheckpointConstant.OPTIM_STATES_NAME] = dist_opter_state
-        ckpt_sds[CheckpointConstant.OPTIM_STATES_NAME] = optim_checkpoint_name
+        paths[CheckpointConstant.OPTIM_STATES_NAME] = optim_checkpoint_name
 
     if storage_type == StorageType.MEMORY:
         checkpointer.engine.save_to_memory(iteration, ckpt_sds, paths)
@@ -347,7 +347,7 @@ def load_checkpoint(
             # Load state dict.
             if optimizer is not None:
                 if not args.use_distributed_optimizer:
-                    optimizer.load_state_dict(model_state_dict)
+                    optimizer.load_state_dict(model_state_dict['optimizer'])
                 else:
                     load_parameter_state_from_state_dict(
                         optimizer, opt_state_dict
@@ -475,9 +475,11 @@ def _load_base_checkpoint(load_dir, rank0=False):
     # Load the checkpoint.
     try:
         model_state_dict = torch.load(checkpoint_name, map_location="cpu")
-        opt_state_dict = torch.load(
-            dist_opt_checkpoint_name, map_location="cpu"
-        )
+        opt_state_dict = {}
+        if os.path.exists(dist_opt_checkpoint_name):
+            opt_state_dict = torch.load(
+                dist_opt_checkpoint_name, map_location="cpu"
+            )
     except BaseException as e:
         print_rank_0("could not load the checkpoint")
         print_rank_0(e)
