@@ -178,11 +178,3 @@ class Context(Singleton):
     @property
     def user_id(self):
         return os.getenv(UserEnv.USER_ID, "")
-
-    @classmethod
-    def singleton_instance(cls, *args, **kwargs):
-        if not hasattr(Context, "_instance"):
-            with Context._instance_lock:
-                if not hasattr(Context, "_instance"):
-                    Context._instance = Context(*args, **kwargs)
-        return Context._instance
