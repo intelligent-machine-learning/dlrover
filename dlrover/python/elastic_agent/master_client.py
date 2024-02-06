@@ -13,7 +13,6 @@
 
 import os
 import socket
-import threading
 import time
 from contextlib import closing
 
@@ -21,6 +20,7 @@ from dlrover.proto import elastic_training_pb2, elastic_training_pb2_grpc
 from dlrover.python.common import env_utils, grpc
 from dlrover.python.common.constants import NetworkFailureReason, NodeEnv
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.common.singleton import Singleton
 
 
 def retry_grpc_request(func):
@@ -46,7 +46,7 @@ def retry_grpc_request(func):
     return wrapper
 
 
-class MasterClient(object):
+class MasterClient(Singleton):
     """MasterClient provides some APIs connect with the master
     service via gRPC call.
     Args:
@@ -65,9 +65,6 @@ class MasterClient(object):
         # get task unit from master service
         mc.get_task(...)
     """
-
-    _instance_lock = threading.Lock()
-    _instance = None
 
     def __init__(self, master_addr, node_id, node_type, timeout=5):
         self._timeout = timeout
@@ -388,13 +385,11 @@ class MasterClient(object):
 
     @classmethod
     def singleton_instance(cls, *args, **kwargs):
-        if not MasterClient._instance:
-            with MasterClient._instance_lock:
-                if not MasterClient._instance:
-                    MasterClient._instance = build_master_client(
-                        *args, **kwargs
-                    )
-        return MasterClient._instance
+        if not cls._instance:
+            with cls._instance_lock:
+                if not cls._instance:
+                    cls._instance = build_master_client(*args, **kwargs)
+        return cls._instance
 
 
 def build_master_client(master_addr=None, timeout=5):

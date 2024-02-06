@@ -37,8 +37,6 @@ def is_tf_chief():
 
 
 class TFTrainingReporter(Singleton):
-    _instance_lock = threading.Lock()
-
     def __init__(self):
         self._resource_monitor = ResourceMonitor.singleton_instance()
         self._last_timestamp = 0
@@ -77,8 +75,6 @@ class TFTrainingReporter(Singleton):
 
 
 class TorchTrainingMonitor(Singleton):
-    _instance_lock = threading.Lock()
-
     def __init__(self, metrics_path):
         self._resource_monitor = ResourceMonitor.singleton_instance()
         self._last_timestamp = 0
