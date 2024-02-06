@@ -24,6 +24,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, List, Optional, Union
 
+import torch
 import torch.distributed.elastic.timer as timer
 from torch.distributed import PrefixStore, Store
 from torch.distributed.elastic import events, metrics
@@ -54,6 +55,7 @@ from torch.distributed.launcher.api import LaunchConfig, _get_entrypoint_name
 from dlrover.python.common import env_utils
 from dlrover.python.common.constants import (
     ConfigPath,
+    NodeEnv,
     NodeErrorMessage,
     NodeStatus,
     RendezvousName,
@@ -110,13 +112,18 @@ class ElasticLaunchConfig(LaunchConfig):
         network_check: whether to check the network avaliable before training.
         node_unit: the number of unit of nodes. The number of nodes must be
             a multiple of node_unit.
+        auto_config: wether to automatically configure the nnodes and
+            nproc_per_node.
         auto_tunning: whether to auto-tune the parallelism configuration.
         exclude_straggler: The node will exit if it is a straggler in network
             check and exclude_straggler is True.
+        save_at_breakpoint: wether to save the checkpoint from the shared memory
+            into the disk after a failure occurs.
     """
 
     network_check: bool = False
     node_unit: int = 1
+    auto_config: bool = False
     auto_tunning: bool = False
     exclude_straggler: bool = False
     save_at_breakpoint: bool = False
@@ -125,6 +132,18 @@ class ElasticLaunchConfig(LaunchConfig):
         """Set the number unint of ndoes."""
         self.node_unit = node_unit
         self.rdzv_configs["node_unit"] = node_unit
+
+    def auto_configure_params(self):
+        if not self.auto_config:
+            return
+
+        if NodeEnv.NODE_NUM in os.environ:
+            self.min_nodes = int(os.environ[NodeEnv.NODE_NUM])
+            self.max_nodes = int(os.environ[NodeEnv.NODE_NUM])
+        if torch.cuda.is_available():
+            self.nproc_per_node = torch.cuda.device_count()
+        if self.min_nodes >= 4:
+            self.network_check = True
 
 
 @dataclass

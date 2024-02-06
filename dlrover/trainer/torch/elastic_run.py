@@ -24,6 +24,15 @@ multi-node multi-worker.
 Usage
 --------
 
+Run in the worker Pod with GPU of ElasticJob.
+++++++++++++++++++++++++++++++
+
+::
+
+    dlrover-run
+        --auto-config
+        YOUR_TRAINING_SCRIPT.py (--arg1 ... train script args...)
+
 Single-node multi-worker
 ++++++++++++++++++++++++++++++
 
@@ -39,7 +48,7 @@ multi-node multi-worker
 
 ::
 
-    torchrun
+    dlrover-run
         --nnodes=$NUM_NODES
         --nproc-per-node=$NUM_TRAINERS
         --max-restarts=3
@@ -51,7 +60,7 @@ changes or failures)
 
 ::
 
-    torchrun
+    dlrover-run
         --nnodes=1:4
         --nproc-per-node=$NUM_TRAINERS
         --max-restarts=3
@@ -119,8 +128,15 @@ def parse_args(args):
         "nodes should be a multiple of node_unit.",
     )
     parser.add_argument(
+        "--auto_config",
+        "--auto-config",
+        action=check_env,
+        help="Whether to automatically configure the nnodes "
+        "and nproc_per_nodes.",
+    )
+    parser.add_argument(
         "--auto_tunning",
-        "--auto-tunning",
+        "--auto_tunning",
         action=check_env,
         help="Whether to auto-tune the parallel configuraion.",
     )
@@ -243,6 +259,7 @@ def _elastic_config_from_args(
     elastic_config = ElasticLaunchConfig(**config.__dict__)
     elastic_config.network_check = getattr(args, "network_check", False)
     elastic_config.auto_tunning = getattr(args, "auto_tunning", False)
+    elastic_config.auto_config = getattr(args, "auto_config", False)
     elastic_config.exclude_straggler = getattr(
         args, "exclude_straggler", False
     )
@@ -250,6 +267,7 @@ def _elastic_config_from_args(
     elastic_config.save_at_breakpoint = getattr(
         args, "save_at_breakpoint", False
     )
+    elastic_config.auto_configure_params()
     return elastic_config, cmd, cmd_args
 
 
