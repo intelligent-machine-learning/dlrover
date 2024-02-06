@@ -15,6 +15,7 @@
 
 import inspect
 import os
+import threading
 
 import torch
 import torch.distributed as dist
@@ -29,7 +30,7 @@ except ImportError:
     logger.warning("Please check the magatron.checkpointing exists.")
 
 from dlrover.python.common.constants import CheckpointConstant
-from dlrover.python.common.singleton import singleton
+from dlrover.python.common.singleton import Singleton
 from dlrover.python.common.storage import PosixDiskStorage
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     MegatronCheckpointSaver,
@@ -51,8 +52,9 @@ def _get_rank():
     return 0
 
 
-@singleton
-class MegatronCheckpointManager(object):
+class MegatronCheckpointer(Singleton):
+    _instance_lock = threading.Lock()
+
     def __init__(self, checkpoint_dir, storage=None, comm_backend=""):
         self.state_dict = {}
         self.paths = {}
@@ -149,7 +151,7 @@ def save_checkpoint(
             checkpoint to the memory.
     """
     args = get_args()
-    saver = MegatronCheckpointManager(
+    saver = MegatronCheckpointer.singleton_instance(
         args.save, storage=storage, comm_backend=comm_backend
     )
     sig = inspect.signature(megatron_save)
@@ -206,6 +208,7 @@ def load_checkpoint(
     opt_param_scheduler,
     load_arg="load",
     strict=True,
+    storage=None,
     comm_backend="",
 ):
     """Load the checkpointing state dict. The method firstly
@@ -214,8 +217,10 @@ def load_checkpoint(
         same as the `megatron.checkpointing.load_checkpoint`
     """
     args = get_args()
-    saver = MegatronCheckpointManager(args.save, comm_backend=comm_backend)
-    torch.load = saver.load
+    checkpointer = MegatronCheckpointer.singleton_instance(
+        args.save, storge=storage, comm_backend=comm_backend
+    )
+    torch.load = checkpointer.load
     iteration = megatron_load(
         model, optimizer, opt_param_scheduler, load_arg, strict
     )

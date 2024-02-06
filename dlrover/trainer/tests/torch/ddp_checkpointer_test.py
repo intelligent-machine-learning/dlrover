@@ -17,6 +17,7 @@ import unittest
 import torch.nn as nn
 import torch.nn.functional as F
 
+from dlrover.python.common.multi_process import clear_sock_dir
 from dlrover.python.elastic_agent.torch.ckpt_saver import DdpCheckpointSaver
 from dlrover.trainer.torch.flash_checkpoint.ddp import (
     DdpCheckpointer,
@@ -48,6 +49,7 @@ class DdpCheckpoinerTest(unittest.TestCase):
     def tearDown(self) -> None:
         if DdpCheckpointSaver._saver_instance:
             DdpCheckpointSaver._saver_instance.close()
+        clear_sock_dir()
 
     def test_ddp_checkpointer(self):
         model = SimpleNet()

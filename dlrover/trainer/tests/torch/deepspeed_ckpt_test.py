@@ -22,6 +22,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 from dlrover.python.common.constants import CheckpointConstant
+from dlrover.python.common.multi_process import clear_sock_dir
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     DeepSpeedCheckpointSaver,
 )
@@ -95,6 +96,7 @@ class DeepSpeedCheckpointTest(unittest.TestCase):
     def tearDown(self) -> None:
         if DeepSpeedCheckpointSaver._saver_instance:
             DeepSpeedCheckpointSaver._saver_instance.close()
+        clear_sock_dir()
 
     def test_save_load(self):
         os.environ["LOCAL_RANK"] = "0"

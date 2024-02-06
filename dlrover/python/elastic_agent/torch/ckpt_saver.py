@@ -145,6 +145,9 @@ def _create_shared_memory(name, create, size=0):
             return SharedMemory(name=name)
         except FileNotFoundError:
             return None
+    if create and size == 0:
+        logger.warning("Cannot create the shared memory with size = 0.")
+        return None
     try:
         shm = SharedMemory(
             name=name,
@@ -794,12 +797,12 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
             done_files = self.storage.listdir(step_done_dir)
             ready_num = len(done_files)
             if ready_num == self.global_shard_num:
-                self.update_tracker_file(step)
-                # clean stage dir
-                self.storage.safe_rmtree(step_done_dir)
                 logger.info(
                     f"All agents finish saving checkpoint for step {step}"
                 )
+                self.update_tracker_file(step)
+                # clean stage dir
+                self.storage.safe_rmtree(step_done_dir)
                 suceess = True
                 break
             logger.info(
@@ -826,7 +829,7 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
     ):
         state_dict = self._shm_handlers[local_shard_id].load_state_dict()
         for state_name, sd in state_dict.items():
-            if state_name in ckpt_config.paths:
+            if sd and state_name in ckpt_config.paths:
                 path = ckpt_config.paths[state_name]
                 self.storage.write_state_dict(sd, path, torch.save)
 
@@ -1047,10 +1050,8 @@ class MegatronCheckpointSaver(CommonDirCheckpointSaver):
             self.checkpoint_dir, CheckpointConstant.TRACER_FILE_NAME
         )
         self.storage.write(str(step), tracker_filename)
-        ds_tracker_filename = os.path.join(
-            self.checkpoint_dir, self.TRACER_FILE
-        )
-        self.storage.write(str(step), ds_tracker_filename)
+        tracker_filename = os.path.join(self.checkpoint_dir, self.TRACER_FILE)
+        self.storage.write(str(step), tracker_filename)
 
 
 class DeepSpeedCheckpointSaver(CommonDirCheckpointSaver):

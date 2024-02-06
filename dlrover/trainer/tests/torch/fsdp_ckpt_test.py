@@ -48,7 +48,7 @@ from torch.distributed.checkpoint.planner import (
 
 from dlrover.python.common import grpc
 from dlrover.python.common.constants import CheckpointConstant
-from dlrover.python.common.multi_process import SharedMemory
+from dlrover.python.common.multi_process import SharedMemory, clear_sock_dir
 from dlrover.python.common.storage import PosixDiskStorage
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     AsyncCheckpointSaver,
@@ -176,6 +176,7 @@ class FsdpCheckpointTest(unittest.TestCase):
         dist.destroy_process_group()
         if AsyncCheckpointSaver._saver_instance:
             AsyncCheckpointSaver._saver_instance.close()
+        clear_sock_dir()
 
     def test_tensor_item_size(self):
         item = _make_tensor_write_item()

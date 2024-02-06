@@ -18,7 +18,7 @@ import time
 
 from dlrover.python.common import env_utils
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.common.singleton import singleton
+from dlrover.python.common.singleton import Singleton
 from dlrover.python.elastic_agent.master_client import MasterClient
 from dlrover.python.elastic_agent.monitor.resource import ResourceMonitor
 
@@ -36,10 +36,11 @@ def is_tf_chief():
     return False
 
 
-@singleton
-class TFTrainingProcessReporter(object):
+class TFTrainingReporter(Singleton):
+    _instance_lock = threading.Lock()
+
     def __init__(self):
-        self._resource_monitor = ResourceMonitor()
+        self._resource_monitor = ResourceMonitor.singleton_instance()
         self._last_timestamp = 0
         self._start_time = 0
         self.called_in_tf_hook = False
@@ -75,10 +76,11 @@ class TFTrainingProcessReporter(object):
             logger.warning(e)
 
 
-@singleton
-class TorchTrainingMonitor(object):
+class TorchTrainingMonitor(Singleton):
+    _instance_lock = threading.Lock()
+
     def __init__(self, metrics_path):
-        self._resource_monitor = ResourceMonitor()
+        self._resource_monitor = ResourceMonitor.singleton_instance()
         self._last_timestamp = 0
         self._start_time = 0
         self._master_client = MasterClient.singleton_instance()

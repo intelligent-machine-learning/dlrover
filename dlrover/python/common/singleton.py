@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import threading
+from typing import Optional
 
 
 def singleton(cls):
@@ -25,3 +26,16 @@ def singleton(cls):
         return _instance[cls]
 
     return _singleton
+
+
+class Singleton(object):
+    _instance_lock: Optional[threading.Lock] = None
+    _instance = None
+
+    @classmethod
+    def singleton_instance(cls, *args, **kwargs):
+        if not cls._instance:
+            with cls._instance_lock:
+                if not cls._instance:
+                    cls._instance = cls(*args, **kwargs)
+        return cls._instance

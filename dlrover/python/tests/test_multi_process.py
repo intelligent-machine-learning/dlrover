@@ -15,10 +15,12 @@ import os
 import unittest
 
 from dlrover.python.common.multi_process import (
+    SOCKET_TMP_DIR,
     SharedDict,
     SharedLock,
     SharedMemory,
     SharedQueue,
+    clear_sock_dir,
     retry_socket,
 )
 
@@ -30,6 +32,9 @@ class SocketTest(object):
 
 
 class SharedObjectTest(unittest.TestCase):
+    def tearDown(self) -> None:
+        clear_sock_dir()
+
     def test_retry(self):
         t = SocketTest()
         with self.assertRaises(FileNotFoundError):
@@ -39,7 +44,9 @@ class SharedObjectTest(unittest.TestCase):
         name = "test"
         os.environ["TORCHELASTIC_RUN_ID"] = "test_job"
         server_lock = SharedLock(name, create=True)
-        self.assertTrue(os.path.exists("/tmp/test_job/sharedlock_test.sock"))
+        self.assertTrue(
+            os.path.exists(f"{SOCKET_TMP_DIR}/test_job/sharedlock_test.sock")
+        )
         client_lock = SharedLock(name, create=False)
         acquired = server_lock.acquire()
         self.assertTrue(acquired)

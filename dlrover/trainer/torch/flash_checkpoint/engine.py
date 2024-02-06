@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import os
+import threading
 import time
 from abc import ABCMeta, abstractmethod
 from datetime import timedelta
@@ -24,7 +25,7 @@ import torch.distributed as dist
 from dlrover.python.common import env_utils
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.multi_process import SharedLock, SharedQueue
-from dlrover.python.common.singleton import singleton
+from dlrover.python.common.singleton import Singleton
 from dlrover.python.common.storage import CheckpointStorage
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     DLROVER_CKPT_CONFIG_KEY,
@@ -38,13 +39,14 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
 )
 
 
-def _rank0_log(rank, message):
-    if rank == 0:
+def _local_rank0_log(local_rank, message):
+    if local_rank == 0:
         logger.info(message)
 
 
-@singleton
-class ReadyTensor(object):
+class ReadyTensor(Singleton):
+    _instance_lock = threading.Lock()
+
     def __init__(self, device) -> None:
         self.tensor = torch.tensor([0], dtype=torch.int32).to(device)
 
@@ -58,7 +60,7 @@ def check_all_rank_ready(group: dist.ProcessGroup, ready: bool):
     backend = dist.get_backend(group)
     local_rank = env_utils.get_local_rank()
     device = "cpu" if backend == "gloo" else f"cuda:{local_rank}"
-    rt = ReadyTensor(device)
+    rt = ReadyTensor.singleton_instance(device)
     value = 0 if ready else 1
     rt.tensor[0] = value
     dist.all_reduce(rt.tensor, group=group)
@@ -216,7 +218,7 @@ class CheckpointEngine(metaclass=ABCMeta):
                 "Use the default process group to sync "
                 "when saving checkpoint."
             )
-            _rank0_log(self._rank, message)
+            _local_rank0_log(self._local_rank, message)
         else:
             self._saver_group = dist.new_group(
                 ranks=self._saving_ranks,
@@ -233,7 +235,7 @@ class CheckpointEngine(metaclass=ABCMeta):
                     f"Create a {backend} commumication group to save "
                     "checkpoint. Saving ranks are all ranks."
                 )
-            _rank0_log(self._rank, message)
+            _local_rank0_log(self._local_rank, message)
 
     def __del__(self):
         self.close()

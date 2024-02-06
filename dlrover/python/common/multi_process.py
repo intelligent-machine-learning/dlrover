@@ -15,6 +15,7 @@ import mmap
 import os
 import pickle
 import queue
+import shutil
 import socket
 import threading
 import time
@@ -28,7 +29,7 @@ import _posixshmem
 from .constants import NodeEnv
 from .log import default_logger as logger
 
-TMP_DIR = "/tmp"
+SOCKET_TMP_DIR = "/tmp/checkpoint_sock/"
 
 SUCCESS_CODE = "OK"
 ERROR_CODE = "ERROR"
@@ -49,6 +50,10 @@ def retry_socket(func):
             return func(self, *args, **kwargs)
 
     return wrapper
+
+
+def clear_sock_dir():
+    shutil.rmtree(SOCKET_TMP_DIR, ignore_errors=True)
 
 
 def _create_socket_server(path):
@@ -193,9 +198,9 @@ class LocalSocketComm(metaclass=ABCMeta):
         fname = self.__class__.__name__.lower() + "_" + self._name + ".sock"
         job_name = os.getenv(NodeEnv.TORCHELASTIC_RUN_ID, "")
         if job_name:
-            root_dir = os.path.join(TMP_DIR, job_name)
+            root_dir = os.path.join(SOCKET_TMP_DIR, job_name)
         else:
-            root_dir = TMP_DIR
+            root_dir = SOCKET_TMP_DIR
         os.makedirs(root_dir, exist_ok=True)
         return os.path.join(root_dir, fname)
 

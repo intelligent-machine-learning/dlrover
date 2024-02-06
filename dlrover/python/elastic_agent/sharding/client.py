@@ -21,9 +21,7 @@ from dlrover.proto import elastic_training_pb2
 from dlrover.python.common import grpc
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.master_client import MasterClient
-from dlrover.python.elastic_agent.monitor.training import (
-    TFTrainingProcessReporter,
-)
+from dlrover.python.elastic_agent.monitor.training import TFTrainingReporter
 
 _DEFAULT_MINI_BATCH_NUM_PER_SHARD = 10
 
@@ -88,7 +86,7 @@ class ShardingClient(object):
         self._max_shard_count = sys.maxsize
         self._shard_count = 0
         self._report_sharding_params()
-        self._training_reporter = TFTrainingProcessReporter()
+        self._training_reporter = TFTrainingReporter.singleton_instance()
 
     def _report_sharding_params(self):
         if self._num_epochs and self._dataset_size:
