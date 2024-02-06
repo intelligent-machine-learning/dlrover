@@ -35,7 +35,9 @@ Run in the worker Pod with GPU of ElasticJob.
 
 auto-config will set the nnodes as the number of nodes in a job,
 nproc_per_node as the number of available GPUs. If the number of
-nodes >= 4, it will set the network-check as True.
+nodes >= 4, it will set the network-check as True. If network-check is True,
+dlrover-run will launch simple tasks on each node to check wether
+the node is slow or fault.
 
 Single-node multi-worker
 ++++++++++++++++++++++++++++++
