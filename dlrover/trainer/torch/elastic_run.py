@@ -33,6 +33,10 @@ Run in the worker Pod with GPU of ElasticJob.
         --auto-config
         YOUR_TRAINING_SCRIPT.py (--arg1 ... train script args...)
 
+auto-config will set the nnodes as the number of nodes in a job,
+nproc_per_node as the number of available GPUs. If the number of
+nodes >= 4, it will set the network-check as True.
+
 Single-node multi-worker
 ++++++++++++++++++++++++++++++
 
