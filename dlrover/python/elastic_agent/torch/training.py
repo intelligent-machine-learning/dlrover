@@ -117,8 +117,8 @@ class ElasticLaunchConfig(LaunchConfig):
         auto_tunning: whether to auto-tune the parallelism configuration.
         exclude_straggler: The node will exit if it is a straggler in network
             check and exclude_straggler is True.
-        save_at_breakpoint: wether to save the checkpoint from the shared memory
-            into the disk after a failure occurs.
+        save_at_breakpoint: wether to save the checkpoint from the shared
+            memory into the disk after a failure occurs.
     """
 
     network_check: bool = False
