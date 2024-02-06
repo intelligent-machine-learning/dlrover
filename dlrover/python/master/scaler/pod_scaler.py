@@ -472,11 +472,13 @@ class PodScaler(Scaler):
             lifecycle=None,
             labels=labels,
         )
+        pod_meta: client.V1ObjectMeta = pod.metadata
         # Add replica type and index
-        pod.metadata.labels[ElasticJobLabel.REPLICA_TYPE_KEY] = node.type
-        pod.metadata.labels[ElasticJobLabel.REPLICA_INDEX_KEY] = str(node.id)
-        pod.metadata.labels[ElasticJobLabel.RANK_INDEX_KEY] = str(
-            node.rank_index
+        pod_meta.labels[ElasticJobLabel.REPLICA_TYPE_KEY] = node.type
+        pod_meta.labels[ElasticJobLabel.REPLICA_INDEX_KEY] = str(node.id)
+        pod_meta.labels[ElasticJobLabel.RANK_INDEX_KEY] = str(node.rank_index)
+        pod_meta.labels[ElasticJobLabel.RELAUNCH_COUNT] = str(
+            node.relaunch_count
         )
         if (
             _dlrover_context.auto_ps_enabled

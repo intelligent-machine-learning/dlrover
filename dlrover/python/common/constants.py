@@ -58,6 +58,7 @@ class ElasticJobLabel(object):
     REPLICA_TYPE_KEY = "elasticjob.dlrover/replica-type"
     REPLICA_INDEX_KEY = "elasticjob.dlrover/replica-index"
     RANK_INDEX_KEY = "elasticjob.dlrover/rank-index"
+    RELAUNCH_COUNT = "elasticjob.dlrover/relaunch-count"
 
 
 class ScalePlanLabel(object):
