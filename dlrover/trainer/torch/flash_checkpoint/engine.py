@@ -212,7 +212,10 @@ class CheckpointEngine(metaclass=ABCMeta):
                 timeout=timedelta(seconds=60),
             )
         self._saving_ranks = self.get_saving_ranks()
-        if backend == dist.get_backend() and self._saving_ranks is None:
+        if backend == dist.get_backend() and (
+            self._saving_ranks is None
+            or len(self._saving_ranks) == dist.get_world_size()
+        ):
             self._saver_group = None
             message = (
                 "Use the default process group to sync "
