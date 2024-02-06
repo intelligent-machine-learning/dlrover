@@ -13,6 +13,7 @@
 
 import os
 import socket
+import threading
 import time
 from contextlib import closing
 
@@ -65,6 +66,8 @@ class MasterClient(Singleton):
         # get task unit from master service
         mc.get_task(...)
     """
+
+    _instance_lock = threading.Lock()
 
     def __init__(self, master_addr, node_id, node_type, timeout=5):
         self._timeout = timeout
