@@ -413,6 +413,7 @@ class DistributedJobManager(JobManager):
                 host_name=event.node.host_name,
                 host_ip=event.node.host_ip,
                 restart_training=event.node.restart_training,
+                relaunch_count=event.node.relaunch_count,
             )
 
         # For the given node id, check whether it meets
