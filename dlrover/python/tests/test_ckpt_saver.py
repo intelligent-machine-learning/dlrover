@@ -127,7 +127,8 @@ class CheckpointSaverTest(unittest.TestCase):
         self.assertIsNotNone(AsyncCheckpointSaver._saver_instance)
         AsyncCheckpointSaver.reset()
 
-        # test notify multiple times, see if it will skip and no exception raised
+        # test notify multiple times,
+        # see if it will skip and no exception raised
         sq.put(class_meta)
         sq.put(class_meta)
 

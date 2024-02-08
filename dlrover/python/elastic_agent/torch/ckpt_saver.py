@@ -431,7 +431,8 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
 
                     if cls._saver_instance is not None:
                         logger.info(
-                            "The saver is already created, skip creating the saver."
+                            "The saver is already created, "
+                            "skip creating the saver."
                         )
                         continue
 
