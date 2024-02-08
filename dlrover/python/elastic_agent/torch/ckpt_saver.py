@@ -439,7 +439,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                         target=_saver,
                         args=(class_meta,),
                         name="checkpoint-saver",
-                        daemon=True
+                        daemon=True,
                     ).start()
 
         threading.Thread(
