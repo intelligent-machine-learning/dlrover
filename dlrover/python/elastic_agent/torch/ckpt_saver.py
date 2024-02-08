@@ -436,7 +436,10 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                         continue
 
                     threading.Thread(
-                        target=_saver, args=(class_meta,), name="checkpoint-saver", daemon=True
+                        target=_saver,
+                        args=(class_meta,),
+                        name="checkpoint-saver",
+                        daemon=True
                     ).start()
 
         threading.Thread(
