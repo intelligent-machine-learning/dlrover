@@ -409,10 +409,8 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         from the shared memory into the storage. Firstly, it waits that
         the training process notify the saver class to create a saver.
         """
-        sq = SharedQueue(name="factory", create=True)
 
-        def _save():
-            class_meta: ClassMeta = sq.get()
+        def _saver(class_meta: ClassMeta):
             module = importlib.import_module(class_meta.module_path)
             class_def = getattr(module, class_meta.class_name)
             if cls._saver_instance is None:
@@ -420,8 +418,29 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 cls._saver_instance = saver
             cls._saver_instance._sync_shm_to_storage()
 
+        sq = SharedQueue(name="factory", create=True)
+
+        def _factory():
+            logger.info("Start the checkpoint saver factory.")
+
+            while True:
+                class_meta: ClassMeta = sq.get()
+
+                # use a lock to avoid concurrent creation of the saver
+                with threading.Lock():
+
+                    if cls._saver_instance is not None:
+                        logger.info(
+                            "The saver is already created, skip creating the saver."
+                        )
+                        continue
+
+                    threading.Thread(
+                        target=_saver, args=(class_meta,), name="checkpoint-saver", daemon=True
+                    ).start()
+
         threading.Thread(
-            target=_save, name="checkpoint-saver", daemon=True
+            target=_factory, name="checkpoint-saver-factory", daemon=True
         ).start()
 
     @classmethod
