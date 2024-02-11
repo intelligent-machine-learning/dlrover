@@ -12,7 +12,6 @@
 # limitations under the License.
 
 import os
-import threading
 import time
 from abc import ABCMeta, abstractmethod
 from datetime import timedelta
@@ -45,8 +44,6 @@ def _local_rank0_log(local_rank, message):
 
 
 class ReadyTensor(Singleton):
-    _instance_lock = threading.Lock()
-
     def __init__(self, device) -> None:
         self.tensor = torch.tensor([0], dtype=torch.int32).to(device)
 

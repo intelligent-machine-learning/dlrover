@@ -13,7 +13,6 @@
 
 import copy
 import json
-import threading
 from abc import ABCMeta, abstractmethod
 from typing import List
 
@@ -98,8 +97,6 @@ class StatsReporter(metaclass=ABCMeta):
 
 
 class LocalStatsReporter(StatsReporter, Singleton):
-    _instance_lock = threading.Lock()
-
     def __init__(self, job_meta):
         self._job_meta = job_meta
         self._runtime_stats: List[RuntimeMetric] = []
@@ -147,8 +144,6 @@ class LocalStatsReporter(StatsReporter, Singleton):
 
 
 class BrainReporter(StatsReporter, Singleton):
-    _instance_lock = threading.Lock()
-
     def __init__(self, job_meta: JobMeta) -> None:
         self._job_meta = job_meta
         self._brain_client = GlobalBrainClient.BRAIN_CLIENT

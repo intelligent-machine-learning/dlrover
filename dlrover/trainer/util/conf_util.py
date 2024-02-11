@@ -13,7 +13,6 @@
 
 import inspect
 import os
-import threading
 
 from pyhocon import ConfigFactory, ConfigMissingException, ConfigTree
 
@@ -48,8 +47,6 @@ class Singleton:
 
 class Configuration(Singleton):
     """wrapper get and set for new conf"""
-
-    _instance_lock = threading.Lock()
 
     def __init__(self, inner_dict=None):
         object.__setattr__(

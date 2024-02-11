@@ -28,8 +28,6 @@ from dlrover.python.elastic_agent.master_client import MasterClient
 
 
 class ParalConfigTuner(Singleton):
-    _instance_lock = threading.Lock()
-
     def __init__(self):
         """
         Parallelism config tuner for updating parallelism config file.
