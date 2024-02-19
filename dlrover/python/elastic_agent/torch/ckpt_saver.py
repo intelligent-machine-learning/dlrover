@@ -411,11 +411,17 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         """
 
         def _saver(class_meta: ClassMeta):
+
+            # if the thread is not alive, the saver may be created
+            if cls._saver_instance is not None:
+                cls._saver_instance.close()
+                cls._saver_instance = None
+
             module = importlib.import_module(class_meta.module_path)
             class_def = getattr(module, class_meta.class_name)
-            if cls._saver_instance is None:
-                saver: AsyncCheckpointSaver = class_def(**class_meta.kwargs)
-                cls._saver_instance = saver
+
+            saver: AsyncCheckpointSaver = class_def(**class_meta.kwargs)
+            cls._saver_instance = saver
             cls._saver_instance._sync_shm_to_storage()
 
         sq = SharedQueue(name="factory", create=True)
@@ -423,25 +429,32 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         def _factory():
             logger.info("Start the checkpoint saver factory.")
 
+            saver_thread = None
             while True:
                 class_meta: ClassMeta = sq.get()
 
                 # use a lock to avoid concurrent creation of the saver
-                with threading.Lock():
+                with (threading.Lock()):
 
-                    if cls._saver_instance is not None:
+                    # if the saver thread is alive, skip creating the saver
+                    if (
+                        cls._saver_instance
+                        and saver_thread
+                        and saver_thread.is_alive()
+                    ):
                         logger.info(
                             "The saver is already created, "
                             "skip creating the saver."
                         )
                         continue
 
-                    threading.Thread(
+                    saver_thread = threading.Thread(
                         target=_saver,
                         args=(class_meta,),
                         name="checkpoint-saver",
                         daemon=True,
-                    ).start()
+                    )
+                    saver_thread.start()
 
         threading.Thread(
             target=_factory, name="checkpoint-saver-factory", daemon=True
