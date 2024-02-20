@@ -314,7 +314,7 @@ def run(args):
         )
         logger.info(f"Set the dlrover master addr as {master_addr}")
         os.environ[NodeEnv.DLROVER_MASTER_ADDR] = master_addr
-    use_dlrover_launch = _check_to_use_dlrover_run(master_addr)
+    use_dlrover_launch = _check_to_use_dlrover_run(master_addr, max_nodes)
 
     if args.standalone and not use_dlrover_launch:
         args.rdzv_backend = "c10d"
