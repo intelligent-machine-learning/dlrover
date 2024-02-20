@@ -243,6 +243,8 @@ def _launch_dlrover_local_master(master_addr, job_name, node_num):
 
 def _check_dlrover_master_available(addr, timeout=120):
     """Verify that the master grpc servicer is available."""
+    if not addr:
+        return False
     host = addr.split(":")[0]
     port = int(addr.split(":")[1])
     start_time = time.time()
@@ -277,6 +279,22 @@ def _elastic_config_from_args(
     return elastic_config, cmd, cmd_args
 
 
+def _check_to_use_dlrover_run(master_addr, max_nodes):
+    if _check_dlrover_master_available(master_addr):
+        return True
+    elif max_nodes == 1:
+        logger.info("Use native torchrun to start job on the single node.")
+        return False
+    elif not master_addr:
+        raise ValueError(
+            "DLRover job master address cannot be empty. "
+            f"Please set the env {NodeEnv.DLROVER_MASTER_ADDR} as "
+            "the address of node rank 0"
+        )
+    else:
+        raise ValueError(f"{master_addr} is not connected. ")
+
+
 def run(args):
     master_handler = None
     master_addr = os.getenv(NodeEnv.DLROVER_MASTER_ADDR, "")
@@ -286,19 +304,17 @@ def run(args):
     job_name = os.getenv(NodeEnv.JOB_NAME, f"standalone_{timestamp}")
     os.environ[NodeEnv.TORCHELASTIC_RUN_ID] = job_name
     dlrover_master_ready = grpc.addr_connected(master_addr)
+    _, max_nodes = parse_min_max_nnodes(args.nnodes)
     if not dlrover_master_ready and node_rank == 0:
         # Only start the dlrover master on the rank-0 node.
-        _, max_nodes = parse_min_max_nnodes(args.nnodes)
         master_handler, master_addr = _launch_dlrover_local_master(
             master_addr,
             job_name,
             max_nodes,
         )
+        logger.info(f"Set the dlrover master addr as {master_addr}")
         os.environ[NodeEnv.DLROVER_MASTER_ADDR] = master_addr
-    if _check_dlrover_master_available(master_addr):
-        use_dlrover_launch = True
-    else:
-        use_dlrover_launch = False
+    use_dlrover_launch = _check_to_use_dlrover_run(master_addr)
 
     if args.standalone and not use_dlrover_launch:
         args.rdzv_backend = "c10d"
