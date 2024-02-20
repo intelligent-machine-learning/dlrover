@@ -127,6 +127,11 @@ class CheckpointSaverTest(unittest.TestCase):
         self.assertIsNotNone(AsyncCheckpointSaver._saver_instance)
         AsyncCheckpointSaver.reset()
 
+        # test notify multiple times,
+        # see if it will skip and no exception raised
+        sq.put(class_meta)
+        sq.put(class_meta)
+
     def test_close_saver(self):
         saver = DdpCheckpointSaver("test_ckpt", self.storage.get_class_meta())
         try:

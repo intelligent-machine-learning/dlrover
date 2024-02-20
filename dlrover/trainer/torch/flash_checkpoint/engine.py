@@ -248,12 +248,7 @@ class CheckpointEngine(metaclass=ABCMeta):
         """Notify the agent in the main process to create a checkpoint saver"""
         if self._local_rank != 0:
             return
-        if self._restart_count > 0:
-            # Only local rank 0 notify to initialize the saver in
-            # the main process at the first start.
-            # Avoid the lock is locked by a failed process.
-            self._shm_lock.release()
-            return
+        # the agent side will release the lock if training process restarts.
         queue = SharedQueue(name="factory")
 
         local_shard_num = self.get_local_shard_num()
@@ -271,7 +266,6 @@ class CheckpointEngine(metaclass=ABCMeta):
         )
 
         queue.put(class_meta)
-        queue.unlink()
 
     def _update_saver_config(self):
         """Update the sharding configuration to the saver."""
