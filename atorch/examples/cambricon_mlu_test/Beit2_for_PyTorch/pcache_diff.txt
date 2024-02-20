@@ -1,0 +1,114 @@
+diff --git a/Beit2_for_PyTorch/dataset_folder.py b/Beit2_for_PyTorch/dataset_folder.py
+index 7216ae0..b285139 100644
+--- a/Beit2_for_PyTorch/dataset_folder.py
++++ b/Beit2_for_PyTorch/dataset_folder.py
+@@ -16,6 +16,8 @@ import os.path
+ import random
+ import json
+ from typing import Any, Callable, cast, Dict, List, Optional, Tuple
++from torch.utils.data import Dataset
++
+ 
+ 
+ def has_file_allowed_extension(filename: str, extensions: Tuple[str, ...]) -> bool:
+@@ -298,3 +300,60 @@ class ImageFolder(DatasetFolder):
+                                           target_transform=target_transform,
+                                           is_valid_file=is_valid_file, index_file=index_file)
+         self.imgs = self.samples
++
++
++
++class CocoPcacheDataset(Dataset):
++    """
++    annotations_dir:
++        captions_train2017.json
++        captions_val2017.json
++        instances_train2017.json
++        instances_val2017.json
++        person_keypoints_train2017.json
++        person_keypoints_val2017.json
++    
++    split:
++        train2017, val2017, test2017
++    """
++    def __init__(self, args, transform=None, target_transform=None, loader=pil_loader):
++        from pycocotools.coco import COCO
++        self.args = args
++        self.transform = transform
++        self.target_transform = target_transform
++        self.loader = loader
++        self.annotations_dir = args.coco2017_annotations_dir
++        self.split = args.coco2017_split
++        instance_file_name = f"instances_{self.split}.json"
++        self.annotations_file = os.path.join(self.annotations_dir, instance_file_name)
++        self.pcache_prefix = args.pcache_prefix
++        self.pcache_host = args.pcache_host
++        self.pcache_port = args.pcache_port
++        self.coco = COCO(annotation_file=self.annotations_file)
++        self.image_ids = self.coco.getImgIds()
++        self.dataset_dir = args.pcache_coco_train_dir
++        self.dataset_root = self.pcache_prefix + f"{self.pcache_host}:{self.pcache_port}" + self.dataset_dir
++
++    def __len__(self):
++        return len(self.image_ids)
++
++    def load_image(self, index):
++        from pcache_fileio.pcache_manager import PcacheManager  # noqa
++        from pcache_fileio import fileio
++        image_info = self.coco.loadImgs(self.image_ids[index])[0]
++        image_path = os.path.join(self.dataset_root, image_info['file_name'])
++        img = self.loader(image_path)
++        return img
++    
++    def load_target(self, index: int) -> List[Any]:
++        # return self.coco.loadAnns(self.coco.getAnnIds(index))
++        return 0
++    
++    def __getitem__(self, index):
++        img = self.load_image(index)
++        target = self.load_target(index)
++        if self.transform is not None:
++            sample = self.transform(img)
++        if self.target_transform is not None:
++            target = self.target_transform(target)
++        return sample, target
+diff --git a/Beit2_for_PyTorch/datasets.py b/Beit2_for_PyTorch/datasets.py
+index 2f41235..b5ea28b 100644
+--- a/Beit2_for_PyTorch/datasets.py
++++ b/Beit2_for_PyTorch/datasets.py
+@@ -22,7 +22,8 @@ from transforms import RandomResizedCropAndInterpolationWithTwoPic, _pil_interp
+ from timm.data import create_transform, ImageDataset 
+ 
+ from masking_generator import MaskingGenerator
+-from dataset_folder import ImageFolder
++
++from dataset_folder import ImageFolder, CocoPcacheDataset
+ 
+ 
+ class DataAugmentationForBEiT(object):
+@@ -199,3 +200,10 @@ def build_transform(is_train, args):
+     t.append(transforms.ToTensor())
+     t.append(transforms.Normalize(mean, std))
+     return transforms.Compose(t)
++
++
++def build_beit_pretraining_coco_pcache_dataset(args):
++    transform = DataAugmentationForBEiT(args)
++    print("Data Aug = %s" % str(transform))
++    
++    return CocoPcacheDataset(args, transform=transform)
+\ No newline at end of file
+diff --git a/Beit2_for_PyTorch/utils.py b/Beit2_for_PyTorch/utils.py
+index e8a7b09..9a09830 100644
+--- a/Beit2_for_PyTorch/utils.py
++++ b/Beit2_for_PyTorch/utils.py
+@@ -557,8 +557,7 @@ def cosine_scheduler(base_value, final_value, epochs, niter_per_ep, warmup_epoch
+         [final_value + 0.5 * (base_value - final_value) * (1 + math.cos(math.pi * i / (len(iters)))) for i in iters])
+ 
+     schedule = np.concatenate((warmup_schedule, schedule))
+-
+-    assert len(schedule) == epochs * niter_per_ep
++    assert len(schedule) == epochs * niter_per_ep, f"len(schedule) is {len(schedule)}, which is not equal to epochs({epochs}) * niter_per_ep({niter_per_ep})"
+     return schedule
+ 
+ 

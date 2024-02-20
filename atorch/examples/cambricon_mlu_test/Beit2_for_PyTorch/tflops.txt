@@ -1,0 +1,74 @@
+start_step = 2
+end_step = 6
+一共统计了
+
+文档中，fwd flops per GPU == 1720.6 T
+
+
+-------------------------- AProfiler Summary at step 1--------------------------
+Notations:
+1. number of parameters (params),
+2. activation bytes (activation),
+3. number of multiply-accumulate operations(macs),
+4. number of floating-point operations (flops),
+5. floating-point operations per second (FLOPS),
+6. fwd latency (forward propagation latency)
+
+params per gpu:                                               16.9 G  
+activation bytes:                                             49.04 G 
+fwd macs per GPU:                                             860.07 T
+fwd flops per GPU:                                            1720.6 T
+fwd latency:                                                  1.33 s  
+fwd FLOPS per GPU = fwd flops per GPU / fwd latency:          1296.58 T
+
+----------------------------- Aggregated Profile per GPU -----------------------------
+Top 1 modules in terms of params, flops, macs, fwd latency,actication bytes at different model depths:
+depth 0:
+    params:     - {'FullyShardedDataParallel': '16.9 G'}
+    flops:      - {'FullyShardedDataParallel': '1720.6 T'}
+    macs:       - {'FullyShardedDataParallel': '860.07 T'}
+    fwd latency - {'FullyShardedDataParallel': '1.33 s'}
+    activation  - {'FullyShardedDataParallel': '49.04 GB'}
+depth 1:
+    params:     - {'VisionTransformerForMaskedImageModelingCLS': '16.29 G'}
+    flops:      - {'VisionTransformerForMaskedImageModelingCLS': '1720.6 T'}
+    macs:       - {'VisionTransformerForMaskedImageModelingCLS': '860.07 T'}
+    fwd latency - {'VisionTransformerForMaskedImageModelingCLS': '1.33 s'}
+    activation  - {'VisionTransformerForMaskedImageModelingCLS': '48.97 GB'}
+depth 2:
+    params:     - {'ModuleList': '15.63 G'}
+    flops:      - {'ModuleList': '1713.81 T'}
+    macs:       - {'ModuleList': '856.68 T'}
+    fwd latency - {'ModuleList': '1.34 s'}
+    activation  - {'ModuleList': '87.64 GB'}
+depth 3:
+    params:     - {'FullyShardedDataParallel': '15.05 G'}
+    flops:      - {'FullyShardedDataParallel': '1713.81 T'}
+    macs:       - {'FullyShardedDataParallel': '856.68 T'}
+    fwd latency - {'FullyShardedDataParallel': '1.34 s'}
+    activation  - {'FullyShardedDataParallel': '87.64 GB'}
+depth 4:
+    params:     - {'Block': '14.47 G'}
+    flops:      - {'Block': '1713.81 T'}
+    macs:       - {'Block': '856.68 T'}
+    fwd latency - {'Block': '1.32 s'}
+    activation  - {'Block': '87.64 GB'}
+depth 5:
+    params:     - {'FullyShardedDataParallel': '13.89 G'}
+    flops:      - {'FullyShardedDataParallel': '1713.64 T'}
+    macs:       - {'FullyShardedDataParallel': '856.68 T'}
+    fwd latency - {'FullyShardedDataParallel': '1.11 s'}
+    activation  - {'FullyShardedDataParallel': '69.81 GB'}
+depth 6:
+    params:     - {'Mlp': '6.17 G'}
+    flops:      - {'Mlp': '1142.32 T'}
+    macs:       - {'Mlp': '571.12 T'}
+    fwd latency - {'Mlp': '611.01 ms'}
+    activation  - {'Mlp': '40.09 GB'}
+depth 7:
+    params:     - {'Linear': '4.63 G'}
+    flops:      - {'Linear': '1285.03 T'}
+    macs:       - {'Linear': '642.51 T'}
+    fwd latency - {'Linear': '622.65 ms'}
+    activation  - {'Linear': '26.72 GB'}
+------------------------------------------------------------------------------
