@@ -14,7 +14,7 @@
 import json
 from typing import List
 
-from kubernetes import watch
+from kubernetes import client, watch
 
 from dlrover.python.common.constants import (
     ElasticJobApi,
@@ -94,9 +94,10 @@ def _convert_pod_event_to_node_event(event):
     if pod_type == NodeType.DLROVER_MASTER:
         return None
 
-    rank = int(evt_obj.metadata.labels[ElasticJobLabel.RANK_INDEX_KEY])
-    pod_id = int(evt_obj.metadata.labels[ElasticJobLabel.REPLICA_INDEX_KEY])
-    pod_name = evt_obj.metadata.name
+    metadata: client.V1ObjectMeta = evt_obj.metadata
+    rank = int(metadata.labels[ElasticJobLabel.RANK_INDEX_KEY])
+    pod_id = int(metadata.labels[ElasticJobLabel.REPLICA_INDEX_KEY])
+    pod_name = metadata.name
     host_name = evt_obj.spec.node_name
     host_ip = evt_obj.status.host_ip
 
@@ -106,9 +107,10 @@ def _convert_pod_event_to_node_event(event):
 
     resource = _parse_container_resource(evt_obj.spec.containers[0])
     status = evt_obj.status.phase
-    if evt_obj.metadata.deletion_timestamp:
+    if metadata.deletion_timestamp:
         status = NodeStatus.DELETED
 
+    relaunch_count = int(metadata.labels[ElasticJobLabel.RELAUNCH_COUNT])
     node = Node(
         node_type=pod_type,
         node_id=pod_id,
@@ -120,8 +122,9 @@ def _convert_pod_event_to_node_event(event):
         host_name=host_name,
         host_ip=host_ip,
         restart_training=restart,
+        relaunch_count=relaunch_count,
     )
-    node.create_time = evt_obj.metadata.creation_timestamp
+    node.create_time = metadata.creation_timestamp
     node.set_exit_reason(_get_pod_exit_reason(evt_obj))
     node_event = NodeEvent(event_type=evt_type, node=node)
     return node_event
@@ -189,13 +192,16 @@ class PodWatcher(NodeWatcher):
         replica_type_key = ElasticJobLabel.REPLICA_TYPE_KEY
         replica_index_key = ElasticJobLabel.REPLICA_INDEX_KEY
         rank_index_key = ElasticJobLabel.RANK_INDEX_KEY
+        relaunch_count_key = ElasticJobLabel.RELAUNCH_COUNT
 
         for pod in pod_list.items:
-            pod_type = pod.metadata.labels[replica_type_key]
+            metadata: client.V1ObjectMeta = pod.metadata
+            pod_type = metadata.labels[replica_type_key]
             if pod_type == NodeType.DLROVER_MASTER:
                 continue
-            pod_id = int(pod.metadata.labels[replica_index_key])
-            task_id = int(pod.metadata.labels[rank_index_key])
+            pod_id = int(metadata.labels[replica_index_key])
+            task_id = int(metadata.labels[rank_index_key])
+            relaunch_count = int(metadata.labels[relaunch_count_key])
             resource = _parse_container_resource(pod.spec.containers[0])
             status = pod.status.phase
             start_time = _get_start_timestamp(pod.status)
@@ -203,12 +209,13 @@ class PodWatcher(NodeWatcher):
             node = Node(
                 node_type=pod_type,
                 node_id=pod_id,
-                name=pod.metadata.name,
+                name=metadata.name,
                 rank_index=task_id,
                 status=status,
                 start_time=start_time,
                 config_resource=resource,
                 restart_training=restart_training,
+                relaunch_count=relaunch_count,
             )
             node.set_exit_reason(_get_pod_exit_reason(pod))
             nodes.append(node)

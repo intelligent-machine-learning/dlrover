@@ -23,12 +23,11 @@ from dlrover.python.common.grpc import (
     ParallelConfig,
 )
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.common.singleton import singleton
+from dlrover.python.common.singleton import Singleton
 from dlrover.python.elastic_agent.master_client import MasterClient
 
 
-@singleton
-class ParalConfigTuner(object):
+class ParalConfigTuner(Singleton):
     def __init__(self):
         """
         Parallelism config tuner for updating parallelism config file.

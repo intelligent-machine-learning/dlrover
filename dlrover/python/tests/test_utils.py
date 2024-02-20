@@ -198,6 +198,7 @@ def mock_list_namespaced_pod(label_selector):
             ElasticJobLabel.REPLICA_TYPE_KEY: NodeType.PS,
             ElasticJobLabel.REPLICA_INDEX_KEY: str(i),
             ElasticJobLabel.RANK_INDEX_KEY: str(i),
+            ElasticJobLabel.RELAUNCH_COUNT: "0",
         }
         pod = create_pod(labels)
         pods.append(pod)
@@ -208,6 +209,7 @@ def mock_list_namespaced_pod(label_selector):
             ElasticJobLabel.REPLICA_TYPE_KEY: NodeType.WORKER,
             ElasticJobLabel.REPLICA_INDEX_KEY: str(i),
             ElasticJobLabel.RANK_INDEX_KEY: str(i),
+            ElasticJobLabel.RELAUNCH_COUNT: "0",
         }
         pod = create_pod(labels)
         pods.append(pod)

@@ -12,11 +12,11 @@
 # limitations under the License.
 
 import os
-import threading
 
 from dlrover.python.common import grpc
 from dlrover.python.common.constants import UserEnv
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.common.singleton import Singleton
 
 
 class ConfigKeys(object):
@@ -53,9 +53,7 @@ class DefaultValues(object):
     HANG_CPU_USAGE_RATE = 0.05
 
 
-class Context(object):
-    _instance_lock = threading.Lock()
-
+class Context(Singleton):
     def __init__(self):
         self.train_speed_record_num = DefaultValues.TRAIN_SPEED_RECORD_NUM
         self.seconds_to_autoscale_worker = (
@@ -180,11 +178,3 @@ class Context(object):
     @property
     def user_id(self):
         return os.getenv(UserEnv.USER_ID, "")
-
-    @classmethod
-    def singleton_instance(cls, *args, **kwargs):
-        if not hasattr(Context, "_instance"):
-            with Context._instance_lock:
-                if not hasattr(Context, "_instance"):
-                    Context._instance = Context(*args, **kwargs)
-        return Context._instance

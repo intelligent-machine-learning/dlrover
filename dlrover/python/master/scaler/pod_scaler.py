@@ -93,6 +93,8 @@ class PodScaler(Scaler):
 
     def start(self):
         self._job = self._retry_to_get_job()
+        if not self._job:
+            raise ValueError(f"Cannot get the training job {self._job_name}.")
         self._init_pod_config_by_job()
         self._master_pod = self._retry_to_get_master_pod()
         threading.Thread(
@@ -129,7 +131,7 @@ class PodScaler(Scaler):
                 return job
             else:
                 time.sleep(5)
-        raise ValueError("Cannot get the training job %s", self._job_name)
+        return None
 
     def _retry_to_get_master_pod(self):
         master_name = f"elasticjob-{self._job_name}-dlrover-master"
@@ -143,6 +145,14 @@ class PodScaler(Scaler):
 
     def scale(self, plan: ScalePlan):
         """Scale in/out Pods by a ScalePlan."""
+
+        if not self._elasticjob_exists():
+            plan_json = plan.to_json()
+            logger.info(
+                f"Skip the scaleplan {plan_json} "
+                "because the job does not exist."
+            )
+            return
 
         self._remove_nodes(plan)
         while True:
@@ -462,11 +472,13 @@ class PodScaler(Scaler):
             lifecycle=None,
             labels=labels,
         )
+        pod_meta: client.V1ObjectMeta = pod.metadata
         # Add replica type and index
-        pod.metadata.labels[ElasticJobLabel.REPLICA_TYPE_KEY] = node.type
-        pod.metadata.labels[ElasticJobLabel.REPLICA_INDEX_KEY] = str(node.id)
-        pod.metadata.labels[ElasticJobLabel.RANK_INDEX_KEY] = str(
-            node.rank_index
+        pod_meta.labels[ElasticJobLabel.REPLICA_TYPE_KEY] = node.type
+        pod_meta.labels[ElasticJobLabel.REPLICA_INDEX_KEY] = str(node.id)
+        pod_meta.labels[ElasticJobLabel.RANK_INDEX_KEY] = str(node.rank_index)
+        pod_meta.labels[ElasticJobLabel.RELAUNCH_COUNT] = str(
+            node.relaunch_count
         )
         if (
             _dlrover_context.auto_ps_enabled
@@ -654,12 +666,16 @@ class PodScaler(Scaler):
 
     def _create_job_owner_reference(self):
         owner_ref = k8sClient.create_owner_reference(
-            api_version="v1",
-            kind="Pod",
-            name=self._master_pod.metadata.name,
-            uid=self._master_pod.metadata.uid,
+            api_version="elastic.iml.github.io/v1alpha1",
+            kind="ElasticJob",
+            name=self._job["metadata"]["name"],
+            uid=self._job["metadata"]["uid"],
         )
         return owner_ref
+
+    def _elasticjob_exists(self):
+        job = self._retry_to_get_job()
+        return job is not None
 
 
 def new_tf_config(

@@ -25,7 +25,7 @@ from dlrover.python.master.stats.training_metrics import RuntimeMetric
 class LocalStatsCollectorTest(unittest.TestCase):
     def test_report_resource_usage(self):
         job_meta = JobMeta("1111")
-        reporter = LocalStatsReporter(job_meta)
+        reporter = LocalStatsReporter.singleton_instance(job_meta)
         reporter._runtime_stats = []
         ps = Node(
             NodeType.PS,

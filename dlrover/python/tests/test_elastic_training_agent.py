@@ -102,6 +102,20 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         node_unit = int(self.rdzv_handler._rdzv_params.get("node_unit", "1"))
         self.assertEqual(node_unit, 2)
 
+    def test_auto_configure(self):
+        config = ElasticLaunchConfig(
+            min_nodes=1,
+            max_nodes=1,
+            nproc_per_node=8,
+            run_id="test",
+            auto_config=True,
+        )
+        os.environ["NODE_NUM"] = "4"
+        config.auto_configure_params()
+        self.assertEqual(config.max_nodes, 4)
+        self.assertEqual(config.min_nodes, 4)
+        self.assertTrue(config.network_check)
+
     def test_rank0_rendzevous(self):
         node_id = 0
         agent = ElasticTrainingAgent(
