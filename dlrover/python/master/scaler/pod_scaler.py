@@ -443,7 +443,9 @@ class PodScaler(Scaler):
             logger.info(
                 "The service of master is not available and use the master IP."
             )
-            master_ip = os.getenv("POD_IP", "localhost")
+            master_ip = os.getenv("POD_IP", "")
+            if not master_ip:
+                raise ValueError("The master Pod must have the POD_IP env.")
             master_addr = f"{master_ip}:{_dlrover_context.master_port}"
         env.append(
             V1EnvVar(name=NodeEnv.DLROVER_MASTER_ADDR, value=master_addr)

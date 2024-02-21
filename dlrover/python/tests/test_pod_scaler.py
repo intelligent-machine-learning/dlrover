@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import unittest
 
 from dlrover.python.common.constants import (
@@ -62,6 +63,7 @@ class PodScalerTest(unittest.TestCase):
     def test_create_pod(self):
         scaler = PodScaler("elasticjob-sample", "default")
         _dlrover_ctx.config_master_port()
+        os.environ["POD_IP"] = "127.0.0.1"
         passed = scaler._check_master_service_avaliable(
             "elasticjob-test-master:2222"
         )
