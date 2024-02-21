@@ -121,10 +121,12 @@ class Context(Singleton):
         self.factor_to_cut_pending_cpu = self.get_param_value_from_brain(
             ConfigKeys.FACTOR_TO_CUT_PENDING_CPU,
             DefaultValues.FACTOR_TO_CUT_PENDING_CPU,
+            float,
         )
         self.factor_to_cut_pending_mem = self.get_param_value_from_brain(
             ConfigKeys.FACTOR_TO_CUT_PENDING_MEM,
             DefaultValues.FACTOR_TO_CUT_PENDING_MEM,
+            float,
         )
         self.seconds_to_wait_pending_pod = self.get_param_value_from_brain(
             ConfigKeys.SECONDS_TO_WAIT_PENDING_POD,
