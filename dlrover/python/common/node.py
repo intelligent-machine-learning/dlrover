@@ -284,7 +284,11 @@ class Node(object):
             and self.exit_reason == NodeExitReason.OOM
         )
         if self.relaunch_count >= self.max_relaunch_count:
-            self.unrecoverable_failure_msg = "exhausted {} relaunch opportunities".format(self.max_relaunch_count)
+            self.unrecoverable_failure_msg = (
+                "exhausted {} relaunch opportunities".format(
+                    self.max_relaunch_count
+                )
+            )
             return True
 
         if self.exit_reason == NodeExitReason.FATAL_ERROR:
@@ -292,7 +296,9 @@ class Node(object):
             return True
 
         if cpu_memory_overload:
-            self.unrecoverable_failure_msg = "oom error and can not add more memory"
+            self.unrecoverable_failure_msg = (
+                "oom error and can not add more memory"
+            )
             return True
 
         return False
@@ -302,7 +308,7 @@ class Node(object):
 
     def update_priority(self, group_node_num):
         """Update the priority if the priority is a fraction.
-        For example, if the prirority is 0.5, and the number of
+        For example, if the priority is 0.5, and the number of
         typed nodes is 10. The node priority with id <5 is high
         and others are low.
         Args:
