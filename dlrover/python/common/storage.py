@@ -14,6 +14,7 @@
 import os
 import shutil
 from abc import ABCMeta, abstractmethod
+from typing import Callable, List
 
 from .log import default_logger as logger
 from .serialize import ClassMeta
@@ -124,9 +125,6 @@ class CheckpointStorage(metaclass=ABCMeta):
 
 
 class PosixDiskStorage(CheckpointStorage):
-    def __init__(self):
-        self._latest_path = ""
-
     def write(self, content, path):
         mode = "w"
         if isinstance(content, bytes) or isinstance(content, memoryview):
@@ -140,7 +138,6 @@ class PosixDiskStorage(CheckpointStorage):
         os.makedirs(dir, exist_ok=True)
         if write_func:
             write_func(state_dict, path)
-        self._latest_path = path
 
     def read(self, path, mode="r"):
         if not os.path.exists(path):
@@ -171,8 +168,7 @@ class PosixDiskStorage(CheckpointStorage):
 
     def commit(self, step, success):
         logger.info(
-            f"Succeed {success} in persisting the checkpoint to "
-            f"{self._latest_path} for step {step}"
+            f"Succeed {success} in persisting the checkpoint of step {step}."
         )
 
     def exists(self, path: str):
@@ -185,5 +181,118 @@ class PosixDiskStorage(CheckpointStorage):
         class_mata = ClassMeta(
             module_path=self.__class__.__module__,
             class_name=self.__class__.__name__,
+        )
+        return class_mata
+
+
+class CheckpointDeletionStrategy(metaclass=ABCMeta):
+    @abstractmethod
+    def clean_up(self, step: int, delete_func: Callable):
+        """
+        Clean up the checkpoint of step.
+
+        Arguments:
+            step (int): the iteration step of a checkpoint.
+            delete_func: A function to remove a directory, the argument
+                is a directory of a folder.
+        """
+        pass
+
+
+class KeepStepIntervalStrategy(CheckpointDeletionStrategy):
+    """
+    The strategy only keeps the step which is a multiple of the keep_interval
+    and clean the other previous step after saving a new step checkpoint.
+
+    Arguments:
+        keep_interval (int): The step interval to keep. If the step is not
+            a multiple of it, the strategy will clean up the step checkpoint
+            after saving a new step checkpoint.
+        checkpoint_dir (str): The common folder directory of checkpoint of
+            all steps.
+    """
+
+    def __init__(self, keep_interval: int, checkpoint_dir: str):
+        self._keep_interval = keep_interval
+        self._checkpoint_dir = checkpoint_dir
+
+    def clean_up(self, step, delete_func):
+        if step % self._keep_interval == 0:
+            return
+        rm_dir = os.path.join(self._checkpoint_dir, str(step))
+        try:
+            delete_func(rm_dir)
+            print(f"Clean path {rm_dir}")
+        except Exception:
+            print(f"Fail to clean path {rm_dir}!")
+
+
+class KeepLatestStepStrategy(CheckpointDeletionStrategy):
+    """
+    The strategy only remains the latest steps and delete the outdated
+    checkpoints.
+    Arguments:
+        max_to_keep (int): An integer, the number of checkpoints to keep.
+        checkpoint_dir (str): The common folder directory of checkpoint of
+            all steps.
+    """
+
+    def __init__(self, max_to_keep: int, checkpoint_dir: str):
+        self._max_to_keep = max(max_to_keep, 1)
+        self._checkpoint_dir = checkpoint_dir
+        self._steps: List[int] = []
+
+    def clean_up(self, step, delete_func):
+        self._steps.append(step)
+        if len(self._steps) == self._max_to_keep:
+            rm_step = self._steps.pop(0)
+            rm_dir = os.path.join(self._checkpoint_dir, str(rm_step))
+            try:
+                delete_func(rm_dir)
+                print(f"Clean path {rm_dir}")
+            except Exception:
+                print(f"Fail to clean path {rm_dir}!")
+
+
+class PosixStorageWithDeletion(PosixDiskStorage):
+    """
+    The storage will call a CheckpointDeletionStrategy to
+    delete the outdated checkpoints.
+
+    Arguments:
+        tracker_file (int): the file name to store the latest checkpoint step.
+        deletion_strategy (str): the strategy to clean outdated checkpoints.
+    """
+
+    def __init__(
+        self, tracker_file: str, deletion_strategy: CheckpointDeletionStrategy
+    ):
+        super().__init__()
+        self._deletion_strategy = deletion_strategy
+        self._tracker_file = tracker_file
+        self._pre_step = 0
+
+    def write(self, content, path: str):
+        if path.endswith(self._tracker_file):
+            pre_step = self.read(path)
+            if pre_step:
+                self._pre_step = int(pre_step)
+        super().write(content, path)
+
+    def commit(self, step, success):
+        super().commit(step, success)
+        if not success or self._pre_step == step:
+            return
+        self._deletion_strategy.clean_up(self._pre_step, shutil.rmtree)
+
+    def get_class_meta(self):
+        kwargs = {
+            "tracker_file": self._tracker_file,
+            "deletion_strategy": self._deletion_strategy,
+        }
+        class_mata = ClassMeta(
+            module_path=self.__class__.__module__,
+            class_name=self.__class__.__name__,
+            kwargs=kwargs,
         )
         return class_mata

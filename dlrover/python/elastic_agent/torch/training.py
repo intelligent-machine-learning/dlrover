@@ -24,6 +24,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, List, Optional, Union
 
+import torch
 import torch.distributed.elastic.timer as timer
 from torch.distributed import PrefixStore, Store
 from torch.distributed.elastic import events, metrics
@@ -54,6 +55,7 @@ from torch.distributed.launcher.api import LaunchConfig, _get_entrypoint_name
 from dlrover.python.common import env_utils
 from dlrover.python.common.constants import (
     ConfigPath,
+    NodeEnv,
     NodeErrorMessage,
     NodeStatus,
     RendezvousName,
@@ -110,20 +112,38 @@ class ElasticLaunchConfig(LaunchConfig):
         network_check: whether to check the network avaliable before training.
         node_unit: the number of unit of nodes. The number of nodes must be
             a multiple of node_unit.
+        auto_config: wether to automatically configure the nnodes and
+            nproc_per_node.
         auto_tunning: whether to auto-tune the parallelism configuration.
         exclude_straggler: The node will exit if it is a straggler in network
             check and exclude_straggler is True.
+        save_at_breakpoint: wether to save the checkpoint from the shared
+            memory into the disk after a failure occurs.
     """
 
     network_check: bool = False
     node_unit: int = 1
+    auto_config: bool = False
     auto_tunning: bool = False
     exclude_straggler: bool = False
+    save_at_breakpoint: bool = False
 
     def set_node_unit(self, node_unit):
         """Set the number unint of ndoes."""
         self.node_unit = node_unit
         self.rdzv_configs["node_unit"] = node_unit
+
+    def auto_configure_params(self):
+        if not self.auto_config:
+            return
+
+        if NodeEnv.NODE_NUM in os.environ:
+            self.min_nodes = int(os.environ[NodeEnv.NODE_NUM])
+            self.max_nodes = int(os.environ[NodeEnv.NODE_NUM])
+        if torch.cuda.is_available():
+            self.nproc_per_node = torch.cuda.device_count()
+        if self.min_nodes >= 4:
+            self.network_check = True
 
 
 @dataclass
@@ -350,7 +370,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         self._remaining_failovers = self._remaining_restarts
         self._client = MasterClient.singleton_instance()
         if config.auto_tunning:
-            self._paral_config_tuner = ParalConfigTuner()
+            self._paral_config_tuner = ParalConfigTuner.singleton_instance()
             self._paral_config_tuner.start()
 
         self._save_ckpt_executor = ThreadPoolExecutor(max_workers=1)
@@ -422,7 +442,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
             try:
                 free_port = find_free_port_in_set(ports)
             except RuntimeError as e:
-                logger.warn(e)
+                logger.warning(e)
         if not free_port:
             free_port = find_free_port_in_range(20000, 30000)
         return free_port
@@ -588,7 +608,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         memory into the storage before restarting training processes.
         """
         saver: AsyncCheckpointSaver = AsyncCheckpointSaver.get_ckpt_saver()
-        if saver:
+        if saver and self._config.save_at_breakpoint:
             self._save_ckpt_future = self._save_ckpt_executor.submit(
                 saver.save_shm_to_storage
             )
@@ -622,7 +642,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         self._restart_count += 1
         self._remaining_restarts -= 1
         # Relase the shared memory lock before starting workers.
-        AsyncCheckpointSaver.release_shm_lock()
+        AsyncCheckpointSaver.reset()
         super()._restart_workers(worker_group)
 
     def _start_workers(self, worker_group: WorkerGroup):

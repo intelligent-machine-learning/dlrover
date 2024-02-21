@@ -12,7 +12,6 @@
 # limitations under the License.
 
 import os
-import threading
 import time
 from typing import Dict
 
@@ -27,6 +26,7 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import NodeGroupResource, NodeResource
+from dlrover.python.common.singleton import Singleton
 from dlrover.python.scheduler.job import ElasticJob, JobArgs, NodeArgs
 
 NODE_SERVICE_PORTS = {
@@ -116,9 +116,7 @@ def retry_k8s_request(func):
     return wrapper
 
 
-class k8sClient(object):
-    _instance_lock = threading.Lock()
-
+class k8sClient(Singleton):
     def __init__(self, namespace):
         """
         DLRover k8s client.
@@ -337,14 +335,6 @@ class k8sClient(object):
                 % (pvc.metadata.name, e)
             )
             return False
-
-    @classmethod
-    def singleton_instance(cls, *args, **kwargs):
-        if not hasattr(k8sClient, "_instance"):
-            with k8sClient._instance_lock:
-                if not hasattr(k8sClient, "_instance"):
-                    k8sClient._instance = k8sClient(*args, **kwargs)
-        return k8sClient._instance
 
     @classmethod
     def create_owner_reference(cls, api_version, kind, name, uid):

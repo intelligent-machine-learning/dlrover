@@ -25,7 +25,7 @@ from dlrover.python.elastic_agent.master_client import (
 )
 from dlrover.python.elastic_agent.monitor.resource import ResourceMonitor
 from dlrover.python.elastic_agent.monitor.training import (
-    TFTrainingProcessReporter,
+    TFTrainingReporter,
     is_tf_chief,
 )
 from dlrover.python.tests.test_utils import start_local_master
@@ -64,7 +64,7 @@ class ResourceMonitorTest(unittest.TestCase):
                 return_value=gpu_stats,
             ):
                 with patch("pynvml.nvmlInit"):
-                    resource_monitor = ResourceMonitor()
+                    resource_monitor = ResourceMonitor.singleton_instance()
                     resource_monitor.start()
                     time.sleep(0.3)
                     resource_monitor.report_resource()
@@ -82,8 +82,8 @@ class ResourceMonitorTest(unittest.TestCase):
         }
         os.environ["TF_CONFIG"] = json.dumps(TF_CONFIG)
         self.assertTrue(is_tf_chief())
-        reporter0 = TFTrainingProcessReporter()
-        reporter1 = TFTrainingProcessReporter()
+        reporter0 = TFTrainingReporter.singleton_instance()
+        reporter1 = TFTrainingReporter.singleton_instance()
         self.assertEqual(reporter0, reporter1)
         reporter0.set_start_time()
         self.assertTrue(reporter0._start_time > 0)

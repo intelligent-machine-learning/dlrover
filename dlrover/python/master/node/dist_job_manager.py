@@ -413,6 +413,7 @@ class DistributedJobManager(JobManager):
                 host_name=event.node.host_name,
                 host_ip=event.node.host_ip,
                 restart_training=event.node.restart_training,
+                relaunch_count=event.node.relaunch_count,
             )
 
         # For the given node id, check whether it meets
@@ -445,14 +446,13 @@ class DistributedJobManager(JobManager):
             if should_relaunch and self._wait_pending_relaunch:
                 self._pending_relaunch_count += 1
 
-        logger.info(
-            "%s status change: %s to %s, by evt_type %s reason %s",
-            cur_node.name,
-            old_status,
-            new_status,
-            event.event_type,
-            cur_node.exit_reason,
+        msg = (
+            f"{cur_node.name} status change: {old_status} to {new_status} "
+            f"by the event {event.event_type}. "
         )
+        if new_status in [NodeStatus.FAILED, NodeStatus.DELETED]:
+            msg += f"Exit reason is {cur_node.exit_reason}"
+        logger.info(msg)
 
         if should_relaunch:
             self._relaunch_node(cur_node)

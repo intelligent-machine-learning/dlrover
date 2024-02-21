@@ -48,7 +48,7 @@ class ElasticPsClient(object):
         self._task_type = task_type
         self._task_id = task_id
         self._master_client = MasterClient.singleton_instance()
-        self._monitor = ResourceMonitor()
+        self._monitor = ResourceMonitor.singleton_instance()
         self._monitor.start()
 
     def get_global_cluster_version(self):

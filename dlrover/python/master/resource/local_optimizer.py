@@ -70,7 +70,9 @@ class PSLocalOptimizer(ResourceOptimizer):
 
     def __init__(self, job_uuid, resource_limits: ResourceLimits):
         self._job_uuid = job_uuid
-        self._stats_collector = LocalStatsReporter(JobMeta(job_uuid))
+        self._stats_collector = LocalStatsReporter.singleton_instance(
+            JobMeta(job_uuid)
+        )
         self._opt_params = OptimizerParams()
         self._resource_limits = resource_limits
 

@@ -145,6 +145,9 @@ def _create_shared_memory(name, create, size=0):
             return SharedMemory(name=name)
         except FileNotFoundError:
             return None
+    if create and size == 0:
+        logger.warning("Cannot create the shared memory with size = 0.")
+        return None
     try:
         shm = SharedMemory(
             name=name,
@@ -154,7 +157,10 @@ def _create_shared_memory(name, create, size=0):
     except FileExistsError:
         shm = SharedMemory(name=name)
         if shm.size != size:
-            logger.info("Re-create a new memory buffer.")
+            logger.info(
+                f"The old size is {shm.size} and "
+                f"create a new memory buffer with size {size}."
+            )
             shm.unlink()
             shm = SharedMemory(
                 name=name,
@@ -238,14 +244,10 @@ class SharedMemoryHandler(object):
             self.init_shared_memory()
         if self.shared_memory:
             self.shared_memory.unlink()
-            logger.info(f"Unlink the shared memory {self._shm_name}")
         if self.metadata:
             self.metadata.unlink()
 
     def reset(self):
-        self.close()
-        if self.shared_memory:
-            self.shared_memory.unlink()
         self.metadata.set({})
         self.shared_memory = None
 
@@ -371,6 +373,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         self._is_agent_rank_0 = self._node_rank == 0
         self._shm_handlers: List[SharedMemoryHandler] = []
         self._shm_locks: List[SharedLock] = []
+        self._stop_commit = False
 
         module = importlib.import_module(storage_meta.module_path)
         storage_class_def = getattr(module, storage_meta.class_name)
@@ -406,19 +409,55 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         from the shared memory into the storage. Firstly, it waits that
         the training process notify the saver class to create a saver.
         """
-        sq = SharedQueue(name="factory", create=True)
 
-        def _save():
-            class_meta: ClassMeta = sq.get()
+        def _saver(class_meta: ClassMeta):
+
+            # if the thread is not alive, the saver may be created
+            if cls._saver_instance is not None:
+                cls._saver_instance.close()
+                cls._saver_instance = None
+
             module = importlib.import_module(class_meta.module_path)
             class_def = getattr(module, class_meta.class_name)
-            if cls._saver_instance is None:
-                saver: AsyncCheckpointSaver = class_def(**class_meta.kwargs)
-                cls._saver_instance = saver
+
+            saver: AsyncCheckpointSaver = class_def(**class_meta.kwargs)
+            cls._saver_instance = saver
             cls._saver_instance._sync_shm_to_storage()
 
+        sq = SharedQueue(name="factory", create=True)
+
+        def _factory():
+            logger.info("Start the checkpoint saver factory.")
+
+            saver_thread = None
+            while True:
+                class_meta: ClassMeta = sq.get()
+
+                # use a lock to avoid concurrent creation of the saver
+                with (threading.Lock()):
+
+                    # if the saver thread is alive, skip creating the saver
+                    if (
+                        cls._saver_instance
+                        and saver_thread
+                        and saver_thread.is_alive()
+                    ):
+                        logger.info(
+                            "The saver is already created, "
+                            "skip creating the saver."
+                        )
+                        continue
+
+                    saver_thread = threading.Thread(
+                        target=_saver,
+                        args=(class_meta,),
+                        name="checkpoint-saver",
+                        daemon=True,
+                    )
+                    saver_thread.start()
+
         threading.Thread(
-            target=_save, name="checkpoint-saver", daemon=True
+            target=_factory, name="checkpoint-saver-factory", daemon=True
         ).start()
 
     @classmethod
@@ -472,16 +511,11 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         logger.info("Async flash checkpoint saver starts!")
         while True:
             event: CheckpointEvent = self._event_queue.get()
-            if (
-                event.type == CheckpointEventType.UPDATE_SHARD
-                and event.global_shard_num != self.global_shard_num
-            ):
+            if event.type == CheckpointEventType.UPDATE_SHARD:
                 logger.info(
-                    "Reset the shard memory because the number of "
-                    f"global shards changes to {event.global_shard_num}."
+                    "Reset the shared memory after the training starts."
                 )
                 self.global_shard_num = event.global_shard_num
-                self._reset_shared_memory()
             elif event.type == CheckpointEventType.SAVE:
                 logger.info(
                     f"ShardingSaver save checkpoint to storage, event {event}"
@@ -490,7 +524,10 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
             elif event.type == CheckpointEventType.EXIT:
                 break
 
-    def _reset_shared_memory(self):
+    def reset_shared_memory(self):
+        self._stop_commit = True
+        for lock in self._shm_locks:
+            lock.release()
         for shm_handler in self._shm_handlers:
             shm_handler.reset()
 
@@ -631,13 +668,12 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
             )
 
     @classmethod
-    def release_shm_lock(cls):
-        """Release all shared lock on the node."""
+    def reset(cls):
+        """Reset the shared memory of all shards."""
         if cls._saver_instance is None:
             return
-        for lock in cls._saver_instance._shm_locks:
-            lock.release()
-        logger.info("Relase all the shared locks of shared memory.")
+        cls._saver_instance.reset_shared_memory()
+        logger.info("Reset all shared memory of shards.")
 
     @abstractmethod
     def save_step_checkpoint(self, step: int):
@@ -768,6 +804,7 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
 
         # commit checkpoint
         if self._is_agent_rank_0:
+            self._stop_commit = False
             self.commit_checkpoint(step, step_done_dir)
 
         self._writing_storage = False
@@ -787,15 +824,21 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
         start_time = time.time()
         suceess = False
         while True:
+            if self._stop_commit:
+                logger.info(
+                    "Stop committing the checkpoint because "
+                    "the training processes restarted."
+                )
+                break
             done_files = self.storage.listdir(step_done_dir)
             ready_num = len(done_files)
             if ready_num == self.global_shard_num:
-                self.update_tracker_file(step)
-                # clean stage dir
-                self.storage.safe_rmtree(step_done_dir)
                 logger.info(
                     f"All agents finish saving checkpoint for step {step}"
                 )
+                self.update_tracker_file(step)
+                # clean stage dir
+                self.storage.safe_rmtree(step_done_dir)
                 suceess = True
                 break
             logger.info(
@@ -822,7 +865,7 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
     ):
         state_dict = self._shm_handlers[local_shard_id].load_state_dict()
         for state_name, sd in state_dict.items():
-            if state_name in ckpt_config.paths:
+            if sd and state_name in ckpt_config.paths:
                 path = ckpt_config.paths[state_name]
                 self.storage.write_state_dict(sd, path, torch.save)
 
@@ -1043,10 +1086,8 @@ class MegatronCheckpointSaver(CommonDirCheckpointSaver):
             self.checkpoint_dir, CheckpointConstant.TRACER_FILE_NAME
         )
         self.storage.write(str(step), tracker_filename)
-        ds_tracker_filename = os.path.join(
-            self.checkpoint_dir, self.TRACER_FILE
-        )
-        self.storage.write(str(step), ds_tracker_filename)
+        tracker_filename = os.path.join(self.checkpoint_dir, self.TRACER_FILE)
+        self.storage.write(str(step), tracker_filename)
 
 
 class DeepSpeedCheckpointSaver(CommonDirCheckpointSaver):

@@ -41,6 +41,17 @@ from dlrover.python.tests.test_utils import (
 )
 
 
+def _mock_pod_labels():
+    labels = {
+        ElasticJobLabel.APP_NAME: "test",
+        ElasticJobLabel.REPLICA_TYPE_KEY: NodeType.WORKER,
+        ElasticJobLabel.REPLICA_INDEX_KEY: "0",
+        ElasticJobLabel.RANK_INDEX_KEY: "0",
+        ElasticJobLabel.RELAUNCH_COUNT: "1",
+    }
+    return labels
+
+
 class PodWatcherTest(unittest.TestCase):
     def setUp(self) -> None:
         mock_k8s_client()
@@ -66,12 +77,7 @@ class PodWatcherTest(unittest.TestCase):
         self.assertEqual(node.status, NodeStatus.RUNNING)
 
     def test_convert_pod_event_to_node_event(self):
-        labels = {
-            ElasticJobLabel.APP_NAME: "test",
-            ElasticJobLabel.REPLICA_TYPE_KEY: NodeType.WORKER,
-            ElasticJobLabel.REPLICA_INDEX_KEY: "0",
-            ElasticJobLabel.RANK_INDEX_KEY: "0",
-        }
+        labels = _mock_pod_labels()
         pod = create_pod(labels)
         event_type = "Modified"
         event = {"object": pod, "type": event_type}
@@ -83,12 +89,7 @@ class PodWatcherTest(unittest.TestCase):
         self.assertEqual(node_event.node.config_resource.memory, 10240)
 
     def test_get_pod_exit_reason(self):
-        labels = {
-            ElasticJobLabel.APP_NAME: "test",
-            ElasticJobLabel.REPLICA_TYPE_KEY: NodeType.WORKER,
-            ElasticJobLabel.REPLICA_INDEX_KEY: "0",
-            ElasticJobLabel.RANK_INDEX_KEY: "0",
-        }
+        labels = _mock_pod_labels()
         pod = create_pod(labels)
         state = pod.status.container_statuses[0].state
         state.terminated = client.V1ContainerStateTerminated(
@@ -105,12 +106,7 @@ class PodWatcherTest(unittest.TestCase):
         self.assertEqual(exit_reason, NodeExitReason.FATAL_ERROR)
 
     def test_verify_restarting_training(self):
-        labels = {
-            ElasticJobLabel.APP_NAME: "test",
-            ElasticJobLabel.REPLICA_TYPE_KEY: NodeType.WORKER,
-            ElasticJobLabel.REPLICA_INDEX_KEY: "0",
-            ElasticJobLabel.RANK_INDEX_KEY: "0",
-        }
+        labels = _mock_pod_labels()
         pod = create_pod(labels)
         reset = _verify_restarting_training(pod)
         self.assertFalse(reset)

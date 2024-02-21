@@ -24,7 +24,7 @@ import torch.distributed as dist
 from dlrover.python.common import env_utils
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.multi_process import SharedLock, SharedQueue
-from dlrover.python.common.singleton import singleton
+from dlrover.python.common.singleton import Singleton
 from dlrover.python.common.storage import CheckpointStorage
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     DLROVER_CKPT_CONFIG_KEY,
@@ -38,13 +38,12 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
 )
 
 
-def _rank0_log(rank, message):
-    if rank == 0:
+def _local_rank0_log(local_rank, message):
+    if local_rank == 0:
         logger.info(message)
 
 
-@singleton
-class ReadyTensor(object):
+class ReadyTensor(Singleton):
     def __init__(self, device) -> None:
         self.tensor = torch.tensor([0], dtype=torch.int32).to(device)
 
@@ -58,7 +57,7 @@ def check_all_rank_ready(group: dist.ProcessGroup, ready: bool):
     backend = dist.get_backend(group)
     local_rank = env_utils.get_local_rank()
     device = "cpu" if backend == "gloo" else f"cuda:{local_rank}"
-    rt = ReadyTensor(device)
+    rt = ReadyTensor.singleton_instance(device)
     value = 0 if ready else 1
     rt.tensor[0] = value
     dist.all_reduce(rt.tensor, group=group)
@@ -210,13 +209,16 @@ class CheckpointEngine(metaclass=ABCMeta):
                 timeout=timedelta(seconds=60),
             )
         self._saving_ranks = self.get_saving_ranks()
-        if backend == dist.get_backend() and self._saving_ranks is None:
+        if backend == dist.get_backend() and (
+            self._saving_ranks is None
+            or len(self._saving_ranks) == dist.get_world_size()
+        ):
             self._saver_group = None
             message = (
                 "Use the default process group to sync "
                 "when saving checkpoint."
             )
-            _rank0_log(self._rank, message)
+            _local_rank0_log(self._local_rank, message)
         else:
             self._saver_group = dist.new_group(
                 ranks=self._saving_ranks,
@@ -233,7 +235,7 @@ class CheckpointEngine(metaclass=ABCMeta):
                     f"Create a {backend} commumication group to save "
                     "checkpoint. Saving ranks are all ranks."
                 )
-            _rank0_log(self._rank, message)
+            _local_rank0_log(self._local_rank, message)
 
     def __del__(self):
         self.close()
@@ -246,12 +248,7 @@ class CheckpointEngine(metaclass=ABCMeta):
         """Notify the agent in the main process to create a checkpoint saver"""
         if self._local_rank != 0:
             return
-        if self._restart_count > 0:
-            # Only local rank 0 notify to initialize the saver in
-            # the main process at the first start.
-            # Avoid the lock is locked by a failed process.
-            self._shm_lock.release()
-            return
+        # the agent side will release the lock if training process restarts.
         queue = SharedQueue(name="factory")
 
         local_shard_num = self.get_local_shard_num()
@@ -269,7 +266,6 @@ class CheckpointEngine(metaclass=ABCMeta):
         )
 
         queue.put(class_meta)
-        queue.unlink()
 
     def _update_saver_config(self):
         """Update the sharding configuration to the saver."""

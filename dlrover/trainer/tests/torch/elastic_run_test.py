@@ -15,6 +15,7 @@ import unittest
 
 from dlrover.trainer.torch.elastic_run import (
     _check_dlrover_master_available,
+    _check_to_use_dlrover_run,
     _elastic_config_from_args,
     _launch_dlrover_local_master,
     parse_args,
@@ -23,10 +24,20 @@ from dlrover.trainer.torch.elastic_run import (
 
 class ElasticRunTest(unittest.TestCase):
     def test_launch_local_master(self):
+        available = _check_dlrover_master_available("")
+        self.assertFalse(available)
         handler, addr = _launch_dlrover_local_master("", "test", 1)
         available = _check_dlrover_master_available(addr)
         self.assertTrue(available)
         handler.close()
+
+    def test_check_to_use_dlrover_run(self):
+        use_dlrover_run = _check_to_use_dlrover_run("", 1)
+        self.assertFalse(use_dlrover_run)
+        with self.assertRaises(ValueError):
+            _check_to_use_dlrover_run("", 2)
+        with self.assertRaises(ValueError):
+            _check_to_use_dlrover_run("127.0.0.1:12345", 2)
 
     def test_elastic_config_from_args(self):
         args = [

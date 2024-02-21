@@ -23,15 +23,23 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 from dlrover.python.common.constants import CheckpointConstant
+from dlrover.python.common.multi_process import clear_sock_dir
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     MegatronCheckpointSaver,
 )
 from dlrover.trainer.torch.flash_checkpoint import megatron
 from dlrover.trainer.torch.flash_checkpoint.checkpointer import StorageType
 from dlrover.trainer.torch.flash_checkpoint.megatron import (
-    MegatronCheckpointManager,
+    MegatronCheckpointer,
     load_checkpoint,
     save_checkpoint,
+)
+from dlrover.trainer.torch.flash_checkpoint.megatron_dist_ckpt import (
+    MegatronDistCheckpointer,
+    get_dist_optimizer_checkpoint_name,
+)
+from dlrover.trainer.torch.flash_checkpoint.megatron_engine import (
+    MegatronDistCheckpointEngine,
 )
 
 
@@ -59,6 +67,7 @@ class MegatrionCheckpointTest(unittest.TestCase):
     def tearDown(self) -> None:
         if MegatronCheckpointSaver._saver_instance:
             MegatronCheckpointSaver._saver_instance.close()
+        clear_sock_dir()
 
     def test_save_load(self):
         os.environ["LOCAL_RANK"] = "0"
@@ -75,7 +84,7 @@ class MegatrionCheckpointTest(unittest.TestCase):
             def get_args():
                 parser = argparse.ArgumentParser(description="Megatron Test")
                 args, _ = parser.parse_known_args()
-                args.save = tempfile
+                args.save = tmpdirname
                 return args
 
             def mock_save_checkpoint(
@@ -105,7 +114,7 @@ class MegatrionCheckpointTest(unittest.TestCase):
             megatron.megatron_load = mock_load_checkpoint
             megatron.get_args = get_args
 
-            ckpt_manager = MegatronCheckpointManager(tmpdirname)
+            ckpt_manager = MegatronCheckpointer.singleton_instance(tmpdirname)
             save_checkpoint(
                 10, model, optimizer, None, storage_type=StorageType.MEMORY
             )
@@ -125,15 +134,19 @@ class MegatrionCheckpointTest(unittest.TestCase):
             )
 
             # Wait asynchronously saving.
-            while True:
-                if "20" in os.listdir(tmpdirname):
-                    break
-                time.sleep(0.1)
-
             tracer_file = os.path.join(
                 tmpdirname, MegatronCheckpointSaver.TRACER_FILE
             )
-            self.assertTrue(os.path.exists(tracer_file))
+            success = False
+            start_time = time.time()
+            while True:
+                if os.path.exists(tracer_file):
+                    success = True
+                    break
+                time.sleep(0.3)
+                if time.time() - start_time > 30:
+                    break
+            self.assertTrue(success)
             with open(tracer_file, "r") as f:
                 restored_step = int(f.read())
             self.assertEqual(restored_step, 20)
@@ -152,7 +165,7 @@ class MegatrionCheckpointTest(unittest.TestCase):
                 tmpdirname, "iter_{:07d}".format(iteration)
             )
             os.makedirs(ckpt_dir)
-            ckpt_manager = MegatronCheckpointManager(tmpdirname)
+            ckpt_manager = MegatronCheckpointer(tmpdirname)
             ckpt_manager.checkpoint_dir = tmpdirname
             dlrover_tracer_file = os.path.join(
                 tmpdirname, CheckpointConstant.TRACER_FILE_NAME
@@ -171,3 +184,21 @@ class MegatrionCheckpointTest(unittest.TestCase):
             os.remove(dlrover_tracer_file)
             ckpt_manager.update_tracer_file(step)
             self.assertFalse(os.path.exists(megatron_tracer_file))
+
+    def test_dist_checkpoint(self):
+        name = get_dist_optimizer_checkpoint_name("/tmp", 100)
+        self.assertEqual(name, "/tmp/iter_0000100/rank_00000/distrib_optim.pt")
+
+        checkpointer = MegatronDistCheckpointer(
+            "/tmp", use_distributed_optimizer=True
+        )
+        self.assertTrue(
+            isinstance(checkpointer.engine, MegatronDistCheckpointEngine)
+        )
+
+        saver_class = checkpointer.engine.get_saver_class()
+        self.assertEqual(saver_class, MegatronCheckpointSaver)
+        global_num = checkpointer.engine.get_global_shard_num()
+        self.assertEqual(global_num, 1)
+        local_num = checkpointer.engine.get_local_shard_num()
+        self.assertEqual(local_num, 1)

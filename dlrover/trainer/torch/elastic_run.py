@@ -24,6 +24,21 @@ multi-node multi-worker.
 Usage
 --------
 
+Run in the worker Pod with GPU of ElasticJob.
+++++++++++++++++++++++++++++++
+
+::
+
+    dlrover-run
+        --auto-config
+        YOUR_TRAINING_SCRIPT.py (--arg1 ... train script args...)
+
+auto-config will set the nnodes as the number of nodes in a job,
+nproc_per_node as the number of available GPUs. If the number of
+nodes >= 4, it will set the network-check as True. If network-check is True,
+dlrover-run will launch simple tasks on each node to check wether
+the node is slow or fault.
+
 Single-node multi-worker
 ++++++++++++++++++++++++++++++
 
@@ -39,7 +54,7 @@ multi-node multi-worker
 
 ::
 
-    torchrun
+    dlrover-run
         --nnodes=$NUM_NODES
         --nproc-per-node=$NUM_TRAINERS
         --max-restarts=3
@@ -51,7 +66,7 @@ changes or failures)
 
 ::
 
-    torchrun
+    dlrover-run
         --nnodes=1:4
         --nproc-per-node=$NUM_TRAINERS
         --max-restarts=3
@@ -102,6 +117,7 @@ from dlrover.python.elastic_agent.torch.training import (
 
 def parse_args(args):
     parser = get_args_parser()
+    parser.allow_abbrev = False
     parser.add_argument(
         "--network-check",
         "--network_check",
@@ -118,8 +134,15 @@ def parse_args(args):
         "nodes should be a multiple of node_unit.",
     )
     parser.add_argument(
+        "--auto_config",
+        "--auto-config",
+        action=check_env,
+        help="Whether to automatically configure the nnodes "
+        "and nproc_per_nodes.",
+    )
+    parser.add_argument(
         "--auto_tunning",
-        "--auto-tunning",
+        "--auto_tunning",
         action=check_env,
         help="Whether to auto-tune the parallel configuraion.",
     )
@@ -130,6 +153,14 @@ def parse_args(args):
         help="Bool, The node will exit if the node is straggler and "
         "the argument is True. The argument only works when network-check "
         "is True.",
+    )
+    parser.add_argument(
+        "--save-at-breakpoint",
+        "--save_at_breakpoint",
+        action=check_env,
+        help="Bool. If True, the agent in the main process will save the "
+        "checkpoint in the memory to the storage if the training "
+        "process fails.",
     )
     return parser.parse_args(args)
 
@@ -212,6 +243,8 @@ def _launch_dlrover_local_master(master_addr, job_name, node_num):
 
 def _check_dlrover_master_available(addr, timeout=120):
     """Verify that the master grpc servicer is available."""
+    if not addr:
+        return False
     host = addr.split(":")[0]
     port = int(addr.split(":")[1])
     start_time = time.time()
@@ -234,11 +267,32 @@ def _elastic_config_from_args(
     elastic_config = ElasticLaunchConfig(**config.__dict__)
     elastic_config.network_check = getattr(args, "network_check", False)
     elastic_config.auto_tunning = getattr(args, "auto_tunning", False)
+    elastic_config.auto_config = getattr(args, "auto_config", False)
     elastic_config.exclude_straggler = getattr(
         args, "exclude_straggler", False
     )
     elastic_config.set_node_unit(getattr(args, "node_unit", 1))
+    elastic_config.save_at_breakpoint = getattr(
+        args, "save_at_breakpoint", False
+    )
+    elastic_config.auto_configure_params()
     return elastic_config, cmd, cmd_args
+
+
+def _check_to_use_dlrover_run(master_addr, max_nodes):
+    if _check_dlrover_master_available(master_addr):
+        return True
+    elif max_nodes == 1:
+        logger.info("Use native torchrun to start job on the single node.")
+        return False
+    elif not master_addr:
+        raise ValueError(
+            "DLRover job master address cannot be empty. "
+            f"Please set the env {NodeEnv.DLROVER_MASTER_ADDR} as "
+            "the address of node rank 0"
+        )
+    else:
+        raise ValueError(f"{master_addr} is not connected. ")
 
 
 def run(args):
@@ -250,19 +304,17 @@ def run(args):
     job_name = os.getenv(NodeEnv.JOB_NAME, f"standalone_{timestamp}")
     os.environ[NodeEnv.TORCHELASTIC_RUN_ID] = job_name
     dlrover_master_ready = grpc.addr_connected(master_addr)
+    _, max_nodes = parse_min_max_nnodes(args.nnodes)
     if not dlrover_master_ready and node_rank == 0:
         # Only start the dlrover master on the rank-0 node.
-        _, max_nodes = parse_min_max_nnodes(args.nnodes)
         master_handler, master_addr = _launch_dlrover_local_master(
             master_addr,
             job_name,
             max_nodes,
         )
+        logger.info(f"Set the dlrover master addr as {master_addr}")
         os.environ[NodeEnv.DLROVER_MASTER_ADDR] = master_addr
-    if _check_dlrover_master_available(master_addr):
-        use_dlrover_launch = True
-    else:
-        use_dlrover_launch = False
+    use_dlrover_launch = _check_to_use_dlrover_run(master_addr, max_nodes)
 
     if args.standalone and not use_dlrover_launch:
         args.rdzv_backend = "c10d"
