@@ -13,6 +13,8 @@
 
 import copy
 import json
+import os
+import telnetlib
 import threading
 import time
 from typing import Dict, List, Optional
@@ -434,11 +436,19 @@ class PodScaler(Scaler):
         env.append(
             V1EnvVar(name=NodeEnv.WORKER_RANK, value=str(node.rank_index))
         )
-        master_service = "elasticjob-{}-dlrover-master:{}".format(
+        master_addr = "elasticjob-{}-dlrover-master:{}".format(
             self._job_name, _dlrover_context.master_port
         )
+        if not self._check_master_service_avaliable(master_addr):
+            logger.info(
+                "The service of master is not available and use the master IP."
+            )
+            master_ip = os.getenv("POD_IP", "")
+            if not master_ip:
+                raise ValueError("The master Pod must have the POD_IP env.")
+            master_addr = f"{master_ip}:{_dlrover_context.master_port}"
         env.append(
-            V1EnvVar(name=NodeEnv.DLROVER_MASTER_ADDR, value=master_service)
+            V1EnvVar(name=NodeEnv.DLROVER_MASTER_ADDR, value=master_addr)
         )
 
         env.append(
@@ -489,6 +499,16 @@ class PodScaler(Scaler):
             )
         self._patch_tf_config_into_env(pod, node, pod_stats, ps_addrs)
         return pod
+
+    def _check_master_service_avaliable(self, addr):
+        """Verify that the master grpc servicer is available."""
+        host = addr.split(":")[0]
+        port = int(addr.split(":")[1])
+        try:
+            telnetlib.Telnet(host=host, port=port, timeout=3)
+            return True
+        except Exception:
+            return False
 
     def _patch_tf_config_into_env(self, pod, node: Node, pod_stats, ps_addrs):
         if self._distribution_strategy == DistributionStrategy.PS and ps_addrs:

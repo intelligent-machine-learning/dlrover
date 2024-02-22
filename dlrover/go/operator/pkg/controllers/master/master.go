@@ -38,6 +38,7 @@ const (
 	defaultImagePullPolicy     = "Always"
 	envMasterAddrKey           = "DLROVER_MASTER_ADDR"
 	envBrainServiceAddrKey     = "DLROVER_BRAIN_SERVICE_ADDR"
+	envPodIP                   = "POD_IP"
 
 	// ReplicaTypeTrainerMaster is the type for DLRover Master replica.
 	ReplicaTypeTrainerMaster commonv1.ReplicaType = "dlrover-master"
@@ -266,6 +267,16 @@ func NewMasterTemplateToJob(job *elasticv1alpha1.ElasticJob, masterImage string)
 			)
 		}
 	}
+	podIPEnv := corev1.EnvVar{
+		Name: envPodIP,
+		ValueFrom: &corev1.EnvVarSource{
+			FieldRef: &corev1.ObjectFieldSelector{
+				APIVersion: "v1",
+				FieldPath:  "status.podIP",
+			},
+		},
+	}
+	podTemplate.Spec.Containers[0].Env = append(podTemplate.Spec.Containers[0].Env, podIPEnv)
 	job.Spec.ReplicaSpecs[ReplicaTypeTrainerMaster] = &elasticv1alpha1.ReplicaSpec{
 		ReplicaSpec: commonv1.ReplicaSpec{
 			Template: *podTemplate,
