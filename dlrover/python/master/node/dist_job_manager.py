@@ -17,7 +17,7 @@ import threading
 import time
 import traceback
 from datetime import datetime
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from dlrover.python.common.constants import (
     DistributionStrategy,
@@ -71,7 +71,7 @@ from dlrover.python.master.resource.job import (
 )
 from dlrover.python.master.scaler.base_scaler import ScalePlan, Scaler
 from dlrover.python.master.scaler.factory import new_job_scaler
-from dlrover.python.master.watcher.base_watcher import NodeEvent
+from dlrover.python.master.watcher.base_watcher import NodeEvent, NodeWatcher
 from dlrover.python.master.watcher.factory import (
     new_node_watcher,
     new_scale_plan_watcher,
@@ -99,7 +99,7 @@ class DistributedJobManager(JobManager):
         wait_pending_relaunch=False,
         speed_monitor=None,
         job=None,
-        node_watcher=None,
+        node_watcher: Optional[NodeWatcher] = None,
         job_scaler=None,
         error_monitor=None,
     ):
@@ -184,7 +184,10 @@ class DistributedJobManager(JobManager):
         self._init_nodes()
         self._init_job_auto_scaler()
         plan = self._create_initial_scale_plan()
-        self._scaler.scale(plan)
+        if not self._has_running_workers():
+            # The the job relaunches the evicted master, there are alive
+            # worker nodes and the master does not need to launch workers.
+            self._scaler.scale(plan)
         worker_num = 0
         if NodeType.WORKER in plan.node_group_resources:
             worker_num = plan.node_group_resources[NodeType.WORKER].count
@@ -200,6 +203,13 @@ class DistributedJobManager(JobManager):
                 name="scaleplan_monitor",
                 daemon=True,
             ).start()
+
+    def _has_running_workers(self):
+        nodes = self._node_watcher.list()
+        for node in nodes:
+            if node.status in [NodeStatus.PENDING, NodeStatus.RUNNING]:
+                return True
+        return False
 
     def early_stop(self):
         nodes = self._ps_manager.get_pending_timeout_oom_recovered_node()
@@ -564,6 +574,15 @@ class DistributedJobManager(JobManager):
         if len(scale_plan.remove_nodes) > 0:
             logger.info(f"Remove exited nodes {scale_plan.remove_nodes}")
             self._scaler.scale(scale_plan)
+
+    def clear_all_nodes(self):
+        scale_plan = ScalePlan()
+        for _, nodes in self._job_nodes.items():
+            for _, node in nodes.items():
+                scale_plan.remove_nodes.append(node)
+                node.is_released = True
+        logger.info("Remove all nodes.")
+        self._scaler.scale(scale_plan)
 
     def all_workers_exited(self):
         return (
