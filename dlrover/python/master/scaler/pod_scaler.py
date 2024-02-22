@@ -94,6 +94,7 @@ class PodScaler(Scaler):
         self._pod_stats: Dict[str, int] = {}
         self._job_uid = ""
         self.api_client = client.ApiClient()
+        self._master_addr = ""
 
     def start(self):
         self._job = self._retry_to_get_job()
@@ -101,9 +102,25 @@ class PodScaler(Scaler):
             raise ValueError(f"Cannot get the training job {self._job_name}.")
         self._init_pod_config_by_job()
         self._master_pod = self._retry_to_get_master_pod()
+        self._master_addr = self._get_master_addr()
         threading.Thread(
             target=self._periodic_create_pod, name="pod-creater", daemon=True
         ).start()
+
+    def _get_master_addr(self):
+        svc_name = f"elasticjob-{self._job_name}-dlrover-master"
+        port = NODE_SERVICE_PORTS[NodeType.DLROVER_MASTER]
+        master_addr = f"{svc_name}:{port}"
+        if not self._check_master_service_avaliable(svc_name):
+            logger.info(
+                f"The service {master_addr} is not available and "
+                "use the IP of master Pod."
+            )
+            master_ip = os.getenv("POD_IP", "")
+            if not master_ip:
+                raise ValueError("The master Pod must have the POD_IP env.")
+            master_addr = f"{master_ip}:{_dlrover_context.master_port}"
+        return master_addr
 
     def _init_pod_config_by_job(self):
         self._distribution_strategy = self._job["spec"].get(
@@ -429,19 +446,8 @@ class PodScaler(Scaler):
         env.append(
             V1EnvVar(name=NodeEnv.WORKER_RANK, value=str(node.rank_index))
         )
-        master_addr = "elasticjob-{}-dlrover-master:{}".format(
-            self._job_name, _dlrover_context.master_port
-        )
-        if not self._check_master_service_avaliable(master_addr):
-            logger.info(
-                "The service of master is not available and use the master IP."
-            )
-            master_ip = os.getenv("POD_IP", "")
-            if not master_ip:
-                raise ValueError("The master Pod must have the POD_IP env.")
-            master_addr = f"{master_ip}:{_dlrover_context.master_port}"
         env.append(
-            V1EnvVar(name=NodeEnv.DLROVER_MASTER_ADDR, value=master_addr)
+            V1EnvVar(name=NodeEnv.DLROVER_MASTER_ADDR, value=self._master_addr)
         )
 
         env.append(
@@ -496,10 +502,9 @@ class PodScaler(Scaler):
         self._patch_tf_config_into_env(pod, node, pod_stats, ps_addrs)
         return pod
 
-    def _check_master_service_avaliable(self, addr):
+    def _check_master_service_avaliable(self, host):
         """Verify that the master grpc servicer is available."""
-        host = addr.split(":")[0]
-        port = int(addr.split(":")[1])
+        port = _dlrover_context.master_port
         try:
             telnetlib.Telnet(host=host, port=port, timeout=3)
             return True

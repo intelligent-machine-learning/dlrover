@@ -38,7 +38,7 @@ def run(args):
     job_args = new_job_args(args.platform, args.job_name, args.namespace)
     job_args.initilize()
     logger.info("Job args : %s", job_args.to_json(indent=4))
-    _dlrover_context.config_master_port(port=args.port)
+    _dlrover_context.config_master_port()
     if job_args.platform == PlatformType.LOCAL:
         from dlrover.python.master.local_master import LocalJobMaster
 

@@ -178,6 +178,7 @@ class DistributedJobManager(JobManager):
         self._init_training_node_manager()
 
     def start(self):
+        self._scaler.start()
         self._job_optimizer.update_job_uuid(self._job_args.job_uuid)
         self._job_optimizer.init_job_resource(self._job_resource)
         self._adjust_worker_for_estimator()
@@ -794,7 +795,6 @@ def create_job_manager(args: JobArgs, speed_monitor) -> DistributedJobManager:
         args.platform, args.job_name, args.namespace
     )
     job_scaler = new_job_scaler(args.platform, args.job_name, args.namespace)
-    job_scaler.start()
 
     return DistributedJobManager(
         job_args=args,

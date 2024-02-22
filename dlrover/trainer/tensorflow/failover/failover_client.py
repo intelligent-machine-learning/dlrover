@@ -25,7 +25,7 @@ class FailoverClient:
     """
 
     def __init__(self, role=None):
-        logger.info("initiating FailoverClient")
+        logger.info("initializing FailoverClient")
         self.role = role
         task_type, task_id = role.split(":")
         task_id = int(task_id)
@@ -70,7 +70,7 @@ class FailoverClient:
         return [n.addr for n in ps_nodes], ps_failure
 
     def init_version(self, version=0):
-        logger.info("initiating local and global version")
+        logger.info("initializing local and global version")
         local_version = self.get_local_version()
         global_version = self.get_global_version()
         if local_version == 0 and self.task_type == TFConstants.PS():

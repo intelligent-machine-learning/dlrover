@@ -70,7 +70,7 @@ def _create_master_service_on_k8s(namespace, job_name, job_uuid, target_port):
     )
 
     svc_factory = k8sServiceFactory(namespace, job_name)
-    svc_name = "elasticjob-{job_name}-dlrover-master"
+    svc_name = f"elasticjob-{job_name}-dlrover-master"
     port = NODE_SERVICE_PORTS[NodeType.DLROVER_MASTER]
     selector = {
         ElasticJobLabel.JOB_KEY: job_name,
