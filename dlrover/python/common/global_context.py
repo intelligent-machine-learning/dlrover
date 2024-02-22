@@ -167,7 +167,7 @@ class Context(Singleton):
         if self.master_port is None:
             self.master_port = grpc.find_free_port_in_range(20000, 30000)
 
-    def get_param_value_from_brain(self, key_name, default_value, dtype=int):
+    def get_param_value_from_brain(self, key_name, default_value, dtype=float):
         """TODO: Get the configured value from Brain service."""
         value = default_value
         return dtype(value)

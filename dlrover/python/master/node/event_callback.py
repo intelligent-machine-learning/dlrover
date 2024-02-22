@@ -205,8 +205,8 @@ class TFPSNodeHandlingCallback(NodeEventCallback):
                 reason=job_exit_reason,
                 msg=(
                     "Critical node (type={}, id={}) is failed "
-                    "and {} relaunches have been exhausted.".format(
-                        node.type, node.id, node.max_relaunch_count
+                    "and {}.".format(
+                        node.type, node.id, node.unrecoverable_failure_msg
                     )
                 ),
             )
@@ -291,8 +291,8 @@ class AllReduceNodeHandlingCallback(NodeEventCallback):
                 reason=job_exit_reason,
                 msg=(
                     "Critical node (type={}, id={}) is failed "
-                    "and {} relaunches have been exhausted.".format(
-                        node.type, node.id, node.max_relaunch_count
+                    "and {}.".format(
+                        node.type, node.id, node.unrecoverable_failure_msg
                     )
                 ),
             )

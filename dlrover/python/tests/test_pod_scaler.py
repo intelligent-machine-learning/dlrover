@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import unittest
 
 from dlrover.python.common.constants import (
@@ -18,10 +19,13 @@ from dlrover.python.common.constants import (
     ElasticJobLabel,
     NodeType,
 )
+from dlrover.python.common.global_context import Context
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
 from dlrover.python.master.scaler.base_scaler import ScalePlan
 from dlrover.python.master.scaler.pod_scaler import PodScaler, new_tf_config
 from dlrover.python.tests.test_utils import mock_k8s_client
+
+_dlrover_ctx = Context.singleton_instance()
 
 
 def new_service_fn(node_type, node_id):
@@ -58,6 +62,13 @@ class PodScalerTest(unittest.TestCase):
 
     def test_create_pod(self):
         scaler = PodScaler("elasticjob-sample", "default")
+        _dlrover_ctx.config_master_port()
+        os.environ["POD_IP"] = "127.0.0.1"
+        passed = scaler._check_master_service_avaliable(
+            "elasticjob-test-master:2222"
+        )
+        self.assertFalse(passed)
+
         scaler.start()
         scaler._init_pod_config_by_job()
         scaler._distribution_strategy = DistributionStrategy.PS
