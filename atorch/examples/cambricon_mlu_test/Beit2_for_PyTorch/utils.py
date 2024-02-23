@@ -45,7 +45,6 @@ from torch.distributed.fsdp.wrap import (
 from torch import inf
 
 from tensorboardX import SummaryWriter
-import atorch
 
 
 def bool_flag(s):
@@ -398,6 +397,7 @@ def _get_world_size_env():
 
 
 def atorch_init_distributed_mode(args):
+    import atorch
     args.dist_backend = 'nccl'
     status = atorch.init_distributed(backend=args.dist_backend)
     args.distributed = True

@@ -265,7 +265,7 @@ def get_visual_tokenizer(args):
 
 
 def main(args):
-    if not atorch_init_dist:
+    if not args.atorch_init_dist:
         utils.init_distributed_mode(args)
     else:
         utils.atorch_init_distributed_mode(args)

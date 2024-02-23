@@ -26,7 +26,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import utils
 from contextlib import contextmanager, nullcontext
-from atorch.utils import AProfiler
+
 
 def train_one_epoch(model: torch.nn.Module, vqkd: torch.nn.Module,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer,
@@ -41,6 +41,7 @@ def train_one_epoch(model: torch.nn.Module, vqkd: torch.nn.Module,
     print_freq = args.print_freq if args is not None else 10
     
     if args.enable_aprofiler:
+        from atorch.utils import AProfiler
         aprof = AProfiler(model)
         print(f"******************* AProfiler is enabled *******************")
 
