@@ -191,7 +191,7 @@ class DistributedJobManager(JobManager):
             self._scaler.scale(plan)
         else:
             logger.info(
-                "The relaunched master skip launching workers at begining."
+                "The recovered master skips launching workers at begining."
             )
         worker_num = 0
         if NodeType.WORKER in plan.node_group_resources:
