@@ -96,6 +96,7 @@ class DistributedJobMasterTest(unittest.TestCase):
             node.is_recovered_oom = True
             node.create_time = datetime.now() + timedelta(days=-1)
         exit_code = self.master.run()
+        self.master.job_manager.clear_all_nodes()
         self.assertEqual(exit_code, 1)
 
     def test_update_context(self):
