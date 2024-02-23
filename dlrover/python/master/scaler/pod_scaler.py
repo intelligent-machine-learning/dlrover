@@ -112,6 +112,11 @@ class PodScaler(Scaler):
         port = NODE_SERVICE_PORTS[NodeType.DLROVER_MASTER]
         master_addr = f"{svc_name}:{port}"
         if not self._check_master_service_avaliable(svc_name):
+            # On some clusters, the k8s service may not be avaliable because of
+            # incorrect DNS configurations. In such cases, it is necessary to
+            # revert to use the Master's IP address for worker to connect with
+            # the master. Note, that failover of master is not supported if
+            # the service is not avalilable.
             logger.info(
                 f"The service {master_addr} is not available and "
                 "use the IP of master Pod."
