@@ -142,7 +142,7 @@ class JobResource(JsonSerializable):
                 )
             job_nodes[node_type] = group_nodes
         logger.info(
-            "after initiating job node meta job_nodes are %s" % job_nodes
+            "after initializing job node meta job_nodes are %s" % job_nodes
         )
         return job_nodes
 

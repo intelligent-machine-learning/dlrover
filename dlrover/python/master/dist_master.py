@@ -16,12 +16,15 @@ from typing import Dict
 
 from dlrover.python.common.constants import (
     DistributionStrategy,
+    ElasticJobLabel,
     JobExitReason,
     NodeType,
     OptimizeMode,
+    PlatformType,
     RendezvousName,
     ReporterType,
 )
+from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
 from dlrover.python.master.elastic_training.rdzv_manager import (
@@ -43,11 +46,44 @@ from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.master.stats.job_collector import JobMetricCollector
 from dlrover.python.scheduler.job import JobArgs
 
+_dlrover_context = Context.singleton_instance()
+
 
 def _create_elastic_ps_service_if_needed(params: JobArgs):
     if params.distribution_strategy == DistributionStrategy.PS:
         return ElasticPsService()
     return None
+
+
+def _create_master_service_on_k8s(namespace, job_name, job_uuid, target_port):
+    from dlrover.python.scheduler.kubernetes import (
+        NODE_SERVICE_PORTS,
+        k8sClient,
+        k8sServiceFactory,
+    )
+
+    owner_ref = k8sClient.create_owner_reference(
+        api_version="elastic.iml.github.io/v1alpha1",
+        kind="ElasticJob",
+        name=job_name,
+        uid=job_uuid,
+    )
+
+    svc_factory = k8sServiceFactory(namespace, job_name)
+    svc_name = f"elasticjob-{job_name}-dlrover-master"
+    port = NODE_SERVICE_PORTS[NodeType.DLROVER_MASTER]
+    selector = {
+        ElasticJobLabel.JOB_KEY: job_name,
+        ElasticJobLabel.REPLICA_TYPE_KEY: NodeType.DLROVER_MASTER,
+    }
+    succeed = svc_factory.create_service(
+        name=svc_name,
+        port=port,
+        target_port=target_port,
+        selector=selector,
+        owner_ref=owner_ref,
+    )
+    return succeed
 
 
 class DistributedJobMaster(JobMaster):
@@ -71,6 +107,19 @@ class DistributedJobMaster(JobMaster):
     """
 
     def __init__(self, port, args: JobArgs):
+        if args.platform in [
+            PlatformType.KUBERNETES,
+            PlatformType.PY_KUBERNETES,
+        ]:
+            succeed = _create_master_service_on_k8s(
+                args.namespace, args.job_name, args.job_uuid, port
+            )
+            if not succeed:
+                logger.warning(
+                    "Fail to create the master service. "
+                    "The master cannot recover from the failure."
+                )
+
         self.speed_monitor = SpeedMonitor()
         self.job_manager = (
             create_job_manager(args, self.speed_monitor)

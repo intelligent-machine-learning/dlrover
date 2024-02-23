@@ -22,7 +22,10 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.elastic_agent.master_client import build_master_client
-from dlrover.python.master.dist_master import DistributedJobMaster
+from dlrover.python.master.dist_master import (
+    DistributedJobMaster,
+    _create_master_service_on_k8s,
+)
 from dlrover.python.master.main import update_context
 from dlrover.python.master.shard.dataset_splitter import new_dataset_splitter
 from dlrover.python.tests.test_utils import (
@@ -93,6 +96,7 @@ class DistributedJobMasterTest(unittest.TestCase):
             node.is_recovered_oom = True
             node.create_time = datetime.now() + timedelta(days=-1)
         exit_code = self.master.run()
+        self.master.job_manager.clear_all_nodes()
         self.assertEqual(exit_code, 1)
 
     def test_update_context(self):
@@ -103,6 +107,12 @@ class DistributedJobMasterTest(unittest.TestCase):
         self.assertTrue(_dlrover_context.relaunch_always)
         self.assertTrue(_dlrover_context.auto_ps_enabled)
         self.assertTrue(_dlrover_context.auto_worker_enabled)
+
+    def test_create_master_service_on_k8s(self):
+        succeed = _create_master_service_on_k8s(
+            "dlrover", "test", "12345", 12345
+        )
+        self.assertTrue(succeed)
 
 
 class LocalJobMasterTest(unittest.TestCase):
