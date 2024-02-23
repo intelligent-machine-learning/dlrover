@@ -14,11 +14,7 @@
 import os
 import unittest
 
-from dlrover.python.common.constants import (
-    DistributionStrategy,
-    ElasticJobLabel,
-    NodeType,
-)
+from dlrover.python.common.constants import DistributionStrategy, NodeType
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
 from dlrover.python.master.scaler.base_scaler import ScalePlan
@@ -148,23 +144,6 @@ class PodScalerTest(unittest.TestCase):
                 rank = int(env.value)
         self.assertEqual(world_size, 2)
         self.assertEqual(rank, 0)
-
-    def test_create_service(self):
-        scaler = PodScaler("elasticjob-sample", "default")
-        scaler.start()
-        service = scaler._create_service_obj(
-            name="elasticjob-sample-edljob-worker-0",
-            port="2222",
-            target_port="2222",
-            replica_type=NodeType.WORKER,
-            rank_index=0,
-        )
-        self.assertEqual(
-            service.spec.selector[ElasticJobLabel.RANK_INDEX_KEY], "0"
-        )
-        self.assertEqual(
-            service.spec.selector[ElasticJobLabel.REPLICA_TYPE_KEY], "worker"
-        )
 
     def test_scale(self):
         scaler = PodScaler("elasticjob-sample", "default")

@@ -18,12 +18,16 @@ from kubernetes import client
 from dlrover.python.common.node import NodeResource
 from dlrover.python.scheduler.kubernetes import (
     get_main_container,
+    k8sServiceFactory,
     set_container_resource,
 )
-from dlrover.python.tests.test_utils import create_pod
+from dlrover.python.tests.test_utils import create_pod, mock_k8s_client
 
 
 class KubernetesTest(unittest.TestCase):
+    def setUp(self) -> None:
+        mock_k8s_client()
+
     def test_get_main_container(self):
         labels = {"class": "test"}
         pod = create_pod(labels)
@@ -69,3 +73,9 @@ class KubernetesTest(unittest.TestCase):
         self.assertEqual(container.resources.requests["memory"], "1024Mi")
         self.assertEqual(container.resources.limits["cpu"], 4)
         self.assertEqual(container.resources.limits["memory"], "1024Mi")
+
+    def test_service_factory(self):
+        fac = k8sServiceFactory("dlrover", "test")
+        svc = fac._create_service_obj("test-master", 12345, 34567, {}, None)
+        succeed = fac._patch_service("test-master", svc, 5)
+        self.assertTrue(succeed)

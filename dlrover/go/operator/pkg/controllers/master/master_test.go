@@ -59,7 +59,7 @@ func TestCreateMasterPodWithImage(t *testing.T) {
 		ImagePullPolicy: "Always",
 	}
 	job.Spec.ReplicaSpecs = make(map[commonv1.ReplicaType]*elasticv1alpha1.ReplicaSpec)
-	job.Spec.ReplicaSpecs[ReplicaTypeTrainerMaster] = &elasticv1alpha1.ReplicaSpec{
+	job.Spec.ReplicaSpecs[ReplicaTypeJobMaster] = &elasticv1alpha1.ReplicaSpec{
 		ReplicaSpec: commonv1.ReplicaSpec{
 			Template: corev1.PodTemplateSpec{
 				Spec: corev1.PodSpec{

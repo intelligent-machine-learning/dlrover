@@ -157,7 +157,7 @@ func (r *ElasticJobReconciler) reconcileJobs(job *elasticv1alpha1.ElasticJob) (c
 
 func (r *ElasticJobReconciler) initializeJob(job *elasticv1alpha1.ElasticJob) {
 	if job.Status.Conditions == nil {
-		common.InitializeJobStatuses(&job.Status, master.ReplicaTypeTrainerMaster)
+		common.InitializeJobStatuses(&job.Status, master.ReplicaTypeJobMaster)
 		msg := fmt.Sprintf("ElasticJob %s is created.", job.Name)
 		common.UpdateStatus(&job.Status, commonv1.JobCreated, common.JobCreatedReason, msg)
 	}
@@ -181,7 +181,7 @@ func (r *ElasticJobReconciler) stopRunningPods(job *elasticv1alpha1.ElasticJob) 
 
 func (r *ElasticJobReconciler) createEasydlMaster(job *elasticv1alpha1.ElasticJob) error {
 	master.NewMasterTemplateToJob(job, r.masterImage)
-	masterManager := common.ReplicaManagers[master.ReplicaTypeTrainerMaster]
+	masterManager := common.ReplicaManagers[master.ReplicaTypeJobMaster]
 	err := masterManager.ReconcilePods(r.Client, job, nil)
 	if err != nil {
 		r.Recorder.Eventf(
@@ -214,7 +214,7 @@ func (r *ElasticJobReconciler) getJobScalePlan(job *elasticv1alpha1.ElasticJob) 
 
 func (r *ElasticJobReconciler) executeScaling(job *elasticv1alpha1.ElasticJob, scalePlan *elasticv1alpha1.ScalePlan) error {
 	for replicaType, replicaManager := range common.ReplicaManagers {
-		if replicaType == master.ReplicaTypeTrainerMaster {
+		if replicaType == master.ReplicaTypeJobMaster {
 			continue
 		}
 		err := replicaManager.ReconcilePods(r.Client, job, scalePlan)
@@ -249,7 +249,10 @@ func (r *ElasticJobReconciler) updateScalePlanScaling(scalePlan *elasticv1alpha1
 }
 
 func (r *ElasticJobReconciler) handleFaultPods(job *elasticv1alpha1.ElasticJob) {
-	for _, manager := range common.ReplicaManagers {
+	for replicaType, manager := range common.ReplicaManagers {
+		if replicaType == master.ReplicaTypeJobMaster {
+			master.NewMasterTemplateToJob(job, r.masterImage)
+		}
 		manager.HandleFaultPods(r.Client, job)
 	}
 }

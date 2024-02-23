@@ -39,7 +39,7 @@ class TensorflowFailover:
             failover_level: switch for dynet
         """
         logger.info(
-            "initiating tensorflow_failover and failover level is {}".format(
+            "initializing tensorflow_failover and failover level is {}".format(
                 failover_level
             )
         )

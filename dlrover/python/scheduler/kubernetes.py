@@ -20,6 +20,7 @@ from kubernetes.utils.quantity import parse_quantity
 
 from dlrover.python.common.constants import (
     DefaultResourceLimits,
+    ElasticJobLabel,
     NodeType,
     OptimizeMode,
     k8sAPIExceptionReason,
@@ -35,6 +36,7 @@ NODE_SERVICE_PORTS = {
     NodeType.CHIEF: 3333,
     NodeType.PS: 2222,
     NodeType.MASTER: 3333,
+    NodeType.DLROVER_MASTER: 50001,
 }
 
 JOB_SUFFIX = "-edljob-"
@@ -466,3 +468,95 @@ class K8sJobArgs(JobArgs):
         if job and "uid" in job["metadata"]:
             return job["metadata"]["uid"]
         return ""
+
+
+class k8sServiceFactory(object):
+    """
+    The factory creates the k8s service for Pods.
+
+    Arguments:
+        namespace (str): the namespace on a k8s cluster.
+        job_name (str): the name of an ElasticJob.
+    """
+
+    def __init__(self, namespace: str, job_name: str):
+        self._namespace = namespace
+        self._job_name = job_name
+        self._k8s_client = k8sClient.singleton_instance(self._namespace)
+
+    def create_service(
+        self,
+        name: str,
+        port: int,
+        target_port: int,
+        selector: Dict[str, str],
+        owner_ref: client.V1OwnerReference,
+        retry_num=5,
+    ):
+        """
+        Create a new service if the service dose not exist, otherwise
+        the method patch the service with modifications.
+        """
+        service = self._create_service_obj(
+            name=name,
+            port=port,
+            target_port=target_port,
+            selector=selector,
+            owner_ref=owner_ref,
+        )
+
+        if not self._k8s_client.get_service(name):
+            return self._create_new_service(service, retry_num)
+        else:
+            return self._patch_service(name, service, retry_num)
+
+    def _create_new_service(self, service: client.V1Service, retry_num: int):
+        for _ in range(retry_num):
+            succeed = self._k8s_client.create_service(service)
+            if succeed:
+                return succeed
+            time.sleep(5)
+        return False
+
+    def _patch_service(
+        self, name: str, service: client.V1Service, retry_num: int
+    ):
+        for _ in range(retry_num):
+            succeed = self._k8s_client.patch_service(name, service)
+            if succeed:
+                return succeed
+            time.sleep(5)
+        return False
+
+    def _create_service_obj(
+        self,
+        name: str,
+        port: int,
+        target_port: int,
+        selector: Dict[str, str],
+        owner_ref: client.V1OwnerReference,
+    ):
+        labels = {
+            "app": ElasticJobLabel.APP_NAME,
+            ElasticJobLabel.JOB_KEY: self._job_name,
+        }
+
+        metadata = client.V1ObjectMeta(
+            name=name,
+            labels=labels,
+            # Note: We have to add at least one annotation here.
+            # Otherwise annotation is `None` and cannot be modified
+            # using `with_service()` for cluster specific information.
+            annotations=labels,
+            owner_references=[owner_ref],
+            namespace=self._namespace,
+        )
+        spec = client.V1ServiceSpec(
+            ports=[client.V1ServicePort(port=port, target_port=target_port)],
+            selector=selector,
+            type=None,
+        )
+        service = client.V1Service(
+            api_version="v1", kind="Service", metadata=metadata, spec=spec
+        )
+        return service

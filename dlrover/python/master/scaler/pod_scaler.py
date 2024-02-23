@@ -40,6 +40,7 @@ from dlrover.python.scheduler.kubernetes import (
     get_main_container,
     get_pod_name,
     k8sClient,
+    k8sServiceFactory,
     set_container_resource,
 )
 
@@ -83,6 +84,7 @@ class PodScaler(Scaler):
     def __init__(self, job_name, namespace):
         super(PodScaler, self).__init__(job_name)
         self._k8s_client = k8sClient.singleton_instance(namespace)
+        self._svc_factory = k8sServiceFactory(namespace, job_name)
         self._namespace = namespace
         self._replica_template: Dict[str, client.V1Pod] = {}
         self._create_node_queue: List[Node] = []
@@ -92,6 +94,7 @@ class PodScaler(Scaler):
         self._pod_stats: Dict[str, int] = {}
         self._job_uid = ""
         self.api_client = client.ApiClient()
+        self._master_addr = ""
 
     def start(self):
         self._job = self._retry_to_get_job()
@@ -99,9 +102,30 @@ class PodScaler(Scaler):
             raise ValueError(f"Cannot get the training job {self._job_name}.")
         self._init_pod_config_by_job()
         self._master_pod = self._retry_to_get_master_pod()
+        self._master_addr = self._get_master_addr()
         threading.Thread(
             target=self._periodic_create_pod, name="pod-creater", daemon=True
         ).start()
+
+    def _get_master_addr(self):
+        svc_name = f"elasticjob-{self._job_name}-dlrover-master"
+        port = NODE_SERVICE_PORTS[NodeType.DLROVER_MASTER]
+        master_addr = f"{svc_name}:{port}"
+        if not self._check_master_service_avaliable(svc_name):
+            # On some clusters, the k8s service may not be avaliable because of
+            # incorrect DNS configurations. In such cases, it is necessary to
+            # revert to use the Master's IP address for worker to connect with
+            # the master. Note, that failover of master is not supported if
+            # the service is not avalilable.
+            logger.info(
+                f"The service {master_addr} is not available and "
+                "use the IP of master Pod."
+            )
+            master_ip = os.getenv("POD_IP", "")
+            if not master_ip:
+                raise ValueError("The master Pod must have the POD_IP env.")
+            master_addr = f"{master_ip}:{_dlrover_context.master_port}"
+        return master_addr
 
     def _init_pod_config_by_job(self):
         self._distribution_strategy = self._job["spec"].get(
@@ -342,15 +366,6 @@ class PodScaler(Scaler):
             self._k8s_client.delete_pod(pod.name)
             down_num -= 1
 
-    def _get_common_labels(self):
-        """Labels that should be attached to all k8s objects belong to
-        current job.
-        """
-        return {
-            "app": ElasticJobLabel.APP_NAME,
-            ElasticJobLabel.JOB_KEY: self._job_name,
-        }
-
     def get_node_service_addr(self, type, id):
         service_name = get_pod_name(self._job_name, type, id)
         return "%s.%s.svc:%d" % (
@@ -436,19 +451,8 @@ class PodScaler(Scaler):
         env.append(
             V1EnvVar(name=NodeEnv.WORKER_RANK, value=str(node.rank_index))
         )
-        master_addr = "elasticjob-{}-dlrover-master:{}".format(
-            self._job_name, _dlrover_context.master_port
-        )
-        if not self._check_master_service_avaliable(master_addr):
-            logger.info(
-                "The service of master is not available and use the master IP."
-            )
-            master_ip = os.getenv("POD_IP", "")
-            if not master_ip:
-                raise ValueError("The master Pod must have the POD_IP env.")
-            master_addr = f"{master_ip}:{_dlrover_context.master_port}"
         env.append(
-            V1EnvVar(name=NodeEnv.DLROVER_MASTER_ADDR, value=master_addr)
+            V1EnvVar(name=NodeEnv.DLROVER_MASTER_ADDR, value=self._master_addr)
         )
 
         env.append(
@@ -471,7 +475,10 @@ class PodScaler(Scaler):
                 self._job_name,
             )
         pod_template = self._replica_template[node_type]
-        labels = self._get_common_labels()
+        labels = {
+            "app": ElasticJobLabel.APP_NAME,
+            ElasticJobLabel.JOB_KEY: self._job_name,
+        }
         pod = self._create_pod_obj(
             name=pod_name,
             pod_template=pod_template,
@@ -500,10 +507,9 @@ class PodScaler(Scaler):
         self._patch_tf_config_into_env(pod, node, pod_stats, ps_addrs)
         return pod
 
-    def _check_master_service_avaliable(self, addr):
+    def _check_master_service_avaliable(self, host):
         """Verify that the master grpc servicer is available."""
-        host = addr.split(":")[0]
-        port = int(addr.split(":")[1])
+        port = _dlrover_context.master_port
         try:
             telnetlib.Telnet(host=host, port=port, timeout=3)
             return True
@@ -537,16 +543,19 @@ class PodScaler(Scaler):
             service_name = get_pod_name(
                 self._job_name, node.type, node.rank_index
             )
-        if not self._k8s_client.get_service(service_name):
-            succeed = self._create_service_with_retry(
-                node.type, node.rank_index, service_name
-            )
-            service_ready = service_ready and succeed
-        else:
-            succeed = self._patch_service_with_retry(
-                node.type, node.rank_index, service_name
-            )
-            service_ready = service_ready and succeed
+        selector = {
+            ElasticJobLabel.JOB_KEY: self._job_name,
+            ElasticJobLabel.REPLICA_TYPE_KEY: node.type,
+            ElasticJobLabel.RANK_INDEX_KEY: str(node.rank_index),
+        }
+        succeed = self._svc_factory.create_service(
+            service_name,
+            port=NODE_SERVICE_PORTS[node.type],
+            target_port=NODE_SERVICE_PORTS[node.type],
+            selector=selector,
+            owner_ref=self._create_job_owner_reference(),
+        )
+        service_ready = service_ready and succeed
         if not service_ready:
             logger.error(
                 "Fail to create service %s for the %s pod %s",
@@ -557,86 +566,6 @@ class PodScaler(Scaler):
             self._delete_typed_pod(node.type, node.id)
             service_ready = False
         return service_ready
-
-    def _create_service_with_retry(
-        self, pod_type, rank_id, service_name, retry_num=5
-    ):
-        for _ in range(retry_num):
-            succeed = self._create_service(pod_type, rank_id, service_name)
-            if succeed:
-                return succeed
-            else:
-                time.sleep(5)
-        return False
-
-    def _create_service(self, pod_type, rank_id, service_name):
-        # Use master pod as service owner so the service will not be
-        #  deleted if the corresponding pod is deleted.
-        service = self._create_service_obj(
-            name=service_name,
-            port=NODE_SERVICE_PORTS[pod_type],
-            target_port=NODE_SERVICE_PORTS[pod_type],
-            replica_type=pod_type,
-            rank_index=rank_id,
-        )
-
-        return self._k8s_client.create_service(service)
-
-    def _patch_service_with_retry(
-        self, pod_type, new_id, service_name, retry_num=5
-    ):
-        for _ in range(retry_num):
-            succeed = self._patch_service(pod_type, new_id, service_name)
-            if succeed:
-                return succeed
-            else:
-                time.sleep(5)
-        return False
-
-    def _create_service_obj(
-        self,
-        name,
-        port,
-        target_port,
-        replica_type,
-        rank_index,
-    ):
-        labels = self._get_common_labels()
-
-        metadata = client.V1ObjectMeta(
-            name=name,
-            labels=labels,
-            # Note: We have to add at least one annotation here.
-            # Otherwise annotation is `None` and cannot be modified
-            # using `with_service()` for cluster specific information.
-            annotations=labels,
-            owner_references=[self._create_job_owner_reference()],
-            namespace=self._namespace,
-        )
-        selector = {
-            ElasticJobLabel.JOB_KEY: self._job_name,
-            ElasticJobLabel.REPLICA_TYPE_KEY: replica_type,
-            ElasticJobLabel.RANK_INDEX_KEY: str(rank_index),
-        }
-        spec = client.V1ServiceSpec(
-            ports=[client.V1ServicePort(port=port, target_port=target_port)],
-            selector=selector,
-            type=None,
-        )
-        service = client.V1Service(
-            api_version="v1", kind="Service", metadata=metadata, spec=spec
-        )
-        return service
-
-    def _patch_service(self, pod_type, rank_id, service_name):
-        service = self._create_service_obj(
-            name=service_name,
-            port=NODE_SERVICE_PORTS[pod_type],
-            target_port=NODE_SERVICE_PORTS[pod_type],
-            replica_type=pod_type,
-            rank_index=rank_id,
-        )
-        return self._k8s_client.patch_service(service_name, service)
 
     def _create_pod_obj(
         self,

@@ -40,15 +40,15 @@ const (
 	envBrainServiceAddrKey     = "DLROVER_BRAIN_SERVICE_ADDR"
 	envPodIP                   = "POD_IP"
 
-	// ReplicaTypeTrainerMaster is the type for DLRover Master replica.
-	ReplicaTypeTrainerMaster commonv1.ReplicaType = "dlrover-master"
+	// ReplicaTypeJobMaster is the type for DLRover ElasticJob Master replica.
+	ReplicaTypeJobMaster commonv1.ReplicaType = "dlrover-master"
 )
 
 // Manager generates a master pod object.
 type Manager struct{}
 
 func init() {
-	common.ReplicaManagers[ReplicaTypeTrainerMaster] = &Manager{}
+	common.ReplicaManagers[ReplicaTypeJobMaster] = &Manager{}
 }
 
 func (m *Manager) newJobMaster(
@@ -56,9 +56,9 @@ func (m *Manager) newJobMaster(
 ) *corev1.Pod {
 	masterName := newJobMasterName(job.Name)
 	pod := common.NewPod(
-		job, &job.Spec.ReplicaSpecs[ReplicaTypeTrainerMaster].Template, masterName,
+		job, &job.Spec.ReplicaSpecs[ReplicaTypeJobMaster].Template, masterName,
 	)
-	pod.Labels[common.LabelReplicaTypeKey] = string(ReplicaTypeTrainerMaster)
+	pod.Labels[common.LabelReplicaTypeKey] = string(ReplicaTypeJobMaster)
 	pod.Labels[common.LabelReplicaIndexKey] = fmt.Sprintf("%d", replicaIndex)
 	if job.Spec.BrainService != "" {
 		setBrainServiceIntoContainer(&pod.Spec.Containers[0], job.Spec.BrainService)
@@ -98,7 +98,7 @@ func (m *Manager) SyncJobState(client runtime_client.Client, job *elasticv1alpha
 		return nil
 	}
 	masterIndex, _ := strconv.Atoi(master.Labels[common.LabelReplicaIndexKey])
-	job.Status.ReplicaStatuses[ReplicaTypeTrainerMaster] = common.GetReplicaStatus([]corev1.Pod{*master})
+	job.Status.ReplicaStatuses[ReplicaTypeJobMaster] = common.GetReplicaStatus([]corev1.Pod{*master})
 	if master.Status.Phase == corev1.PodSucceeded {
 		msg := fmt.Sprintf("job(%s/%s) successfully completed", job.Namespace, job.Name)
 		if job.Status.CompletionTime == nil {
@@ -131,7 +131,7 @@ func (m *Manager) SyncJobState(client runtime_client.Client, job *elasticv1alpha
 
 // getMasterPod gets the master pod of a job from a cluster.
 func (m *Manager) getMasterPod(client runtime_client.Client, job *elasticv1alpha1.ElasticJob) (*corev1.Pod, error) {
-	pods, err := common.GetReplicaTypePods(client, job, ReplicaTypeTrainerMaster)
+	pods, err := common.GetReplicaTypePods(client, job, ReplicaTypeJobMaster)
 	if errors.IsNotFound(err) {
 		return nil, err
 	}
@@ -146,28 +146,32 @@ func (m *Manager) getMasterPod(client runtime_client.Client, job *elasticv1alpha
 func (m *Manager) newJobMasterService(job *elasticv1alpha1.ElasticJob) *corev1.Service {
 	name := NewEasydlMasterServiceName(job.Name)
 	selector := make(map[string]string)
-	selector[common.LabelReplicaTypeKey] = string(ReplicaTypeTrainerMaster)
+	selector[common.LabelReplicaTypeKey] = string(ReplicaTypeJobMaster)
 	service := common.NewService(job, name, masterServicePort, selector)
 	return service
 }
 
 // NewEasydlMasterServiceName create a service name for Job master
 func NewEasydlMasterServiceName(jobName string) string {
-	return fmt.Sprintf("elasticjob-%s-%s", jobName, string(ReplicaTypeTrainerMaster))
+	return fmt.Sprintf("elasticjob-%s-%s", jobName, string(ReplicaTypeJobMaster))
 }
 
 // newJobMasterName create a name for Job master
 func newJobMasterName(jobName string) string {
-	return fmt.Sprintf("elasticjob-%s-%s", jobName, string(ReplicaTypeTrainerMaster))
+	return fmt.Sprintf("elasticjob-%s-%s", jobName, string(ReplicaTypeJobMaster))
 }
 
 // HandleFaultPods relaunches a new Pod if a pod is deleted or ignores
 // the fault Pod if it fails with uncoverable errors.
 func (m *Manager) HandleFaultPods(client runtime_client.Client, job *elasticv1alpha1.ElasticJob) error {
-	curMaster, err := m.getMasterPod(client, job)
+	curMaster, _ := m.getMasterPod(client, job)
 	if curMaster == nil {
-		logger.Warnf("Failed to get master, error : %v", err)
-		return nil
+		newMasterPod := m.newJobMaster(job, initMasterIndex)
+		logger.Infof("Master %s is deleted and relaunch a new one", newMasterPod.Name)
+		err := client.Create(context.Background(), newMasterPod)
+		if err != nil {
+			return err
+		}
 	}
 	if curMaster.DeletionTimestamp != nil {
 		curIndex, err := strconv.Atoi(curMaster.Labels[common.LabelReplicaIndexKey])
@@ -253,8 +257,8 @@ func NewMasterTemplateToJob(job *elasticv1alpha1.ElasticJob, masterImage string)
 			RestartPolicy: corev1.RestartPolicyNever,
 		},
 	}
-	if _, ok := job.Spec.ReplicaSpecs[ReplicaTypeTrainerMaster]; ok {
-		mainContainer := job.Spec.ReplicaSpecs[ReplicaTypeTrainerMaster].ReplicaSpec.Template.Spec.Containers[0]
+	if _, ok := job.Spec.ReplicaSpecs[ReplicaTypeJobMaster]; ok {
+		mainContainer := job.Spec.ReplicaSpecs[ReplicaTypeJobMaster].ReplicaSpec.Template.Spec.Containers[0]
 		if mainContainer.Image != "" {
 			podTemplate.Spec.Containers[0].Image = mainContainer.Image
 		}
@@ -277,7 +281,7 @@ func NewMasterTemplateToJob(job *elasticv1alpha1.ElasticJob, masterImage string)
 		},
 	}
 	podTemplate.Spec.Containers[0].Env = append(podTemplate.Spec.Containers[0].Env, podIPEnv)
-	job.Spec.ReplicaSpecs[ReplicaTypeTrainerMaster] = &elasticv1alpha1.ReplicaSpec{
+	job.Spec.ReplicaSpecs[ReplicaTypeJobMaster] = &elasticv1alpha1.ReplicaSpec{
 		ReplicaSpec: commonv1.ReplicaSpec{
 			Template: *podTemplate,
 		},
