@@ -765,9 +765,11 @@ class DistributedJobManager(JobManager):
     ):
         """Process the training failure reported by the node."""
         node = self._job_nodes[node_type][node_id]
-        self._error_monitor.process_error(
+        reluanch_node = self._error_monitor.process_error(
             node, restart_count, error_data, level
         )
+        if reluanch_node:
+            self._relaunch_node(node)
 
     def update_allreduce_node_unit(self, node_unit):
         if isinstance(self._job_optimizer, AllreduceJobResourceOptimizer):

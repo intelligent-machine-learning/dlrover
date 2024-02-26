@@ -23,8 +23,19 @@ class ErrorMonitor(metaclass=ABCMeta):
     @abstractmethod
     def process_error(
         self, node: Node, restart_count: int, error_data: str, level: str
-    ):
-        """Handle the error of training processes."""
+    ) -> bool:
+        """
+        Handle the error of training processes.
+
+        Args:
+            node: a Node instance.
+            restart_count: the restart count of training on the node.
+            error_data: The error message data.
+            level: the error level.
+
+        Returns:
+            bool: wether to relaunch the node.
+        """
         pass
 
 
@@ -36,15 +47,16 @@ class ErrorLogMonitor(ErrorMonitor):
 
     def process_error(
         self, node: Node, restart_count: int, error_data: str, level: str
-    ):
+    ) -> bool:
         if level == TrainingMsgLevel.PROCESS_ERROR:
-            self._handle_process_error(node, restart_count, error_data)
+            return self._handle_process_error(node, restart_count, error_data)
         elif level == TrainingMsgLevel.NODE_ERROR:
-            self._handle_node_error(node, error_data)
+            return self._handle_node_error(node, error_data)
         elif level == TrainingMsgLevel.RDZV_ERROR:
             logger.error(f"Rendezvous fails with reason {error_data}")
         elif level == TrainingMsgLevel.WARNING:
             logger.warning(error_data)
+        return False
 
     def _handle_process_error(
         self, node: Node, restart_count: int, error_data: str
@@ -55,9 +67,11 @@ class ErrorLogMonitor(ErrorMonitor):
                 f"{node.type}-{node.id} on {node.host_name} "
                 f"restart {restart_count} fails: {error_data}"
             )
+        return False
 
     def _handle_node_error(self, node: Node, error_data: str):
         logger.error(
             f"{node.name} on {node.host_name} is breakdown. "
             f"Reason: {error_data}"
         )
+        return True
