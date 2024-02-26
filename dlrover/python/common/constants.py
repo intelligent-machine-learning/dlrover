@@ -262,7 +262,7 @@ class NetworkFailureReason(object):
     WAITING_NODE = "Waiting node"
 
 
-class TrainingMsgLevel(object):
+class TrainingExceptionLevel(object):
     RDZV_ERROR = "rdzv_error"
     PROCESS_ERROR = "process_error"
     NODE_ERROR = "node_error"

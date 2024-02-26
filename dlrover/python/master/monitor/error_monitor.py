@@ -14,7 +14,7 @@
 from abc import ABCMeta, abstractmethod
 from typing import Dict
 
-from dlrover.python.common.constants import TrainingMsgLevel
+from dlrover.python.common.constants import TrainingExceptionLevel
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node
 
@@ -48,13 +48,13 @@ class ErrorLogMonitor(ErrorMonitor):
     def process_error(
         self, node: Node, restart_count: int, error_data: str, level: str
     ) -> bool:
-        if level == TrainingMsgLevel.PROCESS_ERROR:
+        if level == TrainingExceptionLevel.PROCESS_ERROR:
             return self._handle_process_error(node, restart_count, error_data)
-        elif level == TrainingMsgLevel.NODE_ERROR:
+        elif level == TrainingExceptionLevel.NODE_ERROR:
             return self._handle_node_error(node, error_data)
-        elif level == TrainingMsgLevel.RDZV_ERROR:
+        elif level == TrainingExceptionLevel.RDZV_ERROR:
             logger.error(f"Rendezvous fails with reason {error_data}")
-        elif level == TrainingMsgLevel.WARNING:
+        elif level == TrainingExceptionLevel.WARNING:
             logger.warning(error_data)
         return False
 
@@ -71,7 +71,7 @@ class ErrorLogMonitor(ErrorMonitor):
 
     def _handle_node_error(self, node: Node, error_data: str):
         logger.error(
-            f"{node.name} on {node.host_name} is breakdown. "
+            f"{node.name} on {node.host_name} is down. "
             f"Reason: {error_data}"
         )
         return True

@@ -19,7 +19,7 @@ from dlrover.python.common import grpc
 from dlrover.python.common.constants import (
     NodeStatus,
     NodeType,
-    TrainingMsgLevel,
+    TrainingExceptionLevel,
 )
 from dlrover.python.elastic_agent.master_client import build_master_client
 from dlrover.python.tests.test_utils import start_local_master
@@ -52,7 +52,7 @@ class MasterClientTest(unittest.TestCase):
 
     def test_report_failures(self):
         res = self._master_client.report_failures(
-            "test", 0, TrainingMsgLevel.WARNING
+            "test", 0, TrainingExceptionLevel.WARNING
         )
         self.assertIsNone(res)
 
