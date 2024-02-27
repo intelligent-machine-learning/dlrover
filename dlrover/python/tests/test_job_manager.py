@@ -24,6 +24,7 @@ from dlrover.python.common.constants import (
     NodeExitReason,
     NodeStatus,
     NodeType,
+    TrainingExceptionLevel,
 )
 from dlrover.python.common.grpc import (
     DataLoaderConfig,
@@ -510,3 +511,6 @@ class LocalJobManagerTest(unittest.TestCase):
         worker = job_mananger._job_nodes[NodeType.WORKER][0]
         self.assertEqual(worker.paral_config, paral_config)
         job_mananger.handle_training_failure(NodeType.WORKER, 3)
+        job_mananger.handle_training_failure(
+            NodeType.WORKER, 3, level=TrainingExceptionLevel.PROCESS_ERROR
+        )
