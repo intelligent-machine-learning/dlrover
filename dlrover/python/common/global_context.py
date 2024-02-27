@@ -154,9 +154,7 @@ class Context(Singleton):
     def config_master_port(self, port=0):
         host_ports_env = os.getenv("HOST_PORTS", "")
         self.master_port = None
-        if port > 0:
-            self.master_port = port
-        elif host_ports_env:
+        if host_ports_env:
             ports = []
             for port in host_ports_env.split(","):
                 ports.append(int(port))
@@ -164,6 +162,8 @@ class Context(Singleton):
                 self.master_port = grpc.find_free_port_in_set(ports)
             except RuntimeError as e:
                 logger.warning(e)
+        elif port > 0:
+            self.master_port = port
         if self.master_port is None:
             self.master_port = grpc.find_free_port_in_range(20000, 30000)
 
