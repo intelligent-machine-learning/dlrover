@@ -256,6 +256,10 @@ class DistributedJobManagerTest(unittest.TestCase):
         should_relaunch = manager._should_relaunch(node, NODE_STATE_FLOWS[6])
         self.assertFalse(should_relaunch)
 
+        manager.handle_training_failure(
+            NodeType.WORKER, 0, level=TrainingExceptionLevel.NODE_ERROR
+        )
+
     def test_relaunch_training_master(self):
         params = MockK8sPSJobArgs()
         params.initilize()
@@ -511,6 +515,3 @@ class LocalJobManagerTest(unittest.TestCase):
         worker = job_mananger._job_nodes[NodeType.WORKER][0]
         self.assertEqual(worker.paral_config, paral_config)
         job_mananger.handle_training_failure(NodeType.WORKER, 3)
-        job_mananger.handle_training_failure(
-            NodeType.WORKER, 3, level=TrainingExceptionLevel.PROCESS_ERROR
-        )
