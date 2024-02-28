@@ -111,7 +111,8 @@ class PodScaler(Scaler):
         svc_name = f"elasticjob-{self._job_name}-dlrover-master"
         port = NODE_SERVICE_PORTS[NodeType.DLROVER_MASTER]
         master_addr = f"{svc_name}:{port}"
-        if not self._check_master_service_avaliable(svc_name):
+        target_port = _dlrover_context.master_port
+        if not self._check_master_service_avaliable(svc_name, target_port):
             # On some clusters, the k8s service may not be avaliable because of
             # incorrect DNS configurations. In such cases, it is necessary to
             # revert to use the Master's IP address for worker to connect with
@@ -507,14 +508,15 @@ class PodScaler(Scaler):
         self._patch_tf_config_into_env(pod, node, pod_stats, ps_addrs)
         return pod
 
-    def _check_master_service_avaliable(self, host):
+    def _check_master_service_avaliable(self, host, port, timeout=15):
         """Verify that the master grpc servicer is available."""
-        port = _dlrover_context.master_port
-        try:
-            telnetlib.Telnet(host=host, port=port, timeout=3)
-            return True
-        except Exception:
-            return False
+        for _ in range(timeout):
+            try:
+                telnetlib.Telnet(host=host, port=port, timeout=3)
+                return True
+            except Exception:
+                time.sleep(1)
+        return False
 
     def _patch_tf_config_into_env(self, pod, node: Node, pod_stats, ps_addrs):
         if self._distribution_strategy == DistributionStrategy.PS and ps_addrs:
