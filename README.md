@@ -31,7 +31,7 @@ What's more, DLRover provides extension libraries of PyTorch and TensorFlow to S
 
 ## Latest News
 
-- [2024/01] [Flash Checkpoint Saves the Megatron-LM Checkpoint in Seconds.](docs/blogs/megatron_flash_checkpoint.md)
+- [2024/02] [Flash Checkpoint Saves the Megatron-LM Checkpoint in Seconds.](docs/blogs/megatron_flash_checkpoint.md)
 - [2024/01] [Flash Checkpoint to Recover Large Model Training From Failure in Seconds.](docs/blogs/flash_checkpoint.md)
 - [2023/11] [ATorch supporting efficient and easy-to-use model training is released.](atorch/README.md)
 - [2023/10] [AGD: an Auto-switchable Optimizer using Stepwise Gradient Difference as Preconditioning Matrix, NeurIPS 2023.](atorch/docs/README-AGD.md)
