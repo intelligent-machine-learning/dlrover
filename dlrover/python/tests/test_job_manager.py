@@ -24,6 +24,7 @@ from dlrover.python.common.constants import (
     NodeExitReason,
     NodeStatus,
     NodeType,
+    TrainingExceptionLevel,
 )
 from dlrover.python.common.grpc import (
     DataLoaderConfig,
@@ -254,6 +255,10 @@ class DistributedJobManagerTest(unittest.TestCase):
         node.exit_reason = NodeExitReason.FATAL_ERROR
         should_relaunch = manager._should_relaunch(node, NODE_STATE_FLOWS[6])
         self.assertFalse(should_relaunch)
+
+        manager.handle_training_failure(
+            NodeType.WORKER, 0, level=TrainingExceptionLevel.NODE_ERROR
+        )
 
     def test_relaunch_training_master(self):
         params = MockK8sPSJobArgs()

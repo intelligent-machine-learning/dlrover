@@ -61,7 +61,7 @@ class PodScalerTest(unittest.TestCase):
         _dlrover_ctx.config_master_port()
         os.environ["POD_IP"] = "127.0.0.1"
         passed = scaler._check_master_service_avaliable(
-            "elasticjob-test-master:2222"
+            "elasticjob-test-master", 2222, 2
         )
         self.assertFalse(passed)
 

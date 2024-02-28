@@ -59,7 +59,7 @@ from dlrover.python.common.constants import (
     NodeErrorMessage,
     NodeStatus,
     RendezvousName,
-    TrainingMsgLevel,
+    TrainingExceptionLevel,
 )
 from dlrover.python.common.grpc import (
     find_free_port_in_range,
@@ -268,7 +268,7 @@ class MasterRendezvousHandler(RendezvousHandler):
                 timeout = self.join_timeout
                 err_msg = f"Timeout {timeout}s to complete rendezvous."
                 self._report_failure(
-                    err_msg, level=TrainingMsgLevel.RDZV_ERROR
+                    err_msg, level=TrainingExceptionLevel.RDZV_ERROR
                 )
                 raise TimeoutError(err_msg)
             time.sleep(3)
@@ -285,7 +285,7 @@ class MasterRendezvousHandler(RendezvousHandler):
             and world_size < self._rdzv_params.max_nodes
         ):
             err_msg = f"Scale down the number of nodes to {world_size}"
-            self._report_failure(err_msg, level=TrainingMsgLevel.WARNING)
+            self._report_failure(err_msg, level=TrainingExceptionLevel.WARNING)
         store = self._get_store(round, group)
         return store, world
 
@@ -635,7 +635,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
             errors[rank] = error.__dict__
         error_data = json.dumps(errors)
         self._client.report_failures(
-            error_data, self._restart_count, TrainingMsgLevel.PROCESS_ERROR
+            error_data,
+            self._restart_count,
+            TrainingExceptionLevel.PROCESS_ERROR,
         )
 
     def _restart_workers(self, worker_group: WorkerGroup):
@@ -865,7 +867,7 @@ class NetworkCheckElasticAgent(ElasticTrainingAgent):
                     # node if fault because there is no normal node in the job
                     # to execute allgather tasks with the two nodes.
                     logger.error("Network check needs at least 4 nodes.")
-                    raise RuntimeError("The node network is breakdown.")
+                    raise RuntimeError("This node is down.")
                 else:
                     # Run the next round check to detect the fault node.
                     time.sleep(3)
@@ -875,11 +877,13 @@ class NetworkCheckElasticAgent(ElasticTrainingAgent):
         if self._node_rank in fault_nodes:
             self._client.report_failures(
                 NodeErrorMessage.NETWORKER_ERROR,
-                level=TrainingMsgLevel.NODE_ERROR,
+                level=TrainingExceptionLevel.NODE_ERROR,
             )
-            raise RuntimeError("The node network is breakdown.")
-        elif self._config.exclude_straggler and self._node_rank in stragglers:
-            raise RuntimeError("The node is a straggler and exits.")
+            raise RuntimeError("This node is down.")
+        elif self._node_rank in stragglers:
+            logger.warn("This node is a straggler!")
+            if self._config.exclude_straggler:
+                raise RuntimeError("The node is a straggler and exits.")
         return True
 
     def _run_network_check(self, monitor_interval=3, timeout=300):
