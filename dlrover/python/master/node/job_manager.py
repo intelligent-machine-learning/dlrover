@@ -139,11 +139,9 @@ class JobManager(metaclass=ABCMeta):
         """
         pass
 
+    @abstractclassmethod
     def handle_training_failure(
         self, node_type, node_id, restart_count=-1, error_data="", level=""
     ):
         """Process the training failure reported by the node."""
-        node = self._job_nodes[node_type][node_id]
-        self._error_monitor.process_error(
-            node, restart_count, error_data, level
-        )
+        pass
