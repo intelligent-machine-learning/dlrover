@@ -19,6 +19,7 @@ from dlrover.python.common.constants import (
     JobExitReason,
     NodeExitReason,
     NodeType,
+    TrainingExceptionLevel,
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
@@ -264,7 +265,10 @@ class AllReduceNodeHandlingCallback(NodeEventCallback):
             )
         if node.exit_reason == NodeExitReason.HARDWARE_ERROR:
             self._master.job_manager.handle_training_failure(
-                node.type, node.id, error_data=NodeExitReason.HARDWARE_ERROR
+                node.type,
+                node.id,
+                error_data=NodeExitReason.HARDWARE_ERROR,
+                level=TrainingExceptionLevel.NODE_ERROR,
             )
         for manager in self._rdzv_managers.values():
             manager.remove_alive_node(node)
