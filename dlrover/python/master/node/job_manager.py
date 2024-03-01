@@ -145,3 +145,8 @@ class JobManager(metaclass=ABCMeta):
     ):
         """Process the training failure reported by the node."""
         pass
+
+    @abstractclassmethod
+    def collect_node_heart_beat(self, node_type, node_id, timestamp):
+        """Collect the heart beat message of nodes."""
+        pass

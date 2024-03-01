@@ -215,6 +215,7 @@ class Node(object):
         self.restart_training = restart_training
         self.migrated = False
         self.unrecoverable_failure_msg = ""
+        self.heartbeat_time = 0
 
     def exited(self):
         return self.status in [

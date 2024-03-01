@@ -89,7 +89,7 @@ class TorchTrainingMonitor(Singleton):
         self._resource_monitor.start()
         self._resource_monitor.start_monitor_cpu()
         thread = threading.Thread(
-            target=self._periodically_report_step,
+            target=self._periodically_report,
             name="report-step",
             daemon=True,
         )
@@ -119,9 +119,16 @@ class TorchTrainingMonitor(Singleton):
         except Exception as e:
             logger.warning(e)
 
-    def _periodically_report_step(self):
-        if self._group_rank != 0:
-            return
+    def send_heartbeat(self):
+        try:
+            ts = int(time.time())
+            self._master_client.report_heart_beat(ts)
+        except Exception:
+            logger.info("Fail to report a heartbeat.")
+
+    def _periodically_report(self):
         while True:
-            self.report_resource_with_step()
+            if self._group_rank == 0:
+                self.report_resource_with_step()
+            self.send_heartbeat()
             time.sleep(15)

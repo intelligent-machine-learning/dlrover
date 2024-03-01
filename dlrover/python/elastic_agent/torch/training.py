@@ -710,8 +710,7 @@ def launch_agent(
     _set_paral_config()
 
     monitor = TorchTrainingMonitor(ConfigPath.RUNTIME_METRICS)
-    if config.auto_tunning:
-        monitor.start()
+    monitor.start()
     rdzv_parameters = RendezvousParameters(
         backend=config.rdzv_backend,
         endpoint=config.rdzv_endpoint,

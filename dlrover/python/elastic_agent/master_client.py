@@ -228,6 +228,10 @@ class MasterClient(Singleton):
         )
         return self._report(message)
 
+    def report_heart_beat(self, timestamp):
+        message = grpc.HeartBeat(timestamp=timestamp)
+        return self._report(message)
+
     def get_cluster_version(self, version_type, task_type, task_id):
         request = grpc.ClusterVersionRequest(
             task_type=task_type,
