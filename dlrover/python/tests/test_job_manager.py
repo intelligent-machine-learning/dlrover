@@ -265,6 +265,10 @@ class DistributedJobManagerTest(unittest.TestCase):
         params.initilize()
         manager = create_job_manager(params, SpeedMonitor())
         manager.start()
+        ts = int(time.time())
+        manager.collect_node_heart_beat(NodeType.WORKER, 0, ts)
+        worker0 = manager._job_nodes[NodeType.WORKER][0]
+        self.assertEqual(worker0.heartbeat_time, ts)
         for node in manager._job_nodes[NodeType.WORKER].values():
             node.status = NodeStatus.RUNNING
         events = manager._get_dead_node_event()

@@ -202,7 +202,7 @@ class Node(object):
         self.finish_time = None
         self.is_recovered_oom = False
         self.is_released = False
-        self.exit_reason = None
+        self.exit_reason = ""
         self.config_resource = config_resource
         self.used_resource = NodeResource(0.0, 0.0)
         self.start_hang_time = 0

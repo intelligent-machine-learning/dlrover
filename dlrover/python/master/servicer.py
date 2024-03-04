@@ -564,6 +564,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             node_id,
             message.timestamp,
         )
+        return True
 
 
 def create_master_service(
