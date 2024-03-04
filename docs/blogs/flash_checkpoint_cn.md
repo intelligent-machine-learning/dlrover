@@ -223,8 +223,8 @@ from megatron.checkpointing import save_checkpoint
 改成
 
 ```Python
-from dlrover.trainer.torch.flash_checkpoint.megatron import save_checkpoint
-from dlrover.trainer.torch.flash_checkpoint.megatron import load_checkpoint
+from dlrover.trainer.torch.flash_checkpoint.megatron_dist_ckpt import save_checkpoint
+from dlrover.trainer.torch.flash_checkpoint.megatron_dist_ckpt import load_checkpoint
 from dlrover.trainer.torch.flash_checkpoint.megatron import StorageType
 ```
 

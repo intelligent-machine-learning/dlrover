@@ -76,7 +76,6 @@ class NodeStatus(object):
     INITIAL = "Initial"
     DELETED = "Deleted"
     UNKNOWN = "Unknown"
-    BREAKDOWN = "Breakdown"
 
 
 class NodeEventType(object):
@@ -90,6 +89,7 @@ class NodeExitReason(object):
     FATAL_ERROR = "Error"
     UNKNOWN_ERROR = "UnknownError"
     HARDWARE_ERROR = "HardwareError"
+    NO_HEARTBEAT = "NoHeartBeat"
 
 
 class JobExitReason(object):
@@ -114,6 +114,7 @@ class ExitCode(object):
     GPU_DRIVER_ERROR = 201
     GPU_POD_RESIDUE = 202
     GPU_INFOROM_CORRUPTED = 14
+    UNKNOWN_DEVICE = 128
 
 
 class NodeResourceLimit(object):

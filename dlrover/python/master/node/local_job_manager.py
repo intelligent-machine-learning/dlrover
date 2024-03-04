@@ -85,6 +85,10 @@ class LocalJobManager(JobManager):
             node, restart_count, error_data, level
         )
 
+    def collect_node_heart_beat(self, node_type, node_id, timestamp):
+        node = self._job_nodes[node_type][node_id]
+        node.heartbeat_time = timestamp
+
     def close_job(self):
         pass
 

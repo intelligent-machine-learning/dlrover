@@ -206,6 +206,11 @@ class GlobalStep(Message):
 
 
 @dataclass
+class HeartBeat(Message):
+    timestamp: int = 0
+
+
+@dataclass
 class DatasetShardParams(Message):
     batch_size: int = 0
     num_epochs: int = 0
