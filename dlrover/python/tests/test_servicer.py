@@ -381,6 +381,17 @@ class MasterServicerTest(unittest.TestCase):
         res = self.servicer._num_nodes_waiting(RendezvousName.ELASTIC_TRAINING)
         self.assertEqual(res.waiting_num, 0)
 
+    def test_report_heartbeat(self):
+        request = elastic_training_pb2.Message()
+        ts = int(time.time())
+        message = grpc.HeartBeat(ts)
+        request.data = message.serialize()
+        request.node_type = NodeType.WORKER
+        request.node_id = 0
+        self.servicer.report(request, None)
+        worker0 = self.servicer._job_manager._job_nodes[NodeType.WORKER][0]
+        self.assertEqual(worker0.heartbeat_time, ts)
+
 
 class MasterServicerForRayTest(unittest.TestCase):
     def setUp(self) -> None:

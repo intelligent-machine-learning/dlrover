@@ -76,7 +76,6 @@ class NodeStatus(object):
     INITIAL = "Initial"
     DELETED = "Deleted"
     UNKNOWN = "Unknown"
-    BREAKDOWN = "Breakdown"
 
 
 class NodeEventType(object):
@@ -90,6 +89,7 @@ class NodeExitReason(object):
     FATAL_ERROR = "Error"
     UNKNOWN_ERROR = "UnknownError"
     HARDWARE_ERROR = "HardwareError"
+    NO_HEARTBEAT = "NoHeartBeat"
 
 
 class JobExitReason(object):

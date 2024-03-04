@@ -330,6 +330,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             success = self._kv_store_set(message)
         elif isinstance(message, grpc.ParallelConfig):
             success = self._report_paral_config(node_type, node_id, message)
+        elif isinstance(message, grpc.HeartBeat):
+            success = self._report_heartbeat(node_type, node_id, message)
 
         response.success = success
         return response
@@ -554,6 +556,14 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             self._job_manager.update_node_paral_config(
                 node_type, node_id, message
             )
+        return True
+
+    def _report_heartbeat(self, node_type, node_id, message: grpc.HeartBeat):
+        self._job_manager.collect_node_heart_beat(
+            node_type,
+            node_id,
+            message.timestamp,
+        )
         return True
 
 

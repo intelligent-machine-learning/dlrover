@@ -260,6 +260,25 @@ class DistributedJobManagerTest(unittest.TestCase):
             NodeType.WORKER, 0, level=TrainingExceptionLevel.NODE_ERROR
         )
 
+    def test_get_dead_node_event(self):
+        params = MockK8sPSJobArgs()
+        params.initilize()
+        manager = create_job_manager(params, SpeedMonitor())
+        manager.start()
+        ts = int(time.time())
+        manager.collect_node_heart_beat(NodeType.WORKER, 0, ts)
+        worker0 = manager._job_nodes[NodeType.WORKER][0]
+        self.assertEqual(worker0.heartbeat_time, ts)
+        for node in manager._job_nodes[NodeType.WORKER].values():
+            node.status = NodeStatus.RUNNING
+        events = manager._get_dead_node_event()
+        self.assertEqual(len(events), 0)
+        for node in manager._job_nodes[NodeType.WORKER].values():
+            node.status = NodeStatus.RUNNING
+            node.heartbeat_time = time.time() - 500
+        events = manager._get_dead_node_event()
+        self.assertEqual(len(events), 3)
+
     def test_relaunch_training_master(self):
         params = MockK8sPSJobArgs()
         params.initilize()

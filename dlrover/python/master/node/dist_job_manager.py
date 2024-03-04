@@ -26,6 +26,7 @@ from dlrover.python.common.constants import (
     NodeResourceLimit,
     NodeStatus,
     NodeType,
+    TrainingExceptionLevel,
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.grpc import ParallelConfig
@@ -202,6 +203,11 @@ class DistributedJobManager(JobManager):
         threading.Thread(
             target=self._monitor_nodes, name="node_monitor", daemon=True
         ).start()
+        threading.Thread(
+            target=self._monitor_node_heart_beat,
+            name="node_heart_beat_monitor",
+            daemon=True,
+        ).start()
         if os.getenv("KUBERNETES_SERVICE_HOST"):
             threading.Thread(
                 target=self._monitor_scale_plan_crd,
@@ -323,7 +329,7 @@ class DistributedJobManager(JobManager):
         )
 
     def _monitor_nodes(self):
-        logger.info("Start to monitor nodes")
+        logger.info("Start monitoring nodes events.")
         while True:
             nodes = self._node_watcher.list()
             self._process_list_nodes(nodes)
@@ -341,6 +347,52 @@ class DistributedJobManager(JobManager):
             except Exception as e:
                 logger.warning(e)
                 time.sleep(30)
+
+    def _monitor_node_heart_beat(self):
+        logger.info("Start monitoring the heart beat of nodes.")
+        while True:
+            events = self._get_dead_node_event()
+            for event in events:
+                try:
+                    self._process_event(event)
+                except Exception as e:
+                    logger.warning(e)
+                    detail_trace_back = traceback.format_exc()
+                    logger.warning(detail_trace_back)
+            time.sleep(15)
+
+    def _get_dead_node_event(self, window_interval=300) -> List[NodeEvent]:
+        now = time.time()
+        dead_events = []
+        for _, nodes in self._job_nodes.items():
+            for _, node in nodes.items():
+                if (
+                    node.heartbeat_time > 0
+                    and now - node.heartbeat_time > window_interval
+                    and node.status == NodeStatus.RUNNING
+                ):
+                    event_node = copy.deepcopy(node)
+                    event_node.status = NodeStatus.FAILED
+                    event_node.exit_reason = NodeExitReason.NO_HEARTBEAT
+                    event = NodeEvent(
+                        event_type=NodeEventType.DELETED,
+                        node=event_node,
+                    )
+                    dead_events.append(event)
+                    error_data = (
+                        f"No heartbeat for over {window_interval} seconds."
+                    )
+                    self._error_monitor.process_error(
+                        node,
+                        node.relaunch_count,
+                        error_data,
+                        TrainingExceptionLevel.NODE_ERROR,
+                    )
+                    logger.warning(
+                        f"The node {node.name} has not sent a heartbeat "
+                        f"for over {window_interval} seconds."
+                    )
+        return dead_events
 
     def _monitor_scale_plan_crd(self):
         """Monitor the Scaler CRD from users to adjust the job resource"""
@@ -565,6 +617,7 @@ class DistributedJobManager(JobManager):
         else:
             logger.error("Not support node type %s", node.type)
         self._set_ps_addrs_in_plan(plan)
+        plan.remove_nodes.append(node)
         self._scaler.scale(plan)
 
     def clear_exited_nodes(self):
@@ -729,7 +782,7 @@ class DistributedJobManager(JobManager):
         self._scaler.scale(plan)
 
     def start_auto_scaling(self):
-        """Start to auto-scale nodes to improve the training throughput."""
+        """Start auto scaling nodes to improve the training throughput."""
         self._job_autoscaler.start_auto_scaling()
 
     def _set_ps_addrs_in_plan(self, plan: ScalePlan):
@@ -787,6 +840,10 @@ class DistributedJobManager(JobManager):
         if node_type != NodeType.WORKER:
             return False
         return self._worker_manager.verify_restarting_training(node_id)
+
+    def collect_node_heart_beat(self, node_type, node_id, timestamp):
+        node = self._job_nodes[node_type][node_id]
+        node.heartbeat_time = timestamp
 
 
 def create_job_manager(args: JobArgs, speed_monitor) -> DistributedJobManager:
