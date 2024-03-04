@@ -124,7 +124,7 @@ class TorchTrainingMonitor(Singleton):
             ts = int(time.time())
             self._master_client.report_heart_beat(ts)
         except Exception:
-            logger.info("Fail to report a heartbeat.")
+            logger.warning("Fail to report a heartbeat.")
 
     def _periodically_report(self):
         while True:
