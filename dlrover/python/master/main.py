@@ -13,7 +13,11 @@
 
 import os
 
-from dlrover.python.common.constants import NodeType, PlatformType
+from dlrover.python.common.constants import (
+    DistributionStrategy,
+    NodeType,
+    PlatformType,
+)
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.args import parse_master_args
@@ -30,6 +34,8 @@ def update_context(job_args: JobArgs):
         elif node_type == NodeType.PS:
             _dlrover_context.auto_ps_enabled = node_args.auto_scale
     _dlrover_context.relaunch_always = job_args.relaunch_always
+    if job_args.distribution_strategy == DistributionStrategy.ALLREDUCE:
+        _dlrover_context.relaunch_always = True
     _dlrover_context.set_params_from_brain()
     _dlrover_context.print_config()
 

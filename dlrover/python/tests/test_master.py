@@ -15,6 +15,7 @@ import unittest
 from datetime import datetime, timedelta
 
 from dlrover.python.common.constants import (
+    DistributionStrategy,
     JobExitReason,
     NodeStatus,
     NodeType,
@@ -102,7 +103,8 @@ class DistributedJobMasterTest(unittest.TestCase):
     def test_update_context(self):
         job_args = MockK8sPSJobArgs()
         job_args.initilize()
-        job_args.relaunch_always = True
+        job_args.relaunch_always = False
+        job_args.distribution_strategy = DistributionStrategy.ALLREDUCE
         update_context(job_args)
         self.assertTrue(_dlrover_context.relaunch_always)
         self.assertTrue(_dlrover_context.auto_ps_enabled)
