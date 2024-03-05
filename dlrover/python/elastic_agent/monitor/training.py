@@ -17,6 +17,7 @@ import threading
 import time
 
 from dlrover.python.common import env_utils
+from dlrover.python.common.constants import NodeEnv
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
 from dlrover.python.elastic_agent.master_client import MasterClient
@@ -85,6 +86,8 @@ class TorchTrainingMonitor(Singleton):
         self._metrics_path = metrics_path
 
     def start(self):
+        if os.getenv(NodeEnv.MONITOR_ENABLED, "false") != "true":
+            return
         self._resource_monitor.start()
         thread = threading.Thread(
             target=self._periodically_report,
