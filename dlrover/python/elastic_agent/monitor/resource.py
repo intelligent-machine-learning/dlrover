@@ -31,8 +31,6 @@ def get_process_cpu_percent():
         procTotalPercent = 0
         result = {}
         proc_info = []
-        # 分析依赖文件需要获取 memory_maps
-        # 使用进程占用的总CPU计算系统CPU占用率
         for proc in psutil.process_iter(
             ["pid", "ppid", "name", "username", "cmdline"]
         ):
@@ -40,7 +38,6 @@ def get_process_cpu_percent():
             procTotalPercent += proc_percent
             proc.info["cpu_percent"] = round(proc_percent, 2)
             proc_info.append(proc.info)
-        # 暂时不上报进程数据，看下数据量的情况
         result["proc_info"] = proc_info
         cpu_count = psutil.cpu_count(logical=True)
         cpu_percent = round(procTotalPercent / cpu_count, 2)
@@ -118,6 +115,11 @@ class ResourceMonitor(Singleton):
                 f"Failed to start the monitor resource thread. Error: {e}"
             )
 
+        # The first time called cpu_percent will return a meaningless 0.0
+        # value which we are supposed to ignore. So, here we call it at
+        # the begining of monitor and the next value is valid.
+        get_process_cpu_percent()
+
     def stop(self):
         if self._gpu_enabled:
             self.shutdown_gpu_monitor()
@@ -151,9 +153,6 @@ class ResourceMonitor(Singleton):
             logger.exception(
                 f"An unexpected error occurred during NVML shutdown: {e}"
             )
-
-    def start_monitor_cpu(self):
-        get_process_cpu_percent()
 
     def report_resource(self):
         try:

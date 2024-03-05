@@ -50,12 +50,12 @@ class ResourceMonitorTest(unittest.TestCase):
         ]
         mock_env = {
             NodeEnv.DLROVER_MASTER_ADDR: self.addr,
-            NodeEnv.AUTO_MONITOR_WORKLOAD: "true",
+            NodeEnv.MONITOR_ENABLED: "true",
         }
 
         with patch.dict("os.environ", mock_env):
             result = not os.getenv(NodeEnv.DLROVER_MASTER_ADDR, "") or not (
-                os.getenv(NodeEnv.AUTO_MONITOR_WORKLOAD, "") == "true"
+                os.getenv(NodeEnv.MONITOR_ENABLED, "") == "true"
             )
             self.assertFalse(result)
             # mock get_gpu_stats

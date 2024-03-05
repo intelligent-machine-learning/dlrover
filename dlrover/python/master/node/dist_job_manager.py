@@ -843,6 +843,8 @@ class DistributedJobManager(JobManager):
 
     def collect_node_heart_beat(self, node_type, node_id, timestamp):
         node = self._job_nodes[node_type][node_id]
+        if node.heartbeat_time == 0:
+            logger.info(f"Start receiving heartbeat from node {node.name}")
         node.heartbeat_time = timestamp
 
 

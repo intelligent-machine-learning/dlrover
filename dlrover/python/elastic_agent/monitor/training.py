@@ -51,7 +51,6 @@ class TFTrainingReporter(Singleton):
             timestamp = int(time.time())
             self._last_timestamp = timestamp
             self._start_time = timestamp
-            self._resource_monitor.start_monitor_cpu()
             logger.info(
                 "Start training process reporter in training hooks : %s",
                 self.called_in_tf_hook,
@@ -87,7 +86,6 @@ class TorchTrainingMonitor(Singleton):
 
     def start(self):
         self._resource_monitor.start()
-        self._resource_monitor.start_monitor_cpu()
         thread = threading.Thread(
             target=self._periodically_report,
             name="report-step",
