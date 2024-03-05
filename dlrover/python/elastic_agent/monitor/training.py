@@ -17,6 +17,7 @@ import threading
 import time
 
 from dlrover.python.common import env_utils
+from dlrover.python.common.constants import NodeEnv
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
 from dlrover.python.elastic_agent.master_client import MasterClient
@@ -51,7 +52,6 @@ class TFTrainingReporter(Singleton):
             timestamp = int(time.time())
             self._last_timestamp = timestamp
             self._start_time = timestamp
-            self._resource_monitor.start_monitor_cpu()
             logger.info(
                 "Start training process reporter in training hooks : %s",
                 self.called_in_tf_hook,
@@ -86,8 +86,9 @@ class TorchTrainingMonitor(Singleton):
         self._metrics_path = metrics_path
 
     def start(self):
+        if os.getenv(NodeEnv.MONITOR_ENABLED, "false") != "true":
+            return
         self._resource_monitor.start()
-        self._resource_monitor.start_monitor_cpu()
         thread = threading.Thread(
             target=self._periodically_report,
             name="report-step",

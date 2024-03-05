@@ -498,13 +498,9 @@ class PodScaler(Scaler):
         pod_meta.labels[ElasticJobLabel.RELAUNCH_COUNT] = str(
             node.relaunch_count
         )
-        if (
-            _dlrover_context.auto_ps_enabled
-            or _dlrover_context.auto_worker_enabled
-        ):
-            pod.spec.containers[0].env.append(
-                V1EnvVar(name=NodeEnv.AUTO_MONITOR_WORKLOAD, value="true")
-            )
+        pod.spec.containers[0].env.append(
+            V1EnvVar(name=NodeEnv.MONITOR_ENABLED, value="true")
+        )
         self._patch_tf_config_into_env(pod, node, pod_stats, ps_addrs)
         return pod
 
