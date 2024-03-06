@@ -143,7 +143,7 @@ master 收到的节点信息为 {0, 1, 2, 3, 4, 5}。但是用户要求节点是
 Pod-4 从 group 中踢出，然后发送给 Pod-0/1/2/3。而 Pod-4 会等着 Pod-6 起来后再加入训练实现扩容。如下图所示：
 
 <div align="center">
-<img src="../figures/ft_llm_training/dlrover_scale_node.png" alt="Editor" width="600">
+<img src="../figures/ft_llm_training/dlrover_scale_node.jpg" alt="Editor" width="600">
 
 <text>图6：DLRover 节点自动扩缩容 </text>
 </div>
