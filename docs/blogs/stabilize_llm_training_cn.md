@@ -88,7 +88,7 @@ ElasticAgent 就可以给拉起的子进程配置 local rank、global rank 和 w
 的故障资源流程如下：
 
 <div align="center">
-<img src="../figures/ft_llm_training/dlrover_failure_recovery.png" alt="Editor" width="600">
+<img src="../figures/ft_llm_training/dlrover_failure_recovery.jpg" alt="Editor" width="600">
 
 <text> 图2：DLRover 训练故障自愈流程 </text>
 </div>
@@ -112,7 +112,7 @@ DLRover 在重启训练前在每个 GPU 上启动子进程来运行一个轻量�
 详细见[检测脚本](../../dlrover/trainer/torch/run_network_check.py)。DLRover 启动训练任务前的检测流程如下。
 
 <div align="center">
-<img src="../figures/ft_llm_training/dlrover_node_check.png" alt="Editor" width="600">
+<img src="../figures/ft_llm_training/dlrover_node_check.jpg" alt="Editor" width="600">
 
 <text>图4：DLRover 节点检测流程 </text>
 </div>
