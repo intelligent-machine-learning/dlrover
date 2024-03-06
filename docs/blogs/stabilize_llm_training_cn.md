@@ -40,7 +40,7 @@ DLRover 上线后，一周内千卡训练运行时间占比提升至 83.6%，有
 
 ## PyTorch 分布式训练的弹性与容错
 
-### 现有的 Torch 容错框架
+### PyTorch 容错框架
 
 为了实现训练的弹性与容错，Torch Elastic 和 Elastic Horovod 都可以在故障发生后自动恢复训练进程。
 二者显著的区别在于节点数量变化后是否需要重启训练子进程来恢复训练。Torch Elastic 感知到新节点加入后会立刻重启所有节点的子进程，
@@ -58,13 +58,13 @@ DLRover 上线后，一周内千卡训练运行时间占比提升至 83.6%，有
 通过上述对比可以看出，Torch Elastic 重启训练子进程的方案对用户更加友好，支持更多的分布式训练策略和模型。
 而FSDP和NCCL是当前大模型分布式训练使用最为广泛的技术。所以 DLRover 选择使用 Torch Elastic 重启子进程的方案来实现 Kubernetes 集群上分布式训练的弹性容错。
 
-### Torch Elastic 动态组网
+### TorchElastic 动态组网
 
 动态组网是指训练进程可以自动根据动态变化的节点数量来组网通信，无需固定给各个节点指定组网的 rank 和 world size。
 动态组网是弹性容错训练缩必须的，因为弹性容错作业中，节点的失败、扩容或者缩容都会导致节点的 rank 和 world size 变化。
 所以我们无法在作业启动前给节点指定 rank 和 world size。
 
-Torch Elastic 使用 Dynamic Rendezvous 机制来协助子进程组网。
+TorchElastic 使用 Dynamic Rendezvous 机制来协助子进程组网。
 每个节点上运行一个 ElasticAgent，ElasticAgent 会从一个共享存储中获取作业节点的 host group，然后将自己的 host 加入 group
 并同步到共享存储里。这个共享存储当前默认使用 TCPStore。接着，ElasticAgent 不断从共享存储里获取查询 host group，
 直到 host group 里的节点数量达到最小节点数量 min_nodes 且一段时间内没有变化，即认为所有节点都准备好了。然后，
