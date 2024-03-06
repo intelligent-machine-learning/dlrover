@@ -144,8 +144,8 @@ class DeepSpeedCheckpointTest(unittest.TestCase):
             self.assertTrue(os.path.exists(tracer_file))
             self.assertEqual(restored_step, step)
 
-            files = os.listdir(tmpdirname + "/100")
-            self.assertEqual(files, ["optim_states.pt", "model_states.pt"])
+            files = sorted(os.listdir(tmpdirname + "/100"))
+            self.assertEqual(files, ["model_states.pt", "optim_states.pt"])
 
             with self.assertRaises(ValueError):
                 checkpointer.save_checkpoint(
