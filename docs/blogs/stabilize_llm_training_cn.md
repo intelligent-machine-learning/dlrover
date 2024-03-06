@@ -119,13 +119,14 @@ Pod 来替换出错的 Pod，对于正常运行的Pod 重启其训练进程，�
 
 ### DLRover 故障机检测
 
-DLRover 在重启训练子进程前运行一个简单的 allgather 任务来排查故障机。job master 先将所有节点两两划分为多个
+DLRover 在重启训练子进程前运行一个简单的 GEMM 和 allgather 任务来排查故障机，
+详细见[检测脚本](../../dlrover/trainer/torch/run_network_check.py)。job master 先将所有节点两两划分为多个
 world，每个 world 内的节点上执行 allgather 任务并将成功与否上报给 job master。
 如果有 world 里的allgather 任务失败，则此 world 的节点为潜在故障机，否则为正常机器。
 然后开始第二轮测试，master 会将潜在故障机和正常节点再次两两划分 world。每个 world 的节点继续执行 allgather，
 这样就找到故障节点。比如作业有6个节点，第一轮的划分结果为 [{1,2}, {3,4}, {5,6}]， {5, 6}] 执行 allgather 失败了，
 那么节点5 和 6 就是潜在故障节点。为此第二轮的划分为[{1,2}, {3,5}, {4,6}] 。如果{4,6} 失败了，
-说明节点6 就是故障节点。然后，DLRover 会重新拉起一个 Pod，替换节点6。
+说明节点6 就是故障节点。然后，DLRover 会重新拉起一个 Pod，替换节点6
 
 <div align="center">
 <img src="../figures/ft_llm_training/node_health_check.jpg" alt="Editor" width="600">
