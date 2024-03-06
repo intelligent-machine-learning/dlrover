@@ -50,8 +50,8 @@ training job. The actions to restore training in DLRover are:
 2. Restart the process not the node due to software errors.
 3. Restart the failed nodes due to hardward errors.
 
-For detail, we can see [blog](docs/blogs/stabilize_llm_training_cn.md)
-of fault-tolerance and elasticity. **With fault tolerance, the goodput of GLM-65B training
+For detail, we can see the [blog of fault-tolerance and elasticity](docs/blogs/stabilize_llm_training_cn.md).
+**With fault tolerance, the goodput of GLM-65B training
 on thousands of GPUs increased from 69% to 95%**. The goodput is the time spent computing
 useful new steps over the elapsed time of the training job.
 The downtime details are shown:
