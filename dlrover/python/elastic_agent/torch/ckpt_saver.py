@@ -248,7 +248,7 @@ class SharedMemoryHandler(object):
             self.metadata.unlink()
 
     def reset(self):
-        self.metadata.set({})
+        # self.metadata.set({})
         self.shared_memory = None
 
     def _create_tensor_meta(self, value: torch.Tensor):
