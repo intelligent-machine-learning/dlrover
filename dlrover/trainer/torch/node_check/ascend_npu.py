@@ -12,7 +12,6 @@
 # limitations under the License.
 
 import os
-import time
 from datetime import timedelta
 
 import torch
