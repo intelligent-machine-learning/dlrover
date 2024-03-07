@@ -183,6 +183,8 @@ class PodScalerTest(unittest.TestCase):
         scale_plan.remove_nodes.append(
             Node(NodeType.WORKER, 3, NodeResource(0, 0))
         )
+        plan_json = scale_plan.to_json()
+        self.assertTrue("paral_config" not in plan_json)
         scaler.scale(scale_plan)
         self.assertFalse(scale_plan.empty())
         self.assertEqual(len(scaler._create_node_queue), 2)

@@ -352,3 +352,10 @@ class Node(object):
             f"is_released:{self.is_released};"
             f"priroity:{self.config_resource.priority}"
         )
+
+    def to_dict(self):
+        d = copy.deepcopy(self.__dict__)
+        d.pop("paral_config", None)
+        d.pop("config_resource", None)
+        d.pop("used_resource", None)
+        return d
