@@ -54,6 +54,7 @@ from torch.distributed.launcher.api import LaunchConfig, _get_entrypoint_name
 
 from dlrover.python.common import env_utils
 from dlrover.python.common.constants import (
+    Accelerators,
     ConfigPath,
     NodeEnv,
     NodeErrorMessage,
@@ -119,6 +120,8 @@ class ElasticLaunchConfig(LaunchConfig):
             check and exclude_straggler is True.
         save_at_breakpoint: wether to save the checkpoint from the shared
             memory into the disk after a failure occurs.
+        accelerator: the type of acclerator processor like nvidia.com/gpu,
+            ascend-npu.
     """
 
     network_check: bool = False
@@ -127,6 +130,7 @@ class ElasticLaunchConfig(LaunchConfig):
     auto_tunning: bool = False
     exclude_straggler: bool = False
     save_at_breakpoint: bool = False
+    accelerator: str = ""
 
     def set_node_unit(self, node_unit):
         """Set the number unint of ndoes."""
@@ -134,6 +138,8 @@ class ElasticLaunchConfig(LaunchConfig):
         self.rdzv_configs["node_unit"] = node_unit
 
     def auto_configure_params(self):
+        if torch_npu:
+            self.accelerator = Accelerators.ASCEND_NPU
         if not self.auto_config:
             return
 
@@ -530,7 +536,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
     @prof
     def _stop_workers(self, worker_group: WorkerGroup) -> None:
-        if torch_npu:
+        if self._config.accelerator == Accelerators.ASCEND_NPU:
             logger.info("stop workers via SIGKILL")
             self._shutdown(death_sig=signal.SIGKILL)
         else:
@@ -1002,8 +1008,14 @@ def network_check(
     return result
 
 
-def run_network_check(config, entrypoint):
-    cmd_args = ["-m", "dlrover.trainer.torch.run_network_check"]
+def run_network_check(config: ElasticLaunchConfig, entrypoint):
+    if config.accelerator == Accelerators.NVIDIA_GPU:
+        cmd_args = ["-m", "dlrover.trainer.torch.node_check.nvidia_gpu.py"]
+    elif config.accelerator == Accelerators.ASCEND_NPU:
+        cmd_args = ["-m", "dlrover.trainer.torch.node_check.acend_npu.py"]
+    else:
+        logger.warning(f"Unsupported accelerator chip {config.accelerator}.")
+        return True
     for _ in range(2):
         # If network fails because other abnormal node, We
         # will retry to check network after the new node is starting.
@@ -1012,7 +1024,7 @@ def run_network_check(config, entrypoint):
             config=config, entrypoint=entrypoint, args=cmd_args
         )
         if success:
-            logger.info("Network check pass.")
+            logger.info("Node check passed.")
             return success
         else:
             logger.error(

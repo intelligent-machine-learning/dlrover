@@ -159,7 +159,7 @@ The elapsed times of all nodes have not significant differenct. Note. the index 
 ### Fault Node
 
 In the experiment, we set replicas of worker to 4 in a job and
-use chaosblade to kill the process to run `run_network_check.py`
+use chaosblade to kill the process to run `nvidia_gpu.py`
 to simulate the fault node.
 
 and set the command in the yaml of elasticjob like the [example](../../examples/pytorch/mnist/choas_test_job.yaml).

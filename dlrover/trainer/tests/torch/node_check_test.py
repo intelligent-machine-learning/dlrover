@@ -15,12 +15,8 @@ import json
 import os
 import unittest
 
-from dlrover.trainer.torch.run_network_check import (
-    FAULT_CHECK_TASK,
-    main,
-    matmul,
-    mock_error,
-)
+from dlrover.trainer.torch.node_check.nvidia_gpu import main as gpu_main
+from dlrover.trainer.torch.node_check.utils import mock_error
 
 
 class TestNetworkCheckScript(unittest.TestCase):
@@ -32,22 +28,18 @@ class TestNetworkCheckScript(unittest.TestCase):
         # Cleanup code to run after each test method
         pass
 
-    def test_fault_check(self):
+    def test_gpu_node_check(self):
         os.environ["RANK"] = "0"
         os.environ["WORLD_SIZE"] = "1"
         os.environ["LOCAL_RANK"] = "0"
         os.environ["MASTER_ADDR"] = "localhost"
         os.environ["MASTER_PORT"] = "12345"
-        t = main(FAULT_CHECK_TASK)
+        t = gpu_main()
         self.assertTrue(t > 0)
         with open("/tmp/dlrover/network_check/0.txt", "r") as f:
             data = json.load(f)
             self.assertEqual(data["local_rank"], 0)
             self.assertTrue(data["time"] > 0)
-
-    def test_matmul(self):
-        t = matmul(False, 0)
-        self.assertTrue(t > 0)
 
     def test_mock_error(self):
         raised_error = False
