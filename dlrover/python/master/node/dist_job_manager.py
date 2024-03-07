@@ -637,8 +637,9 @@ class DistributedJobManager(JobManager):
         scale_plan = ScalePlan()
         for _, nodes in self._job_nodes.items():
             for _, node in nodes.items():
-                scale_plan.remove_nodes.append(node)
-                node.is_released = True
+                if not node.is_released:
+                    scale_plan.remove_nodes.append(node)
+                    node.is_released = True
         logger.info("Remove all nodes.")
         self._scaler.scale(scale_plan)
 

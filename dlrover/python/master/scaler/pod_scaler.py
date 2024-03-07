@@ -224,7 +224,7 @@ class PodScaler(Scaler):
     def _remove_nodes(self, plan: ScalePlan):
         for node in plan.remove_nodes:
             removed = self._remove_not_create_pod(node.name)
-            if not removed:
+            if not removed and node.name:
                 self._k8s_client.delete_pod(node.name)
 
     def _update_job_pods(self, job_pods: Dict[str, List[Node]]):
