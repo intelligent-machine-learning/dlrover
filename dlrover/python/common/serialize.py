@@ -17,7 +17,9 @@ from typing import Dict
 
 
 def to_dict(o):
-    if hasattr(o, "__dict__"):
+    if hasattr(o, "to_dict"):
+        return o.to_dict()
+    elif hasattr(o, "__dict__"):
         return o.__dict__
     else:
         return {}
