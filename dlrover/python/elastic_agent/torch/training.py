@@ -76,9 +76,9 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import AsyncCheckpointSaver
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
 
 try:
-    import torch_npu  # noqa: F401
-except (ModuleNotFoundError, ImportError) as e:  # noqa: F841
-    torch_npu = None
+    from torch_npu.contrib import transfer_to_npu  # noqa: F401
+except (ModuleNotFoundError, ImportError):  # noqa: F841
+    pass
 
 __all__ = ["launch_agent"]
 
@@ -138,7 +138,8 @@ class ElasticLaunchConfig(LaunchConfig):
         self.rdzv_configs["node_unit"] = node_unit
 
     def auto_configure_params(self):
-        if torch_npu:
+        device = torch.cuda.get_device_name()
+        if "Ascend" in device:
             self.accelerator = Accelerators.ASCEND_NPU
         if not self.auto_config:
             return
