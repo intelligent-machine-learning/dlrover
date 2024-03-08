@@ -16,8 +16,11 @@ from datetime import timedelta
 
 import torch
 import torch.distributed as dist
-import torch_npu  # noqa: F401
-from torch_npu.contrib import transfer_to_npu  # noqa: F401
+try:
+    import torch_npu  # noqa: F401
+    from torch_npu.contrib import transfer_to_npu  # noqa: F401
+except Exception:
+    torch_npu = None
 
 from dlrover.python.common.log import default_logger as logger
 
@@ -44,7 +47,8 @@ def main():
     shape = 1 << 24
     bm_all_gather(shape, use_cuda)
 
-    torch_npu._npu_shutdown()
+    if torch_npu:
+        torch_npu._npu_shutdown()
     dist.destroy_process_group()
 
 
