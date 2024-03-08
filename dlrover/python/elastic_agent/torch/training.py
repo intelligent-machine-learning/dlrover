@@ -138,7 +138,9 @@ class ElasticLaunchConfig(LaunchConfig):
         self.rdzv_configs["node_unit"] = node_unit
 
     def auto_configure_params(self):
-        device = torch.cuda.get_device_name()
+        device = ""
+        if torch.cuda.is_available():
+            device = torch.cuda.get_device_name()
         if "Ascend" in device:
             self.accelerator = Accelerators.ASCEND_NPU
         if not self.auto_config:
