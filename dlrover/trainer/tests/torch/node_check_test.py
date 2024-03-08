@@ -15,8 +15,8 @@ import json
 import os
 import unittest
 
-from dlrover.trainer.torch.node_check.nvidia_gpu import main as gpu_main
 from dlrover.trainer.torch.node_check.ascend_npu import main as npu_main
+from dlrover.trainer.torch.node_check.nvidia_gpu import main as gpu_main
 from dlrover.trainer.torch.node_check.utils import mock_error
 
 
@@ -41,7 +41,7 @@ class TestNetworkCheckScript(unittest.TestCase):
             data = json.load(f)
             self.assertEqual(data["local_rank"], 0)
             self.assertTrue(data["time"] > 0)
-        
+
         t = npu_main()
         self.assertTrue(t > 0)
         with open("/tmp/dlrover/network_check/0.txt", "r") as f:

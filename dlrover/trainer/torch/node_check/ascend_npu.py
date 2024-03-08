@@ -16,6 +16,7 @@ from datetime import timedelta
 
 import torch
 import torch.distributed as dist
+
 try:
     import torch_npu  # noqa: F401
     from torch_npu.contrib import transfer_to_npu  # noqa: F401
