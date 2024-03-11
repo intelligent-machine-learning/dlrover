@@ -1015,7 +1015,7 @@ def run_network_check(config: ElasticLaunchConfig, entrypoint):
     if config.accelerator == Accelerators.NVIDIA_GPU:
         cmd_args = ["-m", "dlrover.trainer.torch.node_check.nvidia_gpu.py"]
     elif config.accelerator == Accelerators.ASCEND_NPU:
-        cmd_args = ["-m", "dlrover.trainer.torch.node_check.acend_npu.py"]
+        cmd_args = ["-m", "dlrover.trainer.torch.node_check.ascend_npu.py"]
     else:
         logger.warning(f"Unsupported accelerator chip {config.accelerator}.")
         return True
