@@ -109,7 +109,9 @@ worker 是运行 AI 训练的节点，其主要包含一个基于 TorchElastic �
 ### 节点检测流程
 
 DLRover 在重启训练前在每个 GPU 上启动子进程来运行一个轻量级的检测任务来检查机器。该检测任务包含一个简单的 GEMM 和 allgather 任务。
-详细见[检测脚本](../../dlrover/trainer/torch/run_network_check.py)。DLRover 启动训练任务前的检测流程如下。
+详细见[GPU 检测脚本](../../dlrover/trainer/torch/node_check/nvidia_gpu.py)
+和[昇腾芯片检测脚本](../../dlrover/trainer/torch/node_check/ascend_npu.py)。
+DLRover 启动训练任务前的检测流程如下。
 
 <div align="center">
 <img src="../figures/ft_llm_training/dlrover_node_check.jpg" alt="Editor" width="600">
