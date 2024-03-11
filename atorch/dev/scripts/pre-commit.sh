@@ -1,6 +1,6 @@
 #!/bin/sh
 
-pip install pre-commit==2.21.0
+# pip install pre-commit==2.21.0
 git config --global --add safe.directory '*'
 
 Config=.pre-commit-config.yaml
