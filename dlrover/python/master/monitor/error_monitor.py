@@ -43,9 +43,9 @@ class ErrorMonitor(metaclass=ABCMeta):
 class SimpleErrorMonitor(ErrorMonitor):
     """The monitor logs the error data."""
 
-    def __init__(self, cordon_node_eanbled=False):
+    def __init__(self, namespace="", cordon_node_eanbled=False):
         self.cordon_node_eanbled = cordon_node_eanbled
-        self._k8s_client = k8sClient.singleton_instance()
+        self._k8s_client = k8sClient.singleton_instance(namespace)
         self._restart_errors: Dict[int, str] = {}
 
     def process_error(

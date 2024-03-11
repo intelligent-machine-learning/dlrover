@@ -870,5 +870,5 @@ def create_job_manager(args: JobArgs, speed_monitor) -> DistributedJobManager:
         job=elastic_job,
         node_watcher=node_watcher,
         job_scaler=job_scaler,
-        error_monitor=SimpleErrorMonitor(),
+        error_monitor=SimpleErrorMonitor(args.namespace),
     )
