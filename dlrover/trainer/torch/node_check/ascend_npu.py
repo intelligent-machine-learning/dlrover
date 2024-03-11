@@ -25,10 +25,10 @@ except Exception:
 
 from dlrover.python.common.log import default_logger as logger
 
-from .utils import bm_all_gather, matmul, record_excution_time
+from .utils import bm_all_gather, matmul, record_execution_time
 
 
-@record_excution_time
+@record_execution_time
 def main():
     use_cuda = torch.cuda.is_available()
 

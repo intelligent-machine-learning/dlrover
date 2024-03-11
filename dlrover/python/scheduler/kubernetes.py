@@ -281,6 +281,14 @@ class k8sClient(Singleton):
             name=name, namespace=self._namespace, body=body
         )
 
+    def cordon_node(self, node_name):
+        try:
+            body = {"spec": {"unschedulable": True}}
+            self.client.patch_node(node_name, body)
+            return True
+        except Exception:
+            return False
+
     def create_service(self, service: client.V1Service):
         """Create a service
 
