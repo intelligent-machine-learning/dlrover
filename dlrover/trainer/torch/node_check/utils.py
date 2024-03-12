@@ -19,16 +19,30 @@ import torch
 import torch.distributed as dist
 
 from dlrover.python.common.constants import ConfigPath
+from dlrover.python.common.log import default_logger as logger
 
 
-def record_excution_time(func):
+def record_execution_time(func):
     def wrapper(*args, **kwargs):
         start = time.time()
         func(*args, **kwargs)
-        t = time.time() - start
+        t = round(time.time() - start, 2)
         local_rank = int(os.environ["LOCAL_RANK"])
         write_time_to_file(t, local_rank)
-        return round(t, 2)
+        return t
+
+    return wrapper
+
+
+def log_execution_time(func):
+    def wrapper(*args, **kwargs):
+        start = time.time()
+        func(*args, **kwargs)
+        t = round(time.time() - start, 2)
+        local_rank = int(os.environ["LOCAL_RANK"])
+        logger.info(
+            f"Time to execute {func} on local rank {local_rank} is {t}."
+        )
 
     return wrapper
 
@@ -41,6 +55,7 @@ def mock_error():
             raise ValueError("Mock network error!")
 
 
+@log_execution_time
 def bm_all_gather(shape, use_gpu):
     world_size = dist.get_world_size()
     local_rank = int(os.environ["LOCAL_RANK"])
@@ -57,6 +72,7 @@ def bm_all_gather(shape, use_gpu):
     mock_error()
 
 
+@log_execution_time
 def matmul(use_cuda, round=10):
     local_rank = int(os.getenv("LOCAL_RANK", 0))
     device = torch.device(f"cuda:{local_rank}" if use_cuda else "cpu")

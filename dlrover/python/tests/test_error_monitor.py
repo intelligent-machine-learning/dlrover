@@ -15,12 +15,12 @@ import unittest
 
 from dlrover.python.common.constants import NodeType, TrainingExceptionLevel
 from dlrover.python.common.node import Node
-from dlrover.python.master.monitor.error_monitor import ErrorLogMonitor
+from dlrover.python.master.monitor.error_monitor import SimpleErrorMonitor
 
 
 class ErrorLogMonitorTest(unittest.TestCase):
     def test_process_error(self):
-        err_monitor = ErrorLogMonitor()
+        err_monitor = SimpleErrorMonitor()
         node = Node(NodeType.WORKER, 0)
         error_data = "RuntimeError"
         relaunched = err_monitor.process_error(
