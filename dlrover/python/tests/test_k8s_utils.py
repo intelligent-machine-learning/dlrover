@@ -18,11 +18,11 @@ from kubernetes import client
 from dlrover.python.common.node import NodeResource
 from dlrover.python.scheduler.kubernetes import (
     get_main_container,
+    k8sClient,
     k8sServiceFactory,
     set_container_resource,
 )
 from dlrover.python.tests.test_utils import create_pod, mock_k8s_client
-from dlrover.python.scheduler.kubernetes import k8sClient
 
 
 class KubernetesTest(unittest.TestCase):
