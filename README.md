@@ -189,7 +189,7 @@ Please refer to the [DEVELOPMENT](docs/developer_guide.md)
 
 [Train a PyTorch Model on Kubernetes.](docs/tutorial/torch_elasticjob_on_k8s.md)
 
-[Train a GPT Model on Kubernetes.](docs/tutorial/torch_ddp_nanogpt.md)
+[Train a GPT Model on Kubernetes.](docs/tutorial/torch_nanogpt.md)
 
 [Train a TensorFlow Estimator on Kubernetes.](docs/tutorial/tf_ps_on_cloud.md)
 
