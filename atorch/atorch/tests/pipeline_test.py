@@ -442,7 +442,7 @@ class TestPipeMLP(unittest.TestCase):
         os.environ["MASTER_PORT"] = ""
 
     @unittest.skipIf(
-        (not torch.cuda.is_available() or torch.cuda.device_count() < 2) or torch_version() < (2, 0, 0),
+        (not torch.cuda.is_available() or torch.cuda.device_count() < 2) or torch_version() < (2, 0, 0),  # type: ignore
         "Must have at least 2 GPUs for gpu pipeline test",
     )
     def test_gpu_train_c10d(self):
@@ -464,7 +464,7 @@ class TestPipeMLP(unittest.TestCase):
     @unittest.skipIf(
         (not torch.cuda.is_available() or torch.cuda.device_count() < 2)
         or not torch.cuda.is_bf16_supported()
-        or torch_version() < (2, 0, 0)
+        or torch_version() < (2, 0, 0)  # type: ignore
         or True,
         "Skip as it's blocking now",
     )
@@ -487,7 +487,7 @@ class TestPipeMLP(unittest.TestCase):
     @unittest.skipIf(
         (not torch.cuda.is_available() or torch.cuda.device_count() < 2)
         or not torch.cuda.is_bf16_supported()
-        or torch_version() < (2, 0, 0)
+        or torch_version() < (2, 0, 0)  # type: ignore
         or True,
         "Skip as it's blocking now",
     )
@@ -508,7 +508,7 @@ class TestPipeMLP(unittest.TestCase):
         os.environ["MASTER_PORT"] = ""
 
     @unittest.skipIf(
-        (not torch.cuda.is_available() or torch.cuda.device_count() < 2) or torch_version() < (2, 0, 0),
+        (not torch.cuda.is_available() or torch.cuda.device_count() < 2) or torch_version() < (2, 0, 0),  # type: ignore
         "Must have at least 2 GPUs for gpu pipeline test",
     )
     def test_gpu_save_load_c10d(self):

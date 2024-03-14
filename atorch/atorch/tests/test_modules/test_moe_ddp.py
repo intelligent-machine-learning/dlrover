@@ -103,7 +103,7 @@ class MoEDDPTestcase(unittest.TestCase):
         except FileNotFoundError:
             pass
 
-    @unittest.skipIf(torch_version() >= (2, 0, 0), "torch2.1.0.dev may changed DDP's attribute.")
+    @unittest.skipIf(torch_version() >= (2, 0, 0), "torch2.1.0.dev may changed DDP's attribute.")  # type: ignore
     @unittest.skipIf(
         not torch.cuda.is_available() or torch.cuda.device_count() < 4,
         "need 4 gpus for testcase, DP 2 x EP 2",

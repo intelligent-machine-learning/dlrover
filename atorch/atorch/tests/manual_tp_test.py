@@ -167,7 +167,7 @@ def _run_manual_tp(rank):
 
 class TestManualTP(unittest.TestCase):
     @unittest.skipIf(
-        torch.cuda.device_count() < 4 or torch_version() < (2, 0, 0),
+        torch.cuda.device_count() < 4 or torch_version() < (2, 0, 0),  # type: ignore
         "run with cpu or gpu_num >=4, torch 2.0 needed for torch.device context manager.",
     )
     def test_manual_tp(self):

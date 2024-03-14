@@ -6,7 +6,7 @@ from torch.cuda.amp import GradScaler
 from atorch.common.log_utils import default_logger as logger
 from atorch.utils.version import torch_version
 
-if torch_version() >= (1, 12, 0):
+if torch_version() >= (1, 12, 0):  # type: ignore
     from torch.distributed.fsdp.sharded_grad_scaler import ShardedGradScaler
 else:
     from fairscale.optim.grad_scaler import ShardedGradScaler

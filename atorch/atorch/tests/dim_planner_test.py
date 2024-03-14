@@ -96,7 +96,7 @@ def run_dim_planner(num_nodes, num_devices_per_node, loss_func):
 
 
 class TestDimPlanner(unittest.TestCase):
-    @unittest.skipIf(not torch.cuda.is_available() or torch_version() < (2, 0, 0), "Test on GPU image")
+    @unittest.skipIf(not torch.cuda.is_available() or torch_version() < (2, 0, 0), "Test on GPU image")  # type: ignore
     def test_dim_planner(self):
         run_dim_planner(2, 4, my_loss_func)
 
