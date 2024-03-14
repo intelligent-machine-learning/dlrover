@@ -193,7 +193,8 @@ def _test_init_auto_accelerate(rank, world_size):
 
 class TestInitAutoAccelerate(unittest.TestCase):
     @unittest.skipIf(
-        torch.cuda.device_count() < 2 or torch_version() < (2, 0, 0), "run with gpu_num >=2 torch.version > 2.0"
+        torch.cuda.device_count() < 2 or torch_version() < (2, 0, 0),  # type: ignore
+        "run with gpu_num >=2 torch.version > 2.0",
     )
     def test_init_auto_accelerate(self):
         world_size = 2

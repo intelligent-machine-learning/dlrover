@@ -14,7 +14,7 @@ from atorch.modules.distributed_modules.utils import (
 )
 from atorch.utils.version import torch_version
 
-if torch_version() <= (1, 12, 1):
+if torch_version() <= (1, 12, 1):  # type: ignore
     from torch.distributed import _all_gather_base as torch_all_gather_base
 else:
     from torch.distributed import all_gather_into_tensor as torch_all_gather_base

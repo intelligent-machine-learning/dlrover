@@ -171,7 +171,7 @@ def run_ds_3d_parallel(rank, world_size):
 
 class TestDeepSpeed3DParallel(unittest.TestCase):
     @unittest.skipIf(
-        not torch.cuda.is_available() or torch.cuda.device_count() < 4 or torch_version() < (2, 0, 0),
+        not torch.cuda.is_available() or torch.cuda.device_count() < 4 or torch_version() < (2, 0, 0),  # type: ignore
         "Must have at least 4 GPUs for tensor + pipeline parallel test",
     )
     def test_ds_3d_parallel(self):
