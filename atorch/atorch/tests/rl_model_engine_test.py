@@ -145,7 +145,7 @@ def _model_engine_support_ds_backend_with_offload_param(rank, world_size):
     assert isinstance(model_engine.auto_accelerated_models[model_type].client_optimizer, torch.optim.Adam)
 
 
-@unittest.skipIf(torch.cuda.device_count() < 2 or torch_version() < (2, 0, 0), "run with gpu_num >=2")
+@unittest.skipIf(torch.cuda.device_count() < 2 or torch_version() < (2, 0, 0), "run with gpu_num >=2")  # type: ignore
 class TestModelEngine(unittest.TestCase):
     def test_run_test_model_engine_load_init_model(self):
         os.environ["MASTER_ADDR"] = "localhost"  #

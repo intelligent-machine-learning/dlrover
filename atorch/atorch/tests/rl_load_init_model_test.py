@@ -51,7 +51,7 @@ def _load_ds_model_with_zero3_partition(rank, world_size):
     assert m.model.decoder.embed_tokens.weight.ds_tensor.data_ptr() == m.lm_head.weight.ds_tensor.data_ptr()
 
 
-@unittest.skipIf(torch.cuda.device_count() < 2 or torch_version() < (2, 0, 0), "run with gpu_num >=2")
+@unittest.skipIf(torch.cuda.device_count() < 2 or torch_version() < (2, 0, 0), "run with gpu_num >=2")  # type: ignore
 class TestLoadDSModel(unittest.TestCase):
     def test_load_ds_model_with_zero3_partition(self):
         world_size = 2
