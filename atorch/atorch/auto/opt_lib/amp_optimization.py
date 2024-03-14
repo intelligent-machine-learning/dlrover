@@ -13,7 +13,7 @@ from atorch.distributed.distributed import parallel_group
 from atorch.utils.grad_scaler import BF16GradScaler, BF16ShardedGradScaler
 from atorch.utils.version import torch_version
 
-if torch_version() >= (1, 12, 0):
+if torch_version() >= (1, 12, 0):  # type: ignore
     from torch.distributed.fsdp.sharded_grad_scaler import ShardedGradScaler
 
 else:

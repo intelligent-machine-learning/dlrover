@@ -280,7 +280,7 @@ class TestClipGradNorm(unittest.TestCase):
 
 class TestFSDPNormUtils(unittest.TestCase):
     @unittest.skipIf(
-        not torch.cuda.is_available() or torch.cuda.device_count() < 2 or torch_version() < (2, 0, 0),
+        not torch.cuda.is_available() or torch.cuda.device_count() < 2 or torch_version() < (2, 0, 0),  # type: ignore
         "No gpu available for cuda tests, torch 2.0 needed for use_orig_param",
     )
     def test_fsdp_norm_utils(self):

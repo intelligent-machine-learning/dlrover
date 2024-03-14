@@ -154,7 +154,7 @@ class AtorchTrainer:
 
         self.atorch_fsdp = args.atorch_opt == "fsdp"
 
-        if self.atorch_fsdp and torch_version() < (2, 0, 0):
+        if self.atorch_fsdp and torch_version() < (2, 0, 0):  # type: ignore
             raise ValueError("Greater than version 2.0 of PyTorch is necessary for FSDP.")
 
         if args.save_load_by_streaming and not self.atorch_fsdp:

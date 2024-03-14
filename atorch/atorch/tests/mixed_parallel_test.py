@@ -205,7 +205,7 @@ class TestMixedMLP(unittest.TestCase):
         return super().tearDown()
 
     @unittest.skipIf(
-        not torch.cuda.is_available() or torch.cuda.device_count() < 4 or torch_version() < (2, 0, 0),
+        not torch.cuda.is_available() or torch.cuda.device_count() < 4 or torch_version() < (2, 0, 0),  # type: ignore
         "Must have at least 2 GPUs for gpu pipeline test",
     )
     def test_pipe_ddp_train(self):

@@ -89,7 +89,7 @@ except (ImportError, ModuleNotFoundError):
     flash_attn_1 = None
     has_legacy_fa1 = False
 
-if torch_version() >= (2, 0, 0):  # torch ops seems to differ from 1.x, support pt2.0+ only
+if torch_version() >= (2, 0, 0):  # type: ignore  # torch ops seems to differ from 1.x, support pt2.0+ only
     try:
         import flash_attn_2_cuda
 
