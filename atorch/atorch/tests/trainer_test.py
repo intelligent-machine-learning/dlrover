@@ -92,7 +92,7 @@ def run_atorch_trainer(test_args):
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="Skip cpu ut, only run on gpu.")
-@pytest.mark.skipif(torch_version() < (2, 0, 0), reason="AtorchTrainer need torch2.0 .")
+@pytest.mark.skipif(torch_version() < (2, 0, 0), reason="AtorchTrainer need torch2.0 .")  # type: ignore
 @pytest.mark.parametrize("atorch_opt", ["fsdp", "ddp"])
 @pytest.mark.parametrize("save_load_by_streaming", [True, False])
 @pytest.mark.parametrize("use_atorch_dataloader", [True, False])

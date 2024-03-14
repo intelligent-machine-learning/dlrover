@@ -27,7 +27,7 @@ from atorch.utils.graph_transform_utils import _pack_kwargs, _unpack_kwargs, com
 from atorch.utils.version import torch_version
 
 try:
-    if torch_version() <= (2, 0, 0):
+    if torch_version() <= (2, 0, 0):  # type: ignore
         from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import CheckpointWrapper as TorchWrapper
     else:
         from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import ActivationWrapper as TorchWrapper
