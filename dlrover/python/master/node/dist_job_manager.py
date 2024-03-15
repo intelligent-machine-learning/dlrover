@@ -351,7 +351,8 @@ class DistributedJobManager(JobManager):
     def _monitor_node_heart_beat(self):
         logger.info("Start monitoring the heart beat of nodes.")
         while True:
-            events = self._get_dead_node_event()
+            with self._lock:
+                events = self._get_dead_node_event()
             for event in events:
                 try:
                     self._process_event(event)
@@ -624,22 +625,24 @@ class DistributedJobManager(JobManager):
         if not self._remove_exited_node:
             return
         scale_plan = ScalePlan()
-        for _, nodes in self._job_nodes.items():
-            for _, node in nodes.items():
-                if not node.is_released and node.exited():
-                    scale_plan.remove_nodes.append(node)
-                    node.is_released = True
+        with self._lock:
+            for _, nodes in self._job_nodes.items():
+                for _, node in nodes.items():
+                    if not node.is_released and node.exited():
+                        scale_plan.remove_nodes.append(node)
+                        node.is_released = True
         if len(scale_plan.remove_nodes) > 0:
             logger.info(f"Remove exited nodes {scale_plan.remove_nodes}")
             self._scaler.scale(scale_plan)
 
     def clear_all_nodes(self):
         scale_plan = ScalePlan()
-        for _, nodes in self._job_nodes.items():
-            for _, node in nodes.items():
-                if not node.is_released:
-                    scale_plan.remove_nodes.append(node)
-                    node.is_released = True
+        with self._lock:
+            for _, nodes in self._job_nodes.items():
+                for _, node in nodes.items():
+                    if not node.is_released:
+                        scale_plan.remove_nodes.append(node)
+                        node.is_released = True
         logger.info("Remove all nodes.")
         self._scaler.scale(scale_plan)
 
@@ -666,14 +669,15 @@ class DistributedJobManager(JobManager):
 
     def all_critical_node_completed(self):
         alive_critical_nodes = []
-        for _, nodes in self._job_nodes.items():
-            for node in nodes.values():
-                if node.critical and node.status in [
-                    NodeStatus.INITIAL,
-                    NodeStatus.PENDING,
-                    NodeStatus.RUNNING,
-                ]:
-                    alive_critical_nodes.append(node.name)
+        with self._lock:
+            for _, nodes in self._job_nodes.items():
+                for node in nodes.values():
+                    if node.critical and node.status in [
+                        NodeStatus.INITIAL,
+                        NodeStatus.PENDING,
+                        NodeStatus.RUNNING,
+                    ]:
+                        alive_critical_nodes.append(node.name)
 
         completed = not alive_critical_nodes
         if not completed:
