@@ -187,15 +187,20 @@ class DdpCheckpointEngine(CheckpointEngine):
             if not content:
                 return state_dict
             iteration = int(content.strip())
-            if self._global_shard_num == 1:
-                #  Load the checkpoint saved by rank 0 if no sharding.
-                name = f"{iteration}/rank_{self._rank}.pt"
-            else:
-                name = f"{iteration}/rank_0.pt"
-            path = os.path.join(self.checkpoint_dir, name)
+            path = self._gen_restore_checkpoint_path(iteration)
             logger.info(f"Load the state dict from {path}")
             state_dict = self.storage.read_state_dict(
                 path,
                 read_func=lambda path: torch.load(path, map_location="cpu"),
             )
             return state_dict
+
+    def _gen_restore_checkpoint_path(self, iteration):
+        if self._global_shard_num == 1:
+            #  Load the checkpoint saved by rank 0 if no sharding.
+            name = "rank_0.pt"
+        else:
+            name = f"rank_{self._rank}.pt"
+        name = f"{iteration}/{name}"
+        path = os.path.join(self.checkpoint_dir, name)
+        return path
