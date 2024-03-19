@@ -17,6 +17,7 @@ from typing import Dict
 from dlrover.python.common.constants import TrainingExceptionLevel
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node
+from dlrover.python.scheduler.kubernetes import k8sClient
 
 
 class ErrorMonitor(metaclass=ABCMeta):
@@ -39,10 +40,12 @@ class ErrorMonitor(metaclass=ABCMeta):
         pass
 
 
-class ErrorLogMonitor(ErrorMonitor):
+class SimpleErrorMonitor(ErrorMonitor):
     """The monitor logs the error data."""
 
-    def __init__(self):
+    def __init__(self, namespace="", cordon_node_eanbled=False):
+        self.cordon_node_eanbled = cordon_node_eanbled
+        self._k8s_client = k8sClient.singleton_instance(namespace)
         self._restart_errors: Dict[int, str] = {}
 
     def process_error(
@@ -70,8 +73,12 @@ class ErrorLogMonitor(ErrorMonitor):
         return False
 
     def _handle_node_error(self, node: Node, error_data: str):
-        logger.error(
+        logger.info(
             f"{node.name} on {node.host_name} is down. "
             f"Reason: {error_data}"
         )
+        if self.cordon_node_eanbled:
+            succeed = self._k8s_client.cordon_node(node.host_name)
+            if succeed:
+                logger.info(f"Node {node.name} is marked unschedulable.")
         return True

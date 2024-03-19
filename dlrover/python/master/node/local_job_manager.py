@@ -19,8 +19,8 @@ from dlrover.python.master.hyperparams.simple_strategy_generator import (
     SimpleStrategyGenerator,
 )
 from dlrover.python.master.monitor.error_monitor import (
-    ErrorLogMonitor,
     ErrorMonitor,
+    SimpleErrorMonitor,
 )
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.job_manager import JobManager
@@ -171,5 +171,5 @@ def create_job_manager(args: JobArgs, speed_monitor) -> LocalJobManager:
     return LocalJobManager(
         job_args=args,
         speed_monitor=speed_monitor,
-        error_monitor=ErrorLogMonitor(),
+        error_monitor=SimpleErrorMonitor(),
     )

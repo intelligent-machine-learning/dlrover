@@ -267,11 +267,14 @@ class CheckpointEngineTest(unittest.TestCase):
         storage = PosixDiskStorage()
         with tempfile.TemporaryDirectory() as tmpdirname:
             engine = DdpCheckpointEngine(tmpdirname, storage)
+            engine._rank = 1
+            path = os.path.join(tmpdirname, "10/rank_0.pt")
+            ckpt_path = engine._gen_restore_checkpoint_path(10)
+            self.assertEqual(path, ckpt_path)
             engine._restart_count = 1
             engine._notify_agent_to_create_saver()
             ckpt_dir = os.path.join(tmpdirname, "10")
             os.makedirs(ckpt_dir, exist_ok=True)
-            path = os.path.join(tmpdirname, "10/rank_0.pt")
             torch.save(state_dict, path)
             tracer_file = os.path.join(
                 tmpdirname, CheckpointConstant.TRACER_FILE_NAME

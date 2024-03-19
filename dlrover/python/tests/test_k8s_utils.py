@@ -18,6 +18,7 @@ from kubernetes import client
 from dlrover.python.common.node import NodeResource
 from dlrover.python.scheduler.kubernetes import (
     get_main_container,
+    k8sClient,
     k8sServiceFactory,
     set_container_resource,
 )
@@ -79,3 +80,8 @@ class KubernetesTest(unittest.TestCase):
         svc = fac._create_service_obj("test-master", 12345, 34567, {}, None)
         succeed = fac._patch_service("test-master", svc, 5)
         self.assertTrue(succeed)
+
+    def test_client(self):
+        client = k8sClient.singleton_instance("default")
+        succeed = client.cordon_node("test-node-0")
+        self.assertFalse(succeed)

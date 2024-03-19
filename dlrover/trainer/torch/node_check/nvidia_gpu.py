@@ -1,0 +1,44 @@
+# Copyright 2023 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import os
+from datetime import timedelta
+
+import torch
+import torch.distributed as dist
+
+from dlrover.python.common.log import default_logger as logger
+
+from .utils import bm_all_gather, matmul, record_execution_time
+
+
+@record_execution_time
+def main():
+    use_cuda = torch.cuda.is_available()
+    protocol = "nccl" if use_cuda else "gloo"
+
+    dist.init_process_group(protocol, timeout=timedelta(seconds=180))
+    if use_cuda:
+        local_rank = int(os.environ["LOCAL_RANK"])
+        torch.cuda.set_device(local_rank)
+
+    matmul(use_cuda)
+    shape = 1 << 24
+    bm_all_gather(shape, use_cuda)
+    local_rank = int(os.environ["LOCAL_RANK"])
+    dist.destroy_process_group()
+
+
+if __name__ == "__main__":
+    t = main()
+    logger.info(f"Finish checking node in {t}s.")

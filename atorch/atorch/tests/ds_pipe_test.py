@@ -65,7 +65,7 @@ def _weight_align(pipe_model, ref_model):
 
 class TestDeepspeedPipelne(unittest.TestCase):
     @unittest.skipIf(
-        not torch.cuda.is_available() or torch_version() < (2, 0, 0),
+        not torch.cuda.is_available() or torch_version() < (2, 0, 0),  # type: ignore
         "skip if no gpu, torch 2.0 needed for torch.device context manager.",
     )
     def test_meta_to_pipelinemodule(self):

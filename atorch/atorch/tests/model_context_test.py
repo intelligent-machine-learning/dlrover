@@ -185,7 +185,7 @@ def use_shm_dataloader_func():
     atorch.reset_distributed()
 
 
-@unittest.skipIf(torch_version() >= (2, 0, 0), "to be fixed")
+@unittest.skipIf(torch_version() >= (2, 0, 0), "to be fixed")  # type: ignore
 class ModelContextShmDataloaderTest(unittest.TestCase):
     @unittest.skipIf(torch.cuda.is_available(), "Skip on gpu as cpu test covers it.")
     def test_use_shm_dataloader(self):

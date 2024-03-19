@@ -36,8 +36,8 @@ from dlrover.python.master.hyperparams.simple_strategy_generator import (
     SimpleStrategyGenerator,
 )
 from dlrover.python.master.monitor.error_monitor import (
-    ErrorLogMonitor,
     ErrorMonitor,
+    SimpleErrorMonitor,
 )
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.event_callback import (
@@ -351,7 +351,8 @@ class DistributedJobManager(JobManager):
     def _monitor_node_heart_beat(self):
         logger.info("Start monitoring the heart beat of nodes.")
         while True:
-            events = self._get_dead_node_event()
+            with self._lock:
+                events = self._get_dead_node_event()
             for event in events:
                 try:
                     self._process_event(event)
@@ -618,28 +619,31 @@ class DistributedJobManager(JobManager):
             logger.error("Not support node type %s", node.type)
         self._set_ps_addrs_in_plan(plan)
         plan.remove_nodes.append(node)
+        node.relaunchable = False  # Avoid repeatedly relaunching the node.
         self._scaler.scale(plan)
 
     def clear_exited_nodes(self):
         if not self._remove_exited_node:
             return
         scale_plan = ScalePlan()
-        for _, nodes in self._job_nodes.items():
-            for _, node in nodes.items():
-                if not node.is_released and node.exited():
-                    scale_plan.remove_nodes.append(node)
-                    node.is_released = True
+        with self._lock:
+            for _, nodes in self._job_nodes.items():
+                for _, node in nodes.items():
+                    if not node.is_released and node.exited():
+                        scale_plan.remove_nodes.append(node)
+                        node.is_released = True
         if len(scale_plan.remove_nodes) > 0:
             logger.info(f"Remove exited nodes {scale_plan.remove_nodes}")
             self._scaler.scale(scale_plan)
 
     def clear_all_nodes(self):
         scale_plan = ScalePlan()
-        for _, nodes in self._job_nodes.items():
-            for _, node in nodes.items():
-                if not node.is_released:
-                    scale_plan.remove_nodes.append(node)
-                    node.is_released = True
+        with self._lock:
+            for _, nodes in self._job_nodes.items():
+                for _, node in nodes.items():
+                    if not node.is_released:
+                        scale_plan.remove_nodes.append(node)
+                        node.is_released = True
         logger.info("Remove all nodes.")
         self._scaler.scale(scale_plan)
 
@@ -666,14 +670,15 @@ class DistributedJobManager(JobManager):
 
     def all_critical_node_completed(self):
         alive_critical_nodes = []
-        for _, nodes in self._job_nodes.items():
-            for node in nodes.values():
-                if node.critical and node.status in [
-                    NodeStatus.INITIAL,
-                    NodeStatus.PENDING,
-                    NodeStatus.RUNNING,
-                ]:
-                    alive_critical_nodes.append(node.name)
+        with self._lock:
+            for _, nodes in self._job_nodes.items():
+                for node in nodes.values():
+                    if node.critical and node.status in [
+                        NodeStatus.INITIAL,
+                        NodeStatus.PENDING,
+                        NodeStatus.RUNNING,
+                    ]:
+                        alive_critical_nodes.append(node.name)
 
         completed = not alive_critical_nodes
         if not completed:
@@ -870,5 +875,5 @@ def create_job_manager(args: JobArgs, speed_monitor) -> DistributedJobManager:
         job=elastic_job,
         node_watcher=node_watcher,
         job_scaler=job_scaler,
-        error_monitor=ErrorLogMonitor(),
+        error_monitor=SimpleErrorMonitor(args.namespace),
     )

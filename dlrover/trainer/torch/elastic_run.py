@@ -107,7 +107,7 @@ from torch.distributed.run import (
 )
 
 from dlrover.python.common import env_utils, grpc
-from dlrover.python.common.constants import NodeEnv
+from dlrover.python.common.constants import Accelerators, NodeEnv
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.torch.training import (
     ElasticLaunchConfig,
@@ -161,6 +161,14 @@ def parse_args(args):
         help="Bool. If True, the agent in the main process will save the "
         "checkpoint in the memory to the storage if the training "
         "process fails.",
+    )
+    parser.add_argument(
+        "--accelerator",
+        type=str,
+        action=env,
+        default=Accelerators.NVIDIA_GPU,
+        choices=[Accelerators.NVIDIA_GPU, Accelerators.ASCEND_NPU],
+        help="The type of accelerator chip of the machine.",
     )
     return parser.parse_args(args)
 
