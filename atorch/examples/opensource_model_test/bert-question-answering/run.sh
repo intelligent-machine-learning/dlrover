@@ -27,7 +27,7 @@ python -m torch.distributed.run \
     --doc_stride 128 \
     --seed 42 \
     --preprocessing_num_workers 1 \
-    --num_train_epochs 1 \
+    --num_train_epochs 3 \
     --pad_to_max_length \
     --fp16 \
     --trust_remote_code 2>&1 | tee ./bert_large_qa.log
