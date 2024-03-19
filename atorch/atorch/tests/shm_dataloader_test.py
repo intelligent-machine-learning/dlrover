@@ -103,7 +103,7 @@ def advance_api_run_func():
 
         def process_data(self, shm_context):
             dataloader = DataLoader(self.dataset, **self.dataloader_args)
-            num_shms = len(shm_context) if type(shm_context) == list else 1
+            num_shms = len(shm_context) if type(shm_context) is list else 1
             if num_shms == 1:
                 shm_context = [shm_context]
             should_stop = [False for _ in range(num_shms)]
@@ -148,7 +148,7 @@ def advance_api_run_func():
         coworker_wait_worker_read=True,
         coworker_wait_worker_read_timeout=10,
     )
-    if type(dataloader) != list:
+    if type(dataloader) is not list:
         dataloader = [dataloader]
     itt = [iter(dataloader[idx]) for idx in range(num_s)]
     count = [0] * num_s

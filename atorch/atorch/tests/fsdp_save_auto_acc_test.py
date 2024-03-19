@@ -6,7 +6,7 @@ import unittest
 from collections.abc import Mapping
 
 import pytest
-import requests
+import requests  # type: ignore
 
 torch = pytest.importorskip("torch", "2.0.9")
 import torch.multiprocessing as mp  # noqa: E402

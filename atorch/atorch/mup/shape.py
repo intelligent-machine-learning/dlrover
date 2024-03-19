@@ -4,7 +4,7 @@
 # This code is modified from https://github.com/microsoft/mup/blob/main/mup/shape.py.
 from copy import deepcopy
 
-import yaml
+import yaml  # type: ignore
 from torch import nn
 from torch.nn import Linear
 

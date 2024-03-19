@@ -186,7 +186,7 @@ def shm_data_func():
 
 
 def check_equal(x, y):
-    if type(x) != type(y):
+    if type(x) is not type(y):
         return False
     if isinstance(x, collections.abc.Sequence):
         if len(x) != len(y):
