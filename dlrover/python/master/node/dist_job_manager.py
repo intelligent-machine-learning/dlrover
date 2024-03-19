@@ -619,6 +619,7 @@ class DistributedJobManager(JobManager):
             logger.error("Not support node type %s", node.type)
         self._set_ps_addrs_in_plan(plan)
         plan.remove_nodes.append(node)
+        node.relaunchable = False  # Avoid repeatedly relaunching the node.
         self._scaler.scale(plan)
 
     def clear_exited_nodes(self):
