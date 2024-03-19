@@ -26,20 +26,26 @@ the following features.
 ## Design
 
 Now, Flash Checkpoint can synchronously copy the model and optimizer states from
-device memory to the CPU memory. With different distributed training stratgy,
+device memory to the CPU memory. After saving checkpoint in the memory, the node
+can send its checkpoint to other nodes to backup. If a node fails and restarts,
+it can restore its checkpoint from the memory of another node.
+
+<div align="center">
+<img src="../figures/ft_llm_training/checkpoint-in-memory.jpg" alt="Async Checkpoint Classes" width="600">
+</div>
+
+With different distributed training stratgy,
 the layout of the model and optimizer shards is diferent. We need to implement different
 backup strategies for different distributed training stratgy.
 
-### Backup and Restore Checkpoint in Memory
-
-#### DDP
+### DDP
 
 In a DDP job, the each rank has a complete model and optimizer replica. Using Flash Checkpoint,
 the local rank 0 of each node will copy the checkpoint into the CPU memory. The each node
 has a complete checkpoint in the CPU memory. If a node breakdowns and restarts, the job can
 select a alive node to broadcat its checkpoint to the new node.
 
-#### FSDP
+### FSDP
 
 The each rank has an unique shard of model and optimizer states using FSDP. The ElasticAgent of each node
 has its checkpoint shard in the CPU memoy with Flash Checkpoint. The job splits the nodes into groups and
@@ -50,7 +56,7 @@ to backup checkpoint shards. If a node in a group breakdowns and restarts, the j
 alive node to broadcast the backup checkpoint to the new node.
 If the nodes in a group all fails, the training can only resume from the checkpoint in the storage.
 
-#### Megatron-LM
+### Megatron-LM
 
 The megatron-LM uses the 3D parallel to train a LLM. The model and optimizer shards of the node with
 the same PP rank in different DP ranks are same. Similar to DDP, the new node can restore
