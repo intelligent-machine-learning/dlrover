@@ -200,6 +200,8 @@ The DingTalk QR is:
 
 <div align="center">
 <img src="docs/figures/wx-infra.jpg " alt="Editor" width="400">
+</div>
 
+<div align="center">
 <img src="docs/figures/dlrover_ding_group.png" alt="Editor" width="400">
 </div>
