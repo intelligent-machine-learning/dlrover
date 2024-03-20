@@ -827,7 +827,7 @@ class DistributedJobManager(JobManager):
         reluanch_node = self._error_monitor.process_error(
             node, restart_count, error_data, level
         )
-        if reluanch_node:
+        if reluanch_node and node.relaunchable:
             self._relaunch_node(node)
 
     def update_allreduce_node_unit(self, node_unit):
