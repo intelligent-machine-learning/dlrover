@@ -619,6 +619,7 @@ class DistributedJobManager(JobManager):
             logger.error("Not support node type %s", node.type)
         self._set_ps_addrs_in_plan(plan)
         plan.remove_nodes.append(node)
+        node.relaunchable = False  # Avoid repeatedly relaunching the node.
         self._scaler.scale(plan)
 
     def clear_exited_nodes(self):
@@ -823,10 +824,13 @@ class DistributedJobManager(JobManager):
     ):
         """Process the training failure reported by the node."""
         node = self._job_nodes[node_type][node_id]
+        if node.is_released:
+            logger.info(f"The node {node.name} has been released.")
+            return
         reluanch_node = self._error_monitor.process_error(
             node, restart_count, error_data, level
         )
-        if reluanch_node:
+        if reluanch_node and node.relaunchable:
             self._relaunch_node(node)
 
     def update_allreduce_node_unit(self, node_unit):
