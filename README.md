@@ -199,5 +199,7 @@ Welcome to scan the DingTalk QR or search "AI Infra" in WeChat(微信) to join D
 The DingTalk QR is:
 
 <div align="center">
+<img src="docs/figures/wx-infra.jpg " alt="Editor" width="400">
+
 <img src="docs/figures/dlrover_ding_group.png" alt="Editor" width="400">
 </div>
