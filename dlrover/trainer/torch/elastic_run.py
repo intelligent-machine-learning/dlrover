@@ -276,6 +276,7 @@ def _elastic_config_from_args(
     elastic_config.network_check = getattr(args, "network_check", False)
     elastic_config.auto_tunning = getattr(args, "auto_tunning", False)
     elastic_config.auto_config = getattr(args, "auto_config", False)
+    elastic_config.accelerator = getattr(args, "accelerator", "")
     elastic_config.exclude_straggler = getattr(
         args, "exclude_straggler", False
     )
