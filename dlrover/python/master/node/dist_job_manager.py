@@ -824,6 +824,9 @@ class DistributedJobManager(JobManager):
     ):
         """Process the training failure reported by the node."""
         node = self._job_nodes[node_type][node_id]
+        if node.is_released:
+            logger.info(f"The node {node.name} has been released.")
+            return
         reluanch_node = self._error_monitor.process_error(
             node, restart_count, error_data, level
         )
