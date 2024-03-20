@@ -9,7 +9,7 @@ in the memory of nodes not from the storage.
 
 Now, the training job loads the checkpoint from the storage after the training
 process restarts. The IO speed of storage is a bottleneck to speed up the
-model initialization. However, the memory of nodes is usually not fully utilized
+model initialization. Meanwhile, the memory of nodes is usually not fully utilized
 and the node usually has a large amount of memory. For example, a machine with
 8 A100 GPUs can has up to 1TB memory. The training can utilize the memory of node
 to store and load the checkpoint after the training process restarts.
@@ -34,9 +34,9 @@ it can restore its checkpoint from the memory of another node.
 <img src="../figures/ft_llm_training/checkpoint-in-memory.jpg" alt="Async Checkpoint Classes" width="600">
 </div>
 
-With different distributed training stratgy,
-the layout of the model and optimizer shards is diferent. We need to implement different
-backup strategies for different distributed training stratgy.
+With different distributed training strategy,
+the layout of the model and optimizer shards is different. We need to implement different
+backup strategies for different distributed training strategies.
 
 ### DDP
 
