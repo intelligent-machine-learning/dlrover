@@ -38,6 +38,7 @@ try:
     )
     from megatron.core import mpu, tensor_parallel
     from megatron.utils import print_rank_0, unwrap_model
+    from megatron.optimizer.optimizer import ChainedOptimizer
 except ImportError:
     logger.warning("Please check the magatron.checkpointing exists.")
 
@@ -121,7 +122,12 @@ def save_checkpoint(
         and not args.no_save_optim
         and optimizer is not None
     ):
-        dist_opter_state = get_parameter_state(optimizer)
+        if isinstance(optimizer, ChainedOptimizer):
+            dist_opter_state = get_chained_optimizer_parameter_state(
+                optimizer
+            )
+        else:
+            dist_opter_state = get_parameter_state(optimizer)
 
     # Collect args, model, RNG.
     if (
@@ -241,6 +247,17 @@ def get_parameter_state(dist_optimizer):
     return state
 
 
+def get_chained_optimizer_parameter_state(chained_optimizer):
+    states = []
+    for optimizer in chained_optimizer.chained_optimizers:
+        if hasattr(optimizer, 'get_parameter_state'):
+            state_dict = get_parameter_state(optimizer)
+            states.append(state_dict)
+        else:
+            states.append(None)
+    return states
+
+
 def load_checkpoint(
     model,
     optimizer,
@@ -347,6 +364,10 @@ def load_checkpoint(
             if optimizer is not None:
                 if not args.use_distributed_optimizer:
                     optimizer.load_state_dict(model_state_dict["optimizer"])
+                elif isinstance(optimizer, ChainedOptimizer):
+                    load_chained_optimizer_parameter_state(
+                        optimizer, opt_state_dict
+                    )
                 else:
                     load_parameter_state_from_state_dict(
                         optimizer, opt_state_dict
@@ -517,3 +538,15 @@ def load_parameter_state_from_state_dict(dist_optimizer, state_dict):
                     ]
                     for key in tensors.keys():
                         tensors[key].data.copy_(restored_tensors[key])
+
+
+def load_chained_optimizer_parameter_state(chained_optimizer, states):
+    """Load the distributed parameter states of all optimizers
+    from a list of states.
+    """
+    for idx, optimizer in enumerate(chained_optimizer.chained_optimizers):
+        if not hasattr(optimizer, 'load_parameter_state_from_state_dict'):
+            continue
+
+        state_dict = states[idx] if states else None
+        load_parameter_state_from_state_dict(optimizer, state_dict)
