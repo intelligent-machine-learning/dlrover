@@ -70,9 +70,7 @@ class SimpleErrorMonitor(ErrorMonitor):
         return False
 
     def _handle_node_error(self, node: Node, error_data: str):
-        logger.info(
-            f"{node.type}-{node.id} is down. Reason: {error_data}"
-        )
+        logger.info(f"{node.type}-{node.id} is down. Reason: {error_data}")
         return True
 
 
