@@ -37,8 +37,8 @@ try:
         update_num_microbatches,
     )
     from megatron.core import mpu, tensor_parallel
-    from megatron.utils import print_rank_0, unwrap_model
     from megatron.optimizer.optimizer import ChainedOptimizer
+    from megatron.utils import print_rank_0, unwrap_model
 except ImportError:
     logger.warning("Please check the magatron.checkpointing exists.")
 
@@ -123,9 +123,7 @@ def save_checkpoint(
         and optimizer is not None
     ):
         if isinstance(optimizer, ChainedOptimizer):
-            dist_opter_state = get_chained_optimizer_parameter_state(
-                optimizer
-            )
+            dist_opter_state = get_chained_optimizer_parameter_state(optimizer)
         else:
             dist_opter_state = get_parameter_state(optimizer)
 
@@ -250,7 +248,7 @@ def get_parameter_state(dist_optimizer):
 def get_chained_optimizer_parameter_state(chained_optimizer):
     states = []
     for optimizer in chained_optimizer.chained_optimizers:
-        if hasattr(optimizer, 'get_parameter_state'):
+        if hasattr(optimizer, "get_parameter_state"):
             state_dict = get_parameter_state(optimizer)
             states.append(state_dict)
         else:
@@ -545,7 +543,7 @@ def load_chained_optimizer_parameter_state(chained_optimizer, states):
     from a list of states.
     """
     for idx, optimizer in enumerate(chained_optimizer.chained_optimizers):
-        if not hasattr(optimizer, 'load_parameter_state_from_state_dict'):
+        if not hasattr(optimizer, "load_parameter_state_from_state_dict"):
             continue
 
         state_dict = states[idx] if states else None
