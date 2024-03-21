@@ -303,6 +303,7 @@ class AllReduceNodeHandlingCallback(NodeEventCallback):
             stop_node = True
 
         job_exit_reason = self.get_job_exit_reason(node)
+        max_failure_num = max(self._total_worker_num, node.max_relaunch_count)
         if node.critical and stop_node:
             self._master.request_stop(
                 success=False,
@@ -314,7 +315,8 @@ class AllReduceNodeHandlingCallback(NodeEventCallback):
                     )
                 ),
             )
-        elif self._failed_worker_count >= self._total_worker_num:
+        elif self._failed_worker_count >= max_failure_num:
+            # The job early stops if there are a lot of failed workers.
             self._master.request_stop(
                 success=False,
                 reason=job_exit_reason,
