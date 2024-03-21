@@ -256,6 +256,7 @@ class RendezvousName(object):
 
 class NodeErrorMessage(object):
     NETWORKER_ERROR = "Network is breakdown"
+    SOCKET_GAIERROR = "Name or service not known"
 
 
 class NetworkFailureReason(object):
