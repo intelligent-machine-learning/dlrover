@@ -222,6 +222,9 @@ class DistributedJobManager(JobManager):
                 return True
         return False
 
+    def get_worker_num(self):
+        return self._job_resource.worker_num
+
     def early_stop(self):
         nodes = self._ps_manager.get_pending_timeout_oom_recovered_node()
         msg = ""
@@ -594,7 +597,7 @@ class DistributedJobManager(JobManager):
                     )
                     should_relaunch = False
         if should_relaunch:
-            node.inc_relaunch_count()
+            node.relaunch_count += 1
 
         return should_relaunch
 

@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import abc
+import sys
 from datetime import datetime
 from typing import Dict
 
@@ -19,6 +20,7 @@ from dlrover.python.common.constants import (
     JobExitReason,
     NodeExitReason,
     NodeType,
+    RendezvousName,
     TrainingExceptionLevel,
 )
 from dlrover.python.common.global_context import Context
@@ -221,6 +223,16 @@ class AllReduceNodeHandlingCallback(NodeEventCallback):
         self._rdzv_managers: Dict[
             str, RendezvousManager
         ] = self._master.rdzv_managers
+        rdzv_manager = self._rdzv_managers.get(
+            RendezvousName.ELASTIC_TRAINING, None
+        )
+        if rdzv_manager:
+            self._min_node = rdzv_manager.get_min_nodes()
+        else:
+            self._min_node = sys.maxsize
+        self._failed_worker_count = 0
+        self._total_worker_num = self._master.job_manager.get_worker_num()
+        self._available_worker_num = self._total_worker_num
 
     def get_job_exit_reason(self, node: Node):
         if self._master.task_manager.training_started():
@@ -258,6 +270,7 @@ class AllReduceNodeHandlingCallback(NodeEventCallback):
     @NodeEventCallback.log_callback_exception
     def on_node_failed(self, node: Node, cluster_context):
         node.finish_time = datetime.now()  # type: ignore
+        self._failed_worker_count += 1
         self._stop_job_if_needed(node)
         if node.is_unrecoverable_failure():
             self._master.speed_monitor.reduce_target_worker_num(
@@ -286,10 +299,11 @@ class AllReduceNodeHandlingCallback(NodeEventCallback):
             if not _dlrover_ctx.relaunch_always:
                 stop_node = True
         if node.relaunch_count >= node.max_relaunch_count:
+            self._available_worker_num -= 1
             stop_node = True
 
+        job_exit_reason = self.get_job_exit_reason(node)
         if node.critical and stop_node:
-            job_exit_reason = self.get_job_exit_reason(node)
             self._master.request_stop(
                 success=False,
                 reason=job_exit_reason,
@@ -298,5 +312,23 @@ class AllReduceNodeHandlingCallback(NodeEventCallback):
                     "and {}.".format(
                         node.type, node.id, node.unrecoverable_failure_msg
                     )
+                ),
+            )
+        elif self._failed_worker_count >= self._total_worker_num:
+            self._master.request_stop(
+                success=False,
+                reason=job_exit_reason,
+                msg=(
+                    "The number of worker failure exceeds the "
+                    f"worker count {self._total_worker_num} "
+                ),
+            )
+        elif self._available_worker_num < self._min_node:
+            self._master.request_stop(
+                success=False,
+                reason=job_exit_reason,
+                msg=(
+                    "The available number of worker is less than the minimum"
+                    f"number {self._min_node} of redzv  "
                 ),
             )
