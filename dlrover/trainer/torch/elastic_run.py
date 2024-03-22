@@ -107,8 +107,14 @@ from torch.distributed.run import (
 )
 
 from dlrover.python.common import env_utils, grpc
-from dlrover.python.common.constants import Accelerators, NodeEnv
+from dlrover.python.common.constants import (
+    Accelerators,
+    NodeEnv,
+    NodeErrorMessage,
+    TrainingExceptionLevel,
+)
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.elastic_agent.master_client import MasterClient
 from dlrover.python.elastic_agent.torch.training import (
     ElasticLaunchConfig,
     launch_agent,
@@ -263,6 +269,13 @@ def _check_dlrover_master_available(addr, timeout=120):
             return True
         except (socket.timeout, ConnectionRefusedError):
             time.sleep(1)
+        except socket.gaierror as e:
+            client = MasterClient.singleton_instance(addr)
+            client.report_failures(
+                NodeErrorMessage.SOCKET_GAIERROR,
+                level=TrainingExceptionLevel.NODE_ERROR,
+            )
+            raise e
 
         if time.time() - start_time > timeout:
             return False
@@ -288,8 +301,8 @@ def _elastic_config_from_args(
     return elastic_config, cmd, cmd_args
 
 
-def _check_to_use_dlrover_run(master_addr, max_nodes):
-    if _check_dlrover_master_available(master_addr):
+def _check_to_use_dlrover_run(master_addr, max_nodes, timeout=120):
+    if _check_dlrover_master_available(master_addr, timeout):
         return True
     elif max_nodes == 1:
         logger.info("Use native torchrun to start job on the single node.")
