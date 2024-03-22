@@ -37,7 +37,7 @@ from dlrover.python.master.hyperparams.simple_strategy_generator import (
 )
 from dlrover.python.master.monitor.error_monitor import (
     ErrorMonitor,
-    SimpleErrorMonitor,
+    K8sJobErrorMonitor,
 )
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.event_callback import (
@@ -221,6 +221,9 @@ class DistributedJobManager(JobManager):
             if node.status in [NodeStatus.PENDING, NodeStatus.RUNNING]:
                 return True
         return False
+
+    def get_worker_num(self):
+        return self._job_resource.worker_num
 
     def early_stop(self):
         nodes = self._ps_manager.get_pending_timeout_oom_recovered_node()
@@ -594,7 +597,7 @@ class DistributedJobManager(JobManager):
                     )
                     should_relaunch = False
         if should_relaunch:
-            node.inc_relaunch_count()
+            node.relaunch_count += 1
 
         return should_relaunch
 
@@ -878,5 +881,5 @@ def create_job_manager(args: JobArgs, speed_monitor) -> DistributedJobManager:
         job=elastic_job,
         node_watcher=node_watcher,
         job_scaler=job_scaler,
-        error_monitor=SimpleErrorMonitor(args.namespace),
+        error_monitor=K8sJobErrorMonitor(args.namespace),
     )

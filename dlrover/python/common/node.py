@@ -224,9 +224,6 @@ class Node(object):
             NodeStatus.FINISHED,
         ]
 
-    def inc_relaunch_count(self):
-        self.relaunch_count += 1
-
     def update_info(
         self,
         name=None,
