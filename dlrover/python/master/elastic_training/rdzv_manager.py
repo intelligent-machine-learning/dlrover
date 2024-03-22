@@ -66,6 +66,9 @@ class RendezvousManager(metaclass=ABCMeta):
         self._node_rdzv_times: Dict[int, int] = {}
         self._latest_log_nodes_time = 0
 
+    def get_min_nodes(self):
+        return self._rdzv_params.min_nodes
+
     def get_rdzv_round(self):
         return self._rdzv_round
 

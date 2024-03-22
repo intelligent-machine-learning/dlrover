@@ -17,7 +17,6 @@ from typing import Dict
 from dlrover.python.common.constants import TrainingExceptionLevel
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node
-from dlrover.python.scheduler.kubernetes import k8sClient
 
 
 class ErrorMonitor(metaclass=ABCMeta):
@@ -43,7 +42,44 @@ class ErrorMonitor(metaclass=ABCMeta):
 class SimpleErrorMonitor(ErrorMonitor):
     """The monitor logs the error data."""
 
+    def __init__(self):
+        self._restart_errors: Dict[int, str] = {}
+
+    def process_error(
+        self, node: Node, restart_count: int, error_data: str, level: str
+    ) -> bool:
+        if level == TrainingExceptionLevel.PROCESS_ERROR:
+            return self._handle_process_error(node, restart_count, error_data)
+        elif level == TrainingExceptionLevel.NODE_ERROR:
+            return self._handle_node_error(node, error_data)
+        elif level == TrainingExceptionLevel.RDZV_ERROR:
+            logger.error(f"Rendezvous fails with reason {error_data}")
+        elif level == TrainingExceptionLevel.WARNING:
+            logger.warning(error_data)
+        return False
+
+    def _handle_process_error(
+        self, node: Node, restart_count: int, error_data: str
+    ):
+        if restart_count not in self._restart_errors:
+            self._restart_errors[restart_count] = error_data
+            logger.error(
+                f"{node.type}-{node.id} restart {restart_count} "
+                f"fails: {error_data}"
+            )
+        return False
+
+    def _handle_node_error(self, node: Node, error_data: str):
+        logger.info(f"{node.type}-{node.id} is down. Reason: {error_data}")
+        return True
+
+
+class K8sJobErrorMonitor(ErrorMonitor):
+    """The monitor logs the error data."""
+
     def __init__(self, namespace="", cordon_node_eanbled=False):
+        from dlrover.python.scheduler.kubernetes import k8sClient
+
         self.cordon_node_eanbled = cordon_node_eanbled
         self._k8s_client = k8sClient.singleton_instance(namespace)
         self._restart_errors: Dict[int, str] = {}
