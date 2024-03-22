@@ -23,7 +23,6 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Un
 
 import datasets
 import numpy as np
-import psutil
 import safetensors
 import torch
 import torch.distributed as dist
@@ -34,9 +33,8 @@ from torch import nn
 from torch.distributed.fsdp import FullStateDictConfig
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.distributed.fsdp import StateDictType
-from torch.multiprocessing import Manager, Pipe, Process
 from torch.utils.data import DataLoader, Dataset, RandomSampler, SequentialSampler
-from transformers import __version__
+from transformers import __version__, get_scheduler
 from transformers.configuration_utils import PretrainedConfig
 from transformers.data.data_collator import DataCollator, DataCollatorWithPadding, default_data_collator
 
@@ -45,7 +43,6 @@ from atorch.auto import auto_accelerate
 from atorch.distributed.distributed import is_distributed
 from atorch.trainer.atorch_args import AtorchArguments
 from atorch.utils.fsdp_save_util import ShardOptim, save_fsdp_flat_param, save_fsdp_optim_param
-from atorch.utils.trainer_utils import AsyncCheckpointSignal, PipeMessageEntity, get_scheduler
 from atorch.utils.version import torch_version
 
 # Integrations must be imported before ML frameworks:
@@ -75,10 +72,10 @@ from transformers.trainer_pt_utils import (
 from transformers.trainer_utils import (
     PREFIX_CHECKPOINT_DIR,
     EvalPrediction,
-    IntervalStrategy,
     PredictionOutput,
     RemoveColumnsCollator,
     TrainOutput,
+    find_executable_batch_size,
     get_last_checkpoint,
     has_length,
     seed_worker,
@@ -166,12 +163,8 @@ class AtorchTrainer:
         # force device and distributed setup init explicitly
         args._setup_devices
 
-        self.data_collator = None
-        if data_collator is not None:
-            self.data_collator = data_collator
-        elif args.use_default_data_collator:
-            self.data_collator = default_data_collator if tokenizer is None else DataCollatorWithPadding(tokenizer)
-
+        default_collator = default_data_collator if tokenizer is None else DataCollatorWithPadding(tokenizer)
+        self.data_collator = data_collator if data_collator is not None else default_collator
         self.train_dataset = train_dataset
         self.eval_dataset = eval_dataset
         self.tokenizer = tokenizer
@@ -189,7 +182,7 @@ class AtorchTrainer:
         self.add_callback(PrinterCallback if self.args.disable_tqdm else DEFAULT_PROGRESS_CALLBACK)
 
         if self.args.should_save:
-            self._write_safely(os.makedirs, self.args.output_dir, exist_ok=True)
+            os.makedirs(self.args.output_dir, exist_ok=True)
 
         if not callable(self.data_collator) and callable(getattr(self.data_collator, "collate_batch", None)):
             raise ValueError("The `data_collator` should be a simple callable (function, class with `__call__`).")
@@ -262,15 +255,6 @@ class AtorchTrainer:
                 "not support to load model at end."
             )
 
-        self._train_batch_size = self.args.train_batch_size
-
-        # Activate gradient checkpointing if needed
-        if args.gradient_checkpointing and args.atorch_checkpoint_cls is None:
-            self.model.gradient_checkpointing_enable()
-
-        # Call ATorch's auto_accelerate() to wrap model, optimizer, loss_function, ...
-        self._atorch_init()
-
     def add_callback(self, callback):
         """
         Add a callback to the current list of [`~transformer.TrainerCallback`].
@@ -306,7 +290,7 @@ class AtorchTrainer:
             self.load_strategy = []
             # Set parallel mode
             if self.args.atorch_parallel_mode:
-                self.load_strategy.append(("parallel_mode", ([("data", self.args.world_size)], None)))
+                self.load_strategy.append(("parallel_mode", ([("data", torch.distributed.get_world_size())], None)))
             # Set module replace
             if self.args.atorch_module_replace:
                 self.load_strategy.append("module_replace")
@@ -326,24 +310,23 @@ class AtorchTrainer:
 
             if self.args.bf16 or self.args.fp16:
                 if self.args.bf16:
-                    amp_config = {"dtype": torch.bfloat16, "skip_if_nonfinite": self.args.skip_if_nonfinite}
-                else:
+                    amp_config = {"dtype": torch.bfloat16}
+                    self.load_strategy.append(("amp_native", amp_config))
+                elif self.args.fp16:
                     amp_config = {"dtype": torch.float16}
-                self.load_strategy.append(("amp_native", amp_config))
-            if self.args.gradient_checkpointing and self.args.atorch_checkpoint_cls is not None:
-                self.load_strategy.append(("checkpoint", self.args.atorch_checkpoint_cls))
+                    self.load_strategy.append(("amp_native", amp_config))
+            if self.args.gradient_checkpointing:
+                self.load_strategy.append(("checkpoint", self.atorch_wrap_cls))
 
         # atorch auto_accelerate will restore batch_size by dividing by world size.
         train_dataloader_args = {
             "shuffle": True,
+            "collate_fn": self.data_collator,
             "batch_size": self._train_batch_size * self.args.world_size,
             "pin_memory": self.args.dataloader_pin_memory,
             "num_workers": self.args.dataloader_num_workers,
             "persistent_workers": self.args.dataloader_num_workers > 0,
         }
-
-        if self.data_collator is not None:
-            train_dataloader_args["collate_fn"] = self.data_collator
 
         if not isinstance(self.train_dataset, torch.utils.data.IterableDataset):
             train_dataloader_args["drop_last"] = self.args.dataloader_drop_last
@@ -370,12 +353,10 @@ class AtorchTrainer:
             else None,
             load_strategy=self.load_strategy,
             ignore_dryrun_on_load_strategy=self.args.ignore_dryrun_on_load_strategy,
-            sampler_seed=self.args.seed,
         )
         assert status, f"auto_accelerate failed. status: {status}, result: {result}, best_strategy: {best_strategy}"
         logger.info(f"Best strategy is: {best_strategy}")
 
-        logger.info("Calling auto_accelerate() will wrap model, optimizer, lr_scheduler, loss_func and prepare_input")
         self.model = result.model
         self.optimizer = result.optim
         self.lr_scheduler = result.lr_scheduler
@@ -389,9 +370,7 @@ class AtorchTrainer:
             signature = inspect.signature(self.model.forward)
             self._signature_columns = list(signature.parameters.keys())
             # Labels may be named label or label_ids, the default data collator handles that.
-            self._signature_columns += list(
-                set(["labels", "label", "label_ids"] + self.label_names + self.model_forward_args)
-            )
+            self._signature_columns += list(set(["label", "label_ids"] + self.label_names + self.model_forward_args))
 
     def _remove_unused_columns(self, dataset: "datasets.Dataset", description: Optional[str] = None):
         if not self.args.remove_unused_columns:
@@ -478,16 +457,15 @@ class AtorchTrainer:
         data_collator = self.data_collator
         if is_datasets_available() and isinstance(train_dataset, datasets.Dataset):
             train_dataset = self._remove_unused_columns(train_dataset, description="training")
-        elif data_collator is not None:
+        else:
             data_collator = self._get_collator_with_removed_columns(data_collator, description="training")
 
         dataloader_params = {
             "batch_size": self._train_batch_size,
+            "collate_fn": data_collator,
             "num_workers": self.args.dataloader_num_workers,
             "pin_memory": self.args.dataloader_pin_memory,
         }
-        if data_collator is not None:
-            dataloader_params["collate_fn"] = data_collator
 
         if not isinstance(train_dataset, torch.utils.data.IterableDataset):
             dataloader_params["sampler"] = self._get_train_sampler()
@@ -515,22 +493,20 @@ class AtorchTrainer:
         """
         if eval_dataset is None and self.eval_dataset is None:
             raise ValueError("Trainer: evaluation requires an eval_dataset.")
-
         eval_dataset = eval_dataset if eval_dataset is not None else self.eval_dataset
         data_collator = self.data_collator
 
         if is_datasets_available() and isinstance(eval_dataset, datasets.Dataset):
             eval_dataset = self._remove_unused_columns(eval_dataset, description="evaluation")
-        elif data_collator is not None:
+        else:
             data_collator = self._get_collator_with_removed_columns(data_collator, description="evaluation")
 
         dataloader_params = {
             "batch_size": self.args.eval_batch_size,
+            "collate_fn": data_collator,
             "num_workers": self.args.dataloader_num_workers,
             "pin_memory": self.args.dataloader_pin_memory,
         }
-        if data_collator is not None:
-            dataloader_params["collate_fn"] = data_collator
 
         if not isinstance(eval_dataset, torch.utils.data.IterableDataset):
             dataloader_params["sampler"] = self._get_eval_sampler(eval_dataset)
@@ -571,16 +547,7 @@ class AtorchTrainer:
             num_training_steps (int): The number of training steps to do.
         """
         # Do atorch create scheduler
-        if self.lr_scheduler is None:
-            self.lr_scheduler = get_scheduler(
-                self.args.atorch_lr_scheduler_type
-                if self.args.atorch_lr_scheduler_type is not None
-                else self.args.lr_scheduler_type,
-                optimizer=self.optimizer if optimizer is None else optimizer,
-                num_warmup_steps=self.args.get_warmup_steps(num_training_steps),
-                num_training_steps=num_training_steps,
-            )
-        return self.lr_scheduler
+        raise NotImplementedError("`create_scheduler` is not implemented.")
 
     def train(
         self,
@@ -614,6 +581,8 @@ class AtorchTrainer:
 
         if len(kwargs) > 0:
             raise TypeError(f"train() received got unexpected keyword arguments: {', '.join(list(kwargs.keys()))}.")
+        # This might change the seed so needs to run first.
+        self._train_batch_size = self.args.train_batch_size
 
         # Load potential model checkpoint
         if isinstance(resume_from_checkpoint, bool) and resume_from_checkpoint:
@@ -626,14 +595,24 @@ class AtorchTrainer:
         if resume_from_checkpoint is not None:
             self._load_from_checkpoint(resume_from_checkpoint)
 
-        return self._inner_training_loop(
+        inner_training_loop = find_executable_batch_size(
+            self._inner_training_loop, self._train_batch_size, args.auto_find_batch_size
+        )
+        return inner_training_loop(
             args=args,
             resume_from_checkpoint=resume_from_checkpoint,
             trial=trial,
             ignore_keys_for_eval=ignore_keys_for_eval,
         )
 
-    def _inner_training_loop(self, args=None, resume_from_checkpoint=None, trial=None, ignore_keys_for_eval=None):
+    def _inner_training_loop(
+        self, batch_size=None, args=None, resume_from_checkpoint=None, trial=None, ignore_keys_for_eval=None
+    ):
+        self._train_batch_size = batch_size
+        logger.debug(f"Currently training with a batch size of: {self._train_batch_size}")
+
+        # Set model, optimizer, train dataloader
+        self._atorch_init()
 
         # Data loader and number of training steps
         if self.args.use_atorch_dataloader and self.train_dataloader is not None:
@@ -689,11 +668,20 @@ class AtorchTrainer:
         self.state = TrainerState()
         self.state.is_hyper_param_search = trial is not None
 
+        # Activate gradient checkpointing if needed
+        if args.gradient_checkpointing:
+            self.model.gradient_checkpointing_enable()
+
         if self.optimizer is None:
             raise ValueError("Optimizer is None, please set optimizer via `auto_accelerate` function of ATorch.")
 
         if self.lr_scheduler is None:
-            self.create_scheduler(num_training_steps=max_steps, optimizer=self.optimizer)
+            self.lr_scheduler = get_scheduler(
+                self.args.lr_scheduler_type,
+                optimizer=self.optimizer,
+                num_warmup_steps=self.args.get_warmup_steps(max_steps),
+                num_training_steps=max_steps,
+            )
 
         # Check if saved optimizer or scheduler states exist
         self._load_optimizer_and_scheduler(resume_from_checkpoint)
@@ -763,10 +751,6 @@ class AtorchTrainer:
             for epoch in range(epochs_trained):
                 for _ in train_dataloader:
                     break
-
-        # Asynchronous saving model and optimizer.
-        if self.args.async_save:
-            self._init_async_save()
 
         total_batched_samples = 0
         for epoch in range(epochs_trained, num_train_epochs):
@@ -930,11 +914,6 @@ class AtorchTrainer:
 
         self.control = self.callback_handler.on_train_end(args, self.state, self.control)
 
-        # wait for all IO subprocess to finish
-        if args.async_save:
-            self._join()
-            dist.barrier()
-
         return TrainOutput(self.state.global_step, train_loss, metrics)
 
     def _issue_warnings_after_load(self, load_result):
@@ -979,15 +958,7 @@ class AtorchTrainer:
                 self.lr_scheduler.step(metrics[metric_to_check])
 
         if self.control.should_save:
-            # Save model checkpoint
-            checkpoint_folder = f"{PREFIX_CHECKPOINT_DIR}-{self.state.global_step}"
-            output_dir = os.path.join(self.args.output_dir, checkpoint_folder)
-            if not self._save_checkpoint(model, output_dir, trial, metrics=metrics):
-                if self.args.async_save:
-                    # Delete checkpoint directory with saving error after sending deleting signal
-                    self.pipe1.send(PipeMessageEntity(AsyncCheckpointSignal.DELETE_CKPT, output_dir))
-                elif os.path.exists(output_dir):
-                    shutil.rmtree(output_dir, ignore_errors=True)
+            self._save_checkpoint(model, trial, metrics=metrics)
             self.control = self.callback_handler.on_save(self.args, self.state, self.control)
 
     def _load_rng_state(self, checkpoint):
@@ -1217,32 +1188,50 @@ class AtorchTrainer:
         if self.do_grad_scaling and os.path.isfile(os.path.join(checkpoint, SCALER_NAME)):
             self.scaler.load_state_dict(torch.load(os.path.join(checkpoint, SCALER_NAME)))
 
-    def _save_checkpoint(self, model, output_dir, trial, metrics=None):
+    def _save_checkpoint(self, model, trial, metrics=None):
         # In all cases, including ddp/dp/deepspeed, self.model is always a reference to the model we
         # want to save except FullyShardedDDP.
         # assert unwrap_model(model) is self.model, "internal model should be a reference to self.model"
 
+        # Save model checkpoint
+        checkpoint_folder = f"{PREFIX_CHECKPOINT_DIR}-{self.state.global_step}"
+
         self.store_flos()
 
-        if not self._write_safely(os.makedirs, output_dir, exist_ok=True):
-            return False
+        output_dir = os.path.join(self.args.output_dir, checkpoint_folder)
+        self.save_model(output_dir, _internal_call=True)
 
+        # Save optimizer and scheduler
+        if self.atorch_fsdp:
+            if not isinstance(self.model, FSDP):
+                raise ValueError("Self.model is not 'FullyShardedDataParallel' type when using --atorch_opt 'fsdp'.")
+            if self.args.save_load_by_streaming:
+                streaming_ckpt_dir = os.path.join(output_dir, STREAMING_CKPT_DIR)
+                os.makedirs(streaming_ckpt_dir, exist_ok=True)
+                logger.info(f"Saving optimizer to {streaming_ckpt_dir}")
+                save_fsdp_optim_param(self.model, self.optimizer, streaming_ckpt_dir)
+                logger.info(f"Optimizer saved to {streaming_ckpt_dir}")
+            else:
+                save_policy = FullStateDictConfig(
+                    offload_to_cpu=self.args.cpu_offload, rank0_only=atorch.world_size() > 1
+                )
+                with FSDP.state_dict_type(self.model, StateDictType.FULL_STATE_DICT, save_policy):
+                    # may be removed after PyTorch 2.2
+                    full_osd = FSDP.full_optim_state_dict(self.model, self.optimizer)
+        else:
+            full_osd = self.optimizer.state_dict()
         if self.args.should_save:
+            if not self.args.save_load_by_streaming:
+                optimizer_file = os.path.join(output_dir, OPTIMIZER_NAME)
+                logger.info(f"Saving optimizer to {optimizer_file}")
+                torch.save(full_osd, optimizer_file)
+                logger.info(f"Optimizer saved to {optimizer_file}")
+
             with warnings.catch_warnings(record=True) as caught_warnings:
-                if not self._write_safely(
-                    torch.save,
-                    self.lr_scheduler.state_dict(),
-                    os.path.join(output_dir, SCHEDULER_NAME),
-                ):
-                    return False
+                torch.save(self.lr_scheduler.state_dict(), os.path.join(output_dir, SCHEDULER_NAME))
             reissue_pt_warnings(caught_warnings)
             if self.do_grad_scaling:
-                if not self._write_safely(
-                    torch.save,
-                    self.scaler.state_dict(),
-                    os.path.join(output_dir, SCALER_NAME),
-                ):
-                    return False
+                torch.save(self.scaler.state_dict(), os.path.join(output_dir, SCALER_NAME))
 
         # Determine the new best metric / best model checkpoint
         if metrics is not None and self.args.metric_for_best_model is not None:
@@ -1262,8 +1251,7 @@ class AtorchTrainer:
 
         # Save the Trainer state
         if self.args.should_save:
-            if not self._write_safely(self.state.save_to_json, os.path.join(output_dir, TRAINER_STATE_NAME)):
-                return False
+            self.state.save_to_json(os.path.join(output_dir, TRAINER_STATE_NAME))
 
         # Save RNG state in non-distributed training
         rng_states = {
@@ -1278,69 +1266,20 @@ class AtorchTrainer:
             else:
                 rng_states["cuda"] = torch.cuda.random.get_rng_state()
 
+        # A process can arrive here before the process 0 has a chance to save the model, in which case output_dir may
+        # not yet exist.
+        os.makedirs(output_dir, exist_ok=True)
+
         if self.args.world_size <= 1:
-            rng_path = os.path.join(output_dir, "rng_state.pth")
+            torch.save(rng_states, os.path.join(output_dir, "rng_state.pth"))
         else:
-            rng_path = os.path.join(output_dir, f"rng_state_{self.args.process_index}.pth")
-        if not self._write_safely(torch.save, rng_states, rng_path):
-            return False
-
-        # Save model
-        if not self.save_model(output_dir, _internal_call=True):
-            return False
-
-        # Save optimizer and scheduler
-        full_osd = None
-        if self.atorch_fsdp:
-            if not isinstance(self.model, FSDP):
-                raise ValueError("Self.model is not 'FullyShardedDataParallel' type when using --atorch_opt 'fsdp'.")
-            if self.args.save_load_by_streaming:
-                streaming_ckpt_dir = os.path.join(output_dir, STREAMING_CKPT_DIR)
-                if not self._write_safely(os.makedirs, streaming_ckpt_dir, exist_ok=True):
-                    return False
-                logger.info(f"Saving optimizer in {streaming_ckpt_dir}")
-                if self._write_safely(
-                    save_fsdp_optim_param,
-                    self.model,
-                    self.optimizer,
-                    streaming_ckpt_dir,
-                ):
-                    logger.info(f"Optimizer saved in {streaming_ckpt_dir}")
-                else:
-                    return False
-            else:
-                save_policy = FullStateDictConfig(
-                    offload_to_cpu=self.args.cpu_offload,
-                    rank0_only=atorch.world_size() > 1,
-                )
-                with FSDP.state_dict_type(self.model, StateDictType.FULL_STATE_DICT, save_policy):
-                    # may be removed after PyTorch 2.2
-                    full_osd = FSDP.full_optim_state_dict(self.model, self.optimizer)
-        else:
-            full_osd = self.optimizer.state_dict()
-        if self.args.should_save:
-            if full_osd is not None:
-                optimizer_file = os.path.join(output_dir, OPTIMIZER_NAME)
-                logger.info(f"Saving optimizer to {optimizer_file}")
-                if self.args.async_save:
-                    self._async_save(
-                        lambda state_dict, save_path: torch.save(state_dict, save_path),
-                        state_dict=full_osd,
-                        save_path=optimizer_file,
-                        checkpoint_dir=output_dir,
-                    )
-                else:
-                    if not self._write_safely(torch.save, full_osd, optimizer_file):
-                        return False
-                    logger.info(f"Optimizer saved to {optimizer_file}")
+            torch.save(rng_states, os.path.join(output_dir, f"rng_state_{self.args.process_index}.pth"))
 
         # Maybe delete some older checkpoints.
         if self.args.should_save:
             self._rotate_checkpoints(use_mtime=True, output_dir=self.args.output_dir)
 
-        return True
-
-    def save_model(self, output_dir: Optional[str] = None, _internal_call: bool = False) -> bool:
+    def save_model(self, output_dir: Optional[str] = None, _internal_call: bool = False):
         """
         Will save the model, so you can reload it using `from_pretrained()`.
 
@@ -1348,11 +1287,9 @@ class AtorchTrainer:
         """
         if output_dir is None:
             output_dir = self.args.output_dir
-        if not self._write_safely(os.makedirs, output_dir, exist_ok=True):
-            return False
+        os.makedirs(output_dir, exist_ok=True)
 
         if self.atorch_fsdp:
-            # Check if model is FSDP type
             if not isinstance(self.model, FSDP):
                 raise ValueError("Self.model is not 'FullyShardedDataParallel' type when using --atorch_opt 'fsdp'.")
             if self.args.save_load_by_streaming:
@@ -1361,60 +1298,30 @@ class AtorchTrainer:
                         "Non-PeftModel is required when using Atorch's streaming save function `save_fsdp_flat_param`."
                     )
                 streaming_ckpt_dir = os.path.join(output_dir, STREAMING_CKPT_DIR)
-                if not self._write_safely(os.makedirs, streaming_ckpt_dir, exist_ok=True):
-                    return False
+                os.makedirs(streaming_ckpt_dir, exist_ok=True)
                 logger.info(f"Saving streaming model to {streaming_ckpt_dir}")
-                # TODO: whether to use multiprocess to save model
-                if self._write_safely(save_fsdp_flat_param, self.model, streaming_ckpt_dir):
-                    logger.info(f"Streaming model saved to {streaming_ckpt_dir}")
-                else:
-                    return False
+                save_fsdp_flat_param(self.model, streaming_ckpt_dir)
+                logger.info(f"Streaming model saved to {streaming_ckpt_dir}")
             else:
                 save_policy = FullStateDictConfig(
-                    offload_to_cpu=self.args.world_size > 1,
-                    rank0_only=self.args.world_size > 1,
+                    offload_to_cpu=self.args.world_size > 1, rank0_only=self.args.world_size > 1
                 )
                 with FSDP.state_dict_type(self.model, StateDictType.FULL_STATE_DICT, save_policy):
-                    state_dict = self.model.state_dict()
-                if self.args.should_save:
-                    if _internal_call and self.args.async_save:
-                        self._async_save(
-                            self._save,
-                            output_dir,
-                            state_dict=state_dict,
-                            checkpoint_dir=output_dir,
-                        )
-                    else:
-                        if not self._write_safely(self._save, output_dir, state_dict):
-                            return False
-        elif self.args.should_save:
-            model = unwrap_model(self.model)
-            state_dict = model.state_dict()
-            if _internal_call and self.args.async_save:
-                self._async_save(
-                    self._save,
-                    output_dir,
-                    state_dict=state_dict,
-                    checkpoint_dir=output_dir,
-                )
-            else:
-                if not self._write_safely(self._save, output_dir, state_dict):
-                    return False
-        return True
+                    model_state_dict = self.model.state_dict()
+                self._save(output_dir, state_dict=model_state_dict, save_base_model=self.args.save_base_model)
+        else:
+            self._save(output_dir, save_base_model=self.args.save_base_model)
 
-    def _save(self, output_dir: Optional[str], state_dict) -> bool:
-        """
-        Save model in rank zero. `state_dict` is acquired outside.
+        if self.tokenizer is not None:
+            self.tokenizer.save_pretrained(output_dir)
 
-        Return:
-            (bool): Whether the model is saved successfully.
-        """
+        # Good practice: save your training arguments together with the trained model
+        torch.save(self.args, os.path.join(output_dir, TRAINING_ARGS_NAME))
 
+    def _save(self, output_dir: Optional[str] = None, state_dict=None, save_base_model: bool = False):
         # If we are executing this function, we are the process zero, so we don't check for that.
         output_dir = output_dir if output_dir is not None else self.args.output_dir
-
-        if not self._write_safely(os.makedirs, output_dir, exist_ok=True):
-            return False
+        os.makedirs(output_dir, exist_ok=True)
         logger.info(f"Saving model checkpoint to {output_dir}")
 
         supported_classes = (PreTrainedModel,) if not is_peft_available() else (PreTrainedModel, PeftModel)
@@ -1422,17 +1329,16 @@ class AtorchTrainer:
         # They can then be reloaded using `from_pretrained()`
         if not isinstance(self.model, supported_classes):
             model = unwrap_model(self.model)
+            if state_dict is None:
+                state_dict = model.state_dict()
             if isinstance(model, supported_classes):
-                if not self._write_safely(
-                    model.save_pretrained,
-                    output_dir,
-                    state_dict=state_dict,
-                    safe_serialization=self.args.save_safetensors,
-                    global_step=self.state.global_step,
-                ):
-                    return False
-                if isinstance(model, PeftModel) and self.args.save_base_model:
+                if self.args.should_save:
+                    model.save_pretrained(
+                        output_dir, state_dict=state_dict, safe_serialization=self.args.save_safetensors
+                    )
+                if isinstance(model, PeftModel) and save_base_model:
                     base_model = model.get_base_model()
+                    state_dict = base_model.state_dict()
                     # Filter the peft params ...
                     param_keys = list(state_dict.keys())
                     base_model_state_dict = {}
@@ -1445,50 +1351,23 @@ class AtorchTrainer:
                             base_model_state_dict[new_key] = value
                         else:
                             base_model_state_dict[key] = value
-                    logger.info(f"Saving base model checkpoint to {output_dir}")
-                    if not self._write_safely(
-                        base_model.save_pretrained,
-                        output_dir,
-                        state_dict=base_model_state_dict,
-                        safe_serialization=self.args.save_safetensors,
-                    ):
-                        return False
+                    if self.args.should_save:
+                        logger.info(f"Saving base model checkpoint to {output_dir}")
+                        base_model.save_pretrained(
+                            output_dir, state_dict=base_model_state_dict, safe_serialization=self.args.save_safetensors
+                        )
             else:
                 logger.info("Trainer.model is not a `PreTrainedModel`, only saving its state dict.")
-                if self.args.save_safetensors:
-                    if not self._write_safely(
-                        safetensors.torch.save_file,
-                        state_dict,
-                        os.path.join(output_dir, SAFE_WEIGHTS_NAME),
-                    ):
-                        return False
-                else:
-                    if not self._write_safely(torch.save, state_dict, os.path.join(output_dir, WEIGHTS_NAME)):
-                        return False
+                if self.args.should_save:
+                    if self.args.save_safetensors:
+                        safetensors.torch.save_file(state_dict, os.path.join(output_dir, SAFE_WEIGHTS_NAME))
+                    else:
+                        torch.save(state_dict, os.path.join(output_dir, WEIGHTS_NAME))
         else:
-            if not self._write_safely(
-                self.model.save_pretrained,
-                output_dir,
-                state_dict=state_dict,
-                safe_serialization=self.args.save_safetensors,
-            ):
-                return False
-
-        # Save tokenizer
-        if self.tokenizer is not None:
-            if not self._write_safely(self.tokenizer.save_pretrained, output_dir):
-                return False
-
-        # Good practice: save your training arguments together with the trained model
-        # TODO: check whether self.args contains local function
-        if not self._write_safely(
-            torch.save,
-            self.args.to_dict(),
-            os.path.join(output_dir, TRAINING_ARGS_NAME),
-        ):
-            return False
-
-        return True
+            if self.args.should_save:
+                self.model.save_pretrained(
+                    output_dir, state_dict=state_dict, safe_serialization=self.args.save_safetensors
+                )
 
     def log(self, logs: Dict[str, float]) -> None:
         """
@@ -1505,13 +1384,7 @@ class AtorchTrainer:
 
         output = {**logs, **{"step": self.state.global_step}}
         self.state.log_history.append(output)
-        try:
-            self.control = self.callback_handler.on_log(self.args, self.state, self.control, logs)
-        except Exception:
-            if self.args.ignore_write_errors:
-                logger.exception("Logging failed! Maybe no space left when tensorboard writting!")
-            else:
-                raise
+        self.control = self.callback_handler.on_log(self.args, self.state, self.control, logs)
 
     def is_local_process_zero(self) -> bool:
         """
@@ -1538,11 +1411,7 @@ class AtorchTrainer:
             if isinstance(dataset, IterableDatasetShard):
                 return len(dataloader.dataset.dataset)
             return len(dataloader.dataset)
-        except (
-            NameError,
-            AttributeError,
-            TypeError,
-        ):  # no dataset or length, estimate by length of dataloader
+        except (NameError, AttributeError, TypeError):  # no dataset or length, estimate by length of dataloader
             return len(dataloader) * self.args.per_device_train_batch_size
 
     def floating_point_ops(self, inputs: Dict[str, Union[torch.Tensor, Any]]):
@@ -1653,10 +1522,7 @@ class AtorchTrainer:
         checkpoints_to_be_deleted = checkpoints_sorted[:number_of_checkpoints_to_delete]
         for checkpoint in checkpoints_to_be_deleted:
             logger.info(f"Deleting older checkpoint [{checkpoint}] due to args.save_total_limit")
-            if self.args.async_save:
-                self.pipe1.send(PipeMessageEntity(AsyncCheckpointSignal.DELETE_CKPT, checkpoint))
-            else:
-                shutil.rmtree(checkpoint, ignore_errors=True)
+            shutil.rmtree(checkpoint, ignore_errors=True)
 
     def evaluate(
         self,
@@ -1769,13 +1635,8 @@ class AtorchTrainer:
         Return:
             `torch.Tensor`: The tensor with training loss on this batch.
         """
-        # model.train() is necessary for methods such as Dropout.
         model.train()
-        inputs = (
-            self.prepare_input(inputs, self.args.device)
-            if self.prepare_input is not None
-            else self._prepare_inputs(inputs)
-        )
+        inputs = self._prepare_inputs(inputs)
 
         with self.autocast_smart_context_manager():
             loss = self.compute_loss(model, inputs)
@@ -1939,125 +1800,3 @@ class AtorchTrainer:
 
         path = os.path.join(self.args.output_dir, "trainer_state.json")
         self.state.save_to_json(path)
-
-    def _write_safely(self, func, *args, **kwargs):
-        try:
-            func(*args, **kwargs)
-        except Exception:
-            if self.args.ignore_write_errors:
-                logger.exception(f"{func.__name__} writting error!")
-                return False
-            else:
-                raise
-        return True
-
-    def _save_state_dict(self, checkpoint_dir, save_func, *args, **kwargs):
-        save_success = self._write_safely(save_func, *args, **kwargs)
-
-        if not save_success:
-            self.pipe1.send(PipeMessageEntity(AsyncCheckpointSignal.DELETE_CKPT, checkpoint_dir))
-        self.pipe1.send(PipeMessageEntity(AsyncCheckpointSignal.SAVE_OVER, os.getpid()))
-        return save_success
-
-    def _terminate_process_by_pid(self, pid: int, exec_join: bool = False):
-        try:
-            p = psutil.Process(pid)
-            if exec_join:
-                p.join(timeout=1000)
-            p.terminate()
-        except psutil.NoSuchProcess:
-            logger.info(f"No process found with PID {pid}, maybe was terminated.")
-        except Exception:
-            if self.args.ignore_write_errors:
-                logging.exception(f"Error occured when getting process handle by PID {pid}!")
-            else:
-                raise
-
-    def _async_save(self, save_func, *args, **kwargs):
-        if "checkpoint_dir" not in kwargs:
-            logger.warning("Please pass 'checkpoint_dir' argument when calling self._async_save().")
-            return
-        # Get extra arguments from kwargs.
-        checkpoint_dir = kwargs.pop("checkpoint_dir")
-
-        # Wait if len(self.writing_processes) > total_limit
-        # Two processes will be created to save model and optimizer respectively during every saving.
-        start = time.time()
-        while len(self.writing_processes) > self.args.save_total_limit * 2:
-            time.sleep(1)
-            if time.time() - start > 1000:
-                pids = list(self.writing_processes.keys())
-                pids.sort()
-                logger.info(f"Kill the earliest process {pids[0]}")
-                # Kill the earliest process
-                self._terminate_process_by_pid(pids[0])
-                break
-
-        # Move state dict from device to CPU
-        state_dict = kwargs.pop("state_dict")
-        state_dict = torch.utils._pytree.tree_map(lambda x: x.cpu() if isinstance(x, torch.Tensor) else x, state_dict)
-        kwargs["state_dict"] = state_dict
-
-        p = Process(target=self._save_state_dict, args=(checkpoint_dir, save_func, *args), kwargs=kwargs)
-        p.start()
-        self.writing_processes[p.pid] = checkpoint_dir
-
-    def _async_manager(self):
-        while True:
-            recv: PipeMessageEntity = self.pipe2.recv()
-            if recv.signal_type == AsyncCheckpointSignal.DELETE_CKPT:
-                checkpoint_dir = recv.data
-                logger.info(f"Deleting {checkpoint_dir}")
-
-                # Stop the saving process with the working directory 'checkpoint_dir'
-                process_to_del = []
-                for pid, ckpt in self.writing_processes.items():
-                    if ckpt == checkpoint_dir:
-                        self._terminate_process_by_pid(pid)
-                        process_to_del.append(pid)
-                for pid in process_to_del:
-                    self.writing_processes.pop(pid)
-
-                # Delete 'checkpoint_dir'
-                shutil.rmtree(checkpoint_dir, ignore_errors=True)
-                logger.info(f"Checkpoint '{checkpoint_dir}' deleted!")
-            elif recv.signal_type == AsyncCheckpointSignal.SAVE_OVER:
-                pid = recv.data
-                logger.info(f"Destroying process {pid}")
-                # Remove finished process from self.writing_processes
-                self.writing_processes.pop(pid)
-                self._terminate_process_by_pid(pid)
-            elif recv.signal_type == AsyncCheckpointSignal.TRAIN_OVER:
-                logger.info("Join all saving processes!")
-                # Join for all save processes
-                for pid, ckpt in self.writing_processes.items():
-                    self._terminate_process_by_pid(pid, exec_join=True)
-                break
-            else:
-                raise ValueError("Receive error signal type! Signal type should be from `AsyncCheckpointSignal`.")
-
-    def _init_async_save(self):
-        if self.args.save_strategy != IntervalStrategy.NO and self.args.should_save:
-            self.data_manager = Manager()
-
-            # Duplex Pipe for inter-process communication
-            self.pipe1, self.pipe2 = Pipe()
-
-            # Record writing processes: [pid, checkpoint_dir]
-            self.writing_processes: Dict[int, str] = self.data_manager.dict()
-
-            self.manager_process = Process(target=self._async_manager)
-            self.manager_process.start()
-
-            # to disable TOKENIZERS_PARALLELISM=(true | false) warning
-            os.environ["TOKENIZERS_PARALLELISM"] = "false"
-
-    def _join(self):
-        if self.args.save_strategy != IntervalStrategy.NO and self.args.should_save:
-            self.pipe1.send(PipeMessageEntity(AsyncCheckpointSignal.TRAIN_OVER))
-            # Wait for the manager_process to end
-            self.manager_process.join(timeout=1000)
-            self.manager_process.terminate()
-
-            # Shutdown the data manager
-            self.data_manager.shutdown()
