@@ -8,7 +8,7 @@ runs:
     - "/bin/bash"
     - "-c"
     - "pip install pytest dlrover[torch] fairscale==0.4.1 pandas Gpy \
-accelerate datasets==2.14.6 peft==0.4.0 scikit-learn pymoo==0.5.0\
+accelerate datasets==2.14.6 peft==0.4.0 scikit-learn pymoo==0.5.0 tensorboard==2.11.0 \
 && echo -e 'import math\ninf = math.inf\nnan = math.nan\nstring_classes = \
 (str, bytes)' > /opt/conda/lib/python3.8/site-packages/torch/_six.py \
 && cd atorch \
