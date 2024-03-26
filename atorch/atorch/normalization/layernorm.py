@@ -1,14 +1,12 @@
 import torch
 
-try:
+from atorch.utils.import_util import is_triton_available
+
+if is_triton_available():
     import triton
     import triton.language as tl
     from triton import jit
-
-    HAS_TRITON = True
-except (ImportError, ModuleNotFoundError):
-    HAS_TRITON = False
-    triton = None
+else:
 
     class Library(object):
         constexpr = int
@@ -245,8 +243,8 @@ class AtorchLayerNormFunc(torch.autograd.Function):
 
 class AtorchLayerNorm(torch.nn.LayerNorm):
     def __init__(self, *args, **kwargs):
-        if not HAS_TRITON:
-            raise RuntimeError("Triton is not installed. Atorch LayerNorm need it")
+        if not is_triton_available():
+            raise RuntimeError("Triton is not installed. AtorchLayerNorm need it")
         return super().__init__(*args, **kwargs)
 
     def forward(self, input):

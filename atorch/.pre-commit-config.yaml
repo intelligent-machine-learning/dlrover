@@ -26,6 +26,5 @@ repos:
     hooks:
       - id: mypy
         exclude: _pb2.py|_pb2_grpc.py|auto/engine/servicer.py
-        args: [--ignore-missing-imports, --follow-imports=skip, --namespace-packages, --no-strict-optional, --show-error-codes]
+        args: [--ignore-missing-imports, --follow-imports=skip, --namespace-packages,  --no-strict-optional, --show-error-codes]
         additional_dependencies: ["types_requests", "types-PyYAML"]
-

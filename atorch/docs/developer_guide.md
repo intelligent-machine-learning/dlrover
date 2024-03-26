@@ -18,7 +18,7 @@ by the following steps.
 
 - ```docker run -v `pwd`:/dlrover -it easydl/atorch:aci /bin/bash```
 - `cd /dlrover/atorch`
-- `bash bin/build_proto.sh`
+- `bash dev/scripts/build_proto.sh`
 - `bash dev/scripts/pre-commit.sh`
 - `exit`
 - ```docker run -v `pwd`:/dlrover -it easydl/atorch:iml_pt210 /bin/bash```

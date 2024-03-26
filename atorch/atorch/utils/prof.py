@@ -12,7 +12,6 @@ from torch.nn import Module
 
 import atorch
 from atorch.common.constants import AnalyserConstants, GPUCapability
-from atorch.common.file import file_io  # noqa: F401
 from atorch.common.log_utils import default_logger as logger
 from atorch.normalization.layernorm import AtorchLayerNormFunc
 from atorch.utils.hooks import ATorchHooks
@@ -1136,3 +1135,66 @@ def report_metrics(steps, metrics=None, prof=None, distribute=False, **kwargs):
 def get_gpu_name():
     gpu = torch.cuda.get_device_properties(0)
     return gpu.name
+
+
+def report_device_memory(name=""):
+    """Simple GPU memory report."""
+    if not torch.cuda.is_available():
+        return
+
+    mega_bytes = 1024.0 * 1024.0
+    string = name + " memory (MB)"
+    string += " | allocated: {:.1f}".format(torch.cuda.memory_allocated() / mega_bytes)
+    string += " | max allocated: {:.1f}".format(torch.cuda.max_memory_allocated() / mega_bytes)
+    string += " | reserved: {:.1f}".format(torch.cuda.memory_reserved() / mega_bytes)
+    string += " | max reserved: {:.1f}".format(torch.cuda.max_memory_reserved() / mega_bytes)
+
+    if hasattr(torch.cuda, "memory_snapshot"):
+        snapshot = torch.cuda.memory_snapshot()
+        if snapshot:
+            total_allocated = sum(b["total_size"] for b in snapshot)
+            if total_allocated > 0:
+                memory_fragmentation = sum(b["allocated_size"] for b in snapshot) / total_allocated
+                string += " | memory fragmentation: {:.2f}%".format(memory_fragmentation)
+
+    import importlib.util
+
+    # pynvml is Python bindings to the NVIDIA Management Library
+    if importlib.util.find_spec("pynvml") is not None:
+        try:
+            from pynvml.smi import nvidia_smi
+        except ImportError:
+            nvidia_smi = None
+        if nvidia_smi is not None:
+            try:
+                nvsmi = nvidia_smi.getInstance()
+                nvsmi_gpu_memory = nvsmi.DeviceQuery("memory.free, memory.used, memory.total")["gpu"]
+                """
+                nvsmi.DeviceQuery["gpu"]'s result's format is:
+                [
+                    {'fb_memory_usage': {'total': 81251.1875, 'used': 58708.0, 'free': 22543.1875, 'unit': 'MiB'}},
+                    {'fb_memory_usage': {'total': 81251.1875, 'used': 58708.0, 'free': 22543.1875, 'unit': 'MiB'}},
+                    {'fb_memory_usage': {'total': 81251.1875, 'used': 58708.0, 'free': 22543.1875, 'unit': 'MiB'}},
+                    {'fb_memory_usage': {'total': 81251.1875, 'used': 58708.0, 'free': 22543.1875, 'unit': 'MiB'}},
+                    {'fb_memory_usage': {'total': 81251.1875, 'used': 58708.0, 'free': 22543.1875, 'unit': 'MiB'}},
+                    {'fb_memory_usage': {'total': 81251.1875, 'used': 58708.0, 'free': 22543.1875, 'unit': 'MiB'}},
+                    {'fb_memory_usage': {'total': 81251.1875, 'used': 58708.0, 'free': 22543.1875, 'unit': 'MiB'}},
+                    {'fb_memory_usage': {'total': 81251.1875, 'used': 58708.0, 'free': 22543.1875, 'unit': 'MiB'}}
+                ]
+                """
+                current_device_nvsmi_gpu_memory = nvsmi_gpu_memory[torch.cuda.current_device()]["fb_memory_usage"]
+                total_memory, used_memory, free_memory = (
+                    current_device_nvsmi_gpu_memory["total"],
+                    current_device_nvsmi_gpu_memory["used"],
+                    current_device_nvsmi_gpu_memory["free"],
+                )
+                string += " | nvidia-smi memory: free {:.1f}, used: {:.1f}, total {:.1f}".format(
+                    free_memory, used_memory, total_memory
+                )
+            except Exception:
+                pass
+
+    if torch.distributed.is_initialized():
+        string = f"[Rank {torch.distributed.get_rank()}] " + string
+        # remove subprocess nvidia-smi call because of too slow
+    print(string, flush=True)

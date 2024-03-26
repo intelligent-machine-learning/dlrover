@@ -88,6 +88,20 @@ class Strategy(object):
         else:
             return None
 
+    def remove_device_unsupported_method(self, opt_lib, device_capability):
+        # return list of removed opt methods or None if nothing removed.
+        opt_to_remove = []
+        for item in self.opt_list:
+            if not opt_lib[item[0]].device_supported(item[1], device_capability):
+                opt_to_remove.append(item)
+        if len(opt_to_remove) > 0:
+            removed_names = [item[0] for item in opt_to_remove]
+            for item in opt_to_remove:
+                self.opt_list.remove(item)
+            return removed_names
+        else:
+            return None
+
     def convert_strategy_to_easydl_format(self):
         edl_strategy = []
         for item in self.opt_list:

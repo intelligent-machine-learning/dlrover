@@ -1,6 +1,5 @@
 from typing import Any, Callable, Dict, Iterable, Optional, Tuple, Union
 
-import numpy as np
 import torch
 from torch import Tensor
 
@@ -100,7 +99,7 @@ class AGD(torch.optim.Optimizer):
                 state = self.state[p]
                 # Lazy state initialization
                 if len(state) == 0:
-                    state["step"] = 0
+                    state["step"] = torch.tensor(0.0, device=p.device)
                     # Exponential moving average of gradient values
                     state["exp_avg"] = torch.zeros_like(p, memory_format=torch.preserve_format)
                     # Exponential moving average of squared gradient values
@@ -138,10 +137,10 @@ class AGD(torch.optim.Optimizer):
                 else:
                     update = exp_avg_sq.sqrt()
 
-                delta_adjust = group["delta"] * np.sqrt(bias_correction2)
-                update.clamp_(min=delta_adjust)
+                delta_adjust = group["delta"] * bias_correction2.sqrt()
+                update.clamp_(min=delta_adjust.to(update.device))
 
-                lr_adjust = group["lr"] * np.sqrt(bias_correction2) / bias_correction1
+                lr_adjust = group["lr"] * bias_correction2.sqrt() / bias_correction1
                 update = exp_avg / update
                 if group["clip"] is not None:
                     update.clamp_(min=-group["clip"], max=group["clip"])

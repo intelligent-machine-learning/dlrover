@@ -45,12 +45,13 @@ from atorch.auto import auto_accelerate
 from atorch.distributed.distributed import is_distributed
 from atorch.trainer.atorch_args import AtorchArguments
 from atorch.utils.fsdp_save_util import ShardOptim, save_fsdp_flat_param, save_fsdp_optim_param
+from atorch.utils.hooks import ATorchHooks
 from atorch.utils.trainer_utils import AsyncCheckpointSignal, PipeMessageEntity, get_scheduler
 from atorch.utils.version import torch_version
 
 # Integrations must be imported before ML frameworks:
 # isort: off
-from transformers.integrations import get_reporting_integration_callbacks
+from transformers.integrations import TensorBoardCallback
 
 # isort: on
 from transformers.modeling_utils import PreTrainedModel, load_sharded_checkpoint, unwrap_model
@@ -109,6 +110,8 @@ STREAMING_CKPT_DIR = "streaming_ckpt"  # save/load dir for Atorch's FSDP
 
 logger = logging.getLogger(__name__)
 
+additional_tensorboard_hook = ATorchHooks.hooks.get(ATorchHooks.ADDITIONAL_TENSORBOARD_HOOK)
+
 
 def count_model_params(model):
     trainable_params = 0
@@ -152,7 +155,11 @@ class AtorchTrainer:
         self.kwargs = kwargs
         self.model = model
 
-        self.atorch_fsdp = args.atorch_opt == "fsdp"
+        self.atorch_fsdp = args.atorch_opt == "fsdp" and self.args.world_size > 1
+
+        if self.args.save_load_by_streaming and self.args.world_size == 1:
+            logger.warning("FSDP is unnecessary on only one device, so `save_load_by_streaming` will be set to False.")
+            self.args.save_load_by_streaming = False
 
         if self.atorch_fsdp and torch_version() < (2, 0, 0):  # type: ignore
             raise ValueError("Greater than version 2.0 of PyTorch is necessary for FSDP.")
@@ -179,9 +186,19 @@ class AtorchTrainer:
         self.model_init = model_init
         self.compute_metrics = compute_metrics
         self.preprocess_logits_for_metrics = preprocess_logits_for_metrics
-        self.optimizer, self.lr_scheduler = optimizers
 
-        default_callbacks = DEFAULT_CALLBACKS + get_reporting_integration_callbacks(self.args.report_to)
+        self.optimizer, self.lr_scheduler = optimizers
+        # Check optimizer and lr_scheduler
+        if self.optimizer is not None and not isinstance(self.optimizer, torch.optim.Optimizer):
+            raise ValueError("`optimizer` must be the torch.optim.Optimizer type.")
+        if self.lr_scheduler is not None and not isinstance(self.lr_scheduler, torch.optim.lr_scheduler.LambdaLR):
+            raise ValueError("`lr_scheduler` must be the torch.optim.lr_scheduler.LambdaLR type.")
+
+        report_callbacks = [TensorBoardCallback]
+        # Add additional tensorboard callback.
+        if additional_tensorboard_hook is not None and len(additional_tensorboard_hook) > 0:
+            report_callbacks.append(additional_tensorboard_hook[0])
+        default_callbacks = DEFAULT_CALLBACKS + report_callbacks
         callbacks = default_callbacks if callbacks is None else default_callbacks + callbacks
         self.callback_handler = CallbackHandler(
             callbacks, self.model, self.tokenizer, self.optimizer, self.lr_scheduler
@@ -240,11 +257,12 @@ class AtorchTrainer:
         default_label_names = find_labels(self.model.__class__)
         self.label_names = default_label_names if self.args.label_names is None else self.args.label_names
         self.model_forward_args = list(inspect.signature(self.model.forward).parameters.keys())
-        self.control = self.callback_handler.on_init_end(self.args, self.state, self.control)
 
         # Set ATorch Parameters
         self.atorch_wrap_cls = args.atorch_wrap_cls
         self.prepare_input = args.prepare_input
+        self.optim_func = args.optim_func
+        self.optim_args = args.optim_args
         self.optim_param_func = args.optim_param_func
         self.loss_func = args.loss_func
         self.distributed_sampler_cls = args.distributed_sampler_cls
@@ -270,6 +288,8 @@ class AtorchTrainer:
 
         # Call ATorch's auto_accelerate() to wrap model, optimizer, loss_function, ...
         self._atorch_init()
+
+        self.control = self.callback_handler.on_init_end(self.args, self.state, self.control)
 
     def add_callback(self, callback):
         """
@@ -348,37 +368,58 @@ class AtorchTrainer:
         if not isinstance(self.train_dataset, torch.utils.data.IterableDataset):
             train_dataloader_args["drop_last"] = self.args.dataloader_drop_last
 
-        optim_args = {
-            "lr": self.args.learning_rate,
-            "weight_decay": self.args.weight_decay,
-            "eps": self.args.adam_epsilon,
-            "betas": (self.args.adam_beta1, self.args.adam_beta2),
-        }
+        if self.optim_args is None:
+            self.optim_args = {
+                "lr": self.args.learning_rate,
+                "weight_decay": self.args.weight_decay,
+                "eps": self.args.adam_epsilon,
+                "betas": (self.args.adam_beta1, self.args.adam_beta2),
+            }
+
+        # The listed methods will not change the model parameters, while other methods will.
+        optim_methods_to_check = ["parallel_mode", "amp_native", "checkpoint"]
+
+        if self.optimizer is not None:
+            for strategy in self.load_strategy:
+                if isinstance(strategy, str):
+                    opt_name = strategy
+                elif isinstance(strategy, (list, tuple)) and len(strategy) > 0:
+                    opt_name = strategy[0]
+                else:
+                    opt_name = ""
+                if opt_name not in optim_methods_to_check:
+                    raise ValueError(
+                        f"If you're using optimization methods outside of {optim_methods_to_check}, passing"
+                        " `optimizers=(xxx,xxx)` when creating a trainer is not supported because auto_accelerate()"
+                        " will change the model parameters. Please set `optimizers` via `args.optim_func` instead."
+                    )
 
         status, result, best_strategy = auto_accelerate(
             model=self.model,
-            optim_func=self.optimizer,
+            optim_func=self.optim_func,
             dataset=self.train_dataset if self.args.use_atorch_dataloader else None,
             distributed_sampler_cls=self.distributed_sampler_cls,
             dataloader_args=train_dataloader_args,
             loss_func=self.loss_func,
             prepare_input=self.prepare_input,
             model_input_format=self.model_input_format,
-            optim_args=optim_args,
-            optim_param_func=partial(self.optim_param_func, args=optim_args)
+            optim_args=self.optim_args,
+            optim_param_func=partial(self.optim_param_func, args=self.optim_args)
             if self.optim_param_func is not None
             else None,
+            excluded=self.args.excluded,
+            included=self.args.included,
             load_strategy=self.load_strategy,
+            finetune_strategy=self.args.finetune_strategy,
+            save_strategy_to_file=self.args.save_strategy_to_file,
             ignore_dryrun_on_load_strategy=self.args.ignore_dryrun_on_load_strategy,
             sampler_seed=self.args.seed,
         )
         assert status, f"auto_accelerate failed. status: {status}, result: {result}, best_strategy: {best_strategy}"
         logger.info(f"Best strategy is: {best_strategy}")
 
-        logger.info("Calling auto_accelerate() will wrap model, optimizer, lr_scheduler, loss_func and prepare_input")
         self.model = result.model
-        self.optimizer = result.optim
-        self.lr_scheduler = result.lr_scheduler
+        self.optimizer = self.optimizer if self.optimizer is not None else result.optim
         self.loss_func = result.loss_func
         self.train_dataloader = result.dataloader
         self.prepare_input = result.prepare_input
@@ -771,6 +812,10 @@ class AtorchTrainer:
         total_batched_samples = 0
         for epoch in range(epochs_trained, num_train_epochs):
             epoch_iterator = train_dataloader
+            if hasattr(epoch_iterator, "set_epoch"):
+                epoch_iterator.set_epoch(epoch)
+            elif hasattr(epoch_iterator.sampler, "set_epoch"):
+                epoch_iterator.sampler.set_epoch(epoch)
 
             # Reset the past mems state at the beginning of each epoch if necessary.
             if args.past_index >= 0:
@@ -1191,7 +1236,7 @@ class AtorchTrainer:
             return
 
         map_location = self.args.device if self.args.world_size > 1 else "cpu"
-        if self.atorch_fsdp:
+        if self.atorch_fsdp and isinstance(self.model, FSDP):
             if self.args.save_load_by_streaming:
                 if not os.path.isdir(streaming_ckpt_dir):
                     raise FileNotFoundError(f"Can't find {streaming_ckpt_dir} directory!")
@@ -1291,9 +1336,7 @@ class AtorchTrainer:
 
         # Save optimizer and scheduler
         full_osd = None
-        if self.atorch_fsdp:
-            if not isinstance(self.model, FSDP):
-                raise ValueError("Self.model is not 'FullyShardedDataParallel' type when using --atorch_opt 'fsdp'.")
+        if self.atorch_fsdp and isinstance(self.model, FSDP):
             if self.args.save_load_by_streaming:
                 streaming_ckpt_dir = os.path.join(output_dir, STREAMING_CKPT_DIR)
                 if not self._write_safely(os.makedirs, streaming_ckpt_dir, exist_ok=True):
@@ -1351,10 +1394,7 @@ class AtorchTrainer:
         if not self._write_safely(os.makedirs, output_dir, exist_ok=True):
             return False
 
-        if self.atorch_fsdp:
-            # Check if model is FSDP type
-            if not isinstance(self.model, FSDP):
-                raise ValueError("Self.model is not 'FullyShardedDataParallel' type when using --atorch_opt 'fsdp'.")
+        if self.atorch_fsdp and isinstance(self.model, FSDP):
             if self.args.save_load_by_streaming:
                 if isinstance(unwrap_model(self.model), PeftModel):
                     raise ValueError(
@@ -1428,7 +1468,7 @@ class AtorchTrainer:
                     output_dir,
                     state_dict=state_dict,
                     safe_serialization=self.args.save_safetensors,
-                    global_step=self.state.global_step,
+                    max_shard_size=self.args.max_shard_size,
                 ):
                     return False
                 if isinstance(model, PeftModel) and self.args.save_base_model:
@@ -1451,6 +1491,7 @@ class AtorchTrainer:
                         output_dir,
                         state_dict=base_model_state_dict,
                         safe_serialization=self.args.save_safetensors,
+                        max_shard_size=self.args.max_shard_size,
                     ):
                         return False
             else:
@@ -1471,6 +1512,7 @@ class AtorchTrainer:
                 output_dir,
                 state_dict=state_dict,
                 safe_serialization=self.args.save_safetensors,
+                max_shard_size=self.args.max_shard_size,
             ):
                 return False
 
@@ -1963,10 +2005,13 @@ class AtorchTrainer:
         try:
             p = psutil.Process(pid)
             if exec_join:
-                p.join(timeout=1000)
+                p.wait(timeout=1000)
             p.terminate()
         except psutil.NoSuchProcess:
             logger.info(f"No process found with PID {pid}, maybe was terminated.")
+        except psutil.TimeoutExpired:
+            logger.info(f"Wait for process {pid} to finish timed out.")
+            p.terminate()
         except Exception:
             if self.args.ignore_write_errors:
                 logging.exception(f"Error occured when getting process handle by PID {pid}!")
@@ -2034,7 +2079,9 @@ class AtorchTrainer:
                     self._terminate_process_by_pid(pid, exec_join=True)
                 break
             else:
-                raise ValueError("Receive error signal type! Signal type should be from `AsyncCheckpointSignal`.")
+                raise ValueError(
+                    f"Receive error signal type! Signal type should be one of {AsyncCheckpointSignal._member_names_}."
+                )
 
     def _init_async_save(self):
         if self.args.save_strategy != IntervalStrategy.NO and self.args.should_save:

@@ -2,9 +2,9 @@ import traceback
 from typing import Optional, Union
 
 from atorch.common.log_utils import default_logger as logger
+from atorch.utils.import_util import is_torch_npu_available
 
 try:
-    import deepspeed_npu
     import torch_npu
     from torch_npu.contrib import transfer_to_npu
 except (ModuleNotFoundError, ImportError):
@@ -66,6 +66,23 @@ def make_atorch_npu_patch():
         if hasattr(torch.profiler, attr):
             delattr(torch.profiler, attr)
         setattr(torch.profiler, attr, getattr(torch_npu.profiler, attr))
+    try:
+        import transformers
+        from packaging import version
+
+        old_is_torch_bf16_gpu_available = transformers.utils.is_torch_bf16_gpu_available
+
+        def npu_is_torch_bf16_gpu_available():
+            if is_torch_npu_available():
+                return torch.npu.get_device_name() == "Ascend910B2"
+            else:
+                return old_is_torch_bf16_gpu_available()
+
+        # transformers does not recognize that 910B support bf16 until 4.35.0
+        if version.parse(transformers.__version__) < version.parse("4.35.0"):
+            setattr(transformers.utils, "is_torch_bf16_gpu_available", npu_is_torch_bf16_gpu_available)
+    except (ModuleNotFoundError, ImportError):
+        logger.error(f"{traceback.format_exc()}")
 
 
 try:
