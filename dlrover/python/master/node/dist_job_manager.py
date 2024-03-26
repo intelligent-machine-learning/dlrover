@@ -621,7 +621,8 @@ class DistributedJobManager(JobManager):
         else:
             logger.error("Not support node type %s", node.type)
         self._set_ps_addrs_in_plan(plan)
-        plan.remove_nodes.append(node)
+        if self._remove_exited_node:
+            plan.remove_nodes.append(node)
         node.relaunchable = False  # Avoid repeatedly relaunching the node.
         self._scaler.scale(plan)
 
