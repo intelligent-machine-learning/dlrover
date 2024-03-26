@@ -96,6 +96,8 @@ class DdpCheckpointer(Checkpointer):
                 raise ValueError(
                     "path cannot be empty if storage type is disk!"
                 )
+            if self._rank == 0:
+                self.storage.safe_rmtree(os.path.dirname(path))
             self._engine.save_to_storage(step, state_dict, paths)
         else:
             raise ValueError(f"No support storage type {storage_type}")
