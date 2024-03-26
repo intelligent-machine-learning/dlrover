@@ -13,17 +13,17 @@ spec:
         spec:
           restartPolicy: Never
           volumes:
-          - name: dshm
-            emptyDir:
-              medium: Memory
+            - name: dshm
+              emptyDir:
+                medium: Memory
           containers:
             - name: main
               # yamllint disable-line rule:line-length
               image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:pytorch-example
               imagePullPolicy: Always
               volumeMounts:
-              - mountPath: /dev/shm
-                name: dshm
+                - mountPath: /dev/shm
+                  name: dshm
               command:
                 - /bin/bash
                 - -c
@@ -40,4 +40,3 @@ spec:
                   cpu: "4"
                   memory: 16Gi
                   # nvidia.com/gpu: 1 # optional
-          
