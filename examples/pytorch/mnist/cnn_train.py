@@ -170,7 +170,7 @@ def train(args):
         elastic_trainer.reset()
         scheduler.step()
         model.train()
-        train_epoch(
+        step = train_epoch(
             step,
             epoch,
             elastic_trainer,
@@ -233,6 +233,7 @@ def train_epoch(
                     )
                 checkpointer.save_checkpoint(train_step, sd)
                 print("Finish save checkpoint.")
+    return train_step
 
 
 def save_model(model, epoch, rank):
