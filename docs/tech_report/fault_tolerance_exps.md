@@ -88,7 +88,7 @@ use chaosblade to perform a CPU full load 90% on the `worker-1` with the command
 chaosblade-1.7.2/blade create cpu load --cpu-percent 90
 ```
 
-If you use the image `registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:torch201-mnist`,
+If you use the image `registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:pytorch-example`,
 you can use chaosblade to create a chaos experiment by
 
 ```bash

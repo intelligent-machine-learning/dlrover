@@ -115,7 +115,7 @@ spec:
           containers:
             - name: main
               # yamllint disable-line rule:line-length
-              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:torch201-mnist
+              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:pytorch-example
               imagePullPolicy: Always
               command:
                 - /bin/bash

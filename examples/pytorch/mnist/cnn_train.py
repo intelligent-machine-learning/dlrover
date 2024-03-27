@@ -158,6 +158,7 @@ def train(args):
         optimizer.load_state_dict(state_dict["optimizer"])
     if "sampler" in state_dict:
         train_loader.sampler.load_state_dict(state_dict["sampler"])
+    step = state_dict.get("step", 0)
 
     elastic_trainer = ElasticTrainer(model, dataloader=train_loader)
     optimizer, scheduler = elastic_trainer.prepare(optimizer, scheduler)
@@ -169,7 +170,8 @@ def train(args):
         elastic_trainer.reset()
         scheduler.step()
         model.train()
-        train_epoch(
+        step = train_epoch(
+            step,
             epoch,
             elastic_trainer,
             model,
@@ -188,6 +190,7 @@ def train(args):
 
 
 def train_epoch(
+    train_step,
     epoch,
     elastic_trainer,
     model,
@@ -214,7 +217,7 @@ def train_epoch(
             loss = F.nll_loss(output, target)
             loss.backward()
             optimizer.step()
-            train_step = elastic_trainer.num_steps
+            train_step += 1
             if train_step % 20 == 0:
                 log_rank0("loss = {}, step = {}".format(loss, train_step))
 
@@ -230,6 +233,7 @@ def train_epoch(
                     )
                 checkpointer.save_checkpoint(train_step, sd)
                 print("Finish save checkpoint.")
+    return train_step
 
 
 def save_model(model, epoch, rank):

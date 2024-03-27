@@ -513,6 +513,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
             if event.type == CheckpointEventType.UPDATE_SHARD:
                 logger.info(
                     "Reset the shared memory after the training starts."
+                    f"The number of global shards is {event.global_shard_num}."
                 )
                 self.global_shard_num = event.global_shard_num
             elif event.type == CheckpointEventType.SAVE:
@@ -580,6 +581,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
 
     def _dist_make_dir(self, path, timeout=30):
         if self._node_rank == 0:
+            self.storage.safe_rmtree(path)
             self.storage.safe_makedirs(path)
         else:
             for _ in range(timeout):
