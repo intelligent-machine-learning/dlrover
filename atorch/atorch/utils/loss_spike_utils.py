@@ -132,9 +132,9 @@ class TokenLossSpike(LossSpikeBase):
         # {scatter_id}-{dsid}-{idx}-{raw_id}-{sample_id}
         scatter_id, dsid, _, _, sample_id = each_sample_info.split('-')  # 这个结构是在初始化定义好的
 
-        ds_info = self.sample_data_paths[int(dsid)]  # 用列表的索引？0是train data，1是对应的NAMED_CORPORA[e].PATH
+        ds_info = self.sample_data_paths[int(dsid)]  # 用列表的索引, 0是train data，1是对应的样本PATH
 
-        datapath = f'{ds_info[1]}.scatter/{scatter_id}.lazy/text'  # 这怎么办啊，太定制了
+        datapath = f'{ds_info[1]}.scatter/{scatter_id}.lazy/text'
 
         if not os.path.exists(datapath):
             logger.warn("sample data path not exist")
