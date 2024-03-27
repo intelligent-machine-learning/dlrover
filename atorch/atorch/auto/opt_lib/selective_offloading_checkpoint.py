@@ -4,8 +4,8 @@ refers to https://github.com/pytorch/pytorch/issues/70135#issuecomment-154243998
 docs: https://yuque.antfin-inc.com/ai-infra/atorch-design/os05u91bdresusku
 """
 from collections import defaultdict, deque
-from dataclasses import dataclass
-from typing import DefaultDict, Deque, List, Sequence, Set
+from dataclasses import dataclass, field
+from typing import DefaultDict, Deque, List, Optional, Set
 
 import torch
 from torch.utils._python_dispatch import TorchDispatchMode
@@ -76,7 +76,9 @@ class OffloadOpManagerArgs:
     """
 
     name: str
-    index_to_offload: Sequence[int]
+    index_to_offload: List[int]
+    index_to_hold: Optional[List[int]] = field(default_factory=list)  # type: ignore
+    index_to_hold_layer: Optional[int] = -1
 
 
 class OffloadOpManager:
@@ -101,24 +103,31 @@ class OffloadOpManager:
         self.offload_index: int = 0
         self.reload_index: int = 0
         self.index_to_offload: Set[int] = set(config.index_to_offload)
+        assert config.index_to_hold is not None  # for mypy
+        self.index_to_hold: Set[int] = set(config.index_to_hold)
+        self.index_to_hold_layer = config.index_to_hold_layer
         self.cpu_storage: Deque[torch.Tensor] = deque()
         self.gpu_storage: Deque[torch.Tensor] = deque()
         self.shaped_cpu_cache: DefaultDict[torch.Size, Deque[torch.Tensor]] = defaultdict(deque)
+
+    def need_hold_on_gpu_by_layer(self, layer_index, index):
+        return layer_index < self.index_to_hold_layer and index in self.index_to_hold
 
     def reset(self):
         """Reseting all index to 0, this should called in each iteration."""
         self.offload_index = self.reload_index = 0
 
-    def offload(self, x, offload_event_queue, current_stream, copy_stream, is_last_layer=False):
+    def offload(self, x, offload_event_queue, current_stream, copy_stream, layer_index, need_hold_on_gpu=False):
         """Offload gpu to cpu. We use `offload_index` and `index_to_offload` to select which to offload.
-        If `is_last_layer` is True, we use `gpu_storage` to cache tensor and pop in backward.
+        If `need_hold_on_gpu` is True, we use `gpu_storage` to cache tensor and pop in backward.
         """
         self.offload_index += 1
-        if self.offload_index not in self.index_to_offload:
-            return x
-        if is_last_layer:
+        if self.offload_index not in self.index_to_offload and self.offload_index not in self.index_to_hold:
+            return
+
+        if need_hold_on_gpu or self.need_hold_on_gpu_by_layer(layer_index, self.offload_index):
             self.gpu_storage.append(x)
-            return x
+            return
 
         def _detach_to_cpu(x):
             if isinstance(x, torch.Tensor) and x.is_cuda:
@@ -139,12 +148,13 @@ class OffloadOpManager:
         out_detached_cpu = tree_map(_detach_to_cpu, x)
         self.cpu_storage.append(out_detached_cpu)
 
-    def reload(self, x_gen, reload_event_queue, current_stream, copy_stream, is_last_layer=False):
+    def reload(self, x_gen, reload_event_queue, current_stream, copy_stream, layer_index, need_hold_on_gpu=False):
         """Same as `offload`."""
         self.reload_index += 1
-        if self.reload_index not in self.index_to_offload:
+        if self.reload_index not in self.index_to_offload and self.reload_index not in self.index_to_hold:
             return x_gen()
-        if is_last_layer:
+
+        if need_hold_on_gpu or self.need_hold_on_gpu_by_layer(layer_index, self.reload_index):
             return self.gpu_storage.popleft()
 
         def _to_cuda(x):
@@ -179,7 +189,8 @@ def get_selective_offloading_checkpoint_modes(offload_args: List[OffloadOpManage
 
         def __init__(self, offloaders, num_of_layers, index, _dispatch_key=None):
             self.offloaders = offloaders
-            self.is_last = index == num_of_layers
+            self.need_hold_on_gpu = index == num_of_layers
+            self.index = index
             super().__init__(_dispatch_key)
 
         def __torch_dispatch__(self, func, types, args=(), kwargs=None):
@@ -189,7 +200,7 @@ def get_selective_offloading_checkpoint_modes(offload_args: List[OffloadOpManage
             if func_name not in self.offloaders:
                 return out
             offloader = self.offloaders[func_name]
-            offloader.offload(out, pack_event_queue, current_stream, copy_stream, self.is_last)
+            offloader.offload(out, pack_event_queue, current_stream, copy_stream, self.index, self.need_hold_on_gpu)
             return out
 
     class CachedMode(TorchDispatchMode):
@@ -197,7 +208,8 @@ def get_selective_offloading_checkpoint_modes(offload_args: List[OffloadOpManage
 
         def __init__(self, offloaders, num_of_layers, index, _dispatch_key=None):
             self.offloaders = offloaders
-            self.is_last = index == num_of_layers
+            self.need_hold_on_gpu = index == num_of_layers
+            self.index = index
             super().__init__(_dispatch_key)
 
         def __torch_dispatch__(self, func, types, args=(), kwargs=None):
@@ -210,7 +222,9 @@ def get_selective_offloading_checkpoint_modes(offload_args: List[OffloadOpManage
             def x_gen():
                 return func(*args, **kwargs)
 
-            out = offloader.reload(x_gen, unpack_event_queue, current_stream, copy_stream, self.is_last)
+            out = offloader.reload(
+                x_gen, unpack_event_queue, current_stream, copy_stream, self.index, self.need_hold_on_gpu
+            )
             return out
 
     def gen(offload_args: List[OffloadOpManagerArgs], num_of_layers: int):

@@ -17,7 +17,6 @@ import sys
 import time
 import warnings
 from collections.abc import Mapping
-from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
@@ -404,9 +403,7 @@ class AtorchTrainer:
             prepare_input=self.prepare_input,
             model_input_format=self.model_input_format,
             optim_args=self.optim_args,
-            optim_param_func=partial(self.optim_param_func, args=self.optim_args)
-            if self.optim_param_func is not None
-            else None,
+            optim_param_func=self.optim_param_func if self.optim_param_func is not None else None,
             excluded=self.args.excluded,
             included=self.args.included,
             load_strategy=self.load_strategy,
