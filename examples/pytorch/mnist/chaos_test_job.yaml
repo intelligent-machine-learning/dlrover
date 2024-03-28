@@ -17,7 +17,7 @@ spec:
             - name: main
               # build the image with mnist_chaos.dockerfile
               # yamllint disable-line rule:line-length
-              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:pytorch-example
+              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:pytorch-example-chaos
               imagePullPolicy: Always
               command:
                 - /bin/bash
