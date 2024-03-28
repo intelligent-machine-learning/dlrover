@@ -160,6 +160,7 @@ class k8sClient(Singleton):
         pod_list = self.client.list_namespaced_pod(
             self._namespace,
             label_selector=label_selector,
+            timeout_seconds=60,
         )
         return pod_list
 
@@ -286,7 +287,8 @@ class k8sClient(Singleton):
             body = {"spec": {"unschedulable": True}}
             self.client.patch_node(node_name, body)
             return True
-        except Exception:
+        except Exception as e:
+            logger.error(f"Failed to patch node {e}")
             return False
 
     def create_service(self, service: client.V1Service):

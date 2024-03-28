@@ -350,6 +350,7 @@ class DistributedJobManager(JobManager):
             except Exception as e:
                 logger.warning(e)
                 time.sleep(30)
+            time.sleep(5)
 
     def _monitor_node_heart_beat(self):
         logger.info("Start monitoring the heart beat of nodes.")
@@ -873,6 +874,9 @@ def create_job_manager(args: JobArgs, speed_monitor) -> DistributedJobManager:
         args.platform, args.job_name, args.namespace
     )
     job_scaler = new_job_scaler(args.platform, args.job_name, args.namespace)
+    node_error_monitor = K8sJobErrorMonitor(
+        args.namespace, args.cordon_fault_node
+    )
 
     return DistributedJobManager(
         job_args=args,
@@ -882,5 +886,5 @@ def create_job_manager(args: JobArgs, speed_monitor) -> DistributedJobManager:
         job=elastic_job,
         node_watcher=node_watcher,
         job_scaler=job_scaler,
-        error_monitor=K8sJobErrorMonitor(args.namespace),
+        error_monitor=node_error_monitor,
     )

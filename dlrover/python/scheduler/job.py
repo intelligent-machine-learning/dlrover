@@ -77,7 +77,11 @@ class JobArgs(JsonSerializable):
             configuraions of nodes.
         enable_dynamic_sharding: Whether to use dynamic sharding of a dataset.
         enable_elastic_scheduling: Whether to use elastic scheduling.
-        distribution_strategy:
+        distribution_strategy: The distributed training strategy supports
+            ["ParameterServerStrategy", "AllreduceStrategy"]
+        relaunch_always (bool): whether to always relaunch the error node.
+        remove_exited_node (bool): whether to remove the exited node.
+        cordon_fault_node (bool): whether to set the fault node unschedulable.
     """
 
     def __init__(self, platform, namespace, job_name):
@@ -95,6 +99,7 @@ class JobArgs(JsonSerializable):
         self.resource_limits = ResourceLimits()
         self.relaunch_always = True
         self.remove_exited_node = False
+        self.cordon_fault_node = False
 
     @abstractmethod
     def initilize(self):

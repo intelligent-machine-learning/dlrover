@@ -133,7 +133,7 @@ class SpeedMonitor(object):
                 f"Speed monitor removes a worker {type}-{worker_id} and "
                 f"the remaining workers are {self._workers}."
             )
-        else:
+        elif self._workers:
             logger.info(
                 f"The worker {type}-{worker_id} is not in speed monitor and "
                 f"the remaining workers are {self._workers}."
