@@ -343,7 +343,6 @@ class DistributedJobManager(JobManager):
                 for event in self._node_watcher.watch():
                     try:
                         self._process_event(event)
-                        pass
                     except Exception as e:
                         logger.warning(e)
                         detail_trace_back = traceback.format_exc()
