@@ -17,14 +17,14 @@ spec:
             - name: main
               # build the image with mnist_chaos.dockerfile
               # yamllint disable-line rule:line-length
-              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:pytorch-example
+              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:pytorch-example-chaos
               imagePullPolicy: Always
               command:
                 - /bin/bash
                 - -c
                 - "(bash examples/pytorch/mnist/start_chaos.sh cpu-overload &)
                   && dlrover-run --network-check --exclude-straggler \
-                  --nnodes=3:$NODE_NUM--nproc_per_node=2 \
+                  --nnodes=3:$NODE_NUM --nproc_per_node=2 \
                   --max_restarts=3  --rdzv_conf pend_timeout=600 \
                   examples/pytorch/mnist/cnn_train.py --num_epochs 5 \
                   --training_data /data/mnist_png/training/ \
