@@ -45,6 +45,7 @@ from atorch.distributed.distributed import is_distributed
 from atorch.trainer.atorch_args import AtorchArguments
 from atorch.utils.fsdp_save_util import ShardOptim, save_fsdp_flat_param, save_fsdp_optim_param
 from atorch.utils.hooks import ATorchHooks
+from atorch.utils.import_util import is_torch_npu_available
 from atorch.utils.trainer_utils import AsyncCheckpointSignal, PipeMessageEntity, get_scheduler
 from atorch.utils.version import torch_version
 
@@ -327,7 +328,7 @@ class AtorchTrainer:
             if self.args.atorch_parallel_mode:
                 self.load_strategy.append(("parallel_mode", ([("data", self.args.world_size)], None)))
             # Set module replace
-            if self.args.atorch_module_replace:
+            if self.args.atorch_module_replace and not is_torch_npu_available():
                 self.load_strategy.append("module_replace")
             # Set FSDP
             if self.atorch_fsdp:
