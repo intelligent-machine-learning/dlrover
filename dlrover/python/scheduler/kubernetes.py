@@ -287,7 +287,8 @@ class k8sClient(Singleton):
             body = {"spec": {"unschedulable": True}}
             self.client.patch_node(node_name, body)
             return True
-        except Exception:
+        except Exception as e:
+            logger.error(f"Failed to patch node {e}")
             return False
 
     def create_service(self, service: client.V1Service):

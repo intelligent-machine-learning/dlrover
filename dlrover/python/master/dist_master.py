@@ -24,7 +24,6 @@ from dlrover.python.common.constants import (
     RendezvousName,
     ReporterType,
 )
-from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
 from dlrover.python.master.elastic_training.rdzv_manager import (
@@ -45,8 +44,6 @@ from dlrover.python.master.servicer import create_master_service
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.master.stats.job_collector import JobMetricCollector
 from dlrover.python.scheduler.job import JobArgs
-
-_dlrover_context = Context.singleton_instance()
 
 
 def _create_elastic_ps_service_if_needed(params: JobArgs):
