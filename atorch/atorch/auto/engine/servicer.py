@@ -3,7 +3,7 @@ import pickle
 from concurrent import futures
 
 import grpc
-from google.protobuf import empty_pb2
+from google.protobuf import empty_pb2  # type: ignore
 
 from atorch.auto.engine.task import TaskType
 from atorch.common.log_utils import default_logger as logger

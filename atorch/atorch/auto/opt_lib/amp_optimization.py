@@ -11,6 +11,7 @@ from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 import atorch
 from atorch.distributed.distributed import parallel_group
 from atorch.utils.grad_scaler import BF16GradScaler, BF16ShardedGradScaler
+from atorch.utils.import_util import is_torch_npu_available
 from atorch.utils.version import torch_version
 
 if torch_version() >= (1, 12, 0):  # type: ignore
@@ -63,6 +64,9 @@ class AmpNativeOptimization(Optimization):
             skip_if_nonfinite = (
                 wrapper_config.pop("skip_if_nonfinite") if "skip_if_nonfinite" in wrapper_config else False
             )
+            if is_torch_npu_available() and skip_if_nonfinite:
+                skip_if_nonfinite = False
+                logger.info("NPU does not support 'skip_if_nonfinite'")
             model.forward = autocast(**wrapper_config)(model.forward)
             if hasattr(model, "generate") and callable(getattr(model, "generate")):
                 model.generate = autocast(**wrapper_config)(model.generate)
@@ -185,9 +189,9 @@ def get_cuda_rng_tracker():
 def is_fp8_available():
     if not torch.cuda.is_available():
         return False
-    # GPU sm version >= 8.9 (Ada, Hopper, etc)
+
     device_capability = torch.cuda.get_device_capability()
-    return isinstance(device_capability, tuple) and device_capability >= (8, 9)
+    return Fp8Optimization.device_supported(device_capability=device_capability)
 
 
 class Fp8Optimization(Optimization):
@@ -366,3 +370,8 @@ class Fp8Optimization(Optimization):
             AutoAccelerateContext.add_ac_attr("fp8_enabled", {AutoAccelerateContext.counter: True})
 
         return model_context
+
+    @staticmethod
+    def device_supported(config=None, device_capability=None):
+        # GPU sm version >= 8.9 (Ada, Hopper, etc)
+        return isinstance(device_capability, tuple) and device_capability >= (8, 9)

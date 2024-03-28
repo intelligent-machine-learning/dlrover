@@ -344,6 +344,13 @@ def adjust_strategy(strategy, device_context, finetune_strategy, opt_lib):
         if removed_names is not None:
             logger.info("These distributed optimization methods are ignored in non-distributed case: %s", removed_names)
 
+    device_capability = (
+        torch.cuda.get_device_capability(torch.cuda.current_device()) if torch.cuda.is_available() else None
+    )
+    removed_names = strategy.remove_device_unsupported_method(opt_lib, device_capability)
+    if removed_names is not None:
+        logger.info("Ignored optimization methods as not supported by current device: %s", removed_names)
+
     # reset config for tunable method if finetune_strategy
     if finetune_strategy:
         strategy.reset_config()

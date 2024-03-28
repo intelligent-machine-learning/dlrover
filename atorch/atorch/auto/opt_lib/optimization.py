@@ -72,6 +72,11 @@ class Optimization(ABC):
         """Reset environment changed by current optimization."""
         pass
 
+    @staticmethod
+    def device_supported(config=None, device_capability=None):
+        "If the method with config is supported by device with device_capability"
+        return True
+
 
 class DistributedGraphMixin:
     def __init__(

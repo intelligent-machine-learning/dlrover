@@ -18,7 +18,7 @@ def get_sample_batch(dataset, dataloader_args, num=1):
         if key in ["num_workers", "prefetch_factor"]:
             # multi-process is not needed.
             continue
-        if key == "sampler" and type(dataloader_args["sampler"]) == DistributedSampler:
+        if key == "sampler" and isinstance(dataloader_args["sampler"], DistributedSampler):
             # no need for sampler if it is default
             continue
         new_args[key] = dataloader_args[key]

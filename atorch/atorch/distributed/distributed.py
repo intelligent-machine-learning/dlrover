@@ -11,6 +11,7 @@ from torch.distributed.distributed_c10d import _get_default_group
 
 from atorch.common.log_utils import default_logger as logger
 from atorch.common.util_func import find_free_port, get_ip_address, wait_for_server_started
+from atorch.utils.import_util import is_torch_npu_available
 
 
 class _DistributedContext:
@@ -639,6 +640,8 @@ def init_distributed(
                 " context."
             )
             return False
+        if is_torch_npu_available():
+            backend = "hccl"
         if backend == "nccl":
             try:
                 torch.cuda.nccl.version()

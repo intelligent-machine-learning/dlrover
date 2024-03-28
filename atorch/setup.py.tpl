@@ -29,7 +29,7 @@ ERROR = f"{RED_START} [ERROR] {RED_END}"
 class build_proto(setuptools.command.build_py.build_py):
     def run(self):
         try:
-            self.spawn(["sh", "bin/build_proto.sh"])
+            self.spawn(["sh", "dev/scripts/build_proto.sh"])
         except RuntimeError as e:
             self.warn(f"build proto error:{e}")
         super().run()
@@ -46,6 +46,9 @@ def fetch_requirements(path):
 
 
 required_deps = fetch_requirements("atorch/requirements.txt")
+in_req_path = "atorch/internal_requirements.txt"
+internal_required_deps = [] if not os.path.exists(in_req_path) else fetch_requirements(in_req_path)
+required_deps += internal_required_deps
 
 cmdclass = {
     "build_py": build_proto,
@@ -199,8 +202,7 @@ for rootname, _, filenames in os.walk(data_path):
             if fnmatch.filter([src], suffix):
                 package_data.append(src)
 
-proto_files = glob.glob("./atorch/protos/*.proto")
-
+proto_files = glob.glob("atorch/protos/*.proto")
 setup(
     name="atorch",
     version="$version",  # render by script,do not modify
@@ -218,5 +220,5 @@ setup(
     package_data={"": ["*.so", "_fa_api_compat_patch"], "atorch": package_data},
     ext_modules=ext_modules,
     cmdclass=cmdclass,
-    data_files=["atorch/requirements.txt", "bin/build_proto.sh"] + proto_files,
+    data_files=["atorch/requirements.txt", "dev/scripts/build_proto.sh"] + proto_files,
 )

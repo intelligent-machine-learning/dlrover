@@ -46,7 +46,7 @@ RUN chmod +x ~/miniconda.sh && \
     bash ~/miniconda.sh -b -p /opt/conda && \
     rm ~/miniconda.sh && \
     /opt/conda/bin/conda install -y python=${PYTHON_VERSION} cmake conda-build pyyaml numpy ipython && \
-    /opt/conda/bin/python -mpip install -r requirements.txt && \
+    /opt/conda/bin/python -mpip install -r requirements.txt -i https://pypi.antfin-inc.com/simple && \
     /opt/conda/bin/conda clean -ya
 
 FROM conda as conda-installs
@@ -57,6 +57,7 @@ ARG INSTALL_CHANNEL=pytorch
 # Note conda needs to be pinned to 23.5.2 see: https://github.com/pytorch/pytorch/issues/106470
 RUN /opt/conda/bin/conda install -c "${INSTALL_CHANNEL}" -y python=${PYTHON_VERSION} conda=23.5.2
 RUN /opt/conda/bin/pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+RUN /opt/conda/bin/pip install torchelastic -i https://pypi.antfin-inc.com/simple
 
 FROM nvidia/cuda:11.8.0-cudnn8-devel-ubuntu20.04 as official
 ARG TRITON_VERSION

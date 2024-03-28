@@ -1,0 +1,70 @@
+model:
+  actor:
+      model_path: /home/glm-large-chinese
+      model_cls: transformers.AutoModelForSeq2SeqLM
+      model_params: 
+        features_in: 10
+        features_out: 10
+      train_strategy: null 
+      inference_strategy: null 
+  critic:
+      model_path: /home/glm-large-chinese
+      model_cls: transformers.AutoModelForSeq2SeqLM
+      model_params: 
+        dims_in: 2
+        dims_out: 2
+      train_strategy: null 
+      inference_strategy: null 
+  ref_model:
+      model_path: /home/glm-large-chinese
+      model_cls: transformers.AutoModelForSeq2SeqLM
+      model_params: 
+        dims_in: 2
+        dims_out: 2
+      inference_strategy: null
+  reward_model:
+      model_path: /home/glm-large-chinese
+      model_cls: transformers.AutoModelForSeq2SeqLM
+      model_params: 
+        dims_in: 2
+        dims_out: 2
+      inference_strategy: null
+train:
+  seq_length: 1024
+  batch_size: 4
+  epoch: 1
+  num_rollouts: 4 
+generation:
+    batch_size: 4
+    epoch: 10
+    gen_kwargs:
+      max_new_tokens: 512
+      top_k: 0
+      top_p: 1.0
+      do_sample: false
+    gen_experience_kwargs:
+      max_new_tokens: 512
+      do_sample: false
+      temperature: 1.0
+      top_k: 50
+      top_p: 0.95
+
+tokenizer:
+  tokenizer_path: /home/glm-large-chinese
+  params:
+    truncation_side: right
+method:
+  PPOConfig:
+      ppo_epoch: 2
+      init_kl_coef: 0.02
+      gamma: 1
+      lam: 0.95
+      cliprange: 0.2
+      cliprange_value: 0.2
+      vf_coef: 0.1
+      cliprange_reward: 50
+      clip_ratio: true
+      ent_coef: 0.01
+      scale_reward: running
+      ref_mean: null
+      ref_std: null

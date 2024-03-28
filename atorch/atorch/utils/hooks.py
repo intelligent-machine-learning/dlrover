@@ -5,6 +5,7 @@ from typing import Callable, Dict, List
 class ATorchHooks(object):
     COMPUTE_GPU_UTIL_HOOK = auto()
     REPORT_METRICS_HOOK = auto()
+    ADDITIONAL_TENSORBOARD_HOOK = auto()
 
     # hooks stored as dict, key for hook_type, value for corresponding hook list.
     hooks: Dict[auto, List[Callable]] = {}

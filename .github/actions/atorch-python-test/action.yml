@@ -3,16 +3,17 @@ name: atorch-python-test
 description: run pytest to execute python test cases of atorch python
 runs:
   using: 'docker'
-  image: "easydl/atorch:iml_pt210"
+  image: "registry.cn-hangzhou.aliyuncs.com/atorch/atorch:pt210_te"
   args:
     - "/bin/bash"
     - "-c"
     - "pip install pytest dlrover[torch] fairscale==0.4.1 pandas Gpy \
-accelerate datasets==2.14.6 peft==0.4.0 scikit-learn pymoo==0.5.0\
+accelerate datasets==2.14.6 peft==0.4.0 scikit-learn pymoo==0.5.0 \
+tensorboard==2.11.0 \
 && echo -e 'import math\ninf = math.inf\nnan = math.nan\nstring_classes = \
 (str, bytes)' > /opt/conda/lib/python3.8/site-packages/torch/_six.py \
 && cd atorch \
-&& sh bin/build_proto.sh \
+&& sh dev/scripts/build_proto.sh \
 && PYTHONPATH=. pytest atorch/tests \
 && cd .. \
 && git config --global --add safe.directory /github/workspace \

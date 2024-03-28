@@ -34,9 +34,9 @@ def patch_fsdp_init(ckpt_path, wrap_class, top_model, check_module=True, ignore_
     version = torch.version.git_version
     if version == "7bcf7da3a268b435777fe87c7794c382f444e86d":
         RestoreFlatParamHandle.GLOBAL_CONFIG.build_ckpt_util(ckpt_path, wrap_class, top_model)
-        if not RestoreFlatParamHandle.GLOBAL_CONFIG.compare_wrap_class(
-            check_module=check_module, ignore_ckpt_version=ignore_ckpt_version
-        ):
+        if not check_module:
+            logger.warn("Ignore module checkint, make sure your wrap class in FSDP is same")
+        elif not RestoreFlatParamHandle.GLOBAL_CONFIG.compare_wrap_class(ignore_ckpt_version=ignore_ckpt_version):
             ckpt_wrap_class: List[Tuple[str, str]] = list(
                 RestoreFlatParamHandle.GLOBAL_CONFIG.ckpt_util.ckpt_meta["wrap_class"]
             )
@@ -77,7 +77,7 @@ class RestoreFlatParamHandleInjectConfig:
         self.ckpt_util = ShardTensorUtil(self.ckpt_path, rank(), world_size(), device="cpu")
         self.ckpt_util.get_fsdp_init_order(self.top_model, self.wrap_class, build_fsdp_load_map=False)
 
-    def compare_wrap_class(self, check_module, ignore_ckpt_version=False):
+    def compare_wrap_class(self, ignore_ckpt_version=False):
         assert self.wrap_class is not None  # mypy
         wrap_class_config: List[Tuple[str, str]] = [(i.__module__, i.__name__) for i in self.wrap_class]
         ckpt_wrap_class: List[Tuple[str, str]] = list(self.ckpt_util.ckpt_meta["wrap_class"])
@@ -85,8 +85,8 @@ class RestoreFlatParamHandleInjectConfig:
         if self.ckpt_util.ckpt_meta["version"] == 0:
             logger.warn("Meet old flat ckpt, make sure your wrap class in FSDP is same")
             return ignore_ckpt_version
-        sorted(wrap_class_config, key=lambda x: ".".join(x) if check_module else lambda x: x[1])
-        sorted(ckpt_wrap_class, key=lambda x: ".".join(x) if check_module else lambda x: x[1])
+        sorted(wrap_class_config, key=lambda x: ".".join(x))
+        sorted(ckpt_wrap_class, key=lambda x: ".".join(x))
         return wrap_class_config == ckpt_wrap_class
 
     def enable(self):

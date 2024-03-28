@@ -467,10 +467,8 @@ class ModelContext(object):
         (wrapper_func, wrapper_config) = wrappers.pop("mp", (None, None))
         if wrapper_func is not None:
             wrapper_func(self, "mp", wrapper_config)
-
-        # Since MP wrapper will add some more wrappers, we will call adjust wrappers again.
-        self.adjust_wrappers()
-        wrappers = self.pre_wrappers if is_pre_wrapper else self.post_wrappers
+            # Since MP wrapper will add some more wrappers, we will call adjust wrappers again.
+            self.adjust_wrappers()
 
         for name in wrappers.keys():
             (wrapper_func, wrapper_config) = wrappers[name]

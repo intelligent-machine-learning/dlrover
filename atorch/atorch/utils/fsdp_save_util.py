@@ -234,6 +234,21 @@ def save_fsdp_flat_param(model, path):
             'flat_numel': 26806272
         }
     """
+    params, buffers, metas, ckpt_meta = get_flat_model_param(model)
+    _persist_flat_model_param(path, params, buffers, metas, ckpt_meta)
+
+
+def get_flat_model_param(model):
+    """
+    Get flat param and meta info of each fsdp units.
+    This is only working on `use_orig_param` is True.
+
+    Returns:
+        params (dict[str, flat_param]): the parameters of FSDP units.
+        buffers (dict): from model.named_buffers().
+        metas (dict): contains flat_param_meta and param_meta.
+        ckpt_meta: the meta of checkpoint contains the version and the world size.
+    """
     check_is_support(model)
     fsdp_units = [
         m
@@ -244,8 +259,8 @@ def save_fsdp_flat_param(model, path):
     param_meta = metas["param_meta"]
     flat_param_meta = metas["flat_param_meta"]
     params = {}
-    buffers = {clean_tensor_name(k): v for k, v in model.named_buffers()}
     data_group = parallel_group("data")
+    buffers = {clean_tensor_name(k): v for k, v in model.named_buffers()}
     wrap_class = set()
     for fsdp_name, fsdp_unit in fsdp_units:
         fsdp_flat_handle = get_handle(fsdp_unit)
@@ -283,21 +298,25 @@ def save_fsdp_flat_param(model, path):
             origin_module = fsdp_unit._fsdp_wrapped_module
             wrap_class.add((origin_module.__class__.__module__, origin_module.__class__.__name__))
 
+    ckpt_meta = {"version": CKPT_VERSION, "world_size": dist.get_world_size(), "wrap_class": wrap_class}
+    return params, buffers, metas, ckpt_meta
+
+
+def _persist_flat_model_param(path, params, buffers, flat_meta, ckpt_meta):
+    """Persit the flat model parameters into the storage."""
     d = Path(path)
     d.mkdir(parents=True, exist_ok=True)
+    data_group = parallel_group("data")
     suffix = f"{str(dist.get_rank(data_group)).zfill(5)}-{str(dist.get_world_size(data_group)).zfill(5)}"
     safetensors_dump(params, f"{path}/flat_param.{suffix}")
     if dist.get_rank(data_group) == 0:
         safetensors_dump(buffers, f"{path}/buffers")
     with open(f"{path}/flat_meta.{suffix}", "wb") as f:
-        pickle.dump(metas, f)
+        pickle.dump(flat_meta, f)
 
-    if dist.get_rank() != 0:
-        return
-
-    with open(f"{path}/ckpt_meta", "wb") as f:
-        meta = {"version": CKPT_VERSION, "world_size": dist.get_world_size(), "wrap_class": wrap_class}
-        pickle.dump(meta, f)
+    if dist.get_rank() == 0:
+        with open(f"{path}/ckpt_meta", "wb") as f:
+            pickle.dump(ckpt_meta, f)
 
 
 def save_fsdp_optim_param(model, optimizer, path):
@@ -305,10 +324,20 @@ def save_fsdp_optim_param(model, optimizer, path):
     Structure of save path describe as below, it includes 2 parts:
         1. optim_meta, which saves param_groups and others hyperparameters, saved by pickle
         2. optim_param.<rank>-<world_size>, which saves optimizer's state or each FSDP unit, saved by safetensors.
+    The structure of checkpoint in the storage is like
     ├── optim_meta
     ├── optim_param.00000-00002
     └── optim_param.00001-00002
+    """
+    optim_state, param_groups = get_fsdp_optim_param(model, optimizer)
+    _persist_optim_param(path, optim_state, param_groups)
 
+
+def get_fsdp_optim_param(model, optimizer):
+    """Get the state of optimizer for each FSDP unit. This func is only support FSDP with `use_orig_params`
+    Structure of save path describe as below, it includes 2 parts:
+        1. optim_meta, which saves param_groups and others hyperparameters, saved by pickle
+        2. optim_param.<rank>-<world_size>, which saves optimizer's state or each FSDP unit, saved by safetensors.
     """
     check_is_support(model)
     param_mappings = {}
@@ -330,15 +359,20 @@ def save_fsdp_optim_param(model, optimizer, path):
     param_groups = [pack_group(g) for g in optimizer.param_groups]
     optim_param_idx_to_name = {}
     _ = [optim_param_idx_to_name.update(i["params_names"]) for i in param_groups]
+    flat_state = {optim_param_idx_to_name[k]: v for k, v in optim_state["state"].items()}
+    optim_state = {}
+    for name, state in flat_state.items():
+        optim_state.update({f"{name}-{k}": v for k, v in state.items()})
+    return optim_state, param_groups
+
+
+def _persist_optim_param(path, optim_state, param_groups):
+    """Persit the optimizer parameters into the storage."""
     d = Path(path)
     d.mkdir(parents=True, exist_ok=True)
-    flat_state = {optim_param_idx_to_name[k]: v for k, v in optim_state["state"].items()}
-    save_state = {}
-    for name, state in flat_state.items():
-        save_state.update({f"{name}-{k}": v for k, v in state.items()})
     data_group = parallel_group("data")
     suffix = f"{str(dist.get_rank(data_group)).zfill(5)}-{str(dist.get_world_size(data_group)).zfill(5)}"
-    safetensors_dump(save_state, f"{path}/optim_param.{suffix}")
+    safetensors_dump(optim_state, f"{path}/optim_param.{suffix}")
     if dist.get_rank(data_group) == 0:
         with open(f"{path}/optim_meta", "wb") as f:
             pickle.dump(param_groups, f)

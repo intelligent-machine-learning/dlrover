@@ -1,0 +1,61 @@
+model:
+  actor_critic_ref:
+      model_path: /home/glm-large-chinese
+      model_cls:  atorch.tests.test_define_rl_models.independent_models.actor_critic_ref.ActorCriticRef
+      model_params: 
+        num_layers: 2
+      train_strategy:  ./benchmarks/glm_rlhf/sequential_case_share_weights/strategy.py
+      inference_strategy: torch_native
+      loss: atorch.rl.ppo_utils.ppo_util.loss 
+      optimizer: 
+        name: torch.optim.adam
+        kwargs: 
+          lr: 1.0e-6
+          betas: 
+            - 0.9
+            - 0.95
+          eps: 1.0e-8
+          weight_decay: 0.01
+  reward_model:
+      model_path: /home/glm-large-chinese
+      model_cls: benchmarks.glm_rlhf.sequential_case_share_weights.reward_model.reward_model.RewardModel
+      train_strategy: ./benchmarks/glm_rlhf/sequential_case_share_weights/strategy.py
+train:
+  seq_length: 1024
+  batch_size: 4
+  epoch: 1
+  num_rollouts: 10 
+generation:
+    batch_size: 4
+    epoch: 10
+    gen_kwargs:
+      max_new_tokens: 512
+      top_k: 0
+      top_p: 1.0
+      do_sample: false
+    gen_experience_kwargs:
+      max_new_tokens: 512
+      do_sample: false
+      temperature: 1.0
+      top_k: 50
+      top_p: 0.95
+
+tokenizer:
+  tokenizer_path: /home
+  params:
+    truncation_side: right
+method:
+  PPOConfig:
+      ppo_epoch: 2
+      init_kl_coef: 0.02
+      gamma: 1
+      lam: 0.95
+      cliprange: 0.2
+      cliprange_value: 0.2
+      vf_coef: 0.1
+      cliprange_reward: 50
+      clip_ratio: true
+      ent_coef: 0.01
+      scale_reward: running
+      ref_mean: null
+      ref_std: null

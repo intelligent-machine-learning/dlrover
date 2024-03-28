@@ -8,25 +8,6 @@ from collections import OrderedDict
 import torch
 import torch.distributed.rpc as torch_rpc
 from torch.cuda.amp import autocast
-
-try:
-    from pippy import Pipe, PipelineDriver1F1B, PipelineDriverFillDrain
-    from pippy.microbatch import Replicate, TensorChunkSpec, split_args_kwargs_into_chunks, sum_reducer
-    from pippy.PipelineDriver import PipelineDriverInterleaved1F1B
-except ImportError:
-    Pipe, PipelineDriver1F1B, PipelineDriverFillDrain, PipelineDriverInterleaved1F1B = (
-        None,
-        None,
-        None,
-        None,
-    )
-    sum_reducer, TensorChunkSpec, Replicate, split_args_kwargs_into_chunks = None, None, None, None
-
-try:
-    from torch.optim.lr_scheduler import LRScheduler
-except ImportError:
-    LRScheduler = object
-
 from torch.nn.parallel import DistributedDataParallel
 
 from atorch.amp.pipe_amp import get_pipe_amp_optimizer
@@ -43,6 +24,19 @@ from atorch.distributed.distributed import (
 from atorch.modules.distributed_modules.materialize_modules import materialize_modules_to_device
 from atorch.utils.graph_transform_utils import map_aggregate
 
+from .utils import (
+    check_split_points,
+    check_staged_model,
+    compile_to_pipe,
+    construct_output_chunk_spec,
+    dp_pg_cb,
+    get_number_of_params,
+    hack_interpreter,
+    hack_pippy_driver,
+    prepare_args_kwargs,
+    propagate_fake_split_gm,
+)
+
 try:
     from atorch.modules.distributed_modules.compilers.pipe_compiler.PipelineStage import (
         PipelineStage,
@@ -58,18 +52,25 @@ try:
 except ImportError:
     pipeline_stage_imported = False
 
-from .utils import (
-    check_split_points,
-    check_staged_model,
-    compile_to_pipe,
-    construct_output_chunk_spec,
-    dp_pg_cb,
-    get_number_of_params,
-    hack_interpreter,
-    hack_pippy_driver,
-    prepare_args_kwargs,
-    propagate_fake_split_gm,
-)
+try:
+    from pippy import Pipe, PipelineDriver1F1B, PipelineDriverFillDrain
+    from pippy.microbatch import Replicate, TensorChunkSpec, split_args_kwargs_into_chunks, sum_reducer
+    from pippy.PipelineDriver import PipelineDriverInterleaved1F1B
+except ImportError:
+    Pipe, PipelineDriver1F1B, PipelineDriverFillDrain, PipelineDriverInterleaved1F1B = (
+        None,
+        None,
+        None,
+        None,
+    )
+    sum_reducer, TensorChunkSpec, Replicate, split_args_kwargs_into_chunks = None, None, None, None
+
+_LRScheduler = None
+try:
+    from torch.optim.lr_scheduler import _LRScheduler  # type: ignore
+except ImportError:
+    _LRScheduler = object
+
 
 driver_schedules = {
     "FillDrain": PipelineDriverFillDrain,
@@ -98,7 +99,7 @@ class DummyOptim(torch.optim.Optimizer):
         pass
 
 
-class DummyLRScheduler(LRScheduler):
+class DummyLRScheduler(_LRScheduler):  # type: ignore
     def __init__(self):
         pass
 

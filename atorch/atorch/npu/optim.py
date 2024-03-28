@@ -2,7 +2,12 @@ from typing import List, Optional, Tuple, Union
 
 import torch
 from torch import Tensor
-from torch.optim.optimizer import _default_to_fused_or_foreach, _get_value, _use_grad_for_differentiable, params_t
+from torch.optim.optimizer import (  # type: ignore[attr-defined]
+    _default_to_fused_or_foreach,
+    _get_value,
+    _use_grad_for_differentiable,
+    params_t,
+)
 
 from atorch.utils.import_util import is_torch_npu_available
 

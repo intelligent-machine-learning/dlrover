@@ -244,7 +244,7 @@ def main():
         with open(json_file, "r") as fin:
             json_obj = load(fin)  # TODO: iter json_obj,save memory usage
             df = prepare_df(json_obj)
-            kernel_start_times.append(df.query("cat=='kernel'").head(1)["ts"].values[0])
+            kernel_start_times.append(df.query("cat=='kernel'")["ts"].min())
             print("kernel 5 sample:\n", df.query("cat=='kernel'").head(n=5))
 
             ret = analyze_gpu_kernel(df)

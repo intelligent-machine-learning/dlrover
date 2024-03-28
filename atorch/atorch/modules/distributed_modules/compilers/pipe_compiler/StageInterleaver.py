@@ -2,14 +2,15 @@
 import threading
 from typing import Any, Dict, List, Tuple
 
-try:
-    from torch.optim.lr_scheduler import _LRScheduler
-except ImportError:
-    _LRScheduler = object
-
 import torch
 
 from .PipelineStage import PipelineStage
+
+_LRScheduler = None
+try:
+    from torch.optim.lr_scheduler import _LRScheduler  # type: ignore
+except ImportError:
+    _LRScheduler = object
 
 
 class StageInterleaver(torch.nn.Module):
@@ -114,7 +115,7 @@ class InterleaverOptimizer(torch.optim.Optimizer):
             optim.step(*args, **kwargs)
 
 
-class InterleaverLRScheduler(_LRScheduler):
+class InterleaverLRScheduler(_LRScheduler):  # type: ignore
     def __init__(self, lr_schedulers):
         self.lr_schedulers = lr_schedulers
 

@@ -11,7 +11,12 @@ import torch
 import torch.distributed as dist
 from torch.distributed.algorithms.join import Join
 from torch.nn.parallel import DistributedDataParallel
-from torch.nn.parallel.distributed import _DDPSink, _find_tensors, _tree_flatten_with_rref, _tree_unflatten_with_rref
+from torch.nn.parallel.distributed import (  # type: ignore
+    _DDPSink,
+    _find_tensors,
+    _tree_flatten_with_rref,
+    _tree_unflatten_with_rref,
+)
 
 from atorch.common.log_utils import default_logger as logger
 from atorch.modules.moe.moe_layer import get_experts_ddp_process_group

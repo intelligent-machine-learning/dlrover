@@ -15,11 +15,11 @@ class Parameter(ABC):
         pass
 
     @abstractmethod
-    def transform(self, x: np.array) -> np.array:
+    def transform(self, x: np.ndarray) -> np.ndarray:
         pass
 
     @abstractmethod
-    def inverse_transform(self, x: np.array) -> np.array:
+    def inverse_transform(self, x: np.ndarray) -> np.ndarray:
         pass
 
     @property
