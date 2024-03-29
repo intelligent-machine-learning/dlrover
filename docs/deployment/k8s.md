@@ -11,7 +11,7 @@ kubectl create namespace dlrover
 
 ## Deploy MySQL
 
-To create MySQL DB as the store for ELRover
+To create MySQL DB as the store for DLRover
 
 ```shell
 cd dlrover/go/brain/manifests/k8s
