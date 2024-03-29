@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y sudo iproute2
 RUN pip install py-spy
 
 # Install chaosblade to test the fualt-node and straggler.
-# Download https://github.com/chaosblade-io/chaosblade/releases/download/v1.7.2/chaosblade-1.7.2-linux-amd64.tar.gz 
+# Download `wget https://github.com/chaosblade-io/chaosblade/releases/download/v1.7.2/chaosblade-1.7.2-linux-amd64.tar.gz`
 COPY chaosblade-1.7.2-linux-amd64.tar.gz ./chaosblade-1.7.2-linux-amd64.tar.gz
 RUN tar -zxvf chaosblade-1.7.2-linux-amd64.tar.gz 
 RUN rm chaosblade-1.7.2-linux-amd64.tar.gz 
