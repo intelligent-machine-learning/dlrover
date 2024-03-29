@@ -71,16 +71,12 @@ class TokenLossSpike(LossSpikeBase):
             logger.info(f"save loss={cur_loss}, iter={cur_iter}")
             # 存储结构需要定义
             cur_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            info = self.loss_info_splitter.join(
-                [cur_time, str(cur_iter), str(cur_loss), losses_str, sample_infos_str]
-            )
+            info = self.loss_info_splitter.join([cur_time, str(cur_iter), str(cur_loss), losses_str, sample_infos_str])
             info = info + "\n"
             with open(file_path, "a+") as w:
                 w.write(info)
 
-    def decode_loss_spike(
-        self, result_file_path, tokenizer, min_iter=None, min_loss=None
-    ):
+    def decode_loss_spike(self, result_file_path, tokenizer, min_iter=None, min_loss=None):
         """
         根据文件中的尖刺loss等信息，解析出对应的样本到文件
         Args:
@@ -111,26 +107,18 @@ class TokenLossSpike(LossSpikeBase):
                         loss_str = fcontent[3]
                         sample_infos_str = fcontent[4]
                         if cur_iter < min_iter or cur_loss < min_loss:
-                            logger.info(
-                                f"The content with iter={cur_iter} and loss={cur_loss} will not be parsed!"
-                            )
+                            logger.info(f"The content with iter={cur_iter} and loss={cur_loss} will not be parsed!")
                             continue
                         # parse
-                        logger.info(
-                            f"Parse content with iter={cur_iter} and loss={cur_loss}!"
-                        )
-                        ds, text, max_loss = self.parse_sample_content(
-                            loss_str, sample_infos_str, tokenizer
-                        )
+                        logger.info(f"Parse content with iter={cur_iter} and loss={cur_loss}!")
+                        ds, text, max_loss = self.parse_sample_content(loss_str, sample_infos_str, tokenizer)
                         if ds is None:
                             continue
                         fw.write(f"=========={ds}  {max_loss}================\n")
                         fw.write(f"{text}\n\n\n\n")
 
     def parse_sample_content(self, losses_str, sample_infos_str, tokenizer):
-        losses = [
-            float(e) for e in losses_str.split(self.loss_sample_str_splitter)
-        ]  # 解析loss es
+        losses = [float(e) for e in losses_str.split(self.loss_sample_str_splitter)]  # 解析loss es
         sample_infos = sample_infos_str.split(self.loss_sample_str_splitter)
         if len(losses) != len(sample_infos):
             logger.warn("batch loss length != batch sample length")
@@ -162,8 +150,6 @@ class TokenLossSpike(LossSpikeBase):
             return None, None
         flen = self.get_data_file_len(datapath, np.dtype(np.int32))
         sample_cnt = flen // self.each_sample_len
-        f = np.memmap(
-            datapath, dtype=np.int32, shape=(sample_cnt, self.each_sample_len)
-        )  # 磁盘写内存
+        f = np.memmap(datapath, dtype=np.int32, shape=(sample_cnt, self.each_sample_len))  # 磁盘写内存
         data = f[int(sample_id)]
         return ds_info[0], data
