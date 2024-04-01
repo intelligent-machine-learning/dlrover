@@ -25,7 +25,7 @@ elif [ "${WORKER_ID}" -eq 1 ] && [ "${exp}" = "kill-process" ]
 then
     for _ in {0..1200}
     do
-        chaosblade-1.7.2/blade create process kill --process run_network_check --signal 1
+        chaosblade-1.7.2/blade create process kill --process nvidia_gpu --signal 1
         sleep 1
     done
 else
