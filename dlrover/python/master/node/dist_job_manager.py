@@ -334,9 +334,9 @@ class DistributedJobManager(JobManager):
     def _monitor_nodes(self):
         logger.info("Start monitoring nodes events.")
         while True:
-            nodes = self._node_watcher.list()
-            self._process_list_nodes(nodes)
             try:
+                nodes = self._node_watcher.list()
+                self._process_list_nodes(nodes)
                 if self._stop_monitor:
                     logger.info("Stop processing node events")
                     break
