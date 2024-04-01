@@ -4,22 +4,22 @@ Before you start installing this project, you need to perform the following
 tests to ensure that your current computer environment meets the requirements,
 so as to avoid some possible errors.
 
-`grpcio == 1.34.1`:
+`grpcio >= 1.58.0`:
 
 ```python
 import grpc
 
-assert grpc.__version__ == '1.34.1', f"Expected grpcio version 1.34.1 but found {grpc.__version__}"
+assert grpc.__version__ >= '1.58.0', f"Expected grpcio version >= 1.58.0 but found {grpc.__version__}"
 ```
 
-`grpcio-tools == 1.34.1`:
+`grpcio-tools >= 1.58.0`:
 
 ```python
 import pkg_resources
 
 grpc_tools_version = pkg_resources.get_distribution("grpcio-tools").version
 
-assert grpc_tools_version == '1.34.1', f"Expected grpcio-tools version 1.34.1 but found {grpc_tools_version}"
+assert grpc_tools_version >= '1.58.0', f"Expected grpcio-tools version >= 1.58.0 but found {grpc_tools_version}"
 ```
 
 `protobuf >= 3.15.3, < 4.0`:
