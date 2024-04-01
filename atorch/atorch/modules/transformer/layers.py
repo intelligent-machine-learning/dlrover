@@ -20,6 +20,7 @@ from torch.nn import MultiheadAttention
 
 from atorch.common.log_utils import default_logger as logger
 from atorch.common.util_func import divide, split_tensor_along_last_dim
+from atorch.utils.import_util import is_torch_npu_available
 from atorch.utils.meta_model_utils import is_meta, recursive_empty_param, reload_meta_module
 
 
@@ -128,6 +129,9 @@ try:
 except (ImportError, ModuleNotFoundError):
     _amp_state = None
 
+if is_torch_npu_available():
+    from atorch.npu.layers import npu_fa_with_glm_mask
+
 
 def is_apex_amp_activate():
     if _amp_state is None:
@@ -144,6 +148,8 @@ def is_additive_mask_bias_supported_fa1():
 
 
 def is_glm_mask_supported_fa2():
+    if is_torch_npu_available():
+        return True
     if not _flash_attn_version or _flash_attn_version < packaging.version.Version("2"):
         return False
     return "glm_mask" in inspect.signature(flash_attn_func).parameters
@@ -1314,6 +1320,9 @@ class FlashAttnModule(nn.Module):
             assert self.causal, "causal must be True for glm_mask"
             assert is_glm_mask_supported_fa2(), "please install glm mask supported version FA2"
             kwargs.update({"glm_mask": glm_mask})
+
+            if is_torch_npu_available():
+                return npu_fa_with_glm_mask(q, k, v, **kwargs)
 
         # FA1 additive mask
         if additive_mask is not None or additive_bias is not None:

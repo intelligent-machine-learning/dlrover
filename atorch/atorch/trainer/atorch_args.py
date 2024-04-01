@@ -50,6 +50,7 @@ class AtorchArguments(Seq2SeqTrainingArguments):
             )
         },
     )
+    shuffle: bool = field(default=True, metadata={"help": "If `True` (default), dataloader will shuffle the data."})
     optim_func: Optional[Callable] = field(
         default=torch.optim.AdamW,
         metadata={

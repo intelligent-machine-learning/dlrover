@@ -355,7 +355,7 @@ class AtorchTrainer:
 
         # atorch auto_accelerate will restore batch_size by dividing by world size.
         train_dataloader_args = {
-            "shuffle": True,
+            "shuffle": self.args.shuffle,
             "batch_size": self._train_batch_size * self.args.world_size,
             "pin_memory": self.args.dataloader_pin_memory,
             "num_workers": self.args.dataloader_num_workers,

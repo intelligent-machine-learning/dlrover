@@ -1,0 +1,189 @@
+FROM reg.docker.alibaba-inc.com/alipay/7u2-common:202202.0T as base
+
+USER root
+WORKDIR /root
+
+ENV BASH_ENV /root/.bashrc
+ENV LANGUAGE zh_cn
+ENV LC_ALL zh_CN.UTF-8
+ENV SHELL /bin/bash
+
+RUN mkdir -p ~/.pip && \
+    echo -e "\n\
+    [global]\n\
+    index-url = https://artifacts.antgroup-inc.cn/simple/\n\
+    trusted-host = artifacts.antgroup-inc.cn mirrors.aliyun.com\n\
+    " | sed 's/^ \+//g' > ~/.pip/pip.conf
+
+FROM base as util-base
+ARG PYTHON_VERSION=3.8
+ARG CONDA_PATH=/opt/conda
+ENV PATH ${CONDA_PATH}/bin:$PATH
+ARG CA_PATH=/etc/ssl/certs/ca-bundle.crt
+
+# install glibc2.32 and gcc-10, glibc2.32 is required by PPU
+RUN yum install alios7u-2_30-gcc-9-repo-1.0.0-1.alios7.noarch -y && \
+    yum install gcc g++ binutils gdb glibc-devel glibc-langpack-en glibc-locale-source -y && \
+    localedef -i zh_CN -f UTF-8 zh_CN.UTF-8 && \
+    rm -f /var/lib/rpm/__db.00* && rpm --rebuilddb && \
+    yum remove alios7u-2_30-gcc-9-repo-1.0.0-1.alios7.noarch -y && \
+    yum install alios7u-2_32-gcc-10-repo.noarch -y && \
+    yum update gcc g++ glibc glibc-devel glibc-langpack-en glibc-locale-source -y && \
+    rm -f /var/lib/rpm/__db.00* && rpm --rebuilddb && \
+    rm -rf /var/cache/yum/*
+
+# install PANGU
+RUN wget "http://yum.tbsite.net/taobao/7/x86_64/current/pangu-client/pangu-client-0.16.1.1.1100190-7u2.x86_64.rpm" -O pangu-client.rpm && \
+    rpm -ivh pangu-client.rpm && \
+    rm -rf pangu-client.rpm && \
+    yum install pciutils nfs-utils -y && \
+    touch ${CA_PATH} && \
+    wget -O - http://148757.oss-cn-hangzhou-zmf.aliyuncs.com/tmp/echoca_prod.sh | sh && \
+    yum makecache && \
+    yum -y --setopt=skip_missing_names_on_install=False install "http://koji.alibaba-inc.com/kojifiles/packages/pigz/2.3.3/1.1.alios7/x86_64/pigz-2.3.3-1.1.alios7.x86_64.rpm"
+
+# install conda
+RUN cd ~/ && \
+    wget https://mirrors.tuna.tsinghua.edu.cn/anaconda/miniconda/Miniconda3-latest-Linux-x86_64.sh --no-check-certificate -O miniconda-install.sh && \
+    chmod +x miniconda-install.sh && \
+    ~/miniconda-install.sh -b -p ${CONDA_PATH} && \
+    rm ~/miniconda-install.sh && \
+    conda install -y python=${PYTHON_VERSION} conda-build pyyaml numpy==1.23.5 ipython pybind11 cmake && \
+    conda clean -ya
+
+
+##############################################################################
+# rdma, cuda compat, cuda toolkit, torch
+# imgaug, augly, opencv-python, nvidia-dali
+##############################################################################
+FROM util-base as torch-base
+    
+ARG CUDA_VERSION=11-6
+ARG CUDA_PATH=cuda-11.6
+ARG MAX_DRIVER_VERSION=520.61.05
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=all
+
+# for non-interacvite login
+ENV BASH_ENV /etc/bashrc
+
+# CUDA-toolkit, RDMA lib
+ENV PATH=$PATH:/usr/local/cuda/bin
+RUN echo "/usr/local/cuda/lib" >> /etc/ld.so.conf.d/nvidia.conf && \
+    echo "/usr/local/cuda/lib64" >> /etc/ld.so.conf.d/nvidia.conf && \
+    echo "/usr/lib64" >> /etc/ld.so.conf.d/nvidia.conf && \
+    echo "ldconfig > /dev/null 2>&1 " >> /etc/bashrc && \
+    yum install -y libnl3 libnl3-devel libjpeg-turbo-devel libpng-devel mesa-libGL && \
+    wget -O /etc/yum.repos.d/nvidia-cuda.repo http://yum.tbsite.net/nvidia-cuda/rhel7/x86_64/cuda-rhel7.repo && \
+    sed -i "s#https://developer.download.nvidia.com/compute/cuda/repos#http://yum.tbsite.net/nvidia-cuda#" /etc/yum.repos.d/nvidia-cuda.repo && \
+    yum clean all && \
+    yum install -y cuda-compat-${CUDA_VERSION}-${MAX_DRIVER_VERSION} cuda-toolkit-${CUDA_VERSION} --nogpgcheck && \
+    rm -rf /usr/local/cuda && ln -s /usr/local/${CUDA_PATH} /usr/local/cuda && \
+    rm -rf /var/cache/yum && \
+    wget http://alps-common.oss-cn-hangzhou-zmf.aliyuncs.com/users%2Fsichuan%2Frdma-core-doca-packages.tar.gz -O rdma-core-doca-packages.tar.gz && \
+    tar -zxf rdma-core-doca-packages.tar.gz && cd rdma-core-doca-packages && \
+    bash install.sh && bash check-installed.sh && cd .. && rm -rf rdma-core-doca-packages.tar.gz rdma-core-doca-packages
+
+# set PPU envs and install PPU sdk
+ARG PPU_VERSION=1.1.0
+ENV PPU_SDK=/usr/local/PPU_SDK
+ENV PPU_PATH=${PPU_SDK}
+ENV PPU_HOME=${PPU_PATH}
+ENV CUDA_SDK=${PPU_SDK}/CUDA_SDK
+ENV CUDA_TOOLKIT_ROOT=${CUDA_SDK}
+ENV CUDA_PATH=${CUDA_SDK}
+ENV CUDA_HOME=${CUDA_SDK}
+ENV CUDNN_HOME=${CUDA_SDK}
+ENV CUDACXX=${CUDA_SDK}/bin/nvcc
+ENV CUDA_SDK_VER=cuda-11.6
+ENV PATH=${CUDA_SDK}/bin:${PPU_SDK}/bin:${PPU_SDK}/asight/bin:${PPU_SDK}/ppu-smi/bin:${PATH}
+ENV LD_LIBRARY_PATH=${CUDA_SDK}/lib64:${PPU_SDK}/lib:${LD_LIBRARY_PATH}
+ENV LIBRARY_PATH=${CUDA_SDK}/lib64:${PPU_SDK}/lib:${LIBRARY_PATH}
+ENV PPU_VERSION=${PPU_VERSION}
+ARG PPU_SDK_URL=http://ai-artifactory-pub.eng.t-head.cn:9000/artifactory/generic-local/PPU1.0/1.1.0/PPU_SDK/PPU_SDK_cuda-11.6.2-alios7u2-1.1.0-b2d346.tar.gz
+RUN wget -nv "${PPU_SDK_URL}" -O "/tmp/ppu.tar.gz" && \
+    tar --extract --verbose --use-compress-program="pigz" --file="/tmp/ppu.tar.gz" --directory="/usr/local/" "PPU_SDK" && \
+    ln -s "${CUDA_SDK}" "/usr/local/${CUDA_SDK_VER}" && \
+    ln -s "/usr/local/${CUDA_SDK_VER}" "/usr/local/cuda" && \
+    echo "${PPU_SDK}/lib" >> /etc/ld.so.conf.d/ppu.conf && \
+    echo "${CUDA_SDK}/lib64" >> /etc/ld.so.conf.d/ppu.conf && \
+    ldconfig && \
+    ldconfig -p | grep -q libcuda.so && \
+    ldconfig -p | grep -q "${PPU_SDK}/lib" && \
+    clang --version && nvcc --version && asys --version && \
+    rm -rf /tmp/ppu.tar.gz
+
+# install torch, torchvision, torchdata, triton, transformers, timm
+RUN wget -O PPU_SDK_CUDA_11.6_PyTorch2.1_alios7-py38.tar.gz http://alps-common.oss-cn-hangzhou-zmf.aliyuncs.com/users/sichuan/PPU_SDK_CUDA_11.6_PyTorch2.1_alios7-py38.tar.gz && \
+    tar --extract --verbose --use-compress-program="pigz" --file="PPU_SDK_CUDA_11.6_PyTorch2.1_alios7-py38.tar.gz" --directory="/tmp/" --strip-components="1" --exclude="src" --exclude="PPU_SDK" && \
+    mkdir -p "/tmp/whl" && \
+    find /tmp/ -name "*.whl" -type f | xargs mv -t /tmp/whl/ && \
+    python3 -m pip install /tmp/whl/torch-*.whl /tmp/whl/torchaudio*.whl /tmp/whl/torchdata*.whl /tmp/whl/torchtext*.whl /tmp/whl/torchvision*.whl /tmp/whl/triton* /tmp/whl/apex* /tmp/whl/timm* && \
+    rm -rf /tmp/*whl /tmp/whl/ PPU_SDK_CUDA_11.6_PyTorch2.1_alios7-py38.tar.gz
+
+# PPU device require running user with video group
+RUN usermod -a -G video $(whoami)
+
+# Disable acompute debug log
+ENV aliDebug='disable INFO,DEBUG,TRACE,WARNING;'
+
+RUN wget http://alipay-cognition.cn-hangzhou.alipay.aliyun-inc.com/datacube2/packages/debugger/zy267523/lib/openmpi-4.1.3.tar.gz && \
+    tar -xzf openmpi-4.1.3.tar.gz && \
+    cd openmpi-4.1.3 && \
+    ./configure --prefix=/usr/local && \
+    make && make install && \
+    ldconfig && \
+    cd .. && rm -rf openmpi-4.1.3/ openmpi-4.1.3.tar.gz && \
+    pip install --no-cache-dir mpi4py
+
+RUN pip install --no-cache-dir \
+        aistudio-common==0.0.28.31 \
+        easydl_sdk \
+        fairscale==0.4.1 \
+        fsspec==2023.1.0 \
+        grpcio==1.34.1 \
+        grpcio-tools==1.34.1 \
+        networkx==3.0 \
+        opencv-python-headless \
+        oss2==2.17.0 \
+        pandas==2.0.1 \
+        protobuf==3.20.3 \
+        pyarrow==12.0.0 \
+        pyomo \
+        pynvml==11.4.1 \
+        safetensors \
+        tensorboard==2.11.0 \
+        transformers==4.31.0 \
+        zdfs-dfs==2.3.2
+        
+RUN pip install --no-cache-dir alipay-pcache==0.1.6 unifile_sdk==0.1.14
+
+RUN pip install --no-cache-dir http://alps-common.oss-cn-hangzhou-zmf.aliyuncs.com/users/sichuan/flash_attn-2.0.9.dev0-cp38-cp38-linux_x86_64.whl \
+    http://alps-common.oss-cn-hangzhou-zmf.aliyuncs.com/users/sichuan/xformers-0.0.21%2B1ae2ad1.d20231227-cp38-cp38-linux_x86_64.whl \
+    http://alps-common.oss-cn-hangzhou-zmf.aliyuncs.com/users/sichuan/ppu/bitsandbytes-0.39.1-py3-none-any.whl 
+
+
+RUN rm -f /var/lib/rpm/__db.00* && rpm --rebuilddb && \
+    yum install openssl-devel swig -y && \
+    pip install kubemaker==0.2.17 icetk invisible-watermark --no-deps && \
+    pip install accelerate==0.21.0 botocore boto3 click==8.0.4 datasets==2.15.0 deepspeed==0.10.3 diffusers==0.18.2 evaluate==0.4.0 \
+    fasttext filelock ftfy kmitool==0.0.9 langdetect loralib==0.1.1 lsh matplotlib \
+    pandas pathos==0.3.0 peft==0.3.0 py-spy nltk==3.8.1 regex requests rouge_chinese==1.0.3 rouge_score==0.1.2 \
+    scikit-learn scipy sentencepiece==0.1.97 termcolor tldextract tqdm uncertainty-calibration==0.1.4 unidecode && \
+    pip install bigmodelvis decorator rich web.py gitpython yacs && \
+    pip install --no-deps delta_center_client==0.0.4 opendelta==0.3.2 titans==0.0.7 && \
+    pip install rouge-chinese==1.0.3 M2Crypto==0.38.0 adabench==1.2.64 aii-pypai && \
+    pip install -U ray==2.9.0 && \
+    rm -rf /var/cache/yum/* && \
+    rm -rf /root/.cache
+
+RUN pip install --no-cache-dir dlrover[torch]==0.4.0 -i https://artifacts.antgroup-inc.cn/simple/ -U && \
+    pip install atorch==1.1.0 --no-deps && \
+    pip install --no-cache-dir pydantic==1.10.8 -I --no-deps && \
+    pip install --no-cache-dir pytest==7.4.3 protobuf==3.20.0 tensorboardX==2.6 tabulate && \
+    rm -rf /var/cache/yum/* && \
+    rm -rf /root/.cache
+
+
+COPY tools/docker/ppu_dockerfile/ppu_entrypoint.sh /opt/t-head/
+ENTRYPOINT ["source", "/opt/t-head/ppu_entrypoint.sh"]
