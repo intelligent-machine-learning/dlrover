@@ -1,16 +1,21 @@
 import traceback
 from typing import Optional, Union
 
+import torch
+
 from atorch.common.log_utils import default_logger as logger
 from atorch.utils.import_util import is_torch_npu_available
 
 try:
+    if hasattr(torch.device, "__enter__"):
+        # NPU bug. Activate DeviceContext before importing torch_npu
+        with torch.device("meta"):
+            _ = torch.tensor((1.0))
     import torch_npu
     from torch_npu.contrib import transfer_to_npu
 except (ModuleNotFoundError, ImportError):
     logger.error(f"{traceback.format_exc()}")
 
-import torch
 
 _device_t = Union[torch.device, str, int, None]
 old_device_capability = torch.cuda.get_device_capability
