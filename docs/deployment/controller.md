@@ -9,7 +9,7 @@ Kubernetes cluster step by step. Minikube is optional and primarily used for tes
 If you prefer to use Minikube for testing purposes, make sure to have [Minikube](https://minikube.sigs.k8s.io/docs/start/)
 installed and run `minikube start`.
 
-## 3. Deploy Dlrover ElasticJob Controller With Kubectl
+## 2. Deploy DLRover ElasticJob Controller With Kubectl
 
 ```bash
 # deploy from local directory
@@ -32,7 +32,7 @@ NAME                                              READY   STATUS    RESTARTS   A
 pod/dlrover-controller-manager-7dccdf6c4d-grmks   2/2     Running   0          6m46s
 ```
 
-## 4. Test Your Controller by Submitting A Mnist Training Job
+## 3. Test Your Controller by Submitting A Mnist Training Job
 
 ```bash
 kubectl -n dlrover apply -f examples/pytorch/mnist/elastic_job.yaml
