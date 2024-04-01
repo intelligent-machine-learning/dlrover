@@ -675,15 +675,14 @@ class DistributedJobManager(JobManager):
 
     def all_critical_node_completed(self):
         alive_critical_nodes = []
-        with self._lock:
-            for _, nodes in self._job_nodes.items():
-                for node in nodes.values():
-                    if node.critical and node.status in [
-                        NodeStatus.INITIAL,
-                        NodeStatus.PENDING,
-                        NodeStatus.RUNNING,
-                    ]:
-                        alive_critical_nodes.append(node.name)
+        for _, nodes in self._job_nodes.items():
+            for node in nodes.values():
+                if node.critical and node.status in [
+                    NodeStatus.INITIAL,
+                    NodeStatus.PENDING,
+                    NodeStatus.RUNNING,
+                ]:
+                    alive_critical_nodes.append(node.name)
 
         completed = not alive_critical_nodes
         if not completed:
