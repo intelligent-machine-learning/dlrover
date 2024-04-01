@@ -232,9 +232,8 @@ class TaskManager(object):
                         )
                     ):
                         logger.info(
-                            "worker %d timeout with task %d, relaunch it",
-                            doing_task.node_id,
-                            task_id,
+                            f"The task {task_id} of {doing_task.node_type}-"
+                            f"{doing_task.node_id} is timeout."
                         )
                         dataset.report_task_status(task_id, success=False)
                         self._invoke_task_timeout_callback(doing_task.node_id)
