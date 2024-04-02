@@ -41,6 +41,8 @@ from transformers.data.data_collator import DataCollator, DataCollatorWithPaddin
 
 import atorch
 from atorch.auto import auto_accelerate
+from atorch.auto.accelerate import get_strategy
+from atorch.auto.strategy import Strategy
 from atorch.distributed.distributed import is_distributed
 from atorch.trainer.atorch_args import AtorchArguments
 from atorch.utils.fsdp_save_util import ShardOptim, save_fsdp_flat_param, save_fsdp_optim_param
@@ -138,7 +140,7 @@ class AtorchTrainer:
         callbacks: Optional[List[TrainerCallback]] = None,
         optimizers: Tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LambdaLR] = (None, None),
         preprocess_logits_for_metrics: Optional[Callable[[torch.Tensor, torch.Tensor], torch.Tensor]] = None,
-        load_strategy: Optional[List[Union[str, Tuple]]] = None,
+        load_strategy: Optional[Union[str, bytes, Strategy, List]] = None,
         **kwargs,
     ):
         if args is None:
@@ -319,10 +321,7 @@ class AtorchTrainer:
         return self.callback_handler.pop_callback(callback)
 
     def _atorch_init(self):
-        if self.load_strategy is not None:
-            # TODO: check strategy format
-            pass
-        else:
+        if self.load_strategy is None:
             self.load_strategy = []
             # Set parallel mode
             if self.args.atorch_parallel_mode:
@@ -353,6 +352,24 @@ class AtorchTrainer:
             if self.args.gradient_checkpointing and self.args.atorch_checkpoint_cls is not None:
                 self.load_strategy.append(("checkpoint", self.args.atorch_checkpoint_cls))
 
+        # Get load_strategy with `Strategy` type by calling get_strategy function,
+        # which can check the format of load_strategy
+        status, self.load_strategy = get_strategy(self.load_strategy)
+        if not status:
+            raise TypeError("Unsupported load_strategy, please check your load_strategy.")
+
+        # The listed methods will not change the model parameters, while other methods will.
+        optim_methods_to_check = ["parallel_mode", "amp_native", "checkpoint"]
+
+        if self.optimizer is not None:
+            for (opt_name, config, tunable) in self.load_strategy:
+                if opt_name not in optim_methods_to_check:
+                    raise ValueError(
+                        f"If you're using optimization methods outside of {optim_methods_to_check}, passing"
+                        " `optimizers=(xxx,xxx)` when creating a trainer is not supported because auto_accelerate()"
+                        " will change the model parameters. Please set `optimizers` via `args.optim_func` instead."
+                    )
+
         # atorch auto_accelerate will restore batch_size by dividing by world size.
         train_dataloader_args = {
             "shuffle": self.args.shuffle,
@@ -375,24 +392,6 @@ class AtorchTrainer:
                 "eps": self.args.adam_epsilon,
                 "betas": (self.args.adam_beta1, self.args.adam_beta2),
             }
-
-        # The listed methods will not change the model parameters, while other methods will.
-        optim_methods_to_check = ["parallel_mode", "amp_native", "checkpoint"]
-
-        if self.optimizer is not None:
-            for strategy in self.load_strategy:
-                if isinstance(strategy, str):
-                    opt_name = strategy
-                elif isinstance(strategy, (list, tuple)) and len(strategy) > 0:
-                    opt_name = strategy[0]
-                else:
-                    opt_name = ""
-                if opt_name not in optim_methods_to_check:
-                    raise ValueError(
-                        f"If you're using optimization methods outside of {optim_methods_to_check}, passing"
-                        " `optimizers=(xxx,xxx)` when creating a trainer is not supported because auto_accelerate()"
-                        " will change the model parameters. Please set `optimizers` via `args.optim_func` instead."
-                    )
 
         status, result, best_strategy = auto_accelerate(
             model=self.model,
