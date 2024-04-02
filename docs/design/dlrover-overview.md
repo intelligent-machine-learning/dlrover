@@ -115,6 +115,8 @@ to replace Pods with insuffient resources. For example, we relaunch
 a new Pod with more CPU cores to replace a Pod of parameter server
 if CPU cores of the parameter server is bottleneck.
 
+
+
 In automatic resource of DLRover,
 the controller can create a training master for the training job
 when a training job is submitted.
