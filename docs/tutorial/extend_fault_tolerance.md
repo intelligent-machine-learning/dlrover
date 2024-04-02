@@ -20,11 +20,11 @@ If you want to implement node detection on your new processor, you can follow th
 ```Python
 def run_network_check(config: ElasticLaunchConfig, entrypoint):
     if config.accelerator == Accelerators.NVIDIA_GPU:
-        cmd_args = ["-m", "dlrover.trainer.torch.node_check.nvidia_gpu.py"]
+        cmd_args = ["-m", "dlrover.trainer.torch.node_check.nvidia_gpu"]
     elif config.accelerator == Accelerators.ASCEND_NPU:
-        cmd_args = ["-m", "dlrover.trainer.torch.node_check.ascend_npu.py"]
+        cmd_args = ["-m", "dlrover.trainer.torch.node_check.ascend_npu"]
     elif config.accelerator == xxxx:
-        cmd_args = ["-m", "dlrover.trainer.torch.node_check.xxxx_xpu.py"]
+        cmd_args = ["-m", "dlrover.trainer.torch.node_check.xxxx_xpu"]
 ```
 
 3. Set the processor type into the arguments `--accelerator` of `dlrover-run`.
