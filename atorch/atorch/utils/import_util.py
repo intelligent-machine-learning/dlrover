@@ -39,3 +39,9 @@ def is_torch_npu_available(check_device=False):
         except RuntimeError:
             return False
     return hasattr(torch, "npu") and torch.npu.is_available()
+
+
+def is_triton_available():
+    if importlib.util.find_spec("triton") is None or importlib.util.find_spec("triton.language") is None:
+        return False
+    return True

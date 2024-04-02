@@ -20,7 +20,7 @@ def move_to_same_device(args_or_kwargs1, args_or_kwargs2):
 
     if isinstance(args_or_kwargs1, (list, tuple)):  # they can be list or tuple
         return [move_to_same_device(arg1, arg2) for arg1, arg2 in zip(args_or_kwargs1, args_or_kwargs2)]
-    assert type(args_or_kwargs1) == type(args_or_kwargs2), "type not same: %s,%s" % (
+    assert type(args_or_kwargs1) is type(args_or_kwargs2), "type not same: %s,%s" % (
         type(args_or_kwargs1),
         type(args_or_kwargs2),
     )

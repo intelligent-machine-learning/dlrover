@@ -77,7 +77,7 @@ def find_modules(model, m_list):
 def to_module_class_by_name(model, module_list):
     module_classes = {}
     for m in module_list:
-        if type(m) == str:
+        if type(m) is str:
             module_classes[m] = None
     unassigned_num = len(module_classes)
     if unassigned_num > 0:
@@ -89,7 +89,7 @@ def to_module_class_by_name(model, module_list):
                     break
     result = []
     for m in module_list:
-        if type(m) == str:
+        if type(m) is str:
             if module_classes[m] is not None:
                 result.append(module_classes[m])
         else:

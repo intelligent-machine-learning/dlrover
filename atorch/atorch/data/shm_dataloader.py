@@ -237,14 +237,14 @@ def create_shm_dataloader(
         return a list of ShmDataloader
     """
     num_shms = 1
-    if type(shm_data_size) == list:
+    if type(shm_data_size) is list:
         num_shms = len(shm_data_size)
-        assert type(dataset) == list and len(dataset) == num_shms, f"dataset should be a list with length {num_shms}"
+        assert type(dataset) is list and len(dataset) == num_shms, f"dataset should be a list with length {num_shms}"
         assert (
-            type(dataloader_args) == list and len(dataloader_args) == num_shms
+            type(dataloader_args) is list and len(dataloader_args) == num_shms
         ), f"dataloader_args should be a list with length {num_shms}"
         assert (
-            type(shm_name_prefix) == list and len(shm_name_prefix) == num_shms
+            type(shm_name_prefix) is list and len(shm_name_prefix) == num_shms
         ), f"shm_name_prefix should be a list with length {num_shms}"
     else:
         dataset = [dataset]

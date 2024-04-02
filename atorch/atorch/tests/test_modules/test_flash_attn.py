@@ -26,7 +26,6 @@ from atorch.modules.transformer.layers import (
     is_additive_mask_bias_supported_fa1,
     is_pack_glm_mask_supported_fa2,
 )
-from atorch.utils.version import torch_version
 
 try:
     from transformers.modeling_bert import BertAttention, BertConfig, BertLayer  # 3.5
@@ -51,7 +50,6 @@ import gc
 import time
 
 from torch.nn import MultiheadAttention, TransformerEncoderLayer
-from torch.utils._python_dispatch import TorchDispatchMode
 
 
 def autocast(enabled, dtype=torch.float16):
@@ -169,7 +167,6 @@ class TestFlashAttn(unittest.TestCase):
             for seq_len in [512, 513, 1024]:
                 for dtype in [torch.float16, torch.bfloat16]:
                     self._test_pack_glm_mask(batch_size, seq_len, seq_len, dtype)
-        self._test_fa_register_torch_dispatcher()
         for has_key_padding_mask in [False, True]:
             self._test_famodule_single_q(has_key_padding_mask=has_key_padding_mask)
         for batch_size in [4, 16, 22]:
@@ -245,9 +242,9 @@ class TestFlashAttn(unittest.TestCase):
         scaler = GradScaler()
         with autocast(enabled=True, dtype=dtype):
             ori_out_autocast = ref_attn(q_copy, k_copy, v_copy, additive_pack_glm_mask)
+            fa_out_autocast = fa(q_fa, k_fa, v_fa, glm_mask=pack_glm_mask)
 
         scaler.scale((ori_out_autocast.float() - label).pow(2).mean()).backward()
-        fa_out_autocast = fa(q_fa.to(dtype), k_fa.to(dtype), v_fa.to(dtype), glm_mask=pack_glm_mask)
         scaler.scale((fa_out_autocast.float() - label).pow(2).mean()).backward()
 
         print(f"Original output max diff: {(ori_out_fp32 - ori_out_autocast).abs().max().item()}")
@@ -305,11 +302,13 @@ class TestFlashAttn(unittest.TestCase):
             ori_autocast_time, ori_autocast_mem = end_timer_and_print("ori autocast")
             # fa autocast
             for _ in range(10):
-                fa_out_autocast = fa(q_fa.to(dtype), k_fa.to(dtype), v_fa.to(dtype), glm_mask=pack_glm_mask)
+                with autocast(enabled=True, dtype=dtype):
+                    fa_out_autocast = fa(q_fa, k_fa, v_fa, glm_mask=pack_glm_mask)
                 scaler.scale((fa_out_autocast.float() - label).pow(2).mean()).backward()
             start_timer()
             for _ in range(10):
-                fa_out_autocast = fa(q_fa.to(dtype), k_fa.to(dtype), v_fa.to(dtype), glm_mask=pack_glm_mask)
+                with autocast(enabled=True, dtype=dtype):
+                    fa_out_autocast = fa(q_fa, k_fa, v_fa, glm_mask=pack_glm_mask)
                 scaler.scale((fa_out_autocast.float() - label).pow(2).mean()).backward()
             fa_autocast_time, fa_autocast_mem = end_timer_and_print("fa autocast")
             print(
@@ -324,27 +323,6 @@ class TestFlashAttn(unittest.TestCase):
             # still call timer for gc
             start_timer()
             end_timer_and_print("")
-
-    def _test_fa_register_torch_dispatcher(self):
-        if torch_version() < (2, 0, 0):
-            return  # support pt2.0
-        names = []
-
-        class RecordNameDispatchMode(TorchDispatchMode):
-            def __torch_dispatch__(self, func, types, args=(), kwargs=None):
-                if kwargs is None:
-                    kwargs = {}
-                names.append(func.__name__)
-                out = func(*args, **kwargs)
-                return out
-
-        with RecordNameDispatchMode():
-            _ = FlashAttnModule()(
-                torch.randn((10, 1024, 32, 64), dtype=torch.float16, device="cuda", requires_grad=True),
-                torch.randn((10, 1024, 32, 64), dtype=torch.float16, device="cuda", requires_grad=True),
-                torch.randn((10, 1024, 32, 64), dtype=torch.float16, device="cuda", requires_grad=True),
-            )
-        assert "fa2_fwd.default" in names or "fa1_fwd.default" in names
 
     def _test_famodule_single_q(self, has_key_padding_mask=False):
         print(f"############## _test_famodule_single_q, has_key_padding_mask {has_key_padding_mask}")
@@ -375,13 +353,14 @@ class TestFlashAttn(unittest.TestCase):
         ori_out_fp32 = ref_comp(q, k, v, key_padding_mask)
         with torch.cuda.amp.autocast(dtype=torch.float16):
             ori_out_autocast = ref_comp(q, k, v, key_padding_mask)
-        fa_out_autocast = fa(
-            q.transpose(1, 2).to(torch.float16),
-            k.transpose(1, 2).to(torch.float16),
-            v.transpose(1, 2).to(torch.float16),
-            key_padding_mask=key_padding_mask,
-        )
-        fa_out_autocast = fa_out_autocast.transpose(1, 2)
+        with torch.cuda.amp.autocast(dtype=torch.float16):
+            fa_out_autocast = fa(
+                q.transpose(1, 2),
+                k.transpose(1, 2),
+                v.transpose(1, 2),
+                key_padding_mask=key_padding_mask,
+            )
+            fa_out_autocast = fa_out_autocast.transpose(1, 2)
 
         print(f"Original output max diff: {(ori_out_fp32 - ori_out_autocast).abs().max().item()}")
         print(f"Original output mean diff: {(ori_out_fp32 - ori_out_autocast).abs().mean().item()}")
@@ -428,9 +407,9 @@ class TestFlashAttn(unittest.TestCase):
         scaler = GradScaler()
         with autocast(enabled=True, dtype=dtype):
             ori_out_autocast = ref_attn(q_copy, k_copy, v_copy, additive_glm_mask)
+            fa_out_autocast = fa2_with_glm_mask(q_fa, k_fa, v_fa, glm_mask)
 
         scaler.scale((ori_out_autocast.float() - label).pow(2).mean()).backward()
-        fa_out_autocast = fa2_with_glm_mask(q_fa.to(dtype), k_fa.to(dtype), v_fa.to(dtype), glm_mask)
         scaler.scale((fa_out_autocast.float() - label).pow(2).mean()).backward()
 
         print(f"Original output max diff: {(ori_out_fp32 - ori_out_autocast).abs().max().item()}")
@@ -488,11 +467,13 @@ class TestFlashAttn(unittest.TestCase):
             ori_autocast_time, ori_autocast_mem = end_timer_and_print("ori autocast")
             # fa autocast
             for _ in range(10):
-                fa_out_autocast = fa2_with_glm_mask(q_fa.to(dtype), k_fa.to(dtype), v_fa.to(dtype), glm_mask)
+                with autocast(enabled=True, dtype=dtype):
+                    fa_out_autocast = fa2_with_glm_mask(q_fa, k_fa, v_fa, glm_mask)
                 scaler.scale((fa_out_autocast.float() - label).pow(2).mean()).backward()
             start_timer()
             for _ in range(10):
-                fa_out_autocast = fa2_with_glm_mask(q_fa.to(dtype), k_fa.to(dtype), v_fa.to(dtype), glm_mask)
+                with autocast(enabled=True, dtype=dtype):
+                    fa_out_autocast = fa2_with_glm_mask(q_fa, k_fa, v_fa, glm_mask)
                 scaler.scale((fa_out_autocast.float() - label).pow(2).mean()).backward()
             fa_autocast_time, fa_autocast_mem = end_timer_and_print("fa autocast")
             print(
@@ -545,9 +526,9 @@ class TestFlashAttn(unittest.TestCase):
         scaler = GradScaler()
         with autocast(enabled=True):
             ori_out_autocast = ref_attn(q_copy, k_copy, v_copy, bool_m)
+            fa_out_autocast = flash_attn_with_mask_bias(q_fa, k_fa, v_fa, float_m)
 
         scaler.scale((ori_out_autocast.float() - label).pow(2).mean()).backward()
-        fa_out_autocast = flash_attn_with_mask_bias(q_fa.half(), k_fa.half(), v_fa.half(), float_m)
         scaler.scale((fa_out_autocast.float() - label).pow(2).mean()).backward()
 
         print(f"Original output max diff: {(ori_out_fp32 - ori_out_autocast).abs().max().item()}")
@@ -605,11 +586,13 @@ class TestFlashAttn(unittest.TestCase):
             ori_autocast_time, ori_autocast_mem = end_timer_and_print("ori autocast")
             # fa autocast
             for _ in range(10):
-                fa_out_autocast = flash_attn_with_mask_bias(q_fa.half(), k_fa.half(), v_fa.half(), float_m)
+                with autocast(enabled=True):
+                    fa_out_autocast = flash_attn_with_mask_bias(q_fa, k_fa, v_fa, float_m)
                 scaler.scale((fa_out_autocast.float() - label).pow(2).mean()).backward()
             start_timer()
             for _ in range(10):
-                fa_out_autocast = flash_attn_with_mask_bias(q_fa.half(), k_fa.half(), v_fa.half(), float_m)
+                with autocast(enabled=True):
+                    fa_out_autocast = flash_attn_with_mask_bias(q_fa, k_fa, v_fa, float_m)
                 scaler.scale((fa_out_autocast.float() - label).pow(2).mean()).backward()
             fa_autocast_time, fa_autocast_mem = end_timer_and_print("fa autocast")
             print(

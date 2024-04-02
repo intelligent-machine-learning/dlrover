@@ -122,10 +122,10 @@ class CheckpointOptimization(Optimization):
                     from transformer_engine.pytorch.distributed import CudaRNGStatesTracker
                     from transformer_engine.pytorch.distributed import checkpoint as te_checkpoint
 
-                    # patch te checkpoint to support non-tensor inputs/outputs
-                    from atorch.utils.patch_te import patch_te
+                    # patch te checkpoint to support non-tensor inputs/outputs if needed
+                    from atorch.utils.patch_te import patch_te_if_needed
 
-                    patch_te()
+                    patch_te_if_needed()
 
                     _CUDA_RNG_STATE_TRACKER = CudaRNGStatesTracker()
 
