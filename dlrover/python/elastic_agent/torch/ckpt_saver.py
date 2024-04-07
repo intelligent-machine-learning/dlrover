@@ -679,6 +679,8 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 "Save the checkpointing state dict from the shared "
                 f"memory to storage, step: {step}."
             )
+        else:
+            logger.info(f"The checkpoint of step {step} has been saved.")
 
     def _sync_node_checkpoint(
         self, master_client: MasterClient, step: int, timeout: int

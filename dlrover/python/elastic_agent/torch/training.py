@@ -614,6 +614,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         """
         saver: AsyncCheckpointSaver = AsyncCheckpointSaver.get_ckpt_saver()
         if saver and self._config.save_at_breakpoint:
+            logger.info("Start saving checkpoint at the breakpoint.")
             saver.save_shm_to_storage(master_client=self._client)
 
     def _stop_workers_to_restart(self):
