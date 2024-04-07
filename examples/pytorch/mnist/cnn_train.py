@@ -29,8 +29,8 @@ from torchvision import datasets, transforms
 from dlrover.trainer.torch.elastic.dataloader import ElasticDataLoader
 from dlrover.trainer.torch.elastic.sampler import ElasticDistributedSampler
 from dlrover.trainer.torch.elastic.trainer import ElasticTrainer
-from dlrover.trainer.torch.flash_checkpoint.ddp import DdpCheckpointer
 from dlrover.trainer.torch.flash_checkpoint.checkpointer import StorageType
+from dlrover.trainer.torch.flash_checkpoint.ddp import DdpCheckpointer
 
 # Note, we need to set the path of a shared file
 # system like nas, cpfs or hdfs.
