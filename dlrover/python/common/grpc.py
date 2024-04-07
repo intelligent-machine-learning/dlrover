@@ -441,3 +441,8 @@ class ParallelConfig(Message):
     dataloader: DataLoaderConfig = DataLoaderConfig()
     optimizer: OptimizerConfig = OptimizerConfig()
     restart: bool = False
+
+
+@dataclass
+class NodeCheckpointState(Message):
+    step: int = 0

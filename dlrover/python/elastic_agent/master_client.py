@@ -390,6 +390,12 @@ class MasterClient(Singleton):
             logger.warning("Fail to verify restarting training processes.")
             return False
 
+    def sync_checkpoint(self, step):
+        request = grpc.NodeCheckpointState()
+        request.step = step
+        response = self._report(request)
+        return response.success
+
     @classmethod
     def singleton_instance(cls, *args, **kwargs):
         if not cls._instance:

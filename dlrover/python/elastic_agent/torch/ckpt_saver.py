@@ -36,6 +36,7 @@ from dlrover.python.common.multi_process import (
     SharedQueue,
 )
 from dlrover.python.common.serialize import ClassMeta
+from dlrover.python.elastic_agent.master_client import MasterClient
 
 DLROVER_CKPT_CONFIG_KEY = "_DLORVER_CKPT_CONFIG"
 
@@ -620,7 +621,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 logger.info(f"The cached steps are {steps}")
                 return False
 
-    def save_shm_to_storage(self, timeout=120):
+    def save_shm_to_storage(self, timeout=60, master_client=None):
         """
         Save the state dict in the shared memory into the storage. The agent
         can call the method to save the state dict into the storage if the
@@ -635,20 +636,8 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
             )
             return
 
-        if self._writing_storage:
-            logger.info("Saver is writing to storage, waiting...")
-            start = time.time()
-            while self._writing_storage:
-                time.sleep(2)
-                elapsed_time = time.time() - start
-                if elapsed_time > timeout:
-                    logger.error("Saver writing to storage, timeout")
-                    return
-        if self._any_rank_locked():
-            # The training process does not release the lock because it fails
-            # when writing the state dict into the shared memory. The shared
-            # memory may be dirty and the saver cannot save it to the storage.
-            return
+        # Skip saving checkpiont if the step of checkpoint shard in the
+        # memory is not same.
         steps = []
         for shm_handler in self._shm_handlers:
             default_config = CheckpointConfig()
@@ -660,13 +649,58 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 f"inconsistent: {steps}"
             )
             return
+
         step = steps[0]
+        if master_client:
+            # If some nodes failed, the alive nodes do not need to save its
+            # checkpoint shards because some shards of failed node are missing.
+            synced = self._sync_node_checkpoint(master_client, step, timeout)
+            if not synced:
+                logger.info(
+                    "Skip saving the checkpoint from "
+                    "the memory to the storage."
+                )
+                self._stop_commit = True
+                return
+
+        # The training process does not release the lock because it fails
+        # when writing the state dict into the shared memory. The shared
+        # memory may be dirty and the saver cannot save it to the storage.
+        if self._writing_storage or self._any_rank_locked():
+            logger.info(
+                "Saver is writing the checkpoint to storage "
+                "and skips saving at the breakpoint."
+            )
+            return
+
         if step > self._latest_step:
             self.save_step_checkpoint(step)
             logger.info(
                 "Save the checkpointing state dict from the shared "
                 f"memory to storage, step: {step}."
             )
+
+    def _sync_node_checkpoint(
+        self, master_client: MasterClient, step: int, timeout: int
+    ):
+        """
+        Check whether all training node can save the checkpoint from the memory
+        to the storage. If some nodes fail, other nodes needs not to save
+        """
+        start = time.time()
+        while True:
+            success = master_client.sync_checkpoint(step)
+            if success:
+                return success
+            else:
+                time.sleep(3)
+                elapsed_time = time.time() - start
+                if elapsed_time > timeout:
+                    logger.info(
+                        "It is timeout to sync checkpoint "
+                        "bacause some nodes may fail."
+                    )
+                    return False
 
     @classmethod
     def reset(cls):

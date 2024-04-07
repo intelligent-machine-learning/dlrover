@@ -285,3 +285,13 @@ class NetworkCheckRendezvousManagerTest(unittest.TestCase):
             rdzv_manager.report_network_check_result(i, True, 5.0)
         stragglers, _ = rdzv_manager.get_straggler()
         self.assertListEqual(stragglers, [1])
+
+    def test_sync_ckpt_nodes(self):
+        rdzv_manager = ElasticTrainingRendezvousManager()
+        rdzv_manager._latest_rdzv_nodes = [0, 1]
+        success = rdzv_manager.sync_ckpt_nodes(0, 100)
+        self.assertFalse(success)
+        success = rdzv_manager.sync_ckpt_nodes(1, 100)
+        self.assertTrue(success)
+        success = rdzv_manager.sync_ckpt_nodes(1, 90)
+        self.assertFalse(success)

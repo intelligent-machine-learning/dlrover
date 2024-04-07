@@ -148,7 +148,7 @@ def parse_args(args):
     )
     parser.add_argument(
         "--auto_tunning",
-        "--auto_tunning",
+        "--auto-tunning",
         action=check_env,
         help="Whether to auto-tune the parallel configuraion.",
     )
@@ -161,8 +161,8 @@ def parse_args(args):
         "is True.",
     )
     parser.add_argument(
-        "--save-at-breakpoint",
         "--save_at_breakpoint",
+        "--save-at-breakpoint",
         action=check_env,
         help="Bool. If True, the agent in the main process will save the "
         "checkpoint in the memory to the storage if the training "
