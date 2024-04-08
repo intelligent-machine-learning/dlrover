@@ -18,6 +18,7 @@ import threading
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import torch
 import torch.nn as nn
@@ -235,6 +236,31 @@ class CheckpointSaverTest(unittest.TestCase):
             saver = DdpCheckpointSaver(tmpdir, self.storage.get_class_meta())
             saver.global_shard_num = 1
             saver.commit_checkpoint(100, step_done_dir, 2)
+
+    def test_save_shm_to_storage(self):
+        model = SimpleNet()
+        step = 100
+        state_dict = dict(
+            model=model.state_dict(),
+            step=step,
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            saver = DdpCheckpointSaver(tmpdir, self.storage.get_class_meta())
+            path = Path(tmpdir) / "checkpoint.pt"
+            paths = {CheckpointConstant.MODEL_STATES_NAME: path}
+            ckpt_config = CheckpointConfig(step=100, paths=paths)
+            state_dict = {
+                CheckpointConstant.MODEL_STATES_NAME: state_dict,
+                DLROVER_CKPT_CONFIG_KEY: ckpt_config,
+            }
+            saver._shm_handlers[0].save_state_dict(state_dict)
+            saver._writing_storage = True
+            saver.save_shm_to_storage()
+            self.assertFalse(saver._stop_commit)
+            saver._sync_node_checkpoint = mock.MagicMock(return_value=False)
+            saver.save_shm_to_storage(master_client=1)
+            self.assertTrue(saver._stop_commit)
+            saver.close()
 
 
 class FsdpCheckpointSaverTest(unittest.TestCase):
