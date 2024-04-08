@@ -52,7 +52,9 @@ kubectl -n dlrover apply -f examples/pytorch/llama2/elastic_job.yaml
 ```
 
 ## Train on a Single Node with Mutliple Ascend-NPUs
+
 Firstly, we need to set npu environment.
+
 ```bash
 source /usr/local/Ascend/ascend-toolkit/set_env.sh
 ```
