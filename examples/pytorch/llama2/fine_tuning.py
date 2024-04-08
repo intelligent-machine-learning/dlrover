@@ -23,6 +23,29 @@ from transformers import (
     TrainerCallback,
 )
 
+try:
+    from transformers.utils import is_torch_npu_available
+except (ImportError, ModuleNotFoundError):
+
+    def is_torch_npu_available():
+        "Checks if `torch_npu` is installed and potentially"
+        " if a NPU is in the environment"
+        import importlib
+
+        if importlib.util.find_spec("torch_npu") is None:
+            return False
+
+        import torch
+        import torch_npu  # noqa: F401,F811
+
+        return hasattr(torch, "npu") and torch.npu.is_available()
+
+
+if is_torch_npu_available():
+    import torch_npu  # noqa: F401,F811
+    from torch_npu.contrib import transfer_to_npu  # noqa: F401
+
+
 CUTOFF_LEN = 512
 
 
@@ -112,7 +135,10 @@ def train(data_path, model_name_or_path="meta-llama/Llama-2-7b-hf"):
     LORA_TARGET_MODULES = ["q_proj", "v_proj"]
 
     BATCH_SIZE = 16
-    MICRO_BATCH_SIZE = 16
+    if not is_torch_npu_available():
+        MICRO_BATCH_SIZE = 16
+    else:
+        MICRO_BATCH_SIZE = 8
     GRADIENT_ACCUMULATION_STEPS = BATCH_SIZE // MICRO_BATCH_SIZE
     LEARNING_RATE = 3e-4
     TRAIN_STEPS = 3000
@@ -168,7 +194,8 @@ def train(data_path, model_name_or_path="meta-llama/Llama-2-7b-hf"):
         )
     ).__get__(model, type(model))
 
-    model = torch.compile(model)
+    if not is_torch_npu_available():
+        model = torch.compile(model)
 
     trainer.train()
     model.save_pretrained(OUTPUT_DIR)
