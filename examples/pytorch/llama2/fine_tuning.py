@@ -28,8 +28,8 @@ try:
 except (ImportError, ModuleNotFoundError):
 
     def is_torch_npu_available():
-        "Checks if `torch_npu` is installed and potentially "
-        "if a NPU is in the environment"
+        "Checks if `torch_npu` is installed and potentially"
+        " if a NPU is in the environment"
         import importlib
 
         if importlib.util.find_spec("torch_npu") is None:
