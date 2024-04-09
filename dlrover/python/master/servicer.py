@@ -332,6 +332,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             success = self._report_paral_config(node_type, node_id, message)
         elif isinstance(message, grpc.HeartBeat):
             success = self._report_heartbeat(node_type, node_id, message)
+        elif isinstance(message, grpc.NodeCheckpointState):
+            success = self._sync_checkpoint(node_type, node_id, message)
 
         response.success = success
         return response
@@ -565,6 +567,14 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             message.timestamp,
         )
         return True
+
+    def _sync_checkpoint(
+        self, node_type, node_id, message: grpc.NodeCheckpointState
+    ):
+        if RendezvousName.ELASTIC_TRAINING not in self._rdzv_managers:
+            return False
+        rdzv_manager = self._rdzv_managers[RendezvousName.ELASTIC_TRAINING]
+        return rdzv_manager.sync_ckpt_nodes(node_id, message.step)
 
 
 def create_master_service(

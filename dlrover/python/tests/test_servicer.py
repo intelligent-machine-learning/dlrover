@@ -392,6 +392,16 @@ class MasterServicerTest(unittest.TestCase):
         worker0 = self.servicer._job_manager._job_nodes[NodeType.WORKER][0]
         self.assertEqual(worker0.heartbeat_time, ts)
 
+    def test_sync_checkpoint(self):
+        message = grpc.NodeCheckpointState(step=100)
+        et_name = RendezvousName.ELASTIC_TRAINING
+        rdzv_manager = self.servicer._rdzv_managers[et_name]
+        rdzv_manager._latest_rdzv_nodes = [0, 1]
+        success = self.servicer._sync_checkpoint(NodeType.WORKER, 0, message)
+        self.assertFalse(success)
+        success = self.servicer._sync_checkpoint(NodeType.WORKER, 1, message)
+        self.assertTrue(success)
+
 
 class MasterServicerForRayTest(unittest.TestCase):
     def setUp(self) -> None:

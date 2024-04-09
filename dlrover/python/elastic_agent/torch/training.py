@@ -19,7 +19,6 @@ import socket
 import tempfile
 import time
 import uuid
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, List, Optional, Union
@@ -382,9 +381,6 @@ class ElasticTrainingAgent(LocalElasticAgent):
             self._paral_config_tuner = ParalConfigTuner.singleton_instance()
             self._paral_config_tuner.start()
 
-        self._save_ckpt_executor = ThreadPoolExecutor(max_workers=1)
-        self._save_ckpt_future = None
-
     @prof
     def _rendezvous(self, worker_group: WorkerGroup) -> None:
         r"""
@@ -618,9 +614,8 @@ class ElasticTrainingAgent(LocalElasticAgent):
         """
         saver: AsyncCheckpointSaver = AsyncCheckpointSaver.get_ckpt_saver()
         if saver and self._config.save_at_breakpoint:
-            self._save_ckpt_future = self._save_ckpt_executor.submit(
-                saver.save_shm_to_storage
-            )
+            logger.info("Start saving checkpoint at the breakpoint.")
+            saver.save_shm_to_storage(master_client=self._client)
 
     def _stop_workers_to_restart(self):
         """
@@ -656,12 +651,6 @@ class ElasticTrainingAgent(LocalElasticAgent):
         AsyncCheckpointSaver.reset()
         super()._restart_workers(worker_group)
 
-    def _start_workers(self, worker_group: WorkerGroup):
-        if self._save_ckpt_future:
-            # Waiting the thread to save checkpoint finishes.
-            self._save_ckpt_future.result(timeout=600)
-        return super()._start_workers(worker_group)
-
     def _membership_changed(self, role, rdzv_handler: RendezvousHandler):
         # Timeout may happen when to query TCPStore.
         if self._config.network_check:
@@ -679,10 +668,6 @@ class ElasticTrainingAgent(LocalElasticAgent):
             )
             return True
         return False
-
-    def stop_executor(self):
-        """Shutdown the executor to save the checkpoint."""
-        self._save_ckpt_executor.shutdown()
 
 
 def launch_agent(
@@ -792,7 +777,6 @@ def launch_agent(
     finally:
         if shutdown_rdzv:
             spec.rdzv_handler.shutdown()
-        agent.stop_executor()
         monitor.stop()
 
 

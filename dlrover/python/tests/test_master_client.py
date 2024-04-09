@@ -125,6 +125,9 @@ class MasterClientTest(unittest.TestCase):
 
         self._master_client.report_network_status(0, NodeStatus.SUCCEEDED, 10)
 
+        success = self._master_client.sync_checkpoint(100)
+        self.assertFalse(success)
+
     def test_get(self):
         nodes, failure = self._master_client.query_ps_nodes()
         self.assertEqual(len(nodes), 0)

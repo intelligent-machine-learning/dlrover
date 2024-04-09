@@ -65,6 +65,7 @@ class RendezvousManager(metaclass=ABCMeta):
         self._start_rdzv_ts = 0
         self._node_rdzv_times: Dict[int, int] = {}
         self._latest_log_nodes_time = 0
+        self._save_ckpt_nodes: Dict[int, int] = {}
 
     def get_min_nodes(self):
         return self._rdzv_params.min_nodes
@@ -88,6 +89,7 @@ class RendezvousManager(metaclass=ABCMeta):
                 f"{self._name} rendezvous."
             )
             self._waiting_nodes.pop(node.rank_index, 0)
+            self._has_node_failed = True
 
     def update_rdzv_params(
         self, min_nodes, max_ndoes, waiting_timeout, node_unit
@@ -226,6 +228,15 @@ class RendezvousManager(metaclass=ABCMeta):
         for node_rank in self._waiting_nodes.keys():
             if node_rank in self._latest_rdzv_nodes:
                 return True
+        return False
+
+    def sync_ckpt_nodes(self, node_id, step):
+        self._save_ckpt_nodes[node_id] = step
+        steps = set(self._save_ckpt_nodes.values())
+        if len(steps) > 1:
+            return False
+        if len(self._save_ckpt_nodes) == len(self._latest_rdzv_nodes):
+            return True
         return False
 
     @abstractmethod
