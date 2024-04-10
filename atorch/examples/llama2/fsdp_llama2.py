@@ -204,7 +204,8 @@ def main():
     elif args.precision == "bf16":
         strategy.append(("half", "bf16"))
     if args.gradient_checkpointing:
-        strategy.append(("checkpoint", (LlamaDecoderLayer,)))
+        checkpoint_config = {"wrap_class": (LlamaDecoderLayer,), "no_reentrant": True}
+        strategy.append(("checkpoint", checkpoint_config))
     if args.fp8:
         if args.peft_type is not None:
             logger.warning("fp8 ignored as fp8 for lora training is not implemented yet.")

@@ -41,10 +41,9 @@ def boot_test(rank, number_layers, pipes, mode):
         "use_orig_params": True,
     }
     if mode == "origin":
-        checkpoint_config = LlamaDecoderLayer
-    elif mode == "new":
         checkpoint_config = {
             "wrap_class": LlamaDecoderLayer,
+            "no_reentrant": True,
         }
     elif mode == "offload":
         checkpoint_config = {
@@ -123,7 +122,7 @@ class SelectiveCheckpointTest(unittest.TestCase):
             return result
 
         result = {}
-        for ckpt_mode in ["origin", "new", "offload"]:
+        for ckpt_mode in ["origin", "offload"]:
             result[ckpt_mode] = run_inner(ckpt_mode)
         for k in result:
             self.assertListEqual(result["origin"], result[k])
