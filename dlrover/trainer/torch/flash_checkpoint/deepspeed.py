@@ -68,10 +68,7 @@ class AsyncCheckpointAgent(CheckpointEngine):
         elif path.endswith(_DS_OPTIM_SD_FILE_SUFFIX):
             sd_name = CheckpointConstant.OPTIM_STATES_NAME
         else:
-            raise ValueError(
-                f"The suffix of  {path} is not "
-                f"{_DS_MODEL_SD_FILE_SUFFIX} and {_DS_OPTIM_SD_FILE_SUFFIX}. "
-            )
+            sd_name = path
         self.state_dict[sd_name] = state_dict
         self.paths[sd_name] = path
 
@@ -144,7 +141,6 @@ class DeepSpeedCheckpointer(Checkpointer):
         self._ckpt_agent = AsyncCheckpointAgent(
             self._async_save_engine.storage
         )
-        self.engine.checkpoint_engine = self._ckpt_agent
         self._local_rank = env_utils.get_local_rank()
         self._ds_tracer_file = os.path.join(
             self.checkpoint_dir, DeepSpeedCheckpointSaver.TRACER_FILE
