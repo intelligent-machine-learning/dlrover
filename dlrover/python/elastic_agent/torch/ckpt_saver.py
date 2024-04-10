@@ -527,8 +527,6 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
 
     def reset_shared_memory(self):
         self._stop_commit = True
-        for lock in self._shm_locks:
-            lock.release()
         for shm_handler in self._shm_handlers:
             shm_handler.reset()
 
