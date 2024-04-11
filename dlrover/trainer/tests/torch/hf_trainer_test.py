@@ -17,6 +17,8 @@ import unittest
 
 from transformers import LlamaConfig, LlamaForCausalLM, TrainingArguments
 
+from dlrover.python.common.multi_process import clear_sock_dir
+from dlrover.python.elastic_agent.torch.ckpt_saver import DdpCheckpointSaver
 from dlrover.trainer.torch.flash_checkpoint.hf_trainer import (
     FlashCkptTrainer,
     HfDdpCheckpointer,
@@ -24,6 +26,15 @@ from dlrover.trainer.torch.flash_checkpoint.hf_trainer import (
 
 
 class FlashCkptTrainerTest(unittest.TestCase):
+    def setUp(self) -> None:
+        DdpCheckpointSaver._saver_instance = None
+        DdpCheckpointSaver.start_async_saving_ckpt()
+
+    def tearDown(self) -> None:
+        if DdpCheckpointSaver._saver_instance:
+            DdpCheckpointSaver._saver_instance.close()
+        clear_sock_dir()
+
     def test_checkpoint(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             training_arguments = TrainingArguments(
