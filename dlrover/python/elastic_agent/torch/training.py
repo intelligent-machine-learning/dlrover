@@ -1,3 +1,4 @@
+
 # Copyright 2023 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,6 +15,7 @@ import copy
 import functools
 import json
 import os
+import shutil
 import signal
 import socket
 import tempfile
@@ -780,7 +782,7 @@ def launch_agent(
         monitor.stop()
 
 
-class NetworkCheckElasticAgent(ElasticTrainingAgent):
+class NodeCheckElasticAgent(ElasticTrainingAgent):
     """
     An implementation of :py:class:`torchelastic.agent.server.ElasticAgent`
     that handles host-local workers. This agent will run 2 rounds allgather
@@ -816,7 +818,7 @@ class NetworkCheckElasticAgent(ElasticTrainingAgent):
             exit_barrier_timeout,
             log_dir,
         )
-        self._log_dir = log_dir or tempfile.mkdtemp(prefix="network_check_")
+        self._log_dir = log_dir or tempfile.mkdtemp(prefix="node_check_")
         self._check_round = 2
         self._config: ElasticLaunchConfig = config
 
@@ -832,7 +834,7 @@ class NetworkCheckElasticAgent(ElasticTrainingAgent):
         fault_nodes = []
         stragglers = []
         for i in range(self._check_round):
-            result, elapsed_time = self._run_network_check()
+            result, elapsed_time = self._run_node_check()
             elapsed_time = round(elapsed_time, 3)
             logger.info(
                 f"Network check time of round {i} is {elapsed_time}"
@@ -878,10 +880,11 @@ class NetworkCheckElasticAgent(ElasticTrainingAgent):
                 raise RuntimeError("The node is a straggler and exits.")
         return True
 
-    def _run_network_check(self, monitor_interval=3, timeout=300):
+    def _run_node_check(self, monitor_interval=3, timeout=300):
         self._initialize_workers(self._worker_group)
         start = time.time()
         succeed = False
+        output_dir = ConfigPath.NETWORK_CHECK_DATA_DIR
         while True:
             assert self._worker_group.state != WorkerState.INIT
             time.sleep(monitor_interval)
@@ -893,31 +896,40 @@ class NetworkCheckElasticAgent(ElasticTrainingAgent):
                     logger.error(f"Timeout {timeout} to check network.")
                     break
                 continue
-            elif state == WorkerState.SUCCEEDED:
+            elif state == WorkerState.SUCCEEDED or self._check_finished(
+                output_dir
+            ):
                 succeed = True
                 break
             else:
                 break
 
         if succeed:
-            elapsed_time = self._get_network_check_time()
+            elapsed_time = self._get_node_check_time(output_dir)
         else:
             elapsed_time = 3600
         return succeed, elapsed_time
 
-    def _get_network_check_time(self):
-        root = ConfigPath.NETWORK_CHECK_DATA_DIR
+    def _check_finished(self, result_dir):
+        if not os.path.exists(result_dir):
+            return False
+        num = len(os.listdir(result_dir))
+        self._worker_group.workers
+        return num == len(self._worker_group.workers)
+
+    def _get_node_check_time(self, result_dir):
         elapsed_time = 0
-        if not os.path.exists(root):
+        if not os.path.exists(result_dir):
             return elapsed_time
-        for filename in os.listdir(root):
-            path = os.path.join(root, filename)
+        for filename in os.listdir(result_dir):
+            path = os.path.join(result_dir, filename)
             with open(path, "r") as f:
                 data = f.read()
                 if not data:
                     continue
                 data = json.loads(data)
                 elapsed_time = max(elapsed_time, data.get("time", 0))
+        shutil.rmtree(dir, ignore_errors=True)
         return elapsed_time
 
 
@@ -981,7 +993,7 @@ def network_check(
         master_addr=master_addr,
     )
 
-    agent = NetworkCheckElasticAgent(
+    agent = NodeCheckElasticAgent(
         node_rank=node_rank,
         config=config,
         entrypoint=entrypoint,

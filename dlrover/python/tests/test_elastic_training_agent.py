@@ -39,7 +39,7 @@ from dlrover.python.elastic_agent.torch.training import (
     ElasticLaunchConfig,
     ElasticTrainingAgent,
     MasterRendezvousHandler,
-    NetworkCheckElasticAgent,
+    NodeCheckElasticAgent,
     RendezvousOutSyncError,
     _get_local_ip,
     _set_paral_config,
@@ -306,7 +306,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         agent._stop_workers_to_restart()
 
 
-class NetworkCheckElasticAgentTest(unittest.TestCase):
+class NodeCheckElasticAgentTest(unittest.TestCase):
     def setUp(self) -> None:
         self._master, addr = start_local_master()
         MasterClient._instance = build_master_client(addr, 0.5)
@@ -357,7 +357,7 @@ class NetworkCheckElasticAgentTest(unittest.TestCase):
 
     def test_get_network_check_time(self):
         node_id = 0
-        agent = NetworkCheckElasticAgent(
+        agent = NodeCheckElasticAgent(
             node_rank=node_id,
             config=self.config,
             entrypoint="python",
@@ -374,7 +374,9 @@ class NetworkCheckElasticAgentTest(unittest.TestCase):
             path = os.path.join(root, f"{i}.json")
             with open(path, "w") as f:
                 f.write(json.dumps(data))
-        t = agent._get_network_check_time()
+        finished = agent._check_finished(root)
+        self.assertTrue(finished)
+        t = agent._get_node_check_time(root)
         self.assertEqual(t, 107)
         if os.path.exists(root):
             shutil.rmtree(root)
