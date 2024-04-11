@@ -103,7 +103,7 @@ class MasterClient(Singleton):
             _, port = sock.getsockname()
             return port
 
-    # @retry_grpc_request
+    @retry_grpc_request
     def _report(self, message: grpc.Message):
         request = elastic_training_pb2.Message()
         request.node_id = self._node_id

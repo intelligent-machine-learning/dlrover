@@ -68,7 +68,7 @@ class AsyncCheckpointAgent(CheckpointEngine):
         elif path.endswith(_DS_OPTIM_SD_FILE_SUFFIX):
             sd_name = CheckpointConstant.OPTIM_STATES_NAME
         else:
-            sd_name = path
+            sd_name = path.split("/")[-1]
         self.state_dict[sd_name] = state_dict
         self.paths[sd_name] = path
 
