@@ -110,8 +110,6 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             message = self._check_fault_node()
         elif isinstance(req_message, grpc.StragglerExistRequest):
             message = self._check_straggler()
-        elif isinstance(req_message, grpc.JoinRendezvousRequest):
-            message = self._join_rendezvous(req_message)
         elif isinstance(req_message, grpc.CommWorldRequest):
             message = self._get_comm_world(req_message)
         elif isinstance(req_message, grpc.KeyValuePair):
@@ -236,7 +234,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
     def _join_rendezvous(self, request: grpc.JoinRendezvousRequest):
         rdzv_manager = self._rdzv_managers[request.rdzv_name]
         round = rdzv_manager.join_rendezvous(
-            request.node_id, request.local_world_size
+            request.node_id, request.node_ip, request.local_world_size
         )
         if request.rdzv_name == RendezvousName.NETWORK_CHECK:
             # The waiting node in the training rdzv should clear if
@@ -259,8 +257,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         res = grpc.RendezvousState(world={})
         res.group = group
         res.round = rdzv_round
-        for rank_id, worker_num in nodes.items():
-            res.world[rank_id] = worker_num
+        for rank_id, meta in nodes.items():
+            res.world[rank_id] = meta.process_num
         return res
 
     def _kv_store_get(self, request: grpc.KeyValuePair):
