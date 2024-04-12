@@ -1,6 +1,6 @@
 """ loss spike utils
 Save loss spike to files;
-Decode loss spike and save Corresponding sample to a file.
+Decode loss spike and save Corresponding sample to a file. Using doc see ../docs/README-LOSS-SPIKE-UTIL.md
 """
 import datetime
 import os
