@@ -69,8 +69,9 @@ class AsyncCheckpointAgent(CheckpointEngine):
             sd_name = CheckpointConstant.OPTIM_STATES_NAME
         else:
             sd_name = path.split("/")[-1]
-        self.state_dict[sd_name] = state_dict
-        self.paths[sd_name] = path
+        if sd_name:
+            self.state_dict[sd_name] = state_dict
+            self.paths[sd_name] = path
 
     def load(self, path: str, map_location=None):
         def load_func(path):

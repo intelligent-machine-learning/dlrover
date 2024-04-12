@@ -335,7 +335,7 @@ class FlashCkptTrainer(Trainer):
 
         # If save_total_limit=1 with load_best_model_at_end=True,
         # we could end up deleting the last checkpoint, which
-        # we don't do to allow resuming.
+        # should be avoided and allow resuming
         save_total_limit = self.args.save_total_limit
         if (
             self.state.best_model_checkpoint is not None
