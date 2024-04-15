@@ -50,7 +50,7 @@ class DpTopologySorter(TopologySorter):
     """
     The sorter places the nodes under an asw (access switch) together in
     the list of nodes. In allreduce communication, the communication packets
-    between nodes with continous ranks under an asw will not pass the psw.
+    between nodes with continuous ranks under an asw will not pass the psw.
 
     """
 

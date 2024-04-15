@@ -234,7 +234,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
     def _join_rendezvous(self, request: grpc.JoinRendezvousRequest):
         rdzv_manager = self._rdzv_managers[request.rdzv_name]
         round = rdzv_manager.join_rendezvous(
-            request.node_id, request.node_ip, request.local_world_size
+            request.node_id, request.local_world_size, request.node_ip
         )
         if request.rdzv_name == RendezvousName.NETWORK_CHECK:
             # The waiting node in the training rdzv should clear if

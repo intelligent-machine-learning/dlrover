@@ -24,9 +24,9 @@ from dlrover.python.common.constants import (
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node
 from dlrover.python.master.elastic_training.net_topology import (
+    DefaultTopologyQuerier,
+    DpTopologySorter,
     NodeTopologyMeta,
-    TopologyQuerier,
-    TopologySorter,
 )
 
 
@@ -74,8 +74,8 @@ class RendezvousManager(metaclass=ABCMeta):
         self._latest_log_nodes_time = 0
         # key is the node rank, value is the step.
         self._save_ckpt_nodes: Dict[int, int] = {}
-        self._topology_querier = TopologyQuerier()
-        self._topology_sorter = TopologySorter()
+        self._topology_querier = DefaultTopologyQuerier()
+        self._topology_sorter = DpTopologySorter()
 
     def get_min_nodes(self):
         return self._rdzv_params.min_nodes
@@ -147,10 +147,11 @@ class RendezvousManager(metaclass=ABCMeta):
             for i in node_ids:
                 self._rdzv_nodes[i] = self._waiting_nodes[i]
             self._latest_rdzv_nodes = list(self._rdzv_nodes.keys())
-            self._waiting_nodes = dict(
-                set(self._waiting_nodes.items())
-                - set(self._rdzv_nodes.items())
-            )
+            extra_nodes = {}
+            for i in self._waiting_nodes.keys():
+                if i not in self._rdzv_nodes:
+                    extra_nodes[i] = self._waiting_nodes[i]
+            self._waiting_nodes = extra_nodes
             self._lastcall_time = 0
             self._log_rendezvous_info()
             if self._waiting_nodes:
@@ -193,8 +194,8 @@ class RendezvousManager(metaclass=ABCMeta):
     def join_rendezvous(
         self,
         node_rank,
-        node_ip,
         local_world_size,
+        node_ip="",
     ):
         """The node joins the current rond rendezvous.
         Args:
@@ -474,6 +475,7 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         self,
         node_rank,
         local_world_size,
+        node_ip="",
     ):
         """The node joins the current rond rendezvous.
         Args:
@@ -485,7 +487,7 @@ class NetworkCheckRendezvousManager(RendezvousManager):
             int: the number of rendezvous round.
         """
         self._node_groups.clear()
-        return super().join_rendezvous(node_rank, local_world_size)
+        return super().join_rendezvous(node_rank, local_world_size, node_ip)
 
     def check_fault_node(self):
         """Check whether the job has fault nodes. Each task contains 2 rounds
