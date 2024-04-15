@@ -326,9 +326,11 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
                 rdzv_completed = self._check_rdzv_completed()
                 if rdzv_completed:
                     self._rdzv_round += 1
-                    self._rdzv_node = self._topology_sorter.sort(
+                    self._rdzv_nodes = self._topology_sorter.sort(
                         self._rdzv_nodes
                     )
+                    ranks = list(self._rdzv_nodes.keys())
+                    logger.info(f"Node ranks are {ranks}.")
             return self._rdzv_round, 0, self._rdzv_nodes
 
     def report_network_check_result(self, node_id, normal, elapsed_time):
