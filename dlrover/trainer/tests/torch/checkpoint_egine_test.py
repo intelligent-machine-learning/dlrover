@@ -35,9 +35,6 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
     MegatronCheckpointSaver,
     TempDirCheckpointSaver,
 )
-from dlrover.trainer.torch.flash_checkpoint.ddp_engine import (
-    DdpCheckpointEngine,
-)
 from dlrover.trainer.torch.flash_checkpoint.deepspeed_engine import (
     DeepSpeedCheckpointEngine,
 )
@@ -45,6 +42,9 @@ from dlrover.trainer.torch.flash_checkpoint.engine import (
     check_all_rank_ready,
     start_saver_process,
     verify_all_rank_step_consistent,
+)
+from dlrover.trainer.torch.flash_checkpoint.full_ckpt_engine import (
+    FullCheckpointEngine,
 )
 from dlrover.trainer.torch.flash_checkpoint.megatron_engine import (
     MegatronCheckpointEngine,
@@ -102,7 +102,7 @@ class SimpleShardingSaver(TempDirCheckpointSaver):
             f.write(str(step))
 
 
-class SimpleShardingCheckpointEngine(DdpCheckpointEngine):
+class SimpleShardingCheckpointEngine(FullCheckpointEngine):
     def get_saver_class(self):
         return SimpleShardingSaver
 
@@ -266,7 +266,7 @@ class CheckpointEngineTest(unittest.TestCase):
 
         storage = PosixDiskStorage()
         with tempfile.TemporaryDirectory() as tmpdirname:
-            engine = DdpCheckpointEngine(tmpdirname, storage)
+            engine = FullCheckpointEngine(tmpdirname, storage)
             engine._rank = 1
             path = os.path.join(tmpdirname, "10/rank_0.pt")
             ckpt_path = engine._gen_restore_checkpoint_path(10)
@@ -316,7 +316,7 @@ class CheckpointEngineTest(unittest.TestCase):
         try:
             storage = PosixDiskStorage()
             with tempfile.TemporaryDirectory() as tmpdirname:
-                engine = DdpCheckpointEngine(tmpdirname, storage)
+                engine = FullCheckpointEngine(tmpdirname, storage)
                 engine._init_sync_group("gloo")
                 self.assertIsNone(engine._saver_group)
         finally:
