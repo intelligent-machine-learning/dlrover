@@ -14,6 +14,7 @@
 import math
 import time
 from abc import ABCMeta, abstractmethod
+from collections import OrderedDict
 from threading import Lock
 from typing import Dict, List, Tuple
 
@@ -61,7 +62,7 @@ class RendezvousManager(metaclass=ABCMeta):
         self._released_workers = []
         # key is the node rank.
         self._waiting_nodes: Dict[int, NodeTopologyMeta] = {}
-        self._rdzv_nodes: Dict[int, NodeTopologyMeta] = {}
+        self._rdzv_nodes: Dict[int, NodeTopologyMeta] = OrderedDict()
         self._lastcall_time = 0
         self._rdzv_params = RendezvousParameters(0, 0)
         self._rdzv_round = 0
