@@ -14,6 +14,7 @@
 import copy
 import json
 import os
+import socket
 import telnetlib
 import threading
 import time
@@ -510,6 +511,8 @@ class PodScaler(Scaler):
             try:
                 telnetlib.Telnet(host=host, port=port, timeout=3)
                 return True
+            except socket.gaierror:
+                return False
             except Exception:
                 time.sleep(1)
         return False

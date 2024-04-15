@@ -30,6 +30,7 @@ def new_service_fn(node_type, node_id):
 
 class PodScalerTest(unittest.TestCase):
     def setUp(self) -> None:
+        os.environ["POD_IP"] = "127.0.0.1"
         mock_k8s_client()
 
     def test_init_pod_template(self):
@@ -59,7 +60,6 @@ class PodScalerTest(unittest.TestCase):
     def test_create_pod(self):
         scaler = PodScaler("elasticjob-sample", "default")
         _dlrover_ctx.config_master_port()
-        os.environ["POD_IP"] = "127.0.0.1"
         passed = scaler._check_master_service_avaliable(
             "elasticjob-test-master", 2222, 2
         )
@@ -188,6 +188,7 @@ class PodScalerTest(unittest.TestCase):
         scaler.scale(scale_plan)
         self.assertFalse(scale_plan.empty())
         self.assertEqual(len(scaler._create_node_queue), 2)
+        scaler._create_node_queue.clear()
 
     def test_scale_thread(self):
         scaler = PodScaler("elasticjob-sample", "default")
@@ -198,10 +199,14 @@ class PodScalerTest(unittest.TestCase):
         scale_plan.launch_nodes.append(Node(NodeType.WORKER, 1, resource))
         scale_plan.ps_addrs = ["ps-0:22222"]
         scaler.scale(scale_plan)
+        self.assertEqual(len(scaler._create_node_queue), 1)
+        scaler._create_node_queue.clear()
         scale_plan = ScalePlan()
         scale_plan.launch_nodes.append(Node(NodeType.WORKER, 2, resource))
         scale_plan.ps_addrs = ["ps-0:22222"]
         scaler.scale(scale_plan)
+        self.assertEqual(len(scaler._create_node_queue), 1)
+        scaler._create_node_queue.clear()
 
     def test_new_tf_config(self):
         pod_stats = {NodeType.WORKER: 1}
