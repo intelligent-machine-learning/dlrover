@@ -384,12 +384,8 @@ class FsdpCheckpointTest(unittest.TestCase):
             checkpointer = FsdpShardCheckpointer(tmpdir)
             path = tmpdir / str(step)
             engine = checkpointer._engine
-            checkpointer.save_checkpoint(
-                step, state_dict, path=path, storage_type=StorageType.MEMORY
-            )
-            checkpointer.save_checkpoint(
-                step, state_dict, path=path, storage_type=StorageType.DISK
-            )
+            paths = {CheckpointConstant.MODEL_STATES_NAME: path}
+            checkpointer._engine.save_to_storage(step, state_dict, paths)
             self.assertEqual(engine._cached_step, 100)
             time.sleep(1)
             files = sorted(os.listdir(tmpdir))
@@ -403,10 +399,5 @@ class FsdpCheckpointTest(unittest.TestCase):
             )
             files = sorted(os.listdir(path))
             self.assertListEqual(files, [".metadata", "__0_0.distcp"])
-            reader = checkpointer.get_storage_reader(path)
+            reader = checkpointer._engine.load(path)
             self.assertTrue(isinstance(reader, SharedMemoryReader))
-
-            with self.assertRaises(ValueError):
-                checkpointer.save_checkpoint(
-                    step, state_dict, path=path, storage_type=2
-                )
