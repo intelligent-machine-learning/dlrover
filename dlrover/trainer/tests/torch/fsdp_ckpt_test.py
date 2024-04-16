@@ -54,10 +54,7 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
     AsyncCheckpointSaver,
     SharedMemoryHandler,
 )
-from dlrover.trainer.torch.flash_checkpoint.fsdp import (
-    FsdpShardCheckpointer,
-    StorageType,
-)
+from dlrover.trainer.torch.flash_checkpoint.fsdp import FsdpShardCheckpointer
 from dlrover.trainer.torch.flash_checkpoint.fsdp_engine import (
     FileReader,
     FsdpCheckpointEngine,
