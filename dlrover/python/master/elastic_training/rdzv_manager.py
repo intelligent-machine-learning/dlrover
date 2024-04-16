@@ -14,8 +14,9 @@
 import math
 import time
 from abc import ABCMeta, abstractmethod
+from collections import OrderedDict
 from threading import Lock
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 from dlrover.python.common.constants import (
     NetworkFailureReason,
@@ -23,6 +24,11 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node
+from dlrover.python.master.elastic_training.net_topology import (
+    DefaultTopologyQuerier,
+    DpTopologySorter,
+    NodeTopologyMeta,
+)
 
 
 class RendezvousParameters(object):
@@ -54,8 +60,9 @@ class RendezvousManager(metaclass=ABCMeta):
         self._lock = Lock()
         self._alive_nodes = set()
         self._released_workers = []
-        self._waiting_nodes: Dict[int, int] = {}
-        self._rdzv_nodes = {}
+        # key is the node rank.
+        self._waiting_nodes: Dict[int, NodeTopologyMeta] = {}
+        self._rdzv_nodes: Dict[int, NodeTopologyMeta] = OrderedDict()
         self._lastcall_time = 0
         self._rdzv_params = RendezvousParameters(0, 0)
         self._rdzv_round = 0
@@ -63,9 +70,13 @@ class RendezvousManager(metaclass=ABCMeta):
         self._name = ""
         self._latest_rdzv_nodes = []
         self._start_rdzv_ts = 0
+        # key is the node rank, value is the time.
         self._node_rdzv_times: Dict[int, int] = {}
         self._latest_log_nodes_time = 0
+        # key is the node rank, value is the step.
         self._save_ckpt_nodes: Dict[int, int] = {}
+        self._topology_querier = DefaultTopologyQuerier()
+        self._topology_sorter = DpTopologySorter()
 
     def get_min_nodes(self):
         return self._rdzv_params.min_nodes
@@ -88,7 +99,7 @@ class RendezvousManager(metaclass=ABCMeta):
                 f"Remove exited worker {node.name} from "
                 f"{self._name} rendezvous."
             )
-            self._waiting_nodes.pop(node.rank_index, 0)
+            self._waiting_nodes.pop(node.rank_index, None)
             self._has_node_failed = True
 
     def update_rdzv_params(
@@ -137,10 +148,11 @@ class RendezvousManager(metaclass=ABCMeta):
             for i in node_ids:
                 self._rdzv_nodes[i] = self._waiting_nodes[i]
             self._latest_rdzv_nodes = list(self._rdzv_nodes.keys())
-            self._waiting_nodes = dict(
-                set(self._waiting_nodes.items())
-                - set(self._rdzv_nodes.items())
-            )
+            extra_nodes = {}
+            for i in self._waiting_nodes.keys():
+                if i not in self._rdzv_nodes:
+                    extra_nodes[i] = self._waiting_nodes[i]
+            self._waiting_nodes = extra_nodes
             self._lastcall_time = 0
             self._log_rendezvous_info()
             if self._waiting_nodes:
@@ -184,6 +196,7 @@ class RendezvousManager(metaclass=ABCMeta):
         self,
         node_rank,
         local_world_size,
+        node_ip="",
     ):
         """The node joins the current rond rendezvous.
         Args:
@@ -198,7 +211,15 @@ class RendezvousManager(metaclass=ABCMeta):
                 self._start_rdzv_ts = time.time()
             if node_rank in self._waiting_nodes:
                 return self._rdzv_round
-            self._waiting_nodes[node_rank] = local_world_size
+            asw, psw = self._topology_querier.query(node_ip)
+            meta = NodeTopologyMeta(
+                node_rank=node_rank,
+                node_ip=node_ip,
+                process_num=local_world_size,
+                asw=asw,
+                psw=psw,
+            )
+            self._waiting_nodes[node_rank] = meta
             self._rdzv_nodes = {}
             self._lastcall_time = time.time()
             self._node_rdzv_times[node_rank] = round(
@@ -240,7 +261,9 @@ class RendezvousManager(metaclass=ABCMeta):
         return False
 
     @abstractmethod
-    def get_comm_world(self, node_rank):
+    def get_comm_world(
+        self, node_rank
+    ) -> Tuple[int, int, Dict[int, NodeTopologyMeta]]:
         """Get communication world of all alive nodes.
 
         Args:
@@ -282,7 +305,9 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
         super().__init__()
         self._name = RendezvousName.ELASTIC_TRAINING
 
-    def get_comm_world(self, node_rank):
+    def get_comm_world(
+        self, node_rank
+    ) -> Tuple[int, int, Dict[int, NodeTopologyMeta]]:
         """Return the communication world if a round rendezvous is completed.
         The rendezvous is completed if one of the following conditions
         is satisfied:
@@ -302,6 +327,11 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
                 rdzv_completed = self._check_rdzv_completed()
                 if rdzv_completed:
                     self._rdzv_round += 1
+                    self._rdzv_nodes = self._topology_sorter.sort(
+                        self._rdzv_nodes
+                    )
+                    ranks = list(self._rdzv_nodes.keys())
+                    logger.info(f"Node ranks are {ranks}.")
             return self._rdzv_round, 0, self._rdzv_nodes
 
     def report_network_check_result(self, node_id, normal, elapsed_time):
@@ -328,12 +358,14 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         self._node_status: Dict[int, bool] = {}
         self._node_times: Dict[int, float] = {}
         self._reported_nodes = set()
-        self._node_groups: List[Dict[int, int]] = []
+        self._node_groups: List[Dict[int, NodeTopologyMeta]] = []
         self._check_round = 2
         self._fault_nodes = set()
         self._straggler_nodes = set()
 
-    def get_comm_world(self, node_rank):
+    def get_comm_world(
+        self, node_rank
+    ) -> Tuple[int, int, Dict[int, NodeTopologyMeta]]:
         """Return the communication world if a round rendezvous is completed.
         The rendezvous is completed if one of the following conditions.
         """
@@ -373,8 +405,8 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         node_groups: List[Dict[int, int]] = []
         if round == 0:
             group = {}
-            for node_id, local_world_size in self._rdzv_nodes.items():
-                group[node_id] = local_world_size
+            for node_id, meta in self._rdzv_nodes.items():
+                group[node_id] = meta
                 if len(group) == 2:
                     node_groups.append(group)
                     group = {}
@@ -446,6 +478,7 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         self,
         node_rank,
         local_world_size,
+        node_ip="",
     ):
         """The node joins the current rond rendezvous.
         Args:
@@ -457,7 +490,7 @@ class NetworkCheckRendezvousManager(RendezvousManager):
             int: the number of rendezvous round.
         """
         self._node_groups.clear()
-        return super().join_rendezvous(node_rank, local_world_size)
+        return super().join_rendezvous(node_rank, local_world_size, node_ip)
 
     def check_fault_node(self):
         """Check whether the job has fault nodes. Each task contains 2 rounds

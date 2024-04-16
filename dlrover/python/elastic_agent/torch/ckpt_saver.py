@@ -513,7 +513,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
             event: CheckpointEvent = self._event_queue.get()
             if event.type == CheckpointEventType.UPDATE_SHARD:
                 logger.info(
-                    "Reset the shared memory after the training starts."
+                    "Reset the shared memory after the training starts. "
                     f"The number of global shards is {event.global_shard_num}."
                 )
                 self.global_shard_num = event.global_shard_num

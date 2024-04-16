@@ -103,7 +103,7 @@ def timer(func):
 def start_async_save():
     AsyncCheckpointSaver.start_async_saving_ckpt()
     while True:
-        time.sleep(36000)
+        time.sleep(60)
 
 
 def start_saver_process():

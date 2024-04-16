@@ -7,12 +7,8 @@ runs:
   args:
     - "/bin/bash"
     - "-c"
-    - "pip install kubernetes grpcio-tools psutil deprecated \
-'ray[default]' pyhocon pytest-cov tensorflow==2.13.0 deepspeed==0.12.6 \
-&& pip install torch==2.0.1+cpu -f \
-https://download.pytorch.org/whl/torch_stable.html \
-&& python -m grpc_tools.protoc -I. \
+    - "sh scripts/ci_install.sh && python -m grpc_tools.protoc -I. \
 dlrover/proto/*.proto --python_out=. --grpc_python_out=. \
 && ROLE_NAME=dlrover-trainer \
-python -m pytest dlrover/python/tests dlrover/trainer/tests \
+python -m pytest --durations=10 dlrover/python/tests dlrover/trainer/tests \
 --cov-report xml --cov=dlrover "

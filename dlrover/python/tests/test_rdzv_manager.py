@@ -78,7 +78,7 @@ class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
         self.assertEqual(round, 1)
         self.assertEqual(len(rdzv_manager._waiting_nodes), 0)
         self.assertEqual(len(rdzv_manager._rdzv_nodes), 3)
-        self.assertDictEqual(world, {0: 8, 1: 8, 2: 8})
+        self.assertListEqual(list(world.keys()), [0, 1, 2])
 
     def test_min_nodes(self):
         rdzv_manager = ElasticTrainingRendezvousManager()
@@ -100,7 +100,7 @@ class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
         self.assertEqual(round, 1)
         self.assertEqual(len(rdzv_manager._waiting_nodes), 0)
         self.assertEqual(len(rdzv_manager._rdzv_nodes), 2)
-        self.assertDictEqual(world, {0: 8, 1: 8})
+        self.assertListEqual(list(world.keys()), [0, 1])
 
     def test_min_nodes_with_unit(self):
         rdzv_manager = ElasticTrainingRendezvousManager()
@@ -117,8 +117,7 @@ class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
         self.assertEqual(round, 1)
         self.assertEqual(len(rdzv_manager._waiting_nodes), 2)
         self.assertEqual(len(rdzv_manager._rdzv_nodes), 8)
-        expected_world = {i: 8 for i in range(8)}
-        self.assertDictEqual(expected_world, world)
+        self.assertListEqual(list(world.keys()), list(range(8)))
         round, _, world = rdzv_manager.get_comm_world(9)
         self.assertEqual(round, 1)
         self.assertFalse(9 in world)
@@ -163,11 +162,11 @@ class NetworkCheckRendezvousManagerTest(unittest.TestCase):
         self.assertEqual(group, 0)
         self.assertEqual(len(rdzv_manager._waiting_nodes), 0)
         self.assertEqual(len(rdzv_manager._rdzv_nodes), 4)
-        self.assertDictEqual(world, {0: 8, 1: 8})
+        self.assertListEqual(list(world.keys()), [0, 1])
         self.assertEqual(group, 0)
         round, group, world = rdzv_manager.get_comm_world(2)
         self.assertEqual(round, 1)
-        self.assertDictEqual(world, {2: 8, 3: 8})
+        self.assertListEqual(list(world.keys()), [2, 3])
         self.assertEqual(group, 1)
         for i in range(3):
             rdzv_manager.report_network_check_result(i, True, 0.0)
@@ -178,10 +177,10 @@ class NetworkCheckRendezvousManagerTest(unittest.TestCase):
         self.assertEqual(round, 1)
         round, group, world = rdzv_manager.get_comm_world(0)
         self.assertEqual(round, 2)
-        self.assertDictEqual(world, {3: 8, 0: 8})
+        self.assertListEqual(list(world.keys()), [0, 3])
         round, group, world = rdzv_manager.get_comm_world(1)
         self.assertEqual(round, 2)
-        self.assertDictEqual(world, {1: 8, 2: 8})
+        self.assertListEqual(list(world.keys()), [1, 2])
         self.assertEqual(group, 1)
         success, _ = rdzv_manager.check_fault_node()
         self.assertFalse(success)
@@ -191,7 +190,7 @@ class NetworkCheckRendezvousManagerTest(unittest.TestCase):
         self.assertEqual(round, 2)
         round, group, world = rdzv_manager.get_comm_world(3)
         self.assertEqual(round, 3)
-        self.assertDictEqual(world, {2: 8, 3: 8})
+        self.assertListEqual(list(world.keys()), [2, 3])
         _, reason = rdzv_manager.check_fault_node()
         self.assertEqual(reason, NetworkFailureReason.WAITING_NODE)
         for i in range(3):
@@ -208,7 +207,7 @@ class NetworkCheckRendezvousManagerTest(unittest.TestCase):
         self.assertEqual(round, 0)
         round, _, world = rdzv_manager.get_comm_world(0)
         self.assertEqual(round, 1)
-        self.assertDictEqual(world, {0: 8})
+        self.assertListEqual(list(world.keys()), [0])
         rdzv_manager.report_network_check_result(0, True, 0.0)
         nodes, _ = rdzv_manager.check_fault_node()
         self.assertListEqual(nodes, [])
@@ -228,7 +227,7 @@ class NetworkCheckRendezvousManagerTest(unittest.TestCase):
         self.assertEqual(group, 0)
         round, group, world = rdzv_manager.get_comm_world(2)
         self.assertEqual(round, 1)
-        self.assertDictEqual(world, {2: 8, 3: 8})
+        self.assertListEqual(list(world.keys()), [2, 3])
         self.assertEqual(group, 1)
         for i in range(4):
             rdzv_manager.report_network_check_result(i, True, 5.0)
@@ -242,7 +241,7 @@ class NetworkCheckRendezvousManagerTest(unittest.TestCase):
         self.assertEqual(round, 1)
         round, group, world = rdzv_manager.get_comm_world(5)
         self.assertEqual(round, 2)
-        self.assertDictEqual(world, {0: 8, 5: 8})
+        self.assertListEqual(list(world.keys()), [0, 5])
 
         for i in [1, 2, 3, 4]:
             rdzv_manager.report_network_check_result(i, True, 5.0)
@@ -263,7 +262,7 @@ class NetworkCheckRendezvousManagerTest(unittest.TestCase):
         self.assertEqual(group, 0)
         round, group, world = rdzv_manager.get_comm_world(2)
         self.assertEqual(round, 1)
-        self.assertDictEqual(world, {2: 8, 3: 8, 4: 8})
+        self.assertListEqual(list(world.keys()), [2, 3, 4])
         self.assertEqual(group, 1)
         for i in range(2):
             rdzv_manager.report_network_check_result(i, True, 15.0)
@@ -277,7 +276,7 @@ class NetworkCheckRendezvousManagerTest(unittest.TestCase):
         self.assertEqual(round, 1)
         round, group, world = rdzv_manager.get_comm_world(1)
         self.assertEqual(round, 2)
-        self.assertDictEqual(world, {1: 8, 2: 8})
+        self.assertListEqual(list(world.keys()), [2, 1])
 
         for i in [1, 2]:
             rdzv_manager.report_network_check_result(i, True, 15.0)

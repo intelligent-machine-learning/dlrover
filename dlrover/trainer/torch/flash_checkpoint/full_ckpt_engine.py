@@ -123,15 +123,16 @@ class FullCheckpointEngine(CheckpointEngine):
                 ["model_states", "optim_states"] of the state dict and
                 the value is the path of storage to save.
         """
-        succeed = True
+        success = True
         if step > self._cached_step:
-            succeed = self.save_to_memory(step, state_dict, paths)
+            success = self.save_to_memory(step, state_dict, paths)
         # Only rank 0 persist the checkpoint to the storage.
         if dist.is_initialized():
             dist.barrier()
-        if succeed and self._rank == 0:
+        if success and self._rank == 0:
             event = CheckpointEvent(type=CheckpointEventType.SAVE, step=step)
             self._event_queue.put(event)
+        return success
 
     def load(self, resume_path=""):
         """
