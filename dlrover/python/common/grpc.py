@@ -326,22 +326,27 @@ class RendezvousRequest(Message):
     rdzv_name: str = ""
 
 
+@dataclass
 class CommWorldRequest(RendezvousRequest):
     pass
 
 
+@dataclass
 class JoinRendezvousRequest(RendezvousRequest):
-    pass
+    node_ip: str = ""  # The IP of node where the pod is located.
 
 
+@dataclass
 class WaitingNodeNumRequest(RendezvousRequest):
     pass
 
 
+@dataclass
 class NetworkReadyRequest(Message):
     pass
 
 
+@dataclass
 class StragglerExistRequest(Message):
     pass
 
