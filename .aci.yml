@@ -4,7 +4,7 @@ stages:
   - 构建&发布到测试库
 agent:
   docker:
-    image: reg.docker.alibaba-inc.com/elasticdl/elasticdl:dev_aci  # 不要更改此镜像，否则有protobuf 版本问题。
+    image: reg.docker.alibaba-inc.com/easydl/easydl:dev_aci_py38  # 不要更改此镜像，否则有protobuf 版本问题。
 onlyExecuteLastPipeline: true #同一个分支只执行一个ci
 
 only:
@@ -18,7 +18,7 @@ build_elasticdl_dev:
   id: build
   component: pypi-artifact-uploader
   inputs:
-    buildImage: reg.docker.alibaba-inc.com/elasticdl/elasticdl:dev_aci
+    buildImage: reg.docker.alibaba-inc.com/easydl/easydl:dev_aci_py38
     registry: "https://artifacts.antgroup-inc.cn/artifact/repositories/simple-dev" # yamllint disable-line rule:line-length
     workdir: ./
     buildCmd: "make -f dlrover/Makefile && python setup_internal.py bdist_wheel"
