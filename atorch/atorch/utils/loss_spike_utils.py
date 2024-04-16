@@ -54,20 +54,19 @@ class LossSpikeBase:
 
 
 class TokenLossSpike(LossSpikeBase):
-    def save_loss(self, file_name, cur_loss, cur_iter, losses_str, sample_infos_str):
+    def save_loss(self, file_name, cur_loss, cur_iter, *args, **kargs):
         """
         Store spike loss and corresponding information
         Args:
             file_name: str, loss spike file name
-            cur_loss: float, current loss value
+            cur_loss: float, current avg loss value
             cur_iter: int, current iteration
-            losses_str: A string of loss concatenated with splitter, eg:
-                "2.31,2.30,10.98,1.56"
-            sample_infos_str: A string of sample id info concatenated with splitter, eg:
-                "20-17-1385697-14158189-936633,20-17-1385697-14158189-936633"
+            args/kargs: any custom data in string format.
 
         """
         file_path = os.path.join(self.loss_spike_save_dir, file_name)
+        losses_str = kargs["losses_str"]
+        sample_infos_str = kargs["sample_infos_str"]
         if cur_loss > self.min_loss and cur_iter > self.min_iter:
             logger.info(f"save loss={cur_loss}, iter={cur_iter}")
             # define structure
@@ -119,7 +118,7 @@ class TokenLossSpike(LossSpikeBase):
                         fw.write(f"{text}\n\n\n\n")
 
     def parse_sample_content(self, losses_str, sample_infos_str, tokenizer):
-        losses = [float(e) for e in losses_str.split(self.loss_sample_str_splitter)]  # 解析loss es
+        losses = [float(e) for e in losses_str.split(self.loss_sample_str_splitter)]
         sample_infos = sample_infos_str.split(self.loss_sample_str_splitter)
         if len(losses) != len(sample_infos):
             logger.warn("batch loss length != batch sample length")
