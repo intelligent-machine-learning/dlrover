@@ -30,10 +30,10 @@ leading to unnecessary replacement. A simple retry could suffice, avoiding the
 heavier recovery process. To minimize recovery overhead, we propose four levels of
 diagnosis actions, ranging from light to heavy intervention:
 
-1. retry, when the error is temporary
-2. restart training process
-3. re-configure training job, e.g., replace a failure node
-4. fail the job and report, when there is a fatal error leading to a complete stop
+1. retry, when the error is temporary.
+2. restart training process.
+3. re-configure training job, e.g., replace a failure node.
+4. fail the job and report, when there is a fatal error leading to a complete stop.
 
 ## Architecture of Faults Diagnosis System
 
@@ -97,5 +97,5 @@ for suspended workers.
 The figure shows a hang error case in a LLM7B SFT training job on a single node with
 8 GPUs. We can observe worker 0 and worker 2-7 all wait at synchronize function while
 worker 1 is absent. Clearly, worker 1 is suspended elsewhere that results in a hang
-error. With those CUDA events, the Analyst can identify there is a hang error and
-Diagnostician could explore the root cause further and possibly diagnose the problem.
+error. With those CUDA events, the Analyst can identify that a hang error happened and
+Diagnostician could explore the root cause further and diagnose the problem.
