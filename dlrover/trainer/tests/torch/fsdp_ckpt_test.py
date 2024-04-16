@@ -55,7 +55,7 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
     SharedMemoryHandler,
 )
 from dlrover.trainer.torch.flash_checkpoint.fsdp import (
-    FsdpCheckpointer,
+    FsdpShardCheckpointer,
     StorageType,
 )
 from dlrover.trainer.torch.flash_checkpoint.fsdp_engine import (
@@ -381,7 +381,7 @@ class FsdpCheckpointTest(unittest.TestCase):
         }
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir = Path(tmpdir)
-            checkpointer = FsdpCheckpointer(tmpdir)
+            checkpointer = FsdpShardCheckpointer(tmpdir)
             path = tmpdir / str(step)
             engine = checkpointer._engine
             checkpointer.save_checkpoint(

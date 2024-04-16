@@ -144,11 +144,11 @@ API to save checkpoint.
 
 ```Python
 from dlrover.trainer.torch.flash_checkpoint.fsdp import (
-    FsdpCheckpointer,
+    FsdpShardCheckpointer,
     StorageType,
 )
 
-checkpointer = FsdpCheckpointer(checkpoint_dir)
+checkpointer = FsdpShardCheckpointer(checkpoint_dir)
 
 with FSDP.state_dict_type(model, StateDictType.SHARDED_STATE_DICT):
     state_dict = {
@@ -177,7 +177,7 @@ APIs to load checkpoint. The APIs to load checkpoints are consistent with PyTorc
 Users only need to configure the storage reader for Fully Sharded Data Parallel (FSDP).
 
 ```Python
-checkpointer = FsdpCheckpointer(checkpoint_dir)
+checkpointer = FsdpShardCheckpointer(checkpoint_dir)
 
 with FSDP.state_dict_type(model, StateDictType.SHARDED_STATE_DICT):
     state_dict = {
@@ -279,6 +279,32 @@ how to start single-node multi-GPU training:
 
 ```bash
 dlrover-run --nnodes=1 --max_restarts=2 --nproc_per_node=2 train.py 
+```
+
+#### HuggingFace transformers.Trainer
+
+Users can replace `transformers.Trainer` with `FlashCkptTrainer`. The only difference
+between `FlashCkptTrainer` and `transformers.Tainer` is the implmentation
+to save checkpoint. The other features of `FlashCkptTrainer` are same as `transformers.Trainer`.
+
+**Note**: `transformers==4.37.2` is recommended becase we have test `FlashCkptTrainer` with it.
+Now, `FlashCkptTrainer` only supports saving the DeepSpeed or peft model not FSDP model in the Trainer.
+
+```python
+from dlrover.trainer.torch.flash_checkpoint.hf_trainer import FlashCkptTrainer
+
+# Replace `Trainer` with `FlashCkptTrainer`.
+trainer = FlashCkptTrainer(
+    model=model,
+    train_dataset=train_data,
+    eval_dataset=val_data,
+    args=training_arguments,
+    data_collator=data_collator,
+)
+
+# Get the latest checkpoint path.
+last_ckpt_path = trainer.get_last_checkpoint()
+trainer.train(resume_from_checkpoint=last_ckpt_path)
 ```
 
 ## Benchmark Experiments
