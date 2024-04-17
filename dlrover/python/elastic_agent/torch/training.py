@@ -281,7 +281,6 @@ class MasterRendezvousHandler(RendezvousHandler):
                 )
                 raise TimeoutError(err_msg)
             time.sleep(3)
-        world = dict(sorted(world.items()))
         rank = list(world.keys()).index(self._node_rank)
         world_size = len(world)
         logger.info(
