@@ -144,7 +144,7 @@ class RendezvousManager(metaclass=ABCMeta):
 
         if rdzv_completed:
             node_ids = sorted(self._waiting_nodes.keys())[0:waiting_num]
-            self._rdzv_nodes = {}
+            self._rdzv_nodes = OrderedDict()
             for i in node_ids:
                 self._rdzv_nodes[i] = self._waiting_nodes[i]
             self._latest_rdzv_nodes = list(self._rdzv_nodes.keys())
@@ -220,7 +220,7 @@ class RendezvousManager(metaclass=ABCMeta):
                 psw=psw,
             )
             self._waiting_nodes[node_rank] = meta
-            self._rdzv_nodes = {}
+            self._rdzv_nodes = OrderedDict()
             self._lastcall_time = time.time()
             self._node_rdzv_times[node_rank] = round(
                 self._lastcall_time - self._start_rdzv_ts, 2
