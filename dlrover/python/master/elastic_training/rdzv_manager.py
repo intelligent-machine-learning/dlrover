@@ -331,7 +331,12 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
                         self._rdzv_nodes
                     )
                     ranks = list(self._rdzv_nodes.keys())
-                    logger.info(f"Node ranks are {ranks}.")
+                    node_ips = []
+                    for node_rank in ranks:
+                        node_ips.append(self._rdzv_nodes[node_rank].node_ip)
+                    logger.info(
+                        f"Node ranks are {ranks}.\n Node IPs are {node_ips}"
+                    )
             return self._rdzv_round, 0, self._rdzv_nodes
 
     def report_network_check_result(self, node_id, normal, elapsed_time):
