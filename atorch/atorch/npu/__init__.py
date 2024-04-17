@@ -1,15 +1,21 @@
 import traceback
 from typing import Optional, Union
 
+import torch
+
 from atorch.common.log_utils import default_logger as logger
+from atorch.utils.import_util import is_torch_npu_available
 
 try:
-    import deepspeed_npu
+    if hasattr(torch.device, "__enter__"):
+        # NPU bug. Activate DeviceContext before importing torch_npu
+        with torch.device("meta"):
+            _ = torch.tensor((1.0))
     import torch_npu
     from torch_npu.contrib import transfer_to_npu
 except (ModuleNotFoundError, ImportError):
     logger.error(f"{traceback.format_exc()}")
-import torch
+
 
 _device_t = Union[torch.device, str, int, None]
 old_device_capability = torch.cuda.get_device_capability
@@ -40,18 +46,6 @@ def new_device_capability(device: Optional[_device_t] = None):
 new_device_capability.__doc__ = old_device_capability.__doc__
 
 
-def npu_profile_context(*args, **kwargs):
-    if "experimental_config" not in kwargs:
-        kwargs["experimental_config"] = torch_npu.profiler._ExperimentalConfig(
-            aic_metrics=torch_npu.profiler.AiCMetrics.PipeUtilization,
-            profiler_level=torch_npu.profiler.ProfilerLevel.Level1,
-            l2_cache=False,
-            record_op_args=True,
-            data_simplification=False,
-        )
-    return torch_npu.profiler.profile(*args, **kwargs)
-
-
 def make_atorch_npu_patch():
     # todo: can't create same device on multiprocessing?
     device = torch.device("npu")
@@ -60,12 +54,23 @@ def make_atorch_npu_patch():
         torch.npu.get_device_capability = new_device_capability
         torch.cuda.get_device_capability = new_device_capability
 
-    torch.profiler.profile = npu_profile_context
-    reset_attrs = ["ProfilerActivity", "tensorboard_trace_handler", "schedule"]
-    for attr in reset_attrs:
-        if hasattr(torch.profiler, attr):
-            delattr(torch.profiler, attr)
-        setattr(torch.profiler, attr, getattr(torch_npu.profiler, attr))
+    try:
+        import transformers
+        from packaging import version
+
+        old_is_torch_bf16_gpu_available = transformers.utils.is_torch_bf16_gpu_available
+
+        def npu_is_torch_bf16_gpu_available():
+            if is_torch_npu_available():
+                return torch.npu.get_device_name() == "Ascend910B2"
+            else:
+                return old_is_torch_bf16_gpu_available()
+
+        # transformers does not recognize that 910B support bf16 until 4.35.0
+        if version.parse(transformers.__version__) < version.parse("4.35.0"):
+            setattr(transformers.utils, "is_torch_bf16_gpu_available", npu_is_torch_bf16_gpu_available)
+    except (ModuleNotFoundError, ImportError):
+        logger.error(f"{traceback.format_exc()}")
 
 
 try:

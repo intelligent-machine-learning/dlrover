@@ -123,7 +123,8 @@ def train(args):
         # checkpoint
         if args.use_checkpointing:
             checkpoint_modules = (get_module_type(model_type),)
-            strategy.append(("checkpoint", checkpoint_modules))
+            checkpoint_config = {"wrap_class": checkpoint_modules, "no_reentrant": True}
+            strategy.append(("checkpoint", checkpoint_config))
         # fp8
         if args.use_fp8:
             if model_type == ModelType.LLAMA:

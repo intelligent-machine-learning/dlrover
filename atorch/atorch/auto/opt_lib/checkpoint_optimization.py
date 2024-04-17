@@ -1,4 +1,3 @@
-import inspect
 from collections.abc import MutableMapping
 from functools import partial
 from typing import Callable
@@ -122,10 +121,10 @@ class CheckpointOptimization(Optimization):
                     from transformer_engine.pytorch.distributed import CudaRNGStatesTracker
                     from transformer_engine.pytorch.distributed import checkpoint as te_checkpoint
 
-                    # patch te checkpoint to support non-tensor inputs/outputs
-                    from atorch.utils.patch_te import patch_te
+                    # patch te checkpoint to support non-tensor inputs/outputs if needed
+                    from atorch.utils.patch_te import patch_te_if_needed
 
-                    patch_te()
+                    patch_te_if_needed()
 
                     _CUDA_RNG_STATE_TRACKER = CudaRNGStatesTracker()
 
@@ -140,19 +139,30 @@ class CheckpointOptimization(Optimization):
                         apply_activation_checkpointing, checkpoint_wrapper_fn=checkpoint_wrapper_fn
                     )
                 else:
-                    # check by signature of func
-                    params = inspect.signature(checkpoint_wrapper).parameters
-                    need_patch = params["checkpoint_impl"].default != CheckpointImpl.NO_REENTRANT
-
                     assert other_config is not None  # for mypy
-                    # default to `need_patch`
-                    no_reentrant = other_config.pop("no_reentrant", need_patch)
+                    # pytorch uses default None for use_reentrant parameter in checkpoint,
+                    # which is equivalent to reentrant. This parameter will become mandatory in torch 2.4.
+                    no_reentrant = other_config.pop("no_reentrant", None)
                     selective_offload = other_config.pop("selective_offload", None)
+                    if no_reentrant is None:
+                        # Used no_reentrant for checkpoint selective offload
+                        no_reentrant = selective_offload is not None
+                        logger.warning(
+                            "checkpoint config does not contains no_reentrant value, "
+                            "set no_reentrant=True as selective_offload is used"
+                            if selective_offload is not None
+                            else "set no_reentrant=False as default"
+                        )
+                    else:
+                        logger.info(f"checkpoint config contains no_reentrant={no_reentrant}")
                     checkpoint_impl = CheckpointImpl.NO_REENTRANT if no_reentrant else CheckpointImpl.REENTRANT
                     checkpoint_wrapper_fn_kwargs = {"checkpoint_impl": checkpoint_impl}
                     if selective_offload is not None:
                         if checkpoint_impl == CheckpointImpl.REENTRANT:
-                            raise ValueError("selective offloading don't support `CheckpointImpl.REENTRANT`")
+                            raise ValueError(
+                                "selective offloading don't support `CheckpointImpl.REENTRANT`, "
+                                "requires no_reentrant=False in checkpoint config"
+                            )
                         if "offload_args" not in selective_offload or "num_layers" not in selective_offload:
                             raise ValueError("`offload_args` or `num_layers` is not passed")
 

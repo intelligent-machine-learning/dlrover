@@ -95,7 +95,7 @@ class HEBO(AbstractOptimizer):
 
     def get_best_id(self, fix_input: dict = None) -> int:
         if fix_input is None:
-            return np.argmin(self.y.reshape(-1))
+            return np.argmin(self.y.reshape(-1))  # type: ignore
         X = self.X.copy()
         y = self.y.copy()
         for k, v in fix_input.items():
@@ -105,9 +105,9 @@ class HEBO(AbstractOptimizer):
                 crit = ((X[k] - v).abs() > np.finfo(float).eps).values
             y[crit] = np.inf
         if np.isfinite(y).any():
-            return np.argmin(y.reshape(-1))
+            return np.argmin(y.reshape(-1))  # type: ignore
         else:
-            return np.argmin(self.y.reshape(-1))
+            return np.argmin(self.y.reshape(-1))  # type: ignore
 
     def suggest(self, n_suggestions=1, fix_input=None):
         if self.acq_cls != MACE and n_suggestions != 1:

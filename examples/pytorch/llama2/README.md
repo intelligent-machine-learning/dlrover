@@ -23,7 +23,7 @@ pip install -r examples/pytorch/llama2/requirements.txt
 Then, we can use `dlrover-run` to start the training by
 
 ```bash
-dlrover-run --nproc_per_node=${GPU_NUM} examples/pytorch/llama2/llama_ft.py 
+dlrover-run --nproc_per_node=${GPU_NUM} examples/pytorch/llama2/fine_tuning.py 
 ```
 
 `GPU_NUM` is the number of GPUs on the node.
@@ -50,3 +50,26 @@ Use `kubectl` to submit an elastic job.
 ```bash
 kubectl -n dlrover apply -f examples/pytorch/llama2/elastic_job.yaml
 ```
+
+## Train on a Single Node with Mutliple Ascend-NPUs
+
+Firstly, we need to set npu environment.
+
+```bash
+source /usr/local/Ascend/ascend-toolkit/set_env.sh
+```
+
+Then, we need to install dlrover and the dependencies of the model by
+
+```bash
+pip install dlrover -U
+pip install -r examples/pytorch/llama2/npu_requirements.txt
+```
+
+Now we can use `dlrover-run` to start the training by
+
+```bash
+dlrover-run --nproc_per_node=${NPU_NUM} examples/pytorch/llama2/fine_tuning.py 
+```
+
+`NPU_NUM` is the number of NPUs on the node.

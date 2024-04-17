@@ -101,7 +101,7 @@ worker 是运行 AI 训练的节点，其主要包含一个基于 TorchElastic �
 从 master 获取组网信息、启动和监控训练进程和上报心跳信息。如下图所示：
 
 <div align="center">
-<img src="../figures/ft_llm_training/dlrover_ft_arch.jpg" alt="Editor" width="600">
+<img src="../figures/dlrover-elasticjob.png" alt="Editor" width="600">
 
 <text>图3：DLRover 弹性训练架构 </text>
 </div>

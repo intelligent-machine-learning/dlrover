@@ -19,6 +19,7 @@ from dlrover.python.common import grpc
 from dlrover.python.common.constants import (
     NodeStatus,
     NodeType,
+    RendezvousName,
     TrainingExceptionLevel,
 )
 from dlrover.python.elastic_agent.master_client import build_master_client
@@ -125,6 +126,9 @@ class MasterClientTest(unittest.TestCase):
 
         self._master_client.report_network_status(0, NodeStatus.SUCCEEDED, 10)
 
+        success = self._master_client.sync_checkpoint(100)
+        self.assertFalse(success)
+
     def test_get(self):
         nodes, failure = self._master_client.query_ps_nodes()
         self.assertEqual(len(nodes), 0)
@@ -148,6 +152,6 @@ class MasterClientTest(unittest.TestCase):
             self.assertIsInstance(config, grpc.ParallelConfig)
 
     def test_num_nodes_waiting(self):
-        rdzv_name = object()
+        rdzv_name = RendezvousName.ELASTIC_TRAINING
         num = self._master_client.num_nodes_waiting(rdzv_name)
         self.assertEqual(num, 0)

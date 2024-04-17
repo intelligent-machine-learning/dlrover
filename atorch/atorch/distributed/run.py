@@ -13,8 +13,8 @@ from atorch.fault_tolerance.api import run as fault_tolerant_run
 
 try:
     from dlrover.trainer.torch.elastic_run import run as dlrover_run
-except ImportError:
-    logger.warning("DLRrover is not installed and torchrun is used.")
+except ImportError as e:
+    logger.warning(f"DLRover is not installed and torchrun is used. Error: {e}")
     dlrover_run = torchrun
 
 

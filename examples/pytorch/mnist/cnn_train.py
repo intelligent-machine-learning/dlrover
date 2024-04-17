@@ -29,6 +29,7 @@ from torchvision import datasets, transforms
 from dlrover.trainer.torch.elastic.dataloader import ElasticDataLoader
 from dlrover.trainer.torch.elastic.sampler import ElasticDistributedSampler
 from dlrover.trainer.torch.elastic.trainer import ElasticTrainer
+from dlrover.trainer.torch.flash_checkpoint.checkpointer import StorageType
 from dlrover.trainer.torch.flash_checkpoint.ddp import DdpCheckpointer
 
 # Note, we need to set the path of a shared file
@@ -221,7 +222,7 @@ def train_epoch(
             if train_step % 20 == 0:
                 log_rank0("loss = {}, step = {}".format(loss, train_step))
 
-            if train_step > 0 and train_step % 200 == 0:
+            if train_step > 0 and train_step % 50 == 0:
                 sd = {
                     "step": train_step,
                     "model": model.state_dict(),
@@ -231,7 +232,12 @@ def train_epoch(
                     sd["sampler"] = train_loader.sampler.state_dict(
                         train_step, train_loader.batch_size
                     )
-                checkpointer.save_checkpoint(train_step, sd)
+
+                checkpointer.save_checkpoint(
+                    train_step, sd, storage_type=StorageType.MEMORY
+                )
+                if train_step % 200 == 0:
+                    checkpointer.save_checkpoint(train_step, sd)
                 print("Finish save checkpoint.")
     return train_step
 

@@ -77,10 +77,9 @@ class MasterClient(Singleton):
         self._stub = elastic_training_pb2_grpc.MasterStub(self._channel)
         self._node_id = node_id
         self._node_type = node_type
-        self._host = os.getenv("POD_IP", "localhost")
+        self._node_ip = os.getenv("NODE_IP", "")
         self._worker_local_process_id = int(os.getenv("LOCAL_RANK", 0))
         self._ddp_server_port = self.find_free_port()
-        self._host_name = os.getenv("POD_NAME", "")
 
     def __del__(self):
         if self._channel:
@@ -103,7 +102,7 @@ class MasterClient(Singleton):
             _, port = sock.getsockname()
             return port
 
-    # @retry_grpc_request
+    @retry_grpc_request
     def _report(self, message: grpc.Message):
         request = elastic_training_pb2.Message()
         request.node_id = self._node_id
@@ -314,6 +313,7 @@ class MasterClient(Singleton):
             node_id=node_rank,
             local_world_size=local_world_size,
             rdzv_name=rdzv_name,
+            node_ip=self._node_ip,
         )
         result: grpc.RendezvousState = self._get(request)
         return result.round
@@ -389,6 +389,12 @@ class MasterClient(Singleton):
         except Exception:
             logger.warning("Fail to verify restarting training processes.")
             return False
+
+    def sync_checkpoint(self, step):
+        request = grpc.NodeCheckpointState()
+        request.step = step
+        response = self._report(request)
+        return response.success
 
     @classmethod
     def singleton_instance(cls, *args, **kwargs):

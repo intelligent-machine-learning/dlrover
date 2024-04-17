@@ -14,12 +14,12 @@ import copy
 import functools
 import json
 import os
+import shutil
 import signal
 import socket
 import tempfile
 import time
 import uuid
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, List, Optional, Union
@@ -281,7 +281,6 @@ class MasterRendezvousHandler(RendezvousHandler):
                 )
                 raise TimeoutError(err_msg)
             time.sleep(3)
-        world = dict(sorted(world.items()))
         rank = list(world.keys()).index(self._node_rank)
         world_size = len(world)
         logger.info(
@@ -381,9 +380,6 @@ class ElasticTrainingAgent(LocalElasticAgent):
         if config.auto_tunning:
             self._paral_config_tuner = ParalConfigTuner.singleton_instance()
             self._paral_config_tuner.start()
-
-        self._save_ckpt_executor = ThreadPoolExecutor(max_workers=1)
-        self._save_ckpt_future = None
 
     @prof
     def _rendezvous(self, worker_group: WorkerGroup) -> None:
@@ -618,9 +614,8 @@ class ElasticTrainingAgent(LocalElasticAgent):
         """
         saver: AsyncCheckpointSaver = AsyncCheckpointSaver.get_ckpt_saver()
         if saver and self._config.save_at_breakpoint:
-            self._save_ckpt_future = self._save_ckpt_executor.submit(
-                saver.save_shm_to_storage
-            )
+            logger.info("Start saving checkpoint at the breakpoint.")
+            saver.save_shm_to_storage(master_client=self._client)
 
     def _stop_workers_to_restart(self):
         """
@@ -656,12 +651,6 @@ class ElasticTrainingAgent(LocalElasticAgent):
         AsyncCheckpointSaver.reset()
         super()._restart_workers(worker_group)
 
-    def _start_workers(self, worker_group: WorkerGroup):
-        if self._save_ckpt_future:
-            # Waiting the thread to save checkpoint finishes.
-            self._save_ckpt_future.result(timeout=600)
-        return super()._start_workers(worker_group)
-
     def _membership_changed(self, role, rdzv_handler: RendezvousHandler):
         # Timeout may happen when to query TCPStore.
         if self._config.network_check:
@@ -679,10 +668,6 @@ class ElasticTrainingAgent(LocalElasticAgent):
             )
             return True
         return False
-
-    def stop_executor(self):
-        """Shutdown the executor to save the checkpoint."""
-        self._save_ckpt_executor.shutdown()
 
 
 def launch_agent(
@@ -792,11 +777,10 @@ def launch_agent(
     finally:
         if shutdown_rdzv:
             spec.rdzv_handler.shutdown()
-        agent.stop_executor()
         monitor.stop()
 
 
-class NetworkCheckElasticAgent(ElasticTrainingAgent):
+class NodeCheckElasticAgent(ElasticTrainingAgent):
     """
     An implementation of :py:class:`torchelastic.agent.server.ElasticAgent`
     that handles host-local workers. This agent will run 2 rounds allgather
@@ -832,7 +816,7 @@ class NetworkCheckElasticAgent(ElasticTrainingAgent):
             exit_barrier_timeout,
             log_dir,
         )
-        self._log_dir = log_dir or tempfile.mkdtemp(prefix="network_check_")
+        self._log_dir = log_dir or tempfile.mkdtemp(prefix="node_check_")
         self._check_round = 2
         self._config: ElasticLaunchConfig = config
 
@@ -848,7 +832,7 @@ class NetworkCheckElasticAgent(ElasticTrainingAgent):
         fault_nodes = []
         stragglers = []
         for i in range(self._check_round):
-            result, elapsed_time = self._run_network_check()
+            result, elapsed_time = self._run_node_check()
             elapsed_time = round(elapsed_time, 3)
             logger.info(
                 f"Network check time of round {i} is {elapsed_time}"
@@ -894,10 +878,11 @@ class NetworkCheckElasticAgent(ElasticTrainingAgent):
                 raise RuntimeError("The node is a straggler and exits.")
         return True
 
-    def _run_network_check(self, monitor_interval=3, timeout=300):
+    def _run_node_check(self, monitor_interval=3, timeout=300):
         self._initialize_workers(self._worker_group)
         start = time.time()
         succeed = False
+        output_dir = ConfigPath.NETWORK_CHECK_DATA_DIR
         while True:
             assert self._worker_group.state != WorkerState.INIT
             time.sleep(monitor_interval)
@@ -909,31 +894,40 @@ class NetworkCheckElasticAgent(ElasticTrainingAgent):
                     logger.error(f"Timeout {timeout} to check network.")
                     break
                 continue
-            elif state == WorkerState.SUCCEEDED:
+            elif state == WorkerState.SUCCEEDED or self._check_finished(
+                output_dir
+            ):
                 succeed = True
                 break
             else:
                 break
 
         if succeed:
-            elapsed_time = self._get_network_check_time()
+            elapsed_time = self._get_node_check_time(output_dir)
         else:
             elapsed_time = 3600
         return succeed, elapsed_time
 
-    def _get_network_check_time(self):
-        root = ConfigPath.NETWORK_CHECK_DATA_DIR
+    def _check_finished(self, result_dir):
+        if not os.path.exists(result_dir):
+            return False
+        num = len(os.listdir(result_dir))
+        self._worker_group.workers
+        return num == len(self._worker_group.workers)
+
+    def _get_node_check_time(self, result_dir):
         elapsed_time = 0
-        if not os.path.exists(root):
+        if not os.path.exists(result_dir):
             return elapsed_time
-        for filename in os.listdir(root):
-            path = os.path.join(root, filename)
+        for filename in os.listdir(result_dir):
+            path = os.path.join(result_dir, filename)
             with open(path, "r") as f:
                 data = f.read()
                 if not data:
                     continue
                 data = json.loads(data)
                 elapsed_time = max(elapsed_time, data.get("time", 0))
+        shutil.rmtree(dir, ignore_errors=True)
         return elapsed_time
 
 
@@ -997,7 +991,7 @@ def network_check(
         master_addr=master_addr,
     )
 
-    agent = NetworkCheckElasticAgent(
+    agent = NodeCheckElasticAgent(
         node_rank=node_rank,
         config=config,
         entrypoint=entrypoint,

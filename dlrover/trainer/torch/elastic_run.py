@@ -148,7 +148,7 @@ def parse_args(args):
     )
     parser.add_argument(
         "--auto_tunning",
-        "--auto_tunning",
+        "--auto-tunning",
         action=check_env,
         help="Whether to auto-tune the parallel configuraion.",
     )
@@ -161,8 +161,8 @@ def parse_args(args):
         "is True.",
     )
     parser.add_argument(
-        "--save-at-breakpoint",
         "--save_at_breakpoint",
+        "--save-at-breakpoint",
         action=check_env,
         help="Bool. If True, the agent in the main process will save the "
         "checkpoint in the memory to the storage if the training "
@@ -289,7 +289,9 @@ def _elastic_config_from_args(
     elastic_config.network_check = getattr(args, "network_check", False)
     elastic_config.auto_tunning = getattr(args, "auto_tunning", False)
     elastic_config.auto_config = getattr(args, "auto_config", False)
-    elastic_config.accelerator = getattr(args, "accelerator", "")
+    elastic_config.accelerator = getattr(
+        args, "accelerator", Accelerators.NVIDIA_GPU
+    )
     elastic_config.exclude_straggler = getattr(
         args, "exclude_straggler", False
     )

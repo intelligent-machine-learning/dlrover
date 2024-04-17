@@ -8,5 +8,5 @@ runs:
     - "/bin/bash"
     - "-c"
     - "cd atorch \
-&& sh bin/build_proto.sh \
+&& sh dev/scripts/build_proto.sh \
 && sh dev/scripts/pre-commit.sh"

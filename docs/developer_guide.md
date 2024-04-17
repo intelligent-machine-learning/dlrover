@@ -18,6 +18,7 @@ by the following steps.
 
 - ```docker run -v `pwd`:/dlrover -it easydl/dlrover:ci /bin/bash```
 - `cd /dlrover`
+- `pip install deprecated kubernetes pynvml psutil ray torch && sh scripts/build_wheel.sh`
 - `pre-commit run -a`
 - `python -m pytest dlrover/python/tests`
 - `python -m pytest dlrover/trainer/tests`

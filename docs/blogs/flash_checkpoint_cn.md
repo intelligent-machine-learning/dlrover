@@ -115,11 +115,11 @@ optimizer.load_state_dict(ckpt_dict["optimizer"]
 
 ```Python
 from dlrover.trainer.torch.flash_checkpoint.fsdp import (
-    FsdpCheckpointer,
+    FsdpShardCheckpointer,
     StorageType,
 )
 
-checkpointer = FsdpCheckpointer(checkpoint_dir)
+checkpointer = FsdpShardCheckpointer(checkpoint_dir)
 
 with FSDP.state_dict_type(model, StateDictType.SHARDED_STATE_DICT):
     state_dict = {
@@ -147,7 +147,7 @@ with FSDP.state_dict_type(model, StateDictType.SHARDED_STATE_DICT):
 storage reader 配置为 Flash Checkpoint 支持 FSDP 的 reader 即可。
 
 ```Python
-checkpointer = FsdpCheckpointer(checkpoint_dir)
+checkpointer = FsdpShardCheckpointer(checkpoint_dir)
 
 with FSDP.state_dict_type(model, StateDictType.SHARDED_STATE_DICT):
     state_dict = {
@@ -242,6 +242,32 @@ if args.save and iteration % save_memory_interval == 0:
 
 ```bash
 dlrover-run --nnodes=1 --max_restarts=2 --nproc_per_node=2 train.py 
+```
+
+#### HuggingFace transformers.Trainer
+
+用户可以使用 Flash Checkpoint 的 `FlashCkptTrainer` 来替换 `transformers.Trainer`。这两者的
+唯一区别就是 `FlashCkptTrainer` 重新实现了 `_save_checkpoint` 接口来支持异步保存 Checkpoint。
+其他功能，`FlashCkptTrainer` 与 `transformers.Trainer` 完全一致。
+
+**注意**: 推荐使用 `transformers==4.37.2`，因为我们在这个版本上测试 `FlashCkptTrainer`，
+`FlashCkptTrainer` 当前支持上 Trainer 使用 DeepSpeed 训练或者 peft 训练，不支持 FSDP 训练。
+
+```python
+from dlrover.trainer.torch.flash_checkpoint.hf_trainer import FlashCkptTrainer
+
+# Replace `Trainer` with `FlashCkptTrainer`.
+trainer = FlashCkptTrainer(
+    model=model,
+    train_dataset=train_data,
+    eval_dataset=val_data,
+    args=training_arguments,
+    data_collator=data_collator,
+)
+
+# Get the latest checkpoint path.
+last_ckpt_path = trainer.get_last_checkpoint()
+trainer.train(resume_from_checkpoint=last_ckpt_path)
 ```
 
 ## Benchmark 实验

@@ -1,4 +1,5 @@
 # mypy: ignore-errors
+from importlib import metadata
 from typing import Any, Callable, Dict, Tuple, Union
 
 import torch
@@ -126,7 +127,8 @@ def te_checkpoint_backward(ctx, *args: Tuple[Union[torch.Tensor, None], ...]) ->
     return (None, None, None, None, None) + grads
 
 
-def patch_te():
-    # patch checkpoint
-    CheckpointFunction.forward = te_checkpoint_forward
-    CheckpointFunction.backward = te_checkpoint_backward
+def patch_te_if_needed():
+    # patch checkpoint if te version < 1.3
+    if metadata.version("transformer_engine") < "1.3":
+        CheckpointFunction.forward = te_checkpoint_forward
+        CheckpointFunction.backward = te_checkpoint_backward

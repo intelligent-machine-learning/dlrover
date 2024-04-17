@@ -50,8 +50,9 @@ class AtorchArguments(Seq2SeqTrainingArguments):
             )
         },
     )
-    loss_func: Optional[Callable] = field(
-        default=None,
+    shuffle: bool = field(default=True, metadata={"help": "If `True` (default), dataloader will shuffle the data."})
+    optim_func: Optional[Callable] = field(
+        default=torch.optim.AdamW,
         metadata={
             "help": (
                 "optim_func can be a pytorch built-in optimizer function or a user-defined function, with params and"
@@ -69,6 +70,18 @@ class AtorchArguments(Seq2SeqTrainingArguments):
     optim_param_func: Optional[Callable] = field(
         default=None,
         metadata={"help": "Function returns an optimizer's parameters if users want to specify per-parameter options."},
+    )
+    loss_func: Optional[Callable] = field(
+        default=None,
+        metadata={
+            "help": (
+                "loss function for loss calculation from model input and output, such as:"
+                "def loss_func(input, output):"
+                "    loss = nn.MSELoss()"
+                '    return loss(input["label"], output)'
+                "This function either returns a loss value, or a list/tuple with the first value as loss."
+            )
+        },
     )
     prepare_input: Optional[Callable] = field(
         default=None,
@@ -109,7 +122,7 @@ class AtorchArguments(Seq2SeqTrainingArguments):
         default=None, metadata={"help": "If not None, a file name for saving the acceleration strategy."}
     )
 
-    atorch_checkpoint_cls: Optional[Tuple[Callable]] = field(
+    atorch_checkpoint_cls: Optional[Tuple[Union[Callable, str]]] = field(
         default=None,
         metadata={
             "help": (
@@ -134,13 +147,13 @@ class AtorchArguments(Seq2SeqTrainingArguments):
 
     async_save: bool = field(default=False, metadata={"help": ("Whether to use multiprocess to save model.")})
 
-    atorch_lr_scheduler_type: Union[AtorchSchedulerType, str] = field(
+    atorch_lr_scheduler_type: Optional[Union[AtorchSchedulerType, str]] = field(
         default=None,
         metadata={"help": "The custom scheduler type to use."},
     )
 
     # ATorch FSDP config
-    atorch_wrap_cls: Optional[Tuple[Callable]] = field(
+    atorch_wrap_cls: Optional[Tuple[Union[Callable, str]]] = field(
         default=None, metadata={"help": "Tuple of module classes to wrap with fsdp."}
     )
     cpu_offload: bool = field(default=False, metadata={"help": "Whether to use cpu_offload"})
@@ -206,11 +219,12 @@ class AtorchArguments(Seq2SeqTrainingArguments):
         return d
 
     def __post_init__(self):
-        # set logging_dir for AntMonitor
-        if self.logging_dir is None:
-            tensorboard_path = os.getenv("ATORCH_TENSORBOARD_PATH")
-            tensorboard_path = os.path.expandvars(tensorboard_path) if tensorboard_path else None
-            self.logging_dir = tensorboard_path
+        # Check arguments in transformers.training_args.TrainingArguments
+        if self.report_to is not None:
+            if self.report_to == "all" or self.report_to == ["all"]:
+                logger.info("AtorchTrainer only support TensorBoard to report the results and logs.")
+            elif self.report_to != "tensorboard" and self.report_to != ["tensorboard"]:
+                raise ValueError("AtorchTrainer only support TensorBoard to report the results and logs.")
 
         # check lr_scheduler_type
         if self.atorch_lr_scheduler_type is not None and self.atorch_lr_scheduler_type not in ATORCHSCHEDULER_NAMES:
@@ -219,10 +233,10 @@ class AtorchArguments(Seq2SeqTrainingArguments):
                 f"{SCHEDULER_NAMES + ATORCHSCHEDULER_NAMES}."
             )
 
-        super().__post_init__()
-
         if self.atorch_wrap_cls is not None and not isinstance(self.atorch_wrap_cls, tuple):
             raise ValueError(f"atorch_wrap_cls has {type(self.atorch_wrap_cls)} type, required tuple type.")
 
         if self.atorch_checkpoint_cls is not None and not isinstance(self.atorch_checkpoint_cls, tuple):
             raise ValueError(f"atorch_checkpoint_cls has {type(self.atorch_checkpoint_cls)} type, required tuple type.")
+
+        Seq2SeqTrainingArguments.__post_init__(self)

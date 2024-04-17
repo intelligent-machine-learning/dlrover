@@ -23,6 +23,10 @@ from transformers import (
     TrainerCallback,
 )
 
+from dlrover.trainer.torch.flash_checkpoint.hf_trainer import FlashCkptTrainer
+
+from .ascend_utils import is_torch_npu_available
+
 CUTOFF_LEN = 512
 
 
@@ -111,9 +115,7 @@ def train(data_path, model_name_or_path="meta-llama/Llama-2-7b-hf"):
     LORA_DROPOUT = 0.05
     LORA_TARGET_MODULES = ["q_proj", "v_proj"]
 
-    BATCH_SIZE = 16
-    MICRO_BATCH_SIZE = 16
-    GRADIENT_ACCUMULATION_STEPS = BATCH_SIZE // MICRO_BATCH_SIZE
+    MICRO_BATCH_SIZE = 8
     LEARNING_RATE = 3e-4
     TRAIN_STEPS = 3000
     OUTPUT_DIR = "experiments"
@@ -131,7 +133,6 @@ def train(data_path, model_name_or_path="meta-llama/Llama-2-7b-hf"):
 
     training_arguments = transformers.TrainingArguments(
         per_device_train_batch_size=MICRO_BATCH_SIZE,
-        gradient_accumulation_steps=GRADIENT_ACCUMULATION_STEPS,
         warmup_steps=100,
         max_steps=TRAIN_STEPS,
         learning_rate=LEARNING_RATE,
@@ -152,7 +153,7 @@ def train(data_path, model_name_or_path="meta-llama/Llama-2-7b-hf"):
         tokenizer, pad_to_multiple_of=8, return_tensors="pt", padding=True
     )
 
-    trainer = transformers.Trainer(
+    trainer = FlashCkptTrainer(
         model=model,
         train_dataset=train_data,
         eval_dataset=val_data,
@@ -168,9 +169,11 @@ def train(data_path, model_name_or_path="meta-llama/Llama-2-7b-hf"):
         )
     ).__get__(model, type(model))
 
-    model = torch.compile(model)
+    if not is_torch_npu_available():
+        model = torch.compile(model)
 
-    trainer.train()
+    last_ckpt_path = trainer.get_last_checkpoint()
+    trainer.train(resume_from_checkpoint=last_ckpt_path)
     model.save_pretrained(OUTPUT_DIR)
 
 

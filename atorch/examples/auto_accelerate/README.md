@@ -12,7 +12,7 @@
 ## Usage
 
 ```
-train.py [-h] --model_type MODEL_TYPE [--datasize DATASIZE] [--epoch EPOCH] [--hidden_size HIDDEN_SIZE] [--head_num HEAD_NUM] [--layer_num LAYER_NUM] [--seq_length SEQ_LENGTH] [--batchsize BATCHSIZE] [--distributed] [--user_created_dataloader] [--load_strategy] [--optim_grouped_params] [--log_interval LOG_INTERVAL] [--use_fsdp] [--use_amp] [--use_checkpointing] [--use_module_replace]
+train.py [-h] --model_type MODEL_TYPE [--datasize DATASIZE] [--epoch EPOCH] [--hidden_size HIDDEN_SIZE] [--head_num HEAD_NUM] [--layer_num LAYER_NUM] [--seq_length SEQ_LENGTH] [--batchsize BATCHSIZE] [--distributed] [--user_created_dataloader] [--load_strategy] [--optim_grouped_params] [--log_interval LOG_INTERVAL] [--use_fsdp] [--use_amp] [--use_checkpointing] [--use_module_replace] [--use_fp8]
 ```
 
 model_type: toy, gpt2, or llama
@@ -40,6 +40,7 @@ Optional args:
 + use_amp: if set, add amp_native optimization method in load_strategy. Default False.
 + use_checkpointing: if set, add checkpoint optimization method in load_strategy. Default False.
 + use_module_replace: if set, add module_replace optimization method in load_strategy. Default False.
++ use_fp8: if set, use fp8 for nn.Linear op if gpu sm >= 8.9. Default False.
 
 To launch distributed training, such as 8 process per node training for llama,  run:
 

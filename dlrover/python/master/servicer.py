@@ -110,8 +110,6 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             message = self._check_fault_node()
         elif isinstance(req_message, grpc.StragglerExistRequest):
             message = self._check_straggler()
-        elif isinstance(req_message, grpc.JoinRendezvousRequest):
-            message = self._join_rendezvous(req_message)
         elif isinstance(req_message, grpc.CommWorldRequest):
             message = self._get_comm_world(req_message)
         elif isinstance(req_message, grpc.KeyValuePair):
@@ -236,7 +234,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
     def _join_rendezvous(self, request: grpc.JoinRendezvousRequest):
         rdzv_manager = self._rdzv_managers[request.rdzv_name]
         round = rdzv_manager.join_rendezvous(
-            request.node_id, request.local_world_size
+            request.node_id, request.local_world_size, request.node_ip
         )
         if request.rdzv_name == RendezvousName.NETWORK_CHECK:
             # The waiting node in the training rdzv should clear if
@@ -259,8 +257,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         res = grpc.RendezvousState(world={})
         res.group = group
         res.round = rdzv_round
-        for rank_id, worker_num in nodes.items():
-            res.world[rank_id] = worker_num
+        for rank_id, meta in nodes.items():
+            res.world[rank_id] = meta.process_num
         return res
 
     def _kv_store_get(self, request: grpc.KeyValuePair):
@@ -332,6 +330,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             success = self._report_paral_config(node_type, node_id, message)
         elif isinstance(message, grpc.HeartBeat):
             success = self._report_heartbeat(node_type, node_id, message)
+        elif isinstance(message, grpc.NodeCheckpointState):
+            success = self._sync_checkpoint(node_type, node_id, message)
 
         response.success = success
         return response
@@ -565,6 +565,14 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             message.timestamp,
         )
         return True
+
+    def _sync_checkpoint(
+        self, node_type, node_id, message: grpc.NodeCheckpointState
+    ):
+        if RendezvousName.ELASTIC_TRAINING not in self._rdzv_managers:
+            return False
+        rdzv_manager = self._rdzv_managers[RendezvousName.ELASTIC_TRAINING]
+        return rdzv_manager.sync_ckpt_nodes(node_id, message.step)
 
 
 def create_master_service(

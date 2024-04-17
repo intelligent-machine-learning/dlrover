@@ -89,7 +89,13 @@ class DeepSpeedCheckpointEngine(CheckpointEngine):
                 the value is the path of storage to save.
         """
         conf = CheckpointConfig(step=step, paths=paths)
-        return self.save_state_dict_to_memory(state_dict, conf)
+        import time
+
+        start = time.time()
+        success = self.save_state_dict_to_memory(state_dict, conf)
+        t = round(time.time() - start, 2)
+        print(f"Save Time is {t}s")
+        return success
 
     @timer
     def save_to_storage(self, step, state_dict, paths):
@@ -107,17 +113,18 @@ class DeepSpeedCheckpointEngine(CheckpointEngine):
                 ["model_states", "optim_states"] of the state dict and
                 the value is the path of storage to save.
         """
-        succeed = True
+        success = True
         if step > self._cached_step:
-            succeed = self.save_to_memory(step, state_dict, paths)
+            success = self.save_to_memory(step, state_dict, paths)
 
         if dist.is_initialized():
             dist.barrier()
 
         # Only local rank 0 to notify the saving event to the agent.
-        if self._local_rank == 0 and succeed:
+        if self._local_rank == 0 and success:
             event = CheckpointEvent(type=CheckpointEventType.SAVE, step=step)
             self._event_queue.put(event)
+        return success
 
     def get_local_shard_num(self):
         local_world_size = env_utils.get_local_world_size()
