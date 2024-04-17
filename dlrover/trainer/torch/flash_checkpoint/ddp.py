@@ -19,12 +19,13 @@ from dlrover.python.common.constants import CheckpointConstant
 from dlrover.python.common.storage import PosixDiskStorage
 
 from .checkpointer import Checkpointer, StorageType
-from .ddp_engine import DdpCheckpointEngine
+from .full_ckpt_engine import FullCheckpointEngine
 
 
 class DdpCheckpointer(Checkpointer):
     """
-    Flash checkpointer to save and load a DDP model.
+    Flash checkpointer to save and load a DDP model or a model state
+    dict with full weights.
 
     Args:
         checkpoint_dir: the directory to save the checkpoint.
@@ -56,7 +57,7 @@ class DdpCheckpointer(Checkpointer):
         >>>         checkpointer.save_checkpoint(
         >>>             step, state_dict, path, storage_type=StorageType.DISK
         >>>         )
-        >>> sate_dict = engine.load_checkpoint()
+        >>> sate_dict = checkpointer.load_checkpoint()
     """
 
     def __init__(
@@ -73,7 +74,7 @@ class DdpCheckpointer(Checkpointer):
         else:
             self._rank = 0
         self.storage = PosixDiskStorage() if not storage else storage
-        self._engine = DdpCheckpointEngine(
+        self._engine = FullCheckpointEngine(
             checkpoint_dir=checkpoint_dir,
             storage=self.storage,
             local_shard_num=local_shard_num,
