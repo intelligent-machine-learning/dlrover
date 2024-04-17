@@ -937,6 +937,8 @@ def network_check(
     args: List[Any],
 ) -> bool:
     config = copy.deepcopy(config)
+
+    # Disable checking network when execute tasks to check network.
     config.network_check = False
     if not config.run_id:
         run_id = str(uuid.uuid4().int)
