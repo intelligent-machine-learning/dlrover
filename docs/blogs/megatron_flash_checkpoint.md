@@ -89,7 +89,8 @@ The process is illustrated in the diagram below:
 
 Users need to install the DLRover package with `pip install dlrover[torch] -U`,
 and then replace the `save_checkpoint` and `load_checkpoint`
-with DLRover's Flash Checkpoint interfaces in megatron/training.py.
+with DLRover's Flash Checkpoint interfaces in megatron/training.py
+of Megatron-LM([cb995d5](https://github.com/NVIDIA/Megatron-LM/tree/cb995d571faea19d01a1bf55ed0fd89523b9ce64)).
 
 ```Python
 # from megatron.checkpointing import load_checkpoint
