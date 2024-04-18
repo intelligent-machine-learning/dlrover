@@ -816,7 +816,7 @@ class DistributedJobManager(JobManager):
 
     def pend_without_workers(self):
         """Check whether to wait for evicted workers."""
-        if self._worker_manager.has_failed_worker():
+        if self._worker_manager.has_exited_worker():
             return False
         elif self._worker_manager.wait_worker_restart():
             return True
