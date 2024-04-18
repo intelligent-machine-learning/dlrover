@@ -89,7 +89,8 @@ The process is illustrated in the diagram below:
 
 Users need to install the DLRover package with `pip install dlrover[torch] -U`,
 and then replace the `save_checkpoint` and `load_checkpoint`
-with DLRover's Flash Checkpoint interfaces in megatron/training.py.
+with DLRover's Flash Checkpoint interfaces in megatron/training.py
+of Megatron-LM([cb995d5](https://github.com/NVIDIA/Megatron-LM/tree/cb995d571faea19d01a1bf55ed0fd89523b9ce64)).
 
 ```Python
 # from megatron.checkpointing import load_checkpoint
@@ -117,8 +118,9 @@ VOCAB_FILE=<Specify path to file>/gpt2-vocab.json
 MERGE_FILE=<Specify path to file>/gpt2-merges.txt
 DATA_PATH=<Specify path and file prefix>_text_document
 
-# We can also use torchrun to start
-dlrover-run --nnodes=$NNODES --nproc_per_node=$GPUS_PER_NODE pretrain_gpt.py \
+# We can also use torchrun to start.
+# --max_restarts is the number to restart training process for fault tolerance.
+dlrover-run --nnodes=$NNODES --nproc_per_node=$GPUS_PER_NODE --max_restarts=3 pretrain_gpt.py \
        --tensor-model-parallel-size 8 \
        --pipeline-model-parallel-size 1 \
        --use-distributed-optimizer \

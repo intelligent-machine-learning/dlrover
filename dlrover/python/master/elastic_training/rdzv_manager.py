@@ -384,9 +384,13 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                     self._fault_nodes.clear()
                     self._straggler_nodes.clear()
                     self._node_groups = self._group_nodes(self._rdzv_round)
+                    rank_groups = []
+                    for group in self._node_groups:
+                        ranks = [rank for rank in group.keys()]
+                        rank_groups.append(ranks)
                     logger.info(
-                        f"Round {self._rdzv_round} "
-                        f"node group: {self._node_groups}"
+                        f"Node groups of round {self._rdzv_round} "
+                        f"are: {rank_groups}."
                     )
                     if self._rdzv_round % 2 == 0:
                         self._clear_check_status()

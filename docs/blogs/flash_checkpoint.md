@@ -52,7 +52,8 @@ reduces the wastage of training iteration step.
 the training process, at which point the checkpoint can be directly loaded from the host memory without
 the IO overhead to read storage files.
 4. Simple and Easy-to-Use Interface: It supports common large model training frameworks such as
-DDP (Distributed Data Parallel), FSDP (Fully Sharded Data Parallel), DeepSpeed, and Megatron-LM,
+DDP (Distributed Data Parallel), FSDP (Fully Sharded Data Parallel), DeepSpeed, and
+Megatron-LM([cb995d5](https://github.com/NVIDIA/Megatron-LM/tree/cb995d571faea19d01a1bf55ed0fd89523b9ce64)),
 with interfaces consistent with the original framework.
 
 ## System Design
@@ -100,7 +101,8 @@ This can avoid the IO overhead to read the remote storage system.
 
 To enable users to conveniently apply DLRover's Flash Checkpoint to training jobs,
 DLRover provide APIs to support Distributed Data Parallel (DDP),
-Fully Sharded Data Parallel (FSDP), DeepSpeed, and Megatron-LM.
+Fully Sharded Data Parallel (FSDP), DeepSpeed, and
+Megatron-LM([cb995d5](https://github.com/NVIDIA/Megatron-LM/tree/cb995d571faea19d01a1bf55ed0fd89523b9ce64)).
 
 ### DDP
 
@@ -241,8 +243,9 @@ checkpointer.load_checkpoint(checkpoint_dir)
 
 #### Megatron-LM
 
-Flash Checkpoint only adds a storage_type argument to the native Megatron-LM `save_checkpoint` to control
-whether to save to memory or to a storage system. The `load_checkpoint` is completely consistent with
+Flash Checkpoint only adds a storage_type argument to the native Megatron-LM([cb995d5](https://github.com/NVIDIA/Megatron-LM/tree/cb995d571faea19d01a1bf55ed0fd89523b9ce64))
+`save_checkpoint` to control whether to save to memory or to a storage system.
+The `load_checkpoint` is completely consistent with
 Megatron-LM's native `load_checkpoint`. Users only need to modify the megatron/training.py file in Megatron-LM repo
 to use the Flash Checkpoint.
 
