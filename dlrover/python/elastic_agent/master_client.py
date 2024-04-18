@@ -376,6 +376,18 @@ class MasterClient(Singleton):
     def report_paral_config(self, config: grpc.ParallelConfig):
         self._report(config)
 
+    def report_diagnosis_training_log(self, training_log):
+        message = grpc.DiagnosisTrainingLog(training_log.timestamp)
+        self._report(message)
+
+    def report_diagnosis_chip_metrics(self, chip_metrics):
+        message = grpc.DiagnosisChpMetrics(chip_metrics.timestamp)
+        self._report(message)
+
+    def report_diagnosis_cuda_event(self, cuda_event):
+        message = grpc.DiagnosisCudaEvent(cuda_event.timestamp)
+        self._report(message)
+
     def get_paral_config(self) -> grpc.ParallelConfig:
         request = grpc.ParallelConfigRequest()
         result = self._get(request)
