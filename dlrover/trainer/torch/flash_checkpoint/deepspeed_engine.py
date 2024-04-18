@@ -146,7 +146,7 @@ class DeepSpeedCheckpointEngine(CheckpointEngine):
         Returns:
             A dict.
         """
-        state_dict = self.get_state_dict_from_memory()
+        _, state_dict = self.get_state_dict_from_memory()
         if state_dict:
             msd_name = CheckpointConstant.MODEL_STATES_NAME
             if msd_name not in state_dict and self.zero_stage in [1, 2]:

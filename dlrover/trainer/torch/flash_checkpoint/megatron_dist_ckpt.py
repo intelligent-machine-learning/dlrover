@@ -262,6 +262,8 @@ def load_checkpoint(
     opt_param_scheduler,
     load_arg="load",
     strict=True,
+    storage=None,
+    comm_backend="",
 ):
     """Load a model checkpoint and return the iteration.
     strict (bool): whether to strictly enforce that the keys in
@@ -271,14 +273,28 @@ def load_checkpoint(
     args = get_args()
     load_dir = getattr(args, load_arg)
 
-    model = unwrap_model(model)
+    checkpointer = MegatronDistCheckpointer.singleton_instance(
+        args.save,
+        storage=storage,
+        comm_backend=comm_backend,
+        use_distributed_optimizer=args.use_distributed_optimizer,
+    )
 
+    model = unwrap_model(model)
     (
         model_state_dict,
         opt_state_dict,
         checkpoint_name,
         release,
-    ) = _load_base_checkpoint(load_dir, rank0=False)
+    ) = _load_checkpoint_from_memory(checkpointer)
+
+    if not model_state_dict:
+        (
+            model_state_dict,
+            opt_state_dict,
+            checkpoint_name,
+            release,
+        ) = _load_base_checkpoint(load_dir, rank0=False)
 
     # Checkpoint not loaded.
     if model_state_dict is None:
@@ -447,12 +463,20 @@ def load_checkpoint(
     return iteration, num_floating_point_operations_so_far
 
 
+def _load_checkpoint_from_memory(checkpointer):
+    step, state_dict = checkpointer.engine.load()
+    model_state_dict = state_dict.get(CheckpointConstant.MODEL_STATES_NAME, {})
+    opt_state_dict = state_dict.get(CheckpointConstant.OPTIM_STATES_NAME, {})
+    checkpoint_name = "iter_{:07d}".format(step)
+    release = False
+    return model_state_dict, opt_state_dict, checkpoint_name, release
+
+
 def _load_base_checkpoint(load_dir, rank0=False):
     """Load the base state_dict from the given directory
 
     If rank0 is true, just loads rank 0 checkpoint, ignoring arguments.
     """
-
     # Read the tracker file and set the iteration.
     tracker_filename = get_checkpoint_tracker_filename(load_dir)
 
