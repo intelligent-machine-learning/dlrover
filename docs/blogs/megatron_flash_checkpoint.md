@@ -154,8 +154,8 @@ dlrover-run --nnodes=$NNODES --nproc_per_node=$GPUS_PER_NODE --max_restarts=3 pr
 
 The experiment results are：
 
-|  Optimizer Type  | Megatron-LM Save| Flash Checkpoint Save| Megatron-LM Load| Flash Checkpoint Load |
-| --- | --- | --- | --- | --- |
+|  Optimizer Type  | Checkpoint Size|  Megatron-LM Save| Flash Checkpoint Save| Megatron-LM Load| Flash Checkpoint Load |
+| --- | --- | --- | --- | --- |  --- |
 | no distributed optimizer | 18GB | 151s | **0.5s** | 205s | 207s |
 | distributed optimizer | 24GB | 242s | **0.5s** | 242s | **156s** |
 
