@@ -118,8 +118,9 @@ VOCAB_FILE=<Specify path to file>/gpt2-vocab.json
 MERGE_FILE=<Specify path to file>/gpt2-merges.txt
 DATA_PATH=<Specify path and file prefix>_text_document
 
-# We can also use torchrun to start
-dlrover-run --nnodes=$NNODES --nproc_per_node=$GPUS_PER_NODE pretrain_gpt.py \
+# We can also use torchrun to start.
+# --max_restarts is the number to restart training process for fault tolerance.
+dlrover-run --nnodes=$NNODES --nproc_per_node=$GPUS_PER_NODE --max_restarts=3 pretrain_gpt.py \
        --tensor-model-parallel-size 8 \
        --pipeline-model-parallel-size 1 \
        --use-distributed-optimizer \

@@ -32,11 +32,10 @@ def retry_grpc_request(func):
             try:
                 return func(self, *args, **kwargs)
             except Exception as e:
+                class_name = self.__class__.__name__
+                func_name = func.__name__
                 logger.warning(
-                    "Retry %s to %s.%s with failure",
-                    i,
-                    self.__class__.__name__,
-                    func.__name__,
+                    f"Retry {i} to {class_name}.{func_name} with failure",
                 )
                 execption = e
                 time.sleep(5)

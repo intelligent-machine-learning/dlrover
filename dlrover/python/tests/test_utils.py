@@ -265,10 +265,11 @@ def mock_k8s_client():
     k8s_client.get_service = mock.MagicMock(return_value=False)  # type: ignore
 
 
-def start_local_master():
+def start_local_master(port=12345):
     job_args = LocalJobArgs("local", "default", "test")
     job_args.initilize()
-    port = find_free_port()
+    if not port:
+        port = find_free_port()
     master = LocalJobMaster(port, job_args)
     master.prepare()
     addr = f"127.0.0.1:{port}"
