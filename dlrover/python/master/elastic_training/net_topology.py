@@ -14,7 +14,7 @@ import json
 from abc import ABCMeta, abstractmethod
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 
 @dataclass
@@ -26,10 +26,9 @@ class NodeTopologyMeta(object):
     psw: str = ""
 
     def __repr__(self) -> str:
-        d = {
-            "node_rank": self.node_rank,
-            "process_num": self.process_num,
-        }
+        d: Dict[str, Any] = {}
+        d["node_rank"] = self.node_rank
+        d["process_num"] = self.process_num
         if self.node_ip:
             d["node_ip"] = self.node_ip
         if self.asw:
