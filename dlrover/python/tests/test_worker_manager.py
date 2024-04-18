@@ -157,13 +157,17 @@ class WorkerManagerTest(unittest.TestCase):
         for node in worker_manager._nodes.values():
             node.status = NodeStatus.FAILED
             node.exit_reason = NodeExitReason.FATAL_ERROR
-        failed = worker_manager.has_exited_worker()
-        self.assertTrue(failed)
+        exited = worker_manager.has_exited_worker()
+        self.assertTrue(exited)
 
         for node in worker_manager._nodes.values():
             node.exit_reason = NodeExitReason.KILLED
-        failed = worker_manager.has_exited_worker()
-        self.assertFalse(failed)
+        exited = worker_manager.has_exited_worker()
+        self.assertFalse(exited)
+
+        worker_manager._nodes[0].status = NodeStatus.SUCCEEDED
+        exited = worker_manager.has_exited_worker()
+        self.assertTrue(exited)
 
         wait = worker_manager.wait_worker_restart()
         self.assertTrue(wait)
