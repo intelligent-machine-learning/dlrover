@@ -264,10 +264,13 @@ class WorkerManager(TrainingNodeManager):
                     plan.merge(p)
         return plan
 
-    def has_failed_worker(self):
-        """Check whether there is failed worker except evicted workers."""
+    def has_exited_worker(self):
+        """Check whether there is exited worker except evicted workers."""
         for worker in self._nodes.values():
-            if worker.exit_reason == NodeExitReason.FATAL_ERROR:
+            if (
+                worker.exit_reason == NodeExitReason.FATAL_ERROR
+                or worker.status == NodeStatus.SUCCEEDED
+            ):
                 return True
         return False
 
