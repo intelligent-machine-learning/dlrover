@@ -82,16 +82,7 @@ def _create_socket_client(path):
 
     """
     client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    connected = False
-    for _ in range(30):
-        try:
-            client.connect(path)
-            connected = True
-            break
-        except (FileNotFoundError, ConnectionRefusedError):
-            time.sleep(0.5)
-    if not connected:
-        client.connect(path)
+    client.connect(path)
     return client
 
 
