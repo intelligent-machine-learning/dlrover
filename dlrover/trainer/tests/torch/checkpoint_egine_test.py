@@ -197,7 +197,8 @@ class ShardingCheckpointEngineTest(unittest.TestCase):
             )
             with open(tracker_file, "w") as f:
                 f.write(str(step))
-            sd = engine.load()
+            step, sd = engine.load()
+            self.assertEqual(step, 0)
             self.assertDictEqual(sd, {})
 
     def test_deepspeed_engine(self):

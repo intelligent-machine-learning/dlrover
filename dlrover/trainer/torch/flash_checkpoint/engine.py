@@ -328,9 +328,7 @@ class CheckpointEngine(metaclass=ABCMeta):
         if passed and config.step > 0:
             state_dict = self._shm_handler.load_state_dict()
             state_dict.pop(DLROVER_CKPT_CONFIG_KEY, None)
-            logger.info(
-                f"Load checkpoint at step {config.step} from the shared memory."
-            )
+            logger.info(f"Load checkpoint at step {config.step} from memory.")
         return config.step, state_dict
 
     @abstractmethod
