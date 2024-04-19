@@ -474,6 +474,8 @@ class SharedDict(LocalSocketComm):
         super().__init__(name, create)
 
         self._dict = {}
+
+        # The queue is used to notify the saver waiting for a new dict.
         self._shared_queue = SharedQueue(
             name=f"shard_dict_{name}", create=self._create
         )
@@ -487,14 +489,17 @@ class SharedDict(LocalSocketComm):
                 response = DictMessage()
                 if msg.method == "set":
                     self.set(**msg.args)
-                    self._shared_queue.get(1)
                 elif msg.method == "get":
                     response = DictMessage()
                     response.meta_dict = self.get(**msg.args)
                 response.status = SUCCESS_CODE
-            except Exception:
+            except Exception as e:
                 response = SocketResponse()
                 response.status = ERROR_CODE
+                logger.error(e)
+            finally:
+                if not self._shared_queue.empty():
+                    self._shared_queue.get(1)
             message = pickle.dumps(response)
             _socket_send(connection, message)
 
@@ -509,11 +514,10 @@ class SharedDict(LocalSocketComm):
         if not self._server:
             args = {"new_dict": self._dict}
             request = SocketRequest(method="set", args=args)
-            try:
-                self._shared_queue.put(1)
-                self._request(request)
-            except Exception:
-                logger.info("The recv process has breakdown.")
+            self._shared_queue.put(1)
+            response = self._request(request)
+            if response.status == ERROR_CODE:
+                raise RuntimeError("Fail to set metadata!")
 
     def get(self, local=False):
         """
