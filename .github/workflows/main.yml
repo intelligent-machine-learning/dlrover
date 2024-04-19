@@ -24,11 +24,12 @@ jobs:
       - name: RUN pytest
         uses: ./.github/actions/dlrover-python-test
         env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+          CODECOV_TOKEN: "AAAA"
       - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v3
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        uses: codecov/codecov-action@v4.0.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: intelligent-machine-learning/dlrover
   operator-test:
     runs-on: ubuntu-latest
     steps:
