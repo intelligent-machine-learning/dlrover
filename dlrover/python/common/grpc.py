@@ -459,7 +459,7 @@ class DiagnosisTrainingLog(Message):
 
 
 @dataclass
-class DiagnosisCudaEvent(Message):
+class DiagnosisCudaLog(Message):
     timestamp: int = 0
 
 

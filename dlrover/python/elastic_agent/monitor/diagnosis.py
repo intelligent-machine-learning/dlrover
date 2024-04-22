@@ -90,7 +90,7 @@ class DiagnosisMonitor(Singleton):
 
     def report_diagnosis_data(self, data):
         if isinstance(data, CudaLog):
-            self._master_client.report_diagnosis_cuda_event(data)
+            self._master_client.report_diagnosis_cuda_log(data)
         elif isinstance(data, TrainingLog):
             self._master_client.report_diagnosis_training_log(data)
         elif isinstance(data, ChipMetrics):
