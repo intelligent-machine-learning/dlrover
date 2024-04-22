@@ -582,6 +582,14 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     "for other agents to finish."
                 )
                 self._exit_barrier()
+                saver = AsyncCheckpointSaver.get_ckpt_saver()
+                if saver:
+                    while saver.wait_saving_checkpoint():
+                        time.sleep(5)
+                        logger.info(
+                            "Wait for the asynchronous saver "
+                            "saves the checkpoint."
+                        )
                 return run_result
             elif state in {WorkerState.UNHEALTHY, WorkerState.FAILED}:
                 logger.error(f"The worker fails with {run_result.failures}")

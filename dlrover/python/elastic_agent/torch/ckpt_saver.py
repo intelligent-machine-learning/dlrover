@@ -489,6 +489,13 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         signal.signal(signal.SIGINT, _clean_shm_handler)
         signal.signal(signal.SIGTERM, _save_shm_before_exiting)
 
+    def wait_saving_checkpoint(self):
+        """
+        Check whether the saver finishes writing the
+        latest checkpoint to the storage.
+        """
+        return self._writing_storage
+
     def close(self):
         """Clear the resource of the shared objects."""
         event = CheckpointEvent(type=CheckpointEventType.EXIT)
