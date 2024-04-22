@@ -305,8 +305,11 @@ class FlashCkptTrainer(Trainer):
         if self.tokenizer is not None:
             self.tokenizer.save_pretrained(output_dir)
 
-        args_path = os.path.join(output_dir, TRAINING_ARGS_NAME)
-        self.flash_checkpointer.ckpt_agent.save(self.args, args_path)
+        # Good practice: save your training arguments
+        # together with the trained model
+        torch_native_save(
+            self.args, os.path.join(output_dir, TRAINING_ARGS_NAME)
+        )
 
     def _rotate_checkpoints(self, use_mtime=False, output_dir=None) -> None:
         if (
