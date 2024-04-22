@@ -234,6 +234,7 @@ class SharedMemoryHandler(object):
             )
         self.shared_memory: Optional[SharedMemory] = None
         self.metadata = SharedDict(name=meta_name, create=host)
+        self._need_creation = True
 
     def close(self):
         if self.shared_memory:
@@ -249,7 +250,7 @@ class SharedMemoryHandler(object):
             self.metadata.unlink()
 
     def reset(self):
-        self.shared_memory = None
+        self._need_creation = True
 
     def _create_tensor_meta(self, value: torch.Tensor):
         """
@@ -301,7 +302,7 @@ class SharedMemoryHandler(object):
         config = meta_dict.get(DLROVER_CKPT_CONFIG_KEY, default_config)
         if not meta_dict or config.writing_shm:
             return {}
-        if self.shared_memory is None:
+        if self.shared_memory is None or self._need_creation:
             self.init_shared_memory(create=False)
         if not self.shared_memory:
             return {}
@@ -325,6 +326,7 @@ class SharedMemoryHandler(object):
         self.shared_memory = _create_shared_memory(
             self._shm_name, create=create, size=size
         )
+        self._need_creation = False
 
     def get_checkpoint_config(self, default_config):
         """
@@ -488,6 +490,13 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
 
         signal.signal(signal.SIGINT, _clean_shm_handler)
         signal.signal(signal.SIGTERM, _save_shm_before_exiting)
+
+    def wait_saving_checkpoint(self):
+        """
+        Check whether the saver finishes writing the
+        latest checkpoint to the storage.
+        """
+        return self._writing_storage
 
     def close(self):
         """Clear the resource of the shared objects."""
