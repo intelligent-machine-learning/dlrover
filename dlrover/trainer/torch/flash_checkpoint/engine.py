@@ -91,10 +91,13 @@ def verify_all_rank_step_consistent(group: dist.ProcessGroup, step):
 
 def timer(func):
     def wrapper(*args, **kwargs):
+        local_rank = env_utils.get_local_rank()
         start = time.time()
         result = func(*args, **kwargs)
         t = round(time.time() - start, 3)
-        logger.info(f"Function {func.__name__} cost {t}s")
+        logger.info(
+            f"Local rank {local_rank } execute {func.__name__} in {t}s."
+        )
         return result
 
     return wrapper
@@ -293,7 +296,10 @@ class CheckpointEngine(metaclass=ABCMeta):
         conf.world_size = self._world_size
 
         acquired = self._shm_lock.acquire(blocking=False)
-        logger.info(f"Acquired the lock of shared memory: {acquired}.")
+        logger.info(
+            f"{self._local_rank} acquired the lock of shared "
+            f"memory: {acquired}."
+        )
         all_rank_ready = check_all_rank_ready(self._saver_group, acquired)
         if not all_rank_ready or not state_dict:
             logger.info(
@@ -322,10 +328,8 @@ class CheckpointEngine(metaclass=ABCMeta):
         if passed and config.step > 0:
             state_dict = self._shm_handler.load_state_dict()
             state_dict.pop(DLROVER_CKPT_CONFIG_KEY, None)
-            logger.info(
-                f"Load step {config.step} checkpoint from the shared memory."
-            )
-        return state_dict
+            logger.info(f"Load checkpoint at step {config.step} from memory.")
+        return config.step, state_dict
 
     @abstractmethod
     def get_saving_ranks(self):

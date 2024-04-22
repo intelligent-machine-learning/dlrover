@@ -30,12 +30,12 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
 from .engine import CheckpointEngine, timer
 
 
-class DdpCheckpointEngine(CheckpointEngine):
+class FullCheckpointEngine(CheckpointEngine):
     """
     Save the checkpoint state dict of DDP model into the memory or storage.
 
     Examples::
-        >>> engine = DdpCheckpointEngine(
+        >>> engine = FullCheckpointEngine(
         >>>     checkpoint_dir="/tmp/checkpoint/"
         >>> )
         >>> for step, data in enumerate(dataloader):
@@ -143,7 +143,7 @@ class DdpCheckpointEngine(CheckpointEngine):
         Returns:
             A dict.
         """
-        state_dict = self.get_state_dict_from_memory()
+        _, state_dict = self.get_state_dict_from_memory()
         if state_dict:
             logger.info("Load the state dict from the CPU memory buffer.")
             paths = list(state_dict.keys())

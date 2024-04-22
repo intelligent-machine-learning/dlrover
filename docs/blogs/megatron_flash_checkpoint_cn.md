@@ -106,7 +106,8 @@ MERGE_FILE=<Specify path to file>/gpt2-merges.txt
 DATA_PATH=<Specify path and file prefix>_text_document
 
 # 也可以使用 torchrun 启动
-dlrover-run --nnodes=$NNODES --nproc_per_node=$GPUS_PER_NODE pretrain_gpt.py \
+# --max_restarts 是支持容错的重启次数
+dlrover-run --nnodes=$NNODES --nproc_per_node=$GPUS_PER_NODE --max_restarts=3 pretrain_gpt.py \
        --tensor-model-parallel-size 8 \
        --pipeline-model-parallel-size 1 \
        --use-distributed-optimizer \
@@ -140,8 +141,8 @@ dlrover-run --nnodes=$NNODES --nproc_per_node=$GPUS_PER_NODE pretrain_gpt.py \
 
 实验结果如下：
 
-|  Optimizer 类型  | Megatron-LM Save| Flash Checkpoint Save| Megatron-LM Load| Flash Checkpoint Load |
-| --- | --- | --- | --- | --- |
+|  Optimizer 类型  | Checkpoint Size |Megatron-LM Save| Flash Checkpoint Save| Megatron-LM Load| Flash Checkpoint Load |
+| --- | --- | --- | --- | --- | --- |
 | 非 distributed optimizer | 18GB | 151s | **0.5s** | 205s | 207s |
 | distributed optimizer | 24GB | 242s | **0.5s** | 242s | **156s** |
 

@@ -41,9 +41,6 @@ from transformers.trainer import (
 )
 
 from dlrover.python.common.storage import PosixDiskStorage
-from dlrover.trainer.torch.flash_checkpoint.ddp_engine import (
-    DdpCheckpointEngine,
-)
 from dlrover.trainer.torch.flash_checkpoint.deepspeed import (
     AsyncCheckpointAgent,
 )
@@ -51,6 +48,9 @@ from dlrover.trainer.torch.flash_checkpoint.deepspeed_engine import (
     DeepSpeedCheckpointEngine,
 )
 from dlrover.trainer.torch.flash_checkpoint.engine import CheckpointEngine
+from dlrover.trainer.torch.flash_checkpoint.full_ckpt_engine import (
+    FullCheckpointEngine,
+)
 
 torch_native_save = torch.save
 torch_native_load = torch.load
@@ -113,7 +113,7 @@ class HfDdpCheckpointer(HfFlashCheckpointer):
         comm_backend="",
     ):
         super().__init__(checkpoint_dir, storage)
-        self.async_save_engine = DdpCheckpointEngine(
+        self.async_save_engine = FullCheckpointEngine(
             checkpoint_dir,
             storage=self.storage,
             comm_backend=comm_backend,
@@ -305,8 +305,11 @@ class FlashCkptTrainer(Trainer):
         if self.tokenizer is not None:
             self.tokenizer.save_pretrained(output_dir)
 
-        args_path = os.path.join(output_dir, TRAINING_ARGS_NAME)
-        self.flash_checkpointer.ckpt_agent.save(self.args, args_path)
+        # Good practice: save your training arguments
+        # together with the trained model
+        torch_native_save(
+            self.args, os.path.join(output_dir, TRAINING_ARGS_NAME)
+        )
 
     def _rotate_checkpoints(self, use_mtime=False, output_dir=None) -> None:
         if (

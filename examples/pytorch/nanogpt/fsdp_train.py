@@ -49,7 +49,8 @@ from train_utils import (
 
 from dlrover.trainer.torch.elastic.trainer import ElasticTrainer
 from dlrover.trainer.torch.flash_checkpoint.fsdp import (
-    FsdpCheckpointer,
+    FsdpFullCheckpointer,
+    FsdpShardCheckpointer,
     StorageType,
 )
 
@@ -162,8 +163,12 @@ def train():
     if args.use_native_ckpt:
         iter_num = native_load_checkpoint(0, model, optimizer, checkpoint_dir)
     else:
-        checkpointer = FsdpCheckpointer(checkpoint_dir)
+        if args.flash_full_ckpt:
+            checkpointer = FsdpFullCheckpointer(checkpoint_dir)
+        else:
+            checkpointer = FsdpShardCheckpointer(checkpoint_dir)
         iter_num = flash_load_checkpoint(checkpointer, model, optimizer)
+
     load_time = round(time.time() - start_load_t, 2)
     print(f"Load checkpoint time : {load_time}s")
     iter_num = 0 if not iter_num else iter_num
@@ -243,7 +248,6 @@ def train():
                     optimizer,
                     args.save_memory_interval,
                     args.save_storage_interval,
-                    checkpoint_dir,
                 )
             if saved:
                 save_time = round(time.time() - start_save_t, 2)
@@ -312,65 +316,36 @@ def native_save_checkpoint(
     return saved
 
 
-def flash_load_checkpoint(checkpointer, model, optimizer):
-    with FSDP.state_dict_type(model, StateDictType.SHARDED_STATE_DICT):
-        state_dict = {
-            "model": model.state_dict(),
-            "step": 0,
-            # cannot load the optimizer state_dict together
-            # with the model state_dict
-        }
-        storage_reader = checkpointer.get_storage_reader()
-        if not storage_reader:
-            return
-        dist_cp.load_state_dict(
-            state_dict=state_dict,
-            storage_reader=storage_reader,
-        )
-        model.load_state_dict(state_dict["model"])
-
-        optim_state = load_sharded_optimizer_state_dict(
-            model_state_dict=state_dict["model"],
-            optimizer_key="optim",
-            storage_reader=storage_reader,
-        )
-
-        flattened_osd = FSDP.optim_state_dict_to_load(
-            model, optimizer, optim_state["optim"]
-        )
-        optimizer.load_state_dict(flattened_osd)
-        return state_dict["step"]
+def flash_load_checkpoint(
+    checkpointer: FsdpShardCheckpointer, model, optimizer
+):
+    extra_sd = checkpointer.load_checkpoint(model, optimizer)
+    return extra_sd.get("step", 0)
 
 
 def flash_save_checkpoint(
-    checkpointer,
+    checkpointer: FsdpFullCheckpointer,
     step,
     model,
     optimizer,
     save_memory_interval,
     save_storage_interval,
-    checkpoint_dir,
 ):
     saved = False
     if step % save_memory_interval != 0 and step % save_storage_interval != 0:
         return saved
-    with FSDP.state_dict_type(model, StateDictType.SHARDED_STATE_DICT):
-        state_dict = {
-            "model": model.state_dict(),
-            "optim": FSDP.optim_state_dict(model, optimizer),
-            "step": step,
-        }
-        ckpt_dir = os.path.join(checkpoint_dir, str(step))
-        if step % save_memory_interval == 0:
-            checkpointer.save_checkpoint(
-                step, state_dict, ckpt_dir, storage_type=StorageType.MEMORY
-            )
-            saved = True
-        if step % save_storage_interval == 0:
-            checkpointer.save_checkpoint(
-                step, state_dict, ckpt_dir, storage_type=StorageType.DISK
-            )
-            saved = True
+    extra_sd = {"step": step}
+    if step % save_memory_interval == 0:
+        checkpointer.save_checkpoint(
+            step, model, optimizer, extra_sd, storage_type=StorageType.MEMORY
+        )
+        saved = True
+    if step % save_storage_interval == 0:
+        checkpointer.save_checkpoint(
+            step, model, optimizer, extra_sd, storage_type=StorageType.DISK
+        )
+        saved = True
+
     return saved
 
 
@@ -379,6 +354,9 @@ def arg_parser():
     add_train_args(parser)
 
     parser.add_argument("--cpu_offload", action="store_true", required=False)
+    parser.add_argument(
+        "--flash_full_ckpt", action="store_true", required=False
+    )
     args = parser.parse_args()
 
     return args
