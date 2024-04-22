@@ -16,9 +16,9 @@ import time
 
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
-from dlrover.python.elastic_agent.datacollector.cuda_event_collector import (
-    CudaEvent,
-    CudaEventCollector,
+from dlrover.python.elastic_agent.datacollector.cuda_log_collector import (
+    CudaLog,
+    CudaLogCollector,
 )
 from dlrover.python.elastic_agent.datacollector.data_collector import (
     CollectorType,
@@ -42,7 +42,7 @@ class DiagnosisMonitor(Singleton):
 
     def init(self):
         self.collectors = {
-            CollectorType.CUDAEVENT: CudaEventCollector(),
+            CollectorType.CUDALOG: CudaLogCollector(),
             CollectorType.CHIPMETRICS: MetricsCollector(),
             CollectorType.TRAININGLOG: LogCollector(),
         }
@@ -89,7 +89,7 @@ class DiagnosisMonitor(Singleton):
                     )
 
     def report_diagnosis_data(self, data):
-        if isinstance(data, CudaEvent):
+        if isinstance(data, CudaLog):
             self._master_client.report_diagnosis_cuda_event(data)
         elif isinstance(data, TrainingLog):
             self._master_client.report_diagnosis_training_log(data)
