@@ -18,18 +18,18 @@ from dlrover.python.elastic_agent.datacollector.data_collector import (
 )
 
 
-class CudaEvent(object):
+class CudaLog(object):
     def __init__(self):
         self.timestamp = int(round(datetime.now().timestamp()))
 
 
-class CudaEventCollector(DataCollector):
+class CudaLogCollector(DataCollector):
     def __init__(self, *args, **kwargs):
         pass
 
     def collect_data(self) -> object:
-        event = CudaEvent()
-        return event
+        log = CudaLog()
+        return log
 
     def to_collect_data(self) -> bool:
         return True

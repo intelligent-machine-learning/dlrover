@@ -15,7 +15,7 @@ from abc import ABCMeta, abstractmethod
 
 
 class CollectorType:
-    CUDAEVENT = "cuda_event"
+    CUDALOG = "cuda_log"
     TRAININGLOG = "training_log"
     CHIPMETRICS = "chip_metrics"
 

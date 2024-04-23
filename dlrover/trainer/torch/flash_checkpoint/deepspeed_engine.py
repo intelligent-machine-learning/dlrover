@@ -89,7 +89,13 @@ class DeepSpeedCheckpointEngine(CheckpointEngine):
                 the value is the path of storage to save.
         """
         conf = CheckpointConfig(step=step, paths=paths)
-        return self.save_state_dict_to_memory(state_dict, conf)
+        import time
+
+        start = time.time()
+        success = self.save_state_dict_to_memory(state_dict, conf)
+        t = round(time.time() - start, 2)
+        print(f"Save Time is {t}s")
+        return success
 
     @timer
     def save_to_storage(self, step, state_dict, paths):
@@ -140,7 +146,7 @@ class DeepSpeedCheckpointEngine(CheckpointEngine):
         Returns:
             A dict.
         """
-        state_dict = self.get_state_dict_from_memory()
+        _, state_dict = self.get_state_dict_from_memory()
         if state_dict:
             msd_name = CheckpointConstant.MODEL_STATES_NAME
             if msd_name not in state_dict and self.zero_stage in [1, 2]:

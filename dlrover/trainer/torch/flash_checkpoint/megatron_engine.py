@@ -140,10 +140,7 @@ class MegatronCheckpointEngine(CheckpointEngine):
         Returns:
             A dict.
         """
-        state_dict = self.get_state_dict_from_memory()
-        if state_dict:
-            return state_dict
-        return {}
+        return self.get_state_dict_from_memory()
 
 
 class MegatronDistCheckpointEngine(CheckpointEngine):
@@ -255,7 +252,4 @@ class MegatronDistCheckpointEngine(CheckpointEngine):
         Returns:
             A dict.
         """
-        state_dict = self.get_state_dict_from_memory()
-        if state_dict:
-            return state_dict
-        return {}
+        return self.get_state_dict_from_memory()

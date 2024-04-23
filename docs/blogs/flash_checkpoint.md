@@ -52,7 +52,8 @@ reduces the wastage of training iteration step.
 the training process, at which point the checkpoint can be directly loaded from the host memory without
 the IO overhead to read storage files.
 4. Simple and Easy-to-Use Interface: It supports common large model training frameworks such as
-DDP (Distributed Data Parallel), FSDP (Fully Sharded Data Parallel), DeepSpeed, and Megatron-LM,
+DDP (Distributed Data Parallel), FSDP (Fully Sharded Data Parallel), DeepSpeed, and
+Megatron-LM([cb995d5](https://github.com/NVIDIA/Megatron-LM/tree/cb995d571faea19d01a1bf55ed0fd89523b9ce64)),
 with interfaces consistent with the original framework.
 
 ## System Design
@@ -100,7 +101,8 @@ This can avoid the IO overhead to read the remote storage system.
 
 To enable users to conveniently apply DLRover's Flash Checkpoint to training jobs,
 DLRover provide APIs to support Distributed Data Parallel (DDP),
-Fully Sharded Data Parallel (FSDP), DeepSpeed, and Megatron-LM.
+Fully Sharded Data Parallel (FSDP), DeepSpeed, and
+Megatron-LM([cb995d5](https://github.com/NVIDIA/Megatron-LM/tree/cb995d571faea19d01a1bf55ed0fd89523b9ce64)).
 
 ### DDP
 
@@ -144,11 +146,11 @@ API to save checkpoint.
 
 ```Python
 from dlrover.trainer.torch.flash_checkpoint.fsdp import (
-    FsdpCheckpointer,
+    FsdpShardCheckpointer,
     StorageType,
 )
 
-checkpointer = FsdpCheckpointer(checkpoint_dir)
+checkpointer = FsdpShardCheckpointer(checkpoint_dir)
 
 with FSDP.state_dict_type(model, StateDictType.SHARDED_STATE_DICT):
     state_dict = {
@@ -177,7 +179,7 @@ APIs to load checkpoint. The APIs to load checkpoints are consistent with PyTorc
 Users only need to configure the storage reader for Fully Sharded Data Parallel (FSDP).
 
 ```Python
-checkpointer = FsdpCheckpointer(checkpoint_dir)
+checkpointer = FsdpShardCheckpointer(checkpoint_dir)
 
 with FSDP.state_dict_type(model, StateDictType.SHARDED_STATE_DICT):
     state_dict = {
@@ -241,8 +243,9 @@ checkpointer.load_checkpoint(checkpoint_dir)
 
 #### Megatron-LM
 
-Flash Checkpoint only adds a storage_type argument to the native Megatron-LM `save_checkpoint` to control
-whether to save to memory or to a storage system. The `load_checkpoint` is completely consistent with
+Flash Checkpoint only adds a storage_type argument to the native Megatron-LM([cb995d5](https://github.com/NVIDIA/Megatron-LM/tree/cb995d571faea19d01a1bf55ed0fd89523b9ce64))
+`save_checkpoint` to control whether to save to memory or to a storage system.
+The `load_checkpoint` is completely consistent with
 Megatron-LM's native `load_checkpoint`. Users only need to modify the megatron/training.py file in Megatron-LM repo
 to use the Flash Checkpoint.
 
@@ -279,6 +282,32 @@ how to start single-node multi-GPU training:
 
 ```bash
 dlrover-run --nnodes=1 --max_restarts=2 --nproc_per_node=2 train.py 
+```
+
+#### HuggingFace transformers.Trainer
+
+Users can replace `transformers.Trainer` with `FlashCkptTrainer`. The only difference
+between `FlashCkptTrainer` and `transformers.Tainer` is the implmentation
+to save checkpoint. The other features of `FlashCkptTrainer` are same as `transformers.Trainer`.
+
+**Note**: `transformers==4.37.2` is recommended becase we have test `FlashCkptTrainer` with it.
+Now, `FlashCkptTrainer` only supports saving the DeepSpeed or peft model not FSDP model in the Trainer.
+
+```python
+from dlrover.trainer.torch.flash_checkpoint.hf_trainer import FlashCkptTrainer
+
+# Replace `Trainer` with `FlashCkptTrainer`.
+trainer = FlashCkptTrainer(
+    model=model,
+    train_dataset=train_data,
+    eval_dataset=val_data,
+    args=training_arguments,
+    data_collator=data_collator,
+)
+
+# Get the latest checkpoint path.
+last_ckpt_path = trainer.get_last_checkpoint()
+trainer.train(resume_from_checkpoint=last_ckpt_path)
 ```
 
 ## Benchmark Experiments

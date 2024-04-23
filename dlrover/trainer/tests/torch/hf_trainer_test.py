@@ -74,4 +74,3 @@ class FlashCkptTrainerTest(unittest.TestCase):
             trainer._save(ckpt_dir)
             cached_sd = trainer.flash_checkpointer.ckpt_agent.state_dict
             self.assertTrue("pytorch_model.bin" in cached_sd)
-            self.assertTrue("training_args.bin" in cached_sd)

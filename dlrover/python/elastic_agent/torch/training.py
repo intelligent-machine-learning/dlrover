@@ -83,6 +83,9 @@ except (ModuleNotFoundError, ImportError):  # noqa: F841
 __all__ = ["launch_agent"]
 
 
+_DEFAULT_INTERVAL = 5
+
+
 def _set_paral_config():
     """
     Set up the directory and path for the parallelism configuration.
@@ -266,7 +269,7 @@ class MasterRendezvousHandler(RendezvousHandler):
                     )
                     if start_pending == 0:
                         start_pending = time.time()
-                    time.sleep(5)
+                    time.sleep(_DEFAULT_INTERVAL)
                     start_join = time.time()
                     if start_join - start_pending > self.pend_timeout:
                         raise TimeoutError(
@@ -281,7 +284,6 @@ class MasterRendezvousHandler(RendezvousHandler):
                 )
                 raise TimeoutError(err_msg)
             time.sleep(3)
-        world = dict(sorted(world.items()))
         rank = list(world.keys()).index(self._node_rank)
         world_size = len(world)
         logger.info(
@@ -583,6 +585,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     "for other agents to finish."
                 )
                 self._exit_barrier()
+                self._wait_async_saver()
                 return run_result
             elif state in {WorkerState.UNHEALTHY, WorkerState.FAILED}:
                 logger.error(f"The worker fails with {run_result.failures}")
@@ -607,6 +610,24 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     self._restart_workers(self._worker_group)
             else:
                 raise Exception(f"[{role}] Worker group in {state.name} state")
+
+    def _wait_async_saver(self):
+        """
+        The agent waits for saving the checkpoint from the shared memory
+        before exiting.
+        """
+        saver = AsyncCheckpointSaver.get_ckpt_saver()
+        if saver:
+            # Wait the saver finishes writing the checkpoint from the shared
+            # memory to the storage.
+            start_wait_time = time.time()
+            while saver.wait_saving_checkpoint():
+                time.sleep(_DEFAULT_INTERVAL)
+                wait_time = round(time.time() - start_wait_time, 2)
+                logger.info(
+                    "Wait for saving the checkpoint and "
+                    f"the waiting time is {wait_time}s."
+                )
 
     def _save_ckpt_to_storage(self):
         """
@@ -938,6 +959,8 @@ def network_check(
     args: List[Any],
 ) -> bool:
     config = copy.deepcopy(config)
+
+    # Disable checking network when execute tasks to check network.
     config.network_check = False
     if not config.run_id:
         run_id = str(uuid.uuid4().int)
