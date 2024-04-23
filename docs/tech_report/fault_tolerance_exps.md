@@ -22,7 +22,7 @@ We conduct experiments to simulate the following scenarios:
 
 ### Pod is Preempted
 
-In the experiment, we submit a job with the [example](../../examples/pytorch/mnist/chaos_test_job.yaml)
+In the experiment, we submit a job with the [example](../../examples/pytorch/mnist/chaos_process_killing_job.yaml)
 and the command in the worker spec is
 
 ```yaml

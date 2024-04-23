@@ -1,0 +1,45 @@
+apiVersion: elastic.iml.github.io/v1alpha1
+kind: ElasticJob
+metadata:
+  name: chaos-test
+  namespace: dlrover
+spec:
+  distributionStrategy: AllreduceStrategy
+  optimizeMode: single-job
+  replicaSpecs:
+    worker:
+      restartCount: 1
+      replicas: 4
+      template:
+        spec:
+          restartPolicy: Always
+          containers:
+            - name: main
+              # build the image with mnist_chaos.dockerfile
+              # yamllint disable-line rule:line-length
+              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:pytorch-example-chaos
+              imagePullPolicy: Always
+              command:
+                - /bin/bash
+                - -c
+                - "(bash examples/pytorch/mnist/start_chaos.sh user-case &)
+                  && dlrover-run --network-check --exclude-straggler \
+                  --nnodes=3:$NODE_NUM --nproc_per_node=2 \
+                  --max_restarts=3  --rdzv_conf pend_timeout=600 \
+                  examples/pytorch/mnist/cnn_train.py --num_epochs 5 \
+                  --training_data /data/mnist_png/training/ \
+                  --validation_data /data/mnist_png/testing/ \
+                  --with_error True"
+              resources:
+                limits:
+                  cpu: "1"  # turn up when using GPU
+                  memory: 2Gi  # turn up when using GPU
+                  # nvidia.com/gpu: 1 # optional
+                requests:
+                  cpu: "1"  # turn up when using GPU
+                  memory: 2Gi  # turn up when using GPU
+                  # nvidia.com/gpu: 1 # optional
+              securityContext:
+                capabilities:
+                  add:
+                    - NET_ADMIN

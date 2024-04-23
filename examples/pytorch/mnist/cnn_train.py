@@ -13,6 +13,7 @@
 
 import argparse
 import os
+import random
 from datetime import datetime, timedelta
 
 import torch
@@ -86,6 +87,15 @@ def setup():
     print(f"rank {rank} is initialized local_rank = {local_rank}")
 
 
+def generate_error():
+    """
+    Generate a exception to mock user code issue.
+    """
+    error_list = [ValueError("E0"), IndexError("E1"), IndexError("E2"),
+                  TypeError("E3"), IndexError("E4"), IndexError("E5")]
+    raise error_list[random.randint(0, len(error_list) - 1)]
+
+
 @record
 def train(args):
     """The function to run the training loop.
@@ -99,6 +109,9 @@ def train(args):
     setup()
 
     channel = 1
+    if args.with_error:
+        generate_error()
+
     if args.training_data:
         train_dataset = datasets.ImageFolder(
             root=args.training_data, transform=transforms.ToTensor()
@@ -311,6 +324,7 @@ def arg_parser():
         "--validation_data", type=str, default="", required=False
     )
     parser.add_argument("--save_model", action="store_true", required=False)
+    parser.add_argument("--with_error", type=bool, default=False, required=False)
     return parser
 
 

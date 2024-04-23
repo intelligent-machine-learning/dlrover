@@ -28,6 +28,9 @@ then
         chaosblade-1.7.2/blade create process kill --process nvidia_gpu --signal 1
         sleep 1
     done
+elif [ "${exp}" = "user-case" ]
+then
+    echo "Chaos by user case by not chaos-blade."
 else
     echo "No chaos experiment."
 fi
