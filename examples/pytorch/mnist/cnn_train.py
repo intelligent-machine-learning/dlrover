@@ -109,9 +109,6 @@ def train(args):
     setup()
 
     channel = 1
-    if args.with_error:
-        generate_error()
-
     if args.training_data:
         train_dataset = datasets.ImageFolder(
             root=args.training_data, transform=transforms.ToTensor()
@@ -194,6 +191,7 @@ def train(args):
             device,
             checkpointer,
             args.fixed_batch_size,
+            args.with_error
         )
         log_rank0("Test model after epoch {}".format(epoch))
         test(model, device, test_loader)
@@ -213,6 +211,7 @@ def train_epoch(
     device,
     checkpointer: DdpCheckpointer,
     fixed_batch_size=False,
+    with_error=False,
 ):
     """
     The global batch size will not change if the number of workers changes.
@@ -234,6 +233,11 @@ def train_epoch(
             train_step += 1
             if train_step % 20 == 0:
                 log_rank0("loss = {}, step = {}".format(loss, train_step))
+
+                # trigger error if with_error=True
+                if with_error:
+                    print("Active exception trigger.")
+                    generate_error()
 
             if train_step > 0 and train_step % 50 == 0:
                 sd = {
