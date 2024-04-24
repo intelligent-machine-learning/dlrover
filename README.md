@@ -31,7 +31,7 @@ What's more, DLRover provides extension libraries of PyTorch and TensorFlow to S
 
 ## Latest News
 
-- [2024/04] [Flash Checkpoint Supports HuggingFace transformers.Trainer to Asynchronously persist checkpoints.](docs/blogs/flash_checkpoint.md##huggingface-transformerstrainers)
+- [2024/04] [Flash Checkpoint Supports HuggingFace transformers.Trainer to Asynchronously persist checkpoints.](docs/blogs/flash_checkpoint.md#huggingface-transformerstrainers)
 - [2024/02] [Flash Checkpoint Saves the Megatron-LM Checkpoint in Seconds.](docs/blogs/megatron_flash_checkpoint.md)
 - [2024/01] [Flash Checkpoint to Recover Large Model Training From Failure in Seconds.](docs/blogs/flash_checkpoint.md)
 - [2023/11] [ATorch supporting efficient and easy-to-use model training is released.](atorch/README.md)
