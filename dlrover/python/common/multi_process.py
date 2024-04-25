@@ -196,7 +196,7 @@ class LocalSocketComm(metaclass=ABCMeta):
         return os.path.join(root_dir, fname)
 
     def _init_socket(self):
-        """Initialze a socket server."""
+        """Initialize a socket server."""
         if self._create:
             self._server = _create_socket_server(self._socket_file)
             t = threading.Thread(
@@ -212,7 +212,7 @@ class LocalSocketComm(metaclass=ABCMeta):
 
     @retry_socket
     def _request(self, request: SocketRequest):
-        """Create a socket client to requet the shared object."""
+        """Create a socket client to request the shared object."""
         client = _create_socket_client(self._socket_file)
         message = pickle.dumps(request)
         _socket_send(client, message)
