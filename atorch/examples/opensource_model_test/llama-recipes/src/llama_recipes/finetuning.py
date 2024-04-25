@@ -8,6 +8,7 @@ import fire
 import random
 import torch
 import torch.optim as optim
+from pprint import pprint
 from peft import get_peft_model, prepare_model_for_int8_training
 from torch.distributed.fsdp import (
     FullyShardedDataParallel as FSDP,
@@ -16,6 +17,7 @@ from torch.distributed.fsdp import (
 
 from torch.distributed.fsdp.fully_sharded_data_parallel import CPUOffload
 from torch.optim.lr_scheduler import StepLR
+from torch.utils.collect_env import get_pretty_env_info
 from transformers import (
     LlamaForCausalLM,
     LlamaTokenizer,
@@ -74,6 +76,9 @@ def main(**kwargs):
             torch.cuda.set_device(local_rank)
         clear_gpu_cache(local_rank)
         setup_environ_flags(rank)
+
+    if (torch.distributed.is_initialized() and rank == 0) or not torch.distributed.is_initialized():
+        print(get_pretty_env_info())
 
     # Load the pre-trained model and setup its configuration
     use_cache = False if train_config.enable_fsdp else None
@@ -236,6 +241,13 @@ def main(**kwargs):
             weight_decay=train_config.weight_decay,
         )
     scheduler = StepLR(optimizer, step_size=1, gamma=train_config.gamma)
+
+    if (torch.distributed.is_initialized() and rank == 0) or not torch.distributed.is_initialized():
+        pprint(train_config.__dict__, sort_dicts=False)
+        pprint(fsdp_config.__dict__, sort_dicts=False)
+        pprint(dataset_config.__dict__, sort_dicts=False)
+        if train_config.use_peft:
+            pprint(peft_config.__dict__, sort_dicts=False)
 
     # Start the training process
     results = train(
