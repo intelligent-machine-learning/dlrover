@@ -1,6 +1,5 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # This software may be used and distributed according to the terms of the Llama 2 Community License Agreement.
-from torch.distributed._tensor.device_mesh import init_device_mesh
 import os 
 
 def fsdp_auto_wrap_policy(model, transformer_layer_name):
@@ -67,7 +66,7 @@ def hsdp_device_mesh(replica_group_size, sharding_group_size, device=None):
         >>> device_mesh = initialize_device_mesh(replica_group_size, sharding_group_size)
         >>> sharded_model = FSDP(model, device_mesh=device_mesh, ...)
     """
-
+    from torch.distributed._tensor.device_mesh import init_device_mesh
     if replica_group_size is None or sharding_group_size is None:
         raise ValueError("Both replica_group_size and sharding_group_size must be provided.")
 
