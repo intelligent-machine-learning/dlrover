@@ -11,16 +11,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import datetime
-
+from dlrover.python.common.diagnosis import CudaLog
 from dlrover.python.elastic_agent.datacollector.data_collector import (
     DataCollector,
 )
-
-
-class CudaLog(object):
-    def __init__(self):
-        self.timestamp = int(round(datetime.now().timestamp()))
 
 
 class CudaLogCollector(DataCollector):
@@ -28,7 +22,7 @@ class CudaLogCollector(DataCollector):
         pass
 
     def collect_data(self) -> object:
-        log = CudaLog()
+        log = CudaLog(0)
         return log
 
     def to_collect_data(self) -> bool:

@@ -455,14 +455,14 @@ class NodeCheckpointState(Message):
 
 @dataclass
 class DiagnosisTrainingLog(Message):
-    timestamp: int = 0
+    timestamp: float = 0.0
 
 
 @dataclass
 class DiagnosisCudaLog(Message):
-    timestamp: int = 0
+    timestamp: float = 0.0
 
 
 @dataclass
-class DiagnosisChpMetrics(Message):
-    timestamp: int = 0
+class DiagnosisChipMetrics(Message):
+    timestamp: float = 0.0

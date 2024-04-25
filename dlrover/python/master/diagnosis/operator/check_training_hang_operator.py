@@ -19,28 +19,23 @@ from dlrover.python.master.diagnosis.inferencechain.common import (
     InferenceAttribute,
     InferenceDescription,
     InferenceName,
-)
-from dlrover.python.master.diagnosis.inferencechain.inference_chain import (
-    InferenceChain,
+    InferenceOperator,
 )
 
 
-class Analyst:
-    def __init__(self, data_mgr: DataManager):
-        self.data_manager = data_mgr
-        self.problems = register_problems()
+class CheckTrainingHangOperator(InferenceOperator):
+    def __init__(self, data_manager: DataManager):
+        self.data_manager = data_manager
 
-    def observe_training(self) -> List[Inference]:
-        ic = InferenceChain(self.data_manager, self.problems)
-        return ic.infer()
+    def is_compatible(self, inference: Inference) -> bool:
+        if (
+            inference.name == InferenceName.TRAINING
+            and inference.attribute == InferenceAttribute.ISORNOT
+            and inference.description == InferenceDescription.HANG
+        ):
+            return True
+        else:
+            return False
 
-
-def register_problems() -> List[Inference]:
-    problems: List[Inference] = [
-        Inference(
-            InferenceName.TRAINING,
-            InferenceAttribute.ISORNOT,
-            InferenceDescription.HANG,
-        ),
-    ]
-    return problems
+    def infer(self, inferences: List[Inference]) -> List[Inference]:
+        return [Inference(InferenceName.END, "", "")]

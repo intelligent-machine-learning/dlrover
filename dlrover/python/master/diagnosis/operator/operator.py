@@ -10,3 +10,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+from typing import List
+
+from dlrover.python.master.diagnosis.diagnosis_data import DataManager
+from dlrover.python.master.diagnosis.inferencechain.common import (
+    InferenceOperator,
+)
+from dlrover.python.master.diagnosis.operator.check_training_hang_operator import (  # noqa: E501
+    CheckTrainingHangOperator,
+)
+
+
+def register_operators(data_manager: DataManager) -> List[InferenceOperator]:
+    return [CheckTrainingHangOperator(data_manager)]
