@@ -25,7 +25,7 @@ from dlrover.python.master.diagnosis.diagnostician import Diagnostician
 
 class DiagnosisManager:
     def __init__(self):
-        self.data_manager: DataManager = DataManager()
+        self.data_manager: DataManager = DataManager(600)
         self.analyst: Analyst = Analyst(self.data_manager)
         self.diagnostician: Diagnostician = Diagnostician()
 

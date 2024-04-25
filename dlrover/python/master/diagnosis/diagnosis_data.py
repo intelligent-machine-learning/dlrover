@@ -29,6 +29,8 @@ class DataManager:
         self.expire_time_period = expire_time_period
 
     def store_data(self, data_type: str, data: DiagnosisData):
+        if data_type not in self.diagnosis_data:
+            self.diagnosis_data[data_type] = []
         self.diagnosis_data[data_type].append(data)
         self._clean_diagnosis_data(data_type)
 
