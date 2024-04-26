@@ -1,6 +1,7 @@
 import os
 import subprocess
 
+import numpy as np
 import pytest
 import torch
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
@@ -8,7 +9,9 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import Dataset
 from transformers import LlamaConfig
 from transformers.models.llama.modeling_llama import LlamaDecoderLayer, LlamaForCausalLM
+from transformers.trainer_utils import EvalPrediction
 
+from atorch.common.util_func import find_free_port
 from atorch.trainer.atorch_args import AtorchArguments
 from atorch.trainer.atorch_trainer import AtorchTrainer
 from atorch.utils.version import torch_version
@@ -36,6 +39,7 @@ class LlamaDatset(Dataset):
 def run_atorch_trainer(test_args):
     train_dataset = LlamaDatset(100)
     eval_dataset = LlamaDatset(20)
+    test_dataset = LlamaDatset(20)
 
     atorch_opt = test_args.get("atorch_opt", "fsdp")
     save_load_by_streaming = test_args.get("save_load_by_streaming", True)
@@ -65,6 +69,7 @@ def run_atorch_trainer(test_args):
         save_total_limit=1,
         evaluation_strategy="steps",
         eval_steps=0.9,
+        include_inputs_for_metrics=True,
         logging_strategy="steps",
         logging_steps=0.1,
         logging_nan_inf_filter=False,
@@ -76,13 +81,32 @@ def run_atorch_trainer(test_args):
         use_default_data_collator=use_default_data_collator,
         async_save=async_save,
     )
+
+    def compute_metrics(eval_preds: EvalPrediction):
+        logits, label_ids, inputs = eval_preds  # logits:[b,s,v], label_ids:[b,s], inputs:[b,s]
+
+        def softmax(logits):
+            exp_logits = np.exp(logits - np.expand_dims(np.max(logits, axis=-1), axis=-1))
+            return exp_logits / np.expand_dims(np.sum(exp_logits, axis=-1), axis=-1)
+
+        probs = softmax(logits)
+        predictions = np.argmax(probs, axis=-1)
+        right_num: int = np.sum(predictions == label_ids)
+        total_samples = label_ids.shape[0]
+        acc = right_num / total_samples
+        return {"accuracy": acc}
+
+    args.eval_accumulation_steps = 1
+
     trainer = AtorchTrainer(
         model=model,
         args=args,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
+        compute_metrics=compute_metrics,
     )
     train_result = trainer.train()
+    trainer.predict(test_dataset)
     metrics = train_result.metrics
     metrics["train_samples"] = len(train_dataset)
     trainer.log_metrics("train", metrics)
@@ -109,7 +133,7 @@ def test_atorch_trainer(
 
     # Skip some tests to reduce the time of unit test.
     if gpu_num == 1:
-        if save_load_by_streaming or not use_atorch_dataloader or not use_default_data_collator and async_save:
+        if save_load_by_streaming or not use_atorch_dataloader or not use_default_data_collator or async_save:
             pytest.skip()
     if async_save:
         if save_load_by_streaming or not use_atorch_dataloader or not use_default_data_collator:
@@ -127,7 +151,10 @@ def test_atorch_trainer(
     if os.environ.get("ANTMONITOR_TFEVENT_PATH") is None:
         os.environ["ANTMONITOR_TFEVENT_PATH"] = "/home/admin/logs/tfevent"
 
-    dist_cmd = f"coverage run -m atorch.distributed.run --nnode=1 --nproc_per_node={gpu_num} --node_rank=0 {__file__}"
+    dist_cmd = (
+        f"coverage run -m atorch.distributed.run --nnode=1 --nproc_per_node={gpu_num} "
+        f"--node_rank=0 --master_port={find_free_port()} {__file__}"
+    )
 
     for k, v in test_args.items():
         if isinstance(v, bool):
@@ -136,7 +163,7 @@ def test_atorch_trainer(
         else:
             dist_cmd += f" --{k} {v}"
 
-    subprocess.run(dist_cmd, shell=True)
+    subprocess.run(dist_cmd, check=True, shell=True)
 
 
 if __name__ == "__main__":

@@ -9,7 +9,6 @@ from transformers.models.llama.modeling_llama import LlamaDecoderLayer
 from atorch.rl.model_utils.llama2_utils import get_llama2_params_offsets, move_weight_to_continuous_buffer
 
 
-@unittest.skipIf(not torch.cuda.is_available(), "Maybe failed on cpu")
 class TestLLama2Util(unittest.TestCase):
     def test_get_param_offset(self):
         config = LlamaConfig()

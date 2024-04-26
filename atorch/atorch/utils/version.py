@@ -1,8 +1,10 @@
 import logging
 import re
+from importlib import metadata
 from typing import List, Tuple, Union
 
 import torch
+from packaging.version import Version
 
 __all__: List[str] = ["torch_version"]
 
@@ -45,3 +47,8 @@ def get_version(package):
     vs = [get_digit_part(x) for x in numbering]
     digits = [int(x) if x != "" else "" for x in vs]
     return tuple(digits)
+
+
+def package_version_smaller_than(pkg_name, version):
+    pkg_v = metadata.version(pkg_name)
+    return Version(pkg_v) < Version(version)

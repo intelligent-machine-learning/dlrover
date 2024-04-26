@@ -9,7 +9,7 @@ from itertools import chain
 import datasets
 import torch
 import transformers
-from datasets import load_dataset, load_from_disk
+from datasets import load_dataset, load_from_disk  # type: ignore[attr-defined]
 from transformers import (
     CONFIG_MAPPING,
     MODEL_MAPPING,

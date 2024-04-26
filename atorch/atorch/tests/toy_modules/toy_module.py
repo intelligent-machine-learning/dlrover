@@ -10,6 +10,7 @@ from transformers.models.gpt2.modeling_gpt2 import GPT2MLP, GPT2Attention, GPT2B
 
 from atorch.auto.model_context import ModelContext
 from atorch.common.util_func import data_to_device, recursively_apply
+from atorch.distributed import seq_all_to_all
 
 
 def get_gpt2_module_type(module="block"):
@@ -148,6 +149,16 @@ class BenchmarkLMDataset(Dataset):
         return self.total_samples
 
 
+def sp_data_process_fn(batch, sp_size, sp_rank):
+    # partition "input" and "target"
+    seq_length = batch["input"].shape[-1]
+    sub_seq_length = seq_length // sp_size
+    sub_start = sp_rank * sub_seq_length
+    batch["input"] = batch["input"][:, sub_start : sub_start + sub_seq_length]
+    batch["target"] = batch["target"][:, sub_start : sub_start + sub_seq_length].contiguous()
+    return batch
+
+
 class ToyGPT2Model(GPT2Model):
     def __init__(self, hidden_size=256, head_num=4, layer_num=3, seq_length=512):
         config = GPT2Config()
@@ -156,6 +167,39 @@ class ToyGPT2Model(GPT2Model):
         super().__init__(config)
         self.config = config
         self.lm_head = torch.nn.Linear(config.n_embd, config.vocab_size, bias=False)
+        self.sp_size = 1
+        self.sp_rank = 0
+
+    def set_sp(self, sp_size, sp_rank, sp_group):
+        self.sp_size = sp_size
+        self.sp_rank = sp_rank
+
+        #  patch attn for all2all q/k/v.
+        # This is a very hacky way to add all2all in attn module, which is not recommended. It is better
+        # to change the codes in the original codes, or create a new Attention module to use in the model.
+
+        if hasattr(GPT2Attention, "__ori_attn_func"):
+            ori_attn = GPT2Attention.__ori_attn_func
+        else:
+            ori_attn = GPT2Attention._attn
+            GPT2Attention.__ori_attn_func = ori_attn
+
+        def _sp_attn(self, query, key, value, attention_mask=None, head_mask=None):
+            # query, key, value shapes are (batch, head, sub_seq_length, head_features)
+            # 1. all2all to shape (batch, sub_head, seq_length, head_features), scatter head dim, gather seq dim.
+            query = seq_all_to_all(query, scatter_idx=1, gather_idx=2, group=sp_group, group_size=sp_size)
+            key = seq_all_to_all(key, scatter_idx=1, gather_idx=2, group=sp_group, group_size=sp_size)
+            value = seq_all_to_all(value, scatter_idx=1, gather_idx=2, group=sp_group, group_size=sp_size)
+
+            attn_output, attn_weights = self.__ori_attn_func(query, key, value, attention_mask, head_mask)
+
+            # attn_output shape is (batch, sub_head, seq_length, head_features)
+            # 2. all2all to shape (batch, head, sub_seq_length, head_features), scatter seq dim, gather head dim.
+            attn_output = seq_all_to_all(attn_output, scatter_idx=2, gather_idx=1, group=sp_group, group_size=sp_size)
+
+            return attn_output, attn_weights
+
+        GPT2Attention._attn = _sp_attn
 
     def forward(
         self,
@@ -174,6 +218,37 @@ class ToyGPT2Model(GPT2Model):
         output_hidden_states=None,
         return_dict=None,
     ):
+        # inputs requirement:
+        # If sequence parallel (sp_size > 1), input_ids/inputs_embeds/token_type_ids/position_ids should already
+        # be partitioned to rank-th sub-sequence [seq_length//sp_size*rank:seq_length//sp_size*(rank+1)].
+        # Note that sequence parallel for all computations outside attention module.
+        # Inside attention, only head dimension is parallized, not the sequence dimension.
+        # Thus, attention_mask should not be partitioned.
+
+        if self.sp_size > 1:
+            # 1. change head_mask if required
+            # head_mask shape is [num_heads] or [num_hidden_layers x num_heads]
+            # when sp, it should be converted to [num_hidden_layers x num_sub_heads]
+            if head_mask is not None:
+                if head_mask.dim() == 1:
+                    head_mask = head_mask.expand(self.config.n_layer, -1)
+                # now split to get corresponding sub_head_mask
+                heads_per_subseq = self.config.num_attention_heads // self.sp_size
+                head_mask = head_mask[self.sp_rank * heads_per_subseq : (self.sp_rank + 1) * heads_per_subseq]
+
+            # 2. generate sub_seq position_ids if position_ids not provided
+            if position_ids is None:
+                if input_ids is not None:
+                    seq_length = input_ids.size()[-1] * self.sp_size
+                    device = input_ids.device
+                else:
+                    seq_length = inputs_embeds.size[-1] * self.sp_size
+                    device = inputs_embeds.device
+                past_length = 0 if past_key_values is None else past_key_values[0][0].size(-2)
+                sub_seq_length = seq_length // self.sp_size
+                start_pos = self.sp_rank * sub_seq_length + past_length
+                position_ids = torch.arange(start_pos, start_pos + sub_seq_length, dtype=torch.long, device=device)
+                position_ids = position_ids.unsqueeze(0)
 
         transformer_outputs = super().forward(
             input_ids,
