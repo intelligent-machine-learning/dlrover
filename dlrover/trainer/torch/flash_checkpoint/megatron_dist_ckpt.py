@@ -377,6 +377,7 @@ def load_checkpoint(
             # Load state dict.
             if optimizer is not None:
                 optimizer.load_state_dict(model_state_dict["optimizer"])
+            if args.use_distributed_optimizer:
                 if isinstance(optimizer, ChainedOptimizer):
                     load_chained_optimizer_parameter_state(
                         optimizer, opt_state_dict
