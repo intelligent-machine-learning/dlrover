@@ -280,10 +280,6 @@ class PosixStorageWithDeletion(PosixDiskStorage):
             checkpoint_dir="./checkpoint/",
             storage=storage,
         )
-        state_dict = {}
-        for step in range(10000):
-            if step % 10 == 0:
-                checkpointer.save_checkpoint(i, state_dict)
     """
 
     def __init__(self, deletion_strategy: CheckpointDeletionStrategy):
