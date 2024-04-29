@@ -222,8 +222,8 @@ class KeepStepIntervalStrategy(CheckpointDeletionStrategy):
             return
         rm_dir = os.path.join(self._checkpoint_dir, str(step))
         try:
-            delete_func(rm_dir)
             logger.info(f"Clean path {rm_dir}")
+            delete_func(rm_dir)
         except Exception:
             logger.warning(f"Fail to clean path {rm_dir}!")
 
@@ -249,8 +249,8 @@ class KeepLatestStepStrategy(CheckpointDeletionStrategy):
             rm_step = self._steps.pop(0)
             rm_dir = os.path.join(self._checkpoint_dir, str(rm_step))
             try:
-                delete_func(rm_dir)
                 logger.info(f"Clean path {rm_dir}")
+                delete_func(rm_dir)
             except Exception:
                 logger.warning(f"Fail to clean path {rm_dir}!")
 
