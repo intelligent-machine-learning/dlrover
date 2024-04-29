@@ -19,7 +19,8 @@ import unittest
 from dlrover.python.common.storage import (
     KeepLatestStepStrategy,
     KeepStepIntervalStrategy,
-    PosixStorageWithDeletion,
+    PosixDiskStorage,
+    get_checkpoint_storage,
 )
 
 
@@ -44,11 +45,11 @@ class TestLocalStrategyGenerator(unittest.TestCase):
             self.assertListEqual(sorted(os.listdir(tmpdir)), ["10", "4", "8"])
 
     def test_posix_storage_with_deletion(self):
+        tracker_file = "dlrover_latest.txt"
+
         with tempfile.TemporaryDirectory() as tmpdir:
-            deletion_strategy = KeepLatestStepStrategy(3, tmpdir)
-            tracker_file = "dlrover_latest.txt"
             tracker_file_path = os.path.join(tmpdir, tracker_file)
-            storage = PosixStorageWithDeletion(tracker_file, deletion_strategy)
+            storage = get_checkpoint_storage(tmpdir, max_to_keep=3)
 
             for step in range(1, 5):
                 storage.write(str(step), tracker_file_path)
@@ -61,6 +62,21 @@ class TestLocalStrategyGenerator(unittest.TestCase):
 
             class_meta = storage.get_class_meta()
             self.assertEqual(class_meta.class_name, "PosixStorageWithDeletion")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tracker_file_path = os.path.join(tmpdir, tracker_file)
+            storage = get_checkpoint_storage(tmpdir, keep_step_interval=4)
+            for step in range(1, 9):
+                storage.write(str(step), tracker_file_path)
+                os.makedirs(os.path.join(tmpdir, str(step)))
+                storage.commit(step, True)
+
+            files = os.listdir(tmpdir)
+            files.remove(tracker_file)
+            self.assertListEqual(sorted(files), ["4", "8"])
+
+            storage = get_checkpoint_storage(tmpdir)
+            self.assertTrue(isinstance(storage, PosixDiskStorage))
 
 
 if __name__ == "__main__":

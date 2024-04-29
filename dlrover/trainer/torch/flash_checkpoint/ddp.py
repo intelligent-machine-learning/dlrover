@@ -16,7 +16,7 @@ import os
 import torch.distributed as dist
 
 from dlrover.python.common.constants import CheckpointConstant
-from dlrover.python.common.storage import PosixDiskStorage
+from dlrover.python.common.storage import get_checkpoint_storage
 
 from .checkpointer import Checkpointer, StorageType
 from .full_ckpt_engine import FullCheckpointEngine
@@ -29,8 +29,6 @@ class DdpCheckpointer(Checkpointer):
 
     Args:
         checkpoint_dir: the directory to save the checkpoint.
-        storage: A CheckpointStorage instance. The checkpointer will
-            use a PosixStorage instance if the storage is not defined.
         local_shard_num (int): the number of shards on a node,
             The default is 1. If the model is partitioned on all ranks,
             you should set the local_shard_num as the number of ranks
@@ -40,6 +38,11 @@ class DdpCheckpointer(Checkpointer):
             you should set the local_shard_num as the number of all ranks.
         comm_backend (str): the communcation backend to create a process group,
             The default is the backend of general main process group.
+        max_to_keep (int): An integer, the number of the latest
+            checkpoints to keep.
+        keep_interval (int): The step interval to keep. If the step is not
+            a multiple of the value, the strategy will clean up the step
+            checkpoint after saving a new step checkpoint.
 
     Examples::
         >>> checkpointer = DdpCheckpointer(
@@ -63,17 +66,18 @@ class DdpCheckpointer(Checkpointer):
     def __init__(
         self,
         checkpoint_dir: str,
-        storage=None,
         local_shard_num=1,
         global_shard_num=1,
         comm_backend="",
+        keep_step_interval=0,
+        max_to_keep=0,
     ):
         self.checkpoint_dir = checkpoint_dir
         if dist.is_initialized():
             self._rank = dist.get_rank()
         else:
             self._rank = 0
-        self.storage = PosixDiskStorage() if not storage else storage
+        self.storage = get_checkpoint_storage(keep_step_interval, max_to_keep)
         self._engine = FullCheckpointEngine(
             checkpoint_dir=checkpoint_dir,
             storage=self.storage,

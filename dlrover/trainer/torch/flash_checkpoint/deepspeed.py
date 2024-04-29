@@ -24,7 +24,10 @@ from deepspeed.runtime.zero.config import ZeroStageEnum
 
 from dlrover.python.common import env_utils
 from dlrover.python.common.constants import CheckpointConstant
-from dlrover.python.common.storage import CheckpointStorage, PosixDiskStorage
+from dlrover.python.common.storage import (
+    CheckpointStorage,
+    get_checkpoint_storage,
+)
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     DeepSpeedCheckpointSaver,
 )
@@ -98,10 +101,13 @@ class DeepSpeedCheckpointer(Checkpointer):
 
     Args:
         checkpoint_dir: the directory to save the checkpoint.
-        storage: A CheckpointStorage instance. The checkpointer will
-            use a PosixStorage instance if the storage is not defined.
         comm_backend (str): the backend to synchronize when saving the
             checkpoint to the memory.
+        max_to_keep (int): An integer, the number of the latest
+            checkpoints to keep.
+        keep_interval (int): The step interval to keep. If the step is not
+            a multiple of the value, the strategy will clean up the step
+            checkpoint after saving a new step checkpoint.
 
     Examples::
         >>> engine = deepspeed.initialize(...)
@@ -120,8 +126,9 @@ class DeepSpeedCheckpointer(Checkpointer):
         self,
         engine: DeepSpeedEngine,
         checkpoint_dir,
-        storage=None,
         comm_backend="",
+        keep_step_interval=0,
+        max_to_keep=0,
     ):
         self.engine = engine
         self.checkpoint_dir = checkpoint_dir
@@ -131,7 +138,7 @@ class DeepSpeedCheckpointer(Checkpointer):
                 self.engine.optimizer.dp_process_group
             )
         zero_stage = self.engine.zero_optimization_stage()
-        self.storage = PosixDiskStorage() if not storage else storage
+        self.storage = get_checkpoint_storage(keep_step_interval, max_to_keep)
         self._async_save_engine = DeepSpeedCheckpointEngine(
             checkpoint_dir,
             storage=self.storage,
