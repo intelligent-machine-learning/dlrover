@@ -33,7 +33,6 @@ SOCKET_TMP_DIR = "/tmp/checkpoint_sock/"
 
 SUCCESS_CODE = "OK"
 ERROR_CODE = "ERROR"
-SOCKET_CLIENT_TIMEOUT = 300.0
 
 
 def retry_socket(func):
