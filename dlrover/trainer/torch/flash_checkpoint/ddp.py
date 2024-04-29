@@ -43,6 +43,10 @@ class DdpCheckpointer(Checkpointer):
         keep_interval (int): The step interval to keep. If the step is not
             a multiple of the value, the strategy will clean up the step
             checkpoint after saving a new step checkpoint.
+        save_timeout (int): the seconds for node rank 0 to wait all
+            ranks save checkpoints. The node rank 0 will skip the checkpoint
+            if some ranks do not finish saving checkpoint in the save_timeout
+            after the node rank 0 finishes saving checkpoint.
 
     Examples::
         >>> checkpointer = DdpCheckpointer(

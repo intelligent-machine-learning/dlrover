@@ -136,6 +136,7 @@ class MegatronDistCheckpointer(Singleton):
         storage=None,
         comm_backend="",
         use_distributed_optimizer=False,
+        save_timeout=CheckpointConstant.SAVE_TIMEOUT,
     ):
         self.storage = PosixDiskStorage() if not storage else storage
         if use_distributed_optimizer:
@@ -143,12 +144,14 @@ class MegatronDistCheckpointer(Singleton):
                 checkpoint_dir=checkpoint_dir,
                 storage=self.storage,
                 comm_backend=comm_backend,
+                save_timeout=save_timeout,
             )
         else:
             self.engine = MegatronCheckpointEngine(
                 checkpoint_dir=checkpoint_dir,
                 storage=self.storage,
                 comm_backend=comm_backend,
+                save_timeout=save_timeout,
             )
 
 
@@ -162,6 +165,7 @@ def save_checkpoint(
     comm_backend="",
     keep_step_interval=0,
     max_to_keep=0,
+    save_timeout=CheckpointConstant.SAVE_TIMEOUT,
 ):
     """
     Save a model checkpoint.
@@ -170,6 +174,10 @@ def save_checkpoint(
     keep_interval (int): The step interval to keep. If the step is not
         a multiple of the value, the strategy will clean up the step checkpoint
         after saving a new step checkpoint.
+    save_timeout (int): the seconds for node rank 0 to wait all
+            ranks save checkpoints. The node rank 0 will skip the checkpoint
+            if some ranks do not finish saving checkpoint in the save_timeout
+            after the node rank 0 finishes saving checkpoint.
     """
     args = get_args()
 
@@ -182,6 +190,7 @@ def save_checkpoint(
         storage=storage,
         comm_backend=comm_backend,
         use_distributed_optimizer=args.use_distributed_optimizer,
+        save_timeout=save_timeout,
     )
 
     # Only rank zero of the data parallel writes to the disk.
@@ -354,6 +363,7 @@ def load_checkpoint(
     comm_backend="",
     keep_step_interval=0,
     max_to_keep=0,
+    save_timeout=CheckpointConstant.SAVE_TIMEOUT,
 ):
     """Load a model checkpoint and return the iteration.
     strict (bool): whether to strictly enforce that the keys in
@@ -364,6 +374,10 @@ def load_checkpoint(
     keep_interval (int): The step interval to keep. If the step is not
         a multiple of the value, the strategy will clean up the step checkpoint
         after saving a new step checkpoint.
+    save_timeout (int): the seconds for node rank 0 to wait all
+            ranks save checkpoints. The node rank 0 will skip the checkpoint
+            if some ranks do not finish saving checkpoint in the save_timeout
+            after the node rank 0 finishes saving checkpoint.
     """
     args = get_args()
     load_dir = getattr(args, load_arg)
@@ -376,6 +390,7 @@ def load_checkpoint(
         storage=storage,
         comm_backend=comm_backend,
         use_distributed_optimizer=args.use_distributed_optimizer,
+        save_timeout=save_timeout,
     )
 
     model = unwrap_model(model)
