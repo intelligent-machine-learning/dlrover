@@ -65,11 +65,12 @@ class FsdpShardCheckpointer(Checkpointer):
         comm_backend="",
         keep_step_interval=0,
         max_to_keep=0,
+        save_timeout=CheckpointConstant.SAVE_TIMEOUT,
     ):
         self.checkpoint_dir = checkpoint_dir
         self.storage = get_checkpoint_storage(keep_step_interval, max_to_keep)
         self._engine = FsdpCheckpointEngine(
-            checkpoint_dir, self.storage, comm_backend
+            checkpoint_dir, self.storage, comm_backend, save_timeout
         )
 
     def save_checkpoint(

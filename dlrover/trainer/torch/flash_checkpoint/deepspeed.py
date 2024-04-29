@@ -129,6 +129,7 @@ class DeepSpeedCheckpointer(Checkpointer):
         comm_backend="",
         keep_step_interval=0,
         max_to_keep=0,
+        save_timeout=CheckpointConstant.SAVE_TIMEOUT,
     ):
         self.engine = engine
         self.checkpoint_dir = checkpoint_dir
@@ -145,6 +146,7 @@ class DeepSpeedCheckpointer(Checkpointer):
             global_shard_num=global_shard_num,
             zero_stage=zero_stage,
             comm_backend=comm_backend,
+            save_timeout=save_timeout,
         )
         self._ckpt_agent = AsyncCheckpointAgent(
             self._async_save_engine.storage

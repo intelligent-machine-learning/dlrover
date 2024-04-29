@@ -22,6 +22,7 @@ import torch
 import torch.distributed as dist
 
 from dlrover.python.common import env_utils
+from dlrover.python.common.constants import CheckpointConstant
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.multi_process import SharedLock, SharedQueue
 from dlrover.python.common.singleton import Singleton
@@ -158,12 +159,14 @@ class CheckpointEngine(metaclass=ABCMeta):
         checkpoint_dir: str,
         storage: CheckpointStorage,
         comm_backend: str = "",
+        save_timeout: int = CheckpointConstant.SAVE_TIMEOUT,
     ):
         if not self.saver_proc:
             self.saver_proc = start_saver_process()
 
         self.checkpoint_dir = checkpoint_dir
         self.storage = storage
+        self._save_timeout = save_timeout
         self._local_rank = int(os.getenv("LOCAL_RANK", 0))
         self._cached_step = 0
         self._restart_count = env_utils.get_torch_restart_count()
@@ -265,6 +268,7 @@ class CheckpointEngine(metaclass=ABCMeta):
                 "storage_meta": self.storage.get_class_meta(),
                 "local_shard_num": local_shard_num,
                 "global_shard_num": global_shard_num,
+                "save_timeout": self._save_timeout,
             },
         )
 

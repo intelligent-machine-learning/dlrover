@@ -71,6 +71,7 @@ class DdpCheckpointer(Checkpointer):
         comm_backend="",
         keep_step_interval=0,
         max_to_keep=0,
+        save_timeout=CheckpointConstant.SAVE_TIMEOUT,
     ):
         self.checkpoint_dir = checkpoint_dir
         if dist.is_initialized():
@@ -84,6 +85,7 @@ class DdpCheckpointer(Checkpointer):
             local_shard_num=local_shard_num,
             global_shard_num=global_shard_num,
             comm_backend=comm_backend,
+            save_timeout=save_timeout,
         )
 
     def save_checkpoint(
