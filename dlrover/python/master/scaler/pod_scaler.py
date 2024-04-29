@@ -29,6 +29,7 @@ from dlrover.python.common.constants import (
     NodeEnv,
     NodeStatus,
     NodeType,
+    PodNameTemplate,
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
@@ -161,8 +162,16 @@ class PodScaler(Scaler):
                 time.sleep(5)
         return None
 
+    def _gen_master_pod_name(self):
+        return PodNameTemplate.MASTER % self._job_name
+
     def _retry_to_get_master_pod(self):
-        master_name = f"elasticjob-{self._job_name}-dlrover-master"
+        """
+        Use pod name to get the master pod as default.
+        May need some other methods, such as: using labels or envs,
+        to get the master pod when pod name is not unique.
+        """
+        master_name = self._gen_master_pod_name()
         for _ in range(3):
             pod = self._k8s_client.get_pod(master_name)
             if pod:

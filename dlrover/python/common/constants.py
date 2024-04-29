@@ -61,6 +61,10 @@ class ElasticJobLabel(object):
     RELAUNCH_COUNT = "elasticjob.dlrover/relaunch-count"
 
 
+class PodNameTemplate(object):
+    MASTER = "elasticjob-%s-dlrover-master"
+
+
 class ScalePlanLabel(object):
     SCALE_TYPE_KEY = "scale-type"
     MANUAL_SCALE = "manual"
