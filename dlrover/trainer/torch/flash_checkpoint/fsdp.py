@@ -93,7 +93,7 @@ class FsdpShardCheckpointer(Checkpointer):
             path(str): A path to store the checkpoint.
             storage_tyep: Save the checkpoint into the memory
                 if `StorageType.MEMORY` and into the dist
-                if `StorageType.DISK`
+                if `StorageType.DISK`.
         """
         with FSDP.state_dict_type(model, StateDictType.SHARDED_STATE_DICT):
             state_dict = {
