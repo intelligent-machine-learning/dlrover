@@ -690,19 +690,22 @@ def load_chained_optimizer_parameter_state(chained_optimizer, states):
 def get_checkpoint_storage(
     checkpoint_dir, keep_step_interval=0, max_to_keep=0
 ):
-    keep_strategy = None
+    strategy = None
     if keep_step_interval > 0:
-        keep_strategy = KeepStepIntervalStrategy(
+        strategy = KeepStepIntervalStrategy(
             keep_interval=keep_step_interval,
             checkpoint_dir=checkpoint_dir,
         )
     elif max_to_keep > 0:
-        keep_strategy = KeepLatestStepStrategy(
+        strategy = KeepLatestStepStrategy(
             max_to_keep=max_to_keep,
             checkpoint_dir=checkpoint_dir,
         )
-    if keep_strategy:
-        storage = PosixStorageWithDeletion(keep_strategy)
+    if strategy:
+        storage = PosixStorageWithDeletion(
+            tracker_file=CheckpointConstant.TRACER_FILE_NAME,
+            deletion_strategy=strategy,
+        )
     else:
         storage = PosixDiskStorage()
     return storage
