@@ -70,17 +70,4 @@ def same_inference(inference1: Inference, inference2: Inference) -> bool:
 def combine_inferences(
     inferences1: List[Inference], inferences2: List[Inference]
 ) -> List[Inference]:
-    inferences = []
-    for inference2 in inferences2:
-        is_duplicate = False
-        for inference1 in inferences1:
-            if same_inference(inference1, inference2):
-                is_duplicate = True
-                break
-        if not is_duplicate:
-            inferences.append(inference2)
-
-    for inference1 in inferences1:
-        inferences.append(inference1)
-
-    return inferences
+    return list(set(inferences1 + inferences2))

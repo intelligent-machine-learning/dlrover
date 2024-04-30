@@ -13,35 +13,22 @@
 from typing import List
 
 from dlrover.python.master.diagnosis.diagnosis_data import DataManager
-from dlrover.python.master.diagnosis.inferencechain.common import (
-    Inference,
-    InferenceAttribute,
-    InferenceDescription,
-    InferenceName,
-)
+from dlrover.python.master.diagnosis.inferencechain.common import Inference
 from dlrover.python.master.diagnosis.inferencechain.inference_chain import (
     InferenceChain,
 )
 
 
-def register_problems() -> List[Inference]:
-    problems: List[Inference] = [
-        Inference(
-            InferenceName.TRAINING,
-            InferenceAttribute.ISORNOT,
-            InferenceDescription.HANG,
-        ),
-    ]
-    return problems
-
-
 class Diagnostician:
     def __init__(self, data_mgr: DataManager):
         self.data_manager = data_mgr
-        self.problems = register_problems()
+        self.training_problems: List[Inference] = []
+
+    def register_problems(self, problems: List[Inference]):
+        self.training_problems = problems
 
     def observe_training(self) -> List[Inference]:
-        ic = InferenceChain(self.data_manager, self.problems)
+        ic = InferenceChain(self.data_manager, self.training_problems)
         return ic.infer()
 
     def diagnose_failure(self, inference: Inference) -> List[Inference]:

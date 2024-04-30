@@ -15,12 +15,17 @@ import threading
 import time
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.master.diagnosis.analyst import Analyst
 from dlrover.python.master.diagnosis.diagnosis_data import (
     DataManager,
     DiagnosisData,
 )
 from dlrover.python.master.diagnosis.diagnostician import Diagnostician
+from dlrover.python.master.diagnosis.inferencechain.common import (
+    Inference,
+    InferenceAttribute,
+    InferenceDescription,
+    InferenceName,
+)
 
 
 class DiagnosisManager:
@@ -33,6 +38,14 @@ class DiagnosisManager:
 
     def start(self):
         logger.info("Start Diagnosis Manager ...")
+        problems: list[Inference] = [
+            Inference(
+                InferenceName.TRAINING,
+                InferenceAttribute.ISORNOT,
+                InferenceDescription.HANG,
+            )
+        ]
+        self.diagnostician.register_problems(problems)
 
         try:
             thread = threading.Thread(
@@ -59,5 +72,7 @@ class DiagnosisManager:
                 logger.info(f"observed problems: {problem.to_string()}")
                 root_causes = self.diagnostician.diagnose_failure(problem)
                 for root_cause in root_causes:
-                    logger.info(f"identify root cause: {root_cause.to_string()}")
+                    logger.info(
+                        f"identify root cause: {root_cause.to_string()}"
+                    )
             time.sleep(180)

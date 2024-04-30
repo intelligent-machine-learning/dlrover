@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 from typing import List
 
 from dlrover.python.common.diagnosis import DiagnosisData
+from dlrover.python.common.log import default_logger as logger
 
 
 def has_expired(timestamp: float, time_period: int) -> bool:
@@ -30,6 +31,7 @@ class DataManager:
 
     def store_data(self, data_type: str, data: DiagnosisData):
         if data_type not in self.diagnosis_data:
+            logger.warning(f"{data_type} is not found in the store")
             self.diagnosis_data[data_type] = []
         self.diagnosis_data[data_type].append(data)
         self._clean_diagnosis_data(data_type)

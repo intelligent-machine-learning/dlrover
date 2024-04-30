@@ -35,13 +35,13 @@ class DiagnosisData(metaclass=ABCMeta):
 
 
 class CudaLog(DiagnosisData):
-    def __init__(self, timestamp: float):
+    def __init__(self, timestamp: int):
         if timestamp == 0:
-            self.timestamp = datetime.now().timestamp()
+            self.timestamp = int(round(datetime.now().timestamp()))
         else:
             self.timestamp = timestamp
 
-    def get_timestamp(self) -> float:
+    def get_timestamp(self) -> int:
         return self.timestamp
 
     def get_type(self) -> str:
@@ -49,13 +49,13 @@ class CudaLog(DiagnosisData):
 
 
 class TrainingLog(DiagnosisData):
-    def __init__(self, timestamp: float):
+    def __init__(self, timestamp: int):
         if timestamp == 0:
-            self.timestamp = datetime.now().timestamp()
+            self.timestamp = int(round(datetime.now().timestamp()))
         else:
             self.timestamp = timestamp
 
-    def get_timestamp(self) -> float:
+    def get_timestamp(self) -> int:
         return self.timestamp
 
     def get_type(self) -> str:
@@ -63,13 +63,13 @@ class TrainingLog(DiagnosisData):
 
 
 class ChipMetrics(DiagnosisData):
-    def __init__(self, timestamp: float):
+    def __init__(self, timestamp: int):
         if timestamp == 0:
-            self.timestamp = datetime.now().timestamp()
+            self.timestamp = int(round(datetime.now().timestamp()))
         else:
             self.timestamp = timestamp
 
-    def get_timestamp(self) -> float:
+    def get_timestamp(self) -> int:
         return self.timestamp
 
     def get_type(self) -> str:
