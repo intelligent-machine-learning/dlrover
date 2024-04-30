@@ -14,7 +14,11 @@
 import os
 import unittest
 
-from dlrover.python.common.constants import DistributionStrategy, NodeType, ElasticJobLabel
+from dlrover.python.common.constants import (
+    DistributionStrategy,
+    ElasticJobLabel,
+    NodeType,
+)
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
 from dlrover.python.master.scaler.base_scaler import ScalePlan
@@ -245,6 +249,15 @@ class PodScalerTest(unittest.TestCase):
         scaler = PodScaler("elasticjob-sample", "default")
         scaler.start()
 
-        master_pod = scaler._retry_to_get_master_pod()
-        self.assertIsNotNone(master_pod)
-        self.assertTrue(ElasticJobLabel.REPLICA_TYPE_KEY in master_pod.metadata.labels)
+        for _ in range(10):
+            master_pod = scaler._retry_to_get_master_pod()
+            self.assertIsNotNone(master_pod)
+            self.assertEqual(
+                "1",
+                master_pod.metadata.labels.get(
+                    ElasticJobLabel.REPLICA_INDEX_KEY
+                ),
+            )
+            self.assertTrue(
+                ElasticJobLabel.REPLICA_TYPE_KEY in master_pod.metadata.labels
+            )

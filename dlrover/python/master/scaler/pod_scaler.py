@@ -44,7 +44,7 @@ from dlrover.python.scheduler.kubernetes import (
     k8sServiceFactory,
     set_container_resource,
 )
-from dlrover.python.util.kubernetes_util import gen_kubernetes_label_selector_from_dict
+from dlrover.python.util import kubernetes_util
 
 _dlrover_context = Context.singleton_instance()
 
@@ -167,26 +167,40 @@ class PodScaler(Scaler):
         Get master pod by labels.
         Notice: Labels might be different in different environments for now.
         """
-        master_labels = {ElasticJobLabel.JOB_KEY: self._job_name,
-                         ElasticJobLabel.REPLICA_TYPE_KEY: NodeType.DLROVER_MASTER}
-        master_labels_selector = gen_kubernetes_label_selector_from_dict(master_labels)
+        master_labels = {
+            ElasticJobLabel.JOB_KEY: self._job_name,
+            ElasticJobLabel.REPLICA_TYPE_KEY: NodeType.DLROVER_MASTER,
+        }
+        master_labels_selector = (
+            kubernetes_util.gen_kubernetes_label_selector_from_dict(
+                master_labels
+            )
+        )
         logger.info(f"Get master pod by labels : {master_labels_selector}.")
         for _ in range(3):
             pods = self._k8s_client.list_namespaced_pod(master_labels_selector)
             if pods and len(pods.items) > 0:
-                if len(pods.items) == 1 and pods.items[0].status.phase == NodeStatus.RUNNING:
+                if (
+                    len(pods.items) == 1
+                    and pods.items[0].status.phase == NodeStatus.RUNNING
+                ):
                     # return the only running master
                     return pods.items[0]
                 elif len(pods.items) > 1:
                     # return the last running master
-                    pods.items.sort(key=lambda pod: (
-                        pod.metadata.creation_timestamp is None,
-                        pod.metadata.creation_timestamp
-                    ), reverse=True)
+                    pods.items.sort(
+                        key=lambda pod: (
+                            pod.metadata.creation_timestamp is None,
+                            pod.metadata.creation_timestamp,
+                        ),
+                        reverse=True,
+                    )
                     for pod in pods.items:
                         if pod.status.phase == NodeStatus.RUNNING:
                             return pod
-        raise ValueError(f"Master pod is not found by pod labels : {master_labels}!")
+        raise ValueError(
+            f"Master pod is not found by pod labels : {master_labels}!"
+        )
 
     def scale(self, plan: ScalePlan):
         """Scale in/out Pods by a ScalePlan."""
@@ -329,11 +343,11 @@ class PodScaler(Scaler):
         return NodeResource(cpu, memory)
 
     def _scale_up_pods(
-            self,
-            type,
-            plan: ScalePlan,
-            cur_pods: List[Node],
-            max_pod_id,
+        self,
+        type,
+        plan: ScalePlan,
+        cur_pods: List[Node],
+        max_pod_id,
     ):
         """The method will create a Node instances and push it into a queue.
         The thread to create Pods will periodicall create Pods by
@@ -361,10 +375,10 @@ class PodScaler(Scaler):
         return max_id
 
     def _scale_down_pods(
-            self,
-            type,
-            plan: ScalePlan,
-            cur_pods: List[Node],
+        self,
+        type,
+        plan: ScalePlan,
+        cur_pods: List[Node],
     ):
         """Delete Pods to scale down Pods."""
         group_resource = plan.node_group_resources[type]
@@ -586,16 +600,16 @@ class PodScaler(Scaler):
         return service_ready
 
     def _create_pod_obj(
-            self,
-            name,
-            pod_template: client.V1Pod,
-            resource_requests: NodeResource,
-            resource_limits: NodeResource,
-            lifecycle,
-            env,
-            priority,
-            labels,
-            termination_period=None,
+        self,
+        name,
+        pod_template: client.V1Pod,
+        resource_requests: NodeResource,
+        resource_limits: NodeResource,
+        lifecycle,
+        env,
+        priority,
+        labels,
+        termination_period=None,
     ):
         pod = copy.deepcopy(pod_template)
         main_container: Optional[client.V1Container] = get_main_container(pod)
@@ -646,11 +660,11 @@ class PodScaler(Scaler):
 
 
 def new_tf_config(
-        pod_stats: Dict[str, int],
-        new_service_fn,
-        type_key,
-        index_key,
-        ps_addrs,
+    pod_stats: Dict[str, int],
+    new_service_fn,
+    type_key,
+    index_key,
+    ps_addrs,
 ):
     """Get tf.estimator config spec data. The detail is in
     https://www.tensorflow.org/api_docs/python/tf/estimator/RunConfig

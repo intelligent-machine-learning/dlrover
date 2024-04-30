@@ -17,6 +17,7 @@ from unittest import mock
 import yaml
 from kubernetes import client
 
+import dlrover.python.util.kubernetes_util as ku
 from dlrover.proto import elastic_training_pb2
 from dlrover.python.common.constants import (
     DistributionStrategy,
@@ -33,7 +34,6 @@ from dlrover.python.master.shard.dataset_splitter import new_dataset_splitter
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.scheduler.job import JobArgs, LocalJobArgs, NodeArgs
 from dlrover.python.scheduler.kubernetes import k8sClient
-import dlrover.python.util.kubernetes_util as ku
 
 
 def get_test_scale_plan(*args, **kwargs):
@@ -184,6 +184,7 @@ def create_pod(labels):
         metadata=client.V1ObjectMeta(
             name="test-worker-0",
             labels=labels,
+            creation_timestamp=datetime.datetime.now(),
             annotations={},
         ),
         status=status,
@@ -194,15 +195,18 @@ def create_pod(labels):
 def mock_list_namespaced_pod(label_selector):
     pods = []
     if "master" in label_selector:
-        job_name = (ku.gen_dict_from_kubernetes_label_selector(label_selector)
-                    .get(ElasticJobLabel.JOB_KEY))
-        labels = {
-            ElasticJobLabel.APP_NAME: "test",
-            ElasticJobLabel.JOB_KEY: job_name,
-            ElasticJobLabel.REPLICA_TYPE_KEY: NodeType.DLROVER_MASTER,
-        }
-        pod = create_pod(labels)
-        pods.append(pod)
+        job_name = ku.gen_dict_from_kubernetes_label_selector(
+            label_selector
+        ).get(ElasticJobLabel.JOB_KEY)
+        for i in range(2):
+            labels = {
+                ElasticJobLabel.APP_NAME: "test",
+                ElasticJobLabel.JOB_KEY: job_name,
+                ElasticJobLabel.REPLICA_TYPE_KEY: NodeType.DLROVER_MASTER,
+                ElasticJobLabel.REPLICA_INDEX_KEY: str(i),
+            }
+            pod = create_pod(labels)
+            pods.append(pod)
     else:
         for i in range(2):
             labels = {

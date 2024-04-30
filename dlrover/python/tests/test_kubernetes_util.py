@@ -13,17 +13,25 @@
 
 import unittest
 
-from dlrover.python.common.constants import ElasticJobLabel, NodeType
 import dlrover.python.util.kubernetes_util as ku
+from dlrover.python.common.constants import ElasticJobLabel, NodeType
 
 
 class KubernetesUtilTest(unittest.TestCase):
     def test_kubernetes_label_selector_transformation(self):
-        master_labels = {ElasticJobLabel.JOB_KEY: "ut-test",
-                         ElasticJobLabel.REPLICA_TYPE_KEY: NodeType.DLROVER_MASTER}
-        selector_result = ku.gen_kubernetes_label_selector_from_dict(master_labels)
+        master_labels = {
+            ElasticJobLabel.JOB_KEY: "ut-test",
+            ElasticJobLabel.REPLICA_TYPE_KEY: NodeType.DLROVER_MASTER,
+        }
+        selector_result = ku.gen_kubernetes_label_selector_from_dict(
+            master_labels
+        )
         self.assertTrue("elasticjob.dlrover/name=ut-test" in selector_result)
-        self.assertTrue("elasticjob.dlrover/replica-type=dlrover-master" in selector_result)
+        self.assertTrue(
+            "elasticjob.dlrover/replica-type=dlrover-master" in selector_result
+        )
 
-        dict_result = ku.gen_dict_from_kubernetes_label_selector(selector_result)
+        dict_result = ku.gen_dict_from_kubernetes_label_selector(
+            selector_result
+        )
         self.assertEqual(master_labels, dict_result)

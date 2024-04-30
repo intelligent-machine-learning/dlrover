@@ -27,4 +27,7 @@ def gen_dict_from_kubernetes_label_selector(label_selector):
     e.g. "key1=value1,key2=value2" -> {key1: value1, key2: value2}
     """
 
-    return {k: v for k, v in (item.split('=') for item in label_selector.split(','))}
+    return {
+        k: v
+        for k, v in (item.split("=") for item in label_selector.split(","))
+    }
