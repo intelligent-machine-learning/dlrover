@@ -44,6 +44,7 @@ from dlrover.python.scheduler.kubernetes import (
     k8sServiceFactory,
     set_container_resource,
 )
+from dlrover.python.util.kubernetes_util import gen_kubernetes_label_selector_from_dict
 
 _dlrover_context = Context.singleton_instance()
 
@@ -168,17 +169,21 @@ class PodScaler(Scaler):
         """
         master_labels = {ElasticJobLabel.JOB_KEY: self._job_name,
                          ElasticJobLabel.REPLICA_TYPE_KEY: NodeType.DLROVER_MASTER}
-        logger.info(f"Get master pod by labels : {master_labels}.")
+        master_labels_selector = gen_kubernetes_label_selector_from_dict(master_labels)
+        logger.info(f"Get master pod by labels : {master_labels_selector}.")
         for _ in range(3):
-            pods = self._k8s_client.list_namespaced_pod(master_labels)
-            if pods and len(pods) > 0:
-                if len(pods) == 1 and pods[0].status.phase == NodeStatus.RUNNING:
+            pods = self._k8s_client.list_namespaced_pod(master_labels_selector)
+            if pods and len(pods.items) > 0:
+                if len(pods.items) == 1 and pods.items[0].status.phase == NodeStatus.RUNNING:
                     # return the only running master
-                    return pods[0]
-                elif len(pods) > 1:
+                    return pods.items[0]
+                elif len(pods.items) > 1:
                     # return the last running master
-                    pods.sort(key=lambda pod: pod.metadata.creation_timestamp, reverse=True)
-                    for pod in pods:
+                    pods.items.sort(key=lambda pod: (
+                        pod.metadata.creation_timestamp is None,
+                        pod.metadata.creation_timestamp
+                    ), reverse=True)
+                    for pod in pods.items:
                         if pod.status.phase == NodeStatus.RUNNING:
                             return pod
         raise ValueError(f"Master pod is not found by pod labels : {master_labels}!")

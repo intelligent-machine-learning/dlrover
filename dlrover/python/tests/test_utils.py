@@ -33,6 +33,7 @@ from dlrover.python.master.shard.dataset_splitter import new_dataset_splitter
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.scheduler.job import JobArgs, LocalJobArgs, NodeArgs
 from dlrover.python.scheduler.kubernetes import k8sClient
+import dlrover.python.util.kubernetes_util as ku
 
 
 def get_test_scale_plan(*args, **kwargs):
@@ -192,27 +193,39 @@ def create_pod(labels):
 
 def mock_list_namespaced_pod(label_selector):
     pods = []
-    for i in range(2):
+    if "master" in label_selector:
+        job_name = (ku.gen_dict_from_kubernetes_label_selector(label_selector)
+                    .get(ElasticJobLabel.JOB_KEY))
         labels = {
             ElasticJobLabel.APP_NAME: "test",
-            ElasticJobLabel.REPLICA_TYPE_KEY: NodeType.PS,
-            ElasticJobLabel.REPLICA_INDEX_KEY: str(i),
-            ElasticJobLabel.RANK_INDEX_KEY: str(i),
-            ElasticJobLabel.RELAUNCH_COUNT: "0",
+            ElasticJobLabel.JOB_KEY: job_name,
+            ElasticJobLabel.REPLICA_TYPE_KEY: NodeType.DLROVER_MASTER,
         }
         pod = create_pod(labels)
         pods.append(pod)
+    else:
+        for i in range(2):
+            labels = {
+                ElasticJobLabel.APP_NAME: "test",
+                ElasticJobLabel.REPLICA_TYPE_KEY: NodeType.PS,
+                ElasticJobLabel.REPLICA_INDEX_KEY: str(i),
+                ElasticJobLabel.RANK_INDEX_KEY: str(i),
+                ElasticJobLabel.RELAUNCH_COUNT: "0",
+            }
+            pod = create_pod(labels)
+            pods.append(pod)
 
-    for i in range(3):
-        labels = {
-            ElasticJobLabel.APP_NAME: "test",
-            ElasticJobLabel.REPLICA_TYPE_KEY: NodeType.WORKER,
-            ElasticJobLabel.REPLICA_INDEX_KEY: str(i),
-            ElasticJobLabel.RANK_INDEX_KEY: str(i),
-            ElasticJobLabel.RELAUNCH_COUNT: "0",
-        }
-        pod = create_pod(labels)
-        pods.append(pod)
+        for i in range(3):
+            labels = {
+                ElasticJobLabel.APP_NAME: "test",
+                ElasticJobLabel.REPLICA_TYPE_KEY: NodeType.WORKER,
+                ElasticJobLabel.REPLICA_INDEX_KEY: str(i),
+                ElasticJobLabel.RANK_INDEX_KEY: str(i),
+                ElasticJobLabel.RELAUNCH_COUNT: "0",
+            }
+            pod = create_pod(labels)
+            pods.append(pod)
+
     return client.V1PodList(
         items=pods, metadata=client.V1ListMeta(resource_version="12345678")
     )
