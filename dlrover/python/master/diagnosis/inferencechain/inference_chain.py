@@ -43,9 +43,7 @@ class InferenceChain:
             for inference in inferences:
                 try:
                     operator = self.get_operator(inference)
-                    print(operator)
                     infs = operator.infer(inferences)
-                    print(infs)
                     if len(infs) > 0:
                         has_new_inference = True
                         new_infs = combine_inferences(new_infs, infs)
