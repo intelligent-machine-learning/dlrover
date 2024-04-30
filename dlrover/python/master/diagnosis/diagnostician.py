@@ -10,11 +10,39 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import List
+
+from dlrover.python.master.diagnosis.diagnosis_data import DataManager
+from dlrover.python.master.diagnosis.inferencechain.common import (
+    Inference,
+    InferenceAttribute,
+    InferenceDescription,
+    InferenceName,
+)
+from dlrover.python.master.diagnosis.inferencechain.inference_chain import (
+    InferenceChain,
+)
+
+
+def register_problems() -> List[Inference]:
+    problems: List[Inference] = [
+        Inference(
+            InferenceName.TRAINING,
+            InferenceAttribute.ISORNOT,
+            InferenceDescription.HANG,
+        ),
+    ]
+    return problems
 
 
 class Diagnostician:
-    def __init__(self):
-        pass
+    def __init__(self, data_mgr: DataManager):
+        self.data_manager = data_mgr
+        self.problems = register_problems()
 
-    def diagnose(self):
+    def observe_training(self) -> List[Inference]:
+        ic = InferenceChain(self.data_manager, self.problems)
+        return ic.infer()
+
+    def diagnose_failure(self, inference: Inference) -> List[Inference]:
         pass

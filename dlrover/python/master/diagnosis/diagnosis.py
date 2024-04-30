@@ -26,8 +26,7 @@ from dlrover.python.master.diagnosis.diagnostician import Diagnostician
 class DiagnosisManager:
     def __init__(self):
         self.data_manager: DataManager = DataManager(600)
-        self.analyst: Analyst = Analyst(self.data_manager)
-        self.diagnostician: Diagnostician = Diagnostician()
+        self.diagnostician: Diagnostician = Diagnostician(self.data_manager)
 
     def collect_diagnosis_data(self, data_type: str, data: DiagnosisData):
         self.data_manager.store_data(data_type, data)
@@ -37,8 +36,8 @@ class DiagnosisManager:
 
         try:
             thread = threading.Thread(
-                target=self._diagnose_faults(),
-                name="diagnosis_faults",
+                target=self._diagnose_failures(),
+                name="diagnose_failures",
                 daemon=True,
             )
             thread.start()
@@ -52,10 +51,13 @@ class DiagnosisManager:
     def stop(self):
         pass
 
-    def _diagnose_faults(self):
-        logger.info("Start to diagnose faults")
+    def _diagnose_failures(self):
+        logger.info("Start to diagnose failures")
         while True:
-            observed_problems = self.analyst.observe_training()
+            observed_problems = self.diagnostician.observe_training()
             for problem in observed_problems:
-                logger.info(problem.to_string())
+                logger.info(f"observed problems: {problem.to_string()}")
+                root_causes = self.diagnostician.diagnose_failure(problem)
+                for root_cause in root_causes:
+                    logger.info(f"identify root cause: {root_cause.to_string()}")
             time.sleep(180)

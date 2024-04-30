@@ -29,6 +29,10 @@ class DiagnosisData(metaclass=ABCMeta):
     def get_timestamp(self) -> float:
         pass
 
+    @abstractmethod
+    def get_type(self) -> str:
+        pass
+
 
 class CudaLog(DiagnosisData):
     def __init__(self, timestamp: float):
@@ -39,6 +43,9 @@ class CudaLog(DiagnosisData):
 
     def get_timestamp(self) -> float:
         return self.timestamp
+
+    def get_type(self) -> str:
+        return DiagnosisDataType.CUDALOG
 
 
 class TrainingLog(DiagnosisData):
@@ -51,6 +58,9 @@ class TrainingLog(DiagnosisData):
     def get_timestamp(self) -> float:
         return self.timestamp
 
+    def get_type(self) -> str:
+        return DiagnosisDataType.TRAININGLOG
+
 
 class ChipMetrics(DiagnosisData):
     def __init__(self, timestamp: float):
@@ -61,3 +71,6 @@ class ChipMetrics(DiagnosisData):
 
     def get_timestamp(self) -> float:
         return self.timestamp
+
+    def get_type(self) -> str:
+        return DiagnosisDataType.CHIPMETRICES
