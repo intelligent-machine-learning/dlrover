@@ -69,10 +69,8 @@ class DiagnosisManager:
         while True:
             observed_problems = self.diagnostician.observe_training()
             for problem in observed_problems:
-                logger.info(f"observed problems: {problem.to_string()}")
+                logger.info(f"observed problems: {problem}")
                 root_causes = self.diagnostician.diagnose_failure(problem)
                 for root_cause in root_causes:
-                    logger.info(
-                        f"identify root cause: {root_cause.to_string()}"
-                    )
+                    logger.info(f"identify root cause: {root_cause}")
             time.sleep(180)

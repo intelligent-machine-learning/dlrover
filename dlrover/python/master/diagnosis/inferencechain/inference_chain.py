@@ -26,6 +26,10 @@ from dlrover.python.master.diagnosis.operator.operator import (
 
 
 class InferenceChain:
+    """
+    InferenceChain is used to diagnose training failures
+    """
+
     def __init__(self, data_mgr: DataManager, inferences: List[Inference]):
         self.data_manager = data_mgr
         self.inferences = inferences
@@ -39,7 +43,9 @@ class InferenceChain:
             for inference in inferences:
                 try:
                     operator = self.get_operator(inference)
+                    print(operator)
                     infs = operator.infer(inferences)
+                    print(infs)
                     if len(infs) > 0:
                         has_new_inference = True
                         new_infs = combine_inferences(new_infs, infs)
@@ -59,4 +65,4 @@ class InferenceChain:
         for operator in self.operators:
             if operator.is_compatible(inference):
                 return operator
-        raise TypeError(f"no compatible operator for {inference.to_string()}")
+        raise TypeError(f"no compatible operator for {inference}")

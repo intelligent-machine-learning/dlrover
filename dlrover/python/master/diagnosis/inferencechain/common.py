@@ -12,6 +12,7 @@
 # limitations under the License.
 
 from abc import ABCMeta, abstractmethod
+from dataclasses import dataclass
 from typing import List
 
 
@@ -28,19 +29,20 @@ class InferenceDescription:
     HANG = "hang"
 
 
+@dataclass
 class Inference(object):
-    def __init__(self, name, attr, description: str):
-        self.name: str = name
-        self.attribute: str = attr
-        self.description: str = description
+    """
+    Inference object reflects problems and failures during training.
+    """
 
-    def to_string(self) -> str:
-        return f"{self.name}->{self.attribute}->{self.description}"
+    name: str = ""
+    attribution: str = ""
+    description: str = ""
 
 
 class InferenceOperator(metaclass=ABCMeta):
     """
-    InferenceOperator is used to infer the root cause of problems
+    InferenceOperator is used to infer the root cause of problems.
     """
 
     def __init__(self):
@@ -59,7 +61,7 @@ class InferenceOperator(metaclass=ABCMeta):
 def same_inference(inference1: Inference, inference2: Inference) -> bool:
     if (
         inference1.name == inference2.name
-        and inference1.attribute == inference2.attribute
+        and inference1.attribution == inference2.attribution
         and inference1.description == inference2.description
     ):
         return True
@@ -70,4 +72,17 @@ def same_inference(inference1: Inference, inference2: Inference) -> bool:
 def combine_inferences(
     inferences1: List[Inference], inferences2: List[Inference]
 ) -> List[Inference]:
-    return list(set(inferences1 + inferences2))
+    inferences = []
+    for inference2 in inferences2:
+        is_duplicate = False
+        for inference1 in inferences1:
+            if same_inference(inference1, inference2):
+                is_duplicate = True
+                break
+        if not is_duplicate:
+            inferences.append(inference2)
+
+    for inference1 in inferences1:
+        inferences.append(inference1)
+
+    return inferences

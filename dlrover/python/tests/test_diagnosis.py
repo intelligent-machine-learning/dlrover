@@ -55,15 +55,14 @@ class DiagnosisTest(unittest.TestCase):
         diagnostician = Diagnostician(data_mgr)
         problems: list[Inference] = [
             Inference(
-                InferenceName.TRAINING,
-                InferenceAttribute.ISORNOT,
-                InferenceDescription.HANG,
+                name=InferenceName.TRAINING,
+                attribution=InferenceAttribute.ISORNOT,
+                description=InferenceDescription.HANG,
             )
         ]
         diagnostician.register_problems(problems)
 
         infs = diagnostician.observe_training()
-
         self.assertEqual(len(infs), 1)
 
 

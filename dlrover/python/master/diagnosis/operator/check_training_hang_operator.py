@@ -30,7 +30,7 @@ class CheckTrainingHangOperator(InferenceOperator):
     def is_compatible(self, inference: Inference) -> bool:
         if (
             inference.name == InferenceName.TRAINING
-            and inference.attribute == InferenceAttribute.ISORNOT
+            and inference.attribution == InferenceAttribute.ISORNOT
             and inference.description == InferenceDescription.HANG
         ):
             return True
@@ -38,4 +38,10 @@ class CheckTrainingHangOperator(InferenceOperator):
             return False
 
     def infer(self, inferences: List[Inference]) -> List[Inference]:
-        return [Inference(InferenceName.END, "", "")]
+        return [
+            Inference(
+                name=InferenceName.END,
+                attribution="",
+                description="",
+            )
+        ]
