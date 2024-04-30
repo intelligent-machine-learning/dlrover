@@ -29,7 +29,6 @@ from dlrover.python.common.constants import (
     NodeEnv,
     NodeStatus,
     NodeType,
-    PodNameTemplate,
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
@@ -162,23 +161,27 @@ class PodScaler(Scaler):
                 time.sleep(5)
         return None
 
-    def _gen_master_pod_name(self):
-        return PodNameTemplate.MASTER % self._job_name
-
     def _retry_to_get_master_pod(self):
         """
-        Use pod name to get the master pod as default.
-        May need some other methods, such as: using labels or envs,
-        to get the master pod when pod name is not unique.
+        Get master pod by labels.
+        Notice: Labels might be different in different environments for now.
         """
-        master_name = self._gen_master_pod_name()
+        master_labels = {ElasticJobLabel.JOB_KEY: self._job_name,
+                         ElasticJobLabel.REPLICA_TYPE_KEY: NodeType.DLROVER_MASTER}
+        logger.info(f"Get master pod by labels : {master_labels}.")
         for _ in range(3):
-            pod = self._k8s_client.get_pod(master_name)
-            if pod:
-                return pod
-            else:
-                time.sleep(5)
-        raise ValueError(f"{master_name} is not Found!")
+            pods = self._k8s_client.list_namespaced_pod(master_labels)
+            if pods and len(pods) > 0:
+                if len(pods) == 1 and pods[0].status.phase == NodeStatus.RUNNING:
+                    # return the only running master
+                    return pods[0]
+                elif len(pods) > 1:
+                    # return the last running master
+                    pods.sort(key=lambda pod: pod.metadata.creation_timestamp, reverse=True)
+                    for pod in pods:
+                        if pod.status.phase == NodeStatus.RUNNING:
+                            return pod
+        raise ValueError(f"Master pod is not found by pod labels : {master_labels}!")
 
     def scale(self, plan: ScalePlan):
         """Scale in/out Pods by a ScalePlan."""
@@ -321,11 +324,11 @@ class PodScaler(Scaler):
         return NodeResource(cpu, memory)
 
     def _scale_up_pods(
-        self,
-        type,
-        plan: ScalePlan,
-        cur_pods: List[Node],
-        max_pod_id,
+            self,
+            type,
+            plan: ScalePlan,
+            cur_pods: List[Node],
+            max_pod_id,
     ):
         """The method will create a Node instances and push it into a queue.
         The thread to create Pods will periodicall create Pods by
@@ -353,10 +356,10 @@ class PodScaler(Scaler):
         return max_id
 
     def _scale_down_pods(
-        self,
-        type,
-        plan: ScalePlan,
-        cur_pods: List[Node],
+            self,
+            type,
+            plan: ScalePlan,
+            cur_pods: List[Node],
     ):
         """Delete Pods to scale down Pods."""
         group_resource = plan.node_group_resources[type]
@@ -578,16 +581,16 @@ class PodScaler(Scaler):
         return service_ready
 
     def _create_pod_obj(
-        self,
-        name,
-        pod_template: client.V1Pod,
-        resource_requests: NodeResource,
-        resource_limits: NodeResource,
-        lifecycle,
-        env,
-        priority,
-        labels,
-        termination_period=None,
+            self,
+            name,
+            pod_template: client.V1Pod,
+            resource_requests: NodeResource,
+            resource_limits: NodeResource,
+            lifecycle,
+            env,
+            priority,
+            labels,
+            termination_period=None,
     ):
         pod = copy.deepcopy(pod_template)
         main_container: Optional[client.V1Container] = get_main_container(pod)
@@ -638,11 +641,11 @@ class PodScaler(Scaler):
 
 
 def new_tf_config(
-    pod_stats: Dict[str, int],
-    new_service_fn,
-    type_key,
-    index_key,
-    ps_addrs,
+        pod_stats: Dict[str, int],
+        new_service_fn,
+        type_key,
+        index_key,
+        ps_addrs,
 ):
     """Get tf.estimator config spec data. The detail is in
     https://www.tensorflow.org/api_docs/python/tf/estimator/RunConfig
