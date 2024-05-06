@@ -283,6 +283,7 @@ trainer.train(resume_from_checkpoint=last_ckpt_path)
 文件。
 
 使用示例：
+
 ```Python
 from dlrover.trainer.torch.flash_checkpoint.deepspeed import (
     DeepSpeedCheckpointer,
