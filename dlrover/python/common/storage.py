@@ -306,6 +306,7 @@ class PosixStorageWithDeletion(PosixDiskStorage):
 
     def get_class_meta(self):
         kwargs = {
+            "tracker_file": self._tracker_file,
             "deletion_strategy": self._deletion_strategy,
         }
         class_mata = ClassMeta(
