@@ -19,7 +19,6 @@ dlrover-run --nproc_per_node=2 train.py \
     --epochs 50 --save_memory_interval 50 --save_storage_interval 500
 """
 
-
 import argparse
 import contextlib
 import os
@@ -48,108 +47,109 @@ from dlrover.trainer.torch.flash_checkpoint.ddp import (
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 
+dtypes = {
+    "float32": torch.float32,
+    "bfloat16": torch.bfloat16,
+    "float16": torch.float16,
+}
+
 
 def train():
-    args = arg_parser()
-    checkpoint_dir = args.save_dir
     setup()
-    os.makedirs(checkpoint_dir, exist_ok=True)
+    args = arg_parser()
     world_size = int(os.getenv("WORLD_SIZE", 1))
     local_rank = int(os.getenv("LOCAL_RANK", 0))
-    gradient_accumulation_steps = args.gradient_accumulation_steps
-    batch_size = args.batch_size
-    if gradient_accumulation_steps == 0:
-        gradient_accumulation_steps = world_size
-    assert gradient_accumulation_steps % world_size == 0
-    block_size = args.block_size
-    gradient_accumulation_steps //= world_size
-    tokens_per_iter = (
-        gradient_accumulation_steps * world_size * batch_size * block_size
-    )  # noqa: E501
-    log_rank0(f"tokens per iteration will be: {tokens_per_iter:,}")
-    device = f"cuda:{local_rank}" if torch.cuda.is_available() else "cpu"
-    device_type = "cuda" if "cuda" in device else "cpu"
-    if device_type == "cuda":
+
+    ### Set up parameters for propagation.
+    dtype_name = "float16"
+    if torch.cuda.is_available():
+        device = f"cuda:{local_rank}"
         torch.cuda.set_device(device)
-    # Note: float16 data type will automatically use a GradScaler
-    dtype = (
-        "bfloat16"
-        if torch.cuda.is_available() and torch.cuda.is_bf16_supported()
-        else "float16"
-    )
-    # Auto implement a GradScaler
-    ptdtype = {
-        "float32": torch.float32,
-        "bfloat16": torch.bfloat16,
-        "float16": torch.float16,
-    }[dtype]
-    ctx = (
-        contextlib.nullcontext()
-        if device_type == "cpu"
-        else torch.amp.autocast(device_type=device_type, dtype=ptdtype)
-    )
-    train_loader, val_loader, meta_vocab_size = get_data_loaders(
-        data_dir=args.data_dir,
-        batch_size=batch_size,
-        block_size=block_size,
-    )
-    model = gpt_init(meta_vocab_size, args=args)
-    lora_config = create_lora_config(args)
-    if lora_config is not None:
-        log_rank0(f"apply lora config {lora_config}")
-        apply_lora(model, **lora_config)
-    scaler = torch.cuda.amp.GradScaler(enabled=(dtype == "float16"))
+        if torch.cuda.is_bf16_supported():
+            dtype_name = "bfloat16"
+    else:
+        device = "cpu"
+
+    # TODO: Note: float16 / bfloat16 data type will automatically use a GradScaler
+    scaler = torch.cuda.amp.GradScaler(enabled=(dtype_name == ("float16" or "bfloat16")))
+
+    total_steps = args.gradient_accumulation_steps
+    if total_steps == 0:
+        grad_accum_steps = 1
+    else:
+        grad_accum_steps = total_steps // world_size
+
+    tokens_per_iter = grad_accum_steps * world_size * args.batch_size * args.block_size
+    log_rank0(f"tokens per iteration will be: {tokens_per_iter:,}")
+
+    train_loader, _, vocab_size = get_data_loaders(args.data_dir, args.batch_size, args.block_size)
+    model = gpt_init(vocab_size, args=args)
     model = model.to(device)
-    # Device
-    if torch.cuda.is_available() and device_type == "cuda":
-        # Create model and move it to GPU with id rank
-        model = model.to(local_rank)
-        print(f"Running basic DDP example on local rank {local_rank}.")
+
+    # # LoRA
+    # lora_config = create_lora_config(args)
+    # if lora_config is not None:
+    #     log_rank0(f"apply lora config {lora_config}")
+    #     apply_lora(model, **lora_config)
+
+    # Create model and move it to GPU.
+    if torch.cuda.is_available():
+        print(f"Running basic DDP example on {device}.")
         model = DDP(model, device_ids=[local_rank])
         print(f"Model device {model.device}")
     else:
-        print(f"Running basic CPU example on device {device}.")
-        model = model.to(device)
+        print(f"Running basic CPU example on {device}.")
         model = DDP(model)
         print(f"Model device {model.device}")
+
+    if compile == "True":
+        log_rank0("Compiling the model... (takes a ~minute)")
+        model = torch.compile(model)  # requires PyTorch 2.0
+
     # Optimizer
-    log_rank0(f"creating optimizer...{model.parameters()}")
+    log_rank0(f"Creating optimizer... {model.parameters()}")
     optimizer = torch.optim.AdamW(
-        model.parameters(),
+        params=model.parameters(),
         weight_decay=args.weight_decay,
         lr=args.learning_rate,
         betas=(args.beta1, args.beta2),
     )
 
-    # Compile the model
-    if compile == "True":
-        log_rank0("compiling the model... (takes a ~minute)")
-        model = torch.compile(model)  # requires PyTorch 2.0
-
-    # Training loop
-    total_time = 0.0
-    local_iter_num = 0  # Number of iterations in the lifetime of this process
-    raw_model = model.module  # Unwrap DDP/FSDP container if needed
-    running_mfu = -1.0
-    iter_num = 0
-    decay_lr = args.decay_lr
-    max_iters = args.max_iters
-    log_interval = args.log_interval
-    grad_clip = args.grad_clip
-    learning_rate = args.learning_rate
+    # Prepare the ElasticTrainer.
     elastic_trainer = ElasticTrainer(
         model=model,
         dataloader=train_loader,
     )
     optimizer = elastic_trainer.prepare(optimizer)
 
+    prop_params = {}
+    prop_params.update({"device": device})
+    prop_params.update({"dtype_name": dtype_name})
+    prop_params.update({"grad_accum_steps": grad_accum_steps})
+    prop_params.update({"train_loader": train_loader})
+    prop_params.update({"model": model})
+    prop_params.update({"optimizer": optimizer})
+    prop_params.update({"checkpoint_dir": args.save_dir})
+
     # Forward backward update, with optional gradient accumulation
     # to simulate larger batch size and using the GradScaler
     # if data type is float16
-
+    checkpoint_dir = prop_params["checkpoint_dir"]
+    os.makedirs(checkpoint_dir, exist_ok=True)
     checkpointer = DdpCheckpointer(checkpoint_dir)
+    total_time = 0.0
+    local_iter_num = 0  # Number of iterations in the lifetime of this process
+    raw_model = model.module  # Unwrap DDP/FSDP container if needed
+    running_mfu = -1.0
+    decay_lr = args.decay_lr
+    max_iters = args.max_iters
+    log_interval = args.log_interval
+    grad_clip = args.grad_clip
+    learning_rate = args.learning_rate
 
     t0 = time.time()
+
+    ### Load checkpointer.
     ckpt_dict = {}
     if args.use_native_ckpt:
         ckpt_path = os.path.join(checkpoint_dir, "50.pt")
@@ -157,6 +157,7 @@ def train():
     else:
         ckpt_dict = checkpointer.load_checkpoint()
     read_time = round(time.time() - t0, 2)
+
     if "model" in ckpt_dict:
         model.load_state_dict(ckpt_dict["model"])
     if "optimizer" in ckpt_dict:
@@ -173,19 +174,32 @@ def train():
     for epoch in range(args.epochs):
         # Note: set the epoch into the sampler.
         train_loader.sampler.set_epoch(epoch)
+
         for X, Y in train_loader:
             with elastic_trainer.step():
-                # Determine and set the learning rate for this iteration
-                lr = get_lr(iter_num, args) if decay_lr else learning_rate
+                # Set learning rate.
+                if decay_lr:
+                    lr = get_lr(iter_num, args)
+                else:
+                    lr = learning_rate
+
                 for param_group in optimizer.param_groups:
                     param_group["lr"] = lr
-                for micro_step in range(gradient_accumulation_steps):
+
+                for micro_step in range(grad_accum_steps):
                     t0 = time.time()
                     X, Y = X.to(device), Y.to(device)
+                    # TODO: WTF???
+                    ctx = (
+                        contextlib.nullcontext()
+                        if "cpu" in device
+                        else torch.amp.autocast(device_type=device.split(':')[0], dtype=dtypes[dtype_name])
+                    )
+
                     with ctx:
                         logits, loss = model(X, Y)
                         # Scale the loss to account for gradient accumulation
-                        loss = loss / gradient_accumulation_steps
+                        loss = loss / grad_accum_steps
                     # immediately async prefetch next batch while model
                     # is doing the forward pass on the GPU
                     # Backward pass, with gradient scaling if training in fp16
@@ -212,12 +226,12 @@ def train():
                         # Get loss as float. note: this is a CPU-GPU sync point
                         # scale up to undo the division above, approximating
                         # the true total loss (exact would have been a sum)
-                        lossf = loss.item() * gradient_accumulation_steps
+                        lossf = loss.item() * grad_accum_steps
                         if (
-                            local_iter_num >= 5
+                                local_iter_num >= 5
                         ):  # Let the training loop settle a bit
                             mfu = raw_model.estimate_mfu(
-                                batch_size * gradient_accumulation_steps, dt
+                                args.batch_size * grad_accum_steps, dt
                             )
                             running_mfu = (
                                 mfu
@@ -267,13 +281,17 @@ def train():
             break
 
 
+def _train_epoch():
+    pass
+
+
 def native_save_checkpoint(
-    iter_num,
-    model,
-    optimizer,
-    train_loader,
-    save_storage_interval,
-    checkpoint_dir,
+        iter_num,
+        model,
+        optimizer,
+        train_loader,
+        save_storage_interval,
+        checkpoint_dir,
 ):
     saved = False
     if iter_num % save_storage_interval != 0:
@@ -294,18 +312,18 @@ def native_save_checkpoint(
 
 
 def flash_save_checkpoint(
-    checkpointer,
-    iter_num,
-    model,
-    optimizer,
-    train_loader,
-    save_memory_interval,
-    save_storage_interval,
+        checkpointer,
+        iter_num,
+        model,
+        optimizer,
+        train_loader,
+        save_memory_interval,
+        save_storage_interval,
 ):
     saved = False
     if (
-        iter_num % save_memory_interval != 0
-        and iter_num % save_storage_interval != 0
+            iter_num % save_memory_interval != 0
+            and iter_num % save_storage_interval != 0
     ):
         return saved
     state_dict = {
