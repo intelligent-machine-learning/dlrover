@@ -21,6 +21,7 @@ dlrover-run --nproc_per_node=2 train.py \
 
 import argparse
 import contextlib
+import functools
 import os
 import time
 
@@ -54,13 +55,151 @@ dtypes = {
 }
 
 
-def train():
+def train(args, train_params):
+    """
+    Train the model with the given parameters that has been set up correctly.
+
+    Args:
+        args:  Arguments parsed from the command line.
+        train_params:  dtype_name, grad_accum_steps, total_steps, device, train_loader,
+                        elastic_trainer, model, optimizer, checkpointer
+    """
+    (dtype_name, grad_accum_steps, total_steps, device, train_loader, elastic_trainer,
+     model, optimizer, checkpointer) = train_params
+
+    total_time = 0.0
+    local_iter_num = 0  # Number of iterations in the lifetime of this process
+    running_mfu = -1.0
+
+    scaler = torch.cuda.amp.GradScaler(enabled=(dtype_name == ("float16" or "bfloat16")))
+
+    for epoch in range(args.epochs):
+        # Set learning rate.
+        learning_rate = get_lr(total_steps, args) if args.decay_lr else args.learning_rate
+
+        # Set epoch into the sampler.
+        train_loader.sampler.set_epoch(epoch)
+        # Set learning rate.
+        optimizer.param_groups[0]["lr"] = learning_rate
+
+        for _, (data, target) in enumerate(train_loader):
+            with elastic_trainer.step():
+                start_time = time.time()
+                for micro_step in range(grad_accum_steps):
+                    data, target = data.to(device), target.to(device)
+
+                    # Set context.
+                    if "cpu" in device:
+                        context = contextlib.nullcontext()
+                    else:
+                        context = torch.amp.autocast(device.split(':')[0], dtypes[dtype_name])
+
+                    with context:
+                        _, loss = model(data, target)
+                        # Scale the loss to account for gradient accumulation
+                        loss = loss / grad_accum_steps
+                    # immediately async prefetch next batch while model
+                    # is doing the forward pass on the GPU
+                    # Backward pass, with gradient scaling if training in fp16
+                    scaler.scale(loss).backward()
+
+                    # Clip the gradient
+                    if args.grad_clip != 0.0:
+                        scaler.unscale_(optimizer)
+                        torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
+
+                    # Step the optimizer and scaler if training in fp16
+                    scaler.step(optimizer)
+                    scaler.update()
+                    # Flush the gradients as soon as we can,
+                    # no need for this memory anymore
+                    optimizer.zero_grad(set_to_none=True)
+
+                    # Timing and logging
+                    dt = time.time() - start_time
+                    total_time += dt
+
+                    if total_steps % args.log_interval == 0:
+                        # Get loss as float. note: this is a CPU-GPU sync point
+                        # scale up to undo the division above, approximating
+                        # the true total loss (exact would have been a sum)
+                        lossf = loss.item() * grad_accum_steps
+                        if local_iter_num >= 5:
+                            # Let the training loop settle a bit
+                            mfu = model.module.estimate_mfu(
+                                args.batch_size * grad_accum_steps, dt
+                            )
+
+                            if running_mfu == -1.0:
+                                running_mfu = mfu
+                            else:
+                                running_mfu = 0.9 * running_mfu + 0.1 * mfu
+
+                        cuda_mem = torch.cuda.max_memory_allocated() / 1e9
+                        log_rank0(
+                            f"iter {total_steps}: loss {lossf:.4f}, "
+                            f"time {dt * 1000:.2f}ms, "
+                            f"mfu {running_mfu * 100:.2f}%, "
+                            f"cuda memory {cuda_mem:.3f}G, "
+                            f"lr {learning_rate:.2e}, total time {total_time:.2f}s"
+                        )
+                    total_steps += 1
+                    local_iter_num += 1
+
+                    # Save the checkpoint.
+                    start_save_t = time.time()
+                    if args.use_native_ckpt:
+                        saved = native_save_checkpoint(
+                            total_steps,
+                            model,
+                            optimizer,
+                            train_loader,
+                            args.save_storage_interval,
+                            args.checkpoint_dir,
+                        )
+                    else:
+                        saved = flash_save_checkpoint(
+                            checkpointer,
+                            total_steps,
+                            model,
+                            optimizer,
+                            train_loader,
+                            args.save_memory_interval,
+                            args.save_storage_interval,
+                        )
+                    if saved:
+                        save_time = round(time.time() - start_save_t, 2)
+                        print(f"Save checkpoint time {save_time}s")
+
+                    # Termination conditions
+                    if total_steps > args.max_iters:
+                        break
+                if total_steps > args.max_iters:
+                    break
+        if total_steps > args.max_iters:
+            break
+
+
+def setup_everything(args) -> tuple:
+    """
+    Set up all the necessary components before training.
+
+    Returns:
+        tuple: A tuple containing...
+                dtype_name:  The name of the data type.
+                grad_accum_steps:  The number of gradient accumulation steps.
+                total_steps:  The total number of steps.
+                device:  The device to train on.
+                train_loader:  The data loader for training.
+                elastic_trainer:  The ElasticTrainer object.
+                model:  The model to train.
+                optimizer:  The optimizer to use.
+                checkpointer:  The checkpointer object.
+    """
     setup()
-    args = arg_parser()
     world_size = int(os.getenv("WORLD_SIZE", 1))
     local_rank = int(os.getenv("LOCAL_RANK", 0))
 
-    ### Set up parameters for propagation.
     dtype_name = "float16"
     if torch.cuda.is_available():
         device = f"cuda:{local_rank}"
@@ -70,29 +209,27 @@ def train():
     else:
         device = "cpu"
 
-    # TODO: Note: float16 / bfloat16 data type will automatically use a GradScaler
-    scaler = torch.cuda.amp.GradScaler(enabled=(dtype_name == ("float16" or "bfloat16")))
-
+    # Set up the gradient accumulation steps.
     total_steps = args.gradient_accumulation_steps
     if total_steps == 0:
         grad_accum_steps = 1
     else:
         grad_accum_steps = total_steps // world_size
 
-    tokens_per_iter = grad_accum_steps * world_size * args.batch_size * args.block_size
-    log_rank0(f"tokens per iteration will be: {tokens_per_iter:,}")
+    # tokens_per_iter = grad_accum_steps * world_size * args.batch_size * args.block_size
+    # log_rank0(f"tokens per iteration will be: {tokens_per_iter:,}")
 
     train_loader, _, vocab_size = get_data_loaders(args.data_dir, args.batch_size, args.block_size)
     model = gpt_init(vocab_size, args=args)
     model = model.to(device)
 
-    # # LoRA
-    # lora_config = create_lora_config(args)
-    # if lora_config is not None:
-    #     log_rank0(f"apply lora config {lora_config}")
-    #     apply_lora(model, **lora_config)
+    # Apply LoRA if needed.
+    lora_config = create_lora_config(args)
+    if lora_config is not None:
+        log_rank0(f"apply lora config {lora_config}")
+        apply_lora(model, **lora_config)
 
-    # Create model and move it to GPU.
+    # Set up the model.
     if torch.cuda.is_available():
         print(f"Running basic DDP example on {device}.")
         model = DDP(model, device_ids=[local_rank])
@@ -106,7 +243,13 @@ def train():
         log_rank0("Compiling the model... (takes a ~minute)")
         model = torch.compile(model)  # requires PyTorch 2.0
 
-    # Optimizer
+    # Set up the ElasticTrainer.
+    elastic_trainer = ElasticTrainer(
+        model=model,
+        dataloader=train_loader,
+    )
+
+    # Set up the optimizer.
     log_rank0(f"Creating optimizer... {model.parameters()}")
     optimizer = torch.optim.AdamW(
         params=model.parameters(),
@@ -114,239 +257,82 @@ def train():
         lr=args.learning_rate,
         betas=(args.beta1, args.beta2),
     )
-
-    # Prepare the ElasticTrainer.
-    elastic_trainer = ElasticTrainer(
-        model=model,
-        dataloader=train_loader,
-    )
     optimizer = elastic_trainer.prepare(optimizer)
 
-    prop_params = {}
-    prop_params.update({"device": device})
-    prop_params.update({"dtype_name": dtype_name})
-    prop_params.update({"grad_accum_steps": grad_accum_steps})
-    prop_params.update({"train_loader": train_loader})
-    prop_params.update({"model": model})
-    prop_params.update({"optimizer": optimizer})
-    prop_params.update({"checkpoint_dir": args.save_dir})
-
-    # Forward backward update, with optional gradient accumulation
-    # to simulate larger batch size and using the GradScaler
-    # if data type is float16
-    checkpoint_dir = prop_params["checkpoint_dir"]
+    # Load from checkpointer.
+    t0 = time.time()
+    checkpoint_dir = args.save_dir
     os.makedirs(checkpoint_dir, exist_ok=True)
     checkpointer = DdpCheckpointer(checkpoint_dir)
-    total_time = 0.0
-    local_iter_num = 0  # Number of iterations in the lifetime of this process
-    raw_model = model.module  # Unwrap DDP/FSDP container if needed
-    running_mfu = -1.0
-    decay_lr = args.decay_lr
-    max_iters = args.max_iters
-    log_interval = args.log_interval
-    grad_clip = args.grad_clip
-    learning_rate = args.learning_rate
 
-    t0 = time.time()
-
-    ### Load checkpointer.
-    ckpt_dict = {}
     if args.use_native_ckpt:
-        ckpt_path = os.path.join(checkpoint_dir, "50.pt")
-        ckpt_dict = torch.load(ckpt_path)
+        ckpt_dict = torch.load(os.path.join(checkpoint_dir, "50.pt"))
     else:
         ckpt_dict = checkpointer.load_checkpoint()
-    read_time = round(time.time() - t0, 2)
+    # Load {model}, {optimizer}, {sampler} and {step} from the checkpoint.
+    model.load_state_dict(ckpt_dict["model"]) if "model" in ckpt_dict else None
+    optimizer.load_state_dict(ckpt_dict["optimizer"]) if "optimizer" in ckpt_dict else None
+    train_loader.sampler.load_state_dict(ckpt_dict["sampler"]) if "sampler" in ckpt_dict else None
+    total_steps = ckpt_dict.get("step", 0)
+    # Print the checkpointer loading time.
+    print(f"Local rank {local_rank}: checkpointer loading time {round(time.time() - t0, 2)}s")
 
-    if "model" in ckpt_dict:
-        model.load_state_dict(ckpt_dict["model"])
-    if "optimizer" in ckpt_dict:
-        optimizer.load_state_dict(ckpt_dict["optimizer"])
-    if "sampler" in ckpt_dict:
-        train_loader.sampler.load_state_dict(ckpt_dict["sampler"])
-    iter_num = ckpt_dict.get("step", 0)
-    load_time = round(time.time() - t0, 2)
-    print(
-        f"Local rank {local_rank}: reading time {read_time}, "
-        f"loading time {load_time}s"
-    )
-
-    for epoch in range(args.epochs):
-        # Note: set the epoch into the sampler.
-        train_loader.sampler.set_epoch(epoch)
-
-        for X, Y in train_loader:
-            with elastic_trainer.step():
-                # Set learning rate.
-                if decay_lr:
-                    lr = get_lr(iter_num, args)
-                else:
-                    lr = learning_rate
-
-                for param_group in optimizer.param_groups:
-                    param_group["lr"] = lr
-
-                for micro_step in range(grad_accum_steps):
-                    t0 = time.time()
-                    X, Y = X.to(device), Y.to(device)
-                    # TODO: WTF???
-                    ctx = (
-                        contextlib.nullcontext()
-                        if "cpu" in device
-                        else torch.amp.autocast(device_type=device.split(':')[0], dtype=dtypes[dtype_name])
-                    )
-
-                    with ctx:
-                        logits, loss = model(X, Y)
-                        # Scale the loss to account for gradient accumulation
-                        loss = loss / grad_accum_steps
-                    # immediately async prefetch next batch while model
-                    # is doing the forward pass on the GPU
-                    # Backward pass, with gradient scaling if training in fp16
-                    scaler.scale(loss).backward()
-                    # Clip the gradient
-                    if grad_clip != 0.0:
-                        scaler.unscale_(optimizer)
-                        torch.nn.utils.clip_grad_norm_(
-                            model.parameters(), grad_clip
-                        )
-                    # Step the optimizer and scaler if training in fp16
-                    scaler.step(optimizer)
-                    scaler.update()
-                    # Flush the gradients as soon as we can,
-                    # no need for this memory anymore
-                    optimizer.zero_grad(set_to_none=True)
-
-                    # Timing and logging
-                    t1 = time.time()
-                    dt = t1 - t0
-                    total_time += dt
-
-                    if iter_num % log_interval == 0:
-                        # Get loss as float. note: this is a CPU-GPU sync point
-                        # scale up to undo the division above, approximating
-                        # the true total loss (exact would have been a sum)
-                        lossf = loss.item() * grad_accum_steps
-                        if (
-                                local_iter_num >= 5
-                        ):  # Let the training loop settle a bit
-                            mfu = raw_model.estimate_mfu(
-                                args.batch_size * grad_accum_steps, dt
-                            )
-                            running_mfu = (
-                                mfu
-                                if running_mfu == -1.0
-                                else 0.9 * running_mfu + 0.1 * mfu
-                            )
-                        cuda_mem = torch.cuda.max_memory_allocated() / 1e9
-                        log_rank0(
-                            f"iter {iter_num}: loss {lossf:.4f},"
-                            f" time {dt * 1000:.2f}ms, "
-                            f"mfu {running_mfu * 100:.2f}%,"
-                            f" cuda memory {cuda_mem:.3f}G, "
-                            f"lr {lr:.2e}, total time {total_time:.2f}s"
-                        )
-                    iter_num += 1
-                    local_iter_num += 1
-                    start_save_t = time.time()
-                    if args.use_native_ckpt:
-                        saved = native_save_checkpoint(
-                            iter_num,
-                            model,
-                            optimizer,
-                            train_loader,
-                            args.save_storage_interval,
-                            checkpoint_dir,
-                        )
-                    else:
-                        saved = flash_save_checkpoint(
-                            checkpointer,
-                            iter_num,
-                            model,
-                            optimizer,
-                            train_loader,
-                            args.save_memory_interval,
-                            args.save_storage_interval,
-                        )
-                    if saved:
-                        save_time = round(time.time() - start_save_t, 2)
-                        print(f"Save checkpoint time {save_time}s")
-
-                    # Termination conditions
-                    if iter_num > max_iters:
-                        break
-                if iter_num > max_iters:
-                    break
-        if iter_num > max_iters:
-            break
-
-
-def _train_epoch():
-    pass
+    return (dtype_name, grad_accum_steps, total_steps, device, train_loader, elastic_trainer,
+            model, optimizer, checkpointer)
 
 
 def native_save_checkpoint(
-        iter_num,
+        total_steps,
         model,
         optimizer,
         train_loader,
         save_storage_interval,
         checkpoint_dir,
 ):
-    saved = False
-    if iter_num % save_storage_interval != 0:
-        return saved
+    if total_steps % save_storage_interval != 0:
+        return False
+
     state_dict = {
         "model": model.state_dict(),
         "optimizer": optimizer.state_dict(),
-        "step": iter_num,
+        "step": total_steps,
     }
     if isinstance(train_loader.sampler, ElasticDistributedSampler):
-        sampler_sd = train_loader.sampler.state_dict(
-            iter_num, train_loader.batch_size
-        )
+        sampler_sd = train_loader.sampler.state_dict(total_steps, train_loader.batch_size)
         state_dict["ds_sampler"] = sampler_sd
-    ckpt_path = os.path.join(checkpoint_dir, f"{iter_num}.pt")
+
+    ckpt_path = os.path.join(checkpoint_dir, f"{total_steps}.pt")
     torch.save(state_dict, ckpt_path)
-    saved = True
+    return True
 
 
 def flash_save_checkpoint(
         checkpointer,
-        iter_num,
+        total_steps,
         model,
         optimizer,
         train_loader,
         save_memory_interval,
         save_storage_interval,
 ):
-    saved = False
-    if (
-            iter_num % save_memory_interval != 0
-            and iter_num % save_storage_interval != 0
-    ):
-        return saved
+    if (total_steps % save_memory_interval != 0) and (total_steps % save_storage_interval != 0):
+        return False
+
     state_dict = {
         "model": model.state_dict(),
         "optimizer": optimizer.state_dict(),
-        "step": iter_num,
+        "step": total_steps,
     }
     if isinstance(train_loader.sampler, ElasticDistributedSampler):
-        sampler_sd = train_loader.sampler.state_dict(
-            iter_num, train_loader.batch_size
-        )
+        sampler_sd = train_loader.sampler.state_dict(total_steps, train_loader.batch_size)
         state_dict["ds_sampler"] = sampler_sd
-    if iter_num % save_memory_interval == 0:
-        checkpointer.save_checkpoint(
-            iter_num, state_dict, storage_type=StorageType.MEMORY
-        )
-        saved = True
-    if iter_num % save_storage_interval == 0:
-        checkpointer.save_checkpoint(
-            iter_num, state_dict, storage_type=StorageType.DISK
-        )
-        saved = True
-    return saved
+
+    # Save the checkpoint to memory or disk.
+    if total_steps % save_memory_interval == 0:
+        checkpointer.save_checkpoint(total_steps, state_dict, storage_type=StorageType.MEMORY)
+    if total_steps % save_storage_interval == 0:
+        checkpointer.save_checkpoint(total_steps, state_dict, storage_type=StorageType.DISK)
+    return True
 
 
 def arg_parser():
@@ -357,5 +343,7 @@ def arg_parser():
 
 
 if __name__ == "__main__":
-    train()
+    args = arg_parser()
+    train_params = setup_everything(args)
+    train(args, train_params)
     cleanup()
