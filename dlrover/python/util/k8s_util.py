@@ -11,19 +11,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dlrover.python.common.diagnosis import CudaLog
-from dlrover.python.elastic_agent.datacollector.data_collector import (
-    DataCollector,
-)
+
+def gen_k8s_label_selector_from_dict(label_dict):
+    """
+    Generate a kubernetes label selector from dict.
+    e.g. {key1: value1, key2: value2} -> "key1=value1,key2=value2"
+    """
+
+    return ",".join(f"{key}={value}" for key, value in label_dict.items())
 
 
-class CudaLogCollector(DataCollector):
-    def __init__(self, *args, **kwargs):
-        pass
+def gen_dict_from_k8s_label_selector(label_selector):
+    """
+    Generate a dict from kubernetes label selector format.
+    e.g. "key1=value1,key2=value2" -> {key1: value1, key2: value2}
+    """
 
-    def collect_data(self) -> object:
-        log = CudaLog(0)
-        return log
-
-    def to_collect_data(self) -> bool:
-        return True
+    return {
+        k: v
+        for k, v in (item.split("=") for item in label_selector.split(","))
+    }

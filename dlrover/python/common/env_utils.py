@@ -62,3 +62,9 @@ def get_node_num():
     """Get the number of node."""
     node_num = int(os.getenv(NodeEnv.NODE_NUM, 0))
     return node_num
+
+
+def get_env(env_key):
+    """Get the specified environment variable."""
+    env_value = os.getenv(env_key, None)
+    return env_value

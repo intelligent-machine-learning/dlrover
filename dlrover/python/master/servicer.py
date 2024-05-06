@@ -27,8 +27,15 @@ from dlrover.python.common.constants import (
     RendezvousName,
     TrainingLoopStatus,
 )
+from dlrover.python.common.diagnosis import (
+    ChipMetrics,
+    CudaLog,
+    DiagnosisDataType,
+    TrainingLog,
+)
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.master.diagnosis.diagnosis import DiagnosisManager
 from dlrover.python.master.elastic_training.kv_store_service import (
     KVStoreService,
 )
@@ -76,6 +83,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         self._job_manager: JobManager = job_manager
         self._speed_monitor = speed_monitor
         self._rdzv_managers = rdzv_managers
+        self._diagnosis_manager: DiagnosisManager = DiagnosisManager()
         self._kv_store = KVStoreService()
         self._job_metric_collector: JobMetricCollector = job_metric_collector
         self._elastic_ps_service: ElasticPsService = elastic_ps_service
@@ -332,6 +340,12 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             success = self._report_heartbeat(node_type, node_id, message)
         elif isinstance(message, grpc.NodeCheckpointState):
             success = self._sync_checkpoint(node_type, node_id, message)
+        elif isinstance(message, grpc.DiagnosisChipMetrics):
+            success = self._report_chip_metrics(node_type, node_id, message)
+        elif isinstance(message, grpc.DiagnosisCudaLog):
+            success = self._report_cuda_log(node_type, node_id, message)
+        elif isinstance(message, grpc.DiagnosisTrainingLog):
+            success = self._report_training_log(node_type, node_id, message)
 
         response.success = success
         return response
@@ -573,6 +587,33 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             return False
         rdzv_manager = self._rdzv_managers[RendezvousName.ELASTIC_TRAINING]
         return rdzv_manager.sync_ckpt_nodes(node_id, message.step)
+
+    def _report_chip_metrics(
+        self, node_type, node_id, message: grpc.DiagnosisChipMetrics
+    ):
+        data = ChipMetrics(message.timestamp)
+        self._diagnosis_manager.collect_diagnosis_data(
+            DiagnosisDataType.CHIPMETRICES, data
+        )
+        return True
+
+    def _report_training_log(
+        self, node_type, node_id, message: grpc.DiagnosisTrainingLog
+    ):
+        data = TrainingLog(message.timestamp)
+        self._diagnosis_manager.collect_diagnosis_data(
+            DiagnosisDataType.TRAININGLOG, data
+        )
+        return True
+
+    def _report_cuda_log(
+        self, node_type, node_id, message: grpc.DiagnosisCudaLog
+    ):
+        data = CudaLog(message.timestamp)
+        self._diagnosis_manager.collect_diagnosis_data(
+            DiagnosisDataType.CUDALOG, data
+        )
+        return True
 
 
 def create_master_service(

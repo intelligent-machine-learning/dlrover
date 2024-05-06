@@ -13,11 +13,12 @@
 
 import threading
 import time
+from typing import Dict
 
+from dlrover.python.common.diagnosis import ChipMetrics, CudaLog, TrainingLog
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
 from dlrover.python.elastic_agent.datacollector.cuda_log_collector import (
-    CudaLog,
     CudaLogCollector,
 )
 from dlrover.python.elastic_agent.datacollector.data_collector import (
@@ -26,10 +27,8 @@ from dlrover.python.elastic_agent.datacollector.data_collector import (
 )
 from dlrover.python.elastic_agent.datacollector.log_collector import (
     LogCollector,
-    TrainingLog,
 )
 from dlrover.python.elastic_agent.datacollector.metrics_collector import (
-    ChipMetrics,
     MetricsCollector,
 )
 from dlrover.python.elastic_agent.master_client import MasterClient
@@ -41,11 +40,7 @@ class DiagnosisMonitor(Singleton):
         self._master_client = MasterClient.singleton_instance()
 
     def init(self):
-        self.collectors = {
-            CollectorType.CUDALOG: CudaLogCollector(),
-            CollectorType.CHIPMETRICS: MetricsCollector(),
-            CollectorType.TRAININGLOG: LogCollector(),
-        }
+        self.collectors = register_collectors()
 
     def start(self):
         self.init()
@@ -53,8 +48,8 @@ class DiagnosisMonitor(Singleton):
 
         try:
             thread = threading.Thread(
-                target=self._collect_diagnosis_data(),
-                name="monitor_resource",
+                target=self._diagnose_faults(),
+                name="diagnosis_data",
                 daemon=True,
             )
             thread.start()
@@ -107,3 +102,11 @@ class DiagnosisMonitor(Singleton):
 
     def get_collectors(self):
         return self.collectors
+
+
+def register_collectors() -> Dict[str, DataCollector]:
+    return {
+        CollectorType.CUDALOG: CudaLogCollector(),
+        CollectorType.CHIPMETRICS: MetricsCollector(),
+        CollectorType.TRAININGLOG: LogCollector(),
+    }

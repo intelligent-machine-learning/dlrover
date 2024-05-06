@@ -247,7 +247,7 @@ def save_checkpoint(
 
         # Optimizer stuff.
         if not args.no_save_optim:
-            if optimizer is not None and not args.use_distributed_optimizer:
+            if optimizer is not None:
                 model_state_dict["optimizer"] = optimizer.state_dict()
             if opt_param_scheduler is not None:
                 model_state_dict[
@@ -482,9 +482,9 @@ def load_checkpoint(
         try:
             # Load state dict.
             if optimizer is not None:
-                if not args.use_distributed_optimizer:
-                    optimizer.load_state_dict(model_state_dict["optimizer"])
-                elif isinstance(optimizer, ChainedOptimizer):
+                optimizer.load_state_dict(model_state_dict["optimizer"])
+            if args.use_distributed_optimizer:
+                if isinstance(optimizer, ChainedOptimizer):
                     load_chained_optimizer_parameter_state(
                         optimizer, opt_state_dict
                     )
