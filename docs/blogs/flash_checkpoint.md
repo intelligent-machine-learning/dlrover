@@ -310,6 +310,53 @@ last_ckpt_path = trainer.get_last_checkpoint()
 trainer.train(resume_from_checkpoint=last_ckpt_path)
 ```
 
+### Cleanup Checkpoint Strategy
+
+Using the Flash Checkpoint, training can export the model's checkpoints to disk at a very high frequency
+which will use a lot of storage space. To reduce storage costs, Flash Checkpoint can clean up previous
+checkpoint files after a new checkpoint is successfully saved. Currently, Flash Checkpoint offers two checkpoint
+cleanup strategies:
+
+`KeepStepIntervalStrategy(keep_interval: int, checkpoint_dir: str)`: Only retain checkpoint files whose
+iteration steps are an integer multiple of `keep_interval`.
+
+`KeepLatestStepStrategy(max_to_keep: int, checkpoint_dir: str)`: Only keep the latest
+`max_to_keep` checkpoint files.
+
+The example to use a cleanup strategy
+
+```Python
+from dlrover.trainer.torch.flash_checkpoint.deepspeed import (
+    DeepSpeedCheckpointer,
+    StorageType,
+)
+from dlrover.python.common.store import KeepStepIntervalStrategy
+
+strategy = KeepStepIntervalStrategy(keep_interval=100, checkpoint_dir=checkpoint_dir)
+
+checkpointer = DeepSpeedCheckpointer(model, checkpoint_dir, deletion_strategy=strategy)
+```
+
+Besides this, users can also customize their cleanup strategies.
+
+```Python
+class CustomStrategy(CheckpointDeletionStrategy):
+
+    def __init__(self, *args, **kwargs):
+        ...
+
+
+    def clean_up(self, step, delete_func):
+        """
+        Clean up the checkpoint of step.
+
+        Arguments:
+            step (int): the iteration step of a checkpoint.
+            delete_func: A function to remove a directory, the argument
+                is a directory of a folder.
+        """
+```
+
 ## Benchmark Experiments
 
 ### Train GPT-1.5B on single-node multi-GPUs

@@ -419,8 +419,14 @@ class FsdpCheckpointEngine(CheckpointEngine):
     and storage.
     """
 
-    def __init__(self, checkpoint_dir: str, storage, comm_backend=""):
-        super().__init__(checkpoint_dir, storage, comm_backend)
+    def __init__(
+        self,
+        checkpoint_dir: str,
+        storage,
+        comm_backend="",
+        save_timeout=CheckpointConstant.SAVE_TIMEOUT,
+    ):
+        super().__init__(checkpoint_dir, storage, comm_backend, save_timeout)
         self._shm_writer = SharedMemoryWriter(shm_handler=self._shm_handler)
         self._shm_reader = SharedMemoryReader(self._shm_handler)
 

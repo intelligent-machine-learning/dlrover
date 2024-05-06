@@ -290,6 +290,7 @@ class CheckpointConstant(object):
     TRACER_FILE_NAME = "dlrover_latest.txt"
     MODEL_STATES_NAME = "model_states"
     OPTIM_STATES_NAME = "optim_states"
+    SAVE_TIMEOUT = 600
 
 
 class Accelerators(object):

@@ -24,7 +24,10 @@ from deepspeed.runtime.zero.config import ZeroStageEnum
 
 from dlrover.python.common import env_utils
 from dlrover.python.common.constants import CheckpointConstant
-from dlrover.python.common.storage import CheckpointStorage, PosixDiskStorage
+from dlrover.python.common.storage import (
+    CheckpointStorage,
+    get_checkpoint_storage,
+)
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     DeepSpeedCheckpointSaver,
 )
@@ -98,10 +101,17 @@ class DeepSpeedCheckpointer(Checkpointer):
 
     Args:
         checkpoint_dir: the directory to save the checkpoint.
-        storage: A CheckpointStorage instance. The checkpointer will
-            use a PosixStorage instance if the storage is not defined.
         comm_backend (str): the backend to synchronize when saving the
             checkpoint to the memory.
+        deletion_strategy: A `CheckpointDeletionStrategy` instance. The default
+            value is None and all checkpoint files will be retained. Now, the
+            strategy can be `KeepLatestStepStrategy`
+            or `KeepStepIntervalStrategy`. Users also can define a strategy
+            to manage the checkpoint files.
+        save_timeout (int): the seconds for node rank 0 to wait all
+            ranks save checkpoints. The node rank 0 will skip the checkpoint
+            if some ranks do not finish saving checkpoint in the save_timeout
+            after the node rank 0 finishes saving checkpoint.
 
     Examples::
         >>> engine = deepspeed.initialize(...)
@@ -120,8 +130,9 @@ class DeepSpeedCheckpointer(Checkpointer):
         self,
         engine: DeepSpeedEngine,
         checkpoint_dir,
-        storage=None,
         comm_backend="",
+        deletion_strategy=None,
+        save_timeout=CheckpointConstant.SAVE_TIMEOUT,
     ):
         self.engine = engine
         self.checkpoint_dir = checkpoint_dir
@@ -131,13 +142,14 @@ class DeepSpeedCheckpointer(Checkpointer):
                 self.engine.optimizer.dp_process_group
             )
         zero_stage = self.engine.zero_optimization_stage()
-        self.storage = PosixDiskStorage() if not storage else storage
+        self.storage = get_checkpoint_storage(deletion_strategy)
         self._async_save_engine = DeepSpeedCheckpointEngine(
             checkpoint_dir,
             storage=self.storage,
             global_shard_num=global_shard_num,
             zero_stage=zero_stage,
             comm_backend=comm_backend,
+            save_timeout=save_timeout,
         )
         self._ckpt_agent = AsyncCheckpointAgent(
             self._async_save_engine.storage
