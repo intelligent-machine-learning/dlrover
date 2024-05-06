@@ -44,7 +44,7 @@ from dlrover.python.scheduler.kubernetes import (
     k8sServiceFactory,
     set_container_resource,
 )
-from dlrover.python.util import kubernetes_util
+from dlrover.python.util import k8s_util
 
 _dlrover_context = Context.singleton_instance()
 
@@ -162,19 +162,19 @@ class PodScaler(Scaler):
                 time.sleep(5)
         return None
 
+    def _get_master_pod_labels(self):
+        return {
+            ElasticJobLabel.JOB_KEY: self._job_name,
+            ElasticJobLabel.REPLICA_TYPE_KEY: NodeType.DLROVER_MASTER,
+        }
+
     def _retry_to_get_master_pod(self):
         """
         Get master pod by labels.
         Notice: Labels might be different in different environments for now.
         """
-        master_labels = {
-            ElasticJobLabel.JOB_KEY: self._job_name,
-            ElasticJobLabel.REPLICA_TYPE_KEY: NodeType.DLROVER_MASTER,
-        }
-        master_labels_selector = (
-            kubernetes_util.gen_kubernetes_label_selector_from_dict(
-                master_labels
-            )
+        master_labels_selector = k8s_util.gen_k8s_label_selector_from_dict(
+            self._get_master_pod_labels()
         )
         logger.info(f"Get master pod by labels : {master_labels_selector}.")
         for _ in range(3):

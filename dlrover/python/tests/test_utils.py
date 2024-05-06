@@ -17,7 +17,7 @@ from unittest import mock
 import yaml
 from kubernetes import client
 
-import dlrover.python.util.kubernetes_util as ku
+import dlrover.python.util.k8s_util as ku
 from dlrover.proto import elastic_training_pb2
 from dlrover.python.common.constants import (
     DistributionStrategy,
@@ -195,9 +195,9 @@ def create_pod(labels):
 def mock_list_namespaced_pod(label_selector):
     pods = []
     if "master" in label_selector:
-        job_name = ku.gen_dict_from_kubernetes_label_selector(
-            label_selector
-        ).get(ElasticJobLabel.JOB_KEY)
+        job_name = ku.gen_dict_from_k8s_label_selector(label_selector).get(
+            ElasticJobLabel.JOB_KEY
+        )
         for i in range(2):
             labels = {
                 ElasticJobLabel.APP_NAME: "test",
