@@ -113,30 +113,30 @@ class ElasticLaunchConfig(LaunchConfig):
     Creates a rendezvous config of elastic training.
 
     Args:
-        network_check: whether to check the network avaliable before training.
+        network_check: whether to check the network available before training.
         node_unit: the number of unit of nodes. The number of nodes must be
             a multiple of node_unit.
-        auto_config: wether to automatically configure the nnodes and
+        auto_config: whether to automatically configure the nnodes and
             nproc_per_node.
-        auto_tunning: whether to auto-tune the parallelism configuration.
+        auto_tuning: whether to auto-tune the parallelism configuration.
         exclude_straggler: The node will exit if it is a straggler in network
             check and exclude_straggler is True.
-        save_at_breakpoint: wether to save the checkpoint from the shared
+        save_at_breakpoint: whether to save the checkpoint from the shared
             memory into the disk after a failure occurs.
-        accelerator: the type of acclerator processor like nvidia.com/gpu,
+        accelerator: the type of accelerate processor like nvidia.com/gpu,
             ascend-npu.
     """
 
     network_check: bool = False
     node_unit: int = 1
     auto_config: bool = False
-    auto_tunning: bool = False
+    auto_tuning: bool = False
     exclude_straggler: bool = False
     save_at_breakpoint: bool = False
     accelerator: str = ""
 
     def set_node_unit(self, node_unit):
-        """Set the number unint of ndoes."""
+        """Set the number unit of nodes."""
         self.node_unit = node_unit
         self.rdzv_configs["node_unit"] = node_unit
 
@@ -167,10 +167,10 @@ class ProcessError:
 
 
 class MasterRendezvousHandler(RendezvousHandler):
-    """The rendzevous handler completes rendezvous by connecting
+    """The rendezvous handler completes rendezvous by connecting
     with the ElasticJob master. The master will collect all nodes
     after the handler of all node agents calls `_join_rendezvous`.
-    Then, the handler will get the communcation world from the master
+    Then, the handler will get the communication world from the master
     and assign ranks to the training process.
 
     Args:
@@ -178,7 +178,7 @@ class MasterRendezvousHandler(RendezvousHandler):
         node_rank: the node rank.
         rdzv_params: RendezvousParameters instance. We can set timeout of
             rendezvous in the rdzv_params.config. Now we set:
-            join_timeout: the timeout to join the rendevous. The timeout
+            join_timeout: the timeout to join the rendezvous. The timeout
                 happens if the number of nodes is less than min_nodes
                 in the join_timeout.
             lastcall_timeout: the timeout to wait new nodes after the
@@ -187,7 +187,7 @@ class MasterRendezvousHandler(RendezvousHandler):
                 the timeout happens.
             pend_timeout: the timeout to wait the next rendezvous. The timeout
                 happens if there is a rendezvous and the node is not in the
-                rendzvous. For example. the number of nodes must be the
+                rendezvous. For example. the number of nodes must be the
                 multiple of node_uint. If the node_uint = 4 and the number
                 of nodes is 5, then the 5th node will wait for more nodes
                 in the pend_timeout.
@@ -195,11 +195,11 @@ class MasterRendezvousHandler(RendezvousHandler):
     """
 
     def __init__(
-        self,
-        name,
-        node_rank,
-        rdzv_params: RendezvousParameters,
-        local_world_size,
+            self,
+            name,
+            node_rank,
+            rdzv_params: RendezvousParameters,
+            local_world_size,
     ):
         self._name = name
         self._node_rank = node_rank
@@ -239,9 +239,9 @@ class MasterRendezvousHandler(RendezvousHandler):
 
     def next_rendezvous(self):
         """The handler will peroidically query the world from the master until
-        the world is not empty. The world is a dictionary like
+        the world is not empty. The world is a dictionary
         like {0: 8, 1: 8, 2: 8} where the key is the node ID and the value is
-        the local world size. The handler can get its rank by the position
+        the local world size. The handler can get it's rank by the position
         of it node ID in the world.
         """
         start_join = time.time()
@@ -292,8 +292,8 @@ class MasterRendezvousHandler(RendezvousHandler):
             f"{world_size}."
         )
         if (
-            self._name == RendezvousName.ELASTIC_TRAINING
-            and world_size < self._rdzv_params.max_nodes
+                self._name == RendezvousName.ELASTIC_TRAINING
+                and world_size < self._rdzv_params.max_nodes
         ):
             err_msg = f"Scale down the number of nodes to {world_size}"
             self._report_failure(err_msg, level=TrainingExceptionLevel.WARNING)
@@ -360,14 +360,14 @@ class ElasticTrainingAgent(LocalElasticAgent):
     """
 
     def __init__(
-        self,
-        node_rank,
-        config: ElasticLaunchConfig,
-        entrypoint,
-        spec: WorkerSpec,
-        start_method="spawn",
-        exit_barrier_timeout: float = 300,
-        log_dir: Optional[str] = None,
+            self,
+            node_rank,
+            config: ElasticLaunchConfig,
+            entrypoint,
+            spec: WorkerSpec,
+            start_method="spawn",
+            exit_barrier_timeout: float = 300,
+            log_dir: Optional[str] = None,
     ):
         super().__init__(spec, exit_barrier_timeout)
         self._node_rank = node_rank
@@ -380,7 +380,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         self._restart_count = 0
         self._remaining_failovers = self._remaining_restarts
         self._client = MasterClient.singleton_instance()
-        if config.auto_tunning:
+        if config.auto_tuning:
             self._paral_config_tuner = ParalConfigTuner.singleton_instance()
             self._paral_config_tuner.start()
 
@@ -459,7 +459,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
     #  `torch.distributed.elastic.metrics.prof`.
     @prof
     def _assign_worker_ranks(
-        self, node_id, world, spec: WorkerSpec
+            self, node_id, world, spec: WorkerSpec
     ) -> List[Worker]:
         """
         Determines proper ranks for worker processes. The rank assignment
@@ -693,20 +693,20 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
 
 def launch_agent(
-    config: ElasticLaunchConfig,
-    entrypoint: Union[Callable, str, None],
-    args: List[Any],
+        config: ElasticLaunchConfig,
+        entrypoint: Union[Callable, str, None],
+        args: List[Any],
 ) -> Dict[int, Any]:
+    ### Set everything up before starting the agent. ###
+    # Set up log.
     if not config.run_id:
         run_id = str(uuid.uuid4().int)
         logger.warning(
             f"config has no run_id, generated a random run_id: {run_id}"
         )
         config.run_id = run_id
-
     entrypoint_name = _get_entrypoint_name(entrypoint, args)
     node_rank = env_utils.get_node_rank()
-
     logger.info(
         f"Starting elastic_operator with launch configs:\n"
         f"  entrypoint       : {entrypoint_name}\n"
@@ -722,11 +722,12 @@ def launch_agent(
         f"  log_dir          : {config.log_dir}\n"
         f"  metrics_cfg      : {config.metrics_cfg}\n"
     )
-
+    # Set up the parallelism configuration.
     _set_paral_config()
-
+    # Set up the training monitor.
     monitor = TorchTrainingMonitor(ConfigPath.RUNTIME_METRICS)
     monitor.start()
+    # Set up the rendezvous handler.
     rdzv_parameters = RendezvousParameters(
         backend=config.rdzv_backend,
         endpoint=config.rdzv_endpoint,
@@ -742,6 +743,7 @@ def launch_agent(
         rdzv_parameters,
         local_world_size=config.nproc_per_node,
     )
+    # Set up the worker spec.
     spec = WorkerSpec(
         role=config.role,
         local_world_size=config.nproc_per_node,
@@ -755,6 +757,8 @@ def launch_agent(
         master_addr=master_addr,
     )
 
+    ### Start the agent. ###
+    # Set up the elastic agent.
     agent = ElasticTrainingAgent(
         node_rank=node_rank,
         config=config,
@@ -782,8 +786,8 @@ def launch_agent(
                 name=entrypoint_name,
                 failures=result.failures,
             )
-
         return result.return_values
+
     except ChildFailedError:
         raise
     except SignalException:
@@ -820,14 +824,14 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
     """
 
     def __init__(
-        self,
-        node_rank,
-        config,
-        entrypoint,
-        spec: WorkerSpec,
-        start_method="spawn",
-        exit_barrier_timeout: float = 300,
-        log_dir: Optional[str] = None,
+            self,
+            node_rank,
+            config,
+            entrypoint,
+            spec: WorkerSpec,
+            start_method="spawn",
+            exit_barrier_timeout: float = 300,
+            log_dir: Optional[str] = None,
     ):
         super().__init__(
             node_rank,
@@ -917,7 +921,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
                     break
                 continue
             elif state == WorkerState.SUCCEEDED or self._check_finished(
-                output_dir
+                    output_dir
             ):
                 succeed = True
                 break
@@ -954,9 +958,9 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
 
 
 def network_check(
-    config: ElasticLaunchConfig,
-    entrypoint: Union[Callable, str, None],
-    args: List[Any],
+        config: ElasticLaunchConfig,
+        entrypoint: Union[Callable, str, None],
+        args: List[Any],
 ) -> bool:
     config = copy.deepcopy(config)
 

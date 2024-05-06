@@ -17,7 +17,7 @@ import threading
 import time
 from contextlib import closing
 
-from dlrover.proto import elastic_training_pb2, elastic_training_pb2_grpc
+from dlrover.proto import elastic_training_pb2_grpc, elastic_training_pb2
 from dlrover.python.common import env_utils, grpc
 from dlrover.python.common.constants import NetworkFailureReason, NodeEnv
 from dlrover.python.common.log import default_logger as logger
@@ -27,7 +27,7 @@ from dlrover.python.common.singleton import Singleton
 def retry_grpc_request(func):
     def wrapper(self, *args, **kwargs):
         retry = kwargs.get("retry", 10)
-        execption = None
+        exception = None
         for i in range(retry):
             try:
                 return func(self, *args, **kwargs)
@@ -37,11 +37,11 @@ def retry_grpc_request(func):
                 logger.warning(
                     f"Retry {i} to {class_name}.{func_name} with failure",
                 )
-                execption = e
+                exception = e
                 time.sleep(5)
-        if execption:
-            logger.error(execption)
-            raise execption
+        if exception:
+            logger.error(exception)
+            raise exception
 
     return wrapper
 
@@ -374,18 +374,6 @@ class MasterClient(Singleton):
 
     def report_paral_config(self, config: grpc.ParallelConfig):
         self._report(config)
-
-    def report_diagnosis_training_log(self, training_log):
-        message = grpc.DiagnosisTrainingLog(training_log.timestamp)
-        self._report(message)
-
-    def report_diagnosis_chip_metrics(self, chip_metrics):
-        message = grpc.DiagnosisChpMetrics(chip_metrics.timestamp)
-        self._report(message)
-
-    def report_diagnosis_cuda_log(self, cuda_log):
-        message = grpc.DiagnosisCudaLog(cuda_log.timestamp)
-        self._report(message)
 
     def get_paral_config(self) -> grpc.ParallelConfig:
         request = grpc.ParallelConfigRequest()

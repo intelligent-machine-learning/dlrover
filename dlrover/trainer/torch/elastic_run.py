@@ -33,11 +33,11 @@ Run in the worker Pod with GPU of ElasticJob.
         --auto-config
         YOUR_TRAINING_SCRIPT.py (--arg1 ... train script args...)
 
-auto-config will set the nnodes as the number of nodes in a job,
-nproc_per_node as the number of available GPUs. If the number of
-nodes >= 4, it will set the network-check as True. If network-check is True,
-dlrover-run will launch simple tasks on each node to check wether
-the node is slow or fault.
+`auto-config` will set the nnodes as the number of nodes in a job,
+nproc_per_node as the number of available GPUs.
+If the number of nodes >= 4, it will set the network-check as True.
+If network-check is True, `dlrover-run` will launch simple tasks on
+each node to check whether the node is slow or fault.
 
 Single-node multi-worker
 ++++++++++++++++++++++++++++++
@@ -60,9 +60,9 @@ multi-node multi-worker
         --max-restarts=3
         YOUR_TRAINING_SCRIPT.py (--arg1 ... train script args...)
 
-Elastic (``min=1``, ``max=4``, tolerates up to 3 membership
+Elastic (min=1, max=4, tolerates up to 3 membership
 changes or failures)
-+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
++++++++++++++++++++++++++++++++++++
 
 ::
 
@@ -84,7 +84,7 @@ For multi-node training you need to specify:
 
 For auto-tuning parallelism configuration, you need to specify:
 
-1. ``--auto-tunning``: Whether to auto tune the batch size and learning rate.
+1. ``--auto-tunning``: Whether to auto-tune the batch size and learning rate.
 """
 
 import os
@@ -147,10 +147,10 @@ def parse_args(args):
         "and nproc_per_nodes.",
     )
     parser.add_argument(
-        "--auto_tunning",
+        "--auto_tuning",
         "--auto-tunning",
         action=check_env,
-        help="Whether to auto-tune the parallel configuraion.",
+        help="Whether to auto-tune the parallel configuration.",
     )
     parser.add_argument(
         "--exclude-straggler",
@@ -179,9 +179,9 @@ def parse_args(args):
     return parser.parse_args(args)
 
 
-class elastic_launch:
+class ElasticLaunch:
     """
-    Launches an torchelastic agent on the container
+    Launches a torchelastic agent on the container
     that invoked the entrypoint.
 
         1. Pass the ``entrypoint`` arguments as non ``kwargs``
@@ -199,13 +199,13 @@ class elastic_launch:
 
     def main():
         # entrypoint is a function.
-        outputs = elastic_launch(LaunchConfig, worker_fn)(foo)
+        outputs = ElasticLaunch(LaunchConfig, worker_fn)(foo)
         # return rank 0's output
         return outputs[0]
 
         # entrypoint is a command and ``script.py`` is the python module.
-        outputs = elastic_launch(LaunchConfig, "script.py")(args)
-        outputs = elastic_launch(LaunchConfig, "python")("script.py")
+        outputs = ElasticLaunch(LaunchConfig, "script.py")(args)
+        outputs = ElasticLaunch(LaunchConfig, "python")("script.py")
     """
 
     def __init__(
@@ -228,7 +228,7 @@ class elastic_launch:
 
 
 def _launch_dlrover_local_master(master_addr, job_name, node_num):
-    """Launch a subprocess to run the DLrover master."""
+    """Launch a subprocess to run the DLRover master."""
     logger.info(f"Start dlrover master with addr {master_addr}")
     if not master_addr:
         host = "127.0.0.1"
@@ -287,7 +287,7 @@ def _elastic_config_from_args(
     config, cmd, cmd_args = config_from_args(args)
     elastic_config = ElasticLaunchConfig(**config.__dict__)
     elastic_config.network_check = getattr(args, "network_check", False)
-    elastic_config.auto_tunning = getattr(args, "auto_tunning", False)
+    elastic_config.auto_tuning = getattr(args, "auto_tuning", False)
     elastic_config.auto_config = getattr(args, "auto_config", False)
     elastic_config.accelerator = getattr(
         args, "accelerator", Accelerators.NVIDIA_GPU
@@ -320,6 +320,7 @@ def _check_to_use_dlrover_run(master_addr, max_nodes, timeout=120):
 
 
 def run(args):
+    # Initialization
     master_handler = None
     master_addr = os.getenv(NodeEnv.DLROVER_MASTER_ADDR, "")
     use_dlrover_launch = False
@@ -340,6 +341,7 @@ def run(args):
         os.environ[NodeEnv.DLROVER_MASTER_ADDR] = master_addr
     use_dlrover_launch = _check_to_use_dlrover_run(master_addr, max_nodes)
 
+    # Set rendezvous information.
     if args.standalone and not use_dlrover_launch:
         args.rdzv_backend = "c10d"
         args.rdzv_endpoint = "localhost:29400"
@@ -356,8 +358,10 @@ def run(args):
     config, cmd, cmd_args = _elastic_config_from_args(args)
     config.run_id = job_name
     config.role = "dlrover-trainer"
+
+    # Launch the job.
     try:
-        elastic_launch(
+        ElasticLaunch(
             config=config,
             entrypoint=cmd,
             use_dlrover_launch=use_dlrover_launch,
