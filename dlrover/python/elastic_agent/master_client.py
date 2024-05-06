@@ -20,6 +20,7 @@ from contextlib import closing
 from dlrover.proto import elastic_training_pb2, elastic_training_pb2_grpc
 from dlrover.python.common import env_utils, grpc
 from dlrover.python.common.constants import NetworkFailureReason, NodeEnv
+from dlrover.python.common.diagnosis import ChipMetrics, CudaLog, TrainingLog
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
 
@@ -375,15 +376,15 @@ class MasterClient(Singleton):
     def report_paral_config(self, config: grpc.ParallelConfig):
         self._report(config)
 
-    def report_diagnosis_training_log(self, training_log):
+    def report_diagnosis_training_log(self, training_log: TrainingLog):
         message = grpc.DiagnosisTrainingLog(training_log.timestamp)
         self._report(message)
 
-    def report_diagnosis_chip_metrics(self, chip_metrics):
-        message = grpc.DiagnosisChpMetrics(chip_metrics.timestamp)
+    def report_diagnosis_chip_metrics(self, chip_metrics: ChipMetrics):
+        message = grpc.DiagnosisChipMetrics(chip_metrics.timestamp)
         self._report(message)
 
-    def report_diagnosis_cuda_log(self, cuda_log):
+    def report_diagnosis_cuda_log(self, cuda_log: CudaLog):
         message = grpc.DiagnosisCudaLog(cuda_log.timestamp)
         self._report(message)
 

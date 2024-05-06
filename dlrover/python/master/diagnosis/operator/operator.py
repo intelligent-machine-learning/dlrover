@@ -11,19 +11,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dlrover.python.common.diagnosis import CudaLog
-from dlrover.python.elastic_agent.datacollector.data_collector import (
-    DataCollector,
+from typing import List
+
+from dlrover.python.master.diagnosis.diagnosis_data import DataManager
+from dlrover.python.master.diagnosis.inferencechain.common import (
+    InferenceOperator,
+)
+from dlrover.python.master.diagnosis.operator.check_training_hang_operator import (  # noqa: E501
+    CheckTrainingHangOperator,
 )
 
 
-class CudaLogCollector(DataCollector):
-    def __init__(self, *args, **kwargs):
-        pass
-
-    def collect_data(self) -> object:
-        log = CudaLog(0)
-        return log
-
-    def to_collect_data(self) -> bool:
-        return True
+def register_operators(data_manager: DataManager) -> List[InferenceOperator]:
+    return [CheckTrainingHangOperator(data_manager)]

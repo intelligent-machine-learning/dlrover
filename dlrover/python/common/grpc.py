@@ -464,5 +464,5 @@ class DiagnosisCudaLog(Message):
 
 
 @dataclass
-class DiagnosisChpMetrics(Message):
+class DiagnosisChipMetrics(Message):
     timestamp: int = 0
