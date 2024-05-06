@@ -266,6 +266,7 @@ class AllReduceNodeHandlingCallback(NodeEventCallback):
                     msg="All critical nodes completed",
                 )
         self._speed_monitor.remove_running_worker(node.type, node.id)
+        self._remove_node_from_rdzv(node)
 
     @NodeEventCallback.log_callback_exception
     def on_node_failed(self, node: Node, cluster_context):
@@ -283,13 +284,15 @@ class AllReduceNodeHandlingCallback(NodeEventCallback):
                 error_data=NodeExitReason.HARDWARE_ERROR,
                 level=TrainingExceptionLevel.NODE_ERROR,
             )
-        for manager in self._rdzv_managers.values():
-            manager.remove_alive_node(node)
+        self._remove_node_from_rdzv(node)
 
     @NodeEventCallback.log_callback_exception
     def on_node_deleted(self, node, cluster_context):
         node.finish_time = datetime.now()  # type: ignore
         self._stop_job_if_needed(node)
+        self._remove_node_from_rdzv(node)
+
+    def _remove_node_from_rdzv(self, node):
         for manager in self._rdzv_managers.values():
             manager.remove_alive_node(node)
 
