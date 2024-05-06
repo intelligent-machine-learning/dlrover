@@ -15,6 +15,7 @@
 import os
 import random
 import sys
+from typing import List
 
 import numpy as np
 import torch
@@ -44,12 +45,88 @@ except ImportError:
 
 from dlrover.python.common.constants import CheckpointConstant
 from dlrover.python.common.singleton import Singleton
-from dlrover.python.common.storage import PosixDiskStorage
+from dlrover.python.common.storage import (
+    CheckpointDeletionStrategy,
+    PosixDiskStorage,
+    PosixStorageWithDeletion,
+)
 from dlrover.trainer.torch.flash_checkpoint.checkpointer import StorageType
 from dlrover.trainer.torch.flash_checkpoint.megatron_engine import (
     MegatronCheckpointEngine,
     MegatronDistCheckpointEngine,
 )
+
+
+class KeepStepIntervalStrategy(CheckpointDeletionStrategy):
+    """
+    The strategy only keeps the step which is a multiple of the keep_interval
+    and clean the other previous step after saving a new step checkpoint.
+
+    Arguments:
+        keep_interval (int): The step interval to keep. If the step is not
+            a multiple of it, the strategy will clean up the step checkpoint
+            after saving a new step checkpoint. For example, when
+            keep_interval=400, the checkpoint of step 200 will be removed
+            if the checkpoint of step 400 is saved.
+        checkpoint_dir (str): The common folder directory of checkpoint of
+            all steps.
+
+    example:
+        keep_strategy = KeepStepIntervalStrategy(
+            keep_interval=400,
+            checkpoint_dir=args.save,
+        )
+        storage = PosixStorageWithDeletion(keep_strategy)
+        iteration, num_floating_point_operations_so_far = load_checkpoint(
+            model, optimizer, opt_param_scheduler, storage=storage
+        )
+        save_checkpoint(iteration, model, optimizer, opt_param_scheduler,
+                        num_floating_point_operations_so_far, storage=storage)
+
+    """
+
+    def __init__(self, keep_interval: int, checkpoint_dir: str):
+        self._keep_interval = keep_interval
+        self._checkpoint_dir = checkpoint_dir
+
+    def clean_up(self, step, delete_func):
+        if step % self._keep_interval == 0:
+            return
+        directory = "iter_{:07d}".format(step)
+        rm_dir = os.path.join(self._checkpoint_dir, str(directory))
+        try:
+            delete_func(rm_dir)
+            logger.info(f"Clean path {rm_dir}")
+        except Exception:
+            logger.warning(f"Fail to clean path {rm_dir}!")
+
+
+class KeepLatestStepStrategy(CheckpointDeletionStrategy):
+    """
+    The strategy only remains the latest steps and delete the outdated
+    checkpoints.
+    Arguments:
+        max_to_keep (int): An integer, the number of checkpoints to keep.
+        checkpoint_dir (str): The common folder directory of checkpoint of
+            all steps.
+    """
+
+    def __init__(self, max_to_keep: int, checkpoint_dir: str):
+        self._max_to_keep = max(max_to_keep, 1)
+        self._checkpoint_dir = checkpoint_dir
+        self._steps: List[int] = []
+
+    def clean_up(self, step, delete_func):
+        self._steps.append(step)
+        if len(self._steps) == self._max_to_keep:
+            rm_step = self._steps.pop(0)
+            directory = "iter_{:07d}".format(rm_step)
+            rm_dir = os.path.join(self._checkpoint_dir, directory)
+            try:
+                delete_func(rm_dir)
+                logger.info(f"Clean path {rm_dir}")
+            except Exception:
+                logger.warning(f"Fail to clean path {rm_dir}!")
 
 
 class MegatronDistCheckpointer(Singleton):
@@ -59,6 +136,7 @@ class MegatronDistCheckpointer(Singleton):
         storage=None,
         comm_backend="",
         use_distributed_optimizer=False,
+        save_timeout=CheckpointConstant.SAVE_TIMEOUT,
     ):
         self.storage = PosixDiskStorage() if not storage else storage
         if use_distributed_optimizer:
@@ -66,12 +144,14 @@ class MegatronDistCheckpointer(Singleton):
                 checkpoint_dir=checkpoint_dir,
                 storage=self.storage,
                 comm_backend=comm_backend,
+                save_timeout=save_timeout,
             )
         else:
             self.engine = MegatronCheckpointEngine(
                 checkpoint_dir=checkpoint_dir,
                 storage=self.storage,
                 comm_backend=comm_backend,
+                save_timeout=save_timeout,
             )
 
 
@@ -82,17 +162,32 @@ def save_checkpoint(
     opt_param_scheduler,
     num_floating_point_operations_so_far,
     storage_type=StorageType.DISK,
-    storage=None,
     comm_backend="",
+    deletion_strategy=None,
+    save_timeout=CheckpointConstant.SAVE_TIMEOUT,
 ):
-    """Save a model checkpoint."""
+    """
+    Save a model checkpoint.
+    deletion_strategy: A `CheckpointDeletionStrategy` instance. The default
+        value is None and all checkpoint files will be retained. Now, the
+        strategy can be `KeepLatestStepStrategy`
+        or `KeepStepIntervalStrategy`. Users also can define a strategy
+        to manage the checkpoint files.
+    save_timeout (int): the seconds for node rank 0 to wait all
+            ranks save checkpoints. The node rank 0 will skip the checkpoint
+            if some ranks do not finish saving checkpoint in the save_timeout
+            after the node rank 0 finishes saving checkpoint.
+    """
     args = get_args()
+
+    storage = get_checkpoint_storage(deletion_strategy)
 
     checkpointer = MegatronDistCheckpointer.singleton_instance(
         args.save,
         storage=storage,
         comm_backend=comm_backend,
         use_distributed_optimizer=args.use_distributed_optimizer,
+        save_timeout=save_timeout,
     )
 
     # Only rank zero of the data parallel writes to the disk.
@@ -262,22 +357,33 @@ def load_checkpoint(
     opt_param_scheduler,
     load_arg="load",
     strict=True,
-    storage=None,
     comm_backend="",
+    deletion_strategy=None,
+    save_timeout=CheckpointConstant.SAVE_TIMEOUT,
 ):
     """Load a model checkpoint and return the iteration.
     strict (bool): whether to strictly enforce that the keys in
         :attr:`state_dict` of the checkpoint match the names of
         parameters and buffers in model.
+    deletion_strategy: A `CheckpointDeletionStrategy` instance. The default
+        value is None and all checkpoint files will be retained. Now, the
+        strategy can be `KeepLatestStepStrategy`
+        or `KeepStepIntervalStrategy`. Users also can define a strategy
+        to manage the checkpoint files.
+    save_timeout (int): the seconds for node rank 0 to wait all
+            ranks save checkpoints. The node rank 0 will skip the checkpoint
+            if some ranks do not finish saving checkpoint in the save_timeout
+            after the node rank 0 finishes saving checkpoint.
     """
     args = get_args()
     load_dir = getattr(args, load_arg)
-
+    storage = get_checkpoint_storage(deletion_strategy)
     checkpointer = MegatronDistCheckpointer.singleton_instance(
         args.save,
         storage=storage,
         comm_backend=comm_backend,
         use_distributed_optimizer=args.use_distributed_optimizer,
+        save_timeout=save_timeout,
     )
 
     model = unwrap_model(model)
@@ -572,3 +678,14 @@ def load_chained_optimizer_parameter_state(chained_optimizer, states):
 
         state_dict = states[idx] if states else None
         load_parameter_state_from_state_dict(optimizer, state_dict)
+
+
+def get_checkpoint_storage(deletion_strategy=None):
+    if deletion_strategy:
+        storage = PosixStorageWithDeletion(
+            tracker_file=CheckpointConstant.TRACER_FILE_NAME,
+            deletion_strategy=deletion_strategy,
+        )
+    else:
+        storage = PosixDiskStorage()
+    return storage

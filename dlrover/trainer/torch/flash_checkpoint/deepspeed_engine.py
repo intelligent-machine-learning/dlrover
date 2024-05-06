@@ -52,10 +52,11 @@ class DeepSpeedCheckpointEngine(CheckpointEngine):
         global_shard_num=1,
         zero_stage=0,
         comm_backend="",
+        save_timeout=CheckpointConstant.SAVE_TIMEOUT,
     ):
         self.global_shard_num = global_shard_num
         self.zero_stage = zero_stage
-        super().__init__(checkpoint_dir, storage, comm_backend)
+        super().__init__(checkpoint_dir, storage, comm_backend, save_timeout)
 
     def get_saving_ranks(self):
         """
@@ -89,12 +90,7 @@ class DeepSpeedCheckpointEngine(CheckpointEngine):
                 the value is the path of storage to save.
         """
         conf = CheckpointConfig(step=step, paths=paths)
-        import time
-
-        start = time.time()
         success = self.save_state_dict_to_memory(state_dict, conf)
-        t = round(time.time() - start, 2)
-        print(f"Save Time is {t}s")
         return success
 
     @timer
