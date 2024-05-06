@@ -103,6 +103,12 @@ class JobExitReason(object):
     EVALUATOR_ERROR = "EvaluatorError"
     UNKNOWN_ERROR = "UnknownError"
     HANG_ERROR = "HangError"
+    RDZV_TIMEOUT_ERROR = "RdzvTimeout"
+
+
+class CustomMetricKeys:
+    RDZV_ROUND = "rdzv_round"
+    TRAINING_ERROR_LEVEL = "error_level"
 
 
 class ExitCode(object):
