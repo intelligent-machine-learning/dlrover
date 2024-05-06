@@ -38,11 +38,11 @@ class DdpCheckpointer(Checkpointer):
             you should set the local_shard_num as the number of all ranks.
         comm_backend (str): the communcation backend to create a process group,
             The default is the backend of general main process group.
-        max_to_keep (int): An integer, the number of the latest
-            checkpoints to keep.
-        keep_interval (int): The step interval to keep. If the step is not
-            a multiple of the value, the strategy will clean up the step
-            checkpoint after saving a new step checkpoint.
+        deletion_strategy: A `CheckpointDeletionStrategy` instance. The default
+            value is None and all checkpoint files will be retained. Now, the
+            strategy can be `KeepLatestStepStrategy`
+            or `KeepStepIntervalStrategy`. Users also can define a strategy
+            to manage the checkpoint files.
         save_timeout (int): the seconds for node rank 0 to wait all
             ranks save checkpoints. The node rank 0 will skip the checkpoint
             if some ranks do not finish saving checkpoint in the save_timeout
@@ -73,8 +73,7 @@ class DdpCheckpointer(Checkpointer):
         local_shard_num=1,
         global_shard_num=1,
         comm_backend="",
-        keep_step_interval=0,
-        max_to_keep=0,
+        deletion_strategy=None,
         save_timeout=CheckpointConstant.SAVE_TIMEOUT,
     ):
         self.checkpoint_dir = checkpoint_dir
@@ -82,7 +81,7 @@ class DdpCheckpointer(Checkpointer):
             self._rank = dist.get_rank()
         else:
             self._rank = 0
-        self.storage = get_checkpoint_storage(keep_step_interval, max_to_keep)
+        self.storage = get_checkpoint_storage(deletion_strategy)
         self._engine = FullCheckpointEngine(
             checkpoint_dir=checkpoint_dir,
             storage=self.storage,

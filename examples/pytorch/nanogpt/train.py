@@ -147,7 +147,7 @@ def train():
     # to simulate larger batch size and using the GradScaler
     # if data type is float16
 
-    checkpointer = DdpCheckpointer(checkpoint_dir, max_to_keep=3)
+    checkpointer = DdpCheckpointer(checkpoint_dir)
 
     t0 = time.time()
     ckpt_dict = {}

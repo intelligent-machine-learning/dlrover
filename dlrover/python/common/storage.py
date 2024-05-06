@@ -316,24 +316,11 @@ class PosixStorageWithDeletion(PosixDiskStorage):
         return class_mata
 
 
-def get_checkpoint_storage(
-    checkpoint_dir, keep_step_interval=0, max_to_keep=0
-):
-    strategy = None
-    if keep_step_interval > 0:
-        strategy = KeepStepIntervalStrategy(
-            keep_interval=keep_step_interval,
-            checkpoint_dir=checkpoint_dir,
-        )
-    elif max_to_keep > 0:
-        strategy = KeepLatestStepStrategy(
-            max_to_keep=max_to_keep,
-            checkpoint_dir=checkpoint_dir,
-        )
-    if strategy:
+def get_checkpoint_storage(deletion_strategy=None):
+    if deletion_strategy:
         storage = PosixStorageWithDeletion(
             tracker_file=CheckpointConstant.TRACER_FILE_NAME,
-            deletion_strategy=strategy,
+            deletion_strategy=deletion_strategy,
         )
     else:
         storage = PosixDiskStorage()

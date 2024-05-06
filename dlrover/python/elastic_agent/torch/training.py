@@ -699,7 +699,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
     def stop_executor(self):
         """Shutdown the executor to save the checkpoint."""
-        self._save_ckpt_executor.shutdown()
+        self._save_ckpt_executor.shutdown(wait=False)
 
 
 def launch_agent(

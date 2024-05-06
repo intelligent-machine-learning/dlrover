@@ -49,7 +49,10 @@ class TestLocalStrategyGenerator(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             tracker_file_path = os.path.join(tmpdir, tracker_file)
-            storage = get_checkpoint_storage(tmpdir, max_to_keep=3)
+            strategy = KeepLatestStepStrategy(
+                max_to_keep=3, checkpoint_dir=tmpdir
+            )
+            storage = get_checkpoint_storage(strategy)
 
             for step in range(1, 5):
                 storage.write(str(step), tracker_file_path)
@@ -65,7 +68,10 @@ class TestLocalStrategyGenerator(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             tracker_file_path = os.path.join(tmpdir, tracker_file)
-            storage = get_checkpoint_storage(tmpdir, keep_step_interval=4)
+            strategy = KeepStepIntervalStrategy(
+                keep_interval=4, checkpoint_dir=tmpdir
+            )
+            storage = get_checkpoint_storage(strategy)
             for step in range(1, 9):
                 storage.write(str(step), tracker_file_path)
                 os.makedirs(os.path.join(tmpdir, str(step)))
@@ -75,7 +81,7 @@ class TestLocalStrategyGenerator(unittest.TestCase):
             files.remove(tracker_file)
             self.assertListEqual(sorted(files), ["4", "8"])
 
-            storage = get_checkpoint_storage(tmpdir)
+            storage = get_checkpoint_storage(None)
             self.assertTrue(isinstance(storage, PosixDiskStorage))
 
 

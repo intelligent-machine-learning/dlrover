@@ -163,17 +163,16 @@ def save_checkpoint(
     num_floating_point_operations_so_far,
     storage_type=StorageType.DISK,
     comm_backend="",
-    keep_step_interval=0,
-    max_to_keep=0,
+    deletion_strategy=None,
     save_timeout=CheckpointConstant.SAVE_TIMEOUT,
 ):
     """
     Save a model checkpoint.
-    max_to_keep (int): An integer, the number of the latest
-        checkpoints to keep.
-    keep_interval (int): The step interval to keep. If the step is not
-        a multiple of the value, the strategy will clean up the step checkpoint
-        after saving a new step checkpoint.
+    deletion_strategy: A `CheckpointDeletionStrategy` instance. The default
+        value is None and all checkpoint files will be retained. Now, the
+        strategy can be `KeepLatestStepStrategy`
+        or `KeepStepIntervalStrategy`. Users also can define a strategy
+        to manage the checkpoint files.
     save_timeout (int): the seconds for node rank 0 to wait all
             ranks save checkpoints. The node rank 0 will skip the checkpoint
             if some ranks do not finish saving checkpoint in the save_timeout
@@ -181,9 +180,7 @@ def save_checkpoint(
     """
     args = get_args()
 
-    storage = get_checkpoint_storage(
-        args.save, keep_step_interval, max_to_keep
-    )
+    storage = get_checkpoint_storage(deletion_strategy)
 
     checkpointer = MegatronDistCheckpointer.singleton_instance(
         args.save,
@@ -361,19 +358,18 @@ def load_checkpoint(
     load_arg="load",
     strict=True,
     comm_backend="",
-    keep_step_interval=0,
-    max_to_keep=0,
+    deletion_strategy=None,
     save_timeout=CheckpointConstant.SAVE_TIMEOUT,
 ):
     """Load a model checkpoint and return the iteration.
     strict (bool): whether to strictly enforce that the keys in
         :attr:`state_dict` of the checkpoint match the names of
         parameters and buffers in model.
-    max_to_keep (int): An integer, the number of the latest
-        checkpoints to keep.
-    keep_interval (int): The step interval to keep. If the step is not
-        a multiple of the value, the strategy will clean up the step checkpoint
-        after saving a new step checkpoint.
+    deletion_strategy: A `CheckpointDeletionStrategy` instance. The default
+        value is None and all checkpoint files will be retained. Now, the
+        strategy can be `KeepLatestStepStrategy`
+        or `KeepStepIntervalStrategy`. Users also can define a strategy
+        to manage the checkpoint files.
     save_timeout (int): the seconds for node rank 0 to wait all
             ranks save checkpoints. The node rank 0 will skip the checkpoint
             if some ranks do not finish saving checkpoint in the save_timeout
@@ -381,10 +377,7 @@ def load_checkpoint(
     """
     args = get_args()
     load_dir = getattr(args, load_arg)
-
-    storage = get_checkpoint_storage(
-        args.save, keep_step_interval, max_to_keep
-    )
+    storage = get_checkpoint_storage(deletion_strategy)
     checkpointer = MegatronDistCheckpointer.singleton_instance(
         args.save,
         storage=storage,
@@ -687,24 +680,11 @@ def load_chained_optimizer_parameter_state(chained_optimizer, states):
         load_parameter_state_from_state_dict(optimizer, state_dict)
 
 
-def get_checkpoint_storage(
-    checkpoint_dir, keep_step_interval=0, max_to_keep=0
-):
-    strategy = None
-    if keep_step_interval > 0:
-        strategy = KeepStepIntervalStrategy(
-            keep_interval=keep_step_interval,
-            checkpoint_dir=checkpoint_dir,
-        )
-    elif max_to_keep > 0:
-        strategy = KeepLatestStepStrategy(
-            max_to_keep=max_to_keep,
-            checkpoint_dir=checkpoint_dir,
-        )
-    if strategy:
+def get_checkpoint_storage(deletion_strategy=None):
+    if deletion_strategy:
         storage = PosixStorageWithDeletion(
             tracker_file=CheckpointConstant.TRACER_FILE_NAME,
-            deletion_strategy=strategy,
+            deletion_strategy=deletion_strategy,
         )
     else:
         storage = PosixDiskStorage()

@@ -512,7 +512,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 self._shm_handlers[i].unlink()
             self._shm_locks[i].unlink()
         self._event_queue.unlink()
-        self._executor.shutdown()
+        self._executor.shutdown(wait=False)
 
     def _sync_shm_to_storage(self):
         """

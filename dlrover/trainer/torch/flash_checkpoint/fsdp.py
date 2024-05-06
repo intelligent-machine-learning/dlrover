@@ -41,11 +41,11 @@ class FsdpShardCheckpointer(Checkpointer):
         checkpoint_dir: the directory to save the checkpoint.
         comm_backend (str): the backend to synchronize when saving the
             checkpoint to the memory.
-        max_to_keep (int): An integer, the number of the latest
-            checkpoints to keep.
-        keep_interval (int): The step interval to keep. If the step is not
-            a multiple of the value, the strategy will clean up the step
-            checkpoint after saving a new step checkpoint.
+        deletion_strategy: A `CheckpointDeletionStrategy` instance. The default
+            value is None and all checkpoint files will be retained. Now, the
+            strategy can be `KeepLatestStepStrategy`
+            or `KeepStepIntervalStrategy`. Users also can define a strategy
+            to manage the checkpoint files.
 
     Examples::
         >>> checkpointer = FsdpShardCheckpointer(checkpoint_dir)
@@ -63,12 +63,11 @@ class FsdpShardCheckpointer(Checkpointer):
         self,
         checkpoint_dir: str,
         comm_backend="",
-        keep_step_interval=0,
-        max_to_keep=0,
+        deletion_strategy=None,
         save_timeout=CheckpointConstant.SAVE_TIMEOUT,
     ):
         self.checkpoint_dir = checkpoint_dir
-        self.storage = get_checkpoint_storage(keep_step_interval, max_to_keep)
+        self.storage = get_checkpoint_storage(deletion_strategy)
         self._engine = FsdpCheckpointEngine(
             checkpoint_dir, self.storage, comm_backend, save_timeout
         )
@@ -165,6 +164,11 @@ class FsdpFullCheckpointer(Checkpointer):
             you should set the local_shard_num as the number of all ranks.
         comm_backend (str): the communcation backend to create a process group,
             The default is the backend of general main process group.
+        deletion_strategy: A `CheckpointDeletionStrategy` instance. The default
+            value is None and all checkpoint files will be retained. Now, the
+            strategy can be `KeepLatestStepStrategy`
+            or `KeepStepIntervalStrategy`. Users also can define a strategy
+            to manage the checkpoint files.
 
     Examples::
         >>> checkpointer = FsdpFullCheckpointer(
@@ -185,15 +189,14 @@ class FsdpFullCheckpointer(Checkpointer):
         self,
         checkpoint_dir: str,
         comm_backend="",
-        keep_step_interval=0,
-        max_to_keep=0,
+        deletion_strategy=None,
     ):
         self.checkpoint_dir = checkpoint_dir
         if dist.is_initialized():
             self._rank = dist.get_rank()
         else:
             self._rank = 0
-        self.storage = get_checkpoint_storage(keep_step_interval, max_to_keep)
+        self.storage = get_checkpoint_storage(deletion_strategy)
         self._engine = FullCheckpointEngine(
             checkpoint_dir=checkpoint_dir,
             storage=self.storage,

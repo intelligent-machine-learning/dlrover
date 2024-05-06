@@ -143,9 +143,7 @@ def train():
     if args.use_native_ckpt:
         model.load_checkpoint(checkpoint_dir)
     else:
-        checkpointer = DeepSpeedCheckpointer(
-            model, checkpoint_dir, max_to_keep=3
-        )
+        checkpointer = DeepSpeedCheckpointer(model, checkpoint_dir)
         checkpointer.load_checkpoint(checkpoint_dir)
     load_time = round(time.time() - t0, 2)
     print(f"Load checkpoint time {load_time}s")
