@@ -16,7 +16,7 @@ import os
 import torch.distributed as dist
 
 from dlrover.python.common.constants import CheckpointConstant
-from dlrover.python.common.storage import PosixDiskStorage
+from dlrover.python.common.storage import get_checkpoint_storage
 
 from .checkpointer import Checkpointer, StorageType
 from .full_ckpt_engine import FullCheckpointEngine
@@ -29,8 +29,6 @@ class DdpCheckpointer(Checkpointer):
 
     Args:
         checkpoint_dir: the directory to save the checkpoint.
-        storage: A CheckpointStorage instance. The checkpointer will
-            use a PosixStorage instance if the storage is not defined.
         local_shard_num (int): the number of shards on a node,
             The default is 1. If the model is partitioned on all ranks,
             you should set the local_shard_num as the number of ranks
@@ -40,6 +38,15 @@ class DdpCheckpointer(Checkpointer):
             you should set the local_shard_num as the number of all ranks.
         comm_backend (str): the communcation backend to create a process group,
             The default is the backend of general main process group.
+        deletion_strategy: A `CheckpointDeletionStrategy` instance. The default
+            value is None and all checkpoint files will be retained. Now, the
+            strategy can be `KeepLatestStepStrategy`
+            or `KeepStepIntervalStrategy`. Users also can define a strategy
+            to manage the checkpoint files.
+        save_timeout (int): the seconds for node rank 0 to wait all
+            ranks save checkpoints. The node rank 0 will skip the checkpoint
+            if some ranks do not finish saving checkpoint in the save_timeout
+            after the node rank 0 finishes saving checkpoint.
 
     Examples::
         >>> checkpointer = DdpCheckpointer(
@@ -63,23 +70,25 @@ class DdpCheckpointer(Checkpointer):
     def __init__(
         self,
         checkpoint_dir: str,
-        storage=None,
         local_shard_num=1,
         global_shard_num=1,
         comm_backend="",
+        deletion_strategy=None,
+        save_timeout=CheckpointConstant.SAVE_TIMEOUT,
     ):
         self.checkpoint_dir = checkpoint_dir
         if dist.is_initialized():
             self._rank = dist.get_rank()
         else:
             self._rank = 0
-        self.storage = PosixDiskStorage() if not storage else storage
+        self.storage = get_checkpoint_storage(deletion_strategy)
         self._engine = FullCheckpointEngine(
             checkpoint_dir=checkpoint_dir,
             storage=self.storage,
             local_shard_num=local_shard_num,
             global_shard_num=global_shard_num,
             comm_backend=comm_backend,
+            save_timeout=save_timeout,
         )
 
     def save_checkpoint(

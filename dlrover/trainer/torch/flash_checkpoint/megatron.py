@@ -52,7 +52,13 @@ def _get_rank():
 
 
 class MegatronCheckpointer(Singleton):
-    def __init__(self, checkpoint_dir, storage=None, comm_backend=""):
+    def __init__(
+        self,
+        checkpoint_dir,
+        storage=None,
+        comm_backend="",
+        save_timeout=CheckpointConstant.SAVE_TIMEOUT,
+    ):
         self.state_dict = {}
         self.paths = {}
         self.checkpoint_dir = checkpoint_dir
@@ -61,6 +67,7 @@ class MegatronCheckpointer(Singleton):
             checkpoint_dir=checkpoint_dir,
             storage=self.storage,
             comm_backend=comm_backend,
+            save_timeout=save_timeout,
         )
 
     def save(self, state_dict, path: str):
@@ -136,6 +143,7 @@ def save_checkpoint(
     storage_type=StorageType.DISK,
     storage=None,
     comm_backend="",
+    save_timeout=CheckpointConstant.SAVE_TIMEOUT,
 ):
     """
     Synchronously save the the checkpointing state dict into the CPU memory.
@@ -149,7 +157,10 @@ def save_checkpoint(
     """
     args = get_args()
     saver = MegatronCheckpointer.singleton_instance(
-        args.save, storage=storage, comm_backend=comm_backend
+        args.save,
+        storage=storage,
+        comm_backend=comm_backend,
+        save_timeout=save_timeout,
     )
     sig = inspect.signature(megatron_save)
     if storage_type == StorageType.MEMORY:
@@ -207,6 +218,7 @@ def load_checkpoint(
     strict=True,
     storage=None,
     comm_backend="",
+    save_timeout=CheckpointConstant.SAVE_TIMEOUT,
 ):
     """Load the checkpointing state dict. The method firstly
     load the state dict from the CPU memory and then from the storage.
@@ -215,7 +227,10 @@ def load_checkpoint(
     """
     args = get_args()
     checkpointer = MegatronCheckpointer.singleton_instance(
-        args.save, storge=storage, comm_backend=comm_backend
+        args.save,
+        storge=storage,
+        comm_backend=comm_backend,
+        save_timeout=save_timeout,
     )
     torch.load = checkpointer.load
     iteration = megatron_load(

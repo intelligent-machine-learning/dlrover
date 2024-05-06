@@ -18,6 +18,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from dlrover.python.common.multi_process import clear_sock_dir
+from dlrover.python.common.storage import PosixStorageWithDeletion
 from dlrover.python.elastic_agent.torch.ckpt_saver import DdpCheckpointSaver
 from dlrover.trainer.torch.flash_checkpoint.ddp import (
     DdpCheckpointer,
@@ -54,7 +55,12 @@ class DdpCheckpoinerTest(unittest.TestCase):
     def test_ddp_checkpointer(self):
         model = SimpleNet()
         with tempfile.TemporaryDirectory() as tmpdir:
-            checkpointer = DdpCheckpointer(tmpdir)
+            checkpointer = DdpCheckpointer(
+                tmpdir, keep_step_interval=0, max_to_keep=1
+            )
+            self.assertTrue(
+                isinstance(checkpointer.storage, PosixStorageWithDeletion)
+            )
             step = 100
             sd = {"model": model.state_dict()}
             checkpointer.save_checkpoint(
