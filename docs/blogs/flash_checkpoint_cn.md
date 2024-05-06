@@ -270,6 +270,51 @@ last_ckpt_path = trainer.get_last_checkpoint()
 trainer.train(resume_from_checkpoint=last_ckpt_path)
 ```
 
+### Checkpoint 清理策略
+
+使用 Flash Checkpoint 功能，训练可以非常高频的导出模型的 checkpoint 到磁盘。但是高频地导出 checkpoint 会使用
+大量的存储空间。为了降低存储成本，Flash Checkpoint 可以在新的 checkpoint 保存成功后清理之前的 checkpoint 文件。
+当前，Flash Checkpoint 提供了两种 checkpoint 清理策略，分别为：
+
+`KeepStepIntervalStrategy(keep_interval: int, checkpoint_dir: str)`: 只保留迭代步数为 keep_interval 的
+整数倍的 checkpoint 文件。
+
+`KeepLatestStepStrategy(max_to_keep: int, checkpoint_dir: str)`: 只保留最近 max_to_keep 个 checkpoint
+文件。
+
+使用示例：
+```Python
+from dlrover.trainer.torch.flash_checkpoint.deepspeed import (
+    DeepSpeedCheckpointer,
+    StorageType,
+)
+from dlrover.python.common.store import KeepStepIntervalStrategy
+
+strategy = KeepStepIntervalStrategy(keep_interval=100, checkpoint_dir=checkpoint_dir)
+
+checkpointer = DeepSpeedCheckpointer(model, checkpoint_dir, deletion_strategy=strategy)
+```
+
+除此之外，用户可以可以自定义清理策略。
+
+```Python
+class CustomStrategy(CheckpointDeletionStrategy):
+
+    def __init__(self, *args, **kwargs):
+        ...
+
+
+    def clean_up(self, step, delete_func):
+        """
+        Clean up the checkpoint of step.
+
+        Arguments:
+            step (int): the iteration step of a checkpoint.
+            delete_func: A function to remove a directory, the argument
+                is a directory of a folder.
+        """
+```
+
 ## Benchmark 实验
 
 ### 单机多卡训练 GPT-1.5B 模型
