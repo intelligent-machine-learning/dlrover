@@ -98,7 +98,6 @@ def train(args):
     """
     setup()
 
-    channel = 1
     if args.training_data:
         train_dataset = datasets.ImageFolder(
             root=args.training_data, transform=transforms.ToTensor()
@@ -191,15 +190,15 @@ def train(args):
 
 
 def train_epoch(
-    train_step,
-    epoch,
-    elastic_trainer,
-    model,
-    optimizer,
-    train_loader,
-    device,
-    checkpointer: DdpCheckpointer,
-    fixed_batch_size=False,
+        train_step,
+        epoch,
+        elastic_trainer,
+        model,
+        optimizer,
+        train_loader,
+        device,
+        checkpointer: DdpCheckpointer,
+        fixed_batch_size=False,
 ):
     """
     The global batch size will not change if the number of workers changes.
@@ -318,3 +317,4 @@ if __name__ == "__main__":
     parser = arg_parser()
     args = parser.parse_args()
     train(args)
+
