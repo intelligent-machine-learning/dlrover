@@ -6,7 +6,7 @@ from collections import OrderedDict, defaultdict, deque
 from collections.abc import Mapping
 from enum import Enum, auto, unique
 from pathlib import Path
-from typing import Any, DefaultDict, Dict, List, Tuple
+from typing import Any, DefaultDict, Dict, List, Set, Tuple
 
 import safetensors
 import torch
@@ -32,6 +32,9 @@ from atorch.distributed.distributed import local_rank, nproc_per_node, parallel_
 TYPES_TO_STR = {v: k for k, v in _TYPES.items()}
 CKPT_VERSION = 1
 
+TensorDict = Dict[str, torch.Tensor]
+ListFSDP = List[FSDP]
+
 
 @unique
 class ErrorCode(Enum):
@@ -39,6 +42,9 @@ class ErrorCode(Enum):
     CHECKPOINT_NOT_FOUND = auto()
     CHECKPOINT_CORRUPTION = auto()
     CHECKPOINT_WRAP_CLASS_MISMATCH = auto()
+    LORA_WEIGHT_INIT_ERROR = auto()
+    LORA_RESET_WEIGHT_ERROR = auto()
+    COMMON_ERROR = auto()
     UNKNOWN = auto()
 
     def __str__(self):
@@ -238,7 +244,127 @@ def save_fsdp_flat_param(model, path):
     _persist_flat_model_param(path, params, buffers, metas, ckpt_meta)
 
 
-def get_flat_model_param(model):
+def _get_fsdp_units_for_saving(model) -> Tuple[ListFSDP, Set]:
+    """
+    Get all fsdp units which is requires_grad. return units and module name.
+    """
+    check_is_support(model)
+    fsdp_units = [
+        m
+        for m in model.named_modules()
+        if isinstance(m[1], torch.distributed.fsdp.fully_sharded_data_parallel.FullyShardedDataParallel)
+    ]
+    requires_grad_params = set()
+
+    has_grad_fsdp_units = []
+    for fsdp_name, fsdp_unit in fsdp_units:
+        fsdp_flat_handle = get_handle(fsdp_unit)
+        flat_param = fsdp_flat_handle.flat_param
+        if not flat_param.requires_grad:
+            continue
+        for name, param in fsdp_unit.named_parameters():
+            if param.requires_grad:
+                requires_grad_params.add(f"{clean_tensor_name(fsdp_name)}.{clean_tensor_name(name)}")
+        has_grad_fsdp_units.append((fsdp_name, fsdp_unit))
+    return has_grad_fsdp_units, requires_grad_params
+
+
+def get_lora_param(model) -> Tuple[TensorDict, Dict]:
+    """
+    Parse lora param from flat param.
+    Return param and shape info in dict.
+    """
+    metas: Dict[str, torch.Size] = {}
+    params: Dict[str, torch.Tensor] = {}
+    has_grad_fsdp_units, requires_grad_params = _get_fsdp_units_for_saving(model)
+    for fsdp_name, fsdp_unit in has_grad_fsdp_units:
+        fsdp_flat_handle = get_handle(fsdp_unit)
+        meta = fsdp_flat_handle.shard_metadata()
+        flat_param = fsdp_flat_handle.flat_param
+        name = f"{clean_tensor_name(fsdp_name)}" if fsdp_name else ""
+        keys, items = list(zip(*meta._asdict().items()))
+        items = list(zip(*items))
+        data = list(dict(zip(keys, i)) for i in items)
+        shard_info_in_this_rank = [i for i in flat_param._shard_param_infos if i.in_shard]
+        if len(shard_info_in_this_rank) != len(data):
+            raise ValueError("flat param mismatch")
+        for shard_info, each in zip(shard_info_in_this_rank, data):
+            global_name_each = (
+                [name, clean_tensor_name(each["param_names"])] if name else [clean_tensor_name(each["param_names"])]
+            )
+            global_name = ".".join(global_name_each)
+            if global_name in requires_grad_params:
+                s = slice(shard_info.offset_in_shard, shard_info.offset_in_shard + shard_info.numel_in_shard)
+                params[global_name] = flat_param[s].detach().clone().cpu()
+                metas[global_name] = each["param_shapes"]
+    return params, metas
+
+
+def _post_processing_lora_weight(path, lora_weight_name=None) -> None:
+    """
+    Merge all lora_weight shards into single file, and delete all shard files.
+    Final weight file is called `lora_weight`, name of shard's pattern is lora_weight_shard.rank-world_size.
+    ckpt
+    ├── lora_weight
+    ├── lora_weight_shard.00000-00004
+    ├── lora_weight_shard.00001-00004
+    ├── lora_weight_shard.00002-00004
+    └── lora_weight_shard.00003-00004
+    """
+    weight_files = sorted(glob.glob(f"{path}/lora_weight_shard*"))
+    weight_meta_files = sorted(glob.glob(f"{path}/lora_meta*"))
+    weights = [torch.load(i) for i in weight_files]
+    weight_metas = [torch.load(i) for i in weight_meta_files]
+    merged_weights = defaultdict(list)
+    merged_meta = {}
+    for weight, meta in zip(weights, weight_metas):
+        for name, w in weight.items():
+            merged_weights[name].append(w)
+            if name in meta:
+                merged_meta[name] = meta[name]
+    final_weight = {k: torch.cat(v).reshape(merged_meta[k]) for k, v in merged_weights.items()}
+    lora_weight = lora_weight_name or "lora_weight"
+    torch.save(final_weight, f"{path}/{lora_weight}")
+    for f in weight_files + weight_meta_files:
+        Path(f).unlink(missing_ok=True)
+    dist.barrier()
+
+
+def save_lora_param(model, path, lora_weight_name=None) -> None:
+    """
+    Each rank save part of lora weights, and merge into single weights.
+    Dues size of lora is small, we do not save lora weight in sharding format.
+    """
+    d = Path(path)
+    d.mkdir(parents=True, exist_ok=True)
+    params, metas = get_lora_param(model)
+    data_group = parallel_group("data")
+    rank = dist.get_rank(data_group)
+    world_size = dist.get_world_size()
+    torch.save(params, f"{path}/lora_weight_shard.{str(rank).zfill(5)}-{str(world_size).zfill(5)}")
+    torch.save(metas, f"{path}/lora_meta.{str(rank).zfill(5)}-{str(world_size).zfill(5)}")
+    dist.barrier()
+    if rank == 0:
+        _post_processing_lora_weight(path, lora_weight_name)
+    else:
+        dist.barrier()
+
+
+def save_lora_optim_param(model, optimizer, path, lora_weight_name=None) -> None:
+    """
+    Optim of lora is small too, we save full optim state.
+    """
+    optim_state = FSDP.full_optim_state_dict(model, optimizer)
+    d = Path(path)
+    d.mkdir(parents=True, exist_ok=True)
+    data_group = parallel_group("data")
+    rank = dist.get_rank(data_group)
+    if rank == 0:
+        lora_weight = lora_weight_name or "lora_optim"
+        torch.save(optim_state, f"{path}/{lora_weight}")
+
+
+def get_flat_model_param(model) -> Tuple[TensorDict, TensorDict, Dict, Dict]:
     """
     Get flat param and meta info of each fsdp units.
     This is only working on `use_orig_param` is True.
@@ -249,13 +375,8 @@ def get_flat_model_param(model):
         metas (dict): contains flat_param_meta and param_meta.
         ckpt_meta: the meta of checkpoint contains the version and the world size.
     """
-    check_is_support(model)
-    fsdp_units = [
-        m
-        for m in model.named_modules()
-        if isinstance(m[1], torch.distributed.fsdp.fully_sharded_data_parallel.FullyShardedDataParallel)
-    ]
-    metas = {"flat_param_meta": {}, "param_meta": {}}
+    fsdp_units, _ = _get_fsdp_units_for_saving(model)
+    metas: Dict[str, dict] = {"flat_param_meta": {}, "param_meta": {}}
     param_meta = metas["param_meta"]
     flat_param_meta = metas["flat_param_meta"]
     params = {}
@@ -283,10 +404,10 @@ def get_flat_model_param(model):
         flat_param_meta[name] = each_flat
         for shard_info, each in zip(shard_info_in_this_rank, data):
 
-            global_name = (
+            global_name_each = (
                 [name, clean_tensor_name(each["param_names"])] if name else [clean_tensor_name(each["param_names"])]
             )
-            global_name = ".".join(global_name)
+            global_name = ".".join(global_name_each)
             each["pad"] = pad
             each["rank"] = dist.get_rank(data_group)
             each["striped_fsdp_name"] = name
@@ -936,3 +1057,13 @@ class ShardTensorUtil:
     def __del__(self):
         for g in self.local_gpus_groups:
             dist.destroy_process_group(g)
+
+
+def ConvertFlatParam(ckpt_path) -> Dict[str, TensorDict]:
+    """
+    Convert flat ckpt to single dict.
+    """
+    util = ShardTensorUtil(ckpt_path, 0, 1, device="cpu")
+    buffers = {i: util.load_tensor_by_name(i) for i in util.buffers.keys()}
+    params = {i: util.load_tensor_by_name(i) for i in util.param_meta.keys()}
+    return {"params": params, "buffers": buffers}

@@ -1,6 +1,12 @@
 import torch
-from elasticai_api.common.data_shard_service import RecordIndexService
-from elasticai_api.pytorch.DDP_controller import DDPController
+
+from atorch.common.log_utils import default_logger as logger
+
+try:
+    from elasticai_api.common.data_shard_service import RecordIndexService
+    from elasticai_api.pytorch.DDP_controller import DDPController
+except ImportError:
+    logger.warning("Please install elasticai_api >= 1.4.2 .")
 
 from atorch.common.log_utils import default_logger as logger
 from atorch.data.elastic_dataset import ElasticDataset

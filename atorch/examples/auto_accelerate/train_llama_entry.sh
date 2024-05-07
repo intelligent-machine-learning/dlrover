@@ -7,7 +7,7 @@ python -m atorch.distributed.run  --nnodes="$WORLD_SIZE" \
     --nproc_per_node="$NUM_GPUS_PER_NODE" \
     train.py --model_type llama \
     --distributed \
-    --hiddien_size 64 \
+    --hidden_size 64 \
     --head_num 4 \
     --layer_num 4 \
     --seq_length 32 \

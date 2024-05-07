@@ -100,6 +100,7 @@ class AtorchArguments(Seq2SeqTrainingArguments):
                 "If model_input_format=None, data is passed to model by `model(data)`."
                 "If model_input_format='unpack_sequence', `model(*data)`."
                 "If model_input_format='unpack_dict', `model(**data)`."
+                "It is invalid to set `model_input_format`, which is legacy in AtorchTrainer."
             )
         },
     )
@@ -176,6 +177,19 @@ class AtorchArguments(Seq2SeqTrainingArguments):
         },
     )
 
+    logit_names: Optional[List[str]] = field(
+        default=None, metadata={"help": "The list of keys in your dictionary of outputs that correspond to the logits."}
+    )
+    logit_index: int = field(
+        default=-1,
+        metadata={
+            "help": (
+                "If isinstance(model's output, Tuple) and logit_index>=0, "
+                "use the corresponding part of the output as the logits."
+            )
+        },
+    )
+
     @cached_property
     def _setup_devices(self) -> "torch.device":
         logger.info("PyTorch: setting up devices")
@@ -239,4 +253,14 @@ class AtorchArguments(Seq2SeqTrainingArguments):
         if self.atorch_checkpoint_cls is not None and not isinstance(self.atorch_checkpoint_cls, tuple):
             raise ValueError(f"atorch_checkpoint_cls has {type(self.atorch_checkpoint_cls)} type, required tuple type.")
 
+        if self.model_input_format is not None:
+            logger.warning(
+                "It is invalid to set `model_input_format`, which is used in auto_accelerate()'s dryrun "
+                "and will be deprecated in AtorchTrainer."
+            )
+
         Seq2SeqTrainingArguments.__post_init__(self)
+
+        if self.use_legacy_prediction_loop:
+            logger.warning("`use_legacy_prediction_loop` is deprecated and does not have any effect.")
+            self.use_legacy_prediction_loop = False

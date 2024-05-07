@@ -3,7 +3,7 @@ from atorch.common.log_utils import default_logger as logger
 try:
     from elasticai_api.pytorch.DDP_controller import DDPController
 except ImportError:
-    logger.warning("Please import elasticai_api  >= 1.2.0 .")
+    logger.warning("Please install elasticai_api >= 1.4.2 .")
 
 
 class ElasticController(DDPController):

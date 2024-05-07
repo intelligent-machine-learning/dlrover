@@ -64,6 +64,9 @@ class StatsCollectorTest(unittest.TestCase):
     def test_job_metric_collector(self):
         collector = JobMetricCollector("1111", "default", "local", "dlrover")
         collector.collect_dataset_metric("test", 1000)
+        custom_metric = {"key0": 100}
+        collector.collect_custom_data(custom_metric)
+        self.assertDictEqual(custom_metric, collector._custom_metric)
 
         speed_monitor = SpeedMonitor()
         t = int(time.time())
@@ -73,6 +76,8 @@ class StatsCollectorTest(unittest.TestCase):
         speed_monitor.add_running_worker(NodeType.WORKER, 0)
         worker = Node(NodeType.WORKER, 0, None)
         collector._stats_reporter._runtime_stats = []
+        speed_monitor._start_training_time = 100
+        speed_monitor._init_time = 10
         collector.collect_runtime_stats(speed_monitor, [worker])
         self.assertEqual(len(collector._runtime_metric.running_nodes), 1)
         self.assertEqual(collector._runtime_metric.speed, 100)

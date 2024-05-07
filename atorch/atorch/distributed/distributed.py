@@ -13,6 +13,8 @@ from atorch.common.log_utils import default_logger as logger
 from atorch.common.util_func import find_free_port, get_ip_address, wait_for_server_started
 from atorch.utils.import_util import is_torch_npu_available
 
+_SP_NAME = "_ATORCH_SEQUENCE_PARALLEL"
+
 
 class _DistributedContext:
     LOCAL_RANK = None
@@ -381,27 +383,32 @@ def create_parallel_group(parallel_config):
             has_pipe = True
     else:
         all_pg_ranks = get_pg_ranks(slicing_dim, rank_order)
-        if _DistributedContext.PARALLEL_GROUPS_AND_RANKS is None:
-            _DistributedContext.PARALLEL_GROUPS_AND_RANKS = {}
         for (name, size) in slicing_dim:
             if name == "pipe":
                 has_pipe = True
-            _DistributedContext.PARALLEL_GROUP_SIZE[_prefix_pg_name(name)] = size
 
-            group_and_ranks = []
-            for idx in range(instance_num):
-                named_ranks = all_pg_ranks[idx][name]
-                for ranks in named_ranks:
-                    group = dist.new_group(ranks)
-                    group_and_ranks.append((group, ranks))
-                    if rank() in ranks:
-                        _DistributedContext.PARALLEL_GROUP[_prefix_pg_name(name)] = group
-                        _DistributedContext.PARALLEL_RANK[_prefix_pg_name(name)] = ranks.index(rank())
-            _DistributedContext.PARALLEL_GROUPS_AND_RANKS[_prefix_pg_name(name)] = group_and_ranks
+            named_ranks = [ranks for idx in range(instance_num) for ranks in all_pg_ranks[idx][name]]
+            _create_named_groups(name, size, named_ranks)
 
     if has_pipe:
         # initialize rpc for pipeline execution
         _build_pippy_rpc_networks()
+
+
+def _create_named_groups(name, size, ranks_list):
+    if _DistributedContext.PARALLEL_GROUPS_AND_RANKS is None:
+        _DistributedContext.PARALLEL_GROUPS_AND_RANKS = {}
+
+    pname = _prefix_pg_name(name)
+    group_and_ranks = []
+    for ranks in ranks_list:
+        group = dist.new_group(ranks)
+        group_and_ranks.append((group, ranks))
+        if rank() in ranks:
+            _DistributedContext.PARALLEL_GROUP[pname] = group
+            _DistributedContext.PARALLEL_RANK[pname] = ranks.index(rank())
+    _DistributedContext.PARALLEL_GROUPS_AND_RANKS[pname] = group_and_ranks
+    _DistributedContext.PARALLEL_GROUP_SIZE[pname] = size
 
 
 def destroy_parallel_group(destroy_rpc=True):
@@ -423,6 +430,75 @@ def destroy_parallel_group(destroy_rpc=True):
     _DistributedContext.PARALLEL_CONFIG = None
     _DistributedContext.PARALLEL_INSTANCE_NUM = None
     _DistributedContext.PARALLEL_INSTANCE_INDEX = None
+
+
+def create_sequence_parallel_group(sp_size):
+    if sp_size <= 1:
+        return None
+    if world_size() % sp_size != 0:
+        logger.error(f"World size {world_size()} is not divisible by sequence parallel size {sp_size}!")
+    all_ranks = list(range(world_size()))
+    ranks_list = [all_ranks[i : i + sp_size] for i in range(0, world_size(), sp_size)]
+    _create_named_groups(_SP_NAME, sp_size, ranks_list)
+
+
+def destroy_sequence_parallel_group():
+    pname = _prefix_pg_name(_SP_NAME)
+    if (
+        _DistributedContext.PARALLEL_GROUPS_AND_RANKS is not None
+        and pname in _DistributedContext.PARALLEL_GROUPS_AND_RANKS
+    ):
+        for (group, _) in _DistributedContext.PARALLEL_GROUPS_AND_RANKS[pname]:
+            dist.destroy_process_group(group)
+        del _DistributedContext.PARALLEL_GROUPS_AND_RANK[pname]
+        del _DistributedContext.PARALLEL_GROUP[pname]
+        del _DistributedContext.PARALLEL_RANK[pname]
+        del _DistributedContext.PARALLEL_SIZE[pname]
+
+
+def get_sequence_parallel_group():
+    return parallel_group(_SP_NAME)
+
+
+def get_sequence_parallel_size():
+    return parallel_group_size(_SP_NAME) if parallel_group_size(_SP_NAME) is not None else 1
+
+
+def get_sequence_parallel_rank():
+    return parallel_rank(_SP_NAME) if parallel_rank(_SP_NAME) is not None else 0
+
+
+# Sequence  all_to_all implementation is from
+# https://github.com/microsoft/DeepSpeed/blob/master/deepspeed/sequence/layer.py.
+# TODO: use all_to_all_single and custom op to support arbitary scatter_idx/gather_idx.
+class _SeqAllToAll(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, input, scatter_idx, gather_idx, group=None, sp_size=None):
+        if sp_size is None:
+            sp_size = dist.get_world_size(group)
+        ctx.group = group
+        ctx.sp_size = sp_size
+        ctx.scatter_idx = scatter_idx
+        ctx.gather_idx = gather_idx
+
+        input_list = [t.contiguous() for t in torch.tensor_split(input, sp_size, scatter_idx)]
+        output_list = [torch.empty_like(input_list[0]) for _ in range(sp_size)]
+        dist.all_to_all(output_list, input_list, group=group)
+        return torch.cat(output_list, dim=gather_idx).contiguous()
+
+    @staticmethod
+    def backward(ctx, *grad_output):
+        return (
+            _SeqAllToAll.apply(*grad_output, ctx.gather_idx, ctx.scatter_idx, ctx.group, ctx.sp_size),
+            None,
+            None,
+            None,
+            None,
+        )
+
+
+def seq_all_to_all(input, scatter_idx, gather_idx, group=None, group_size=None):
+    return _SeqAllToAll.apply(input, scatter_idx, gather_idx, group, group_size)
 
 
 def _build_pippy_rpc_networks(num_worker_threads=64, rpc_timeout=1800, init_method="env://"):

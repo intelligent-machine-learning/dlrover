@@ -1,0 +1,9 @@
+transformers==4.31.0
+peft==0.4.0
+datasets >= 1.8.0
+accelerate==0.21.0
+evaluate
+scikit-learn
+matplotlib
+tensorboard
+atorch>=1.1.0
