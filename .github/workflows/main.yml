@@ -2,7 +2,7 @@
 name: CI
 
 on:
-  pull_request_target:
+  pull_request:
   push:
     branches: [master]
 
@@ -26,7 +26,7 @@ jobs:
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4.0.1
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
+          token: b8225bde-12a1-492b-827a-d14000a9df7f
           slug: intelligent-machine-learning/dlrover
   operator-test:
     runs-on: ubuntu-latest

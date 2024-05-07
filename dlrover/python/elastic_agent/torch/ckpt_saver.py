@@ -367,6 +367,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         storage_meta: ClassMeta,
         local_shard_num=1,
         global_shard_num=1,
+        save_timeout=CheckpointConstant.SAVE_TIMEOUT,
     ) -> None:
         self.checkpoint_dir = checkpoint_dir
         self.local_shard_num = local_shard_num
@@ -376,6 +377,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         self._shm_handlers: List[SharedMemoryHandler] = []
         self._shm_locks: List[SharedLock] = []
         self._stop_commit = False
+        self._save_timeout = save_timeout
 
         module = importlib.import_module(storage_meta.module_path)
         storage_class_def = getattr(module, storage_meta.class_name)
@@ -510,7 +512,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 self._shm_handlers[i].unlink()
             self._shm_locks[i].unlink()
         self._event_queue.unlink()
-        self._executor.shutdown()
+        self._executor.shutdown(wait=False)
 
     def _sync_shm_to_storage(self):
         """
@@ -849,7 +851,9 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
         # commit checkpoint
         if self._is_agent_rank_0:
             self._stop_commit = False
-            self.commit_checkpoint(step, step_done_dir)
+            self.commit_checkpoint(
+                step, step_done_dir, timeout=self._save_timeout
+            )
 
         self._writing_storage = False
 
@@ -986,6 +990,7 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
                 step_done_dir=step_done_dir,
                 tmp_path=temp_dir,
                 target_path=ckpt_dir,
+                timeout=self._save_timeout,
             )
 
         self._writing_storage = False

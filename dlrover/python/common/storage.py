@@ -16,6 +16,7 @@ import shutil
 from abc import ABCMeta, abstractmethod
 from typing import Callable, List
 
+from .constants import CheckpointConstant
 from .log import default_logger as logger
 from .serialize import ClassMeta
 
@@ -221,10 +222,10 @@ class KeepStepIntervalStrategy(CheckpointDeletionStrategy):
             return
         rm_dir = os.path.join(self._checkpoint_dir, str(step))
         try:
+            logger.info(f"Clean path {rm_dir}")
             delete_func(rm_dir)
-            print(f"Clean path {rm_dir}")
         except Exception:
-            print(f"Fail to clean path {rm_dir}!")
+            logger.warning(f"Fail to clean path {rm_dir}!")
 
 
 class KeepLatestStepStrategy(CheckpointDeletionStrategy):
@@ -248,10 +249,10 @@ class KeepLatestStepStrategy(CheckpointDeletionStrategy):
             rm_step = self._steps.pop(0)
             rm_dir = os.path.join(self._checkpoint_dir, str(rm_step))
             try:
+                logger.info(f"Clean path {rm_dir}")
                 delete_func(rm_dir)
-                print(f"Clean path {rm_dir}")
             except Exception:
-                print(f"Fail to clean path {rm_dir}!")
+                logger.warning(f"Fail to clean path {rm_dir}!")
 
 
 class PosixStorageWithDeletion(PosixDiskStorage):
@@ -260,8 +261,25 @@ class PosixStorageWithDeletion(PosixDiskStorage):
     delete the outdated checkpoints.
 
     Arguments:
-        tracker_file (int): the file name to store the latest checkpoint step.
+        tracker_file (str): the file name to store the latest checkpoint step.
         deletion_strategy (str): the strategy to clean outdated checkpoints.
+
+    Example::
+        from dlrover.python.common.storage import KeepStepIntervalStrategy
+        from dlrover.trainer.torch.flash_checkpoint.ddp import DdpCheckpointer
+
+        # Only keep the checkpoint
+        keep_strategy = KeepStepIntervalStrategy(
+            keep_interval=250,
+            checkpoint_dir="./checkpoint/",
+        )
+        storage = PosixStorageWithDeletion(
+            deletion_strategy=keep_strategy,
+        )
+        checkpointer = DdpCheckpointer(
+            checkpoint_dir="./checkpoint/",
+            storage=storage,
+        )
     """
 
     def __init__(
@@ -273,6 +291,7 @@ class PosixStorageWithDeletion(PosixDiskStorage):
         self._pre_step = 0
 
     def write(self, content, path: str):
+        path = str(path)  # The path maybe a PosixPath.
         if path.endswith(self._tracker_file):
             pre_step = self.read(path)
             if pre_step:
@@ -296,3 +315,14 @@ class PosixStorageWithDeletion(PosixDiskStorage):
             kwargs=kwargs,
         )
         return class_mata
+
+
+def get_checkpoint_storage(deletion_strategy=None):
+    if deletion_strategy:
+        storage = PosixStorageWithDeletion(
+            tracker_file=CheckpointConstant.TRACER_FILE_NAME,
+            deletion_strategy=deletion_strategy,
+        )
+    else:
+        storage = PosixDiskStorage()
+    return storage
