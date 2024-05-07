@@ -56,9 +56,9 @@ def train(args, train_params):
     Args:
         args:  Arguments parsed from the command line.
         train_params:  The parameters set up for training.
-            - env_params:  The environment parameters.
-            - model_params:  The model parameters.
-            - ckpt_params:  The checkpoint parameters.
+            - env_params:       Parameters relating to the environment.
+            - model_params:     Parameters relating to the model.
+            - ckpt_params:      Parameters relating to the checkpoint.
     """
     (env_params, model_params, ckpt_params) = train_params
     # Unpack the parameters for model training.
@@ -119,7 +119,7 @@ def train(args, train_params):
     @grad_accum_logger
     def step_grad_accum(idx, data, target):
         """
-        An inner function to perform the training step with gradient accumulation.
+        An inner function to perform training with gradient accumulation.
         """
         print_log = False
         data, target = data.to(device), target.to(device)
@@ -145,7 +145,7 @@ def train(args, train_params):
                 print_log = True
         return print_log, loss.item() * grad_accum_steps
 
-    ###### Training loop ######
+    # Training loop.
     for epoch in range(args.epochs):
         # Set epoch into the sampler.
         train_loader.sampler.set_epoch(epoch)
@@ -175,9 +175,9 @@ def setup_everything(args) -> tuple:
 
     Returns:
         tuple: A tuple containing three dictionaries:
-            - env_params:  The environment parameters.
-            - model_params:  The model parameters.
-            - ckpt_params:  The checkpoint parameters.
+            - env_params:       Parameters relating to the environment.
+            - model_params:     Parameters relating to the model.
+            - ckpt_params:      Parameters relating to the checkpoint.
     """
     setup()
     world_size = int(os.getenv("WORLD_SIZE", 1))
@@ -279,7 +279,7 @@ def setup_everything(args) -> tuple:
         f"Local rank {local_rank}: "
         f"checkpointer loading time {round(time.time() - t0, 2)}s")
 
-    ###### Prepare the dictionaries to return ######
+    # Prepare the parameters for training.
     env_params = {
         "world_size": world_size,
         "local_rank": local_rank,
@@ -336,7 +336,7 @@ def save_checkpoint(model_params, ckpt_params):
     Save the checkpoint to memory or disk when needed.
 
     Returns: A boolean value indicating whether the checkpoint was saved.
-            This result is mainly used by the timer decorator.
+            This result is mainly used by the "timer" decorator.
     """
     saved = False
     steps = model_params["total_steps"]
@@ -359,7 +359,7 @@ def save_checkpoint(model_params, ckpt_params):
 
         return state_dict
 
-    ###### Save the checkpoint ######
+    # Save the checkpoint.
     if ckpt_params["use_native"]:
         # If using native checkpointing, save the checkpoint to disk.
         if steps % ckpt_params["save_memory_interval"] == 0:
