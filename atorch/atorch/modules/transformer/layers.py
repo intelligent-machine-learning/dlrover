@@ -76,8 +76,7 @@ if flash_attn is not None:
     _flash_attn_version = packaging.version.Version(version("flash-attn"))
     try:
         from flash_attn.flash_attention import FlashMHA  # cuda version
-    except (ImportError, ModuleNotFoundError) as e:
-        logger.error(f"Import FlashMHA failed. {e}")
+    except (ImportError, ModuleNotFoundError):
         assert _flash_attn_version >= packaging.version.Version(
             "2"
         ), "FlashMHA is deleted in 2.0 release, but FA1 should has FlashMHA."

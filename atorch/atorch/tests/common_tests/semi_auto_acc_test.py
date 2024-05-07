@@ -14,7 +14,12 @@ from atorch.auto.opt_lib.zero_optimization import get_skip_match_module_child_wr
 from atorch.common.util_func import find_free_port
 from atorch.distributed.distributed import parallel_instance_index, parallel_instance_num, world_size
 from atorch.optimizers import BF16Optimizer
-from atorch.tests.toy_modules.toy_module import create_model_context, get_gpt2_module_type, run_train
+from atorch.tests.toy_modules.toy_module import (
+    create_model_context,
+    get_gpt2_module_type,
+    run_train,
+    sp_data_process_fn,
+)
 from atorch.utils.version import torch_version
 
 
@@ -225,6 +230,7 @@ def run_gpt2_with_strategy(
     data_size,
     batch_size,
     use_bf16=False,
+    use_sp=False,
     zero_size=None,
     bf16_only=False,
     wrap_test_only=False,
@@ -290,6 +296,8 @@ def run_gpt2_with_strategy(
             ]
         if use_fp8:
             strategy.append("fp8")
+        if use_sp:
+            strategy.append(("sequence_parallel", {"sp_size": 2, "batch_sp_processing_fn": sp_data_process_fn}))
 
     status, result, best_strategy = auto_accelerate(
         model_context.model,
@@ -523,6 +531,31 @@ class LoadStrategyTest(unittest.TestCase):
                 data_size,
                 batch_size,
             ),
+            nprocs=2,
+            join=True,
+            daemon=False,
+            start_method="spawn",
+        )
+
+    @unittest.skipIf(
+        (not torch.cuda.is_available() or torch.cuda.device_count() < 2),
+        "Must have at least 2 GPUs for gpu test",
+    )
+    def test_gpt2_strategy_sp2(self):
+        os.environ["WORLD_SIZE"] = str(2)
+        os.environ["NPROC_PER_NODE"] = str(2)
+        os.environ["MASTER_ADDR"] = "localhost"
+        os.environ["MASTER_PORT"] = str(find_free_port())
+
+        hidden_size = 256
+        head_num = 4
+        layer_num = 3
+        seq_length = 512
+        data_size = 16
+        batch_size = 4
+        mp.spawn(
+            run_gpt2_with_strategy,
+            args=(hidden_size, head_num, layer_num, seq_length, data_size, batch_size, False, True),
             nprocs=2,
             join=True,
             daemon=False,

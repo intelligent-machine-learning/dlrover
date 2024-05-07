@@ -7,6 +7,7 @@ from atorch.auto.opt_lib.mixed_parallel_optimization import MixedParallelOptimiz
 from atorch.auto.opt_lib.module_replace_optimization import ModuleReplaceOptimization
 from atorch.auto.opt_lib.parallel_mode_optimization import ParallelModeOptimization
 from atorch.auto.opt_lib.pipeline_parallel_optimization import PipelineParallelOptimization
+from atorch.auto.opt_lib.sequence_parallel_optimization import SequenceParallelOptimization
 from atorch.auto.opt_lib.tensor_parallel_optimization import TensorParallelOptimization
 from atorch.auto.opt_lib.zero_optimization import FSDPOptimization, Zero1Optimization, Zero2Optimization
 from atorch.common.log_utils import default_logger as logger
@@ -50,6 +51,7 @@ class OptimizationLibrary(object):
             NativeDynamoOptimization,
             PipelineParallelOptimization,
             MixedParallelOptimization,
+            SequenceParallelOptimization,
             HalfOptimization,
             DeepSpeed3DParallelOptimization,
         ]

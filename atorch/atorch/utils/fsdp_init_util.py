@@ -1,6 +1,8 @@
 """This file is used to restore FlatParameter from flat ckpt."""
 import collections
 from dataclasses import dataclass
+from functools import partial
+from pathlib import Path
 from typing import Callable, List, Optional, Sequence, Tuple, Type, Union, no_type_check
 
 import torch
@@ -12,7 +14,7 @@ from torch.distributed.utils import _p_assert
 
 from atorch.common.log_utils import default_logger as logger
 from atorch.distributed.distributed import local_rank, rank, world_size
-from atorch.utils.fsdp_save_util import ErrorCode, FlatCkptError, ShardTensorUtil
+from atorch.utils.fsdp_save_util import _FLAT_PARAM_PADDING_VALUE, ErrorCode, FlatCkptError, ShardTensorUtil, TensorDict
 from atorch.utils.meta_model_utils import _find_tied_weights, _retie_weights
 
 OriginFlatParamHandle: Type[flat_param.FlatParamHandle] = flat_param.FlatParamHandle
@@ -52,6 +54,12 @@ def patch_fsdp_init(ckpt_path, wrap_class, top_model, check_module=True, ignore_
         raise FlatCkptError(
             "Torch git version must equal 7bcf7da3a268b435777fe87c7794c382f444e86d(2.1.0)", ErrorCode.NOT_SUPPORT
         )
+
+
+def reset_hooks():
+    global _init_utils, FSDP
+    _init_utils.FlatParamHandle = OriginFlatParamHandle
+    FSDP._init_param_handle_from_module = origin_init_param_handle_from_module
 
 
 @dataclass
@@ -234,6 +242,39 @@ class RestoreFlatParamHandle(OriginFlatParamHandle):  # type: ignore
             self._use_sharded_views()
 
 
+def _check_weight_is_init(module_name: str, module: nn.Module) -> None:
+    """
+    Check first param is 42 or not.
+    """
+    for name, p in module.named_parameters():
+        if p.view(-1)[0] == _FLAT_PARAM_PADDING_VALUE:
+            raise FlatCkptError(f"lora weight {module_name}.{name} is not init", ErrorCode.LORA_WEIGHT_INIT_ERROR)
+
+
+def _reset_lora_param(module: nn.Module, lora_cls: Tuple[type]) -> None:
+    """
+    Reset all lora params before FSDP init, this function is called in `FSDP._init_param_handle_from_module`.
+    This function is called after `FSDP.param_init_fn`.
+
+    It's useful when base model and lora model are init on meta device. We can load base model from ckpt, but
+    lora weights are maybe training from scratch, at this time, we do not know how them initialize. Peft offers
+    reset function in lora, but other lora method are not tested.
+    """
+
+    for name, m in module.named_modules():
+        if isinstance(m, lora_cls):
+            try:
+                m.reset_lora_parameters(m.active_adapter)  # type: ignore[attr-defined]
+            except Exception as e:
+                import peft
+
+                raise FlatCkptError(
+                    f"Reset lora weights error, your version of peft is {peft.__version}. Check the origin call stack",
+                    ErrorCode.LORA_RESET_WEIGHT_ERROR,
+                ) from e
+            _check_weight_is_init(name, m)
+
+
 @no_type_check
 def mock_init_param_handle_from_module_pt210(
     state: _init_utils._FSDPState,
@@ -241,9 +282,12 @@ def mock_init_param_handle_from_module_pt210(
     device_id: Optional[Union[int, torch.device]],
     param_init_fn: Optional[Callable[[nn.Module], None]],
     sync_module_states: bool,
+    **atorch_hook_kwargs,
 ) -> _init_utils._FSDPState:
     """
-    We only add tie_weights after `materialize_meta_module`. Others are same with original function.
+    We two things, others are same with original function.
+        1. add tie_weights after `materialize_meta_module`.
+        2. add lora reset parameters
     """
     tie_weights = {}
     tie_weights = _find_tied_weights(fully_sharded_module)
@@ -272,8 +316,187 @@ def mock_init_param_handle_from_module_pt210(
         state.rank,
     )
 
+    wrap_cls = atorch_hook_kwargs.get("atorch_wrap_cls", int)
+    restore_lora = atorch_hook_kwargs.get("restore_lora", False)
+
+    if not restore_lora and isinstance(fully_sharded_module, wrap_cls):
+        # wrap cls fsdp unit
+        lora_cls = atorch_hook_kwargs.get("lora_cls", None)
+        _reset_lora_param(fully_sharded_module, lora_cls)
+
     managed_params = list(_init_utils._get_orig_params(fully_sharded_module, state._ignored_params))
+
+    if "atorch_wrap_cls" in atorch_hook_kwargs:
+        # check sync_module_states, and any param is 42
+        if not sync_module_states:
+            raise ValueError("FSDP lora on meta init must set `sync_module_states`", ErrorCode.LORA_WEIGHT_INIT_ERROR)
+        for p in managed_params:
+            if p.view(-1)[0] != _FLAT_PARAM_PADDING_VALUE:
+                continue
+            for name, param in fully_sharded_module.named_parameters():
+                if param is p:
+                    raise FlatCkptError(f"Weight {name} is not init", ErrorCode.LORA_WEIGHT_INIT_ERROR)
     if sync_module_states:
         _init_utils._sync_module_params_and_buffers(fully_sharded_module, managed_params, state.process_group)
     _init_utils._init_param_handle_from_params(state, managed_params, fully_sharded_module)
     return state
+
+
+@dataclass
+class FSDPCkptConfig:
+    """
+    This is use for meta init and use `param_init_fn` of FSDP to init params.
+    This object has three str:
+        1. flat_ckpt_path, dir of flat ckpt
+        2. lora_ckpt_path, dir of lora ckpt
+        3. lora_prefix, prefix of lora, 'base_model.model' as usually.
+        4. lora_cls, lora linear class, defaults to peft.tuners.lorr.Linear
+
+    """
+
+    flat_ckpt_path: Optional[str] = None
+    lora_ckpt_path: Optional[str] = None
+    lora_prefix: Optional[str] = None
+    lora_cls: Optional[List[type]] = None
+    lora_weight_name: Optional[str] = None
+
+
+class FSDPInitFn:
+    """
+    param_init_fn of FSDP.
+    """
+
+    def __init__(self, top_model: nn.Module, rank: int, fsdp_ckpt_config: FSDPCkptConfig, wrap_cls: Tuple[type]):
+        if not isinstance(wrap_cls, tuple):
+            raise FlatCkptError("kwarg `wrap_clas` of FSDPInitFn must be tuple of class", ErrorCode.COMMON_ERROR)
+        self._set_global_name_for_params_and_buffers(top_model)
+        self.rank = rank
+        self.fsdp_ckpt_config = fsdp_ckpt_config
+        self._prepare_ckpt()
+        self.wrap_cls = wrap_cls
+        self.restore_lora = fsdp_ckpt_config.lora_ckpt_path is not None
+
+        if rank == 0:
+            FSDP._init_param_handle_from_module = partial(
+                mock_init_param_handle_from_module_pt210,
+                atorch_wrap_cls=wrap_cls,
+                restore_lora=self.restore_lora,
+                lora_cls=self._prepare_lora_cls_check_list(),
+            )
+        else:
+            FSDP._init_param_handle_from_module = mock_init_param_handle_from_module_pt210
+
+    def _prepare_lora_cls_check_list(self):
+        """
+        We need to call `reset_lora_parameters` from class `LoraLinear`, maybe user will implement `lora` by
+        their own, so we pass lora class to filter which object can do `reset_lora_parameters`. defaults to
+        `peft.tuners.lorr.Linear`
+        """
+        from peft.tuners.lora import Linear as LoraLinear
+
+        self.lora_cls = [LoraLinear]
+        config_lora_cls = self.fsdp_ckpt_config.lora_cls
+        if config_lora_cls is not None:
+            self.lora_cls.extend(config_lora_cls)
+        self.lora_cls = tuple(self.lora_cls)
+        return self.lora_cls
+
+    def _prepare_ckpt(self):
+        """
+        Parse all ckpts
+        """
+        flat_ckpt_path = self.fsdp_ckpt_config.flat_ckpt_path
+        lora_ckpt_path = self.fsdp_ckpt_config.lora_ckpt_path
+        lora_prefix = self.fsdp_ckpt_config.lora_prefix
+
+        # we striped prefix which is created by lora, usually, it's  `base_model.model.`
+        self.base_model_weights = ShardTensorUtil(
+            flat_ckpt_path,
+            0,
+            1,
+            name_mapping_func_or_dict=lambda x: f"{x[len(lora_prefix)+1:]}" if lora_prefix else x,
+            device="cpu",
+        )
+        self.lora_weights = self._parse_lora_param(lora_ckpt_path)
+
+    def _get_param_buffer_from_flat(self, name) -> Optional[torch.Tensor]:
+        """
+        Get param or buffer from flat ckpt, if found return tensor, otherwise return None.
+        """
+        return self.base_model_weights.load_tensor_by_name(name, strict=False)
+
+    def _parse_lora_param(self, path: Optional[str]) -> TensorDict:
+        """
+        If we set path, it will find `lora_weight` in path.
+        If not found, raise error.
+        """
+        if path is None:
+            return {}
+        lora_weight_name = self.fsdp_ckpt_config.lora_weight_name or "lora_weight"
+        posix_path = Path(path) / lora_weight_name
+        if not posix_path.exists():
+            raise FlatCkptError(f"lora weights not found, path is {str(posix_path)}", ErrorCode.CHECKPOINT_NOT_FOUND)
+        return torch.load(posix_path)
+
+    def _set_global_name_for_params_and_buffers(self, top_model):
+        """
+        Set extra attr `_atorch_global_name` to record global name of each module.
+        It's useful when we iter on submodule.
+        """
+        for name, param in top_model.named_parameters():
+            param._atorch_global_name = name
+        for name, buf in top_model.named_buffers():
+            buf._atorch_global_name = name
+
+    def __call__(self, module: nn.Module) -> None:
+        """
+        Real param_init_fn at FSDP's initializing. FSDP must set `sync_module_states`.
+
+        For non root rank, empty init each module, and wait broadcasting from root rank.
+        For root rank, there are two cases:
+            1.  Lora weights will init from ckpt, in this case, if we not found key in lora_weight dict,
+                We raise error.
+            2.  Lora weights will init from scratch, in this case, we call `reset_lora_parameters` in peft,
+                `wrap_cls` will not be None, so we fill 42 on every param. Before broadcasting, check is any
+                param is 42 and raise error.
+        """
+        if self.rank != 0:
+            module.to_empty(device=torch.device("cuda"), recurse=False)
+            return
+        with torch.no_grad():
+            global_names = {name: param._atorch_global_name for name, param in module.named_parameters(recurse=False)}
+            global_names.update({name: buf._atorch_global_name for name, buf in module.named_buffers(recurse=False)})
+            module.to_empty(device=torch.device("cuda"), recurse=False)
+            for name, param in module.named_parameters(recurse=False):
+                full_param_name = global_names[name]
+                # lookup on flat ckpt
+                src_tensor = self._get_param_buffer_from_flat(full_param_name)
+                if src_tensor is not None:
+                    orig_storage = param._typed_storage()
+                    param.set_(src_tensor.cuda().contiguous())
+                    if orig_storage._size() > 0:
+                        orig_storage._resize_(0)
+                # lookup of lora ckpt
+                elif full_param_name in self.lora_weights:
+                    orig_storage = param._typed_storage()
+                    param.set_(self.lora_weights[full_param_name].cuda().contiguous())
+                    if orig_storage._size() > 0:
+                        orig_storage._resize_(0)
+                elif self.restore_lora:
+                    raise FlatCkptError(f"Missing lora weight {full_param_name}", ErrorCode.LORA_WEIGHT_INIT_ERROR)
+                else:
+                    # mark not initialized
+                    param.fill_(_FLAT_PARAM_PADDING_VALUE)
+
+            for name, buf in module.named_buffers(recurse=False):
+                full_param_name = global_names[name]
+                src_tensor = self._get_param_buffer_from_flat(full_param_name)
+                # lookup on flat ckpt
+                if src_tensor is not None:
+                    orig_storage = buf._typed_storage()
+                    if orig_storage._size() > 0:
+                        orig_storage._resize_(0)
+                    buf.set_(src_tensor.contiguous().cuda().to(buf.dtype))
+                else:
+                    # mark not initialized
+                    buf.fill_(_FLAT_PARAM_PADDING_VALUE)

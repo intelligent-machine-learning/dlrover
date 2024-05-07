@@ -15,6 +15,7 @@ from atorch.modules.transformer.layers import (
 )
 from atorch.normalization import LayerNorm as ApexLayerNorm
 from atorch.utils.meta_model_utils import empty_param, recursive_empty_param
+from atorch.utils.version import package_version_smaller_than
 
 # supported replacement pairs, default replace_configs and supported dtypes for module replace optimization
 # in format of {pair_name: (src_module_cls, target_cls, kwargs, supported_dtypes)}
@@ -69,7 +70,9 @@ register_replace_pair("LayerNorm_Apex", kwargs={"init_from_attr": True}, pair_cl
 register_replace_pair("HF_BertAttention_FA", supported_dtypes={torch.float16, torch.bfloat16})(BertAttentionFA)
 register_replace_pair("HF_CLIPAttention_FA", supported_dtypes={torch.float16, torch.bfloat16})(CLIPAttentionFA)
 register_replace_pair("MultiheadAttention_FA", supported_dtypes={torch.float16, torch.bfloat16})(MultiheadAttentionFA)
-register_replace_pair("HF_LlamaAttention_FA", supported_dtypes={torch.float16, torch.bfloat16})(LlamaAttentionFA)
+if package_version_smaller_than("transformers", "4.38.0"):
+    # transformers 4.38.0 changed LlamaAttention interface, so check version first.
+    register_replace_pair("HF_LlamaAttention_FA", supported_dtypes={torch.float16, torch.bfloat16})(LlamaAttentionFA)
 register_replace_pair("HF_GPT2Attention_FA", supported_dtypes={torch.float16, torch.bfloat16})(GPT2AttentionFA)
 
 

@@ -394,18 +394,26 @@ class FSDPOptimization(Optimization):
                 extra_config["sharding_strategy"] = ShardingStrategy.HYBRID_SHARD
                 pg = (parallel_group("zero"), parallel_group("data"))
 
-        if wrapper_config.pop("parse_fsdp", None) is not None:
-            cb = wrapper_config.pop("parse_cb", None)
-            from atorch.utils.parse_fsdp_mapping import ParseFSDP
-
-            fsdp_clz = ParseFSDP(fsdp_clz, fsdp_clz is FSDP, cb)
-
         extra_config["process_group"] = pg
         wrapper_config.update(extra_config)
         if wrap_trainable_outmost:
             fsdp_clz = functools.partial(
                 fsdp_wrap_trainable_outmost, outmost_sharding_strategy=outmost_sharding_strategy
             )
+
+        # support local sgd
+        use_local_sgd = wrapper_config.get("use_local_sgd", None)
+        if use_local_sgd is not None:
+            if not hybrid_with_ddp:
+                raise RuntimeError("use_local_sgd requires hybrid sharding strategy.")
+            elif torch_version() < (2, 1, 0):
+                raise RuntimeError("use_local_sgd requires torch version >= 2.1.0.")
+            elif fsdp_clz is not FSDP:
+                raise RuntimeError("use_local_sgd only supports basic FSDP class.")
+            else:
+                from atorch.local_sgd.HSDP import patch_local_sgd_to_fsdp
+
+                patch_local_sgd_to_fsdp()
 
         model_context.model = fsdp_clz(
             model_context.model,
