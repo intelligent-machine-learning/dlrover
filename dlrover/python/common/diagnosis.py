@@ -13,6 +13,7 @@
 
 from abc import ABCMeta, abstractmethod
 from datetime import datetime
+from typing import List
 
 
 class DiagnosisDataType:
@@ -35,11 +36,14 @@ class DiagnosisData(metaclass=ABCMeta):
 
 
 class CudaLog(DiagnosisData):
-    def __init__(self, timestamp: int):
+    def __init__(self, timestamp: int, cpp_traces: List[str], py_traces: List[str]):
         if timestamp == 0:
             self.timestamp = int(round(datetime.now().timestamp()))
         else:
             self.timestamp = timestamp
+
+        self.cpp_traces = cpp_traces
+        self.py_traces = py_traces
 
     def get_timestamp(self) -> int:
         return self.timestamp

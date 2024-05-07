@@ -25,6 +25,59 @@ message Message {
   bytes data = 3;
 }
 
+message PySpyFrame {
+  string func_name = 1;
+  string file_name = 2;
+  string module = 3;
+};
+
+
+// "pid": 1142,
+// "thread_id": 139620998182656,
+// "thread_name": "Thread-4",
+// "os_thread_id": 4127,
+// "active": false,
+// "owns_gil": false,
+message PySpyStacktrace {
+  uint32 pid = 1;
+  uint64 thread_id = 2;
+  string thread_name = 3;
+  uint32 os_thread_id = 4;
+  bool active = 5;
+  bool owns_gil = 6;
+  repeated PySpyFrame frames = 7;
+}
+
+// pstack frame
+// Thread 24 (Thread 0x7eff1f6b4000 (LWP 3920)):
+// #0  0x00007effca957ce5 in pthread_cond_wait@@GLIBC_2.3.2 () from /usr/lib64/libpthread.so.0
+// #1  0x00007eff328cddeb in blas_thread_server () from /opt/conda/lib/python3.8/site-packages/numpy/core/../../numpy.libs/libopenblas64_p-r0-742d56dc.3.20.so
+// #2  0x00007effca9514e2 in start_thread () from /usr/lib64/libpthread.so.0
+// #3  0x00007effca72e5b3 in clone () from /usr/lib64/libc.so.6
+message PstackFrame {
+  string func_name = 1;
+  string file_name = 2;
+  string origin = 3;
+};
+
+// gdb info threads
+// * 1    process 1 "bash"  0x00007f3dca76093a in waitpid () from /lib64/libc.so.6
+message PstackStacktrace {
+  uint32 pid = 1;
+  string thread_name = 2;
+  repeated PstackFrame frames = 3;
+}
+
+message HangKernels {
+  repeated string hang_kernels = 1;
+}
+
+message Stacktrace {
+  repeated PstackStacktrace stacktrace = 1;
+  repeated PySpyStacktrace py_stacktrace = 2;
+  HangKernels hang_kernels = 3;
+};
+
 service Master {
   rpc report(Message) returns (Response);
   rpc get(Message) returns (Message);
