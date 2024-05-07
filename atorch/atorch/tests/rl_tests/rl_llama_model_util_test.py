@@ -9,6 +9,7 @@ from transformers.models.llama.modeling_llama import LlamaDecoderLayer
 from atorch.rl.model_utils.llama2_utils import get_llama2_params_offsets, move_weight_to_continuous_buffer
 
 
+@unittest.skipIf(torch.cuda.device_count() < 2, "run with gpu_num >=2")
 class TestLLama2Util(unittest.TestCase):
     def test_get_param_offset(self):
         config = LlamaConfig()

@@ -36,7 +36,7 @@ from atorch.utils.version import torch_version
 try:
     from pippy.IR import LossWrapper
 except ImportError:
-    LossWrapper = None
+    LossWrapper = type(object())
 
 from atorch.amp.pipe_amp import _hack_pipe_amp_optimizer, scale_backward_wrapper
 
@@ -218,9 +218,6 @@ class ModelContext(object):
         return isinstance(self.model, LossWrapper)
 
     def _check_loss_wrapper(self):
-        # import pippy internally
-        from pippy.IR import LossWrapper
-
         return isinstance(self.model, LossWrapper)
 
     def _dynamo_capture_graph(self, input_batch):

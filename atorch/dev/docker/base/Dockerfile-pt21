@@ -7,7 +7,7 @@
 #
 #       For reference:
 #           https://docs.docker.com/develop/develop-images/build_enhancements/
-FROM nvidia/cuda:11.8.0-cudnn8-devel-ubuntu20.04 as dev-base
+FROM nvidia/cuda:12.1.0-cudnn8-devel-ubuntu20.04 as dev-base
 ARG PYTHON_VERSION=3.8
 
 COPY pip.conf ~/.pip/pip.conf
@@ -56,10 +56,10 @@ ARG INSTALL_CHANNEL=pytorch
 # Automatically set by buildx
 # Note conda needs to be pinned to 23.5.2 see: https://github.com/pytorch/pytorch/issues/106470
 RUN /opt/conda/bin/conda install -c "${INSTALL_CHANNEL}" -y python=${PYTHON_VERSION} conda=23.5.2
-RUN /opt/conda/bin/pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+RUN /opt/conda/bin/pip install torch==2.1.0 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 RUN /opt/conda/bin/pip install torchelastic -i https://pypi.antfin-inc.com/simple
 
-FROM nvidia/cuda:11.8.0-cudnn8-devel-ubuntu20.04 as official
+FROM nvidia/cuda:12.1.0-cudnn8-devel-ubuntu20.04 as official
 ARG TRITON_VERSION
 ARG TARGETPLATFORM
 LABEL com.nvidia.volumes.needed="nvidia_driver"

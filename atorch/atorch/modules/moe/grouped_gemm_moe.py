@@ -5,7 +5,7 @@ except ImportError:
 
 try:
     import megablocks.ops as ops
-except ImportError:
+except (ImportError, RuntimeError):
     ops = None
 
 import functools

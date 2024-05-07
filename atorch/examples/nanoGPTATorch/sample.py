@@ -68,14 +68,14 @@ if load_meta:
     with open(meta_path, "rb") as f:
         meta = pickle.load(f)
     stoi, itos = meta["stoi"], meta["itos"]
-    encode = lambda s: [stoi[c] for c in s]  # noqa: E731
-    decode = lambda l: "".join([itos[i] for i in l])  # noqa: E731
+    encode = lambda s: [stoi[c] for c in s]  # noqa: E731,E741
+    decode = lambda l: "".join([itos[i] for i in l])  # noqa: E731,E741
 else:
     # ok let's assume gpt-2 encodings by default
     print("No meta.pkl found, assuming GPT-2 encodings...")
     enc = tiktoken.get_encoding("gpt2")
-    encode = lambda s: enc.encode(s, allowed_special={"<|endoftext|>"})  # noqa: E731
-    decode = lambda l: enc.decode(l)  # noqa: E731
+    encode = lambda s: enc.encode(s, allowed_special={"<|endoftext|>"})  # noqa: E731,E741
+    decode = lambda l: enc.decode(l)  # noqa: E731,E741
 
 # encode the beginning of the prompt
 if start.startswith("FILE:"):
