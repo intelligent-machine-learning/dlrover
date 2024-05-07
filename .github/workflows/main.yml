@@ -23,12 +23,11 @@ jobs:
       # This step references the directory that contains the action.
       - name: RUN pytest
         uses: ./.github/actions/dlrover-python-test
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v3
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        uses: codecov/codecov-action@v4.0.1
+        with:
+          token: 043586e5-68b8-4588-9bf4-c333f2692345
+          slug: intelligent-machine-learning/dlrover
   operator-test:
     runs-on: ubuntu-latest
     steps:

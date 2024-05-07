@@ -156,21 +156,24 @@ class RendezvousManager(metaclass=ABCMeta):
             self._lastcall_time = 0
             self._log_rendezvous_info()
             if self._waiting_nodes:
+                waiting_node_ranks = sorted(list(self._waiting_nodes.keys()))
                 logger.warning(
                     f"Waiting nodes not in {self._rdzv_round} rendezvous "
-                    f"are {self._waiting_nodes}."
+                    f"are {waiting_node_ranks}."
                 )
         elif time.time() - self._latest_log_nodes_time > 60:
             self._latest_log_nodes_time = time.time()
+            waiting_node_ranks = sorted(list(self._waiting_nodes.keys()))
             logger.info(
-                f"Waiting nodes in rendezvous are {self._waiting_nodes}"
+                f"Waiting nodes in rendezvous are {waiting_node_ranks}"
             )
         return rdzv_completed
 
     def _log_rendezvous_info(self):
+        node_ranks = sorted(list(self._rdzv_nodes.keys()))
         logger.info(
             f"Completed {self._rdzv_round} round "
-            f"rendezvous of {self._name} is {self._rdzv_nodes} \n"
+            f"rendezvous of {self._name} is {node_ranks} \n"
             "The times of nodes to join rendezvous "
             f"are {self._node_rdzv_times}."
         )
@@ -381,9 +384,13 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                     self._fault_nodes.clear()
                     self._straggler_nodes.clear()
                     self._node_groups = self._group_nodes(self._rdzv_round)
+                    rank_groups = []
+                    for group in self._node_groups:
+                        ranks = [rank for rank in group.keys()]
+                        rank_groups.append(ranks)
                     logger.info(
-                        f"Round {self._rdzv_round} "
-                        f"node group: {self._node_groups}"
+                        f"Node groups of round {self._rdzv_round} "
+                        f"are: {rank_groups}."
                     )
                     if self._rdzv_round % 2 == 0:
                         self._clear_check_status()

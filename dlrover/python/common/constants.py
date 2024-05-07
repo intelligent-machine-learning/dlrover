@@ -103,6 +103,12 @@ class JobExitReason(object):
     EVALUATOR_ERROR = "EvaluatorError"
     UNKNOWN_ERROR = "UnknownError"
     HANG_ERROR = "HangError"
+    RDZV_TIMEOUT_ERROR = "RdzvTimeout"
+
+
+class CustomMetricKeys:
+    RDZV_ROUND = "rdzv_round"
+    TRAINING_ERROR_LEVEL = "error_level"
 
 
 class ExitCode(object):
@@ -284,6 +290,7 @@ class CheckpointConstant(object):
     TRACER_FILE_NAME = "dlrover_latest.txt"
     MODEL_STATES_NAME = "model_states"
     OPTIM_STATES_NAME = "optim_states"
+    SAVE_TIMEOUT = 600
 
 
 class Accelerators(object):

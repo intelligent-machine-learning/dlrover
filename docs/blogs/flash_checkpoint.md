@@ -52,7 +52,8 @@ reduces the wastage of training iteration step.
 the training process, at which point the checkpoint can be directly loaded from the host memory without
 the IO overhead to read storage files.
 4. Simple and Easy-to-Use Interface: It supports common large model training frameworks such as
-DDP (Distributed Data Parallel), FSDP (Fully Sharded Data Parallel), DeepSpeed, and Megatron-LM,
+DDP (Distributed Data Parallel), FSDP (Fully Sharded Data Parallel), DeepSpeed, and
+Megatron-LM([cb995d5](https://github.com/NVIDIA/Megatron-LM/tree/cb995d571faea19d01a1bf55ed0fd89523b9ce64)),
 with interfaces consistent with the original framework.
 
 ## System Design
@@ -100,7 +101,8 @@ This can avoid the IO overhead to read the remote storage system.
 
 To enable users to conveniently apply DLRover's Flash Checkpoint to training jobs,
 DLRover provide APIs to support Distributed Data Parallel (DDP),
-Fully Sharded Data Parallel (FSDP), DeepSpeed, and Megatron-LM.
+Fully Sharded Data Parallel (FSDP), DeepSpeed, and
+Megatron-LM([cb995d5](https://github.com/NVIDIA/Megatron-LM/tree/cb995d571faea19d01a1bf55ed0fd89523b9ce64)).
 
 ### DDP
 
@@ -241,8 +243,9 @@ checkpointer.load_checkpoint(checkpoint_dir)
 
 #### Megatron-LM
 
-Flash Checkpoint only adds a storage_type argument to the native Megatron-LM `save_checkpoint` to control
-whether to save to memory or to a storage system. The `load_checkpoint` is completely consistent with
+Flash Checkpoint only adds a storage_type argument to the native Megatron-LM([cb995d5](https://github.com/NVIDIA/Megatron-LM/tree/cb995d571faea19d01a1bf55ed0fd89523b9ce64))
+`save_checkpoint` to control whether to save to memory or to a storage system.
+The `load_checkpoint` is completely consistent with
 Megatron-LM's native `load_checkpoint`. Users only need to modify the megatron/training.py file in Megatron-LM repo
 to use the Flash Checkpoint.
 
@@ -305,6 +308,53 @@ trainer = FlashCkptTrainer(
 # Get the latest checkpoint path.
 last_ckpt_path = trainer.get_last_checkpoint()
 trainer.train(resume_from_checkpoint=last_ckpt_path)
+```
+
+### Cleanup Checkpoint Strategy
+
+Using the Flash Checkpoint, training can export the model's checkpoints to disk at a very high frequency
+which will use a lot of storage space. To reduce storage costs, Flash Checkpoint can clean up previous
+checkpoint files after a new checkpoint is successfully saved. Currently, Flash Checkpoint offers two checkpoint
+cleanup strategies:
+
+`KeepStepIntervalStrategy(keep_interval: int, checkpoint_dir: str)`: Only retain checkpoint files whose
+iteration steps are an integer multiple of `keep_interval`.
+
+`KeepLatestStepStrategy(max_to_keep: int, checkpoint_dir: str)`: Only keep the latest
+`max_to_keep` checkpoint files.
+
+The example to use a cleanup strategy
+
+```Python
+from dlrover.trainer.torch.flash_checkpoint.deepspeed import (
+    DeepSpeedCheckpointer,
+    StorageType,
+)
+from dlrover.python.common.store import KeepStepIntervalStrategy
+
+strategy = KeepStepIntervalStrategy(keep_interval=100, checkpoint_dir=checkpoint_dir)
+
+checkpointer = DeepSpeedCheckpointer(model, checkpoint_dir, deletion_strategy=strategy)
+```
+
+Besides this, users can also customize their cleanup strategies.
+
+```Python
+class CustomStrategy(CheckpointDeletionStrategy):
+
+    def __init__(self, *args, **kwargs):
+        ...
+
+
+    def clean_up(self, step, delete_func):
+        """
+        Clean up the checkpoint of step.
+
+        Arguments:
+            step (int): the iteration step of a checkpoint.
+            delete_func: A function to remove a directory, the argument
+                is a directory of a folder.
+        """
 ```
 
 ## Benchmark Experiments

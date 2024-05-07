@@ -13,13 +13,16 @@
 
 import os
 import unittest
+from unittest import mock
 
 from dlrover.python.common.multi_process import (
+    ERROR_CODE,
     SOCKET_TMP_DIR,
     SharedDict,
     SharedLock,
     SharedMemory,
     SharedQueue,
+    SocketResponse,
     clear_sock_dir,
     retry_socket,
 )
@@ -88,6 +91,11 @@ class SharedObjectTest(unittest.TestCase):
         self.assertDictEqual(d, new_dict)
         d = client_dict.get()
         self.assertDictEqual(d, new_dict)
+        response = SocketResponse(status=ERROR_CODE)
+        client_dict._request = mock.MagicMock(return_value=response)
+        with self.assertRaises(RuntimeError):
+            client_dict.set(new_dict)
+        server_dict.unlink()
 
 
 class SharedMemoryTest(unittest.TestCase):

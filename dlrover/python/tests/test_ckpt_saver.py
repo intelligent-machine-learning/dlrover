@@ -127,6 +127,8 @@ class CheckpointSaverTest(unittest.TestCase):
                 break
         self.assertIsNotNone(AsyncCheckpointSaver._saver_instance)
         AsyncCheckpointSaver.reset()
+        wait = AsyncCheckpointSaver._saver_instance.wait_saving_checkpoint()
+        self.assertFalse(wait)
 
         # test notify multiple times,
         # see if it will skip and no exception raised

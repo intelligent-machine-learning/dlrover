@@ -451,3 +451,18 @@ class ParallelConfig(Message):
 @dataclass
 class NodeCheckpointState(Message):
     step: int = 0
+
+
+@dataclass
+class DiagnosisTrainingLog(Message):
+    timestamp: int = 0
+
+
+@dataclass
+class DiagnosisCudaLog(Message):
+    timestamp: int = 0
+
+
+@dataclass
+class DiagnosisChipMetrics(Message):
+    timestamp: int = 0

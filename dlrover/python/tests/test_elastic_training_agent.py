@@ -304,6 +304,8 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         AsyncCheckpointSaver._saver_instance = saver
         agent._save_ckpt_to_storage()
         agent._stop_workers_to_restart()
+        agent._wait_async_saver()
+        agent.stop_executor()
 
 
 class NodeCheckElasticAgentTest(unittest.TestCase):

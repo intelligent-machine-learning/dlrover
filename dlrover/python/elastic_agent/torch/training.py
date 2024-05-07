@@ -20,6 +20,7 @@ import socket
 import tempfile
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, List, Optional, Union
@@ -81,6 +82,9 @@ except (ModuleNotFoundError, ImportError):  # noqa: F841
     pass
 
 __all__ = ["launch_agent"]
+
+
+_DEFAULT_INTERVAL = 5
 
 
 def _set_paral_config():
@@ -266,7 +270,7 @@ class MasterRendezvousHandler(RendezvousHandler):
                     )
                     if start_pending == 0:
                         start_pending = time.time()
-                    time.sleep(5)
+                    time.sleep(_DEFAULT_INTERVAL)
                     start_join = time.time()
                     if start_join - start_pending > self.pend_timeout:
                         raise TimeoutError(
@@ -380,6 +384,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
         if config.auto_tunning:
             self._paral_config_tuner = ParalConfigTuner.singleton_instance()
             self._paral_config_tuner.start()
+
+        self._save_ckpt_executor = ThreadPoolExecutor(max_workers=1)
+        self._save_ckpt_future = None
 
     @prof
     def _rendezvous(self, worker_group: WorkerGroup) -> None:
@@ -582,6 +589,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     "for other agents to finish."
                 )
                 self._exit_barrier()
+                self._wait_async_saver()
                 return run_result
             elif state in {WorkerState.UNHEALTHY, WorkerState.FAILED}:
                 logger.error(f"The worker fails with {run_result.failures}")
@@ -607,6 +615,24 @@ class ElasticTrainingAgent(LocalElasticAgent):
             else:
                 raise Exception(f"[{role}] Worker group in {state.name} state")
 
+    def _wait_async_saver(self):
+        """
+        The agent waits for saving the checkpoint from the shared memory
+        before exiting.
+        """
+        saver = AsyncCheckpointSaver.get_ckpt_saver()
+        if saver:
+            # Wait the saver finishes writing the checkpoint from the shared
+            # memory to the storage.
+            start_wait_time = time.time()
+            while saver.wait_saving_checkpoint():
+                time.sleep(_DEFAULT_INTERVAL)
+                wait_time = round(time.time() - start_wait_time, 2)
+                logger.info(
+                    "Wait for saving the checkpoint and "
+                    f"the waiting time is {wait_time}s."
+                )
+
     def _save_ckpt_to_storage(self):
         """
         The agent can save the checkpointing state dict in the shared
@@ -615,7 +641,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
         saver: AsyncCheckpointSaver = AsyncCheckpointSaver.get_ckpt_saver()
         if saver and self._config.save_at_breakpoint:
             logger.info("Start saving checkpoint at the breakpoint.")
-            saver.save_shm_to_storage(master_client=self._client)
+            self._save_ckpt_future = self._save_ckpt_executor.submit(
+                saver.save_shm_to_storage, 60, self._client
+            )
 
     def _stop_workers_to_restart(self):
         """
@@ -668,6 +696,10 @@ class ElasticTrainingAgent(LocalElasticAgent):
             )
             return True
         return False
+
+    def stop_executor(self):
+        """Shutdown the executor to save the checkpoint."""
+        self._save_ckpt_executor.shutdown(wait=False)
 
 
 def launch_agent(
@@ -777,6 +809,7 @@ def launch_agent(
     finally:
         if shutdown_rdzv:
             spec.rdzv_handler.shutdown()
+        agent.stop_executor()
         monitor.stop()
 
 
@@ -937,6 +970,8 @@ def network_check(
     args: List[Any],
 ) -> bool:
     config = copy.deepcopy(config)
+
+    # Disable checking network when execute tasks to check network.
     config.network_check = False
     if not config.run_id:
         run_id = str(uuid.uuid4().int)

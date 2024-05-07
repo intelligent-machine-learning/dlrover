@@ -234,6 +234,7 @@ class SharedMemoryHandler(object):
             )
         self.shared_memory: Optional[SharedMemory] = None
         self.metadata = SharedDict(name=meta_name, create=host)
+        self._need_creation = True
 
     def close(self):
         if self.shared_memory:
@@ -249,7 +250,7 @@ class SharedMemoryHandler(object):
             self.metadata.unlink()
 
     def reset(self):
-        self.shared_memory = None
+        self._need_creation = True
 
     def _create_tensor_meta(self, value: torch.Tensor):
         """
@@ -301,7 +302,7 @@ class SharedMemoryHandler(object):
         config = meta_dict.get(DLROVER_CKPT_CONFIG_KEY, default_config)
         if not meta_dict or config.writing_shm:
             return {}
-        if self.shared_memory is None:
+        if self.shared_memory is None or self._need_creation:
             self.init_shared_memory(create=False)
         if not self.shared_memory:
             return {}
@@ -325,6 +326,7 @@ class SharedMemoryHandler(object):
         self.shared_memory = _create_shared_memory(
             self._shm_name, create=create, size=size
         )
+        self._need_creation = False
 
     def get_checkpoint_config(self, default_config):
         """
@@ -365,6 +367,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         storage_meta: ClassMeta,
         local_shard_num=1,
         global_shard_num=1,
+        save_timeout=CheckpointConstant.SAVE_TIMEOUT,
     ) -> None:
         self.checkpoint_dir = checkpoint_dir
         self.local_shard_num = local_shard_num
@@ -374,6 +377,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         self._shm_handlers: List[SharedMemoryHandler] = []
         self._shm_locks: List[SharedLock] = []
         self._stop_commit = False
+        self._save_timeout = save_timeout
 
         module = importlib.import_module(storage_meta.module_path)
         storage_class_def = getattr(module, storage_meta.class_name)
@@ -489,6 +493,13 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         signal.signal(signal.SIGINT, _clean_shm_handler)
         signal.signal(signal.SIGTERM, _save_shm_before_exiting)
 
+    def wait_saving_checkpoint(self):
+        """
+        Check whether the saver finishes writing the
+        latest checkpoint to the storage.
+        """
+        return self._writing_storage
+
     def close(self):
         """Clear the resource of the shared objects."""
         event = CheckpointEvent(type=CheckpointEventType.EXIT)
@@ -501,7 +512,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 self._shm_handlers[i].unlink()
             self._shm_locks[i].unlink()
         self._event_queue.unlink()
-        self._executor.shutdown()
+        self._executor.shutdown(wait=False)
 
     def _sync_shm_to_storage(self):
         """
@@ -840,7 +851,9 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
         # commit checkpoint
         if self._is_agent_rank_0:
             self._stop_commit = False
-            self.commit_checkpoint(step, step_done_dir)
+            self.commit_checkpoint(
+                step, step_done_dir, timeout=self._save_timeout
+            )
 
         self._writing_storage = False
 
@@ -977,6 +990,7 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
                 step_done_dir=step_done_dir,
                 tmp_path=temp_dir,
                 target_path=ckpt_dir,
+                timeout=self._save_timeout,
             )
 
         self._writing_storage = False

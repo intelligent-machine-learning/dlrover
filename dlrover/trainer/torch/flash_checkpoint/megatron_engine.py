@@ -14,6 +14,7 @@
 import torch.distributed as dist
 
 from dlrover.python.common import env_utils
+from dlrover.python.common.constants import CheckpointConstant
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     CheckpointConfig,
     CheckpointEvent,
@@ -33,7 +34,13 @@ class MegatronCheckpointEngine(CheckpointEngine):
     the storage.
     """
 
-    def __init__(self, checkpoint_dir, storage, comm_backend=""):
+    def __init__(
+        self,
+        checkpoint_dir,
+        storage,
+        comm_backend="",
+        save_timeout=CheckpointConstant.SAVE_TIMEOUT,
+    ):
         if dist.is_initialized():
             try:
                 from megatron.core import mpu
@@ -53,7 +60,7 @@ class MegatronCheckpointEngine(CheckpointEngine):
             self._pp_world_size = 1
             self._tp_world_size = 1
 
-        super().__init__(checkpoint_dir, storage, comm_backend)
+        super().__init__(checkpoint_dir, storage, comm_backend, save_timeout)
 
     def get_saving_ranks(self):
         """
@@ -140,10 +147,7 @@ class MegatronCheckpointEngine(CheckpointEngine):
         Returns:
             A dict.
         """
-        state_dict = self.get_state_dict_from_memory()
-        if state_dict:
-            return state_dict
-        return {}
+        return self.get_state_dict_from_memory()
 
 
 class MegatronDistCheckpointEngine(CheckpointEngine):
@@ -155,7 +159,13 @@ class MegatronDistCheckpointEngine(CheckpointEngine):
     the storage.
     """
 
-    def __init__(self, checkpoint_dir, storage, comm_backend=""):
+    def __init__(
+        self,
+        checkpoint_dir,
+        storage,
+        comm_backend="",
+        save_timeout=CheckpointConstant.SAVE_TIMEOUT,
+    ):
         if dist.is_initialized():
             try:
                 from megatron.core import mpu
@@ -175,7 +185,7 @@ class MegatronDistCheckpointEngine(CheckpointEngine):
             self._pp_world_size = 1
             self._tp_world_size = 1
 
-        super().__init__(checkpoint_dir, storage, comm_backend)
+        super().__init__(checkpoint_dir, storage, comm_backend, save_timeout)
 
     def get_saving_ranks(self):
         """
@@ -255,7 +265,4 @@ class MegatronDistCheckpointEngine(CheckpointEngine):
         Returns:
             A dict.
         """
-        state_dict = self.get_state_dict_from_memory()
-        if state_dict:
-            return state_dict
-        return {}
+        return self.get_state_dict_from_memory()
