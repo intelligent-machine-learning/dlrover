@@ -26,7 +26,7 @@ jobs:
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4.0.1
         with:
-          token: b8225bde-12a1-492b-827a-d14000a9df7f
+          token: 043586e5-68b8-4588-9bf4-c333f2692345
           slug: intelligent-machine-learning/dlrover
   operator-test:
     runs-on: ubuntu-latest
