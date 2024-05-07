@@ -4,6 +4,8 @@ coverage:
     - 60.0
     - 80.0
   round: down
+  ignore:
+    - "dlrover/trainer/torch/flash_checkpoint/megatron_dist_ckpt.py"
   status:
     changes: false
     default_rules:

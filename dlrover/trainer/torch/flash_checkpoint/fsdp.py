@@ -24,7 +24,7 @@ from torch.distributed.fsdp import StateDictType
 from torch.distributed.fsdp.api import FullOptimStateDictConfig
 
 from dlrover.python.common.constants import CheckpointConstant
-from dlrover.python.common.storage import PosixDiskStorage
+from dlrover.python.common.storage import get_checkpoint_storage
 from dlrover.trainer.torch.flash_checkpoint.full_ckpt_engine import (
     FullCheckpointEngine,
 )
@@ -39,10 +39,13 @@ class FsdpShardCheckpointer(Checkpointer):
 
     Args:
         checkpoint_dir: the directory to save the checkpoint.
-        storage: A CheckpointStorage instance. The checkpointer will
-            use a PosixStorage instance if the storage is not defined.
         comm_backend (str): the backend to synchronize when saving the
             checkpoint to the memory.
+        deletion_strategy: A `CheckpointDeletionStrategy` instance. The default
+            value is None and all checkpoint files will be retained. Now, the
+            strategy can be `KeepLatestStepStrategy`
+            or `KeepStepIntervalStrategy`. Users also can define a strategy
+            to manage the checkpoint files.
 
     Examples::
         >>> checkpointer = FsdpShardCheckpointer(checkpoint_dir)
@@ -56,11 +59,17 @@ class FsdpShardCheckpointer(Checkpointer):
         >>> checkpointer.load_checkpoint(model, optimzier)
     """
 
-    def __init__(self, checkpoint_dir: str, storage=None, comm_backend=""):
+    def __init__(
+        self,
+        checkpoint_dir: str,
+        comm_backend="",
+        deletion_strategy=None,
+        save_timeout=CheckpointConstant.SAVE_TIMEOUT,
+    ):
         self.checkpoint_dir = checkpoint_dir
-        self.storage = PosixDiskStorage() if not storage else storage
+        self.storage = get_checkpoint_storage(deletion_strategy)
         self._engine = FsdpCheckpointEngine(
-            checkpoint_dir, self.storage, comm_backend
+            checkpoint_dir, self.storage, comm_backend, save_timeout
         )
 
     def save_checkpoint(
@@ -146,8 +155,6 @@ class FsdpFullCheckpointer(Checkpointer):
 
     Args:
         checkpoint_dir: the directory to save the checkpoint.
-        storage: A CheckpointStorage instance. The checkpointer will
-            use a PosixStorage instance if the storage is not defined.
         local_shard_num (int): the number of shards on a node,
             The default is 1. If the model is partitioned on all ranks,
             you should set the local_shard_num as the number of ranks
@@ -157,6 +164,11 @@ class FsdpFullCheckpointer(Checkpointer):
             you should set the local_shard_num as the number of all ranks.
         comm_backend (str): the communcation backend to create a process group,
             The default is the backend of general main process group.
+        deletion_strategy: A `CheckpointDeletionStrategy` instance. The default
+            value is None and all checkpoint files will be retained. Now, the
+            strategy can be `KeepLatestStepStrategy`
+            or `KeepStepIntervalStrategy`. Users also can define a strategy
+            to manage the checkpoint files.
 
     Examples::
         >>> checkpointer = FsdpFullCheckpointer(
@@ -176,15 +188,15 @@ class FsdpFullCheckpointer(Checkpointer):
     def __init__(
         self,
         checkpoint_dir: str,
-        storage=None,
         comm_backend="",
+        deletion_strategy=None,
     ):
         self.checkpoint_dir = checkpoint_dir
         if dist.is_initialized():
             self._rank = dist.get_rank()
         else:
             self._rank = 0
-        self.storage = PosixDiskStorage() if not storage else storage
+        self.storage = get_checkpoint_storage(deletion_strategy)
         self._engine = FullCheckpointEngine(
             checkpoint_dir=checkpoint_dir,
             storage=self.storage,

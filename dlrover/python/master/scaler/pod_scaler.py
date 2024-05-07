@@ -199,7 +199,7 @@ class PodScaler(Scaler):
                         if pod.status.phase == NodeStatus.RUNNING:
                             return pod
         raise ValueError(
-            f"Master pod is not found by pod labels : {master_labels}!"
+            f"Master pod is not found by labels: {master_labels_selector}"
         )
 
     def scale(self, plan: ScalePlan):
