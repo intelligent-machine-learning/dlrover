@@ -105,12 +105,14 @@ def train(args, train_params):
                 cuda_mem = torch.cuda.memory_allocated() / 1e9
 
                 # Print log.
-                print(f"iter {total_steps}: loss {loss:.4f}, "
-                      f"time {run_time * 1000:.2f}ms, "
-                      f"mfu {previous_mfu * 100:.2f}%, "
-                      f"cuda memory {cuda_mem:.3f}G, "
-                      f"lr {learning_rate:.2e}, "
-                      f"total time {total_time:.2f}s")
+                print(
+                    f"iter {total_steps}: loss {loss:.4f}, "
+                    f"time {run_time * 1000:.2f}ms, "
+                    f"mfu {previous_mfu * 100:.2f}%, "
+                    f"cuda memory {cuda_mem:.3f}G, "
+                    f"lr {learning_rate:.2e}, "
+                    f"total time {total_time:.2f}s"
+                )
                 run_time = 0
             return print_log, loss
 
@@ -136,7 +138,8 @@ def train(args, train_params):
             if args.grad_clip != 0.0:
                 scaler.unscale_(optimizer)
                 torch.nn.utils.clip_grad_norm_(
-                    model.parameters(), args.grad_clip)
+                    model.parameters(), args.grad_clip
+                )
             # Weight update
             if (idx + 1) % grad_accum_steps == 0:
                 scaler.step(optimizer)
@@ -150,8 +153,9 @@ def train(args, train_params):
         # Set epoch into the sampler.
         train_loader.sampler.set_epoch(epoch)
         # Set learning rate.
-        learning_rate = get_lr(total_steps, args) \
-            if args.decay_lr else args.learning_rate
+        learning_rate = (
+            get_lr(total_steps, args) if args.decay_lr else args.learning_rate
+        )
         optimizer.param_groups[0]["lr"] = learning_rate
 
         # Training loop.
@@ -169,7 +173,7 @@ def train(args, train_params):
                 return
 
 
-def setup_everything(args) -> tuple:
+def setup_train_params(args) -> tuple:
     """
     Set up all the necessary components before training.
 
@@ -200,23 +204,26 @@ def setup_everything(args) -> tuple:
         device = "cpu"
         context = contextlib.nullcontext()
     scaler = torch.cuda.amp.GradScaler(
-        enabled=(dtype_name == ("float16" or "bfloat16")))
+        enabled=(dtype_name == ("float16" or "bfloat16"))
+    )
 
     # Set up the gradient accumulation steps.
-    total_steps = args.gradient_accumulation_steps
-    if (total_steps == 0) or (total_steps // world_size == 0):
+    grad_accum_steps = args.gradient_accumulation_steps
+    if (grad_accum_steps == 0) or (grad_accum_steps // world_size == 0):
         grad_accum_steps = 1
     else:
-        grad_accum_steps = total_steps // world_size
+        grad_accum_steps = grad_accum_steps // world_size
 
     tokens_per_iter = (
-            grad_accum_steps * world_size * args.batch_size * args.block_size)
+        grad_accum_steps * world_size * args.batch_size * args.block_size
+    )
     log_rank0(f"Tokens per iteration will be: {tokens_per_iter:,}")
 
     train_loader, _, vocab_size = get_data_loaders(
         data_dir=args.data_dir,
         batch_size=args.batch_size,
-        block_size=args.block_size)
+        block_size=args.block_size,
+    )
     model = gpt_init(vocab_size, args=args)
     model = model.to(device)
 
@@ -267,17 +274,18 @@ def setup_everything(args) -> tuple:
     else:
         ckpt_dict = checkpointer.load_checkpoint()
     # Load {model}, {optimizer}, {sampler} and {step} from the checkpoint.
-    model.load_state_dict(ckpt_dict["model"]) \
-        if "model" in ckpt_dict else None
-    optimizer.load_state_dict(ckpt_dict["optimizer"]) \
-        if "optimizer" in ckpt_dict else None
-    train_loader.sampler.load_state_dict(ckpt_dict["sampler"]) \
-        if "sampler" in ckpt_dict else None
+    if "model" in ckpt_dict:
+        model.load_state_dict(ckpt_dict["model"])
+    if "optimizer" in ckpt_dict:
+        optimizer.load_state_dict(ckpt_dict["optimizer"])
+    if "sampler" in ckpt_dict:
+        train_loader.sampler.load_state_dict(ckpt_dict["sampler"])
     total_steps = ckpt_dict.get("step", 0)
     # Print the checkpointer loading time.
     print(
         f"Local rank {local_rank}: "
-        f"checkpointer loading time {round(time.time() - t0, 2)}s")
+        f"checkpointer loading time {round(time.time() - t0, 2)}s"
+    )
 
     # Prepare the parameters for training.
     env_params = {
@@ -323,8 +331,7 @@ def timer(func):
         if func == save_checkpoint:
             # Print the save checkpoint time.
             with result as saved:
-                print(f"Save checkpoint time: {total_time}") \
-                    if saved else None
+                print(f"Save checkpoint time: {total_time}") if saved else None
         return result
 
     return wrapper
@@ -353,8 +360,9 @@ def save_checkpoint(model_params, ckpt_params):
 
         train_loader = model_params["train_loader"]
         if isinstance(train_loader.sampler, ElasticDistributedSampler):
-            sampler_sd = (
-                train_loader.sampler.state_dict(steps, train_loader.batch_size))
+            sampler_sd = train_loader.sampler.state_dict(
+                steps, train_loader.batch_size
+            )
             state_dict["ds_sampler"] = sampler_sd
 
         return state_dict
@@ -364,8 +372,9 @@ def save_checkpoint(model_params, ckpt_params):
         # If using native checkpointing, save the checkpoint to disk.
         if steps % ckpt_params["save_memory_interval"] == 0:
             state_dict = prepare_state_dict()
-            ckpt_path = os.path.join(ckpt_params["ckpt_dir"],
-                                     f"{model_params['total_steps']}.pt")
+            ckpt_path = os.path.join(
+                ckpt_params["ckpt_dir"], f"{model_params['total_steps']}.pt"
+            )
             torch.save(state_dict, ckpt_path)
             saved = True
     else:
@@ -373,15 +382,17 @@ def save_checkpoint(model_params, ckpt_params):
         if steps % ckpt_params["save_memory_interval"] == 0:
             state_dict = prepare_state_dict()
             checkpointer = ckpt_params["checkpointer"]
-            checkpointer.save_checkpoint(steps, state_dict,
-                                         storage_type=StorageType.MEMORY)
+            checkpointer.save_checkpoint(
+                steps, state_dict, storage_type=StorageType.MEMORY
+            )
             saved = True
 
         if steps % ckpt_params["save_storage_interval"] == 0:
             state_dict = prepare_state_dict()
             checkpointer = ckpt_params["checkpointer"]
-            checkpointer.save_checkpoint(steps, state_dict,
-                                         storage_type=StorageType.DISK)
+            checkpointer.save_checkpoint(
+                steps, state_dict, storage_type=StorageType.DISK
+            )
             saved = True
 
     return saved
@@ -396,6 +407,6 @@ def arg_parser():
 
 if __name__ == "__main__":
     args = arg_parser()
-    train_params = setup_everything(args)
+    train_params = setup_train_params(args)
     train(args, train_params)
     cleanup()
