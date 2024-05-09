@@ -319,19 +319,19 @@ def save_checkpoint(model_params, ckpt_params):
     saved = False
     model = model_params["model"]
     checkpointer = ckpt_params["checkpointer"]
-    checkpointer_dir = ckpt_params["checkpoint_dir"]
+    checkpoint_dir = ckpt_params["checkpoint_dir"]
     steps = model_params["total_steps"]
 
     # Save the checkpoint.
     if ckpt_params["use_native"]:
         # If using native checkpointing, save the checkpoint to disk.
         if steps % ckpt_params["save_storage_interval"] == 0:
-            model.save_checkpoint(checkpointer_dir, tag=steps)
+            model.save_checkpoint(checkpoint_dir, tag=steps)
     else:
         # If using Flash Checkpointing, save the checkpoint to memory or disk.
         if steps % ckpt_params["save_memory_interval"] == 0:
             checkpointer.save_checkpoint(
-                checkpointer_dir,
+                checkpoint_dir,
                 tag=steps,
                 storage_type=StorageType.MEMORY,
             )
@@ -339,7 +339,7 @@ def save_checkpoint(model_params, ckpt_params):
 
         if steps % ckpt_params["save_storage_interval"] == 0:
             checkpointer.save_checkpoint(
-                checkpointer_dir,
+                checkpoint_dir,
                 tag=steps,
                 storage_type=StorageType.DISK,
             )

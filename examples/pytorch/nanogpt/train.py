@@ -12,7 +12,7 @@
 # limitations under the License.
 
 """
-The start command on a local ndoe:
+The start command on a local node:
 
 dlrover-run --nproc_per_node=2 train.py \
     --n_layer 48 --n_head 16 --n_embd 1600 --data_dir "./" \
@@ -54,7 +54,7 @@ def train(args, train_params):
     Train the model with the given parameters that has been set up correctly.
 
     Args:
-        args:  Arguments parsed from the command line.
+        args: Arguments parsed from the command line.
         train_params:  The parameters set up for training.
             - env_params:       Parameters relating to the environment.
             - model_params:     Parameters relating to the model.
@@ -236,7 +236,7 @@ def setup_train_params(args) -> tuple:
         apply_lora(model, **lora_config)
 
     # Set up the model.
-    if torch.cuda.is_available():
+    if "cude" in device:
         print(f"Running basic DDP example on {device}.")
         model = DDP(model, device_ids=[local_rank])
         print(f"Model device {model.device}")
@@ -310,7 +310,7 @@ def setup_train_params(args) -> tuple:
     ckpt_params = {
         "use_native": args.use_native_ckpt,
         "checkpointer": checkpointer,
-        "ckpt_dir": checkpoint_dir,
+        "checkpoint_dir": checkpoint_dir,
         "save_memory_interval": args.save_memory_interval,
         "save_storage_interval": args.save_storage_interval,
     }
@@ -375,7 +375,8 @@ def save_checkpoint(model_params, ckpt_params):
         if steps % ckpt_params["save_storage_interval"] == 0:
             state_dict = prepare_state_dict()
             ckpt_path = os.path.join(
-                ckpt_params["ckpt_dir"], f"{model_params['total_steps']}.pt"
+                ckpt_params["checkpoint_dir"],
+                f"{model_params['total_steps']}.pt"
             )
             torch.save(state_dict, ckpt_path)
             saved = True
