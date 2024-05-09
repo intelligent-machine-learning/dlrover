@@ -126,6 +126,11 @@ def train(args, train_params):
         print_log = False
         data, target = data.to(device), target.to(device)
 
+        # Update total_steps.
+        nonlocal total_steps
+        total_steps += 1
+        model_params["total_steps"] = total_steps
+
         with elastic_trainer.step():
             # Forward pass.
             with context:
@@ -160,9 +165,6 @@ def train(args, train_params):
 
         # Training loop.
         for idx, (data, target) in enumerate(train_loader):
-            # Update total_steps.
-            total_steps += 1
-            model_params["total_steps"] = total_steps
             # Step with gradient accumulation.
             step_grad_accum(idx, data, target)
             # Save the checkpoint. Update the total steps.
@@ -215,7 +217,7 @@ def setup_train_params(args) -> tuple:
         grad_accum_steps = grad_accum_steps // world_size
 
     tokens_per_iter = (
-        grad_accum_steps * world_size * args.batch_size * args.block_size
+            grad_accum_steps * world_size * args.batch_size * args.block_size
     )
     log_rank0(f"Tokens per iteration will be: {tokens_per_iter:,}")
 
@@ -370,7 +372,7 @@ def save_checkpoint(model_params, ckpt_params):
     # Save the checkpoint.
     if ckpt_params["use_native"]:
         # If using native checkpointing, save the checkpoint to disk.
-        if steps % ckpt_params["save_memory_interval"] == 0:
+        if steps % ckpt_params["save_storage_interval"] == 0:
             state_dict = prepare_state_dict()
             ckpt_path = os.path.join(
                 ckpt_params["ckpt_dir"], f"{model_params['total_steps']}.pt"
@@ -401,8 +403,7 @@ def save_checkpoint(model_params, ckpt_params):
 def arg_parser():
     parser = argparse.ArgumentParser(description="Process training parameters")
     add_train_args(parser)
-    args = parser.parse_args()
-    return args
+    return parser.parse_args()
 
 
 if __name__ == "__main__":
