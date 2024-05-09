@@ -227,7 +227,7 @@ def setup_train_params(args) -> tuple:
         grad_accum_steps = grad_accum_steps // world_size
 
     tokens_per_iter = (
-            grad_accum_steps * world_size * args.batch_size * args.block_size
+        grad_accum_steps * world_size * args.batch_size * args.block_size
     )
     log_rank0(f"Tokens per iteration will be: {tokens_per_iter:,}")
 
@@ -323,11 +323,15 @@ def timing_logger(func):
         if func == load_checkpoint:
             # Print the load checkpoint time.
             with result as loaded:
-                print(f"Load checkpoint time : {total_time}s") if loaded else None
+                print(
+                    f"Load checkpoint time : {total_time}s"
+                ) if loaded else None
         elif func == save_checkpoint:
             # Print the save checkpoint time.
             with result as saved:
-                print(f"Save checkpoint time: {total_time}s") if saved else None
+                print(
+                    f"Save checkpoint time: {total_time}s"
+                ) if saved else None
 
         return result
 
@@ -437,13 +441,21 @@ def save_checkpoint(model_params, ckpt_params):
         extra_sd = {"step": steps}
         if steps % ckpt_params["save_memory_interval"] == 0:
             checkpointer.save_checkpoint(
-                steps, model, optimizer, extra_sd, storage_type=StorageType.MEMORY
+                steps,
+                model,
+                optimizer,
+                extra_sd,
+                storage_type=StorageType.MEMORY,
             )
             saved = True
 
         if steps % ckpt_params["save_storage_interval"] == 0:
             checkpointer.save_checkpoint(
-                steps, model, optimizer, extra_sd, storage_type=StorageType.DISK
+                steps,
+                model,
+                optimizer,
+                extra_sd,
+                storage_type=StorageType.DISK,
             )
             saved = True
 

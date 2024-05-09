@@ -220,7 +220,7 @@ def setup_train_params(args) -> tuple:
         grad_accum_steps = grad_accum_steps // world_size
 
     tokens_per_iter = (
-            grad_accum_steps * world_size * args.batch_size * args.block_size
+        grad_accum_steps * world_size * args.batch_size * args.block_size
     )
     log_rank0(f"Tokens per iteration will be: {tokens_per_iter:,}")
 
@@ -288,7 +288,7 @@ def setup_train_params(args) -> tuple:
 
     ckpt_params = {
         "use_native": args.use_native_ckpt,
-        "checkpointer": None,
+        "checkpointer": DdpCheckpointer(args.save_dir),
         "checkpoint_dir": args.save_dir,
         "save_memory_interval": args.save_memory_interval,
         "save_storage_interval": args.save_storage_interval,
@@ -312,11 +312,15 @@ def timing_logger(func):
         if func == load_checkpoint:
             # Print the load checkpoint time.
             with result as loaded:
-                print(f"Load checkpoint time : {total_time}s") if loaded else None
+                print(
+                    f"Load checkpoint time : {total_time}s"
+                ) if loaded else None
         elif func == save_checkpoint:
             # Print the save checkpoint time.
             with result as saved:
-                print(f"Save checkpoint time: {total_time}s") if saved else None
+                print(
+                    f"Save checkpoint time: {total_time}s"
+                ) if saved else None
 
         return result
 
@@ -394,7 +398,7 @@ def save_checkpoint(model_params, ckpt_params):
             state_dict = prepare_state_dict()
             ckpt_path = os.path.join(
                 ckpt_params["checkpoint_dir"],
-                f"{model_params['total_steps']}.pt"
+                f"{model_params['total_steps']}.pt",
             )
             torch.save(state_dict, ckpt_path)
             saved = True

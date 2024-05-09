@@ -207,7 +207,7 @@ def setup_train_params(args) -> tuple:
         grad_accum_steps = grad_accum_steps // world_size
 
     tokens_per_iter = (
-            grad_accum_steps * world_size * args.batch_size * args.block_size
+        grad_accum_steps * world_size * args.batch_size * args.block_size
     )
     log_rank0(f"Tokens per iteration will be: {tokens_per_iter:,}")
 
@@ -293,11 +293,15 @@ def timing_logger(func):
         if func == load_checkpoint:
             # Print the load checkpoint time.
             with result as loaded:
-                print(f"Load checkpoint time : {total_time}s") if loaded else None
+                print(
+                    f"Load checkpoint time : {total_time}s"
+                ) if loaded else None
         elif func == save_checkpoint:
             # Print the save checkpoint time.
             with result as saved:
-                print(f"Save checkpoint time: {total_time}s") if saved else None
+                print(
+                    f"Save checkpoint time: {total_time}s"
+                ) if saved else None
 
         return result
 
@@ -319,10 +323,10 @@ def load_checkpoint(model_params, ckpt_params):
 
     # Load the checkpoint.
     if ckpt_params["use_native"]:
-        # If using native checkpointing, load the checkpoint from the disk.
+        # Load using native checkpointing.
         model.load_checkpoint(checkpoint_dir)
     else:
-        # If using Flash Checkpointing, load the checkpoint from memory or disk.
+        # Load using flash checkpointing.
         checkpointer = DeepSpeedCheckpointer(model, checkpoint_dir)
         checkpointer.load_checkpoint(checkpoint_dir)
 
