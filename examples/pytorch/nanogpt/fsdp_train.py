@@ -16,7 +16,7 @@
 The start command on a local node:
 
 dlrover-run --nproc_per_node=2 fsdp_train.py \
-    --n_layer 48 --n_head 16 --n_embd 1600 --data_dir './' \
+    --n_layer 48 --n_head 16 --n_embd 384 --data_dir './result' \
     --epochs 50 --save_memory_interval 50 --save_storage_interval 500
 """
 
@@ -300,7 +300,9 @@ def setup_train_params(args) -> tuple:
 
     ckpt_params = {
         "use_native": args.use_native_ckpt,
+        "flash_full_ckpt": args.flash_full_ckpt,
         "checkpoint_dir": args.save_dir,
+        "checkpointer": None,
         "save_memory_interval": args.save_memory_interval,
         "save_storage_interval": args.save_storage_interval,
     }
@@ -395,7 +397,10 @@ def load_checkpoint(model_params, ckpt_params):
         else:
             checkpointer = FsdpShardCheckpointer(checkpoint_dir)
         extra_sd = checkpointer.load_checkpoint(model, optimizer)
+
+        # Update model params.
         model_params["total_steps"] = extra_sd.get("step", 0)
+        ckpt_params["checkpointer"] = checkpointer
         loaded = True
 
     return loaded
@@ -438,6 +443,8 @@ def save_checkpoint(model_params, ckpt_params):
 
     else:
         # If using flash checkpointing.
+        # Warning: When n_procs_per_node is not greater than 1,
+        # the checkpoint saving would be stuck.
         extra_sd = {"step": steps}
         if steps % ckpt_params["save_memory_interval"] == 0:
             checkpointer.save_checkpoint(
