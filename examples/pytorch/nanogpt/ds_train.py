@@ -13,7 +13,7 @@
 
 
 """
-The start command on a local ndoe:
+The start command on a local node:
 
 dlrover-run --max_restarts=2 --nproc_per_node=2 \
     ds_train.py --n_layer 36 --n_head 20 --n_embd 1280 \
@@ -61,6 +61,9 @@ def train(args, train_params):
             - ckpt_params:      Parameters relating to the checkpoint.
     """
     (env_params, model_params, ckpt_params) = train_params
+    # Load from checkpoint.
+    load_checkpoint(model_params, ckpt_params)
+
     # Unpack the parameters for model training.
     model = model_params["model"]
     context = model_params["context"]
@@ -167,7 +170,7 @@ def train(args, train_params):
 
 def setup_train_params(args) -> tuple:
     """
-    Set up all the necessary components before training.
+    Set up all the necessary parameters before training.
 
     Returns:
         tuple: A tuple containing three dictionaries:
@@ -243,22 +246,10 @@ def setup_train_params(args) -> tuple:
     else:
         raise ValueError("Deepspeed must run with cuda devices.")
 
+    # Compile the model.
     if compile == "True":
         log_rank0("Compiling the model... (takes a ~minute).")
         model = torch.compile(model)  # requires PyTorch 2.0
-
-    # Load from checkpointer.
-    t0 = time.time()
-    checkpoint_dir = args.save_dir
-    os.makedirs(checkpoint_dir, exist_ok=True)
-    if args.use_native_ckpt:
-        model.load_checkpoint(checkpoint_dir)
-    else:
-        checkpointer = DeepSpeedCheckpointer(model, checkpoint_dir)
-        checkpointer.load_checkpoint(checkpoint_dir)
-    print(f"Load checkpoint time {round(time.time() - t0, 2)}s")
-    total_steps = model.global_steps
-    print(f"The restored iteration step is {total_steps}")
 
     # Prepare the parameters for training.
     env_params = {
@@ -271,15 +262,15 @@ def setup_train_params(args) -> tuple:
         "context": context,
         "device": device,
         "grad_accum_steps": grad_accum_steps,
-        "total_steps": total_steps,
+        "total_steps": 0,
         "train_loader": train_loader,
         "optimizer": optimizer,
     }
 
     ckpt_params = {
         "use_native": args.use_native_ckpt,
-        "checkpointer": checkpointer,
-        "checkpoint_dir": checkpoint_dir,
+        "checkpointer": DeepSpeedCheckpointer(model, args.save_dir),
+        "checkpoint_dir": args.save_dir,
         "save_memory_interval": args.save_memory_interval,
         "save_storage_interval": args.save_storage_interval,
     }
@@ -288,9 +279,9 @@ def setup_train_params(args) -> tuple:
     return (env_params, model_params, ckpt_params)
 
 
-def timer(func):
+def timing_logger(func):
     """
-    Decorator to time the function execution.
+    Decorator to time and log the function execution.
     """
 
     @functools.wraps(func)
@@ -299,16 +290,49 @@ def timer(func):
         result = func(*args, **kwargs)
         total_time = time.time() - start_time
 
-        if func == save_checkpoint:
+        if func == load_checkpoint:
+            # Print the load checkpoint time.
+            with result as loaded:
+                print(f"Load checkpoint time : {total_time}s") if loaded else None
+        elif func == save_checkpoint:
             # Print the save checkpoint time.
             with result as saved:
-                print(f"Save checkpoint time: {total_time}") if saved else None
+                print(f"Save checkpoint time: {total_time}s") if saved else None
+
         return result
 
     return wrapper
 
 
-@timer
+@timing_logger
+def load_checkpoint(model_params, ckpt_params):
+    """
+    Load the checkpoint from memory or disk when needed.
+
+    Returns: A boolean value indicating whether the checkpoint was loaded.
+            This result is mainly used by the "timer" decorator.
+    """
+    model = model_params["model"]
+    checkpointer = ckpt_params["checkpointer"]
+    checkpoint_dir = ckpt_params["checkpoint_dir"]
+    os.makedirs(checkpoint_dir, exist_ok=True)
+
+    # Load the checkpoint.
+    if ckpt_params["use_native"]:
+        # If using native checkpointing, load the checkpoint from the disk.
+        model.load_checkpoint(checkpoint_dir)
+    else:
+        # If using Flash Checkpointing, load the checkpoint from memory or disk.
+        checkpointer = DeepSpeedCheckpointer(model, checkpoint_dir)
+        checkpointer.load_checkpoint(checkpoint_dir)
+
+    model_params["model"] = model
+    model_params["total_steps"] = model.global_steps
+    ckpt_params["checkpointer"] = checkpointer
+    return True
+
+
+@timing_logger
 def save_checkpoint(model_params, ckpt_params):
     """
     Save the checkpoint to memory or disk when needed.

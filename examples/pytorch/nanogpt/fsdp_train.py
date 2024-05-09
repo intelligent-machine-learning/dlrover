@@ -311,7 +311,7 @@ def setup_train_params(args) -> tuple:
 
 def timing_logger(func):
     """
-    Decorator to time the function execution.
+    Decorator to time and log the function execution.
     """
 
     @functools.wraps(func)
@@ -339,7 +339,8 @@ def load_checkpoint(model_params, ckpt_params):
     """
     Load the checkpoint to memory or disk when needed.
 
-    Returns:
+    Returns: A boolean value indicating whether the checkpoint was loaded.
+            This result is mainly used by the "timer" decorator.
     """
     loaded = False
     model = model_params["model"]
