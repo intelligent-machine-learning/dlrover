@@ -343,7 +343,9 @@ def load_checkpoint(model_params, ckpt_params):
     os.makedirs(checkpoint_dir, exist_ok=True)
 
     if ckpt_params["use_native"]:
-        ckpt_dict = torch.load(os.path.join(checkpoint_dir, "50.pt"))
+        steps = model_params["total_steps"]
+        path = os.path.join(checkpoint_dir, f"{steps}.pt")
+        ckpt_dict = torch.load(path)
     else:
         ckpt_dict = checkpointer.load_checkpoint()
 
