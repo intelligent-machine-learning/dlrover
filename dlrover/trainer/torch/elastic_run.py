@@ -300,6 +300,10 @@ def _elastic_config_from_args(
         args, "save_at_breakpoint", False
     )
     elastic_config.auto_configure_params()
+    elastic_config.rdzv_backend = "dlrover-master"
+    elastic_config.rdzv_endpoint = ""
+    join_timeout = elastic_config.rdzv_configs.get("join_timeout", 600)
+    elastic_config.rdzv_configs["timeout"] = join_timeout
     return elastic_config, cmd, cmd_args
 
 
