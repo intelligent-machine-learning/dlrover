@@ -40,8 +40,9 @@ def log_execution_time(func):
         func(*args, **kwargs)
         t = round(time.time() - start, 2)
         local_rank = int(os.environ["LOCAL_RANK"])
+        func_name = func.__name__
         logger.info(
-            f"Time to execute {func} on local rank {local_rank} is {t}."
+            f"Time to execute {func_name} on local rank {local_rank} is {t}s."
         )
 
     return wrapper
