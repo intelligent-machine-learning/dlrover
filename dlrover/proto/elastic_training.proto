@@ -2,8 +2,6 @@ syntax = "proto3";
 
 package elastic;
 
-import "google/protobuf/empty.proto";
-
 enum TaskType {
   NONE = 0;
   TRAINING = 1;
