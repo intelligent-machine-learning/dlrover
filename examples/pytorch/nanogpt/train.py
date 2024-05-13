@@ -12,10 +12,10 @@
 # limitations under the License.
 
 """
-The start command on a local ndoe:
+The start command on a local node:
 
 dlrover-run --nproc_per_node=2 train.py \
-    --n_layer 48 --n_head 16 --n_embd 1600 --data_dir "./" \
+    --n_layer 48 --n_head 16 --n_embd 384 --data_dir "./results" \
     --epochs 50 --save_memory_interval 50 --save_storage_interval 500
 """
 
@@ -54,13 +54,16 @@ def train(args, train_params):
     Train the model with the given parameters that has been set up correctly.
 
     Args:
-        args:  Arguments parsed from the command line.
+        args: Arguments parsed from the command line.
         train_params:  The parameters set up for training.
             - env_params:       Parameters relating to the environment.
             - model_params:     Parameters relating to the model.
             - ckpt_params:      Parameters relating to the checkpoint.
     """
     (env_params, model_params, ckpt_params) = train_params
+    # Load from checkpoint.
+    load_checkpoint(model_params, ckpt_params)
+
     # Unpack the parameters for model training.
     model = model_params["model"]
     context = model_params["context"]
@@ -126,6 +129,11 @@ def train(args, train_params):
         print_log = False
         data, target = data.to(device), target.to(device)
 
+        # Update total_steps.
+        nonlocal total_steps
+        total_steps += 1
+        model_params["total_steps"] = total_steps
+
         with elastic_trainer.step():
             # Forward pass.
             with context:
@@ -160,9 +168,6 @@ def train(args, train_params):
 
         # Training loop.
         for idx, (data, target) in enumerate(train_loader):
-            # Update total_steps.
-            total_steps += 1
-            model_params["total_steps"] = total_steps
             # Step with gradient accumulation.
             step_grad_accum(idx, data, target)
             # Save the checkpoint. Update the total steps.
@@ -175,7 +180,7 @@ def train(args, train_params):
 
 def setup_train_params(args) -> tuple:
     """
-    Set up all the necessary components before training.
+    Set up all the necessary parameters before training.
 
     Returns:
         tuple: A tuple containing three dictionaries:
@@ -234,7 +239,7 @@ def setup_train_params(args) -> tuple:
         apply_lora(model, **lora_config)
 
     # Set up the model.
-    if torch.cuda.is_available():
+    if "cuda" in device:
         print(f"Running basic DDP example on {device}.")
         model = DDP(model, device_ids=[local_rank])
         print(f"Model device {model.device}")
@@ -263,30 +268,6 @@ def setup_train_params(args) -> tuple:
     )
     optimizer = elastic_trainer.prepare(optimizer)
 
-    # Load from checkpointer.
-    t0 = time.time()
-    checkpoint_dir = args.save_dir
-    os.makedirs(checkpoint_dir, exist_ok=True)
-    checkpointer = DdpCheckpointer(checkpoint_dir)
-
-    if args.use_native_ckpt:
-        ckpt_dict = torch.load(os.path.join(checkpoint_dir, "50.pt"))
-    else:
-        ckpt_dict = checkpointer.load_checkpoint()
-    # Load {model}, {optimizer}, {sampler} and {step} from the checkpoint.
-    if "model" in ckpt_dict:
-        model.load_state_dict(ckpt_dict["model"])
-    if "optimizer" in ckpt_dict:
-        optimizer.load_state_dict(ckpt_dict["optimizer"])
-    if "sampler" in ckpt_dict:
-        train_loader.sampler.load_state_dict(ckpt_dict["sampler"])
-    total_steps = ckpt_dict.get("step", 0)
-    # Print the checkpointer loading time.
-    print(
-        f"Local rank {local_rank}: "
-        f"checkpointer loading time {round(time.time() - t0, 2)}s"
-    )
-
     # Prepare the parameters for training.
     env_params = {
         "world_size": world_size,
@@ -299,7 +280,7 @@ def setup_train_params(args) -> tuple:
         "scaler": scaler,
         "device": device,
         "grad_accum_steps": grad_accum_steps,
-        "total_steps": total_steps,
+        "total_steps": 0,
         "train_loader": train_loader,
         "elastic_trainer": elastic_trainer,
         "optimizer": optimizer,
@@ -307,8 +288,8 @@ def setup_train_params(args) -> tuple:
 
     ckpt_params = {
         "use_native": args.use_native_ckpt,
-        "checkpointer": checkpointer,
-        "ckpt_dir": checkpoint_dir,
+        "checkpointer": DdpCheckpointer(args.save_dir),
+        "checkpoint_dir": args.save_dir,
         "save_memory_interval": args.save_memory_interval,
         "save_storage_interval": args.save_storage_interval,
     }
@@ -317,9 +298,9 @@ def setup_train_params(args) -> tuple:
     return (env_params, model_params, ckpt_params)
 
 
-def timer(func):
+def timing_logger(func):
     """
-    Decorator to time the function execution.
+    Decorator to time and log the function execution.
     """
 
     @functools.wraps(func)
@@ -328,16 +309,61 @@ def timer(func):
         result = func(*args, **kwargs)
         total_time = time.time() - start_time
 
-        if func == save_checkpoint:
+        if func == load_checkpoint:
+            # Print the load checkpoint time.
+            with result as loaded:
+                print(
+                    f"Load checkpoint time : {total_time}s"
+                ) if loaded else None
+        elif func == save_checkpoint:
             # Print the save checkpoint time.
             with result as saved:
-                print(f"Save checkpoint time: {total_time}") if saved else None
+                print(
+                    f"Save checkpoint time: {total_time}s"
+                ) if saved else None
+
         return result
 
     return wrapper
 
 
-@timer
+@timing_logger
+def load_checkpoint(model_params, ckpt_params):
+    """
+    Load the checkpoint to memory or disk when needed.
+
+    Returns: A boolean value indicating whether the checkpoint was loaded.
+            This result is mainly used by the "timer" decorator.
+    """
+    model = model_params["model"]
+    optimizer = model_params["optimizer"]
+    train_loader = model_params["train_loader"]
+    checkpointer = ckpt_params["checkpointer"]
+    checkpoint_dir = ckpt_params["checkpoint_dir"]
+    os.makedirs(checkpoint_dir, exist_ok=True)
+
+    if ckpt_params["use_native"]:
+        steps = model_params["total_steps"]
+        path = os.path.join(checkpoint_dir, f"{steps}.pt")
+        ckpt_dict = torch.load(path)
+    else:
+        ckpt_dict = checkpointer.load_checkpoint()
+
+    if "model" in ckpt_dict:
+        model.load_state_dict(ckpt_dict["model"])
+    if "optimizer" in ckpt_dict:
+        optimizer.load_state_dict(ckpt_dict["optimizer"])
+    if "sampler" in ckpt_dict:
+        train_loader.sampler.load_state_dict(ckpt_dict["sampler"])
+    # Update dict.
+    model_params["total_steps"] = ckpt_dict.get("step", 0)
+    model_params["model"] = model
+    model_params["optimizer"] = optimizer
+    model_params["train_loader"] = train_loader
+    return True
+
+
+@timing_logger
 def save_checkpoint(model_params, ckpt_params):
     """
     Save the checkpoint to memory or disk when needed.
@@ -370,10 +396,11 @@ def save_checkpoint(model_params, ckpt_params):
     # Save the checkpoint.
     if ckpt_params["use_native"]:
         # If using native checkpointing, save the checkpoint to disk.
-        if steps % ckpt_params["save_memory_interval"] == 0:
+        if steps % ckpt_params["save_storage_interval"] == 0:
             state_dict = prepare_state_dict()
             ckpt_path = os.path.join(
-                ckpt_params["ckpt_dir"], f"{model_params['total_steps']}.pt"
+                ckpt_params["checkpoint_dir"],
+                f"{model_params['total_steps']}.pt",
             )
             torch.save(state_dict, ckpt_path)
             saved = True
@@ -401,8 +428,7 @@ def save_checkpoint(model_params, ckpt_params):
 def arg_parser():
     parser = argparse.ArgumentParser(description="Process training parameters")
     add_train_args(parser)
-    args = parser.parse_args()
-    return args
+    return parser.parse_args()
 
 
 if __name__ == "__main__":
