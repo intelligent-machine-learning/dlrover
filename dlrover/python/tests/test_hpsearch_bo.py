@@ -13,7 +13,6 @@
 
 import unittest
 import torch
-from dlrover.python.brain.hpsearch.base import RunResult
 from dlrover.python.brain.hpsearch.bo import BayesianOptimizer
 from botorch.test_functions import Hartmann
 
