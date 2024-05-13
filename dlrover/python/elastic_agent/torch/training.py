@@ -115,6 +115,7 @@ class ElasticLaunchConfig(LaunchConfig):
 
     Args:
         network_check: whether to check the network avaliable before training.
+        comm_perf_test: whether to test the communication performance.
         node_unit: the number of unit of nodes. The number of nodes must be
             a multiple of node_unit.
         auto_config: wether to automatically configure the nnodes and
@@ -129,6 +130,7 @@ class ElasticLaunchConfig(LaunchConfig):
     """
 
     network_check: bool = False
+    comm_perf_test: bool = False
     node_unit: int = 1
     auto_config: bool = False
     auto_tunning: bool = False
@@ -972,6 +974,7 @@ def _create_check_agent(
     rdzv_name: str,
     check_round: int,
 ):
+    """Create a agent to launch sub-processes."""
     config = copy.deepcopy(config)
 
     # Disable checking network when execute tasks to check network.
@@ -1057,11 +1060,12 @@ def node_health_check(
     return result
 
 
-def network_perf_check(
+def comm_perf_check(
     config: ElasticLaunchConfig,
     entrypoint: Union[Callable, str, None],
     args: List[Any],
 ) -> bool:
+    """Check the allreduce algorithm bandwidth and bus bandwidth."""
     agent = _create_check_agent(
         config,
         entrypoint,
@@ -1099,6 +1103,6 @@ def run_network_check(config: ElasticLaunchConfig, entrypoint):
                 "Network of the cluster is not available "
                 "because of abnormal node."
             )
-    if success:
-        network_perf_check(config=config, entrypoint=entrypoint, args=cmd_args)
+    if success and config.comm_perf_test:
+        comm_perf_check(config=config, entrypoint=entrypoint, args=cmd_args)
     return success

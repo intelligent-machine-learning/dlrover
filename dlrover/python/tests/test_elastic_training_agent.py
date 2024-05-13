@@ -41,6 +41,7 @@ from dlrover.python.elastic_agent.torch.training import (
     MasterRendezvousHandler,
     NodeCheckElasticAgent,
     RendezvousOutSyncError,
+    _create_check_agent,
     _get_local_ip,
     _set_paral_config,
 )
@@ -382,6 +383,17 @@ class NodeCheckElasticAgentTest(unittest.TestCase):
         self.assertEqual(t, 107)
         if os.path.exists(root):
             shutil.rmtree(root)
+
+    def test_create_check_agent(self):
+        config = ElasticLaunchConfig(4, 4, 8)
+        agent = _create_check_agent(
+            config=config,
+            entrypoint="python",
+            args=[],
+            rdzv_name="elastic-training",
+            check_round=2,
+        )
+        self.assertEqual(agent._check_round, 2)
 
 
 class MasterRendezvousHandlerTest(unittest.TestCase):
