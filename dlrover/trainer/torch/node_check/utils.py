@@ -75,7 +75,7 @@ def bm_allgather(shape, use_gpu):
     busbw = round(busbw, 2)
     elapsed_time = round(elapsed_time, 3)
     if local_rank == 0:
-        print(
+        logger.info(
             f"AllGather Perf: world size = {world_size}, "
             f"algobw={algobw} GB/s, busbw={busbw} GB/s."
         )
@@ -102,8 +102,8 @@ def bm_allreduce(shape, use_gpu):
     busbw = round(busbw, 2)
     elapsed_time = round(elapsed_time, 3)
     if local_rank == 0:
-        print(
-            f"AllGather Perf: world size = {world_size}, "
+        logger.info(
+            f"AllReduce Perf: world size = {world_size}, "
             f"algobw={algobw} GB/s, busbw={busbw} GB/s."
         )
     mock_error()
