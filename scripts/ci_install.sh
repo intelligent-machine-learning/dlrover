@@ -25,4 +25,4 @@ pip install accelerate==0.29.2
 pip install transformers==4.37.2
 pip install torch==2.0.1+cpu -f https://download.pytorch.org/whl/torch_stable.html
 pip install peft==0.10.0
-pip install botorch==0.10.0
+pip install botorch==0.8.5

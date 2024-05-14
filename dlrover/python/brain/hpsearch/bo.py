@@ -17,7 +17,7 @@ from typing import List, Tuple
 import torch
 from botorch.acquisition import qExpectedImprovement, qNoisyExpectedImprovement
 from botorch.fit import fit_gpytorch_mll
-from botorch.models import SingleTaskGP
+from botorch.models import FixedNoiseGP, SingleTaskGP
 from botorch.models.transforms.input import Normalize
 from botorch.models.transforms.outcome import Standardize
 from botorch.optim import optimize_acqf
@@ -72,7 +72,7 @@ class BayesianOptimizer(OptimizerBase):
                 ).unsqueeze(
                     1
                 )  # n * 1
-                model = SingleTaskGP(
+                model = FixedNoiseGP(
                     train_x,
                     train_y,
                     train_yvar,
