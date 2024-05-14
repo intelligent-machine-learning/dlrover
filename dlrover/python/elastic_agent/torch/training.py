@@ -115,6 +115,7 @@ class ElasticLaunchConfig(LaunchConfig):
 
     Args:
         network_check: whether to check the network avaliable before training.
+        comm_perf_test: whether to test the communication performance.
         node_unit: the number of unit of nodes. The number of nodes must be
             a multiple of node_unit.
         auto_config: wether to automatically configure the nnodes and
@@ -129,6 +130,7 @@ class ElasticLaunchConfig(LaunchConfig):
     """
 
     network_check: bool = False
+    comm_perf_test: bool = False
     node_unit: int = 1
     auto_config: bool = False
     auto_tunning: bool = False
@@ -839,6 +841,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
         start_method="spawn",
         exit_barrier_timeout: float = 300,
         log_dir: Optional[str] = None,
+        check_round=1,
     ):
         super().__init__(
             node_rank,
@@ -850,7 +853,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
             log_dir,
         )
         self._log_dir = log_dir or tempfile.mkdtemp(prefix="node_check_")
-        self._check_round = 2
+        self._check_round = check_round
         self._config: ElasticLaunchConfig = config
 
     def run(self, role: str = DEFAULT_ROLE) -> bool:
@@ -915,7 +918,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
         self._initialize_workers(self._worker_group)
         start = time.time()
         succeed = False
-        output_dir = ConfigPath.NETWORK_CHECK_DATA_DIR
+        time_record_dir = ConfigPath.NETWORK_CHECK_DATA_DIR
         while True:
             assert self._worker_group.state != WorkerState.INIT
             time.sleep(monitor_interval)
@@ -928,7 +931,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
                     break
                 continue
             elif state == WorkerState.SUCCEEDED or self._check_finished(
-                output_dir
+                time_record_dir
             ):
                 succeed = True
                 break
@@ -936,7 +939,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
                 break
 
         if succeed:
-            elapsed_time = self._get_node_check_time(output_dir)
+            elapsed_time = self._get_node_check_time(time_record_dir)
         else:
             elapsed_time = 3600
         return succeed, elapsed_time
@@ -960,15 +963,18 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
                     continue
                 data = json.loads(data)
                 elapsed_time = max(elapsed_time, data.get("time", 0))
-        shutil.rmtree(dir, ignore_errors=True)
+        shutil.rmtree(result_dir, ignore_errors=True)
         return elapsed_time
 
 
-def network_check(
+def _create_check_agent(
     config: ElasticLaunchConfig,
     entrypoint: Union[Callable, str, None],
     args: List[Any],
-) -> bool:
+    rdzv_name: str,
+    check_round: int,
+):
+    """Create a agent to launch sub-processes."""
     config = copy.deepcopy(config)
 
     # Disable checking network when execute tasks to check network.
@@ -991,7 +997,6 @@ def network_check(
         f"  nproc_per_node   : {config.nproc_per_node}\n"
         f"  run_id           : {config.run_id}\n"
         f"  rdzv_backend     : {config.rdzv_backend}\n"
-        f"  rdzv_endpoint    : {config.rdzv_endpoint}\n"
         f"  rdzv_configs     : {config.rdzv_configs}\n"
         f"  max_restarts     : {config.max_restarts}\n"
         f"  monitor_interval : {config.monitor_interval}\n"
@@ -1010,7 +1015,7 @@ def network_check(
 
     master_addr = _get_local_ip()
     rdzv_handler = MasterRendezvousHandler(
-        RendezvousName.NETWORK_CHECK,
+        rdzv_name,
         node_rank,
         rdzv_parameters,
         local_world_size=config.nproc_per_node,
@@ -1025,13 +1030,48 @@ def network_check(
         monitor_interval=config.monitor_interval,
         master_addr=master_addr,
     )
-
     agent = NodeCheckElasticAgent(
         node_rank=node_rank,
         config=config,
         entrypoint=entrypoint,
         spec=spec,
         start_method=config.start_method,
+        check_round=check_round,
+    )
+    return agent
+
+
+def node_health_check(
+    config: ElasticLaunchConfig,
+    entrypoint: Union[Callable, str, None],
+    args: List[Any],
+) -> bool:
+    agent = _create_check_agent(
+        config,
+        entrypoint,
+        args,
+        RendezvousName.NETWORK_CHECK,
+        check_round=2,
+    )
+
+    metrics.initialize_metrics(metrics.MetricsConfig(config.metrics_cfg))
+    result = agent.run()
+    logger.info("Network check result is %s", result)
+    return result
+
+
+def comm_perf_check(
+    config: ElasticLaunchConfig,
+    entrypoint: Union[Callable, str, None],
+    args: List[Any],
+) -> bool:
+    """Check the allreduce algorithm bandwidth and bus bandwidth."""
+    agent = _create_check_agent(
+        config,
+        entrypoint,
+        args,
+        RendezvousName.ELASTIC_TRAINING,
+        check_round=1,
     )
 
     metrics.initialize_metrics(metrics.MetricsConfig(config.metrics_cfg))
@@ -1052,15 +1092,17 @@ def run_network_check(config: ElasticLaunchConfig, entrypoint):
         # If network fails because other abnormal node, We
         # will retry to check network after the new node is starting.
         # DLRover will replace the abnormal node with a new node.
-        success = network_check(
+        success = node_health_check(
             config=config, entrypoint=entrypoint, args=cmd_args
         )
         if success:
             logger.info("Node check passed.")
-            return success
+            break
         else:
             logger.error(
                 "Network of the cluster is not available "
                 "because of abnormal node."
             )
+    if success and config.comm_perf_test:
+        comm_perf_check(config=config, entrypoint=entrypoint, args=cmd_args)
     return success

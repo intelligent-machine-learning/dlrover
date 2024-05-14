@@ -131,6 +131,12 @@ def parse_args(args):
         help="Whether to check network before starting training process.",
     )
     parser.add_argument(
+        "--comm-perf-test",
+        "--comm_perf_test",
+        action=check_env,
+        help="Whether to test the communication performance.",
+    )
+    parser.add_argument(
         "--node_unit",
         "--node-unit",
         type=int,
@@ -287,6 +293,7 @@ def _elastic_config_from_args(
     config, cmd, cmd_args = config_from_args(args)
     elastic_config = ElasticLaunchConfig(**config.__dict__)
     elastic_config.network_check = getattr(args, "network_check", False)
+    elastic_config.comm_perf_test = getattr(args, "comm_perf_test", False)
     elastic_config.auto_tunning = getattr(args, "auto_tunning", False)
     elastic_config.auto_config = getattr(args, "auto_config", False)
     elastic_config.accelerator = getattr(

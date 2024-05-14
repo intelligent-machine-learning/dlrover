@@ -31,3 +31,30 @@ def gen_dict_from_k8s_label_selector(label_selector):
         k: v
         for k, v in (item.split("=") for item in label_selector.split(","))
     }
+
+
+def is_target_labels_equal(target_labels: dict, source_labels: dict):
+    """
+    Whether the target labels exist in the labels source and are all equal.
+
+    Args:
+        target_labels (dict): Target labels.
+        source_labels (dict): Source labels.
+
+    e.g.
+    Return true if:
+    target_labels: {key1: value1, key2: value2}
+    source_labels: {key1: value1, key2: value2, key3: value3}
+
+    Return false if:
+    target_labels: {key1: value1, key2: value3}
+    source_labels: {key1: value1, key2: value2, key3: value3}
+    """
+
+    # all values to str for compatible
+    target_labels = {k: str(v) for k, v in target_labels.items()}
+    source_labels = {k: str(v) for k, v in source_labels.items()}
+
+    if all(target_labels[x] == source_labels[x] for x in target_labels):
+        return True
+    return False

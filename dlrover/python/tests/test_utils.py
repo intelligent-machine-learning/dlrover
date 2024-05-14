@@ -280,6 +280,7 @@ def mock_k8s_client():
         return_value=True
     )
     k8s_client.get_service = mock.MagicMock(return_value=False)  # type: ignore
+    return k8s_client
 
 
 def start_local_master(port=12345):
