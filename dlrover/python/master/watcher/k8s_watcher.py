@@ -20,10 +20,10 @@ from dlrover.python.common.constants import (
     ElasticJobApi,
     ElasticJobLabel,
     ExitCode,
+    NodeEventType,
     NodeExitReason,
     NodeStatus,
     NodeType,
-    NodeEventType,
     ScalePlanLabel,
 )
 from dlrover.python.common.log import default_logger as logger
@@ -110,11 +110,14 @@ def _convert_pod_event_to_node_event(event, pod_list):
     # the deleted pod have already been successfully recovered
     if evt_type == NodeEventType.DELETED:
         pod_labels = _get_pod_unique_labels(job_name, pod_type, rank)
-        any_existed_running_pod = any(k8s_util.is_target_labels_equal(
-            pod_labels, pod.metadata.labels) for pod in pod_list)
+        any_existed_running_pod = any(
+            k8s_util.is_target_labels_equal(pod_labels, pod.metadata.labels)
+            for pod in pod_list
+        )
         if any_existed_running_pod:
-            logger.info(f"Skip deleted event for pod with labels :"
-                        f" {pod_labels}.")
+            logger.info(
+                f"Skip deleted event for pod with labels :" f" {pod_labels}."
+            )
             return None
 
     restart = _verify_restarting_training(evt_obj)
@@ -198,8 +201,7 @@ class PodWatcher(NodeWatcher):
                 timeout_seconds=60,
             )
             for event in stream:
-                node_event = _convert_pod_event_to_node_event(
-                    event, pod_list)
+                node_event = _convert_pod_event_to_node_event(event, pod_list)
                 if not node_event:
                     continue
                 yield node_event

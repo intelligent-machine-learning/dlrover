@@ -41,16 +41,20 @@ class K8sUtilTest(unittest.TestCase):
         target_labels = {"k1": "1"}
         source_labels = {"k1": "1", "k2": "v2", "k3": "v3"}
         self.assertTrue(
-            ku.is_target_labels_equal(target_labels, source_labels))
+            ku.is_target_labels_equal(target_labels, source_labels)
+        )
 
         target_labels = {"k1": "1", "k2": "v3"}
         self.assertFalse(
-            ku.is_target_labels_equal(target_labels, source_labels))
+            ku.is_target_labels_equal(target_labels, source_labels)
+        )
 
         target_labels = {"k2": "v2", "k1": "1"}
         self.assertTrue(
-            ku.is_target_labels_equal(target_labels, source_labels))
+            ku.is_target_labels_equal(target_labels, source_labels)
+        )
 
         target_labels = {"k2": "v2", "k1": 1}
         self.assertTrue(
-            ku.is_target_labels_equal(target_labels, source_labels))
+            ku.is_target_labels_equal(target_labels, source_labels)
+        )
