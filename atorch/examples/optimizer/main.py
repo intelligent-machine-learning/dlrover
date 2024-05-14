@@ -12,7 +12,7 @@ import torch.backends.cudnn as cudnn
 import torch.optim.lr_scheduler as lr_scheduler
 from model import ResNet18, ResNet34, ResNet50
 from torch import nn, optim
-from utils import getData, test, test_cpu
+from utils import getData, test, test_cpu  # type: ignore[attr-defined]
 
 from atorch.optimizers import AGD, WeightedSAM
 

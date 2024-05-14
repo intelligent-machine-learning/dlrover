@@ -117,7 +117,7 @@ def api_run_func():
 
 
 def shm_data_func():
-    res = atorch.init_distributed("gloo", coworker_num_per_node=1)
+    res = atorch.init_distributed("gloo")
     assert res
     size = 20
     dtype = np.int64
@@ -129,32 +129,40 @@ def shm_data_func():
                 return False
         return True
 
+    def print_value(shm, offset, size, values, local_rank=None):
+        shm_values = [shm.get(offset + i, local_rank=local_rank) for i in range(size)]
+        print(f"shm data: {shm_values}; values: {values}")
+
     shm_data = ShmData("test_shm_d", size=size, dtype=dtype, per_rank_data=False, initialize_timeout=30)
+    torch.distributed.barrier()  # barrier so that rank1 write happens after rank0 reset.
     values = [0 for i in range(size)]
-    values[0] = 10
+    values[0] = 11
     values[1] = -1
     values[2] = -2
     values[5] = 20
     values[6] = -10
     values[7] = -20
     if atorch.local_rank() == 0:
-        shm_data.put(0, 10)  # set [0] = 10
+        shm_data.put(0, 11)  # set [0] = 11
         shm_data.put([1, 3], [-1, -2])  # set[1,2] = [-1, -2]
     else:
         shm_data.put(5, 20)  # set [5] = 20
         shm_data.put([6, 8], [-10, -20])  # set[6,7] = [-10, -20]
     need_check = True
-    sleep_count = 10
+    sleep_count = 30
     while need_check and sleep_count > 0:
         if check_value(shm_data, 0, size, values):
             need_check = False
             break
         time.sleep(1)
-        sleep_count -= 0
+        sleep_count -= 1
+    if need_check:
+        print_value(shm_data, 0, size, values)
     assert not need_check
     shm_data.tear_down()
 
     shm_data = ShmData("test_shm_per_rank", size=size, dtype=dtype, per_rank_data=True, initialize_timeout=30)
+    torch.distributed.barrier()  # barrier so that rank1 write happens after rank0 reset.
     if atorch.local_rank() == 0:
         shm_data.put(0, 10)  # set [0] = 10
         shm_data.put([1, 3], [-1, -2])  # set[1,2] = [-1, -2]
@@ -172,7 +180,7 @@ def shm_data_func():
     values1[7] = -20
 
     need_check = True
-    sleep_count = 10
+    sleep_count = 30
     while need_check and sleep_count > 0:
         if check_value(shm_data, 0, size, values0, local_rank=0) and check_value(
             shm_data, 0, size, values1, local_rank=1
@@ -180,9 +188,13 @@ def shm_data_func():
             need_check = False
             break
         time.sleep(1)
-        sleep_count -= 0
+        sleep_count -= 1
+    if need_check:
+        print_value(shm_data, 0, size, values0, local_rank=0)
+        print_value(shm_data, 0, size, values1, local_rank=1)
     assert not need_check
     shm_data.tear_down()
+    atorch.reset_distributed()
 
 
 def check_equal(x, y):

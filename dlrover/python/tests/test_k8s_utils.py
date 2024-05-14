@@ -26,6 +26,11 @@ from dlrover.python.tests.test_utils import create_pod, mock_k8s_client
 
 
 class KubernetesTest(unittest.TestCase):
+    """
+    This is a util for testing convenience.
+    (To distunguish with 'test_k8s_util')
+    """
+
     def setUp(self) -> None:
         mock_k8s_client()
 

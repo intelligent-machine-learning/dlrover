@@ -13,13 +13,12 @@
 
 
 """
-The start command on a local ndoe:
+The start command on a local node:
 
 dlrover-run --nproc_per_node=2 fsdp_train.py \
-    --n_layer 48 --n_head 16 --n_embd 1600 --data_dir './' \
+    --n_layer 48 --n_head 16 --n_embd 384 --data_dir './result' \
     --epochs 50 --save_memory_interval 50 --save_storage_interval 500
 """
-
 
 import argparse
 import contextlib
@@ -28,7 +27,7 @@ import os
 import time
 
 import torch
-import torch.distributed.checkpoint as dist_cp
+import torch.distributed.checkpoint as dist_ckpt
 from model import Block
 from torch.distributed.checkpoint.optimizer import (
     load_sharded_optimizer_state_dict,
@@ -57,55 +56,191 @@ from dlrover.trainer.torch.flash_checkpoint.fsdp import (
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 
 
-def train():
-    args = arg_parser()
-    checkpoint_dir = args.save_dir
+def train(args, train_params):
+    """
+    Train the model with the given parameters that has been set up correctly.
+
+    Args:
+        args: Arguments parsed from the command line.
+        train_params:  The parameters set up for training.
+            - env_params:       Parameters relating to the environment.
+            - model_params:     Parameters relating to the model.
+            - ckpt_params:      Parameters relating to the checkpoint.
+    """
+    (env_params, model_params, ckpt_params) = train_params
+    # Load from checkpoint.
+    load_checkpoint(model_params, ckpt_params)
+
+    # Unpack the parameters for model training.
+    model = model_params["model"]
+    context = model_params["context"]
+    scaler = model_params["scaler"]
+    device = model_params["device"]
+    grad_accum_steps = model_params["grad_accum_steps"]
+    total_steps = model_params["total_steps"]  # The only mutable variable.
+    train_loader = model_params["train_loader"]
+    elastic_trainer = model_params["elastic_trainer"]
+    optimizer = model_params["optimizer"]
+
+    previous_mfu = -1.0
+    total_time = 0.0
+    run_time = 0.0
+
+    def grad_accum_logger(step_with_grad_accum):
+        """
+        An inner function working as a decorator to log the training process.
+        """
+
+        @functools.wraps(step_with_grad_accum)
+        def wrapper(idx, data, target):
+            nonlocal previous_mfu, run_time, total_time
+
+            start_time = time.time()
+            print_log, loss = step_with_grad_accum(idx, data, target)
+            run_time += time.time() - start_time
+            total_time += run_time
+
+            if print_log:
+                # Estimate the model flops utilization (MFU).
+                mfu = model.module.estimate_mfu(
+                    args.batch_size * grad_accum_steps, run_time
+                )
+                if idx > 5:
+                    if previous_mfu == -1.0:
+                        previous_mfu = mfu
+                    else:
+                        previous_mfu = 0.9 * previous_mfu + 0.1 * mfu
+
+                # Estimate the CUDA memory usage.
+                cuda_mem = torch.cuda.memory_allocated() / 1e9
+
+                # Print log.
+                print(
+                    f"iter {total_steps}: loss {loss:.4f}, "
+                    f"time {run_time * 1000:.2f}ms, "
+                    f"mfu {previous_mfu * 100:.2f}%, "
+                    f"cuda memory {cuda_mem:.3f}G, "
+                    f"lr {learning_rate:.2e}, "
+                    f"total time {total_time:.2f}s"
+                )
+                run_time = 0
+            return print_log, loss
+
+        return wrapper
+
+    @grad_accum_logger
+    def step_grad_accum(idx, data, target):
+        """
+        An inner function to perform training with gradient accumulation.
+        """
+        print_log = False
+        data, target = data.to(device), target.to(device)
+
+        # Update total_steps.
+        nonlocal total_steps
+        total_steps += 1
+        model_params["total_steps"] = total_steps
+
+        with elastic_trainer.step():
+            # Forward pass.
+            with context:
+                _, loss = model(data, target)
+            # Scale the loss for gradient accumulation.
+            loss = loss / grad_accum_steps
+            # Backward pass, with gradient scaling.
+            scaler.scale(loss).backward()
+            # Clip gradients.
+            if args.grad_clip != 0.0:
+                scaler.unscale_(optimizer)
+                torch.nn.utils.clip_grad_norm_(
+                    model.parameters(), args.grad_clip
+                )
+            # Weight update
+            if (idx + 1) % grad_accum_steps == 0:
+                scaler.step(optimizer)
+                scaler.update()
+                optimizer.zero_grad(set_to_none=True)
+                print_log = True
+        return print_log, loss.item() * grad_accum_steps
+
+    # Training loop.
+    for epoch in range(args.epochs):
+        # Set epoch into the sampler.
+        train_loader.sampler.set_epoch(epoch)
+        # Set learning rate.
+        learning_rate = (
+            get_lr(total_steps, args) if args.decay_lr else args.learning_rate
+        )
+        optimizer.param_groups[0]["lr"] = learning_rate
+
+        # Training loop.
+        for idx, (data, target) in enumerate(train_loader):
+            # Step with gradient accumulation.
+            step_grad_accum(idx, data, target)
+            # Save the checkpoint. Update the total steps.
+            save_checkpoint(model_params, ckpt_params)
+
+            # Termination conditions
+            if total_steps > args.max_iters:
+                return
+
+
+def setup_train_params(args) -> tuple:
+    """
+    Set up all the necessary parameters before training.
+
+    Returns:
+        tuple: A tuple containing three dictionaries:
+            - env_params:       Parameters relating to the environment.
+            - model_params:     Parameters relating to the model.
+            - ckpt_params:      Parameters relating to the checkpoint.
+    """
     setup()
-    os.makedirs(checkpoint_dir, exist_ok=True)
     world_size = int(os.getenv("WORLD_SIZE", 1))
     local_rank = int(os.getenv("LOCAL_RANK", 0))
-    gradient_accumulation_steps = args.gradient_accumulation_steps
-    batch_size = args.batch_size
-    if gradient_accumulation_steps == 0:
-        gradient_accumulation_steps = world_size
-    assert gradient_accumulation_steps % world_size == 0
-    block_size = args.block_size
-    gradient_accumulation_steps //= world_size
-    tokens_per_iter = (
-        gradient_accumulation_steps * world_size * batch_size * block_size
-    )  # noqa: E501
-    log_rank0(f"tokens per iteration will be: {tokens_per_iter:,}")
-    device = f"cuda:{local_rank}" if torch.cuda.is_available() else "cpu"
-    device_type = (
-        "cuda" if "cuda" in device else "cpu"
-    )  # For later use in torch.autocast
-    if device_type == "cuda":
-        torch.cuda.set_device(device)
-    # Note: float16 data type will automatically use a GradScaler
-    dtype = (
-        "bfloat16"
-        if torch.cuda.is_available() and torch.cuda.is_bf16_supported()
-        else "float16"
-    )
-    # Auto implement a GradScaler
-    ptdtype = {
+
+    dtypes = {
         "float32": torch.float32,
         "bfloat16": torch.bfloat16,
         "float16": torch.float16,
-    }[dtype]
-    ctx = (
-        contextlib.nullcontext()
-        if device_type == "cpu"
-        else torch.amp.autocast(device_type=device_type, dtype=ptdtype)
+    }
+
+    dtype_name = "float16"
+    if torch.cuda.is_available():
+        device = f"cuda:{local_rank}"
+        torch.cuda.set_device(device)
+        if torch.cuda.is_bf16_supported():
+            dtype_name = "bfloat16"
+        context = torch.amp.autocast("cuda", dtypes[dtype_name])
+    else:
+        device = "cpu"
+        context = contextlib.nullcontext()
+    scaler = torch.cuda.amp.GradScaler(
+        enabled=(dtype_name == ("float16" or "bfloat16"))
     )
-    train_loader, val_loader, meta_vocab_size = get_data_loaders(
+
+    # Set up the gradient accumulation steps.
+    grad_accum_steps = args.gradient_accumulation_steps
+    if (grad_accum_steps == 0) or (grad_accum_steps // world_size == 0):
+        grad_accum_steps = 1
+    else:
+        grad_accum_steps = grad_accum_steps // world_size
+
+    tokens_per_iter = (
+        grad_accum_steps * world_size * args.batch_size * args.block_size
+    )
+    log_rank0(f"Tokens per iteration will be: {tokens_per_iter:,}")
+
+    train_loader, _, vocab_size = get_data_loaders(
         data_dir=args.data_dir,
-        batch_size=batch_size,
-        block_size=block_size,
+        batch_size=args.batch_size,
+        block_size=args.block_size,
     )
-    model = gpt_init(meta_vocab_size, args=args)
-    scaler = torch.cuda.amp.GradScaler(enabled=(dtype == "float16"))
-    if torch.cuda.is_available() and device_type == "cuda":
+    model = gpt_init(vocab_size, args=args)
+    model = model.to(device)
+
+    # Set up the model.
+    if "cuda" in device:
         print(f"Running basic FSDP example on local rank {local_rank}.")
         my_auto_wrap_policy = functools.partial(
             transformer_auto_wrap_policy,
@@ -124,227 +259,212 @@ def train():
     else:
         raise ValueError("FSDP can only runs on CUDA.")
 
-    # Optimizer
-    log_rank0(f"creating optimizer...{model.parameters()}")
+    # Set up the optimizer.
+    log_rank0(f"Creating optimizer... {model.parameters()}")
     optimizer = torch.optim.AdamW(
-        model.parameters(),
+        params=model.parameters(),
         weight_decay=args.weight_decay,
         lr=args.learning_rate,
         betas=(args.beta1, args.beta2),
     )
 
-    # Compile the model
+    # Compile the model.
     if compile == "True":
-        log_rank0("compiling the model... (takes a ~minute)")
+        log_rank0("Compiling the model... (takes a ~minute).")
         model = torch.compile(model)  # requires PyTorch 2.0
 
-    # Training loop
-    total_time = 0.0
-    local_iter_num = 0  # Number of iterations in the lifetime of this process
-    raw_model = model.module  # Unwrap DDP/FSDP container if needed
-    running_mfu = -1.0
-    iter_num = 0
-    decay_lr = args.decay_lr
-    max_iters = args.max_iters
-    log_interval = args.log_interval
-    grad_clip = args.grad_clip
-    learning_rate = args.learning_rate
+    # Set up the ElasticTrainer.
     elastic_trainer = ElasticTrainer(
         model=model,
         dataloader=train_loader,
     )
     optimizer = elastic_trainer.prepare(optimizer)
 
-    # Forward backward update, with optional gradient accumulation
-    # to simulate larger batch size and using the GradScaler
-    # if data type is float16
+    # Prepare the parameters for training.
+    env_params = {
+        "world_size": world_size,
+        "local_rank": local_rank,
+    }
 
-    start_load_t = time.time()
-    if args.use_native_ckpt:
-        iter_num = native_load_checkpoint(0, model, optimizer, checkpoint_dir)
+    model_params = {
+        "model": model,
+        "context": context,
+        "scaler": scaler,
+        "device": device,
+        "grad_accum_steps": grad_accum_steps,
+        "total_steps": 0,
+        "train_loader": train_loader,
+        "elastic_trainer": elastic_trainer,
+        "optimizer": optimizer,
+    }
+
+    ckpt_params = {
+        "use_native": args.use_native_ckpt,
+        "flash_full_ckpt": args.flash_full_ckpt,
+        "checkpoint_dir": args.save_dir,
+        "checkpointer": None,
+        "save_memory_interval": args.save_memory_interval,
+        "save_storage_interval": args.save_storage_interval,
+    }
+
+    # Return as a tuple of dictionaries.
+    return (env_params, model_params, ckpt_params)
+
+
+def timing_logger(func):
+    """
+    Decorator to time and log the function execution.
+    """
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        start_time = time.time()
+        result = func(*args, **kwargs)
+        total_time = time.time() - start_time
+
+        if func == load_checkpoint:
+            # Print the load checkpoint time.
+            with result as loaded:
+                print(
+                    f"Load checkpoint time : {total_time}s"
+                ) if loaded else None
+        elif func == save_checkpoint:
+            # Print the save checkpoint time.
+            with result as saved:
+                print(
+                    f"Save checkpoint time: {total_time}s"
+                ) if saved else None
+
+        return result
+
+    return wrapper
+
+
+@timing_logger
+def load_checkpoint(model_params, ckpt_params):
+    """
+    Load the checkpoint to memory or disk when needed.
+
+    Returns: A boolean value indicating whether the checkpoint was loaded.
+            This result is mainly used by the "timer" decorator.
+    """
+    loaded = False
+    model = model_params["model"]
+    optimizer = model_params["optimizer"]
+    checkpoint_dir = ckpt_params["checkpoint_dir"]
+    os.makedirs(checkpoint_dir, exist_ok=True)
+
+    if ckpt_params["use_native"]:
+        # If using native checkpointing.
+        path = os.path.join(checkpoint_dir, str(model_params["total_steps"]))
+        if os.path.exists(path):
+            # Load model state dict.
+            with FSDP.state_dict_type(model, StateDictType.SHARDED_STATE_DICT):
+                state_dict = {
+                    "model": model.state_dict(),
+                    "step": 0,
+                    # Cannot load the optimizer state_dict
+                    # together with the model state_dict.
+                }
+            storage_reader = dist_ckpt.FileSystemReader(path)
+            dist_ckpt.load_state_dict(
+                state_dict=state_dict,
+                storage_reader=storage_reader,
+            )
+            model.load_state_dict(state_dict["model"])
+
+            # Load optimizer state dict.
+            optim_state = load_sharded_optimizer_state_dict(
+                model_state_dict=state_dict["model"],
+                optimizer_key="optim",
+                storage_reader=storage_reader,
+            )
+            flattened_osd = FSDP.optim_state_dict_to_load(
+                model, optimizer, optim_state["optim"]
+            )
+            optimizer.load_state_dict(flattened_osd)
+
+            # Update model params.
+            model_params["model"] = model
+            model_params["optimizer"] = optimizer
+            model_params["total_steps"] = state_dict["step"]
+            loaded = True
+
     else:
-        if args.flash_full_ckpt:
+        # If using flash checkpointing.
+        if ckpt_params["flash_full_ckpt"]:
             checkpointer = FsdpFullCheckpointer(checkpoint_dir)
         else:
             checkpointer = FsdpShardCheckpointer(checkpoint_dir)
-        iter_num = flash_load_checkpoint(checkpointer, model, optimizer)
+        extra_sd = checkpointer.load_checkpoint(model, optimizer)
 
-    load_time = round(time.time() - start_load_t, 2)
-    print(f"Load checkpoint time : {load_time}s")
-    iter_num = 0 if not iter_num else iter_num
+        # Update model params.
+        model_params["total_steps"] = extra_sd.get("step", 0)
+        ckpt_params["checkpointer"] = checkpointer
+        loaded = True
 
-    for epoch in range(args.epochs):
-        # Note: set the epoch into the sampler.
-        train_loader.sampler.set_epoch(epoch)
-        for X, Y in train_loader:
-            # Determine and set the learning rate for this iteration
-            lr = get_lr(iter_num, args) if decay_lr else learning_rate
-            for param_group in optimizer.param_groups:
-                param_group["lr"] = lr
-            t0 = time.time()
-            X, Y = X.to(device), Y.to(device)
-            with ctx:
-                logits, loss = model(X, Y)
-                # Scale the loss to account for gradient accumulation
-                loss = loss / gradient_accumulation_steps
-            # immediately async prefetch next batch while model
-            # is doing the forward pass on the GPU
-            # Backward pass, with gradient scaling if training in fp16
-            scaler.scale(loss).backward()
-            # Clip the gradient
-            if grad_clip != 0.0:
-                scaler.unscale_(optimizer)
-                torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
-            # Step the optimizer and scaler if training in fp16
-            scaler.step(optimizer)
-            scaler.update()
-            # Flush the gradients as soon as we can,
-            # no need for this memory anymore
-            optimizer.zero_grad(set_to_none=True)
-
-            # Timing and logging
-            t1 = time.time()
-            dt = t1 - t0
-            total_time += dt
-
-            if iter_num % log_interval == 0:
-                # Get loss as float. note: this is a CPU-GPU sync point
-                # scale up to undo the division above, approximating
-                # the true total loss (exact would have been a sum)
-                lossf = loss.item() * gradient_accumulation_steps
-                if local_iter_num >= 5:  # Let the training loop settle a bit
-                    mfu = raw_model.estimate_mfu(
-                        batch_size * gradient_accumulation_steps, dt
-                    )
-                    running_mfu = (
-                        mfu
-                        if running_mfu == -1.0
-                        else 0.9 * running_mfu + 0.1 * mfu
-                    )
-                cuda_mem = torch.cuda.max_memory_allocated() / 1e9
-                log_rank0(
-                    f"iter {iter_num}: loss {lossf:.4f},"
-                    f" time {dt * 1000:.2f}ms, "
-                    f"mfu {running_mfu * 100:.2f}%,"
-                    f" cuda memory {cuda_mem:.3f}G, "
-                    f"lr {lr:.2e}, total time {total_time:.2f}s"
-                )
-            iter_num += 1
-            local_iter_num += 1
-            start_save_t = time.time()
-            if args.use_native_ckpt:
-                saved = native_save_checkpoint(
-                    iter_num,
-                    model,
-                    optimizer,
-                    args.save_storage_interval,
-                    checkpoint_dir,
-                )
-            else:
-                saved = flash_save_checkpoint(
-                    checkpointer,
-                    iter_num,
-                    model,
-                    optimizer,
-                    args.save_memory_interval,
-                    args.save_storage_interval,
-                )
-            if saved:
-                save_time = round(time.time() - start_save_t, 2)
-                print(f"Save checkpoint time {save_time}s")
-
-            # Termination conditions
-            if iter_num > max_iters:
-                break
-        if iter_num > max_iters:
-            break
-        if iter_num > max_iters:
-            break
+    return loaded
 
 
-def native_load_checkpoint(step, model, optimizer, checkpoint_dir):
-    with FSDP.state_dict_type(model, StateDictType.SHARDED_STATE_DICT):
-        state_dict = {
-            "model": model.state_dict(),
-            "step": 0,
-            # cannot load the optimizer state_dict
-            # together with the model state_dict
-        }
-        ckpt_dir = os.path.join(checkpoint_dir, str(step))
-        if not os.path.exists(ckpt_dir):
-            return
-        storage_reader = dist_cp.FileSystemReader(ckpt_dir)
-        dist_cp.load_state_dict(
-            state_dict=state_dict,
-            storage_reader=storage_reader,
-        )
-        model.load_state_dict(state_dict["model"])
+@timing_logger
+def save_checkpoint(model_params, ckpt_params):
+    """
+    Save the checkpoint to memory or disk when needed.
 
-        optim_state = load_sharded_optimizer_state_dict(
-            model_state_dict=state_dict["model"],
-            optimizer_key="optim",
-            storage_reader=storage_reader,
-        )
-
-        flattened_osd = FSDP.optim_state_dict_to_load(
-            model, optimizer, optim_state["optim"]
-        )
-        optimizer.load_state_dict(flattened_osd)
-        return state_dict["step"]
-
-
-def native_save_checkpoint(
-    step, model, optimizer, save_storage_interval, checkpoint_dir
-):
+    Returns: A boolean value indicating whether the checkpoint was saved.
+            This result is mainly used by the "timer" decorator.
+    """
     saved = False
-    if step % save_storage_interval != 0:
-        return saved
-    ckpt_dir = os.path.join(checkpoint_dir, str(step))
-    os.makedirs(ckpt_dir, exist_ok=True)
-    with FSDP.state_dict_type(model, StateDictType.SHARDED_STATE_DICT):
-        state_dict = {
-            "model": model.state_dict(),
-            "optim": FSDP.optim_state_dict(model, optimizer),
-            "step": step,
-        }
-        if step % save_storage_interval == 0:
-            dist_cp.save_state_dict(
+    model = model_params["model"]
+    steps = model_params["total_steps"]
+    optimizer = model_params["optimizer"]
+    checkpointer = ckpt_params["checkpointer"]
+    checkpoint_dir = ckpt_params["checkpoint_dir"]
+
+    # Save the checkpoint.
+    if ckpt_params["use_native"]:
+        # If using native checkpointing.
+        if steps % ckpt_params["save_storage_interval"] == 0:
+            # Get state dict.
+            with FSDP.state_dict_type(model, StateDictType.SHARDED_STATE_DICT):
+                state_dict = {
+                    "model": model.state_dict(),
+                    "optim": FSDP.optim_state_dict(model, optimizer),
+                    "step": steps,
+                }
+
+            # Save state dict.
+            path = os.path.join(checkpoint_dir, str(steps))
+            dist_ckpt.save_state_dict(
                 state_dict=state_dict,
-                storage_writer=dist_cp.FileSystemWriter(ckpt_dir),
+                storage_writer=dist_ckpt.FileSystemWriter(path=path),
+            )
+        saved = True
+
+    else:
+        # If using flash checkpointing.
+        # Warning: When n_procs_per_node is not greater than 1,
+        # the checkpoint saving would be stuck.
+        extra_sd = {"step": steps}
+        if steps % ckpt_params["save_memory_interval"] == 0:
+            checkpointer.save_checkpoint(
+                steps,
+                model,
+                optimizer,
+                extra_sd,
+                storage_type=StorageType.MEMORY,
             )
             saved = True
-    return saved
 
-
-def flash_load_checkpoint(
-    checkpointer: FsdpShardCheckpointer, model, optimizer
-):
-    extra_sd = checkpointer.load_checkpoint(model, optimizer)
-    return extra_sd.get("step", 0)
-
-
-def flash_save_checkpoint(
-    checkpointer: FsdpFullCheckpointer,
-    step,
-    model,
-    optimizer,
-    save_memory_interval,
-    save_storage_interval,
-):
-    saved = False
-    if step % save_memory_interval != 0 and step % save_storage_interval != 0:
-        return saved
-    extra_sd = {"step": step}
-    if step % save_memory_interval == 0:
-        checkpointer.save_checkpoint(
-            step, model, optimizer, extra_sd, storage_type=StorageType.MEMORY
-        )
-        saved = True
-    if step % save_storage_interval == 0:
-        checkpointer.save_checkpoint(
-            step, model, optimizer, extra_sd, storage_type=StorageType.DISK
-        )
-        saved = True
+        if steps % ckpt_params["save_storage_interval"] == 0:
+            checkpointer.save_checkpoint(
+                steps,
+                model,
+                optimizer,
+                extra_sd,
+                storage_type=StorageType.DISK,
+            )
+            saved = True
 
     return saved
 
@@ -357,11 +477,12 @@ def arg_parser():
     parser.add_argument(
         "--flash_full_ckpt", action="store_true", required=False
     )
-    args = parser.parse_args()
 
-    return args
+    return parser.parse_args()
 
 
 if __name__ == "__main__":
-    train()
+    args = arg_parser()
+    train_params = setup_train_params(args)
+    train(args, train_params)
     cleanup()

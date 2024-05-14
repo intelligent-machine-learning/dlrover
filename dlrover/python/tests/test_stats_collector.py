@@ -66,6 +66,7 @@ class StatsCollectorTest(unittest.TestCase):
         collector.collect_dataset_metric("test", 1000)
         custom_metric = {"key0": 100}
         collector.collect_custom_data(custom_metric)
+        self.assertDictEqual(custom_metric, collector._custom_metric)
 
         speed_monitor = SpeedMonitor()
         t = int(time.time())

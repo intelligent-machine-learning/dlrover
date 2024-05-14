@@ -293,6 +293,66 @@ class CoworkerTest(unittest.TestCase):
         check_process_loop(processes)
 
 
+def sp_all2all_code():
+    atorch.init_distributed(set_cuda_device_using_local_rank=True)
+    sp_size = atorch.world_size()
+    r = atorch.rank()
+    s = 4
+    b = 2
+    head = 8
+    dim = 3
+    data = torch.arange(s * b * head * dim, dtype=torch.float32).reshape(s, b, head, dim)
+    split_data = torch.split(data, s // sp_size, dim=0)
+    local_data = split_data[r].to(atorch.local_rank())
+    local_data.requires_grad = True
+
+    res = atorch.distributed.seq_all_to_all(local_data, 2, 0, None, sp_size)
+    assert list(res.shape) == [s, b, head // sp_size, dim]
+    loss = torch.sum(res)
+    loss.backward()
+    assert local_data.grad is not None
+    res = atorch.distributed.seq_all_to_all(local_data, 2, 0)
+    assert list(res.shape) == [s, b, head // sp_size, dim]
+
+    x = 2
+    y = 6
+    z = 8
+    w = 10
+    offset = atorch.local_rank() * 10
+    data = torch.arange(offset, offset + x * y * z * w, dtype=torch.float32).reshape(x, y, z, w).to(atorch.local_rank())
+
+    # todo: check value
+    def _check_all2all(s_idx, g_idx):
+        res = atorch.distributed.seq_all_to_all(
+            data, scatter_idx=s_idx, gather_idx=g_idx, group=None, group_size=sp_size
+        )
+        expect_shape = [x, y, z, w]
+        expect_shape[s_idx] //= sp_size
+        expect_shape[g_idx] *= sp_size
+        assert list(res.shape) == expect_shape
+
+    _check_all2all(0, 1)
+    _check_all2all(0, 2)
+    _check_all2all(0, 3)
+    _check_all2all(1, 2)
+    _check_all2all(1, 3)
+    _check_all2all(1, 0)
+    _check_all2all(2, 0)
+    _check_all2all(2, 1)
+    _check_all2all(2, 3)
+    _check_all2all(3, 0)
+    _check_all2all(3, 1)
+    _check_all2all(3, 2)
+
+    destroy_parallel_group()
+
+
+class SeqParallelTest(unittest.TestCase):
+    @unittest.skipIf(torch.cuda.device_count() < 2, "requires 2 gpus")
+    def test_sp_all_to_all(self):
+        run_dist_code("test_sp_all2all_with_2node", nproc=2)
+
+
 def run_dist_code(name, nproc=2, use_launch=True):
     code_path = os.path.abspath(__file__)
     if use_launch:
@@ -321,5 +381,7 @@ if __name__ == "__main__":
         dist_code_for_test(backend, use_atorch_init=False, pg_configs=configs)
     elif sys.argv[1] == "test_rpc":
         rpc_code(backend)
+    elif sys.argv[1] == "test_sp_all2all_with_2node":
+        sp_all2all_code()
     if cov_status:
         stop_coverage()

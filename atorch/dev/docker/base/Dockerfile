@@ -7,7 +7,7 @@
 #
 #       For reference:
 #           https://docs.docker.com/develop/develop-images/build_enhancements/
-FROM nvidia/cuda:11.8.0-cudnn8-devel-ubuntu20.04 as dev-base
+FROM nvidia/cuda:12.1.0-cudnn8-devel-ubuntu20.04 as dev-base
 ARG PYTHON_VERSION=3.8
 
 COPY pip.conf ~/.pip/pip.conf

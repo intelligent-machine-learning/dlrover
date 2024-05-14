@@ -12,7 +12,7 @@
 ## Usage
 
 ```
-train.py [-h] --model_type MODEL_TYPE [--datasize DATASIZE] [--epoch EPOCH] [--hidden_size HIDDEN_SIZE] [--head_num HEAD_NUM] [--layer_num LAYER_NUM] [--seq_length SEQ_LENGTH] [--batchsize BATCHSIZE] [--distributed] [--user_created_dataloader] [--load_strategy] [--optim_grouped_params] [--log_interval LOG_INTERVAL] [--use_fsdp] [--use_amp] [--use_checkpointing] [--use_module_replace] [--use_fp8]
+train.py [-h] --model_type MODEL_TYPE [--datasize DATASIZE] [--epoch EPOCH] [--hidden_size HIDDEN_SIZE] [--head_num HEAD_NUM] [--layer_num LAYER_NUM] [--seq_length SEQ_LENGTH] [--batchsize BATCHSIZE] [--distributed] [--user_created_dataloader] [--load_strategy] [--optim_grouped_params] [--log_interval LOG_INTERVAL] [--use_fsdp] [--use_amp] [--use_checkpointing] [--use_module_replace] [--use_local_sgd] [--local_sgd_sync_interval LOCAL_SGD_SYNC_INTERVAL] [--local_sgd_warmup_steps LOCAL_SGD_WARMUP_STEPS] [--outer_optim_class OUTER_OPTIM_CLASS]
 ```
 
 model_type: toy, gpt2, or llama
@@ -40,7 +40,10 @@ Optional args:
 + use_amp: if set, add amp_native optimization method in load_strategy. Default False.
 + use_checkpointing: if set, add checkpoint optimization method in load_strategy. Default False.
 + use_module_replace: if set, add module_replace optimization method in load_strategy. Default False.
-+ use_fp8: if set, use fp8 for nn.Linear op if gpu sm >= 8.9. Default False.
++ use_local_sgd: if set, use local sgd for model wrap and training. Default False.
++ local_sgd_sync_interval: model synchronization interval in local sgd training mode. Default 1.
++ local_sgd_warmup_steps: if set, the model will be first trained synchronously in a certain number of steps. Default 0.
++ outer_optim_class: if set, the model will be synchronized using outer optimizer. Only can be set to `none` or `sgd`. Default none.
 
 To launch distributed training, such as 8 process per node training for llama,  run:
 
@@ -75,3 +78,7 @@ And adding fp8 for training with GPU with fp8 capability (sm >=8.9).
 python -m atorch.distributed.run  --nproc_per_node 8  train.py --model_type llama --distributed --hidden_size 64 --head_num 4 --layer_num 4 --seq_length 32 --load_strategy --use_fsdp --use_amp --use_module_replace --use_checkpointing --use_fp8 --user_created_dataloader
 ```
 
+Train llama model in local sgd mode.
+```
+python -m atorch.distributed.run --nproc_per_node 8 train.py --model_type llama --distributed --hidden_size 64 --head_num 4 --layer_num 4 --seq_length 32 --load_strategy --use_fsdp --use_amp --use_module_replace --use_local_sgd --local_sgd_sync_interval 5 --local_sgd_warmup_steps 10 --outer_optim_class sgd
+```

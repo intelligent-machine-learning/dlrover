@@ -73,15 +73,21 @@ from transformers.trainer_pt_utils import (
     LengthGroupedSampler,
     distributed_broadcast_scalars,
     distributed_concat,
+    find_batch_size,
+    nested_concat,
+    nested_detach,
+    nested_numpify,
     reissue_pt_warnings,
 )
 from transformers.trainer_utils import (
     PREFIX_CHECKPOINT_DIR,
+    EvalLoopOutput,
     EvalPrediction,
     IntervalStrategy,
     PredictionOutput,
     RemoveColumnsCollator,
     TrainOutput,
+    denumpify_detensorize,
     get_last_checkpoint,
     has_length,
     seed_worker,
@@ -95,6 +101,7 @@ from transformers.utils import (
     SAFE_WEIGHTS_NAME,
     WEIGHTS_INDEX_NAME,
     WEIGHTS_NAME,
+    can_return_loss,
     find_labels,
     is_datasets_available,
     is_peft_available,
@@ -148,7 +155,11 @@ class AtorchTrainer:
             logger.info(f"No `AtorchArguments` passed, using `output_dir={output_dir}`.")
             args = AtorchArguments(output_dir=output_dir)  # type: ignore[call-arg]
 
-        if len(args.sharded_ddp) > 0 or len(args.fsdp) > 0 or args.deepspeed is not None:
+        if (
+            (hasattr(args, "sharded_ddp") and len(args.sharded_ddp) > 0)
+            or len(args.fsdp) > 0
+            or args.deepspeed is not None
+        ):
             logger.warning(
                 "--sharded_ddp, --fsdp, --deepspeed in `TrainingArguments` is invalid when using `AtorchArguments`."
             )
@@ -169,6 +180,8 @@ class AtorchTrainer:
         if args.save_load_by_streaming and not self.atorch_fsdp:
             raise ValueError("--atorch_opt fsdp is needed when using --save_load_by_streaming.")
 
+        self.is_in_train = False
+
         # create accelerator object
         self.accelerator = Accelerator()
 
@@ -188,13 +201,17 @@ class AtorchTrainer:
         self.model_init = model_init
         self.compute_metrics = compute_metrics
         self.preprocess_logits_for_metrics = preprocess_logits_for_metrics
+        if self.compute_metrics is not None and args.eval_accumulation_steps is None:
+            raise ValueError(
+                "Use custom compute_metrics() function may cause extra high GPU memory footprint during evaluation, "
+                "so eval_accumulation_steps should be set explicitly. If you are unsure of what size to set it to, it's"
+                " recommended to set it to 1."
+            )
 
         self.optimizer, self.lr_scheduler = optimizers
         # Check optimizer and lr_scheduler
         if self.optimizer is not None and not isinstance(self.optimizer, torch.optim.Optimizer):
             raise ValueError("`optimizer` must be the torch.optim.Optimizer type.")
-        if self.lr_scheduler is not None and not isinstance(self.lr_scheduler, torch.optim.lr_scheduler.LambdaLR):
-            raise ValueError("`lr_scheduler` must be the torch.optim.lr_scheduler.LambdaLR type.")
 
         report_callbacks = [TensorBoardCallback]
         # Add additional tensorboard callback.
@@ -258,7 +275,9 @@ class AtorchTrainer:
         self.current_flos = 0
         default_label_names = find_labels(self.model.__class__)
         self.label_names = default_label_names if self.args.label_names is None else self.args.label_names
+        self.logit_names = ["logits"] if self.args.logit_names is None else self.args.logit_names
         self.model_forward_args = list(inspect.signature(self.model.forward).parameters.keys())
+        self.can_return_loss = can_return_loss(self.model.__class__)
 
         # Set ATorch Parameters
         self.atorch_wrap_cls = args.atorch_wrap_cls
@@ -362,7 +381,7 @@ class AtorchTrainer:
         optim_methods_to_check = ["parallel_mode", "amp_native", "checkpoint"]
 
         if self.optimizer is not None:
-            for (opt_name, config, tunable) in self.load_strategy:
+            for opt_name, config, tunable in self.load_strategy:
                 if opt_name not in optim_methods_to_check:
                     raise ValueError(
                         f"If you're using optimization methods outside of {optim_methods_to_check}, passing"
@@ -431,7 +450,7 @@ class AtorchTrainer:
                 set(["labels", "label", "label_ids"] + self.label_names + self.model_forward_args)
             )
 
-    def _remove_unused_columns(self, dataset: "datasets.Dataset", description: Optional[str] = None):
+    def _remove_unused_columns(self, dataset, description: Optional[str] = None):
         if not self.args.remove_unused_columns:
             return dataset
         self._set_signature_columns_if_needed()
@@ -449,7 +468,7 @@ class AtorchTrainer:
 
         columns = [k for k in signature_columns if k in dataset.column_names]  # type: ignore[attr-defined]
 
-        if version.parse(datasets.__version__) < version.parse("1.4.0"):
+        if version.parse(datasets.__version__) < version.parse("1.4.0"):  # type: ignore[attr-defined]
             dataset.set_format(
                 type=dataset.format["type"], columns=columns, format_kwargs=dataset.format["format_kwargs"]
             )
@@ -481,7 +500,9 @@ class AtorchTrainer:
 
         # Build the sampler.
         if self.args.group_by_length:
-            if is_datasets_available() and isinstance(self.train_dataset, datasets.Dataset):
+            if is_datasets_available() and isinstance(
+                self.train_dataset, datasets.Dataset  # type: ignore[attr-defined]
+            ):
                 lengths = (
                     self.train_dataset[self.args.length_column_name]
                     if self.args.length_column_name in self.train_dataset.column_names
@@ -514,7 +535,7 @@ class AtorchTrainer:
 
         train_dataset = self.train_dataset
         data_collator = self.data_collator
-        if is_datasets_available() and isinstance(train_dataset, datasets.Dataset):
+        if is_datasets_available() and isinstance(train_dataset, datasets.Dataset):  # type: ignore[attr-defined]
             train_dataset = self._remove_unused_columns(train_dataset, description="training")
         elif data_collator is not None:
             data_collator = self._get_collator_with_removed_columns(data_collator, description="training")
@@ -557,7 +578,7 @@ class AtorchTrainer:
         eval_dataset = eval_dataset if eval_dataset is not None else self.eval_dataset
         data_collator = self.data_collator
 
-        if is_datasets_available() and isinstance(eval_dataset, datasets.Dataset):
+        if is_datasets_available() and isinstance(eval_dataset, datasets.Dataset):  # type: ignore[attr-defined]
             eval_dataset = self._remove_unused_columns(eval_dataset, description="evaluation")
         elif data_collator is not None:
             data_collator = self._get_collator_with_removed_columns(data_collator, description="evaluation")
@@ -587,8 +608,28 @@ class AtorchTrainer:
                 The test dataset to use. If it is a [`~datasets.Dataset`], columns not accepted by the
                 `model.forward()` method are automatically removed. It must implement `__len__`.
         """
-        # Do Atorch get test dataloader
-        raise NotImplementedError("`get_test_dataloader` is not implemented.")
+        data_collator = self.data_collator
+
+        if is_datasets_available() and isinstance(test_dataset, datasets.Dataset):  # type: ignore[attr-defined]
+            test_dataset = self._remove_unused_columns(test_dataset, description="test")
+        elif data_collator is not None:
+            data_collator = self._get_collator_with_removed_columns(data_collator, description="test")
+
+        dataloader_params = {
+            "batch_size": self.args.eval_batch_size,
+            "collate_fn": data_collator,
+            "num_workers": self.args.dataloader_num_workers,
+            "pin_memory": self.args.dataloader_pin_memory,
+        }
+        if data_collator is not None:
+            dataloader_params["collate_fn"] = data_collator
+
+        if not isinstance(test_dataset, torch.utils.data.IterableDataset):
+            dataloader_params["sampler"] = self._get_eval_sampler(test_dataset)
+            dataloader_params["drop_last"] = self.args.dataloader_drop_last
+
+        # We use the same batch_size as for eval.
+        return self.accelerator.prepare(DataLoader(test_dataset, **dataloader_params))
 
     def create_optimizer(self):
         """
@@ -611,9 +652,11 @@ class AtorchTrainer:
         # Do atorch create scheduler
         if self.lr_scheduler is None:
             self.lr_scheduler = get_scheduler(
-                self.args.atorch_lr_scheduler_type
-                if self.args.atorch_lr_scheduler_type is not None
-                else self.args.lr_scheduler_type,
+                (
+                    self.args.atorch_lr_scheduler_type
+                    if self.args.atorch_lr_scheduler_type is not None
+                    else self.args.lr_scheduler_type
+                ),
                 optimizer=self.optimizer if optimizer is None else optimizer,
                 num_warmup_steps=self.args.get_warmup_steps(num_training_steps),
                 num_training_steps=num_training_steps,
@@ -871,10 +914,9 @@ class AtorchTrainer:
                 )
 
                 if (
-                    total_batched_samples % args.gradient_accumulation_steps == 0
-                    or  # noqa: W504
                     # last step in epoch but step is always smaller than gradient_accumulation_steps
-                    is_last_step_and_steps_less_than_grad_acc
+                    total_batched_samples % args.gradient_accumulation_steps == 0
+                    or is_last_step_and_steps_less_than_grad_acc
                 ):
                     # Gradient clipping
                     if args.max_grad_norm is not None and args.max_grad_norm > 0:
@@ -1495,7 +1537,7 @@ class AtorchTrainer:
                 logger.info("Trainer.model is not a `PreTrainedModel`, only saving its state dict.")
                 if self.args.save_safetensors:
                     if not self._write_safely(
-                        safetensors.torch.save_file,
+                        safetensors.torch.save_file,  # type: ignore[attr-defined]
                         state_dict,
                         os.path.join(output_dir, SAFE_WEIGHTS_NAME),
                     ):
@@ -1727,30 +1769,34 @@ class AtorchTrainer:
             A dictionary containing the evaluation loss and the potential metrics computed from the predictions. The
             dictionary also contains the epoch number which comes from the training state.
         """
-        self.eval_dataloader = self.get_eval_dataloader(eval_dataset)
-        logger.info("Start evaluation")
-        self.model.eval()
-        losses = []
-        for step, batch in enumerate(self.eval_dataloader):
-            with torch.no_grad():
-                batch = {k: v.to(self.args.device) for k, v in batch.items()}
-                with self.autocast_smart_context_manager():
-                    loss = self.compute_loss(self.model, batch)
-                repeated_loss = loss.repeat(self.args.per_device_eval_batch_size)
-                if repeated_loss.ndim == 0:
-                    repeated_loss = repeated_loss[None]
-                output_tensors = [repeated_loss for _ in range(self.args.world_size)]
-                torch.distributed.all_gather(output_tensors, repeated_loss)
-                losses.append(torch.cat([t.detach().cpu() for t in output_tensors], dim=0))
+        eval_dataloader = self.get_eval_dataloader(eval_dataset)
+        start_time = time.time()
 
-        losses = torch.cat(losses)
-        losses = losses[: len(self.eval_dataset)]
-        mean_loss = torch.mean(losses).item()
-        metrics = {"eval_loss": mean_loss, "step": self.state.global_step}
-        self.log(metrics)
-        self.control = self.callback_handler.on_evaluate(self.args, self.state, self.control, metrics)
+        output = self.evaluation_loop(
+            eval_dataloader,
+            description="Evaluation",
+            # No point gathering the predictions if there are no metrics, otherwise we defer to
+            # self.args.prediction_loss_only
+            prediction_loss_only=True if self.compute_metrics is None else None,
+            ignore_keys=ignore_keys,
+            metric_key_prefix=metric_key_prefix,
+        )
 
-        return metrics
+        total_batch_size = self.args.eval_batch_size * self.args.world_size
+        output.metrics.update(
+            speed_metrics(
+                metric_key_prefix,
+                start_time,
+                num_samples=output.num_samples,
+                num_steps=math.ceil(output.num_samples / total_batch_size),
+            )
+        )
+
+        self.log(output.metrics)
+
+        self.control = self.callback_handler.on_evaluate(self.args, self.state, self.control, output.metrics)
+
+        return output.metrics
 
     def predict(
         self, test_dataset: Dataset, ignore_keys: Optional[List[str]] = None, metric_key_prefix: str = "test"
@@ -1787,8 +1833,212 @@ class AtorchTrainer:
             - metrics (`Dict[str, float]`, *optional*): The potential dictionary of metrics (if the dataset contained
               labels).
         """
-        # Do Atorch predict
-        raise NotImplementedError("`predict` is not implemented.")
+
+        test_dataloader = self.get_test_dataloader(test_dataset)
+        start_time = time.time()
+
+        output = self.evaluation_loop(
+            test_dataloader, description="Prediction", ignore_keys=ignore_keys, metric_key_prefix=metric_key_prefix
+        )
+        total_batch_size = self.args.eval_batch_size * self.args.world_size
+        output.metrics.update(
+            speed_metrics(
+                metric_key_prefix,
+                start_time,
+                num_samples=output.num_samples,
+                num_steps=math.ceil(output.num_samples / total_batch_size),
+            )
+        )
+
+        self.control = self.callback_handler.on_predict(self.args, self.state, self.control, output.metrics)
+
+        return PredictionOutput(predictions=output.predictions, label_ids=output.label_ids, metrics=output.metrics)
+
+    def evaluation_loop(
+        self,
+        dataloader: DataLoader,
+        description: str,
+        prediction_loss_only: Optional[bool] = None,
+        ignore_keys: Optional[List[str]] = None,
+        metric_key_prefix: str = "eval",
+    ) -> EvalLoopOutput:
+        """
+        Prediction/evaluation loop, shared by `Trainer.evaluate()` and `Trainer.predict()`.
+
+        Works both with or without labels.
+        """
+        args = self.args
+
+        prediction_loss_only = prediction_loss_only if prediction_loss_only is not None else args.prediction_loss_only
+
+        model = self.model
+
+        # if full fp16 or bf16 eval is wanted and this ``evaluation`` or ``predict`` isn't called
+        # while ``train`` is running, cast it to the right dtype first and then put on device
+        if not self.is_in_train:
+            if args.fp16_full_eval:
+                model = model.to(dtype=torch.float16, device=args.device)
+            elif args.bf16_full_eval:
+                model = model.to(dtype=torch.bfloat16, device=args.device)
+
+        batch_size = self.args.eval_batch_size
+
+        logger.info(f"***** Running {description} *****")
+        if has_length(dataloader):
+            logger.info(f"  Num examples = {self.num_examples(dataloader)}")
+        else:
+            logger.info("  Num examples: Unknown")
+        logger.info(f"  Batch size = {batch_size}")
+
+        model.eval()
+
+        self.callback_handler.eval_dataloader = dataloader
+        # Do this before wrapping.
+        eval_dataset = getattr(dataloader, "dataset", None)
+
+        if args.past_index >= 0:
+            self._past = None
+
+        # Initialize containers
+        # losses/preds/labels on GPU/TPU (accumulated for eval_accumulation_steps)
+        losses_host = None
+        preds_host = None
+        labels_host = None
+        inputs_host = None
+
+        # losses/preds/labels on CPU (final containers)
+        all_losses = None
+        all_preds = None
+        all_labels = None
+        all_inputs = None
+        # Will be useful when we have an iterable dataset so don't know its length.
+
+        observed_num_examples = 0
+        # Main evaluation loop
+        for step, inputs in enumerate(dataloader):
+            # Update the observed num examples
+            observed_batch_size = find_batch_size(inputs)
+            if observed_batch_size is not None:
+                observed_num_examples += observed_batch_size
+                # For batch samplers, batch_size is not known by the dataloader in advance.
+                if batch_size is None:
+                    batch_size = observed_batch_size
+
+            # Prediction step
+            loss, logits, labels = self.prediction_step(model, inputs, prediction_loss_only, ignore_keys=ignore_keys)
+            inputs_decode = self._prepare_input(inputs["input_ids"]) if args.include_inputs_for_metrics else None
+
+            # Update containers on host
+            if loss is not None:
+                losses = self.accelerator.gather_for_metrics((loss.repeat(batch_size)))
+                losses_host = losses if losses_host is None else nested_concat(losses_host, losses, padding_index=-100)
+            if labels is not None:
+                labels = self.accelerator.pad_across_processes(labels, dim=1, pad_index=-100)
+            if inputs_decode is not None:
+                inputs_decode = self.accelerator.pad_across_processes(inputs_decode, dim=1, pad_index=-100)
+                inputs_decode = self.accelerator.gather_for_metrics((inputs_decode))
+                inputs_host = (
+                    inputs_decode
+                    if inputs_host is None
+                    else nested_concat(inputs_host, inputs_decode, padding_index=-100)
+                )
+            if logits is not None:
+                logits = self.accelerator.pad_across_processes(logits, dim=1, pad_index=-100)
+                if self.preprocess_logits_for_metrics is not None:
+                    logits = self.preprocess_logits_for_metrics(logits, labels)
+                logits = self.accelerator.gather_for_metrics((logits))
+                preds_host = logits if preds_host is None else nested_concat(preds_host, logits, padding_index=-100)
+
+            if labels is not None:
+                labels = self.accelerator.gather_for_metrics((labels))
+                labels_host = labels if labels_host is None else nested_concat(labels_host, labels, padding_index=-100)
+
+            self.control = self.callback_handler.on_prediction_step(args, self.state, self.control)
+
+            # Gather all tensors and put them back on the CPU if we have done enough accumulation steps.
+            if (
+                args.eval_accumulation_steps is not None
+                and step % args.eval_accumulation_steps == 0
+                and self.accelerator.sync_gradients
+            ):
+                if losses_host is not None:
+                    losses = nested_numpify(losses_host)
+                    all_losses = losses if all_losses is None else np.concatenate((all_losses, losses), axis=0)
+                if preds_host is not None:
+                    logits = nested_numpify(preds_host)
+                    all_preds = logits if all_preds is None else nested_concat(all_preds, logits, padding_index=-100)
+                if inputs_host is not None:
+                    inputs_decode = nested_numpify(inputs_host)
+                    all_inputs = (
+                        inputs_decode
+                        if all_inputs is None
+                        else nested_concat(all_inputs, inputs_decode, padding_index=-100)
+                    )
+                if labels_host is not None:
+                    labels = nested_numpify(labels_host)
+                    all_labels = labels if all_labels is None else nested_concat(all_labels, labels, padding_index=-100)
+
+                # Set back to None to begin a new accumulation
+                losses_host, preds_host, inputs_host, labels_host = None, None, None, None
+
+        if args.past_index and hasattr(self, "_past"):
+            # Clean the state at the end of the evaluation loop
+            delattr(self, "_past")
+
+        # Gather all remaining tensors and put them back on the CPU
+        if losses_host is not None:
+            losses = nested_numpify(losses_host)
+            all_losses = losses if all_losses is None else np.concatenate((all_losses, losses), axis=0)
+        if preds_host is not None:
+            logits = nested_numpify(preds_host)
+            all_preds = logits if all_preds is None else nested_concat(all_preds, logits, padding_index=-100)
+        if inputs_host is not None:
+            inputs_decode = nested_numpify(inputs_host)
+            all_inputs = (
+                inputs_decode if all_inputs is None else nested_concat(all_inputs, inputs_decode, padding_index=-100)
+            )
+        if labels_host is not None:
+            labels = nested_numpify(labels_host)
+            all_labels = labels if all_labels is None else nested_concat(all_labels, labels, padding_index=-100)
+
+        # Number of samples
+        if has_length(eval_dataset):
+            num_samples = len(eval_dataset)
+        # The instance check is weird and does not actually check for the type, but whether the dataset has the right
+        # methods. Therefore we need to make sure it also has the attribute.
+        elif isinstance(eval_dataset, IterableDatasetShard) and getattr(eval_dataset, "num_examples", 0) > 0:
+            num_samples = eval_dataset.num_examples
+        else:
+            if has_length(dataloader):
+                num_samples = self.num_examples(dataloader)
+            else:  # both len(dataloader.dataset) and len(dataloader) fail
+                num_samples = observed_num_examples
+        if num_samples == 0 and observed_num_examples > 0:
+            num_samples = observed_num_examples
+
+        # Metrics!
+        if self.compute_metrics is not None and all_preds is not None and all_labels is not None:
+            if args.include_inputs_for_metrics:
+                metrics = self.compute_metrics(
+                    EvalPrediction(predictions=all_preds, label_ids=all_labels, inputs=all_inputs)
+                )
+            else:
+                metrics = self.compute_metrics(EvalPrediction(predictions=all_preds, label_ids=all_labels))
+        else:
+            metrics = {}
+
+        # To be JSON-serializable, we need to remove numpy types or zero-d tensors
+        metrics = denumpify_detensorize(metrics)
+
+        if all_losses is not None:
+            metrics[f"{metric_key_prefix}_loss"] = all_losses.mean().item()
+
+        # Prefix all keys with metric_key_prefix + '_'
+        for key in list(metrics.keys()):
+            if not key.startswith(f"{metric_key_prefix}_"):
+                metrics[f"{metric_key_prefix}_{key}"] = metrics.pop(key)
+
+        return EvalLoopOutput(predictions=all_preds, label_ids=all_labels, metrics=metrics, num_samples=num_samples)
 
     def training_step(self, model: nn.Module, inputs: Dict[str, Union[torch.Tensor, Any]]) -> torch.Tensor:
         """
@@ -1828,6 +2078,95 @@ class AtorchTrainer:
             loss.backward()
 
         return loss.detach() / self.args.gradient_accumulation_steps
+
+    def prediction_step(
+        self,
+        model: nn.Module,
+        inputs: Dict[str, Union[torch.Tensor, Any]],
+        prediction_loss_only: bool,
+        ignore_keys: Optional[List[str]] = None,
+    ) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor], Optional[torch.Tensor]]:
+        """
+        Perform an evaluation step on `model` using `inputs`.
+
+        Subclass and override to inject custom behavior.
+
+        Args:
+            model (`nn.Module`):
+                The model to evaluate.
+            inputs (`Dict[str, Union[torch.Tensor, Any]]`):
+                The inputs and targets of the model.
+
+                The dictionary will be unpacked before being fed to the model. Most models expect the targets under the
+                argument `labels`. Check your model's documentation for all accepted arguments.
+            prediction_loss_only (`bool`):
+                Whether or not to return the loss only.
+            ignore_keys (`List[str]`, *optional*):
+                A list of keys in the output of your model (if it is a dictionary) that should be ignored when
+                gathering predictions.
+
+        Return:
+            Tuple[Optional[torch.Tensor], Optional[torch.Tensor], Optional[torch.Tensor]]: A tuple with the loss,
+            logits and labels (each being optional).
+        """
+        has_labels = False if len(self.label_names) == 0 else all(inputs.get(k) is not None for k in self.label_names)
+        # For CLIP-like models capable of returning loss values.
+        # If `return_loss` is not specified or being `None` in `inputs`, we check if the default value of `return_loss`
+        # is `True` in `model.forward`.
+        return_loss = inputs.get("return_loss", None)
+        if return_loss is None:
+            return_loss = self.can_return_loss
+        loss_without_labels = True if len(self.label_names) == 0 and return_loss else False
+
+        inputs = (
+            self.prepare_input(inputs, self.args.device)
+            if self.prepare_input is not None
+            else self._prepare_inputs(inputs)
+        )
+        if ignore_keys is None:
+            unwrapped_model = unwrap_model(self.model)
+            if hasattr(unwrapped_model, "config"):
+                ignore_keys = getattr(unwrapped_model.config, "keys_to_ignore_at_inference", [])
+            else:
+                ignore_keys = []
+
+        # labels may be popped when computing the loss (label smoothing for instance) so we grab them first.
+        if has_labels or loss_without_labels:
+            labels = nested_detach(tuple(inputs.get(name) for name in self.label_names))
+            if len(labels) == 1:
+                labels = labels[0]
+        else:
+            labels = None
+
+        with torch.no_grad():
+            if has_labels or loss_without_labels:
+                with self.autocast_smart_context_manager():
+                    loss, outputs = self.compute_loss(model, inputs, return_outputs=True)
+                loss = loss.mean().detach()
+
+            else:
+                loss = None
+                with self.autocast_smart_context_manager():
+                    outputs = model(**inputs)
+                # TODO: this needs to be fixed and made cleaner later.
+                if self.args.past_index >= 0:
+                    self._past = outputs[self.args.past_index - 1]
+
+            logits = None
+            if isinstance(outputs, dict):
+                logits = tuple(outputs.get(name) for name in self.logit_names)
+            else:
+                if self.args.logit_index >= 0:
+                    logits = (outputs[self.args.logit_index],)
+
+        if prediction_loss_only:
+            return (loss, None, None)
+
+        logits = nested_detach(logits)
+        if len(logits) == 1:
+            logits = logits[0]
+
+        return (loss, logits, labels)
 
     def _prepare_input(self, data: Union[torch.Tensor, Any]) -> Union[torch.Tensor, Any]:
         """

@@ -21,6 +21,7 @@ from atorch.auto.opt_lib.utils import _propose_leaf_modules, _propose_wrap_cls, 
 from atorch.common.log_utils import default_logger as logger
 from atorch.data import ShmDataloader, expand_batch_dim, get_sample_batch
 from atorch.distributed.distributed import (
+    get_sequence_parallel_size,
     local_rank,
     parallel_group_and_ranks,
     parallel_group_size,
@@ -35,7 +36,7 @@ from atorch.utils.version import torch_version
 try:
     from pippy.IR import LossWrapper
 except ImportError:
-    LossWrapper = None
+    LossWrapper = type(object())
 
 from atorch.amp.pipe_amp import _hack_pipe_amp_optimizer, scale_backward_wrapper
 
@@ -88,6 +89,7 @@ def if_use_shm_dataloader():
 
 
 def get_data_partition_rank_and_size():
+    # data, zero are all data parallel and can be mixed used.
     data_size = parallel_group_size("data")
     drank = parallel_rank("data")
     if data_size is None:
@@ -98,6 +100,16 @@ def get_data_partition_rank_and_size():
         zrank = parallel_rank("zero")
         drank = drank * zero_size + zrank
         data_size *= zero_size
+    sp_size = get_sequence_parallel_size()
+    # If sequence parallel used, it is a sequence sharding in data.
+    # Thus, every sp_size ranks share a same training data batch.
+    if sp_size > 1:
+        if data_size % sp_size != 0:
+            logger.error(
+                "data parallel size {} should be divisible by sequence parallel size {}!".format(data_size, sp_size)
+            )
+        data_size = data_size // sp_size
+        drank = drank // sp_size
 
     return drank, data_size
 
@@ -206,9 +218,6 @@ class ModelContext(object):
         return isinstance(self.model, LossWrapper)
 
     def _check_loss_wrapper(self):
-        # import pippy internally
-        from pippy.IR import LossWrapper
-
         return isinstance(self.model, LossWrapper)
 
     def _dynamo_capture_graph(self, input_batch):
@@ -332,6 +341,7 @@ class ModelContext(object):
                         )
                     )
 
+        # TODO: if sequence parallel is used, supports only one rank reads/processes data.
         rank0_global_rank, rank, group_size = if_use_shm_dataloader()
         if rank0_global_rank is not None:
             dataloader_args = args
@@ -699,7 +709,7 @@ class ModelContext(object):
                 _insert_amp_config_for_tp_ckpt(amp_config)
 
         # adjust pre_wrapper order
-        order_wrapper_name = ["half", "module_replace", "fp8", "fsdp", "native_dynamo"]
+        order_wrapper_name = ["half", "module_replace", "sequence_parallel", "fp8", "fsdp", "native_dynamo"]
         match_names = []
         for name in self.pre_wrappers:
             if name in order_wrapper_name:

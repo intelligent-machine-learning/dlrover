@@ -134,7 +134,10 @@ class JobMetricCollector(BaseMetricCollector):
 
     @BaseMetricCollector.catch_exception
     def collect_custom_data(self, metric_dict=None):
-        if metric_dict and not metric_dict <= self._custom_metric:
+        if (
+            metric_dict
+            and not metric_dict.items() <= self._custom_metric.items()
+        ):
             self._custom_metric.update(metric_dict)
         self._stats_reporter.report_customized_data(self._custom_metric)
 
