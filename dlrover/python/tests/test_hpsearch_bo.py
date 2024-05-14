@@ -48,6 +48,7 @@ class BayesianOptimizerTest(unittest.TestCase):
         bo = BayesianOptimizer(
             self.bounds, self.history, self.num_candidates, use_variance=False
         )
+        # Get random cold start candidates when history is empty
         cold_start_cands = bo.optimize()
         self.assertEqual(len(cold_start_cands), self.num_candidates)
         self.assertEqual(len(cold_start_cands[0].parameters), hartmann.dim)
@@ -57,6 +58,7 @@ class BayesianOptimizerTest(unittest.TestCase):
 
         best_observations = [max([cand.reward for cand in cold_start_cands])]
 
+        # Perform BO loops here
         for _ in range(self.num_runs):
             cands = BayesianOptimizer(
                 self.bounds,
@@ -69,6 +71,7 @@ class BayesianOptimizerTest(unittest.TestCase):
             self.history.append(cands)
 
         # This test could fail in a very very rare circumstances
+        # In most cases, the best observation at the end should be the best
         self.assertGreater(best_observations[-1], best_observations[0])
 
     def test_bo_with_variance(self):
@@ -76,6 +79,7 @@ class BayesianOptimizerTest(unittest.TestCase):
         bo = BayesianOptimizer(
             self.bounds, self.history, self.num_candidates, use_variance=True
         )
+        # Get random cold start candidates when history is empty
         cold_start_cands = bo.optimize()
         self.assertEqual(len(cold_start_cands), self.num_candidates)
         self.assertEqual(len(cold_start_cands[0].parameters), hartmann.dim)
@@ -85,6 +89,7 @@ class BayesianOptimizerTest(unittest.TestCase):
 
         best_observations = [max([cand.reward for cand in cold_start_cands])]
 
+        # Perform BO loops here
         for _ in range(self.num_runs):
             cands = BayesianOptimizer(
                 self.bounds,
@@ -97,4 +102,5 @@ class BayesianOptimizerTest(unittest.TestCase):
             self.history.append(cands)
 
         # This test could fail in a very very rare circumstances
+        # In most cases, the best observation at the end should be the best
         self.assertGreater(best_observations[-1], best_observations[0])
