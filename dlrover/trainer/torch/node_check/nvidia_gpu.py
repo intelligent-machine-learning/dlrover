@@ -17,8 +17,6 @@ from datetime import timedelta
 import torch
 import torch.distributed as dist
 
-from dlrover.python.common.log import default_logger as logger
-
 from .utils import bm_allreduce, matmul, record_execution_time
 
 
@@ -42,4 +40,3 @@ def main():
 
 if __name__ == "__main__":
     t = main()
-    logger.info(f"Finish checking node in {t}s.")
