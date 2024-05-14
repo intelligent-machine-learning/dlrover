@@ -22,7 +22,7 @@ class RunResult:
     parameters: Tuple = ()
     reward: float = 0.0
     variance: float = 0.01
-    epsilon = 0.0
+    epsilon: float = 0.0
 
 
 class OptimizerBase(ABC):
