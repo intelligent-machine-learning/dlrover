@@ -79,8 +79,12 @@ class NodeStatus(object):
 
 
 class NodeEventType(object):
+    """Notice: the type here is equal to the pod event type by k8s"""
+
+    ADDED = "ADDED"
     MODIFIED = "MODIFIED"
     DELETED = "DELETED"
+    ERROR = "ERROR"
 
 
 class NodeExitReason(object):
