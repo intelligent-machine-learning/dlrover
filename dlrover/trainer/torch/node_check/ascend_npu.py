@@ -23,8 +23,6 @@ try:
 except Exception:
     torch_npu = None
 
-from dlrover.python.common.log import default_logger as logger
-
 from .utils import bm_allgather, matmul, record_execution_time
 
 
@@ -56,4 +54,3 @@ def main():
 
 if __name__ == "__main__":
     t = main()
-    logger.info(f"Finish checking node in {t}s.")

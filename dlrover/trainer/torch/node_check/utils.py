@@ -35,6 +35,7 @@ def record_execution_time(func):
 def log_execution_time(func):
     def wrapper(*args, **kwargs):
         t = func(*args, **kwargs)
+        t = round(t, 3)
         local_rank = int(os.environ["LOCAL_RANK"])
         func_name = func.__name__
         logger.info(
