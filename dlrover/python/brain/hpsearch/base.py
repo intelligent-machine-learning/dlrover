@@ -12,11 +12,9 @@
 # limitations under the License.
 
 
-from typing import Any, Tuple, Literal, List
 from abc import ABC, abstractmethod
-import numpy as np
-
 from dataclasses import dataclass
+from typing import Any, List, Tuple
 
 
 @dataclass

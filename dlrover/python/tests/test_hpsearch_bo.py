@@ -12,25 +12,32 @@
 # limitations under the License.
 
 import unittest
+
 import torch
-from dlrover.python.brain.hpsearch.bo import BayesianOptimizer
 from botorch.test_functions import Hartmann
+
+from dlrover.python.brain.hpsearch.bo import BayesianOptimizer
 
 hartmann = Hartmann()
 variance = 0.01
 
+
 def obj(X):
     return -hartmann(X)
 
+
 def observe(candidates, variance=0.0):
     for cand in candidates:
-        cand.reward = obj(torch.tensor(cand.parameters)) + torch.randn(1) * variance
+        cand.reward = (
+            obj(torch.tensor(cand.parameters)) + torch.randn(1) * variance
+        )
         cand.variance = variance
+
 
 class BayesianOptimizerTest(unittest.TestCase):
     def setUp(self) -> None:
         self.bounds = [[0.0, 1.0] for _ in range(hartmann.dim)]
-        self.history =[]
+        self.history = []
         self.num_candidates = 3
         self.num_runs = 10
 
@@ -50,7 +57,10 @@ class BayesianOptimizerTest(unittest.TestCase):
 
         for _ in range(self.num_runs):
             cands = BayesianOptimizer(
-                self.bounds, self.history, self.num_candidates, use_variance=False
+                self.bounds,
+                self.history,
+                self.num_candidates,
+                use_variance=False,
             ).optimize()
             observe(cands)
             best_observations.append(max([cand.reward for cand in cands]))
@@ -75,7 +85,10 @@ class BayesianOptimizerTest(unittest.TestCase):
 
         for _ in range(self.num_runs):
             cands = BayesianOptimizer(
-                self.bounds, self.history, self.num_candidates, use_variance=True
+                self.bounds,
+                self.history,
+                self.num_candidates,
+                use_variance=True,
             ).optimize()
             observe(cands)
             best_observations.append(max([cand.reward for cand in cands]))

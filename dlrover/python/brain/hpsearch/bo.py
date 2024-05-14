@@ -12,18 +12,17 @@
 # limitations under the License.
 
 
-from dlrover.python.brain.hpsearch.base import OptimizerBase, RunResult
-import numpy as np
-
 import torch
-from botorch.models import SingleTaskGP
-from botorch.fit import fit_gpytorch_mll
-from gpytorch.mlls import ExactMarginalLogLikelihood
-from botorch.optim import optimize_acqf
 from botorch.acquisition import qExpectedImprovement, qNoisyExpectedImprovement
-from botorch.sampling.normal import SobolQMCNormalSampler
-from botorch.models.transforms.outcome import Standardize
+from botorch.fit import fit_gpytorch_mll
+from botorch.models import SingleTaskGP
 from botorch.models.transforms.input import Normalize
+from botorch.models.transforms.outcome import Standardize
+from botorch.optim import optimize_acqf
+from botorch.sampling.normal import SobolQMCNormalSampler
+from gpytorch.mlls import ExactMarginalLogLikelihood
+
+from dlrover.python.brain.hpsearch.base import OptimizerBase, RunResult
 
 
 class BayesianOptimizer(OptimizerBase):
@@ -46,7 +45,9 @@ class BayesianOptimizer(OptimizerBase):
         if self.cold_start:
             candidate = torch.empty([self.num_candidates, len(self.bounds)])
             for i, (lower_bound, upper_bound) in enumerate(self.bounds):
-                torch.nn.init.uniform_(candidate[:, i], a=lower_bound, b=upper_bound)
+                torch.nn.init.uniform_(
+                    candidate[:, i], a=lower_bound, b=upper_bound
+                )
             candidate_ls = candidate.tolist()
         else:
             bounds = torch.tensor(self.bounds).T
@@ -93,7 +94,9 @@ class BayesianOptimizer(OptimizerBase):
                     model, train_x, sampler
                 )
             else:
-                expected_improvement = qExpectedImprovement(model, best_f=train_y.max())
+                expected_improvement = qExpectedImprovement(
+                    model, best_f=train_y.max()
+                )
 
             num_restarts = self.NUM_RESTARTS
             raw_samples = self.RAW_SAMPLES
@@ -107,5 +110,7 @@ class BayesianOptimizer(OptimizerBase):
             )
 
         candidate_ls = candidate.tolist()
-        runs = list([RunResult(parameters=tuple(sample)) for sample in candidate_ls])
+        runs = list(
+            [RunResult(parameters=tuple(sample)) for sample in candidate_ls]
+        )
         return runs
