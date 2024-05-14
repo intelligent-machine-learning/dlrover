@@ -106,8 +106,8 @@ def _convert_pod_event_to_node_event(event, k8s_client):
     host_name = evt_obj.spec.node_name
     host_ip = evt_obj.status.host_ip
 
-    # Skip event of pod deleted if the deleted pod already exist for
-    # the deleted pod have already been successfully recovered
+    # Skip deleted event of pod if the cluster has relaunched a new pod with
+    # the same type and rank as the deleted pod.
     if evt_type == NodeEventType.DELETED:
         pod_labels_selector = k8s_util.gen_k8s_label_selector_from_dict(
             _get_pod_unique_labels(job_name, pod_type, rank)
