@@ -116,7 +116,9 @@ def _convert_pod_event_to_node_event(event, k8s_client):
         if (
             pods
             and len(pods.items) > 0
-            and pods.items[0].status.phase == NodeStatus.RUNNING
+            and any(
+                pod.status.phase == NodeStatus.RUNNING for pod in pods.items
+            )
         ):
             logger.info(f"Skip deleted event for pod : {pod_labels_selector}.")
             return None
