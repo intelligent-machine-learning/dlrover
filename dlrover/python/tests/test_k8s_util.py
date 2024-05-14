@@ -17,8 +17,13 @@ import dlrover.python.util.k8s_util as ku
 from dlrover.python.common.constants import ElasticJobLabel, NodeType
 
 
-class KubernetesUtilTest(unittest.TestCase):
-    def test_kubernetes_label_selector_transformation(self):
+class K8sUtilTest(unittest.TestCase):
+    """
+    This is a test for testing util for k8s.(To distunguish with
+    'test_k8s_utils')
+    """
+
+    def test_k8s_label_selector_transformation(self):
         master_labels = {
             ElasticJobLabel.JOB_KEY: "ut-test",
             ElasticJobLabel.REPLICA_TYPE_KEY: NodeType.DLROVER_MASTER,
@@ -31,3 +36,21 @@ class KubernetesUtilTest(unittest.TestCase):
 
         dict_result = ku.gen_dict_from_k8s_label_selector(selector_result)
         self.assertEqual(master_labels, dict_result)
+
+    def test_is_target_labels_equal(self):
+        target_labels = {"k1": "1"}
+        source_labels = {"k1": "1", "k2": "v2", "k3": "v3"}
+        self.assertTrue(
+            ku.is_target_labels_equal(target_labels, source_labels))
+
+        target_labels = {"k1": "1", "k2": "v3"}
+        self.assertFalse(
+            ku.is_target_labels_equal(target_labels, source_labels))
+
+        target_labels = {"k2": "v2", "k1": "1"}
+        self.assertTrue(
+            ku.is_target_labels_equal(target_labels, source_labels))
+
+        target_labels = {"k2": "v2", "k1": 1}
+        self.assertTrue(
+            ku.is_target_labels_equal(target_labels, source_labels))

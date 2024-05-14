@@ -20,6 +20,7 @@ from kubernetes import client
 
 from dlrover.python.common.constants import (
     ElasticJobLabel,
+    NodeEventType,
     NodeExitReason,
     NodeStatus,
     NodeType,
@@ -44,6 +45,7 @@ from dlrover.python.tests.test_utils import (
 def _mock_pod_labels():
     labels = {
         ElasticJobLabel.APP_NAME: "test",
+        ElasticJobLabel.JOB_KEY: "test",
         ElasticJobLabel.REPLICA_TYPE_KEY: NodeType.WORKER,
         ElasticJobLabel.REPLICA_INDEX_KEY: "0",
         ElasticJobLabel.RANK_INDEX_KEY: "0",
@@ -79,14 +81,25 @@ class PodWatcherTest(unittest.TestCase):
     def test_convert_pod_event_to_node_event(self):
         labels = _mock_pod_labels()
         pod = create_pod(labels)
-        event_type = "Modified"
+        event_type = NodeEventType.MODIFIED
         event = {"object": pod, "type": event_type}
-        node_event: NodeEvent = _convert_pod_event_to_node_event(event)
+        node_event: NodeEvent = _convert_pod_event_to_node_event(event, [pod])
         self.assertEqual(node_event.event_type, event_type)
         self.assertEqual(node_event.node.id, 0)
         self.assertEqual(node_event.node.type, NodeType.WORKER)
         self.assertEqual(node_event.node.config_resource.cpu, 1)
         self.assertEqual(node_event.node.config_resource.memory, 10240)
+
+    def test_convert_pod_deleted_event_to_node_event_with_duplicated_running_pod(
+        self,
+    ):
+        # one of the mocked label must be the same with the one generated in
+        # 'test_utils.py#mock_list_namespaced_pod'
+        labels = _mock_pod_labels()
+        pod = create_pod(labels)
+        event_type = NodeEventType.DELETED
+        event = {"object": pod, "type": event_type}
+        self.assertIsNone(_convert_pod_event_to_node_event(event, [pod]))
 
     def test_get_pod_exit_reason(self):
         labels = _mock_pod_labels()
