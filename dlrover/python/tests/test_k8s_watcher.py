@@ -56,7 +56,7 @@ def _mock_pod_labels():
 
 class PodWatcherTest(unittest.TestCase):
     def setUp(self) -> None:
-        mock_k8s_client()
+        self.k8s_client = mock_k8s_client()
 
     def test_list(self):
         mock_k8s_client()
@@ -83,7 +83,9 @@ class PodWatcherTest(unittest.TestCase):
         pod = create_pod(labels)
         event_type = NodeEventType.MODIFIED
         event = {"object": pod, "type": event_type}
-        node_event: NodeEvent = _convert_pod_event_to_node_event(event, [pod])
+        node_event: NodeEvent = _convert_pod_event_to_node_event(
+            event, self.k8s_client
+        )
         self.assertEqual(node_event.event_type, event_type)
         self.assertEqual(node_event.node.id, 0)
         self.assertEqual(node_event.node.type, NodeType.WORKER)
@@ -99,7 +101,9 @@ class PodWatcherTest(unittest.TestCase):
         pod = create_pod(labels)
         event_type = NodeEventType.DELETED
         event = {"object": pod, "type": event_type}
-        self.assertIsNone(_convert_pod_event_to_node_event(event, [pod]))
+        self.assertIsNone(
+            _convert_pod_event_to_node_event(event, self.k8s_client)
+        )
 
     def test_get_pod_exit_reason(self):
         labels = _mock_pod_labels()

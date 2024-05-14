@@ -81,7 +81,7 @@ def _get_pod_exit_reason(pod):
             return NodeExitReason.UNKNOWN_ERROR
 
 
-def _convert_pod_event_to_node_event(event, pod_list):
+def _convert_pod_event_to_node_event(event, k8s_client):
     evt_obj = event.get("object")
     evt_type = event.get("type")
     if not evt_obj or not evt_type:
@@ -109,15 +109,16 @@ def _convert_pod_event_to_node_event(event, pod_list):
     # Skip event of pod deleted if the deleted pod already exist for
     # the deleted pod have already been successfully recovered
     if evt_type == NodeEventType.DELETED:
-        pod_labels = _get_pod_unique_labels(job_name, pod_type, rank)
-        any_existed_running_pod = any(
-            k8s_util.is_target_labels_equal(pod_labels, pod.metadata.labels)
-            for pod in pod_list
+        pod_labels_selector = k8s_util.gen_k8s_label_selector_from_dict(
+            _get_pod_unique_labels(job_name, pod_type, rank)
         )
-        if any_existed_running_pod:
-            logger.info(
-                f"Skip deleted event for pod with labels :" f" {pod_labels}."
-            )
+        pods = k8s_client.list_namespaced_pod(pod_labels_selector)
+        if (
+            pods
+            and len(pods.items) > 0
+            and pods.items[0].status.phase == NodeStatus.RUNNING
+        ):
+            logger.info(f"Skip deleted event for pod : {pod_labels_selector}.")
             return None
 
     restart = _verify_restarting_training(evt_obj)
