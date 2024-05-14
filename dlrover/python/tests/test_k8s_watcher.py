@@ -90,7 +90,7 @@ class PodWatcherTest(unittest.TestCase):
         self.assertEqual(node_event.node.config_resource.cpu, 1)
         self.assertEqual(node_event.node.config_resource.memory, 10240)
 
-    def test_convert_pod_deleted_event_to_node_event_with_duplicated_running_pod(
+    def test_convert_pod_deleted_event_to_node_event_with_existed_running_pod(
         self,
     ):
         # one of the mocked label must be the same with the one generated in
