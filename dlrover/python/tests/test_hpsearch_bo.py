@@ -12,10 +12,12 @@
 # limitations under the License.
 
 import unittest
+from typing import List
 
 import torch
 from botorch.test_functions import Hartmann
 
+from dlrover.python.brain.hpsearch.base import RunResult
 from dlrover.python.brain.hpsearch.bo import BayesianOptimizer
 
 hartmann = Hartmann()
@@ -37,7 +39,7 @@ def observe(candidates, variance=0.0):
 class BayesianOptimizerTest(unittest.TestCase):
     def setUp(self) -> None:
         self.bounds = [[0.0, 1.0] for _ in range(hartmann.dim)]
-        self.history = []
+        self.history: List[List[RunResult]] = []
         self.num_candidates = 3
         self.num_runs = 10
 

@@ -12,6 +12,8 @@
 # limitations under the License.
 
 
+from typing import List, Tuple
+
 import torch
 from botorch.acquisition import qExpectedImprovement, qNoisyExpectedImprovement
 from botorch.fit import fit_gpytorch_mll
@@ -32,8 +34,8 @@ class BayesianOptimizer(OptimizerBase):
 
     def __init__(
         self,
-        bounds: list[tuple[float, float]],
-        history: list[list[RunResult]],
+        bounds: List[Tuple[float, float]],
+        history: List[List[RunResult]],
         num_candidates: int,
         use_variance: bool = False,
         **kwargs
