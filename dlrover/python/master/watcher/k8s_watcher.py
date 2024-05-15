@@ -113,6 +113,7 @@ def _convert_pod_event_to_node_event(event, k8s_client):
         pod_labels_selector = k8s_util.gen_k8s_label_selector_from_dict(
             _get_pod_unique_labels(job_name, pod_type, rank)
         )
+        logger.info(f"Query running pod with labels: {pod_labels_selector}.")
         pods = k8s_client.list_namespaced_pod(pod_labels_selector)
         if (
             pods
@@ -121,7 +122,10 @@ def _convert_pod_event_to_node_event(event, k8s_client):
                 pod.status.phase == NodeStatus.RUNNING for pod in pods.items
             )
         ):
-            logger.info(f"Skip deleted event for pod : {pod_labels_selector}.")
+            logger.info(
+                f"Skip deleted event for pod : {pod_labels_selector} "
+                f"for same running pod already exisits."
+            )
             return None
 
     restart = _verify_restarting_training(evt_obj)
