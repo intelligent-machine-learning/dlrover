@@ -28,6 +28,36 @@ from dlrover.python.brain.hpsearch.base import OptimizerBase, RunResult
 
 
 class BayesianOptimizer(OptimizerBase):
+    """A Bayesian optimization algorithm for optimizing black-box functions.
+
+    This class implements a Bayesian optimization algorithm using Gaussian Processes (GPs)
+    to model the objective function and an acquisition function to propose new points
+    to evaluate. The acquisition function can be either the Expected Improvement (EI)
+    or the Noisy Expected Improvement (NEI) depending on whether the objective function
+    is deterministic or noisy.
+
+    Args:
+        use_variance (bool, optional): Whether to use the NEI acquisition function for
+            noisy objective functions. Default is False.
+        **kwargs: Additional keyword arguments to be passed to the base class.
+
+    Attributes:
+        NUM_RESTARTS (int): The number of restarts for the optimization of the acquisition function.
+        RAW_SAMPLES (int): The number of raw samples used for optimizing the acquisition function.
+        MC_SAMPLES (int): The number of Monte Carlo samples used for the NEI acquisition function.
+        use_variance (bool): Whether to use the NEI acquisition function for noisy objective functions.
+
+    Example:
+        Refer to `test_hpsearch_bo.py` for a complete optimization loop.
+        In brief, create a BayesianOptimizer instance first:
+            >>> optimizer = BayesianOptimizer(bounds, history, num_candidates)
+        if the history is empty, the optimizer will sample random points from the
+        search space and return them as the initial candidates. Otherwise, it will
+        use the history to fit a GP model and optimize the acquisition function.
+        Next, get the next set of candidates:
+            >>> candidates = optimizer.optimize()
+    """  # noqa: E501
+
     NUM_RESTARTS = 5
     RAW_SAMPLES = 256
     MC_SAMPLES = 256

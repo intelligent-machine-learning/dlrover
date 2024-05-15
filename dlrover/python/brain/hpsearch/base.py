@@ -14,7 +14,7 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, List, Tuple
+from typing import List, Tuple
 
 
 @dataclass
@@ -26,6 +26,16 @@ class RunResult:
 
 
 class OptimizerBase(ABC):
+    """Base class for hyperparameter optimization
+
+    Args:
+        bounds (List[Tuple[float, float]]): A list of tuples representing the lower and
+            upper bounds for each input dimension.
+        history (List[List[RunResult]]): A list of lists containing the previously evaluated
+            points and their corresponding objective values.
+        num_candidates (int): The number of candidates to propose at each iteration.
+    """  # noqa: E501
+
     def __init__(
         self,
         bounds: List[Tuple[float, float]],
@@ -40,5 +50,5 @@ class OptimizerBase(ABC):
         self.cold_start = history is None or len(sum(self.history, [])) == 0
 
     @abstractmethod
-    def optimize(self) -> Any:
+    def optimize(self) -> List[RunResult]:
         pass
