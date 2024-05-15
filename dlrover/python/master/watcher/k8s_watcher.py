@@ -204,7 +204,9 @@ class PodWatcher(NodeWatcher):
                 timeout_seconds=60,
             )
             for event in stream:
-                node_event = _convert_pod_event_to_node_event(event, pod_list)
+                node_event = _convert_pod_event_to_node_event(
+                    event, self._k8s_client
+                )
                 if not node_event:
                     continue
                 yield node_event
