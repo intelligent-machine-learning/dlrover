@@ -105,7 +105,6 @@ def _convert_pod_event_to_node_event(event, k8s_client):
     pod_name = metadata.name
     host_name = evt_obj.spec.node_name
     host_ip = evt_obj.status.host_ip
-    logger.info(f"Got pod {evt_type} event for pod : {pod_name}.")
 
     # Skip deleted event of pod if the cluster has relaunched a new pod with
     # the same type and rank as the deleted pod.
@@ -113,7 +112,8 @@ def _convert_pod_event_to_node_event(event, k8s_client):
         pod_labels_selector = k8s_util.gen_k8s_label_selector_from_dict(
             _get_pod_unique_labels(job_name, pod_type, rank)
         )
-        logger.info(f"Query running pod with labels: {pod_labels_selector}.")
+        logger.info(f"Recheck running pod with labels: {pod_labels_selector} "
+                    f"for {evt_type} event.")
         pods = k8s_client.list_namespaced_pod(pod_labels_selector)
         if (
             pods
