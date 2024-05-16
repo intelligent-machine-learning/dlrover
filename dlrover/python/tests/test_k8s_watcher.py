@@ -97,9 +97,25 @@ class PodWatcherTest(unittest.TestCase):
     ):
         # one of the mocked label must be the same with the one generated in
         # 'test_utils.py#mock_list_namespaced_pod'
+
+        # test DELETED event
         labels = _mock_pod_labels()
         pod = create_pod(labels)
         event_type = NodeEventType.DELETED
+        event = {"object": pod, "type": event_type}
+        self.assertIsNone(
+            _convert_pod_event_to_node_event(event, self.k8s_client)
+        )
+
+        # test MODIFIED event without deletion_timestamp
+        event_type = NodeEventType.MODIFIED
+        event = {"object": pod, "type": event_type}
+        self.assertIsNotNone(
+            _convert_pod_event_to_node_event(event, self.k8s_client)
+        )
+
+        # test MODIFIED event with deletion_timestamp
+        pod = create_pod(labels, True)
         event = {"object": pod, "type": event_type}
         self.assertIsNone(
             _convert_pod_event_to_node_event(event, self.k8s_client)
