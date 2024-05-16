@@ -191,7 +191,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         )
         agent._config.network_check = False
         agent._config.rdzv_configs = {"pend_timeout": 0}
-        
+
         def _mock_rendezvous(self, *args):
             raise RendezvousOutSyncError("test")
 
