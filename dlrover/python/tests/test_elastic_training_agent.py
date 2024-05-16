@@ -179,6 +179,26 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         local_ip = _get_local_ip()
         self.assertEqual(local_ip, "127.0.0.1")
 
+    def test_initialize_worker(self):
+        node_id = 1
+        agent = ElasticTrainingAgent(
+            node_rank=node_id,
+            config=self.config,
+            entrypoint="python",
+            spec=self.spec,
+            start_method=self.config.start_method,
+            log_dir=self.config.log_dir,
+        )
+        agent._config.network_check = False
+        agent._config.rdzv_configs = {"pend_timeout": 0}
+
+        def _mock_rendezvous(self, *args):
+            raise RendezvousOutSyncError("test")
+
+        agent._rendezvous = _mock_rendezvous
+        with self.assertRaises(TimeoutError):
+            agent._initialize_workers(agent._worker_group)
+
 
 class ElasticTrainingAgentRunTest(unittest.TestCase):
     def setUp(self) -> None:
