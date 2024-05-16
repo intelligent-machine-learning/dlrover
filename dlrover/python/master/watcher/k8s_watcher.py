@@ -106,9 +106,15 @@ def _convert_pod_event_to_node_event(event, k8s_client):
     host_name = evt_obj.spec.node_name
     host_ip = evt_obj.status.host_ip
 
+    to_deleted_event = False
+    status = evt_obj.status.phase
+    if metadata.deletion_timestamp:
+        status = NodeStatus.DELETED
+        to_deleted_event = True
+
     # Skip deleted event of pod if the cluster has relaunched a new pod with
     # the same type and rank as the deleted pod.
-    if evt_type == NodeEventType.DELETED:
+    if evt_type == NodeEventType.DELETED or to_deleted_event:
         pod_labels_selector = k8s_util.gen_k8s_label_selector_from_dict(
             _get_pod_unique_labels(job_name, pod_type, rank)
         )
@@ -135,9 +141,6 @@ def _convert_pod_event_to_node_event(event, k8s_client):
         logger.info(f"{evt_obj.metadata.name} need to restart.")
 
     resource = _parse_container_resource(evt_obj.spec.containers[0])
-    status = evt_obj.status.phase
-    if metadata.deletion_timestamp:
-        status = NodeStatus.DELETED
 
     relaunch_count = int(metadata.labels[ElasticJobLabel.RELAUNCH_COUNT])
     node = Node(
@@ -211,7 +214,9 @@ class PodWatcher(NodeWatcher):
                 timeout_seconds=60,
             )
             for event in stream:
-                node_event = _convert_pod_event_to_node_event(event, pod_list)
+                node_event = _convert_pod_event_to_node_event(
+                    event, self._k8s_client
+                )
                 if not node_event:
                     continue
                 yield node_event

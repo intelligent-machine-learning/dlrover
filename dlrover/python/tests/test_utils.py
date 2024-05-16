@@ -137,7 +137,7 @@ class MockRayJobArgs(JobArgs):
         self.job_uuid = "11111"
 
 
-def create_pod(labels):
+def create_pod(labels, with_deletion_timestamp=False):
     status = client.V1PodStatus(
         container_statuses=[
             client.V1ContainerStatus(
@@ -177,6 +177,10 @@ def create_pod(labels):
         priority_class_name="high",
     )
 
+    deletion_timestamp = (
+        datetime.datetime.now() if with_deletion_timestamp else None
+    )
+
     pod = client.V1Pod(
         api_version="v1",
         kind="Pod",
@@ -185,6 +189,7 @@ def create_pod(labels):
             name="test-worker-0",
             labels=labels,
             creation_timestamp=datetime.datetime.now(),
+            deletion_timestamp=deletion_timestamp,
             annotations={},
         ),
         status=status,
