@@ -84,7 +84,7 @@ except (ModuleNotFoundError, ImportError):  # noqa: F841
 __all__ = ["launch_agent"]
 
 
-_DEFAULT_INTERVAL = 5
+_DEFAULT_INTERVAL = 15
 
 
 def _set_paral_config():
@@ -286,7 +286,7 @@ class MasterRendezvousHandler(RendezvousHandler):
                     err_msg, level=TrainingExceptionLevel.RDZV_ERROR
                 )
                 raise TimeoutError(err_msg)
-            time.sleep(3)
+            time.sleep(_DEFAULT_INTERVAL)
         rank = list(world.keys()).index(self._node_rank)
         world_size = len(world)
         logger.info(
@@ -539,6 +539,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     "Exit elastic-training rendezvous when there are "
                     "agents to join the network-check rendezvous."
                 )
+                time.sleep(_DEFAULT_INTERVAL)
             else:
                 break
 
