@@ -266,11 +266,11 @@ class MasterRendezvousHandler(RendezvousHandler):
                 if self._node_rank in world:
                     break
                 else:
-                    logger.info(
-                        "The node is not in the world "
-                        "and waits for more nodes."
-                    )
                     if start_pending == 0:
+                        logger.info(
+                            "The node is not in the world "
+                            "and waits for more nodes."
+                        )
                         start_pending = time.time()
                     time.sleep(_DEFAULT_INTERVAL)
                     start_join = time.time()
@@ -526,6 +526,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         return workers
 
     def _initialize_workers(self, worker_group):
+        start_pending = 0
         while True:
             try:
                 if self._config.network_check:
@@ -535,12 +536,15 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 # the PContext start_worker will overwrite the handler.
                 AsyncCheckpointSaver.register_signal_handler()
             except RendezvousOutSyncError:
-                logger.info(
-                    "Exit elastic-training rendezvous when there are "
-                    "agents to join the network-check rendezvous."
-                )
+                if start_pending == 0:
+                    start_pending = time.time()
+                    logger.info(
+                        "Exit elastic-training rendezvous when there are "
+                        "agents to join the network-check rendezvous."
+                    )
                 time.sleep(_DEFAULT_INTERVAL)
             else:
+                logger.info("Finish initializing workers.")
                 break
 
     @prof
