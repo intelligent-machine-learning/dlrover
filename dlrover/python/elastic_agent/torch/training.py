@@ -527,6 +527,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
     def _initialize_workers(self, worker_group):
         start_pending = 0
+        pend_timeout = float(
+            self._config.rdzv_configs.get("pend_timeout", "inf")
+        )
         while True:
             try:
                 if self._config.network_check:
@@ -543,6 +546,8 @@ class ElasticTrainingAgent(LocalElasticAgent):
                         "agents to join the network-check rendezvous."
                     )
                 time.sleep(_DEFAULT_INTERVAL)
+                if time.time() - start_pending > pend_timeout:
+                    raise TimeoutError("Timeout to wait for new nodes.")
             else:
                 logger.info("Finish initializing workers.")
                 break
