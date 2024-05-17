@@ -42,6 +42,7 @@ from dlrover.python.elastic_agent.torch.training import (
     NodeCheckElasticAgent,
     RendezvousOutSyncError,
     _create_check_agent,
+    _create_worker_spec,
     _get_local_ip,
     _set_paral_config,
     comm_perf_check,
@@ -329,6 +330,17 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         agent._stop_workers_to_restart()
         agent._wait_async_saver()
         agent.stop_executor()
+
+    def test_create_worker_spec(self):
+        spec = _create_worker_spec(
+            node_rank=0,
+            rdzv_name=RendezvousName.ELASTIC_TRAINING,
+            config=self.config,
+            entrypoint="echo",
+            args=[],
+        )
+        self.assertEqual(spec.max_restarts, 3)
+        self.assertEqual(spec.local_world_size, 2)
 
 
 class NodeCheckElasticAgentTest(unittest.TestCase):

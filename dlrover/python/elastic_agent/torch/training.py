@@ -763,35 +763,14 @@ def launch_agent(
 
     monitor = TorchTrainingMonitor(ConfigPath.RUNTIME_METRICS)
     monitor.start()
-    rdzv_parameters = RendezvousParameters(
-        backend=config.rdzv_backend,
-        endpoint=config.rdzv_endpoint,
-        run_id=config.run_id,
-        min_nodes=config.min_nodes,
-        max_nodes=config.max_nodes,
-        **config.rdzv_configs,
-    )
-    master_addr = _get_local_ip()
-    rdzv_handler = MasterRendezvousHandler(
-        RendezvousName.ELASTIC_TRAINING,
-        node_rank,
-        rdzv_parameters,
-        local_world_size=config.nproc_per_node,
-    )
-    spec = WorkerSpec(
-        role=config.role,
-        local_world_size=config.nproc_per_node,
-        entrypoint=entrypoint,
-        args=tuple(args),
-        rdzv_handler=rdzv_handler,
-        max_restarts=config.max_restarts,
-        monitor_interval=config.monitor_interval,
-        master_addr=master_addr,
-    )
-    if version_less_than_230():
-        spec.redirects = config.redirects
-        spec.tee = config.tee
 
+    spec = _create_worker_spec(
+        node_rank=node_rank,
+        rdzv_name=RendezvousName.ELASTIC_TRAINING,
+        config=config,
+        entrypoint=entrypoint,
+        args=args,
+    )
     agent = ElasticTrainingAgent(
         node_rank=node_rank,
         config=config,
@@ -838,6 +817,45 @@ def launch_agent(
             spec.rdzv_handler.shutdown()
         agent.stop_executor()
         monitor.stop()
+
+
+def _create_worker_spec(
+    node_rank: int,
+    rdzv_name: str,
+    config: ElasticLaunchConfig,
+    entrypoint: Union[Callable, str, None],
+    args: List[Any],
+):
+    rdzv_parameters = RendezvousParameters(
+        backend=config.rdzv_backend,
+        endpoint=config.rdzv_endpoint,
+        run_id=config.run_id,
+        min_nodes=config.min_nodes,
+        max_nodes=config.max_nodes,
+        **config.rdzv_configs,
+    )
+    master_addr = _get_local_ip()
+    rdzv_handler = MasterRendezvousHandler(
+        rdzv_name,
+        node_rank,
+        rdzv_parameters,
+        local_world_size=config.nproc_per_node,
+    )
+    spec = WorkerSpec(
+        role=config.role,
+        local_world_size=config.nproc_per_node,
+        entrypoint=entrypoint,
+        args=tuple(args),
+        rdzv_handler=rdzv_handler,
+        max_restarts=config.max_restarts,
+        monitor_interval=config.monitor_interval,
+        master_addr=master_addr,
+    )
+
+    if version_less_than_230():
+        spec.redirects = config.redirects
+        spec.tee = config.tee
+    return spec
 
 
 class NodeCheckElasticAgent(ElasticTrainingAgent):
@@ -1029,32 +1047,15 @@ def _create_check_agent(
         f"  metrics_cfg      : {config.metrics_cfg}\n"
     )
 
-    rdzv_parameters = RendezvousParameters(
-        backend=config.rdzv_backend,
-        endpoint=config.rdzv_endpoint,
-        run_id=config.run_id,
-        min_nodes=config.min_nodes,
-        max_nodes=config.max_nodes,
-        **config.rdzv_configs,
-    )
-
-    master_addr = _get_local_ip()
-    rdzv_handler = MasterRendezvousHandler(
-        rdzv_name,
-        node_rank,
-        rdzv_parameters,
-        local_world_size=config.nproc_per_node,
-    )
-    spec = WorkerSpec(
-        role=config.role,
-        local_world_size=config.nproc_per_node,
+    spec = _create_worker_spec(
+        node_rank=node_rank,
+        rdzv_name=RendezvousName.ELASTIC_TRAINING,
+        config=config,
         entrypoint=entrypoint,
-        args=tuple(args),
-        rdzv_handler=rdzv_handler,
-        max_restarts=0,
-        monitor_interval=config.monitor_interval,
-        master_addr=master_addr,
+        args=args,
     )
+    spec.max_restarts = 0  # Do not restart the check task.
+
     agent = NodeCheckElasticAgent(
         node_rank=node_rank,
         config=config,
