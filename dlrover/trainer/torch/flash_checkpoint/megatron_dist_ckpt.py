@@ -24,8 +24,6 @@ import torch.distributed as dist
 from dlrover.python.common.log import default_logger as logger
 
 try:
-    from megatron.core import mpu, tensor_parallel
-    from megatron.core.optimizer.optimizer import ChainedOptimizer
     from megatron.training import get_args
     from megatron.training.checkpointing import (
         check_checkpoint_args,
@@ -39,6 +37,8 @@ try:
         set_checkpoint_version,
         update_num_microbatches,
     )
+    from megatron.core import mpu, tensor_parallel
+    from megatron.core.optimizer.optimizer import ChainedOptimizer
     from megatron.training.utils import print_rank_0, unwrap_model
 except ImportError:
     from megatron import get_args
@@ -53,10 +53,9 @@ except ImportError:
         read_metadata,
         set_checkpoint_version,
         update_num_microbatches,
-    )
+        )
     from megatron.optimizer.optimizer import ChainedOptimizer
     from megatron.utils import print_rank_0, unwrap_model
-
     logger.warning("Please check the magatron.checkpointing exists.")
 
 from dlrover.python.common.constants import CheckpointConstant
