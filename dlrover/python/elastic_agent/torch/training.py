@@ -44,7 +44,11 @@ from torch.distributed.elastic.agent.server.local_elastic_agent import (
 )
 from torch.distributed.elastic.metrics import put_metric
 from torch.distributed.elastic.metrics.api import prof
-from torch.distributed.elastic.multiprocessing import PContext, SignalException
+from torch.distributed.elastic.multiprocessing import (
+    PContext,
+    SignalException,
+    Std,
+)
 from torch.distributed.elastic.multiprocessing.errors import (
     ChildFailedError,
     ProcessFailure,
@@ -75,6 +79,7 @@ from dlrover.python.elastic_agent.master_client import MasterClient
 from dlrover.python.elastic_agent.monitor.training import TorchTrainingMonitor
 from dlrover.python.elastic_agent.torch.ckpt_saver import AsyncCheckpointSaver
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
+from dlrover.trainer.torch.utils import version_less_than_230
 
 try:
     from torch_npu.contrib import transfer_to_npu  # noqa: F401
@@ -137,6 +142,8 @@ class ElasticLaunchConfig(LaunchConfig):
     exclude_straggler: bool = False
     save_at_breakpoint: bool = False
     accelerator: str = ""
+    log_dir: Optional[str] = None  # Keep Compatibility with PyTorch>=2.3.0
+    redirects: Union[Std, Dict[int, Std]] = Std.NONE
 
     def set_node_unit(self, node_unit):
         """Set the number unint of ndoes."""
@@ -372,7 +379,14 @@ class ElasticTrainingAgent(LocalElasticAgent):
         exit_barrier_timeout: float = 300,
         log_dir: Optional[str] = None,
     ):
-        super().__init__(spec, exit_barrier_timeout)
+        if version_less_than_230():
+            super().__init__(spec, exit_barrier_timeout)
+        else:
+            super().__init__(
+                spec=spec,
+                logs_specs=config.logs_specs,
+                exit_barrier_timeout=exit_barrier_timeout,
+            )
         self._node_rank = node_rank
         self._config = config
         self._entrypoint = entrypoint
@@ -772,10 +786,11 @@ def launch_agent(
         rdzv_handler=rdzv_handler,
         max_restarts=config.max_restarts,
         monitor_interval=config.monitor_interval,
-        redirects=config.redirects,
-        tee=config.tee,
         master_addr=master_addr,
     )
+    if version_less_than_230():
+        spec.redirects = config.redirects
+        spec.tee = config.tee
 
     agent = ElasticTrainingAgent(
         node_rank=node_rank,
