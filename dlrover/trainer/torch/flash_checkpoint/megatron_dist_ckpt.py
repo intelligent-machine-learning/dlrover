@@ -41,23 +41,25 @@ try:
     )
     from megatron.training.utils import print_rank_0, unwrap_model
 except ImportError:
-    from megatron import get_args
-    from megatron.checkpointing import (
-        check_checkpoint_args,
-        find_checkpoint_rank_0,
-        fix_query_key_value_ordering,
-        get_checkpoint_name,
-        get_checkpoint_tracker_filename,
-        get_checkpoint_version,
-        get_rng_state,
-        read_metadata,
-        set_checkpoint_version,
-        update_num_microbatches,
-    )
-    from megatron.optimizer.optimizer import ChainedOptimizer
-    from megatron.utils import print_rank_0, unwrap_model
-
-    logger.warning("Please check the magatron.checkpointing exists.")
+    # Keep back compatibility with Megatron-LM.
+    try:
+        from megatron import get_args
+        from megatron.checkpointing import (
+            check_checkpoint_args,
+            find_checkpoint_rank_0,
+            fix_query_key_value_ordering,
+            get_checkpoint_name,
+            get_checkpoint_tracker_filename,
+            get_checkpoint_version,
+            get_rng_state,
+            read_metadata,
+            set_checkpoint_version,
+            update_num_microbatches,
+        )
+        from megatron.optimizer.optimizer import ChainedOptimizer
+        from megatron.utils import print_rank_0, unwrap_model
+    except ImportError:
+        logger.warning("Please check the magatron.checkpointing exists.")
 
 from dlrover.python.common.constants import CheckpointConstant
 from dlrover.python.common.singleton import Singleton
