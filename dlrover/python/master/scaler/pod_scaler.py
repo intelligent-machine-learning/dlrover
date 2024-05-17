@@ -173,6 +173,9 @@ class PodScaler(Scaler):
         Get master pod by labels.
         Notice: Labels might be different in different environments for now.
         """
+
+        RETRY_WAIT_SECONDS = 3
+
         master_labels_selector = k8s_util.gen_k8s_label_selector_from_dict(
             self._get_master_pod_labels()
         )
@@ -198,6 +201,9 @@ class PodScaler(Scaler):
                     for pod in pods.items:
                         if pod.status.phase == NodeStatus.RUNNING:
                             return pod
+
+            # wait for next retry
+            time.sleep(RETRY_WAIT_SECONDS)
         raise ValueError(
             f"Master pod is not found by labels: {master_labels_selector}"
         )
