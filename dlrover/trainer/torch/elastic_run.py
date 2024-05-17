@@ -96,8 +96,6 @@ import uuid
 from datetime import datetime
 from typing import Callable, List, Tuple, Union
 
-import torch
-from packaging.version import Version
 from torch.distributed.argparse_util import check_env, env
 from torch.distributed.elastic.multiprocessing.api import SubprocessHandler
 from torch.distributed.elastic.multiprocessing.errors import record
