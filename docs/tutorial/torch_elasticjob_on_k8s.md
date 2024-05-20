@@ -5,6 +5,7 @@ on a public cloud, namely, Alibaba Cloud Container Service for Kubernetes(ACK).
 
 ## Preliminary
 
+- Install GO 1.18.
 - Create a Kubernetes cluster on [ACK](https://help.aliyun.com/document_detail/309552.htm?spm=a2c4g.11186623.0.0.168f6b7aegH7nI#task-2112671).
 - Configure cluster credentials on your local computer.
 - Create a [NAS](https://help.aliyun.com/document_detail/477380.html?spm=a2c4g.11186623.0.0.10635c83Xn7Tkh)
@@ -25,7 +26,7 @@ git clone git@github.com:intelligent-machine-learning/dlrover.git
 
 ```bash
 cd dlrover/dlrover/go/operator/
-make deploy IMG=easydl/elasticjob-controller:master
+make deploy IMG=easydl/elasticjob-controller:master  # GO 1.18
 ```
 
 3. Grant permission for the DLRover master to Access CRDs.
