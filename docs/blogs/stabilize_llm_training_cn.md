@@ -205,6 +205,8 @@ job master 会在其日志中展示具体哪个节点的那个进程失败了，
 
 1. 在 Kubernetes 集群上部署 DLRover ElasticJob CRD。
 
+GO 版本： GO 1.18.
+
 ```python
 git clone git@github.com:intelligent-machine-learning/dlrover.git
 cd dlrover/dlrover/go/operator/
