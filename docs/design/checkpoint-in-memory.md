@@ -62,7 +62,6 @@ the retarted node can gather the model checkpoint from the node in other DP unit
 <img src="../figures/ft_llm_training/dp-ckpt-backup.jpg" alt="Async Checkpoint Classes" width="600">
 </div>
 
-
 ### Group Nodes to Backup Checkpoint
 
 The job can pair the nodes in groups with two nodes according to their sequence numbers. For example,
