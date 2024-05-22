@@ -38,40 +38,36 @@ With different distributed training strategy,
 the layout of the model and optimizer shards is different. We need to implement different
 backup strategies for different distributed training strategies.
 
-### DDP
+### Backup Checkpoint Shards of ZERO Optimizer or FSDP
 
-In a DDP job, the each rank has a complete model and optimizer replica. Using Flash Checkpoint,
-the local rank 0 of each node will copy the checkpoint into the CPU memory. The each node
-has a complete checkpoint in the CPU memory. If a node breakdowns and restarts, the job can
-select a alive node to broadcat its checkpoint to the new node.
-
-### FSDP
-
-The each rank has an unique shard of model and optimizer states using FSDP. The ElasticAgent of each node
-has its checkpoint shard in the CPU memoy with Flash Checkpoint. The job splits the nodes into groups and
-each group has 2 nodes. Each node need to backup the their checkpoint shard to the other node in a group.
-We can build a process group with the ElasticAgent using gloo backend to transfer checkpoint shards.
-Then, the ElasticAgent uses `torch.distributed.all_gather_object`
-to backup checkpoint shards. If a node in a group breakdowns and restarts, the job need to select the other
-alive node to broadcast the backup checkpoint to the new node.
+The each rank has an unique shard of model and optimizer states using DeepSpeed ZERO or FSDP.
+Before saving checkpoint into the shared memory, the job can group nodes and each group has
+2 nodes. The ranks of a node in a group can exchange checkpoint shards by
+`torch.distributed.all_gather_object`. After allgathering checkpoint shards,
+each rank has two checkpoint shards in the device and can write the checkpoint shards
+from the device into the shared memory. If a node in a group breakdowns and restarts,
+The ranks of the node can gather its checkpoint shard from the backup nodes.
 If the nodes in a group all fails, the training can only resume from the checkpoint in the storage.
 
-### Megatron-LM
+<div align="center">
+<img src="../figures/ft_llm_training/zero-ckpt-backup.jpg" alt="Async Checkpoint Classes" width="600">
+</div>
 
-The megatron-LM uses the 3D parallel to train a LLM. The model and optimizer shards of the node with
-the same PP rank in different DP ranks are same. Similar to DDP, the new node can restore
-the checkpoint from the alive node with the same PP rank. If the training uses the distributed optimizer
-which partition the optimizer states across all rank, we need to backup the checkpoint similar to FSDP.
+### Backup Checkpoint Shards of Data Parallelism
+
+The ranks in different DP units has the same model replica. If a node breakdowns and restarts,
+the retarted node can gather the model checkpoint from the node in other DP unit.
+
+<div align="center">
+<img src="../figures/ft_llm_training/dp-ckpt-backup.jpg" alt="Async Checkpoint Classes" width="600">
+</div>
+
 
 ### Group Nodes to Backup Checkpoint
 
 The job can pair the nodes in groups with two nodes according to their sequence numbers. For example,
 the groups are [{0, 1}, {2, 3}, {4, 5}, {6, 7}] if there are 8 nodes. After the training restarts,
-each node will report "yes" to the master if the checkpoint in its memory, otherwise report "No" if
-the node restarts. The following 3 cases may happen:
-
-- No any node restarts. The job master notifies all nodes to restore the checkpoint from its CPU memory.
-- One node in some group has restarted The job master notifies the other alive node to broardcast the
-checkpoint in the CPU memory to the restarted node. Then, all nodes rrestore the checkpoint from its CPU memory.
-- All the nodes in a group have restarted, which shows some checkpoint shards are lost in the memory.
-If no any node restarts,. The job master will notify all nodes to restore checkpoint from the storage.
+each rank will read checkpoint from its shared memory. The ranks of restarted nodes
+will gather the checkpoint from the back up nodes. Then, all ranks will use an AllReduce operation
+to check whether the step in the checkpoint of all ranks are the same. All ranks will read the
+checkpoint from the storage if the steps are not consistent.
