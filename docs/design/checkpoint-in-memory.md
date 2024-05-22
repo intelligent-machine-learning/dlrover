@@ -38,6 +38,16 @@ With different distributed training strategy,
 the layout of the model and optimizer shards is different. We need to implement different
 backup strategies for different distributed training strategies.
 
+### Backup Checkpoint Shards of Data Parallelism
+
+The ranks in different DP units has the same model replica. If a node breakdowns and restarts,
+the retarted node can gather the model checkpoint from the node in other DP unit.
+
+<div align="center">
+<img src="../figures/ft_llm_training/dp-ckpt-backup.jpg" alt="Async Checkpoint Classes" width="600">
+</div>
+
+
 ### Backup Checkpoint Shards of ZERO Optimizer or FSDP
 
 The each rank has an unique shard of model and optimizer states using DeepSpeed ZERO or FSDP.
@@ -51,15 +61,6 @@ If the nodes in a group all fails, the training can only resume from the checkpo
 
 <div align="center">
 <img src="../figures/ft_llm_training/zero-ckpt-backup.jpg" alt="Async Checkpoint Classes" width="600">
-</div>
-
-### Backup Checkpoint Shards of Data Parallelism
-
-The ranks in different DP units has the same model replica. If a node breakdowns and restarts,
-the retarted node can gather the model checkpoint from the node in other DP unit.
-
-<div align="center">
-<img src="../figures/ft_llm_training/dp-ckpt-backup.jpg" alt="Async Checkpoint Classes" width="600">
 </div>
 
 ### Group Nodes to Backup Checkpoint
