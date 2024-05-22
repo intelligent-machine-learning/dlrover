@@ -41,7 +41,7 @@ backup strategies for different distributed training strategies.
 ### Backup Checkpoint Shards of Data Parallelism
 
 The ranks in different DP units has the same model replica. If a node breakdowns and restarts,
-the retarted node can gather the model checkpoint from the node in other DP unit.
+the retarted node can gather the model checkpoint from the memory of the node in other DP unit.
 
 <div align="center">
 <img src="../figures/ft_llm_training/dp-ckpt-backup.jpg" alt="Async Checkpoint Classes" width="600">
@@ -50,12 +50,11 @@ the retarted node can gather the model checkpoint from the node in other DP unit
 ### Backup Checkpoint Shards of ZERO Optimizer or FSDP
 
 The each rank has an unique shard of model and optimizer states using DeepSpeed ZERO or FSDP.
-Before saving checkpoint into the shared memory, the job can group nodes and each group has
-2 nodes. The ranks of a node in a group can exchange checkpoint shards by
-`torch.distributed.all_gather_object`. After allgathering checkpoint shards,
-each rank has two checkpoint shards in the device and can write the checkpoint shards
-from the device into the shared memory. If a node in a group breakdowns and restarts,
-The ranks of the node can gather its checkpoint shard from the backup nodes.
+After saving the checkpoint into the shared memory, the job can split nodes into backup groups
+with two nodes. The ranks of a node in a backup group can exchange checkpoint shards in the shared memory by
+`torch.distributed.all_gather`. After allgathering checkpoint shards,
+each rank has two checkpoint shards in the shared memory. If a node in a group breakdowns and restarts,
+the ranks of the node can gather its checkpoint shard from the memory of backup nodes.
 If the nodes in a group all fails, the training can only resume from the checkpoint in the storage.
 
 <div align="center">
