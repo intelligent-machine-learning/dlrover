@@ -47,7 +47,6 @@ the retarted node can gather the model checkpoint from the node in other DP unit
 <img src="../figures/ft_llm_training/dp-ckpt-backup.jpg" alt="Async Checkpoint Classes" width="600">
 </div>
 
-
 ### Backup Checkpoint Shards of ZERO Optimizer or FSDP
 
 The each rank has an unique shard of model and optimizer states using DeepSpeed ZERO or FSDP.
