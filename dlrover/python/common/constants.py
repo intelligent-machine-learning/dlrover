@@ -113,6 +113,7 @@ class JobExitReason(object):
 class CustomMetricKeys:
     RDZV_ROUND = "rdzv_round"
     TRAINING_ERROR_LEVEL = "error_level"
+    ERROR_CONTENT = "error_content"
 
 
 class ExitCode(object):
