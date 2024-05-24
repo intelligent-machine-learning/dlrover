@@ -182,7 +182,7 @@ make install
 make run
 ```
 
-- Deploy the controller.
+- Deploy the controller with GO 1.18.
 
 ```bash
 make deploy IMG=easydl/elasticjob-controller:master

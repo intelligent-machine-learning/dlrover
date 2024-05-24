@@ -559,7 +559,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         )
         if message.level == TrainingExceptionLevel.RDZV_ERROR:
             custom_data = {
-                CustomMetricKeys.TRAINING_ERROR_LEVEL: message.level
+                CustomMetricKeys.TRAINING_ERROR_LEVEL: message.level,
+                CustomMetricKeys.ERROR_CONTENT: message.error_data,
             }
             self._job_metric_collector.collect_custom_data(custom_data)
         return True

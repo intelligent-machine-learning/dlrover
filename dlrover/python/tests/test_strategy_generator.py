@@ -67,8 +67,8 @@ class TestLocalStrategyGenerator(unittest.TestCase):
         simple_node.paral_config.optimizer = optimizer_config
         simple_node.name = "simple_node"
         node_used_resources[NodeType.WORKER].append([simple_node])
-        with patch(
-            "dlrover.python.master.hyperparams.simple_strategy_generator.SimpleStrategyGenerator._extract_node_resource"  # noqa: E501
+        with patch.object(
+            SimpleStrategyGenerator, "_extract_node_resource"
         ) as mock_extract_node_resource:
             mock_extract_node_resource.return_value = node_used_resources
             expected_dataloader_config = DataLoaderConfig(
