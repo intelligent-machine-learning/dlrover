@@ -88,7 +88,7 @@ def run_checkpoint_backup(rank, world_size):
 
 class CheckpointBackupTest(unittest.TestCase):
     def setUp(self) -> None:
-        shutil.rmtree(SOCKET_TMP_DIR)
+        shutil.rmtree(SOCKET_TMP_DIR, ignore_errors=True)
 
     def test_get_backup_ranks(self):
 
