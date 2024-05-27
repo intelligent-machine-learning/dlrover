@@ -3,10 +3,10 @@ kind: ScalePlan
 metadata:
   name: deepctr-manual-scale-plan-0
   labels:
-    elasticjob-name: deepctr-manual-scale
+    elasticjob.dlrover/name: deepctr-manual-scale
     scale-type: manual
 spec:
   ownerJob: deepctr-manual-scale
   replicaResourceSpecs:
-    ps:
+    worker:
       replicas: 2
