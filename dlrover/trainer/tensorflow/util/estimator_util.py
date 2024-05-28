@@ -70,7 +70,6 @@ def ck_after_run(self, run_context, run_values):
 
     stale_global_step = run_values.results
     global_dict = common_util.GlobalDict()
-    print(global_dict)
     should_save_checkpoint = global_dict.get(
         TFConstants.SaveCheckpoint.name, TFConstants.SaveCheckpoint()
     )
