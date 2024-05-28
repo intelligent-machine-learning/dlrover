@@ -18,7 +18,7 @@ spec:
           containers:
             - name: main
               # yamllint disable-line rule:line-length
-              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:deeprec_criteo_v1
+              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:deeprec_criteo_v2
               imagePullPolicy: Always
               command:
                 - /bin/bash
@@ -42,7 +42,7 @@ spec:
           containers:
             - name: main
               # yamllint disable-line rule:line-length
-              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:deeprec_criteo_v1
+              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:deeprec_criteo_v2
               imagePullPolicy: Always
               command:
                 - /bin/bash
@@ -67,7 +67,7 @@ spec:
           containers:
             - name: main
               # yamllint disable-line rule:line-length
-              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:deeprec_criteo_v1
+              image: registry.cn-hangzhou.aliyuncs.com/intell-ai/dlrover:deeprec_criteo_v2
               imagePullPolicy: Always
               command:
                 - /bin/bash

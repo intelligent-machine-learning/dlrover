@@ -197,7 +197,6 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             ps_meta.cpu = ps.config_resource.cpu
             ps_meta.memory = int(ps.config_resource.memory)
             res.nodes.append(ps_meta)
-        logger.info("PS nodes : %s", res)
         res.new_ps_ready = ready
         res.ps_failure = ps_failure
         return res
@@ -559,7 +558,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         )
         if message.level == TrainingExceptionLevel.RDZV_ERROR:
             custom_data = {
-                CustomMetricKeys.TRAINING_ERROR_LEVEL: message.level
+                CustomMetricKeys.TRAINING_ERROR_LEVEL: message.level,
+                CustomMetricKeys.ERROR_CONTENT: message.error_data,
             }
             self._job_metric_collector.collect_custom_data(custom_data)
         return True
