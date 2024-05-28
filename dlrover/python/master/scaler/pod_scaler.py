@@ -174,13 +174,14 @@ class PodScaler(Scaler):
         Notice: Labels might be different in different environments for now.
         """
 
-        RETRY_WAIT_SECONDS = 3
+        RETRY_TIMES = 20
+        RETRY_WAIT_SECONDS = 5
 
         master_labels_selector = k8s_util.gen_k8s_label_selector_from_dict(
             self._get_master_pod_labels()
         )
         logger.info(f"Get master pod by labels : {master_labels_selector}.")
-        for _ in range(3):
+        for _ in range(RETRY_TIMES):
             pods = self._k8s_client.list_namespaced_pod(master_labels_selector)
             if pods and len(pods.items) > 0:
                 if (
