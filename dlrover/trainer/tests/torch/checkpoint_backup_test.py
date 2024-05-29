@@ -102,6 +102,17 @@ class CheckpointBackupTest(unittest.TestCase):
     def setUp(self) -> None:
         shutil.rmtree(SOCKET_TMP_DIR, ignore_errors=True)
 
+    @mock.patch("torch.distributed.new_group")
+    @mock.patch("torch.distributed.get_rank")
+    def test_get_backup_ranks(self, mock_new_group, mock_get_rank):
+        mock_get_rank.return_value = 1
+        shard_manager = ShardCkptBackupManager(0, 8)
+        self.assertListEqual(shard_manager.backup_ranks, [0, 8])
+
+        os.environ["NODE_NUM"] = "4"
+        shard_manager = FullCkptBackupManager(0, 8)
+        self.assertListEqual(shard_manager.backup_ranks, [0, 8, 16, 24])
+
     def test_backup_checkpoint(self):
         world_size = 2
         mp.spawn(

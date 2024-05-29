@@ -232,10 +232,6 @@ class FullCkptBackupManager(BackupManger):
         self.current_device = torch.device("cpu")
 
         self.backup_ranks = self._get_backup_ranks()
-        for node_rank in range(self.node_num):
-            rank = node_rank * self.local_world_size
-            self.backup_ranks.append(rank)
-
         self._backup_group = dist.new_group(
             backend="gloo", ranks=self.backup_ranks
         )
