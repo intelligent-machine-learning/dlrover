@@ -28,8 +28,8 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
     SharedMemoryHandler,
 )
 from dlrover.trainer.torch.flash_checkpoint.ckpt_backup import (
-    ZeroCkptBackupManager,
-    get_backup_ranks,
+    FullCkptBackupManager,
+    ShardCkptBackupManager,
 )
 
 CHECKPOINT_DIR = "checkpoint"
@@ -69,18 +69,30 @@ def run_checkpoint_backup(rank, world_size):
     }
     shm_hanlder.save_state_dict(state_dict)
 
-    mock_func_path = (
-        "dlrover.trainer.torch.flash_checkpoint.ckpt_backup.get_backup_ranks"
-    )
-    with mock.patch(mock_func_path, return_value=[0, 1]):
-        back_manager = ZeroCkptBackupManager(
+    with mock.patch.object(
+        ShardCkptBackupManager, "_get_backup_ranks", return_value=[0, 1]
+    ):
+        back_manager = ShardCkptBackupManager(
             local_rank=rank, local_world_size=1, backup_group_size=2
         )
     back_manager.backup_ranks = list(range(world_size))
     back_manager.backup(shm_hanlder)
-    peer_shm_handler = SharedMemoryHandler(2)
-    shm_hanlders = [shm_hanlder, peer_shm_handler]
-    shm_tensor, meta = back_manager._gather_owner_checkpoint(shm_hanlders)
+    if rank == 0:
+        shm_hanlders = [shm_hanlder, shm_hanlder]
+    else:
+        peer_shm_handler = SharedMemoryHandler(2)
+        shm_hanlders = [peer_shm_handler, peer_shm_handler]
+    shm_tensor, _ = back_manager._gather_owner_checkpoint(shm_hanlders)
+    if rank == 0 and shm_tensor.numel() != 1632:
+        raise ValueError("Test Failed!")
+
+    with mock.patch.object(
+        FullCkptBackupManager, "_get_backup_ranks", return_value=[0, 1]
+    ):
+        back_manager = FullCkptBackupManager(
+            local_rank=rank, local_world_size=1
+        )
+    shm_tensor, _ = back_manager._gather_owner_checkpoint(shm_hanlder)
     if rank == 0 and shm_tensor.numel() != 1632:
         raise ValueError("Test Failed!")
     cleanup()
@@ -89,16 +101,6 @@ def run_checkpoint_backup(rank, world_size):
 class CheckpointBackupTest(unittest.TestCase):
     def setUp(self) -> None:
         shutil.rmtree(SOCKET_TMP_DIR, ignore_errors=True)
-
-    def test_get_backup_ranks(self):
-
-        ranks = get_backup_ranks(
-            node_rank=5,
-            local_rank=1,
-            local_world_size=8,
-            group_size=3,
-        )
-        self.assertListEqual(ranks, [25, 33, 41])
 
     def test_backup_checkpoint(self):
         world_size = 2
