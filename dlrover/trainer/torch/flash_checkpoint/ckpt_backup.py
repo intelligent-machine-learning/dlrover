@@ -228,7 +228,7 @@ class FullCkptBackupManager(BackupManger):
     """
 
     def __init__(self, local_rank, local_world_size) -> None:
-        super.__init__(local_rank, local_world_size)
+        super().__init__(local_rank, local_world_size)
         self.backup_ranks = self._get_backup_ranks()
         self._backup_group = dist.new_group(
             backend="gloo", ranks=self.backup_ranks
