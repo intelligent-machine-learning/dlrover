@@ -20,6 +20,13 @@ import torch.distributed as dist
 from .utils import bm_allreduce, matmul, record_execution_time
 
 
+def set_nccl_env():
+    env_conf = os.getenv("NCCL_SETTINGS", "")
+    for item in env_conf.split(","):
+        k, v = item.split("=")
+        os.environ[k] = v
+
+
 @record_execution_time
 def main():
     use_cuda = torch.cuda.is_available()
@@ -39,4 +46,5 @@ def main():
 
 
 if __name__ == "__main__":
+    set_nccl_env()
     t = main()
