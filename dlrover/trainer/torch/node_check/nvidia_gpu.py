@@ -21,7 +21,7 @@ from .utils import bm_allreduce, matmul, record_execution_time
 
 
 def set_nccl_env():
-    env_conf = os.getenv("NCCL_SETTINGS")
+    env_conf = os.getenv("NCCL_SETTINGS", "")
     for item in env_conf.split(","):
         k, v = item.split("=")
         os.environ[k] = v
