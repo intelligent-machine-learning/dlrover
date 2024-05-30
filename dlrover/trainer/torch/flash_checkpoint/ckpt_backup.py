@@ -26,6 +26,14 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
 
 
 class BackupManger(metaclass=ABCMeta):
+    def __init__(self, local_rank, local_world_size) -> None:
+        self.local_rank = local_rank
+        self.local_world_size = local_world_size
+        self.node_rank = env_utils.get_node_rank()
+        self.rank = dist.get_rank()
+        self.node_num = env_utils.get_node_num()
+        self.current_device = torch.device("cpu")
+
     @abstractmethod
     def backup(self, shm_handler: SharedMemoryHandler):
         """
@@ -42,7 +50,7 @@ class BackupManger(metaclass=ABCMeta):
         pass
 
 
-class ShardCkptBackupManager(object):
+class ShardCkptBackupManager(BackupManger):
     """
     The manager will select a rank of another node to backup the checkpoint
     of the current rank.
@@ -51,11 +59,7 @@ class ShardCkptBackupManager(object):
     def __init__(
         self, local_rank, local_world_size, backup_group_size=2
     ) -> None:
-        self.local_rank = local_rank
-        self.local_world_size = local_world_size
-        self.node_rank = env_utils.get_node_rank()
-        self.rank = dist.get_rank()
-        self.current_device = torch.device("cpu")
+        super().__init__(local_rank, local_world_size)
 
         self.backup_ranks = self._get_backup_ranks(backup_group_size)
         self._backup_group = dist.new_group(
@@ -224,13 +228,7 @@ class FullCkptBackupManager(BackupManger):
     """
 
     def __init__(self, local_rank, local_world_size) -> None:
-        self.local_rank = local_rank
-        self.local_world_size = local_world_size
-        self.node_rank = env_utils.get_node_rank()
-        self.rank = dist.get_rank()
-        self.node_num = env_utils.get_node_num()
-        self.current_device = torch.device("cpu")
-
+        super.__init__(local_rank, local_world_size)
         self.backup_ranks = self._get_backup_ranks()
         self._backup_group = dist.new_group(
             backend="gloo", ranks=self.backup_ranks
