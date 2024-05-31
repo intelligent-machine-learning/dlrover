@@ -37,10 +37,7 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
     ClassMeta,
     SharedMemoryHandler,
 )
-from dlrover.trainer.torch.flash_checkpoint.replica import (
-    FullCkptReplicaManager,
-    ShardCkptReplicaManager,
-)
+from dlrover.trainer.torch.flash_checkpoint.replica import CkptReplicaManger
 
 
 def _local_rank0_log(local_rank, message):
@@ -202,10 +199,10 @@ class CheckpointEngine(metaclass=ABCMeta):
         self._init_sync_group(comm_backend)
         self._notify_agent_to_create_saver()
         self._update_saver_config()
-        if self.get_global_shard_num() > 1:
-            self._replica_manager = ShardCkptReplicaManager(replica_count)
-        else:
-            self._replica_manager = FullCkptReplicaManager(replica_count)
+        shard_num = self.get_global_shard_num()
+        self._replica_manager = CkptReplicaManger.create_replica_manager(
+            shard_num, replica_count
+        )
 
     def _init_sync_group(self, comm_backend):
         if not dist.is_initialized():

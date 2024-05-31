@@ -35,6 +35,13 @@ class CkptReplicaManger(metaclass=ABCMeta):
         self.node_num = env_utils.get_node_num()
         self.current_device = torch.device("cpu")
 
+    @staticmethod
+    def create_replica_manager(shard_num, replica_count):
+        if shard_num == 1:
+            return FullCkptReplicaManager(replica_count)
+        else:
+            return ShardCkptReplicaManager(replica_count)
+
     def has_replica(self):
         """
         Check whether there are replica in other nodes.
