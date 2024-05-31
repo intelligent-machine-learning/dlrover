@@ -288,7 +288,10 @@ class MasterRendezvousHandler(RendezvousHandler):
                     continue
             elif time.time() - start_join > self.join_timeout:
                 timeout = self.join_timeout
-                err_msg = f"Timeout {timeout}s to complete rendezvous."
+                err_msg = (
+                    f"Timeout {timeout}s to wait the enough nodes "
+                    "to complete rendzvous."
+                )
                 self._report_failure(
                     err_msg, level=TrainingExceptionLevel.RDZV_ERROR
                 )
