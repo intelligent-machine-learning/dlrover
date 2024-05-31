@@ -37,6 +37,7 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
     ClassMeta,
     SharedMemoryHandler,
 )
+from dlrover.trainer.torch.flash_checkpoint.replica import CkptReplicaManger
 
 
 def _local_rank0_log(local_rank, message):
@@ -167,7 +168,7 @@ class CheckpointEngine(metaclass=ABCMeta):
         self.checkpoint_dir = checkpoint_dir
         self.storage = storage
         self._save_timeout = save_timeout
-        self._local_rank = int(os.getenv("LOCAL_RANK", 0))
+        self._local_rank = env_utils.get_local_rank()
         self._cached_step = 0
         self._restart_count = env_utils.get_torch_restart_count()
         # queue for agent to save to storage, only lock rank 0 needs the queue.
@@ -197,6 +198,7 @@ class CheckpointEngine(metaclass=ABCMeta):
         self._init_sync_group(comm_backend)
         self._notify_agent_to_create_saver()
         self._update_saver_config()
+        self._replica_manager: Optional[CkptReplicaManger] = None
 
     def _init_sync_group(self, comm_backend):
         if not dist.is_initialized():
@@ -320,9 +322,14 @@ class CheckpointEngine(metaclass=ABCMeta):
         if acquired:
             self._shm_lock.release()
         self._cached_step = conf.step
+        self._replica_manager.backup(self._shm_handler)
         return True
 
     def get_state_dict_from_memory(self):
+        """
+        Restore the checkpoint state dict from the shared memory.
+        """
+        self._restore_memory_from_replica()
         state_dict = {}
         default_config = CheckpointConfig()
         config = self._shm_handler.get_checkpoint_config(default_config)
@@ -334,6 +341,15 @@ class CheckpointEngine(metaclass=ABCMeta):
             state_dict.pop(DLROVER_CKPT_CONFIG_KEY, None)
             logger.info(f"Load checkpoint at step {config.step} from memory.")
         return config.step, state_dict
+
+    def _restore_memory_from_replica(self):
+        if not self._replica_manager.has_replica():
+            return
+        byte_tensor, meta = self._replica_manager.gather()
+        if self._shm_handler.shared_memory is None:
+            shm_size = byte_tensor.size()[0]
+            self._shm_handler.init_shared_memory(create=True, size=shm_size)
+            self._shm_handler.metadata.set(meta)
 
     @abstractmethod
     def get_saving_ranks(self):

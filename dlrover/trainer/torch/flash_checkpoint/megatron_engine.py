@@ -21,6 +21,9 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
     CheckpointEventType,
     MegatronCheckpointSaver,
 )
+from dlrover.trainer.torch.flash_checkpoint.replica import (
+    ShardCkptReplicaManager,
+)
 
 from .engine import CheckpointEngine, timer
 
@@ -40,6 +43,7 @@ class MegatronCheckpointEngine(CheckpointEngine):
         storage,
         comm_backend="",
         save_timeout=CheckpointConstant.SAVE_TIMEOUT,
+        replica_count=0,
     ):
         if dist.is_initialized():
             try:
@@ -61,6 +65,10 @@ class MegatronCheckpointEngine(CheckpointEngine):
             self._tp_world_size = 1
 
         super().__init__(checkpoint_dir, storage, comm_backend, save_timeout)
+
+        self._replica_manager = ShardCkptReplicaManager(
+            replica_count
+        )
 
     def get_saving_ranks(self):
         """

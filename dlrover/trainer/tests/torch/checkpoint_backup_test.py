@@ -27,9 +27,9 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
     CheckpointConfig,
     SharedMemoryHandler,
 )
-from dlrover.trainer.torch.flash_checkpoint.ckpt_backup import (
-    FullCkptBackupManager,
-    ShardCkptBackupManager,
+from dlrover.trainer.torch.flash_checkpoint.replica import (
+    FullCkptReplicaManager,
+    ShardCkptReplicaManager,
 )
 
 CHECKPOINT_DIR = "checkpoint"
@@ -70,10 +70,10 @@ def run_checkpoint_backup(rank, world_size):
     shm_hanlder.save_state_dict(state_dict)
 
     with mock.patch.object(
-        ShardCkptBackupManager, "_get_backup_ranks", return_value=[0, 1]
+        ShardCkptReplicaManager, "_get_backup_ranks", return_value=[0, 1]
     ):
-        back_manager = ShardCkptBackupManager(
-            local_rank=rank, local_world_size=1, backup_group_size=2
+        back_manager = ShardCkptReplicaManager(
+            local_rank=rank, local_world_size=1, replica_count=2
         )
     back_manager.backup_ranks = list(range(world_size))
     back_manager.backup(shm_hanlder)
@@ -87,9 +87,9 @@ def run_checkpoint_backup(rank, world_size):
         raise ValueError("Test Failed!")
 
     with mock.patch.object(
-        FullCkptBackupManager, "_get_backup_ranks", return_value=[0, 1]
+        FullCkptReplicaManager, "_get_backup_ranks", return_value=[0, 1]
     ):
-        back_manager = FullCkptBackupManager(
+        back_manager = FullCkptReplicaManager(
             local_rank=rank, local_world_size=1
         )
     shm_tensor, _ = back_manager._gather_owner_checkpoint(shm_hanlder)
@@ -106,11 +106,11 @@ class CheckpointBackupTest(unittest.TestCase):
     @mock.patch("torch.distributed.get_rank")
     def test_get_backup_ranks(self, mock_new_group, mock_get_rank):
         mock_get_rank.return_value = 1
-        shard_manager = ShardCkptBackupManager(0, 8)
+        shard_manager = ShardCkptReplicaManager(0, 8)
         self.assertListEqual(shard_manager.backup_ranks, [0, 8])
 
         os.environ["NODE_NUM"] = "4"
-        shard_manager = FullCkptBackupManager(0, 8)
+        shard_manager = FullCkptReplicaManager(0, 8)
         self.assertListEqual(shard_manager.backup_ranks, [0, 8, 16, 24])
 
     def test_backup_checkpoint(self):
