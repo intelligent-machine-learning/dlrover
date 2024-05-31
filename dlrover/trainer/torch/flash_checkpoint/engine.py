@@ -69,7 +69,7 @@ def check_all_rank_ready(group: dist.ProcessGroup, ready: bool):
 
 def verify_all_rank_step_consistent(group: dist.ProcessGroup, step):
     """
-    Verify whether the step in all ranks are consistent.
+    Verify whether the steps in all ranks are consistent.
     """
     if not group and not dist.is_initialized():
         return True
@@ -113,7 +113,7 @@ def start_async_save():
 
 def start_saver_process():
     """
-    Start a process to to asynchronously save checkpoint if the training
+    Start a process to asynchronously save checkpoint if the training
     process is not launched by `dlrover-run`. This process will
     exit and cannot save the checkpoint after the training process exit.
     It is better to use `dlrover-run` to start the training process.
@@ -136,20 +136,20 @@ def start_saver_process():
 class CheckpointEngine(metaclass=ABCMeta):
     """
     The checkpoint engine synchronously writes the state dict into
-    the shared memory and notify the agent in main process to
+    the shared memory and notify the agent in the main process to
     asynchronously save the state dict from the shared memory into
     the storage. Writing to memory is significantly quicker
     than writing to storage. The engine only blocks the training
     with a little time. Users can frequently call `save_to_memory` in
     the training loop and call `save_to_storage`.
 
-    If the training process fail, the agent in main process can continuously
-    saves the state dict from the shared memory into the storage.
+    If the training process fails, the agent in the main process can
+    continuously save the state dict from the shared memory into the storage.
 
     Args:
         checkpoint_dir (str): the directory to save checkpoint.
         storage: a CheckpointStorage instance to write/read the storage.
-        comm_backend (str): the communcation backend to create a process group,
+        comm_backend (str): the communication backend to create a process group,
             The default is the backend of general main process group.
     """
 
@@ -239,12 +239,12 @@ class CheckpointEngine(metaclass=ABCMeta):
             )
             if self._saving_ranks:
                 message = (
-                    f"Create a {backend} commumication group to save "
+                    f"Create a {backend} communication group to save "
                     f"checkpoint. Saving ranks are {self._saving_ranks}."
                 )
             else:
                 message = (
-                    f"Create a {backend} commumication group to save "
+                    f"Create a {backend} communication group to save "
                     "checkpoint. Saving ranks are all ranks."
                 )
             _local_rank0_log(self._local_rank, message)
@@ -260,7 +260,7 @@ class CheckpointEngine(metaclass=ABCMeta):
         """Notify the agent in the main process to create a checkpoint saver"""
         if self._local_rank != 0:
             return
-        # the agent side will release the lock if training process restarts.
+        # the agent side will release the lock if the training process restarts.
         queue = SharedQueue(name="factory")
 
         local_shard_num = self.get_local_shard_num()
@@ -393,14 +393,14 @@ class CheckpointEngine(metaclass=ABCMeta):
         Synchronously Saves the state dict into the shared memory with the main
         process. If the agent in the main process is saving the shared memory
         into the storage, the method will skip to write the shared memory.
-        Only local rank 0 save the state dict into the memory because the
+        Only local rank 0 saves the state dict into the memory because the
         state dict is replicated across all ranks.
 
         Args:
             step (int): the global iteration step.
-            state_dict (dict): the state dict of model and optimizer to save.
+            state_dict (dict): the state dict of the model and optimizer to save.
             paths (dict): the key is a category in
-                ["model_states", "optim_states"] of the state dict and
+                ["model_states", "optim_states"] of the state dict, and
                 the value is the path of storage to save.
         """
         pass
@@ -410,16 +410,16 @@ class CheckpointEngine(metaclass=ABCMeta):
         """
         Asynchronously save the state dict into the storage. It firstly
         synchronously saves the state dict into the shared memory and
-        put the path into a shared queue with the agent. Then, the agent
+        puts the path into a shared queue with the agent. Then, the agent
         in the main process saves the state dict in the shared memory to the
-        storage. Only rank 0 sends a event to the agent to save
+        storage. Only rank 0 sends an event to the agent to save
         the state dict to the storage.
 
         Args:
             step (int): the iteration step.
-            state_dict (dict): the state dict of model and optimizer to save.
+            state_dict (dict): the state dict of the model and optimizer to save.
             paths (dict): the key is a category in
-                ["model_states", "optim_states"] of the state dict and
+                ["model_states", "optim_states"] of the state dict, and
                 the value is the path of storage to save.
         """
         pass

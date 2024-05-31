@@ -32,7 +32,7 @@ from .engine import CheckpointEngine, timer
 
 class FullCheckpointEngine(CheckpointEngine):
     """
-    Save the checkpoint state dict of DDP model into the memory or storage.
+    Save the checkpoint state dict of the DDP model into the memory or storage.
 
     Examples::
         >>> engine = FullCheckpointEngine(
@@ -102,14 +102,14 @@ class FullCheckpointEngine(CheckpointEngine):
         Synchronously Saves the state dict into the shared memory with the main
         process. If the agent in the main process is saving the shared memory
         into the storage, the method will skip to write the shared memory.
-        Only local rank 0 save the state dict into the memory because the
+        Only local rank 0 saves the state dict into the memory because the
         state dict is replicated across all ranks.
 
         Args:
             step (int): the global iteration step.
-            state_dict (dict): the state dict of model and optimizer to save.
+            state_dict (dict): the state dict of the model and optimizer to save.
             paths (dict): the key is a category in
-                ["model_states", "optim_states"] of the state dict and
+                ["model_states", "optim_states"] of the state dict, and
                 the value is the path of storage to save.
         """
         conf = CheckpointConfig(step=step, paths=paths)
@@ -119,16 +119,16 @@ class FullCheckpointEngine(CheckpointEngine):
     def save_to_storage(self, step, state_dict, paths):
         """
         Asynchronously saves the state dict into the storage. It synchronously
-        saves the state dict into the shared memory and put the path
+        saves the state dict into the shared memory and puts the path
         into a shared queue. The agent in the main process waits for the queue
         for save the state dict in the shared memory into the storage.
         Only rank 0 saves the state dict into the storage.
 
         Args:
             step (int): the global iteration step.
-            state_dict (dict): the state dict of model and optimizer to save.
+            state_dict (dict): the state dict of the model and optimizer to save.
             paths (dict): the key is a category in
-                ["model_states", "optim_states"] of the state dict and
+                ["model_states", "optim_states"] of the state dict, and
                 the value is the path of storage to save.
         """
         success = True
@@ -144,7 +144,7 @@ class FullCheckpointEngine(CheckpointEngine):
 
     def load(self, resume_path=""):
         """
-        The method firstly try to load the state dict from the shared memory.
+        The method will first try to load the state dict from the shared memory.
         If there is no state dict in the shared memory, the method will
         load the state dict from the storage.
 
@@ -172,7 +172,7 @@ class FullCheckpointEngine(CheckpointEngine):
         the storage.
 
         Args:
-            resume_path (str, optional): , If the resume_path is an empty
+            resume_path (str, optional): If the resume_path is an empty
                 string, the function will load the latest checkpoint file in
                 the checkpoint directory.
 

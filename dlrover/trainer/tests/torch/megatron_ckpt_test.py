@@ -119,7 +119,7 @@ class MegatrionCheckpointTest(unittest.TestCase):
                 10, model, optimizer, None, storage_type=StorageType.MEMORY
             )
             self.assertFalse(
-                ckpt_manager.engine._shm_handler.no_checkpint_state()
+                ckpt_manager.engine._shm_handler.no_checkpoint_state()
             )
             self.assertEqual(
                 ckpt_manager.engine._shm_handler._buffer_size, 9640

@@ -197,7 +197,7 @@ class SharedMemoryWriter(StorageWriter):
         self.file_name = f"{storage_plan.prefix}{file_count}{DEFAULT_SUFFIX}"
         for bucket in plan.items:
             files.append((self.file_name, bucket))
-        if self.shm_handler.no_checkpint_state():
+        if self.shm_handler.no_checkpoint_state():
             buffer_size = _get_buffer_size(files, planner)
             self.shm_handler.init_shared_memory(create=True, size=buffer_size)
         assert self.shm_handler.shared_memory is not None
@@ -546,7 +546,7 @@ class FsdpCheckpointEngine(CheckpointEngine):
         config = self._shm_handler.get_checkpoint_config(default_config)
         step = config.step
         passed = verify_all_rank_step_consistent(self._saver_group, step)
-        if passed and not self._shm_handler.no_checkpint_state():
+        if passed and not self._shm_handler.no_checkpoint_state():
             logger.info(f"Create a shared memory reader with step {step}.")
             return self._shm_reader
         else:

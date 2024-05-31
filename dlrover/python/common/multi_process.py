@@ -141,7 +141,7 @@ class LockAcquireResponse(SocketResponse):
     A response to acquire a shared lock using local socket.
 
     Attributes:
-        acquired (bool): Ture if the lock is acquired.
+        acquired (bool): True if the lock is acquired.
     """
 
     acquired: bool = False
@@ -153,7 +153,7 @@ class LockedResponse(SocketResponse):
     A response to acquire the status of a lock.
 
     Attributes:
-        locked (bool): Ture if the lock is locked.
+        locked (bool): True if the lock is locked.
     """
 
     locked: bool = False
@@ -165,8 +165,8 @@ class LocalSocketComm(metaclass=ABCMeta):
 
     Args:
         name (str): the instance name which must be unique if multiple
-            process share a common object using the local socket.
-        create (bool): If ture, the instance creates a socket server
+            processes share a common object using the local socket.
+        create (bool): If true, the instance creates a socket server
             Otherwise, the instance creates a socket client to access
             the shared object.
     """
@@ -196,7 +196,7 @@ class LocalSocketComm(metaclass=ABCMeta):
         return os.path.join(root_dir, fname)
 
     def _init_socket(self):
-        """Initialze a socket server."""
+        """Initialize a socket server."""
         if self._create:
             self._server = _create_socket_server(self._socket_file)
             t = threading.Thread(
@@ -212,7 +212,7 @@ class LocalSocketComm(metaclass=ABCMeta):
 
     @retry_socket
     def _request(self, request: SocketRequest):
-        """Create a socket client to requet the shared object."""
+        """Create a socket client to request the shared object."""
         client = _create_socket_client(self._socket_file)
         message = pickle.dumps(request)
         _socket_send(client, message)
@@ -230,8 +230,8 @@ class SharedLock(LocalSocketComm):
     Args:
         name (str): the lock name, processes can share a lock with an
             identical name on a single node.
-        create (bool): If ture, the lock creates a socket server and a lock.
-            Otherwise, the lock need to create a socket client to access
+        create (bool): If true, the lock creates a socket server and a lock.
+            Otherwise, the lock needs to create a socket client to access
             the lock.
     """
 
@@ -351,8 +351,8 @@ class SharedQueue(LocalSocketComm):
     Args:
         name (str): the queue name, processes can share the queue with an
             identical name on a single node.
-        create (bool): If ture, the instance creates a socket server and a
-            queue. Otherwise, the instance need to create a local socket
+        create (bool): If true, the instance creates a socket server and a
+            queue. Otherwise, the instance needs to create a local socket
             client to access the queue.
     """
 
@@ -457,7 +457,7 @@ class SharedDict(LocalSocketComm):
     Args:
         name (str): the shared dictionary name, one process can update the
             dict with the same name of another process by local socket.
-        create (bool): If ture, the instance will receive the dict from the
+        create (bool): If true, the instance will receive the dict from the
             sending process to update its dict.
     """
 
@@ -518,7 +518,7 @@ class SharedDict(LocalSocketComm):
         should wait for the sync thread to update the dict.
 
         Args:
-            local (bool): If true, returns the local dict.
+            local (bool): If true, return the local dict.
         """
         if local:
             return self._dict
@@ -599,7 +599,7 @@ class SharedMemory(shared_memory.SharedMemory):
         """Requests that the underlying shared memory block be destroyed.
 
         In order to ensure proper cleanup of resources, unlink should be
-        called once (and only once) across all processes which have access
+        called once (and only once) across all processes that have access
         to the shared memory block."""
         if self._name:
             try:
