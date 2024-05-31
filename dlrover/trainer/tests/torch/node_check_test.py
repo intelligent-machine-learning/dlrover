@@ -68,6 +68,8 @@ class TestNetworkCheckScript(unittest.TestCase):
         self.assertTrue(raised_error)
 
     def test_set_nccl_env(self):
+        set_nccl_env()
+        self.assertFalse("NCCL_SOCKET_IFNAME" in os.environ)
         os.environ[
             "NCCL_SETTINGS"
         ] = "NCCL_DEBUG=INFO,NCCL_SOCKET_IFNAME=eth0,NCCL_IB_GID_INDEX=3"
