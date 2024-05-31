@@ -1049,7 +1049,7 @@ def _create_check_agent(
 
     spec = _create_worker_spec(
         node_rank=node_rank,
-        rdzv_name=RendezvousName.ELASTIC_TRAINING,
+        rdzv_name=rdzv_name,
         config=config,
         entrypoint=entrypoint,
         args=args,
