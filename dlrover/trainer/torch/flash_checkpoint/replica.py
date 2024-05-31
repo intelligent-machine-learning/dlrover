@@ -64,7 +64,7 @@ class ShardCkptReplicaManager(CkptReplicaManger):
     """
 
     def __init__(self, replica_count=0) -> None:
-        super().__init__()
+        super().__init__(replica_count)
 
         self.backup_ranks = self._get_backup_ranks(replica_count)
         self._backup_group = dist.new_group(

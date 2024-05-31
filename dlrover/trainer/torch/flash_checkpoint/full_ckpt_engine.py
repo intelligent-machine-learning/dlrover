@@ -26,9 +26,6 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
     CheckpointEventType,
     DdpCheckpointSaver,
 )
-from dlrover.trainer.torch.flash_checkpoint.replica import (
-    FullCkptReplicaManager,
-)
 
 from .engine import CheckpointEngine, timer
 
@@ -67,8 +64,13 @@ class FullCheckpointEngine(CheckpointEngine):
             logger.info(f"Set global_shard_num to {local_shard_num}.")
         self._local_shard_num = local_shard_num
         self._global_shard_num = global_shard_num
-        super().__init__(checkpoint_dir, storage, comm_backend, save_timeout)
-        self._replica_manager = FullCkptReplicaManager(replica_count)
+        super().__init__(
+            checkpoint_dir,
+            storage,
+            comm_backend,
+            save_timeout,
+            replica_count=replica_count,
+        )
 
     def get_saving_ranks(self):
         """
