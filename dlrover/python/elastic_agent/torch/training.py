@@ -288,7 +288,10 @@ class MasterRendezvousHandler(RendezvousHandler):
                     continue
             elif time.time() - start_join > self.join_timeout:
                 timeout = self.join_timeout
-                err_msg = f"Timeout {timeout}s to complete rendezvous."
+                err_msg = (
+                    f"Timeout {timeout}s to wait the enough nodes "
+                    "to complete rendzvous."
+                )
                 self._report_failure(
                     err_msg, level=TrainingExceptionLevel.RDZV_ERROR
                 )
@@ -1049,7 +1052,7 @@ def _create_check_agent(
 
     spec = _create_worker_spec(
         node_rank=node_rank,
-        rdzv_name=RendezvousName.ELASTIC_TRAINING,
+        rdzv_name=rdzv_name,
         config=config,
         entrypoint=entrypoint,
         args=args,
