@@ -12,7 +12,7 @@
 # limitations under the License.
 
 from abc import ABCMeta, abstractmethod
-from typing import Dict, List
+from typing import Dict
 
 import torch
 import torch.distributed as dist
@@ -211,7 +211,7 @@ class ShardCkptReplicaManager(CkptReplicaManger):
         return shm_tensor, meta
 
     def _gather_owner_checkpoint(
-        self, shm_handlers: List[SharedMemoryHandler]
+        self, shm_handlers: Dict[int, SharedMemoryHandler]
     ):
         ckpt_shm_tensor = None
         ckpt_meta = {}
