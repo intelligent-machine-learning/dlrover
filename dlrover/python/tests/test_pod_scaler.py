@@ -14,11 +14,7 @@
 import os
 import unittest
 
-from dlrover.python.common.constants import (
-    DistributionStrategy,
-    ElasticJobLabel,
-    NodeType,
-)
+from dlrover.python.common.constants import DistributionStrategy, NodeType
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
 from dlrover.python.master.scaler.base_scaler import ScalePlan

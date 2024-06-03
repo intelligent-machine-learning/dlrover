@@ -44,7 +44,6 @@ from dlrover.python.scheduler.kubernetes import (
     k8sServiceFactory,
     set_container_resource,
 )
-from dlrover.python.util import k8s_util
 
 _dlrover_context = Context.singleton_instance()
 
