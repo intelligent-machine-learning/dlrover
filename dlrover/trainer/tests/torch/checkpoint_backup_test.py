@@ -89,7 +89,7 @@ def run_checkpoint_backup(rank, world_size):
     with mock.patch.object(
         FullCkptReplicaManager, "_get_backup_ranks", return_value=[0, 1]
     ):
-        back_manager = FullCkptReplicaManager(1)
+        back_manager = FullCkptReplicaManager(replica_count=1)
     shm_tensor, _ = back_manager.gather(shm_hanlder)
     if rank == 0 and shm_tensor.numel() != 1632:
         raise ValueError("Test Failed!")
@@ -102,15 +102,15 @@ class CheckpointBackupTest(unittest.TestCase):
 
     @mock.patch("torch.distributed.new_group")
     @mock.patch("torch.distributed.get_rank")
-    def test_get_backup_ranks(self, mock_new_group, mock_get_rank):
+    def test_get_backup_ranks(self, _, mock_get_rank):
         mock_get_rank.return_value = 1
         os.environ["LOCAL_RANK"] = "0"
         os.environ["LOCAL_WORLD_SIZE"] = "8"
-        shard_manager = ShardCkptReplicaManager(2)
+        shard_manager = ShardCkptReplicaManager(replica_count=2)
         self.assertListEqual(shard_manager.backup_ranks, [0, 8])
 
         os.environ["NODE_NUM"] = "4"
-        shard_manager = FullCkptReplicaManager(2)
+        shard_manager = FullCkptReplicaManager(replica_count=2)
         self.assertListEqual(shard_manager.backup_ranks, [0, 8, 16, 24])
 
     def test_backup_checkpoint(self):

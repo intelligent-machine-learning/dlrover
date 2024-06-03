@@ -166,8 +166,7 @@ class ShardCkptReplicaManager(CkptReplicaManger):
         # Allgather tensor sizes
         dist.all_gather(shm_size_list, local_size, group=self._backup_group)
 
-        max_tensor_size = int(max(shm_size_list))
-        return max_tensor_size
+        return int(max(shm_size_list))
 
     def _write_peer_ckpt_to_shm(self, shm_tensors, ckpt_metas):
         for shm_tensor, meta in zip(shm_tensors, ckpt_metas):
@@ -301,6 +300,9 @@ class FullCkptReplicaManager(CkptReplicaManger):
         ]
         dist.all_gather(all_flags, flag, group=self._backup_group)
 
+        # Check whether the checkpoint shard replica exits.
+        # All flags are 0 if there is no any replica in the shared memory
+        # of nodes.
         replica_not_exist = all([t == zero_tensor for t in all_flags])
         if replica_not_exist:
             return None, None
@@ -345,5 +347,4 @@ class FullCkptReplicaManager(CkptReplicaManger):
         # Allgather tensor sizes
         dist.all_gather(shm_size_list, local_size, group=self._backup_group)
 
-        max_tensor_size = int(max(shm_size_list))
-        return max_tensor_size
+        return int(max(shm_size_list))

@@ -351,6 +351,7 @@ class CheckpointEngine(metaclass=ABCMeta):
             return
         self._shm_handler.init_shared_memory()
         byte_tensor, meta = self._replica_manager.gather(self._shm_handler)
+        print(byte_tensor, meta, self._shm_handler.shared_memory)
         if (
             byte_tensor is not None
             and meta
@@ -360,8 +361,8 @@ class CheckpointEngine(metaclass=ABCMeta):
             self._shm_handler.init_shared_memory(create=True, size=shm_size)
             self._shm_handler.metadata.set(meta)
             logger.info(
-                "Restore the checkpoint from the replica in the "
-                "memory of the alive node."
+                f"Restore the checkpoint shard with size = {shm_size}"
+                "from the replica in the memory of the alive node."
             )
         dist.barrier()
 
