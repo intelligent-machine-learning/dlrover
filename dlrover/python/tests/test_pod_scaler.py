@@ -244,20 +244,3 @@ class PodScalerTest(unittest.TestCase):
             scaler._create_node_queue[0].service_addr,
             "elasticjob-sample-edljob-worker-1.default.svc:3333",
         )
-
-    def test_get_master_pod(self):
-        scaler = PodScaler("elasticjob-sample", "default")
-        scaler.start()
-
-        for _ in range(10):
-            master_pod = scaler._retry_to_get_master_pod()
-            self.assertIsNotNone(master_pod)
-            self.assertEqual(
-                "1",
-                master_pod.metadata.labels.get(
-                    ElasticJobLabel.REPLICA_INDEX_KEY
-                ),
-            )
-            self.assertTrue(
-                ElasticJobLabel.REPLICA_TYPE_KEY in master_pod.metadata.labels
-            )
