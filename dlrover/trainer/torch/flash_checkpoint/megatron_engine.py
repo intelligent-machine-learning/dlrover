@@ -40,6 +40,7 @@ class MegatronCheckpointEngine(CheckpointEngine):
         storage,
         comm_backend="",
         save_timeout=CheckpointConstant.SAVE_TIMEOUT,
+        replica_count=0,
     ):
         if dist.is_initialized():
             try:
@@ -60,7 +61,13 @@ class MegatronCheckpointEngine(CheckpointEngine):
             self._pp_world_size = 1
             self._tp_world_size = 1
 
-        super().__init__(checkpoint_dir, storage, comm_backend, save_timeout)
+        super().__init__(
+            checkpoint_dir,
+            storage,
+            comm_backend,
+            save_timeout,
+            replica_count=replica_count,
+        )
 
     def get_saving_ranks(self):
         """

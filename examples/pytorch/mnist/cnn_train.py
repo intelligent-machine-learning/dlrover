@@ -151,7 +151,7 @@ def train(args):
         model.parameters(), lr=args.learning_rate, momentum=args.momentum
     )
     scheduler = StepLR(optimizer, step_size=1, gamma=0.5)
-    checkpointer = DdpCheckpointer(CHEKPOINT_DIR)
+    checkpointer = DdpCheckpointer(CHEKPOINT_DIR, replica_count=1)
     state_dict = checkpointer.load_checkpoint()
     if "model" in state_dict:
         model.load_state_dict(state_dict["model"])

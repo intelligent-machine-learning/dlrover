@@ -622,7 +622,8 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 ckpt_config = self._shm_handlers[i].get_checkpoint_config(
                     default_config
                 )
-                steps.append(ckpt_config.step)
+                if ckpt_config.step > 0:
+                    steps.append(ckpt_config.step)
             if all(i == step for i in steps):
                 return True
             time.sleep(1)
@@ -819,6 +820,8 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
             ckpt_config = self._shm_handlers[i].get_checkpoint_config(
                 default_config
             )
+            if ckpt_config.step == 0:
+                continue
             future: Future = self._executor.submit(
                 self._save_shard,
                 step,

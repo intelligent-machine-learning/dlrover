@@ -58,6 +58,7 @@ class MegatronCheckpointer(Singleton):
         storage=None,
         comm_backend="",
         save_timeout=CheckpointConstant.SAVE_TIMEOUT,
+        replica_count=0,
     ):
         self.state_dict = {}
         self.paths = {}
@@ -68,6 +69,7 @@ class MegatronCheckpointer(Singleton):
             storage=self.storage,
             comm_backend=comm_backend,
             save_timeout=save_timeout,
+            replica_count=replica_count,
         )
 
     def save(self, state_dict, path: str):
@@ -144,6 +146,7 @@ def save_checkpoint(
     storage=None,
     comm_backend="",
     save_timeout=CheckpointConstant.SAVE_TIMEOUT,
+    replica_count=0,
 ):
     """
     Synchronously save the the checkpointing state dict into the CPU memory.
@@ -154,6 +157,7 @@ def save_checkpoint(
             use a PosixStorage instance if the storage is not defined.
         comm_backend (str): the backend to synchronize when saving the
             checkpoint to the memory.
+        replica_count(int): the number of checkpoint replica in other nodes.
     """
     args = get_args()
     saver = MegatronCheckpointer.singleton_instance(
@@ -161,6 +165,7 @@ def save_checkpoint(
         storage=storage,
         comm_backend=comm_backend,
         save_timeout=save_timeout,
+        replica_count=replica_count,
     )
     sig = inspect.signature(megatron_save)
     if storage_type == StorageType.MEMORY:
@@ -219,6 +224,7 @@ def load_checkpoint(
     storage=None,
     comm_backend="",
     save_timeout=CheckpointConstant.SAVE_TIMEOUT,
+    replica_count=0,
 ):
     """Load the checkpointing state dict. The method firstly
     load the state dict from the CPU memory and then from the storage.
@@ -231,6 +237,7 @@ def load_checkpoint(
         storge=storage,
         comm_backend=comm_backend,
         save_timeout=save_timeout,
+        replica_count=replica_count,
     )
     torch.load = checkpointer.load
     iteration = megatron_load(

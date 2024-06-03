@@ -25,14 +25,34 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
 )
 
 
-class BackupManger(metaclass=ABCMeta):
-    def __init__(self, local_rank, local_world_size) -> None:
-        self.local_rank = local_rank
-        self.local_world_size = local_world_size
+class CkptReplicaManger(metaclass=ABCMeta):
+    def __init__(self, replica_count) -> None:
+        self.replica_count = replica_count
+        self.local_rank = env_utils.get_local_rank()
+        self.local_world_size = env_utils.get_local_world_size()
         self.node_rank = env_utils.get_node_rank()
-        self.rank = dist.get_rank()
         self.node_num = env_utils.get_node_num()
         self.current_device = torch.device("cpu")
+        self._rank_shms: Dict[int, SharedMemoryHandler] = {}
+        self._backup_ranks: List[int] = []
+        self._backup_group = None
+        if dist.is_initialized():
+            self.rank = dist.get_rank()
+        else:
+            self.rank = env_utils.get_rank()
+
+    @staticmethod
+    def create_replica_manager(shard_num, replica_count):
+        if shard_num == 1:
+            return FullCkptReplicaManager(replica_count)
+        else:
+            return ShardCkptReplicaManager(replica_count)
+
+    def has_replica(self):
+        """
+        Check whether there are replica in other nodes.
+        """
+        return self.replica_count > 0
 
     @abstractmethod
     def backup(self, shm_handler: SharedMemoryHandler):
@@ -42,7 +62,7 @@ class BackupManger(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def gather(self):
+    def gather(self, shm_handler: SharedMemoryHandler):
         """
         The node gather the checkpoint from the memory of other node in
         a backup group.
@@ -50,24 +70,22 @@ class BackupManger(metaclass=ABCMeta):
         pass
 
 
-class ShardCkptBackupManager(BackupManger):
+class ShardCkptReplicaManager(CkptReplicaManger):
     """
     The manager will select a rank of another node to backup the checkpoint
     of the current rank.
     """
 
-    def __init__(
-        self, local_rank, local_world_size, backup_group_size=2
-    ) -> None:
-        super().__init__(local_rank, local_world_size)
+    def __init__(self, replica_count=0) -> None:
+        super().__init__(replica_count)
 
-        self.backup_ranks = self._get_backup_ranks(backup_group_size)
-        self._backup_group = dist.new_group(
-            backend="gloo", ranks=self.backup_ranks
-        )
-        self._rank_shms: Dict[int, SharedMemoryHandler] = {}
+        self.backup_ranks = self._get_backup_ranks(replica_count)
+        if dist.is_initialized() and replica_count > 0:
+            self._backup_group = dist.new_group(
+                backend="gloo", ranks=self.backup_ranks
+            )
 
-    def _get_backup_ranks(self, backup_group_size):
+    def _get_backup_ranks(self, replica_count):
         """
         Get the ranks to backup checkpoint. Assuming each group has 3 nodes
         (group_size=3) and each node has 2 ranks. The backup ranks of local
@@ -86,9 +104,9 @@ class ShardCkptBackupManager(BackupManger):
         """
         backup_ranks = []
 
-        group_index = self.node_rank // backup_group_size
-        for i in range(backup_group_size):
-            node_rank = group_index * backup_group_size + i
+        group_index = self.node_rank // replica_count
+        for i in range(replica_count):
+            node_rank = group_index * replica_count + i
             rank = node_rank * self.local_world_size + self.local_rank
             backup_ranks.append(rank)
         return backup_ranks
@@ -98,7 +116,14 @@ class ShardCkptBackupManager(BackupManger):
         The rank of node in a backup group send its checkpoint shard
         in the shared memory to other nodes and get the checkpoint shards
         of other nodes by allgather.
+
+        Arguments:
+            shm_handler: The shared memory handler of the current rank on
+                this node.
+
         """
+        if self.replica_count == 0:
+            return
         assert shm_handler.shared_memory is not None
         buffer = shm_handler.shared_memory.buf
         meta_data = shm_handler.metadata.get()
@@ -108,12 +133,30 @@ class ShardCkptBackupManager(BackupManger):
 
     def _gather_peer_ckpt(self, buffer, meta_data):
         byte_tensor = torch.ByteTensor(buffer)
+        group_size = dist.get_world_size(group=self._backup_group)
+        max_size = self._get_max_tensor_size(byte_tensor)
+        # Resize tensor to max size across all ranks.
+        byte_tensor.resize_(max_size)
+
+        output_tensors = [
+            torch.empty(
+                max_size, dtype=torch.uint8, device=self.current_device
+            )
+            for _ in range(group_size)
+        ]
+        dist.all_gather(output_tensors, byte_tensor, group=self._backup_group)
+
+        output_meta_objs = [None for _ in range(group_size)]
+        dist.all_gather_object(
+            output_meta_objs, meta_data, group=self._backup_group
+        )
+        return output_tensors, output_meta_objs
+
+    def _get_max_tensor_size(self, byte_tensor: torch.ByteTensor):
         local_size = torch.LongTensor([byte_tensor.numel()]).to(
             self.current_device
         )
-
-        group_size = dist.get_world_size(group=self._backup_group)
-
+        group_size = len(self.backup_ranks)
         shm_sizes_tensor = torch.zeros(
             group_size, dtype=torch.long, device=self.current_device
         )
@@ -123,21 +166,7 @@ class ShardCkptBackupManager(BackupManger):
         # Allgather tensor sizes
         dist.all_gather(shm_size_list, local_size, group=self._backup_group)
 
-        max_tensor_size = int(max(shm_size_list))
-        # Resize tensor to max size across all ranks.
-        byte_tensor.resize_(max_tensor_size)
-
-        output_tensors = [
-            torch.empty(
-                max_tensor_size, dtype=torch.uint8, device=self.current_device
-            )
-            for _ in shm_size_list
-        ]
-        dist.all_gather(output_tensors, byte_tensor, group=self._backup_group)
-
-        output_meta_objs = [None for _ in range(group_size)]
-        dist.all_gather_object(output_meta_objs, meta_data)
-        return output_tensors, output_meta_objs
+        return int(max(shm_size_list))
 
     def _write_peer_ckpt_to_shm(self, shm_tensors, ckpt_metas):
         for shm_tensor, meta in zip(shm_tensors, ckpt_metas):
@@ -159,7 +188,7 @@ class ShardCkptBackupManager(BackupManger):
             local_shm_tensor.copy_(shm_tensor)
             shm_hanlder.metadata.set(meta)
 
-    def gather(self):
+    def gather(self, shm_handler: SharedMemoryHandler):
         """
         The method gathers the checkpoint shard from the memory of the peer
         node in a backup group. Assuming each backup group has two nodes,
@@ -172,30 +201,24 @@ class ShardCkptBackupManager(BackupManger):
         the valid shard_1 from all ranks.
 
         Arguments:
-            ckpt_shards (dict): the key is the rank of checkpoint shard and the
-                value is the handle fo the shared memory to store the
-                checkpoint shard.
-            ckpt_metas (dict): the key is the rank of checkpoint shard and the
-                value is the meta dict of PyTorch checkpiont state dict.
+            shm_handler: The shared memory handler of the current rank on
+                this node.
 
         Returns:
             ByteTensor of the checkpoint shard.
             A dict of checkpoint shard meta data.
         """
-
         shm_handlers = {}
         for rank in self.backup_ranks:
-            if rank == self.rank:
-                shm_handler = SharedMemoryHandler(local_rank=self.local_rank)
-            else:
+            if rank != self.rank:
                 shm_handler = SharedMemoryHandler(local_rank=rank)
-            shm_handler.init_shared_memory()
+                shm_handler.init_shared_memory()
             shm_handlers[rank] = shm_handler
         shm_tensor, meta = self._gather_owner_checkpoint(shm_handlers)
         return shm_tensor, meta
 
     def _gather_owner_checkpoint(
-        self, shm_handlers: List[SharedMemoryHandler]
+        self, shm_handlers: Dict[int, SharedMemoryHandler]
     ):
         ckpt_shm_tensor = None
         ckpt_meta = {}
@@ -219,7 +242,7 @@ class ShardCkptBackupManager(BackupManger):
         return ckpt_shm_tensor, ckpt_meta
 
 
-class FullCkptBackupManager(BackupManger):
+class FullCkptReplicaManager(CkptReplicaManger):
     """
     The node does not need to backup checkpoint if each rank has
     the full checkpoint. The manager can select one rank which
@@ -227,13 +250,13 @@ class FullCkptBackupManager(BackupManger):
     shared memory to other ranks.
     """
 
-    def __init__(self, local_rank, local_world_size) -> None:
-        super().__init__(local_rank, local_world_size)
+    def __init__(self, replica_count=0) -> None:
+        super().__init__(replica_count)
         self.backup_ranks = self._get_backup_ranks()
-        self._backup_group = dist.new_group(
-            backend="gloo", ranks=self.backup_ranks
-        )
-        self._rank_shms: Dict[int, SharedMemoryHandler] = {}
+        if dist.is_initialized() and replica_count > 0:
+            self._backup_group = dist.new_group(
+                backend="gloo", ranks=self.backup_ranks
+            )
 
     def _get_backup_ranks(self):
         backup_ranks = []
@@ -249,52 +272,79 @@ class FullCkptBackupManager(BackupManger):
         """
         pass
 
-    def gather(self):
+    def gather(self, shm_handler: SharedMemoryHandler):
         """
         The method gathers the checkpoint shard from the memory of the peer
         node in a backup group. Firstly, the method select a source rank
         in a node whose shared memory has the complete checkpoint. Then
         the rank broadcast its checkpoit to other ranks.
+
         Arguments:
-            ckpt_shards (dict): the key is the rank of checkpoint shard and the
-                value is the handle fo the shared memory to store the
-                checkpoint shard.
-            ckpt_metas (dict): the key is the rank of checkpoint shard and the
-                value is the meta dict of PyTorch checkpiont state dict.
+            shm_handler: The shared memory handler of the current rank on
+                this node.
 
         Returns:
             ByteTensor of the checkpoint shard.
             A dict of checkpoint shard meta data.
         """
 
-        shm_handlers = {}
         if self.rank not in self.backup_ranks:
-            return
+            return None, None
 
-        shm_handler = SharedMemoryHandler(local_rank=self.local_rank)
-        shm_handler.init_shared_memory()
-        shm_tensor, meta = self._gather_owner_checkpoint(shm_handlers)
-        return shm_tensor, meta
-
-    def _gather_owner_checkpoint(self, shm_handler: SharedMemoryHandler):
+        zero_tensor = torch.tensor([0], dtype=torch.int8)
         flag = torch.tensor([1], dtype=torch.int8)
         if not shm_handler.shared_memory:
-            flag = torch.tensor([0], dtype=torch.int8)
-        output_tensors = [
+            flag = zero_tensor
+        all_flags = [
             torch.empty(1, dtype=torch.int8) for _ in self.backup_ranks
         ]
-        dist.all_gather(output_tensors, flag)
-        src_rank = self.backup_ranks[0]
-        for i, flag in enumerate(output_tensors):
-            if flag == 1:
-                src_rank = self.backup_ranks[i]
-                break
+        dist.all_gather(all_flags, flag, group=self._backup_group)
+
+        # Check whether the checkpoint shard replica exits.
+        # All flags are 0 if there is no any replica in the shared memory
+        # of nodes.
+        replica_not_exist = all([t == zero_tensor for t in all_flags])
+        if replica_not_exist:
+            return None, None
+
         if shm_handler.shared_memory:
             byte_tensor = torch.ByteTensor(shm_handler.shared_memory.buf)
         else:
             byte_tensor = torch.ByteTensor([])
-        dist.broadcast(byte_tensor, src=src_rank)
+
+        max_size = self._get_max_tensor_size(byte_tensor)
+        byte_tensor.resize_(max_size)
+
+        src_rank = self.backup_ranks[0]
+        for i, flag in enumerate(all_flags):
+            if flag == 1:
+                src_rank = self.backup_ranks[i]
+                break
+
+        dist.broadcast(byte_tensor, src=src_rank, group=self._backup_group)
         ckpt_meta = shm_handler.metadata.get()
         ckpt_metas = [ckpt_meta]
-        dist.broadcast_object_list(ckpt_metas, src=src_rank)
+        dist.broadcast_object_list(
+            ckpt_metas, src=src_rank, group=self._backup_group
+        )
+        if byte_tensor.size()[0] == 0:
+            return None, None
         return byte_tensor, ckpt_metas[0]
+
+    def _get_max_tensor_size(self, byte_tensor: torch.ByteTensor):
+        local_size = torch.LongTensor([byte_tensor.numel()]).to(
+            self.current_device
+        )
+
+        group_size = len(self.backup_ranks)
+
+        shm_sizes_tensor = torch.zeros(
+            group_size, dtype=torch.long, device=self.current_device
+        )
+        shm_size_list = [
+            shm_sizes_tensor[i].unsqueeze(dim=0) for i in range(group_size)
+        ]
+        # Allgather tensor sizes
+        dist.all_gather(shm_size_list, local_size, group=self._backup_group)
+
+        return int(max(shm_size_list))
