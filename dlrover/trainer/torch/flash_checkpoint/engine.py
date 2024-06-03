@@ -349,11 +349,21 @@ class CheckpointEngine(metaclass=ABCMeta):
     def _restore_memory_from_replica(self):
         if not self._replica_manager.has_replica():
             return
-        byte_tensor, meta = self._replica_manager.gather()
-        if self._shm_handler.shared_memory is None:
+        self._shm_handler.init_shared_memory()
+        byte_tensor, meta = self._replica_manager.gather(self._shm_handler)
+        if (
+            byte_tensor is not None
+            and meta
+            and not self._shm_handler.shared_memory
+        ):
             shm_size = byte_tensor.size()[0]
             self._shm_handler.init_shared_memory(create=True, size=shm_size)
             self._shm_handler.metadata.set(meta)
+            logger.info(
+                "Restore the checkpoint from the replica in the "
+                "memory of the alive node."
+            )
+        dist.barrier()
 
     @abstractmethod
     def get_saving_ranks(self):

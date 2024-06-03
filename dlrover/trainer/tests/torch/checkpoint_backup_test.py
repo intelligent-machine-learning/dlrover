@@ -53,6 +53,8 @@ def cleanup():
 def run_checkpoint_backup(rank, world_size):
     os.environ["MASTER_ADDR"] = "localhost"
     os.environ["MASTER_PORT"] = "12355"
+    os.environ["LOCAL_RANK"] = str(rank)
+    os.environ["LOCAL_WORLD_SIZE"] = "1"
 
     # initialize the process group
     dist.init_process_group("gloo", rank=rank, world_size=world_size)
@@ -72,9 +74,7 @@ def run_checkpoint_backup(rank, world_size):
     with mock.patch.object(
         ShardCkptReplicaManager, "_get_backup_ranks", return_value=[0, 1]
     ):
-        back_manager = ShardCkptReplicaManager(
-            local_rank=rank, local_world_size=1, replica_count=2
-        )
+        back_manager = ShardCkptReplicaManager(replica_count=2)
     back_manager.backup_ranks = list(range(world_size))
     back_manager.backup(shm_hanlder)
     if rank == 0:
@@ -89,9 +89,7 @@ def run_checkpoint_backup(rank, world_size):
     with mock.patch.object(
         FullCkptReplicaManager, "_get_backup_ranks", return_value=[0, 1]
     ):
-        back_manager = FullCkptReplicaManager(
-            local_rank=rank, local_world_size=1
-        )
+        back_manager = FullCkptReplicaManager()
     shm_tensor, _ = back_manager._gather_owner_checkpoint(shm_hanlder)
     if rank == 0 and shm_tensor.numel() != 1632:
         raise ValueError("Test Failed!")
