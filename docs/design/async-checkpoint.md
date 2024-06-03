@@ -95,13 +95,13 @@ implement the checkpointing process.
 <img src="../figures/async-ckpt-classes.jpg" alt="Async Checkpoint Classes" width="1000">
 </div>
 
-- **AgentCkptManger**
+- **AgentCkptManager**
   - One instance runs in each agent process.
       memory and the storage.
   - Get the Shared lock of shared memory and save the checkpoint state into the storage.
   - One of Agent check if all agents finish the writing and commit the checkpoint.
 
-- **TrainCkptManger**
+- **TrainCkptManager**
   - One instance runs in each training process.
   - Is responsible for coping the checkpointing state from GPU to shared memory.
   - Notifies the AgentCkptManger to save the checkpoint state into the storage.
