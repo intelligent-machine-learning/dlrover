@@ -17,6 +17,7 @@ from kubernetes import client
 
 from dlrover.python.common.node import NodeResource
 from dlrover.python.scheduler.kubernetes import (
+    USER_AGENT,
     get_main_container,
     k8sClient,
     k8sServiceFactory,
@@ -90,3 +91,4 @@ class KubernetesTest(unittest.TestCase):
         client = k8sClient.singleton_instance("default")
         succeed = client.cordon_node("test-node-0")
         self.assertFalse(succeed)
+        self.assertEqual(client.api_client.user_agent, USER_AGENT)

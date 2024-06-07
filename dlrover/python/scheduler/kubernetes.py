@@ -40,6 +40,7 @@ NODE_SERVICE_PORTS = {
 }
 
 JOB_SUFFIX = "-edljob-"
+USER_AGENT = "easyDL/29.0.0/python"
 
 
 def convert_memory_to_mb(memory: str):
@@ -148,6 +149,7 @@ class k8sClient(Singleton):
         self.client = client.CoreV1Api()
         self.api_instance = client.CustomObjectsApi()
         self.api_client = client.ApiClient()
+        self.api_client.user_agent = USER_AGENT
         self._namespace = namespace
 
     @retry_k8s_request
