@@ -196,5 +196,31 @@ class ZeroOptimizationTest(unittest.TestCase):
         self.assertEqual(ParamBucket._add_param_as_view, patch_add_param_as_view)
 
 
+    @unittest.skipIf(
+        not torch.cuda.is_available(),
+        "Skip when cuda is not available",
+    )
+    def test_cached_sharding(self):
+        backend = "nccl"
+        atorch.init_distributed(backend)
+        model_context = create_model_context(data_size=4, batch_size=1)
+        fsdp_opt = FSDPOptimization()
+        model_context = fsdp_opt.transform(model_context)
+        model_context.update_dataloader()
+        model_context.update_optim()
+        config = {
+            "atorch_cached_sharding": True,
+        }
+        fsdp_opt.apply_wrapper(model_context, "", wrapper_config=config)
+        from atorch.distributed import cached_sharding
+        if cached_sharding.legal_version():
+            self.assertTrue(cached_sharding.activated())
+            self.assertTrue(cached_sharding.reset())
+            self.assertFalse(cached_sharding.activated())
+        else:
+            self.assertFalse(cached_sharding.activated())
+        atorch.reset_distributed()
+
+
 if __name__ == "__main__":
     unittest.main()
