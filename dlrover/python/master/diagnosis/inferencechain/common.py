@@ -23,6 +23,7 @@ class InferenceName:
 
 class InferenceAttribute:
     ISORNOT = "is_or_not"
+    IS = "is"
 
 
 class InferenceDescription:

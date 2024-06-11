@@ -14,7 +14,7 @@
 import time
 import unittest
 
-from dlrover.python.common.diagnosis import CudaLog
+from dlrover.python.common.diagnosis import CudaLog, DiagnosisDataType
 from dlrover.python.master.diagnosis.diagnosis_data import DataManager
 from dlrover.python.master.diagnosis.diagnostician import Diagnostician
 from dlrover.python.master.diagnosis.inferencechain.common import (
@@ -34,21 +34,20 @@ class DiagnosisTest(unittest.TestCase):
 
     def test_data_manager(self):
         mgr = DataManager(5)
-        data_type = "type"
-        log1 = CudaLog(0)
-        mgr.store_data(data_type, log1)
+        mgr.store_data(0, DiagnosisDataType.CUDALOG, CudaLog(0, [], [], ""))
         time.sleep(1)
-        log2 = CudaLog(0)
-        mgr.store_data(data_type, log2)
+        mgr.store_data(0, DiagnosisDataType.CUDALOG, CudaLog(0, [], [], ""))
 
-        logs = mgr.get_data(data_type)
-        self.assertEqual(len(logs), 2)
+        mgr.store_data(1, DiagnosisDataType.CUDALOG, CudaLog(0, [], [], ""))
+
+        nodes_cuda_logs = mgr.get_nodes_cuda_logs()
+        self.assertEqual(len(nodes_cuda_logs[0]), 2)
+        self.assertEqual(len(nodes_cuda_logs[1]), 1)
 
         time.sleep(6)
-        log3 = CudaLog(0)
-        mgr.store_data(data_type, log3)
-        logs = mgr.get_data(data_type)
-        self.assertEqual(len(logs), 1)
+        mgr.store_data(0, DiagnosisDataType.CUDALOG, CudaLog(0, [], [], ""))
+        nodes_cuda_logs = mgr.get_nodes_cuda_logs()
+        self.assertEqual(len(nodes_cuda_logs[0]), 2)
 
     def test_diagnostician(self):
         data_mgr = DataManager(10)

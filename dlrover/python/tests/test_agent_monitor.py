@@ -100,9 +100,9 @@ class ResourceMonitorTest(unittest.TestCase):
         collectors = monitor.get_collectors()
         self.assertEqual(len(collectors), 3)
 
-        cuda_event = monitor.collect_data(CollectorType.CUDALOG)
-        self.assertFalse(not cuda_event)
-        monitor.report_diagnosis_data(cuda_event)
+        cuda_log = monitor.collect_data(CollectorType.CUDALOG)
+        self.assertFalse(not cuda_log)
+        monitor.report_diagnosis_data(cuda_log)
 
         logs = monitor.collect_data(CollectorType.TRAININGLOG)
         self.assertFalse(not logs)

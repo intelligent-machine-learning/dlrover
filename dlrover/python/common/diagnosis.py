@@ -13,7 +13,8 @@
 
 from abc import ABCMeta, abstractmethod
 from datetime import datetime
-from typing import List
+from typing import List, Dict
+from dlrover.python.common.log import default_logger as logger
 
 
 class DiagnosisDataType:
@@ -36,24 +37,27 @@ class DiagnosisData(metaclass=ABCMeta):
 
 
 class CudaLog(DiagnosisData):
-    def __init__(self, timestamp: int, cpp_traces: List[str], py_traces: List[str]):
+    def __init__(self, timestamp: int, py_main_traces: Dict[int, str]):
+        super().__init__()
         if timestamp == 0:
-            self.timestamp = int(round(datetime.now().timestamp()))
+            self._timestamp = int(round(datetime.now().timestamp()))
         else:
-            self.timestamp = timestamp
-
-        self.cpp_traces = cpp_traces
-        self.py_traces = py_traces
+            self._timestamp = timestamp
+        self._py_main_traces: Dict[int, str] = py_main_traces
 
     def get_timestamp(self) -> int:
-        return self.timestamp
+        return self._timestamp
 
     def get_type(self) -> str:
         return DiagnosisDataType.CUDALOG
 
+    def get_main_traces(self) -> Dict[int, str]:
+        return self._py_main_traces
+
 
 class TrainingLog(DiagnosisData):
     def __init__(self, timestamp: int):
+        super().__init__()
         if timestamp == 0:
             self.timestamp = int(round(datetime.now().timestamp()))
         else:
@@ -68,6 +72,7 @@ class TrainingLog(DiagnosisData):
 
 class ChipMetrics(DiagnosisData):
     def __init__(self, timestamp: int):
+        super().__init__()
         if timestamp == 0:
             self.timestamp = int(round(datetime.now().timestamp()))
         else:
@@ -78,3 +83,21 @@ class ChipMetrics(DiagnosisData):
 
     def get_type(self) -> str:
         return DiagnosisDataType.CHIPMETRICES
+
+
+def extract_ranks(ranks_str: str) -> List[int]:
+    ranks = []
+    ss = ranks_str.split("/")
+    for s in ss:
+        if "-" in s:
+            nss = s.split("-")
+            min = int(nss[0])
+            max = int(nss[1])
+            for i in range(min, max+1):
+                ranks.append(i)
+        else:
+            ranks.append(int(s))
+
+    return ranks
+
+

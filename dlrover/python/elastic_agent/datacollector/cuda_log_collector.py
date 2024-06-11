@@ -13,7 +13,7 @@
 
 from dlrover.python.common.diagnosis import CudaLog
 from dlrover.python.elastic_agent.datacollector.data_collector import DataCollector
-from typing import List
+from typing import List, Dict
 from pathlib import Path
 from dlrover.python.common.log import default_logger as logger
 from collections import defaultdict
@@ -22,24 +22,27 @@ from dlrover.proto import elastic_training_pb2
 
 class CudaLogCollector(DataCollector):
     def __init__(self, log_path: str):
+        super().__init__()
         self._world_size = 0
         self._log_path = log_path
         self._stack_count = defaultdict(int)
         self._stack_rank_count = defaultdict(set)
         self._ranks = None
+        self._py_main_thread_traces: Dict[int, str] = {}
 
     def collect_data(self) -> CudaLog:
         logs = Path(self._log_path)
         log_files = sorted(logs.glob("*stacktrace"))
         if not log_files:
             logger.info(f"there is no cuda log files at {self._log_path}")
-            return None
+            return CudaLog(0, {})
         self._world_size = int(log_files[0].name[6:11])
         self._ranks = set(range(self._world_size))
+        logger.info(f"world_size: {self._world_size}, ranks: {self._ranks}")
 
-        cpp_traces = self._parse("cpp")
-        py_traces = self._parse("py")
-        return None
+        self._py_main_thread_traces = {}
+        self._parse("py", log_files)
+        return CudaLog(0, self._py_main_thread_traces)
 
     def to_collect_data(self) -> bool:
         return True
@@ -49,18 +52,22 @@ class CudaLogCollector(DataCollector):
         self._stack_rank_count = defaultdict(set)
         for file in files:
             self._parse_one(file.name, mode)
-        rank_traces: list[str] = []
-        for trace, count in self._stack_count.items():
-            rank_str = self._format_rank_str(self.stack_rank_count[trace])
-            if trace:
-                rank_traces.append(f"{trace}@{rank_str}\n")
+        rank_traces: List[str] = []
+
+        # for trace, count in self._stack_count.items():
+        #     rank_str = self._format_rank_str(self._stack_rank_count[trace])
+        #     if trace:
+        #         rank_trace = f"{trace}@{rank_str}\n"
+        #         rank_traces.append(rank_trace)
         return rank_traces
 
     def _parse_one(self, file_name, mode):
         st = elastic_training_pb2.Stacktrace()
         # 00003-00008.stacktrace
         rank = int(file_name[:5])
-        with open(file_name, "rb") as f:
+        file_path = self._log_path + "/" + file_name
+        logger.info(f"parse rank {rank} log: {file_path}")
+        with open(file_path, "rb") as f:
             st.ParseFromString(f.read())
         if mode == "cpp":
             self._frame_hash(st.stacktrace, rank)
@@ -76,6 +83,9 @@ class CudaLogCollector(DataCollector):
             stackchain = f"{';'.join(buf)}"
             self._stack_rank_count[stackchain].add(rank)
             self._stack_count[stackchain] = 1
+            if trace.thread_name == "MainThread":
+                self._py_main_thread_traces[rank] = stackchain
+                logger.info(f"rank {rank} main trace: {stackchain}")
 
     def _format_rank_str(self, ranks):
         ranks = list(ranks)

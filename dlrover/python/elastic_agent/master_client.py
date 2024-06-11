@@ -385,7 +385,10 @@ class MasterClient(Singleton):
         self._report(message)
 
     def report_diagnosis_cuda_log(self, cuda_log: CudaLog):
-        message = grpc.DiagnosisCudaLog(cuda_log.timestamp, cuda_log.cpp_traces, cuda_log.py_traces)
+        logger.info(f"report cuda log: {cuda_log}")
+        message = grpc.DiagnosisCudaLog(
+            cuda_log.get_timestamp(), cuda_log.get_main_traces()
+        )
         self._report(message)
 
     def get_paral_config(self) -> grpc.ParallelConfig:

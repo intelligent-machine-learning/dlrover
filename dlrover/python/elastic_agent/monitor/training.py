@@ -22,6 +22,7 @@ from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
 from dlrover.python.elastic_agent.master_client import MasterClient
 from dlrover.python.elastic_agent.monitor.resource import ResourceMonitor
+from dlrover.python.elastic_agent.monitor.diagnosis import DiagnosisMonitor
 
 
 def is_tf_chief():
@@ -77,6 +78,7 @@ class TFTrainingReporter(Singleton):
 class TorchTrainingMonitor(Singleton):
     def __init__(self, metrics_path):
         self._resource_monitor = ResourceMonitor.singleton_instance()
+        self._diagnosis_monitor = DiagnosisMonitor.singleton_instance()
         self._last_timestamp = 0
         self._start_time = 0
         self._master_client = MasterClient.singleton_instance()
@@ -89,6 +91,7 @@ class TorchTrainingMonitor(Singleton):
         if os.getenv(NodeEnv.MONITOR_ENABLED, "false") != "true":
             return
         self._resource_monitor.start()
+        self._diagnosis_monitor.start()
         thread = threading.Thread(
             target=self._periodically_report,
             name="report-step",

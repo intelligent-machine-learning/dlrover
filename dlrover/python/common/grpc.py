@@ -461,8 +461,7 @@ class DiagnosisTrainingLog(Message):
 @dataclass
 class DiagnosisCudaLog(Message):
     timestamp: int = 0
-    cpp_traces: List[str] = field(default_factory=list)
-    py_traces: List[str] = field(default_factory=list)
+    py_main_traces: Dict[int, str] = field(default_factory=dict)
 
 
 @dataclass

@@ -10,7 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import os
 import threading
 import time
 from typing import Dict
@@ -25,30 +25,28 @@ from dlrover.python.elastic_agent.datacollector.data_collector import (
     CollectorType,
     DataCollector,
 )
-from dlrover.python.elastic_agent.datacollector.log_collector import (
-    LogCollector,
-)
-from dlrover.python.elastic_agent.datacollector.metrics_collector import (
-    MetricsCollector,
-)
+
 from dlrover.python.elastic_agent.master_client import MasterClient
 
 
 class DiagnosisMonitor(Singleton):
     def __init__(self):
-        self.collectors: dict[str, DataCollector] = {}
+        self.collectors: Dict[str, DataCollector] = {}
         self._master_client = MasterClient.singleton_instance()
+        # self._cuda_log_path = str(os.environ.get("CUDA_LOG_PATH"))
+        self._cuda_log_path = "/datacube_nas/workspace/b.sang/hang_diagnosis/cuda_logs"
+        logger.info(f"cuda_log_path: {self._cuda_log_path}")
 
     def init(self):
-        self.collectors = register_collectors()
+        self.collectors = register_collectors(self._cuda_log_path)
 
     def start(self):
         self.init()
-        logger.info("Resource Monitor Initializing ...")
+        logger.info("Diagnosis Monitor Initializing ...")
 
         try:
             thread = threading.Thread(
-                target=self._diagnose_faults(),
+                target=self._diagnose_faults,
                 name="diagnosis_data",
                 daemon=True,
             )
@@ -70,14 +68,16 @@ class DiagnosisMonitor(Singleton):
         logger.info("Start to diagnose faults")
         while True:
             self._collect_diagnosis_data()
-            time.sleep(60)
+            time.sleep(6000)
 
     def _collect_diagnosis_data(self):
-        for name, collector in self.collectors:
+        for name, collector in self.collectors.items():
             if collector.to_collect_data():
                 try:
                     data = collector.collect_data()
+                    logger.info("collect_diagnosis_data: A")
                     self.report_diagnosis_data(data)
+                    logger.info("collect_diagnosis_data: B")
                 except Exception as e:
                     logger.error(
                         f"collector {name} fail to collects data: {e}"
@@ -104,9 +104,7 @@ class DiagnosisMonitor(Singleton):
         return self.collectors
 
 
-def register_collectors() -> Dict[str, DataCollector]:
+def register_collectors(cuda_log_path: str) -> Dict[str, DataCollector]:
     return {
-        CollectorType.CUDALOG: CudaLogCollector(),
-        CollectorType.CHIPMETRICS: MetricsCollector(),
-        CollectorType.TRAININGLOG: LogCollector(),
+        CollectorType.CUDALOG: CudaLogCollector(cuda_log_path),
     }
