@@ -40,7 +40,7 @@ NODE_SERVICE_PORTS = {
 }
 
 JOB_SUFFIX = "-edljob-"
-USER_AGENT = "easyDL/29.0.0/python"
+USER_AGENT = "dlrover/29.0.0/python"
 
 
 def convert_memory_to_mb(memory: str):
