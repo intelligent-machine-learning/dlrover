@@ -8,6 +8,12 @@ from atorch.auto.model_context import ModelContext
 from atorch.auto.opt_lib.shard_planners.dim_planner import DimPlanner
 from atorch.utils.version import torch_version
 
+skip = False
+try:
+    from pippy.IR import LossWrapper  # noqa # type: ignore
+except ImportError:
+    skip = True
+
 
 class FakeDeviceContext(object):
     """
@@ -96,7 +102,9 @@ def run_dim_planner(num_nodes, num_devices_per_node, loss_func):
 
 
 class TestDimPlanner(unittest.TestCase):
-    @unittest.skipIf(not torch.cuda.is_available() or torch_version() < (2, 0, 0), "Test on GPU image")  # type: ignore
+    @unittest.skipIf(
+        not torch.cuda.is_available() or torch_version() < (2, 0, 0) or skip, "Test on GPU image"  # type: ignore
+    )
     def test_dim_planner(self):
         run_dim_planner(2, 4, my_loss_func)
 

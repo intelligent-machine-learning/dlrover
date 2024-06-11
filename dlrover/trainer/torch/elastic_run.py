@@ -119,6 +119,7 @@ from dlrover.python.elastic_agent.torch.training import (
     ElasticLaunchConfig,
     launch_agent,
 )
+from dlrover.trainer.torch.utils import version_less_than_230
 
 
 def parse_args(args):
@@ -129,6 +130,12 @@ def parse_args(args):
         "--network_check",
         action=check_env,
         help="Whether to check network before starting training process.",
+    )
+    parser.add_argument(
+        "--comm-perf-test",
+        "--comm_perf_test",
+        action=check_env,
+        help="Whether to test the communication performance.",
     )
     parser.add_argument(
         "--node_unit",
@@ -250,7 +257,11 @@ def _launch_dlrover_local_master(master_addr, job_name, node_num):
         "--platform",
         "local",
     )
-    handler = SubprocessHandler(cmd, args, {}, "", "")
+    if version_less_than_230():
+        handler = SubprocessHandler(cmd, args, {}, "", "")
+    else:
+        handler = SubprocessHandler(cmd, args, {}, "", "", 0)
+
     dlrover_master_addr = f"{host}:{port}"
     return handler, dlrover_master_addr
 
@@ -286,7 +297,12 @@ def _elastic_config_from_args(
 ) -> Tuple[ElasticLaunchConfig, Union[Callable, str], List[str]]:
     config, cmd, cmd_args = config_from_args(args)
     elastic_config = ElasticLaunchConfig(**config.__dict__)
+
+    # PyTorch >= 2.3.0 remove log_dir in the LaunchConfig.
+    if not version_less_than_230():
+        elastic_config.log_dir = config.logs_specs.root_log_dir
     elastic_config.network_check = getattr(args, "network_check", False)
+    elastic_config.comm_perf_test = getattr(args, "comm_perf_test", False)
     elastic_config.auto_tunning = getattr(args, "auto_tunning", False)
     elastic_config.auto_config = getattr(args, "auto_config", False)
     elastic_config.accelerator = getattr(
@@ -300,6 +316,10 @@ def _elastic_config_from_args(
         args, "save_at_breakpoint", False
     )
     elastic_config.auto_configure_params()
+    elastic_config.rdzv_backend = "dlrover-master"
+    elastic_config.rdzv_endpoint = ""
+    join_timeout = elastic_config.rdzv_configs.get("join_timeout", 600)
+    elastic_config.rdzv_configs["timeout"] = join_timeout
     return elastic_config, cmd, cmd_args
 
 

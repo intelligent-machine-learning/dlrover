@@ -16,6 +16,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import torch
 import torch.distributed as dist
@@ -48,6 +49,9 @@ from dlrover.trainer.torch.flash_checkpoint.full_ckpt_engine import (
 )
 from dlrover.trainer.torch.flash_checkpoint.megatron_engine import (
     MegatronCheckpointEngine,
+)
+from dlrover.trainer.torch.flash_checkpoint.replica import (
+    FullCkptReplicaManager,
 )
 
 
@@ -246,6 +250,26 @@ class ShardingCheckpointEngineTest(unittest.TestCase):
             with open(tracer_file, "r") as f:
                 restored_step = int(f.read())
                 self.assertEqual(restored_step, step)
+
+    @mock.patch("torch.distributed.barrier")
+    def test_restore_memory_from_replica(self, mock_barrier):
+        buffer = memoryview(b"123456789")
+        meta = {"step": 100, "name": "test-weights"}
+        storage = PosixDiskStorage()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            saving_engine = SimpleShardingCheckpointEngine(
+                tmpdir, storage, replica_count=1
+            )
+            saving_engine._local_rank = 7
+            with mock.patch.object(
+                FullCkptReplicaManager,
+                "gather",
+                return_value=(torch.ByteTensor(buffer), meta),
+            ):
+                saving_engine._restore_memory_from_replica()
+            shm_metadata = saving_engine._shm_handler.metadata.get()
+            self.assertDictEqual(shm_metadata, meta)
+            mock_barrier.assert_called()
 
 
 class CheckpointEngineTest(unittest.TestCase):

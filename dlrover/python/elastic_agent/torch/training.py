@@ -44,7 +44,11 @@ from torch.distributed.elastic.agent.server.local_elastic_agent import (
 )
 from torch.distributed.elastic.metrics import put_metric
 from torch.distributed.elastic.metrics.api import prof
-from torch.distributed.elastic.multiprocessing import PContext, SignalException
+from torch.distributed.elastic.multiprocessing import (
+    PContext,
+    SignalException,
+    Std,
+)
 from torch.distributed.elastic.multiprocessing.errors import (
     ChildFailedError,
     ProcessFailure,
@@ -75,6 +79,7 @@ from dlrover.python.elastic_agent.master_client import MasterClient
 from dlrover.python.elastic_agent.monitor.training import TorchTrainingMonitor
 from dlrover.python.elastic_agent.torch.ckpt_saver import AsyncCheckpointSaver
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
+from dlrover.trainer.torch.utils import version_less_than_230
 
 try:
     from torch_npu.contrib import transfer_to_npu  # noqa: F401
@@ -84,7 +89,7 @@ except (ModuleNotFoundError, ImportError):  # noqa: F841
 __all__ = ["launch_agent"]
 
 
-_DEFAULT_INTERVAL = 5
+_DEFAULT_INTERVAL = 15
 
 
 def _set_paral_config():
@@ -115,6 +120,7 @@ class ElasticLaunchConfig(LaunchConfig):
 
     Args:
         network_check: whether to check the network avaliable before training.
+        comm_perf_test: whether to test the communication performance.
         node_unit: the number of unit of nodes. The number of nodes must be
             a multiple of node_unit.
         auto_config: wether to automatically configure the nnodes and
@@ -129,12 +135,15 @@ class ElasticLaunchConfig(LaunchConfig):
     """
 
     network_check: bool = False
+    comm_perf_test: bool = False
     node_unit: int = 1
     auto_config: bool = False
     auto_tunning: bool = False
     exclude_straggler: bool = False
     save_at_breakpoint: bool = False
     accelerator: str = ""
+    log_dir: Optional[str] = None  # Keep Compatibility with PyTorch>=2.3.0
+    redirects: Union[Std, Dict[int, Std]] = Std.NONE
 
     def set_node_unit(self, node_unit):
         """Set the number unint of ndoes."""
@@ -264,11 +273,11 @@ class MasterRendezvousHandler(RendezvousHandler):
                 if self._node_rank in world:
                     break
                 else:
-                    logger.info(
-                        "The node is not in the world "
-                        "and waits for more nodes."
-                    )
                     if start_pending == 0:
+                        logger.info(
+                            "The node is not in the world "
+                            "and waits for more nodes."
+                        )
                         start_pending = time.time()
                     time.sleep(_DEFAULT_INTERVAL)
                     start_join = time.time()
@@ -279,12 +288,15 @@ class MasterRendezvousHandler(RendezvousHandler):
                     continue
             elif time.time() - start_join > self.join_timeout:
                 timeout = self.join_timeout
-                err_msg = f"Timeout {timeout}s to complete rendezvous."
+                err_msg = (
+                    f"Timeout {timeout}s to wait the enough nodes "
+                    "to complete rendzvous."
+                )
                 self._report_failure(
                     err_msg, level=TrainingExceptionLevel.RDZV_ERROR
                 )
                 raise TimeoutError(err_msg)
-            time.sleep(3)
+            time.sleep(_DEFAULT_INTERVAL)
         rank = list(world.keys()).index(self._node_rank)
         world_size = len(world)
         logger.info(
@@ -370,7 +382,14 @@ class ElasticTrainingAgent(LocalElasticAgent):
         exit_barrier_timeout: float = 300,
         log_dir: Optional[str] = None,
     ):
-        super().__init__(spec, exit_barrier_timeout)
+        if version_less_than_230():
+            super().__init__(spec, exit_barrier_timeout)
+        else:
+            super().__init__(
+                spec=spec,
+                logs_specs=config.logs_specs,
+                exit_barrier_timeout=exit_barrier_timeout,
+            )
         self._node_rank = node_rank
         self._config = config
         self._entrypoint = entrypoint
@@ -524,6 +543,10 @@ class ElasticTrainingAgent(LocalElasticAgent):
         return workers
 
     def _initialize_workers(self, worker_group):
+        start_pending = 0
+        pend_timeout = float(
+            self._config.rdzv_configs.get("pend_timeout", "inf")
+        )
         while True:
             try:
                 if self._config.network_check:
@@ -533,11 +556,17 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 # the PContext start_worker will overwrite the handler.
                 AsyncCheckpointSaver.register_signal_handler()
             except RendezvousOutSyncError:
-                logger.info(
-                    "Exit elastic-training rendezvous when there are "
-                    "agents to join the network-check rendezvous."
-                )
+                if start_pending == 0:
+                    start_pending = time.time()
+                    logger.info(
+                        "Exit elastic-training rendezvous when there are "
+                        "agents to join the network-check rendezvous."
+                    )
+                time.sleep(_DEFAULT_INTERVAL)
+                if time.time() - start_pending > pend_timeout:
+                    raise TimeoutError("Timeout to wait for new nodes.")
             else:
+                logger.info("Finish initializing workers.")
                 break
 
     @prof
@@ -737,34 +766,14 @@ def launch_agent(
 
     monitor = TorchTrainingMonitor(ConfigPath.RUNTIME_METRICS)
     monitor.start()
-    rdzv_parameters = RendezvousParameters(
-        backend=config.rdzv_backend,
-        endpoint=config.rdzv_endpoint,
-        run_id=config.run_id,
-        min_nodes=config.min_nodes,
-        max_nodes=config.max_nodes,
-        **config.rdzv_configs,
-    )
-    master_addr = _get_local_ip()
-    rdzv_handler = MasterRendezvousHandler(
-        RendezvousName.ELASTIC_TRAINING,
-        node_rank,
-        rdzv_parameters,
-        local_world_size=config.nproc_per_node,
-    )
-    spec = WorkerSpec(
-        role=config.role,
-        local_world_size=config.nproc_per_node,
-        entrypoint=entrypoint,
-        args=tuple(args),
-        rdzv_handler=rdzv_handler,
-        max_restarts=config.max_restarts,
-        monitor_interval=config.monitor_interval,
-        redirects=config.redirects,
-        tee=config.tee,
-        master_addr=master_addr,
-    )
 
+    spec = _create_worker_spec(
+        node_rank=node_rank,
+        rdzv_name=RendezvousName.ELASTIC_TRAINING,
+        config=config,
+        entrypoint=entrypoint,
+        args=args,
+    )
     agent = ElasticTrainingAgent(
         node_rank=node_rank,
         config=config,
@@ -813,6 +822,45 @@ def launch_agent(
         monitor.stop()
 
 
+def _create_worker_spec(
+    node_rank: int,
+    rdzv_name: str,
+    config: ElasticLaunchConfig,
+    entrypoint: Union[Callable, str, None],
+    args: List[Any],
+):
+    rdzv_parameters = RendezvousParameters(
+        backend=config.rdzv_backend,
+        endpoint=config.rdzv_endpoint,
+        run_id=config.run_id,
+        min_nodes=config.min_nodes,
+        max_nodes=config.max_nodes,
+        **config.rdzv_configs,
+    )
+    master_addr = _get_local_ip()
+    rdzv_handler = MasterRendezvousHandler(
+        rdzv_name,
+        node_rank,
+        rdzv_parameters,
+        local_world_size=config.nproc_per_node,
+    )
+    spec = WorkerSpec(
+        role=config.role,
+        local_world_size=config.nproc_per_node,
+        entrypoint=entrypoint,
+        args=tuple(args),
+        rdzv_handler=rdzv_handler,
+        max_restarts=config.max_restarts,
+        monitor_interval=config.monitor_interval,
+        master_addr=master_addr,
+    )
+
+    if version_less_than_230():
+        spec.redirects = config.redirects
+        spec.tee = config.tee
+    return spec
+
+
 class NodeCheckElasticAgent(ElasticTrainingAgent):
     """
     An implementation of :py:class:`torchelastic.agent.server.ElasticAgent`
@@ -839,6 +887,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
         start_method="spawn",
         exit_barrier_timeout: float = 300,
         log_dir: Optional[str] = None,
+        check_round=1,
     ):
         super().__init__(
             node_rank,
@@ -850,7 +899,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
             log_dir,
         )
         self._log_dir = log_dir or tempfile.mkdtemp(prefix="node_check_")
-        self._check_round = 2
+        self._check_round = check_round
         self._config: ElasticLaunchConfig = config
 
     def run(self, role: str = DEFAULT_ROLE) -> bool:
@@ -915,7 +964,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
         self._initialize_workers(self._worker_group)
         start = time.time()
         succeed = False
-        output_dir = ConfigPath.NETWORK_CHECK_DATA_DIR
+        time_record_dir = ConfigPath.NETWORK_CHECK_DATA_DIR
         while True:
             assert self._worker_group.state != WorkerState.INIT
             time.sleep(monitor_interval)
@@ -928,7 +977,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
                     break
                 continue
             elif state == WorkerState.SUCCEEDED or self._check_finished(
-                output_dir
+                time_record_dir
             ):
                 succeed = True
                 break
@@ -936,7 +985,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
                 break
 
         if succeed:
-            elapsed_time = self._get_node_check_time(output_dir)
+            elapsed_time = self._get_node_check_time(time_record_dir)
         else:
             elapsed_time = 3600
         return succeed, elapsed_time
@@ -960,15 +1009,18 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
                     continue
                 data = json.loads(data)
                 elapsed_time = max(elapsed_time, data.get("time", 0))
-        shutil.rmtree(dir, ignore_errors=True)
+        shutil.rmtree(result_dir, ignore_errors=True)
         return elapsed_time
 
 
-def network_check(
+def _create_check_agent(
     config: ElasticLaunchConfig,
     entrypoint: Union[Callable, str, None],
     args: List[Any],
-) -> bool:
+    rdzv_name: str,
+    check_round: int,
+):
+    """Create a agent to launch sub-processes."""
     config = copy.deepcopy(config)
 
     # Disable checking network when execute tasks to check network.
@@ -991,7 +1043,6 @@ def network_check(
         f"  nproc_per_node   : {config.nproc_per_node}\n"
         f"  run_id           : {config.run_id}\n"
         f"  rdzv_backend     : {config.rdzv_backend}\n"
-        f"  rdzv_endpoint    : {config.rdzv_endpoint}\n"
         f"  rdzv_configs     : {config.rdzv_configs}\n"
         f"  max_restarts     : {config.max_restarts}\n"
         f"  monitor_interval : {config.monitor_interval}\n"
@@ -999,32 +1050,14 @@ def network_check(
         f"  metrics_cfg      : {config.metrics_cfg}\n"
     )
 
-    rdzv_parameters = RendezvousParameters(
-        backend=config.rdzv_backend,
-        endpoint=config.rdzv_endpoint,
-        run_id=config.run_id,
-        min_nodes=config.min_nodes,
-        max_nodes=config.max_nodes,
-        **config.rdzv_configs,
-    )
-
-    master_addr = _get_local_ip()
-    rdzv_handler = MasterRendezvousHandler(
-        RendezvousName.NETWORK_CHECK,
-        node_rank,
-        rdzv_parameters,
-        local_world_size=config.nproc_per_node,
-    )
-    spec = WorkerSpec(
-        role=config.role,
-        local_world_size=config.nproc_per_node,
+    spec = _create_worker_spec(
+        node_rank=node_rank,
+        rdzv_name=rdzv_name,
+        config=config,
         entrypoint=entrypoint,
-        args=tuple(args),
-        rdzv_handler=rdzv_handler,
-        max_restarts=0,
-        monitor_interval=config.monitor_interval,
-        master_addr=master_addr,
+        args=args,
     )
+    spec.max_restarts = 0  # Do not restart the check task.
 
     agent = NodeCheckElasticAgent(
         node_rank=node_rank,
@@ -1032,6 +1065,42 @@ def network_check(
         entrypoint=entrypoint,
         spec=spec,
         start_method=config.start_method,
+        check_round=check_round,
+    )
+    return agent
+
+
+def node_health_check(
+    config: ElasticLaunchConfig,
+    entrypoint: Union[Callable, str, None],
+    args: List[Any],
+) -> bool:
+    agent = _create_check_agent(
+        config,
+        entrypoint,
+        args,
+        RendezvousName.NETWORK_CHECK,
+        check_round=2,
+    )
+
+    metrics.initialize_metrics(metrics.MetricsConfig(config.metrics_cfg))
+    result = agent.run()
+    logger.info("Network check result is %s", result)
+    return result
+
+
+def comm_perf_check(
+    config: ElasticLaunchConfig,
+    entrypoint: Union[Callable, str, None],
+    args: List[Any],
+) -> bool:
+    """Check the allreduce algorithm bandwidth and bus bandwidth."""
+    agent = _create_check_agent(
+        config,
+        entrypoint,
+        args,
+        RendezvousName.ELASTIC_TRAINING,
+        check_round=1,
     )
 
     metrics.initialize_metrics(metrics.MetricsConfig(config.metrics_cfg))
@@ -1052,15 +1121,17 @@ def run_network_check(config: ElasticLaunchConfig, entrypoint):
         # If network fails because other abnormal node, We
         # will retry to check network after the new node is starting.
         # DLRover will replace the abnormal node with a new node.
-        success = network_check(
+        success = node_health_check(
             config=config, entrypoint=entrypoint, args=cmd_args
         )
         if success:
             logger.info("Node check passed.")
-            return success
+            break
         else:
             logger.error(
                 "Network of the cluster is not available "
                 "because of abnormal node."
             )
+    if success and config.comm_perf_test:
+        comm_perf_check(config=config, entrypoint=entrypoint, args=cmd_args)
     return success

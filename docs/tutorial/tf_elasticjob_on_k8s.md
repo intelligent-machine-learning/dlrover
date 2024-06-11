@@ -35,25 +35,26 @@ kubectl -n dlrover apply -f examples/tensorflow/criteo_deeprec/autoscale_job.yam
 - Check the job status
 
 ```bash
-kubectl -n dlrover get elasticjob deepctr-auto-scaling-job
+kubectl -n dlrover get elasticjob deepctr-auto-scale
 ```
 
 ```bash
-NAME                       PHASE     AGE
-deepctr-auto-scaling-job   Running   20s
+NAME                 PHASE     AGE
+deepctr-auto-scale   Running   4s
 ```
 
 - Check the Pod status
 
 ```bash
-kubectl -n dlrover get pods -l elasticjob-name=deepctr-auto-scaling-job
+kubectl -n dlrover get pods -l elasticjob.dlrover/name=deepctr-auto-scale
 ```
 
 ```bash
-NAME                                          READY   STATUS    RESTARTS   AGE
-dlrover-auto-scale-edljob-chief-0             1/1     Running   0          32s
-dlrover-auto-scale-edljob-ps-0                1/1     Running   0          32s
-elasticjob-torch-mnist-dlrover-master         1/1     Running   0          39s
+NAME                                           READY   STATUS    RESTARTS   AGE
+deepctr-auto-scale-edljob-chief-0              1/1     Running   0          78s
+deepctr-auto-scale-edljob-evaluator-0          1/1     Running   0          78s
+deepctr-auto-scale-edljob-ps-0                 1/1     Running   0          78s
+elasticjob-deepctr-auto-scale-dlrover-master   1/1     Running   0          82s
 ```
 
 Now, the speed is about 30 steps/s. After about 3min, DLRover scales up 3 workers
@@ -75,7 +76,7 @@ dlrover-auto-scale-edljob-worker-2            1/1     Running   0          3m19s
 - Submit a job with the DeepFM model.
 
 ```bash
-kubectl -n dlrover apply -f examples/tensorflow/criteo_deeprec/autoscale_job.yaml
+kubectl -n dlrover apply -f examples/tensorflow/criteo_deeprec/manual_job.yaml
 ```
 
 - Check the job status
@@ -97,8 +98,9 @@ kubectl -n dlrover get pods -l elasticjob-name=deepctr-manual-scaling
 
 ```bash
 NAME                                               READY   STATUS    RESTARTS   AGE
-deepctr-manual-scaling-edljob-chief-0              1/1     Running   0          12s
-deepctr-manual-scaling-edljob-ps-0                 1/1     Running   0          12s
+deepctr-manual-scale-edljob-chief-0                1/1     Running   0          12s
+deepctr-manual-scale-edljob-worker-0               1/1     Running   0          12s
+deepctr-manual-scale-edljob-ps-0                   1/1     Running   0          12s
 elasticjob-deepctr-manual-scaling-dlrover-master   1/1     Running   0          19s
 ```
 
@@ -114,27 +116,26 @@ workers of the job `deepctr-manual-scaling`.
 apiVersion: elastic.iml.github.io/v1alpha1
 kind: ScalePlan
 metadata:
-  namespace: dlrover
-  name: deepctr-manual-scaling-plan-0
+  name: deepctr-manual-scale-plan-0
   labels:
-    elasticjob-name: deepctr-manual-scaling
+    elasticjob.dlrover/name: deepctr-manual-scale
     scale-type: manual
 spec:
-  ownerJob: deepctr-manual-scaling
+  ownerJob: deepctr-manual-scale
   replicaResourceSpecs:
     worker:
-      replicas: 3
+      replicas: 2
 ```
 
-After scaling, there three worker nodes:
+After scaling, there two worker nodes:
 
 ``` bash
-NAME                                               READY   STATUS    RESTARTS   AGE
-deepctr-manual-scaling-edljob-chief-0              1/1     Running   0          14m
-deepctr-manual-scaling-edljob-ps-0                 1/1     Running   0          14m
-deepctr-manual-scaling-edljob-worker-0             1/1     Running   0          3s
-deepctr-manual-scaling-edljob-worker-1             1/1     Running   0          3s
-deepctr-manual-scaling-edljob-worker-2             1/1     Running   0          3s
+NAME                                             READY   STATUS    RESTARTS   AGE
+deepctr-manual-scale-edljob-chief-0              1/1     Running   0          14m
+deepctr-manual-scale-edljob-ps-0                 1/1     Running   0          14m
+deepctr-manual-scale-edljob-worker-0             1/1     Running   0          14s
+deepctr-manual-scale-edljob-worker-1             1/1     Running   0          3s
+elasticjob-deepctr-manual-scale-dlrover-master   1/1     Running   0          14m
 ```
 
 We can scale up PS nodes with the spec in ScalePlan like
@@ -144,12 +145,12 @@ apiVersion: elastic.iml.github.io/v1alpha1
 kind: ScalePlan
 metadata:
   namespace: dlrover
-  name: deepctr-manual-scaling-plan-1
+  name: deepctr-manual-scale-plan-1
   labels:
-    elasticjob-name: deepctr-auto-scaling
+    elasticjob-name: deepctr-manual-scale
     scale-type: manual
 spec:
-  ownerJob: deepctr-auto-scaling
+  ownerJob: deepctr-auto-scale
   replicaResourceSpecs:
     ps:
       replicas: 2
@@ -158,11 +159,11 @@ spec:
 After scaling, there two ps nodes:
 
 ``` bash
-NAME                                             READY   STATUS    RESTARTS   AGE
-deepctr-auto-scaling-edljob-chief-0              1/1     Running   0          7m36s
-deepctr-auto-scaling-edljob-ps-0                 1/1     Running   0          7m36s
-deepctr-auto-scaling-edljob-ps-1                 1/1     Running   0          2m50s
-elasticjob-deepctr-auto-scaling-dlrover-master   1/1     Running   0          7m43s
+NAME                                           READY   STATUS    RESTARTS   AGE
+deepctr-auto-scale-edljob-chief-0              1/1     Running   0          7m36s
+deepctr-auto-scale-edljob-ps-0                 1/1     Running   0          7m36s
+deepctr-auto-scale-edljob-ps-1                 1/1     Running   0          2m50s
+elasticjob-deepctr-auto-scale-dlrover-master   1/1     Running   0          7m43s
 ```
 
 We can scale down PS nodes with the spec in ScalePlan like
@@ -172,12 +173,12 @@ apiVersion: elastic.iml.github.io/v1alpha1
 kind: ScalePlan
 metadata:
   namespace: dlrover
-  name: deepctr-manual-scaling-plan-2
+  name: deepctr-manual-scale-plan-2
   labels:
-    elasticjob-name: deepctr-auto-scaling
+    elasticjob-name: deepctr-manual-scale
     scale-type: manual
 spec:
-  ownerJob: deepctr-auto-scaling
+  ownerJob: deepctr-auto-scale
   replicaResourceSpecs:
     ps:
       replicas: 1
@@ -186,10 +187,10 @@ spec:
 After scaling, there two ps nodes:
 
 ``` bash
-NAME                                             READY   STATUS    RESTARTS   AGE
-deepctr-auto-scaling-edljob-chief-0              1/1     Running   0          9m30s
-deepctr-auto-scaling-edljob-ps-0                 1/1     Running   0          9m30s
-elasticjob-deepctr-auto-scaling-dlrover-master   1/1     Running   0          9m47s
+NAME                                           READY   STATUS    RESTARTS   AGE
+deepctr-auto-scale-edljob-chief-0              1/1     Running   0          9m30s
+deepctr-auto-scale-edljob-ps-0                 1/1     Running   0          9m30s
+elasticjob-deepctr-auto-scale-dlrover-master   1/1     Running   0          9m47s
 ```
 
 We can migrate a PS with more resource like
@@ -199,14 +200,14 @@ apiVersion: elastic.iml.github.io/v1alpha1
 kind: ScalePlan
 metadata:
   namespace: dlrover
-  name: deepctr-manual-scaling-plan-3
+  name: deepctr-manual-scale-plan-3
   labels:
-    elasticjob-name: deepctr-auto-scaling
+    elasticjob-name: deepctr-auto-scale
     scale-type: manual
 spec:
-  ownerJob: deepctr-auto-scaling
+  ownerJob: deepctr-auto-scale
   migratePods:
-    - name: deepctr-auto-scaling-edljob-ps-0
+    - name: deepctr-auto-scale-edljob-ps-0
       resource:
         cpu: "2"
         memory: 4Gi
@@ -215,15 +216,15 @@ spec:
 During migrating, a new ps node is started. When new ps is ready, master will inform workers to accept new ps.
 
 ``` bash
-NAME                                             READY   STATUS    RESTARTS   AGE
-deepctr-auto-scaling-edljob-chief-0              1/1     Running   0          22m
-deepctr-auto-scaling-edljob-ps-0                 1/1     Running   0          22m
+NAME                                           READY   STATUS    RESTARTS   AGE
+deepctr-auto-scale-edljob-chief-0              1/1     Running   0          22m
+deepctr-auto-scale-edljob-ps-0                 1/1     Running   0          22m
 ```
 
 After migrating, new ps joins and the old ps exit:
 
 ``` bash
-NAME                                             READY   STATUS    RESTARTS   AGE
-deepctr-auto-scaling-edljob-chief-0              1/1     Running   0          22m
-deepctr-auto-scaling-edljob-ps-2                 1/1     Running   0          20s
+NAME                                           READY   STATUS    RESTARTS   AGE
+deepctr-auto-scale-edljob-chief-0              1/1     Running   0          22m
+deepctr-auto-scale-edljob-ps-2                 1/1     Running   0          20s
 ```

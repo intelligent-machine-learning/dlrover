@@ -159,7 +159,11 @@ class TaskManager(object):
         """Return if all tasks are done"""
         if not self._datasets:
             return False
-        finished = all([ds.completed() for ds in self._datasets.values()])
+
+        # Place the values into a list to avoid the error
+        # OrderedDict mutated during iteration.
+        datasets = list(self._datasets.values())
+        finished = all([ds.completed() for ds in datasets])
         return finished
 
     def recover_tasks(self, node_type, node_id):

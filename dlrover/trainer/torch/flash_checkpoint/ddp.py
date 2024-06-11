@@ -47,6 +47,7 @@ class DdpCheckpointer(Checkpointer):
             ranks save checkpoints. The node rank 0 will skip the checkpoint
             if some ranks do not finish saving checkpoint in the save_timeout
             after the node rank 0 finishes saving checkpoint.
+        replica_count(int): the number of checkpoint replica in other nodes.
 
     Examples::
         >>> checkpointer = DdpCheckpointer(
@@ -75,6 +76,7 @@ class DdpCheckpointer(Checkpointer):
         comm_backend="",
         deletion_strategy=None,
         save_timeout=CheckpointConstant.SAVE_TIMEOUT,
+        replica_count=0,
     ):
         self.checkpoint_dir = checkpoint_dir
         if dist.is_initialized():
@@ -89,6 +91,7 @@ class DdpCheckpointer(Checkpointer):
             global_shard_num=global_shard_num,
             comm_backend=comm_backend,
             save_timeout=save_timeout,
+            replica_count=replica_count,
         )
 
     def save_checkpoint(
@@ -106,8 +109,6 @@ class DdpCheckpointer(Checkpointer):
                 raise ValueError(
                     "path cannot be empty if storage type is disk!"
                 )
-            if self._rank == 0:
-                self.storage.safe_rmtree(os.path.dirname(path))
             self._engine.save_to_storage(step, state_dict, paths)
         else:
             raise ValueError(f"No support storage type {storage_type}")

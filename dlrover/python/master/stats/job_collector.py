@@ -72,6 +72,14 @@ class BaseMetricCollector(metaclass=ABCMeta):
     ):
         pass
 
+    @abstractmethod
+    def collect_custom_data(self, metric_dict):
+        pass
+
+    @abstractmethod
+    def collect_job_exit_reason(self, reason):
+        pass
+
 
 class JobMetricCollector(BaseMetricCollector):
     """The collector receives model parameters message from workers
@@ -125,7 +133,12 @@ class JobMetricCollector(BaseMetricCollector):
         self._stats_reporter.report_runtime_stats(self._runtime_metric)
 
     @BaseMetricCollector.catch_exception
-    def collect_custom_data(self):
+    def collect_custom_data(self, metric_dict=None):
+        if (
+            metric_dict
+            and not metric_dict.items() <= self._custom_metric.items()
+        ):
+            self._custom_metric.update(metric_dict)
         self._stats_reporter.report_customized_data(self._custom_metric)
 
     def collect_runtime_stats(
@@ -142,15 +155,10 @@ class JobMetricCollector(BaseMetricCollector):
         self._runtime_metric.timestamp = int(time.time())
         self._runtime_metric.speed = speed_monitor.running_speed
 
-        if (
-            speed_monitor.init_training_time > 0
-            and self._custom_metric.get(CustomMetricKey.INIT_TRAINING_TIME, 0)
-            == 0
-        ):
-            self._custom_metric[
-                CustomMetricKey.INIT_TRAINING_TIME
-            ] = speed_monitor.init_training_time
-            self.collect_custom_data()
+        if speed_monitor.init_training_time > 0:
+            init_time_key = CustomMetricKey.INIT_TRAINING_TIME
+            metric = {init_time_key: speed_monitor.init_training_time}
+            self.collect_custom_data(metric)
         for node in running_nodes:
             node_sample = copy.deepcopy(node)
             node_sample.used_resource.memory *= MemoryUnit.MB

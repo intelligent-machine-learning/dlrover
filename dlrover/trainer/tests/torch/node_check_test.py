@@ -17,6 +17,7 @@ import unittest
 
 from dlrover.trainer.torch.node_check.ascend_npu import main as npu_main
 from dlrover.trainer.torch.node_check.nvidia_gpu import main as gpu_main
+from dlrover.trainer.torch.node_check.nvidia_gpu import set_nccl_env
 from dlrover.trainer.torch.node_check.utils import mock_error
 
 
@@ -65,3 +66,12 @@ class TestNetworkCheckScript(unittest.TestCase):
         except ValueError:
             raised_error = True
         self.assertTrue(raised_error)
+
+    def test_set_nccl_env(self):
+        set_nccl_env()
+        self.assertFalse("NCCL_SOCKET_IFNAME" in os.environ)
+        os.environ[
+            "NCCL_SETTINGS"
+        ] = "NCCL_DEBUG=INFO,NCCL_SOCKET_IFNAME=eth0,NCCL_IB_GID_INDEX=3"
+        set_nccl_env()
+        self.assertEqual(os.environ["NCCL_SOCKET_IFNAME"], "eth0")

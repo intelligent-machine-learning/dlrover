@@ -22,9 +22,11 @@ from dlrover.proto import elastic_training_pb2, elastic_training_pb2_grpc
 from dlrover.python.common import grpc
 from dlrover.python.common.constants import (
     GRPC,
+    CustomMetricKeys,
     NodeStatus,
     NodeType,
     RendezvousName,
+    TrainingExceptionLevel,
     TrainingLoopStatus,
 )
 from dlrover.python.common.diagnosis import (
@@ -196,7 +198,6 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             ps_meta.cpu = ps.config_resource.cpu
             ps_meta.memory = int(ps.config_resource.memory)
             res.nodes.append(ps_meta)
-        logger.info("PS nodes : %s", res)
         res.new_ps_ready = ready
         res.ps_failure = ps_failure
         return res
@@ -268,6 +269,10 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         res.round = rdzv_round
         for rank_id, meta in nodes.items():
             res.world[rank_id] = meta.process_num
+        if nodes and request.rdzv_name == RendezvousName.ELASTIC_TRAINING:
+            rdzv_round = rdzv_manager.get_rdzv_round()
+            metrics = {CustomMetricKeys.RDZV_ROUND: rdzv_round}
+            self._job_metric_collector.collect_custom_data(metrics)
         return res
 
     def _kv_store_get(self, request: grpc.KeyValuePair):
@@ -552,6 +557,12 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             message.error_data,
             message.level,
         )
+        if message.level == TrainingExceptionLevel.RDZV_ERROR:
+            custom_data = {
+                CustomMetricKeys.TRAINING_ERROR_LEVEL: message.level,
+                CustomMetricKeys.ERROR_CONTENT: message.error_data,
+            }
+            self._job_metric_collector.collect_custom_data(custom_data)
         return True
 
     def _kv_store_set(self, message: grpc.KeyValuePair):

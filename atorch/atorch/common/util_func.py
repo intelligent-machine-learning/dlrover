@@ -1,6 +1,6 @@
 import socket
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from contextlib import AbstractContextManager
 from operator import attrgetter
 
@@ -87,7 +87,7 @@ def recursively_apply(
                 for k, v in data.items()
             }
         )
-    elif isinstance(data, Sequence):
+    elif isinstance(data, (tuple, list)):
         return type(data)(
             [
                 recursively_apply(

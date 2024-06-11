@@ -79,8 +79,12 @@ class NodeStatus(object):
 
 
 class NodeEventType(object):
+    """Notice: the type here is equal to the pod event type by k8s"""
+
+    ADDED = "ADDED"
     MODIFIED = "MODIFIED"
     DELETED = "DELETED"
+    ERROR = "ERROR"
 
 
 class NodeExitReason(object):
@@ -103,6 +107,13 @@ class JobExitReason(object):
     EVALUATOR_ERROR = "EvaluatorError"
     UNKNOWN_ERROR = "UnknownError"
     HANG_ERROR = "HangError"
+    RDZV_TIMEOUT_ERROR = "RdzvTimeout"
+
+
+class CustomMetricKeys:
+    RDZV_ROUND = "rdzv_round"
+    TRAINING_ERROR_LEVEL = "error_level"
+    ERROR_CONTENT = "error_content"
 
 
 class ExitCode(object):

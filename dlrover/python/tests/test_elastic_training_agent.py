@@ -41,8 +41,12 @@ from dlrover.python.elastic_agent.torch.training import (
     MasterRendezvousHandler,
     NodeCheckElasticAgent,
     RendezvousOutSyncError,
+    _create_check_agent,
+    _create_worker_spec,
     _get_local_ip,
     _set_paral_config,
+    comm_perf_check,
+    node_health_check,
 )
 from dlrover.python.tests.test_utils import start_local_master
 
@@ -176,6 +180,26 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         local_ip = _get_local_ip()
         self.assertEqual(local_ip, "127.0.0.1")
 
+    def test_initialize_worker(self):
+        node_id = 1
+        agent = ElasticTrainingAgent(
+            node_rank=node_id,
+            config=self.config,
+            entrypoint="python",
+            spec=self.spec,
+            start_method=self.config.start_method,
+            log_dir=self.config.log_dir,
+        )
+        agent._config.network_check = False
+        agent._config.rdzv_configs = {"pend_timeout": 0}
+
+        def _mock_rendezvous(self, *args):
+            raise RendezvousOutSyncError("test")
+
+        agent._rendezvous = _mock_rendezvous
+        with self.assertRaises(TimeoutError):
+            agent._initialize_workers(agent._worker_group)
+
 
 class ElasticTrainingAgentRunTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -307,6 +331,17 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         agent._wait_async_saver()
         agent.stop_executor()
 
+    def test_create_worker_spec(self):
+        spec = _create_worker_spec(
+            node_rank=0,
+            rdzv_name=RendezvousName.ELASTIC_TRAINING,
+            config=self.config,
+            entrypoint="echo",
+            args=[],
+        )
+        self.assertEqual(spec.max_restarts, 3)
+        self.assertEqual(spec.local_world_size, 2)
+
 
 class NodeCheckElasticAgentTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -382,6 +417,33 @@ class NodeCheckElasticAgentTest(unittest.TestCase):
         self.assertEqual(t, 107)
         if os.path.exists(root):
             shutil.rmtree(root)
+
+    def test_create_check_agent(self):
+        config = ElasticLaunchConfig(4, 4, 8)
+        agent = _create_check_agent(
+            config=config,
+            entrypoint="python",
+            args=[],
+            rdzv_name="elastic-training",
+            check_round=2,
+        )
+        self.assertEqual(agent._check_round, 2)
+
+    @mock.patch.object(NodeCheckElasticAgent, "run")
+    def test_node_health_check(self, mock_run):
+        config = ElasticLaunchConfig(1, 1, 1)
+        entrypoint = "python"
+        args = "--version"
+        node_health_check(config, entrypoint, args)
+        mock_run.assert_called()
+
+    @mock.patch.object(NodeCheckElasticAgent, "run")
+    def test_comm_perf_test(self, mock_run):
+        config = ElasticLaunchConfig(1, 1, 1)
+        entrypoint = "python"
+        args = "--version"
+        comm_perf_check(config, entrypoint, args)
+        mock_run.assert_called()
 
 
 class MasterRendezvousHandlerTest(unittest.TestCase):

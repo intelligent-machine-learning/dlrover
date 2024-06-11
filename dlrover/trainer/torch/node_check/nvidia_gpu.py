@@ -17,9 +17,16 @@ from datetime import timedelta
 import torch
 import torch.distributed as dist
 
-from dlrover.python.common.log import default_logger as logger
+from .utils import bm_allreduce, matmul, record_execution_time
 
-from .utils import bm_all_gather, matmul, record_execution_time
+
+def set_nccl_env():
+    env_conf = os.getenv("NCCL_SETTINGS", "")
+    if not env_conf:
+        return
+    for item in env_conf.split(","):
+        k, v = item.split("=")
+        os.environ[k] = v
 
 
 @record_execution_time
@@ -32,13 +39,14 @@ def main():
         local_rank = int(os.environ["LOCAL_RANK"])
         torch.cuda.set_device(local_rank)
 
-    matmul(use_cuda)
+    t = matmul(use_cuda)
     shape = 1 << 24
-    bm_all_gather(shape, use_cuda)
+    t += bm_allreduce(shape, use_cuda)
     local_rank = int(os.environ["LOCAL_RANK"])
     dist.destroy_process_group()
+    return t
 
 
 if __name__ == "__main__":
+    set_nccl_env()
     t = main()
-    logger.info(f"Finish checking node in {t}s.")

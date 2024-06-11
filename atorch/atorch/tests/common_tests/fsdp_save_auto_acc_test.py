@@ -1,12 +1,10 @@
 import contextlib
 import itertools
 import os
-import tarfile
 import unittest
 from collections.abc import Mapping
 
 import pytest
-import requests  # type: ignore
 
 torch = pytest.importorskip("torch", "2.0.9")
 import torch.multiprocessing as mp  # noqa: E402
@@ -228,27 +226,8 @@ def run_gpt2_with_strategy(
 
 class FSDPShardSaveLoadTest(unittest.TestCase):
     def setUp(self):
-
         atorch.reset_distributed()
-        url = "http://alps-common.oss-cn-hangzhou-zmf.aliyuncs.com/users/lizhi/test_fsdp_save.tar"
-        target_path = "/tmp/test_fsdp_save.tar"
-        if os.path.exists(target_path):
-            self.has_test_weights = True
-            return
-        response = requests.get(url, stream=True)
         self.has_test_weights = False
-        if response.status_code == 200:
-            self.has_test_weights = True
-            with open(target_path, "wb") as f:
-                f.write(response.raw.read())
-            extract_direcotry = os.path.dirname(target_path)
-
-            if tarfile.is_tarfile(target_path):
-                with tarfile.open(target_path) as f:
-                    f.extractall(path=extract_direcotry)
-            self.has_test_weights = os.path.exists("/tmp/test_fsdp_save")
-            if not self.has_test_weights:
-                print("There is no weight for testing, generate one")
 
     def tearDown(self):
         atorch.reset_distributed()

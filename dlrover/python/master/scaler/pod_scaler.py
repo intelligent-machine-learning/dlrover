@@ -44,7 +44,6 @@ from dlrover.python.scheduler.kubernetes import (
     k8sServiceFactory,
     set_container_resource,
 )
-from dlrover.python.util import k8s_util
 
 _dlrover_context = Context.singleton_instance()
 
@@ -103,7 +102,6 @@ class PodScaler(Scaler):
         if not self._job:
             raise ValueError(f"Cannot get the training job {self._job_name}.")
         self._init_pod_config_by_job()
-        self._master_pod = self._retry_to_get_master_pod()
         self._master_addr = self._get_master_addr()
         threading.Thread(
             target=self._periodic_create_pod, name="pod-creater", daemon=True
@@ -161,46 +159,6 @@ class PodScaler(Scaler):
             else:
                 time.sleep(5)
         return None
-
-    def _get_master_pod_labels(self):
-        return {
-            ElasticJobLabel.JOB_KEY: self._job_name,
-            ElasticJobLabel.REPLICA_TYPE_KEY: NodeType.DLROVER_MASTER,
-        }
-
-    def _retry_to_get_master_pod(self):
-        """
-        Get master pod by labels.
-        Notice: Labels might be different in different environments for now.
-        """
-        master_labels_selector = k8s_util.gen_k8s_label_selector_from_dict(
-            self._get_master_pod_labels()
-        )
-        logger.info(f"Get master pod by labels : {master_labels_selector}.")
-        for _ in range(3):
-            pods = self._k8s_client.list_namespaced_pod(master_labels_selector)
-            if pods and len(pods.items) > 0:
-                if (
-                    len(pods.items) == 1
-                    and pods.items[0].status.phase == NodeStatus.RUNNING
-                ):
-                    # return the only running master
-                    return pods.items[0]
-                elif len(pods.items) > 1:
-                    # return the last running master
-                    pods.items.sort(
-                        key=lambda pod: (
-                            pod.metadata.creation_timestamp is None,
-                            pod.metadata.creation_timestamp,
-                        ),
-                        reverse=True,
-                    )
-                    for pod in pods.items:
-                        if pod.status.phase == NodeStatus.RUNNING:
-                            return pod
-        raise ValueError(
-            f"Master pod is not found by labels: {master_labels_selector}"
-        )
 
     def scale(self, plan: ScalePlan):
         """Scale in/out Pods by a ScalePlan."""
