@@ -104,30 +104,39 @@ class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
 
     def test_min_nodes_with_unit(self):
         rdzv_manager = ElasticTrainingRendezvousManager()
-        rdzv_manager.update_rdzv_params(8, 12, 0.1, 4)
-        for i in range(10):
+        min_nodes = 8
+        max_nodes = 12
+        node_unit = 4
+        rdzv_manager.update_rdzv_params(
+            min_nodes, max_nodes, 0.1, node_unit)
+
+        test_loop = 10
+        for i in range(test_loop):
             node = Node("worker", i, name=f"worker-{i}")
             rdzv_manager.add_alive_node(node)
             rdzv_manager.join_rendezvous(i, 8)
-        self.assertEqual(len(rdzv_manager._alive_nodes), 10)
-        self.assertEqual(len(rdzv_manager._waiting_nodes), 10)
+        self.assertEqual(len(rdzv_manager._alive_nodes), test_loop)
+        self.assertEqual(len(rdzv_manager._waiting_nodes), test_loop)
         self.assertEqual(len(rdzv_manager._rdzv_nodes), 0)
         time.sleep(0.2)
         round, _, world = rdzv_manager.get_comm_world(1)
         self.assertEqual(round, 1)
-        self.assertEqual(len(rdzv_manager._waiting_nodes), 2)
-        self.assertEqual(len(rdzv_manager._rdzv_nodes), 8)
-        self.assertListEqual(list(world.keys()), list(range(8)))
+        self.assertEqual(len(rdzv_manager._waiting_nodes),
+                         test_loop - min_nodes)
+        self.assertEqual(len(rdzv_manager._rdzv_nodes), min_nodes)
+        self.assertListEqual(list(world.keys()), list(range(min_nodes)))
         round, _, world = rdzv_manager.get_comm_world(9)
         self.assertEqual(round, 1)
         self.assertFalse(9 in world)
 
         # Test the number of waiting nodes is less than the node unit.
+        self.assertEqual(rdzv_manager.num_nodes_waiting(), 0)
         rdzv_manager.join_rendezvous(10, 8)
         rdzv_manager.join_rendezvous(11, 8)
-        num = rdzv_manager.num_nodes_waiting()
-        self.assertEqual(num, 4)
-        self.assertEqual(len(rdzv_manager._waiting_nodes), 4)
+        self.assertEqual(len(rdzv_manager._waiting_nodes),
+                         rdzv_manager.num_nodes_waiting())
+        self.assertEqual(
+            rdzv_manager.num_nodes_waiting(), test_loop + 2 - min_nodes)
         node_10 = Node("worker", 10, name="worker-10")
         node_11 = Node("worker", 11, name="worker-11")
 
