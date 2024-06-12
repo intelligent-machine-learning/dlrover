@@ -99,7 +99,6 @@ class RendezvousManager(metaclass=ABCMeta):
                 f"Remove exited worker {node.name} from "
                 f"{self._name} rendezvous."
             )
-            self._waiting_nodes.pop(node.rank_index, None)
             self._has_node_failed = True
 
     def update_rdzv_params(
@@ -213,6 +212,11 @@ class RendezvousManager(metaclass=ABCMeta):
             if not self._waiting_nodes:
                 self._start_rdzv_ts = time.time()
             if node_rank in self._waiting_nodes:
+                logger.info(
+                    f"Skip rdzv joining for node : {node_rank} "
+                    "because the target node is no longer in the "
+                    "waiting nodes list."
+                )
                 return self._rdzv_round
             asw, psw = self._topology_querier.query(node_ip)
             meta = NodeTopologyMeta(

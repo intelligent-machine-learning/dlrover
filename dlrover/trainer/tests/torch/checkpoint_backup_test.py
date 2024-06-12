@@ -27,9 +27,9 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
     CheckpointConfig,
     SharedMemoryHandler,
 )
-from dlrover.trainer.torch.flash_checkpoint.ckpt_backup import (
-    ZeroCkptBackupManager,
-    get_backup_ranks,
+from dlrover.trainer.torch.flash_checkpoint.replica import (
+    FullCkptReplicaManager,
+    ShardCkptReplicaManager,
 )
 
 CHECKPOINT_DIR = "checkpoint"
@@ -53,6 +53,8 @@ def cleanup():
 def run_checkpoint_backup(rank, world_size):
     os.environ["MASTER_ADDR"] = "localhost"
     os.environ["MASTER_PORT"] = "12355"
+    os.environ["LOCAL_RANK"] = str(rank)
+    os.environ["LOCAL_WORLD_SIZE"] = "1"
 
     # initialize the process group
     dist.init_process_group("gloo", rank=rank, world_size=world_size)
@@ -69,18 +71,26 @@ def run_checkpoint_backup(rank, world_size):
     }
     shm_hanlder.save_state_dict(state_dict)
 
-    mock_func_path = (
-        "dlrover.trainer.torch.flash_checkpoint.ckpt_backup.get_backup_ranks"
-    )
-    with mock.patch(mock_func_path, return_value=[0, 1]):
-        back_manager = ZeroCkptBackupManager(
-            local_rank=rank, local_world_size=1, backup_group_size=2
-        )
+    with mock.patch.object(
+        ShardCkptReplicaManager, "_get_backup_ranks", return_value=[0, 1]
+    ):
+        back_manager = ShardCkptReplicaManager(replica_count=2)
     back_manager.backup_ranks = list(range(world_size))
     back_manager.backup(shm_hanlder)
-    peer_shm_handler = SharedMemoryHandler(2)
-    shm_hanlders = [shm_hanlder, peer_shm_handler]
-    shm_tensor, meta = back_manager._gather_owner_checkpoint(shm_hanlders)
+    if rank == 0:
+        shm_hanlders = [shm_hanlder, shm_hanlder]
+    else:
+        peer_shm_handler = SharedMemoryHandler(2)
+        shm_hanlders = [peer_shm_handler, peer_shm_handler]
+    shm_tensor, _ = back_manager._gather_owner_checkpoint(shm_hanlders)
+    if rank == 0 and shm_tensor.numel() != 1632:
+        raise ValueError("Test Failed!")
+
+    with mock.patch.object(
+        FullCkptReplicaManager, "_get_backup_ranks", return_value=[0, 1]
+    ):
+        back_manager = FullCkptReplicaManager(replica_count=1)
+    shm_tensor, _ = back_manager.gather(shm_hanlder)
     if rank == 0 and shm_tensor.numel() != 1632:
         raise ValueError("Test Failed!")
     cleanup()
@@ -90,15 +100,18 @@ class CheckpointBackupTest(unittest.TestCase):
     def setUp(self) -> None:
         shutil.rmtree(SOCKET_TMP_DIR, ignore_errors=True)
 
-    def test_get_backup_ranks(self):
+    @mock.patch("torch.distributed.new_group")
+    @mock.patch("torch.distributed.get_rank")
+    def test_get_backup_ranks(self, _, mock_get_rank):
+        mock_get_rank.return_value = 1
+        os.environ["LOCAL_RANK"] = "0"
+        os.environ["LOCAL_WORLD_SIZE"] = "8"
+        shard_manager = ShardCkptReplicaManager(replica_count=2)
+        self.assertListEqual(shard_manager.backup_ranks, [0, 8])
 
-        ranks = get_backup_ranks(
-            node_rank=5,
-            local_rank=1,
-            local_world_size=8,
-            group_size=3,
-        )
-        self.assertListEqual(ranks, [25, 33, 41])
+        os.environ["NODE_NUM"] = "4"
+        shard_manager = FullCkptReplicaManager(replica_count=2)
+        self.assertListEqual(shard_manager.backup_ranks, [0, 8, 16, 24])
 
     def test_backup_checkpoint(self):
         world_size = 2

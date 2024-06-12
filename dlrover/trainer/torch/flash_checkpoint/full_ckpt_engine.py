@@ -57,13 +57,20 @@ class FullCheckpointEngine(CheckpointEngine):
         global_shard_num=1,
         comm_backend="",
         save_timeout=CheckpointConstant.SAVE_TIMEOUT,
+        replica_count=0,
     ):
         if global_shard_num < local_shard_num:
             global_shard_num = local_shard_num
             logger.info(f"Set global_shard_num to {local_shard_num}.")
         self._local_shard_num = local_shard_num
         self._global_shard_num = global_shard_num
-        super().__init__(checkpoint_dir, storage, comm_backend, save_timeout)
+        super().__init__(
+            checkpoint_dir,
+            storage,
+            comm_backend,
+            save_timeout,
+            replica_count=replica_count,
+        )
 
     def get_saving_ranks(self):
         """

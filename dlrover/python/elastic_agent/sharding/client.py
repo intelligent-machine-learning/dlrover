@@ -159,6 +159,9 @@ class ShardingClient(object):
                 task_ids = list(self._pending_tasks.keys())
             for task_id in task_ids:
                 if record_count > 0:
+                    if task_id not in self._pending_tasks:
+                        continue
+
                     task = self._pending_tasks[task_id]
                     task_record_count = task.shard.end - task.shard.start
 
