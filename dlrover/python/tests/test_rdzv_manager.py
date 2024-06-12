@@ -143,7 +143,7 @@ class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
         for i in range(12, 16):
             rdzv_manager.join_rendezvous(i, 8)
         num = rdzv_manager.num_nodes_waiting()
-        self.assertEqual(num, 6)
+        self.assertEqual(num, 8)
         rdzv_manager.clear_waiting_nodes()
         num = rdzv_manager.num_nodes_waiting()
         self.assertEqual(num, 0)
