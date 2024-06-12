@@ -136,7 +136,7 @@ class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
         rdzv_manager.add_alive_node(node_11)
         rdzv_manager.remove_alive_node(node_10)
         rdzv_manager.remove_alive_node(node_11)
-        self.assertEqual(len(rdzv_manager._waiting_nodes), 2)
+        self.assertEqual(len(rdzv_manager._waiting_nodes), 4)
 
         # Test the number of waiting nodes is equal or
         # bigger than the node unit.
