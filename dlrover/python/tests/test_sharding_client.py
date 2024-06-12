@@ -58,6 +58,30 @@ class DataShardClientTest(unittest.TestCase):
         self.assertEqual(len(checkpoint["todo"]), 0)
         data_shard_service.restore_shard_from_checkpoint(checkpoint_str)
 
+        data_shard_service = ShardingClient(
+            batch_size=1,
+            num_epochs=1,
+            dataset_size=10,
+            num_minibatches_per_shard=1,
+            dataset_name="test1",
+        )
+        loop = 12
+        for i in range(loop):
+            shard = data_shard_service.fetch_shard()
+            if i < 10 and i != 5:
+                print(f"i : {i}, shard : {shard.start}")
+                self.assertIsNotNone(shard)
+                data_shard_service.report_batch_done(task_ids=[i])
+            elif i == 5:
+                # do report twice to verify repeated report
+                data_shard_service.report_batch_done(task_ids=[0])
+                data_shard_service.report_batch_done(task_ids=[i])
+            else:
+                data_shard_service.report_batch_done(task_ids=[0])
+
+            if i == loop - 1:
+                self.assertIsNone(shard)
+
     def test_index_sharding_client(self):
         client = IndexShardingClient(
             batch_size=16,
