@@ -107,8 +107,7 @@ class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
         min_nodes = 8
         max_nodes = 12
         node_unit = 4
-        rdzv_manager.update_rdzv_params(
-            min_nodes, max_nodes, 0.1, node_unit)
+        rdzv_manager.update_rdzv_params(min_nodes, max_nodes, 0.1, node_unit)
 
         test_loop = 10
         for i in range(test_loop):
@@ -121,8 +120,9 @@ class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
         time.sleep(0.2)
         round, _, world = rdzv_manager.get_comm_world(1)
         self.assertEqual(round, 1)
-        self.assertEqual(len(rdzv_manager._waiting_nodes),
-                         test_loop - min_nodes)
+        self.assertEqual(
+            len(rdzv_manager._waiting_nodes), test_loop - min_nodes
+        )
         self.assertEqual(len(rdzv_manager._rdzv_nodes), min_nodes)
         self.assertListEqual(list(world.keys()), list(range(min_nodes)))
         round, _, world = rdzv_manager.get_comm_world(9)
@@ -133,10 +133,12 @@ class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
         self.assertEqual(rdzv_manager.num_nodes_waiting(), 0)
         rdzv_manager.join_rendezvous(10, 8)
         rdzv_manager.join_rendezvous(11, 8)
-        self.assertEqual(len(rdzv_manager._waiting_nodes),
-                         rdzv_manager.num_nodes_waiting())
         self.assertEqual(
-            rdzv_manager.num_nodes_waiting(), test_loop + 2 - min_nodes)
+            len(rdzv_manager._waiting_nodes), rdzv_manager.num_nodes_waiting()
+        )
+        self.assertEqual(
+            rdzv_manager.num_nodes_waiting(), test_loop + 2 - min_nodes
+        )
         node_10 = Node("worker", 10, name="worker-10")
         node_11 = Node("worker", 11, name="worker-11")
 
