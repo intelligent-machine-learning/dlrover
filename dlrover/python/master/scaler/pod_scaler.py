@@ -502,14 +502,14 @@ class PodScaler(Scaler):
                 return True
             except socket.gaierror:
                 logger.warning(
-                    f"Master service check failed with gaierror "
-                    f"in {i} retring."
+                    f"Attempt {i}: Encountered gaierror while "
+                    f"performing master service check."
                 )
                 return False
             except Exception as e:
                 logger.warning(
-                    f"Master service check failed with {str(e)} "
-                    f"in {i} retring."
+                    f"Attempt {i}: Encountered {str(e)} while "
+                    f"performing master service check."
                 )
                 time.sleep(1)
 
