@@ -61,10 +61,10 @@ class PodScalerTest(unittest.TestCase):
         scaler = PodScaler("elasticjob-sample", "default")
         _dlrover_ctx.config_master_port()
         port = _dlrover_ctx.master_port
-        if 2222 == port:
-            wrong_port = 1111
+        if 22222 == port:
+            wrong_port = 11111
         else:
-            wrong_port = 2222
+            wrong_port = 22222
         passed = scaler._check_master_service_avaliable(
             "elasticjob-test-master", wrong_port, 2
         )
