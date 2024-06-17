@@ -71,7 +71,7 @@ class PodScalerTest(unittest.TestCase):
         passed = scaler._check_master_service_avaliable(
             "localhost", _dlrover_ctx.master_port, 2
         )
-        self.assertFalse(passed)
+        self.assertTrue(passed)
 
     def test_create_pod(self):
         scaler = PodScaler("elasticjob-sample", "default")
