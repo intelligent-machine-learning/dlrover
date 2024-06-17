@@ -120,7 +120,7 @@ class PodScaler(Scaler):
             # the service is not avalilable.
             logger.info(
                 f"The service {master_addr} is not available and "
-                "use the IP of master Pod."
+                f"use the IP of master Pod."
             )
             master_ip = os.getenv("POD_IP", "")
             if not master_ip:
@@ -496,14 +496,24 @@ class PodScaler(Scaler):
 
     def _check_master_service_avaliable(self, host, port, timeout=15):
         """Verify that the master grpc servicer is available."""
-        for _ in range(timeout):
+        for i in range(timeout):
             try:
                 telnetlib.Telnet(host=host, port=port, timeout=3)
                 return True
             except socket.gaierror:
+                logger.warning(
+                    f"Attempt {i}: Encountered gaierror while "
+                    f"performing master service check."
+                )
                 return False
-            except Exception:
+            except Exception as e:
+                logger.warning(
+                    f"Attempt {i}: Encountered {str(e)} while "
+                    f"performing master service check."
+                )
                 time.sleep(1)
+
+        logger.warning(f"Master service check failed after {timeout} retries.")
         return False
 
     def _patch_tf_config_into_env(self, pod, node: Node, pod_stats, ps_addrs):
