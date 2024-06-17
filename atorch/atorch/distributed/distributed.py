@@ -37,6 +37,8 @@ class _DistributedContext:
     STORE = None
     PREFIX_STORE_COUNT = 0
     PIPE_RPC_INIT = 0
+    # cached_sharding
+    INTRA_NODE_PROCESS_GROUP = None
 
 
 class _CoworkerContext:
@@ -633,6 +635,26 @@ def _get_pods_address(ddp_group_size, ip_and_port, rpc_rank, addrs_queue, timeou
         store.set("{}_done".format(rpc_rank), "True")
 
 
+def intra_node_process_group() -> dist.ProcessGroup:
+    return _DistributedContext.INTRA_NODE_PROCESS_GROUP
+
+
+def init_intra_node_process_group() -> dist.ProcessGroup:
+    """
+    Returns a process group across the current node.
+    For example, given each row is a distinct node:
+    0 1 2 3 4 5 6 7 8
+    9 10 11 12 13 14 15
+    This API would return an intra-node subgroup across
+    [0, 7] or [8, 15] depending on the process's rank.
+    For example, rank 3 would get [0, 7].
+    """
+    if _DistributedContext.INTRA_NODE_PROCESS_GROUP is not None:
+        return _DistributedContext.INTRA_NODE_PROCESS_GROUP
+    intra_node_subgroup, _ = dist.new_subgroups()
+    _DistributedContext.INTRA_NODE_PROCESS_GROUP = intra_node_subgroup
+    return intra_node_subgroup
+
 def init_coworker_process_groups(backend):
     # init store
     if _DistributedContext.STORE is None:
@@ -818,6 +840,7 @@ def reset_distributed():
     _DistributedContext.NODE_SIZE = None
     _DistributedContext.COWORKER_NUM_PER_NODE = None
     _DistributedContext.PREFIX_STORE_COUNT += 1
+    _DistributedContext.INTRA_NODE_PROCESS_GROUP = None
     _CoworkerContext.GPU_POD_ADDRS = None
     _CoworkerContext.COWORKER_ADDRS = None
     _CoworkerContext.DATA_INFO_SERVER = None

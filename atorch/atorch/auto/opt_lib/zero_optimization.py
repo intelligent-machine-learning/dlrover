@@ -371,6 +371,12 @@ class FSDPOptimization(Optimization):
 
                 wrapper_config["cpu_offload"] = CPUOffload(offload_params=True)
 
+        # cached sharding
+        atorch_cached_sharding = wrapper_config.pop("atorch_cached_sharding", False)
+        if atorch_cached_sharding:
+            from atorch.distributed import cached_sharding
+            cached_sharding.set()
+
         fsdp_clz = FSDP
         pg = parallel_group("zero") or parallel_group("data")
         extra_config = {}
@@ -424,6 +430,13 @@ class FSDPOptimization(Optimization):
 
         return model_context
 
+    @staticmethod
+    def reset(config):
+        """Reset environment changed by current optimization."""
+        atorch_cached_sharding = config.get("atorch_cached_sharding", False)
+        if atorch_cached_sharding:
+            from atorch.distributed import cached_sharding
+            cached_sharding.reset()
 
 def apply_ds_zero_wrapper(model_context, wrapper_name, wrapper_config):
     import deepspeed as ds
