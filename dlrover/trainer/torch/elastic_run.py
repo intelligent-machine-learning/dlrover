@@ -183,6 +183,14 @@ def parse_args(args):
         choices=[Accelerators.NVIDIA_GPU, Accelerators.ASCEND_NPU],
         help="The type of accelerator chip of the machine.",
     )
+    parser.add_argument(
+        "--log_file",
+        "--log-file",
+        type=str,
+        action=env,
+        default="",
+        help="The training log file.",
+    )
     return parser.parse_args(args)
 
 
@@ -315,6 +323,7 @@ def _elastic_config_from_args(
     elastic_config.save_at_breakpoint = getattr(
         args, "save_at_breakpoint", False
     )
+    elastic_config.log_file = getattr(args, "log_file", "")
     elastic_config.auto_configure_params()
     elastic_config.rdzv_backend = "dlrover-master"
     elastic_config.rdzv_endpoint = ""
@@ -342,7 +351,6 @@ def _check_to_use_dlrover_run(master_addr, max_nodes, timeout=120):
 def run(args):
     master_handler = None
     master_addr = os.getenv(NodeEnv.DLROVER_MASTER_ADDR, "")
-    use_dlrover_launch = False
     node_rank = env_utils.get_node_rank()
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     job_name = os.getenv(NodeEnv.JOB_NAME, f"standalone_{timestamp}")

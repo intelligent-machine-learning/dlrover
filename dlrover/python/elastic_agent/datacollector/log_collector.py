@@ -19,6 +19,7 @@ from dlrover.python.elastic_agent.datacollector.data_collector import (
 
 class LogCollector(DataCollector):
     def __init__(self, *args, **kwargs):
+        super().__init__()
         pass
 
     def collect_data(self) -> object:

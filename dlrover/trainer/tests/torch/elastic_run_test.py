@@ -64,11 +64,14 @@ class ElasticRunTest(unittest.TestCase):
             "4",
             "--nnodes",
             "4",
+            "--log_file",
+            "kubemaker.log",
             "test.py",
             "--batch_size",
             "16",
         ]
         args = parse_args(args)
+        print(args)
         config, cmd, cmd_args = _elastic_config_from_args(args)
         self.assertTrue(config.network_check)
         self.assertTrue(config.comm_perf_test)
@@ -77,3 +80,4 @@ class ElasticRunTest(unittest.TestCase):
         self.assertEqual(config.rdzv_configs["node_unit"], 4)
         self.assertEqual(cmd, "/usr/local/bin/python")
         self.assertListEqual(cmd_args, ["-u", "test.py", "--batch_size", "16"])
+        self.assertEqual(config.log_file, "kubemaker.log")

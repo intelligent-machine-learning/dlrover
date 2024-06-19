@@ -80,6 +80,7 @@ from dlrover.python.elastic_agent.monitor.training import TorchTrainingMonitor
 from dlrover.python.elastic_agent.torch.ckpt_saver import AsyncCheckpointSaver
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
 from dlrover.trainer.torch.utils import version_less_than_230
+from dlrover.python.common.diagnosis import should_relaunch_worker
 
 try:
     from torch_npu.contrib import transfer_to_npu  # noqa: F401
@@ -144,6 +145,7 @@ class ElasticLaunchConfig(LaunchConfig):
     accelerator: str = ""
     log_dir: Optional[str] = None  # Keep Compatibility with PyTorch>=2.3.0
     redirects: Union[Std, Dict[int, Std]] = Std.NONE
+    log_file: str = ""
 
     def set_node_unit(self, node_unit):
         """Set the number unint of ndoes."""
@@ -406,6 +408,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
         self._save_ckpt_executor = ThreadPoolExecutor(max_workers=1)
         self._save_ckpt_future = None
+        self._log_file = config.log_file
 
     @prof
     def _rendezvous(self, worker_group: WorkerGroup) -> None:
@@ -624,7 +627,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 logger.error(f"The worker fails with {run_result.failures}")
                 self._report_failure_to_master(run_result.failures)
                 self._save_ckpt_to_storage()
-                if self._remaining_failovers > 0:
+                if self._remaining_failovers > 0 and not should_relaunch_worker(self._log_file):
                     logger.info(
                         f"[{role}] Worker group {state.name}. "
                         f"{self._remaining_failovers}/{spec.max_restarts}"
@@ -760,6 +763,7 @@ def launch_agent(
         f"  monitor_interval : {config.monitor_interval}\n"
         f"  log_dir          : {config.log_dir}\n"
         f"  metrics_cfg      : {config.metrics_cfg}\n"
+        f"  log_file         : {config.log_file}\n"
     )
 
     _set_paral_config()
