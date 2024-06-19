@@ -504,6 +504,7 @@ class k8sServiceFactory(object):
         selector: Dict[str, str],
         owner_ref: client.V1OwnerReference,
         retry_num=5,
+        patch_if_exists: bool = True,
     ):
         """
         Create a new service if the service dose not exist, otherwise
@@ -517,10 +518,16 @@ class k8sServiceFactory(object):
             owner_ref=owner_ref,
         )
 
-        if not self._k8s_client.get_service(name):
+        svc = self.get_service(name)
+        if not svc:
             return self._create_new_service(service, retry_num)
         else:
-            return self._patch_service(name, service, retry_num)
+            if patch_if_exists:
+                return self._patch_service(name, service, retry_num)
+            return True
+
+    def get_service(self, name):
+        return self._k8s_client.get_service(name)
 
     def _create_new_service(self, service: client.V1Service, retry_num: int):
         for _ in range(retry_num):
@@ -547,6 +554,7 @@ class k8sServiceFactory(object):
         target_port: int,
         selector: Dict[str, str],
         owner_ref: client.V1OwnerReference,
+        port_name="grpc",
     ):
         labels = {
             "app": ElasticJobLabel.APP_NAME,
@@ -564,7 +572,11 @@ class k8sServiceFactory(object):
             namespace=self._namespace,
         )
         spec = client.V1ServiceSpec(
-            ports=[client.V1ServicePort(port=port, target_port=target_port)],
+            ports=[
+                client.V1ServicePort(
+                    name=port_name, port=port, target_port=target_port
+                )
+            ],
             selector=selector,
             type=None,
         )
