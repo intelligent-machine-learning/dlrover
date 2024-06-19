@@ -55,10 +55,11 @@ def is_hanged(workers_stack: Dict[int, List[str]]) -> bool:
         for i in range(0, len(traces)):
             if i == 0:
                 continue
-            if traces[i] != traces[i-1] or not is_block_func(traces[i]):
+            if traces[i] != traces[i-1]:
                 blocked = False
                 break
         if blocked:
+            logger.info(f"rank {rank} is blocked!!!")
             blocked_ranks.append(rank)
 
     if len(blocked_ranks) == len(workers_stack):
@@ -89,26 +90,32 @@ class CheckTrainingHangOperator(InferenceOperator):
             return False
 
     def infer(self, inferences: List[Inference]) -> List[Inference]:
+        logger.info(f"Infer the training hang problem")
         nodes_cuda_logs = self._data_manager.get_nodes_cuda_logs()
-        if not nodes_cuda_logs or len(nodes_cuda_logs) == 0:
+        if not nodes_cuda_logs:
             logger.warning("not enough data to check training hang")
             return []
-        workers_latest_stack: Dict[int, List[str]] = {}
 
+        ranks_traces: Dict[int, List[str]] = {}
         for node_id, node_cuda_logs in nodes_cuda_logs.items():
-            rank_traces: Dict[int, List[str]] = {}
-            for i in range(0, 3):
-                if len(node_cuda_logs) <= i:
-                    continue
-
-                for rank, main_traces in nodes_cuda_logs[i].py_main_traces.item():
-                    latest_trace = get_latest_trace(main_traces)
+            for cuda_log in node_cuda_logs:
+                for rank, main_trace in cuda_log.get_main_traces().items():
+                    if rank not in ranks_traces:
+                        ranks_traces[rank] = []
+                    if len(ranks_traces[rank]) >= 3:
+                        continue
+                    latest_trace = get_latest_trace(main_trace)
                     if len(latest_trace) == 0:
                         logger.error(f"rank {rank} has no trace")
                         continue
-                    rank_traces[rank].append(latest_trace)
+                    ranks_traces[rank].append(latest_trace)
 
-        if is_hanged(workers_latest_stack):
+        for rank, traces in ranks_traces.items():
+            if len(traces) < 3:
+                logger.warning(f"rank {rank} only reports {len(traces)} cuda logs")
+                return []
+
+        if is_hanged(ranks_traces):
             return [
                 Inference(
                     name=InferenceName.TRAINING,

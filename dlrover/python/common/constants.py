@@ -301,3 +301,7 @@ class CheckpointConstant(object):
 class Accelerators(object):
     NVIDIA_GPU = "nvidia.com/gpu"
     ASCEND_NPU = "ascend-npu"
+
+
+class Diagnosis(object):
+    CUDA_LOG_PATH = "CUDA_LOG_PATH"

@@ -27,3 +27,6 @@ class MetricsCollector(DataCollector):
 
     def to_collect_data(self) -> bool:
         return True
+
+    def get_name(self) -> str:
+        return "metrics_collector"

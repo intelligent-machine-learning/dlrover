@@ -25,7 +25,7 @@ from dlrover.python.elastic_agent.datacollector.data_collector import (
     CollectorType,
     DataCollector,
 )
-
+from dlrover.python.common.constants import Diagnosis
 from dlrover.python.elastic_agent.master_client import MasterClient
 
 
@@ -33,8 +33,8 @@ class DiagnosisMonitor(Singleton):
     def __init__(self):
         self.collectors: Dict[str, DataCollector] = {}
         self._master_client = MasterClient.singleton_instance()
-        # self._cuda_log_path = str(os.environ.get("CUDA_LOG_PATH"))
-        self._cuda_log_path = "/datacube_nas/workspace/b.sang/hang_diagnosis/cuda_logs"
+        self._cuda_log_path = str(os.environ.get(Diagnosis.CUDA_LOG_PATH))
+        # self._cuda_log_path = "/datacube_nas/workspace/b.sang/hang_diagnosis/cuda_logs"
         logger.info(f"cuda_log_path: {self._cuda_log_path}")
 
     def init(self):
@@ -67,17 +67,16 @@ class DiagnosisMonitor(Singleton):
     def _diagnose_faults(self):
         logger.info("Start to diagnose faults")
         while True:
+            time.sleep(60)
             self._collect_diagnosis_data()
-            time.sleep(6000)
 
     def _collect_diagnosis_data(self):
         for name, collector in self.collectors.items():
             if collector.to_collect_data():
                 try:
+                    logger.info(f"collector {collector.get_name()} collects data")
                     data = collector.collect_data()
-                    logger.info("collect_diagnosis_data: A")
                     self.report_diagnosis_data(data)
-                    logger.info("collect_diagnosis_data: B")
                 except Exception as e:
                     logger.error(
                         f"collector {name} fail to collects data: {e}"

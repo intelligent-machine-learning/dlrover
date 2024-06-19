@@ -623,7 +623,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
     def _report_cuda_log(
         self, node_type, node_id, message: grpc.DiagnosisCudaLog
     ):
-        logger.info(f"recv cuda log: {message.py_main_traces}")
+        logger.info(f"recv cuda log of {message.py_main_traces.keys()} from node {node_id}")
         data = CudaLog(message.timestamp, message.py_main_traces)
         if self._diagnosis_manager:
             self._diagnosis_manager.collect_diagnosis_data(

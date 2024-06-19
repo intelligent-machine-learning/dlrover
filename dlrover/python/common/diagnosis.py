@@ -13,8 +13,7 @@
 
 from abc import ABCMeta, abstractmethod
 from datetime import datetime
-from typing import List, Dict
-from dlrover.python.common.log import default_logger as logger
+from typing import List, Dict, Set
 
 
 class DiagnosisDataType:
@@ -37,13 +36,13 @@ class DiagnosisData(metaclass=ABCMeta):
 
 
 class CudaLog(DiagnosisData):
-    def __init__(self, timestamp: int, py_main_traces: Dict[int, str]):
+    def __init__(self, timestamp: int, traces: Dict[str, Set[int]]):
         super().__init__()
         if timestamp == 0:
             self._timestamp = int(round(datetime.now().timestamp()))
         else:
             self._timestamp = timestamp
-        self._py_main_traces: Dict[int, str] = py_main_traces
+        self._traces: Dict[str, Set[int]] = traces
 
     def get_timestamp(self) -> int:
         return self._timestamp
@@ -51,8 +50,8 @@ class CudaLog(DiagnosisData):
     def get_type(self) -> str:
         return DiagnosisDataType.CUDALOG
 
-    def get_main_traces(self) -> Dict[int, str]:
-        return self._py_main_traces
+    def get_traces(self) -> Dict[str, Set[int]]:
+        return self._traces
 
 
 class TrainingLog(DiagnosisData):
@@ -101,3 +100,36 @@ def extract_ranks(ranks_str: str) -> List[int]:
     return ranks
 
 
+def format_rank_str(world_size: int, ranks: Set[int]) -> str:
+    ranks = list(ranks)
+    leak_ranks = list(set(range(world_size)) - set(ranks))
+
+    def _inner_format(ranks: List[int]):
+        """fold continuous ranks, [0,1,2,5,6,7]->[0-2,5-7]
+        return has stack and leak stack, suppose we have 8 ranks(0-7)
+        [0,1,2,5,6,7]->0-2/5-7|3-4, means rank 0-2,5-7 has this stacktrace,
+        while rank 3-4 do not have this stacktrace
+        """
+        str_buf = []
+        low = 0
+        high = 0
+        total = len(ranks)
+        while high < total - 1:
+            low_value = ranks[low]
+            high_value = ranks[high]
+            while high < total - 1 and high_value + 1 == ranks[high + 1]:
+                high += 1
+                high_value = ranks[high]
+            low = high + 1
+            high += 1
+            if low_value != high_value:
+                str_buf.append(f"{low_value}-{high_value}")
+            else:
+                str_buf.append(str(low_value))
+        if high == total - 1:
+            str_buf.append(str(ranks[high]))
+        return "/".join(str_buf)
+
+    has_stack_ranks = _inner_format(ranks)
+    leak_stack_ranks = _inner_format(leak_ranks)
+    return f"{has_stack_ranks}|{leak_stack_ranks}"

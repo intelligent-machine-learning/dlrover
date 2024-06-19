@@ -57,14 +57,13 @@ class InferenceChain:
                     logger.exception(e)
                     new_infs.append(inference)
             inferred_steps = inferred_steps + 1
-            if has_new_inference:
-                inferences = new_infs
-            else:
+            inferences = new_infs
+            if not has_new_inference:
                 break
         return inferences
 
     def get_operator(self, inference: Inference) -> InferenceOperator:
-        for operator in self.operators:
+        for operator in self._operators:
             if operator.is_compatible(inference):
                 return operator
         raise TypeError(f"no compatible operator for {inference}")

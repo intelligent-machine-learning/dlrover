@@ -25,10 +25,8 @@ class CudaLogCollector(DataCollector):
         super().__init__()
         self._world_size = 0
         self._log_path = log_path
-        self._stack_count = defaultdict(int)
-        self._stack_rank_count = defaultdict(set)
         self._ranks = None
-        self._py_main_thread_traces: Dict[int, str] = {}
+        self._traces = defaultdict(set)
 
     def collect_data(self) -> CudaLog:
         logs = Path(self._log_path)
@@ -38,28 +36,34 @@ class CudaLogCollector(DataCollector):
             return CudaLog(0, {})
         self._world_size = int(log_files[0].name[6:11])
         self._ranks = set(range(self._world_size))
-        logger.info(f"world_size: {self._world_size}, ranks: {self._ranks}")
+        logger.info(f"world_size: {self._world_size}")
 
-        self._py_main_thread_traces = {}
+        self._traces = defaultdict(set)
         self._parse("py", log_files)
-        return CudaLog(0, self._py_main_thread_traces)
+        return CudaLog(0, self._traces)
+
+    def get_all_traces(self) -> List[str]:
+        traces: List[str] = []
+        for trace, ranks in self._stack_rank_count.items():
+            ranks_str = self._format_rank_str(ranks)
+            rank_trace = f"{trace}#{ranks_str}"
+            traces.append(rank_trace)
+        return traces
 
     def to_collect_data(self) -> bool:
         return True
 
-    def _parse(self, mode, files) -> List[str]:
+    def get_name(self) -> str:
+        return "cuda_log_collector"
+
+    def _parse(self, mode, files):
         self._stack_count = defaultdict(int)
         self._stack_rank_count = defaultdict(set)
         for file in files:
-            self._parse_one(file.name, mode)
-        rank_traces: List[str] = []
-
-        # for trace, count in self._stack_count.items():
-        #     rank_str = self._format_rank_str(self._stack_rank_count[trace])
-        #     if trace:
-        #         rank_trace = f"{trace}@{rank_str}\n"
-        #         rank_traces.append(rank_trace)
-        return rank_traces
+            try:
+                self._parse_one(file.name, mode)
+            except Exception as e:
+                logger.error(f"fail to parse {file.name}: {e}")
 
     def _parse_one(self, file_name, mode):
         st = elastic_training_pb2.Stacktrace()
@@ -81,11 +85,9 @@ class CudaLogCollector(DataCollector):
                 func_file_name = f"{frame.func_name}@{frame.file_name}"
                 buf.append(func_file_name)
             stackchain = f"{';'.join(buf)}"
-            self._stack_rank_count[stackchain].add(rank)
-            self._stack_count[stackchain] = 1
             if trace.thread_name == "MainThread":
-                self._py_main_thread_traces[rank] = stackchain
-                logger.info(f"rank {rank} main trace: {stackchain}")
+                stackchain = f"MainThread@{stackchain}"
+            self._traces[stackchain].add(rank)
 
     def _format_rank_str(self, ranks):
         ranks = list(ranks)

@@ -66,12 +66,14 @@ class DiagnosisManager:
         pass
 
     def _diagnose_failures(self):
-        logger.info("Start to diagnose failures")
         while True:
+            time.sleep(300)
+            logger.info("Start to diagnose failures")
             observed_problems = self.diagnostician.observe_training()
+            if len(observed_problems) == 0:
+                continue
             for problem in observed_problems:
                 logger.info(f"observed problems: {problem}")
                 root_causes = self.diagnostician.diagnose_failure(problem)
                 for root_cause in root_causes:
                     logger.info(f"identify root cause: {root_cause}")
-            time.sleep(300)

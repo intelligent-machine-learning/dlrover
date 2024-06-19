@@ -385,7 +385,7 @@ class MasterClient(Singleton):
         self._report(message)
 
     def report_diagnosis_cuda_log(self, cuda_log: CudaLog):
-        logger.info(f"report cuda log: {cuda_log}")
+        logger.info("report cuda log to master")
         message = grpc.DiagnosisCudaLog(
             cuda_log.get_timestamp(), cuda_log.get_main_traces()
         )

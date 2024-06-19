@@ -35,6 +35,7 @@ class NodeDataManager:
             self._diagnosis_data[data_type] = []
         self._diagnosis_data[data_type].append(data)
         self._clean_diagnosis_data(data_type)
+        logger.info(f"node {self._node_id} have {data_type}: {len(self._diagnosis_data[data_type])}")
 
     def get_data(self, data_type: str) -> List[DiagnosisData]:
         if data_type not in self._diagnosis_data:

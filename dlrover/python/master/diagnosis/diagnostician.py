@@ -13,10 +13,15 @@
 from typing import List
 
 from dlrover.python.master.diagnosis.diagnosis_data import DataManager
-from dlrover.python.master.diagnosis.inferencechain.common import Inference, combine_inferences
+from dlrover.python.master.diagnosis.inferencechain.common import (
+    Inference,
+    combine_inferences,
+    same_inference,
+)
 from dlrover.python.master.diagnosis.inferencechain.inference_chain import (
     InferenceChain,
 )
+from dlrover.python.common.log import default_logger as logger
 
 
 class Diagnostician:
@@ -28,14 +33,16 @@ class Diagnostician:
         self._training_problems = problems
 
     def observe_training(self) -> List[Inference]:
-        infs = []
+        infs: List[Inference] = []
         for problem in self._training_problems:
+            logger.info(f"check problem: {problem}")
             init_infs = [problem]
             ic = InferenceChain(self._data_manager, init_infs, 10)
             observed_infs = ic.infer()
+            # remove problem from the observed
+            observed_infs.remove(problem)
             infs = combine_inferences(infs, observed_infs)
-
         return infs
 
     def diagnose_failure(self, inference: Inference) -> List[Inference]:
-        pass
+        return [inference]
