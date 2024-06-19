@@ -514,8 +514,10 @@ class PodScaler(Scaler):
                 )
                 time.sleep(1)
 
-        logger.warning(f"Master service check {host}:{port} "
-                       f"failed after {timeout} retries.")
+        logger.warning(
+            f"Master service check {host}:{port} "
+            f"failed after {timeout} retries."
+        )
         return False
 
     def _patch_tf_config_into_env(self, pod, node: Node, pod_stats, ps_addrs):
