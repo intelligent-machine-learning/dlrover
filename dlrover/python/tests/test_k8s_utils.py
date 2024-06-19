@@ -81,8 +81,12 @@ class KubernetesTest(unittest.TestCase):
         self.assertEqual(container.resources.limits["cpu"], 4)
         self.assertEqual(container.resources.limits["memory"], "1024Mi")
 
-    def test_service_factory(self):
+    def test_service_exists(self):
         fac = k8sServiceFactory("dlrover", "test")
+        fac.get_service = unittest.mock.Mock()
+        fac.get_service.return_value = fac._create_service_obj(
+            "test-master", 12345, 34567, {}, None
+        )
         self.assertTrue(
             fac.create_service("test-master", 12345, 34567, {}, None)
         )
@@ -90,6 +94,12 @@ class KubernetesTest(unittest.TestCase):
             fac.create_service(
                 "test-master", 12345, 34567, {}, None, patch_if_exists=False
             )
+        )
+
+    def test_service_factory(self):
+        fac = k8sServiceFactory("dlrover", "test")
+        self.assertTrue(
+            fac.create_service("test-master", 12345, 34567, {}, None)
         )
 
         svc = fac._create_service_obj("test-master", 12345, 34567, {}, None)
