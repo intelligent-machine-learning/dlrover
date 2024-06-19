@@ -521,8 +521,10 @@ class k8sServiceFactory(object):
         svc = self._k8s_client.get_service(name)
         if not svc:
             return self._create_new_service(service, retry_num)
-        elif svc and patch_if_exists:
-            return self._patch_service(name, service, retry_num)
+        else:
+            if patch_if_exists:
+                return self._patch_service(name, service, retry_num)
+            return True
 
     def _create_new_service(self, service: client.V1Service, retry_num: int):
         for _ in range(retry_num):
