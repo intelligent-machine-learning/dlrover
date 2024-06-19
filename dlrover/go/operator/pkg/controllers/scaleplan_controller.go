@@ -34,7 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
-	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/api/v1alpha1"
+	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/api/elastic.iml.github.io/v1alpha1"
 	common "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/pkg/common"
 	commonv1 "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/pkg/common/api/v1"
 )

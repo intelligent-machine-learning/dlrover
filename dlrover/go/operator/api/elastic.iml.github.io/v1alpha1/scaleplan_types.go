@@ -99,6 +99,7 @@ type ScalePlanStatus struct {
 	Phase commonv1.JobConditionType `json:"phase,omitempty"`
 }
 
+// +genclient
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 // +resource:path=scaleplan

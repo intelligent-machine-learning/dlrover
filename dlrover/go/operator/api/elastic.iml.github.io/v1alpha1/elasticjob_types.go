@@ -97,6 +97,7 @@ type ElasticJobStatus struct {
 	ScalePlan string `json:"scalePlan,omitempty"`
 }
 
+// +genclient
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 // +resource:path=elasticjob

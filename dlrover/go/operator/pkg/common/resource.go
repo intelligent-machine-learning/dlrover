@@ -18,8 +18,9 @@ package common
 
 import (
 	"context"
+
 	"github.com/golang/glog"
-	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/api/v1alpha1"
+	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/api/elastic.iml.github.io/v1alpha1"
 	commonv1 "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/pkg/common/api/v1"
 	logger "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"

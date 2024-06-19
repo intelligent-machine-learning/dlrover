@@ -11,6 +11,6 @@ resources:
   domain: iml.github.io
   group: elastic
   kind: ElasticJob
-  path: github.com/intelligent-machine-learning/easydl/dlrover/go/operator/api/v1alpha1
+  path: github.com/intelligent-machine-learning/easydl/dlrover/go/operator/api/elastic.iml.github.io/v1alpha1
   version: v1alpha1
 version: "3"

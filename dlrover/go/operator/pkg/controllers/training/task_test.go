@@ -15,7 +15,9 @@ package training
 
 import (
 	"encoding/json"
-	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/api/v1alpha1"
+	"testing"
+
+	elasticv1alpha1 "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/api/elastic.iml.github.io/v1alpha1"
 	common "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/pkg/common"
 	commonv1 "github.com/intelligent-machine-learning/easydl/dlrover/go/operator/pkg/common/api/v1"
 	"github.com/stretchr/testify/assert"
@@ -23,7 +25,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime_client "sigs.k8s.io/controller-runtime/pkg/client"
-	"testing"
 )
 
 func newTestJob() *elasticv1alpha1.ElasticJob {
