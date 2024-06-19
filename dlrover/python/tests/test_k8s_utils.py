@@ -83,9 +83,21 @@ class KubernetesTest(unittest.TestCase):
 
     def test_service_factory(self):
         fac = k8sServiceFactory("dlrover", "test")
+        self.assertTrue(
+            fac.create_service("test-master", 12345, 34567, {}, None)
+        )
+        self.assertTrue(
+            fac.create_service(
+                "test-master", 12345, 34567, {}, None, patch_if_exists=False
+            )
+        )
+
         svc = fac._create_service_obj("test-master", 12345, 34567, {}, None)
+        self.assertEqual(svc.spec.ports[0].name, "grpc")
+        svc.spec.ports[0].name = "http"
         succeed = fac._patch_service("test-master", svc, 5)
         self.assertTrue(succeed)
+        self.assertEqual(svc.spec.ports[0].name, "http")
 
     def test_client(self):
         client = k8sClient.singleton_instance("default")
