@@ -63,13 +63,20 @@ def _create_socket_server(path):
     Args:
         path (str): a file path.
     """
-    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    path_dir = os.path.dirname(path)
-    os.makedirs(path_dir, exist_ok=True)
-    if os.path.exists(path):
-        os.unlink(path)
-    server.bind(path)
-    server.listen(0)
+    server = None
+    try:
+        server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        path_dir = os.path.dirname(path)
+        os.makedirs(path_dir, exist_ok=True)
+        if os.path.exists(path):
+            os.unlink(path)
+        server.bind(path)
+        server.listen(0)
+    except OSError as e:
+        logger.error(f"An error occurred while creating the socket server: {e}")
+        if server:
+            server.close()
+        raise
     return server
 
 
@@ -212,13 +219,13 @@ class LocalSocketComm(metaclass=ABCMeta):
 
     @retry_socket
     def _request(self, request: SocketRequest):
-        """Create a socket client to requet the shared object."""
+        """Create a socket client to request the shared object."""
         client = _create_socket_client(self._socket_file)
         message = pickle.dumps(request)
         _socket_send(client, message)
-        recv_data = _socket_recv(client)
+        rcv_data = _socket_recv(client)
         client.close()
-        response: LockAcquireResponse = pickle.loads(recv_data)
+        response: LockAcquireResponse = pickle.loads(rcv_data)
         return response
 
 
@@ -242,26 +249,35 @@ class SharedLock(LocalSocketComm):
         else:
             self._lock = None
 
+    def deal_client_msg(self, connection):
+        try:
+            recv_data = _socket_recv(connection)
+            msg: SocketRequest = pickle.loads(recv_data)
+            if msg.method == "acquire":
+                response = LockAcquireResponse()
+                response.acquired = self.acquire(**msg.args)
+            elif msg.method == "locked":
+                response = LockedResponse()
+                response.locked = self.locked()
+            elif msg.method == "release":
+                self.release()
+            response.status = SUCCESS_CODE
+        except Exception:
+            response = SocketResponse()
+            response.status = ERROR_CODE
+        send_data = pickle.dumps(response)
+        _socket_send(connection, send_data)
+
     def _sync(self):
         while True:
-            connection, _ = self._server.accept()
             try:
-                recv_data = _socket_recv(connection)
-                msg: SocketRequest = pickle.loads(recv_data)
-                if msg.method == "acquire":
-                    response = LockAcquireResponse()
-                    response.acquired = self.acquire(**msg.args)
-                elif msg.method == "locked":
-                    response = LockedResponse()
-                    response.locked = self.locked()
-                elif msg.method == "release":
-                    self.release()
-                response.status = SUCCESS_CODE
-            except Exception:
-                response = SocketResponse()
-                response.status = ERROR_CODE
-            send_data = pickle.dumps(response)
-            _socket_send(connection, send_data)
+                connection, _ = self._server.accept()
+                try:
+                    self.deal_client_msg(connection)
+                finally:
+                    connection.close()
+            except Exception as e:
+                logger.error(f"An error in SharedLock occurred: {e}")
 
     def acquire(self, blocking=True):
         """
@@ -363,30 +379,40 @@ class SharedQueue(LocalSocketComm):
         else:
             self._queue = None
 
+    def deal_client_msg(self, connection):
+        try:
+            rcv_data = _socket_recv(connection)
+            msg: SocketRequest = pickle.loads(rcv_data)
+            response = SocketResponse()
+            if msg.method == "put":
+                self.put(**msg.args)
+            elif msg.method == "get":
+                response = QueueGetResponse()
+                response.obj = self.get(**msg.args)
+            elif msg.method == "qsize":
+                response = QueueSizeResponse()
+                response.size = self.qsize()
+            elif msg.method == "empty":
+                response = QueueEmptyResponse()
+                response.empty = self.empty()
+            response.status = SUCCESS_CODE
+        except Exception:
+            response = SocketResponse()
+            response.status = ERROR_CODE
+
+        message = pickle.dumps(response)
+        _socket_send(connection, message)
+
     def _sync(self):
         while True:
-            connection, _ = self._server.accept()
             try:
-                recv_data = _socket_recv(connection)
-                msg: SocketRequest = pickle.loads(recv_data)
-                response = SocketResponse()
-                if msg.method == "put":
-                    self.put(**msg.args)
-                elif msg.method == "get":
-                    response = QueueGetResponse()
-                    response.obj = self.get(**msg.args)
-                elif msg.method == "qsize":
-                    response = QueueSizeResponse()
-                    response.size = self.qsize()
-                elif msg.method == "empty":
-                    response = QueueEmptyResponse()
-                    response.empty = self.empty()
-                response.status = SUCCESS_CODE
-            except Exception:
-                response = SocketResponse()
-                response.status = ERROR_CODE
-            message = pickle.dumps(response)
-            _socket_send(connection, message)
+                connection, _ = self._server.accept()
+                try:
+                    self.deal_client_msg(connection)
+                finally:
+                    connection.close()
+            except Exception as e:
+                logger.error(f"An error in SharedQueue occurred: {e}")
 
     def put(self, obj, block=True, timeout=None):
         """Put an object into the queue."""
@@ -471,28 +497,38 @@ class SharedDict(LocalSocketComm):
             name=f"shard_dict_{name}", create=self._create
         )
 
+    def deal_client_msg(self, connection):
+        try:
+            rcv_data = _socket_recv(connection)
+            msg: SocketRequest = pickle.loads(rcv_data)
+            response = DictMessage()
+            if msg.method == "set":
+                self.set(**msg.args)
+            elif msg.method == "get":
+                response = DictMessage()
+                response.meta_dict = self.get(**msg.args)
+            response.status = SUCCESS_CODE
+        except Exception as e:
+            response = SocketResponse()
+            response.status = ERROR_CODE
+            logger.error(e)
+        finally:
+            if not self._shared_queue.empty():
+                self._shared_queue.get(1)
+        message = pickle.dumps(response)
+        _socket_send(connection, message)
+
     def _sync(self):
         while True:
-            connection, _ = self._server.accept()
             try:
-                recv_data = _socket_recv(connection)
-                msg: SocketRequest = pickle.loads(recv_data)
-                response = DictMessage()
-                if msg.method == "set":
-                    self.set(**msg.args)
-                elif msg.method == "get":
-                    response = DictMessage()
-                    response.meta_dict = self.get(**msg.args)
-                response.status = SUCCESS_CODE
+                connection, _ = self._server.accept()
+                try:
+                    self.deal_client_msg(connection)
+                finally:
+                    # 确保连接被关闭
+                    connection.close()
             except Exception as e:
-                response = SocketResponse()
-                response.status = ERROR_CODE
-                logger.error(e)
-            finally:
-                if not self._shared_queue.empty():
-                    self._shared_queue.get(1)
-            message = pickle.dumps(response)
-            _socket_send(connection, message)
+                logger.error(f"An error in SharedDict occurred: {e}")
 
     def set(self, new_dict):
         """
