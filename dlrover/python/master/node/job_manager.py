@@ -150,3 +150,8 @@ class JobManager(metaclass=ABCMeta):
     def collect_node_heart_beat(self, node_type, node_id, timestamp):
         """Collect the heart beat message of nodes."""
         pass
+
+    @abstractclassmethod
+    def sync_node_training_port(self, node_id, port):
+        """Collect the heart beat message of nodes."""
+        pass

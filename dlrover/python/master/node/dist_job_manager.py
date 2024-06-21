@@ -58,6 +58,8 @@ from dlrover.python.master.node.training_node import (
     get_critical_worker_index,
     set_critical_node,
     update_nodes_priority,
+    TrainingNodeConfigure,
+    SyncNodeTrainingPorts,
 )
 from dlrover.python.master.node.worker import (
     ChiefManager,
@@ -177,6 +179,7 @@ class DistributedJobManager(JobManager):
         )
         self._scaler: Scaler = job_scaler
         self._init_training_node_manager()
+        self._training_node_configure = TrainingNodeConfigure()
 
     def start(self):
         self._scaler.start()
@@ -200,6 +203,7 @@ class DistributedJobManager(JobManager):
         if NodeType.CHIEF in plan.node_group_resources:
             worker_num += plan.node_group_resources[NodeType.CHIEF].count
         self._speed_monitor.set_target_worker_num(worker_num)
+        self._training_node_configure.set_node_num(worker_num)
         threading.Thread(
             target=self._monitor_nodes, name="node_monitor", daemon=True
         ).start()
@@ -859,6 +863,9 @@ class DistributedJobManager(JobManager):
         if node.heartbeat_time == 0:
             logger.info(f"Start receiving heartbeat from node {node.name}")
         node.heartbeat_time = timestamp
+
+    def sync_node_training_port(self, node_id, port) -> SyncNodeTrainingPorts:
+        return self._training_node_configure.sync_node_training_port(node_id, port)
 
 
 def create_job_manager(args: JobArgs, speed_monitor) -> DistributedJobManager:

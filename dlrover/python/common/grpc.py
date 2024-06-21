@@ -104,6 +104,22 @@ def find_free_port_in_set(ports):
     raise RuntimeError(f"Fail to find a free port in {ports}")
 
 
+def find_free_port_for_hccl(start=60000, end=70000) -> int:
+    n_npu = 16
+    cur_start = start
+    while True:
+        try:
+            for port in range(cur_start, cur_start + 16):
+                find_free_port(port)
+        except OSError:
+            cur_start = cur_start + n_npu
+            if cur_start > end:
+                cur_start = 0
+                break
+    return cur_start
+
+
+
 def grpc_server_ready(channel) -> bool:
     try:
         grpc.channel_ready_future(channel).result(timeout=TIMEOUT_SEC)
@@ -466,3 +482,9 @@ class DiagnosisCudaLog(Message):
 @dataclass
 class DiagnosisChipMetrics(Message):
     timestamp: int = 0
+
+
+@dataclass
+class SyncTrainingPort(Message):
+    port: int = 0
+    newport: int = 0

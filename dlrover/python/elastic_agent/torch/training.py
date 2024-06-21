@@ -70,6 +70,7 @@ from dlrover.python.common.constants import (
 from dlrover.python.common.grpc import (
     find_free_port_in_range,
     find_free_port_in_set,
+    find_free_port_for_hccl,
 )
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.config.paral_config_tuner import (
@@ -729,6 +730,20 @@ class ElasticTrainingAgent(LocalElasticAgent):
     def stop_executor(self):
         """Shutdown the executor to save the checkpoint."""
         self._save_ckpt_executor.shutdown(wait=False)
+
+    def _config_training_ports(self):
+        if self._config.accelerator == Accelerators.ASCEND_NPU:
+            start_port = 60000
+            while True:
+                time.sleep(10)
+                port = find_free_port_for_hccl(start_port)
+                resp = self._client.sync_training_ports(port)
+                if resp.port > 0:
+                    os.environ["HCCL_IF_BASE_PORT"] = resp.port
+                    break
+                elif resp.newport > 0:
+                    start_port = resp.newport
+
 
 
 def launch_agent(
