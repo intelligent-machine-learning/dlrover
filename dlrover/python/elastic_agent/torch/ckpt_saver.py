@@ -697,8 +697,8 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         self, master_client: MasterClient, step: int, timeout: int
     ):
         """
-        Check whether all training nodes can save the checkpoint from the memory
-        to the storage. If some nodes fail, other nodes need not save.
+        Check whether all training nodes can save the checkpoint from the
+        memory to the storage. If some nodes fail, other nodes need not save.
         """
         start = time.time()
         while True:

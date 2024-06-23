@@ -107,7 +107,7 @@ class FullCheckpointEngine(CheckpointEngine):
 
         Args:
             step (int): the global iteration step.
-            state_dict (dict): the state dict of the model and optimizer to save.
+            state_dict (dict): state dict of the model and optimizer to save.
             paths (dict): the key is a category in
                 ["model_states", "optim_states"] of the state dict, and
                 the value is the path of storage to save.
@@ -126,7 +126,7 @@ class FullCheckpointEngine(CheckpointEngine):
 
         Args:
             step (int): the global iteration step.
-            state_dict (dict): the state dict of the model and optimizer to save.
+            state_dict (dict): state dict of the model and optimizer to save.
             paths (dict): the key is a category in
                 ["model_states", "optim_states"] of the state dict, and
                 the value is the path of storage to save.
@@ -144,7 +144,7 @@ class FullCheckpointEngine(CheckpointEngine):
 
     def load(self, resume_path=""):
         """
-        The method will first try to load the state dict from the shared memory.
+        The method will first try to load state dict from the shared memory.
         If there is no state dict in the shared memory, the method will
         load the state dict from the storage.
 

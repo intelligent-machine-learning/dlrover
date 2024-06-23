@@ -149,7 +149,7 @@ class CheckpointEngine(metaclass=ABCMeta):
     Args:
         checkpoint_dir (str): the directory to save checkpoint.
         storage: a CheckpointStorage instance to write/read the storage.
-        comm_backend (str): the communication backend to create a process group,
+        comm_backend (str): communication backend to create a process group,
             The default is the backend of general main process group.
     """
 
@@ -260,7 +260,7 @@ class CheckpointEngine(metaclass=ABCMeta):
         """Notify the agent in the main process to create a checkpoint saver"""
         if self._local_rank != 0:
             return
-        # the agent side will release the lock if the training process restarts.
+        # agent side will release the lock if the training process restarts.
         queue = SharedQueue(name="factory")
 
         local_shard_num = self.get_local_shard_num()
@@ -398,7 +398,7 @@ class CheckpointEngine(metaclass=ABCMeta):
 
         Args:
             step (int): the global iteration step.
-            state_dict (dict): the state dict of the model and optimizer to save.
+            state_dict (dict): state dict of the model and optimizer to save.
             paths (dict): the key is a category in
                 ["model_states", "optim_states"] of the state dict, and
                 the value is the path of storage to save.
@@ -417,7 +417,7 @@ class CheckpointEngine(metaclass=ABCMeta):
 
         Args:
             step (int): the iteration step.
-            state_dict (dict): the state dict of the model and optimizer to save.
+            state_dict (dict): state dict of the model and optimizer to save.
             paths (dict): the key is a category in
                 ["model_states", "optim_states"] of the state dict, and
                 the value is the path of storage to save.
