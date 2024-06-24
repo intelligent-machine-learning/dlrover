@@ -29,6 +29,7 @@ class NodeTopologyMeta(object):
     def __repr__(self) -> str:
         d: Dict[str, Any] = {}
         d["node_id"] = self.node_id
+        d["node_rank"] = self.node_rank
         d["process_num"] = self.process_num
         if self.node_ip:
             d["node_ip"] = self.node_ip
