@@ -238,6 +238,7 @@ class RendezvousManager(metaclass=ABCMeta):
             asw, psw = self._topology_querier.query(node_ip)
             meta = NodeTopologyMeta(
                 node_id=node_id,
+                node_rank=node_rank,
                 node_ip=node_ip,
                 process_num=local_world_size,
                 asw=asw,
@@ -263,6 +264,7 @@ class RendezvousManager(metaclass=ABCMeta):
         for node_rank, v in rank_dict.items():
             node_id = self._rdzv_nodes[node_rank].node_id
             id_dict[node_id] = v
+        id_dict = dict(sorted(id_dict.items()))
         return id_dict
 
     def num_nodes_waiting(self):
