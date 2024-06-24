@@ -34,7 +34,7 @@ class NetTopologyTest(unittest.TestCase):
             node_ip = f"192.168.0.{i}"
             asw, psw = sw_querier.query(node_ip)
             node = NodeTopologyMeta(
-                node_rank=i, process_num=8, node_ip=node_ip, asw=asw, psw=psw
+                node_id=i, process_num=8, node_ip=node_ip, asw=asw, psw=psw
             )
             nodes[i] = node
         sorted_nodes = sorter.sort(nodes)
@@ -42,7 +42,7 @@ class NetTopologyTest(unittest.TestCase):
         self.assertListEqual(node_ranks, list(range(node_num)))
 
         for node in nodes.values():
-            asw_index = node.node_rank % 3
+            asw_index = node.node_id % 3
             node.asw = f"asw-{asw_index}"
 
         sorted_nodes = sorter.sort(nodes)

@@ -19,7 +19,7 @@ from typing import Any, Dict, List, Tuple
 
 @dataclass
 class NodeTopologyMeta(object):
-    node_rank: int = 0
+    node_id: int = 0
     process_num: int = 0
     node_ip: str = ""
     asw: str = ""
@@ -27,7 +27,7 @@ class NodeTopologyMeta(object):
 
     def __repr__(self) -> str:
         d: Dict[str, Any] = {}
-        d["node_rank"] = self.node_rank
+        d["node_id"] = self.node_id
         d["process_num"] = self.process_num
         if self.node_ip:
             d["node_ip"] = self.node_ip
@@ -80,9 +80,9 @@ class DpTopologySorter(TopologySorter):
         sorted_nodes: Dict[int, NodeTopologyMeta] = OrderedDict()
         asw0_nodes = asw_nodes.pop(rank0_asw, [])
         for node_meta in asw0_nodes:
-            sorted_nodes[node_meta.node_rank] = node_meta
+            sorted_nodes[node_meta.node_id] = node_meta
 
         for node_metas in asw_nodes.values():
             for node_meta in node_metas:
-                sorted_nodes[node_meta.node_rank] = node_meta
+                sorted_nodes[node_meta.node_id] = node_meta
         return sorted_nodes
