@@ -171,19 +171,23 @@ class RendezvousManager(metaclass=ABCMeta):
                 )
         elif time.time() - self._latest_log_nodes_time > 60:
             self._latest_log_nodes_time = time.time()
-            waiting_nodes = {}
-            for rank, node in self._waiting_nodes.items():
-                waiting_nodes[rank] = node.node_id
+            waiting_nodes = []
+            for _, node in self._waiting_nodes.items():
+                waiting_nodes.append(node.node_id)
             logger.info(f"Waiting nodes in rendezvous are {waiting_nodes}")
         return rdzv_completed
 
     def _log_rendezvous_info(self):
-        node_ranks = sorted(list(self._rdzv_nodes.keys()))
+        node_ids = []
+        for node in self._rdzv_nodes.values():
+            node_ids.append(node.node_id)
+        node_ids = sorted(node_ids)
+        node_rdzv_times = self._map_node_rank_to_id(self._node_rdzv_times)
         logger.info(
             f"Completed {self._rdzv_round} round "
-            f"rendezvous of {self._name} is {node_ranks} \n"
+            f"rendezvous of {self._name} is {node_ids} \n"
             "The times of nodes to join rendezvous "
-            f"are {self._node_rdzv_times}."
+            f"are {node_rdzv_times}."
         )
         self._node_rdzv_times.clear()
         if self._start_rdzv_ts > 0:
@@ -197,9 +201,12 @@ class RendezvousManager(metaclass=ABCMeta):
     def not_joined_rdzv_nodes(self):
         """Return workers which do not join a rendezvous."""
         nodes = []
+        join_node_ids = []
+        for node in self._rdzv_nodes.values():
+            join_node_ids.append(node.node_id)
         if self._rdzv_nodes:
             for node_id in self._alive_nodes:
-                if node_id not in self._rdzv_nodes:
+                if node_id not in join_node_ids:
                     nodes.append(node_id)
         return nodes
 
@@ -244,6 +251,19 @@ class RendezvousManager(metaclass=ABCMeta):
             )
 
         return self._rdzv_round
+
+    def _map_node_rank_to_id(self, rank_dict):
+        """
+        Convert the dict with the node rank as the key to a dict
+        with the node id. Because, it is more clear to show the node
+        id in the log than the node rank. If the log shows the node rank,
+        users need to search which node has the node rank.
+        """
+        id_dict = {}
+        for node_rank, v in rank_dict.items():
+            node_id = self._rdzv_nodes[node_rank].node_id
+            id_dict[node_id] = v
+        return id_dict
 
     def num_nodes_waiting(self):
         """The elastic agent will restart training processes if it
@@ -296,7 +316,7 @@ class RendezvousManager(metaclass=ABCMeta):
 
     @abstractmethod
     def report_network_check_result(
-        self, node_id: int, normal: bool, elapsed_time: float
+        self, node_rank: int, normal: bool, elapsed_time: float
     ):
         """The node updates its status"""
         pass
@@ -359,7 +379,7 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
                     )
             return self._rdzv_round, 0, self._rdzv_nodes
 
-    def report_network_check_result(self, node_id, normal, elapsed_time):
+    def report_network_check_result(self, node_rank, normal, elapsed_time):
         return
 
 
@@ -401,13 +421,16 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                     self._fault_nodes.clear()
                     self._straggler_nodes.clear()
                     self._node_groups = self._group_nodes(self._rdzv_round)
-                    rank_groups = []
+                    node_groups = []
                     for group in self._node_groups:
-                        ranks = [rank for rank in group.keys()]
-                        rank_groups.append(ranks)
+                        ids = [
+                            self._rdzv_nodes[rank].node_id
+                            for rank in group.keys()
+                        ]
+                        node_groups.append(ids)
                     logger.info(
                         f"Node groups of round {self._rdzv_round} "
-                        f"are: {rank_groups}."
+                        f"are: {node_groups}."
                     )
                     if self._rdzv_round % 2 == 0:
                         self._clear_check_status()
@@ -473,7 +496,8 @@ class NetworkCheckRendezvousManager(RendezvousManager):
     def _check_abnormal_nodes(self):
         abnormal_nodes = []
         normal_nodes = []
-        for node_id, status in self._node_status.items():
+        for node_rank, status in self._node_status.items():
+            node_id = self._rdzv_nodes[node_rank].node_id
             if status:
                 normal_nodes.append(node_id)
             else:
@@ -484,23 +508,25 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         )
 
     def report_network_check_result(
-        self, node_id: int, succeed: bool, elapsed_time: float
+        self, node_rank: int, succeed: bool, elapsed_time: float
     ):
-        self._reported_nodes.add(node_id)
-        self._node_status.setdefault(node_id, succeed)
-        self._node_times.setdefault(node_id, elapsed_time)
-        self._node_status[node_id] = self._node_status[node_id] or succeed
-        self._node_times[node_id] = round(
-            min(self._node_times[node_id], elapsed_time), 3
+        self._reported_nodes.add(node_rank)
+        self._node_status.setdefault(node_rank, succeed)
+        self._node_times.setdefault(node_rank, elapsed_time)
+        self._node_status[node_rank] = self._node_status[node_rank] or succeed
+        self._node_times[node_rank] = round(
+            min(self._node_times[node_rank], elapsed_time), 3
         )
         if len(self._reported_nodes) == len(self._rdzv_nodes):
+            node_status = self._map_node_rank_to_id(self._node_status)
             logger.info(
                 f"Round {self._rdzv_round}: The node status "
-                f"are {self._node_status}."
+                f"are {node_status}."
             )
+            node_check_times = self._map_node_rank_to_id(self._node_times)
             logger.info(
                 f"Round {self._rdzv_round}: The node elapsed time "
-                f"are {self._node_times}"
+                f"are {node_check_times}"
             )
 
     def join_rendezvous(

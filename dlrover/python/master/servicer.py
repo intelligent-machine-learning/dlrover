@@ -272,8 +272,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         res = grpc.RendezvousState(world={})
         res.group = group
         res.round = rdzv_round
-        for rank_id, meta in nodes.items():
-            res.world[rank_id] = meta.process_num
+        for rank, meta in nodes.items():
+            res.world[rank] = meta.process_num
         if nodes and request.rdzv_name == RendezvousName.ELASTIC_TRAINING:
             rdzv_round = rdzv_manager.get_rdzv_round()
             metrics = {CustomMetricKeys.RDZV_ROUND: rdzv_round}

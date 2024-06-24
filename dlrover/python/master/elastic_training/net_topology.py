@@ -73,16 +73,16 @@ class DpTopologySorter(TopologySorter):
         asw_nodes: Dict[str, List[NodeTopologyMeta]] = {}
         rank0_node = next(iter(nodes.values()))
         rank0_asw = rank0_node.asw
-        for _, meta in nodes.items():
+        for node_rank, meta in nodes.items():
             asw_nodes.setdefault(meta.asw, [])
-            asw_nodes[meta.asw].append(meta)
+            asw_nodes[meta.asw].append((node_rank, meta))
 
         sorted_nodes: Dict[int, NodeTopologyMeta] = OrderedDict()
         asw0_nodes = asw_nodes.pop(rank0_asw, [])
-        for node_meta in asw0_nodes:
-            sorted_nodes[node_meta.node_id] = node_meta
+        for node_rank, node_meta in asw0_nodes:
+            sorted_nodes[node_rank] = node_meta
 
-        for node_metas in asw_nodes.values():
+        for node_rank, node_metas in asw_nodes.values():
             for node_meta in node_metas:
-                sorted_nodes[node_meta.node_id] = node_meta
+                sorted_nodes[node_rank] = node_meta
         return sorted_nodes
