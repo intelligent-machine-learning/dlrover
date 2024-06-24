@@ -262,6 +262,8 @@ class RendezvousManager(metaclass=ABCMeta):
         """
         id_dict = {}
         for node_rank, v in rank_dict.items():
+            if node_rank not in self._rdzv_nodes:
+                continue
             node_id = self._rdzv_nodes[node_rank].node_id
             id_dict[node_id] = v
         id_dict = dict(sorted(id_dict.items()))

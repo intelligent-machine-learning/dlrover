@@ -34,7 +34,12 @@ class NetTopologyTest(unittest.TestCase):
             node_ip = f"192.168.0.{i}"
             asw, psw = sw_querier.query(node_ip)
             node = NodeTopologyMeta(
-                node_id=i, process_num=8, node_ip=node_ip, asw=asw, psw=psw
+                node_id=i,
+                node_rank=i,
+                process_num=8,
+                node_ip=node_ip,
+                asw=asw,
+                psw=psw,
             )
             nodes[i] = node
         sorted_nodes = sorter.sort(nodes)
