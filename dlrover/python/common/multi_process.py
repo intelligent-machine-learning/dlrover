@@ -249,7 +249,7 @@ class SharedLock(LocalSocketComm):
         else:
             self._lock = None
 
-    def deal_client_msg(self, connection):
+    def _deal_shared_lock_msg(self, connection):
         try:
             recv_data = _socket_recv(connection)
             msg: SocketRequest = pickle.loads(recv_data)
@@ -273,7 +273,7 @@ class SharedLock(LocalSocketComm):
             try:
                 connection, _ = self._server.accept()
                 try:
-                    self.deal_client_msg(connection)
+                    self._deal_shared_lock_msg(connection)
                 finally:
                     connection.close()
             except Exception as e:
@@ -379,7 +379,7 @@ class SharedQueue(LocalSocketComm):
         else:
             self._queue = None
 
-    def deal_client_msg(self, connection):
+    def _deal_shared_queue_msg(self, connection):
         try:
             rcv_data = _socket_recv(connection)
             msg: SocketRequest = pickle.loads(rcv_data)
@@ -408,7 +408,7 @@ class SharedQueue(LocalSocketComm):
             try:
                 connection, _ = self._server.accept()
                 try:
-                    self.deal_client_msg(connection)
+                    self._deal_shared_queue_msg(connection)
                 finally:
                     connection.close()
             except Exception as e:
@@ -497,7 +497,7 @@ class SharedDict(LocalSocketComm):
             name=f"shard_dict_{name}", create=self._create
         )
 
-    def deal_client_msg(self, connection):
+    def _deal_shared_dict_msg(self, connection):
         try:
             rcv_data = _socket_recv(connection)
             msg: SocketRequest = pickle.loads(rcv_data)
@@ -523,9 +523,9 @@ class SharedDict(LocalSocketComm):
             try:
                 connection, _ = self._server.accept()
                 try:
-                    self.deal_client_msg(connection)
+                    self._deal_shared_dict_msg(connection)
                 finally:
-                    # 确保连接被关闭
+                    # Make sure the connection is closed
                     connection.close()
             except Exception as e:
                 logger.error(f"An error in SharedDict occurred: {e}")
