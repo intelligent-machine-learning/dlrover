@@ -22,6 +22,9 @@ from dlrover.python.elastic_agent.master_client import (
     build_master_client,
 )
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
+from dlrover.python.master.elastic_training.net_topology import (
+    NodeTopologyMeta,
+)
 from dlrover.python.master.elastic_training.rdzv_manager import (
     ElasticTrainingRendezvousManager,
     NetworkCheckRendezvousManager,
@@ -305,3 +308,14 @@ class NetworkCheckRendezvousManagerTest(unittest.TestCase):
         self.assertTrue(success)
         success = rdzv_manager.sync_ckpt_nodes(1, 90)
         self.assertFalse(success)
+
+    def test_map_node_rank_to_id(self):
+        rdzv_manager = ElasticTrainingRendezvousManager()
+        rdzv_manager._rdzv_nodes[0] = NodeTopologyMeta(
+            node_id=1,
+            node_rank=0,
+            process_num=8,
+        )
+        rank_d = {0: True}
+        id_d = rdzv_manager._map_node_rank_to_id(rank_d)
+        self.assertDictEqual(id_d, {1: True})

@@ -171,21 +171,21 @@ class RendezvousManager(metaclass=ABCMeta):
                 )
         elif time.time() - self._latest_log_nodes_time > 60:
             self._latest_log_nodes_time = time.time()
-            waiting_nodes = []
-            for _, node in self._waiting_nodes.items():
-                waiting_nodes.append(node.node_id)
+            waiting_nodes = {}
+            for rank, node in self._waiting_nodes.items():
+                waiting_nodes[node.node_id] = rank
             logger.info(f"Waiting nodes in rendezvous are {waiting_nodes}")
         return rdzv_completed
 
     def _log_rendezvous_info(self):
-        node_ids = []
-        for node in self._rdzv_nodes.values():
-            node_ids.append(node.node_id)
-        node_ids = sorted(node_ids)
+        node_ranks = {}
+        for rank, node in self._rdzv_nodes.items():
+            node_ranks[node.node_id] = rank
+        node_ranks = dict(sorted(node_ranks.items()))
         node_rdzv_times = self._map_node_rank_to_id(self._node_rdzv_times)
         logger.info(
             f"Completed {self._rdzv_round} round "
-            f"rendezvous of {self._name} is {node_ids} \n"
+            f"rendezvous of {self._name} is {node_ranks} \n"
             "The times of nodes to join rendezvous "
             f"are {node_rdzv_times}."
         )
