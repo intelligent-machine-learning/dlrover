@@ -82,7 +82,6 @@ class JobAutoScaler(metaclass=ABCMeta):
         node_scaler: Scaler,
         scale_interval: int,
     ):
-
         self._job_resource = job_resource
         self._job_nodes = job_nodes
         self._job_optimizer = job_optimizer
