@@ -75,7 +75,6 @@ class JobAutoScaler(metaclass=ABCMeta):
 
     def __init__(self):
         self._suggested_stop = False
-        self._stop_autoscaling = False
         self._autoscaling_started = False
 
     def suggested_stop(self):
@@ -157,7 +156,7 @@ class PSTrainingAutoScaler(JobAutoScaler):
                 ).start()
 
     def stop_auto_scaling(self):
-        self._stop_autoscaling = True
+        self._autoscaling_started = False
 
     def _periodic_optimize_running_resource(self):
         """Adjust job resource periodically and stop adjustment
@@ -167,7 +166,7 @@ class PSTrainingAutoScaler(JobAutoScaler):
         last_plan_time = 0
         opt_interval = _dlrover_context.seconds_interval_to_optimize
         while True:
-            if self._stop_autoscaling:
+            if not self._autoscaling_started:
                 logger.info("Stop auto-scaling thread for PS Training.")
                 break
             if (
@@ -286,13 +285,13 @@ class AllreduceTrainingAutoScaler(JobAutoScaler):
                 ).start()
 
     def stop_auto_scaling(self):
-        self._stop_autoscaling = True
+        self._autoscaling_started = False
 
     def _periodic_adjust_worker(self):
         """Periodicaly adjust the number of worker."""
         logger.info("Start auto-scaling thread for AllReduce Training.")
         while True:
-            if self._stop_autoscaling:
+            if not self._autoscaling_started:
                 logger.info("Stop auto-scaling thread for AllReduce Training.")
                 break
             time.sleep(self._scale_interval)
