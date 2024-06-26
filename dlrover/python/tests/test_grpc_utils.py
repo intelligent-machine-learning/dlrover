@@ -21,6 +21,7 @@ from dlrover.python.common.grpc import (
     find_free_port,
     find_free_port_in_range,
     find_free_port_in_set,
+    find_free_port_for_hccl,
 )
 
 
@@ -61,6 +62,12 @@ class GRPCUtilTest(unittest.TestCase):
         self.assertTrue(isinstance(de_message, Message))
         de_message = deserialize_message(b"")
         self.assertIsNone(de_message)
+
+    def test_find_free_port_for_hccl(self):
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.bind(("", 60003))
+        port = find_free_port_for_hccl()
+        self.assertEqual(port, 60016)
 
 
 if __name__ == "__main__":

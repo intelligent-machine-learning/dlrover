@@ -579,6 +579,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
             super()._stop_workers(worker_group)
 
     def _invoke_run(self, role: str = DEFAULT_ROLE) -> RunResult:
+        # sync hccl port for NPU
+        self.sync_training_ports()
+
         # Start a thread to save the checkpointing state dict from
         # the shared memory to the storage.
         AsyncCheckpointSaver.start_async_saving_ckpt()
@@ -731,19 +734,26 @@ class ElasticTrainingAgent(LocalElasticAgent):
         """Shutdown the executor to save the checkpoint."""
         self._save_ckpt_executor.shutdown(wait=False)
 
-    def _config_training_ports(self):
+    def sync_training_ports(self):
         if self._config.accelerator == Accelerators.ASCEND_NPU:
             start_port = 60000
+            port = 0
+            logger.info("synchronize worker training ports...")
             while True:
                 time.sleep(10)
-                port = find_free_port_for_hccl(start_port)
+                if port == 0:
+                    port = find_free_port_for_hccl(start_port)
+                if port == 0:
+                    logger.error(f"fail to find available ports between 60000 and 70000")
+                    break
                 resp = self._client.sync_training_ports(port)
                 if resp.port > 0:
-                    os.environ["HCCL_IF_BASE_PORT"] = resp.port
+                    logger.info(f"config hccl port: {resp.port}")
+                    os.environ["HCCL_IF_BASE_PORT"] = str(resp.port)
                     break
                 elif resp.newport > 0:
                     start_port = resp.newport
-
+                    port = 0
 
 
 def launch_agent(

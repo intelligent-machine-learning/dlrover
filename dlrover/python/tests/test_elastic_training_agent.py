@@ -24,7 +24,11 @@ from torch.distributed.elastic.agent.server.api import WorkerSpec, WorkerState
 from torch.distributed.elastic.rendezvous import RendezvousParameters
 from torch.distributed.launcher.api import LaunchConfig
 
-from dlrover.python.common.constants import ConfigPath, RendezvousName
+from dlrover.python.common.constants import (
+    ConfigPath,
+    RendezvousName,
+    Accelerators,
+)
 from dlrover.python.common.storage import PosixDiskStorage
 from dlrover.python.elastic_agent.master_client import (
     MasterClient,
@@ -341,6 +345,19 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         )
         self.assertEqual(spec.max_restarts, 3)
         self.assertEqual(spec.local_world_size, 2)
+
+    def test_sync_node_port(self):
+        self.config.accelerator = Accelerators.ASCEND_NPU
+        agent = ElasticTrainingAgent(
+            node_rank=0,
+            config=self.config,
+            entrypoint="echo",
+            spec=self.spec,
+            start_method=self.config.start_method,
+            log_dir=self.config.log_dir,
+        )
+        agent.sync_training_ports()
+        self.assertEqual(os.environ["HCCL_IF_BASE_PORT"], "60000")
 
 
 class NodeCheckElasticAgentTest(unittest.TestCase):

@@ -107,10 +107,14 @@ def find_free_port_in_set(ports):
 def find_free_port_for_hccl(start=60000, end=70000) -> int:
     n_npu = 16
     cur_start = start
+    logger.info(f"find available port from {start}")
     while True:
         try:
-            for port in range(cur_start, cur_start + 16):
+            cur_end = cur_start + n_npu
+            for port in range(cur_start, cur_end):
                 find_free_port(port)
+            logger.info(f"find available port: {cur_start}")
+            break
         except OSError:
             cur_start = cur_start + n_npu
             if cur_start > end:

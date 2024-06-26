@@ -24,6 +24,10 @@ from dlrover.python.master.monitor.error_monitor import (
 )
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.job_manager import JobManager
+from dlrover.python.master.node.training_node import (
+    TrainingNodeConfigure,
+    SyncNodeTrainingPorts,
+)
 from dlrover.python.master.resource.job import JobResource
 from dlrover.python.scheduler.job import JobArgs
 
@@ -52,10 +56,12 @@ class LocalJobManager(JobManager):
         self._error_monitor: ErrorMonitor = error_monitor
 
         self._job_nodes: Dict[str, Dict[int, Node]] = {}
+        self._training_node_configure = TrainingNodeConfigure()
 
     def start(self):
         self._job_nodes[NodeType.WORKER] = {}
         worker = self._job_args.node_args[NodeType.WORKER].group_resource
+        self._training_node_configure.set_node_num(worker.count)
         for i in range(worker.count):
             self._job_nodes[NodeType.WORKER][i] = Node(
                 name=NodeType.WORKER + f"-{i}",
@@ -165,6 +171,9 @@ class LocalJobManager(JobManager):
     def update_node_paral_config(self, node_type, node_id, paral_config):
         node = self._job_nodes[node_type][node_id]
         node.update_paral_config(paral_config)
+
+    def sync_node_training_port(self, node_id, port) -> SyncNodeTrainingPorts:
+        return self._training_node_configure.sync_node_training_port(node_id, port)
 
 
 def create_job_manager(args: JobArgs, speed_monitor) -> LocalJobManager:
