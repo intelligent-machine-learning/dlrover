@@ -73,7 +73,9 @@ def _create_socket_server(path):
         server.bind(path)
         server.listen(0)
     except OSError as e:
-        logger.error(f"An error occurred while creating the socket server: {e}")
+        logger.error(
+            f"An error occurred while creating the socket server: {e}"
+        )
         if server:
             server.close()
         raise
