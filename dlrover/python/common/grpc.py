@@ -353,6 +353,7 @@ class CommWorldRequest(RendezvousRequest):
 
 @dataclass
 class JoinRendezvousRequest(RendezvousRequest):
+    node_rank: int = -1
     node_ip: str = ""  # The IP of node where the pod is located.
 
 
