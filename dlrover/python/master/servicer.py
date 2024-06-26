@@ -638,6 +638,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
     def _sync_training_ports(
         self, node_id, message: grpc.SyncTrainingPort
     ) -> grpc.SyncTrainingPort:
+        logger.info(f"try to sync port {message.port} from {node_id}")
         sync_ports: SyncNodeTrainingPorts = self._job_manager.sync_node_training_port(node_id, message.port)
         return grpc.SyncTrainingPort(port=sync_ports.training_port, newport=sync_ports.next_check_port)
 

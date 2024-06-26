@@ -107,7 +107,7 @@ def find_free_port_in_set(ports):
 def find_free_port_for_hccl(start=60000, end=70000) -> int:
     n_npu = 16
     cur_start = start
-    logger.info(f"find available port from {start}")
+    logger.info(f"try to find available port for hccl from {start}")
     while True:
         try:
             cur_end = cur_start + n_npu
@@ -121,7 +121,6 @@ def find_free_port_for_hccl(start=60000, end=70000) -> int:
                 cur_start = 0
                 break
     return cur_start
-
 
 
 def grpc_server_ready(channel) -> bool:

@@ -378,6 +378,7 @@ class TrainingNodeConfigure:
         self._n_node = 0
 
     def set_node_num(self, num):
+        logger.info(f"set worker count: {num}")
         self._n_node = num
 
     def sync_node_training_port(

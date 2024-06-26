@@ -746,6 +746,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 if port == 0:
                     logger.error(f"fail to find available ports between 60000 and 70000")
                     break
+                logger.info(f"sync port {port}")
                 resp = self._client.sync_training_ports(port)
                 if resp.port > 0:
                     logger.info(f"config hccl port: {resp.port}")
