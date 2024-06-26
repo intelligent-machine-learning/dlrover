@@ -73,7 +73,23 @@ def new_job_auto_scaler(
 class JobAutoScaler(metaclass=ABCMeta):
     """JobAutoScaler automatically scale up/down nodes of job."""
 
-    def __init__(self):
+    def __init__(
+        self,
+        job_resource: JobResource,
+        job_nodes: Dict[str, Dict[int, Node]],
+        job_optimizer: JobResourceOptimizer,
+        speed_monitor: SpeedMonitor,
+        node_scaler: Scaler,
+        scale_interval: int,
+    ):
+
+        self._job_resource = job_resource
+        self._job_nodes = job_nodes
+        self._job_optimizer = job_optimizer
+        self._speed_monitor = speed_monitor
+        self._scaler = node_scaler
+        self._scale_interval = scale_interval
+
         self._suggested_stop = False
         self._autoscaling_started = False
 
@@ -109,15 +125,16 @@ class PSTrainingAutoScaler(JobAutoScaler):
         worker_manager: WorkerManager,
         node_scaler: Scaler,
     ) -> None:
-        super().__init__()
-        self._job_resource = job_resource
-        self._job_optimizer = job_optimizer
-        self._speed_monitor = speed_monitor
+        super().__init__(
+            job_resource,
+            job_nodes,
+            job_optimizer,
+            speed_monitor,
+            node_scaler,
+            30,
+        )
         self._ps_manager = ps_manager
         self._worker_manager = worker_manager
-        self._scaler = node_scaler
-        self._job_nodes = job_nodes
-        self._scale_interval = 30
         threading.Thread(
             target=self.monitor_pending_node_at_begining,
             name="monitor_pending_nodes",
@@ -264,14 +281,16 @@ class AllreduceTrainingAutoScaler(JobAutoScaler):
         worker_manager: WorkerManager,
         node_scaler: Scaler,
     ) -> None:
-        super().__init__()
-        self._job_resource = job_resource
-        self._job_optimizer = job_optimizer
-        self._speed_monitor = speed_monitor
+        super().__init__(
+            job_resource,
+            job_nodes,
+            job_optimizer,
+            speed_monitor,
+            node_scaler,
+            1800,
+        )
         self._worker_manager = worker_manager
-        self._scaler = node_scaler
         self._workers = job_nodes[NodeType.WORKER]
-        self._scale_interval = 1800
 
     def start_auto_scaling(self):
         """Start auto-scaling nodes of a job"""
