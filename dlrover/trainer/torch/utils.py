@@ -16,4 +16,4 @@ from packaging.version import Version
 
 
 def version_less_than_230():
-    return Version(torch.__version__) < Version("2.3.0")
+    return Version(torch.__version__) <= Version("2.2.2")
