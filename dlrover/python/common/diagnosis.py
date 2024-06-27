@@ -36,13 +36,14 @@ class DiagnosisData(metaclass=ABCMeta):
 
 
 class CudaLog(DiagnosisData):
-    def __init__(self, timestamp: int, traces: Dict[str, Set[int]]):
+    def __init__(self, timestamp: int = 0, world_size: int = 0, traces: Dict[str, Set[int]] = {}):
         super().__init__()
         if timestamp == 0:
             self._timestamp = int(round(datetime.now().timestamp()))
         else:
             self._timestamp = timestamp
         self._traces: Dict[str, Set[int]] = traces
+        self._world_size = world_size
 
     def get_timestamp(self) -> int:
         return self._timestamp
@@ -52,6 +53,16 @@ class CudaLog(DiagnosisData):
 
     def get_traces(self) -> Dict[str, Set[int]]:
         return self._traces
+
+    def format_rank_trace(self) -> List[str]:
+        traces: List[str] = []
+        if self._world_size == 0 or len(self._traces) == 0:
+            return traces
+        for trace, ranks in self._traces.items():
+            ranks_str = format_rank_str(self._world_size, ranks)
+            rank_trace = f"{trace}#{ranks_str}"
+            traces.append(rank_trace)
+        return traces
 
 
 class TrainingLog(DiagnosisData):
