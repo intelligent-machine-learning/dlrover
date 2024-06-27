@@ -55,11 +55,11 @@ from dlrover.python.master.node.status_flow import (
     get_node_state_flow,
 )
 from dlrover.python.master.node.training_node import (
+    SyncNodeTrainingPorts,
+    TrainingNodeConfigure,
     get_critical_worker_index,
     set_critical_node,
     update_nodes_priority,
-    TrainingNodeConfigure,
-    SyncNodeTrainingPorts,
 )
 from dlrover.python.master.node.worker import (
     ChiefManager,
@@ -865,7 +865,9 @@ class DistributedJobManager(JobManager):
         node.heartbeat_time = timestamp
 
     def sync_node_training_port(self, node_id, port) -> SyncNodeTrainingPorts:
-        return self._training_node_configure.sync_node_training_port(node_id, port)
+        return self._training_node_configure.sync_node_training_port(
+            node_id, port
+        )
 
 
 def create_job_manager(args: JobArgs, speed_monitor) -> DistributedJobManager:

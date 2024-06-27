@@ -47,12 +47,12 @@ from dlrover.python.master.elastic_training.rdzv_manager import (
 )
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.job_manager import JobManager
+from dlrover.python.master.node.training_node import SyncNodeTrainingPorts
 from dlrover.python.master.shard.dataset_splitter import new_dataset_splitter
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.master.stats.job_collector import JobMetricCollector
 from dlrover.python.master.watcher.base_watcher import Node, NodeEvent
 from dlrover.python.util.queue.queue import RayEventQueue
-from dlrover.python.master.node.training_node import SyncNodeTrainingPorts
 
 try:
     from dlrover.python.master.elastic_training.elastic_ps import (
@@ -639,8 +639,12 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         self, node_id, message: grpc.SyncTrainingPort
     ) -> grpc.SyncTrainingPort:
         logger.info(f"try to sync port {message.port} from {node_id}")
-        sync_ports: SyncNodeTrainingPorts = self._job_manager.sync_node_training_port(node_id, message.port)
-        return grpc.SyncTrainingPort(port=sync_ports.training_port, newport=sync_ports.next_check_port)
+        sync_ports: SyncNodeTrainingPorts = (
+            self._job_manager.sync_node_training_port(node_id, message.port)
+        )
+        return grpc.SyncTrainingPort(
+            port=sync_ports.training_port, newport=sync_ports.next_check_port
+        )
 
 
 def create_master_service(

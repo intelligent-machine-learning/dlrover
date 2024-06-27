@@ -17,6 +17,8 @@ import math
 import threading
 import time
 from collections import Counter
+from dataclasses import dataclass
+from threading import Lock
 from typing import Dict, List
 
 from dlrover.python.common.constants import (
@@ -31,8 +33,6 @@ from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node
 from dlrover.python.master.scaler.base_scaler import ScalePlan
 from dlrover.python.scheduler.job import JobArgs
-from dataclasses import dataclass
-from threading import Lock
 
 _dlrover_context = Context.singleton_instance()
 
@@ -381,15 +381,18 @@ class TrainingNodeConfigure:
         logger.info(f"set worker count: {num}")
         self._n_node = num
 
-    def sync_node_training_port(
-            self, node_id, port
-    ) -> SyncNodeTrainingPorts:
+    def sync_node_training_port(self, node_id, port) -> SyncNodeTrainingPorts:
         n_npu = 16
         with self._lock:
             if self._node_training_port > 0:
-                return SyncNodeTrainingPorts(training_port=self._node_training_port, next_check_port=0)
+                return SyncNodeTrainingPorts(
+                    training_port=self._node_training_port, next_check_port=0
+                )
             if port < self._next_check_node_training_port:
-                return SyncNodeTrainingPorts(training_port=0, next_check_port=self._next_check_node_training_port)
+                return SyncNodeTrainingPorts(
+                    training_port=0,
+                    next_check_port=self._next_check_node_training_port,
+                )
             self._recv_node_training_ports[node_id] = port
             if len(self._recv_node_training_ports) == self._n_node:
                 min_port = 0
@@ -400,12 +403,23 @@ class TrainingNodeConfigure:
                     if max_port < recv_port:
                         max_port = recv_port
                 if min_port != max_port:
-                    logger.info(f"fail to sync node training ports: {self._recv_node_training_ports}")
+                    logger.info(
+                        f"fail to sync node training ports: "
+                        f"{self._recv_node_training_ports}"
+                    )
                     self._recv_node_training_ports.clear()
                     self._next_check_node_training_port = max_port + n_npu
-                    return SyncNodeTrainingPorts(training_port=0, next_check_port=self._next_check_node_training_port)
+                    return SyncNodeTrainingPorts(
+                        training_port=0,
+                        next_check_port=self._next_check_node_training_port,
+                    )
                 else:
                     self._node_training_port = max_port
-                    return SyncNodeTrainingPorts(training_port=self._node_training_port, next_check_port=0)
+                    return SyncNodeTrainingPorts(
+                        training_port=self._node_training_port,
+                        next_check_port=0,
+                    )
             else:
-                return SyncNodeTrainingPorts(training_port=0, next_check_port=0)
+                return SyncNodeTrainingPorts(
+                    training_port=0, next_check_port=0
+                )

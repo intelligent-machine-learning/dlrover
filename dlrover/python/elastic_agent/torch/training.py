@@ -68,9 +68,9 @@ from dlrover.python.common.constants import (
     TrainingExceptionLevel,
 )
 from dlrover.python.common.grpc import (
+    find_free_port_for_hccl,
     find_free_port_in_range,
     find_free_port_in_set,
-    find_free_port_for_hccl,
 )
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.elastic_agent.config.paral_config_tuner import (
@@ -739,14 +739,23 @@ class ElasticTrainingAgent(LocalElasticAgent):
             start_port = 60000
             port = 0
             logger.info("synchronize worker training ports...")
+            count = 0
+            max_count = 60
             while True:
-                time.sleep(10)
+                if count >= max_count:
+                    logger.error(
+                        f"exhausted {max_count} sync time. use default port"
+                    )
+                    break
+                time.sleep(20)
+                count = count + 1
                 if port == 0:
                     port = find_free_port_for_hccl(start_port)
                 if port == 0:
-                    logger.error(f"fail to find available ports between 60000 and 70000")
+                    logger.error(
+                        "fail to find available ports between 60000 and 70000"
+                    )
                     break
-                logger.info(f"sync port {port}")
                 resp = self._client.sync_training_ports(port)
                 if resp.port > 0:
                     logger.info(f"config hccl port: {resp.port}")

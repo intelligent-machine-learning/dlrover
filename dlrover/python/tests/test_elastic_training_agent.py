@@ -25,9 +25,9 @@ from torch.distributed.elastic.rendezvous import RendezvousParameters
 from torch.distributed.launcher.api import LaunchConfig
 
 from dlrover.python.common.constants import (
+    Accelerators,
     ConfigPath,
     RendezvousName,
-    Accelerators,
 )
 from dlrover.python.common.storage import PosixDiskStorage
 from dlrover.python.elastic_agent.master_client import (

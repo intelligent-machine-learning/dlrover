@@ -19,9 +19,9 @@ from dlrover.python.common.grpc import (
     addr_connected,
     deserialize_message,
     find_free_port,
+    find_free_port_for_hccl,
     find_free_port_in_range,
     find_free_port_in_set,
-    find_free_port_for_hccl,
 )
 
 
