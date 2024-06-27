@@ -30,7 +30,7 @@ What's more, DLRover provides extension libraries of PyTorch and TensorFlow to S
 - [TFPlus](tfplus/README.md): an extension library of TensorFlow to Speed Up Training of Search, Recommendation and Advertisement.
 
 ## Latest News
-
+- [2024/06] [DLRover-RM has been accepted by VLDB'24](docs/blogs/dlrover_rm.md)
 - [2024/04] [Flash Checkpoint Supports HuggingFace transformers.Trainer to Asynchronously persist checkpoints.](docs/blogs/flash_checkpoint.md#huggingface-transformerstrainer)
 - [2024/02] [Flash Checkpoint Saves the Megatron-LM Checkpoint in Seconds.](docs/blogs/megatron_flash_checkpoint.md)
 - [2024/01] [Flash Checkpoint to Recover Large Model Training From Failure in Seconds.](docs/blogs/flash_checkpoint.md)

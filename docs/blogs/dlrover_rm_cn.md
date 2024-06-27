@@ -1,4 +1,4 @@
-# DLRover-RM 针对推荐模型训练的自动资源优化系统
+# DLRover-RM: 针对推荐模型训练的自动资源优化系统
 
 [English](./dlrover_rm.md)
 
