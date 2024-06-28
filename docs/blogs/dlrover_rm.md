@@ -13,12 +13,12 @@ suffer from irrational resource allocation and generally low utilization of comp
 In addition, the high instability of cloud environments leads to high failure rates and frequent
 anomalies (e.g., slow nodes) in DLRM training.
 
-To this end, this paper develops a cloud-based deep learning training system specifically designed
- for DLRM, which takes into account trainin runtime information to accurately allocate and
- elastically schedule resources for training jobs, and introduces a series of new mechanisms,
- including dynamic data sharding, flash checkpoint, seamless migration, and pre-tuning-based OOM
- prevention. DLRover achieves excellent throughput, high resource utilization and robust fault
- tolerance with these mechanisms. In summary, our contributions are as follows:
+To this end, this paper develops a cloud-based deep learning training system specifically designed 
+for DLRM, which takes into account trainin runtime information to accurately allocate and 
+elastically schedule resources for training jobs, and introduces a series of new mechanisms, 
+including dynamic data sharding, flash checkpoint, seamless migration, and pre-tuning-based OOM 
+prevention. DLRover achieves excellent throughput, high resource utilization and robust fault 
+tolerance with these mechanisms. In summary, our contributions are as follows:
 
 - We build a resource-performance model. With this model, we design a three-stage algorithm that can
 dynamically allocate resources during DLRM training and significantly reduce the job completion time.
@@ -52,23 +52,23 @@ job's worker node (e.g., hosted in a pod) for training.
 <text>Figure 1: Overview of DLRover and Model Training Workflow</text>
 </div>
 
-After submission of a job by the user, Cluster Brain quickly learns the characteristics of the job
- and generates an initialized (warm-starting) resource plan by leveraging the relevant historical
- data from the config DB. Note that, at this moment, we choose a reasonable configuration near the
- optimal configuration (hence, with fewer scaling operations and shorter scaling times for
- auto-scaling) instead of pursuing an optimal configuration. Subsequently, Cluster Brain sends the
- warm-starting resource plan to the respective job master for job initialization.
+After submission of a job by the user, Cluster Brain quickly learns the characteristics of the job 
+and generates an initialized (warm-starting) resource plan by leveraging the relevant historical 
+data from the config DB. Note that, at this moment, we choose a reasonable configuration near the 
+optimal configuration (hence, with fewer scaling operations and shorter scaling times for 
+auto-scaling) instead of pursuing an optimal configuration. Subsequently, Cluster Brain sends the 
+warm-starting resource plan to the respective job master for job initialization.
 
-During the runtime of the job, Analyzer periodically analyses the runtime statistics of the job and
- reports them to Optimizer at regular intervals. Based on this updated runtime information, Optimizer
-  can generate a fine-grained resource plan, based on which Executer dynamically adjusts the number
-  of job node worker or PS, as well as their resource allocation, i.e., the execution plan.
+During the runtime of the job, Analyzer periodically analyses the runtime statistics of the job and 
+reports them to Optimizer at regular intervals. Based on this updated runtime information, Optimizer  
+can generate a fine-grained resource plan, based on which Executer dynamically adjusts the number 
+of job node worker or PS, as well as their resource allocation, i.e., the execution plan.
 
-DLRover further provides a set of reliable instability handling mechanisms to ensure stable execution
-of training jobs. For failed/slow worker nodes, DLRover implements a dynamic data sharding mechanism
-to redistribute lost data and rebalance the workload among worker nodes. For failed/slow PS, DLRover
- designs seamless migration and flash checkpoint policies using memory checkpoints to minimise the
- overhead of failure recovery and job migration
+DLRover further provides a set of reliable instability handling mechanisms to ensure stable execution 
+of training jobs. For failed/slow worker nodes, DLRover implements a dynamic data sharding mechanism 
+to redistribute lost data and rebalance the workload among worker nodes. For failed/slow PS, DLRover 
+designs seamless migration and flash checkpoint policies using memory checkpoints to minimise the 
+overhead of failure recovery and job migration
 
 ## Explore the Optimal Configuration
 
@@ -84,15 +84,15 @@ model.
 ### Three-stage Resource Optimization Algorithm
 
 Given a DLRM training job, the system first analyses its runtime information and generates an optimal
- resource plan based on the resource-performance model using an auto-scaling algorithm (Stage 2). To
- make job training more robust in practice, we design a pre-scaling phase (Stage 1) to start the job
- and a post-scaling phase (Stage 3) to handle cloud instability. Specifically, as opposed to scaling
- a training job from scratch (i.e., cold-starting), users would like to see the job perform well
- after submission rather than waiting for a long scaling process. Therefore, we introduce a
- pre-scaling phase to allocate appropriate startup configurations (i.e., the previously mentioned
- warm-starting). On the other hand, even if optimal resources are provided, training jobs can still
- experience performance degradation (e.g., straggler) due to cloud instability. Therefore, we
- introduce a post-scaling phase to ensure smooth training in the cloud.
+resource plan based on the resource-performance model using an auto-scaling algorithm (Stage 2). To
+make job training more robust in practice, we design a pre-scaling phase (Stage 1) to start the job
+and a post-scaling phase (Stage 3) to handle cloud instability. Specifically, as opposed to scaling
+a training job from scratch (i.e., cold-starting), users would like to see the job perform well
+after submission rather than waiting for a long scaling process. Therefore, we introduce a
+pre-scaling phase to allocate appropriate startup configurations (i.e., the previously mentioned
+warm-starting). On the other hand, even if optimal resources are provided, training jobs can still
+experience performance degradation (e.g., straggler) due to cloud instability. Therefore, we
+introduce a post-scaling phase to ensure smooth training in the cloud.
 
 ## Instability Handling in Cloud
 
@@ -112,7 +112,7 @@ speed, and (2) new/healthy working nodes for fast resilience or fault tolerance.
 
 ### Seamless Migration
 
-DLRover develop a seamless migration mechanism that effectively reduces training downtime by
+DLRover develops a seamless migration mechanism that effectively reduces training downtime by
 overlaying node scaling with ongoing trainin to minimise resource scaling overheads. To further
 reduce scaling overheads, DLRover invents flash checkpoint, a fast checkpointing mechanism that
 accelerates checkpointing by using shared memory and asynchronous data persistence.
