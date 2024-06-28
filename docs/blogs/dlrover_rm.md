@@ -14,7 +14,7 @@ In addition, the high instability of cloud environments leads to high failure ra
 anomalies (e.g., slow nodes) in DLRM training.
 
 To this end, this paper develops a cloud-based deep learning training system specifically designed
- for DLRM, which takes into account runtime training information to accurately allocate and
+ for DLRM, which takes into account trainin runtime information to accurately allocate and
  elastically schedule resources for training jobs, and introduces a series of new mechanisms,
  including dynamic data sharding, flash checkpoint, seamless migration, and pre-tuning-based OOM
  prevention. DLRover achieves excellent throughput, high resource utilization and robust fault
