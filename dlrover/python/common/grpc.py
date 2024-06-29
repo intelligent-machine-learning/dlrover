@@ -20,7 +20,10 @@ from typing import Dict, List
 
 import grpc
 
-from dlrover.python.common.constants import GRPC
+from dlrover.python.common.constants import (
+    GRPC,
+    AscendConstants,
+)
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.serialize import JsonSerializable
 
@@ -105,18 +108,17 @@ def find_free_port_in_set(ports):
 
 
 def find_free_port_for_hccl(start=60000, end=70000) -> int:
-    n_npu = 16
     cur_start = start
     logger.info(f"try to find available port for hccl from {start}")
     while True:
         try:
-            cur_end = cur_start + n_npu
+            cur_end = cur_start + AscendConstants.NPU_PER_NODE
             for port in range(cur_start, cur_end):
                 find_free_port(port)
             logger.info(f"find available port: {cur_start}")
             break
         except OSError:
-            cur_start = cur_start + n_npu
+            cur_start = cur_start + AscendConstants.NPU_PER_NODE
             if cur_start > end:
                 cur_start = 0
                 break

@@ -301,3 +301,7 @@ class CheckpointConstant(object):
 class Accelerators(object):
     NVIDIA_GPU = "nvidia.com/gpu"
     ASCEND_NPU = "ascend-npu"
+
+
+class AscendConstants(object):
+    NPU_PER_NODE = 16

@@ -27,6 +27,7 @@ from dlrover.python.common.constants import (
     NodeStatus,
     NodeType,
     PriorityClass,
+    AscendConstants,
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
@@ -382,7 +383,6 @@ class TrainingNodeConfigure:
         self._n_node = num
 
     def sync_node_training_port(self, node_id, port) -> SyncNodeTrainingPorts:
-        n_npu = 16
         with self._lock:
             if self._node_training_port > 0:
                 return SyncNodeTrainingPorts(
@@ -408,7 +408,7 @@ class TrainingNodeConfigure:
                         f"{self._recv_node_training_ports}"
                     )
                     self._recv_node_training_ports.clear()
-                    self._next_check_node_training_port = max_port + n_npu
+                    self._next_check_node_training_port = max_port + AscendConstants.NPU_PER_NODE
                     return SyncNodeTrainingPorts(
                         training_port=0,
                         next_check_port=self._next_check_node_training_port,

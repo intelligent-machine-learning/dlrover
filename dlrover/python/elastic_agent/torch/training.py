@@ -735,8 +735,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
         self._save_ckpt_executor.shutdown(wait=False)
 
     def sync_training_ports(self):
+        logger.info(f"Accelerator: {self._config.accelerator}")
         if self._config.accelerator == Accelerators.ASCEND_NPU:
-            start_port = 60000
+            start_port = 61000
             port = 0
             logger.info("synchronize worker training ports...")
             count = 0
