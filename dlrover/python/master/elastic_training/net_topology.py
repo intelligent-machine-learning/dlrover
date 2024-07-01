@@ -10,32 +10,20 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import json
 from abc import ABCMeta, abstractmethod
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Any, Dict, List, Tuple
+from typing import Dict, List, Tuple
 
 
 @dataclass
 class NodeTopologyMeta(object):
+    node_id: int = 0
     node_rank: int = 0
     process_num: int = 0
     node_ip: str = ""
     asw: str = ""
     psw: str = ""
-
-    def __repr__(self) -> str:
-        d: Dict[str, Any] = {}
-        d["node_rank"] = self.node_rank
-        d["process_num"] = self.process_num
-        if self.node_ip:
-            d["node_ip"] = self.node_ip
-        if self.asw:
-            d["asw"] = self.asw
-        if self.psw:
-            d["psw"] = self.psw
-        return json.dumps(d)
 
 
 class TopologyQuerier(metaclass=ABCMeta):

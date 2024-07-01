@@ -80,6 +80,10 @@ class JobAutoScalerTest(unittest.TestCase):
         for i in [0, 3, 2]:
             ps_addrs.append("test-edljob-ps-{}.default.svc:2222".format(i))
         self.assertListEqual(scale_plan.ps_addrs, ps_addrs)
+        auto_scaler.start_auto_scaling()
+        self.assertTrue(auto_scaler._autoscaling_started)
+        auto_scaler.stop_auto_scaling()
+        self.assertFalse(auto_scaler._autoscaling_started)
 
     def test_reduce_timeout_pending_node_resource(self):
         params = MockK8sPSJobArgs()
@@ -139,3 +143,7 @@ class AllreduceAutoScalerTest(unittest.TestCase):
         )
         alive_num = auto_scaler._get_alive_worker_num()
         self.assertEqual(alive_num, 16)
+        auto_scaler.start_auto_scaling()
+        self.assertTrue(auto_scaler._autoscaling_started)
+        auto_scaler.stop_auto_scaling()
+        self.assertFalse(auto_scaler._autoscaling_started)

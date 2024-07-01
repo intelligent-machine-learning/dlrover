@@ -22,6 +22,9 @@ from dlrover.python.elastic_agent.master_client import (
     build_master_client,
 )
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
+from dlrover.python.master.elastic_training.net_topology import (
+    NodeTopologyMeta,
+)
 from dlrover.python.master.elastic_training.rdzv_manager import (
     ElasticTrainingRendezvousManager,
     NetworkCheckRendezvousManager,
@@ -62,14 +65,14 @@ class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
         rdzv_round = rdzv_manager.get_rdzv_round()
         self.assertEqual(rdzv_round, 0)
         rdzv_manager._alive_nodes = [0, 1, 2]
-        rdzv_manager.join_rendezvous(0, 8)
-        rdzv_manager.join_rendezvous(1, 8)
+        rdzv_manager.join_rendezvous(0, 0, 8)
+        rdzv_manager.join_rendezvous(1, 1, 8)
         round, _, world = rdzv_manager.get_comm_world(0)
         self.assertEqual(round, 0)
         self.assertDictEqual(world, {})
         self.assertEqual(len(rdzv_manager._waiting_nodes), 2)
         self.assertEqual(len(rdzv_manager._rdzv_nodes), 0)
-        rdzv_manager.join_rendezvous(2, 8)
+        rdzv_manager.join_rendezvous(2, 2, 8)
         self.assertDictEqual(
             rdzv_manager._node_rdzv_times, {0: 0.0, 1: 0.0, 2: 0.0}
         )
@@ -89,8 +92,8 @@ class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
         rdzv_manager.add_alive_node(node_0)
         node_2 = Node("worker", 2)
         rdzv_manager.add_alive_node(node_2)
-        rdzv_manager.join_rendezvous(0, 8)
-        rdzv_manager.join_rendezvous(1, 8)
+        rdzv_manager.join_rendezvous(0, 0, 8)
+        rdzv_manager.join_rendezvous(1, 1, 8)
         rdzv_manager.remove_alive_node(node_2)
         self.assertEqual(len(rdzv_manager._alive_nodes), 2)
         self.assertEqual(len(rdzv_manager._waiting_nodes), 2)
@@ -104,30 +107,41 @@ class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
 
     def test_min_nodes_with_unit(self):
         rdzv_manager = ElasticTrainingRendezvousManager()
-        rdzv_manager.update_rdzv_params(8, 12, 0.1, 4)
-        for i in range(10):
+        min_nodes = 8
+        max_nodes = 12
+        node_unit = 4
+        rdzv_manager.update_rdzv_params(min_nodes, max_nodes, 0.1, node_unit)
+
+        test_loop = 10
+        for i in range(test_loop):
             node = Node("worker", i, name=f"worker-{i}")
             rdzv_manager.add_alive_node(node)
-            rdzv_manager.join_rendezvous(i, 8)
-        self.assertEqual(len(rdzv_manager._alive_nodes), 10)
-        self.assertEqual(len(rdzv_manager._waiting_nodes), 10)
+            rdzv_manager.join_rendezvous(i, i, 8)
+        self.assertEqual(len(rdzv_manager._alive_nodes), test_loop)
+        self.assertEqual(len(rdzv_manager._waiting_nodes), test_loop)
         self.assertEqual(len(rdzv_manager._rdzv_nodes), 0)
         time.sleep(0.2)
         round, _, world = rdzv_manager.get_comm_world(1)
         self.assertEqual(round, 1)
-        self.assertEqual(len(rdzv_manager._waiting_nodes), 2)
-        self.assertEqual(len(rdzv_manager._rdzv_nodes), 8)
-        self.assertListEqual(list(world.keys()), list(range(8)))
+        self.assertEqual(
+            len(rdzv_manager._waiting_nodes), test_loop - min_nodes
+        )
+        self.assertEqual(len(rdzv_manager._rdzv_nodes), min_nodes)
+        self.assertListEqual(list(world.keys()), list(range(min_nodes)))
         round, _, world = rdzv_manager.get_comm_world(9)
         self.assertEqual(round, 1)
         self.assertFalse(9 in world)
 
         # Test the number of waiting nodes is less than the node unit.
-        rdzv_manager.join_rendezvous(10, 8)
-        rdzv_manager.join_rendezvous(11, 8)
-        num = rdzv_manager.num_nodes_waiting()
-        self.assertEqual(num, 4)
-        self.assertEqual(len(rdzv_manager._waiting_nodes), 4)
+        self.assertEqual(rdzv_manager.num_nodes_waiting(), 0)
+        rdzv_manager.join_rendezvous(10, 10, 8)
+        rdzv_manager.join_rendezvous(11, 11, 8)
+        self.assertEqual(
+            len(rdzv_manager._waiting_nodes), rdzv_manager.num_nodes_waiting()
+        )
+        self.assertEqual(
+            rdzv_manager.num_nodes_waiting(), test_loop + 2 - min_nodes
+        )
         node_10 = Node("worker", 10, name="worker-10")
         node_11 = Node("worker", 11, name="worker-11")
 
@@ -141,7 +155,7 @@ class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
         # Test the number of waiting nodes is equal or
         # bigger than the node unit.
         for i in range(12, 16):
-            rdzv_manager.join_rendezvous(i, 8)
+            rdzv_manager.join_rendezvous(i, i, 8)
         num = rdzv_manager.num_nodes_waiting()
         self.assertEqual(num, 6)
         rdzv_manager.clear_waiting_nodes()
@@ -155,7 +169,7 @@ class NetworkCheckRendezvousManagerTest(unittest.TestCase):
         rdzv_manager.update_rdzv_params(4, 4, 60, 1)
         rdzv_manager._alive_nodes = [0, 1, 2, 3]
         for i in range(4):
-            round = rdzv_manager.join_rendezvous(i, 8)
+            round = rdzv_manager.join_rendezvous(i, i, 8)
         self.assertEqual(round, 0)
         round, group, world = rdzv_manager.get_comm_world(0)
         self.assertEqual(round, 1)
@@ -173,7 +187,7 @@ class NetworkCheckRendezvousManagerTest(unittest.TestCase):
         rdzv_manager.report_network_check_result(3, False, 0.0)
 
         for i in range(4):
-            round = rdzv_manager.join_rendezvous(i, 8)
+            round = rdzv_manager.join_rendezvous(i, i, 8)
         self.assertEqual(round, 1)
         round, group, world = rdzv_manager.get_comm_world(0)
         self.assertEqual(round, 2)
@@ -186,7 +200,7 @@ class NetworkCheckRendezvousManagerTest(unittest.TestCase):
         self.assertFalse(success)
 
         for i in range(4):
-            round = rdzv_manager.join_rendezvous(i, 8)
+            round = rdzv_manager.join_rendezvous(i, i, 8)
         self.assertEqual(round, 2)
         round, group, world = rdzv_manager.get_comm_world(3)
         self.assertEqual(round, 3)
@@ -203,7 +217,7 @@ class NetworkCheckRendezvousManagerTest(unittest.TestCase):
         rdzv_manager = NetworkCheckRendezvousManager()
         rdzv_manager.update_rdzv_params(1, 1, 60, 1)
         rdzv_manager._alive_nodes = [0]
-        round = rdzv_manager.join_rendezvous(0, 8)
+        round = rdzv_manager.join_rendezvous(0, 0, 8)
         self.assertEqual(round, 0)
         round, _, world = rdzv_manager.get_comm_world(0)
         self.assertEqual(round, 1)
@@ -220,7 +234,7 @@ class NetworkCheckRendezvousManagerTest(unittest.TestCase):
         rdzv_manager.update_rdzv_params(6, 6, 60, 1)
         rdzv_manager._alive_nodes = [0, 1, 2, 3, 4, 5]
         for i in range(6):
-            round = rdzv_manager.join_rendezvous(i, 8)
+            round = rdzv_manager.join_rendezvous(i, i, 8)
         self.assertEqual(round, 0)
         round, group, world = rdzv_manager.get_comm_world(0)
         self.assertEqual(round, 1)
@@ -237,7 +251,7 @@ class NetworkCheckRendezvousManagerTest(unittest.TestCase):
         self.assertListEqual(stragglers, [4, 5])
 
         for i in range(6):
-            round = rdzv_manager.join_rendezvous(i, 8)
+            round = rdzv_manager.join_rendezvous(i, i, 8)
         self.assertEqual(round, 1)
         round, group, world = rdzv_manager.get_comm_world(5)
         self.assertEqual(round, 2)
@@ -255,7 +269,7 @@ class NetworkCheckRendezvousManagerTest(unittest.TestCase):
         rdzv_manager.update_rdzv_params(5, 5, 60, 1)
         rdzv_manager._alive_nodes = [0, 1, 2, 3, 4]
         for i in range(5):
-            round = rdzv_manager.join_rendezvous(i, 8)
+            round = rdzv_manager.join_rendezvous(i, i, 8)
         self.assertEqual(round, 0)
         round, group, world = rdzv_manager.get_comm_world(0)
         self.assertEqual(round, 1)
@@ -272,7 +286,7 @@ class NetworkCheckRendezvousManagerTest(unittest.TestCase):
         self.assertListEqual(stragglers, [0, 1])
 
         for i in range(5):
-            round = rdzv_manager.join_rendezvous(i, 8)
+            round = rdzv_manager.join_rendezvous(i, i, 8)
         self.assertEqual(round, 1)
         round, group, world = rdzv_manager.get_comm_world(1)
         self.assertEqual(round, 2)
@@ -294,3 +308,14 @@ class NetworkCheckRendezvousManagerTest(unittest.TestCase):
         self.assertTrue(success)
         success = rdzv_manager.sync_ckpt_nodes(1, 90)
         self.assertFalse(success)
+
+    def test_map_node_rank_to_id(self):
+        rdzv_manager = ElasticTrainingRendezvousManager()
+        rdzv_manager._rdzv_nodes[0] = NodeTopologyMeta(
+            node_id=1,
+            node_rank=0,
+            process_num=8,
+        )
+        rank_d = {0: True}
+        id_d = rdzv_manager._map_node_rank_to_id(rank_d)
+        self.assertDictEqual(id_d, {1: True})

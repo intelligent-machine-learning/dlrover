@@ -310,7 +310,8 @@ class MasterClient(Singleton):
 
     def join_rendezvous(self, node_rank, local_world_size, rdzv_name=""):
         request = grpc.JoinRendezvousRequest(
-            node_id=node_rank,
+            node_id=self._node_id,
+            node_rank=node_rank,
             local_world_size=local_world_size,
             rdzv_name=rdzv_name,
             node_ip=self._node_ip,

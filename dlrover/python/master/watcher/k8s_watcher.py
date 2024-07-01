@@ -205,14 +205,17 @@ class PodWatcher(NodeWatcher):
         pod_list = self._k8s_client.list_namespaced_pod(self._job_selector)
         if pod_list:
             resource_version = pod_list.metadata.resource_version
+
+        w = watch.Watch()
         try:
-            stream = watch.Watch().stream(
+            stream = w.stream(
                 self._k8s_client.client.list_namespaced_pod,
                 self._namespace,
                 label_selector=self._job_selector,
                 resource_version=resource_version,
                 timeout_seconds=60,
             )
+
             for event in stream:
                 node_event = _convert_pod_event_to_node_event(
                     event, self._k8s_client
@@ -222,6 +225,8 @@ class PodWatcher(NodeWatcher):
                 yield node_event
         except Exception as e:
             raise e
+        finally:
+            w.stop()
 
     def list(self) -> List[Node]:
         nodes: List[Node] = []
