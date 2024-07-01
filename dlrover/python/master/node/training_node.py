@@ -159,12 +159,8 @@ class TrainingNodeManager(object):
     ):
         """
         Args:
-            k8s_client: The client to connect the k8s cluster.
-            worker_pods: A dictionary where the key is the index of worker pod
-                and the value is the PodInfo instance of PS pod.
-            typed_pod_config: The ps/worker/evaluator configuration.
-            max_relaunch_num: The maximum relaunch number of PS.
-            command: The command of worker pods.
+            nodes: training nodes
+            new_node_name_fn: new node name function
         """
         self._nodes = nodes
         self._new_node_name_fn = new_node_name_fn
