@@ -384,10 +384,12 @@ class TrainingNodeConfigure:
 
     def sync_node_training_port(self, node_id, port) -> SyncNodeTrainingPorts:
         with self._lock:
+            # port is already decided
             if self._node_training_port > 0:
                 return SyncNodeTrainingPorts(
                     training_port=self._node_training_port, next_check_port=0
                 )
+            # workers should start next round port check
             if port < self._next_check_node_training_port:
                 return SyncNodeTrainingPorts(
                     training_port=0,
@@ -398,7 +400,7 @@ class TrainingNodeConfigure:
                 min_port = 0
                 max_port = 0
                 for _, recv_port in self._recv_node_training_ports.items():
-                    if min_port == 0:
+                    if min_port == 0 or min_port > recv_port:
                         min_port = recv_port
                     if max_port < recv_port:
                         max_port = recv_port
