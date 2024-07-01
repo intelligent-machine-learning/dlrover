@@ -737,7 +737,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
     def sync_training_ports(self):
         logger.info(f"Accelerator: {self._config.accelerator}")
         if self._config.accelerator == Accelerators.ASCEND_NPU:
-            start_port = 61000
+            start_port = 60000
             port = 0
             logger.info("synchronize worker training ports...")
             count = 0
@@ -758,6 +758,8 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     )
                     break
                 resp = self._client.sync_training_ports(port)
+                if not resp:
+                    continue
                 if resp.port > 0:
                     logger.info(f"config hccl port: {resp.port}")
                     os.environ["HCCL_IF_BASE_PORT"] = str(resp.port)
