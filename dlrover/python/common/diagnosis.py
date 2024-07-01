@@ -36,13 +36,15 @@ class DiagnosisData(metaclass=ABCMeta):
 
 
 class CudaLog(DiagnosisData):
-    def __init__(self, timestamp: int = 0, world_size: int = 0, traces: Dict[str, Set[int]] = {}):
+    def __init__(self, timestamp: int = 0, world_size: int = 0, traces: Dict[str, Set[int]] = None):
         super().__init__()
         if timestamp == 0:
             self._timestamp = int(round(datetime.now().timestamp()))
         else:
             self._timestamp = timestamp
         self._traces: Dict[str, Set[int]] = traces
+        if not self._traces:
+            self._traces = {}
         self._world_size = world_size
 
     def get_timestamp(self) -> int:

@@ -40,18 +40,15 @@ class CudaLogCollector(DataCollector):
 
         self._traces = defaultdict(set)
         self._parse("py", log_files)
-        return CudaLog(0, self._traces)
-
-    def get_all_traces(self) -> List[str]:
-        traces: List[str] = []
-        for trace, ranks in self._stack_rank_count.items():
-            ranks_str = self._format_rank_str(ranks)
-            rank_trace = f"{trace}#{ranks_str}"
-            traces.append(rank_trace)
-        return traces
+        return CudaLog(0, self._world_size, self._traces)
 
     def to_collect_data(self) -> bool:
-        return True
+        try:
+            logs = Path(self._log_path)
+            log_files = sorted(logs.glob("*stacktrace"))
+            return len(log_files) > 0
+        except Exception:
+            return False
 
     def get_name(self) -> str:
         return "cuda_log_collector"
@@ -86,5 +83,5 @@ class CudaLogCollector(DataCollector):
                 buf.append(func_file_name)
             stackchain = f"{';'.join(buf)}"
             if trace.thread_name == "MainThread":
-                stackchain = f"MainThread@{stackchain}"
+                stackchain = f"MainThread;{stackchain}"
             self._traces[stackchain].add(rank)
