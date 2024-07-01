@@ -14,10 +14,12 @@
 import copy
 import json
 import os
+import queue
 import socket
 import telnetlib
 import threading
 import time
+from collections import deque
 from typing import Dict, List, Optional
 
 from kubernetes import client
@@ -88,11 +90,12 @@ class PodScaler(Scaler):
         self._svc_factory = k8sServiceFactory(namespace, job_name)
         self._namespace = namespace
         self._replica_template: Dict[str, client.V1Pod] = {}
-        self._create_node_queue: List[Node] = []
-        self._lock = threading.Lock()
+        self._create_node_queue: queue.Queue[Node] = queue.Queue()
+        self._scaling_lock = threading.Lock()
         self._plan = ScalePlan()
         self._ps_addrs: List[str] = []
         self._pod_stats: Dict[str, int] = {}
+        self._var_lock = threading.Lock()
         self._job_uid = ""
         self.api_client = client.ApiClient()
         self._master_addr = ""
@@ -106,6 +109,18 @@ class PodScaler(Scaler):
         threading.Thread(
             target=self._periodic_create_pod, name="pod-creater", daemon=True
         ).start()
+
+    def _safe_get_pod_status(self, key, default):
+        with self._var_lock:
+            if key is None:
+                # return whole dict
+                return self._pod_stats
+            # return specifed value
+            return self._pod_stats.get(key, default)
+
+    def _safe_set_pod_status(self, key, value):
+        with self._var_lock:
+            self._pod_stats[key] = value
 
     def _get_master_addr(self):
         svc_name = f"elasticjob-{self._job_name}-dlrover-master"
@@ -173,17 +188,14 @@ class PodScaler(Scaler):
 
         self._remove_nodes(plan)
         while True:
-            waited = False
-            with self._lock:
-                waited = len(self._create_node_queue) > 0
-            if waited:
+            if len(self._create_node_queue) > 0:
                 logger.info(
                     f"Wait nodes {self._create_node_queue} to completed."
                 )
                 time.sleep(15)
             else:
                 break
-        with self._lock:
+        with self._scaling_lock:
             if plan.empty():
                 return
             self._plan = plan
@@ -228,7 +240,7 @@ class PodScaler(Scaler):
             cur_pods = job_pods.get(type, []) + self._get_type_pod_in_queue(
                 type
             )
-            self._pod_stats[type] = len(cur_pods)
+            self._safe_set_pod_status(type, len(cur_pods))
 
     def _get_type_pod_in_queue(self, type):
         pods = []
@@ -371,35 +383,34 @@ class PodScaler(Scaler):
 
     def _periodic_create_pod(self):
         while True:
-            with self._lock:
-                while self._create_node_queue:
-                    node = self._create_node_queue.pop(0)
-                    succeed = False
-                    if self._check_cluster_ready_for_pod(node):
-                        pod = self._create_pod(
-                            node,
-                            self._pod_stats,
-                            self._ps_addrs,
-                        )
-                        succeed = self._k8s_client.create_pod(pod)
-                    if not succeed:
-                        self._create_node_queue.insert(0, node)
-                        break
-                    service_ready = self._create_service_for_pod(node)
-                    if not service_ready:
-                        self._create_node_queue.insert(0, node)
-                        break
+            while self._create_node_queue:
+                with ThreadPoolExecutor(max_workers=4) as executor:
+                    executor.submit(self._create_pod_from_queue)
             time.sleep(3)
+
+    def _create_pod_from_queue(self):
+        node = self._create_node_queue.popleft()
+        succeed = False
+        if self._check_cluster_ready_for_pod(node):
+            pod = self._create_pod(node)
+            succeed = self._k8s_client.create_pod(pod)
+        if not succeed:
+            self._create_node_queue.appendleft(node)
+        else:
+            # create svs for succeed pod
+            if not self._create_service_for_pod(node):
+                self._create_node_queue.appendleft(node)
+        return succeed
 
     def _check_cluster_ready_for_pod(self, node: Node):
         """Check whether the resource of a cluster is enough to
         create a node"""
         return True
 
-    def _create_pod(self, node: Node, pod_stats: Dict[str, int], ps_addrs):
+    def _create_pod(self, node: Node):
         # Find that master pod that will be used as the owner reference
         # for the ps or worker pod.
-        node.update_priority(pod_stats.get(node.type, 0))
+        node.update_priority(self._safe_get_pod_status(node.type, 0))
         pod_name = get_pod_name(self._job_name, node.type, node.id)
         logger.info(
             "Create Pod %s with resource %s",
@@ -418,7 +429,7 @@ class PodScaler(Scaler):
 
         worker_num = self._config_worker_num
         if worker_num == 0:
-            worker_num = pod_stats.get(node.type, 0)
+            worker_num = self._safe_get_pod_status(node.type, 0)
 
         env.append(V1EnvVar(name=NodeEnv.NODE_TYPE, value=node.type))
         env.append(V1EnvVar(name=NodeEnv.NODE_ID, value=str(node.id)))
@@ -491,7 +502,7 @@ class PodScaler(Scaler):
         pod.spec.containers[0].env.append(
             V1EnvVar(name=NodeEnv.MONITOR_ENABLED, value="true")
         )
-        self._patch_tf_config_into_env(pod, node, pod_stats, ps_addrs)
+        self._patch_tf_config_into_env(pod, node)
         return pod
 
     def _check_master_service_avaliable(self, host, port, timeout=15):
@@ -520,14 +531,17 @@ class PodScaler(Scaler):
         )
         return False
 
-    def _patch_tf_config_into_env(self, pod, node: Node, pod_stats, ps_addrs):
-        if self._distribution_strategy == DistributionStrategy.PS and ps_addrs:
+    def _patch_tf_config_into_env(self, pod, node: Node):
+        if (
+            self._distribution_strategy == DistributionStrategy.PS
+            and self._ps_addrs
+        ):
             tf_config = new_tf_config(
-                pod_stats,
+                self._safe_get_pod_status(None, None),
                 self.get_node_service_addr,
                 node.type,
                 node.rank_index,
-                ps_addrs,
+                self._ps_addrs,
             )
             if tf_config:
                 pod.spec.containers[0].env.append(
