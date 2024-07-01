@@ -20,10 +20,7 @@ from typing import Dict, List
 
 import grpc
 
-from dlrover.python.common.constants import (
-    GRPC,
-    AscendConstants,
-)
+from dlrover.python.common.constants import GRPC, AscendConstants
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.serialize import JsonSerializable
 
