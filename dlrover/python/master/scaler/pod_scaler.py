@@ -14,7 +14,6 @@
 import copy
 import json
 import os
-import queue
 import socket
 import telnetlib
 import threading
@@ -90,7 +89,7 @@ class PodScaler(Scaler):
         self._svc_factory = k8sServiceFactory(namespace, job_name)
         self._namespace = namespace
         self._replica_template: Dict[str, client.V1Pod] = {}
-        self._create_node_queue: queue.Queue[Node] = queue.Queue()
+        self._create_node_queue: deque[Node] = deque(Node)
         self._scaling_lock = threading.Lock()
         self._plan = ScalePlan()
         self._ps_addrs: List[str] = []
