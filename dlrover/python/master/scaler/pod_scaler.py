@@ -99,6 +99,7 @@ class PodScaler(Scaler):
         self._job_uid = ""
         self.api_client = client.ApiClient()
         self._master_addr = ""
+        self._started = False
 
     def start(self):
         self._job = self._retry_to_get_job()
@@ -106,9 +107,13 @@ class PodScaler(Scaler):
             raise ValueError(f"Cannot get the training job {self._job_name}.")
         self._init_pod_config_by_job()
         self._master_addr = self._get_master_addr()
+        self._started = True
         threading.Thread(
             target=self._periodic_create_pod, name="pod-creater", daemon=True
         ).start()
+
+    def stop(self):
+        self._started = False
 
     def _safe_get_pod_status(self, key, default):
         with self._var_lock:
@@ -382,11 +387,11 @@ class PodScaler(Scaler):
         return self._k8s_client.get_pod(pod_name)
 
     def _periodic_create_pod(self):
-        while True:
-            while self._create_node_queue:
-                with ThreadPoolExecutor(max_workers=4) as executor:
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            while self._started:
+                while self._create_node_queue:
                     executor.submit(self._create_pod_from_queue)
-            time.sleep(3)
+                time.sleep(3)
 
     def _create_pod_from_queue(self):
         node = self._create_node_queue.popleft()
