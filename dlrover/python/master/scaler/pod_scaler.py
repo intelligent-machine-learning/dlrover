@@ -19,6 +19,7 @@ import telnetlib
 import threading
 import time
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, List, Optional
 
 from kubernetes import client
@@ -89,7 +90,7 @@ class PodScaler(Scaler):
         self._svc_factory = k8sServiceFactory(namespace, job_name)
         self._namespace = namespace
         self._replica_template: Dict[str, client.V1Pod] = {}
-        self._create_node_queue: deque[Node] = deque(Node)
+        self._create_node_queue: deque[Node] = deque()
         self._scaling_lock = threading.Lock()
         self._plan = ScalePlan()
         self._ps_addrs: List[str] = []
