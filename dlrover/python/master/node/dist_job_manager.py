@@ -32,14 +32,7 @@ from dlrover.python.common.global_context import Context
 from dlrover.python.common.grpc import ParallelConfig
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource
-from dlrover.python.master.hyperparams.simple_strategy_generator import (
-    SimpleStrategyGenerator,
-)
-from dlrover.python.master.monitor.error_monitor import (
-    ErrorMonitor,
-    K8sJobErrorMonitor,
-)
-from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
+from dlrover.python.master.monitor.error_monitor import K8sJobErrorMonitor
 from dlrover.python.master.node.event_callback import (
     ClusterContext,
     NodeEventCallback,
@@ -55,8 +48,6 @@ from dlrover.python.master.node.status_flow import (
     get_node_state_flow,
 )
 from dlrover.python.master.node.training_node import (
-    SyncNodeTrainingPorts,
-    TrainingNodeConfigure,
     get_critical_worker_index,
     set_critical_node,
     update_nodes_priority,
@@ -68,7 +59,6 @@ from dlrover.python.master.node.worker import (
 )
 from dlrover.python.master.resource.job import (
     AllreduceJobResourceOptimizer,
-    JobResource,
     JobResourceOptimizer,
     PSJobResourceOptimizer,
 )
@@ -106,8 +96,8 @@ class DistributedJobManager(JobManager):
         job_scaler=None,
         error_monitor=None,
     ):
+        super().__init__(job_args, speed_monitor, error_monitor)
         self._remove_exited_node = job_args.remove_exited_node
-        self._job_resource = JobResource()
         node_restart_count: Dict[str, int] = {}
         for type, node_args in job_args.node_args.items():
             self._job_resource.node_group_resources[
@@ -115,11 +105,7 @@ class DistributedJobManager(JobManager):
             ] = node_args.group_resource
             node_restart_count[type] = node_args.restart_count
 
-        self._job_args = job_args
         self._ps_is_critical = False
-        self._job_strategy_generator: SimpleStrategyGenerator = (
-            SimpleStrategyGenerator(self._job_args.job_uuid)
-        )
         if (
             job_args.distribution_strategy == DistributionStrategy.PS
             or job_args.distribution_strategy == DistributionStrategy.CUSTOM
@@ -160,13 +146,9 @@ class DistributedJobManager(JobManager):
             ps_restart_count, _MAX_POD_RELAUNCH_COUNT
         )
         self._node_event_callbacks: List[NodeEventCallback] = []
-        self._stop_monitor = False
-        self._speed_monitor: SpeedMonitor = speed_monitor
-        self._error_monitor: ErrorMonitor = error_monitor
 
         # Protects followed variables, which are accessed from event_cb.
         self._lock = threading.Lock()
-        self._job_nodes: Dict[str, Dict[int, Node]] = {}
 
         self._elastic_job: ElasticJob = job
         self._node_watcher = node_watcher
@@ -179,7 +161,6 @@ class DistributedJobManager(JobManager):
         )
         self._scaler: Scaler = job_scaler
         self._init_training_node_manager()
-        self._training_node_configure = TrainingNodeConfigure()
 
     def start(self):
         self._scaler.start()
@@ -863,11 +844,6 @@ class DistributedJobManager(JobManager):
         if node.heartbeat_time == 0:
             logger.info(f"Start receiving heartbeat from node {node.name}")
         node.heartbeat_time = timestamp
-
-    def sync_node_training_port(self, node_id, port) -> SyncNodeTrainingPorts:
-        return self._training_node_configure.sync_node_training_port(
-            node_id, port
-        )
 
 
 def create_job_manager(args: JobArgs, speed_monitor) -> DistributedJobManager:
