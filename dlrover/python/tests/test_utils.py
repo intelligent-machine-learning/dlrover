@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import datetime
+import os
 from unittest import mock
 
 import yaml
@@ -36,16 +37,30 @@ from dlrover.python.scheduler.job import JobArgs, LocalJobArgs, NodeArgs
 from dlrover.python.scheduler.kubernetes import k8sClient
 
 
+def _is_local():
+    return "dlrover/python/tests" in os.getcwd()
+
+
 def get_test_scale_plan(*args, **kwargs):
-    with open("dlrover/python/tests/data/scaleplan_sample.yaml", "r") as f:
-        job_content = f.read()
+    if _is_local():
+        with open("data/scaleplan_sample.yaml", "r") as f:
+            job_content = f.read()
+    else:
+        with open("dlrover/python/tests/data/scaleplan_sample.yaml", "r") as f:
+            job_content = f.read()
     job = yaml.safe_load(job_content)
     return job
 
 
 def _get_training_job(*args, **kwargs):
-    with open("dlrover/python/tests/data/elasticjob_sample.yaml", "r") as f:
-        job_content = f.read()
+    if _is_local():
+        with open("data/elasticjob_sample.yaml", "r") as f:
+            job_content = f.read()
+    else:
+        with open(
+            "dlrover/python/tests/data" "/elasticjob_sample.yaml", "r"
+        ) as f:
+            job_content = f.read()
     job = yaml.safe_load(job_content)
     return job
 
