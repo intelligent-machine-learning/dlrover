@@ -106,13 +106,13 @@ def find_free_port_in_set(ports):
 
 def find_free_port_for_hccl(start=60000, end=70000) -> int:
     cur_start = start
-    logger.info(f"try to find available port for hccl from {start}")
+    logger.info(f"Try to find available port for hccl from {start}")
     while True:
         try:
             cur_end = cur_start + AscendConstants.NPU_PER_NODE
             for port in range(cur_start, cur_end):
                 find_free_port(port)
-            logger.info(f"find available port: {cur_start}")
+            logger.info(f"Find available port start from: {cur_start}")
             break
         except OSError:
             cur_start = cur_start + AscendConstants.NPU_PER_NODE
