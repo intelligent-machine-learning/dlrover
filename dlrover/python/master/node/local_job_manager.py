@@ -15,20 +15,15 @@ from typing import Dict
 from dlrover.python.common.constants import NodeStatus, NodeType
 from dlrover.python.common.grpc import ParallelConfig
 from dlrover.python.common.node import Node
-from dlrover.python.master.hyperparams.simple_strategy_generator import (
-    SimpleStrategyGenerator,
-)
 from dlrover.python.master.monitor.error_monitor import (
     ErrorMonitor,
     SimpleErrorMonitor,
 )
-from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.job_manager import JobManager
 from dlrover.python.master.node.training_node import (
     SyncNodeTrainingPorts,
     TrainingNodeConfigure,
 )
-from dlrover.python.master.resource.job import JobResource
 from dlrover.python.scheduler.job import JobArgs
 
 
@@ -45,18 +40,8 @@ class LocalJobManager(JobManager):
         speed_monitor=None,
         error_monitor=None,
     ):
-        self._job_resource = JobResource()
-        self._job_args = job_args
+        super().__init__(job_args, speed_monitor, error_monitor)
         self._job_resource_optimizer = None
-        self._job_strategy_generator: SimpleStrategyGenerator = (
-            SimpleStrategyGenerator(self._job_args.job_uuid)
-        )
-        self._stop_monitor = False
-        self._speed_monitor: SpeedMonitor = speed_monitor
-        self._error_monitor: ErrorMonitor = error_monitor
-
-        self._job_nodes: Dict[str, Dict[int, Node]] = {}
-        self._training_node_configure = TrainingNodeConfigure()
 
     def start(self):
         self._job_nodes[NodeType.WORKER] = {}

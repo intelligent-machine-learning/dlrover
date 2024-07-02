@@ -106,8 +106,8 @@ class DistributedJobManager(JobManager):
         job_scaler=None,
         error_monitor=None,
     ):
+        super().__init__(job_args, speed_monitor, error_monitor)
         self._remove_exited_node = job_args.remove_exited_node
-        self._job_resource = JobResource()
         node_restart_count: Dict[str, int] = {}
         for type, node_args in job_args.node_args.items():
             self._job_resource.node_group_resources[
@@ -115,11 +115,7 @@ class DistributedJobManager(JobManager):
             ] = node_args.group_resource
             node_restart_count[type] = node_args.restart_count
 
-        self._job_args = job_args
         self._ps_is_critical = False
-        self._job_strategy_generator: SimpleStrategyGenerator = (
-            SimpleStrategyGenerator(self._job_args.job_uuid)
-        )
         if (
             job_args.distribution_strategy == DistributionStrategy.PS
             or job_args.distribution_strategy == DistributionStrategy.CUSTOM
@@ -160,13 +156,9 @@ class DistributedJobManager(JobManager):
             ps_restart_count, _MAX_POD_RELAUNCH_COUNT
         )
         self._node_event_callbacks: List[NodeEventCallback] = []
-        self._stop_monitor = False
-        self._speed_monitor: SpeedMonitor = speed_monitor
-        self._error_monitor: ErrorMonitor = error_monitor
 
         # Protects followed variables, which are accessed from event_cb.
         self._lock = threading.Lock()
-        self._job_nodes: Dict[str, Dict[int, Node]] = {}
 
         self._elastic_job: ElasticJob = job
         self._node_watcher = node_watcher
@@ -179,7 +171,6 @@ class DistributedJobManager(JobManager):
         )
         self._scaler: Scaler = job_scaler
         self._init_training_node_manager()
-        self._training_node_configure = TrainingNodeConfigure()
 
     def start(self):
         self._scaler.start()
