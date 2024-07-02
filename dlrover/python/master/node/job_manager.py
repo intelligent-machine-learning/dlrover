@@ -12,11 +12,18 @@
 # limitations under the License.
 
 from abc import ABCMeta, abstractclassmethod
+from typing import Dict
 
 from dlrover.python.master.hyperparams.simple_strategy_generator import (
     SimpleStrategyGenerator,
 )
+from dlrover.python.master.monitor.error_monitor import ErrorMonitor
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
+from dlrover.python.common.node import Node
+from dlrover.python.master.node.training_node import (
+    SyncNodeTrainingPorts,
+    TrainingNodeConfigure,
+)
 from dlrover.python.master.resource.job import JobResource
 from dlrover.python.scheduler.job import JobArgs
 
@@ -179,7 +186,7 @@ class JobManager(metaclass=ABCMeta):
         """Collect the heart beat message of nodes."""
         pass
 
-    @abstractclassmethod
-    def sync_node_training_port(self, node_id, port):
-        """Synchronize the training ports of nodes."""
-        pass
+    def sync_node_training_port(self, node_id, port) -> SyncNodeTrainingPorts:
+        return self._training_node_configure.sync_node_training_port(
+            node_id, port
+        )
