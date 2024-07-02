@@ -153,5 +153,5 @@ class JobManager(metaclass=ABCMeta):
 
     @abstractclassmethod
     def sync_node_training_port(self, node_id, port):
-        """Collect the heart beat message of nodes."""
+        """Synchronize the training ports of nodes."""
         pass
