@@ -3,13 +3,8 @@ import os
 from dlrover.python.elastic_agent.datacollector.cuda_log_collector import (
     CudaLogCollector,
 )
-
-
-def generate_path(path: str) -> str:
-    cur_path = os.path.dirname(__file__)
-    dir_path = os.path.join(cur_path, path)
-    print(f"log dir: {str(dir_path)}\n")
-    return str(dir_path)
+from dlrover.python.common.diagnosis import DiagnosisDataType
+from dlrover.python.tests.test_utils import generate_path
 
 
 class WorkerDiagnosisTest(unittest.TestCase):
@@ -27,5 +22,12 @@ class WorkerDiagnosisTest(unittest.TestCase):
         path = generate_path("data/cuda_logs/")
         collector = CudaLogCollector(path)
         self.assertTrue(collector.to_collect_data())
+
+        cuda_log = collector.collect_data()
+        self.assertEqual(cuda_log.get_type(), DiagnosisDataType.CUDALOG)
+        traces = cuda_log.get_traces()
+        self.assertEqual(len(traces), 7)
+        rank_str = cuda_log.format_rank_trace()
+        self.assertTrue("0-1" in rank_str[0])
 
 

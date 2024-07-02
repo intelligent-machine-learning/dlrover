@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import datetime
+import os
 from unittest import mock
 
 import yaml
@@ -297,3 +298,9 @@ def start_local_master(port=12345):
     master.prepare()
     addr = f"127.0.0.1:{port}"
     return master, addr
+
+
+def generate_path(path: str) -> str:
+    cur_path = os.path.dirname(__file__)
+    dir_path = os.path.join(cur_path, path)
+    return str(dir_path)

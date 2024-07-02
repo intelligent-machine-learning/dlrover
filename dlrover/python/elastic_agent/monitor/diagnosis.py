@@ -33,8 +33,7 @@ class DiagnosisMonitor(Singleton):
     def __init__(self):
         self.collectors: Dict[str, DataCollector] = {}
         self._master_client = MasterClient.singleton_instance()
-        self._cuda_log_path = str(os.environ.get(Diagnosis.CUDA_LOG_PATH))
-        # self._cuda_log_path = "/datacube_nas/workspace/b.sang/hang_diagnosis/cuda_logs"
+        self._cuda_log_path = str(os.environ.get(Diagnosis.CUDA_LOG_PATH)) 
         logger.info(f"cuda_log_path: {self._cuda_log_path}")
 
     def init(self):

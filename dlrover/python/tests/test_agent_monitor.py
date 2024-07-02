@@ -35,7 +35,10 @@ from dlrover.python.elastic_agent.monitor.training import (
     TFTrainingReporter,
     is_tf_chief,
 )
-from dlrover.python.tests.test_utils import start_local_master
+from dlrover.python.tests.test_utils import (
+    start_local_master,
+    generate_path,
+)
 
 
 class ResourceMonitorTest(unittest.TestCase):
@@ -98,8 +101,10 @@ class ResourceMonitorTest(unittest.TestCase):
         reporter0.report_resource_with_step(100)
 
     def test_diagnosis_monitor(self):
+        cuda_log_dir = generate_path("data/cuda_logs/")
+
         mock_env = {
-            Diagnosis.CUDA_LOG_PATH: "data/cuda_logs",
+            Diagnosis.CUDA_LOG_PATH: cuda_log_dir,
         }
 
         with patch.dict("os.environ", mock_env):
