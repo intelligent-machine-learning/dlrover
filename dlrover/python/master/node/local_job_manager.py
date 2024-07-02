@@ -14,10 +14,7 @@
 from dlrover.python.common.constants import NodeStatus, NodeType
 from dlrover.python.common.grpc import ParallelConfig
 from dlrover.python.common.node import Node
-from dlrover.python.master.monitor.error_monitor import (
-    ErrorMonitor,
-    SimpleErrorMonitor,
-)
+from dlrover.python.master.monitor.error_monitor import SimpleErrorMonitor
 from dlrover.python.master.node.job_manager import JobManager
 from dlrover.python.scheduler.job import JobArgs
 

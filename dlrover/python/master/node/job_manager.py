@@ -14,12 +14,12 @@
 from abc import ABCMeta, abstractclassmethod
 from typing import Dict
 
+from dlrover.python.common.node import Node
 from dlrover.python.master.hyperparams.simple_strategy_generator import (
     SimpleStrategyGenerator,
 )
 from dlrover.python.master.monitor.error_monitor import ErrorMonitor
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
-from dlrover.python.common.node import Node
 from dlrover.python.master.node.training_node import (
     SyncNodeTrainingPorts,
     TrainingNodeConfigure,
