@@ -304,5 +304,5 @@ class Accelerators(object):
 
 
 class AscendConstants(object):
-    # By default there 16 npu on one machine
+    # By default there are 16 npu on one machine
     NPU_PER_NODE = 16
