@@ -4,7 +4,7 @@ from contextlib import contextmanager
 
 import torch
 
-from atorch.normalization import LayerNorm
+from atorch.modules.normalization import LayerNorm
 from atorch.utils import AProfiler
 from atorch.utils.prof import GlobalContext, _patch_functionals, _reload_functionals
 
@@ -126,7 +126,7 @@ class TestProfiler(unittest.TestCase):
     )
     def test_patch_functional_gpu2(self):
         batch_size, nheads, seqlen, headdim = 2, 8, 32, 64
-        from atorch.normalization import AtorchLayerNorm
+        from atorch.modules.normalization import AtorchLayerNorm
 
         atorch_layer = AtorchLayerNorm((seqlen, nheads, headdim))
         atorch_layer = atorch_layer.to("cuda")

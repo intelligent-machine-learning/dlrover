@@ -17,6 +17,7 @@ from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 
 try:
     from torch.distributed.fsdp._common_utils import clean_tensor_name
+    from torch.distributed.fsdp._wrap_utils import _get_post_order_named_modules
     from torch.distributed.fsdp.flat_param import _FLAT_PARAM_PADDING_VALUE
 except (ModuleNotFoundError, ImportError):
     # for import Compatible, we do version check in save/load
@@ -25,9 +26,17 @@ except (ModuleNotFoundError, ImportError):
         return x
 
     _FLAT_PARAM_PADDING_VALUE = 42.0
+    _get_post_order_named_modules = lambda x: None  # noqa: E731
 
 from atorch.common.log_utils import default_logger as logger
-from atorch.distributed.distributed import local_rank, nproc_per_node, parallel_group
+from atorch.distributed.distributed import (
+    local_rank,
+    nproc_per_node,
+    parallel_group,
+    parallel_group_and_ranks,
+    parallel_group_size,
+    parallel_rank,
+)
 
 TYPES_TO_STR = {v: k for k, v in _TYPES.items()}
 CKPT_VERSION = 1
@@ -45,6 +54,7 @@ class ErrorCode(Enum):
     LORA_WEIGHT_INIT_ERROR = auto()
     LORA_RESET_WEIGHT_ERROR = auto()
     COMMON_ERROR = auto()
+    CHECKPOINT_EXPERT_MISMATCH = auto()
     UNKNOWN = auto()
 
     def __str__(self):
@@ -63,7 +73,8 @@ class FlatCkptError(ValueError):
 def version_check():
     if Version(torch.__version__) <= Version("2.0.9"):
         raise FlatCkptError(
-            f"fsdp save util only support torch>=2.1.0, your version is {torch.__version__}", ErrorCode.NOT_SUPPORT
+            f"fsdp save util only support torch>=2.1.0, your version is {torch.__version__}",
+            ErrorCode.NOT_SUPPORT,
         )
 
 
@@ -89,7 +100,10 @@ def check_is_support(model):
     fsdp_units = [
         m
         for m in model.named_modules()
-        if isinstance(m[1], torch.distributed.fsdp.fully_sharded_data_parallel.FullyShardedDataParallel)
+        if isinstance(
+            m[1],
+            torch.distributed.fsdp.fully_sharded_data_parallel.FullyShardedDataParallel,
+        )
     ]
     checker_fn = [_check_is_use_orig_param, _check_is_ignore_modules]
     for fsdp_name, fsdp_unit in fsdp_units:
@@ -252,13 +266,18 @@ def _get_fsdp_units_for_saving(model) -> Tuple[ListFSDP, Set]:
     fsdp_units = [
         m
         for m in model.named_modules()
-        if isinstance(m[1], torch.distributed.fsdp.fully_sharded_data_parallel.FullyShardedDataParallel)
+        if isinstance(
+            m[1],
+            torch.distributed.fsdp.fully_sharded_data_parallel.FullyShardedDataParallel,
+        )
     ]
     requires_grad_params = set()
 
     has_grad_fsdp_units = []
     for fsdp_name, fsdp_unit in fsdp_units:
         fsdp_flat_handle = get_handle(fsdp_unit)
+        if fsdp_flat_handle is None:
+            continue
         flat_param = fsdp_flat_handle.flat_param
         if not flat_param.requires_grad:
             continue
@@ -279,6 +298,8 @@ def get_lora_param(model) -> Tuple[TensorDict, Dict]:
     has_grad_fsdp_units, requires_grad_params = _get_fsdp_units_for_saving(model)
     for fsdp_name, fsdp_unit in has_grad_fsdp_units:
         fsdp_flat_handle = get_handle(fsdp_unit)
+        if fsdp_flat_handle is None:
+            continue
         meta = fsdp_flat_handle.shard_metadata()
         flat_param = fsdp_flat_handle.flat_param
         name = f"{clean_tensor_name(fsdp_name)}" if fsdp_name else ""
@@ -294,7 +315,10 @@ def get_lora_param(model) -> Tuple[TensorDict, Dict]:
             )
             global_name = ".".join(global_name_each)
             if global_name in requires_grad_params:
-                s = slice(shard_info.offset_in_shard, shard_info.offset_in_shard + shard_info.numel_in_shard)
+                s = slice(
+                    shard_info.offset_in_shard,
+                    shard_info.offset_in_shard + shard_info.numel_in_shard,
+                )
                 params[global_name] = flat_param[s].detach().clone().cpu()
                 metas[global_name] = each["param_shapes"]
     return params, metas
@@ -341,7 +365,10 @@ def save_lora_param(model, path, lora_weight_name=None) -> None:
     data_group = parallel_group("data")
     rank = dist.get_rank(data_group)
     world_size = dist.get_world_size()
-    torch.save(params, f"{path}/lora_weight_shard.{str(rank).zfill(5)}-{str(world_size).zfill(5)}")
+    torch.save(
+        params,
+        f"{path}/lora_weight_shard.{str(rank).zfill(5)}-{str(world_size).zfill(5)}",
+    )
     torch.save(metas, f"{path}/lora_meta.{str(rank).zfill(5)}-{str(world_size).zfill(5)}")
     dist.barrier()
     if rank == 0:
@@ -385,6 +412,8 @@ def get_flat_model_param(model) -> Tuple[TensorDict, TensorDict, Dict, Dict]:
     wrap_class = set()
     for fsdp_name, fsdp_unit in fsdp_units:
         fsdp_flat_handle = get_handle(fsdp_unit)
+        if fsdp_flat_handle is None:
+            continue
         meta = fsdp_flat_handle.shard_metadata()
         flat_param = fsdp_flat_handle.flat_param
         pad = flat_param._shard_numel_padded
@@ -401,9 +430,14 @@ def get_flat_model_param(model) -> Tuple[TensorDict, TensorDict, Dict, Dict]:
         each_flat["flat_numel"] = flat_param.numel()
         each_flat["numels_with_padding"] = flat_param._numels_with_padding
         each_flat["is_padding_mask"] = flat_param._is_padding_mask
+        if dist.get_world_size(fsdp_flat_handle.process_group) != dist.get_world_size():
+            # not global FSDP unit, save expert/expert_fsdp rank and ranks
+            each_flat["expert_ranks"] = parallel_group_and_ranks("expert")[1]
+            each_flat["expert_rank"] = parallel_rank("expert")
+            each_flat["expert_fsdp_ranks"] = parallel_group_and_ranks("expert_fsdp")[1]
+            each_flat["expert_fsdp_rank"] = parallel_rank("expert_fsdp")
         flat_param_meta[name] = each_flat
         for shard_info, each in zip(shard_info_in_this_rank, data):
-
             global_name_each = (
                 [name, clean_tensor_name(each["param_names"])] if name else [clean_tensor_name(each["param_names"])]
             )
@@ -411,7 +445,10 @@ def get_flat_model_param(model) -> Tuple[TensorDict, TensorDict, Dict, Dict]:
             each["pad"] = pad
             each["rank"] = dist.get_rank(data_group)
             each["striped_fsdp_name"] = name
-            each["param_offsets"] = (shard_info.offset_in_shard, shard_info.offset_in_shard + shard_info.numel_in_shard)
+            each["param_offsets"] = (
+                shard_info.offset_in_shard,
+                shard_info.offset_in_shard + shard_info.numel_in_shard,
+            )
 
             param_meta[global_name] = each
         params[name] = flat_param
@@ -419,7 +456,11 @@ def get_flat_model_param(model) -> Tuple[TensorDict, TensorDict, Dict, Dict]:
             origin_module = fsdp_unit._fsdp_wrapped_module
             wrap_class.add((origin_module.__class__.__module__, origin_module.__class__.__name__))
 
-    ckpt_meta = {"version": CKPT_VERSION, "world_size": dist.get_world_size(), "wrap_class": wrap_class}
+    ckpt_meta = {
+        "version": CKPT_VERSION,
+        "world_size": dist.get_world_size(),
+        "wrap_class": wrap_class,
+    }
     return params, buffers, metas, ckpt_meta
 
 
@@ -465,6 +506,21 @@ def get_fsdp_optim_param(model, optimizer):
     start_index = 0
     param_to_names = {v: clean_tensor_name(k) for k, v in model.named_parameters()}
     optim_state = optimizer.state_dict()
+    # support FSDP + expert parallel optim sd save/load
+    if parallel_group("expert") is not None:
+        param_to_ep_size = dict()
+        visited_params = set()
+        for module_name, module in _get_post_order_named_modules(model):
+            if isinstance(module, FSDP) or module_name == "":
+                if module.process_group == parallel_group("expert_fsdp"):
+                    ep_size = parallel_group_size("expert")
+                else:
+                    ep_size = 1
+                for param_name, param in module.named_parameters():
+                    if id(param) in visited_params:
+                        continue
+                    param_to_ep_size[param] = ep_size
+                    visited_params.add(id(param))
 
     def pack_group(group):
         nonlocal start_index
@@ -474,6 +530,8 @@ def get_fsdp_optim_param(model, optimizer):
         )
         packed["params"] = [param_to_names[p] for p in group["params"]]
         packed["params_names"] = {param_mappings[id(p)]: param_to_names[p] for p in group["params"]}
+        if parallel_group("expert") is not None:
+            packed["params_ep_size"] = {param_to_names[p]: param_to_ep_size[p] for p in group["params"]}
         start_index += len(packed["params"])
         return packed
 
@@ -501,11 +559,21 @@ def _persist_optim_param(path, optim_state, param_groups):
 
 class ShardOptim:
     class ShardFlatManager:
-        def __init__(self, param_name, fds, optim_slice):
-            """This class is mocking dict behavior, and it called in function `FSDP.shard_full_optim_state_dict`."""
+        def __init__(self, param_name, fds, optim_slice, ep_size=1):
+            """
+            This class is mocking dict behavior, and it called in function `FSDP.shard_full_optim_state_dict`.
+            ep_size is the expert parallel size of this param_name.
+            """
             self.fds = fds
             self.param_name = param_name
             self.optim_slice = optim_slice
+            self.ep_size = ep_size
+            if self.ep_size > 1 and parallel_group_size("expert") != self.ep_size:
+                raise FlatCkptError(
+                    f"{param_name} expert parallel size mismatch, "
+                    f"{parallel_group_size('expert')} v.s. {self.ep_size}",
+                    ErrorCode.CHECKPOINT_EXPERT_MISMATCH,
+                )
 
         def items(self):
             """Compatible with dict class."""
@@ -528,7 +596,14 @@ class ShardOptim:
                 raise ValueError("Both `target_start` and `target_end` must be None or number")
             optim_slice = self.optim_slice[state_name]
             shards = []
-            for s in optim_slice:
+
+            # select involved optim slice according to expert paralle size
+            if self.ep_size > 1:
+                selected_optim_slice = optim_slice[parallel_rank("expert") :: self.ep_size]
+            else:
+                selected_optim_slice = optim_slice
+
+            for s in selected_optim_slice:
                 seg_start, seg_end = 0, s.get_shape()[0]
                 if seg_start <= target_start and target_end <= seg_end:
                     shards.append(s[target_start:target_end])
@@ -548,6 +623,9 @@ class ShardOptim:
         self.osd_param = []
         self.fds = defaultdict(lambda: defaultdict(dict))
 
+        # support FSDP + expert parallel optim sd save/load
+        self.expert_parallel_size = defaultdict(lambda: 1)
+
         with open(f"{path}/optim_meta", "rb") as f:
             self.osd_meta = pickle.load(f)
         for i in osd_param_files:
@@ -562,13 +640,20 @@ class ShardOptim:
 
         self.state_dict["param_groups"] = []
         for meta in self.osd_meta:
-            self.state_dict["param_groups"].append({k: v for k, v in meta.items() if k != "params_names"})
+            self.state_dict["param_groups"].append(
+                {k: v for k, v in meta.items() if k not in ("params_names", "params_ep_size")}
+            )
+            if "params_ep_size" in meta:
+                self.expert_parallel_size.update(meta["params_ep_size"])
 
         state = self.state_dict["state"]
         for p in self.osd_meta:
             for param_name in p["params"]:
                 state[param_name] = ShardOptim.ShardFlatManager(
-                    param_name, self.fds[param_name], self.state_dict[param_name]
+                    param_name,
+                    self.fds[param_name],
+                    self.state_dict[param_name],
+                    self.expert_parallel_size[param_name],
                 )
 
     def reshard_optim_state_dict(self, model):
@@ -644,7 +729,15 @@ class ShardOptim:
 class ShardTensorUtil:
     """Parse flatten parameter, get reshard flatten parameter or original parameter."""
 
-    def __init__(self, path, rank, world_size, device=None, name_mapping_func_or_dict=None, create_param_cb=None):
+    def __init__(
+        self,
+        path,
+        rank,
+        world_size,
+        device=None,
+        name_mapping_func_or_dict=None,
+        create_param_cb=None,
+    ):
         """
         param_meta: record all meta information of original parameter, maybe original parameter
             will across multiple flatten parameters. Key is name of top module, value is meta info
@@ -664,12 +757,12 @@ class ShardTensorUtil:
         self.local_gpus_groups = []
         self.load_parallelism = nproc_per_node()
         self.rank_fds: Dict[int, safetensors._safetensors_rust.safe_open]
-        self.flat_param_segments: Dict[Tuple[int, str], List[int]] = {}
-        self.flat_param_length: DefaultDict[str, int] = defaultdict(int)
+        self.flat_param_segments: Dict[Tuple[int, str, int], List[int]] = {}
+        self.flat_param_length: DefaultDict[Tuple[str, int], int] = defaultdict(int)
         self.rank_fds: Dict[int, safetensors._safetensors_rust.safe_open] = {}
         self.param_meta: DefaultDict[str, List[Dict[str, Any]]] = defaultdict(list)
         self.ckpt_meta: Dict[str, Any] = {}
-        self.flat_param_meta: Dict[str, Dict] = {}
+        self.flat_param_meta: DefaultDict[str, List[Any]] = defaultdict(list)
 
         self._prepare_meta_and_fds()
 
@@ -760,36 +853,19 @@ class ShardTensorUtil:
         key is each name of FSDP unit, values is list of name for params/buffer in FSDP unit.
         """
         self.init_module_names = OrderedDict()
-        default_fsdp_names = []
-        tied_weights = set()
+        tied_weights = set()  # also for visited weights
 
-        def inner(model, name_prefix):
-            if type(model) in wrap_cls:
-                # record all parameters in module
-                n = []
-                for name, p in model.named_parameters():
-                    if id(p) in tied_weights:
+        for module_name, module in _get_post_order_named_modules(model):
+            # empty string `""` is default FSDP wrap unit.
+            if type(module) in wrap_cls or module_name == "":
+                param_names = []
+                for param_name, param in module.named_parameters():
+                    if id(param) in tied_weights:
                         continue
-                    n.append(name)
-                    tied_weights.add(id(p))
-                self.init_module_names[".".join(name_prefix)] = n
-                return
-            n = []
-            base = ".".join(name_prefix)
-            for name, p in model.named_parameters(recurse=False):
-                # record all parameters in module
-                if id(p) in tied_weights:
-                    continue
-                default_fsdp_names.append(f"{base}.{name}")
-                tied_weights.add(id(p))
-            for name, child in model.named_children():
-                name_prefix.append(name)
-                inner(child, name_prefix)
-                name_prefix.pop()
+                    param_names.append(param_name)
+                    tied_weights.add(id(param))
+                self.init_module_names[module_name] = param_names
 
-        inner(model, [])
-        # empty string `""` is default FSDP wrap unit.
-        self.init_module_names[""] = default_fsdp_names
         self.fsdp_init_order = []
         for k, v in self.init_module_names.items():
             prefix = f"{k}." if k else ""
@@ -836,35 +912,50 @@ class ShardTensorUtil:
         """Calculate range in multiple flat parameters, return slice of each flat parameter."""
         s = []
         target_start, target_end = target
+        if "expert_rank" in self.flat_param_meta[name][0]:
+            # this flat param belongs to a non-global FSDP
+            if parallel_rank("expert") is None:
+                raise FlatCkptError(
+                    "Ckpt has expert FSDP but expert group not available",
+                    ErrorCode.CHECKPOINT_EXPERT_MISMATCH,
+                )
+            target_maybe_expert_rank = parallel_rank("expert")
+        else:
+            target_maybe_expert_rank = 0
         for rank in range(self.shard_nums):
-            seg_start, seg_end = self.flat_param_segments[(rank, name)]
+            if (rank, name, target_maybe_expert_rank) not in self.flat_param_segments:
+                continue
+            seg_start, seg_end = self.flat_param_segments[(rank, name, target_maybe_expert_rank)]
             if target_start >= seg_end or target_end <= seg_start:
                 continue
+            maybe_expert_fsdp_rank = self.flat_param_meta[name][rank].get("expert_fsdp_rank", rank)
+            offset_rank = maybe_expert_fsdp_rank
             if seg_start <= target_start and target_end <= seg_end:
-                s.append((rank, target_start, target_end))
+                s.append((rank, target_start, target_end, offset_rank))
             else:
-                s.append((rank, max(target_start, seg_start), min(target_end, seg_end)))
+                s.append(
+                    (
+                        rank,
+                        max(target_start, seg_start),
+                        min(target_end, seg_end),
+                        offset_rank,
+                    )
+                )
         return s
 
     def _prepare_ckpt_meta(self, world_size):
         ckpt_meta_path = Path(f"{self.path}/ckpt_meta")
         if not ckpt_meta_path.exists():
-            self.ckpt_meta = {"version": 0, "world_size": world_size, "wrap_class": set()}
+            self.ckpt_meta = {
+                "version": 0,
+                "world_size": world_size,
+                "wrap_class": set(),
+            }
             return
         with open(ckpt_meta_path, "rb") as f:
             self.ckpt_meta = pickle.load(f)
 
     def _prepare_param_meta(self, param_files, meta_files):
-        # prepare fds and flat param meta
-        for rank, f in enumerate(param_files):
-            fd = safe_open_or_raise(f, framework="pt")
-            for key in fd.keys():
-                tensor_length = fd.get_slice(key).get_shape()[0]
-                start = self.flat_param_length[key]
-                self.flat_param_segments[(rank, key)] = [start, start + tensor_length]
-                self.flat_param_length[key] += tensor_length
-            self.rank_fds[rank] = fd
-
         # prepare param meta
         def _prepare_param_meta_version_0():
             for f in meta_files:
@@ -879,11 +970,41 @@ class ShardTensorUtil:
                     data = pickle.load(f)
                 for k, v in data["param_meta"].items():
                     self.param_meta[k].append(v)
-                self.flat_param_meta.update(data["flat_param_meta"])
+                for k, v in data["flat_param_meta"].items():
+                    self.flat_param_meta[k].append(v)
 
-        prepare_fn = {0: _prepare_param_meta_version_0, 1: _prepare_param_meta_version_1}
+        prepare_fn = {
+            0: _prepare_param_meta_version_0,
+            1: _prepare_param_meta_version_1,
+        }
         version = self.ckpt_meta["version"]
         prepare_fn[version]()
+
+        # prepare fds, after flat param meta ready
+        for rank, f in enumerate(param_files):
+            fd = safe_open_or_raise(f, framework="pt")
+            for key in fd.keys():
+                tensor_length = fd.get_slice(key).get_shape()[0]
+                if version == 0:
+                    # version 0 not setting flat param meta
+                    maybe_expert_rank, maybe_expert_world_size = 0, 1
+                else:
+                    maybe_expert_rank = self.flat_param_meta[key][rank].get("expert_rank", 0)
+                    maybe_expert_ranks = self.flat_param_meta[key][rank].get("expert_ranks", [rank])
+                    maybe_expert_world_size = len(maybe_expert_ranks)
+                if maybe_expert_world_size > 1 and parallel_group_size("expert") != maybe_expert_world_size:
+                    raise FlatCkptError(
+                        f"Support expert parallel size consistent for now, but get "
+                        f"{parallel_group_size('expert')} v.s. {maybe_expert_world_size}",
+                        ErrorCode.CHECKPOINT_EXPERT_MISMATCH,
+                    )
+                start = self.flat_param_length[(key, maybe_expert_rank)]
+                self.flat_param_segments[(rank, key, maybe_expert_rank)] = [
+                    start,
+                    start + tensor_length,
+                ]
+                self.flat_param_length[(key, maybe_expert_rank)] += tensor_length
+            self.rank_fds[rank] = fd
 
     def _prepare_meta_and_fds(self):
         """Parse flat param and flat meta files, open safe tensor files."""
@@ -955,28 +1076,37 @@ class ShardTensorUtil:
         name: str, the fsdp unit name
         origin_flatten_handle: FlatParamHandle, current flat param handle
         """
+        if origin_flatten_handle.world_size != self.world_size or origin_flatten_handle.rank != self.rank:
+            logger.info(
+                f"Rank[{dist.get_rank()}] The FlatParamHandle of {name} has different"
+                f" rank/world_size {origin_flatten_handle.rank}/{origin_flatten_handle.world_size}"
+                f", the global is {self.rank}/{self.world_size}. Make sure as it's expected, e.g. "
+                f"expert parallel with FSDP."
+            )
 
         new_total_length = origin_flatten_handle.flat_param.size(0)
         shards = []
         # all flat_params are same, pick first to get flat_length.
+        # note(zy): expert parallel should be evenly sliced to satisfy all flat_params are same
         flat_length = self.rank_fds[0].get_slice(name).get_shape()[0]
         # calulate new shard size dues to new flat param
-        each_num = new_total_length // self.world_size
-        request_start = self.rank * each_num
-        request_end = self.rank * each_num + each_num
+        each_num = new_total_length // origin_flatten_handle.world_size
+        request_start = origin_flatten_handle.rank * each_num
+        request_end = origin_flatten_handle.rank * each_num + each_num
         # only last rank padding _FLAT_PARAM_PADDING_VALUE.
         pad_num = (
             origin_flatten_handle.flat_param._numels_with_padding[-1]
-            if self.rank + 1 == self.world_size and origin_flatten_handle.flat_param._is_padding_mask[-1]
+            if origin_flatten_handle.rank + 1 == origin_flatten_handle.world_size
+            and origin_flatten_handle.flat_param._is_padding_mask[-1]
             else 0
         )
         request_end -= pad_num
         # given range of parameters, we calculate cusor range of each flat parameter.
         shard_slice = self._get_flat_param_shard_range(name, (request_start, request_end))
-        for rank, start, end in shard_slice:
+        for rank, start, end, offset_rank in shard_slice:
             fd = self.rank_fds[rank]
             tensor = fd.get_slice(name)
-            rank_offset = rank * flat_length
+            rank_offset = offset_rank * flat_length
             local_start = start - rank_offset
             local_end = end - rank_offset  # [start, end] is include, so we add 1
             shards.append(tensor[local_start:local_end])

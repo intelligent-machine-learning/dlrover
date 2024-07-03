@@ -3,6 +3,7 @@ import time
 from collections.abc import Mapping
 from contextlib import AbstractContextManager
 from operator import attrgetter
+from typing import List, Union
 
 import grpc
 import torch
@@ -136,6 +137,12 @@ def data_float_to_dtype(inputs, dtype):
         return inputs.to(dtype)
     else:
         return inputs
+
+
+def check_and_transform_to_list(tensor: Union[List, torch.Tensor]):
+    if not isinstance(tensor, list):
+        tensor = [tensor]
+    return tensor
 
 
 def ensure_divisibility(numerator, denominator):

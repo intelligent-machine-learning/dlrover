@@ -9,8 +9,9 @@ from torch.utils.data.distributed import DistributedSampler
 
 import atorch
 from atorch.auto.accelerate import auto_accelerate
-from atorch.auto.model_context import get_data_partition_rank_and_size
 from atorch.common.util_func import data_to_device
+from atorch.distributed.distributed import get_data_partition_rank_and_size
+from atorch.local_sgd.HSDP import LocalSGDConfigs, OuterOptimizerConfigs
 
 
 def optim_grouped_param_func(model):
@@ -52,7 +53,10 @@ def parse_args():
     parser.add_argument("--use_module_replace", default=False, action="store_true")
     # local sgd related
     parser.add_argument("--use_local_sgd", default=False, action="store_true")
+    parser.add_argument("--use_async", default=False, action="store_true")
     parser.add_argument("--local_sgd_sync_interval", type=int, default=1, required=False)
+    parser.add_argument("--local_sgd_sync_time", type=float, default=10.0, required=False)
+    parser.add_argument("--min_total_global_steps", type=int, default=10, required=False)
     parser.add_argument("--local_sgd_warmup_steps", type=int, default=0, required=False)
     parser.add_argument("--outer_optim_class", type=str, choices=["none", "sgd"], default="none", required=False)
 
@@ -130,15 +134,21 @@ def train(args):
                 fsdp_config["use_orig_params"] = True
             if args.use_local_sgd:
                 fsdp_config["use_local_sgd"] = True
-                fsdp_config["local_sgd_sync_interval"] = args.local_sgd_sync_interval
-                fsdp_config["local_sgd_warmup_steps"] = args.local_sgd_warmup_steps
-                fsdp_config["outer_optim_class"] = torch.optim.SGD if args.outer_optim_class == "sgd" else None
-                fsdp_config["outer_optim_kwargs"] = {
-                    "lr": 0.7,
-                    "momentum": 0.8,
-                    "nesterov": True,
-                }
-                fsdp_config["outer_optim_cpu_offload"] = True
+                fsdp_config["local_sgd_configs"] = LocalSGDConfigs(
+                    use_async=args.use_async,
+                    local_sgd_sync_interval=args.local_sgd_sync_interval,
+                    local_sgd_sync_time=args.local_sgd_sync_time,
+                    min_total_global_steps=args.min_total_global_steps,
+                    local_sgd_warmup_steps=args.local_sgd_warmup_steps,
+                )
+                fsdp_config["outer_optim_configs"] = OuterOptimizerConfigs(
+                    outer_optim_class=torch.optim.SGD if args.outer_optim_class == "sgd" else None,
+                    outer_optim_kwargs={
+                        "lr": 0.7,
+                        "momentum": 0.8,
+                        "nesterov": True,
+                    },
+                )
             strategy.append(("fsdp", fsdp_config))
         # mixed precision
         if torch.cuda.is_available() and args.use_amp:

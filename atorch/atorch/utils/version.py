@@ -52,3 +52,13 @@ def get_version(package):
 def package_version_smaller_than(pkg_name, version):
     pkg_v = metadata.version(pkg_name)
     return Version(pkg_v) < Version(version)
+
+
+def package_version_bigger_than(pkg_name, version):
+    pkg_v = metadata.version(pkg_name)
+    return Version(pkg_v) > Version(version)
+
+
+def package_version_equal_to(pkg_name, version):
+    pkg_v = metadata.version(pkg_name)
+    return Version(pkg_v) == Version(version)

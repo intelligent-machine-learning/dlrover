@@ -1,4 +1,3 @@
-import logging
 import os
 from dataclasses import dataclass, field
 from datetime import timedelta
@@ -8,19 +7,27 @@ from typing import Callable, Dict, List, Optional, Tuple, Union
 import torch
 from accelerate.state import PartialState
 from accelerate.utils.dataclasses import DistributedType
+from transformers.trainer_utils import IntervalStrategy
 from transformers.training_args_seq2seq import Seq2SeqTrainingArguments
 from transformers.utils import cached_property
 
 import atorch
+from atorch.common.log_utils import default_logger as logger
 from atorch.utils.trainer_utils import ATORCHSCHEDULER_NAMES, SCHEDULER_NAMES, AtorchSchedulerType
-
-logger = logging.getLogger(__name__)
 
 
 @dataclass
 class AtorchArguments(Seq2SeqTrainingArguments):
     # ATorch config
-    save_load_by_streaming: bool = field(default=False, metadata={"help": "Accelerate save/load speed."})
+    load_by_streaming: bool = field(
+        default=False, metadata={"help": "Whether to use the FSDP model loading method of ATorch."}
+    )
+    save_by_streaming: bool = field(
+        default=False, metadata={"help": "Whether to use the FSDP model saving method of ATorch."}
+    )
+    save_load_by_streaming: bool = field(
+        default=False, metadata={"help": "Deprecated, please use `load_by_streaming` and `save_by_streaming` instead."}
+    )
     ignore_dryrun_on_load_strategy: bool = field(
         default=True, metadata={"help": "Whether to ignore dryrun when calling `auto_accelerate`."}
     )
@@ -38,6 +45,7 @@ class AtorchArguments(Seq2SeqTrainingArguments):
     atorch_module_replace: bool = field(
         default=True, metadata={"help": "Whether to use `module_replace` optimize in ATorch."}
     )
+    peft_type: str = field(default=None, metadata={"help": "Whether use peft"})
     save_base_model: bool = field(
         default=False, metadata={"help": "Whether to save base model. Useful only when `peft_type` field is passed."}
     )
@@ -143,12 +151,34 @@ class AtorchArguments(Seq2SeqTrainingArguments):
     )
 
     ignore_write_errors: bool = field(
-        default=False, metadata={"help": ("Whether to ignore write errors when writting to disk.")}
+        default=False, metadata={"help": "Whether to ignore write errors when writting to disk."}
     )
 
     async_save: bool = field(default=False, metadata={"help": ("Whether to use multiprocess to save model.")})
 
+    max_num_writing_processes: Optional[int] = field(
+        default=None,
+        metadata={
+            "help": (
+                "The maximum number of writing processes when saving checkpoint asynchronously."
+                "Used only when 'async_save' is True."
+            )
+        },
+    )
+
+    async_timeout: Optional[int] = field(
+        default=600,
+        metadata={
+            "help": "The maximum waiting time during asynchronous saving. Effective just when 'async_save' is enable."
+        },
+    )
+
     atorch_lr_scheduler_type: Optional[Union[AtorchSchedulerType, str]] = field(
+        default=None,
+        metadata={"help": "Deprecated, the custom scheduler type to use."},
+    )
+
+    custom_lr_scheduler_type: Optional[Union[AtorchSchedulerType, str]] = field(
         default=None,
         metadata={"help": "The custom scheduler type to use."},
     )
@@ -164,18 +194,58 @@ class AtorchArguments(Seq2SeqTrainingArguments):
     limit_all_gathers: bool = field(default=True, metadata={"help": "Whether to limit_all_gathers"})
     forward_prefetch: bool = field(default=True, metadata={"help": "Whether to forward_prefetch"})
 
+    # FSDPCkptConfig
+    fsdp_flat_ckpt_path: Optional[str] = field(default=None, metadata={"help": "Directory of FSDP flat checkpoint."})
+    fsdp_lora_ckpt_path: Optional[str] = field(default=None, metadata={"help": "Directory of FSDP lora checkpoint."})
+    fsdp_lora_prefix: Optional[str] = field(
+        default="base_model.model", metadata={"help": "Prefix of lora model parameter key."}
+    )
+    fsdp_lora_cls: Optional[List[type]] = field(
+        default=None, metadata={"help": "Lora linear class, defaults to 'peft.tuners.lora.Linear'."}
+    )
+    fsdp_lora_weight_name: Optional[str] = field(
+        default=None, metadata={"help": "Lora weight filename, default to 'lora_weight'."}
+    )
+
     # ATorch amp config
     skip_if_nonfinite: bool = field(default=True, metadata={"help": ("Whether to skip if nonfinite.")})
 
     # Other config
     max_shard_size: str = field(
-        default="10GB",
+        default="50GB",
         metadata={
             "help": (
                 "The maximum size for a checkpoint before being sharded. " "Used on PreTrainedModel.save_pretrained()."
             )
         },
     )
+
+    save_policy: str = field(
+        default="steps",
+        metadata={
+            "help": (
+                "Deprecated, the checkpoint save strategy to use. choices: steps, epoch, interval, final"
+                "Please use `save_strategy` instead."
+            )
+        },
+    )
+
+    save_strategy: Optional[Union[IntervalStrategy, str]] = field(
+        default=None,
+        metadata={"help": "The checkpoint save strategy to use."},
+    )
+
+    save_at_specific_epoch: Optional[Union[List[int], str]] = field(
+        default=None,
+        metadata={
+            "help": (
+                "Whether to save checkpoint only at the specific epoches. "
+                '"1,5,10" means saved at epoch 1, 5, and 10. Start from 1.'
+            )
+        },
+    )
+
+    save_optimizer: bool = field(default=True, metadata={"help": ("Whether to save optimizer.")})
 
     logit_names: Optional[List[str]] = field(
         default=None, metadata={"help": "The list of keys in your dictionary of outputs that correspond to the logits."}
@@ -188,6 +258,16 @@ class AtorchArguments(Seq2SeqTrainingArguments):
                 "use the corresponding part of the output as the logits."
             )
         },
+    )
+
+    load_model_on_rank0_and_dispatch: bool = field(
+        default=False, metadata={"help": "Whether to load model on only rank0 and dispatch to other rank"}
+    )
+
+    hyper_parameters: dict = field(default=None, metadata={"help": "Hyperparameters to save."})
+    use_hpu_adamw: bool = field(
+        default=False,
+        metadata={"help": "Use atorch high performance hpu adamw to accelerate training on HPU"},
     )
 
     @cached_property
@@ -240,10 +320,15 @@ class AtorchArguments(Seq2SeqTrainingArguments):
             elif self.report_to != "tensorboard" and self.report_to != ["tensorboard"]:
                 raise ValueError("AtorchTrainer only support TensorBoard to report the results and logs.")
 
-        # check lr_scheduler_type
-        if self.atorch_lr_scheduler_type is not None and self.atorch_lr_scheduler_type not in ATORCHSCHEDULER_NAMES:
+        # Compat deprecated "atorch_lr_scheduler_type"
+        if self.atorch_lr_scheduler_type is not None:
+            logger.warning("`atorch_lr_scheduler_type` is deprecated, please use `custom_lr_scheduler_type` instead")
+            if self.custom_lr_scheduler_type is None:
+                self.custom_lr_scheduler_type = self.atorch_lr_scheduler_type
+        # Check lr_scheduler_type
+        if self.custom_lr_scheduler_type is not None and self.custom_lr_scheduler_type not in ATORCHSCHEDULER_NAMES:
             raise ValueError(
-                f"lr_scheduler_type={self.atorch_lr_scheduler_type} is invalid, please select one of "
+                f"lr_scheduler_type={self.custom_lr_scheduler_type} is invalid, please select one of "
                 f"{SCHEDULER_NAMES + ATORCHSCHEDULER_NAMES}."
             )
 
@@ -259,8 +344,53 @@ class AtorchArguments(Seq2SeqTrainingArguments):
                 "and will be deprecated in AtorchTrainer."
             )
 
+        # Compat deprecated "save_policy"
+        if self.save_policy is not None:
+            if self.save_policy in ["interval", "final"]:
+                logger.warning(
+                    f'"--save_policy {self.save_policy}" is not supported in AtorchTrainer, '
+                    "please use --save_strategy one of ['no' 'steps' 'epoch'] instead if you are using AtorchTrainer."
+                )
+            elif self.save_strategy is None:
+                self.save_strategy = self.save_policy
+
+        if self.save_strategy is None:
+            self.save_strategy = "steps"
+
         Seq2SeqTrainingArguments.__post_init__(self)
 
         if self.use_legacy_prediction_loop:
             logger.warning("`use_legacy_prediction_loop` is deprecated and does not have any effect.")
             self.use_legacy_prediction_loop = False
+
+        if self.save_load_by_streaming:
+            logger.warning(
+                "`save_load_by_streaming` is deprecated, please use `load_by_streaming` "
+                "and `save_by_streaming` instead. Set both `load_by_streaming` and `save_by_streaming` to True."
+            )
+            self.load_by_streaming = True
+            self.save_by_streaming = True
+
+        if self.save_at_specific_epoch is not None:
+            if isinstance(self.save_at_specific_epoch, str):
+                epochs_str = [e.strip() for e in self.save_at_specific_epoch.split(",")]
+                try:
+                    self.save_at_specific_epoch = list(map(int, epochs_str))
+                except ValueError as e:
+                    logger.error('Please use integer to assign the value to `save_at_specific_epoch` like "1,5,10".')
+                    raise e
+
+        if self.max_num_writing_processes is None:
+            # "* 2" in the following expression means saving optimizer will also consume a process, like saving model.
+            if self.save_total_limit is not None:
+                self.max_num_writing_processes = (
+                    self.save_total_limit * 2 if self.save_optimizer else self.save_total_limit
+                )
+            else:
+                self.max_num_writing_processes = (
+                    round(self.num_train_epochs) * 2 if self.save_optimizer else round(self.num_train_epochs)
+                )
+            self.max_num_writing_processes = max(self.max_num_writing_processes, 2 if self.save_optimizer else 1)
+
+        if self.async_save:
+            assert self.max_num_writing_processes > 0, "'max_num_writing_processes' must be greater than 0."

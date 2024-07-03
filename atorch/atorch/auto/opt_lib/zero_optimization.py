@@ -17,6 +17,7 @@ except ImportError:
 
 from typing import Set, Type
 
+from atorch.auto.auto_accelerate_context import AutoAccelerateContext
 from atorch.auto.opt_lib.optimization import Optimization
 from atorch.auto.opt_lib.utils import find_modules, to_module_class_by_name
 from atorch.common.log_utils import default_logger as logger
@@ -328,7 +329,10 @@ class FSDPOptimization(Optimization):
                 # support meta
                 if "param_init_fn" in wrapper_config:
                     logger.info("`param_init_fn` has been set, use `param_init_fn` in config")
-                elif is_meta(model_context.model):
+                elif (
+                    is_meta(model_context.model)
+                    and getattr(AutoAccelerateContext, "FSDP_META_INIT", None) != "NEW_META"
+                ):
                     from atorch.utils import meta_model_utils
                     from atorch.utils.meta_model_utils import _find_tied_weights, _retie_weights
 
@@ -414,6 +418,12 @@ class FSDPOptimization(Optimization):
                 from atorch.local_sgd.HSDP import patch_local_sgd_to_fsdp
 
                 patch_local_sgd_to_fsdp()
+
+        anomaly_configs = wrapper_config.get("anomaly_configs", None)
+        if anomaly_configs:
+            from atorch.local_sgd.HSDP import patch_local_sgd_to_fsdp
+
+            patch_local_sgd_to_fsdp()
 
         model_context.model = fsdp_clz(
             model_context.model,

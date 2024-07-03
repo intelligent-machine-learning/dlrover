@@ -1,6 +1,5 @@
 import pickle
 
-from atorch.auto.engine.client import build_auto_acc_client
 from atorch.auto.strategy import Strategy
 from atorch.auto.task import Task
 from atorch.common.log_utils import default_logger as logger
@@ -15,6 +14,8 @@ class EngineClient(object):
 
     def create_client(self, addr):
         """Return a AutoAccelerationClient defined in engine."""
+        from atorch.auto.engine.client import build_auto_acc_client
+
         return build_auto_acc_client(addr, self.process_id) if build_auto_acc_client is not None else None
 
     def get_task(self):

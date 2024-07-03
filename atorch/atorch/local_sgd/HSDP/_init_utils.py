@@ -1,5 +1,5 @@
 # MODIFIED from torch.distributed.fsdp._init_utils and torch.distributed.fsdp.fully_sharded_data_parallel
-from typing import Callable, Iterable, Optional, Type, Union, no_type_check
+from typing import Callable, Iterable, Optional, Union, no_type_check
 
 import torch
 import torch.nn as nn
@@ -34,11 +34,11 @@ from torch.distributed.fsdp._unshard_param_utils import _register_flat_param
 from torch.distributed.fsdp._wrap_utils import _auto_wrap
 from torch.distributed.fsdp.api import BackwardPrefetch, CPUOffload, MixedPrecision, ShardingStrategy
 from torch.distributed.fsdp.wrap import ModuleWrapPolicy
-from torch.optim import Optimizer
-from typing_extensions import Literal
 
-# GTA related import
+from atorch.local_sgd.anomaly_detection import OnlineDynamicEWMA
 from atorch.local_sgd.reduce_methods import GTAReducer, LinearReducer
+
+from .configs import AnomalyConfigs, GTAConfigs, LocalSGDConfigs, OuterOptimizerConfigs
 
 _TORCHDISTX_AVAIL = True
 try:
@@ -67,19 +67,11 @@ def fsdp_inits(
     # HACK Add some new parameters
     device_mesh: Optional[DeviceMesh] = None,
     use_local_sgd: bool = False,
-    local_sgd_sync_interval: int = 1,
-    local_sgd_warmup_steps: int = 0,
-    gradient_accumulation_steps: int = 1,
-    outer_optim_class: Optional[Type[Optimizer]] = None,
-    outer_optim_kwargs: Optional[dict] = {},
-    outer_optim_cpu_offload: Optional[bool] = False,
-    # GTA related args
-    reducer: Optional[Literal["linear", "gta"]] = None,
-    consensus_method: Optional[Literal["sum", "count"]] = None,
-    sparsification_method: Optional[Literal["magnitude", "random", "rescaled_random"]] = None,
-    normalize: bool = True,
-    density: float = 1.0,
-    int8_mask: bool = False,
+    local_sgd_configs: Optional[LocalSGDConfigs] = None,
+    outer_optim_configs: Optional[OuterOptimizerConfigs] = None,
+    gta_configs: Optional[GTAConfigs] = None,
+    # HACK
+    anomaly_configs: Optional[AnomalyConfigs] = None,
 ):
     torch._C._log_api_usage_once("torch.distributed.fsdp")
     super(type(self), self).__init__()
@@ -121,19 +113,10 @@ def fsdp_inits(
             # HACK Add the new parameters to recursively wrap modules
             "device_mesh": device_mesh,
             "use_local_sgd": use_local_sgd,
-            "local_sgd_sync_interval": local_sgd_sync_interval,
-            "local_sgd_warmup_steps": local_sgd_warmup_steps,
-            "gradient_accumulation_steps": gradient_accumulation_steps,
-            "outer_optim_class": outer_optim_class,
-            "outer_optim_kwargs": outer_optim_kwargs,
-            "outer_optim_cpu_offload": outer_optim_cpu_offload,
-            # HACK add gta reducer args
-            "reducer": reducer,
-            "consensus_method": consensus_method,
-            "sparsification_method": sparsification_method,
-            "normalize": normalize,
-            "density": density,
-            "int8_mask": int8_mask,
+            "local_sgd_configs": local_sgd_configs,
+            "outer_optim_configs": outer_optim_configs,
+            "gta_configs": gta_configs,
+            "anomaly_configs": anomaly_configs,
         }
         if sharding_strategy in HYBRID_SHARDING_STRATEGIES:
             # Share root process groups with children to maintain
@@ -178,29 +161,36 @@ def fsdp_inits(
         _register_flat_param(self, self)
 
     # HACK Initializes local sgd related states
-    _init_local_sgd_state(
-        self,
-        sharding_strategy,
-        use_local_sgd,
-        local_sgd_sync_interval,
-        local_sgd_warmup_steps,
-        gradient_accumulation_steps,
-        outer_optim_class,
-        outer_optim_kwargs,
-        outer_optim_cpu_offload,
-        # GTA related args
-        reducer,
-        consensus_method,
-        sparsification_method,
-        normalize,
-        density,
-        int8_mask,
-    )
+    if use_local_sgd:
+        _init_local_sgd_state(
+            self,
+            sharding_strategy,
+            use_local_sgd,
+            local_sgd_configs,
+            outer_optim_configs,
+            gta_configs,
+        )
+    else:
+        self.use_local_sgd = False
 
     # `_state_dict_type` controls the `state_dict()` behavior, which is
     # implemented using post-save and pre-load hooks
     _init_state_dict_state(self)
+    _init_anomaly_detector(self, anomaly_configs)
     _register_all_state_dict_hooks(self)
+
+
+# HACK setup anomaly detector
+@no_type_check
+def _init_anomaly_detector(state: _FSDPState, anomaly_configs: Optional[AnomalyConfigs]):
+    state.skip_anomaly = False
+    if anomaly_configs is not None:
+        state.skip_anomaly = True
+        state.anomaly_detector = OnlineDynamicEWMA(
+            alpha=anomaly_configs.ewma_alpha,
+            warmup_steps=anomaly_configs.ewma_warmup_steps,
+            base_threshold=anomaly_configs.ewma_threshold,
+        )
 
 
 @no_type_check
@@ -253,60 +243,94 @@ def _init_local_sgd_state(
     state: _FSDPState,
     sharding_strategy: Optional[ShardingStrategy] = None,
     use_local_sgd: bool = False,
-    local_sgd_sync_interval: int = 1,
-    local_sgd_warmup_steps: int = 0,
-    gradient_accumulation_steps: int = 1,
-    outer_optim_class: Optional[Type[Optimizer]] = None,
-    outer_optim_kwargs: Optional[dict] = {},
-    outer_optim_cpu_offload: Optional[bool] = False,
-    # GTA related args
-    reducer: Optional[Literal["linear", "gta"]] = None,
-    consensus_method: Optional[Literal["sum", "count"]] = None,
-    sparsification_method: Optional[Literal["magnitude", "random", "rescaled_random"]] = None,
-    normalize: bool = True,
-    density: float = 1.0,
-    int8_mask: bool = False,
+    local_sgd_configs: Optional[LocalSGDConfigs] = None,
+    outer_optim_configs: Optional[OuterOptimizerConfigs] = None,
+    gta_configs: Optional[GTAConfigs] = None,
 ) -> _FSDPState:
     if use_local_sgd and (sharding_strategy not in HYBRID_SHARDING_STRATEGIES):
         raise RuntimeError("Local SGD only supports hybrid sharding strategies.")
     if use_local_sgd:
-        if local_sgd_sync_interval < 1:
-            raise ValueError("Invalid local_sgd_sync_interval value: {}.".format(local_sgd_sync_interval))
-        if local_sgd_warmup_steps < 0:
-            raise ValueError("Invalid local_sgd_warmup_steps value: {}.".format(local_sgd_warmup_steps))
-        if gradient_accumulation_steps < 1:
-            raise ValueError("Invalid gradient_accumulation_steps value: {}.".format(gradient_accumulation_steps))
+        if local_sgd_configs is None:
+            raise ValueError("Must set local_sgd_configs manually when using local sgd!")
+        if local_sgd_configs.local_sgd_warmup_steps < 0:
+            raise ValueError(
+                "Invalid local_sgd_warmup_steps value: {}.".format(local_sgd_configs.local_sgd_warmup_steps)
+            )
+        if local_sgd_configs.gradient_accumulation_steps < 1:
+            raise ValueError(
+                "Invalid gradient_accumulation_steps value: {}.".format(local_sgd_configs.gradient_accumulation_steps)
+            )
+        if local_sgd_configs.use_async:
+            if local_sgd_configs.local_sgd_sync_time < 1:
+                raise ValueError("Invalid local_sgd_sync_time value: {}.".format(local_sgd_configs.local_sgd_sync_time))
+            if local_sgd_configs.min_total_global_steps < 1:
+                raise ValueError(
+                    "Invalid min_total_global_steps value: {}.".format(local_sgd_configs.min_total_global_steps)
+                )
+        else:
+            if local_sgd_configs.local_sgd_sync_interval < 1:
+                raise ValueError(
+                    "Invalid local_sgd_sync_interval value: {}.".format(local_sgd_configs.local_sgd_sync_interval)
+                )
     state.use_local_sgd = use_local_sgd
-    state.local_sgd_sync_interval = local_sgd_sync_interval
-    state.local_sgd_warmup_steps = local_sgd_warmup_steps
-    state.gradient_accumulation_steps = gradient_accumulation_steps
+    state.use_async = local_sgd_configs.use_async
+    state.local_sgd_sync_interval = local_sgd_configs.local_sgd_sync_interval
+    state.local_sgd_warmup_steps = local_sgd_configs.local_sgd_warmup_steps
+    state.gradient_accumulation_steps = local_sgd_configs.gradient_accumulation_steps
+    state.clip_pseudo_grad = local_sgd_configs.clip_pseudo_grad
     state.global_step = 0
     state.temp_step = 0
 
-    state.outer_optim_class = outer_optim_class
-    state.outer_optim_cpu_offload = outer_optim_cpu_offload
+    state.local_sgd_cpu_offload = local_sgd_configs.cpu_offload
+
+    # async related parameters
+    state.local_sgd_sync_time = local_sgd_configs.local_sgd_sync_time
+    state.min_total_global_steps = local_sgd_configs.min_total_global_steps
+    state.use_step_weight = local_sgd_configs.use_step_weight
+    state.step_weight_ratio = local_sgd_configs.step_weight_ratio
+    state.last_sync_timestamp = None
+    state.last_total_global_step = 0
+    state.local_sgd_skip_anomaly = local_sgd_configs.skip_anomaly
+    state.weight_softmax_temperature = local_sgd_configs.weight_softmax_temperature
+    state.pseudo_gradnorm_reduce = local_sgd_configs.pseudo_gradnorm_reduce
+    if state.pseudo_gradnorm_reduce and state.weight_softmax_temperature is None:
+        state.weight_softmax_temperature = 1.0
+
+    state.outer_optim_class = outer_optim_configs.outer_optim_class if outer_optim_configs is not None else None
     state.last_synced_params = None
     # lazy init outer optimizer
-    if use_local_sgd and outer_optim_class is not None:
+    if use_local_sgd and state.outer_optim_class is not None:
         state.use_outer_optim = True
-        state.outer_optim_kwargs = outer_optim_kwargs
+        state.outer_optim_kwargs = outer_optim_configs.outer_optim_kwargs
         state.outer_optimizer = None
     else:
         state.use_outer_optim = False
 
-    if reducer == "linear":
-        state.gta_reducer = LinearReducer(process_group=state._inter_node_pg, normalize=normalize)
-    elif reducer == "gta":
-        state.gta_reducer = GTAReducer(
-            process_group=state._inter_node_pg,
-            consensus_method=consensus_method,
-            sparsification_method=sparsification_method,
-            normalize=normalize,
-            density=density,
-            int8_mask=int8_mask,
+    state.gta_reducer = None
+    if gta_configs is not None:
+        if gta_configs.reducer == "linear":
+            state.gta_reducer = LinearReducer(
+                process_group=state._inter_node_pg,
+                normalize=gta_configs.normalize,
+                weight_softmax_temperature=state.weight_softmax_temperature,
+            )
+        elif gta_configs.reducer == "gta":
+            state.gta_reducer = GTAReducer(
+                process_group=state._inter_node_pg,
+                consensus_method=gta_configs.consensus_method,
+                sparsification_method=gta_configs.sparsification_method,
+                normalize=gta_configs.normalize,
+                density=gta_configs.density,
+                int8_mask=gta_configs.int8_mask,
+                weight_softmax_temperature=state.weight_softmax_temperature,
+            )
+
+    if state.local_sgd_skip_anomaly:
+        state.local_sgd_anomaly_detector = OnlineDynamicEWMA(
+            alpha=local_sgd_configs.ewma_alpha,
+            warmup_steps=local_sgd_configs.ewma_warmup_steps,
+            base_threshold=local_sgd_configs.ewma_threshold,
         )
-    else:
-        state.gta_reducer = None
 
     return state
 

@@ -1,13 +1,18 @@
 # MODIFIED from torch.distributed.fsdp._runtime_utils
+import logging
+import time
 from typing import Any, Callable, Dict, Optional, Set, Tuple, no_type_check
 
 import torch
+import torch.distributed
 import torch.distributed as dist
 import torch.nn as nn
 from torch.distributed.fsdp._common_utils import (
     TrainingState,
+    _assert_in_training_states,
     _FSDPState,
     _is_composable,
+    _log_post_backward_hook,
     _no_dispatch_record_stream,
     _set_fsdp_flattened,
 )
@@ -21,10 +26,13 @@ from torch.distributed.fsdp._runtime_utils import (
     _get_reduce_scatter_tensors,
     _init_device_mesh,
     _lazy_init,
+    _low_precision_hook_enabled,
+    _post_backward_reshard,
     _post_forward,
     _post_forward_reshard,
     _post_reduce_grad_callback,
     _pre_forward_unshard,
+    _reduce_grad_no_shard,
     _register_post_backward_hook,
     _register_post_backward_reshard_only_hook,
     _reset_flat_param_grad_info_if_needed,
@@ -34,6 +42,10 @@ from torch.distributed.fsdp._runtime_utils import (
 )
 from torch.distributed.fsdp.flat_param import FlatParamHandle, HandleShardingStrategy, HandleTrainingState
 from torch.distributed.utils import _cast_forward_inputs, _p_assert, _to_kwargs
+
+logger = logging.getLogger(__name__)
+
+SYNC_MODE_CONTROL = False
 
 
 @no_type_check
@@ -86,6 +98,9 @@ def _share_state_and_init_handle_attrs(
         fsdp_state._all_reduce_stream = root_state._all_reduce_stream
         # HACK Share the average stream across FSDP instances.
         fsdp_state._average_stream = root_state._average_stream
+        if fsdp_state.use_local_sgd and fsdp_state.local_sgd_cpu_offload:
+            fsdp_state._D2H_stream = root_state._D2H_stream
+            fsdp_state._H2D_stream = root_state._H2D_stream
         fsdp_state._default_stream = root_state._default_stream
         fsdp_state._exec_order_data = root_state._exec_order_data
         fsdp_state._free_event_queue = root_state._free_event_queue
@@ -136,6 +151,16 @@ def _init_streams(
     state._average_stream = (
         state._device_handle.Stream() if (uses_hybrid_sharding and uses_local_sgd) else state._default_stream
     )
+    state._D2H_stream = (
+        state._device_handle.Stream()
+        if state.use_local_sgd and (state.gta_reducer is not None or state.use_outer_optim)
+        else state._default_stream
+    )
+    state._H2D_stream = (
+        state._device_handle.Stream()
+        if state.use_local_sgd and (state.gta_reducer is not None or state.use_outer_optim)
+        else state._default_stream
+    )
 
 
 # HACK Lazy init outer optimizer.
@@ -143,8 +168,9 @@ def _init_streams(
 def _lazy_init_outer_optimizer(
     state: _FSDPState,
     handle: Optional[FlatParamHandle],
+    cpu_init: bool = False,
 ) -> None:
-    if state.outer_optim_cpu_offload:
+    if cpu_init:
         cpu_flat_param = handle.flat_param.cpu().detach().clone()
         pinned_cpu_flat_param = cpu_flat_param.pin_memory()  # for non-blocking copy
         state.last_synced_params = torch.nn.Parameter(pinned_cpu_flat_param)
@@ -155,6 +181,182 @@ def _lazy_init_outer_optimizer(
         state.outer_optimizer = state.outer_optim_class([state.last_synced_params], **state.outer_optim_kwargs)
     else:
         state.outer_optimizer = None
+
+
+# HACK Determine whether synchronization is required.
+def _sync_if_needed(
+    state: _FSDPState,
+    module: nn.Module,
+) -> bool:
+    if not module.training:
+        return False
+    if not state.use_local_sgd:
+        return False
+    if not state._handle.flat_param.requires_grad:
+        return False
+    if state.temp_step % state.gradient_accumulation_steps:  # only average once for the same `global_step`
+        return False
+    if state.global_step < state.local_sgd_warmup_steps:
+        if state.use_async:
+            total_global_step = torch.tensor(state.global_step).to(state.compute_device)
+            dist.all_reduce(total_global_step, group=state._inter_node_pg)
+            state.last_total_global_step = total_global_step.item()
+            state.last_sync_timestamp = time.time()
+        return False
+    if state.use_async:
+        if state.last_sync_timestamp is None:
+            total_global_step = torch.tensor(state.global_step).to(state.compute_device)
+            dist.all_reduce(total_global_step, group=state._inter_node_pg)
+            state.last_total_global_step = total_global_step.item()
+            state.last_sync_timestamp = time.time()
+            return True
+        elif time.time() - state.last_sync_timestamp < state.local_sgd_sync_time:
+            return False
+        else:
+            total_global_step = torch.tensor(state.global_step).to(state.compute_device)
+            dist.all_reduce(total_global_step, group=state._inter_node_pg)
+            diff_global_steps = total_global_step.item() - state.last_total_global_step
+            if diff_global_steps < state.min_total_global_steps:
+                # Should we skip this synchronization or keep looping until the synchronization is completed?
+                state.last_sync_timestamp = time.time()
+                return False
+            else:
+                state.last_sync_timestamp = time.time()
+                state.last_total_global_step = total_global_step.item()
+                return True
+    else:
+        if (state.global_step - state.local_sgd_warmup_steps) % state.local_sgd_sync_interval:
+            return False
+        return True
+
+
+# HACK sync sharded parameters among nodes.
+# TODO make skip_anomaly fully compatible with non reducer reduction
+@no_type_check
+def _sync_sharded_params(
+    state: _FSDPState,
+    handle: Optional[FlatParamHandle],
+) -> None:
+    with state._device_handle.stream(state._average_stream):
+        pseudo_gradient = None
+        if state.use_async and state.use_step_weight:
+            total_global_step = torch.tensor(state.global_step).to(state.compute_device)
+            dist.all_reduce(total_global_step, group=state._inter_node_pg)
+            step_weight = state.global_step / total_global_step.item()
+
+        if state.gta_reducer is None and not state.use_outer_optim:
+            with torch.no_grad():
+                if state.use_async and state.use_step_weight:
+                    handle.flat_param.data *= step_weight
+                else:
+                    handle.flat_param.data /= dist.get_world_size(state._inter_node_pg)
+                dist.all_reduce(handle.flat_param.data, group=state._inter_node_pg)
+        else:
+            if state.last_synced_params is None:
+                _lazy_init_outer_optimizer(state, handle)
+
+    if state.local_sgd_cpu_offload:
+        param_device = handle.flat_param.device
+        if state.gta_reducer is not None or state.use_outer_optim:
+            with state._device_handle.stream(state._H2D_stream):
+                with torch.no_grad():
+                    state.last_synced_params.data = state.last_synced_params.data.to(param_device, non_blocking=True)
+
+            # wait for last synced params to be moved to cuda
+            state._average_stream.wait_stream(state._H2D_stream)
+
+        # then we do async optim H2D
+        if state.use_outer_optim:
+            with state._device_handle.stream(state._H2D_stream):
+                # TODO separate opt and last sync params movement
+                for opt_state in state.outer_optimizer.state.values():
+                    for k, v in opt_state.items():
+                        if isinstance(v, torch.Tensor):
+                            opt_state[k].data = v.data.to(param_device, non_blocking=True)
+
+    with state._device_handle.stream(state._average_stream):
+        if state.gta_reducer is not None or state.use_outer_optim:
+            with torch.no_grad():
+                pseudo_gradient = state.last_synced_params.data - handle.flat_param.data
+                if state.local_sgd_skip_anomaly or state.pseudo_gradnorm_reduce:
+                    pseudo_gradnorm = torch.linalg.vector_norm(pseudo_gradient, 2).pow_(2)
+                    dist.all_reduce(pseudo_gradnorm, group=state.process_group, op=torch.distributed.ReduceOp.SUM)
+                    pseudo_gradnorm.pow_(0.5)
+
+                if state.local_sgd_skip_anomaly:
+                    # FIXME this is stuck by D2H
+                    gradnorm_value = pseudo_gradnorm
+                    if state.local_sgd_anomaly_detector.is_outlier(gradnorm_value):
+                        # nullify this work's update
+                        pseudo_gradient = torch.zeros_like(
+                            state.last_synced_params.data, dtype=pseudo_gradient.dtype, device=pseudo_gradient.device
+                        )
+                        pseudo_gradnorm += 1e6
+                        if dist.get_rank(state.process_group) == 0:
+                            print(
+                                f"Full Shard group [{dist.get_rank(state._inter_node_pg)}] step [{state.global_step}] ",
+                                f"Pseudo Gradnorm: {gradnorm_value} deemed outlier",
+                            )
+                    state.local_sgd_anomaly_detector.update(gradnorm_value)
+
+                if state.gta_reducer is None:
+                    if state.use_async and state.use_step_weight:
+                        pseudo_gradient *= step_weight
+                    else:
+                        pseudo_gradient /= dist.get_world_size(state._inter_node_pg)
+                    dist.all_reduce(pseudo_gradient, group=state._inter_node_pg)
+                else:
+                    reducer_kwargs = {}
+                    if state.pseudo_gradnorm_reduce:
+                        # penalty on local copies with large grad norm
+                        reducer_kwargs["weight"] = -pseudo_gradnorm
+                    if state.use_async and state.use_step_weight:
+                        # penalty on local copies with step weight
+                        reducer_kwargs["step_weight"] = step_weight
+                        reducer_kwargs["step_weight_ratio"] = state.step_weight_ratio
+                    state.gta_reducer.reduce_tensor(pseudo_gradient, **reducer_kwargs)
+        if pseudo_gradient is not None:
+            if state.clip_pseudo_grad is not None:
+                total_norm = torch.linalg.vector_norm(pseudo_gradient, 2).pow_(2)
+                dist.all_reduce(total_norm, group=state.process_group)
+                total_norm.pow_(0.5)
+                clip_coef = state.clip_pseudo_grad / (total_norm + 1e-6)
+                clip_coef_clamped = torch.clamp(clip_coef, max=1.0)
+                pseudo_gradient.detach().mul_(clip_coef_clamped)
+                if dist.get_rank(state.process_group) == 0:
+                    logger.debug(
+                        f"rank[{dist.get_rank()}]: "
+                        f"total_norm:{total_norm}, "
+                        f"clip_pseudo_grad:{state.clip_pseudo_grad}, "
+                        f"clip_coef_clamped:{clip_coef_clamped}."
+                    )
+        # TODO check if optimizer states are casted by FSDP
+        if pseudo_gradient is not None:
+            if not (state.local_sgd_skip_anomaly and pseudo_gradient.abs().sum() < 1e-6):
+                if state.use_outer_optim:
+                    if state.local_sgd_cpu_offload:
+                        state._average_stream.wait_stream(state._H2D_stream)
+                    state.last_synced_params.grad = pseudo_gradient.to(state.last_synced_params.device)
+                    state.outer_optimizer.step()
+                    state.outer_optimizer.zero_grad()
+                else:
+                    state.last_synced_params.data = state.last_synced_params.data - pseudo_gradient.to(
+                        state.last_synced_params.device
+                    )
+            # The _average_stream ensures that non-blocking copy is correct.
+            handle.flat_param.data.copy_(state.last_synced_params.data, non_blocking=True)
+
+    if state.local_sgd_cpu_offload:
+        state._D2H_stream.wait_stream(state._average_stream)
+        with state._device_handle.stream(state._D2H_stream):
+            if state.use_outer_optim:
+                for opt_state in state.outer_optimizer.state.values():
+                    for k, v in opt_state.items():
+                        if isinstance(v, torch.Tensor):
+                            opt_state[k].data = v.data.to("cpu", non_blocking=True)
+            if state.gta_reducer is not None or state.use_outer_optim:
+                with torch.no_grad():
+                    state.last_synced_params.data = state.last_synced_params.data.to("cpu", non_blocking=True)
 
 
 @no_type_check
@@ -197,44 +399,8 @@ def _pre_forward(
             handle._training_state = HandleTrainingState.FORWARD
 
         # HACK The main code for averaging parameters among nodes.
-        if (
-            module.training
-            and state.use_local_sgd
-            and state.global_step >= state.local_sgd_warmup_steps
-            and not (state.global_step - state.local_sgd_warmup_steps) % state.local_sgd_sync_interval
-            and not state.temp_step % state.gradient_accumulation_steps  # only average once for the same `global_step`
-        ):
-            with state._device_handle.stream(state._average_stream):
-                if state.gta_reducer is not None or state.use_outer_optim:
-                    if state.last_synced_params is None:
-                        _lazy_init_outer_optimizer(state, handle)
-                pseudo_gradient = None
-                if state.gta_reducer is None:
-                    with torch.no_grad():
-                        handle.flat_param.data /= dist.get_world_size(state._inter_node_pg)
-                        dist.all_reduce(handle.flat_param.data, group=state._inter_node_pg)
-                        if state.use_outer_optim:
-                            pseudo_gradient = state.last_synced_params.data - handle.flat_param.data.to(
-                                state.last_synced_params.device
-                            )
-                else:
-                    # to avoid multiple H2D, move last synced params to Device
-                    with torch.no_grad():
-                        pseudo_gradient = (
-                            state.last_synced_params.data.to(handle.flat_param.device) - handle.flat_param.data
-                        )
-                        state.gta_reducer.reduce_tensor(pseudo_gradient)
-                if pseudo_gradient is not None:
-                    if state.use_outer_optim:
-                        state.last_synced_params.grad = pseudo_gradient.to(state.last_synced_params.device)
-                        state.outer_optimizer.step()
-                        state.outer_optimizer.zero_grad()
-                    else:
-                        state.last_synced_params.data = state.last_synced_params.data - pseudo_gradient.to(
-                            state.last_synced_params.device
-                        )
-                    # The _average_stream ensures that non-blocking copy is correct.
-                    handle.flat_param.data.copy_(state.last_synced_params.data, non_blocking=True)
+        if SYNC_MODE_CONTROL:
+            _sync_sharded_params(state, handle)
 
             _wait_for_computation_stream(
                 state._average_stream,
@@ -265,6 +431,52 @@ def _pre_forward(
 
 
 @no_type_check
+@torch.no_grad()
+def _post_backward_hook(state: _FSDPState, handle: FlatParamHandle, flat_param, *unused: Any):  # type: ignore
+    _log_post_backward_hook(state, handle, logger)  # type: ignore
+    flat_param, flat_param._post_backward_called = handle.flat_param, True  # type: ignore
+    with torch.autograd.profiler.record_function("FullyShardedDataParallel._post_backward_hook"):  # type: ignore
+        _assert_in_training_states(state, [TrainingState.FORWARD_BACKWARD])  # type: ignore
+        _p_assert(  # type: ignore
+            handle._training_state in (HandleTrainingState.BACKWARD_PRE, HandleTrainingState.BACKWARD_POST),
+            f"Expects `BACKWARD_PRE` or `BACKWARD_POST` state but got {handle._training_state}",  # type: ignore
+        )  # type: ignore
+        handle._training_state = HandleTrainingState.BACKWARD_POST  # type: ignore
+        if flat_param.grad is None:  # type: ignore
+            return  # type: ignore
+        if flat_param.grad.requires_grad:  # type: ignore
+            raise RuntimeError("FSDP does not support gradients of gradients")  # type: ignore
+        _post_backward_reshard(state, handle)  # type: ignore
+        if not state._sync_gradients:  # type: ignore
+            if handle._use_orig_params:  # type: ignore
+                handle._use_unsharded_grad_views()  # type: ignore
+            return  # type: ignore
+        if not torch.distributed._functional_collectives.is_torchdynamo_compiling():  # type: ignore
+            state._post_backward_stream.wait_stream(state._device_handle.current_stream())  # type: ignore
+        with state._device_handle.stream(state._post_backward_stream):  # type: ignore
+            autograd_computed_grad = flat_param.grad.data  # type: ignore
+            if (  # type: ignore
+                not _low_precision_hook_enabled(state)  # type: ignore
+                and flat_param.grad.dtype != handle._reduce_dtype  # type: ignore
+                and not handle._force_full_precision  # type: ignore
+            ):  # type: ignore
+                flat_param.grad.data = flat_param.grad.to(handle._reduce_dtype)  # type: ignore
+            # HACK check gradnorm outlier
+            if state.skip_anomaly:  # type: ignore
+                flat_param_gradnorm = torch.linalg.vector_norm(flat_param.grad.data, 2)
+                if state.anomaly_detector.is_outlier(flat_param_gradnorm):  # type: ignore
+                    print(f"Rank: [{dist.get_rank()}] Gradnorm: {flat_param_gradnorm} deemed outlier")  # type: ignore
+                    flat_param.grad.data = torch.zeros_like(  # type: ignore
+                        flat_param.grad.data, dtype=handle._reduce_dtype, device=flat_param.grad.device  # type: ignore
+                    )  # type: ignore
+                state.anomaly_detector.update(
+                    flat_param_gradnorm
+                )  # TODO verify whether not to push anomaly is good # type: ignore
+            _reduce_grad(state, handle) if handle.uses_sharded_strategy else _reduce_grad_no_shard(state, handle)
+            _no_dispatch_record_stream(autograd_computed_grad, state._post_backward_stream)  # type: ignore
+
+
+@no_type_check
 def _reduce_grad(state: _FSDPState, handle: FlatParamHandle) -> None:
     """
     For sharded strategies, this runs gradient reduction, sharded gradient
@@ -275,10 +487,14 @@ def _reduce_grad(state: _FSDPState, handle: FlatParamHandle) -> None:
     uses_hybrid_sharded_strategy = handle._sharding_strategy in (
         HandleShardingStrategy.HYBRID_SHARD,
         HandleShardingStrategy._HYBRID_SHARD_ZERO2,
-    ) and not (state.use_local_sgd and state.global_step >= state.local_sgd_warmup_steps)
-    state.temp_step += 1
-    if not state.temp_step % state.gradient_accumulation_steps:
-        state.global_step += 1
+    )
+    if state.use_local_sgd:
+        uses_hybrid_sharded_strategy = (
+            uses_hybrid_sharded_strategy and not state.global_step >= state.local_sgd_warmup_steps
+        )
+        state.temp_step += 1
+        if not state.temp_step % state.gradient_accumulation_steps:
+            state.global_step += 1
     # We clear `.grad` to permit multiple backwards. This avoids a race where
     # the second backward pass computation precedes ahead of the first backward
     # pass reduction, which is possible since the reduction is issued in a
@@ -389,13 +605,9 @@ def _root_pre_forward(
             for handle in handles:
                 handle._needs_pre_forward_unshard = True
         # HACK Control the calculation streams corresponding to local sgd
-        if (
-            module.training
-            and state.use_local_sgd
-            and state.global_step >= state.local_sgd_warmup_steps
-            and not (state.global_step - state.local_sgd_warmup_steps) % state.local_sgd_sync_interval
-            and not state.temp_step % state.gradient_accumulation_steps  # only average once for the same `global_step`
-        ):
+        global SYNC_MODE_CONTROL
+        SYNC_MODE_CONTROL = _sync_if_needed(state, module)
+        if SYNC_MODE_CONTROL:
             state._average_stream.wait_stream(state._device_handle.current_stream())
         else:
             _wait_for_computation_stream(

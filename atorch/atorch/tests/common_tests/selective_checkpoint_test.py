@@ -4,6 +4,13 @@ import unittest
 import pytest
 
 torch = pytest.importorskip("torch", "2.0.9")
+
+try:
+    from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import ActivationWrapper
+except ImportError:
+    from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import CheckpointWrapper as ActivationWrapper
+
+
 import torch.multiprocessing as mp  # noqa: E402
 from torch.distributed.fsdp import MixedPrecision  # noqa: E402
 from transformers.models.llama.configuration_llama import LlamaConfig  # noqa: E402
@@ -50,6 +57,12 @@ def boot_test(rank, number_layers, pipes, mode):
             "wrap_class": LlamaDecoderLayer,
             "selective_offload": {"offload_args": [("mm.default", [1, 3, 5])], "num_layers": number_layers},
         }
+    elif mode == "max_num":
+        checkpoint_config = {
+            "wrap_class": LlamaDecoderLayer,
+            "no_reentrant": True,
+            "max_checkpoint_module_num": number_layers - 1,
+        }
     strategy = [
         "parallel_mode",
         ("fsdp", fsdp_config),
@@ -67,6 +80,12 @@ def boot_test(rank, number_layers, pipes, mode):
     assert status
     model = result.model
     opt = result.optim
+
+    checkpointed_num = 0
+    for m in model.modules():
+        if isinstance(m, ActivationWrapper):
+            checkpointed_num += 1
+
     b = 4
     seq = 2048
     h = 4096
@@ -82,7 +101,7 @@ def boot_test(rank, number_layers, pipes, mode):
         loss.backward()
         opt.step()
         losses.append(loss.detach().cpu().item())
-    pipe.send(losses)
+    pipe.send((losses, checkpointed_num))
 
 
 class SelectiveCheckpointTest(unittest.TestCase):
@@ -122,10 +141,14 @@ class SelectiveCheckpointTest(unittest.TestCase):
             return result
 
         result = {}
-        for ckpt_mode in ["origin", "offload"]:
+        for ckpt_mode in ["origin", "offload", "max_num"]:
             result[ckpt_mode] = run_inner(ckpt_mode)
         for k in result:
-            self.assertListEqual(result["origin"], result[k])
+            self.assertListEqual(result["origin"][0][0], result[k][0][0])
+
+        # check max_num's checkpointed_num
+        self.assertEqual(result["origin"][0][1], 2)
+        self.assertEqual(result["max_num"][0][1], 1)
 
 
 if __name__ == "__main__":

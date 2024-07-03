@@ -45,8 +45,27 @@ def new_device_capability(device: Optional[_device_t] = None):
 
 new_device_capability.__doc__ = old_device_capability.__doc__
 
+old_torch_eye = torch.eye
+
+
+def npu_eye(n, m=None, *, out=None, dtype=None, layout=torch.strided, device=None, requires_grad=False) -> torch.Tensor:
+    if m is None:
+        m = n
+    if dtype == torch.bfloat16:
+        # On CANN==8.0.RC1, the NPU does not support creating bfloat16 outputs by torch.eye
+        return old_torch_eye(
+            n, m=m, out=out, dtype=torch.float32, layout=layout, device=device, requires_grad=requires_grad
+        ).to(dtype)
+    else:
+        return old_torch_eye(n, m=m, out=out, dtype=dtype, layout=layout, device=device, requires_grad=requires_grad)
+
+
+npu_eye.__doc__ = old_torch_eye.__doc__
+
 
 def make_atorch_npu_patch():
+    # to avoid UnboundLocalError
+    global torch
     # todo: can't create same device on multiprocessing?
     device = torch.device("npu")
     # # if there is no npu device, there will not make patch
@@ -71,6 +90,13 @@ def make_atorch_npu_patch():
             setattr(transformers.utils, "is_torch_bf16_gpu_available", npu_is_torch_bf16_gpu_available)
     except (ModuleNotFoundError, ImportError):
         logger.error(f"{traceback.format_exc()}")
+
+    if is_torch_npu_available():
+        import torch.distributed.fsdp.sharded_grad_scaler
+        from torch_npu.npu.amp.sharded_grad_scaler import ShardedGradScaler as NPUShardedGradScaler
+
+        setattr(torch.distributed.fsdp.sharded_grad_scaler, "ShardedGradScaler", NPUShardedGradScaler)
+        setattr(torch, "eye", npu_eye)
 
 
 try:

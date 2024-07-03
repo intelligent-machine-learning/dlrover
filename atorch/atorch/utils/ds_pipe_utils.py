@@ -2,10 +2,15 @@ import functools
 import inspect
 from collections import Counter
 
-import deepspeed
 import torch
 import torch.nn.functional as F
-from deepspeed.pipe import LayerSpec, PipelineModule, TiedLayerSpec
+
+try:
+    import deepspeed
+    from deepspeed.pipe import LayerSpec, PipelineModule, TiedLayerSpec
+except (ImportError, ModuleNotFoundError):
+    deepspeed = None
+    LayerSpec = PipelineModule = TiedLayerSpec = object
 
 from atorch.common.log_utils import default_logger as logger
 from atorch.distributed import is_distributed, rank

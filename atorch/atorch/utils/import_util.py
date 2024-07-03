@@ -41,7 +41,35 @@ def is_torch_npu_available(check_device=False):
     return hasattr(torch, "npu") and torch.npu.is_available()
 
 
+@lru_cache()
+def is_torch_xla_available():
+    try:
+        import torch_xla  # noqa: F401
+        import torch_xla.core  # noqa: F401
+        import torch_xla.core.xla_model  # noqa: F401
+    except (ImportError, ModuleNotFoundError):
+        return False
+    else:
+        return True
+
+
+@lru_cache()
+def is_xla_device_available():
+    if not is_torch_xla_available():
+        return False
+
+    import torch_xla.core.xla_model as xm  # noqa: F401
+
+    return "xla" in str(xm.xla_device()).lower()
+
+
 def is_triton_available():
     if importlib.util.find_spec("triton") is None or importlib.util.find_spec("triton.language") is None:
+        return False
+    return True
+
+
+def is_coverage_available():
+    if importlib.util.find_spec("coverage") is None:
         return False
     return True

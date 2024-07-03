@@ -61,10 +61,10 @@ def compare_optim(path, model, rank):
 def run_gpt2_with_strategy(
     rank, use_bf16, fsdp_config, ckpt_path, is_save, is_load, world_size, compare_range=None, is_train=False
 ):
-    hidden_size = 256
+    hidden_size = 64
     head_num = 4
     layer_num = 3
-    seq_length = 512
+    seq_length = 128
     data_size = 16
     batch_size = 2
     os.environ["LOCAL_RANK"] = str(rank)

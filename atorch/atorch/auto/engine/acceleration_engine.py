@@ -4,7 +4,6 @@ from atorch.auto.engine.analyser_result import AnalyserResult
 from atorch.auto.engine.executor import Executor
 from atorch.auto.engine.optimization_method import OptimizationMethodLibrary
 from atorch.auto.engine.planner import Planner
-from atorch.auto.engine.servicer import create_acceleration_service
 from atorch.auto.engine.sg_algo.sg_algo_lib import StrategyGenerationAlgorithmLibrary
 from atorch.auto.engine.strategy import StrategyInfoCollection
 from atorch.common.log_utils import default_logger as logger
@@ -73,6 +72,8 @@ class AccelerationEngine(object):
         return executor
 
     def start_service(self, port):
+        from atorch.auto.engine.servicer import create_acceleration_service
+
         self.port = port
         self.service = create_acceleration_service(self.port, self.executor)
         self.service.start()

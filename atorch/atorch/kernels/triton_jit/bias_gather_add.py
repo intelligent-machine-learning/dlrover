@@ -6,16 +6,9 @@ if is_triton_available():
     import triton
     import triton.language as tl
 else:
-    from functools import wraps
+    from .triton_import_lib import Library
 
-    class Library(object):
-        constexpr = int
-        autotune = lambda *args, **kwargs: wraps  # noqa: E731
-        Config = lambda *args, **kwargs: None  # noqa: E731
-        jit = wraps
-
-    triton = Library
-    tl = Library
+    triton = tl = Library
 
 
 @triton.autotune(
@@ -153,4 +146,15 @@ class BiasGatherAddOp(torch.autograd.Function):
         return grad, bgrad, None
 
 
-bias_gather_add = BiasGatherAddOp.apply
+def bias_gather_add(inp: torch.Tensor, bias: torch.Tensor, bin_ids: torch.Tensor):
+    """
+    bias gather add fused by triton jit
+
+    Arguments:
+        inp: [token_num, hidden_size]
+        bias: [expert_num, hidden_size]
+        bin_ids: [token_num], element in [0, expert_num)
+    Returns:
+        torc.Tensor
+    """
+    return BiasGatherAddOp.apply(inp, bias, bin_ids)
