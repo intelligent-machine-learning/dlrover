@@ -305,3 +305,8 @@ class Accelerators(object):
 
 class Diagnosis(object):
     CUDA_LOG_PATH = "CUDA_LOG_PATH"
+
+
+class AscendConstants(object):
+    # By default there are 16 npu on one machine
+    NPU_PER_NODE = 16

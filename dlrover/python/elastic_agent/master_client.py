@@ -412,6 +412,11 @@ class MasterClient(Singleton):
         response = self._report(request)
         return response.success
 
+    def sync_training_ports(self, port) -> grpc.SyncTrainingPort:
+        request = grpc.SyncTrainingPort(port=port)
+        response: grpc.SyncTrainingPort = self._get(request)
+        return response
+
     @classmethod
     def singleton_instance(cls, *args, **kwargs):
         if not cls._instance:
