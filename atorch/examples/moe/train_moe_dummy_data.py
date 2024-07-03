@@ -334,8 +334,8 @@ def get_strategy(args):
         else:
             fsdp_config["atorch_wrap_cls"] = atorch_wrap_cls
         strategy.append(("fsdp", fsdp_config))
-    if args.optim_grouped_params:
-        fsdp_config["use_orig_params"] = True
+        if args.optim_grouped_params:
+            fsdp_config["use_orig_params"] = True
     if args.use_amp:
         amp_config = {"dtype": torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16}
         strategy.append(("amp_native", amp_config))
