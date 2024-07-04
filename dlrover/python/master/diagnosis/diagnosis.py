@@ -30,8 +30,8 @@ from typing import List
 
 
 class DiagnosisManager:
-    def __init__(self):
-        self.data_manager: DataManager = DataManager(600)
+    def __init__(self, expire_time_period: int = 600):
+        self.data_manager: DataManager = DataManager(expire_time_period)
         self.diagnostician: Diagnostician = Diagnostician(self.data_manager)
 
     def collect_diagnosis_data(self, node_id: int, data_type: str, data: DiagnosisData):

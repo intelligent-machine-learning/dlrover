@@ -27,6 +27,25 @@ from dlrover.python.master.diagnosis.inferencechain.common import (
 from dlrover.python.master.diagnosis.operator.check_training_hang_operator import CheckTrainingHangOperator
 
 
+def create_data_mgr() -> DataManager:
+    mgr = DataManager(10000)
+
+    trace1 = "MainThread;func3@file3;func1@file1;func2@file2"
+    trace2 = "MainThread;wait@wait.cc;func1@file1;func2@file2"
+    world_size = 4
+    cuda_log11 = CudaLog(0, world_size, {trace1: {0, 1}})
+    cuda_log12 = CudaLog(0, world_size, {trace2: {0, 1}})
+    cuda_log21 = CudaLog(0, world_size, {trace1: {2, 3}})
+    cuda_log22 = CudaLog(0, world_size, {trace2: {2, 3}})
+
+    mgr.store_data(0, DiagnosisDataType.CUDALOG, cuda_log11)
+    mgr.store_data(1, DiagnosisDataType.CUDALOG, cuda_log21)
+    for i in range(0, 3):
+        mgr.store_data(0, DiagnosisDataType.CUDALOG, cuda_log12)
+        mgr.store_data(1, DiagnosisDataType.CUDALOG, cuda_log22)
+    return mgr
+
+
 class MasterDiagnosisTest(unittest.TestCase):
     def setUp(self):
         pass
@@ -50,20 +69,20 @@ class MasterDiagnosisTest(unittest.TestCase):
         nodes_cuda_logs = mgr.get_nodes_cuda_logs()
         self.assertEqual(len(nodes_cuda_logs[0]), 2)
 
-    # def test_diagnostician(self):
-    #     data_mgr = DataManager(10)
-    #     diagnostician = Diagnostician(data_mgr)
-    #     problems: list[Inference] = [
-    #         Inference(
-    #             name=InferenceName.TRAINING,
-    #             attribution=InferenceAttribute.ISORNOT,
-    #             description=InferenceDescription.HANG,
-    #         )
-    #     ]
-    #     diagnostician.register_problems(problems)
-    #
-    #     infs = diagnostician.observe_training()
-    #     self.assertEqual(len(infs), 1)
+    def test_diagnostician(self):
+        data_mgr = DataManager(10000)
+        diagnostician = Diagnostician(data_mgr)
+        problems: list[Inference] = [
+            Inference(
+                name=InferenceName.TRAINING,
+                attribution=InferenceAttribute.ISORNOT,
+                description=InferenceDescription.HANG,
+            )
+        ]
+        diagnostician.register_problems(problems)
+
+        infs = diagnostician.observe_training()
+        self.assertEqual(len(infs), 1)
 
     def test_training_hang_operator(self):
         mgr = DataManager(10000)
