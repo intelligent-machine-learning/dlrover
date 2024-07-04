@@ -44,7 +44,7 @@ from dlrover.python.tests.test_utils import (
 class ResourceMonitorTest(unittest.TestCase):
     def setUp(self):
         self.master_proc, self.addr = start_local_master()
-        MasterClient._instance = build_master_client(self.addr, 0.5)
+        MasterClient._instance = build_master_client(self.addr, 1)
 
     def tearDown(self):
         self.master_proc.stop()
@@ -100,6 +100,15 @@ class ResourceMonitorTest(unittest.TestCase):
         reporter0._last_timestamp = time.time() - 30
         reporter0.report_resource_with_step(100)
 
+
+class DiagnosisMonitorTest(unittest.TestCase):
+    def setUp(self):
+        self.master_proc, self.addr = start_local_master()
+        MasterClient._instance = build_master_client(self.addr, 1)
+
+    def tearDown(self):
+        self.master_proc.stop()
+
     def test_diagnosis_monitor(self):
         cuda_log_dir = generate_path("data/cuda_logs/")
 
@@ -111,19 +120,14 @@ class ResourceMonitorTest(unittest.TestCase):
             monitor = DiagnosisMonitor.singleton_instance()
             monitor.init()
             collectors = monitor.get_collectors()
-            self.assertEqual(len(collectors), 3)
-        #
-        # cuda_log = monitor.collect_data(CollectorType.CUDALOG)
-        # self.assertFalse(not cuda_log)
-        # monitor.report_diagnosis_data(cuda_log)
-        #
-        # logs = monitor.collect_data(CollectorType.TRAININGLOG)
-        # self.assertFalse(not logs)
-        # monitor.report_diagnosis_data(logs)
-        #
-        # metrics = monitor.collect_data(CollectorType.CHIPMETRICS)
-        # self.assertFalse(not metrics)
-        # monitor.report_diagnosis_data(metrics)
+            self.assertEqual(len(collectors), 1)
+
+            try:
+                cuda_log = monitor.collect_data(CollectorType.CUDALOG)
+                self.assertEqual(len(cuda_log.get_traces()), 7)
+                monitor.report_diagnosis_data(cuda_log)
+            except Exception as e:
+                self.fail(f"raise exception: {e}")
 
 
 if __name__ == "__main__":

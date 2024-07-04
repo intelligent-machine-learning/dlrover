@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Dict
+from typing import List, Dict, Set
 
 from dlrover.python.master.diagnosis.diagnosis_data import DataManager
 from dlrover.python.master.diagnosis.inferencechain.common import (
@@ -48,7 +48,17 @@ def is_block_func(trace: str) -> bool:
     return False
 
 
-def is_hanged(workers_stack: Dict[int, List[str]]) -> bool:
+def extract_latest_trace(trace: str) -> str:
+    traces = trace.split(";")
+    if len(traces) < 2:
+        return ""
+    return traces[1]
+
+
+def is_hanged(world_size: int, workers_stack: Dict[int, List[str]]) -> bool:
+    if world_size == 0 or world_size < len(workers_stack):
+        logger.error(f"invalid world size: {world_size}")
+        return False
     blocked_ranks = []
     for rank, traces in workers_stack.items():
         blocked = True
@@ -62,7 +72,7 @@ def is_hanged(workers_stack: Dict[int, List[str]]) -> bool:
             logger.info(f"rank {rank} is blocked!!!")
             blocked_ranks.append(rank)
 
-    if len(blocked_ranks) == len(workers_stack):
+    if len(blocked_ranks) / world_size >= 0.6:
         return True
     return False
 
@@ -96,26 +106,30 @@ class CheckTrainingHangOperator(InferenceOperator):
             logger.warning("not enough data to check training hang")
             return []
 
-        ranks_traces: Dict[int, List[str]] = {}
+        rank_traces: Dict[int, List[str]] = {}
+        world_size = 0
         for node_id, node_cuda_logs in nodes_cuda_logs.items():
-            for cuda_log in node_cuda_logs:
-                for rank, main_trace in cuda_log.get_main_traces().items():
-                    if rank not in ranks_traces:
-                        ranks_traces[rank] = []
-                    if len(ranks_traces[rank]) >= 3:
+            for cuda_log in reversed(node_cuda_logs):
+                if world_size == 0:
+                    world_size = cuda_log.get_world_size()
+                for trace, ranks in cuda_log.get_traces().items():
+                    if "MainThread" not in trace:
                         continue
-                    latest_trace = get_latest_trace(main_trace)
+                    latest_trace = extract_latest_trace(trace)
                     if len(latest_trace) == 0:
-                        logger.error(f"rank {rank} has no trace")
+                        logger.info(f"ranks {ranks} invalid trace {trace}")
                         continue
-                    ranks_traces[rank].append(latest_trace)
-
-        for rank, traces in ranks_traces.items():
+                    for rank in ranks:
+                        if rank not in rank_traces:
+                            rank_traces[rank] = [latest_trace]
+                        elif len(rank_traces[rank]) < 3:
+                            rank_traces[rank].append(latest_trace)
+        for rank, traces in rank_traces.items():
             if len(traces) < 3:
                 logger.warning(f"rank {rank} only reports {len(traces)} cuda logs")
                 return []
 
-        if is_hanged(ranks_traces):
+        if is_hanged(world_size, rank_traces):
             return [
                 Inference(
                     name=InferenceName.TRAINING,

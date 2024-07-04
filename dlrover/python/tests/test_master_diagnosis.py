@@ -22,7 +22,9 @@ from dlrover.python.master.diagnosis.inferencechain.common import (
     InferenceAttribute,
     InferenceDescription,
     InferenceName,
+    same_inference,
 )
+from dlrover.python.master.diagnosis.operator.check_training_hang_operator import CheckTrainingHangOperator
 
 
 class MasterDiagnosisTest(unittest.TestCase):
@@ -34,17 +36,17 @@ class MasterDiagnosisTest(unittest.TestCase):
 
     def test_data_manager(self):
         mgr = DataManager(5)
-        mgr.store_data(0, DiagnosisDataType.CUDALOG, CudaLog(0, {}))
+        mgr.store_data(0, DiagnosisDataType.CUDALOG, CudaLog(0, 0, {}))
         time.sleep(2)
-        mgr.store_data(0, DiagnosisDataType.CUDALOG, CudaLog(0, {}))
-        mgr.store_data(1, DiagnosisDataType.CUDALOG, CudaLog(0, {}))
+        mgr.store_data(0, DiagnosisDataType.CUDALOG, CudaLog(0, 0, {}))
+        mgr.store_data(1, DiagnosisDataType.CUDALOG, CudaLog(0, 0, {}))
 
         nodes_cuda_logs = mgr.get_nodes_cuda_logs()
         self.assertEqual(len(nodes_cuda_logs[0]), 2)
         self.assertEqual(len(nodes_cuda_logs[1]), 1)
 
         time.sleep(4)
-        mgr.store_data(0, DiagnosisDataType.CUDALOG, CudaLog(0, {}))
+        mgr.store_data(0, DiagnosisDataType.CUDALOG, CudaLog(0, 0, {}))
         nodes_cuda_logs = mgr.get_nodes_cuda_logs()
         self.assertEqual(len(nodes_cuda_logs[0]), 2)
 
@@ -62,6 +64,41 @@ class MasterDiagnosisTest(unittest.TestCase):
     #
     #     infs = diagnostician.observe_training()
     #     self.assertEqual(len(infs), 1)
+
+    def test_training_hang_operator(self):
+        mgr = DataManager(10000)
+
+        trace1 = "MainThread;func3@file3;func1@file1;func2@file2"
+        trace2 = "MainThread;wait@wait.cc;func1@file1;func2@file2"
+        world_size = 4
+        cuda_log11 = CudaLog(0, world_size, {trace1: {0, 1}})
+        cuda_log12 = CudaLog(0, world_size, {trace2: {0, 1}})
+        cuda_log21 = CudaLog(0, world_size, {trace1: {2, 3}})
+        cuda_log22 = CudaLog(0, world_size, {trace2: {2, 3}})
+
+        mgr.store_data(0, DiagnosisDataType.CUDALOG, cuda_log11)
+        mgr.store_data(1, DiagnosisDataType.CUDALOG, cuda_log21)
+        for i in range(0, 3):
+            mgr.store_data(0, DiagnosisDataType.CUDALOG, cuda_log12)
+            mgr.store_data(1, DiagnosisDataType.CUDALOG, cuda_log22)
+
+        operator = CheckTrainingHangOperator(mgr)
+        problem = Inference(
+            name=InferenceName.TRAINING,
+            attribution=InferenceAttribute.ISORNOT,
+            description=InferenceDescription.HANG,
+        )
+        self.assertTrue(operator.is_compatible(problem))
+
+        infs = operator.infer([])
+        self.assertEqual(len(infs), 1)
+
+        inf = Inference(
+            name=InferenceName.TRAINING,
+            attribution=InferenceAttribute.IS,
+            description=InferenceDescription.HANG,
+        )
+        self.assertTrue(same_inference(infs[0], inf))
 
 
 if __name__ == "__main__":

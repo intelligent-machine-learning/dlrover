@@ -16,7 +16,7 @@ import random
 import socket
 from contextlib import closing
 from dataclasses import dataclass, field
-from typing import Dict, List
+from typing import Dict, List, Set
 
 import grpc
 
@@ -480,7 +480,8 @@ class DiagnosisTrainingLog(Message):
 @dataclass
 class DiagnosisCudaLog(Message):
     timestamp: int = 0
-    py_main_traces: Dict[int, str] = field(default_factory=dict)
+    world_size: int = 0
+    traces: Dict[str, Set[int]] = field(default_factory=dict)
 
 
 @dataclass

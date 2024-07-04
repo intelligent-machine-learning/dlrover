@@ -66,6 +66,9 @@ class CudaLog(DiagnosisData):
             traces.append(rank_trace)
         return traces
 
+    def get_world_size(self) -> int:
+        return self._world_size
+
 
 class TrainingLog(DiagnosisData):
     def __init__(self, timestamp: int):
