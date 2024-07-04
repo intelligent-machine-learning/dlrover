@@ -20,7 +20,7 @@ from typing import Dict, List
 
 import grpc
 
-from dlrover.python.common.constants import GRPC
+from dlrover.python.common.constants import GRPC, AscendConstants
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.serialize import JsonSerializable
 
@@ -102,6 +102,24 @@ def find_free_port_in_set(ports):
         except OSError:
             logger.warning(f"Socket creation attempt failed with {port}.")
     raise RuntimeError(f"Fail to find a free port in {ports}")
+
+
+def find_free_port_for_hccl(start=60000, end=70000) -> int:
+    cur_start = start
+    logger.info(f"Try to find available port for hccl from {start}")
+    while True:
+        try:
+            cur_end = cur_start + AscendConstants.NPU_PER_NODE
+            for port in range(cur_start, cur_end):
+                find_free_port(port)
+            logger.info(f"Find available port start from: {cur_start}")
+            break
+        except OSError:
+            cur_start = cur_start + AscendConstants.NPU_PER_NODE
+            if cur_start > end:
+                cur_start = 0
+                break
+    return cur_start
 
 
 def grpc_server_ready(channel) -> bool:
@@ -333,6 +351,7 @@ class CommWorldRequest(RendezvousRequest):
 
 @dataclass
 class JoinRendezvousRequest(RendezvousRequest):
+    node_rank: int = -1
     node_ip: str = ""  # The IP of node where the pod is located.
 
 
@@ -466,3 +485,9 @@ class DiagnosisCudaLog(Message):
 @dataclass
 class DiagnosisChipMetrics(Message):
     timestamp: int = 0
+
+
+@dataclass
+class SyncTrainingPort(Message):
+    port: int = 0
+    newport: int = 0

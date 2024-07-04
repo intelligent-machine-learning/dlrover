@@ -24,7 +24,11 @@ from torch.distributed.elastic.agent.server.api import WorkerSpec, WorkerState
 from torch.distributed.elastic.rendezvous import RendezvousParameters
 from torch.distributed.launcher.api import LaunchConfig
 
-from dlrover.python.common.constants import ConfigPath, RendezvousName
+from dlrover.python.common.constants import (
+    Accelerators,
+    ConfigPath,
+    RendezvousName,
+)
 from dlrover.python.common.storage import PosixDiskStorage
 from dlrover.python.elastic_agent.master_client import (
     MasterClient,
@@ -75,11 +79,10 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         )
 
         master_addr = "127.0.0.1"
-        node_id = 0
 
         self.rdzv_handler = MasterRendezvousHandler(
             RendezvousName.ELASTIC_TRAINING,
-            node_id,
+            0,
             rdzv_parameters,
             local_world_size=self.config.nproc_per_node,
         )
@@ -121,18 +124,21 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         self.assertTrue(config.network_check)
 
     def test_rank0_rendzevous(self):
-        node_id = 0
         agent = ElasticTrainingAgent(
-            node_rank=node_id,
+            node_rank=0,
             config=self.config,
             entrypoint="python",
             spec=self.spec,
             start_method=self.config.start_method,
             log_dir=self.config.log_dir,
         )
+
+        # Mock node rank 1 joins the rendezvous.
+        self.rdzv_handler._client._node_id = 1
         self.rdzv_handler._client.join_rendezvous(
             1, 8, self.rdzv_handler._name
         )
+        agent._client._node_id = 0
         agent._rendezvous(agent._worker_group)
         worker_group = agent._worker_group
         self.assertEqual(len(worker_group.workers), 8)
@@ -147,22 +153,26 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         )
 
     def test_rank1_rendzevous(self):
-        node_id = 1
         agent = ElasticTrainingAgent(
-            node_rank=node_id,
+            node_rank=1,
             config=self.config,
             entrypoint="python",
             spec=self.spec,
             start_method=self.config.start_method,
             log_dir=self.config.log_dir,
         )
-        self.rdzv_handler._node_rank = node_id
+        # Mock node rank 0 joins the rendezvous.
+        self.rdzv_handler._client._node_id = 0
         self.rdzv_handler._client.join_rendezvous(
             0, 8, self.rdzv_handler._name
         )
         store = self.rdzv_handler._get_store(round=1, group=0)
         store.set("MASTER_ADDR", "127.0.0.1".encode())
         store.set("MASTER_PORT", "12345".encode())
+
+        # Set the node id and rank as 1.
+        agent._client._node_id = 1
+        self.spec.rdzv_handler._node_rank = 1
         agent._rendezvous(agent._worker_group)
         worker_group = agent._worker_group
         self.assertEqual(len(worker_group.workers), 8)
@@ -283,7 +293,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
     def test_check_network_rdzv_for_elastic_training(self):
         self._master.rdzv_managers[
             RendezvousName.NETWORK_CHECK
-        ].join_rendezvous(0, 8)
+        ].join_rendezvous(0, 0, 8)
         with self.assertRaises(RendezvousOutSyncError):
             self.rdzv_handler._check_network_rdzv_for_elastic_training()
 
@@ -341,6 +351,19 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         )
         self.assertEqual(spec.max_restarts, 3)
         self.assertEqual(spec.local_world_size, 2)
+
+    def test_sync_node_port(self):
+        self.config.accelerator = Accelerators.ASCEND_NPU
+        agent = ElasticTrainingAgent(
+            node_rank=0,
+            config=self.config,
+            entrypoint="echo",
+            spec=self.spec,
+            start_method=self.config.start_method,
+            log_dir=self.config.log_dir,
+        )
+        agent.sync_training_ports()
+        self.assertEqual(os.environ["HCCL_IF_BASE_PORT"], "60000")
 
 
 class NodeCheckElasticAgentTest(unittest.TestCase):

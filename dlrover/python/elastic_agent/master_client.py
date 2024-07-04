@@ -310,7 +310,8 @@ class MasterClient(Singleton):
 
     def join_rendezvous(self, node_rank, local_world_size, rdzv_name=""):
         request = grpc.JoinRendezvousRequest(
-            node_id=node_rank,
+            node_id=self._node_id,
+            node_rank=node_rank,
             local_world_size=local_world_size,
             rdzv_name=rdzv_name,
             node_ip=self._node_ip,
@@ -407,6 +408,11 @@ class MasterClient(Singleton):
         request.step = step
         response = self._report(request)
         return response.success
+
+    def sync_training_ports(self, port) -> grpc.SyncTrainingPort:
+        request = grpc.SyncTrainingPort(port=port)
+        response: grpc.SyncTrainingPort = self._get(request)
+        return response
 
     @classmethod
     def singleton_instance(cls, *args, **kwargs):

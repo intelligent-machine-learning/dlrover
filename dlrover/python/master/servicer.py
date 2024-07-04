@@ -47,6 +47,7 @@ from dlrover.python.master.elastic_training.rdzv_manager import (
 )
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.job_manager import JobManager
+from dlrover.python.master.node.training_node import SyncNodeTrainingPorts
 from dlrover.python.master.shard.dataset_splitter import new_dataset_splitter
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.master.stats.job_collector import JobMetricCollector
@@ -132,6 +133,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             message = self._get_paral_config()
         elif isinstance(req_message, grpc.CheckHardwareResetRequest):
             message = self._need_to_restart_training(node_type, node_id)
+        elif isinstance(req_message, grpc.SyncTrainingPort):
+            message = self._sync_training_ports(node_id, req_message)
 
         if message:
             response.data = message.serialize()
@@ -242,8 +245,14 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
 
     def _join_rendezvous(self, request: grpc.JoinRendezvousRequest):
         rdzv_manager = self._rdzv_managers[request.rdzv_name]
+        node_rank = request.node_rank
+        if node_rank == -1:  # Back compatibility
+            node_rank = request.node_id
         round = rdzv_manager.join_rendezvous(
-            request.node_id, request.local_world_size, request.node_ip
+            request.node_id,
+            node_rank,
+            request.local_world_size,
+            request.node_ip,
         )
         if request.rdzv_name == RendezvousName.NETWORK_CHECK:
             # The waiting node in the training rdzv should clear if
@@ -266,8 +275,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         res = grpc.RendezvousState(world={})
         res.group = group
         res.round = rdzv_round
-        for rank_id, meta in nodes.items():
-            res.world[rank_id] = meta.process_num
+        for rank, meta in nodes.items():
+            res.world[rank] = meta.process_num
         if nodes and request.rdzv_name == RendezvousName.ELASTIC_TRAINING:
             rdzv_round = rdzv_manager.get_rdzv_round()
             metrics = {CustomMetricKeys.RDZV_ROUND: rdzv_round}
@@ -625,6 +634,17 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             DiagnosisDataType.CUDALOG, data
         )
         return True
+
+    def _sync_training_ports(
+        self, node_id, message: grpc.SyncTrainingPort
+    ) -> grpc.SyncTrainingPort:
+        logger.info(f"try to sync port {message.port} from {node_id}")
+        sync_ports: SyncNodeTrainingPorts = (
+            self._job_manager.sync_node_training_port(node_id, message.port)
+        )
+        return grpc.SyncTrainingPort(
+            port=sync_ports.training_port, newport=sync_ports.next_check_port
+        )
 
 
 def create_master_service(

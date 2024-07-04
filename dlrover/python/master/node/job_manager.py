@@ -10,13 +10,48 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 from abc import ABCMeta, abstractclassmethod
+from typing import Dict
+
+from dlrover.python.common.node import Node
+from dlrover.python.master.hyperparams.simple_strategy_generator import (
+    SimpleStrategyGenerator,
+)
+from dlrover.python.master.monitor.error_monitor import ErrorMonitor
+from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
+from dlrover.python.master.node.training_node import (
+    SyncNodeTrainingPorts,
+    TrainingNodeConfigure,
+)
+from dlrover.python.master.resource.job import JobResource
+from dlrover.python.scheduler.job import JobArgs
 
 
 class JobManager(metaclass=ABCMeta):
     """The manager manages the status of a job including the running
     nodes and training hyper-parameters.
     """
+
+    def __init__(
+        self,
+        job_args: JobArgs,
+        speed_monitor=None,
+        error_monitor=None,
+    ):
+        self._job_resource = JobResource()
+        self._job_args = job_args
+        self._job_strategy_generator: SimpleStrategyGenerator = (
+            SimpleStrategyGenerator(self._job_args.job_uuid)
+        )
+
+        self._stop_monitor = False
+        self._speed_monitor: SpeedMonitor = speed_monitor
+        self._error_monitor: ErrorMonitor = error_monitor
+
+        self._job_nodes: Dict[str, Dict[int, Node]] = {}
+
+        self._training_node_configure = TrainingNodeConfigure()
 
     @abstractclassmethod
     def start(self):
@@ -150,3 +185,8 @@ class JobManager(metaclass=ABCMeta):
     def collect_node_heart_beat(self, node_type, node_id, timestamp):
         """Collect the heart beat message of nodes."""
         pass
+
+    def sync_node_training_port(self, node_id, port) -> SyncNodeTrainingPorts:
+        return self._training_node_configure.sync_node_training_port(
+            node_id, port
+        )
