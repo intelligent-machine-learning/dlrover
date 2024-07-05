@@ -20,7 +20,6 @@ import torch
 import torch.distributed as dist
 import torch.multiprocessing as mp
 import torch.nn as nn
-
 from dlrover.python.common.multi_process import SOCKET_TMP_DIR
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     DLROVER_CKPT_CONFIG_KEY,
@@ -112,6 +111,9 @@ class CheckpointBackupTest(unittest.TestCase):
         os.environ["NODE_NUM"] = "4"
         shard_manager = FullCkptReplicaManager(replica_count=2)
         self.assertListEqual(shard_manager.backup_ranks, [0, 8, 16, 24])
+
+        shard_manager = ShardCkptReplicaManager(replica_count=0)
+        self.assertListEqual(shard_manager.backup_ranks, [])
 
     def test_backup_checkpoint(self):
         world_size = 2

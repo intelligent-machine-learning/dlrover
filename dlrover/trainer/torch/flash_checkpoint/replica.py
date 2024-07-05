@@ -16,7 +16,6 @@ from typing import Dict, List
 
 import torch
 import torch.distributed as dist
-
 from dlrover.python.common import env_utils
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     DLROVER_CKPT_CONFIG_KEY,
@@ -103,6 +102,8 @@ class ShardCkptReplicaManager(CkptReplicaManger):
             A list of ranks.
         """
         backup_ranks = []
+        if replica_count <= 0:
+            return backup_ranks
 
         group_index = self.node_rank // replica_count
         for i in range(replica_count):
