@@ -68,6 +68,8 @@ def _create_socket_server(path):
     os.makedirs(path_dir, exist_ok=True)
     if os.path.exists(path):
         os.unlink(path)
+
+    logger.info(f"Creating socket server at {path}.")
     server.bind(path)
     server.listen(0)
     return server
