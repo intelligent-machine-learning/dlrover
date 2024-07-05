@@ -12,12 +12,11 @@
 # limitations under the License.
 
 import datetime
+import os
 from unittest import mock
 
-import yaml
-from kubernetes import client
-
 import dlrover.python.util.k8s_util as ku
+import yaml
 from dlrover.proto import elastic_training_pb2
 from dlrover.python.common.constants import (
     DistributionStrategy,
@@ -34,18 +33,33 @@ from dlrover.python.master.shard.dataset_splitter import new_dataset_splitter
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.scheduler.job import JobArgs, LocalJobArgs, NodeArgs
 from dlrover.python.scheduler.kubernetes import k8sClient
+from kubernetes import client
+
+
+def _is_local():
+    return "dlrover/python/tests" in os.getcwd()
 
 
 def get_test_scale_plan(*args, **kwargs):
-    with open("dlrover/python/tests/data/scaleplan_sample.yaml", "r") as f:
-        job_content = f.read()
+    if _is_local():
+        with open("data/scaleplan_sample.yaml", "r") as f:
+            job_content = f.read()
+    else:
+        with open("dlrover/python/tests/data/scaleplan_sample.yaml", "r") as f:
+            job_content = f.read()
     job = yaml.safe_load(job_content)
     return job
 
 
 def _get_training_job(*args, **kwargs):
-    with open("dlrover/python/tests/data/elasticjob_sample.yaml", "r") as f:
-        job_content = f.read()
+    if _is_local():
+        with open("data/elasticjob_sample.yaml", "r") as f:
+            job_content = f.read()
+    else:
+        with open(
+            "dlrover/python/tests/data" "/elasticjob_sample.yaml", "r"
+        ) as f:
+            job_content = f.read()
     job = yaml.safe_load(job_content)
     return job
 

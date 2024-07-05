@@ -319,3 +319,9 @@ class NetworkCheckRendezvousManagerTest(unittest.TestCase):
         rank_d = {0: True}
         id_d = rdzv_manager._map_node_rank_to_id(rank_d)
         self.assertDictEqual(id_d, {1: True})
+
+    def test_when_node_not_init(self):
+        rdzv_manager = NetworkCheckRendezvousManager()
+        self.assertTrue(not rdzv_manager._rdzv_nodes)
+
+        rdzv_manager.check_fault_node()

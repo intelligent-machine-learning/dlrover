@@ -559,6 +559,10 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         allgather. If succeed, the round should be set to the multiples of 2.
         """
         with self._lock:
+            if not self._rdzv_nodes:
+                logger.warning(
+                    "Skip check for rdzv_nodes hasn't been initialized."
+                )
             reason = ""
             all_joined = len(self._reported_nodes) >= len(self._rdzv_nodes)
             if not all_joined:

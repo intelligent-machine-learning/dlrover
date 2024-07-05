@@ -501,6 +501,14 @@ class DistributedJobManagerTest(unittest.TestCase):
         msg = manager.early_stop()
         self.assertTrue(msg == "")
 
+    def test_when_node_not_init(self):
+        params = MockK8sPSJobArgs()
+        params.initilize()
+        manager = create_job_manager(params, SpeedMonitor())
+        self.assertTrue(not manager._job_nodes)
+
+        manager.update_node_resource_usage(NodeType.WORKER, 0, 10, 10240, None)
+
 
 class LocalJobManagerTest(unittest.TestCase):
     def test_local_job_manager(self):
