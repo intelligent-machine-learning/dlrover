@@ -16,7 +16,7 @@ from dlrover.python.master.diagnosis.diagnosis_data import DataManager
 from dlrover.python.master.diagnosis.inferencechain.common import (
     Inference,
     combine_inferences,
-    same_inference,
+    delete_inference,
 )
 from dlrover.python.master.diagnosis.inferencechain.inference_chain import (
     InferenceChain,
@@ -40,7 +40,7 @@ class Diagnostician:
             ic = InferenceChain(self._data_manager, init_infs, 10)
             observed_infs = ic.infer()
             # remove problem from the observed
-            observed_infs.remove(problem)
+            delete_inference(observed_infs, problem)
             infs = combine_inferences(infs, observed_infs)
         return infs
 

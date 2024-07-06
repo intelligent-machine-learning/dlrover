@@ -20,9 +20,7 @@ from dlrover.python.master.diagnosis.inferencechain.common import (
     InferenceOperator,
     combine_inferences,
 )
-from dlrover.python.master.diagnosis.operator.operator import (
-    register_operators,
-)
+from dlrover.python.master.diagnosis.operator.operator import register_operators
 
 
 class InferenceChain:

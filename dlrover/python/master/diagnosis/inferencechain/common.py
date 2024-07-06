@@ -19,6 +19,7 @@ from typing import List
 class InferenceName:
     END = "end"
     TRAINING = "training"
+    FAKE = "fake"
 
 
 class InferenceAttribute:
@@ -87,3 +88,10 @@ def combine_inferences(
         inferences.append(inference1)
 
     return inferences
+
+
+def delete_inference(infs: List[Inference], inf: Inference):
+    for i in range(len(infs)):
+        if same_inference(infs[i], inf):
+            del infs[i]
+            break
