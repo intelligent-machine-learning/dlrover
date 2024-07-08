@@ -138,6 +138,7 @@ class ElasticLaunchConfig(LaunchConfig):
     network_check: bool = False
     comm_perf_test: bool = False
     node_unit: int = 1
+    training_port: int = 60000
     auto_config: bool = False
     auto_tunning: bool = False
     exclude_straggler: bool = False
@@ -736,8 +737,11 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
     def sync_training_ports(self):
         logger.info(f"Accelerator: {self._config.accelerator}")
-        if self._config.accelerator == Accelerators.ASCEND_NPU:
-            start_port = 60000
+        if (
+            self._config.accelerator == Accelerators.ASCEND_NPU
+            and self._config.training_port > 0
+        ):
+            start_port = self._config.training_port
             port = 0
             logger.info("synchronize worker training ports...")
             count = 0

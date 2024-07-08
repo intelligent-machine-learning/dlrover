@@ -183,6 +183,14 @@ def parse_args(args):
         choices=[Accelerators.NVIDIA_GPU, Accelerators.ASCEND_NPU],
         help="The type of accelerator chip of the machine.",
     )
+    parser.add_argument(
+        "--training_port",
+        "--training-port",
+        type=int,
+        action=env,
+        default=60000,
+        help="The start of training port.",
+    )
     return parser.parse_args(args)
 
 
@@ -312,6 +320,7 @@ def _elastic_config_from_args(
         args, "exclude_straggler", False
     )
     elastic_config.set_node_unit(getattr(args, "node_unit", 1))
+    elastic_config.training_port = getattr(args, "training_port", 60000)
     elastic_config.save_at_breakpoint = getattr(
         args, "save_at_breakpoint", False
     )
@@ -342,7 +351,6 @@ def _check_to_use_dlrover_run(master_addr, max_nodes, timeout=120):
 def run(args):
     master_handler = None
     master_addr = os.getenv(NodeEnv.DLROVER_MASTER_ADDR, "")
-    use_dlrover_launch = False
     node_rank = env_utils.get_node_rank()
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     job_name = os.getenv(NodeEnv.JOB_NAME, f"standalone_{timestamp}")
