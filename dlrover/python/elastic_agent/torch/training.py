@@ -591,7 +591,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         role = spec.role
 
         logger.info(
-            f"[{role}] starting workers for entrypoint: "
+            f"[{role}] starting training workers for entrypoint: "
             f"{spec.get_entrypoint_name()}"
         )
 
@@ -949,7 +949,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
         role = spec.role
 
         logger.info(
-            f"[{role}] starting workers for entrypoint: "
+            f"[{role}] starting node-check workers for entrypoint: "
             f"{spec.get_entrypoint_name()}"
         )
         success = False
