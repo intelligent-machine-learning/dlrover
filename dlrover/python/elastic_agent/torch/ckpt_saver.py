@@ -24,8 +24,9 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import Callable, Dict, List, Mapping, Optional, Tuple
 
-import dlrover.python.util.file_util as fu
 import torch
+
+import dlrover.python.util.file_util as fu
 from dlrover.python.common import env_utils
 from dlrover.python.common.constants import CheckpointConstant, NodeEnv
 from dlrover.python.common.log import default_logger as logger

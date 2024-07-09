@@ -15,8 +15,10 @@ import datetime
 import os
 from unittest import mock
 
-import dlrover.python.util.k8s_util as ku
 import yaml
+from kubernetes import client
+
+import dlrover.python.util.k8s_util as ku
 from dlrover.proto import elastic_training_pb2
 from dlrover.python.common.constants import (
     DistributionStrategy,
@@ -33,7 +35,6 @@ from dlrover.python.master.shard.dataset_splitter import new_dataset_splitter
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.scheduler.job import JobArgs, LocalJobArgs, NodeArgs
 from dlrover.python.scheduler.kubernetes import k8sClient
-from kubernetes import client
 
 
 def _is_local():
