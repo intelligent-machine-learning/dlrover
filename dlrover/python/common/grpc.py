@@ -107,6 +107,8 @@ def find_free_port_in_set(ports):
 def find_free_port_for_hccl(start=60000) -> int:
     cur_start = start
     end = start + 10000
+    if end > 65000:
+        end = 65000
     logger.info(f"Try to find available port for hccl from {start}")
     while True:
         try:
