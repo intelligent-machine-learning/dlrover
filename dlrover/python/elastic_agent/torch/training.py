@@ -985,7 +985,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
                     time.sleep(3)
                     continue
             else:
-                return True
+                return success
         if self._node_rank in fault_nodes:
             self._client.report_failures(
                 NodeErrorMessage.NETWORKER_ERROR,
@@ -996,7 +996,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
             logger.warn("This node is a straggler!")
             if self._config.exclude_straggler:
                 raise RuntimeError("The node is a straggler and exits.")
-        return True
+        return success
 
     def _run_node_check(self, monitor_interval=3, timeout=300):
         self._initialize_workers(self._worker_group)
@@ -1163,7 +1163,6 @@ def run_network_check(config: ElasticLaunchConfig, entrypoint):
             config=config, entrypoint=entrypoint, args=cmd_args
         )
         if success:
-            logger.info("Node check passed.")
             break
         else:
             logger.error(
