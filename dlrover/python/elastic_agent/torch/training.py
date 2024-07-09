@@ -138,6 +138,7 @@ class ElasticLaunchConfig(LaunchConfig):
     network_check: bool = False
     comm_perf_test: bool = False
     node_unit: int = 1
+    training_port: int = 60000
     auto_config: bool = False
     auto_tunning: bool = False
     exclude_straggler: bool = False
@@ -590,7 +591,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         role = spec.role
 
         logger.info(
-            f"[{role}] starting workers for entrypoint: "
+            f"[{role}] starting training workers for entrypoint: "
             f"{spec.get_entrypoint_name()}"
         )
 
@@ -736,8 +737,11 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
     def sync_training_ports(self):
         logger.info(f"Accelerator: {self._config.accelerator}")
-        if self._config.accelerator == Accelerators.ASCEND_NPU:
-            start_port = 60000
+        if (
+            self._config.accelerator == Accelerators.ASCEND_NPU
+            and self._config.training_port > 0
+        ):
+            start_port = self._config.training_port
             port = 0
             logger.info("synchronize worker training ports...")
             count = 0
@@ -945,7 +949,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
         role = spec.role
 
         logger.info(
-            f"[{role}] starting workers for entrypoint: "
+            f"[{role}] starting node-check workers for entrypoint: "
             f"{spec.get_entrypoint_name()}"
         )
         success = False
@@ -985,7 +989,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
                     time.sleep(3)
                     continue
             else:
-                return True
+                return success
         if self._node_rank in fault_nodes:
             self._client.report_failures(
                 NodeErrorMessage.NETWORKER_ERROR,
@@ -996,7 +1000,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
             logger.warn("This node is a straggler!")
             if self._config.exclude_straggler:
                 raise RuntimeError("The node is a straggler and exits.")
-        return True
+        return success
 
     def _run_node_check(self, monitor_interval=3, timeout=300):
         self._initialize_workers(self._worker_group)
@@ -1163,7 +1167,6 @@ def run_network_check(config: ElasticLaunchConfig, entrypoint):
             config=config, entrypoint=entrypoint, args=cmd_args
         )
         if success:
-            logger.info("Node check passed.")
             break
         else:
             logger.error(

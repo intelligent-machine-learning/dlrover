@@ -26,6 +26,7 @@ from typing import Callable, Dict, List, Mapping, Optional, Tuple
 
 import torch
 
+import dlrover.python.util.file_util as fu
 from dlrover.python.common import env_utils
 from dlrover.python.common.constants import CheckpointConstant, NodeEnv
 from dlrover.python.common.log import default_logger as logger
@@ -1015,7 +1016,7 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
             tmp_paths[name] = path.replace(path_dir, temp_dir)
             if not ckpt_dir:
                 ckpt_dir = path_dir
-            elif ckpt_dir != path_dir:
+            elif not fu.is_same_path(ckpt_dir, path_dir):
                 raise ValueError(
                     "The directories must be same. The latest dir "
                     f"is {ckpt_dir} and the current dir  of {name} "

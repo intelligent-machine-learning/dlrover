@@ -351,7 +351,6 @@ class CheckpointEngine(metaclass=ABCMeta):
             return
         self._shm_handler.init_shared_memory()
         byte_tensor, meta = self._replica_manager.gather(self._shm_handler)
-        print(byte_tensor, meta, self._shm_handler.shared_memory)
         if (
             byte_tensor is not None
             and meta
