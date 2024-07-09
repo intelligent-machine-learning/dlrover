@@ -321,7 +321,7 @@ class DistributedJobManager(JobManager):
         while True:
             if self._stopped:
                 logger.info("Stop monitoring nodes.")
-                break;
+                break
             try:
                 nodes = self._node_watcher.list()
                 self._process_list_nodes(nodes)
@@ -345,7 +345,7 @@ class DistributedJobManager(JobManager):
         while True:
             if self._stopped:
                 logger.info("Stop monitoring the heart beat of nodes.")
-                break;
+                break
             with self._lock:
                 events = self._get_dead_node_event()
             for event in events:

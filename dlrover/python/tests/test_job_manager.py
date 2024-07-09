@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import threading
 import time
 import unittest
 from datetime import datetime, timedelta
@@ -508,6 +509,17 @@ class DistributedJobManagerTest(unittest.TestCase):
         self.assertTrue(not manager._job_nodes)
 
         manager.update_node_resource_usage(NodeType.WORKER, 0, 10, 10240, None)
+
+    def test_start_and_stop(self):
+        params = MockK8sPSJobArgs()
+        params.initilize()
+        manager = create_job_manager(params, SpeedMonitor())
+
+        manager.start()
+        active_threads_name = [t.name for t in threading.enumerate()]
+        self.assertIn("node_monitor", active_threads_name)
+        self.assertIn("node_heart_beat_monitor", active_threads_name)
+        manager.stop()
 
 
 class LocalJobManagerTest(unittest.TestCase):
