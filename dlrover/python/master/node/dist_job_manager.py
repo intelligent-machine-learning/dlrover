@@ -173,10 +173,13 @@ class DistributedJobManager(JobManager):
         if not self._has_running_workers():
             # The the job relaunches the evicted master, there are alive
             # worker nodes and the master does not need to launch workers.
+            logger.info(
+                "The newly master starts launching workers at beginning."
+            )
             self._scaler.scale(plan)
         else:
             logger.info(
-                "The recovered master skips launching workers at begining."
+                "The recovered master skips launching workers at beginning."
             )
         worker_num = 0
         if NodeType.WORKER in plan.node_group_resources:
