@@ -13,6 +13,7 @@
 
 from abc import ABCMeta, abstractmethod
 from datetime import datetime
+
 from dlrover.python.common.log import default_logger as logger
 
 
@@ -84,12 +85,9 @@ def should_relaunch_worker(log_file: str) -> bool:
     try:
         with open(log_file, "r") as f:
             error = "error code is 507035"
-            while True:
-                line = f.readline()
-                if not line:
-                    break
-                if error in line:
-                    return True
+            content = f.read()
+            if error in content:
+                return True
     except Exception as e:
         logger.error(f"fail to read log file {log_file}: {e}")
     return False

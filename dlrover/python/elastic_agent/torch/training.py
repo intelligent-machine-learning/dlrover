@@ -67,6 +67,7 @@ from dlrover.python.common.constants import (
     RendezvousName,
     TrainingExceptionLevel,
 )
+from dlrover.python.common.diagnosis import should_relaunch_worker
 from dlrover.python.common.grpc import (
     find_free_port_for_hccl,
     find_free_port_in_range,
@@ -81,7 +82,6 @@ from dlrover.python.elastic_agent.monitor.training import TorchTrainingMonitor
 from dlrover.python.elastic_agent.torch.ckpt_saver import AsyncCheckpointSaver
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
 from dlrover.trainer.torch.utils import version_less_than_230
-from dlrover.python.common.diagnosis import should_relaunch_worker
 
 try:
     from torch_npu.contrib import transfer_to_npu  # noqa: F401
@@ -631,7 +631,10 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 logger.error(f"The worker fails with {run_result.failures}")
                 self._report_failure_to_master(run_result.failures)
                 self._save_ckpt_to_storage()
-                if self._remaining_failovers > 0 and not should_relaunch_worker(self._log_file):
+                if (
+                    self._remaining_failovers > 0
+                    and not should_relaunch_worker(self._log_file)
+                ):
                     logger.info(
                         f"[{role}] Worker group {state.name}. "
                         f"{self._remaining_failovers}/{spec.max_restarts}"
