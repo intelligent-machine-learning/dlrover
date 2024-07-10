@@ -214,7 +214,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
 class ElasticTrainingAgentRunTest(unittest.TestCase):
     def setUp(self) -> None:
         self._master, addr = start_local_master()
-        MasterClient._instance = build_master_client(addr, 0.5)
+        MasterClient._instance = build_master_client(addr, 1)
         launch_config = LaunchConfig(
             min_nodes=1,
             max_nodes=1,

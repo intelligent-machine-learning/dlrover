@@ -14,6 +14,8 @@
 from abc import ABCMeta, abstractmethod
 from datetime import datetime
 
+from dlrover.python.common.log import default_logger as logger
+
 
 class DiagnosisDataType:
     CUDALOG = "cuda_log"
@@ -50,6 +52,7 @@ class CudaLog(DiagnosisData):
 
 class TrainingLog(DiagnosisData):
     def __init__(self, timestamp: int):
+        super().__init__()
         if timestamp == 0:
             self.timestamp = int(round(datetime.now().timestamp()))
         else:
@@ -74,3 +77,18 @@ class ChipMetrics(DiagnosisData):
 
     def get_type(self) -> str:
         return DiagnosisDataType.CHIPMETRICES
+
+
+def node_failed(log_file: str) -> bool:
+    if len(log_file) == 0:
+        return False
+    errors = ["error code is 507035"]
+    try:
+        with open(log_file, "r") as f:
+            content = f.read()
+            for error in errors:
+                if error in content:
+                    return True
+    except Exception as e:
+        logger.error(f"fail to read log file {log_file}: {e}")
+    return False

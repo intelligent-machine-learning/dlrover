@@ -67,6 +67,7 @@ from dlrover.python.common.constants import (
     RendezvousName,
     TrainingExceptionLevel,
 )
+from dlrover.python.common.diagnosis import node_failed
 from dlrover.python.common.grpc import (
     find_free_port_for_hccl,
     find_free_port_in_range,
@@ -146,6 +147,7 @@ class ElasticLaunchConfig(LaunchConfig):
     accelerator: str = ""
     log_dir: Optional[str] = None  # Keep Compatibility with PyTorch>=2.3.0
     redirects: Union[Std, Dict[int, Std]] = Std.NONE
+    log_file: str = ""
 
     def set_node_unit(self, node_unit):
         """Set the number unint of ndoes."""
@@ -408,6 +410,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
         self._save_ckpt_executor = ThreadPoolExecutor(max_workers=1)
         self._save_ckpt_future = None
+        self._log_file = config.log_file
 
     @prof
     def _rendezvous(self, worker_group: WorkerGroup) -> None:
@@ -629,7 +632,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 logger.error(f"The worker fails with {run_result.failures}")
                 self._report_failure_to_master(run_result.failures)
                 self._save_ckpt_to_storage()
-                if self._remaining_failovers > 0:
+                if self._remaining_failovers > 0 and not node_failed(
+                    self._log_file
+                ):
                     logger.info(
                         f"[{role}] Worker group {state.name}. "
                         f"{self._remaining_failovers}/{spec.max_restarts}"
@@ -802,6 +807,7 @@ def launch_agent(
         f"  monitor_interval : {config.monitor_interval}\n"
         f"  log_dir          : {config.log_dir}\n"
         f"  metrics_cfg      : {config.metrics_cfg}\n"
+        f"  log_file         : {config.log_file}\n"
     )
 
     _set_paral_config()

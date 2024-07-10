@@ -11,20 +11,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dlrover.python.common.diagnosis import TrainingLog
-from dlrover.python.elastic_agent.datacollector.data_collector import (
-    DataCollector,
-)
+import os
+import unittest
+
+from dlrover.python.common.diagnosis import node_failed
 
 
-class LogCollector(DataCollector):
-    def __init__(self, *args, **kwargs):
-        super().__init__()
+class DiagnosisTest(unittest.TestCase):
+    def setUp(self):
         pass
 
-    def collect_data(self) -> object:
-        log = TrainingLog(0)
-        return log
+    def tearDown(self):
+        pass
 
-    def to_collect_data(self) -> bool:
-        return True
+    def test_should_relaunch_worker(self):
+        file = "data/training.log"
+        path = os.path.dirname(__file__)
+        file_path = os.path.join(path, file)
+        self.assertTrue(node_failed(file_path))
