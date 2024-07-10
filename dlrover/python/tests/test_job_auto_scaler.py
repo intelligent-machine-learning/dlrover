@@ -85,6 +85,10 @@ class JobAutoScalerTest(unittest.TestCase):
         auto_scaler.stop_auto_scaling()
         self.assertFalse(auto_scaler._autoscaling_started)
 
+        plan = None
+        scale_plan = auto_scaler.execute_job_optimization_plan(plan)
+        self.assertIsNotNone(scale_plan)
+
     def test_reduce_timeout_pending_node_resource(self):
         params = MockK8sPSJobArgs()
         params.initilize()
