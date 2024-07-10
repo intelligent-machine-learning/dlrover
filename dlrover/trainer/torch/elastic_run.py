@@ -184,6 +184,14 @@ def parse_args(args):
         help="The type of accelerator chip of the machine.",
     )
     parser.add_argument(
+        "--log_file",
+        "--log-file",
+        type=str,
+        action=env,
+        default="",
+        help="The training log file.",
+    )
+    parser.add_argument(
         "--training_port",
         "--training-port",
         type=int,
@@ -324,6 +332,7 @@ def _elastic_config_from_args(
     elastic_config.save_at_breakpoint = getattr(
         args, "save_at_breakpoint", False
     )
+    elastic_config.log_file = getattr(args, "log_file", "")
     elastic_config.auto_configure_params()
     elastic_config.rdzv_backend = "dlrover-master"
     elastic_config.rdzv_endpoint = ""
