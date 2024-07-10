@@ -14,7 +14,7 @@
 import os
 import unittest
 
-from dlrover.python.common.diagnosis import should_relaunch_worker
+from dlrover.python.common.diagnosis import node_failed
 
 
 class DiagnosisTest(unittest.TestCase):
@@ -28,5 +28,4 @@ class DiagnosisTest(unittest.TestCase):
         file = "data/training.log"
         path = os.path.dirname(__file__)
         file_path = os.path.join(path, file)
-        to_relaunch = should_relaunch_worker(file_path)
-        self.assertTrue(to_relaunch)
+        self.assertTrue(node_failed(file_path))

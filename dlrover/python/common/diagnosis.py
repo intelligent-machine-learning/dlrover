@@ -79,15 +79,16 @@ class ChipMetrics(DiagnosisData):
         return DiagnosisDataType.CHIPMETRICES
 
 
-def should_relaunch_worker(log_file: str) -> bool:
+def node_failed(log_file: str) -> bool:
     if len(log_file) == 0:
         return False
+    errors = ["error code is 507035"]
     try:
         with open(log_file, "r") as f:
-            error = "error code is 507035"
             content = f.read()
-            if error in content:
-                return True
+            for error in errors:
+                if error in content:
+                    return True
     except Exception as e:
         logger.error(f"fail to read log file {log_file}: {e}")
     return False

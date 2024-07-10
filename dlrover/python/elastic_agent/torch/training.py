@@ -67,7 +67,7 @@ from dlrover.python.common.constants import (
     RendezvousName,
     TrainingExceptionLevel,
 )
-from dlrover.python.common.diagnosis import should_relaunch_worker
+from dlrover.python.common.diagnosis import node_failed
 from dlrover.python.common.grpc import (
     find_free_port_for_hccl,
     find_free_port_in_range,
@@ -632,9 +632,8 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 logger.error(f"The worker fails with {run_result.failures}")
                 self._report_failure_to_master(run_result.failures)
                 self._save_ckpt_to_storage()
-                if (
-                    self._remaining_failovers > 0
-                    and not should_relaunch_worker(self._log_file)
+                if self._remaining_failovers > 0 and not node_failed(
+                    self._log_file
                 ):
                     logger.info(
                         f"[{role}] Worker group {state.name}. "
