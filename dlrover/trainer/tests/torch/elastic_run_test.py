@@ -73,7 +73,6 @@ class ElasticRunTest(unittest.TestCase):
             "16",
         ]
         args = parse_args(args)
-        print(args)
         config, cmd, cmd_args = _elastic_config_from_args(args)
         self.assertTrue(config.network_check)
         self.assertTrue(config.comm_perf_test)
