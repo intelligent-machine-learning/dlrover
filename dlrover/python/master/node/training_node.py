@@ -392,6 +392,9 @@ class TrainingNodeConfigure:
                     next_check_port=self._next_check_node_training_port,
                 )
             self._recv_node_training_ports[node_id] = port
+            logger.info(
+                f"recv ports from: {self._recv_node_training_ports.keys()}"
+            )
             if len(self._recv_node_training_ports) == self._n_node:
                 min_port = 0
                 max_port = 0

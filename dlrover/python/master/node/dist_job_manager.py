@@ -173,10 +173,13 @@ class DistributedJobManager(JobManager):
         if not self._has_running_workers():
             # The the job relaunches the evicted master, there are alive
             # worker nodes and the master does not need to launch workers.
+            logger.info(
+                "The newly master starts launching workers at beginning."
+            )
             self._scaler.scale(plan)
         else:
             logger.info(
-                "The recovered master skips launching workers at begining."
+                "The recovered master skips launching workers at beginning."
             )
         worker_num = 0
         if NodeType.WORKER in plan.node_group_resources:
@@ -319,10 +322,13 @@ class DistributedJobManager(JobManager):
     def _monitor_nodes(self):
         logger.info("Start monitoring nodes events.")
         while True:
+            if self._stopped:
+                logger.info("Stop monitoring nodes.")
+                break
             try:
                 nodes = self._node_watcher.list()
                 self._process_list_nodes(nodes)
-                if self._stop_monitor:
+                if self._stopped:
                     logger.info("Stop processing node events")
                     break
                 for event in self._node_watcher.watch():
@@ -340,6 +346,9 @@ class DistributedJobManager(JobManager):
     def _monitor_node_heart_beat(self):
         logger.info("Start monitoring the heart beat of nodes.")
         while True:
+            if self._stopped:
+                logger.info("Stop monitoring the heart beat of nodes.")
+                break
             with self._lock:
                 events = self._get_dead_node_event()
             for event in events:
@@ -389,8 +398,8 @@ class DistributedJobManager(JobManager):
         logger.info("Start to monitor Scaler CRD")
         while True:
             try:
-                if self._stop_monitor:
-                    logger.info("Stop monitoring Scaler CRDs")
+                if self._stopped:
+                    logger.info("Stop monitoring Scaler CRDs.")
                     break
                 for plan in self._scaler_watcher.watch():
                     try:
@@ -715,11 +724,16 @@ class DistributedJobManager(JobManager):
                 node.eval_time = self._speed_monitor.get_worker_eval_time(
                     node.id
                 )
-        self._stop_monitor = True
+        self._stopped = True
 
     def update_node_resource_usage(
         self, node_type, node_id, cpu, memory, gpu_stats=[]
     ):
+        if not self._job_nodes:
+            logger.warning(
+                "Skip updating for job_nodes hasn't been initialized."
+            )
+            return
         node = self._job_nodes[node_type][node_id]
         node.update_resource_usage(cpu, memory, gpu_stats)
         cpu_percent = node.used_resource.cpu / node.config_resource.cpu

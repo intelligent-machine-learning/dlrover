@@ -60,7 +60,7 @@ class RendezvousManager(metaclass=ABCMeta):
         self._lock = Lock()
         self._alive_nodes = set()
         self._released_workers = []
-        # key is the node rank.
+        # for both '_waiting_nodes' and '_rdzv_nodes', key is the node rank.
         self._waiting_nodes: Dict[int, NodeTopologyMeta] = {}
         self._rdzv_nodes: Dict[int, NodeTopologyMeta] = OrderedDict()
         self._lastcall_time = 0
@@ -313,7 +313,7 @@ class RendezvousManager(metaclass=ABCMeta):
         Returns:
             rdzv_round: the round index.
             group: the group index.
-            world: Dict like {0: 8, 1: 8, 2: 8} where the key is the node ID
+            world: Dict like {0: 8, 1: 8, 2: 8} where the key is the rank ID
             and the value is the local world size of the node.
         """
         pass
@@ -360,7 +360,7 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
         Returns:
             rdzv_round: the round index.
             group: the group index.
-            world: Dict like {0: 8, 1: 8, 2: 8} where the key is the node ID
+            world: Dict like {0: 8, 1: 8, 2: 8} where the key is the rank ID
             and the value is the local world size of the node.
         """
         with self._lock:
@@ -559,6 +559,10 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         allgather. If succeed, the round should be set to the multiples of 2.
         """
         with self._lock:
+            if not self._rdzv_nodes:
+                logger.warning(
+                    "Skip check for rdzv_nodes hasn't been initialized."
+                )
             reason = ""
             all_joined = len(self._reported_nodes) >= len(self._rdzv_nodes)
             if not all_joined:

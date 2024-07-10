@@ -15,6 +15,8 @@ from abc import ABCMeta, abstractmethod
 from datetime import datetime
 from typing import List, Dict, Set
 
+from dlrover.python.common.log import default_logger as logger
+
 
 class DiagnosisDataType:
     CUDALOG = "cuda_log"
@@ -149,3 +151,19 @@ def format_rank_str(world_size: int, ranks: Set[int]) -> str:
     has_stack_ranks = _inner_format(ranks)
     leak_stack_ranks = _inner_format(leak_ranks)
     return f"{has_stack_ranks}|{leak_stack_ranks}"
+
+
+def node_failed(log_file: str) -> bool:
+    if len(log_file) == 0:
+        return False
+    errors = ["error code is 507035"]
+    try:
+        with open(log_file, "r") as f:
+            content = f.read()
+            for error in errors:
+                if error in content:
+                    return True
+    except Exception as e:
+        logger.error(f"fail to read log file {log_file}: {e}")
+    return False
+

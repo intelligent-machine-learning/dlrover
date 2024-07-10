@@ -11,23 +11,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dlrover.python.common.diagnosis import TrainingLog
-from dlrover.python.elastic_agent.datacollector.data_collector import (
-    DataCollector,
-)
+from pathlib import Path
 
 
-class LogCollector(DataCollector):
-    def __init__(self, *args, **kwargs):
-        super().__init__()
-        pass
+def is_same_path(path1: str, path2: str):
+    """
+    Is target path the same.
 
-    def collect_data(self) -> object:
-        log = TrainingLog(0)
-        return log
+    Args:
+        path1 (str): Path 1.
+        path2 (str): Path 2.
 
-    def to_collect_data(self) -> bool:
-        return True
+    Returns:
+        result
+    """
 
-    def get_name(self) -> str:
-        return "log_collector"
+    return Path(path1).resolve() == Path(path2).resolve()

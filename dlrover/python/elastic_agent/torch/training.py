@@ -67,6 +67,7 @@ from dlrover.python.common.constants import (
     RendezvousName,
     TrainingExceptionLevel,
 )
+from dlrover.python.common.diagnosis import node_failed
 from dlrover.python.common.grpc import (
     find_free_port_for_hccl,
     find_free_port_in_range,
@@ -138,6 +139,7 @@ class ElasticLaunchConfig(LaunchConfig):
     network_check: bool = False
     comm_perf_test: bool = False
     node_unit: int = 1
+    training_port: int = 60000
     auto_config: bool = False
     auto_tunning: bool = False
     exclude_straggler: bool = False
@@ -145,6 +147,7 @@ class ElasticLaunchConfig(LaunchConfig):
     accelerator: str = ""
     log_dir: Optional[str] = None  # Keep Compatibility with PyTorch>=2.3.0
     redirects: Union[Std, Dict[int, Std]] = Std.NONE
+    log_file: str = ""
 
     def set_node_unit(self, node_unit):
         """Set the number unint of ndoes."""
@@ -407,6 +410,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
         self._save_ckpt_executor = ThreadPoolExecutor(max_workers=1)
         self._save_ckpt_future = None
+        self._log_file = config.log_file
 
     @prof
     def _rendezvous(self, worker_group: WorkerGroup) -> None:
@@ -590,7 +594,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         role = spec.role
 
         logger.info(
-            f"[{role}] starting workers for entrypoint: "
+            f"[{role}] starting training workers for entrypoint: "
             f"{spec.get_entrypoint_name()}"
         )
 
@@ -628,7 +632,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 logger.error(f"The worker fails with {run_result.failures}")
                 self._report_failure_to_master(run_result.failures)
                 self._save_ckpt_to_storage()
-                if self._remaining_failovers > 0:
+                if self._remaining_failovers > 0 and not node_failed(
+                    self._log_file
+                ):
                     logger.info(
                         f"[{role}] Worker group {state.name}. "
                         f"{self._remaining_failovers}/{spec.max_restarts}"
@@ -736,8 +742,11 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
     def sync_training_ports(self):
         logger.info(f"Accelerator: {self._config.accelerator}")
-        if self._config.accelerator == Accelerators.ASCEND_NPU:
-            start_port = 60000
+        if (
+            self._config.accelerator == Accelerators.ASCEND_NPU
+            and self._config.training_port > 0
+        ):
+            start_port = self._config.training_port
             port = 0
             logger.info("synchronize worker training ports...")
             count = 0
@@ -798,6 +807,7 @@ def launch_agent(
         f"  monitor_interval : {config.monitor_interval}\n"
         f"  log_dir          : {config.log_dir}\n"
         f"  metrics_cfg      : {config.metrics_cfg}\n"
+        f"  log_file         : {config.log_file}\n"
     )
 
     _set_paral_config()
@@ -945,7 +955,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
         role = spec.role
 
         logger.info(
-            f"[{role}] starting workers for entrypoint: "
+            f"[{role}] starting node-check workers for entrypoint: "
             f"{spec.get_entrypoint_name()}"
         )
         success = False
@@ -985,7 +995,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
                     time.sleep(3)
                     continue
             else:
-                return True
+                return success
         if self._node_rank in fault_nodes:
             self._client.report_failures(
                 NodeErrorMessage.NETWORKER_ERROR,
@@ -996,7 +1006,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
             logger.warn("This node is a straggler!")
             if self._config.exclude_straggler:
                 raise RuntimeError("The node is a straggler and exits.")
-        return True
+        return success
 
     def _run_node_check(self, monitor_interval=3, timeout=300):
         self._initialize_workers(self._worker_group)
@@ -1163,7 +1173,6 @@ def run_network_check(config: ElasticLaunchConfig, entrypoint):
             config=config, entrypoint=entrypoint, args=cmd_args
         )
         if success:
-            logger.info("Node check passed.")
             break
         else:
             logger.error(

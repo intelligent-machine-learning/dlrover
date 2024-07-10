@@ -1,4 +1,4 @@
-# Copyright 2024 The DLRover Authors. All rights reserved.
+# Copyright 2022 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -11,23 +11,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dlrover.python.common.diagnosis import TrainingLog
-from dlrover.python.elastic_agent.datacollector.data_collector import (
-    DataCollector,
-)
+import unittest
+
+import dlrover.python.util.file_util as fu
 
 
-class LogCollector(DataCollector):
-    def __init__(self, *args, **kwargs):
-        super().__init__()
-        pass
-
-    def collect_data(self) -> object:
-        log = TrainingLog(0)
-        return log
-
-    def to_collect_data(self) -> bool:
-        return True
-
-    def get_name(self) -> str:
-        return "log_collector"
+class FileUtilTest(unittest.TestCase):
+    def test_is_same_path(self):
+        self.assertTrue(fu.is_same_path("/foo/bar", "/foo/bar"))
+        self.assertTrue(fu.is_same_path("/foo/bar", "/foo//bar"))
+        self.assertFalse(fu.is_same_path("/foo/bar", "/foo/bar0"))
