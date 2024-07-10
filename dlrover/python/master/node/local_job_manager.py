@@ -102,7 +102,7 @@ class LocalJobManager(JobManager):
         pass
 
     def stop(self):
-        self._stop_monitor = True
+        self._stopped = True
 
     def update_node_service_addr(self, node_type, node_id, service_addr):
         pass
