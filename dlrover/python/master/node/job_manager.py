@@ -45,7 +45,7 @@ class JobManager(metaclass=ABCMeta):
             SimpleStrategyGenerator(self._job_args.job_uuid)
         )
 
-        self._stop_monitor = False
+        self._stopped = False
         self._speed_monitor: SpeedMonitor = speed_monitor
         self._error_monitor: ErrorMonitor = error_monitor
 
