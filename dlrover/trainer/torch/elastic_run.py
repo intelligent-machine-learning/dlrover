@@ -191,6 +191,14 @@ def parse_args(args):
         default="",
         help="The training log file.",
     )
+    parser.add_argument(
+        "--training_port",
+        "--training-port",
+        type=int,
+        action=env,
+        default=60000,
+        help="The start of training port.",
+    )
     return parser.parse_args(args)
 
 
@@ -320,6 +328,7 @@ def _elastic_config_from_args(
         args, "exclude_straggler", False
     )
     elastic_config.set_node_unit(getattr(args, "node_unit", 1))
+    elastic_config.training_port = getattr(args, "training_port", 60000)
     elastic_config.save_at_breakpoint = getattr(
         args, "save_at_breakpoint", False
     )
