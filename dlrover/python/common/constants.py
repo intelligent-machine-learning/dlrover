@@ -304,7 +304,7 @@ class Accelerators(object):
 
 
 class Diagnosis(object):
-    CUDA_LOG_PATH = "CUDA_LOG_PATH"
+    CUDA_LOG_PATH = "XPU_TIMER_TIMELINE_PATH"
 
 
 class AscendConstants(object):
