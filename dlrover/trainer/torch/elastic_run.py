@@ -86,7 +86,6 @@ For auto-tuning parallelism configuration, you need to specify:
 
 1. ``--auto-tunning``: Whether to auto tune the batch size and learning rate.
 """
-import logging
 import os
 import socket
 import sys
@@ -412,5 +411,5 @@ def main(args=None):
 
 
 if __name__ == "__main__":
-    logging.info(f"DLRover started with: {cu.get_dlrover_version()}.")
+    logger.info(f"DLRover started with: {cu.get_dlrover_version()}.")
     main()
