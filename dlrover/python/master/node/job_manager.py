@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import threading
 from abc import ABCMeta, abstractclassmethod
 from typing import Dict
 
@@ -50,6 +51,7 @@ class JobManager(metaclass=ABCMeta):
         self._error_monitor: ErrorMonitor = error_monitor
 
         self._job_nodes: Dict[str, Dict[int, Node]] = {}
+        self._job_nodes_lock = threading.Lock()
 
         self._training_node_configure = TrainingNodeConfigure()
 
