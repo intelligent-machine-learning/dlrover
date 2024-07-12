@@ -19,3 +19,4 @@ import dlrover.python.util.common_util as cu
 class CommonUtilTest(unittest.TestCase):
     def test_get_dlrover_version(self):
         self.assertIsNotNone(cu.get_dlrover_version())
+        self.assertNotEquals(cu.get_dlrover_version(), "Unknown")

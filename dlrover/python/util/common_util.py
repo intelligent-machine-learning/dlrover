@@ -13,11 +13,30 @@
 
 import importlib.metadata
 
+import dlrover.python.util.file_util as fu
+
 
 def get_dlrover_version():
     """Get the installed dlrover version."""
 
-    return get_installed_version("dlrover")
+    version = get_installed_version("dlrover")
+    if not version:
+        # get from setup.py
+        setup_file = fu.find_file_in_parents("setup.py")
+        if not setup_file:
+            return get_version_from_setup(setup_file)
+    return "Unknown"
+
+
+def get_version_from_setup(setup_file):
+    with open(setup_file, "r") as f:
+        setup_content = f.read()
+
+    version_match = re.search(r"version=['\"]([^'\"]+)['\"]", setup_content)
+    if version_match:
+        return version_match.group(1)
+    else:
+        raise ValueError("Version not found in setup.py.")
 
 
 def get_installed_version(package_name):

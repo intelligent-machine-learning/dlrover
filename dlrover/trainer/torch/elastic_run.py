@@ -105,6 +105,7 @@ from torch.distributed.run import (
     parse_min_max_nnodes,
 )
 
+import dlrover.python.util.common_util as cu
 from dlrover.python.common import env_utils, grpc
 from dlrover.python.common.constants import (
     Accelerators,
@@ -118,7 +119,6 @@ from dlrover.python.elastic_agent.torch.training import (
     ElasticLaunchConfig,
     launch_agent,
 )
-import dlrover.python.util.common_util as cu
 from dlrover.trainer.torch.utils import version_less_than_230
 
 

@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from pathlib import Path
 
 
@@ -27,3 +28,34 @@ def is_same_path(path1: str, path2: str):
     """
 
     return Path(path1).resolve() == Path(path2).resolve()
+
+
+def find_file_in_parents(filename, start_dir=None):
+    """
+    Find target file in parent directories.
+
+    Args:
+        filename (str): Target filename.
+        start_dir (str, optional): Target directory. Defaults to None(from current directory).
+
+    Returns:
+        result: The target file path.
+    """
+
+    if start_dir is None:
+        start_dir = os.path.abspath(os.curdir)
+
+    current_dir = start_dir
+
+    while True:
+        file_path = os.path.join(current_dir, filename)
+
+        if os.path.isfile(file_path):
+            return file_path
+
+        parent_dir = os.path.dirname(current_dir)
+
+        if parent_dir == current_dir:
+            return None
+
+        current_dir = parent_dir

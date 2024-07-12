@@ -21,3 +21,6 @@ class FileUtilTest(unittest.TestCase):
         self.assertTrue(fu.is_same_path("/foo/bar", "/foo/bar"))
         self.assertTrue(fu.is_same_path("/foo/bar", "/foo//bar"))
         self.assertFalse(fu.is_same_path("/foo/bar", "/foo/bar0"))
+
+    def test_find_file_in_parents(self):
+        self.assertIsNotNone(fu.find_file_in_parents("setup.py"))
