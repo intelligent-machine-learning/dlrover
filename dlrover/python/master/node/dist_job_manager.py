@@ -486,6 +486,10 @@ class DistributedJobManager(JobManager):
         # the state change condition
         if event.event_type == "exit":
             self.close_job()
+            if not self._error_monitor:
+                self._error_monitor.report_event(
+                    "info", self._job_args.job_name, "stop", "", {},
+                )
         new_status = event.node.status
         with self._lock:
             old_status = cur_node.status
@@ -516,9 +520,18 @@ class DistributedJobManager(JobManager):
             f"{cur_node.name} status change: {old_status} to {new_status} "
             f"by the event {event.event_type}. "
         )
+        action = f"status change from {old_status} to {new_status}"
+        detail_msg = ""
+        event_type = "info"
         if new_status in [NodeStatus.FAILED, NodeStatus.DELETED]:
             msg += f"Exit reason is {cur_node.exit_reason}"
+            detail_msg = cur_node.exit_reason
+            event_type = "error"
         logger.info(msg)
+        if not self._error_monitor:
+            self._error_monitor.report_event(
+                event_type, cur_node.name, action, detail_msg, {},
+            )
 
         if should_relaunch:
             self._relaunch_node(cur_node)

@@ -44,6 +44,7 @@ from dlrover.python.master.servicer import create_master_service
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.master.stats.job_collector import JobMetricCollector
 from dlrover.python.scheduler.job import JobArgs
+from dlrover.python.master.monitor.error_monitor import ErrorMonitor
 
 
 def _create_elastic_ps_service_if_needed(params: JobArgs):
@@ -103,7 +104,7 @@ class DistributedJobMaster(JobMaster):
     ElasticPSService: manages the hosts of alive PS nodes in a PS training job.
     """
 
-    def __init__(self, port, args: JobArgs):
+    def __init__(self, port, args: JobArgs, error_monitor: ErrorMonitor = None):
         if args.platform in [
             PlatformType.KUBERNETES,
             PlatformType.PY_KUBERNETES,
@@ -133,8 +134,8 @@ class DistributedJobMaster(JobMaster):
         )
         elastic_training = RendezvousName.ELASTIC_TRAINING
         self.rdzv_managers: Dict[str, RendezvousManager] = {
-            elastic_training: ElasticTrainingRendezvousManager(),
-            RendezvousName.NETWORK_CHECK: NetworkCheckRendezvousManager(),
+            elastic_training: ElasticTrainingRendezvousManager(error_monitor),
+            RendezvousName.NETWORK_CHECK: NetworkCheckRendezvousManager(error_monitor),
         }
         self.job_metric_collector = self._create_metric_collector_if_needed(
             args

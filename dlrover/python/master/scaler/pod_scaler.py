@@ -44,6 +44,7 @@ from dlrover.python.scheduler.kubernetes import (
     k8sServiceFactory,
     set_container_resource,
 )
+from dlrover.python.master.monitor.error_monitor import ErrorMonitor
 
 _dlrover_context = Context.singleton_instance()
 
@@ -82,7 +83,7 @@ class PodScaler(Scaler):
     in a queue.
     """
 
-    def __init__(self, job_name, namespace):
+    def __init__(self, job_name, namespace, error_monitor: ErrorMonitor = None):
         super(PodScaler, self).__init__(job_name)
         self._k8s_client = k8sClient.singleton_instance(namespace)
         self._svc_factory = k8sServiceFactory(namespace, job_name)
@@ -96,6 +97,7 @@ class PodScaler(Scaler):
         self._job_uid = ""
         self.api_client = client.ApiClient()
         self._master_addr = ""
+        self._error_monitor = error_monitor
 
     def start(self):
         self._job = self._retry_to_get_job()
@@ -492,6 +494,13 @@ class PodScaler(Scaler):
             V1EnvVar(name=NodeEnv.MONITOR_ENABLED, value="true")
         )
         self._patch_tf_config_into_env(pod, node, pod_stats, ps_addrs)
+        self._error_monitor.report_event(
+            "info",
+            pod_name,
+            "create",
+            "",
+            {},
+        )
         return pod
 
     def _check_master_service_avaliable(self, host, port, timeout=15):
