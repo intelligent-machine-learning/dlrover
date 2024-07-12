@@ -15,6 +15,7 @@ from abc import ABCMeta, abstractmethod
 from datetime import datetime
 
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.common.file import read_last_n_lines
 
 
 class DiagnosisDataType:
@@ -83,12 +84,10 @@ def node_failed(log_file: str) -> bool:
     if len(log_file) == 0:
         return False
     errors = ["error code is 507035"]
-    try:
-        with open(log_file, "r") as f:
-            content = f.read()
-            for error in errors:
-                if error in content:
-                    return True
-    except Exception as e:
-        logger.error(f"fail to read log file {log_file}: {e}")
+
+    lines = read_last_n_lines(log_file, 500)
+    for line in lines:
+        for error in errors:
+            if error in str(line):
+                return True
     return False
