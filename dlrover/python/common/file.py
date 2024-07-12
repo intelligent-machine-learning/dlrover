@@ -1,10 +1,24 @@
+# Copyright 2024 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from typing import List
+
 from dlrover.python.common.log import default_logger as logger
 
 
-def read_last_n_lines(filepath: str, n_lines: int) -> List[str]:
+def read_last_n_lines(filepath: str, n_lines: int) -> List[bytearray]:
     try:
-        with open(filepath, 'rb') as f:
+        with open(filepath, "rb") as f:
             remain_lines = n_lines
             block_size = 1024
             buffer = bytearray()
@@ -19,9 +33,9 @@ def read_last_n_lines(filepath: str, n_lines: int) -> List[str]:
                 total_size -= read_size
                 f.seek(-read_size, 1)
 
-                remain_lines -= buffer.count(b'\n')
+                remain_lines -= buffer.count(b"\n")
 
-            lines = buffer.split(b'\n')
+            lines = buffer.split(b"\n")
             return lines[-n_lines:]
     except Exception as e:
         logger.error(f"fail to read {n_lines} line from {filepath}: {e}")

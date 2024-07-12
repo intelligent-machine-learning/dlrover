@@ -14,7 +14,6 @@
 from abc import ABCMeta, abstractmethod
 from datetime import datetime
 
-from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.file import read_last_n_lines
 
 

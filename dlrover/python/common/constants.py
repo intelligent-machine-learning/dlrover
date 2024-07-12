@@ -231,7 +231,6 @@ class NodeEnv(object):
     TRAINING_LOG_FILE = "TRAINING_LOG_FILE"
 
 
-
 class DatasetType(object):
     TEXT = "text"
     MAXCOMPUTE_TABLE = "maxcompute_table"
