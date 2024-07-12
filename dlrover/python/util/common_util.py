@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import importlib.metadata
+import re
 
 import dlrover.python.util.file_util as fu
 
@@ -25,7 +26,8 @@ def get_dlrover_version():
         setup_file = fu.find_file_in_parents("setup.py")
         if not setup_file:
             return get_version_from_setup(setup_file)
-    return "Unknown"
+        return "Unknown"
+    return version
 
 
 def get_version_from_setup(setup_file):

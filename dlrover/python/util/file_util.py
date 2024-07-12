@@ -36,7 +36,8 @@ def find_file_in_parents(filename, start_dir=None):
 
     Args:
         filename (str): Target filename.
-        start_dir (str, optional): Target directory. Defaults to None(from current directory).
+        start_dir (str, optional): Target directory. Defaults to None(from
+            current directory).
 
     Returns:
         result: The target file path.
