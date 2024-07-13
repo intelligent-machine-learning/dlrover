@@ -51,7 +51,6 @@ class JobManager(metaclass=ABCMeta):
         self._error_monitor: ErrorMonitor = error_monitor
 
         self._job_nodes: Dict[str, Dict[int, Node]] = {}
-        self._job_nodes_lock = threading.Lock()
 
         self._training_node_configure = TrainingNodeConfigure()
 

@@ -363,36 +363,35 @@ class DistributedJobManager(JobManager):
     def _get_dead_node_event(self, window_interval=300) -> List[NodeEvent]:
         now = time.time()
         dead_events = []
-        with self._job_nodes_lock:
-            for _, nodes in self._job_nodes.items():
-                for _, node in nodes.items():
-                    if (
-                        node.heartbeat_time > 0
-                        and now - node.heartbeat_time > window_interval
-                        and node.status == NodeStatus.RUNNING
-                    ):
-                        event_node = copy.deepcopy(node)
-                        event_node.status = NodeStatus.FAILED
-                        event_node.exit_reason = NodeExitReason.NO_HEARTBEAT
-                        event = NodeEvent(
-                            event_type=NodeEventType.DELETED,
-                            node=event_node,
-                        )
-                        dead_events.append(event)
-                        error_data = (
-                            f"No heartbeat for over {window_interval} seconds."
-                        )
-                        self._error_monitor.process_error(
-                            node,
-                            node.relaunch_count,
-                            error_data,
-                            TrainingExceptionLevel.NODE_ERROR,
-                        )
-                        logger.warning(
-                            f"The node {node.name} has not sent a heartbeat "
-                            f"for over {window_interval} seconds, "
-                            f"last heartbeat: {node.heartbeat_time}."
-                        )
+        for _, nodes in self._job_nodes.items():
+            for _, node in nodes.items():
+                if (
+                    node.heartbeat_time > 0
+                    and now - node.heartbeat_time > window_interval
+                    and node.status == NodeStatus.RUNNING
+                ):
+                    event_node = copy.deepcopy(node)
+                    event_node.status = NodeStatus.FAILED
+                    event_node.exit_reason = NodeExitReason.NO_HEARTBEAT
+                    event = NodeEvent(
+                        event_type=NodeEventType.DELETED,
+                        node=event_node,
+                    )
+                    dead_events.append(event)
+                    error_data = (
+                        f"No heartbeat for over {window_interval} seconds."
+                    )
+                    self._error_monitor.process_error(
+                        node,
+                        node.relaunch_count,
+                        error_data,
+                        TrainingExceptionLevel.NODE_ERROR,
+                    )
+                    logger.warning(
+                        f"The node {node.id}-{node.name} has not sent a "
+                        f"heartbeat for over {window_interval} seconds, "
+                        f"last heartbeat: {node.heartbeat_time}."
+                    )
         return dead_events
 
     def _monitor_scale_plan_crd(self):
@@ -474,6 +473,22 @@ class DistributedJobManager(JobManager):
             return
         else:
             cur_node = self._job_nodes[node_type][node_id]
+            logger.info(
+                f"Update node({cur_node.id}), "
+                f"name: {cur_node.name}->{event.node.name}, "
+                f"start_time: {cur_node.start_time}"
+                f"->{event.node.start_time}, "
+                f"create_time: {cur_node.create_time}"
+                f"->{event.node.create_time}, "
+                f"host_name: {cur_node.host_name}"
+                f"->{event.node.host_name},"
+                f"host_ip: {cur_node.host_ip}"
+                f"->{event.node.host_ip}, "
+                f"restart_training: {cur_node.restart_training}"
+                f"->{event.node.restart_training}, "
+                f"relaunch_count: {cur_node.relaunch_count}"
+                f"->{event.node.relaunch_count}"
+            )
             cur_node.update_info(
                 name=event.node.name,
                 start_time=event.node.start_time,
@@ -856,11 +871,13 @@ class DistributedJobManager(JobManager):
         return self._worker_manager.verify_restarting_training(node_id)
 
     def collect_node_heart_beat(self, node_type, node_id, timestamp):
-        with self._job_nodes_lock:
+        with self._lock:
             node = self._job_nodes[node_type][node_id]
             if node.heartbeat_time == 0:
                 logger.info(
-                    f"Start receiving heartbeat from node {node.name}")
+                    f"Start receiving heartbeat from node {node_id}"
+                    f"-{node.name}"
+                )
             node.heartbeat_time = timestamp
 
 
