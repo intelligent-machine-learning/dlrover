@@ -89,5 +89,4 @@ class ElasticJobScalerTest(unittest.TestCase):
             ],
             "psHosts": ["test-ps-0:2222", "test-ps-1:2222"],
         }
-        print(scaler_crd.spec.to_dict())
         self.assertDictEqual(scaler_crd.spec.to_dict(), expected_dict)
