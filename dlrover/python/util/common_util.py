@@ -24,7 +24,7 @@ def get_dlrover_version():
     if not version:
         # get from setup.py
         setup_file = fu.find_file_in_parents("setup.py")
-        if not setup_file:
+        if setup_file:
             return get_version_from_setup(setup_file)
         return "Unknown"
     return version
