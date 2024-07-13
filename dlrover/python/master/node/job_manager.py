@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import threading
 from abc import ABCMeta, abstractclassmethod
 from typing import Dict
 
