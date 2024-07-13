@@ -62,7 +62,6 @@ class MemoryStoreManager(StoreManager):
     def build_store(self):
         if self.memory_store is None:
             self.memory_store = MemoryStore(self, self.jobname, "test")
-        print(self.memory_store)
         return self.memory_store
 
     @classmethod
