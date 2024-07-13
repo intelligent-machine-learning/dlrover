@@ -84,7 +84,7 @@ def node_failed(log_file: str) -> bool:
         return False
     errors = ["error code is 507035"]
 
-    lines = read_last_n_lines(log_file, 500)
+    lines = read_last_n_lines(log_file, 5000)
     for line in lines:
         for error in errors:
             if error in str(line):
