@@ -114,9 +114,9 @@ class MockK8sAllreduceJobArgs(JobArgs):
             PlatformType.KUBERNETES, "default", "test"
         )
 
-    def initilize(self):
+    def initilize(self, worker_count=16):
         worker_resource = NodeGroupResource(
-            16, NodeResource(1, 4096, "a100", 8)
+            worker_count, NodeResource(1, 4096, "a100", 8)
         )
         self.node_args[NodeType.WORKER] = NodeArgs(
             worker_resource, True, 3, 0, ""

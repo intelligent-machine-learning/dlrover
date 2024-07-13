@@ -69,7 +69,6 @@ class DataShardClientTest(unittest.TestCase):
         for i in range(loop):
             shard = data_shard_service.fetch_shard()
             if i < 10 and i != 5:
-                print(f"i : {i}, shard : {shard.start}")
                 self.assertIsNotNone(shard)
                 data_shard_service.report_batch_done(task_ids=[i])
             elif i == 5:
@@ -103,7 +102,6 @@ class DataShardClientTest(unittest.TestCase):
         shuffled = False
         for i in range(len(indices)):
             if i != indices[i]:
-                print(i, indices[i])
                 shuffled = True
                 break
         self.assertFalse(shuffled)
