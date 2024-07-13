@@ -381,6 +381,7 @@ class DistributedJobManager(JobManager):
                             f"node: {node.id}-{node.name} "
                             f"because heartbeat time < create/start time."
                         )
+                        node.heartbeat_time = 0
                         continue
 
                     event_node = copy.deepcopy(node)
