@@ -750,7 +750,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
             port = 0
             logger.info("synchronize worker training ports...")
             count = 0
-            max_count = 60
+            max_count = 120
             while True:
                 if count >= max_count:
                     logger.error(
@@ -763,7 +763,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     port = find_free_port_for_hccl(start_port)
                 if port == 0:
                     logger.error(
-                        "fail to find available ports between 60000 and 70000"
+                        f"fail to find available ports from {start_port}"
                     )
                     break
                 resp = self._client.sync_training_ports(port)
