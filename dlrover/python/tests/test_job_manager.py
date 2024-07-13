@@ -276,11 +276,20 @@ class DistributedJobManagerTest(unittest.TestCase):
             node.status = NodeStatus.RUNNING
         events = manager._get_dead_node_event()
         self.assertEqual(len(events), 0)
-        for node in manager._job_nodes[NodeType.WORKER].values():
+        for index, node in enumerate(
+            manager._job_nodes[NodeType.WORKER].values()
+        ):
             node.status = NodeStatus.RUNNING
-            node.heartbeat_time = time.time() - 500
+            now = time.time()
+            node.heartbeat_time = now - 500
+            if index == 0:
+                node.create_time = now - 400
+                node.start_time = now - 300
+            else:
+                node.create_time = now - 700
+                node.start_time = now - 600
         events = manager._get_dead_node_event()
-        self.assertEqual(len(events), 3)
+        self.assertEqual(len(events), 2)
 
     def test_relaunch_training_master(self):
         params = MockK8sPSJobArgs()

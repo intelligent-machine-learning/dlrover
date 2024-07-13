@@ -362,15 +362,27 @@ class DistributedJobManager(JobManager):
 
     def _get_dead_node_event(self, window_interval=300) -> List[NodeEvent]:
         now = time.time()
-        dead_events = []
+        dead_events: List[NodeEvent] = []
         for _, nodes in self._job_nodes.items():
             for _, node in nodes.items():
                 if (
                     node.heartbeat_time > 0
                     and now - node.heartbeat_time > window_interval
-                    and node.heartbeat_time > node.start_time
+                    and node.start_time
+                    and node.create_time
                     and node.status == NodeStatus.RUNNING
                 ):
+                    if (
+                        node.heartbeat_time <= node.start_time
+                        or node.heartbeat_time <= node.create_time
+                    ):
+                        logger.warning(
+                            f"Skip dead node judgement for "
+                            f"node: {node.id}-{node.name} "
+                            f"because heartbeat time < create/start time."
+                        )
+                        continue
+
                     event_node = copy.deepcopy(node)
                     event_node.status = NodeStatus.FAILED
                     event_node.exit_reason = NodeExitReason.NO_HEARTBEAT
@@ -391,7 +403,9 @@ class DistributedJobManager(JobManager):
                     logger.warning(
                         f"The node {node.id}-{node.name} has not sent a "
                         f"heartbeat for over {window_interval} seconds, "
-                        f"last heartbeat: {node.heartbeat_time}."
+                        f"last heartbeat: {node.heartbeat_time}, "
+                        f"created at: {node.create_time}, "
+                        f"started at: {node.start_time}."
                     )
         return dead_events
 
