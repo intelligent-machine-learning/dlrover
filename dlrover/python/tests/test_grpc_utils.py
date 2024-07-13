@@ -67,7 +67,7 @@ class GRPCUtilTest(unittest.TestCase):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.bind(("", 60003))
         port = find_free_port_for_hccl()
-        self.assertEqual(port, 60016)
+        self.assertEqual(port, 60004)
 
 
 if __name__ == "__main__":
