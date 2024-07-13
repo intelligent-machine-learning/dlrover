@@ -368,6 +368,7 @@ class DistributedJobManager(JobManager):
                 if (
                     node.heartbeat_time > 0
                     and now - node.heartbeat_time > window_interval
+                    and node.heartbeat_time > node.start_time
                     and node.status == NodeStatus.RUNNING
                 ):
                     event_node = copy.deepcopy(node)
