@@ -379,7 +379,8 @@ class DistributedJobManager(JobManager):
                         logger.warning(
                             f"Skip dead node judgement for "
                             f"node: {node.id}-{node.name} "
-                            f"because heartbeat time < create/start time."
+                            f"because heartbeat time < create/start time. "
+                            f"Reset heartbeat time to 0."
                         )
                         node.heartbeat_time = 0
                         continue
