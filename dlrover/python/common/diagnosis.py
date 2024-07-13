@@ -14,7 +14,7 @@
 from abc import ABCMeta, abstractmethod
 from datetime import datetime
 
-from dlrover.python.common.file import read_last_n_lines
+from dlrover.python.util.file_util import read_last_n_lines
 
 
 class DiagnosisDataType:
