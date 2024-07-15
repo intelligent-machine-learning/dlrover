@@ -284,7 +284,7 @@ def _check_dlrover_master_available(addr, timeout=120):
     while True:
         try:
             telnetlib.Telnet(host=host, port=port, timeout=3)
-            logger.info("DLRover job master starts!")
+            logger.info("DLRover master has already started.")
             return True
         except (socket.timeout, ConnectionRefusedError):
             time.sleep(1)
@@ -349,6 +349,7 @@ def _check_to_use_dlrover_run(master_addr, max_nodes, timeout=120):
 
 
 def run(args):
+    logger.info(f"DLRover agent started with: {cu.get_dlrover_version()}.")
     master_handler = None
     master_addr = os.getenv(NodeEnv.DLROVER_MASTER_ADDR, "")
     node_rank = env_utils.get_node_rank()
@@ -402,5 +403,4 @@ def main(args=None):
 
 
 if __name__ == "__main__":
-    logger.info(f"DLRover started with: {cu.get_dlrover_version()}.")
     main()
