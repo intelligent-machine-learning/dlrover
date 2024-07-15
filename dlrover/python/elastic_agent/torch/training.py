@@ -147,7 +147,6 @@ class ElasticLaunchConfig(LaunchConfig):
     accelerator: str = ""
     log_dir: Optional[str] = None  # Keep Compatibility with PyTorch>=2.3.0
     redirects: Union[Std, Dict[int, Std]] = Std.NONE
-    log_file: str = ""
 
     def set_node_unit(self, node_unit):
         """Set the number unint of ndoes."""
@@ -410,7 +409,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
         self._save_ckpt_executor = ThreadPoolExecutor(max_workers=1)
         self._save_ckpt_future = None
-        self._log_file = config.log_file
+        self._log_file = os.getenv(NodeEnv.TRAINING_LOG_FILE, "")
 
     @prof
     def _rendezvous(self, worker_group: WorkerGroup) -> None:
