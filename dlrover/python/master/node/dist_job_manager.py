@@ -490,7 +490,7 @@ class DistributedJobManager(JobManager):
             return
         else:
             cur_node = self._job_nodes[node_type][node_id]
-            logger.info(
+            logger.debug(
                 f"Update node({cur_node.id}), "
                 f"name: {cur_node.name}->{event.node.name}, "
                 f"start_time: {cur_node.start_time}"
