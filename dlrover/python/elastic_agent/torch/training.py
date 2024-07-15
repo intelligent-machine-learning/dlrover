@@ -806,7 +806,6 @@ def launch_agent(
         f"  monitor_interval : {config.monitor_interval}\n"
         f"  log_dir          : {config.log_dir}\n"
         f"  metrics_cfg      : {config.metrics_cfg}\n"
-        f"  log_file         : {config.log_file}\n"
     )
 
     _set_paral_config()
