@@ -49,7 +49,7 @@ def get_installed_version(package_name):
         package_name (str): The name of the package.
 
     Return:
-        result: Version of the package.
+        result(str): Version of the package.
     """
 
     try:

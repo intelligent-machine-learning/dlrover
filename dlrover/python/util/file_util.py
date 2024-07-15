@@ -40,7 +40,7 @@ def find_file_in_parents(filename, start_dir=None):
             current directory).
 
     Returns:
-        result: The target file path.
+        result(str): The target file path.
     """
 
     if start_dir is None:
