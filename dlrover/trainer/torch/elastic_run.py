@@ -86,7 +86,6 @@ For auto-tuning parallelism configuration, you need to specify:
 
 1. ``--auto-tunning``: Whether to auto tune the batch size and learning rate.
 """
-
 import os
 import socket
 import sys
@@ -106,6 +105,7 @@ from torch.distributed.run import (
     parse_min_max_nnodes,
 )
 
+import dlrover.python.util.common_util as cu
 from dlrover.python.common import env_utils, grpc
 from dlrover.python.common.constants import (
     Accelerators,
@@ -402,4 +402,5 @@ def main(args=None):
 
 
 if __name__ == "__main__":
+    logger.info(f"DLRover started with: {cu.get_dlrover_version()}.")
     main()

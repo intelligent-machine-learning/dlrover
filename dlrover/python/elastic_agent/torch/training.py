@@ -570,7 +570,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 if time.time() - start_pending > pend_timeout:
                     raise TimeoutError("Timeout to wait for new nodes.")
             else:
-                logger.info("Finish initializing workers.")
+                logger.info("Finish initializing training workers.")
                 break
 
     @prof
@@ -1083,7 +1083,7 @@ def _create_check_agent(
     node_rank = env_utils.get_node_rank()
 
     logger.info(
-        f"Starting elastic_operator with launch configs:\n"
+        f"Starting node-check agent with launch configs:\n"
         f"  entrypoint       : {entrypoint_name}\n"
         f"  min_nodes        : {config.min_nodes}\n"
         f"  max_nodes        : {config.max_nodes}\n"
