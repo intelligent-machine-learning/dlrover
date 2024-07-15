@@ -64,8 +64,6 @@ class ElasticRunTest(unittest.TestCase):
             "4",
             "--nnodes",
             "4",
-            "--log_file",
-            "kubemaker.log",
             "--training_port",
             "1000",
             "test.py",
@@ -81,5 +79,4 @@ class ElasticRunTest(unittest.TestCase):
         self.assertEqual(config.rdzv_configs["node_unit"], 4)
         self.assertEqual(config.training_port, 1000)
         self.assertEqual(cmd, "/usr/local/bin/python")
-        self.assertEqual(config.log_file, "kubemaker.log")
         self.assertListEqual(cmd_args, ["-u", "test.py", "--batch_size", "16"])

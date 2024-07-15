@@ -13,14 +13,10 @@
 
 import unittest
 
-import dlrover.python.util.file_util as fu
+import dlrover.python.util.common_util as cu
 
 
-class FileUtilTest(unittest.TestCase):
-    def test_is_same_path(self):
-        self.assertTrue(fu.is_same_path("/foo/bar", "/foo/bar"))
-        self.assertTrue(fu.is_same_path("/foo/bar", "/foo//bar"))
-        self.assertFalse(fu.is_same_path("/foo/bar", "/foo/bar0"))
-
-    def test_find_file_in_parents(self):
-        self.assertIsNotNone(fu.find_file_in_parents("setup.py"))
+class CommonUtilTest(unittest.TestCase):
+    def test_get_dlrover_version(self):
+        self.assertIsNotNone(cu.get_dlrover_version())
+        self.assertNotEquals(cu.get_dlrover_version(), "Unknown")

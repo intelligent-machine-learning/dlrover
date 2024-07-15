@@ -147,7 +147,6 @@ class ElasticLaunchConfig(LaunchConfig):
     accelerator: str = ""
     log_dir: Optional[str] = None  # Keep Compatibility with PyTorch>=2.3.0
     redirects: Union[Std, Dict[int, Std]] = Std.NONE
-    log_file: str = ""
 
     def set_node_unit(self, node_unit):
         """Set the number unint of ndoes."""
@@ -410,7 +409,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
         self._save_ckpt_executor = ThreadPoolExecutor(max_workers=1)
         self._save_ckpt_future = None
-        self._log_file = config.log_file
+        self._log_file = os.getenv(NodeEnv.TRAINING_LOG_FILE, "")
 
     @prof
     def _rendezvous(self, worker_group: WorkerGroup) -> None:
@@ -571,7 +570,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 if time.time() - start_pending > pend_timeout:
                     raise TimeoutError("Timeout to wait for new nodes.")
             else:
-                logger.info("Finish initializing workers.")
+                logger.info("Finish initializing training workers.")
                 break
 
     @prof
@@ -1084,7 +1083,7 @@ def _create_check_agent(
     node_rank = env_utils.get_node_rank()
 
     logger.info(
-        f"Starting elastic_operator with launch configs:\n"
+        f"Starting node-check agent with launch configs:\n"
         f"  entrypoint       : {entrypoint_name}\n"
         f"  min_nodes        : {config.min_nodes}\n"
         f"  max_nodes        : {config.max_nodes}\n"
