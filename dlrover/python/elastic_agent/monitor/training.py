@@ -91,7 +91,7 @@ class TorchTrainingMonitor(Singleton):
         self._resource_monitor.start()
         thread = threading.Thread(
             target=self._periodically_report,
-            name="report-step",
+            name="node_heart_beat_reporter",
             daemon=True,
         )
         thread.start()
@@ -127,7 +127,7 @@ class TorchTrainingMonitor(Singleton):
             logger.warning("Fail to report a heartbeat.")
 
     def _periodically_report(self):
-        logger.info("Start training agent heartbeat reporting thread...")
+        logger.info("Start training agent heartbeat reporter.")
         while True:
             if self._group_rank == 0:
                 self.report_resource_with_step()
