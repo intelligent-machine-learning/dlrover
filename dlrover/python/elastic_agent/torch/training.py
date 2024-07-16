@@ -27,6 +27,7 @@ from typing import Any, Callable, Dict, List, Optional, Union
 
 import torch
 import torch.distributed.elastic.timer as timer
+from common.error import ProcessError
 from torch.distributed import PrefixStore, Store
 from torch.distributed.elastic import events, metrics
 from torch.distributed.elastic.agent.server.api import (
@@ -169,14 +170,6 @@ class ElasticLaunchConfig(LaunchConfig):
             self.nproc_per_node = torch.cuda.device_count()
         if self.min_nodes >= 4:
             self.network_check = True
-
-
-@dataclass
-class ProcessError:
-    local_rank: int
-    exitcode: int
-    message: str
-    datetime: Any
 
 
 class MasterRendezvousHandler(RendezvousHandler):
@@ -558,6 +551,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 super()._initialize_workers(worker_group)
                 # We need to register handler after starting workers because
                 # the PContext start_worker will overwrite the handler.
+                AsyncCheckpointSaver.register_signal_handler()
+
+                # need master client to report unexpected failures in saver
                 AsyncCheckpointSaver.register_signal_handler()
             except RendezvousOutSyncError:
                 if start_pending == 0:

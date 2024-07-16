@@ -31,6 +31,10 @@ from dlrover.python.common.multi_process import (
     SharedQueue,
 )
 from dlrover.python.common.storage import PosixDiskStorage
+from dlrover.python.elastic_agent.master_client import (
+    MasterClient,
+    build_master_client,
+)
 from dlrover.python.elastic_agent.torch.ckpt_saver import (
     DLROVER_CKPT_CONFIG_KEY,
     AsyncCheckpointSaver,
@@ -45,6 +49,7 @@ from dlrover.python.elastic_agent.torch.ckpt_saver import (
     _create_shared_memory,
     _traverse_state_dict,
 )
+from dlrover.python.tests.test_utils import start_local_master
 
 
 def set_torch_dist_env(port):
@@ -134,6 +139,18 @@ class CheckpointSaverTest(unittest.TestCase):
         # see if it will skip and no exception raised
         sq.put(class_meta)
         sq.put(class_meta)
+
+        # test setup master client
+        self.assertIsNone(AsyncCheckpointSaver._saver_instance._master_client)
+
+        master, addr = start_local_master()
+        MasterClient._instance = build_master_client(addr)
+        master_client = MasterClient.singleton_instance()
+        self.assertIsNotNone(master_client)
+        AsyncCheckpointSaver.register_master_client(master_client)
+        self.assertIsNotNone(
+            AsyncCheckpointSaver._saver_instance._master_client
+        )
 
     def test_close_saver(self):
         saver = DdpCheckpointSaver("test_ckpt", self.storage.get_class_meta())
@@ -263,6 +280,15 @@ class CheckpointSaverTest(unittest.TestCase):
             saver.save_shm_to_storage(master_client=1)
             self.assertTrue(saver._stop_commit)
             saver.close()
+
+    def test_report_failure(self):
+        saver = DdpCheckpointSaver("test_ckpt", self.storage.get_class_meta())
+        master, addr = start_local_master()
+        MasterClient._instance = build_master_client(addr)
+        master_client = MasterClient.singleton_instance()
+        saver.setup_master_client(master_client)
+
+        saver._report_failure_to_master("test-error")
 
 
 class FsdpCheckpointSaverTest(unittest.TestCase):

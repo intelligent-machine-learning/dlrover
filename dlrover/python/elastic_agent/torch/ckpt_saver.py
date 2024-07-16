@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import importlib
+import json
 import os
 import pickle
 import signal
@@ -20,15 +21,21 @@ import time
 from abc import ABCMeta, abstractmethod
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum, auto
 from pathlib import Path
 from typing import Callable, Dict, List, Mapping, Optional, Tuple
 
 import torch
+from common.error import ProcessError
 
 import dlrover.python.util.file_util as fu
 from dlrover.python.common import env_utils
-from dlrover.python.common.constants import CheckpointConstant, NodeEnv
+from dlrover.python.common.constants import (
+    CheckpointConstant,
+    NodeEnv,
+    TrainingExceptionLevel,
+)
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.multi_process import (
     SharedDict,
@@ -397,6 +404,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         self._executor = ThreadPoolExecutor(
             max_workers=self.local_shard_num, thread_name_prefix="ckpt_saver-"
         )
+        self._master_client = None
         logger.info(
             "Initialize the AsyncSaver with arguments: "
             f"checkpoint_dir={checkpoint_dir}, "
@@ -494,6 +502,10 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         signal.signal(signal.SIGINT, _clean_shm_handler)
         signal.signal(signal.SIGTERM, _save_shm_before_exiting)
 
+    @classmethod
+    def register_master_client(cls, master_client):
+        cls._saver_instance.setup_master_client(master_client)
+
     def wait_saving_checkpoint(self):
         """
         Check whether the saver finishes writing the
@@ -522,20 +534,60 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         """
         logger.info("Async flash checkpoint saver starts!")
         while True:
-            event: CheckpointEvent = self._event_queue.get()
-            if event.type == CheckpointEventType.UPDATE_SHARD:
-                logger.info(
-                    "Reset the shared memory after the training starts. "
-                    f"The number of global shards is {event.global_shard_num}."
+            try:
+                event: CheckpointEvent = self._event_queue.get()
+                if event.type == CheckpointEventType.UPDATE_SHARD:
+                    logger.info(
+                        "Reset the shared memory after the training starts. "
+                        "The number of global shards "
+                        f"is {event.global_shard_num}."
+                    )
+                    self.global_shard_num = event.global_shard_num
+                elif event.type == CheckpointEventType.SAVE:
+                    logger.info(
+                        "ShardingSaver save checkpoint to storage, "
+                        f"event {event}"
+                    )
+                    self.save_step_checkpoint(event.step)
+                elif event.type == CheckpointEventType.EXIT:
+                    break
+            except Exception as e:
+                logger.error(
+                    "Got unexpected exception " f"during checkpointing: {e}."
                 )
-                self.global_shard_num = event.global_shard_num
-            elif event.type == CheckpointEventType.SAVE:
-                logger.info(
-                    f"ShardingSaver save checkpoint to storage, event {event}"
-                )
-                self.save_step_checkpoint(event.step)
-            elif event.type == CheckpointEventType.EXIT:
-                break
+                self._report_failure_to_master(str(e))
+
+    def setup_master_client(self, master_client):
+        self._master_client = master_client
+
+    def _report_failure_to_master(self, error_msg):
+        if not self._master_client:
+            logger.warning(
+                "Skip ckpt saver failure reporting for master "
+                "client hasn't setup."
+            )
+            return
+
+        if not error_msg:
+            error_msg = "Unknown"
+        error_full_msg = "Async checkpointer saver got failure:" + error_msg
+
+        try:
+            error = ProcessError(
+                self._node_rank,
+                -1,
+                error_full_msg,
+                str(datetime.fromtimestamp(int(time.time()))),
+            )
+
+            self._master_client.report_failures(
+                json.dumps(error.__dict__),
+                level=TrainingExceptionLevel.PROCESS_ERROR,
+            )
+        except Exception as e:
+            logger.warning(
+                "Failed to report failure to master " f"in ckpt saver: {e}."
+            )
 
     def reset_shared_memory(self):
         self._stop_commit = True
