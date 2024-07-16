@@ -27,7 +27,6 @@ from typing import Any, Callable, Dict, List, Optional, Union
 
 import torch
 import torch.distributed.elastic.timer as timer
-from common.error import ProcessError
 from torch.distributed import PrefixStore, Store
 from torch.distributed.elastic import events, metrics
 from torch.distributed.elastic.agent.server.api import (
@@ -59,6 +58,7 @@ from torch.distributed.elastic.rendezvous.api import RendezvousHandler
 from torch.distributed.launcher.api import LaunchConfig, _get_entrypoint_name
 
 from dlrover.python.common import env_utils
+from dlrover.python.common.error import ProcessError
 from dlrover.python.common.constants import (
     Accelerators,
     ConfigPath,
