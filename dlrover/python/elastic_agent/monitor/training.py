@@ -127,6 +127,7 @@ class TorchTrainingMonitor(Singleton):
             logger.warning("Fail to report a heartbeat.")
 
     def _periodically_report(self):
+        logger.info("Start training agent heartbeat reporting thread...")
         while True:
             if self._group_rank == 0:
                 self.report_resource_with_step()
