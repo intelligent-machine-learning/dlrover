@@ -58,7 +58,6 @@ from torch.distributed.elastic.rendezvous.api import RendezvousHandler
 from torch.distributed.launcher.api import LaunchConfig, _get_entrypoint_name
 
 from dlrover.python.common import env_utils
-from dlrover.python.common.error import ProcessError
 from dlrover.python.common.constants import (
     Accelerators,
     ConfigPath,
@@ -69,6 +68,7 @@ from dlrover.python.common.constants import (
     TrainingExceptionLevel,
 )
 from dlrover.python.common.diagnosis import node_failed
+from dlrover.python.common.error import ProcessError
 from dlrover.python.common.grpc import (
     find_free_port_for_hccl,
     find_free_port_in_range,
