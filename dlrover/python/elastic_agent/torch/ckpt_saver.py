@@ -27,10 +27,10 @@ from pathlib import Path
 from typing import Callable, Dict, List, Mapping, Optional, Tuple
 
 import torch
-from common.error import ProcessError
 
 import dlrover.python.util.file_util as fu
 from dlrover.python.common import env_utils
+from dlrover.python.common.error import ProcessError
 from dlrover.python.common.constants import (
     CheckpointConstant,
     NodeEnv,
