@@ -344,10 +344,10 @@ class DistributedJobManager(JobManager):
             time.sleep(5)
 
     def _monitor_node_heart_beat(self):
-        logger.info("Start monitoring the heart beat of nodes.")
+        logger.info("Start monitoring the heartbeat of nodes.")
         while True:
             if self._stopped:
-                logger.info("Stop monitoring the heart beat of nodes.")
+                logger.info("Stop monitoring the heartbeat of nodes.")
                 break
             with self._lock:
                 events = self._get_dead_node_event()

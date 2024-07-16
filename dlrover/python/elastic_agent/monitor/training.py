@@ -87,11 +87,15 @@ class TorchTrainingMonitor(Singleton):
 
     def start(self):
         if os.getenv(NodeEnv.MONITOR_ENABLED, "false") != "true":
+            logger.info(
+                f"Skip starting monitor for {NodeEnv.MONITOR_ENABLED} "
+                "disabled."
+            )
             return
         self._resource_monitor.start()
         thread = threading.Thread(
             target=self._periodically_report,
-            name="report-step",
+            name="node_reporter",
             daemon=True,
         )
         thread.start()
@@ -127,6 +131,7 @@ class TorchTrainingMonitor(Singleton):
             logger.warning("Fail to report a heartbeat.")
 
     def _periodically_report(self):
+        logger.info("Start training agent reporter.")
         while True:
             if self._group_rank == 0:
                 self.report_resource_with_step()

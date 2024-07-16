@@ -793,7 +793,7 @@ def launch_agent(
     node_rank = env_utils.get_node_rank()
 
     logger.info(
-        f"Starting elastic_operator with launch configs:\n"
+        f"Starting training agent with launch configs:\n"
         f"  entrypoint       : {entrypoint_name}\n"
         f"  min_nodes        : {config.min_nodes}\n"
         f"  max_nodes        : {config.max_nodes}\n"
