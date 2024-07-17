@@ -37,9 +37,7 @@ def log_execution_time(func):
     def wrapper(*args, **kwargs):
         local_rank = int(os.environ["LOCAL_RANK"])
         func_name = func.__name__
-        logger.info(
-            f"Begin execute {func_name} on local rank {local_rank}"
-        )
+        logger.info(f"Begin execute {func_name} on local rank {local_rank}")
         t = func(*args, **kwargs)
         t = round(t, 3)
         logger.info(
@@ -59,7 +57,9 @@ def mock_error():
 
 
 @log_execution_time
-def init_process_group(protocol: str, timeout: timedelta = timedelta(seconds=180)):
+def init_process_group(
+    protocol: str, timeout: timedelta = timedelta(seconds=180)
+):
     start = time.time()
     dist.init_process_group(protocol, timeout=timeout)
     elapsed_time = time.time() - start
@@ -68,7 +68,9 @@ def init_process_group(protocol: str, timeout: timedelta = timedelta(seconds=180
 
 def get_network_check_timeout() -> timedelta:
     default_timeout_seconds = 180
-    timeout = int(os.environ.get("NETWORK_CHECK_TIMEOUT", default_timeout_seconds))
+    timeout = int(
+        os.environ.get("NETWORK_CHECK_TIMEOUT", default_timeout_seconds)
+    )
     if timeout <= 0:
         timeout = default_timeout_seconds
 

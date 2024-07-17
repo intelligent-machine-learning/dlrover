@@ -19,7 +19,10 @@ from datetime import timedelta
 from dlrover.trainer.torch.node_check.ascend_npu import main as npu_main
 from dlrover.trainer.torch.node_check.nvidia_gpu import main as gpu_main
 from dlrover.trainer.torch.node_check.nvidia_gpu import set_nccl_env
-from dlrover.trainer.torch.node_check.utils import mock_error, get_network_check_timeout
+from dlrover.trainer.torch.node_check.utils import (
+    get_network_check_timeout,
+    mock_error,
+)
 
 
 class TestNetworkCheckScript(unittest.TestCase):
@@ -80,8 +83,16 @@ class TestNetworkCheckScript(unittest.TestCase):
     def test_get_network_check_timeout(self):
         os.environ.setdefault("NETWORK_CHECK_TIMEOUT", "10")
         timeout = get_network_check_timeout()
-        self.assertEqual(timeout, timedelta(seconds=10),f"want timeout: {timedelta(seconds=10)}, but got: {timeout}")
+        self.assertEqual(
+            timeout,
+            timedelta(seconds=10),
+            f"want timeout: {timedelta(seconds=10)}, but got: {timeout}",
+        )
 
         del os.environ["NETWORK_CHECK_TIMEOUT"]
         timeout = get_network_check_timeout()
-        self.assertEqual(timeout, timedelta(seconds=180), f"want timeout: {timedelta(seconds=180)}, but got: {timeout}")
+        self.assertEqual(
+            timeout,
+            timedelta(seconds=180),
+            f"want timeout: {timedelta(seconds=180)}, but got: {timeout}",
+        )

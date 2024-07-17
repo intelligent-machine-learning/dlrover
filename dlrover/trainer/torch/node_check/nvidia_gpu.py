@@ -12,12 +12,17 @@
 # limitations under the License.
 
 import os
-from datetime import timedelta
 
 import torch
 import torch.distributed as dist
 
-from .utils import bm_allreduce, matmul, record_execution_time, init_process_group, get_network_check_timeout
+from .utils import (
+    bm_allreduce,
+    get_network_check_timeout,
+    init_process_group,
+    matmul,
+    record_execution_time,
+)
 
 
 def set_nccl_env():

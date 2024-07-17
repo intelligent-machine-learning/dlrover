@@ -12,7 +12,6 @@
 # limitations under the License.
 
 import os
-from datetime import timedelta
 
 import torch
 import torch.distributed as dist
@@ -23,7 +22,13 @@ try:
 except Exception:
     torch_npu = None
 
-from .utils import bm_allgather, matmul, record_execution_time, init_process_group, get_network_check_timeout
+from .utils import (
+    bm_allgather,
+    get_network_check_timeout,
+    init_process_group,
+    matmul,
+    record_execution_time,
+)
 
 
 @record_execution_time
