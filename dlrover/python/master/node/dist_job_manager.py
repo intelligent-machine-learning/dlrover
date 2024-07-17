@@ -373,8 +373,10 @@ class DistributedJobManager(JobManager):
                     and node.status == NodeStatus.RUNNING
                 ):
                     if (
-                        node.heartbeat_time <= node.start_time
-                        or node.heartbeat_time <= node.create_time
+                        datetime.fromtimestamp(node.heartbeat_time)
+                        <= node.start_time
+                        or datetime.fromtimestamp(node.heartbeat_time)
+                        <= node.create_time
                     ):
                         logger.warning(
                             f"Skip dead node judgement for "
@@ -382,7 +384,6 @@ class DistributedJobManager(JobManager):
                             f"because heartbeat time < create/start time. "
                             f"Reset heartbeat time to 0."
                         )
-                        node.heartbeat_time = 0
                         continue
 
                     event_node = copy.deepcopy(node)

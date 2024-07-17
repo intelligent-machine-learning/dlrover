@@ -280,14 +280,14 @@ class DistributedJobManagerTest(unittest.TestCase):
             manager._job_nodes[NodeType.WORKER].values()
         ):
             node.status = NodeStatus.RUNNING
-            now = time.time()
-            node.heartbeat_time = now - 500
+            now = datetime.now()
+            node.heartbeat_time = (now - timedelta(seconds=500)).timestamp()
             if index == 0:
-                node.create_time = now - 400
-                node.start_time = now - 300
+                node.create_time = now - timedelta(seconds=400)
+                node.start_time = now - timedelta(seconds=300)
             else:
-                node.create_time = now - 700
-                node.start_time = now - 600
+                node.create_time = now - timedelta(seconds=700)
+                node.start_time = now - timedelta(seconds=600)
         events = manager._get_dead_node_event()
         self.assertEqual(len(events), 2)
 
