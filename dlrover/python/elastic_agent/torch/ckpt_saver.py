@@ -504,7 +504,8 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
 
     @classmethod
     def register_master_client(cls, master_client):
-        cls._saver_instance.setup_master_client(master_client)
+        if cls._saver_instance:
+            cls._saver_instance.setup_master_client(master_client)
 
     def wait_saving_checkpoint(self):
         """
