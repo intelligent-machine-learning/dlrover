@@ -350,7 +350,10 @@ class DistributedJobManager(JobManager):
                 logger.info("Stop monitoring the heartbeat of nodes.")
                 break
             with self._lock:
-                events = self._get_dead_node_event()
+                try:
+                    events = self._get_dead_node_event()
+                except Exception as e:
+                    logger.warning(e)
             for event in events:
                 try:
                     self._process_event(event)
@@ -373,10 +376,8 @@ class DistributedJobManager(JobManager):
                     and node.status == NodeStatus.RUNNING
                 ):
                     if (
-                        datetime.fromtimestamp(node.heartbeat_time)
-                        <= node.start_time
-                        or datetime.fromtimestamp(node.heartbeat_time)
-                        <= node.create_time
+                        node.heartbeat_time <= node.start_time.timestamp()
+                        or node.heartbeat_time <= node.create_time.timestamp()
                     ):
                         logger.warning(
                             f"Skip dead node judgement for "
