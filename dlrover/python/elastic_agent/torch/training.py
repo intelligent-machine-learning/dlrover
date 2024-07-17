@@ -554,7 +554,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 AsyncCheckpointSaver.register_signal_handler()
 
                 # need master client to report unexpected failures in saver
-                AsyncCheckpointSaver.register_signal_handler()
+                AsyncCheckpointSaver.register_master_client(self._client)
             except RendezvousOutSyncError:
                 if start_pending == 0:
                     start_pending = time.time()
