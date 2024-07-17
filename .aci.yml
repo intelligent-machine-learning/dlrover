@@ -17,6 +17,8 @@ build_elasticdl_dev:
   stage: 构建&发布到测试库
   id: build
   component: pypi-artifact-uploader
+  only:
+    - master
   inputs:
     buildImage: reg.docker.alibaba-inc.com/elasticdl/elasticdl:dev_aci
     registry: "https://artifacts.antgroup-inc.cn/artifact/repositories/simple-dev" # yamllint disable-line rule:line-length
