@@ -23,7 +23,7 @@ try:
 except Exception:
     torch_npu = None
 
-from .utils import bm_allgather, matmul, record_execution_time
+from .utils import bm_allgather, matmul, record_execution_time, init_process_group, get_network_check_timeout
 
 
 @record_execution_time
@@ -36,7 +36,7 @@ def main():
         if "Ascend" in device:
             protocol = "hccl"
 
-    dist.init_process_group(protocol, timeout=timedelta(seconds=180))
+    init_process_group(protocol, timeout=get_network_check_timeout())
 
     if use_cuda:
         local_rank = int(os.environ["LOCAL_RANK"])

@@ -17,7 +17,7 @@ from datetime import timedelta
 import torch
 import torch.distributed as dist
 
-from .utils import bm_allreduce, matmul, record_execution_time
+from .utils import bm_allreduce, matmul, record_execution_time, init_process_group, get_network_check_timeout
 
 
 def set_nccl_env():
@@ -34,7 +34,7 @@ def main():
     use_cuda = torch.cuda.is_available()
     protocol = "nccl" if use_cuda else "gloo"
 
-    dist.init_process_group(protocol, timeout=timedelta(seconds=180))
+    init_process_group(protocol, timeout=get_network_check_timeout())
     if use_cuda:
         local_rank = int(os.environ["LOCAL_RANK"])
         torch.cuda.set_device(local_rank)
