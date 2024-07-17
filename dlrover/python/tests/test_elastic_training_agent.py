@@ -209,6 +209,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         agent._rendezvous = _mock_rendezvous
         with self.assertRaises(TimeoutError):
             agent._initialize_workers(agent._worker_group)
+            agent._save_ckpt_future
 
 
 class ElasticTrainingAgentRunTest(unittest.TestCase):
