@@ -354,6 +354,8 @@ class DistributedJobManager(JobManager):
                     events = self._get_dead_node_event()
                 except Exception as e:
                     logger.warning(e)
+                    events = []
+
             for event in events:
                 try:
                     self._process_event(event)
