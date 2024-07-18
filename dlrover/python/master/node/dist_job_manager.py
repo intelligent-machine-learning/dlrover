@@ -365,7 +365,7 @@ class DistributedJobManager(JobManager):
                     logger.warning(detail_trace_back)
             time.sleep(15)
 
-    def _get_dead_node_event(self, window_interval=300) -> List[NodeEvent]:
+    def _get_dead_node_event(self, window_interval=600) -> List[NodeEvent]:
         now = time.time()
         dead_events: List[NodeEvent] = []
         for _, nodes in self._job_nodes.items():
