@@ -578,11 +578,11 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 self._node_rank,
                 -1,
                 error_full_msg,
-                str(datetime.fromtimestamp(int(time.time()))),
+                datetime.now().strftime("%m/%d/%Y %H:%M:%S"),
             )
 
             self._master_client.report_failures(
-                json.dumps(error.__dict__),
+                json.dumps(error),
                 level=TrainingExceptionLevel.PROCESS_ERROR,
             )
         except Exception as e:
