@@ -291,6 +291,10 @@ class DistributedJobManagerTest(unittest.TestCase):
         events = manager._get_dead_node_event()
         self.assertEqual(len(events), 2)
 
+        nodes_time_info = manager._get_nodes_time_info()
+        self.assertIsNotNone(nodes_time_info)
+        self.assertEqual(len(nodes_time_info), 3)
+
     def test_relaunch_training_master(self):
         params = MockK8sPSJobArgs()
         params.initilize()

@@ -270,6 +270,7 @@ class Node(object):
         new_node.start_time = None
         new_node.create_time = None
         new_node.finish_time = None
+        new_node.heartbeat_time = 0
         new_node.is_released = False
         new_node.relaunchable = True
         new_node.init_time = time.time()

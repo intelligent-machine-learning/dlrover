@@ -385,7 +385,7 @@ class DistributedJobManager(JobManager):
                             f"Skip dead node judgement for "
                             f"node: {node.id}-{node.name} "
                             f"because heartbeat time < create/start time. "
-                            f"Reset heartbeat time to 0."
+                            f"Current nodes: {self._get_nodes_time_info()}."
                         )
                         continue
 
@@ -414,6 +414,27 @@ class DistributedJobManager(JobManager):
                         f"started at: {node.start_time}."
                     )
         return dead_events
+
+    def _get_nodes_time_info(self):
+        result = {}
+        for _, nodes in self._job_nodes.items():
+            for _, node in nodes.items():
+                if node.heartbeat_time == 0:
+                    heartbeat_time = 0
+                else:
+                    heartbeat_time = datetime.fromtimestamp(
+                        node.heartbeat_time
+                    )
+                result_dict = {
+                    "name": node.name,
+                    "type": node.type,
+                    "create": node.create_time,
+                    "start": node.start_time,
+                    "heartbeat": heartbeat_time,
+                }
+                result[node.id] = result_dict
+
+        return result
 
     def _monitor_scale_plan_crd(self):
         """Monitor the Scaler CRD from users to adjust the job resource"""
