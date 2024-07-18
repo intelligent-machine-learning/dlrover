@@ -86,7 +86,6 @@ For auto-tuning parallelism configuration, you need to specify:
 
 1. ``--auto-tunning``: Whether to auto tune the batch size and learning rate.
 """
-
 import os
 import socket
 import sys
@@ -106,6 +105,7 @@ from torch.distributed.run import (
     parse_min_max_nnodes,
 )
 
+import dlrover.python.util.common_util as cu
 from dlrover.python.common import env_utils, grpc
 from dlrover.python.common.constants import (
     Accelerators,
@@ -182,14 +182,6 @@ def parse_args(args):
         default=Accelerators.NVIDIA_GPU,
         choices=[Accelerators.NVIDIA_GPU, Accelerators.ASCEND_NPU],
         help="The type of accelerator chip of the machine.",
-    )
-    parser.add_argument(
-        "--log_file",
-        "--log-file",
-        type=str,
-        action=env,
-        default="",
-        help="The training log file.",
     )
     parser.add_argument(
         "--training_port",
@@ -292,7 +284,7 @@ def _check_dlrover_master_available(addr, timeout=120):
     while True:
         try:
             telnetlib.Telnet(host=host, port=port, timeout=3)
-            logger.info("DLRover job master starts!")
+            logger.info("DLRover master has already started.")
             return True
         except (socket.timeout, ConnectionRefusedError):
             time.sleep(1)
@@ -332,7 +324,6 @@ def _elastic_config_from_args(
     elastic_config.save_at_breakpoint = getattr(
         args, "save_at_breakpoint", False
     )
-    elastic_config.log_file = getattr(args, "log_file", "")
     elastic_config.auto_configure_params()
     elastic_config.rdzv_backend = "dlrover-master"
     elastic_config.rdzv_endpoint = ""
@@ -358,6 +349,7 @@ def _check_to_use_dlrover_run(master_addr, max_nodes, timeout=120):
 
 
 def run(args):
+    logger.info(f"DLRover agent started with: {cu.get_dlrover_version()}.")
     master_handler = None
     master_addr = os.getenv(NodeEnv.DLROVER_MASTER_ADDR, "")
     node_rank = env_utils.get_node_rank()

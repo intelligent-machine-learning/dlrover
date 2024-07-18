@@ -315,7 +315,6 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         s.bind(("", 10000))
         os.environ["HOST_PORTS"] = "10000"
         port = agent._get_free_port()
-        print(port)
         s.close()
         self.assertTrue(port != 10000)
 

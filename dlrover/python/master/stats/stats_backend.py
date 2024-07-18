@@ -15,6 +15,8 @@ import json
 
 import yaml
 
+from dlrover.python.common.log import default_logger as logger
+
 
 def parse_json_file(file_path):
     data = None
@@ -43,7 +45,7 @@ class LocalFileStateBackend:
         elif self.file_path.endswith("yaml"):
             data = parse_yaml_file(self.file_path)
         else:
-            print("error")  # to do: logging
+            logger.eror("Invalid file format.")
         self.data = data
         return data
 

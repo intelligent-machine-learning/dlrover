@@ -14,6 +14,7 @@
 import threading
 import time
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from unittest import mock
 
@@ -58,6 +59,7 @@ from dlrover.python.master.resource.job import JobResource
 from dlrover.python.master.watcher.base_watcher import Node, NodeEvent
 from dlrover.python.scheduler.job import LocalJobArgs
 from dlrover.python.tests.test_utils import (
+    MockK8sAllreduceJobArgs,
     MockK8sPSJobArgs,
     create_task_manager,
     mock_k8s_client,
@@ -274,11 +276,24 @@ class DistributedJobManagerTest(unittest.TestCase):
             node.status = NodeStatus.RUNNING
         events = manager._get_dead_node_event()
         self.assertEqual(len(events), 0)
-        for node in manager._job_nodes[NodeType.WORKER].values():
+        for index, node in enumerate(
+            manager._job_nodes[NodeType.WORKER].values()
+        ):
             node.status = NodeStatus.RUNNING
-            node.heartbeat_time = time.time() - 500
+            now = datetime.now()
+            node.heartbeat_time = (now - timedelta(seconds=500)).timestamp()
+            if index == 0:
+                node.create_time = now - timedelta(seconds=400)
+                node.start_time = now - timedelta(seconds=300)
+            else:
+                node.create_time = now - timedelta(seconds=700)
+                node.start_time = now - timedelta(seconds=600)
         events = manager._get_dead_node_event()
-        self.assertEqual(len(events), 3)
+        self.assertEqual(len(events), 2)
+
+        nodes_time_info = manager._get_nodes_time_info()
+        self.assertIsNotNone(nodes_time_info)
+        self.assertEqual(len(nodes_time_info), 3)
 
     def test_relaunch_training_master(self):
         params = MockK8sPSJobArgs()
@@ -519,6 +534,36 @@ class DistributedJobManagerTest(unittest.TestCase):
         active_threads_name = [t.name for t in threading.enumerate()]
         self.assertIn("node_monitor", active_threads_name)
         self.assertIn("node_heart_beat_monitor", active_threads_name)
+        manager.stop()
+
+    def test_concurrency_heart_beat_collecting(self):
+        params = MockK8sAllreduceJobArgs()
+        worker_size = 10000
+        params.initilize(worker_size)
+        manager = create_job_manager(params, SpeedMonitor())
+        manager.start()
+
+        self.assertEqual(len(manager._job_nodes[NodeType.WORKER]), worker_size)
+        for i, node in manager._job_nodes[NodeType.WORKER].items():
+            self.assertEqual(node.id, i)
+            self.assertEqual(node.heartbeat_time, 0)
+        futures = []
+        with ThreadPoolExecutor(max_workers=100) as executor:
+            for i in range(worker_size):
+                futures.append(
+                    executor.submit(
+                        manager.collect_node_heart_beat, NodeType.WORKER, i, i
+                    )
+                )
+
+            for future in futures:
+                future.result()
+
+        self.assertEqual(len(futures), worker_size)
+        for i, node in manager._job_nodes[NodeType.WORKER].items():
+            self.assertEqual(node.id, i)
+            self.assertEqual(node.heartbeat_time, i)
+
         manager.stop()
 
 
