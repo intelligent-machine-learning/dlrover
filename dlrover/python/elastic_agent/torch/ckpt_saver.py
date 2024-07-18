@@ -571,7 +571,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
 
         if not error_msg:
             error_msg = "Unknown"
-        error_full_msg = "Async checkpointer saver got failure:" + error_msg
+        error_full_msg = "Async checkpoint saver got failure:" + error_msg
 
         try:
             error = ProcessError(
