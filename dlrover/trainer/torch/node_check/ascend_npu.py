@@ -12,7 +12,6 @@
 # limitations under the License.
 
 import os
-from datetime import timedelta
 
 import torch
 import torch.distributed as dist
@@ -23,7 +22,13 @@ try:
 except Exception:
     torch_npu = None
 
-from .utils import bm_allgather, matmul, record_execution_time
+from .utils import (
+    bm_allgather,
+    get_network_check_timeout,
+    init_process_group,
+    matmul,
+    record_execution_time,
+)
 
 
 @record_execution_time
@@ -36,7 +41,7 @@ def main():
         if "Ascend" in device:
             protocol = "hccl"
 
-    dist.init_process_group(protocol, timeout=timedelta(seconds=180))
+    init_process_group(protocol, timeout=get_network_check_timeout())
 
     if use_cuda:
         local_rank = int(os.environ["LOCAL_RANK"])
