@@ -68,6 +68,7 @@ from dlrover.python.common.constants import (
     TrainingExceptionLevel,
 )
 from dlrover.python.common.diagnosis import node_failed
+from dlrover.python.common.error import ProcessError
 from dlrover.python.common.grpc import (
     find_free_port_for_hccl,
     find_free_port_in_range,
@@ -169,14 +170,6 @@ class ElasticLaunchConfig(LaunchConfig):
             self.nproc_per_node = torch.cuda.device_count()
         if self.min_nodes >= 4:
             self.network_check = True
-
-
-@dataclass
-class ProcessError:
-    local_rank: int
-    exitcode: int
-    message: str
-    datetime: Any
 
 
 class MasterRendezvousHandler(RendezvousHandler):
@@ -559,6 +552,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 # We need to register handler after starting workers because
                 # the PContext start_worker will overwrite the handler.
                 AsyncCheckpointSaver.register_signal_handler()
+
+                # need master client to report unexpected failures in saver
+                AsyncCheckpointSaver.register_master_client(self._client)
             except RendezvousOutSyncError:
                 if start_pending == 0:
                     start_pending = time.time()
