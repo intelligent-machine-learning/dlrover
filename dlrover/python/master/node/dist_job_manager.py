@@ -593,6 +593,10 @@ class DistributedJobManager(JobManager):
             )
 
         if should_relaunch:
+            if not self._error_monitor:
+                self._error_monitor.report_event(
+                    "info", cur_node.name, "relaunch", detail_msg, {},
+                )
             self._relaunch_node(cur_node)
 
     def _process_node_events(
@@ -687,6 +691,14 @@ class DistributedJobManager(JobManager):
             )
         else:
             logger.error("Not support node type %s", node.type)
+        if self._error_monitor and plan and len(plan.launch_nodes) > 0:
+            self._error_monitor.report_event(
+                "info",
+                node.name,
+                f"relaunch to {plan.launch_nodes[0].id}",
+                "",
+                {},
+            )
         self._set_ps_addrs_in_plan(plan)
         if self._remove_exited_node:
             plan.remove_nodes.append(node)
