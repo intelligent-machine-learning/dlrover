@@ -495,7 +495,7 @@ class DistributedJobManagerTest(unittest.TestCase):
             node.status = NodeStatus.PENDING
             node.is_recovered_oom = True
             node.create_time = datetime.now()
-        msg = manager.early_stop()
+        msg = manager.should_early_stop()
         self.assertTrue(msg == "")
 
         manager._remove_exited_node = True
@@ -507,14 +507,14 @@ class DistributedJobManagerTest(unittest.TestCase):
             node.status = NodeStatus.PENDING
             node.create_time = datetime.now() + timedelta(days=-1)
             node.is_recovered_oom = True
-        msg = manager.early_stop()
+        msg = manager.should_early_stop()
         self.assertFalse(msg == "")
 
         for node in manager._job_nodes[NodeType.PS].values():
             node.status = NodeStatus.RUNNING
             node.create_time = datetime.now() + timedelta(days=-1)
             node.is_recovered_oom = True
-        msg = manager.early_stop()
+        msg = manager.should_early_stop()
         self.assertTrue(msg == "")
 
     def test_when_node_not_init(self):

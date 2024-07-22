@@ -26,7 +26,7 @@ from dlrover.python.common.constants import (
     NodeResourceLimit,
     NodeStatus,
     NodeType,
-    TrainingExceptionLevel,
+    TrainingExceptionLevel, JobExitReason,
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.grpc import ParallelConfig
@@ -213,7 +213,7 @@ class DistributedJobManager(JobManager):
     def get_worker_num(self):
         return self._job_resource.worker_num
 
-    def early_stop(self):
+    def should_early_stop(self):
         nodes = self._ps_manager.get_pending_timeout_oom_recovered_node()
         msg = ""
         if len(nodes) > 0:
@@ -221,7 +221,8 @@ class DistributedJobManager(JobManager):
                 "Stop the training early because "
                 "OOM recoverd pod pends too long."
             )
-        return msg
+            return True, JobExitReason.PENDING_TIMEOUT, msg
+        return False, "", ""
 
     def _adjust_worker_for_estimator(self):
         if self._job_args.distribution_strategy == DistributionStrategy.PS:

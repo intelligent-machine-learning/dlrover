@@ -47,7 +47,7 @@ class LocalJobManager(JobManager):
                 status=NodeStatus.RUNNING,
             )
 
-    def early_stop(self):
+    def should_early_stop(self):
         return False
 
     def add_node_event_callback(self, node_event_callback):
