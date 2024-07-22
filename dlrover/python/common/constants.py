@@ -307,3 +307,4 @@ class Accelerators(object):
 class AscendConstants(object):
     # By default there are 16 npu on one machine
     NPU_PER_NODE = 16
+    HCCL_PORT_START = "HCCL_IF_BASE_PORT"
