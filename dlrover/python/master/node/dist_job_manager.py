@@ -214,14 +214,23 @@ class DistributedJobManager(JobManager):
         return self._job_resource.worker_num
 
     def should_early_stop(self):
-        nodes = self._ps_manager.get_pending_timeout_oom_recovered_node()
-        msg = ""
-        if len(nodes) > 0:
+        # ps pending judgement: any ps pod pending timeout
+        timeout_ps_nodes = (self._ps_manager
+                            .get_pending_timeout_oom_recovered_node())
+        if len(timeout_ps_nodes) > 0:
             msg = (
-                "Stop the training early because "
-                "OOM recoverd pod pends too long."
+                "Stop the training early because recovered pod pending "
+                "timeout."
             )
             return True, JobExitReason.PENDING_TIMEOUT, msg
+
+        # worker pending judgement:
+        # condition1: exist pending
+        # condition2: alive nodes number < min nodes -> training can't start
+        # condition3: condition1+condition2 last for a certain time
+        # TODO
+
+        # no need to early stop
         return False, "", ""
 
     def _adjust_worker_for_estimator(self):
