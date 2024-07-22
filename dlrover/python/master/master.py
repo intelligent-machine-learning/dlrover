@@ -11,22 +11,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from abc import ABCMeta, abstractclassmethod
+from abc import ABCMeta, abstractmethod
 
 
 class JobMaster(metaclass=ABCMeta):
-    @abstractclassmethod
+    @abstractmethod
     def prepare(self):
         pass
 
-    @abstractclassmethod
+    @abstractmethod
     def run(self):
         pass
 
-    @abstractclassmethod
+    @abstractmethod
     def stop(self):
         pass
 
-    @abstractclassmethod
-    def request_stop(self):
+    @abstractmethod
+    def request_stop(self, success, reason, msg=""):
         pass

@@ -118,7 +118,7 @@ def _convert_pod_event_to_node_event(event, k8s_client):
         pod_labels_selector = k8s_util.gen_k8s_label_selector_from_dict(
             _get_pod_unique_labels(job_name, pod_type, rank)
         )
-        logger.info(
+        logger.debug(
             f"Recheck running pod with labels: {pod_labels_selector} "
             f"for {evt_type} event."
         )
