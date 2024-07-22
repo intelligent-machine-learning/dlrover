@@ -14,10 +14,13 @@
 import os
 import unittest
 
+import pytest
+
 from dlrover.python.common.constants import BasicClass
 
 
 class LogTest(unittest.TestCase):
+    @pytest.mark.run(order=1)
     def test_default_log_level(self):
         from dlrover.python.common.log import default_logger as logger
         from dlrover.python.common.log import get_log_level
@@ -25,15 +28,7 @@ class LogTest(unittest.TestCase):
         self.assertEqual(get_log_level(), "INFO")
         logger.info("test123")
 
-    def test_debug_log_level(self):
-        os.environ[BasicClass.LOG_LEVEL_ENV] = "DEBUG"
-
-        from dlrover.python.common.log import default_logger as logger
-        from dlrover.python.common.log import get_log_level
-
-        self.assertEqual(get_log_level(), "DEBUG")
-        logger.debug("test123456")
-
+    @pytest.mark.run(order=2)
     def test_invalid_log_level(self):
         os.environ[BasicClass.LOG_LEVEL_ENV] = "INVALID"
 
@@ -42,3 +37,13 @@ class LogTest(unittest.TestCase):
 
         self.assertEqual(get_log_level(), "INFO")
         logger.info("test123")
+
+    @pytest.mark.run(order=3)
+    def test_debug_log_level(self):
+        os.environ[BasicClass.LOG_LEVEL_ENV] = "DEBUG"
+
+        from dlrover.python.common.log import default_logger as logger
+        from dlrover.python.common.log import get_log_level
+
+        self.assertEqual(get_log_level(), "DEBUG")
+        logger.debug("test123456")
