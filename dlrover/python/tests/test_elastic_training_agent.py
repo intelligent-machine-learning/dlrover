@@ -366,7 +366,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         agent.sync_training_ports()
         self.assertEqual(
             os.environ[AscendConstants.HCCL_PORT_START],
-            str(AscendConstants.HCCL_PORT_START_DEFAULT)
+            str(AscendConstants.HCCL_PORT_START_DEFAULT),
         )
 
 
