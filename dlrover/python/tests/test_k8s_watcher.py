@@ -61,7 +61,9 @@ class PodWatcherTest(unittest.TestCase):
         self.k8s_client = mock_k8s_client()
 
     def test_list(self):
+        # set env
         os.environ[WITH_TO_DELETED] = "True"
+
         mock_k8s_client()
         pod_watcher = PodWatcher("test", "")
         nodes: List[Node] = pod_watcher.list()
@@ -85,6 +87,9 @@ class PodWatcherTest(unittest.TestCase):
         self.assertEqual(node.id, 99)
         self.assertEqual(node.type, NodeType.WORKER)
         self.assertEqual(node.status, NodeStatus.DELETED)
+
+        # reset env
+        os.environ.pop(WITH_TO_DELETED)
 
     def test_convert_pod_event_to_node_event(self):
         labels = _mock_pod_labels()
