@@ -26,6 +26,7 @@ from torch.distributed.launcher.api import LaunchConfig
 
 from dlrover.python.common.constants import (
     Accelerators,
+    AscendConstants,
     ConfigPath,
     RendezvousName,
 )
@@ -363,7 +364,10 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             log_dir=self.config.log_dir,
         )
         agent.sync_training_ports()
-        self.assertEqual(os.environ["HCCL_IF_BASE_PORT"], "60000")
+        self.assertEqual(
+            os.environ[AscendConstants.HCCL_PORT_START],
+            str(AscendConstants.HCCL_PORT_START_DEFAULT),
+        )
 
 
 class NodeCheckElasticAgentTest(unittest.TestCase):

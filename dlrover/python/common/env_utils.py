@@ -72,3 +72,8 @@ def get_env(env_key):
     """Get the specified environment variable."""
     env_value = os.getenv(env_key, None)
     return env_value
+
+
+def set_env(env_key, env_value):
+    """Set the specified environment variable."""
+    os.environ[env_key] = str(env_value)

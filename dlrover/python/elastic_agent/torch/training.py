@@ -60,6 +60,7 @@ from torch.distributed.launcher.api import LaunchConfig, _get_entrypoint_name
 from dlrover.python.common import env_utils
 from dlrover.python.common.constants import (
     Accelerators,
+    AscendConstants,
     ConfigPath,
     NodeEnv,
     NodeErrorMessage,
@@ -140,7 +141,7 @@ class ElasticLaunchConfig(LaunchConfig):
     network_check: bool = False
     comm_perf_test: bool = False
     node_unit: int = 1
-    training_port: int = 60000
+    training_port: int = AscendConstants.HCCL_PORT_START_DEFAULT
     auto_config: bool = False
     auto_tunning: bool = False
     exclude_straggler: bool = False
@@ -739,6 +740,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         logger.info(f"Accelerator: {self._config.accelerator}")
         if (
             self._config.accelerator == Accelerators.ASCEND_NPU
+            and not env_utils.get_env(AscendConstants.HCCL_PORT_START)
             and self._config.training_port > 0
         ):
             start_port = self._config.training_port
@@ -766,7 +768,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     continue
                 if resp.port > 0:
                     logger.info(f"config hccl port: {resp.port}")
-                    os.environ["HCCL_IF_BASE_PORT"] = str(resp.port)
+                    os.environ[AscendConstants.HCCL_PORT_START] = str(
+                        resp.port
+                    )
                     break
                 elif resp.newport > 0:
                     start_port = resp.newport
