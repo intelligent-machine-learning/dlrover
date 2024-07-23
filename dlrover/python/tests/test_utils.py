@@ -36,6 +36,8 @@ from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.scheduler.job import JobArgs, LocalJobArgs, NodeArgs
 from dlrover.python.scheduler.kubernetes import k8sClient
 
+WITH_TO_DELETED = "WITH_TO_DELETED"
+
 
 def _is_local():
     return "dlrover/python/tests" in os.getcwd()
@@ -249,6 +251,17 @@ def mock_list_namespaced_pod(label_selector):
             }
             pod = create_pod(labels)
             pods.append(pod)
+
+    if os.getenv(WITH_TO_DELETED):
+        labels = {
+            ElasticJobLabel.APP_NAME: "test",
+            ElasticJobLabel.REPLICA_TYPE_KEY: NodeType.WORKER,
+            ElasticJobLabel.REPLICA_INDEX_KEY: str(99),
+            ElasticJobLabel.RANK_INDEX_KEY: str(99),
+            ElasticJobLabel.RELAUNCH_COUNT: "0",
+        }
+        pod = create_pod(labels, with_deletion_timestamp=True)
+        pods.append(pod)
 
     return client.V1PodList(
         items=pods, metadata=client.V1ListMeta(resource_version="12345678")
