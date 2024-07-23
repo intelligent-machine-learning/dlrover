@@ -12,6 +12,10 @@
 # limitations under the License.
 
 
+class BasicClass(object):
+    LOG_LEVEL_ENV = "DLROVER_LOG_LEVEL"
+
+
 class PriorityClass(object):
     LOW = "low"
     HIGH = "high"
