@@ -104,7 +104,9 @@ def find_free_port_in_set(ports):
     raise RuntimeError(f"Fail to find a free port in {ports}")
 
 
-def find_free_port_for_hccl(start=64000) -> int:
+def find_free_port_for_hccl(
+    start=AscendConstants.HCCL_PORT_START_DEFAULT,
+) -> int:
     cur_start = start
     end = start + 10000
     if end > 65000:
@@ -120,7 +122,9 @@ def find_free_port_for_hccl(start=64000) -> int:
             logger.info(f"Find available port start from: {cur_start}")
             break
         except OSError:
-            logger.warning(f"Target port is already used: {checking_port}.")
+            logger.warning(
+                f"Target port has already been used: {checking_port}."
+            )
             if checking_port > 0:
                 cur_start = checking_port + 1
             else:

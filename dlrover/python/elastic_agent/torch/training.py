@@ -141,7 +141,7 @@ class ElasticLaunchConfig(LaunchConfig):
     network_check: bool = False
     comm_perf_test: bool = False
     node_unit: int = 1
-    training_port: int = 64000
+    training_port: int = AscendConstants.HCCL_PORT_START_DEFAULT
     auto_config: bool = False
     auto_tunning: bool = False
     exclude_straggler: bool = False
