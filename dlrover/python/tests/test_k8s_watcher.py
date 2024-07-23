@@ -13,6 +13,7 @@
 
 import datetime
 import json
+import os
 import unittest
 from typing import List
 
@@ -36,6 +37,7 @@ from dlrover.python.master.watcher.k8s_watcher import (
     _verify_restarting_training,
 )
 from dlrover.python.tests.test_utils import (
+    WITH_TO_DELETED,
     create_pod,
     get_test_scale_plan,
     mock_k8s_client,
@@ -59,10 +61,11 @@ class PodWatcherTest(unittest.TestCase):
         self.k8s_client = mock_k8s_client()
 
     def test_list(self):
+        os.environ[WITH_TO_DELETED] = "True"
         mock_k8s_client()
         pod_watcher = PodWatcher("test", "")
         nodes: List[Node] = pod_watcher.list()
-        self.assertEqual(len(nodes), 5)
+        self.assertEqual(len(nodes), 6)
         node: Node = nodes[0]
         self.assertEqual(node.id, 0)
         self.assertEqual(node.type, NodeType.PS)
@@ -73,10 +76,15 @@ class PodWatcherTest(unittest.TestCase):
                 "2022-11-11 11:11:11", "%Y-%m-%d %H:%M:%S"
             ),
         )
-        node: Node = nodes[-1]
+        node: Node = nodes[-2]
         self.assertEqual(node.id, 2)
         self.assertEqual(node.type, NodeType.WORKER)
         self.assertEqual(node.status, NodeStatus.RUNNING)
+
+        node: Node = nodes[-1]
+        self.assertEqual(node.id, 99)
+        self.assertEqual(node.type, NodeType.WORKER)
+        self.assertEqual(node.status, NodeStatus.DELETED)
 
     def test_convert_pod_event_to_node_event(self):
         labels = _mock_pod_labels()
