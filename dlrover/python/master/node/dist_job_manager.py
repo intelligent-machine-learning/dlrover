@@ -219,16 +219,27 @@ class DistributedJobManager(JobManager):
                             .get_pending_timeout_oom_recovered_node())
         if len(timeout_ps_nodes) > 0:
             msg = (
-                "Stop the training early because recovered pod pending "
+                "Stop the training early because oom recovered node pending "
                 "timeout."
             )
             return True, JobExitReason.PENDING_TIMEOUT, msg
 
         # worker pending judgement:
-        # condition1: exist pending
-        # condition2: alive nodes number < min nodes -> training can't start
-        # condition3: condition1+condition2 last for a certain time
-        # TODO
+
+        if self._worker_manager.is_training_hang_by_pending():
+            msg = (
+                "Stop the training early because 1) there is node pending "
+                "2) alive worker number consistently lower than the min "
+                "training nodes requires 3) time last exceed limit."
+            )
+            return True, JobExitReason.PENDING_TIMEOUT, msg
+
+        if self._worker_manager.is_training_hang_by_unsufficient_worker():
+            msg = (
+                "Stop the training early because there isn't enough node to "
+                "keep training."
+            )
+            return True, JobExitReason.UNCOMPLETED_TIMEOUT, msg
 
         # no need to early stop
         return False, "", ""
@@ -931,6 +942,9 @@ class DistributedJobManager(JobManager):
                     f"-{node.name}"
                 )
             node.heartbeat_time = timestamp
+
+    def update_node_required_info_callback(self):
+        self._worker_manager.update_node_required_info(self._nodes_required)
 
 
 def create_job_manager(args: JobArgs, speed_monitor) -> DistributedJobManager:

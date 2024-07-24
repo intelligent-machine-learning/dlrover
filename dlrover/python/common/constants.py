@@ -109,6 +109,7 @@ class JobExitReason(object):
     HANG_ERROR = "HangError"
     RDZV_TIMEOUT_ERROR = "RdzvTimeout"
     PENDING_TIMEOUT = "PendingTimeout"
+    UNCOMPLETED_TIMEOUT = "UncompletedTimeout"
 
 
 class CustomMetricKeys:

@@ -50,6 +50,7 @@ class JobManager(metaclass=ABCMeta):
         self._error_monitor: ErrorMonitor = error_monitor
 
         self._job_nodes: Dict[str, Dict[int, Node]] = {}
+        self._nodes_required = (0, 0)
 
         self._training_node_configure = TrainingNodeConfigure()
 
@@ -198,3 +199,13 @@ class JobManager(metaclass=ABCMeta):
         return self._training_node_configure.sync_node_training_port(
             node_id, port
         )
+
+    def update_node_required_info(self, min_required, max_required):
+        if min_required > 0 and max_required > 0 and max_required > min_required:
+            self._nodes_required = (min_required, max_required)
+            self.update_node_required_info_callback()
+
+    def update_node_required_info_callback(self):
+        """Callback when 'update_node_required_info' is invoked."""
+
+        pass
