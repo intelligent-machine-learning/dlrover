@@ -363,10 +363,28 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             start_method=self.config.start_method,
             log_dir=self.config.log_dir,
         )
-        agent.sync_training_ports()
+        agent.sync_training_ports(1)
         self.assertEqual(
             os.environ[AscendConstants.HCCL_PORT_START],
             str(AscendConstants.HCCL_PORT_START_DEFAULT),
+        )
+
+    def test_sync_node_port_with_env(self):
+        os.environ[AscendConstants.HCCL_PORT_START] = "65000"
+        self.config.accelerator = Accelerators.ASCEND_NPU
+        agent = ElasticTrainingAgent(
+            node_rank=0,
+            config=self.config,
+            entrypoint="echo",
+            spec=self.spec,
+            start_method=self.config.start_method,
+            log_dir=self.config.log_dir,
+        )
+
+        agent.sync_training_ports(1)
+        self.assertEqual(
+            os.environ[AscendConstants.HCCL_PORT_START],
+            str(65000),
         )
 
 
