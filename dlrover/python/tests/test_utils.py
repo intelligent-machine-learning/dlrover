@@ -43,10 +43,6 @@ def _is_local():
     return "dlrover/python/tests" in os.getcwd()
 
 
-def _is_local():
-    return "dlrover/python/tests" in os.getcwd()
-
-
 def get_test_scale_plan(*args, **kwargs):
     if _is_local():
         with open("data/scaleplan_sample.yaml", "r") as f:
