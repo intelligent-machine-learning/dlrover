@@ -11,20 +11,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dlrover.python.common.diagnosis import TrainingLog
-from dlrover.python.elastic_agent.datacollector.data_collector import (
-    DataCollector,
-)
+from dataclasses import dataclass
+from typing import Any
+
+from dlrover.python.common.serialize import JsonSerializable
 
 
-class LogCollector(DataCollector):
-    def __init__(self, *args, **kwargs):
-        super().__init__()
-        pass
-
-    def collect_data(self) -> object:
-        log = TrainingLog(0)
-        return log
-
-    def to_collect_data(self) -> bool:
-        return True
+@dataclass
+class ProcessError(JsonSerializable):
+    local_rank: int
+    exitcode: int
+    message: str
+    datetime: Any

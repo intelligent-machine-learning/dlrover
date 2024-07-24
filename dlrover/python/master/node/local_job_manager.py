@@ -10,21 +10,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Dict
 
 from dlrover.python.common.constants import NodeStatus, NodeType
 from dlrover.python.common.grpc import ParallelConfig
 from dlrover.python.common.node import Node
-from dlrover.python.master.hyperparams.simple_strategy_generator import (
-    SimpleStrategyGenerator,
-)
-from dlrover.python.master.monitor.error_monitor import (
-    ErrorMonitor,
-    SimpleErrorMonitor,
-)
-from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
+from dlrover.python.master.monitor.error_monitor import SimpleErrorMonitor
 from dlrover.python.master.node.job_manager import JobManager
-from dlrover.python.master.resource.job import JobResource
 from dlrover.python.scheduler.job import JobArgs
 
 
@@ -41,21 +32,13 @@ class LocalJobManager(JobManager):
         speed_monitor=None,
         error_monitor=None,
     ):
-        self._job_resource = JobResource()
-        self._job_args = job_args
+        super().__init__(job_args, speed_monitor, error_monitor)
         self._job_resource_optimizer = None
-        self._job_strategy_generator: SimpleStrategyGenerator = (
-            SimpleStrategyGenerator(self._job_args.job_uuid)
-        )
-        self._stop_monitor = False
-        self._speed_monitor: SpeedMonitor = speed_monitor
-        self._error_monitor: ErrorMonitor = error_monitor
-
-        self._job_nodes: Dict[str, Dict[int, Node]] = {}
 
     def start(self):
         self._job_nodes[NodeType.WORKER] = {}
         worker = self._job_args.node_args[NodeType.WORKER].group_resource
+        self._training_node_configure.set_node_num(worker.count)
         for i in range(worker.count):
             self._job_nodes[NodeType.WORKER][i] = Node(
                 name=NodeType.WORKER + f"-{i}",
@@ -119,7 +102,7 @@ class LocalJobManager(JobManager):
         pass
 
     def stop(self):
-        self._stop_monitor = True
+        self._stopped = True
 
     def update_node_service_addr(self, node_type, node_id, service_addr):
         pass

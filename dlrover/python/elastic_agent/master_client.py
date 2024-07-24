@@ -70,10 +70,13 @@ class MasterClient(Singleton):
     _instance_lock = threading.Lock()
 
     def __init__(self, master_addr, node_id, node_type, timeout=5):
+        logger.info(
+            f"Build master client with master_addr: {master_addr}, "
+            f"node_id: {node_id}, node_type: {node_type}."
+        )
         self._timeout = timeout
         self._master_addr = master_addr
         self._channel = grpc.build_channel(master_addr)
-        logger.info("dlrover master addr is %s" % self._master_addr)
         self._stub = elastic_training_pb2_grpc.MasterStub(self._channel)
         self._node_id = node_id
         self._node_type = node_type
@@ -408,6 +411,11 @@ class MasterClient(Singleton):
         request.step = step
         response = self._report(request)
         return response.success
+
+    def sync_training_ports(self, port) -> grpc.SyncTrainingPort:
+        request = grpc.SyncTrainingPort(port=port)
+        response: grpc.SyncTrainingPort = self._get(request)
+        return response
 
     @classmethod
     def singleton_instance(cls, *args, **kwargs):

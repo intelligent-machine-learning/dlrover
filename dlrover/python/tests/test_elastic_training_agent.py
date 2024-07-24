@@ -24,7 +24,12 @@ from torch.distributed.elastic.agent.server.api import WorkerSpec, WorkerState
 from torch.distributed.elastic.rendezvous import RendezvousParameters
 from torch.distributed.launcher.api import LaunchConfig
 
-from dlrover.python.common.constants import ConfigPath, RendezvousName
+from dlrover.python.common.constants import (
+    Accelerators,
+    AscendConstants,
+    ConfigPath,
+    RendezvousName,
+)
 from dlrover.python.common.storage import PosixDiskStorage
 from dlrover.python.elastic_agent.master_client import (
     MasterClient,
@@ -205,12 +210,13 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         agent._rendezvous = _mock_rendezvous
         with self.assertRaises(TimeoutError):
             agent._initialize_workers(agent._worker_group)
+            agent._save_ckpt_future
 
 
 class ElasticTrainingAgentRunTest(unittest.TestCase):
     def setUp(self) -> None:
         self._master, addr = start_local_master()
-        MasterClient._instance = build_master_client(addr, 0.5)
+        MasterClient._instance = build_master_client(addr, 1)
         launch_config = LaunchConfig(
             min_nodes=1,
             max_nodes=1,
@@ -311,7 +317,6 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         s.bind(("", 10000))
         os.environ["HOST_PORTS"] = "10000"
         port = agent._get_free_port()
-        print(port)
         s.close()
         self.assertTrue(port != 10000)
 
@@ -347,6 +352,22 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         )
         self.assertEqual(spec.max_restarts, 3)
         self.assertEqual(spec.local_world_size, 2)
+
+    def test_sync_node_port(self):
+        self.config.accelerator = Accelerators.ASCEND_NPU
+        agent = ElasticTrainingAgent(
+            node_rank=0,
+            config=self.config,
+            entrypoint="echo",
+            spec=self.spec,
+            start_method=self.config.start_method,
+            log_dir=self.config.log_dir,
+        )
+        agent.sync_training_ports()
+        self.assertEqual(
+            os.environ[AscendConstants.HCCL_PORT_START],
+            str(AscendConstants.HCCL_PORT_START_DEFAULT),
+        )
 
 
 class NodeCheckElasticAgentTest(unittest.TestCase):

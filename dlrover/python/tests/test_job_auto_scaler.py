@@ -11,7 +11,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+import threading
+import time
 import unittest
 from datetime import datetime, timedelta
 from unittest import mock
@@ -80,8 +81,25 @@ class JobAutoScalerTest(unittest.TestCase):
         for i in [0, 3, 2]:
             ps_addrs.append("test-edljob-ps-{}.default.svc:2222".format(i))
         self.assertListEqual(scale_plan.ps_addrs, ps_addrs)
+
+        plan = None
+        scale_plan = auto_scaler.execute_job_optimization_plan(plan)
+        self.assertIsNotNone(scale_plan)
+
+        # mock for following async thread testing
+        auto_scaler._speed_monitor.worker_adjustment_finished = mock.MagicMock(
+            side_effect=Exception()
+        )
+        _dlrover_context = Context.singleton_instance()
+        _dlrover_context.auto_ps_enabled = True
+        _dlrover_context.auto_worker_enabled = True
+
         auto_scaler.start_auto_scaling()
+        time.sleep(3)
         self.assertTrue(auto_scaler._autoscaling_started)
+        active_threads_name = [t.name for t in threading.enumerate()]
+        self.assertIn("ps-autoscaler", active_threads_name)
+
         auto_scaler.stop_auto_scaling()
         self.assertFalse(auto_scaler._autoscaling_started)
 
@@ -143,7 +161,24 @@ class AllreduceAutoScalerTest(unittest.TestCase):
         )
         alive_num = auto_scaler._get_alive_worker_num()
         self.assertEqual(alive_num, 16)
+
+        plan = None
+        scale_plan = auto_scaler.execute_job_optimization_plan(plan)
+        self.assertIsNotNone(scale_plan)
+
+        # mock for following async thread testing
+        auto_scaler._scale_interval = 1
+        auto_scaler._get_alive_worker_num = mock.MagicMock(
+            side_effect=Exception()
+        )
+        _dlrover_context = Context.singleton_instance()
+        _dlrover_context.auto_worker_enabled = True
+
         auto_scaler.start_auto_scaling()
+        time.sleep(3)
         self.assertTrue(auto_scaler._autoscaling_started)
+        active_threads_name = [t.name for t in threading.enumerate()]
+        self.assertIn("allreduce-autoscaler", active_threads_name)
+
         auto_scaler.stop_auto_scaling()
         self.assertFalse(auto_scaler._autoscaling_started)

@@ -103,6 +103,8 @@ class ShardCkptReplicaManager(CkptReplicaManger):
             A list of ranks.
         """
         backup_ranks = []
+        if replica_count <= 0:
+            return backup_ranks
 
         group_index = self.node_rank // replica_count
         for i in range(replica_count):

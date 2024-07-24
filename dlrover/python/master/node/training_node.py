@@ -17,6 +17,8 @@ import math
 import threading
 import time
 from collections import Counter
+from dataclasses import dataclass
+from threading import Lock
 from typing import Dict, List
 
 from dlrover.python.common.constants import (
@@ -156,12 +158,8 @@ class TrainingNodeManager(object):
     ):
         """
         Args:
-            k8s_client: The client to connect the k8s cluster.
-            worker_pods: A dictionary where the key is the index of worker pod
-                and the value is the PodInfo instance of PS pod.
-            typed_pod_config: The ps/worker/evaluator configuration.
-            max_relaunch_num: The maximum relaunch number of PS.
-            command: The command of worker pods.
+            nodes: training nodes
+            new_node_name_fn: new node name function
         """
         self._nodes = nodes
         self._new_node_name_fn = new_node_name_fn
@@ -359,3 +357,68 @@ class TrainingNodeManager(object):
             if id in critical_node_restarts:
                 node.critical = True
                 node.max_relaunch_count = critical_node_restarts[id]
+
+
+@dataclass
+class SyncNodeTrainingPorts:
+    training_port: int = 0
+    next_check_port: int = 0
+
+
+class TrainingNodeConfigure:
+    def __init__(self):
+        self._lock = Lock()
+        self._recv_node_training_ports: Dict[int, int] = {}
+        self._node_training_port = 0
+        self._next_check_node_training_port = 0
+        self._n_node = 0
+
+    def set_node_num(self, num):
+        logger.info(f"set worker count: {num}")
+        self._n_node = num
+
+    def sync_node_training_port(self, node_id, port) -> SyncNodeTrainingPorts:
+        with self._lock:
+            # port is already decided
+            if self._node_training_port > 0:
+                return SyncNodeTrainingPorts(
+                    training_port=self._node_training_port, next_check_port=0
+                )
+            # workers should start next round port check
+            if port < self._next_check_node_training_port:
+                return SyncNodeTrainingPorts(
+                    training_port=0,
+                    next_check_port=self._next_check_node_training_port,
+                )
+            self._recv_node_training_ports[node_id] = port
+            logger.info(f"recv ports: {self._recv_node_training_ports.keys()}")
+            if len(self._recv_node_training_ports) == self._n_node:
+                min_port = 0
+                max_port = 0
+                for _, recv_port in self._recv_node_training_ports.items():
+                    if min_port == 0 or min_port > recv_port:
+                        min_port = recv_port
+                    if max_port < recv_port:
+                        max_port = recv_port
+                if min_port != max_port:
+                    self._recv_node_training_ports.clear()
+                    self._next_check_node_training_port = max_port
+                    logger.info(
+                        f"fail to sync node training ports: "
+                        f"{self._recv_node_training_ports}, "
+                        f"next sync port: {max_port}"
+                    )
+                    return SyncNodeTrainingPorts(
+                        training_port=0,
+                        next_check_port=self._next_check_node_training_port,
+                    )
+                else:
+                    self._node_training_port = max_port
+                    return SyncNodeTrainingPorts(
+                        training_port=self._node_training_port,
+                        next_check_port=0,
+                    )
+            else:
+                return SyncNodeTrainingPorts(
+                    training_port=0, next_check_port=0
+                )

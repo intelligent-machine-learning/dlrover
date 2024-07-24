@@ -64,6 +64,8 @@ class ElasticRunTest(unittest.TestCase):
             "4",
             "--nnodes",
             "4",
+            "--training_port",
+            "1000",
             "test.py",
             "--batch_size",
             "16",
@@ -75,5 +77,6 @@ class ElasticRunTest(unittest.TestCase):
         self.assertTrue(config.auto_tunning)
         self.assertEqual(config.node_unit, 4)
         self.assertEqual(config.rdzv_configs["node_unit"], 4)
+        self.assertEqual(config.training_port, 1000)
         self.assertEqual(cmd, "/usr/local/bin/python")
         self.assertListEqual(cmd_args, ["-u", "test.py", "--batch_size", "16"])

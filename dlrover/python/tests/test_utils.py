@@ -36,6 +36,12 @@ from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.scheduler.job import JobArgs, LocalJobArgs, NodeArgs
 from dlrover.python.scheduler.kubernetes import k8sClient
 
+WITH_TO_DELETED = "WITH_TO_DELETED"
+
+
+def _is_local():
+    return "dlrover/python/tests" in os.getcwd()
+
 
 def _is_local():
     return "dlrover/python/tests" in os.getcwd()
@@ -114,9 +120,9 @@ class MockK8sAllreduceJobArgs(JobArgs):
             PlatformType.KUBERNETES, "default", "test"
         )
 
-    def initilize(self):
+    def initilize(self, worker_count=16):
         worker_resource = NodeGroupResource(
-            16, NodeResource(1, 4096, "a100", 8)
+            worker_count, NodeResource(1, 4096, "a100", 8)
         )
         self.node_args[NodeType.WORKER] = NodeArgs(
             worker_resource, True, 3, 0, ""
@@ -249,6 +255,17 @@ def mock_list_namespaced_pod(label_selector):
             }
             pod = create_pod(labels)
             pods.append(pod)
+
+    if os.getenv(WITH_TO_DELETED):
+        labels = {
+            ElasticJobLabel.APP_NAME: "test",
+            ElasticJobLabel.REPLICA_TYPE_KEY: NodeType.WORKER,
+            ElasticJobLabel.REPLICA_INDEX_KEY: str(99),
+            ElasticJobLabel.RANK_INDEX_KEY: str(99),
+            ElasticJobLabel.RELAUNCH_COUNT: "0",
+        }
+        pod = create_pod(labels, with_deletion_timestamp=True)
+        pods.append(pod)
 
     return client.V1PodList(
         items=pods, metadata=client.V1ListMeta(resource_version="12345678")

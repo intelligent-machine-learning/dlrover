@@ -14,6 +14,7 @@
 import json
 import os
 import time
+from datetime import timedelta
 
 import torch
 import torch.distributed as dist
@@ -34,10 +35,11 @@ def record_execution_time(func):
 
 def log_execution_time(func):
     def wrapper(*args, **kwargs):
-        t = func(*args, **kwargs)
-        t = round(t, 3)
         local_rank = int(os.environ["LOCAL_RANK"])
         func_name = func.__name__
+        logger.info(f"Begin execute {func_name} on local rank {local_rank}")
+        t = func(*args, **kwargs)
+        t = round(t, 3)
         logger.info(
             f"Time to execute {func_name} on local rank {local_rank} is {t}s."
         )
@@ -52,6 +54,27 @@ def mock_error():
         local_rank = int(os.environ["LOCAL_RANK"])
         if err_rank == local_rank:
             raise ValueError("Mock network error!")
+
+
+@log_execution_time
+def init_process_group(
+    protocol: str, timeout: timedelta = timedelta(seconds=180)
+):
+    start = time.time()
+    dist.init_process_group(protocol, timeout=timeout)
+    elapsed_time = time.time() - start
+    return elapsed_time
+
+
+def get_network_check_timeout() -> timedelta:
+    default_timeout_seconds = 180
+    timeout = int(
+        os.environ.get("NETWORK_CHECK_TIMEOUT", default_timeout_seconds)
+    )
+    if timeout <= 0:
+        timeout = default_timeout_seconds
+
+    return timedelta(seconds=timeout)
 
 
 @log_execution_time
@@ -111,6 +134,7 @@ def bm_allreduce(shape, use_gpu):
     return elapsed_time
 
 
+@log_execution_time
 def _execute_nccl_comm(comm_op, *args):
     local_rank = int(os.environ["LOCAL_RANK"])
     # warm up
@@ -132,6 +156,7 @@ def _execute_nccl_comm(comm_op, *args):
     return elapsed_time
 
 
+@log_execution_time
 def _execute_cpu_comm(comm_op, *args):
     # warm up
     for _ in range(10):
@@ -164,6 +189,7 @@ def matmul(use_cuda, round_num=10):
     return elapsed_time
 
 
+@log_execution_time
 def _execute_gpu_matmul(tensor1, tensor2, round_num):
     start = torch.cuda.Event(enable_timing=True)
     end = torch.cuda.Event(enable_timing=True)
@@ -178,6 +204,7 @@ def _execute_gpu_matmul(tensor1, tensor2, round_num):
     return elapsed_time
 
 
+@log_execution_time
 def _execute_cpu_matmul(tensor1, tensor2, round_num):
     start = time.time()
     for _ in range(round_num):

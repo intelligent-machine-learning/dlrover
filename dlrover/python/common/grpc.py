@@ -20,7 +20,7 @@ from typing import Dict, List
 
 import grpc
 
-from dlrover.python.common.constants import GRPC
+from dlrover.python.common.constants import GRPC, AscendConstants
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.serialize import JsonSerializable
 
@@ -102,6 +102,37 @@ def find_free_port_in_set(ports):
         except OSError:
             logger.warning(f"Socket creation attempt failed with {port}.")
     raise RuntimeError(f"Fail to find a free port in {ports}")
+
+
+def find_free_port_for_hccl(
+    start=AscendConstants.HCCL_PORT_START_DEFAULT,
+) -> int:
+    cur_start = start
+    end = start + 10000
+    if end > 65000:
+        end = 65000
+    logger.info(f"Try to find available port for hccl from {start}")
+    checking_port = 0
+    while True:
+        try:
+            cur_end = cur_start + AscendConstants.NPU_PER_NODE
+            for port in range(cur_start, cur_end):
+                checking_port = port
+                find_free_port(port)
+            logger.info(f"Find available port start from: {cur_start}")
+            break
+        except OSError:
+            logger.warning(
+                f"Target port has already been used: {checking_port}."
+            )
+            if checking_port > 0:
+                cur_start = checking_port + 1
+            else:
+                cur_start = cur_start + AscendConstants.NPU_PER_NODE
+            if cur_start > end:
+                cur_start = 0
+                break
+    return cur_start
 
 
 def grpc_server_ready(channel) -> bool:
@@ -467,3 +498,9 @@ class DiagnosisCudaLog(Message):
 @dataclass
 class DiagnosisChipMetrics(Message):
     timestamp: int = 0
+
+
+@dataclass
+class SyncTrainingPort(Message):
+    port: int = 0
+    newport: int = 0

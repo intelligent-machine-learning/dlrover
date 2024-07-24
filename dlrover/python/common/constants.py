@@ -12,6 +12,10 @@
 # limitations under the License.
 
 
+class BasicClass(object):
+    LOG_LEVEL_ENV = "DLROVER_LOG_LEVEL"
+
+
 class PriorityClass(object):
     LOW = "low"
     HIGH = "high"
@@ -228,6 +232,7 @@ class NodeEnv(object):
 
     # process env
     TORCHELASTIC_RUN_ID = "TORCHELASTIC_RUN_ID"
+    TRAINING_LOG_FILE = "TRAINING_LOG_FILE"
 
 
 class DatasetType(object):
@@ -301,3 +306,12 @@ class CheckpointConstant(object):
 class Accelerators(object):
     NVIDIA_GPU = "nvidia.com/gpu"
     ASCEND_NPU = "ascend-npu"
+
+
+class AscendConstants(object):
+    # By default there are 16(max) npu on one machine
+    NPU_PER_NODE = 16
+
+    # represent the starting offset of the hccl's port using
+    HCCL_PORT_START = "HCCL_IF_BASE_PORT"
+    HCCL_PORT_START_DEFAULT = 64000
