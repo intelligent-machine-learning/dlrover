@@ -107,10 +107,11 @@ def find_free_port_in_set(ports):
 def find_free_port_for_hccl(
     start=AscendConstants.HCCL_PORT_START_DEFAULT,
 ) -> int:
+    max_port = 65500
     cur_start = start
     end = start + 10000
-    if end > 65000:
-        end = 65000
+    if end > max_port:
+        end = max_port
     logger.info(f"Try to find available port for hccl from {start}")
     checking_port = 0
     while True:

@@ -736,14 +736,21 @@ class ElasticTrainingAgent(LocalElasticAgent):
         """Shutdown the executor to save the checkpoint."""
         self._save_ckpt_executor.shutdown(wait=False)
 
-    def sync_training_ports(self):
+    def sync_training_ports(self, interval=20):
         logger.info(f"Accelerator: {self._config.accelerator}")
         if (
             self._config.accelerator == Accelerators.ASCEND_NPU
-            and not env_utils.get_env(AscendConstants.HCCL_PORT_START)
             and self._config.training_port > 0
         ):
-            start_port = self._config.training_port
+            default_port_from_env = env_utils.get_env(
+                AscendConstants.HCCL_PORT_START
+            )
+            # use default port from env
+            if default_port_from_env:
+                start_port = int(default_port_from_env)
+            else:
+                start_port = self._config.training_port
+
             port = 0
             logger.info("synchronize worker training ports...")
             count = 0
@@ -754,7 +761,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                         f"exhausted {max_count} sync time. use default port"
                     )
                     break
-                time.sleep(20)
+                time.sleep(interval)
                 count = count + 1
                 if port == 0:
                     port = find_free_port_for_hccl(start_port)
