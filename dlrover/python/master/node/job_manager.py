@@ -201,7 +201,11 @@ class JobManager(metaclass=ABCMeta):
         )
 
     def update_node_required_info(self, min_required, max_required):
-        if min_required > 0 and max_required > 0 and max_required > min_required:
+        if (
+            min_required > 0
+            and max_required > 0
+            and max_required > min_required
+        ):
             self._nodes_required = (min_required, max_required)
             self.update_node_required_info_callback()
 

@@ -35,12 +35,12 @@ _dlrover_context = Context.singleton_instance()
 
 class ChiefManager(TrainingNodeManager):
     def __init__(
-            self,
-            chief_nodes: Dict[int, Node],
-            job_resource: JobResource,
-            max_relaunch_num,
-            new_service_fn,
-            new_node_name_fn,
+        self,
+        chief_nodes: Dict[int, Node],
+        job_resource: JobResource,
+        max_relaunch_num,
+        new_service_fn,
+        new_node_name_fn,
     ):
         """
         Args:
@@ -69,12 +69,12 @@ class ChiefManager(TrainingNodeManager):
 
 class EvaluatorManager(TrainingNodeManager):
     def __init__(
-            self,
-            evaluator_nodes: Dict[int, Node],
-            job_resource: JobResource,
-            max_relaunch_num,
-            new_service_fn,
-            new_node_name_fn,
+        self,
+        evaluator_nodes: Dict[int, Node],
+        job_resource: JobResource,
+        max_relaunch_num,
+        new_service_fn,
+        new_node_name_fn,
     ):
         """
         Args:
@@ -105,12 +105,12 @@ class EvaluatorManager(TrainingNodeManager):
 
 class WorkerManager(TrainingNodeManager):
     def __init__(
-            self,
-            worker_nodes: Dict[int, Node],
-            job_resource: JobResource,
-            max_relaunch_num,
-            new_service_fn,
-            new_node_name_fn,
+        self,
+        worker_nodes: Dict[int, Node],
+        job_resource: JobResource,
+        max_relaunch_num,
+        new_service_fn,
+        new_node_name_fn,
     ):
         """
         Args:
@@ -128,6 +128,7 @@ class WorkerManager(TrainingNodeManager):
         self._max_relaunch_num = max_relaunch_num
         self._new_service_fn = new_service_fn
         self._nodes_required = (0, 0)
+        self._last_insufficient_nodes_timestamp = 0
 
     def adjust_worker(self, worker_resource: NodeGroupResource):
         plan = ScalePlan()
@@ -194,13 +195,13 @@ class WorkerManager(TrainingNodeManager):
         with self._lock:
             for worker in self._nodes.values():
                 if (
-                        worker.status
-                        in [
-                    NodeStatus.FAILED,
-                    NodeStatus.SUCCEEDED,
-                    NodeStatus.FINISHED,
-                ]
-                        and not worker.is_released
+                    worker.status
+                    in [
+                        NodeStatus.FAILED,
+                        NodeStatus.SUCCEEDED,
+                        NodeStatus.FINISHED,
+                    ]
+                    and not worker.is_released
                 ):
                     worker.is_released = True
                     plan.remove_nodes.append(worker)
@@ -273,8 +274,8 @@ class WorkerManager(TrainingNodeManager):
         """Check whether there is exited worker except evicted workers."""
         for worker in self._nodes.values():
             if (
-                    worker.exit_reason == NodeExitReason.FATAL_ERROR
-                    or worker.status == NodeStatus.SUCCEEDED
+                worker.exit_reason == NodeExitReason.FATAL_ERROR
+                or worker.status == NodeStatus.SUCCEEDED
             ):
                 return True
         return False
@@ -283,8 +284,8 @@ class WorkerManager(TrainingNodeManager):
         """Check whether there are workers tha have remaining retries."""
         for worker in self._nodes.values():
             if (
-                    worker.exit_reason == NodeExitReason.KILLED
-                    and worker.relaunch_count < worker.max_relaunch_count
+                worker.exit_reason == NodeExitReason.KILLED
+                and worker.relaunch_count < worker.max_relaunch_count
             ):
                 return True
         return False
@@ -336,10 +337,7 @@ class WorkerManager(TrainingNodeManager):
         pending_nodes = []
         running_nodes = []
         for node in cur_nodes:
-            if (
-                    node.is_released
-                    or not node.create_time
-            ):
+            if node.is_released or not node.create_time:
                 continue
 
             if node.status == NodeStatus.PENDING:
@@ -348,22 +346,27 @@ class WorkerManager(TrainingNodeManager):
                 running_nodes.append(node)
 
         # with condition 1 + 2
-        if (len(pending_nodes) == 0
-                or len(running_nodes) > self._nodes_required[0]):
+        if (
+            len(pending_nodes) == 0
+            or len(running_nodes) > self._nodes_required[0]
+        ):
             return False
 
         # with condition 3
         now = time.time()
-        first_pending_node = (min(pending_nodes,
-                                  key=lambda x: x.create_time.timestamp()))
+        first_pending_node = min(
+            pending_nodes, key=lambda x: x.create_time.timestamp()
+        )
         if now - first_pending_node.create_time.timestamp() > timeout:
-            logger.info(f"Node {first_pending_node.name} "
-                        "exceeded pending timeout.")
+            logger.warning(
+                f"Node {first_pending_node.name} "
+                f"exceeded pending timeout: {timeout}s."
+            )
             return True
 
         return False
 
-    def is_training_hang_by_unsufficient_worker(self) -> bool:
+    def is_training_hang_by_insufficient_worker(self) -> bool:
         """
         There is a small probability that due to unknown reason on the
         training side, some workers will exit normally at the end of training,
@@ -374,7 +377,38 @@ class WorkerManager(TrainingNodeManager):
             bool
         """
 
-        # TODO
+        if not self.has_node_required_info():
+            return False
+
+        # use twice pending time as timeout
+        timeout = _dlrover_context.seconds_to_wait_pending_pod * 2
+        cur_nodes = list(self._nodes.values())
+
+        # collect available nodes
+        available_nodes = []
+        for node in cur_nodes:
+            if not node.is_released and node.status in [
+                NodeStatus.RUNNING,
+                NodeStatus.PENDING,
+                NodeStatus.INITIAL,
+            ]:
+                available_nodes.append(node)
+
+        now = time.time()
+        if len(available_nodes) < self._nodes_required[0]:
+            if self._last_insufficient_nodes_timestamp == 0:
+                self._last_insufficient_nodes_timestamp = now
+                logger.warning(f"Job with insufficient nodes: {cur_nodes}.")
+            else:
+                if now - self._last_insufficient_nodes_timestamp > timeout:
+                    logger.warning(
+                        f"Job with insufficient nodes: {cur_nodes} "
+                        f"lasts for more than {timeout}s."
+                    )
+                    return True
+        else:
+            self._last_insufficient_nodes_timestamp = 0
+
         return False
 
     def has_node_required_info(self):

@@ -21,12 +21,13 @@ from typing import Dict, List, Optional
 
 from dlrover.python.common.constants import (
     DistributionStrategy,
+    JobExitReason,
     NodeEventType,
     NodeExitReason,
     NodeResourceLimit,
     NodeStatus,
     NodeType,
-    TrainingExceptionLevel, JobExitReason,
+    TrainingExceptionLevel,
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.grpc import ParallelConfig
@@ -215,8 +216,9 @@ class DistributedJobManager(JobManager):
 
     def should_early_stop(self):
         # ps pending judgement: any ps pod pending timeout
-        timeout_ps_nodes = (self._ps_manager
-                            .get_pending_timeout_oom_recovered_node())
+        timeout_ps_nodes = (
+            self._ps_manager.get_pending_timeout_oom_recovered_node()
+        )
         if len(timeout_ps_nodes) > 0:
             msg = (
                 "Stop the training early because oom recovered node pending "
@@ -225,7 +227,6 @@ class DistributedJobManager(JobManager):
             return True, JobExitReason.PENDING_TIMEOUT, msg
 
         # worker pending judgement:
-
         if self._worker_manager.is_training_hang_by_pending():
             msg = (
                 "Stop the training early because 1) there is node pending "
@@ -234,7 +235,8 @@ class DistributedJobManager(JobManager):
             )
             return True, JobExitReason.PENDING_TIMEOUT, msg
 
-        if self._worker_manager.is_training_hang_by_unsufficient_worker():
+        # insufficient worker judgement
+        if self._worker_manager.is_training_hang_by_insufficient_worker():
             msg = (
                 "Stop the training early because there isn't enough node to "
                 "keep training."
