@@ -529,7 +529,9 @@ class DistributedJobManagerTest(unittest.TestCase):
         manager = create_job_manager(params, SpeedMonitor())
         manager._init_nodes()
 
-        manager._worker_manager.is_training_hang_by_pending = mock.MagicMock(return_value=True)
+        manager._worker_manager.is_training_hang_by_pending = mock.MagicMock(
+            return_value=True
+        )
         result, reason, msg = manager.should_early_stop()
         self.assertTrue(result)
         self.assertEqual(reason, JobExitReason.PENDING_TIMEOUT)
@@ -541,8 +543,9 @@ class DistributedJobManagerTest(unittest.TestCase):
         manager = create_job_manager(params, SpeedMonitor())
         manager._init_nodes()
 
-        manager._worker_manager.is_training_hang_by_insufficient_worker = mock.MagicMock(
-            return_value=True)
+        manager._worker_manager.is_training_hang_by_insufficient_worker = (
+            mock.MagicMock(return_value=True)
+        )
         result, reason, msg = manager.should_early_stop()
         self.assertTrue(result)
         self.assertEqual(reason, JobExitReason.UNCOMPLETED_TIMEOUT)

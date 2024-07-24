@@ -334,10 +334,10 @@ class WorkerManager(TrainingNodeManager):
         cur_nodes = list(self._nodes.values())
 
         # collect pending and running nodes
-        pending_nodes = []
-        running_nodes = []
+        pending_nodes: List[Node] = []
+        running_nodes: List[Node] = []
         for node in cur_nodes:
-            if node.is_released or not node.create_time:
+            if node is None or node.is_released or node.create_time is None:
                 continue
 
             if node.status == NodeStatus.PENDING:
@@ -355,8 +355,11 @@ class WorkerManager(TrainingNodeManager):
         # with condition 3
         now = time.time()
         first_pending_node = min(
-            pending_nodes, key=lambda x: x.create_time.timestamp()
+            pending_nodes, key=lambda x: x.create_time  # type: ignore
         )
+        if not first_pending_node or not first_pending_node.create_time:
+            return False
+
         if now - first_pending_node.create_time.timestamp() > timeout:
             logger.warning(
                 f"Node {first_pending_node.name} "
@@ -385,7 +388,7 @@ class WorkerManager(TrainingNodeManager):
         cur_nodes = list(self._nodes.values())
 
         # collect available nodes
-        available_nodes = []
+        available_nodes: List[Node] = []
         for node in cur_nodes:
             if not node.is_released and node.status in [
                 NodeStatus.RUNNING,
@@ -397,7 +400,7 @@ class WorkerManager(TrainingNodeManager):
         now = time.time()
         if len(available_nodes) < self._nodes_required[0]:
             if self._last_insufficient_nodes_timestamp == 0:
-                self._last_insufficient_nodes_timestamp = now
+                self._last_insufficient_nodes_timestamp = int(now)
                 logger.warning(f"Job with insufficient nodes: {cur_nodes}.")
             else:
                 if now - self._last_insufficient_nodes_timestamp > timeout:
