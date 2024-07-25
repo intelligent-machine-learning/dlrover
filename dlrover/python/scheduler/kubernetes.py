@@ -147,10 +147,12 @@ class k8sClient(Singleton):
             )
 
         self.client = client.CoreV1Api()
+        self.setup_user_agent()
         self.api_instance = client.CustomObjectsApi()
-        self.api_client = client.ApiClient()
-        self.api_client.user_agent = USER_AGENT
         self._namespace = namespace
+
+    def setup_user_agent(self):
+        self.client.api_client.user_agent = USER_AGENT
 
     @retry_k8s_request
     def list_namespaced_pod(self, label_selector):
