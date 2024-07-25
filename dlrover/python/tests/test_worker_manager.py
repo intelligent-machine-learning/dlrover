@@ -351,3 +351,6 @@ class WorkerManagerTest(unittest.TestCase):
                 is_insufficient += 1
             time.sleep(1)
         self.assertTrue(is_insufficient >= 2)
+
+        # reset
+        _dlrover_ctx.seconds_to_wait_pending_pod = 900
