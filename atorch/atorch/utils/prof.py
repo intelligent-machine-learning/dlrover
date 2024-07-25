@@ -13,7 +13,7 @@ from torch.nn import Module
 import atorch
 from atorch.common.constants import AnalyserConstants, GPUCapability
 from atorch.common.log_utils import default_logger as logger
-from atorch.normalization.layernorm import AtorchLayerNormFunc
+from atorch.kernels import AtorchLayerNormFunc
 from atorch.utils.hooks import ATorchHooks
 
 try:

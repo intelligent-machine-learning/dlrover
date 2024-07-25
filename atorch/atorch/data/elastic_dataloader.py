@@ -15,12 +15,6 @@ from atorch.distributed.distributed import (
     rank,
     world_size,
 )
-from atorch.service.coworker_data_service import create_coworker_rpc_service
-from atorch.service.rpc_clients import (
-    create_coworker_rpc_client,
-    create_data_info_rpc_client,
-    create_gpu_pod_rpc_clients,
-)
 
 
 def get_elastic_dataloader(
@@ -99,6 +93,8 @@ def _simple_data_loader_worker_init_fn(worker_id):
     When Dataloader's num_workers > 0, create grpc clients in the
     subprocesses.
     """
+    from atorch.service.rpc_clients import create_coworker_rpc_client, create_data_info_rpc_client
+
     worker_info = get_worker_info()
     if worker_info is not None:
         dataset = worker_info.dataset
@@ -119,6 +115,8 @@ class SimpleCoworkerDataset(Dataset):
     """
 
     def __init__(self, size, data_info_service_ip_and_port, batch_num=1, num_workers=0):
+        from atorch.service.rpc_clients import create_coworker_rpc_client, create_data_info_rpc_client
+
         self._size = size
         self._data_info_service_ip_and_port = data_info_service_ip_and_port
         self._batch_num = batch_num
@@ -268,6 +266,9 @@ def build_coworker_dataloader_with_elasticdl(
             num_minibatches_per_shard=training_world_size,
             **kwargs,
         )
+        from atorch.service.coworker_data_service import create_coworker_rpc_service
+        from atorch.service.rpc_clients import create_gpu_pod_rpc_clients
+
         cur_coworker_ip_and_port = coworker_addrs_dict[rank()]
         port = cur_coworker_ip_and_port.split(":")[1]
         # Training speed may be slower than data preprocessing. Set the
@@ -282,6 +283,7 @@ def build_coworker_dataloader_with_elasticdl(
         batched_data_queue = mp.Queue(data_queue_max_size)
         # Create and start Coworker rpc service on coworker 1 ~ n
         coworker_rpc_server = create_coworker_rpc_service(port, batched_data_queue)
+
         coworker_rpc_server.start()
         logger.info("CoWorker RPC Server has started")
 

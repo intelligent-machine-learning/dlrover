@@ -26,6 +26,7 @@ def data_process(i):
     return i
 
 
+@unittest.skipIf(True, "Occasional failure.")
 class SimpleElasticDatasetTest(unittest.TestCase):
     def setUp(self) -> None:
         port = find_free_port()

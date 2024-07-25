@@ -33,7 +33,7 @@ from torch.distributed.fsdp.api import (
     StateDictType,
 )
 
-from ._runtime_utils import _lazy_init_outer_optimizer
+from ._runtime_utils import _lazy_init_outer_optimizer, _sync_sharded_params
 
 
 # HACK Synchronize parameters once before returning model state_dict.
@@ -55,34 +55,11 @@ def _pre_state_dict_sync(
     state._device_handle.synchronize()
     handle = _module_handle(state, module)
 
-    with state._device_handle.stream(state._average_stream):
-        pseudo_gradient = None
-        if state.gta_reducer is None:
-            with torch.no_grad():
-                handle.flat_param.data /= dist.get_world_size(state._inter_node_pg)
-                dist.all_reduce(handle.flat_param.data, group=state._inter_node_pg)
-                if state.use_outer_optim:
-                    pseudo_gradient = state.last_synced_params.data - handle.flat_param.data.to(
-                        state.last_synced_params.device
-                    )
-        else:
-            # to avoid multiple H2D, move last synced params to Device
-            with torch.no_grad():
-                pseudo_gradient = state.last_synced_params.data.to(handle.flat_param.device) - handle.flat_param.data
-                state.gta_reducer.reduce_tensor(pseudo_gradient)
+    _sync_sharded_params(state, handle)
 
-        if pseudo_gradient is not None:
-            if state.use_outer_optim:
-                state.last_synced_params.grad = pseudo_gradient.to(state.last_synced_params.device)
-                state.outer_optimizer.step()
-                state.outer_optimizer.zero_grad()
-            else:
-                state.last_synced_params.data = state.last_synced_params.data - pseudo_gradient.to(
-                    state.last_synced_params.device
-                )
-            # The _average_stream ensures that non-blocking copy is correct.
-            handle.flat_param.data.copy_(state.last_synced_params.data, non_blocking=True)
-
+    if state.local_sgd_cpu_offload and (state.gta_reducer is not None or state.use_outer_optim):
+        state._H2D_stream.synchronize()
+        state._D2H_stream.synchronize()
     state._average_stream.synchronize()
     dist.barrier()
 
@@ -154,9 +131,10 @@ def _post_state_dict_hook(
         )
 
     # HACK remove the `last_synced_params` related state.
-    keys_to_remove = [key for key, _ in sorted(processed_state_dict.items()) if "last_synced_params" in key]
-    for key in keys_to_remove:
-        del processed_state_dict[key]
+    if fsdp_state.use_local_sgd:
+        keys_to_remove = [key for key, _ in sorted(processed_state_dict.items()) if "last_synced_params" in key]
+        for key in keys_to_remove:
+            del processed_state_dict[key]
 
     if fsdp_state._is_root:
         logger.info("FSDP finished processing state_dict(), prefix=%s", prefix)
@@ -263,7 +241,7 @@ def _local_sgd_state_dict(
         ``model``. The sharding of the local sgd state is based on
         ``state_dict_type``.
     """
-    if not model.use_local_sgd:
+    if not model.use_local_sgd or model.global_step < model.local_sgd_warmup_steps:
         return {}
 
     state_dict_settings = torch.distributed.fsdp.FullyShardedDataParallel.get_state_dict_type(model)
@@ -287,13 +265,16 @@ def _local_sgd_state_dict(
     outer_optim_sd_l = []
 
     for fsdp_m in fsdp_modules:
-        fsdp_m_outer_optim_sd = fsdp_m.outer_optimizer.state_dict()
-        fsdp_m_outer_optim_sd["rank"] = fsdp_m.rank
-        if cpu_offload:
-            for outer_optim_state in fsdp_m_outer_optim_sd["state"].values():
-                for k, v in outer_optim_state.items():
-                    if torch.is_tensor(v):
-                        outer_optim_state[k] = v.to("cpu")
+        if fsdp_m.outer_optimizer is None:
+            fsdp_m_outer_optim_sd = {}
+        else:
+            fsdp_m_outer_optim_sd = fsdp_m.outer_optimizer.state_dict()
+            fsdp_m_outer_optim_sd["rank"] = fsdp_m.rank
+            if cpu_offload:
+                for outer_optim_state in fsdp_m_outer_optim_sd["state"].values():
+                    for k, v in outer_optim_state.items():
+                        if torch.is_tensor(v):
+                            outer_optim_state[k] = v.to("cpu")
         outer_optim_sd_l.append(fsdp_m_outer_optim_sd)
 
     if group is None:
@@ -531,7 +512,7 @@ def _load_local_sgd_state_dict(
     for i, fsdp_m in enumerate(fsdp_modules):
         fsdp_m.global_step = local_sgd_sd["global_step"]
         if "outer_optim" in local_sgd_sd.keys():
-            _lazy_init_outer_optimizer(fsdp_m, fsdp_m._handle)
+            _lazy_init_outer_optimizer(fsdp_m, fsdp_m._handle, cpu_init=fsdp_m.local_sgd_cpu_offload)
             assert (
                 fsdp_m.rank == local_sgd_sd["outer_optim"][i]["rank"]
             ), "The rank of FSDP module and state dict do not match."

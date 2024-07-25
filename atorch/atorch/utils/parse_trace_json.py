@@ -68,15 +68,22 @@ def analyze_gpu_kernel(df, verbose=False):
         "layernorm": gpu_kernel_df[
             gpu_kernel_df.name.str.contains("cuApplyLayerNorm")  # forward
             ^ gpu_kernel_df.name.str.contains("cuComputeGradInput")  # backward
+            ^ gpu_kernel_df.name.str.contains("layer_norm")
         ]["dur"].sum(),
+        "fmha": gpu_kernel_df[gpu_kernel_df.name.str.contains("fmha")]["dur"].sum(),
         "other": gpu_kernel_df[
             ~(
                 gpu_kernel_df.name.str.contains("elementwise")
                 ^ gpu_kernel_df.name.str.contains("gemm")
                 ^ gpu_kernel_df.name.str.contains("cuApplyLayerNorm")
+                ^ gpu_kernel_df.name.str.contains("cuComputeGradInput")
+                ^ gpu_kernel_df.name.str.contains("fmha")
+                ^ gpu_kernel_df.name.str.contains("layer_norm")
             )
         ]["dur"].sum(),
     }
+    memory_df = df.query("name.str.startswith('cudaMalloc')|name.str.startswith('cudaFree')")  # H2D and D2H
+    op_times["memory"] = memory_df["dur"].sum()
     elementwise_df = gpu_kernel_df[gpu_kernel_df.name.str.contains("elementwise")]
     for key, funcname in elementwise_sub.items():
         op_times["elementwise"][key] = elementwise_df[elementwise_df.name.str.contains(funcname)]["dur"].sum()
@@ -123,14 +130,14 @@ def fused_kernels(kernels):
 
 
 def analyze_communicate_overlap(df, verbose=False):
-    all_comm_tids = list(set(df.query("name.str.startswith('ncclKernel')")["tid"].values))
+    comm_kernel_df = df.query("name.str.startswith('ncclKernel')|name.str.startswith('ncclDevKernel')")
+    all_comm_tids = list(set(comm_kernel_df["tid"].values))
     all_compute_tids = list(set(df.query("~name.str.startswith('nccl')")["tid"].values))
     if verbose:
         print("all_comm_tids", all_comm_tids)
         print("all_compute_tids", all_compute_tids)
     gpu_kernel_df = get_compute_kernel(df)
     # query all communicate kernel which tid in list
-    comm_kernel_df = df.query("name.str.startswith('ncclKernel')")
     if comm_kernel_df.empty:
         return {
             "overlap_rate": 0,
@@ -236,10 +243,15 @@ def analyze_communicate_overlap(df, verbose=False):
 
 def main():
     parser = ArgumentParser(usage="""python parse_trace_json.py trace_1.json""")
+    parser.add_argument(
+        "--all_summary_path",
+    )
     parser.add_argument("json_files", nargs="*")
     parser.add_argument("--verbose", "-v", action="store_true")
+
     args = parser.parse_args()
     kernel_start_times = []
+    all_summary = []
     for json_file in args.json_files:
         with open(json_file, "r") as fin:
             json_obj = load(fin)  # TODO: iter json_obj,save memory usage
@@ -249,10 +261,20 @@ def main():
 
             ret = analyze_gpu_kernel(df)
             print("compute summary:", ret)
-            ret = analyze_communicate_overlap(df, args.verbose)
-            nooverlap_comm_df = ret.pop("nooverlap_comm_df")
-            print("communicate summary:", ret)
+            ret_communicate = analyze_communicate_overlap(df, args.verbose)
+            nooverlap_comm_df = ret_communicate.pop("nooverlap_comm_df")
+            print("communicate summary:", ret_communicate)
+            ret.update(ret_communicate)
+            # distributedInfo: {'backend': 'nccl', 'rank': 10, 'world_size': 16}
+            rank = json_obj["distributedInfo"]["rank"]
+            ret["rank"] = rank
+            all_summary.append(ret)
             print("no overlap comm op:\n", nooverlap_comm_df)
+    all_summary_df = pd.DataFrame(all_summary)
+    print(all_summary_df)
+    if args.all_summary_path:
+        with open(args.all_summary_path, "w") as fout:
+            all_summary_df.to_csv(fout, index=False)
     # check if all kernels start at the same time
     kernel_start_times = np.asarray(kernel_start_times)
     min_start_time = np.min(kernel_start_times)

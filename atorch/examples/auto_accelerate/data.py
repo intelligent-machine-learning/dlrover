@@ -49,10 +49,9 @@ class BenchmarkLMDataset(Dataset):
         self.vocab_size = vocab_size
         self.max_source_positions = max_source_positions
         self.total_samples = total_samples
-        self.sizes = [self.max_source_positions] * self.total_samples
 
     def __getitem__(self, index):
-        length = self.sizes[index]
+        length = self.max_source_positions
         source = torch.randint(1, self.vocab_size, (length,))
         target = source.clone()
         return {

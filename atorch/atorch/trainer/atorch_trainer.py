@@ -7,7 +7,6 @@ import contextlib
 import datetime
 import inspect
 import json
-import logging
 import math
 import os
 import random
@@ -28,7 +27,7 @@ import torch
 import torch.distributed as dist
 from accelerate import Accelerator, skip_first_batches
 from packaging import version
-from peft.peft_model import PeftModel
+from peft.peft_model import PeftConfig, PeftModel
 from torch import nn
 from torch.distributed.fsdp import FullStateDictConfig
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
@@ -39,17 +38,25 @@ from transformers import __version__
 from transformers.configuration_utils import PretrainedConfig
 from transformers.data.data_collator import DataCollator, DataCollatorWithPadding, default_data_collator
 
-import atorch
 from atorch.auto import auto_accelerate
 from atorch.auto.accelerate import get_strategy
 from atorch.auto.strategy import Strategy
+from atorch.common.log_utils import default_logger as logger
 from atorch.distributed.distributed import is_distributed
 from atorch.trainer.atorch_args import AtorchArguments
-from atorch.utils.fsdp_save_util import ShardOptim, save_fsdp_flat_param, save_fsdp_optim_param
+from atorch.trainer.trainer_callback import FlowCallback
+from atorch.utils.fsdp_init_util import FSDPCkptConfig, FSDPInitFn
+from atorch.utils.fsdp_save_util import (
+    ShardOptim,
+    save_fsdp_flat_param,
+    save_fsdp_optim_param,
+    save_lora_optim_param,
+    save_lora_param,
+)
 from atorch.utils.hooks import ATorchHooks
 from atorch.utils.import_util import is_torch_npu_available
 from atorch.utils.trainer_utils import AsyncCheckpointSignal, PipeMessageEntity, get_scheduler
-from atorch.utils.version import torch_version
+from atorch.utils.version import package_version_bigger_than, torch_version
 
 # Integrations must be imported before ML frameworks:
 # isort: off
@@ -61,7 +68,6 @@ from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 from transformers.trainer import OPTIMIZER_NAME, SCALER_NAME, SCHEDULER_NAME, TRAINER_STATE_NAME, TRAINING_ARGS_NAME
 from transformers.trainer_callback import (
     CallbackHandler,
-    DefaultFlowCallback,
     PrinterCallback,
     ProgressCallback,
     TrainerCallback,
@@ -83,7 +89,6 @@ from transformers.trainer_utils import (
     PREFIX_CHECKPOINT_DIR,
     EvalLoopOutput,
     EvalPrediction,
-    IntervalStrategy,
     PredictionOutput,
     RemoveColumnsCollator,
     TrainOutput,
@@ -110,14 +115,15 @@ from transformers.utils import (
 if TYPE_CHECKING:
     import optuna
 
-DEFAULT_CALLBACKS = [DefaultFlowCallback]
+DEFAULT_CALLBACKS = [FlowCallback]
 DEFAULT_PROGRESS_CALLBACK = ProgressCallback
 
+HYPER_PARAMETER_NAME = "hyper_parameters.json"
 PEFT_PARAM_PREFIX = "base_model.model."
 LORA_KEY = "lora"
-STREAMING_CKPT_DIR = "streaming_ckpt"  # save/load dir for Atorch's FSDP
-
-logger = logging.getLogger(__name__)
+STREAMING_CKPT_DIR = "streaming_ckpt"  # The weight directory of Atorch FSDP model
+ATORCH_LORA_WEIGHT_NAME = "lora_weight"  # The lora weight of Atorch FSDP+LORA model
+ATORCH_LORA_OPTIMIZER_NAME = "lora_optim"  # The lora optimizer of Atorch FSDP+LORA model
 
 additional_tensorboard_hook = ATorchHooks.hooks.get(ATorchHooks.ADDITIONAL_TENSORBOARD_HOOK)
 
@@ -168,17 +174,19 @@ class AtorchTrainer:
         self.kwargs = kwargs
         self.model = model
 
-        self.atorch_fsdp = args.atorch_opt == "fsdp" and self.args.world_size > 1
+        self.atorch_fsdp = False
+        if args.atorch_opt == "fsdp":
+            if torch_version() < (2, 0, 0):  # type: ignore
+                raise ValueError("FSDP is not supported in version of torch below 2.0")
+            elif args.world_size > 1:
+                self.atorch_fsdp = True
+            else:
+                logger.warning("FSDP will not be used if the world size is smaller or equal than 1.")
 
-        if self.args.save_load_by_streaming and self.args.world_size == 1:
-            logger.warning("FSDP is unnecessary on only one device, so `save_load_by_streaming` will be set to False.")
-            self.args.save_load_by_streaming = False
-
-        if self.atorch_fsdp and torch_version() < (2, 0, 0):  # type: ignore
-            raise ValueError("Greater than version 2.0 of PyTorch is necessary for FSDP.")
-
-        if args.save_load_by_streaming and not self.atorch_fsdp:
-            raise ValueError("--atorch_opt fsdp is needed when using --save_load_by_streaming.")
+        if (self.args.load_by_streaming or self.args.save_by_streaming) and not self.atorch_fsdp:
+            logger.warning("`load_by_streaming` or `save_by_streaming` is only effective when training with FSDP.")
+            self.args.load_by_streaming = False
+            self.args.save_by_streaming = False
 
         self.is_in_train = False
 
@@ -225,7 +233,8 @@ class AtorchTrainer:
         self.add_callback(PrinterCallback if self.args.disable_tqdm else DEFAULT_PROGRESS_CALLBACK)
 
         if self.args.should_save:
-            self._write_safely(os.makedirs, self.args.output_dir, exist_ok=True)
+            if not self._write_safely(os.makedirs, self.args.output_dir, exist_ok=True):
+                raise OSError(f"Creating directory '{self.args.output_dir}' failed.")
 
         if not callable(self.data_collator) and callable(getattr(self.data_collator, "collate_batch", None)):
             raise ValueError("The `data_collator` should be a simple callable (function, class with `__call__`).")
@@ -269,18 +278,28 @@ class AtorchTrainer:
             is_world_process_zero=self.is_world_process_zero(),
         )
 
+        if self.args.peft_type is not None and not isinstance(self.model, PeftModel):
+            raise ValueError(
+                f"'peft_type' is {self.args.peft_type}, while model type is not 'PeftModel' but {type(self.model)}."
+            )
+        elif isinstance(self.model, PeftModel) and self.args.peft_type is None:
+            raise ValueError(f"Model type is {type(self.model)}, but 'peft_type' is not set.")
+
         self.control = TrainerControl()
         # Internal variable to count flos in each process, will be accumulated in `self.state.total_flos` then
         # returned to 0 every time flos need to be logged
         self.current_flos = 0
-        default_label_names = find_labels(self.model.__class__)
+        if isinstance(self.model, PeftModel):
+            base_model = self.model.get_base_model()
+        else:
+            base_model = self.model
+        default_label_names = find_labels(base_model.__class__)
         self.label_names = default_label_names if self.args.label_names is None else self.args.label_names
         self.logit_names = ["logits"] if self.args.logit_names is None else self.args.logit_names
-        self.model_forward_args = list(inspect.signature(self.model.forward).parameters.keys())
-        self.can_return_loss = can_return_loss(self.model.__class__)
+        self.model_forward_args = list(inspect.signature(base_model.forward).parameters.keys())
+        self.can_return_loss = can_return_loss(base_model.__class__)
 
         # Set ATorch Parameters
-        self.atorch_wrap_cls = args.atorch_wrap_cls
         self.prepare_input = args.prepare_input
         self.optim_func = args.optim_func
         self.optim_args = args.optim_args
@@ -289,16 +308,12 @@ class AtorchTrainer:
         self.distributed_sampler_cls = args.distributed_sampler_cls
         self.model_input_format = args.model_input_format
         self.load_strategy = load_strategy
+        self.use_hpu_adamw = args.use_hpu_adamw
 
-        self.is_peft_model = isinstance(model, PeftModel)
-
-        if self.is_peft_model and args.save_load_by_streaming:
-            raise ValueError("Atorch's streaming save/load does not support Peft finetune.")
-
-        if args.load_best_model_at_end and args.save_load_by_streaming:
+        if args.load_best_model_at_end and args.load_by_streaming:
             raise ValueError(
-                "Atorch's streaming save/load can only load model when defining model, "
-                "not support to load model at end."
+                "The method of loading FSDP model in ATorch is only allowed when calling "
+                "auto_accelerate() function, not allowed at training end."
             )
 
         self._train_batch_size = self.args.train_batch_size
@@ -306,6 +321,16 @@ class AtorchTrainer:
         # Activate gradient checkpointing if needed
         if args.gradient_checkpointing and args.atorch_checkpoint_cls is None:
             self.model.gradient_checkpointing_enable()
+
+        # Resume from checkpoint
+        # This time the call to _load_from_checkpoint() should be before _atorch_init()
+        # Can't load fsdp+lora model from checkpoint after defining the model.
+        if (
+            args.resume_from_checkpoint is not None
+            and os.path.exists(args.resume_from_checkpoint)
+            and not (self.args.load_by_streaming or self.args.save_by_streaming)
+        ):
+            self._load_from_checkpoint(args.resume_from_checkpoint)
 
         # Call ATorch's auto_accelerate() to wrap model, optimizer, loss_function, ...
         self._atorch_init()
@@ -346,21 +371,50 @@ class AtorchTrainer:
             if self.args.atorch_parallel_mode:
                 self.load_strategy.append(("parallel_mode", ([("data", self.args.world_size)], None)))
             # Set module replace
-            if self.args.atorch_module_replace and not is_torch_npu_available():
+            if (
+                self.args.atorch_module_replace
+                and not is_torch_npu_available()
+                and not self.args.load_model_on_rank0_and_dispatch
+            ):
                 self.load_strategy.append("module_replace")
             # Set FSDP
             if self.atorch_fsdp:
                 atorch_fsdp_config = {
-                    "atorch_wrap_cls": self.atorch_wrap_cls,
+                    "atorch_wrap_cls": self.args.atorch_wrap_cls,
                     "cpu_offload": self.args.cpu_offload,
                     "sync_module_states": self.args.sync_module_states,
                     "use_orig_params": self.args.use_orig_params,
                     "limit_all_gathers": self.args.limit_all_gathers,
                     "forward_prefetch": self.args.forward_prefetch,
                 }
-                if self.is_peft_model and self.args.wrap_trainable_outmost:
-                    atorch_fsdp_config["wrap_trainable_outmost"] = True
+                if self.args.peft_type is None:
+                    if self.args.load_model_on_rank0_and_dispatch:
+                        atorch_fsdp_config["param_init_fn"] = lambda module: (
+                            module.to_empty(device=torch.device("cuda"), recurse=False)
+                            if self.args.process_index != 0
+                            else None
+                        )
+                else:
+                    if self.args.fsdp_flat_ckpt_path is not None and os.path.exists(self.args.fsdp_flat_ckpt_path):
+                        ckpt_config = FSDPCkptConfig(
+                            flat_ckpt_path=self.args.fsdp_flat_ckpt_path,
+                            lora_ckpt_path=self.args.fsdp_lora_ckpt_path,
+                            lora_prefix=self.args.fsdp_lora_prefix,
+                            lora_cls=self.args.fsdp_lora_cls,
+                            lora_weight_name=self.args.fsdp_lora_weight_name,
+                        )
+                        atorch_fsdp_config["param_init_fn"] = FSDPInitFn(
+                            self.model, self.args.process_index, ckpt_config, self.args.atorch_wrap_cls
+                        )
+                    if self.args.wrap_trainable_outmost:
+                        atorch_fsdp_config["wrap_trainable_outmost"] = True
                 self.load_strategy.append(("fsdp", atorch_fsdp_config))
+
+                # For gathering FSDP model parameters and saving them.
+                self.save_policy = FullStateDictConfig(
+                    offload_to_cpu=self.args.world_size > 1,
+                    rank0_only=self.args.world_size > 1,
+                )
 
             if self.args.bf16 or self.args.fp16:
                 if self.args.bf16:
@@ -412,6 +466,24 @@ class AtorchTrainer:
                 "betas": (self.args.adam_beta1, self.args.adam_beta2),
             }
 
+        find_unused_parameters = False
+        if self.args.atorch_opt == "ddp":
+            if self.args.ddp_find_unused_parameters is not None:
+                find_unused_parameters = self.args.ddp_find_unused_parameters
+            elif isinstance(self.model, PreTrainedModel):
+                find_unused_parameters = not self.args.gradient_checkpointing
+            elif self.args.peft_type not in ["lora", "qlora"]:
+                find_unused_parameters = True
+
+        if self.use_hpu_adamw:
+            if is_torch_npu_available():
+                from atorch.npu.optim import NpuAdamW
+
+                logger.info("Use ATorch HPU Adamw to accelerate training.")
+                self.optim_func = NpuAdamW
+            else:
+                logger.info("Not in HPU env, ignore 'use_hpu_adamw'")
+
         status, result, best_strategy = auto_accelerate(
             model=self.model,
             optim_func=self.optim_func,
@@ -429,6 +501,7 @@ class AtorchTrainer:
             finetune_strategy=self.args.finetune_strategy,
             save_strategy_to_file=self.args.save_strategy_to_file,
             ignore_dryrun_on_load_strategy=self.args.ignore_dryrun_on_load_strategy,
+            find_unused_parameters=find_unused_parameters,
             sampler_seed=self.args.seed,
         )
         assert status, f"auto_accelerate failed. status: {status}, result: {result}, best_strategy: {best_strategy}"
@@ -653,8 +726,8 @@ class AtorchTrainer:
         if self.lr_scheduler is None:
             self.lr_scheduler = get_scheduler(
                 (
-                    self.args.atorch_lr_scheduler_type
-                    if self.args.atorch_lr_scheduler_type is not None
+                    self.args.custom_lr_scheduler_type
+                    if self.args.custom_lr_scheduler_type is not None
                     else self.args.lr_scheduler_type
                 ),
                 optimizer=self.optimizer if optimizer is None else optimizer,
@@ -703,9 +776,6 @@ class AtorchTrainer:
                 logger.warning(
                     f"No valid checkpoint found in output directory {args.output_dir}. Will train from scratch."
                 )
-
-        if resume_from_checkpoint is not None:
-            self._load_from_checkpoint(resume_from_checkpoint)
 
         return self._inner_training_loop(
             args=args,
@@ -769,6 +839,11 @@ class AtorchTrainer:
 
         self.state = TrainerState()
         self.state.is_hyper_param_search = trial is not None
+
+        if package_version_bigger_than("transformers", "4.31.0"):
+            self.state.logging_steps = args.logging_steps
+            self.state.eval_steps = args.eval_steps
+            self.state.save_steps = args.save_steps
 
         if self.optimizer is None:
             raise ValueError("Optimizer is None, please set optimizer via `auto_accelerate` function of ATorch.")
@@ -972,7 +1047,7 @@ class AtorchTrainer:
                 self.control.should_training_stop = True
 
             self.control = self.callback_handler.on_epoch_end(args, self.state, self.control)
-            self._maybe_log_save_evaluate(tr_loss, self.model, trial, epoch, ignore_keys_for_eval)
+            self._maybe_log_save_evaluate(tr_loss, self.model, trial, epoch, ignore_keys_for_eval, epoch_end=True)
 
             if self.control.should_training_stop:
                 break
@@ -1032,7 +1107,7 @@ class AtorchTrainer:
         if len(load_result.unexpected_keys) != 0:
             logger.warning(f"There were unexpected keys in the checkpoint model loaded: {load_result.unexpected_keys}.")
 
-    def _maybe_log_save_evaluate(self, tr_loss, model, trial, epoch, ignore_keys_for_eval):
+    def _maybe_log_save_evaluate(self, tr_loss, model, trial, epoch, ignore_keys_for_eval, epoch_end=False):
         if self.control.should_log:
             logs: Dict[str, float] = {}
 
@@ -1065,11 +1140,17 @@ class AtorchTrainer:
         if self.control.should_save:
             # Save model checkpoint
             checkpoint_folder = f"{PREFIX_CHECKPOINT_DIR}-{self.state.global_step}"
+            if (
+                epoch_end
+                and self.args.save_at_specific_epoch is not None
+                and (epoch + 1) in self.args.save_at_specific_epoch
+            ):
+                checkpoint_folder = checkpoint_folder + f"-epoch-{epoch+1}"
             output_dir = os.path.join(self.args.output_dir, checkpoint_folder)
             if not self._save_checkpoint(model, output_dir, trial, metrics=metrics):
                 if self.args.async_save:
                     # Delete checkpoint directory with saving error after sending deleting signal
-                    self.pipe1.send(PipeMessageEntity(AsyncCheckpointSignal.DELETE_CKPT, output_dir))
+                    self.pipe1.send(PipeMessageEntity(AsyncCheckpointSignal.DELETE_CKPT, ckpt_path=output_dir))
                 elif os.path.exists(output_dir):
                     shutil.rmtree(output_dir, ignore_errors=True)
             self.control = self.callback_handler.on_save(self.args, self.state, self.control)
@@ -1114,6 +1195,9 @@ class AtorchTrainer:
                     )
 
     def _load_from_checkpoint(self, resume_from_checkpoint, model=None):
+        """
+        If model weight exists, load it. Not support streaming loading of ATorch.
+        """
         if model is None:
             model = self.model
 
@@ -1124,7 +1208,6 @@ class AtorchTrainer:
         weights_index_file = os.path.join(resume_from_checkpoint, WEIGHTS_INDEX_NAME)
         safe_weights_file = os.path.join(resume_from_checkpoint, SAFE_WEIGHTS_NAME)
         safe_weights_index_file = os.path.join(resume_from_checkpoint, SAFE_WEIGHTS_INDEX_NAME)
-        streaming_ckpt_dir = os.path.join(resume_from_checkpoint, STREAMING_CKPT_DIR)
 
         if not any(
             os.path.exists(f)
@@ -1135,7 +1218,6 @@ class AtorchTrainer:
                 safe_weights_index_file,
                 adapter_weights_file,
                 adapter_safe_weights_file,
-                streaming_ckpt_dir,
             ]
         ):
             raise ValueError(f"Can't find a valid checkpoint at {resume_from_checkpoint}")
@@ -1152,13 +1234,7 @@ class AtorchTrainer:
                     "yield to errors or unwanted behaviors."
                 )
 
-        if os.path.exists(streaming_ckpt_dir):
-            if self.args.save_load_by_streaming:
-                logger.info(
-                    "Attention: when using ATorch's streaming save/laod, "
-                    "you should load checkpoint when defining your model."
-                )
-        elif os.path.isfile(weights_file) or os.path.isfile(safe_weights_file):
+        if os.path.isfile(weights_file) or os.path.isfile(safe_weights_file):
             # We load the model state dict on the CPU to avoid an OOM error.
             if self.args.save_safetensors and os.path.isfile(safe_weights_file):
                 state_dict = safetensors.torch.load_file(safe_weights_file, device="cpu")
@@ -1200,7 +1276,6 @@ class AtorchTrainer:
         best_safe_model_path = os.path.join(self.state.best_model_checkpoint, SAFE_WEIGHTS_NAME)
         best_adapter_model_path = os.path.join(self.state.best_model_checkpoint, ADAPTER_WEIGHTS_NAME)
         best_safe_adapter_model_path = os.path.join(self.state.best_model_checkpoint, ADAPTER_SAFE_WEIGHTS_NAME)
-        best_streaming_ckpt_dir = os.path.join(self.state.best_model_checkpoint, STREAMING_CKPT_DIR)
 
         model = self.model
         if (
@@ -1208,43 +1283,38 @@ class AtorchTrainer:
             or os.path.exists(best_safe_model_path)
             or os.path.exists(best_adapter_model_path)
             or os.path.exists(best_safe_adapter_model_path)
-            or os.path.exists(best_streaming_ckpt_dir)
         ):
             has_been_loaded = True
-            if self.args.save_load_by_streaming:
-                # TODO: can't load best model when using --save_load_by_streaming
-                logger.warning("Can't load best model when using --save_load_by_streaming.")
-            else:
-                if is_peft_available() and isinstance(model, PeftModel):
-                    # If train a model using PEFT & LoRA, assume that adapter have been saved properly.
-                    if hasattr(model, "active_adapter") and hasattr(model, "load_adapter"):
-                        if os.path.exists(best_adapter_model_path) or os.path.exists(best_safe_adapter_model_path):
-                            model.load_adapter(self.state.best_model_checkpoint, model.active_adapter)
-                            # Load_adapter has no return value present, modify it when appropriate.
-                            from torch.nn.modules.module import _IncompatibleKeys
+            if is_peft_available() and isinstance(model, PeftModel):
+                # If train a model using PEFT & LoRA, assume that adapter have been saved properly.
+                if hasattr(model, "active_adapter") and hasattr(model, "load_adapter"):
+                    if os.path.exists(best_adapter_model_path) or os.path.exists(best_safe_adapter_model_path):
+                        model.load_adapter(self.state.best_model_checkpoint, model.active_adapter)
+                        # Load_adapter has no return value present, modify it when appropriate.
+                        from torch.nn.modules.module import _IncompatibleKeys
 
-                            load_result = _IncompatibleKeys([], [])
-                        else:
-                            logger.warning(
-                                "The intermediate checkpoints of PEFT may not be saved correctly, "
-                                f"consider using a custom callback to save {ADAPTER_WEIGHTS_NAME} in corresponding "
-                                "saving folders. Check some examples here: https://github.com/huggingface/peft/issues/96"  # noqa: E501
-                            )
-                            has_been_loaded = False
+                        load_result = _IncompatibleKeys([], [])
                     else:
-                        logger.warning("Could not load adapter model, make sure to have `peft>=0.3.0` installed")
+                        logger.warning(
+                            "The intermediate checkpoints of PEFT may not be saved correctly, "
+                            f"consider using a custom callback to save {ADAPTER_WEIGHTS_NAME} in corresponding "
+                            "saving folders. Check some examples here: https://github.com/huggingface/peft/issues/96"  # noqa: E501
+                        )
                         has_been_loaded = False
                 else:
-                    # We load the model state dict on the CPU to avoid an OOM error.
-                    if self.args.save_safetensors and os.path.isfile(best_safe_model_path):
-                        state_dict = safetensors.torch.load_file(best_safe_model_path, device="cpu")
-                    else:
-                        state_dict = torch.load(best_model_path, map_location="cpu")
+                    logger.warning("Could not load adapter model, make sure to have `peft>=0.3.0` installed")
+                    has_been_loaded = False
+            else:
+                # We load the model state dict on the CPU to avoid an OOM error.
+                if self.args.save_safetensors and os.path.isfile(best_safe_model_path):
+                    state_dict = safetensors.torch.load_file(best_safe_model_path, device="cpu")
+                else:
+                    state_dict = torch.load(best_model_path, map_location="cpu")
 
-                    # If the model is on the GPU, it still works!
-                    # workaround for FSDP bug https://github.com/pytorch/pytorch/issues/82963
-                    # which takes *args instead of **kwargs
-                    load_result = model.load_state_dict(state_dict, False)
+                # If the model is on the GPU, it still works!
+                # workaround for FSDP bug https://github.com/pytorch/pytorch/issues/82963
+                # which takes *args instead of **kwargs
+                load_result = model.load_state_dict(state_dict, False)
             if has_been_loaded:
                 self._issue_warnings_after_load(load_result)
         elif os.path.exists(os.path.join(self.state.best_model_checkpoint, WEIGHTS_INDEX_NAME)):
@@ -1264,9 +1334,15 @@ class AtorchTrainer:
         optimizer_file = os.path.join(checkpoint, OPTIMIZER_NAME)
         streaming_ckpt_dir = os.path.join(checkpoint, STREAMING_CKPT_DIR)
         scheduler_file = os.path.join(checkpoint, SCHEDULER_NAME)
+        atorch_lora_optimizer_file = os.path.join(checkpoint, ATORCH_LORA_OPTIMIZER_NAME)
 
         if not (
-            (os.path.isfile(optimizer_file) or os.path.isdir(streaming_ckpt_dir)) and os.path.isfile(scheduler_file)
+            (
+                os.path.isfile(optimizer_file)
+                or os.path.isdir(streaming_ckpt_dir)
+                or os.path.isfile(atorch_lora_optimizer_file)
+            )
+            and os.path.isfile(scheduler_file)
         ):
             logger.warning(
                 "Can't load optimizer and scheduler, "
@@ -1276,23 +1352,33 @@ class AtorchTrainer:
 
         map_location = self.args.device if self.args.world_size > 1 else "cpu"
         if self.atorch_fsdp and isinstance(self.model, FSDP):
-            if self.args.save_load_by_streaming:
-                if not os.path.isdir(streaming_ckpt_dir):
-                    raise FileNotFoundError(f"Can't find {streaming_ckpt_dir} directory!")
-                logger.info("Begin to load optimizer by streaming")
-                sm = ShardOptim(streaming_ckpt_dir)
-                reshard_optim_state = sm.reshard_optim_state_dict(self.model)
-                self.optimizer.load_state_dict(reshard_optim_state)
-            else:
-                logger.info("Load optimizer without streaming")
+
+            def _load_optimizer_on_rank0(optimizer_path):
                 full_osd = None
                 # In FSDP, we need to load the full optimizer state dict on rank 0 and then shard it
                 if self.is_world_process_zero():
-                    full_osd = torch.load(optimizer_file)
+                    logger.info(f"Loading optimizer {optimizer_path}")
+                    full_osd = torch.load(optimizer_path)
                 # call scatter_full_optim_state_dict on all ranks
-                sharded_osd = self.model.__class__.scatter_full_optim_state_dict(full_osd, self.model)
+                sharded_osd = FSDP.scatter_full_optim_state_dict(full_osd, self.model)
                 self.optimizer.load_state_dict(sharded_osd)
+
+            if self.args.load_by_streaming or self.args.save_by_streaming:
+                if self.args.peft_type is None:
+                    if not os.path.isdir(streaming_ckpt_dir):
+                        raise FileNotFoundError(f"Can't find {streaming_ckpt_dir} directory!")
+                    logger.info(f"Loading optimizer from {streaming_ckpt_dir}.")
+                    sm = ShardOptim(streaming_ckpt_dir)
+                    reshard_optim_state = sm.reshard_optim_state_dict(self.model)
+                    self.optimizer.load_state_dict(reshard_optim_state)
+                elif self.args.peft_type == "lora":
+                    _load_optimizer_on_rank0(atorch_lora_optimizer_file)
+                else:
+                    raise ValueError(f"Loading {self.args.peft_type} optimizer is not supported!")
+            else:
+                _load_optimizer_on_rank0(optimizer_file)
         else:
+            logger.info(f"Loading optimizer {optimizer_file}")
             self.optimizer.load_state_dict(torch.load(optimizer_file, map_location=map_location))
 
         with warnings.catch_warnings(record=True) as caught_warnings:
@@ -1301,7 +1387,7 @@ class AtorchTrainer:
         if self.do_grad_scaling and os.path.isfile(os.path.join(checkpoint, SCALER_NAME)):
             self.scaler.load_state_dict(torch.load(os.path.join(checkpoint, SCALER_NAME)))
 
-    def _save_checkpoint(self, model, output_dir, trial, metrics=None):
+    def _save_checkpoint(self, model, output_dir, trial, metrics=None) -> bool:
         # In all cases, including ddp/dp/deepspeed, self.model is always a reference to the model we
         # want to save except FullyShardedDDP.
         # assert unwrap_model(model) is self.model, "internal model should be a reference to self.model"
@@ -1311,6 +1397,7 @@ class AtorchTrainer:
         if not self._write_safely(os.makedirs, output_dir, exist_ok=True):
             return False
 
+        # Save lr scheduler
         if self.args.should_save:
             with warnings.catch_warnings(record=True) as caught_warnings:
                 if not self._write_safely(
@@ -1319,6 +1406,7 @@ class AtorchTrainer:
                     os.path.join(output_dir, SCHEDULER_NAME),
                 ):
                     return False
+                logger.info(f"Scheduler saved in {os.path.join(output_dir, SCHEDULER_NAME)}")
             reissue_pt_warnings(caught_warnings)
             if self.do_grad_scaling:
                 if not self._write_safely(
@@ -1327,6 +1415,7 @@ class AtorchTrainer:
                     os.path.join(output_dir, SCALER_NAME),
                 ):
                     return False
+                logger.info(f"Scaler saved in {os.path.join(output_dir, SCALER_NAME)}")
 
         # Determine the new best metric / best model checkpoint
         if metrics is not None and self.args.metric_for_best_model is not None:
@@ -1348,6 +1437,7 @@ class AtorchTrainer:
         if self.args.should_save:
             if not self._write_safely(self.state.save_to_json, os.path.join(output_dir, TRAINER_STATE_NAME)):
                 return False
+            logger.info(f"Trainer state saved in {os.path.join(output_dir, TRAINER_STATE_NAME)}")
 
         # Save RNG state in non-distributed training
         rng_states = {
@@ -1369,56 +1459,30 @@ class AtorchTrainer:
         if not self._write_safely(torch.save, rng_states, rng_path):
             return False
 
+        # Save Hyperparameters
+        if self.args.hyper_parameters is not None and self.args.should_save:
+            hyperparameter_save_path = os.path.join(output_dir, HYPER_PARAMETER_NAME)
+
+            def _save_hyperparameter(hyper_parameters: dict):
+                with open(hyperparameter_save_path, "w", encoding="utf-8") as f:
+                    json.dump(hyper_parameters, f, ensure_ascii=False, indent=2)
+
+            if not self._write_safely(_save_hyperparameter, self.args.hyper_parameters):
+                return False
+            logger.info(f"Hyperparamter saved in {hyperparameter_save_path}")
+
         # Save model
         if not self.save_model(output_dir, _internal_call=True):
             return False
 
-        # Save optimizer and scheduler
-        full_osd = None
-        if self.atorch_fsdp and isinstance(self.model, FSDP):
-            if self.args.save_load_by_streaming:
-                streaming_ckpt_dir = os.path.join(output_dir, STREAMING_CKPT_DIR)
-                if not self._write_safely(os.makedirs, streaming_ckpt_dir, exist_ok=True):
-                    return False
-                logger.info(f"Saving optimizer in {streaming_ckpt_dir}")
-                if self._write_safely(
-                    save_fsdp_optim_param,
-                    self.model,
-                    self.optimizer,
-                    streaming_ckpt_dir,
-                ):
-                    logger.info(f"Optimizer saved in {streaming_ckpt_dir}")
-                else:
-                    return False
-            else:
-                save_policy = FullStateDictConfig(
-                    offload_to_cpu=self.args.cpu_offload,
-                    rank0_only=atorch.world_size() > 1,
-                )
-                with FSDP.state_dict_type(self.model, StateDictType.FULL_STATE_DICT, save_policy):
-                    # may be removed after PyTorch 2.2
-                    full_osd = FSDP.full_optim_state_dict(self.model, self.optimizer)
-        else:
-            full_osd = self.optimizer.state_dict()
-        if self.args.should_save:
-            if full_osd is not None:
-                optimizer_file = os.path.join(output_dir, OPTIMIZER_NAME)
-                logger.info(f"Saving optimizer to {optimizer_file}")
-                if self.args.async_save:
-                    self._async_save(
-                        lambda state_dict, save_path: torch.save(state_dict, save_path),
-                        state_dict=full_osd,
-                        save_path=optimizer_file,
-                        checkpoint_dir=output_dir,
-                    )
-                else:
-                    if not self._write_safely(torch.save, full_osd, optimizer_file):
-                        return False
-                    logger.info(f"Optimizer saved to {optimizer_file}")
+        # Save optimizer
+        if self.args.save_optimizer:
+            if not self.save_optimizer(output_dir):
+                return False
 
         # Maybe delete some older checkpoints.
         if self.args.should_save:
-            self._rotate_checkpoints(use_mtime=True, output_dir=self.args.output_dir)
+            self._rotate_checkpoints(use_mtime=False, output_dir=self.args.output_dir)
 
         return True
 
@@ -1434,26 +1498,49 @@ class AtorchTrainer:
             return False
 
         if self.atorch_fsdp and isinstance(self.model, FSDP):
-            if self.args.save_load_by_streaming:
-                if isinstance(unwrap_model(self.model), PeftModel):
-                    raise ValueError(
-                        "Non-PeftModel is required when using Atorch's streaming save function `save_fsdp_flat_param`."
-                    )
-                streaming_ckpt_dir = os.path.join(output_dir, STREAMING_CKPT_DIR)
-                if not self._write_safely(os.makedirs, streaming_ckpt_dir, exist_ok=True):
-                    return False
-                logger.info(f"Saving streaming model to {streaming_ckpt_dir}")
-                # TODO: whether to use multiprocess to save model
-                if self._write_safely(save_fsdp_flat_param, self.model, streaming_ckpt_dir):
-                    logger.info(f"Streaming model saved to {streaming_ckpt_dir}")
+            if self.args.save_by_streaming:
+                if self.args.peft_type is None:
+                    streaming_ckpt_dir = os.path.join(output_dir, STREAMING_CKPT_DIR)
+                    if not self._write_safely(os.makedirs, streaming_ckpt_dir, exist_ok=True):
+                        return False
+                    logger.info(f"Saving streaming model to {streaming_ckpt_dir}")
+                    # TODO: whether to use multiprocess to save model
+                    if not self._write_safely(save_fsdp_flat_param, self.model, streaming_ckpt_dir):
+                        return False
+                    logger.info(f"Streaming model saved in {streaming_ckpt_dir}")
+                elif self.args.peft_type == "lora":
+                    if not self._write_safely(
+                        save_lora_param, self.model, output_dir, lora_weight_name=ATORCH_LORA_WEIGHT_NAME
+                    ):
+                        return False
+                    model = unwrap_model(self.model)
+                    if not self._save_peft_config(model, output_dir):
+                        return False
+                    logger.info(f"Streaming lora model saved in {output_dir}")
+
+                    if self.args.save_base_model:
+                        # save base model
+                        assert hasattr(self, "save_policy")
+                        with FSDP.state_dict_type(self.model, StateDictType.FULL_STATE_DICT, self.save_policy):
+                            state_dict = self.model.state_dict()
+                        if self.args.should_save:
+                            model = unwrap_model(self.model)
+                            if _internal_call and self.args.async_save:
+                                self._async_save(
+                                    self._save_peft_base_model,
+                                    model,
+                                    output_dir,
+                                    state_dict=state_dict,
+                                    checkpoint_dir=output_dir,
+                                )
+                            else:
+                                if not self._write_safely(self._save_peft_base_model, model, output_dir, state_dict):
+                                    return False
                 else:
-                    return False
+                    raise ValueError(f"Saving {self.args.peft_type} model is not supported when training with FSDP.")
             else:
-                save_policy = FullStateDictConfig(
-                    offload_to_cpu=self.args.world_size > 1,
-                    rank0_only=self.args.world_size > 1,
-                )
-                with FSDP.state_dict_type(self.model, StateDictType.FULL_STATE_DICT, save_policy):
+                assert hasattr(self, "save_policy")
+                with FSDP.state_dict_type(self.model, StateDictType.FULL_STATE_DICT, self.save_policy):
                     state_dict = self.model.state_dict()
                 if self.args.should_save:
                     if _internal_call and self.args.async_save:
@@ -1479,9 +1566,10 @@ class AtorchTrainer:
             else:
                 if not self._write_safely(self._save, output_dir, state_dict):
                     return False
+        dist.barrier()
         return True
 
-    def _save(self, output_dir: Optional[str], state_dict) -> bool:
+    def _save(self, output_dir: str, state_dict) -> bool:
         """
         Save model in rank zero. `state_dict` is acquired outside.
 
@@ -1496,11 +1584,13 @@ class AtorchTrainer:
             return False
         logger.info(f"Saving model checkpoint to {output_dir}")
 
+        model = self.model
+
         supported_classes = (PreTrainedModel,) if not is_peft_available() else (PreTrainedModel, PeftModel)
         # Save a trained model and configuration using `save_pretrained()`.
         # They can then be reloaded using `from_pretrained()`
-        if not isinstance(self.model, supported_classes):
-            model = unwrap_model(self.model)
+        if not isinstance(model, supported_classes):
+            model = unwrap_model(model)
             if isinstance(model, supported_classes):
                 if not self._write_safely(
                     model.save_pretrained,
@@ -1510,29 +1600,7 @@ class AtorchTrainer:
                     max_shard_size=self.args.max_shard_size,
                 ):
                     return False
-                if isinstance(model, PeftModel) and self.args.save_base_model:
-                    base_model = model.get_base_model()
-                    # Filter the peft params ...
-                    param_keys = list(state_dict.keys())
-                    base_model_state_dict = {}
-                    for key in param_keys:
-                        value = state_dict[key]
-                        if LORA_KEY in key:
-                            continue
-                        if PEFT_PARAM_PREFIX in key:
-                            new_key = key.replace(PEFT_PARAM_PREFIX, "")
-                            base_model_state_dict[new_key] = value
-                        else:
-                            base_model_state_dict[key] = value
-                    logger.info(f"Saving base model checkpoint to {output_dir}")
-                    if not self._write_safely(
-                        base_model.save_pretrained,
-                        output_dir,
-                        state_dict=base_model_state_dict,
-                        safe_serialization=self.args.save_safetensors,
-                        max_shard_size=self.args.max_shard_size,
-                    ):
-                        return False
+
             else:
                 logger.info("Trainer.model is not a `PreTrainedModel`, only saving its state dict.")
                 if self.args.save_safetensors:
@@ -1547,12 +1615,17 @@ class AtorchTrainer:
                         return False
         else:
             if not self._write_safely(
-                self.model.save_pretrained,
+                model.save_pretrained,
                 output_dir,
                 state_dict=state_dict,
                 safe_serialization=self.args.save_safetensors,
                 max_shard_size=self.args.max_shard_size,
             ):
+                return False
+
+        # Save base model if it is type of PeftModel
+        if isinstance(model, PeftModel) and self.args.save_base_model:
+            if not self._save_peft_base_model(model, output_dir, state_dict):
                 return False
 
         # Save tokenizer
@@ -1571,6 +1644,131 @@ class AtorchTrainer:
 
         return True
 
+    def _save_peft_base_model(self, model: PeftModel, output_dir: str, state_dict) -> bool:
+        """
+        Save peft model in rank zero. `state_dict` is acquired outside.
+
+        Return:
+            (bool): Whether the model is saved successfully.
+        """
+        assert isinstance(model, PeftModel), f"Model type required PeftModel, but get {type(model)}!"
+        base_model = model.get_base_model()
+        # Filter the peft params ...
+        param_keys = list(state_dict.keys())
+        base_model_state_dict = {}
+        for key in param_keys:
+            value = state_dict[key]
+            if LORA_KEY in key:
+                continue
+            if PEFT_PARAM_PREFIX in key:
+                new_key = key.replace(PEFT_PARAM_PREFIX, "")
+                base_model_state_dict[new_key] = value
+            else:
+                base_model_state_dict[key] = value
+        logger.info(f"Saving base model checkpoint to {output_dir}")
+        if not self._write_safely(
+            base_model.save_pretrained,
+            output_dir,
+            state_dict=base_model_state_dict,
+            safe_serialization=self.args.save_safetensors,
+            max_shard_size=self.args.max_shard_size,
+        ):
+            return False
+        return True
+
+    def _save_peft_config(self, model: PeftModel, output_dir: str) -> bool:
+        assert isinstance(model, PeftModel), f"Model type required PeftModel, but get {type(model)}!"
+        # save the config and change the inference mode to `True`
+        base_model = model.get_base_model()
+        peft_config: PeftConfig = model.peft_config["default"]
+        if peft_config.base_model_name_or_path is None:
+            peft_config.base_model_name_or_path = (
+                base_model.__dict__.get("name_or_path", None)
+                if peft_config.is_prompt_learning
+                else base_model.model.__dict__.get("name_or_path", None)
+            )
+        inference_mode = peft_config.inference_mode
+        peft_config.inference_mode = True
+
+        if peft_config.task_type is None:
+            # deal with auto mapping
+            base_model_class = model._get_base_model_class(
+                is_prompt_tuning=peft_config.is_prompt_learning,
+            )
+            parent_library = base_model_class.__module__
+
+            auto_mapping_dict = {
+                "base_model_class": base_model_class.__name__,
+                "parent_library": parent_library,
+            }
+        else:
+            auto_mapping_dict = None
+
+        if self.args.should_save:
+            if not self._write_safely(peft_config.save_pretrained, output_dir, auto_mapping_dict=auto_mapping_dict):
+                return False
+        peft_config.inference_mode = inference_mode
+        return True
+
+    def save_optimizer(self, output_dir: str) -> bool:
+        """
+        Save the optimizer.
+        """
+        # full optimizer state dict
+        full_osd = None
+        if self.atorch_fsdp and isinstance(self.model, FSDP):
+            if self.args.save_by_streaming:
+                if self.args.peft_type is None:
+                    streaming_ckpt_dir = os.path.join(output_dir, STREAMING_CKPT_DIR)
+                    if not self._write_safely(os.makedirs, streaming_ckpt_dir, exist_ok=True):
+                        return False
+                    logger.info(f"Saving optimizer to {streaming_ckpt_dir}")
+                    if not self._write_safely(
+                        save_fsdp_optim_param,
+                        self.model,
+                        self.optimizer,
+                        streaming_ckpt_dir,
+                    ):
+                        return False
+                    logger.info(f"Optimizer saved in {streaming_ckpt_dir}")
+                elif self.args.peft_type == "lora":
+                    if not self._write_safely(
+                        save_lora_optim_param,
+                        self.model,
+                        self.optimizer,
+                        output_dir,
+                        lora_weight_name=ATORCH_LORA_OPTIMIZER_NAME,
+                    ):
+                        return False
+                    logger.info(f"Lora optimizer saved in {output_dir}")
+                else:
+                    raise ValueError(
+                        f"Saving {self.args.peft_type} optimizer is not supported when training with FSDP."
+                    )
+            else:
+                assert hasattr(self, "save_policy")
+                with FSDP.state_dict_type(self.model, StateDictType.FULL_STATE_DICT, self.save_policy):
+                    # may be removed after PyTorch 2.2
+                    full_osd = FSDP.full_optim_state_dict(self.model, self.optimizer)
+        else:
+            full_osd = self.optimizer.state_dict()
+        if self.args.should_save and full_osd is not None:
+            optimizer_file = os.path.join(output_dir, OPTIMIZER_NAME)
+            logger.info(f"Saving optimizer to {optimizer_file}")
+            if self.args.async_save:
+                self._async_save(
+                    lambda state_dict, save_path: torch.save(state_dict, save_path),
+                    state_dict=full_osd,
+                    save_path=optimizer_file,
+                    checkpoint_dir=output_dir,
+                )
+            else:
+                if not self._write_safely(torch.save, full_osd, optimizer_file):
+                    return False
+                logger.info(f"Optimizer saved to {optimizer_file}")
+        dist.barrier()
+        return True
+
     def log(self, logs: Dict[str, float]) -> None:
         """
         Log `logs` on the various objects watching training.
@@ -1587,7 +1785,7 @@ class AtorchTrainer:
         output = {**logs, **{"step": self.state.global_step}}
         self.state.log_history.append(output)
         try:
-            self.control = self.callback_handler.on_log(self.args, self.state, self.control, logs)
+            self.control = self.callback_handler.on_log(self.args, self.state, self.control, output)
         except Exception:
             if self.args.ignore_write_errors:
                 logger.exception("Logging failed! Maybe no space left when tensorboard writting!")
@@ -1692,7 +1890,11 @@ class AtorchTrainer:
     ) -> List[str]:
         ordering_and_checkpoint_path = []
 
-        glob_checkpoints = [str(x) for x in Path(output_dir).glob(f"{checkpoint_prefix}-*") if os.path.isdir(x)]
+        glob_checkpoints = [
+            str(x)
+            for x in Path(output_dir).glob(f"{checkpoint_prefix}-*")
+            if os.path.isdir(x) and "epoch" not in str(x)
+        ]
 
         for path in glob_checkpoints:
             if use_mtime:
@@ -1735,7 +1937,7 @@ class AtorchTrainer:
         for checkpoint in checkpoints_to_be_deleted:
             logger.info(f"Deleting older checkpoint [{checkpoint}] due to args.save_total_limit")
             if self.args.async_save:
-                self.pipe1.send(PipeMessageEntity(AsyncCheckpointSignal.DELETE_CKPT, checkpoint))
+                self.pipe1.send(PipeMessageEntity(AsyncCheckpointSignal.DELETE_CKPT, ckpt_path=checkpoint))
             else:
                 shutil.rmtree(checkpoint, ignore_errors=True)
 
@@ -2262,12 +2464,12 @@ class AtorchTrainer:
         if not self.is_world_process_zero():
             return
 
-        print(f"***** {split} metrics *****")
+        logger.info(f"***** {split} metrics *****")
         metrics_formatted = self.metrics_format(metrics)
         k_width = max(len(str(x)) for x in metrics_formatted.keys())
         v_width = max(len(str(x)) for x in metrics_formatted.values())
         for key in sorted(metrics_formatted.keys()):
-            print(f"  {key: <{k_width}} = {metrics_formatted[key]:>{v_width}}")
+            logger.info(f"  {key: <{k_width}} = {metrics_formatted[key]:>{v_width}}")
 
     def save_metrics(self, split, metrics, combined=True):
         """
@@ -2333,16 +2535,21 @@ class AtorchTrainer:
         save_success = self._write_safely(save_func, *args, **kwargs)
 
         if not save_success:
-            self.pipe1.send(PipeMessageEntity(AsyncCheckpointSignal.DELETE_CKPT, checkpoint_dir))
-        self.pipe1.send(PipeMessageEntity(AsyncCheckpointSignal.SAVE_OVER, os.getpid()))
+            self.pipe1.send(
+                PipeMessageEntity(AsyncCheckpointSignal.DELETE_CKPT, pid=os.getpid(), ckpt_path=checkpoint_dir)
+            )
+        self.pipe1.send(PipeMessageEntity(AsyncCheckpointSignal.SAVE_OVER, pid=os.getpid(), ckpt_path=checkpoint_dir))
+        logger.info(
+            f"Asynchronous saving with subprocess pid {os.getpid()} in {checkpoint_dir} is over! "
+            f"Save successfully? {'Yes' if save_success else 'No'}"
+        )
         return save_success
 
-    def _terminate_process_by_pid(self, pid: int, exec_join: bool = False):
+    def _terminate_process_by_pid(self, pid: int):
         try:
             p = psutil.Process(pid)
-            if exec_join:
-                p.wait(timeout=1000)
-            p.terminate()
+            if p.is_running():
+                p.terminate()
         except psutil.NoSuchProcess:
             logger.info(f"No process found with PID {pid}, maybe was terminated.")
         except psutil.TimeoutExpired:
@@ -2350,28 +2557,29 @@ class AtorchTrainer:
             p.terminate()
         except Exception:
             if self.args.ignore_write_errors:
-                logging.exception(f"Error occured when getting process handle by PID {pid}!")
+                logger.exception(f"Error occured when getting process handle by PID {pid}!")
             else:
                 raise
 
     def _async_save(self, save_func, *args, **kwargs):
-        if "checkpoint_dir" not in kwargs:
-            logger.warning("Please pass 'checkpoint_dir' argument when calling self._async_save().")
-            return
+        if "checkpoint_dir" not in kwargs or "state_dict" not in kwargs:
+            raise ValueError("Please pass 'checkpoint_dir' and 'state_dict' argument to _async_save() function.")
+
         # Get extra arguments from kwargs.
         checkpoint_dir = kwargs.pop("checkpoint_dir")
 
-        # Wait if len(self.writing_processes) > total_limit
+        # Wait if len(self.writing_processes) >= max_num_writing_processes
         # Two processes will be created to save model and optimizer respectively during every saving.
         start = time.time()
-        while len(self.writing_processes) > self.args.save_total_limit * 2:
+        while len(self.writing_processes) >= self.args.max_num_writing_processes:
             time.sleep(1)
-            if time.time() - start > 1000:
+            if time.time() - start > self.args.async_timeout:
                 pids = list(self.writing_processes.keys())
                 pids.sort()
                 logger.info(f"Kill the earliest process {pids[0]}")
                 # Kill the earliest process
                 self._terminate_process_by_pid(pids[0])
+                self.writing_processes.pop(pids[0])
                 break
 
         # Move state dict from device to CPU
@@ -2384,43 +2592,70 @@ class AtorchTrainer:
         self.writing_processes[p.pid] = checkpoint_dir
 
     def _async_manager(self):
-        while True:
-            recv: PipeMessageEntity = self.pipe2.recv()
-            if recv.signal_type == AsyncCheckpointSignal.DELETE_CKPT:
-                checkpoint_dir = recv.data
-                logger.info(f"Deleting {checkpoint_dir}")
+        def _delete_ckpt(recv: PipeMessageEntity):
+            checkpoint_dir = recv.ckpt_path
+            logger.info(f"Deleting {checkpoint_dir}")
 
-                # Stop the saving process with the working directory 'checkpoint_dir'
-                process_to_del = []
-                for pid, ckpt in self.writing_processes.items():
-                    if ckpt == checkpoint_dir:
-                        self._terminate_process_by_pid(pid)
-                        process_to_del.append(pid)
-                for pid in process_to_del:
-                    self.writing_processes.pop(pid)
-
-                # Delete 'checkpoint_dir'
-                shutil.rmtree(checkpoint_dir, ignore_errors=True)
-                logger.info(f"Checkpoint '{checkpoint_dir}' deleted!")
-            elif recv.signal_type == AsyncCheckpointSignal.SAVE_OVER:
-                pid = recv.data
-                logger.info(f"Destroying process {pid}")
-                # Remove finished process from self.writing_processes
+            # Stop the saving process with the working directory 'checkpoint_dir'
+            process_to_del = []
+            for pid, ckpt in self.writing_processes.items():
+                if ckpt == checkpoint_dir:
+                    self._terminate_process_by_pid(pid)
+                    process_to_del.append(pid)
+            for pid in process_to_del:
                 self.writing_processes.pop(pid)
-                self._terminate_process_by_pid(pid)
-            elif recv.signal_type == AsyncCheckpointSignal.TRAIN_OVER:
-                logger.info("Join all saving processes!")
-                # Join for all save processes
-                for pid, ckpt in self.writing_processes.items():
-                    self._terminate_process_by_pid(pid, exec_join=True)
-                break
+
+            # Delete 'checkpoint_dir'
+            shutil.rmtree(checkpoint_dir, ignore_errors=True)
+            logger.info(f"Checkpoint '{checkpoint_dir}' deleted!")
+
+        def _save_ckpt_post(recv: PipeMessageEntity):
+            pid = recv.pid
+            logger.info(f"Destroying process {pid}")
+            # Remove finished process from self.writing_processes
+            self.writing_processes.pop(pid)
+            self._terminate_process_by_pid(pid)
+
+        train_is_over = False
+        while True:
+            # Receive data from the pipe with non-blocking way.
+            if self.pipe2.poll():
+                recv: PipeMessageEntity = self.pipe2.recv()
+                if recv.signal_type == AsyncCheckpointSignal.DELETE_CKPT:
+                    _delete_ckpt(recv)
+                elif recv.signal_type == AsyncCheckpointSignal.SAVE_OVER:
+                    _save_ckpt_post(recv)
+                elif recv.signal_type == AsyncCheckpointSignal.TRAIN_OVER:
+                    logger.info("Join all saving processes!")
+                    train_is_over = True
+
+                    # Begin to wait the remain IO operations to complete.
+                    start = time.time()
+                else:
+                    raise ValueError(
+                        f"Receive error signal type! Signal type should be one of "
+                        f"{AsyncCheckpointSignal._member_names_}."
+                    )
             else:
-                raise ValueError(
-                    f"Receive error signal type! Signal type should be one of {AsyncCheckpointSignal._member_names_}."
-                )
+                time.sleep(1)
+
+            if train_is_over:
+                if (time.time() - start) > self.args.async_timeout:
+                    logger.warning(
+                        "The waiting time is too small to complete the remain asynchronous IO operations in "
+                        f"{list(self.writing_processes.values())}."
+                        "Please increase the waiting time by setting the argument 'async_timeout'."
+                    )
+                    # Terminate the remain subprocess forcibly.
+                    for pid, ckpt in self.writing_processes.items():
+                        self._terminate_process_by_pid(pid)
+                    break
+                if len(self.writing_processes) == 0:
+                    logger.info("All asynchronous IO operations are finished!")
+                    break
 
     def _init_async_save(self):
-        if self.args.save_strategy != IntervalStrategy.NO and self.args.should_save:
+        if self.args.should_save:
             self.data_manager = Manager()
 
             # Duplex Pipe for inter-process communication
@@ -2436,10 +2671,10 @@ class AtorchTrainer:
             os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
     def _join(self):
-        if self.args.save_strategy != IntervalStrategy.NO and self.args.should_save:
+        if self.args.should_save:
             self.pipe1.send(PipeMessageEntity(AsyncCheckpointSignal.TRAIN_OVER))
             # Wait for the manager_process to end
-            self.manager_process.join(timeout=1000)
+            self.manager_process.join(timeout=self.args.async_timeout)
             self.manager_process.terminate()
 
             # Shutdown the data manager

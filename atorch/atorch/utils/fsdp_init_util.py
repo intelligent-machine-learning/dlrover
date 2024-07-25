@@ -93,8 +93,8 @@ class RestoreFlatParamHandleInjectConfig:
         if self.ckpt_util.ckpt_meta["version"] == 0:
             logger.warn("Meet old flat ckpt, make sure your wrap class in FSDP is same")
             return ignore_ckpt_version
-        sorted(wrap_class_config, key=lambda x: ".".join(x))
-        sorted(ckpt_wrap_class, key=lambda x: ".".join(x))
+        wrap_class_config = sorted(wrap_class_config, key=lambda x: ".".join(x))
+        ckpt_wrap_class = sorted(ckpt_wrap_class, key=lambda x: ".".join(x))
         return wrap_class_config == ckpt_wrap_class
 
     def enable(self):

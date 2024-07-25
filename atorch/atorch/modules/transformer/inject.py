@@ -1,7 +1,12 @@
 import inspect
+from copy import deepcopy
 
 import torch
-from deepspeed import DeepSpeedTransformerConfig
+
+try:
+    from deepspeed import DeepSpeedTransformerConfig
+except (ImportError, ModuleNotFoundError):
+    DeepSpeedTransformerConfig = None
 
 import atorch
 from atorch.common.log_utils import default_logger as logger
@@ -182,16 +187,31 @@ def replace_module(
                     kwargs["src_module"] = child
                 if init_from_attr:
                     for arg in inspect.signature(tgt_module_cls).parameters.keys():
-                        assert hasattr(
-                            child, arg
-                        ), f"{tgt_module_cls.__name__}'s arg {arg} is not the attribute of {child.__class__.__name__}"
-                        kwargs[arg] = getattr(child, arg)
+                        if hasattr(child, arg):
+                            kwargs[arg] = getattr(child, arg)
+                        elif inspect.signature(tgt_module_cls).parameters[arg].default != inspect.Parameter.empty:
+                            logger.warning(
+                                "{}'s arg {} is not the attribute of {}, using default {}.".format(
+                                    tgt_module_cls.__name__,
+                                    arg,
+                                    child.__class__.__name__,
+                                    inspect.signature(tgt_module_cls).parameters[arg].default,
+                                )
+                            )
+                        else:
+                            assert hasattr(
+                                child, arg
+                            ), f"{tgt_module_cls.__name__} arg {arg} is not attribute of {child.__class__.__name__}"
                 mod_is_meta = is_meta(child)
                 from atorch.auto.auto_accelerate_context import AutoAccelerateContext
 
                 if mod_is_meta and hasattr(AutoAccelerateContext, "FSDP_META_INIT"):
                     with torch.device("meta"):
                         new_module = tgt_module_cls(**kwargs).to("meta")
+                    # maintain manually added attrs
+                    for attr in dir(child):
+                        if attr not in dir(new_module):
+                            setattr(new_module, attr, deepcopy(getattr(child, attr)))
 
                 else:
                     new_module = tgt_module_cls(**kwargs)

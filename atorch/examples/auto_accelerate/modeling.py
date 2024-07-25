@@ -92,8 +92,11 @@ def toy_loss_func(inputs, output):
 
 
 def gpt2_loss_func(inputs, output, vocab_size):
+    shift_logits = output[..., :-1, :].contiguous()
+    shift_labels = inputs["labels"][..., 1:].contiguous()
+
     criterion = torch.nn.CrossEntropyLoss()
-    return criterion(output.view(-1, vocab_size), inputs["labels"].view(-1))
+    return criterion(shift_logits.view(-1, vocab_size), shift_labels.view(-1))
 
 
 def llama_loss_func(inputs, output):

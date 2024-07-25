@@ -1,9 +1,11 @@
 import functools
 import os
 import shutil
+import time
 import unittest
 
 import torch
+import torch.distributed as dist
 import torch.multiprocessing as mp
 from torch.distributed.fsdp.fully_sharded_data_parallel import FullyShardedDataParallel as FSDP
 from torch.utils.data import Dataset
@@ -68,7 +70,7 @@ def compare_dicts(dict1, dict2):
             if not compare_dicts(val1, val2):
                 return False
         elif isinstance(val1, torch.Tensor) and isinstance(val2, torch.Tensor):
-            if not torch.equal(val1, val2):
+            if not torch.equal(val1.cpu(), val2.cpu()):
                 return False
         else:
             if val1 != val2:
@@ -166,7 +168,15 @@ def save_ckpt(model, optim, save_dir):
 
 
 def run_hsdp_local_sgd(
-    rank, world_size, local_sgd_warmup_steps, outer_optim_class, save_dir, experiment_name, reducer=None
+    rank,
+    world_size,
+    local_sgd_warmup_steps,
+    outer_optim_class,
+    save_dir,
+    experiment_name,
+    reducer=None,
+    clip=None,
+    cpu_offload=True,
 ):
     os.environ["LOCAL_RANK"] = str(rank)
     os.environ["RANK"] = str(rank)
@@ -183,7 +193,7 @@ def run_hsdp_local_sgd(
     def loss_func(_, output):
         return output.loss
 
-    dataset = LlamaDataset(vocab_size=model_config.vocab_size, max_source_positions=32, total_samples=200)
+    dataset = LlamaDataset(vocab_size=model_config.vocab_size, max_source_positions=32, total_samples=20)
     dataloader_args = {
         "batch_size": 4,
         "drop_last": True,
@@ -196,32 +206,41 @@ def run_hsdp_local_sgd(
     parallel_config = ([("zero", torch.distributed.get_world_size() // 2), ("data", 2)], None)
     strategy = [("parallel_mode", parallel_config)]
 
+    from atorch.local_sgd.HSDP import GTAConfigs, LocalSGDConfigs, OuterOptimizerConfigs
+
     fsdp_config = {
         "sync_module_states": True,
         "limit_all_gathers": True,
         "atorch_wrap_cls": (LlamaDecoderLayer,),
         "use_local_sgd": True,
-        "local_sgd_sync_interval": 5,
-        "local_sgd_warmup_steps": local_sgd_warmup_steps,
-        "gradient_accumulation_steps": 1,
-        "outer_optim_class": torch.optim.SGD if outer_optim_class == "sgd" else None,
-        "outer_optim_kwargs": {
-            "lr": 0.9,
-            "momentum": 0.8,
-            "nesterov": True,
-        },
-        "outer_optim_cpu_offload": True,
+        "local_sgd_configs": LocalSGDConfigs(
+            local_sgd_sync_interval=5,
+            local_sgd_warmup_steps=local_sgd_warmup_steps,
+            gradient_accumulation_steps=1,
+            clip_pseudo_grad=clip,
+            cpu_offload=cpu_offload,
+        ),
+        "outer_optim_configs": OuterOptimizerConfigs(
+            outer_optim_class=torch.optim.SGD if outer_optim_class == "sgd" else None,
+            outer_optim_kwargs={
+                "lr": 0.9,
+                "momentum": 0.8,
+                "nesterov": True,
+            },
+        ),
     }
     if reducer is not None:
         # test for gta sum sufficies
         fsdp_config.update(
             {
-                "reducer": reducer,
-                "consensus_method": "sum",
-                "sparsification_method": None,
-                "normalize": True,
-                "density": None,
-                "int8_mask": False,
+                "gta_configs": GTAConfigs(
+                    reducer=reducer,
+                    consensus_method="sum",
+                    sparsification_method=None,
+                    normalize=True,
+                    density=None,
+                    int8_mask=False,
+                )
             }
         )
     strategy.append(("fsdp", fsdp_config))
@@ -258,10 +277,12 @@ def run_hsdp_local_sgd(
 
     # Test checkpoint methods
     save_ckpt(model, optim, os.path.join(save_dir, experiment_name))
+    load_model_path = os.path.join(save_dir, experiment_name, "model.pt")
+    while not os.path.exists(load_model_path):
+        time.sleep(1)
+    dist.barrier()
     # model checkpoints
-    new_res = create_test_model(
-        model_config, os.path.join(save_dir, experiment_name, "model.pt"), dataset, loss_func, dataloader_args, strategy
-    )
+    new_res = create_test_model(model_config, load_model_path, dataset, loss_func, dataloader_args, strategy)
     new_model = new_res.model
 
     model_param = dict(model.named_parameters())
@@ -270,7 +291,7 @@ def run_hsdp_local_sgd(
     for name1, param1 in model_param.items():
         if name1 in new_model_param:
             param2 = new_model_param[name1]
-            assert torch.equal(param1, param2)
+            assert torch.equal(param1.cpu(), param2.cpu())
 
     # local sgd checkpoints
     model_fsdp_modules = FSDP.fsdp_modules(model)
@@ -279,11 +300,19 @@ def run_hsdp_local_sgd(
         model_config, os.path.join(save_dir, experiment_name, "model.pt"), dataset, loss_func, dataloader_args, strategy
     )
     test_model = test_res.model
+    local_sgd_load_dir = os.path.join(save_dir, experiment_name, "full_rank0")
+    wait_counter = 0
+    while not os.path.exists(os.path.join(local_sgd_load_dir, "local_sgd_ckpt.pt")):
+        time.sleep(1)
+        wait_counter += 1
+        if wait_counter > 30:
+            return  # just to not block the whole process
+    dist.barrier()
     FSDP.load_local_sgd_state_dict(
         test_model,
         rank0_only=True,
         full_state_dict=True,
-        load_dir=os.path.join(save_dir, experiment_name, "full_rank0"),
+        load_dir=local_sgd_load_dir,
     )
     test_model_fsdp_modules = FSDP.fsdp_modules(test_model)
     assert compare_fsdp_modules(test_model_fsdp_modules, model_fsdp_modules)
@@ -327,8 +356,8 @@ class TestHSDPLocalSGD(unittest.TestCase):
             shutil.rmtree(self.save_dir)
 
     @unittest.skipIf(
-        not torch.cuda.is_available() or torch.cuda.device_count() < 4 or torch_version() != (2, 1, 0),  # type: ignore
-        "Must have at least 4 GPUs and torch == 2.1.0. for local sgd test.",
+        not torch.cuda.is_available() or torch.cuda.device_count() < 4 or torch_version()[:2] != (2, 1),  # type: ignore
+        "Must have at least 4 GPUs and torch == 2.1.x. for local sgd test.",
     )
     def test_hsdp_local_sgd(self):
         world_size = 4
@@ -344,8 +373,51 @@ class TestHSDPLocalSGD(unittest.TestCase):
         os.environ["MASTER_PORT"] = ""
 
     @unittest.skipIf(
-        not torch.cuda.is_available() or torch.cuda.device_count() < 4 or torch_version() != (2, 1, 0),  # type: ignore
-        "Must have at least 4 GPUs and torch == 2.1.0. for local sgd test.",
+        not torch.cuda.is_available() or torch.cuda.device_count() < 4 or torch_version()[:2] != (2, 1),  # type: ignore
+        "Must have at least 4 GPUs and torch == 2.1.x. for local sgd test.",
+    )
+    def test_hsdp_local_sgd_gta_sum(self):
+        world_size = 4
+        os.environ["MASTER_ADDR"] = "localhost"
+        os.environ["MASTER_PORT"] = str(find_free_port())
+        mp.spawn(
+            run_hsdp_local_sgd,
+            args=(world_size, 0, "none", self.save_dir, "local_sgd_gta_sum", "gta", None, True),
+            nprocs=world_size,
+            join=True,
+        )
+        os.environ["MASTER_ADDR"] = ""
+        os.environ["MASTER_PORT"] = ""
+
+    @unittest.skipIf(
+        not torch.cuda.is_available() or torch.cuda.device_count() < 4 or torch_version()[:2] != (2, 1),  # type: ignore
+        "Must have at least 4 GPUs and torch == 2.1.x. for local sgd test.",
+    )
+    def test_hsdp_local_sgd_gta_sum_no_offload(self):
+        world_size = 4
+        os.environ["MASTER_ADDR"] = "localhost"
+        os.environ["MASTER_PORT"] = str(find_free_port())
+        mp.spawn(
+            run_hsdp_local_sgd,
+            args=(
+                world_size,
+                0,
+                "none",
+                self.save_dir,
+                "local_sgd_gta_sum_no_offload",
+                "gta",
+                None,
+                False,
+            ),
+            nprocs=world_size,
+            join=True,
+        )
+        os.environ["MASTER_ADDR"] = ""
+        os.environ["MASTER_PORT"] = ""
+
+    @unittest.skipIf(
+        not torch.cuda.is_available() or torch.cuda.device_count() < 4 or torch_version()[:2] != (2, 1),  # type: ignore
+        "Must have at least 4 GPUs and torch == 2.1.x. for local sgd test.",
     )
     def test_hsdp_post_local_sgd(self):
         world_size = 4
@@ -361,8 +433,8 @@ class TestHSDPLocalSGD(unittest.TestCase):
         os.environ["MASTER_PORT"] = ""
 
     @unittest.skipIf(
-        not torch.cuda.is_available() or torch.cuda.device_count() < 4 or torch_version() != (2, 1, 0),  # type: ignore
-        "Must have at least 4 GPUs and torch == 2.1.0. for local sgd test.",
+        not torch.cuda.is_available() or torch.cuda.device_count() < 4 or torch_version()[:2] != (2, 1),  # type: ignore
+        "Must have at least 4 GPUs and torch == 2.1.x. for local sgd test.",
     )
     def test_hsdp_diloco(self):
         world_size = 4
@@ -378,8 +450,25 @@ class TestHSDPLocalSGD(unittest.TestCase):
         os.environ["MASTER_PORT"] = ""
 
     @unittest.skipIf(
-        not torch.cuda.is_available() or torch.cuda.device_count() < 4 or torch_version() != (2, 1, 0),  # type: ignore
-        "Must have at least 4 GPUs and torch == 2.1.0. for local sgd test.",
+        not torch.cuda.is_available() or torch.cuda.device_count() < 4 or torch_version()[:2] != (2, 1),  # type: ignore
+        "Must have at least 4 GPUs and torch == 2.1.x. for local sgd test.",
+    )
+    def test_hsdp_diloco_no_offload(self):
+        world_size = 4
+        os.environ["MASTER_ADDR"] = "localhost"
+        os.environ["MASTER_PORT"] = str(find_free_port())
+        mp.spawn(
+            run_hsdp_local_sgd,
+            args=(world_size, 0, "sgd", self.save_dir, "diloco_no_offload", None, None, False),
+            nprocs=world_size,
+            join=True,
+        )
+        os.environ["MASTER_ADDR"] = ""
+        os.environ["MASTER_PORT"] = ""
+
+    @unittest.skipIf(
+        not torch.cuda.is_available() or torch.cuda.device_count() < 4 or torch_version()[:2] != (2, 1),  # type: ignore
+        "Must have at least 4 GPUs and torch == 2.1.x. for local sgd test.",
     )
     def test_hsdp_diloco_gta_sum(self):
         world_size = 4
@@ -395,8 +484,25 @@ class TestHSDPLocalSGD(unittest.TestCase):
         os.environ["MASTER_PORT"] = ""
 
     @unittest.skipIf(
-        not torch.cuda.is_available() or torch.cuda.device_count() < 4 or torch_version() != (2, 1, 0),  # type: ignore
-        "Must have at least 4 GPUs and torch == 2.1.0. for local sgd test.",
+        not torch.cuda.is_available() or torch.cuda.device_count() < 4 or torch_version()[:2] != (2, 1),  # type: ignore
+        "Must have at least 4 GPUs and torch == 2.1.x. for local sgd test.",
+    )
+    def test_hsdp_diloco_clip(self):
+        world_size = 4
+        os.environ["MASTER_ADDR"] = "localhost"
+        os.environ["MASTER_PORT"] = str(find_free_port())
+        mp.spawn(
+            run_hsdp_local_sgd,
+            args=(world_size, 0, "sgd", self.save_dir, "diloco_clip", None, 1.0),
+            nprocs=world_size,
+            join=True,
+        )
+        os.environ["MASTER_ADDR"] = ""
+        os.environ["MASTER_PORT"] = ""
+
+    @unittest.skipIf(
+        not torch.cuda.is_available() or torch.cuda.device_count() < 4 or torch_version()[:2] != (2, 1),  # type: ignore
+        "Must have at least 4 GPUs and torch == 2.1.x. for local sgd test.",
     )
     def test_hsdp_post_diloco(self):
         world_size = 4

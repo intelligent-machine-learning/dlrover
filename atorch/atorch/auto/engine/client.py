@@ -2,7 +2,10 @@ import os
 
 import grpc
 
-from atorch.protos import acceleration_pb2, acceleration_pb2_grpc
+try:
+    from atorch.protos import acceleration_pb2, acceleration_pb2_grpc
+except ImportError:
+    acceleration_pb2 = acceleration_pb2_grpc = None
 
 GRPC_MAX_SEND_MESSAGE_LENGTH = 256 * 1024 * 1024
 GRPC_MAX_RECEIVE_MESSAGE_LENGTH = 256 * 1024 * 1024

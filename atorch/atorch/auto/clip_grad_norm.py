@@ -2,8 +2,12 @@ import math
 
 import torch
 import torch.distributed as dist
-from deepspeed.runtime.zero.stage_1_and_2 import DeepSpeedZeroOptimizer
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
+
+try:
+    from deepspeed.runtime.zero.stage_1_and_2 import DeepSpeedZeroOptimizer
+except (ImportError, ModuleNotFoundError):
+    DeepSpeedZeroOptimizer = None
 
 from atorch.auto.auto_accelerate_context import AutoAccelerateContext
 from atorch.distributed.distributed import parallel_group

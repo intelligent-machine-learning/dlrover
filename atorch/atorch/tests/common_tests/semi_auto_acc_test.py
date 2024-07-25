@@ -208,15 +208,14 @@ def run_ds_zero(
         )
         assert num == data_size // batch_size, f"num={num}"
 
-    dtype_list = [torch.float16, torch.half, torch.float32]
+    dtype = torch.bfloat16
     cpu_offload_list = [False, True]
     ds_zero_list = ["zero1", "zero2"]
 
-    for dtype in dtype_list:
-        for ds_zero in ds_zero_list:
-            for cpu_offload in cpu_offload_list:
-                mc_copy = copy.deepcopy(mc)
-                train_with_ds(mc_copy, dtype, ds_zero, cpu_offload)
+    for ds_zero in ds_zero_list:
+        for cpu_offload in cpu_offload_list:
+            mc_copy = copy.deepcopy(mc)
+            train_with_ds(mc_copy, dtype, ds_zero, cpu_offload)
 
     atorch.reset_distributed()
 

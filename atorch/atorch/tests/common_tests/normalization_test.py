@@ -5,7 +5,7 @@ import torch
 from torch.testing._internal.common_device_type import instantiate_device_type_tests
 from torch.testing._internal.common_utils import TestCase
 
-import atorch
+from atorch.modules.normalization import LayerNorm
 
 
 class TestNNDeviceType(TestCase):
@@ -18,7 +18,7 @@ class TestNNDeviceType(TestCase):
             unnormalized_shape = shape[:-normalized_ndim]
 
             # test that LN normalizes to mean 0 and stddev 1
-            ln = atorch.normalization.LayerNorm(normalized_shape, eps=0).to(device, dtype)
+            ln = LayerNorm(normalized_shape, eps=0).to(device, dtype)
             ln.weight.data.fill_(1)
             ln.bias.data.fill_(0)
             output = ln(x)
@@ -49,13 +49,13 @@ class TestNNDeviceType(TestCase):
             10: (2, 3),
         }
         for norm_shape, input_shape in bad_norm_shape_input_shape.items():
-            ln = atorch.normalization.LayerNorm(norm_shape)
+            ln = LayerNorm(norm_shape)
             input = torch.empty(input_shape, device=device, dtype=dtype).uniform_(0, 10)
             self.assertRaises(RuntimeError, lambda: ln(input))
 
     def _test_LayerNorm_cuda_half(self, device):
         input = torch.empty(2, 3, 3, 2, device=device, dtype=torch.half).random_(1, 10).requires_grad_(True)
-        m = atorch.normalization.LayerNorm([3, 2]).to(device, torch.half)
+        m = LayerNorm([3, 2]).to(device, torch.half)
         output = m(input)
         output.sum().backward()
         self.assertEqualTypeString(output, input)
@@ -83,7 +83,7 @@ class TestNNDeviceType(TestCase):
             return Y.view(*X.size())
 
         normalized_shape = [256, 256, 144]
-        layer_norm = atorch.normalization.LayerNorm(normalized_shape).float().to(device)
+        layer_norm = LayerNorm(normalized_shape).float().to(device)
         # layer_norm = nn.LayerNorm(normalized_shape).float().to(device)
         X = torch.rand(2, *normalized_shape, dtype=torch.float32, device=device)
 
