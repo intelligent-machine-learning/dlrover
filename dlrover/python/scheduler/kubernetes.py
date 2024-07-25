@@ -154,6 +154,10 @@ class k8sClient(Singleton):
     def setup_user_agent(self):
         self.client.api_client.user_agent = USER_AGENT
 
+    @property
+    def api_client(self):
+        return self.client.api_client
+
     @retry_k8s_request
     def list_namespaced_pod(self, label_selector):
         """List the pods in the namespace with the label selector.

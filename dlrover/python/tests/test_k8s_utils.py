@@ -114,3 +114,4 @@ class KubernetesTest(unittest.TestCase):
         succeed = k8s_client.cordon_node("test-node-0")
         self.assertFalse(succeed)
         self.assertEqual(k8s_client.client.api_client.user_agent, USER_AGENT)
+        self.assertEqual(k8s_client.api_client.user_agent, USER_AGENT)
