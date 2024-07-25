@@ -348,7 +348,7 @@ class WorkerManager(TrainingNodeManager):
         # with condition 1 + 2
         if (
             len(pending_nodes) == 0
-            or len(running_nodes) > self._nodes_required[0]
+            or len(running_nodes) >= self._nodes_required[0]
         ):
             return False
 

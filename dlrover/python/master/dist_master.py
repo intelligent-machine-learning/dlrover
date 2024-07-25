@@ -294,15 +294,17 @@ class DistributedJobMaster(JobMaster):
         logger.info("Master stopped")
 
     def request_stop(self, success, reason, msg=""):
-        logger.info(
-            f"Request to stop. Success: {success}, reason: {reason}, "
-            f"msg: {msg}."
-        )
         self._stop_requested = True
         self._exit_reason = reason
         if success:
             self._exit_code = 0
-            logger.info(msg)
+            logger.info(
+                f"Request to stop. Success: {success}, reason: {reason}, "
+                f"msg: {msg}."
+            )
         else:
             self._exit_code = 1
-            logger.error(msg)
+            logger.error(
+                f"Request to stop. Success: {success}, reason: {reason}, "
+                f"msg: {msg}."
+            )
