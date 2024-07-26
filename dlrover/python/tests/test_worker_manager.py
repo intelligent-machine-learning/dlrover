@@ -268,6 +268,25 @@ class WorkerManagerTest(unittest.TestCase):
             mock_nodes[index] = mock_node
         worker_manager._nodes = mock_nodes
         self.assertFalse(worker_manager.is_training_hang_by_pending())
+        mock_nodes.clear()
+
+        # mock with 3 running + 1 initial long time
+        for index in range(4):
+            mock_node = Node(
+                NodeType.WORKER,
+                index,
+                NodeResource(0, 0),
+                "test-" + str(index),
+                NodeStatus.RUNNING,
+            )
+            if index == 0:
+                mock_node.status = NodeStatus.INITIAL
+                mock_node.create_time = datetime.now() + timedelta(minutes=-20)
+            else:
+                mock_node.create_time = datetime.now() + timedelta(minutes=-20)
+            mock_nodes[index] = mock_node
+        worker_manager._nodes = mock_nodes
+        self.assertTrue(worker_manager.is_training_hang_by_pending())
 
     def test_is_training_hang_by_insufficient_worker(self):
         # mock timeout 2 second(seconds_to_wait_pending_pod * 2)

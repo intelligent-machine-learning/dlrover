@@ -127,6 +127,7 @@ class WorkerManager(TrainingNodeManager):
         self._job_resource = job_resource
         self._max_relaunch_num = max_relaunch_num
         self._new_service_fn = new_service_fn
+        # the required nodes number, format: (min_required, max_required)
         self._nodes_required = (0, 0)
         self._last_insufficient_nodes_timestamp = 0
 
@@ -314,11 +315,11 @@ class WorkerManager(TrainingNodeManager):
 
     def is_training_hang_by_pending(self) -> bool:
         """
-        To prevent training hanging by pending. Should exit when there is
+        To prevent training hanging by pending nodes. Should exit when there is
         inextricable pending issue.
 
         There is 3 main conditions:
-        1: exist pending
+        1: exist pending nodes
         2: alive nodes number consistently lower than the min nodes requires
         3: 1+2 last for a certain time
 
@@ -340,7 +341,7 @@ class WorkerManager(TrainingNodeManager):
             if node is None or node.is_released or node.create_time is None:
                 continue
 
-            if node.status == NodeStatus.PENDING:
+            if node.status in [NodeStatus.PENDING, NodeStatus.INITIAL]:
                 pending_nodes.append(node)
             elif node.status == NodeStatus.RUNNING:
                 running_nodes.append(node)
@@ -348,7 +349,7 @@ class WorkerManager(TrainingNodeManager):
         # with condition 1 + 2
         if (
             len(pending_nodes) == 0
-            or len(running_nodes) >= self._nodes_required[0]
+            or len(running_nodes) >= self.get_min_nodes_required()
         ):
             return False
 
@@ -398,7 +399,7 @@ class WorkerManager(TrainingNodeManager):
                 available_nodes.append(node)
 
         now = time.time()
-        if len(available_nodes) < self._nodes_required[0]:
+        if len(available_nodes) < self.get_min_nodes_required():
             if self._last_insufficient_nodes_timestamp == 0:
                 self._last_insufficient_nodes_timestamp = int(now)
                 logger.warning(f"Job with insufficient nodes: {cur_nodes}.")
@@ -418,6 +419,16 @@ class WorkerManager(TrainingNodeManager):
         if self._nodes_required[0] and self._nodes_required[1]:
             return True
         return False
+
+    def get_min_nodes_required(self) -> int:
+        """Notice: it is meaningless when the result is 0."""
+
+        return self._nodes_required[0]
+
+    def get_max_nodes_required(self) -> int:
+        """Notice: it is meaningless when the result is 0."""
+
+        return self._nodes_required[1]
 
     def update_node_required_info(self, nodes_required: Tuple[int, int]):
         self._nodes_required = nodes_required

@@ -14,6 +14,7 @@
 from abc import ABCMeta, abstractmethod
 from typing import Dict
 
+from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node
 from dlrover.python.master.hyperparams.simple_strategy_generator import (
     SimpleStrategyGenerator,
@@ -201,13 +202,22 @@ class JobManager(metaclass=ABCMeta):
         )
 
     def update_node_required_info(self, min_required, max_required):
-        if (
-            min_required > 0
-            and max_required > 0
-            and max_required > min_required
-        ):
+        """
+        Update the nodes min/max requirements.
+
+        Args:
+            min_required(int): Minimum number of nodes for training.
+            max_required(int): Maximum number of nodes for training.
+        """
+
+        if 0 < min_required <= max_required and max_required > 0:
             self._nodes_required = (min_required, max_required)
             self.update_node_required_info_callback()
+        else:
+            logger.warning(
+                f"Invalid min_required: {min_required} "
+                f"and max_required: {max_required}."
+            )
 
     def update_node_required_info_callback(self):
         """Callback when 'update_node_required_info' is invoked."""
