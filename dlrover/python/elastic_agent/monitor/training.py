@@ -79,7 +79,7 @@ class TorchTrainingMonitor(Singleton):
     TORCH_ACTION_TIMEOUT_SECS = 300
     TORCH_ACTION_TIMEOUT_TIMES = 3
 
-    def __init__(self, metrics_path, agent):
+    def __init__(self, metrics_path, agent=None):
         self._resource_monitor = ResourceMonitor.singleton_instance()
         self._master_client = MasterClient.singleton_instance()
         self._group_rank = env_utils.get_node_rank()
@@ -153,6 +153,9 @@ class TorchTrainingMonitor(Singleton):
             time.sleep(15)
 
     def _is_action_hang(self) -> bool:
+        if self._agent is None:
+            return False
+
         now = time.time()
         last_action_time = self._agent.get_action_time()
         if not last_action_time:
