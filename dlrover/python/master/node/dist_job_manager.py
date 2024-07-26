@@ -221,8 +221,8 @@ class DistributedJobManager(JobManager):
         )
         if len(timeout_ps_nodes) > 0:
             msg = (
-                "Stop the training early because oom recovered node pending "
-                "timeout."
+                "Stop the training early because the nodes recovered from OOM "
+                "are pending too long and have timed out."
             )
             return True, JobExitReason.PENDING_TIMEOUT, msg
 
@@ -230,8 +230,8 @@ class DistributedJobManager(JobManager):
         if self._worker_manager.is_training_hang_by_pending():
             msg = (
                 "Stop the training early because 1) there is node pending "
-                "2) alive worker number consistently lower than the min "
-                "training nodes requires 3) time last exceed limit."
+                "2) alive worker number consistently less than the min "
+                "training nodes required 3) pending time last exceed limit."
             )
             return True, JobExitReason.PENDING_TIMEOUT, msg
 
