@@ -19,9 +19,10 @@ from datetime import datetime, timedelta
 from unittest.mock import patch
 
 from torch.distributed.elastic.agent.server import WorkerSpec
+from torch.distributed.elastic.rendezvous import RendezvousParameters
 from torch.distributed.launcher import LaunchConfig
 
-from dlrover.python.common.constants import ConfigPath, NodeEnv
+from dlrover.python.common.constants import ConfigPath, NodeEnv, RendezvousName
 from dlrover.python.common.grpc import GPUStats
 from dlrover.python.elastic_agent.datacollector.data_collector import (
     CollectorType,
@@ -40,6 +41,7 @@ from dlrover.python.elastic_agent.monitor.training import (
 from dlrover.python.elastic_agent.torch.training import (
     ElasticLaunchConfig,
     ElasticTrainingAgent,
+    MasterRendezvousHandler,
 )
 from dlrover.python.tests.test_utils import start_local_master
 
@@ -136,12 +138,29 @@ class TorchTrainingMonitorTest(unittest.TestCase):
         self.config = ElasticLaunchConfig(**launch_config.__dict__)
         self.config.set_node_unit(2)
 
+        rdzv_parameters = RendezvousParameters(
+            backend=self.config.rdzv_backend,
+            endpoint=self.config.rdzv_endpoint,
+            run_id=self.config.run_id,
+            min_nodes=self.config.min_nodes,
+            max_nodes=self.config.max_nodes,
+            local_addr=self.config.local_addr,
+            **self.config.rdzv_configs,
+        )
+        self.rdzv_handler = MasterRendezvousHandler(
+            RendezvousName.ELASTIC_TRAINING,
+            0,
+            rdzv_parameters,
+            local_world_size=self.config.nproc_per_node,
+        )
+        self.rdzv_handler.join_timeout = 5
+
         self.spec = WorkerSpec(
             role=self.config.role,
             local_world_size=self.config.nproc_per_node,
             entrypoint="echo",
             args=tuple([]),
-            rdzv_handler=None,
+            rdzv_handler=self.rdzv_handler,
             max_restarts=self.config.max_restarts,
             monitor_interval=self.config.monitor_interval,
             master_addr="127.0.0.1",
