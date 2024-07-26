@@ -541,6 +541,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         return workers
 
     def _initialize_workers(self, worker_group):
+        logger.info("Start initializing training workers.")
         start_pending = 0
         pend_timeout = float(
             self._config.rdzv_configs.get("pend_timeout", "inf")
