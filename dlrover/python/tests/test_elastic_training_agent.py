@@ -19,8 +19,12 @@ import tempfile
 import time
 import unittest
 from unittest import mock
+from unittest.mock import patch
 
 from torch.distributed.elastic.agent.server.api import WorkerSpec, WorkerState
+from torch.distributed.elastic.agent.server.local_elastic_agent import (
+    LocalElasticAgent,
+)
 from torch.distributed.elastic.rendezvous import RendezvousParameters
 from torch.distributed.launcher.api import LaunchConfig
 
@@ -254,8 +258,8 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             rdzv_handler=self.rdzv_handler,
             max_restarts=self.config.max_restarts,
             monitor_interval=self.config.monitor_interval,
-            redirects=self.config.redirects,
-            tee=self.config.tee,
+            # redirects=self.config.redirects,
+            # tee=self.config.tee,
             master_addr=master_addr,
             local_addr=self.config.local_addr,
         )
@@ -386,6 +390,40 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             os.environ[AscendConstants.HCCL_PORT_START],
             str(65000),
         )
+
+    def test_stop_workers(self):
+        agent = ElasticTrainingAgent(
+            node_rank=0,
+            config=self.config,
+            entrypoint="echo",
+            spec=self.spec,
+            start_method=self.config.start_method,
+            log_dir=self.config.log_dir,
+        )
+
+        # without timeout
+        agent._stop_workers(None, 3)
+
+        def sleep_10_seconds(*args, **kwargs):
+            time.sleep(10)
+
+        # with timeout
+        with patch.object(
+            LocalElasticAgent, "_stop_workers", side_effect=sleep_10_seconds
+        ):
+            agent = ElasticTrainingAgent(
+                node_rank=0,
+                config=self.config,
+                entrypoint="echo",
+                spec=self.spec,
+                start_method=self.config.start_method,
+                log_dir=self.config.log_dir,
+            )
+            try:
+                agent._stop_workers(None, 3)
+                self.fail()
+            except TimeoutError:
+                self.assertTrue(True)
 
 
 class NodeCheckElasticAgentTest(unittest.TestCase):
