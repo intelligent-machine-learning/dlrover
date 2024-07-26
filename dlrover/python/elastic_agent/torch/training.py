@@ -405,6 +405,8 @@ class ElasticTrainingAgent(LocalElasticAgent):
         self._save_ckpt_future = None
         self._log_file = os.getenv(NodeEnv.TRAINING_LOG_FILE, "")
 
+        self.__last_action_timestamp = 0
+
     @prof
     def _rendezvous(self, worker_group: WorkerGroup) -> None:
         r"""
@@ -572,11 +574,15 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
     @prof
     def _stop_workers(self, worker_group: WorkerGroup) -> None:
+        self._set_action_time()
+
         if self._config.accelerator == Accelerators.ASCEND_NPU:
             logger.info("stop workers via SIGKILL")
             self._shutdown(death_sig=signal.SIGKILL)
         else:
             super()._stop_workers(worker_group)
+
+        self._log_and_reset_action_time("Stop workers")
 
     def _invoke_run(self, role: str = DEFAULT_ROLE) -> RunResult:
         # sync hccl port for NPU
@@ -708,11 +714,15 @@ class ElasticTrainingAgent(LocalElasticAgent):
         )
 
     def _restart_workers(self, worker_group: WorkerGroup):
+        self._set_action_time()
+
         self._restart_count += 1
         self._remaining_restarts -= 1
-        # Relase the shared memory lock before starting workers.
+        # release the shared memory lock before starting workers.
         AsyncCheckpointSaver.reset()
         super()._restart_workers(worker_group)
+
+        self._log_and_reset_action_time("Restart workers")
 
     def _membership_changed(self, role, rdzv_handler: RendezvousHandler):
         # Timeout may happen when to query TCPStore.
@@ -776,6 +786,20 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     start_port = resp.newport
                     port = 0
 
+    def get_action_time(self):
+        return self.__last_action_timestamp
+
+    def _set_action_time(self, input_time=None):
+        if input_time:
+            self.__last_action_timestamp = input_time
+        else:
+            self.__last_action_timestamp = time.time()
+
+    def _log_and_reset_action_time(self, action_name):
+        cost = time.time() - self.__last_action_timestamp
+        logger.info(f"{action_name} cost {cost}s.")
+        self.__last_action_timestamp = 0
+
 
 def launch_agent(
     config: ElasticLaunchConfig,
@@ -810,9 +834,6 @@ def launch_agent(
 
     _set_paral_config()
 
-    monitor = TorchTrainingMonitor(ConfigPath.RUNTIME_METRICS)
-    monitor.start()
-
     spec = _create_worker_spec(
         node_rank=node_rank,
         rdzv_name=RendezvousName.ELASTIC_TRAINING,
@@ -828,6 +849,9 @@ def launch_agent(
         start_method=config.start_method,
         log_dir=config.log_dir,
     )
+
+    monitor = TorchTrainingMonitor(ConfigPath.RUNTIME_METRICS, agent)
+    monitor.start()
 
     shutdown_rdzv = True
     try:

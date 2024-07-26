@@ -75,15 +75,22 @@ class TFTrainingReporter(Singleton):
 
 
 class TorchTrainingMonitor(Singleton):
-    def __init__(self, metrics_path):
+
+    TORCH_ACTION_TIMEOUT_SECS = 300
+    TORCH_ACTION_TIMEOUT_TIMES = 3
+
+    def __init__(self, metrics_path, agent):
         self._resource_monitor = ResourceMonitor.singleton_instance()
-        self._last_timestamp = 0
-        self._start_time = 0
         self._master_client = MasterClient.singleton_instance()
         self._group_rank = env_utils.get_node_rank()
         if os.path.exists(metrics_path):
             os.remove(metrics_path)
         self._metrics_path = metrics_path
+        self._agent = agent
+
+        self._last_timestamp = 0
+        self._start_time = 0
+        self._timeout_times = 0
 
     def start(self):
         if os.getenv(NodeEnv.MONITOR_ENABLED, "false") != "true":
@@ -127,8 +134,8 @@ class TorchTrainingMonitor(Singleton):
         try:
             ts = int(time.time())
             self._master_client.report_heart_beat(ts)
-        except Exception:
-            logger.warning("Fail to report a heartbeat.")
+        except Exception as e:
+            logger.warning(f"Fail to report a heartbeat: {str(e)}.")
 
     def _periodically_report(self):
         logger.info("Start training agent reporter.")
@@ -136,4 +143,42 @@ class TorchTrainingMonitor(Singleton):
             if self._group_rank == 0:
                 self.report_resource_with_step()
             self.send_heartbeat()
+
+            if self._is_action_hang():
+                raise RuntimeError(
+                    "Training worker action timeout exceed "
+                    "limit, need relaunching."
+                )
+
             time.sleep(15)
+
+    def _is_action_hang(self) -> bool:
+        now = time.time()
+        last_action_time = self._agent.get_action_time()
+        if not last_action_time:
+            self._timeout_times = 0
+            return False
+
+        if (
+            now - last_action_time
+            > TorchTrainingMonitor.TORCH_ACTION_TIMEOUT_SECS
+        ):
+            self._timeout_times += 1
+            logger.warning(
+                "Training worker action timeout for "
+                f"{self._timeout_times} times."
+            )
+
+            if (
+                self._timeout_times
+                > TorchTrainingMonitor.TORCH_ACTION_TIMEOUT_TIMES
+            ):
+                logger.error(
+                    "Training worker is hang, action timeout exceed "
+                    f"{TorchTrainingMonitor.TORCH_ACTION_TIMEOUT_TIMES} times."
+                )
+                return True
+        else:
+            self._timeout_times = 0
+
+        return False

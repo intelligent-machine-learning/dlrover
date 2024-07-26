@@ -15,9 +15,17 @@ import json
 import os
 import time
 import unittest
+from datetime import datetime, timedelta
 from unittest.mock import patch
 
-from dlrover.python.common.constants import NodeEnv
+from elastic_agent.torch.training import (
+    ElasticLaunchConfig,
+    ElasticTrainingAgent,
+)
+from torch.distributed.elastic.agent.server import WorkerSpec
+from torch.distributed.launcher import LaunchConfig
+
+from dlrover.python.common.constants import ConfigPath, NodeEnv
 from dlrover.python.common.grpc import GPUStats
 from dlrover.python.elastic_agent.datacollector.data_collector import (
     CollectorType,
@@ -30,6 +38,7 @@ from dlrover.python.elastic_agent.monitor.diagnosis import DiagnosisMonitor
 from dlrover.python.elastic_agent.monitor.resource import ResourceMonitor
 from dlrover.python.elastic_agent.monitor.training import (
     TFTrainingReporter,
+    TorchTrainingMonitor,
     is_tf_chief,
 )
 from dlrover.python.tests.test_utils import start_local_master
@@ -111,6 +120,63 @@ class ResourceMonitorTest(unittest.TestCase):
         metrics = monitor.collect_data(CollectorType.CHIPMETRICS)
         self.assertFalse(not metrics)
         monitor.report_diagnosis_data(metrics)
+
+
+class TorchTrainingMonitorTest(unittest.TestCase):
+    def setUp(self):
+        self.master_proc, self.addr = start_local_master()
+        MasterClient._instance = build_master_client(self.addr, 0.5)
+
+        launch_config = LaunchConfig(
+            min_nodes=2,
+            max_nodes=2,
+            nproc_per_node=8,
+            run_id="test",
+        )
+        self.config = ElasticLaunchConfig(**launch_config.__dict__)
+        self.config.set_node_unit(2)
+
+        self.spec = WorkerSpec(
+            role=self.config.role,
+            local_world_size=self.config.nproc_per_node,
+            entrypoint="echo",
+            args=tuple([]),
+            rdzv_handler=None,
+            max_restarts=self.config.max_restarts,
+            monitor_interval=self.config.monitor_interval,
+            master_addr="127.0.0.1",
+            local_addr=self.config.local_addr,
+        )
+
+    def test_is_action_hang(self):
+        agent = ElasticTrainingAgent(
+            node_rank=0,
+            config=self.config,
+            entrypoint="python",
+            spec=self.spec,
+            start_method=self.config.start_method,
+            log_dir=self.config.log_dir,
+        )
+
+        monitor = TorchTrainingMonitor(ConfigPath.RUNTIME_METRICS, agent)
+        self.assertIsNotNone(monitor._agent)
+
+        for index in range(5):
+            self.assertFalse(monitor._is_action_hang())
+
+        mock_time = datetime.now() + timedelta(minutes=-6)
+        agent._set_action_time(mock_time.timestamp())
+        for index in range(5):
+            if index < 3:
+                self.assertFalse(monitor._is_action_hang())
+            else:
+                self.assertTrue(monitor._is_action_hang())
+
+        try:
+            monitor._periodically_report()
+            self.fail()
+        except RuntimeError:
+            self.assertTrue(True)
 
 
 if __name__ == "__main__":
