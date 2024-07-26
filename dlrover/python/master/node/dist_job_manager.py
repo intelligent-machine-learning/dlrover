@@ -224,6 +224,12 @@ class DistributedJobManager(JobManager):
                 "Stop the training early because the nodes recovered from OOM "
                 "are pending too long and have timed out."
             )
+            self._error_monitor.process_error(
+                timeout_ps_nodes[0],
+                0,
+                msg,
+                level=TrainingExceptionLevel.ERROR,
+            )
             return True, JobExitReason.PENDING_TIMEOUT, msg
 
         # worker pending judgement:
@@ -233,6 +239,9 @@ class DistributedJobManager(JobManager):
                 "2) alive worker number consistently less than the min "
                 "training nodes required 3) pending time last exceed limit."
             )
+            self._error_monitor.process_error(
+                None, 0, msg, level=TrainingExceptionLevel.ERROR
+            )
             return True, JobExitReason.PENDING_TIMEOUT, msg
 
         # insufficient worker judgement
@@ -240,6 +249,9 @@ class DistributedJobManager(JobManager):
             msg = (
                 "Stop the training early because there isn't enough node to "
                 "keep training."
+            )
+            self._error_monitor.process_error(
+                None, 0, msg, level=TrainingExceptionLevel.ERROR
             )
             return True, JobExitReason.UNCOMPLETED_TIMEOUT, msg
 

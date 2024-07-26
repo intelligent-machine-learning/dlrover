@@ -284,6 +284,7 @@ class TrainingExceptionLevel(object):
     NODE_ERROR = "node_error"
     WARNING = "warning"
     INFO = "info"
+    ERROR = "error"
 
 
 class ConfigPath(object):
