@@ -714,15 +714,11 @@ class ElasticTrainingAgent(LocalElasticAgent):
         )
 
     def _restart_workers(self, worker_group: WorkerGroup):
-        self._set_action_time()
-
         self._restart_count += 1
         self._remaining_restarts -= 1
         # release the shared memory lock before starting workers.
         AsyncCheckpointSaver.reset()
         super()._restart_workers(worker_group)
-
-        self._log_and_reset_action_time("Restart workers")
 
     def _membership_changed(self, role, rdzv_handler: RendezvousHandler):
         # Timeout may happen when to query TCPStore.
