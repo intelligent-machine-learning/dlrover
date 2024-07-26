@@ -26,6 +26,7 @@ from torch.distributed.launcher.api import LaunchConfig
 
 from dlrover.python.common.constants import (
     Accelerators,
+    AscendConstants,
     ConfigPath,
     RendezvousName,
 )
@@ -209,6 +210,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         agent._rendezvous = _mock_rendezvous
         with self.assertRaises(TimeoutError):
             agent._initialize_workers(agent._worker_group)
+            agent._save_ckpt_future
 
 
 class ElasticTrainingAgentRunTest(unittest.TestCase):
@@ -361,8 +363,29 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             start_method=self.config.start_method,
             log_dir=self.config.log_dir,
         )
-        agent.sync_training_ports()
-        self.assertEqual(os.environ["HCCL_IF_BASE_PORT"], "60000")
+        agent.sync_training_ports(1)
+        self.assertEqual(
+            os.environ[AscendConstants.HCCL_PORT_START],
+            str(AscendConstants.HCCL_PORT_START_DEFAULT),
+        )
+
+    def test_sync_node_port_with_env(self):
+        os.environ[AscendConstants.HCCL_PORT_START] = "65000"
+        self.config.accelerator = Accelerators.ASCEND_NPU
+        agent = ElasticTrainingAgent(
+            node_rank=0,
+            config=self.config,
+            entrypoint="echo",
+            spec=self.spec,
+            start_method=self.config.start_method,
+            log_dir=self.config.log_dir,
+        )
+
+        agent.sync_training_ports(1)
+        self.assertEqual(
+            os.environ[AscendConstants.HCCL_PORT_START],
+            str(65000),
+        )
 
 
 class NodeCheckElasticAgentTest(unittest.TestCase):
