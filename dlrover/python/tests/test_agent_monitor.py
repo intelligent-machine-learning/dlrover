@@ -18,10 +18,6 @@ import unittest
 from datetime import datetime, timedelta
 from unittest.mock import patch
 
-from elastic_agent.torch.training import (
-    ElasticLaunchConfig,
-    ElasticTrainingAgent,
-)
 from torch.distributed.elastic.agent.server import WorkerSpec
 from torch.distributed.launcher import LaunchConfig
 
@@ -40,6 +36,10 @@ from dlrover.python.elastic_agent.monitor.training import (
     TFTrainingReporter,
     TorchTrainingMonitor,
     is_tf_chief,
+)
+from dlrover.python.elastic_agent.torch.training import (
+    ElasticLaunchConfig,
+    ElasticTrainingAgent,
 )
 from dlrover.python.tests.test_utils import start_local_master
 
