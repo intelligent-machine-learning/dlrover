@@ -217,9 +217,9 @@ class DistributedJobMaster(JobMaster):
             while True:
                 if self._stop_requested:
                     break
-                msg = self.job_manager.early_stop()
-                if msg:
-                    self.request_stop(False, msg)
+                should_stop, reason, msg = self.job_manager.should_early_stop()
+                if should_stop:
+                    self.request_stop(False, reason, msg)
                     continue
                 self.job_manager.clear_exited_nodes()
                 if self.job_manager and self.job_manager.all_workers_exited():
@@ -298,7 +298,13 @@ class DistributedJobMaster(JobMaster):
         self._exit_reason = reason
         if success:
             self._exit_code = 0
-            logger.info(msg)
+            logger.info(
+                f"Request to stop. Success: {success}, reason: {reason}, "
+                f"msg: {msg}."
+            )
         else:
             self._exit_code = 1
-            logger.error(msg)
+            logger.error(
+                f"Request to stop. Success: {success}, reason: {reason}, "
+                f"msg: {msg}."
+            )

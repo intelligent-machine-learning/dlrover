@@ -112,6 +112,8 @@ class JobExitReason(object):
     UNKNOWN_ERROR = "UnknownError"
     HANG_ERROR = "HangError"
     RDZV_TIMEOUT_ERROR = "RdzvTimeout"
+    PENDING_TIMEOUT = "PendingTimeout"
+    UNCOMPLETED_TIMEOUT = "UncompletedTimeout"
 
 
 class CustomMetricKeys:
@@ -286,6 +288,7 @@ class TrainingExceptionLevel(object):
     NODE_ERROR = "node_error"
     WARNING = "warning"
     INFO = "info"
+    ERROR = "error"
 
 
 class ConfigPath(object):
