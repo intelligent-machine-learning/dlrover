@@ -175,11 +175,13 @@ class RendezvousManager(metaclass=ABCMeta):
             for rank, node in self._waiting_nodes.items():
                 waiting_nodes[node.node_id] = rank
             lacking_ranks = self._get_lacking_ranks()
-            logger.info(f"Waiting nodes(required:{self._rdzv_params.min_nodes}"
-                        f"/{self._rdzv_params.max_nodes}) in rendezvous(size:"
-                        f"{len(waiting_nodes)}) are {waiting_nodes}, "
-                        f"lacking ranks(size:{len(lacking_ranks)}) "
-                        f"are {lacking_ranks}")
+            logger.info(
+                f"Waiting nodes(required:{self._rdzv_params.min_nodes}"
+                f"/{self._rdzv_params.max_nodes}) in rendezvous(size:"
+                f"{len(waiting_nodes)}) are {waiting_nodes}, "
+                f"lacking ranks(size:{len(lacking_ranks)}) "
+                f"are {lacking_ranks}"
+            )
         return rdzv_completed
 
     def _get_lacking_ranks(self):
@@ -444,10 +446,7 @@ class NetworkCheckRendezvousManager(RendezvousManager):
     def _get_print_node_groups(self):
         printing_node_groups = []
         for group in self._node_groups:
-            ids = [
-                self._rdzv_nodes[rank].node_id
-                for rank in group.keys()
-            ]
+            ids = [self._rdzv_nodes[rank].node_id for rank in group.keys()]
             printing_node_groups.append(ids)
 
         return printing_node_groups
@@ -609,8 +608,9 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                     fault_nodes = {}
                     for rank in self._fault_nodes:
                         fault_nodes[rank] = self._rdzv_nodes[rank].node_id
-                    logger.warning("Fault nodes(rank:node_id) "
-                                   f"are: {fault_nodes}")
+                    logger.warning(
+                        "Fault nodes(rank:node_id) " f"are: {fault_nodes}"
+                    )
                 stragglers = self._detect_stragglers()
                 if not self._fault_nodes and not stragglers:
                     self._rdzv_round = (
