@@ -555,6 +555,10 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
                 waiting_timeout=message.waiting_timeout,
                 node_unit=message.node_unit,
             )
+
+        self._job_manager.update_node_required_info(
+            message.min_nodes, message.max_nodes
+        )
         return True
 
     def _report_failure(self, node_type, node_id, message: grpc.NodeFailure):

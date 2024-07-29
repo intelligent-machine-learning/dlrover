@@ -56,6 +56,8 @@ class SimpleErrorMonitor(ErrorMonitor):
             logger.error(f"Rendezvous fails with reason {error_data}")
         elif level == TrainingExceptionLevel.WARNING:
             logger.warning(error_data)
+        elif level == TrainingExceptionLevel.ERROR:
+            logger.error(error_data)
         return False
 
     def _handle_process_error(
@@ -95,6 +97,8 @@ class K8sJobErrorMonitor(ErrorMonitor):
             logger.error(f"Rendezvous fails with reason {error_data}")
         elif level == TrainingExceptionLevel.WARNING:
             logger.warning(error_data)
+        elif level == TrainingExceptionLevel.ERROR:
+            logger.error(error_data)
         return False
 
     def _handle_process_error(
