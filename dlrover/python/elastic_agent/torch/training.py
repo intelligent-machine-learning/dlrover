@@ -541,6 +541,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         return workers
 
     def _initialize_workers(self, worker_group):
+        logger.info("Start initializing training workers.")
         start_pending = 0
         pend_timeout = float(
             self._config.rdzv_configs.get("pend_timeout", "inf")
@@ -571,12 +572,26 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 break
 
     @prof
-    def _stop_workers(self, worker_group: WorkerGroup) -> None:
-        if self._config.accelerator == Accelerators.ASCEND_NPU:
-            logger.info("stop workers via SIGKILL")
-            self._shutdown(death_sig=signal.SIGKILL)
-        else:
-            super()._stop_workers(worker_group)
+    def _stop_workers(self, worker_group: WorkerGroup, timeout=300) -> None:
+        try:
+            signal.signal(signal.SIGALRM, self._stop_timeout_handler)
+            signal.alarm(timeout)
+
+            if self._config.accelerator == Accelerators.ASCEND_NPU:
+                logger.info("stop workers via SIGKILL")
+                self._shutdown(death_sig=signal.SIGKILL)
+            else:
+                super()._stop_workers(worker_group)
+
+            signal.alarm(0)
+        except TimeoutError as te:
+            logger.error(str(te))
+            raise
+        finally:
+            signal.alarm(0)
+
+    def _stop_timeout_handler(self, signum, frame):
+        raise TimeoutError("Timed out waiting for stopping workers.")
 
     def _invoke_run(self, role: str = DEFAULT_ROLE) -> RunResult:
         # sync hccl port for NPU
