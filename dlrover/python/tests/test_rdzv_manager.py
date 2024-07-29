@@ -162,6 +162,29 @@ class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
         num = rdzv_manager.num_nodes_waiting()
         self.assertEqual(num, 0)
 
+    def test_get_lacking_ranks(self):
+        rdzv_manager = ElasticTrainingRendezvousManager()
+
+        rdzv_manager._rdzv_params.min_nodes = 4
+        rdzv_manager._waiting_nodes = {0: 0, 1: 1, 2: 2, 3: 3}
+        self.assertEqual(rdzv_manager._get_lacking_ranks(), [])
+
+        rdzv_manager._rdzv_params.min_nodes = 5
+        self.assertEqual(rdzv_manager._get_lacking_ranks(), [4])
+
+        rdzv_manager._rdzv_params.min_nodes = 3
+        self.assertEqual(rdzv_manager._get_lacking_ranks(), [])
+
+        rdzv_manager._rdzv_params.min_nodes = 6
+        self.assertEqual(rdzv_manager._get_lacking_ranks(), [4, 5])
+
+        rdzv_manager._rdzv_params.min_nodes = 4
+        rdzv_manager._waiting_nodes = {}
+        self.assertEqual(rdzv_manager._get_lacking_ranks(), [0, 1, 2, 3])
+
+        rdzv_manager._rdzv_params.min_nodes = 0
+        self.assertEqual(rdzv_manager._get_lacking_ranks(), [])
+
 
 class NetworkCheckRendezvousManagerTest(unittest.TestCase):
     def test_network_check_rdzv(self):
