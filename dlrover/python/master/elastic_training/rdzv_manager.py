@@ -192,7 +192,7 @@ class RendezvousManager(metaclass=ABCMeta):
             ranks in list e.g.[5, 6]
         """
 
-        lacking_ranks = []
+        lacking_ranks: List[int] = []
         if self._rdzv_params is None or self._rdzv_params.min_nodes <= 0:
             return lacking_ranks
 
