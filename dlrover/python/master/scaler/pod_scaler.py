@@ -387,24 +387,40 @@ class PodScaler(Scaler):
         return self._k8s_client.get_pod(pod_name)
 
     def _periodic_create_pod(self):
+        logger.info("Start the thread to create Pod.")
         with ThreadPoolExecutor(max_workers=4) as executor:
             while self._started:
                 while self._create_node_queue:
-                    executor.submit(self._create_pod_from_queue)
+                    executor.submit(
+                        self._create_pod_from_queue,
+                        self._create_node_queue.popleft(),
+                    )
                 time.sleep(3)
 
-    def _create_pod_from_queue(self):
-        node = self._create_node_queue.popleft()
+    def _create_pod_from_queue(self, node_from_queue=None):
+        """
+        Notice: we must ensure the sync operation of getting node happens
+        before the async execution, so we set 'node_from_queue' in the params
+        instead of pop the element in the current function to avoid invalid
+        async execution calls.
+
+        Args:
+            node_from_queue (Node): List of Node instances.
+        """
+
+        if node_from_queue is None:
+            return True
+
         succeed = False
-        if self._check_cluster_ready_for_pod(node):
-            pod = self._create_pod(node)
+        if self._check_cluster_ready_for_pod(node_from_queue):
+            pod = self._create_pod(node_from_queue)
             succeed = self._k8s_client.create_pod(pod)
         if not succeed:
-            self._create_node_queue.appendleft(node)
+            self._create_node_queue.appendleft(node_from_queue)
         else:
             # create svs for succeed pod
-            if not self._create_service_for_pod(node):
-                self._create_node_queue.appendleft(node)
+            if not self._create_service_for_pod(node_from_queue):
+                self._create_node_queue.appendleft(node_from_queue)
         return succeed
 
     def _check_cluster_ready_for_pod(self, node: Node):
