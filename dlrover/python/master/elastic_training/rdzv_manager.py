@@ -174,8 +174,39 @@ class RendezvousManager(metaclass=ABCMeta):
             waiting_nodes = {}
             for rank, node in self._waiting_nodes.items():
                 waiting_nodes[node.node_id] = rank
-            logger.info(f"Waiting nodes in rendezvous are {waiting_nodes}")
+            lacking_ranks = self._get_lacking_ranks()
+            logger.info(
+                f"Waiting nodes(required:{self._rdzv_params.min_nodes}"
+                f"/{self._rdzv_params.max_nodes}) in rendezvous(size:"
+                f"{len(waiting_nodes)}) are {waiting_nodes}, "
+                f"lacking ranks(size:{len(lacking_ranks)}) "
+                f"are {lacking_ranks}"
+            )
         return rdzv_completed
+
+    def _get_lacking_ranks(self) -> List[int]:
+        """
+        Lacking ranks = min required nodes(ranks) - waiting ranks.
+
+        Return:
+            ranks in list e.g.[5, 6]
+        """
+
+        lacking_ranks: List[int] = []
+        if self._rdzv_params is None or self._rdzv_params.min_nodes <= 0:
+            return lacking_ranks
+
+        min_required = self._rdzv_params.min_nodes
+        min_ranks = set([i for i in range(min_required)])
+        if self._waiting_nodes:
+            waiting_ranks = set(self._waiting_nodes.keys())
+        else:
+            waiting_ranks = set([])
+
+        if len(min_ranks) > len(waiting_ranks):
+            lacking_ranks = list(min_ranks - waiting_ranks)
+
+        return lacking_ranks
 
     def _log_rendezvous_info(self):
         node_ranks = {}
@@ -412,6 +443,14 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         self._fault_nodes = set()
         self._straggler_nodes = set()
 
+    def _get_print_node_groups(self):
+        printing_node_groups = []
+        for group in self._node_groups:
+            ids = [self._rdzv_nodes[rank].node_id for rank in group.keys()]
+            printing_node_groups.append(ids)
+
+        return printing_node_groups
+
     def get_comm_world(
         self, node_rank
     ) -> Tuple[int, int, Dict[int, NodeTopologyMeta]]:
@@ -425,16 +464,9 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                     self._fault_nodes.clear()
                     self._straggler_nodes.clear()
                     self._node_groups = self._group_nodes(self._rdzv_round)
-                    node_groups = []
-                    for group in self._node_groups:
-                        ids = [
-                            self._rdzv_nodes[rank].node_id
-                            for rank in group.keys()
-                        ]
-                        node_groups.append(ids)
                     logger.info(
                         f"Node groups of round {self._rdzv_round} "
-                        f"are: {node_groups}."
+                        f"are: {self._get_print_node_groups()}."
                     )
                     if self._rdzv_round % 2 == 0:
                         self._clear_check_status()
@@ -525,7 +557,8 @@ class NetworkCheckRendezvousManager(RendezvousManager):
             node_status = self._map_node_rank_to_id(self._node_status)
             logger.info(
                 f"Round {self._rdzv_round}: The node status "
-                f"are {node_status}."
+                f"are: {node_status}, "
+                f"the node group are: {self._get_print_node_groups()}"
             )
             node_check_times = self._map_node_rank_to_id(self._node_times)
             logger.info(
@@ -575,7 +608,9 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                     fault_nodes = {}
                     for rank in self._fault_nodes:
                         fault_nodes[rank] = self._rdzv_nodes[rank].node_id
-                    logger.warning(f"Fault nodes are {fault_nodes}")
+                    logger.warning(
+                        f"Fault nodes(rank:node_id) are: {fault_nodes}"
+                    )
                 stragglers = self._detect_stragglers()
                 if not self._fault_nodes and not stragglers:
                     self._rdzv_round = (

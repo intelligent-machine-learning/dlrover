@@ -515,6 +515,7 @@ class PodScaler(Scaler):
         for i in range(timeout):
             try:
                 telnetlib.Telnet(host=host, port=port, timeout=3)
+                logger.info(f"Master service check pass with {host}:{port}")
                 return True
             except socket.gaierror:
                 logger.warning(
