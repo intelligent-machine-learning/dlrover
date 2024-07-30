@@ -184,12 +184,12 @@ class RendezvousManager(metaclass=ABCMeta):
             )
         return rdzv_completed
 
-    def _get_lacking_ranks(self):
+    def _get_lacking_ranks(self) -> List[int]:
         """
-        Lacking ranks = min required nodes - waiting ranks.
+        Lacking ranks = min required nodes(ranks) - waiting ranks.
 
         Return:
-            ranks number in list
+            ranks in list e.g.[5, 6]
         """
 
         lacking_ranks = []
@@ -609,7 +609,7 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                     for rank in self._fault_nodes:
                         fault_nodes[rank] = self._rdzv_nodes[rank].node_id
                     logger.warning(
-                        "Fault nodes(rank:node_id) " f"are: {fault_nodes}"
+                        f"Fault nodes(rank:node_id) are: {fault_nodes}"
                     )
                 stragglers = self._detect_stragglers()
                 if not self._fault_nodes and not stragglers:
