@@ -208,10 +208,11 @@ def _write_shared_memory(value: torch.Tensor, meta: TensorMeta, buffer):
     """
     if value.numel() == 0:
         return
-    shm_tensor = torch.frombuffer(
-        buffer, dtype=value.dtype, count=value.numel(), offset=meta.offset
-    ).reshape(value.shape)
-    shm_tensor.copy_(value)
+    with torch.no_grad():
+        shm_tensor = torch.frombuffer(
+            buffer, dtype=value.dtype, count=value.numel(), offset=meta.offset
+        ).reshape(value.shape)
+        shm_tensor.copy_(value)
 
 
 class SharedMemoryHandler(object):
