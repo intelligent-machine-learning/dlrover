@@ -15,6 +15,7 @@ import json
 from typing import List
 
 from kubernetes import client, watch
+from kubernetes.client import V1Pod
 
 from dlrover.python.common.constants import (
     ElasticJobApi,
@@ -370,3 +371,25 @@ class K8sScalePlanWatcher:
             name=scale_crd["metadata"]["name"],
             body=scale_crd,
         )
+
+
+class K8sPodWatcher:
+    """K8sPodWatcher monitors the pods on the cluster.
+    It does not convert pod to node as PodWatcher does.
+    """
+
+    def __init__(self, job_name, namespace):
+        self._job_name = job_name
+        self._namespace = namespace
+        self._k8s_client = k8sClient.singleton_instance(namespace)
+        self._job_selector = ElasticJobLabel.JOB_KEY + "=" + self._job_name
+
+    def list(self) -> List[V1Pod]:
+        pod_list = self._k8s_client.list_namespaced_pod(self._job_selector)
+        if not pod_list:
+            return []
+        if not pod_list.items:
+            return []
+
+        return pod_list.items
+

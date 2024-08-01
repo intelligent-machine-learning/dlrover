@@ -19,6 +19,7 @@ from typing import List
 class InferenceName:
     END = "end"
     TRAINING = "training"
+    POD = "pod"
 
 
 class InferenceAttribute:
@@ -27,6 +28,7 @@ class InferenceAttribute:
 
 class InferenceDescription:
     HANG = "hang"
+    PENDING = "pending"
 
 
 @dataclass

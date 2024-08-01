@@ -13,6 +13,9 @@
 
 from abc import ABCMeta, abstractmethod
 from datetime import datetime
+from typing import List
+
+from kubernetes.client import V1Pod
 
 from dlrover.python.util.file_util import read_last_n_lines
 
@@ -21,6 +24,7 @@ class DiagnosisDataType:
     CUDALOG = "cuda_log"
     TRAININGLOG = "training_log"
     CHIPMETRICES = "chip_metrics"
+    K8SPODDATA = "k8s_pod_data"
 
 
 class DiagnosisData(metaclass=ABCMeta):
@@ -77,6 +81,22 @@ class ChipMetrics(DiagnosisData):
 
     def get_type(self) -> str:
         return DiagnosisDataType.CHIPMETRICES
+
+class K8sPodData(DiagnosisData):
+    def __init__(self, timestamp: int, pods: List[V1Pod]):
+        super().__init__()
+        if timestamp == 0:
+            self.timestamp = int(round(datetime.now().timestamp()))
+        else:
+            self.timestamp = timestamp
+
+        self.pods = pods
+
+    def get_timestamp(self) -> float:
+        return self.timestamp
+
+    def get_type(self) -> str:
+        return DiagnosisDataType.K8SPODDATA
 
 
 def node_failed(log_file: str) -> bool:

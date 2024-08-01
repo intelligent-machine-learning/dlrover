@@ -34,6 +34,7 @@ from dlrover.python.common.grpc import ParallelConfig
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource
 from dlrover.python.master.monitor.error_monitor import K8sJobErrorMonitor
+from dlrover.python.master.monitor.pod_monitor import PodMonitor
 from dlrover.python.master.node.event_callback import (
     ClusterContext,
     NodeEventCallback,
@@ -163,6 +164,8 @@ class DistributedJobManager(JobManager):
         self._scaler: Scaler = job_scaler
         self._init_training_node_manager()
 
+        self._pod_monitor = PodMonitor(job_args)
+
     def start(self):
         self._scaler.start()
         self._job_optimizer.update_job_uuid(self._job_args.job_uuid)
@@ -203,6 +206,7 @@ class DistributedJobManager(JobManager):
                 name="scaleplan_monitor",
                 daemon=True,
             ).start()
+        self._pod_monitor.start()
 
     def _has_running_workers(self):
         nodes = self._node_watcher.list()

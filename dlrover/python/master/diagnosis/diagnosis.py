@@ -15,6 +15,7 @@ import threading
 import time
 
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.common.singleton import Singleton
 from dlrover.python.master.diagnosis.diagnosis_data import (
     DataManager,
     DiagnosisData,
@@ -28,7 +29,7 @@ from dlrover.python.master.diagnosis.inferencechain.common import (
 )
 
 
-class DiagnosisManager:
+class DiagnosisManager(Singleton):
     def __init__(self):
         self.data_manager: DataManager = DataManager(600)
         self.diagnostician: Diagnostician = Diagnostician(self.data_manager)
@@ -43,13 +44,18 @@ class DiagnosisManager:
                 InferenceName.TRAINING,
                 InferenceAttribute.ISORNOT,
                 InferenceDescription.HANG,
+            ),
+            Inference(
+                InferenceName.POD,
+                InferenceAttribute.ISORNOT,
+                InferenceDescription.PENDING,
             )
         ]
         self.diagnostician.register_problems(problems)
 
         try:
             thread = threading.Thread(
-                target=self._diagnose_failures(),
+                target=self._diagnose_failures,
                 name="diagnose_failures",
                 daemon=True,
             )
@@ -67,10 +73,14 @@ class DiagnosisManager:
     def _diagnose_failures(self):
         logger.info("Start to diagnose failures")
         while True:
-            observed_problems = self.diagnostician.observe_training()
-            for problem in observed_problems:
-                logger.info(f"observed problems: {problem}")
-                root_causes = self.diagnostician.diagnose_failure(problem)
-                for root_cause in root_causes:
-                    logger.info(f"identify root cause: {root_cause}")
+            try:
+                observed_problems = self.diagnostician.observe_training()
+                for problem in observed_problems:
+                    logger.info(f"observed problems: {problem}")
+                    root_causes = self.diagnostician.diagnose_failure(problem)
+                    if root_causes is not None:
+                        for root_cause in root_causes:
+                            logger.info(f"identify root cause: {root_cause}")
+            except Exception as e:
+                logger.warning(e)
             time.sleep(180)

@@ -86,7 +86,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         self._job_manager: JobManager = job_manager
         self._speed_monitor = speed_monitor
         self._rdzv_managers = rdzv_managers
-        self._diagnosis_manager: DiagnosisManager = DiagnosisManager()
+        self._diagnosis_manager: DiagnosisManager = DiagnosisManager.singleton_instance()
         self._kv_store = KVStoreService()
         self._job_metric_collector: JobMetricCollector = job_metric_collector
         self._elastic_ps_service: ElasticPsService = elastic_ps_service
