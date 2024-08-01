@@ -12,13 +12,15 @@
 # limitations under the License.
 
 import copy
-from typing import Dict, List
+import time
+from typing import Dict, List, Tuple
 
 from dlrover.python.common.constants import (
     NodeExitReason,
     NodeStatus,
     NodeType,
 )
+from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
 from dlrover.python.master.node.training_node import (
@@ -27,6 +29,8 @@ from dlrover.python.master.node.training_node import (
 )
 from dlrover.python.master.resource.job import JobResource
 from dlrover.python.master.scaler.base_scaler import ScalePlan
+
+_dlrover_context = Context.singleton_instance()
 
 
 class ChiefManager(TrainingNodeManager):
@@ -123,6 +127,9 @@ class WorkerManager(TrainingNodeManager):
         self._job_resource = job_resource
         self._max_relaunch_num = max_relaunch_num
         self._new_service_fn = new_service_fn
+        # the required nodes number, format: (min_required, max_required)
+        self._nodes_required = (0, 0)
+        self._last_insufficient_nodes_timestamp = 0
 
     def adjust_worker(self, worker_resource: NodeGroupResource):
         plan = ScalePlan()
@@ -305,3 +312,123 @@ class WorkerManager(TrainingNodeManager):
             # Set False to avoid restart repeatedly.
             worker.restart_training = False
         return restart
+
+    def is_training_hang_by_pending(self) -> bool:
+        """
+        To prevent training hanging by pending nodes. Should exit when there is
+        inextricable pending issue.
+
+        There is 3 main conditions:
+        1: exist pending nodes
+        2: alive nodes number consistently lower than the min nodes requires
+        3: 1+2 last for a certain time
+
+        Return:
+            bool
+        """
+
+        if not self.has_node_required_info():
+            return False
+
+        # pending time as timeout for now
+        timeout = _dlrover_context.seconds_to_wait_pending_pod
+        cur_nodes = list(self._nodes.values())
+
+        # collect pending and running nodes
+        pending_nodes: List[Node] = []
+        running_nodes: List[Node] = []
+        for node in cur_nodes:
+            if node is None or node.is_released or node.create_time is None:
+                continue
+
+            if node.status in [NodeStatus.PENDING, NodeStatus.INITIAL]:
+                pending_nodes.append(node)
+            elif node.status == NodeStatus.RUNNING:
+                running_nodes.append(node)
+
+        # with condition 1 + 2
+        if (
+            len(pending_nodes) == 0
+            or len(running_nodes) >= self.get_min_nodes_required()
+        ):
+            return False
+
+        # with condition 3
+        now = time.time()
+        first_pending_node = min(
+            pending_nodes, key=lambda x: x.create_time  # type: ignore
+        )
+        if not first_pending_node or not first_pending_node.create_time:
+            return False
+
+        if now - first_pending_node.create_time.timestamp() > timeout:
+            logger.warning(
+                f"Node {first_pending_node.name} "
+                f"exceeded pending timeout: {timeout}s."
+            )
+            return True
+
+        return False
+
+    def is_training_hang_by_insufficient_worker(self) -> bool:
+        """
+        There is a small probability that due to unknown reason on the
+        training side, some workers will exit normally at the end of training,
+        while others will fail and restart. This function is to make sure EDL
+        can hold such circumstance, end the job directly.
+
+        Return:
+            bool
+        """
+
+        if not self.has_node_required_info():
+            return False
+
+        # use twice pending time as timeout
+        timeout = _dlrover_context.seconds_to_wait_pending_pod * 2
+        cur_nodes = list(self._nodes.values())
+
+        # collect available nodes
+        available_nodes: List[Node] = []
+        for node in cur_nodes:
+            if not node.is_released and node.status in [
+                NodeStatus.RUNNING,
+                NodeStatus.PENDING,
+                NodeStatus.INITIAL,
+            ]:
+                available_nodes.append(node)
+
+        now = time.time()
+        if len(available_nodes) < self.get_min_nodes_required():
+            if self._last_insufficient_nodes_timestamp == 0:
+                self._last_insufficient_nodes_timestamp = int(now)
+                logger.warning(f"Job with insufficient nodes: {cur_nodes}.")
+            else:
+                if now - self._last_insufficient_nodes_timestamp > timeout:
+                    logger.warning(
+                        f"Job with insufficient nodes: {cur_nodes} "
+                        f"lasts for more than {timeout}s."
+                    )
+                    return True
+        else:
+            self._last_insufficient_nodes_timestamp = 0
+
+        return False
+
+    def has_node_required_info(self):
+        if self._nodes_required[0] and self._nodes_required[1]:
+            return True
+        return False
+
+    def get_min_nodes_required(self) -> int:
+        """Notice: it is meaningless when the result is 0."""
+
+        return self._nodes_required[0]
+
+    def get_max_nodes_required(self) -> int:
+        """Notice: it is meaningless when the result is 0."""
+
+        return self._nodes_required[1]
+
+    def update_node_required_info(self, nodes_required: Tuple[int, int]):
+        self._nodes_required = nodes_required

@@ -21,6 +21,7 @@ from typing import Dict, List, Optional
 
 from dlrover.python.common.constants import (
     DistributionStrategy,
+    JobExitReason,
     NodeEventType,
     NodeExitReason,
     NodeResourceLimit,
@@ -213,15 +214,49 @@ class DistributedJobManager(JobManager):
     def get_worker_num(self):
         return self._job_resource.worker_num
 
-    def early_stop(self):
-        nodes = self._ps_manager.get_pending_timeout_oom_recovered_node()
-        msg = ""
-        if len(nodes) > 0:
+    def should_early_stop(self):
+        # ps pending judgement: any ps pod pending timeout
+        timeout_ps_nodes = (
+            self._ps_manager.get_pending_timeout_oom_recovered_node()
+        )
+        if len(timeout_ps_nodes) > 0:
             msg = (
-                "Stop the training early because "
-                "OOM recoverd pod pends too long."
+                "Stop the training early because the nodes recovered from OOM "
+                "are pending too long and have timed out."
             )
-        return msg
+            self._error_monitor.process_error(
+                timeout_ps_nodes[0],
+                0,
+                msg,
+                level=TrainingExceptionLevel.ERROR,
+            )
+            return True, JobExitReason.PENDING_TIMEOUT, msg
+
+        # worker pending judgement:
+        if self._worker_manager.is_training_hang_by_pending():
+            msg = (
+                "Stop the training early because 1) there is node pending "
+                "2) alive worker number consistently less than the min "
+                "training nodes required 3) pending time last exceed limit."
+            )
+            self._error_monitor.process_error(
+                None, 0, msg, level=TrainingExceptionLevel.ERROR
+            )
+            return True, JobExitReason.PENDING_TIMEOUT, msg
+
+        # insufficient worker judgement
+        if self._worker_manager.is_training_hang_by_insufficient_worker():
+            msg = (
+                "Stop the training early because there isn't enough node to "
+                "keep training."
+            )
+            self._error_monitor.process_error(
+                None, 0, msg, level=TrainingExceptionLevel.ERROR
+            )
+            return True, JobExitReason.UNCOMPLETED_TIMEOUT, msg
+
+        # no need to early stop
+        return False, "", ""
 
     def _adjust_worker_for_estimator(self):
         if self._job_args.distribution_strategy == DistributionStrategy.PS:
@@ -365,9 +400,10 @@ class DistributedJobManager(JobManager):
                     logger.warning(detail_trace_back)
             time.sleep(15)
 
-    def _get_dead_node_event(self, window_interval=300) -> List[NodeEvent]:
+    def _get_dead_node_event(self, window_interval=600) -> List[NodeEvent]:
         now = time.time()
         dead_events: List[NodeEvent] = []
+        logger.debug(f"Current job nodes are: {self._job_nodes}.")
         for _, nodes in self._job_nodes.items():
             for _, node in nodes.items():
                 if (
@@ -946,6 +982,9 @@ class DistributedJobManager(JobManager):
                     f"-{node.name}"
                 )
             node.heartbeat_time = timestamp
+
+    def update_node_required_info_callback(self):
+        self._worker_manager.update_node_required_info(self._nodes_required)
 
 
 def create_job_manager(args: JobArgs, speed_monitor) -> DistributedJobManager:

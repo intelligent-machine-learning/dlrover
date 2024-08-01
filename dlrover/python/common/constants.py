@@ -12,6 +12,10 @@
 # limitations under the License.
 
 
+class BasicClass(object):
+    LOG_LEVEL_ENV = "DLROVER_LOG_LEVEL"
+
+
 class PriorityClass(object):
     LOW = "low"
     HIGH = "high"
@@ -108,6 +112,8 @@ class JobExitReason(object):
     UNKNOWN_ERROR = "UnknownError"
     HANG_ERROR = "HangError"
     RDZV_TIMEOUT_ERROR = "RdzvTimeout"
+    PENDING_TIMEOUT = "PendingTimeout"
+    UNCOMPLETED_TIMEOUT = "UncompletedTimeout"
 
 
 class CustomMetricKeys:
@@ -282,6 +288,7 @@ class TrainingExceptionLevel(object):
     NODE_ERROR = "node_error"
     WARNING = "warning"
     INFO = "info"
+    ERROR = "error"
 
 
 class ConfigPath(object):
@@ -305,5 +312,9 @@ class Accelerators(object):
 
 
 class AscendConstants(object):
-    # By default there are 16 npu on one machine
+    # By default there are 16(max) npu on one machine
     NPU_PER_NODE = 16
+
+    # represent the starting offset of the hccl's port using
+    HCCL_PORT_START = "HCCL_IF_BASE_PORT"
+    HCCL_PORT_START_DEFAULT = 64000

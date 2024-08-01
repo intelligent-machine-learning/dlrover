@@ -118,7 +118,7 @@ def _convert_pod_event_to_node_event(event, k8s_client):
         pod_labels_selector = k8s_util.gen_k8s_label_selector_from_dict(
             _get_pod_unique_labels(job_name, pod_type, rank)
         )
-        logger.info(
+        logger.debug(
             f"Recheck running pod with labels: {pod_labels_selector} "
             f"for {evt_type} event."
         )
@@ -250,7 +250,14 @@ class PodWatcher(NodeWatcher):
             task_id = int(metadata.labels[rank_index_key])
             relaunch_count = int(metadata.labels[relaunch_count_key])
             resource = _parse_container_resource(pod.spec.containers[0])
-            status = pod.status.phase
+
+            # if pod has 'deletion_timestamp', set as deleted status directly
+            # because the deletion has low probability of failure will affect
+            # node status judgement
+            if metadata.deletion_timestamp:
+                status = NodeStatus.DELETED
+            else:
+                status = pod.status.phase
             start_time = _get_start_timestamp(pod.status)
             restart_training = _verify_restarting_training(pod)
             node = Node(

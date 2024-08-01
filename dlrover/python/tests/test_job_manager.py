@@ -281,13 +281,13 @@ class DistributedJobManagerTest(unittest.TestCase):
         ):
             node.status = NodeStatus.RUNNING
             now = datetime.now()
-            node.heartbeat_time = (now - timedelta(seconds=500)).timestamp()
+            node.heartbeat_time = (now - timedelta(seconds=1000)).timestamp()
             if index == 0:
-                node.create_time = now - timedelta(seconds=400)
-                node.start_time = now - timedelta(seconds=300)
-            else:
-                node.create_time = now - timedelta(seconds=700)
+                node.create_time = now - timedelta(seconds=800)
                 node.start_time = now - timedelta(seconds=600)
+            else:
+                node.create_time = now - timedelta(seconds=1400)
+                node.start_time = now - timedelta(seconds=1200)
         events = manager._get_dead_node_event()
         self.assertEqual(len(events), 2)
 
@@ -486,7 +486,7 @@ class DistributedJobManagerTest(unittest.TestCase):
         hang = manager.all_running_node_hanged()
         self.assertFalse(hang)
 
-    def test_early_stop(self):
+    def test_early_stop_part1(self):
         params = MockK8sPSJobArgs()
         params.initilize()
         manager = create_job_manager(params, SpeedMonitor())
@@ -495,8 +495,10 @@ class DistributedJobManagerTest(unittest.TestCase):
             node.status = NodeStatus.PENDING
             node.is_recovered_oom = True
             node.create_time = datetime.now()
-        msg = manager.early_stop()
-        self.assertTrue(msg == "")
+        result, reason, msg = manager.should_early_stop()
+        self.assertFalse(result)
+        self.assertFalse(reason)
+        self.assertFalse(msg)
 
         manager._remove_exited_node = True
         manager._job_nodes[NodeType.WORKER][0].status = NodeStatus.FAILED
@@ -507,15 +509,47 @@ class DistributedJobManagerTest(unittest.TestCase):
             node.status = NodeStatus.PENDING
             node.create_time = datetime.now() + timedelta(days=-1)
             node.is_recovered_oom = True
-        msg = manager.early_stop()
-        self.assertFalse(msg == "")
+        result, reason, msg = manager.should_early_stop()
+        self.assertTrue(result)
+        self.assertTrue(reason)
+        self.assertTrue(msg)
 
         for node in manager._job_nodes[NodeType.PS].values():
             node.status = NodeStatus.RUNNING
             node.create_time = datetime.now() + timedelta(days=-1)
             node.is_recovered_oom = True
-        msg = manager.early_stop()
-        self.assertTrue(msg == "")
+        result, reason, msg = manager.should_early_stop()
+        self.assertFalse(result)
+        self.assertFalse(reason)
+        self.assertFalse(msg)
+
+    def test_early_stop_part2(self):
+        params = MockK8sPSJobArgs()
+        params.initilize()
+        manager = create_job_manager(params, SpeedMonitor())
+        manager._init_nodes()
+
+        manager._worker_manager.is_training_hang_by_pending = mock.MagicMock(
+            return_value=True
+        )
+        result, reason, msg = manager.should_early_stop()
+        self.assertTrue(result)
+        self.assertEqual(reason, JobExitReason.PENDING_TIMEOUT)
+        self.assertTrue(msg)
+
+    def test_early_stop_part3(self):
+        params = MockK8sPSJobArgs()
+        params.initilize()
+        manager = create_job_manager(params, SpeedMonitor())
+        manager._init_nodes()
+
+        manager._worker_manager.is_training_hang_by_insufficient_worker = (
+            mock.MagicMock(return_value=True)
+        )
+        result, reason, msg = manager.should_early_stop()
+        self.assertTrue(result)
+        self.assertEqual(reason, JobExitReason.UNCOMPLETED_TIMEOUT)
+        self.assertTrue(msg)
 
     def test_when_node_not_init(self):
         params = MockK8sPSJobArgs()

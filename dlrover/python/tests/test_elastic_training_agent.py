@@ -19,13 +19,18 @@ import tempfile
 import time
 import unittest
 from unittest import mock
+from unittest.mock import patch
 
 from torch.distributed.elastic.agent.server.api import WorkerSpec, WorkerState
+from torch.distributed.elastic.agent.server.local_elastic_agent import (
+    LocalElasticAgent,
+)
 from torch.distributed.elastic.rendezvous import RendezvousParameters
 from torch.distributed.launcher.api import LaunchConfig
 
 from dlrover.python.common.constants import (
     Accelerators,
+    AscendConstants,
     ConfigPath,
     RendezvousName,
 )
@@ -209,6 +214,7 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         agent._rendezvous = _mock_rendezvous
         with self.assertRaises(TimeoutError):
             agent._initialize_workers(agent._worker_group)
+            agent._save_ckpt_future
 
 
 class ElasticTrainingAgentRunTest(unittest.TestCase):
@@ -361,8 +367,63 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             start_method=self.config.start_method,
             log_dir=self.config.log_dir,
         )
-        agent.sync_training_ports()
-        self.assertEqual(os.environ["HCCL_IF_BASE_PORT"], "60000")
+        agent.sync_training_ports(1)
+        self.assertEqual(
+            os.environ[AscendConstants.HCCL_PORT_START],
+            str(AscendConstants.HCCL_PORT_START_DEFAULT),
+        )
+
+    def test_sync_node_port_with_env(self):
+        os.environ[AscendConstants.HCCL_PORT_START] = "65000"
+        self.config.accelerator = Accelerators.ASCEND_NPU
+        agent = ElasticTrainingAgent(
+            node_rank=0,
+            config=self.config,
+            entrypoint="echo",
+            spec=self.spec,
+            start_method=self.config.start_method,
+            log_dir=self.config.log_dir,
+        )
+
+        agent.sync_training_ports(1)
+        self.assertEqual(
+            os.environ[AscendConstants.HCCL_PORT_START],
+            str(65000),
+        )
+
+    def test_stop_workers(self):
+        agent = ElasticTrainingAgent(
+            node_rank=0,
+            config=self.config,
+            entrypoint="echo",
+            spec=self.spec,
+            start_method=self.config.start_method,
+            log_dir=self.config.log_dir,
+        )
+
+        # without timeout
+        agent._stop_workers(None, 3)
+
+        def sleep_10_seconds(*args, **kwargs):
+            time.sleep(10)
+
+        # with timeout
+        with patch.object(
+            LocalElasticAgent, "_stop_workers", side_effect=sleep_10_seconds
+        ):
+            agent = ElasticTrainingAgent(
+                node_rank=0,
+                config=self.config,
+                entrypoint="echo",
+                spec=self.spec,
+                start_method=self.config.start_method,
+                log_dir=self.config.log_dir,
+            )
+            try:
+                agent._stop_workers(None, 3)
+                self.fail()
+            except TimeoutError:
+                self.assertTrue(True)
 
 
 class NodeCheckElasticAgentTest(unittest.TestCase):
