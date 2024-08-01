@@ -332,6 +332,11 @@ class WorkerManager(TrainingNodeManager):
 
         # pending time as timeout for now
         timeout = _dlrover_context.seconds_to_wait_pending_pod
+        logger.debug(
+            "Is training hang by pending with total worker "
+            f"num: {total_node_num}, timeout: {timeout}."
+        )
+
         cur_nodes = list(self._nodes.values())
 
         # collect pending and running nodes
@@ -349,10 +354,13 @@ class WorkerManager(TrainingNodeManager):
         if not self.has_node_required_info() and total_node_num != len(
             pending_nodes
         ):
+            logger.debug(
+                "Skip for no required nodes info " "and not all nodes pending."
+            )
             return False
         elif 0 < len(pending_nodes) == total_node_num:
             # all nodes pending
-            pass
+            logger.debug(f"All nodes pending: {pending_nodes}.")
         else:
             # partial nodes pending
             # with condition 1 + 2
@@ -360,6 +368,12 @@ class WorkerManager(TrainingNodeManager):
                 len(pending_nodes) == 0
                 or len(running_nodes) >= self.get_min_nodes_required()
             ):
+                logger.debug(
+                    f"Skip for no pending nodes: {pending_nodes} "
+                    f"or running nodes: {running_nodes} is greater "
+                    f"than the min nodes "
+                    f"required: {self.get_min_nodes_required()}."
+                )
                 return False
 
         # with condition 3
@@ -368,6 +382,10 @@ class WorkerManager(TrainingNodeManager):
             pending_nodes, key=lambda x: x.create_time  # type: ignore
         )
         if not first_pending_node or not first_pending_node.create_time:
+            logger.debug(
+                "Skip for no pending nodes or pending node's "
+                f"create time is None: {first_pending_node}."
+            )
             return False
 
         if now - first_pending_node.create_time.timestamp() > timeout:
