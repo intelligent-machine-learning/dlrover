@@ -313,7 +313,7 @@ class WorkerManager(TrainingNodeManager):
             worker.restart_training = False
         return restart
 
-    def is_training_hang_by_pending(self) -> bool:
+    def is_training_hang_by_pending(self, total_node_num) -> bool:
         """
         To prevent training hanging by pending nodes. Should exit when there is
         inextricable pending issue.
@@ -323,12 +323,12 @@ class WorkerManager(TrainingNodeManager):
         2: alive nodes number consistently lower than the min nodes requires
         3: 1+2 last for a certain time
 
+        Args:
+            total_node_num(int): Total node number master managed.
+
         Return:
             bool
         """
-
-        if not self.has_node_required_info():
-            return False
 
         # pending time as timeout for now
         timeout = _dlrover_context.seconds_to_wait_pending_pod
@@ -346,12 +346,21 @@ class WorkerManager(TrainingNodeManager):
             elif node.status == NodeStatus.RUNNING:
                 running_nodes.append(node)
 
-        # with condition 1 + 2
-        if (
-            len(pending_nodes) == 0
-            or len(running_nodes) >= self.get_min_nodes_required()
+        if not self.has_node_required_info() and total_node_num != len(
+            pending_nodes
         ):
             return False
+        elif 0 < len(pending_nodes) == total_node_num:
+            # all nodes pending
+            pass
+        else:
+            # partial nodes pending
+            # with condition 1 + 2
+            if (
+                len(pending_nodes) == 0
+                or len(running_nodes) >= self.get_min_nodes_required()
+            ):
+                return False
 
         # with condition 3
         now = time.time()
