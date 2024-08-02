@@ -36,3 +36,7 @@ class DataCollector(metaclass=ABCMeta):
     @abstractmethod
     def to_collect_data(self) -> bool:
         pass
+
+    @abstractmethod
+    def get_name(self) -> str:
+        pass

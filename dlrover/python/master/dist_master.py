@@ -44,6 +44,7 @@ from dlrover.python.master.servicer import create_master_service
 from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.master.stats.job_collector import JobMetricCollector
 from dlrover.python.scheduler.job import JobArgs
+from dlrover.python.master.diagnosis.diagnosis import DiagnosisManager
 
 
 def _create_elastic_ps_service_if_needed(params: JobArgs):
@@ -118,6 +119,10 @@ class DistributedJobMaster(JobMaster):
                 )
 
         self.speed_monitor = SpeedMonitor()
+
+        self.diagnosis_monitor = DiagnosisManager()
+        self.diagnosis_monitor.start()
+
         self.job_manager = (
             create_job_manager(args, self.speed_monitor)
             if args.enable_elastic_scheduling
@@ -157,6 +162,7 @@ class DistributedJobMaster(JobMaster):
             self.job_metric_collector,
             self.elastic_ps_service,
             self.sync_service,
+            self.diagnosis_monitor,
         )
 
     def _create_metric_collector_if_needed(self, params: JobArgs):

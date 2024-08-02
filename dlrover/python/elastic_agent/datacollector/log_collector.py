@@ -28,3 +28,6 @@ class LogCollector(DataCollector):
 
     def to_collect_data(self) -> bool:
         return True
+
+    def get_name(self) -> str:
+        return "log_collector"

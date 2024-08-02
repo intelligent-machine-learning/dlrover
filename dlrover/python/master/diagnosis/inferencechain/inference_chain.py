@@ -20,9 +20,7 @@ from dlrover.python.master.diagnosis.inferencechain.common import (
     InferenceOperator,
     combine_inferences,
 )
-from dlrover.python.master.diagnosis.operator.operator import (
-    register_operators,
-)
+from dlrover.python.master.diagnosis.operator.operator import register_operators
 
 
 class InferenceChain:
@@ -30,14 +28,18 @@ class InferenceChain:
     InferenceChain is used to diagnose training failures
     """
 
-    def __init__(self, data_mgr: DataManager, inferences: List[Inference]):
-        self.data_manager = data_mgr
-        self.inferences = inferences
-        self.operators = register_operators(data_mgr)
+    def __init__(self, data_mgr: DataManager, inferences: List[Inference], max_infer_steps: int):
+        self._data_manager = data_mgr
+        self._inferences = inferences
+        self._operators = register_operators(data_mgr)
+        self._max_infer_steps = max_infer_steps
 
     def infer(self) -> List[Inference]:
-        inferences = self.inferences
+        inferences = self._inferences
+        inferred_steps = 0
         while True:
+            if inferred_steps > self._max_infer_steps:
+                break
             has_new_inference = False
             new_infs: List[Inference] = []
             for inference in inferences:
@@ -52,15 +54,14 @@ class InferenceChain:
                 except Exception as e:
                     logger.exception(e)
                     new_infs.append(inference)
-
-            if has_new_inference:
-                inferences = new_infs
-            else:
+            inferred_steps = inferred_steps + 1
+            inferences = new_infs
+            if not has_new_inference:
                 break
         return inferences
 
     def get_operator(self, inference: Inference) -> InferenceOperator:
-        for operator in self.operators:
+        for operator in self._operators:
             if operator.is_compatible(inference):
                 return operator
         raise TypeError(f"no compatible operator for {inference}")

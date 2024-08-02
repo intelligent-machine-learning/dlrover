@@ -81,12 +81,13 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         job_metric_collector=None,
         elastic_ps_service=None,
         sync_service=None,
+        diagnosis_manager: DiagnosisManager = None,
     ):
         self._task_manager: TaskManager = task_manager
         self._job_manager: JobManager = job_manager
         self._speed_monitor = speed_monitor
         self._rdzv_managers = rdzv_managers
-        self._diagnosis_manager: DiagnosisManager = DiagnosisManager()
+        self._diagnosis_manager: DiagnosisManager = diagnosis_manager
         self._kv_store = KVStoreService()
         self._job_metric_collector: JobMetricCollector = job_metric_collector
         self._elastic_ps_service: ElasticPsService = elastic_ps_service
@@ -616,27 +617,31 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         self, node_type, node_id, message: grpc.DiagnosisChipMetrics
     ):
         data = ChipMetrics(message.timestamp)
-        self._diagnosis_manager.collect_diagnosis_data(
-            DiagnosisDataType.CHIPMETRICES, data
-        )
+        if self._diagnosis_manager:
+            self._diagnosis_manager.collect_diagnosis_data(
+                node_id, DiagnosisDataType.CHIPMETRICES, data
+            )
         return True
 
     def _report_training_log(
         self, node_type, node_id, message: grpc.DiagnosisTrainingLog
     ):
         data = TrainingLog(message.timestamp)
-        self._diagnosis_manager.collect_diagnosis_data(
-            DiagnosisDataType.TRAININGLOG, data
-        )
+        if self._diagnosis_manager:
+            self._diagnosis_manager.collect_diagnosis_data(
+                node_id, DiagnosisDataType.TRAININGLOG, data
+            )
         return True
 
     def _report_cuda_log(
         self, node_type, node_id, message: grpc.DiagnosisCudaLog
     ):
-        data = CudaLog(message.timestamp)
-        self._diagnosis_manager.collect_diagnosis_data(
-            DiagnosisDataType.CUDALOG, data
-        )
+        logger.info(f"recv cuda log from node {node_id}")
+        data = CudaLog(message.timestamp, message.world_size, message.traces)
+        if self._diagnosis_manager:
+            self._diagnosis_manager.collect_diagnosis_data(
+                node_id, DiagnosisDataType.CUDALOG, data
+            )
         return True
 
     def _sync_training_ports(
@@ -660,6 +665,7 @@ def create_master_service(
     job_metric_collector,
     elastic_ps_service,
     sync_service,
+    diagnosis_manager=None,
 ) -> MasterServicer:
     """Create GRPC server"""
     logger.info("Creating master service")
@@ -681,6 +687,7 @@ def create_master_service(
         job_metric_collector=job_metric_collector,
         elastic_ps_service=elastic_ps_service,
         sync_service=sync_service,
+        diagnosis_manager=diagnosis_manager,
     )
 
     elastic_training_pb2_grpc.add_MasterServicer_to_server(

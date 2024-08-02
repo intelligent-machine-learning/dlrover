@@ -26,19 +26,20 @@ from dlrover.python.master.diagnosis.inferencechain.common import (
     InferenceDescription,
     InferenceName,
 )
+from typing import List
 
 
 class DiagnosisManager:
-    def __init__(self):
-        self.data_manager: DataManager = DataManager(600)
+    def __init__(self, expire_time_period: int = 600):
+        self.data_manager: DataManager = DataManager(expire_time_period)
         self.diagnostician: Diagnostician = Diagnostician(self.data_manager)
 
-    def collect_diagnosis_data(self, data_type: str, data: DiagnosisData):
-        self.data_manager.store_data(data_type, data)
+    def collect_diagnosis_data(self, node_id: int, data_type: str, data: DiagnosisData):
+        self.data_manager.store_data(node_id, data_type, data)
 
     def start(self):
         logger.info("Start Diagnosis Manager ...")
-        problems: list[Inference] = [
+        problems: List[Inference] = [
             Inference(
                 InferenceName.TRAINING,
                 InferenceAttribute.ISORNOT,
@@ -65,12 +66,14 @@ class DiagnosisManager:
         pass
 
     def _diagnose_failures(self):
-        logger.info("Start to diagnose failures")
         while True:
+            time.sleep(300)
+            logger.info("Start to diagnose failures")
             observed_problems = self.diagnostician.observe_training()
+            if len(observed_problems) == 0:
+                continue
             for problem in observed_problems:
                 logger.info(f"observed problems: {problem}")
                 root_causes = self.diagnostician.diagnose_failure(problem)
                 for root_cause in root_causes:
                     logger.info(f"identify root cause: {root_cause}")
-            time.sleep(180)

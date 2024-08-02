@@ -311,6 +311,10 @@ class Accelerators(object):
     ASCEND_NPU = "ascend-npu"
 
 
+class Diagnosis(object):
+    CUDA_LOG_PATH = "XPU_TIMER_TIMELINE_PATH"
+
+
 class AscendConstants(object):
     # By default there are 16(max) npu on one machine
     NPU_PER_NODE = 16

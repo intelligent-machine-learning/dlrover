@@ -1,0 +1,41 @@
+============================= test session starts ==============================
+platform linux -- Python 3.8.14, pytest-7.4.0, pluggy-1.2.0
+rootdir: /dlrover
+plugins: cov-5.0.0
+collected 1 item
+
+dlrover/python/tests/test_worker_diagnosis.py #0-1/3-103/105-109/111-351/353-357/359-396/398/400-423/432-479/482-519/521-526/528-529/531-532/534-537/539-540/542-591/593-597/599-602/604-606/608-668/670/672-680/682-684/686-759/761-766/768-784/786/788-873/875-878/880-901/904-905/907-908/910-935/937-942/944-964/968/970/972-977/979-980/982-1079/1082-1088/1090-1092/1094/1096-1119/1121-1122/1124-1170/1173-1176/1178-1181/1183-1299/1301/1303-1313/1316-1343|2/902-903/520/906/397/909/399/527/785/530/787/1171/533/1172/1300/1302/1177/538/541/669/671/1182/1314-1315/424-431/681/685/943/1080-1081/1089/965-967/1093/969/1095/971/592/978/981/598/603/607/352/480-481/1120/1123/358/936/104/874/110/879/760/767
+
+-----------------------
+
+_bootstrap@/opt/conda/lib/python3.8/threading.py:890;_bootstrap_inner@/opt/conda/lib/python3.8/threading.py:932;run@/opt/conda/lib/python3.8/threading.py:870;_feed@/opt/conda/lib/python3.8/multiprocessing/queues.py:227;wait@/opt/conda/lib/python3.8/threading.py:302#0-1/3-103/105-109/111-351/353-357/359-396/398/400-423/432-479/482-519/521-526/528-529/531-532/534-537/539-540/542-591/593-597/599-602/604-606/608-668/670/672-680/682-684/686-759/761-766/768-784/786/788-873/875-878/880-901/904-905/907-908/910-935/937-942/944-964/968/970/972-977/979-980/982-1079/1082-1088/1090-1092/1094/1096-1119/1121-1122/1124-1170/1173-1176/1178-1181/1183-1299/1301/1303-1313/1316-1343|2/902-903/520/906/397/909/399/527/785/530/787/1171/533/1172/1300/1302/1177/538/541/669/671/1182/1314-1315/424-431/681/685/943/1080-1081/1089/965-967/1093/969/1095/971/592/978/981/598/603/607/352/480-481/1120/1123/358/936/104/874/110/879/760/767
+
+-----------------------
+
+_bootstrap@/opt/conda/lib/python3.8/threading.py:890;_bootstrap_inner@/opt/conda/lib/python3.8/threading.py:932;run@/opt/conda/lib/python3.8/threading.py:870;_pin_memory_loop@/opt/conda/lib/python3.8/site-packages/torch/utils/data/_utils/pin_memory.py:54;do_one_step@/opt/conda/lib/python3.8/site-packages/torch/utils/data/_utils/pin_memory.py:31;get@/opt/conda/lib/python3.8/multiprocessing/queues.py:107;poll@/opt/conda/lib/python3.8/multiprocessing/connection.py:257;_poll@/opt/conda/lib/python3.8/multiprocessing/connection.py:424;wait@/opt/conda/lib/python3.8/multiprocessing/connection.py:931;select@/opt/conda/lib/python3.8/selectors.py:415#0-1/3-103/105-109/111-351/353-357/359-396/398/400-423/432-479/482-519/521-526/528-529/531-532/534-537/539-540/542-591/593-597/599-602/604-606/608-668/670/672-680/682-684/686-759/761-766/768-784/786/788-873/875-878/880-901/904-905/907-908/910-935/937-942/944-964/968/970/972-977/979-980/982-1079/1082-1088/1090-1092/1094/1096-1119/1121-1122/1124-1170/1173-1176/1178-1181/1183-1299/1301/1303-1313/1316-1343|2/902-903/520/906/397/909/399/527/785/530/787/1171/533/1172/1300/1302/1177/538/541/669/671/1182/1314-1315/424-431/681/685/943/1080-1081/1089/965-967/1093/969/1095/971/592/978/981/598/603/607/352/480-481/1120/1123/358/936/104/874/110/879/760/767
+
+-----------------------
+
+_bootstrap@/opt/conda/lib/python3.8/threading.py:890;_bootstrap_inner@/opt/conda/lib/python3.8/threading.py:932;run@/opt/conda/lib/python3.8/site-packages/tensorboardX/event_file_writer.py:202;get@/opt/conda/lib/python3.8/multiprocessing/queues.py:107;poll@/opt/conda/lib/python3.8/multiprocessing/connection.py:257;_poll@/opt/conda/lib/python3.8/multiprocessing/connection.py:424;wait@/opt/conda/lib/python3.8/multiprocessing/connection.py:931;select@/opt/conda/lib/python3.8/selectors.py:415#0|1-1343
+
+-----------------------
+
+_bootstrap@/opt/conda/lib/python3.8/threading.py:890;_bootstrap_inner@/opt/conda/lib/python3.8/threading.py:932;run@/opt/conda/lib/python3.8/threading.py:870;serve_forever@/opt/conda/lib/python3.8/socketserver.py:232;select@/opt/conda/lib/python3.8/selectors.py:415#0|1-1343
+
+-----------------------
+
+_bootstrap@/opt/conda/lib/python3.8/threading.py:890;_bootstrap_inner@/opt/conda/lib/python3.8/threading.py:932;run@/opt/conda/lib/python3.8/threading.py:870;_poll_connectivity@/opt/conda/lib/python3.8/site-packages/grpc/_channel.py:1368#0-1/3-103/105-109/111-351/353-357/359-396/398/400-423/432-479/482-519/521-526/528-529/531-532/534-537/539-540/542-591/593-597/599-602/604-606/608-668/670/672-680/682-684/686-759/761-766/768-784/786/788-873/875-878/880-901/904-905/907-908/910-935/937-942/944-964/968/970/972-977/979-980/982-1079/1082-1088/1090-1092/1094/1096-1119/1121-1122/1124-1170/1173-1176/1178-1181/1183-1299/1301/1303-1313/1316-1343|2/902-903/520/906/397/909/399/527/785/530/787/1171/533/1172/1300/1302/1177/538/541/669/671/1182/1314-1315/424-431/681/685/943/1080-1081/1089/965-967/1093/969/1095/971/592/978/981/598/603/607/352/480-481/1120/1123/358/936/104/874/110/879/760/767
+
+-----------------------
+
+<module>@pretrain_glm.py:1489;wrapper@/opt/conda/lib/python3.8/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py:346;main@pretrain_glm.py:1443;train@pretrain_glm.py:805;train_step@/input/kunlong.ckl/code/nowsd_stage2_merge_glm1227_full1dgqa_ckpt/train_utils.py:736;forward_step@pretrain_glm.py:347;_wrapped_call_impl@/opt/conda/lib/python3.8/site-packages/torch/nn/modules/module.py:1518;_call_impl@/opt/conda/lib/python3.8/site-packages/torch/nn/modules/module.py:1527;forward@/opt/conda/lib/python3.8/site-packages/torch/distributed/fsdp/fully_sharded_data_parallel.py:839;_wrapped_call_impl@/opt/conda/lib/python3.8/site-packages/torch/nn/modules/module.py:1518;_call_impl@/opt/conda/lib/python3.8/site-packages/torch/nn/modules/module.py:1527;forward@/input/kunlong.ckl/code/nowsd_stage2_merge_glm1227_full1dgqa_ckpt/hf_glm/modeling_glm.py:1153;_wrapped_call_impl@/opt/conda/lib/python3.8/site-packages/torch/nn/modules/module.py:1518;_call_impl@/opt/conda/lib/python3.8/site-packages/torch/nn/modules/module.py:1527;forward@/input/kunlong.ckl/code/nowsd_stage2_merge_glm1227_full1dgqa_ckpt/hf_glm/modeling_glm.py:954;_wrapped_call_impl@/opt/conda/lib/python3.8/site-packages/torch/nn/modules/module.py:1518;_call_impl@/opt/conda/lib/python3.8/site-packages/torch/nn/modules/module.py:1527;forward@/opt/conda/lib/python3.8/site-packages/torch/distributed/fsdp/fully_sharded_data_parallel.py:825;_pre_forward@/opt/conda/lib/python3.8/site-packages/torch/distributed/fsdp/_runtime_utils.py:429;_pre_forward_unshard@/opt/conda/lib/python3.8/site-packages/torch/distributed/fsdp/_runtime_utils.py:464;_unshard@/opt/conda/lib/python3.8/site-packages/torch/distributed/fsdp/_runtime_utils.py:345;synchronize@/opt/conda/lib/python3.8/site-packages/torch/cuda/streams.py:221#0-1/3-103/105-109/111-351/353-357/359-396/398/400-423/432-479/482-519/521-526/528-529/531-532/534-537/539-540/542-591/593-597/599-602/604-606/608-668/670/672-680/682-684/686-759/761-766/768-784/786/788-873/875-878/880-901/904-905/907-908/910-935/937-942/944-964/968/970/972-977/979-980/982-1079/1082-1088/1090-1092/1094/1096-1119/1121-1122/1124-1170/1173-1176/1178-1181/1183-1299/1301/1303-1313/1316-1343|2/902-903/520/906/397/909/399/527/785/530/787/1171/533/1172/1300/1302/1177/538/541/669/671/1182/1314-1315/424-431/681/685/943/1080-1081/1089/965-967/1093/969/1095/971/592/978/981/598/603/607/352/480-481/1120/1123/358/936/104/874/110/879/760/767
+
+-----------------------
+
+_bootstrap@/opt/conda/lib/python3.8/threading.py:890;_bootstrap_inner@/opt/conda/lib/python3.8/threading.py:932;run@/opt/conda/lib/python3.8/site-packages/tqdm/_monitor.py:60;wait@/opt/conda/lib/python3.8/threading.py:558;wait@/opt/conda/lib/python3.8/threading.py:306#899|0-898/900-1343
+
+-----------------------
+
+.
+
+============================== 1 passed in 2.88s ===============================
