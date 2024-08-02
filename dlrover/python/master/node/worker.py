@@ -313,7 +313,7 @@ class WorkerManager(TrainingNodeManager):
             worker.restart_training = False
         return restart
 
-    def is_training_hang_by_pending(self) -> bool:
+    def is_training_hang_by_pending(self, total_node_num) -> bool:
         """
         To prevent training hanging by pending nodes. Should exit when there is
         inextricable pending issue.
@@ -323,15 +323,20 @@ class WorkerManager(TrainingNodeManager):
         2: alive nodes number consistently lower than the min nodes requires
         3: 1+2 last for a certain time
 
+        Args:
+            total_node_num(int): Total node number master managed.
+
         Return:
             bool
         """
 
-        if not self.has_node_required_info():
-            return False
-
         # pending time as timeout for now
         timeout = _dlrover_context.seconds_to_wait_pending_pod
+        logger.debug(
+            "Is training hang by pending with total worker "
+            f"num: {total_node_num}, timeout: {timeout}."
+        )
+
         cur_nodes = list(self._nodes.values())
 
         # collect pending and running nodes
@@ -346,12 +351,30 @@ class WorkerManager(TrainingNodeManager):
             elif node.status == NodeStatus.RUNNING:
                 running_nodes.append(node)
 
-        # with condition 1 + 2
-        if (
-            len(pending_nodes) == 0
-            or len(running_nodes) >= self.get_min_nodes_required()
+        if not self.has_node_required_info() and total_node_num != len(
+            pending_nodes
         ):
+            logger.debug(
+                "Skip for no required nodes info " "and not all nodes pending."
+            )
             return False
+        elif 0 < len(pending_nodes) == total_node_num:
+            # all nodes pending
+            logger.debug(f"All nodes pending: {pending_nodes}.")
+        else:
+            # partial nodes pending
+            # with condition 1 + 2
+            if (
+                len(pending_nodes) == 0
+                or len(running_nodes) >= self.get_min_nodes_required()
+            ):
+                logger.debug(
+                    f"Skip for no pending nodes: {pending_nodes} "
+                    f"or running nodes: {running_nodes} is greater "
+                    f"than the min nodes "
+                    f"required: {self.get_min_nodes_required()}."
+                )
+                return False
 
         # with condition 3
         now = time.time()
@@ -359,6 +382,10 @@ class WorkerManager(TrainingNodeManager):
             pending_nodes, key=lambda x: x.create_time  # type: ignore
         )
         if not first_pending_node or not first_pending_node.create_time:
+            logger.debug(
+                "Skip for no pending nodes or pending node's "
+                f"create time is None: {first_pending_node}."
+            )
             return False
 
         if now - first_pending_node.create_time.timestamp() > timeout:
