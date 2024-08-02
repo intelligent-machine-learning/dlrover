@@ -47,14 +47,17 @@ def main():
         local_rank = int(os.environ["LOCAL_RANK"])
         torch.cuda.set_device(local_rank)
 
-    t = matmul(use_cuda)
-    shape = 1 << 24
-    t += bm_allgather(shape, use_cuda)
+    try:
+        result = matmul(use_cuda)
+        shape = 1 << 24
+        result += bm_allgather(shape, use_cuda)
+    finally:
+        dist.destroy_process_group()
+        torch.npu.synchronize()
+        if torch.npu.is_available():
+            torch.npu.empty_cache()
 
-    if torch_npu:
-        torch_npu._npu_shutdown()
-    dist.destroy_process_group()
-    return t
+    return result
 
 
 if __name__ == "__main__":
