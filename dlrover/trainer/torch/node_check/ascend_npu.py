@@ -53,9 +53,10 @@ def main():
         result += bm_allgather(shape, use_cuda)
     finally:
         dist.destroy_process_group()
-        torch.npu.synchronize()
-        if torch.npu.is_available():
-            torch.npu.empty_cache()
+        if torch_npu:
+            torch_npu.synchronize()
+            if torch_npu.is_available():
+                torch_npu.empty_cache()
 
     return result
 
