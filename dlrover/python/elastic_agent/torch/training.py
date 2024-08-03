@@ -149,6 +149,7 @@ class ElasticLaunchConfig(LaunchConfig):
     accelerator: str = ""
     log_dir: Optional[str] = None  # Keep Compatibility with PyTorch>=2.3.0
     redirects: Union[Std, Dict[int, Std]] = Std.NONE
+    tee: Union[Std, Dict[int, Std]] = Std.NONE
 
     def set_node_unit(self, node_unit):
         """Set the number unint of ndoes."""
