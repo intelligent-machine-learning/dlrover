@@ -10,17 +10,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 from typing import List
 
-from dlrover.python.master.diagnosis.diagnosis_data import DataManager
 from dlrover.python.master.diagnosis.inferencechain.common import Inference
 from dlrover.python.master.diagnosis.inferencechain.inference_chain import (
     InferenceChain,
 )
+from master.diagnosis.diagnosis import DiagnosisDataManager
 
 
 class Diagnostician:
-    def __init__(self, data_mgr: DataManager):
+    def __init__(self, data_mgr: DiagnosisDataManager):
         self.data_manager = data_mgr
         self.training_problems: List[Inference] = []
 

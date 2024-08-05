@@ -13,7 +13,6 @@
 
 from typing import List
 
-from dlrover.python.master.diagnosis.diagnosis_data import DataManager
 from dlrover.python.master.diagnosis.inferencechain.common import (
     Inference,
     InferenceAttribute,
@@ -21,11 +20,12 @@ from dlrover.python.master.diagnosis.inferencechain.common import (
     InferenceName,
     InferenceOperator,
 )
+from master.diagnosis.diagnosis import DiagnosisDataManager
 
 
 class CheckTrainingHangOperator(InferenceOperator):
-    def __init__(self, data_manager: DataManager):
-        self.data_manager = data_manager
+    def __init__(self, data_manager: DiagnosisDataManager):
+        super().__init__(data_manager)
 
     def is_compatible(self, inference: Inference) -> bool:
         if (

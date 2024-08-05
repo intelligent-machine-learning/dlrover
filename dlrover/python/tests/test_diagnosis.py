@@ -15,7 +15,6 @@ import time
 import unittest
 
 from dlrover.python.common.diagnosis import CudaLog
-from dlrover.python.master.diagnosis.diagnosis_data import DataManager
 from dlrover.python.master.diagnosis.diagnostician import Diagnostician
 from dlrover.python.master.diagnosis.inferencechain.common import (
     Inference,
@@ -23,6 +22,7 @@ from dlrover.python.master.diagnosis.inferencechain.common import (
     InferenceDescription,
     InferenceName,
 )
+from master.diagnosis.diagnosis import DiagnosisDataManager
 
 
 class DiagnosisTest(unittest.TestCase):
@@ -33,7 +33,7 @@ class DiagnosisTest(unittest.TestCase):
         pass
 
     def test_data_manager(self):
-        mgr = DataManager(5)
+        mgr = DiagnosisDataManager(5)
         data_type = "type"
         log1 = CudaLog(0)
         mgr.store_data(data_type, log1)
@@ -51,7 +51,7 @@ class DiagnosisTest(unittest.TestCase):
         self.assertEqual(len(logs), 1)
 
     def test_diagnostician(self):
-        data_mgr = DataManager(10)
+        data_mgr = DiagnosisDataManager(10)
         diagnostician = Diagnostician(data_mgr)
         problems: list[Inference] = [
             Inference(

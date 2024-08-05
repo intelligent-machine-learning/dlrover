@@ -14,7 +14,6 @@
 from typing import List
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.master.diagnosis.diagnosis_data import DataManager
 from dlrover.python.master.diagnosis.inferencechain.common import (
     Inference,
     InferenceOperator,
@@ -23,6 +22,7 @@ from dlrover.python.master.diagnosis.inferencechain.common import (
 from dlrover.python.master.diagnosis.operator.operator import (
     register_operators,
 )
+from master.diagnosis.diagnosis import DiagnosisDataManager
 
 
 class InferenceChain:
@@ -30,8 +30,7 @@ class InferenceChain:
     InferenceChain is used to diagnose training failures
     """
 
-    def __init__(self, data_mgr: DataManager, inferences: List[Inference]):
-        self.data_manager = data_mgr
+    def __init__(self, inferences: List[Inference]):
         self.inferences = inferences
         self.operators = register_operators(data_mgr)
 

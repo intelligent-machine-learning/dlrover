@@ -13,14 +13,14 @@
 
 from typing import List
 
-from dlrover.python.master.diagnosis.diagnosis_data import DataManager
 from dlrover.python.master.diagnosis.inferencechain.common import (
     InferenceOperator,
 )
 from dlrover.python.master.diagnosis.operator.check_training_hang_operator import (  # noqa: E501
     CheckTrainingHangOperator,
 )
+from master.diagnosis.diagnosis import DiagnosisDataManager
 
 
-def register_operators(data_manager: DataManager) -> List[InferenceOperator]:
+def register_operators(data_manager: DiagnosisDataManager) -> List[InferenceOperator]:
     return [CheckTrainingHangOperator(data_manager)]
