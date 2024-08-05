@@ -54,9 +54,9 @@ def main():
     finally:
         dist.destroy_process_group()
         if torch_npu:
-            torch_npu.synchronize()
-            if torch_npu.is_available():
-                torch_npu.empty_cache()
+            torch_npu.npu.synchronize()
+            if torch_npu.npu.is_available():
+                torch_npu.npu.empty_cache()
 
     return result
 
