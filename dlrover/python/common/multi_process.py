@@ -29,7 +29,7 @@ import _posixshmem
 from .constants import NodeEnv
 from .log import default_logger as logger
 
-SOCKET_TMP_DIR = "/tmp/checkpoint_sock/"
+SOCKET_TMP_DIR = "/tmp/ckpt_sock/"
 
 SUCCESS_CODE = "OK"
 ERROR_CODE = "ERROR"
@@ -198,7 +198,7 @@ class LocalSocketComm(metaclass=ABCMeta):
         return os.path.join(root_dir, fname)
 
     def _init_socket(self):
-        """Initialze a socket server."""
+        """Initialize a socket server."""
         if self._create:
             self._server = _create_socket_server(self._socket_file)
             t = threading.Thread(

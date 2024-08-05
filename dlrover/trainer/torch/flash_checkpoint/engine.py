@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import os
+import random
 import time
 from abc import ABCMeta, abstractmethod
 from datetime import timedelta
@@ -184,7 +185,7 @@ class CheckpointEngine(metaclass=ABCMeta):
         local_shard_num = self.get_local_shard_num()
         self.local_shard_id = self._local_rank % local_shard_num
         lock_name = CheckpointSharedObjPrefix.SHM_LOCK_NAME + str(
-            self.local_shard_id
+            self.local_shard_id + "_" + str(random.randint(0, 999))
         )
         self._shm_lock = SharedLock(name=lock_name, create=False)
         self._shm_handler = SharedMemoryHandler(
