@@ -19,10 +19,10 @@ from collections import deque
 from dlrover.python.common.constants import DistributionStrategy, NodeType
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
+from dlrover.python.master.monitor.error_monitor import SimpleErrorMonitor
 from dlrover.python.master.scaler.base_scaler import ScalePlan
 from dlrover.python.master.scaler.pod_scaler import PodScaler, new_tf_config
 from dlrover.python.tests.test_utils import mock_k8s_client
-from dlrover.python.master.monitor.error_monitor import SimpleErrorMonitor
 
 _dlrover_ctx = Context.singleton_instance()
 
