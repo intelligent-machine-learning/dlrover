@@ -16,7 +16,6 @@ import unittest
 from unittest import mock
 
 import ray
-from master.diagnosis.diagnosis import DiagnosisManager
 
 from dlrover.proto import elastic_training_pb2
 from dlrover.python.common import grpc
@@ -27,6 +26,7 @@ from dlrover.python.common.constants import (
     RendezvousName,
 )
 from dlrover.python.common.grpc import GPUStats
+from dlrover.python.master.diagnosis.diagnosis import DiagnosisManager
 from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
 from dlrover.python.master.elastic_training.rdzv_manager import (
     ElasticTrainingRendezvousManager,
