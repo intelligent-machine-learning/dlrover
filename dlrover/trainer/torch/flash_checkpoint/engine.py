@@ -167,6 +167,7 @@ class CheckpointEngine(metaclass=ABCMeta):
         if not self.saver_proc:
             self.saver_proc = start_saver_process()
 
+        self._unique_process_id = random.randint(0, 999)
         self.checkpoint_dir = checkpoint_dir
         self.storage = storage
         self._save_timeout = save_timeout
@@ -188,7 +189,7 @@ class CheckpointEngine(metaclass=ABCMeta):
             CheckpointSharedObjPrefix.SHM_LOCK_NAME
             + str(self.local_shard_id)
             + "_"
-            + str(random.randint(0, 999))
+            + str(self._unique_process_id)
         )
         self._shm_lock = SharedLock(name=lock_name, create=False)
         self._shm_handler = SharedMemoryHandler(
@@ -279,6 +280,7 @@ class CheckpointEngine(metaclass=ABCMeta):
                 "local_shard_num": local_shard_num,
                 "global_shard_num": global_shard_num,
                 "save_timeout": self._save_timeout,
+                "unique_process_id": self._unique_process_id,
             },
         )
 
