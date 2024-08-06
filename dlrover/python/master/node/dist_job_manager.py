@@ -72,6 +72,7 @@ from dlrover.python.master.watcher.factory import (
 )
 from dlrover.python.scheduler.factory import new_elastic_job
 from dlrover.python.scheduler.job import ElasticJob, JobArgs
+from dlrover.python.master.monitor.error_monitor import ErrorMonitor
 
 _dlrover_context = Context.singleton_instance()
 
@@ -95,7 +96,7 @@ class DistributedJobManager(JobManager):
         job=None,
         node_watcher: Optional[NodeWatcher] = None,
         job_scaler=None,
-        error_monitor=None,
+        error_monitor: ErrorMonitor = None,
     ):
         super().__init__(job_args, speed_monitor, error_monitor)
         self._remove_exited_node = job_args.remove_exited_node
@@ -162,6 +163,9 @@ class DistributedJobManager(JobManager):
         )
         self._scaler: Scaler = job_scaler
         self._init_training_node_manager()
+        self._error_monitor = error_monitor
+        if self._error_monitor is None:
+            logger.error("The error monitor is None")
 
     def start(self):
         self._scaler.start()
@@ -224,12 +228,13 @@ class DistributedJobManager(JobManager):
                 "Stop the training early because the nodes recovered from OOM "
                 "are pending too long and have timed out."
             )
-            self._error_monitor.process_error(
-                timeout_ps_nodes[0],
-                0,
-                msg,
-                level=TrainingExceptionLevel.ERROR,
-            )
+            if self._error_monitor:
+                self._error_monitor.process_error(
+                    timeout_ps_nodes[0],
+                    0,
+                    msg,
+                    level=TrainingExceptionLevel.ERROR,
+                )
             return True, JobExitReason.PENDING_TIMEOUT, msg
 
         # worker pending judgement:
@@ -239,9 +244,10 @@ class DistributedJobManager(JobManager):
                 "2) alive worker number consistently less than the min "
                 "training nodes required 3) pending time last exceed limit."
             )
-            self._error_monitor.process_error(
-                None, 0, msg, level=TrainingExceptionLevel.ERROR
-            )
+            if self._error_monitor:
+                self._error_monitor.process_error(
+                    None, 0, msg, level=TrainingExceptionLevel.ERROR
+                )
             return True, JobExitReason.PENDING_TIMEOUT, msg
 
         # insufficient worker judgement
@@ -250,9 +256,10 @@ class DistributedJobManager(JobManager):
                 "Stop the training early because there isn't enough node to "
                 "keep training."
             )
-            self._error_monitor.process_error(
-                None, 0, msg, level=TrainingExceptionLevel.ERROR
-            )
+            if self._error_monitor:
+                self._error_monitor.process_error(
+                    None, 0, msg, level=TrainingExceptionLevel.ERROR
+                )
             return True, JobExitReason.UNCOMPLETED_TIMEOUT, msg
 
         # no need to early stop
@@ -581,7 +588,7 @@ class DistributedJobManager(JobManager):
         # the state change condition
         if event.event_type == "exit":
             self.close_job()
-            if not self._error_monitor:
+            if self._error_monitor:
                 self._error_monitor.report_event(
                     "info", self._job_args.job_name, "stop", "", {},
                 )
@@ -623,13 +630,13 @@ class DistributedJobManager(JobManager):
             detail_msg = cur_node.exit_reason
             event_type = "error"
         logger.info(msg)
-        if not self._error_monitor:
+        if self._error_monitor:
             self._error_monitor.report_event(
                 event_type, cur_node.name, action, detail_msg, {},
             )
 
         if should_relaunch:
-            if not self._error_monitor:
+            if self._error_monitor:
                 self._error_monitor.report_event(
                     "info", cur_node.name, "relaunch", detail_msg, {},
                 )

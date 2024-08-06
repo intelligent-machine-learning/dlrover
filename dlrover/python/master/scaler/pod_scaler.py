@@ -417,7 +417,9 @@ class PodScaler(Scaler):
         succeed = False
         if self._check_cluster_ready_for_pod(node_from_queue):
             pod = self._create_pod(node_from_queue)
+            logger.info(f"Create pod: {pod}")
             succeed = self._k8s_client.create_pod(pod)
+            logger.info(f"After k8s pod creation")
         if not succeed:
             self._create_node_queue.appendleft(node_from_queue)
         else:
@@ -586,6 +588,7 @@ class PodScaler(Scaler):
 
     def _create_service_for_pod(self, node: Node):
         # create or patch worker service
+        logger.info(f"create service for node {node}")
         service_ready = True
         if node.service_addr:
             service_name = node.service_addr.split(".")[0]
