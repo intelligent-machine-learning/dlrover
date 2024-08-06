@@ -525,13 +525,14 @@ class PodScaler(Scaler):
             V1EnvVar(name=NodeEnv.MONITOR_ENABLED, value="true")
         )
         self._patch_tf_config_into_env(pod, node)
-        self._error_monitor.report_event(
-            "info",
-            pod_name,
-            "create",
-            "",
-            {},
-        )
+        if self._error_monitor:
+            self._error_monitor.report_event(
+                "info",
+                pod_name,
+                "create",
+                "",
+                {},
+            )
         return pod
 
     def _check_master_service_avaliable(self, host, port, timeout=15):
