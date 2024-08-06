@@ -29,7 +29,6 @@ from dlrover.python.master.elastic_training.net_topology import (
     DpTopologySorter,
     NodeTopologyMeta,
 )
-from dlrover.python.master.monitor.error_monitor import ErrorMonitor
 
 
 class RendezvousParameters(object):
@@ -57,7 +56,7 @@ class RendezvousParameters(object):
 
 
 class RendezvousManager(metaclass=ABCMeta):
-    def __init__(self, error_monitor: ErrorMonitor = None):
+    def __init__(self, error_monitor=None):
         self._lock = Lock()
         self._alive_nodes = set()
         self._released_workers = []
@@ -383,7 +382,7 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
     Elasticjob of DLRover, the node has an unique node ID.
     """
 
-    def __init__(self, error_monitor: ErrorMonitor = None):
+    def __init__(self, error_monitor=None):
         super().__init__(error_monitor)
         self._name = RendezvousName.ELASTIC_TRAINING
 
@@ -442,7 +441,7 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         node-1 if not available.
     """
 
-    def __init__(self, error_monitor: ErrorMonitor = None):
+    def __init__(self, error_monitor=None):
         super().__init__(error_monitor)
         self._name = RendezvousName.NETWORK_CHECK
         self._node_status: Dict[int, bool] = {}

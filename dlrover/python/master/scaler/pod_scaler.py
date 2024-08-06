@@ -20,7 +20,7 @@ import threading
 import time
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict, List, Optional
+from typing import Deque, Dict, List, Optional
 
 from kubernetes import client
 from kubernetes.client import V1EnvVar, V1EnvVarSource, V1ObjectFieldSelector
@@ -85,15 +85,13 @@ class PodScaler(Scaler):
     in a queue.
     """
 
-    def __init__(
-        self, job_name, namespace, error_monitor: ErrorMonitor = None
-    ):
+    def __init__(self, job_name, namespace, error_monitor: ErrorMonitor):
         super(PodScaler, self).__init__(job_name)
         self._k8s_client = k8sClient.singleton_instance(namespace)
         self._svc_factory = k8sServiceFactory(namespace, job_name)
         self._namespace = namespace
         self._replica_template: Dict[str, client.V1Pod] = {}
-        self._create_node_queue: deque[Node] = deque()
+        self._create_node_queue: Deque[Node] = deque()
         self._scaling_lock = threading.Lock()
         self._plan = ScalePlan()
         self._ps_addrs: List[str] = []
