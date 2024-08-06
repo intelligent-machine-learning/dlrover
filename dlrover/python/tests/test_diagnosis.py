@@ -14,6 +14,8 @@
 import time
 import unittest
 
+from typing import List
+
 from dlrover.python.common.diagnosis import CudaLog
 from dlrover.python.master.diagnosis.diagnostician import Diagnostician
 from dlrover.python.master.diagnosis.inferencechain.common import (
@@ -53,7 +55,7 @@ class DiagnosisTest(unittest.TestCase):
     def test_diagnostician(self):
         data_mgr = DiagnosisDataManager(10)
         diagnostician = Diagnostician(data_mgr)
-        problems: list[Inference] = [
+        problems: List[Inference] = [
             Inference(
                 name=InferenceName.TRAINING,
                 attribution=InferenceAttribute.ISORNOT,
