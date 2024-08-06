@@ -238,7 +238,9 @@ class DistributedJobManager(JobManager):
             return True, JobExitReason.PENDING_TIMEOUT, msg
 
         # worker pending judgement:
-        if self._worker_manager.is_training_hang_by_pending():
+        if self._worker_manager.is_training_hang_by_pending(
+            self.get_worker_num()
+        ):
             msg = (
                 "Stop the training early because 1) there is node pending "
                 "2) alive worker number consistently less than the min "
