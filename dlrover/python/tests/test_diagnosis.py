@@ -13,18 +13,17 @@
 
 import time
 import unittest
-
 from typing import List
 
+from master.diagnosis.diagnosis import DiagnosisDataManager, Diagnostician
+
 from dlrover.python.common.diagnosis import CudaLog
-from dlrover.python.master.diagnosis.diagnostician import Diagnostician
 from dlrover.python.master.diagnosis.inferencechain.inference import (
     Inference,
     InferenceAttribute,
     InferenceDescription,
     InferenceName,
 )
-from master.diagnosis.diagnosis import DiagnosisDataManager
 
 
 class DiagnosisTest(unittest.TestCase):

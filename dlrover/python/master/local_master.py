@@ -61,6 +61,7 @@ class LocalJobMaster(JobMaster):
             self.job_manager,
             self.speed_monitor,
             self.rdzv_managers,
+            None,
             self.job_metric_collector,
             None,
             None,
@@ -84,6 +85,9 @@ class LocalJobMaster(JobMaster):
         logger.info("Master RPC server started")
         self.task_manager.start()
         self.job_manager.start()
+
+    def pre_check(self):
+        pass
 
     def run(self):
         """

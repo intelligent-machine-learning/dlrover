@@ -19,10 +19,6 @@ from dlrover.python.master.diagnosis.inferencechain.inference import (
     InferenceOperator,
     combine_inferences,
 )
-from dlrover.python.master.diagnosis.operator.operator import (
-    register_operators,
-)
-from master.diagnosis.diagnosis import DiagnosisDataManager
 
 
 class InferenceChain:
@@ -30,9 +26,11 @@ class InferenceChain:
     InferenceChain is used to diagnose training failures
     """
 
-    def __init__(self, inferences: List[Inference]):
+    def __init__(
+        self, inferences: List[Inference], operators: List[InferenceOperator]
+    ):
         self.inferences = inferences
-        self.operators = register_operators()
+        self.operators = operators
 
     def infer(self) -> List[Inference]:
         inferences = self.inferences

@@ -15,8 +15,6 @@ from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
 from typing import List
 
-from master.diagnosis.diagnosis import DiagnosisDataManager
-
 
 class InferenceName:
     END = "end"
@@ -47,7 +45,7 @@ class InferenceOperator(metaclass=ABCMeta):
     InferenceOperator is used to infer the root cause of problems.
     """
 
-    def __init__(self, data_manager: DiagnosisDataManager):
+    def __init__(self, data_manager):
         self._data_manager = data_manager
 
     @abstractmethod

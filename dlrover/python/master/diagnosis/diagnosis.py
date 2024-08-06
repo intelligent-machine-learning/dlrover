@@ -14,19 +14,22 @@
 import threading
 import time
 from datetime import datetime, timedelta
-from typing import List, Dict
+from typing import Dict, List
 
 from common.diagnosis import DiagnosisData
+from master.diagnosis.inferencechain.inference_chain import InferenceChain
+from master.diagnosis.operator.check_training_hang_operator import (
+    CheckTrainingHangOperator,
+)
+
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.master.diagnosis.diagnostician import Diagnostician
 from dlrover.python.master.diagnosis.inferencechain.inference import (
     Inference,
     InferenceAttribute,
     InferenceDescription,
-    InferenceName, InferenceOperator,
+    InferenceName,
+    InferenceOperator,
 )
-from master.diagnosis.operator.check_training_hang_operator import \
-    CheckTrainingHangOperator
 
 
 def has_expired(timestamp: float, time_period: int) -> bool:
@@ -37,14 +40,25 @@ def has_expired(timestamp: float, time_period: int) -> bool:
 
 class DiagnosisManager:
     def __init__(self):
+        self._is_observing_started = False
         self._data_manager: DiagnosisDataManager = DiagnosisDataManager(600)
-        self.diagnostician: Diagnostician = Diagnostician(self._data_manager)
+        self._diagnostician: Diagnostician = Diagnostician(self._data_manager)
 
     def collect_diagnosis_data(self, data_type: str, data: DiagnosisData):
         self._data_manager.store_data(data_type, data)
 
-    def start(self):
-        logger.info("Start Diagnosis Manager ...")
+    def start_pre_check(self):
+        logger.info("Start Diagnosis Manager to pre-check training...")
+
+        # TODO
+        pre_checks = []
+        self._diagnostician.register_pre_check(pre_checks)
+        pass
+
+    def start_observing(self):
+        logger.info("Start Diagnosis Manager to observing training...")
+        self._is_observing_started = True
+
         problems: List[Inference] = [
             Inference(
                 InferenceName.TRAINING,
@@ -52,8 +66,7 @@ class DiagnosisManager:
                 InferenceDescription.HANG,
             )
         ]
-        self.diagnostician.register_operators()
-        self.diagnostician.register_problems(problems)
+        self._diagnostician.register_problems(problems)
 
         try:
             thread = threading.Thread(
@@ -69,16 +82,21 @@ class DiagnosisManager:
                 f"Failed to start the diagnosis manager thread. Error: {e}"
             )
 
-    def stop(self):
-        pass
+    def stop_observing(self):
+        logger.info("Stop Diagnosis Manager to observing training.")
+        self._is_observing_started = False
 
     def _diagnose_failures(self):
-        logger.info("Start to diagnose failures")
+        logger.info("Start to diagnose failures for observing.")
         while True:
-            observed_problems = self.diagnostician.observe_training()
+            if not self._is_observing_started:
+                logger.info("Stop to diagnose failures for observing.")
+                break
+
+            observed_problems = self._diagnostician.observe_training()
             for problem in observed_problems:
                 logger.info(f"observed problems: {problem}")
-                root_causes = self.diagnostician.diagnose_failure(problem)
+                root_causes = self._diagnostician.diagnose_failure(problem)
                 for root_cause in root_causes:
                     logger.info(f"identify root cause: {root_cause}")
             time.sleep(180)
@@ -114,3 +132,35 @@ class DiagnosisDataManager:
                 break
 
         self.diagnosis_data[data_type] = data[n:]
+
+
+class Diagnostician:
+    def __init__(self, data_manager):
+        self._data_manager = data_manager
+        self._pre_checks: List[Inference] = []
+        self._training_problems: List[Inference] = []
+
+    def get_pre_check_operators(self) -> List[InferenceOperator]:
+        return []
+
+    def get_observing_operators(self) -> List[InferenceOperator]:
+        return [CheckTrainingHangOperator(self._data_manager)]
+
+    def register_pre_check(self, pre_checks: List[Inference]):
+        self._pre_checks = pre_checks
+
+    def register_problems(self, problems: List[Inference]):
+        self._training_problems = problems
+
+    def check_training(self) -> List[Inference]:
+        ic = InferenceChain(self._pre_checks, self.get_pre_check_operators())
+        return ic.infer()
+
+    def observe_training(self) -> List[Inference]:
+        ic = InferenceChain(
+            self._training_problems, self.get_observing_operators()
+        )
+        return ic.infer()
+
+    def diagnose_failure(self, inference: Inference) -> List[Inference]:
+        pass

@@ -16,6 +16,7 @@ import unittest
 from unittest import mock
 
 import ray
+from master.diagnosis.diagnosis import DiagnosisManager
 
 from dlrover.proto import elastic_training_pb2
 from dlrover.python.common import grpc
@@ -77,6 +78,7 @@ class MasterServicerTest(unittest.TestCase):
             job_manager=self.job_manager,
             speed_monitor=speed_monitor,
             rdzv_managers=rdzv_managers,
+            diagnosis_manager=DiagnosisManager(),
             job_metric_collector=self.job_metric_collector,
             elastic_ps_service=self.elastic_ps_service,
             sync_service=sync_service,
@@ -420,6 +422,7 @@ class MasterServicerForRayTest(unittest.TestCase):
             job_manager=self.job_manager,
             speed_monitor=speed_monitor,
             rdzv_managers={},
+            diagnosis_manager=DiagnosisManager(),
             job_metric_collector=self.job_metric_collector,
             elastic_ps_service=self.elastic_ps_service,
         )

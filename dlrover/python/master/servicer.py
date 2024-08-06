@@ -78,6 +78,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         job_manager,
         speed_monitor: SpeedMonitor,
         rdzv_managers: Dict[str, RendezvousManager],
+        diagnosis_manager: DiagnosisManager,
         job_metric_collector=None,
         elastic_ps_service=None,
         sync_service=None,
@@ -86,7 +87,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         self._job_manager: JobManager = job_manager
         self._speed_monitor = speed_monitor
         self._rdzv_managers = rdzv_managers
-        self._diagnosis_manager: DiagnosisManager = DiagnosisManager()
+        self._diagnosis_manager = diagnosis_manager
         self._kv_store = KVStoreService()
         self._job_metric_collector: JobMetricCollector = job_metric_collector
         self._elastic_ps_service: ElasticPsService = elastic_ps_service
@@ -657,6 +658,7 @@ def create_master_service(
     job_manager,
     speed_monitor,
     rdzv_managers,
+    diagnosis_manager,
     job_metric_collector,
     elastic_ps_service,
     sync_service,
@@ -678,6 +680,7 @@ def create_master_service(
         job_manager=job_manager,
         speed_monitor=speed_monitor,
         rdzv_managers=rdzv_managers,
+        diagnosis_manager=diagnosis_manager,
         job_metric_collector=job_metric_collector,
         elastic_ps_service=elastic_ps_service,
         sync_service=sync_service,

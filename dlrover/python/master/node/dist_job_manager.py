@@ -172,7 +172,7 @@ class DistributedJobManager(JobManager):
         self._init_job_auto_scaler()
         plan = self._create_initial_scale_plan()
         if not self._has_running_workers():
-            # The the job relaunches the evicted master, there are alive
+            # The job relaunches the evicted master, there are alive
             # worker nodes and the master does not need to launch workers.
             logger.info(
                 "The newly master starts launching workers at beginning."

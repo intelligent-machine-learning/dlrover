@@ -604,6 +604,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
         spec = self._worker_group.spec
         role = spec.role
 
+        # TODO: call master to get approval of
+        #  training starting(to wait pre-check)
+
         logger.info(
             f"[{role}] starting training workers for entrypoint: "
             f"{spec.get_entrypoint_name()}"

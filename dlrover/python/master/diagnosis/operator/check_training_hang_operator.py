@@ -20,11 +20,10 @@ from dlrover.python.master.diagnosis.inferencechain.inference import (
     InferenceName,
     InferenceOperator,
 )
-from master.diagnosis.diagnosis import DiagnosisDataManager
 
 
 class CheckTrainingHangOperator(InferenceOperator):
-    def __init__(self, data_manager: DiagnosisDataManager):
+    def __init__(self, data_manager):
         super().__init__(data_manager)
 
     def is_compatible(self, inference: Inference) -> bool:
