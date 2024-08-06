@@ -90,8 +90,10 @@ class SpeedMonitor(object):
                 "The initial training time is %s",
                 self._start_training_time - self._init_time,
             )
-            if not self._error_monitor:
-                self._error_monitor.report_event("info", "job", "start_training", "", {})
+            if self._error_monitor:
+                self._error_monitor.report_event(
+                    "info", "job", "start_training", "", {}
+                )
         self._global_step = global_step
         if (
             not self._global_step_records
@@ -109,8 +111,10 @@ class SpeedMonitor(object):
                 self._global_step_records[-1].worker_num,
                 round(self.running_speed, 2),
             )
-            if not self._error_monitor:
-                self._error_monitor.report_event("info", "job", f"global_step={self._global_step}", "", {})
+            if self._error_monitor:
+                self._error_monitor.report_event(
+                    "info", "job", f"global_step={self._global_step}", "", {}
+                )
 
     def get_sample_count(self):
         return self._sample_count

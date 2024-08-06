@@ -283,9 +283,13 @@ class RendezvousManager(metaclass=ABCMeta):
             self._node_rdzv_times[node_rank] = round(
                 self._lastcall_time - self._start_rdzv_ts, 2
             )
-            if not self._error_monitor:
+            if self._error_monitor:
                 self._error_monitor.report_event(
-                    "info", node_id, "job rendezvous", "", {},
+                    "info",
+                    node_id,
+                    "job rendezvous",
+                    "",
+                    {},
                 )
 
         return self._rdzv_round

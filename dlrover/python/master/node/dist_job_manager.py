@@ -33,7 +33,10 @@ from dlrover.python.common.global_context import Context
 from dlrover.python.common.grpc import ParallelConfig
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeGroupResource
-from dlrover.python.master.monitor.error_monitor import K8sJobErrorMonitor
+from dlrover.python.master.monitor.error_monitor import (
+    ErrorMonitor,
+    K8sJobErrorMonitor,
+)
 from dlrover.python.master.node.event_callback import (
     ClusterContext,
     NodeEventCallback,
@@ -72,7 +75,6 @@ from dlrover.python.master.watcher.factory import (
 )
 from dlrover.python.scheduler.factory import new_elastic_job
 from dlrover.python.scheduler.job import ElasticJob, JobArgs
-from dlrover.python.master.monitor.error_monitor import ErrorMonitor
 
 _dlrover_context = Context.singleton_instance()
 
@@ -164,8 +166,6 @@ class DistributedJobManager(JobManager):
         self._scaler: Scaler = job_scaler
         self._init_training_node_manager()
         self._error_monitor = error_monitor
-        if self._error_monitor is None:
-            logger.error("The error monitor is None")
 
     def start(self):
         self._scaler.start()
@@ -590,7 +590,11 @@ class DistributedJobManager(JobManager):
             self.close_job()
             if self._error_monitor:
                 self._error_monitor.report_event(
-                    "info", self._job_args.job_name, "stop", "", {},
+                    "info",
+                    self._job_args.job_name,
+                    "stop",
+                    "",
+                    {},
                 )
         new_status = event.node.status
         with self._lock:
@@ -632,13 +636,21 @@ class DistributedJobManager(JobManager):
         logger.info(msg)
         if self._error_monitor:
             self._error_monitor.report_event(
-                event_type, cur_node.name, action, detail_msg, {},
+                event_type,
+                cur_node.name,
+                action,
+                detail_msg,
+                {},
             )
 
         if should_relaunch:
             if self._error_monitor:
                 self._error_monitor.report_event(
-                    "info", cur_node.name, "relaunch", detail_msg, {},
+                    "info",
+                    cur_node.name,
+                    "relaunch",
+                    detail_msg,
+                    {},
                 )
             self._relaunch_node(cur_node)
 

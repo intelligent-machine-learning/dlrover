@@ -35,6 +35,7 @@ from dlrover.python.common.constants import (
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeResource
+from dlrover.python.master.monitor.error_monitor import ErrorMonitor
 from dlrover.python.master.scaler.base_scaler import ScalePlan, Scaler
 from dlrover.python.scheduler.kubernetes import (
     NODE_SERVICE_PORTS,
@@ -46,7 +47,6 @@ from dlrover.python.scheduler.kubernetes import (
     k8sServiceFactory,
     set_container_resource,
 )
-from dlrover.python.master.monitor.error_monitor import ErrorMonitor
 
 _dlrover_context = Context.singleton_instance()
 
@@ -85,7 +85,9 @@ class PodScaler(Scaler):
     in a queue.
     """
 
-    def __init__(self, job_name, namespace, error_monitor: ErrorMonitor = None):
+    def __init__(
+        self, job_name, namespace, error_monitor: ErrorMonitor = None
+    ):
         super(PodScaler, self).__init__(job_name)
         self._k8s_client = k8sClient.singleton_instance(namespace)
         self._svc_factory = k8sServiceFactory(namespace, job_name)
@@ -102,7 +104,6 @@ class PodScaler(Scaler):
         self._master_addr = ""
         self._error_monitor = error_monitor
         self._started = False
-
 
     def start(self):
         self._job = self._retry_to_get_job()
@@ -417,9 +418,7 @@ class PodScaler(Scaler):
         succeed = False
         if self._check_cluster_ready_for_pod(node_from_queue):
             pod = self._create_pod(node_from_queue)
-            logger.info(f"Create pod: {pod}")
             succeed = self._k8s_client.create_pod(pod)
-            logger.info(f"After k8s pod creation")
         if not succeed:
             self._create_node_queue.appendleft(node_from_queue)
         else:

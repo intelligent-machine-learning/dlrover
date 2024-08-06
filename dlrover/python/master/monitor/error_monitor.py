@@ -40,7 +40,12 @@ class ErrorMonitor(metaclass=ABCMeta):
 
     @abstractmethod
     def report_event(
-            self, event_type: str, instance: str, action: str, msg: str, labels: Dict[str, str]
+        self,
+        event_type: str,
+        instance: str,
+        action: str,
+        msg: str,
+        labels: Dict[str, str],
     ):
         pass
 
@@ -67,7 +72,12 @@ class SimpleErrorMonitor(ErrorMonitor):
         return False
 
     def report_event(
-            self, event_type: str, instance: str, action: str, msg: str, labels: Dict[str, str]
+        self,
+        event_type: str,
+        instance: str,
+        action: str,
+        msg: str,
+        labels: Dict[str, str],
     ):
         pass
 
@@ -113,7 +123,12 @@ class K8sJobErrorMonitor(ErrorMonitor):
         return False
 
     def report_event(
-            self, event_type: str, instance: str, action: str, msg: str, labels: Dict[str, str]
+        self,
+        event_type: str,
+        instance: str,
+        action: str,
+        msg: str,
+        labels: Dict[str, str],
     ):
         pass
 
