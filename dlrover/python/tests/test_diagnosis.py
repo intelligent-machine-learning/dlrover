@@ -18,7 +18,7 @@ from typing import List
 
 from dlrover.python.common.diagnosis import CudaLog
 from dlrover.python.master.diagnosis.diagnostician import Diagnostician
-from dlrover.python.master.diagnosis.inferencechain.common import (
+from dlrover.python.master.diagnosis.inferencechain.inference import (
     Inference,
     InferenceAttribute,
     InferenceDescription,

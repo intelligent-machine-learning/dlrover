@@ -13,23 +13,37 @@
 
 from typing import List
 
-from dlrover.python.master.diagnosis.inferencechain.common import Inference
+from dlrover.python.master.diagnosis.inferencechain.inference import Inference, \
+    InferenceOperator
 from dlrover.python.master.diagnosis.inferencechain.inference_chain import (
     InferenceChain,
 )
-from master.diagnosis.diagnosis import DiagnosisDataManager
+from master.diagnosis.operator.check_training_hang_operator import \
+    CheckTrainingHangOperator
 
 
 class Diagnostician:
-    def __init__(self, data_mgr: DiagnosisDataManager):
-        self.data_manager = data_mgr
-        self.training_problems: List[Inference] = []
+
+    def __init__(self, data_manager):
+        self._data_manager = data_manager
+        self._pre_checks: List[Inference] = []
+        self._training_problems: List[Inference] = []
+
+    def register_operators(self) -> List[InferenceOperator]:
+        return [CheckTrainingHangOperator(self._data_manager)]
+
+    def register_pre_check(self, pre_checks: List[Inference]):
+        self._pre_checks = pre_checks
 
     def register_problems(self, problems: List[Inference]):
-        self.training_problems = problems
+        self._training_problems = problems
+
+    def check_training(self) -> List[Inference]:
+        ic = InferenceChain(self._pre_checks)
+        return ic.infer()
 
     def observe_training(self) -> List[Inference]:
-        ic = InferenceChain(self.data_manager, self.training_problems)
+        ic = InferenceChain(self._training_problems)
         return ic.infer()
 
     def diagnose_failure(self, inference: Inference) -> List[Inference]:

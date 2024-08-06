@@ -13,7 +13,7 @@
 
 from typing import List
 
-from dlrover.python.master.diagnosis.inferencechain.common import (
+from dlrover.python.master.diagnosis.inferencechain.inference import (
     Inference,
     InferenceAttribute,
     InferenceDescription,

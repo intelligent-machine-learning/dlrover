@@ -14,7 +14,7 @@
 from typing import List
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.master.diagnosis.inferencechain.common import (
+from dlrover.python.master.diagnosis.inferencechain.inference import (
     Inference,
     InferenceOperator,
     combine_inferences,
@@ -32,7 +32,7 @@ class InferenceChain:
 
     def __init__(self, inferences: List[Inference]):
         self.inferences = inferences
-        self.operators = register_operators(data_mgr)
+        self.operators = register_operators()
 
     def infer(self) -> List[Inference]:
         inferences = self.inferences

@@ -19,12 +19,14 @@ from typing import List, Dict
 from common.diagnosis import DiagnosisData
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.diagnosis.diagnostician import Diagnostician
-from dlrover.python.master.diagnosis.inferencechain.common import (
+from dlrover.python.master.diagnosis.inferencechain.inference import (
     Inference,
     InferenceAttribute,
     InferenceDescription,
-    InferenceName,
+    InferenceName, InferenceOperator,
 )
+from master.diagnosis.operator.check_training_hang_operator import \
+    CheckTrainingHangOperator
 
 
 def has_expired(timestamp: float, time_period: int) -> bool:
@@ -35,11 +37,11 @@ def has_expired(timestamp: float, time_period: int) -> bool:
 
 class DiagnosisManager:
     def __init__(self):
-        self.data_manager: DiagnosisDataManager = DiagnosisDataManager(600)
-        self.diagnostician: Diagnostician = Diagnostician(self.data_manager)
+        self._data_manager: DiagnosisDataManager = DiagnosisDataManager(600)
+        self.diagnostician: Diagnostician = Diagnostician(self._data_manager)
 
     def collect_diagnosis_data(self, data_type: str, data: DiagnosisData):
-        self.data_manager.store_data(data_type, data)
+        self._data_manager.store_data(data_type, data)
 
     def start(self):
         logger.info("Start Diagnosis Manager ...")
@@ -50,6 +52,7 @@ class DiagnosisManager:
                 InferenceDescription.HANG,
             )
         ]
+        self.diagnostician.register_operators()
         self.diagnostician.register_problems(problems)
 
         try:
