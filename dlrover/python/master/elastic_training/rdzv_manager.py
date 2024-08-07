@@ -19,6 +19,7 @@ from threading import Lock
 from typing import Dict, List, Tuple
 
 from dlrover.python.common.constants import (
+    ErrorMonitorConstants,
     NetworkFailureReason,
     RendezvousName,
 )
@@ -284,9 +285,9 @@ class RendezvousManager(metaclass=ABCMeta):
             )
             if self._error_monitor:
                 self._error_monitor.report_event(
-                    "info",
+                    ErrorMonitorConstants.TYPE_INFO,
                     node_id,
-                    "job rendezvous",
+                    ErrorMonitorConstants.ACTION_RDZV,
                     "",
                     {},
                 )

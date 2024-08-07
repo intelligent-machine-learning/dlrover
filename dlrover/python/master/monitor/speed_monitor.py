@@ -14,6 +14,7 @@
 import time
 from typing import Dict, List, Set, Tuple
 
+from dlrover.python.common.constants import ErrorMonitorConstants
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.monitor.error_monitor import ErrorMonitor
@@ -92,7 +93,11 @@ class SpeedMonitor(object):
             )
             if self._error_monitor:
                 self._error_monitor.report_event(
-                    "info", "job", "start_training", "", {}
+                    ErrorMonitorConstants.TYPE_INFO,
+                    "job",
+                    ErrorMonitorConstants.ACTION_START,
+                    "",
+                    {},
                 )
         self._global_step = global_step
         if (
@@ -113,7 +118,11 @@ class SpeedMonitor(object):
             )
             if self._error_monitor:
                 self._error_monitor.report_event(
-                    "info", "job", f"global_step={self._global_step}", "", {}
+                    ErrorMonitorConstants.TYPE_INFO,
+                    "job",
+                    ErrorMonitorConstants.ACTION_GLOBAL_STEP,
+                    f"global_step={self._global_step}",
+                    {},
                 )
 
     def get_sample_count(self):

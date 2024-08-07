@@ -21,6 +21,7 @@ from typing import Dict, List, Optional
 
 from dlrover.python.common.constants import (
     DistributionStrategy,
+    ErrorMonitorConstants,
     JobExitReason,
     NodeEventType,
     NodeExitReason,
@@ -220,6 +221,7 @@ class DistributedJobManager(JobManager):
         timeout_ps_nodes = (
             self._ps_manager.get_pending_timeout_oom_recovered_node()
         )
+
         if len(timeout_ps_nodes) > 0:
             msg = (
                 "Stop the training early because the nodes recovered from OOM "
@@ -231,6 +233,13 @@ class DistributedJobManager(JobManager):
                     0,
                     msg,
                     level=TrainingExceptionLevel.ERROR,
+                )
+                self._error_monitor.report_event(
+                    ErrorMonitorConstants.TYPE_INFO,
+                    "job",
+                    ErrorMonitorConstants.ACTION_EARLY_STOP,
+                    msg,
+                    {},
                 )
             return True, JobExitReason.PENDING_TIMEOUT, msg
 
@@ -247,6 +256,13 @@ class DistributedJobManager(JobManager):
                 self._error_monitor.process_error(
                     None, 0, msg, level=TrainingExceptionLevel.ERROR
                 )
+                self._error_monitor.report_event(
+                    ErrorMonitorConstants.TYPE_INFO,
+                    "job",
+                    ErrorMonitorConstants.ACTION_EARLY_STOP,
+                    msg,
+                    {},
+                )
             return True, JobExitReason.PENDING_TIMEOUT, msg
 
         # insufficient worker judgement
@@ -258,6 +274,13 @@ class DistributedJobManager(JobManager):
             if self._error_monitor:
                 self._error_monitor.process_error(
                     None, 0, msg, level=TrainingExceptionLevel.ERROR
+                )
+                self._error_monitor.report_event(
+                    "info",
+                    "job",
+                    "early stop",
+                    msg,
+                    {},
                 )
             return True, JobExitReason.UNCOMPLETED_TIMEOUT, msg
 
@@ -589,9 +612,9 @@ class DistributedJobManager(JobManager):
             self.close_job()
             if self._error_monitor:
                 self._error_monitor.report_event(
-                    "info",
+                    ErrorMonitorConstants.TYPE_INFO,
                     self._job_args.job_name,
-                    "stop",
+                    ErrorMonitorConstants.ACTION_STOP,
                     "",
                     {},
                 )
@@ -602,7 +625,7 @@ class DistributedJobManager(JobManager):
                 old_status, event.event_type, new_status
             )
             # If there is no matched state change, return directly
-            # If the node has been succeed, return directly
+            # If the node status is success, return directly
             if (
                 status_change_flow is None
                 or status_change_flow.from_status == NodeStatus.SUCCEEDED
@@ -625,32 +648,21 @@ class DistributedJobManager(JobManager):
             f"{cur_node.name} status change: {old_status} to {new_status} "
             f"by the event {event.event_type}. "
         )
-        action = f"status change from {old_status} to {new_status}"
-        detail_msg = ""
-        event_type = "info"
+        event_type = ErrorMonitorConstants.TYPE_INFO
         if new_status in [NodeStatus.FAILED, NodeStatus.DELETED]:
             msg += f"Exit reason is {cur_node.exit_reason}"
-            detail_msg = cur_node.exit_reason
-            event_type = "error"
+            event_type = ErrorMonitorConstants.TYPE_ERROR
         logger.info(msg)
         if self._error_monitor:
             self._error_monitor.report_event(
                 event_type,
                 cur_node.name,
-                action,
-                detail_msg,
+                ErrorMonitorConstants.ACTION_STATUS_UPDATE,
+                msg,
                 {},
             )
 
         if should_relaunch:
-            if self._error_monitor:
-                self._error_monitor.report_event(
-                    "info",
-                    cur_node.name,
-                    "relaunch",
-                    detail_msg,
-                    {},
-                )
             self._relaunch_node(cur_node)
 
     def _process_node_events(
@@ -688,12 +700,14 @@ class DistributedJobManager(JobManager):
             and self._enable_relaunch_node
             and node.relaunchable
         )
+        msg = ""
         if should_relaunch:
             if (
                 node.exit_reason == NodeExitReason.FATAL_ERROR
                 and not _dlrover_context.relaunch_always
             ):
                 should_relaunch = False
+                msg = "Not configure relaunch always"
             elif node.exit_reason == NodeExitReason.OOM:
                 mem = node.config_resource.memory
                 if mem >= NodeResourceLimit.MAX_MEMORY:
@@ -702,6 +716,10 @@ class DistributedJobManager(JobManager):
                         "The memory of worker %s is beyond the limit %s MB.",
                         mem,
                         NodeResourceLimit.MAX_MEMORY,
+                    )
+                    msg = (
+                        f"The memory of worker {mem} is beyond"
+                        f" the limit {NodeResourceLimit.MAX_MEMORY} MB."
                     )
                 elif node.relaunch_count >= node.max_relaunch_count:
                     should_relaunch = False
@@ -721,8 +739,18 @@ class DistributedJobManager(JobManager):
                         "has been exhausted."
                     )
                     should_relaunch = False
+                    msg = "Exhausted relaunch times"
         if should_relaunch:
             node.relaunch_count += 1
+        else:
+            if self._error_monitor:
+                self._error_monitor.report_event(
+                    ErrorMonitorConstants.TYPE_INFO,
+                    node.name,
+                    ErrorMonitorConstants.ACTION_NOT_RELAUNCH,
+                    msg,
+                    {},
+                )
 
         return should_relaunch
 
@@ -747,10 +775,10 @@ class DistributedJobManager(JobManager):
             logger.error("Not support node type %s", node.type)
         if self._error_monitor and plan and len(plan.launch_nodes) > 0:
             self._error_monitor.report_event(
-                "info",
+                ErrorMonitorConstants.TYPE_INFO,
                 node.name,
+                ErrorMonitorConstants.ACTION_RELAUNCH,
                 f"relaunch to {plan.launch_nodes[0].id}",
-                "",
                 {},
             )
         self._set_ps_addrs_in_plan(plan)
