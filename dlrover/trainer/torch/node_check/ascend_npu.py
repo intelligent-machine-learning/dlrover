@@ -16,6 +16,9 @@ import os
 import torch
 import torch.distributed as dist
 
+from dlrover.python.common.log import default_logger as logger
+
+
 try:
     import torch_npu  # noqa: F401
     from torch_npu.contrib import transfer_to_npu  # noqa: F401
@@ -51,14 +54,17 @@ def main():
         result = matmul(use_cuda)
         shape = 1 << 24
         result += bm_allgather(shape, use_cuda)
+        return result
     finally:
         dist.destroy_process_group()
         if torch_npu:
-            torch_npu.npu.synchronize()
-            if torch_npu.npu.is_available():
-                torch_npu.npu.empty_cache()
-
-    return result
+            try:
+                torch_npu.npu.synchronize()
+                if torch_npu.npu.is_available():
+                    torch_npu.npu.empty_cache()
+                torch_npu._npu_shutdown()
+            except Exception as e:
+                logger.warning(f"Got error when cleanup npu: {str(e)}.")
 
 
 if __name__ == "__main__":
