@@ -18,7 +18,6 @@ import torch.distributed as dist
 
 from dlrover.python.common.log import default_logger as logger
 
-
 try:
     import torch_npu  # noqa: F401
     from torch_npu.contrib import transfer_to_npu  # noqa: F401
