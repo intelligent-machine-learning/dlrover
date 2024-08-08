@@ -65,17 +65,10 @@ class FsdpCheckpointSaver(TempDirCheckpointSaver):
 
 @singleton
 class FsdpCheckpointEngine(CheckpointEngine):
-    def __init__(self,
-                 checkpoint_dir: str,
-                 storage=None,
-                 comm_backend="",
-                 save_timeout=600):
+    def __init__(self, checkpoint_dir: str, storage=None, comm_backend=""):
         if storage is None:
             storage = PosixDiskStorage()
-        super().__init__(checkpoint_dir,
-                         storage,
-                         comm_backend,
-                         save_timeout=save_timeout)
+        super().__init__(checkpoint_dir, storage, comm_backend)
 
     def get_saving_ranks(self):
         """Get the ranks to save checkpoint shards."""
@@ -149,7 +142,6 @@ def save_checkpoint(
     extra_paths: Optional[Dict] = None,
     storage_type=StorageType.DISK,
     comm_backend="",
-    save_timeout=600,
     storage=None,
 ):
     """
@@ -165,10 +157,7 @@ def save_checkpoint(
             and the value is a path to save. For example, extra_sds["scheduler"]="/tmp/scheduler.pt".
     """
     dir_name = os.path.dirname(path)
-    ckpt_engine = FsdpCheckpointEngine(dir_name,
-                                       storage=storage,
-                                       comm_backend=comm_backend,
-                                       save_timeout=save_timeout)
+    ckpt_engine = FsdpCheckpointEngine(dir_name, storage=storage, comm_backend=comm_backend)
     params, buffers, param_meta, ckpt_meta = get_flat_model_param(model)
     optim_state, param_groups = get_fsdp_optim_param(model, optimizer)
 
