@@ -45,7 +45,6 @@ from torch.distributed.checkpoint.planner import (
     WriteItem,
     WriteItemType,
 )
-from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 
 from dlrover.python.common import grpc
 from dlrover.python.common.constants import CheckpointConstant
