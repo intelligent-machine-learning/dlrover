@@ -190,6 +190,7 @@ class FsdpFullCheckpointer(Checkpointer):
         checkpoint_dir: str,
         comm_backend="",
         deletion_strategy=None,
+        save_timeout: int = CheckpointConstant.SAVE_TIMEOUT,
     ):
         self.checkpoint_dir = checkpoint_dir
         if dist.is_initialized():
@@ -203,6 +204,7 @@ class FsdpFullCheckpointer(Checkpointer):
             local_shard_num=1,
             global_shard_num=1,
             comm_backend=comm_backend,
+            save_timeout=save_timeout,
         )
 
     def save_checkpoint(
