@@ -22,6 +22,8 @@ from typing import List
 
 import torch
 import torch.distributed as dist
+import torch.nn as nn
+import torch.optim as optim
 from torch.distributed._shard.sharded_tensor import ones
 from torch.distributed._shard.sharding_spec import ChunkShardingSpec
 from torch.distributed.checkpoint.default_planner import (
@@ -45,6 +47,7 @@ from torch.distributed.checkpoint.planner import (
     WriteItem,
     WriteItemType,
 )
+from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 
 from dlrover.python.common import grpc
 from dlrover.python.common.constants import CheckpointConstant
@@ -333,7 +336,6 @@ class FsdpCheckpointTest(unittest.TestCase):
         storage = PosixDiskStorage()
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir = Path(tmpdir)
-            engine = tmpdir
             path = tmpdir / str(step)
             paths = {CheckpointConstant.MODEL_STATES_NAME: path}
             engine = FsdpCheckpointEngine(tmpdir, storage)
@@ -398,3 +400,20 @@ class FsdpCheckpointTest(unittest.TestCase):
             self.assertListEqual(files, [".metadata", "__0_0.distcp"])
             reader = checkpointer._engine.load(path)
             self.assertTrue(isinstance(reader, SharedMemoryReader))
+
+            model = FSDP(SimpleModel())
+            checkpointer.save_checkpoint(
+                step,
+                model,
+                optim.Adam(model.parameters(), lr=0.001),
+                path=path,
+            )
+
+
+class SimpleModel(nn.Module):
+    def __init__(self):
+        super(SimpleModel, self).__init__()
+        self.fc = nn.Linear(10, 10)
+
+    def forward(self, x):
+        return self.fc(x)
