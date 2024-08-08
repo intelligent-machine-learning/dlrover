@@ -406,6 +406,11 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
             max_workers=self.local_shard_num, thread_name_prefix="ckpt_saver-"
         )
         self._master_client = None
+
+        # remove the history temp path if exists
+        self.storage.safe_rmtree(
+            os.path.join(self.checkpoint_dir, self._STAGE_DIR)
+        )
         logger.info(
             "Initialize the AsyncSaver with arguments: "
             f"checkpoint_dir={checkpoint_dir}, "
@@ -1008,10 +1013,12 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
             )
             return
         self._writing_storage = True
+        mkdir_timeout = self._save_timeout / 2
+
         temp_dir = self._get_tmp_ckpt_dir(step)
-        self._dist_make_dir(temp_dir, self._save_timeout)
+        self._dist_make_dir(temp_dir, mkdir_timeout)
         step_done_dir = self._get_checkpoint_done_dir(step)
-        self._dist_make_dir(step_done_dir, self._save_timeout)
+        self._dist_make_dir(step_done_dir, mkdir_timeout)
 
         write_success = False
         # save to stage path for each local rank
