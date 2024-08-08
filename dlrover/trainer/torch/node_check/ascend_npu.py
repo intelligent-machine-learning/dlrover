@@ -16,6 +16,8 @@ import os
 import torch
 import torch.distributed as dist
 
+from dlrover.python.common.log import default_logger as logger
+
 try:
     import torch_npu  # noqa: F401
     from torch_npu.contrib import transfer_to_npu  # noqa: F401
@@ -47,14 +49,18 @@ def main():
         local_rank = int(os.environ["LOCAL_RANK"])
         torch.cuda.set_device(local_rank)
 
-    t = matmul(use_cuda)
-    shape = 1 << 24
-    t += bm_allgather(shape, use_cuda)
-
-    if torch_npu:
-        torch_npu._npu_shutdown()
-    dist.destroy_process_group()
-    return t
+    try:
+        result = matmul(use_cuda)
+        shape = 1 << 24
+        result += bm_allgather(shape, use_cuda)
+        return result
+    finally:
+        dist.destroy_process_group()
+        if torch_npu:
+            try:
+                torch_npu._npu_shutdown()
+            except Exception as e:
+                logger.warning(f"Got error when cleanup npu: {str(e)}.")
 
 
 if __name__ == "__main__":
