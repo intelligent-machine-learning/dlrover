@@ -622,22 +622,23 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 return
 
             logger.info(
-                f"Saves the checkpoint shard of rank {ckpt_config.rank} from "
-                f"the shared memory into the storage {ckpt_config}."
+                f"Saves the checkpoint shard {local_shard_id} "
+                f"of rank {ckpt_config.rank} from the "
+                f"shared memory into the storage {ckpt_config}."
             )
             self.persist_to_storage(local_shard_id, ckpt_config)
             shm_lock.release()
             step_done_file = os.path.join(step_done_dir, str(ckpt_config.rank))
             self.storage.write("done", step_done_file)
             logger.info(
-                "Finish saving the checkpoint shard of "
+                f"Finish saving the checkpoint shard {local_shard_id} of "
                 f"rank {ckpt_config.rank}."
             )
             return True
         except Exception as e:
             logger.error(
-                f"Fail to save the checkpoint shard of rank {ckpt_config.rank}"
-                f", error: {e}",
+                f"Fail to save the checkpoint shard {local_shard_id} "
+                f"of rank {ckpt_config.rank}, error: {e}",
                 exc_info=True,
             )
             return False
@@ -646,6 +647,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
 
     def _dist_make_dir(self, path, timeout=30):
         if self._node_rank == 0:
+            logger.info(f"Create path by rank0 worker: {path}.")
             self.storage.safe_rmtree(path)
             self.storage.safe_makedirs(path)
         else:
