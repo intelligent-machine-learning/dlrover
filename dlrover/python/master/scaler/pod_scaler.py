@@ -20,7 +20,7 @@ import threading
 import time
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict, List, Optional
+from typing import Deque, Dict, List, Optional
 
 from kubernetes import client
 from kubernetes.client import V1EnvVar, V1EnvVarSource, V1ObjectFieldSelector
@@ -28,6 +28,7 @@ from kubernetes.client import V1EnvVar, V1EnvVarSource, V1ObjectFieldSelector
 from dlrover.python.common.constants import (
     DistributionStrategy,
     ElasticJobLabel,
+    ErrorMonitorConstants,
     NodeEnv,
     NodeStatus,
     NodeType,
@@ -84,13 +85,13 @@ class PodScaler(Scaler):
     in a queue.
     """
 
-    def __init__(self, job_name, namespace):
+    def __init__(self, job_name, namespace, error_monitor=None):
         super(PodScaler, self).__init__(job_name)
         self._k8s_client = k8sClient.singleton_instance(namespace)
         self._svc_factory = k8sServiceFactory(namespace, job_name)
         self._namespace = namespace
         self._replica_template: Dict[str, client.V1Pod] = {}
-        self._create_node_queue: deque[Node] = deque()
+        self._create_node_queue: Deque[Node] = deque()
         self._scaling_lock = threading.Lock()
         self._plan = ScalePlan()
         self._ps_addrs: List[str] = []
@@ -99,6 +100,7 @@ class PodScaler(Scaler):
         self._job_uid = ""
         self.api_client = client.ApiClient()
         self._master_addr = ""
+        self._error_monitor = error_monitor
         self._started = False
 
     def start(self):
@@ -524,6 +526,14 @@ class PodScaler(Scaler):
             V1EnvVar(name=NodeEnv.MONITOR_ENABLED, value="true")
         )
         self._patch_tf_config_into_env(pod, node)
+        if self._error_monitor:
+            self._error_monitor.report_event(
+                ErrorMonitorConstants.TYPE_INFO,
+                pod_name,
+                ErrorMonitorConstants.ACTION_WORKER_CREATE,
+                "",
+                {},
+            )
         return pod
 
     def _check_master_service_avaliable(self, host, port, timeout=15):
@@ -576,6 +586,7 @@ class PodScaler(Scaler):
 
     def _create_service_for_pod(self, node: Node):
         # create or patch worker service
+        logger.info(f"create service for node {node}")
         service_ready = True
         if node.service_addr:
             service_name = node.service_addr.split(".")[0]

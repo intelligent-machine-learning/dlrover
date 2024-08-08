@@ -19,6 +19,7 @@ from threading import Lock
 from typing import Dict, List, Tuple
 
 from dlrover.python.common.constants import (
+    ErrorMonitorConstants,
     NetworkFailureReason,
     RendezvousName,
 )
@@ -56,7 +57,7 @@ class RendezvousParameters(object):
 
 
 class RendezvousManager(metaclass=ABCMeta):
-    def __init__(self):
+    def __init__(self, error_monitor=None):
         self._lock = Lock()
         self._alive_nodes = set()
         self._released_workers = []
@@ -77,6 +78,7 @@ class RendezvousManager(metaclass=ABCMeta):
         self._save_ckpt_nodes: Dict[int, int] = {}
         self._topology_querier = DefaultTopologyQuerier()
         self._topology_sorter = DpTopologySorter()
+        self._error_monitor = error_monitor
 
     def get_min_nodes(self):
         return self._rdzv_params.min_nodes
@@ -281,6 +283,14 @@ class RendezvousManager(metaclass=ABCMeta):
             self._node_rdzv_times[node_rank] = round(
                 self._lastcall_time - self._start_rdzv_ts, 2
             )
+            if self._error_monitor:
+                self._error_monitor.report_event(
+                    ErrorMonitorConstants.TYPE_INFO,
+                    node_id,
+                    ErrorMonitorConstants.ACTION_RDZV,
+                    "",
+                    {},
+                )
 
         return self._rdzv_round
 
@@ -373,8 +383,8 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
     Elasticjob of DLRover, the node has an unique node ID.
     """
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, error_monitor=None):
+        super().__init__(error_monitor)
         self._name = RendezvousName.ELASTIC_TRAINING
 
     def get_comm_world(
@@ -432,8 +442,8 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         node-1 if not available.
     """
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, error_monitor=None):
+        super().__init__(error_monitor)
         self._name = RendezvousName.NETWORK_CHECK
         self._node_status: Dict[int, bool] = {}
         self._node_times: Dict[int, float] = {}
