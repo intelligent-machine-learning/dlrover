@@ -88,10 +88,10 @@ class FsdpShardCheckpointer(Checkpointer):
             step(int): the iteration step.
             model: A FSDP module.
             optimizer: An optimizer to train a FSDP model.
-            extra_sd(dict): A dict to store customized arguements
-                in the chechkpoint.
+            extra_sd(dict): A dict to store customized arguments
+                in the checkpoint.
             path(str): A path to store the checkpoint.
-            storage_tyep: Save the checkpoint into the memory
+            storage_type: Save the checkpoint into the memory
                 if `StorageType.MEMORY` and into the dist
                 if `StorageType.DISK`.
         """
@@ -111,7 +111,7 @@ class FsdpShardCheckpointer(Checkpointer):
                     raise ValueError(
                         "path cannot be empty if storage type is disk!"
                     )
-                self._engine.save_to_storage(step, state_dict, path)
+                self._engine.save_to_storage(step, state_dict, paths)
             else:
                 raise ValueError(f"No support storage type {storage_type}")
 

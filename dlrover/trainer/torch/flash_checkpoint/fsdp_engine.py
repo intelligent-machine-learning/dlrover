@@ -449,7 +449,7 @@ class FsdpCheckpointEngine(CheckpointEngine):
         Args:
             step (int): the global iteration step.
             state_dict (dict): the state dict of model and optimizer to save.
-            path (str): the storage path to save the state dict.
+            paths (dict): the storage path to save the state dict.
                 Note, the path is used to save the state dict to storage
                 only if the training process fails.
         """
@@ -501,6 +501,7 @@ class FsdpCheckpointEngine(CheckpointEngine):
         Args:
             step (int): the iteration step.
             state_dict (dict): the state dict of model and optimizer to save.
+            paths (dict): the storage path to save the state dict.
         """
         succeed = True
         if step > self._cached_step:
