@@ -653,6 +653,8 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 if self.storage.exists(path):
                     break
                 time.sleep(1)
+            logger.warning(f"Worker {self._node_rank} can't find path {path} "
+                           f"with timeout {timeout}.")
 
     def _any_rank_locked(self):
         """Verify that the shared memory of any rank is locked."""
@@ -928,7 +930,7 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
                 default 600s.
         """
         start_time = time.time()
-        suceess = False
+        success = False
         while True:
             if self._stop_commit:
                 logger.info(
@@ -945,7 +947,7 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
                 self.update_tracker_file(step)
                 # clean stage dir
                 self.storage.safe_rmtree(step_done_dir)
-                suceess = True
+                success = True
                 break
             logger.info(
                 f"The number of ready shards is {ready_num} "
@@ -964,7 +966,7 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
                 break
 
             time.sleep(5)
-        self.storage.commit(step, suceess)
+        self.storage.commit(step, success)
 
     def persist_to_storage(
         self, local_shard_id: int, ckpt_config: CheckpointConfig
@@ -1003,9 +1005,9 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
             return
         self._writing_storage = True
         temp_dir = self._get_tmp_ckpt_dir(step)
-        self._dist_make_dir(temp_dir)
+        self._dist_make_dir(temp_dir, self._save_timeout)
         step_done_dir = self._get_checkpoint_done_dir(step)
-        self._dist_make_dir(step_done_dir)
+        self._dist_make_dir(step_done_dir, self._save_timeout)
 
         write_success = False
         # save to stage path for each local rank
