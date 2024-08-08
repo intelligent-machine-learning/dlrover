@@ -477,7 +477,7 @@ class FsdpCheckpointEngine(CheckpointEngine):
 
         # Broadcast dcp metadata and no sharding data to all ranks
         # and all ranks can restore the state dict from the CPU
-        # memory with those metada.
+        # memory with those metadata.
         bcast_list = [self._shm_writer.metadata]
         dist.broadcast_object_list(bcast_list, src=0)
         self._shm_writer.metadata = bcast_list[0]

@@ -653,8 +653,10 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 if self.storage.exists(path):
                     break
                 time.sleep(1)
-            logger.warning(f"Worker {self._node_rank} can't find path {path} "
-                           f"with timeout {timeout}.")
+            logger.warning(
+                f"Worker {self._node_rank} can't find path {path} "
+                f"with timeout {timeout}."
+            )
 
     def _any_rank_locked(self):
         """Verify that the shared memory of any rank is locked."""
