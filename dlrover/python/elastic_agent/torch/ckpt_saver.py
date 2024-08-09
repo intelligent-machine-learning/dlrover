@@ -1246,12 +1246,28 @@ class FsdpDcpSaver(CommonDirCheckpointSaver):
             ckpt_config : the checkpoint config with the path to
                 save the storage.
         """
+
         shm_handler = self._shm_handlers[local_shard_id]
         path = ckpt_config.paths[CheckpointConstant.MODEL_STATES_NAME]
         checkpoint_dir = os.path.dirname(path)
-        self._dist_make_dir(checkpoint_dir)
+
+        logger.info(
+            "FsdpDcpSaver persist to storage "
+            f"with rank: {ckpt_config.rank}, "
+            f"local shard: {local_shard_id}, "
+            f"step: {ckpt_config.step}, "
+            f"path: {checkpoint_dir}"
+        )
+
+        # only rank0 create dir
+        if self._is_agent_rank_0 and local_shard_id == 0:
+            self._dist_make_dir(checkpoint_dir)
+
+        # do saving
         assert shm_handler.shared_memory is not None
         self.storage.write(shm_handler.shared_memory.buf, path)
+
+        # operate meta
         if self._is_agent_rank_0 and local_shard_id == 0:
             parent_path = Path(os.path.dirname(path))
             meta_dict = shm_handler.metadata.get()
