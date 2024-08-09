@@ -14,6 +14,7 @@
 import os
 import shutil
 import tempfile
+import time
 import unittest
 
 from dlrover.python.common.storage import (
@@ -83,6 +84,15 @@ class TestLocalStrategyGenerator(unittest.TestCase):
 
             storage = get_checkpoint_storage(None)
             self.assertTrue(isinstance(storage, PosixDiskStorage))
+
+    def test_error_write(self):
+        storage = PosixDiskStorage()
+        path = "/tmp/" + str(time.time()) + "/test_error_write"
+        try:
+            storage.write("testing123", path)
+            self.fail()
+        except OSError:
+            self.assertTrue(True)
 
 
 if __name__ == "__main__":
