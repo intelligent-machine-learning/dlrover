@@ -131,8 +131,13 @@ class PosixDiskStorage(CheckpointStorage):
         if isinstance(content, bytes) or isinstance(content, memoryview):
             mode = "wb"
         with open(path, mode) as stream:
-            stream.write(content)
-            os.fsync(stream.fileno())
+            try:
+                stream.write(content)
+                os.fsync(stream.fileno())
+            except OSError as e:
+                logger.error(f"Failed to write file with path: {path}, "
+                             f"mode: {mode}")
+                raise e
 
     def write_state_dict(self, state_dict, path, write_func=None):
         dir = os.path.dirname(path)
