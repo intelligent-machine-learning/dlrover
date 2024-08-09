@@ -1251,14 +1251,6 @@ class FsdpDcpSaver(CommonDirCheckpointSaver):
         path = ckpt_config.paths[CheckpointConstant.MODEL_STATES_NAME]
         checkpoint_dir = os.path.dirname(path)
 
-        logger.info(
-            "FsdpDcpSaver persist to storage "
-            f"with rank: {ckpt_config.rank}, "
-            f"local shard: {local_shard_id}, "
-            f"step: {ckpt_config.step}, "
-            f"path: {checkpoint_dir}"
-        )
-
         # only rank0 create dir
         if self._is_agent_rank_0 and local_shard_id == 0:
             self._dist_make_dir(checkpoint_dir)
