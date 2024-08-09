@@ -312,9 +312,24 @@ class Accelerators(object):
 
 
 class AscendConstants(object):
-    # By default there are 16(max) npu on one machine
+    # By default， there are 16(max) npu on one machine
     NPU_PER_NODE = 16
 
     # represent the starting offset of the hccl's port using
     HCCL_PORT_START = "HCCL_IF_BASE_PORT"
     HCCL_PORT_START_DEFAULT = 64000
+
+
+class ErrorMonitorConstants(object):
+    TYPE_INFO = "info"
+    TYPE_ERROR = "error"
+
+    ACTION_WORKER_CREATE = "worker_create"
+    ACTION_STATUS_UPDATE = "status_update"
+    ACTION_EARLY_STOP = "early_stop"
+    ACTION_STOP = "stop"
+    ACTION_RELAUNCH = "relaunch"
+    ACTION_NOT_RELAUNCH = "not_relaunch"
+    ACTION_GLOBAL_STEP = "global_step"
+    ACTION_RDZV = "rendezvous"
+    ACTION_START = "start"

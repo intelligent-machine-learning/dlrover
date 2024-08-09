@@ -449,7 +449,7 @@ class FsdpCheckpointEngine(CheckpointEngine):
         Args:
             step (int): the global iteration step.
             state_dict (dict): the state dict of model and optimizer to save.
-            path (str): the storage path to save the state dict.
+            paths (dict): the storage path to save the state dict.
                 Note, the path is used to save the state dict to storage
                 only if the training process fails.
         """
@@ -477,7 +477,7 @@ class FsdpCheckpointEngine(CheckpointEngine):
 
         # Broadcast dcp metadata and no sharding data to all ranks
         # and all ranks can restore the state dict from the CPU
-        # memory with those metada.
+        # memory with those metadata.
         bcast_list = [self._shm_writer.metadata]
         dist.broadcast_object_list(bcast_list, src=0)
         self._shm_writer.metadata = bcast_list[0]
@@ -501,6 +501,7 @@ class FsdpCheckpointEngine(CheckpointEngine):
         Args:
             step (int): the iteration step.
             state_dict (dict): the state dict of model and optimizer to save.
+            paths (dict): the storage path to save the state dict.
         """
         succeed = True
         if step > self._cached_step:
