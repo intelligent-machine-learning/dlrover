@@ -332,4 +332,5 @@ class ErrorMonitorConstants(object):
     ACTION_NOT_RELAUNCH = "not_relaunch"
     ACTION_GLOBAL_STEP = "global_step"
     ACTION_RDZV = "rendezvous"
-    ACTION_START = "start"
+    ACTION_TRAINING_START = "training_start"
+    ACTION_RESTART_TRAINING = "restart_training"

@@ -95,7 +95,7 @@ class SpeedMonitor(object):
                 self._error_monitor.report_event(
                     ErrorMonitorConstants.TYPE_INFO,
                     "job",
-                    ErrorMonitorConstants.ACTION_START,
+                    ErrorMonitorConstants.ACTION_TRAINING_START,
                     "",
                     {},
                 )
