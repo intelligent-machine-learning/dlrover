@@ -50,9 +50,9 @@ DLROVER_CKPT_CONFIG_KEY = "_DLORVER_CKPT_CONFIG"
 
 
 class CheckpointSharedObjPrefix:
-    SAVE_STEP_QNAME = "checkpoint_lock_rank_"
-    META_NAME = "checkpoint_meta_"
-    SHM_NAME = "checkpoint_shm_"
+    SAVE_STEP_QNAME = "ckpt_lock_rank_"
+    META_NAME = "ckpt_meta_"
+    SHM_NAME = "ckpt_shm_"
     SHM_LOCK_NAME = "shm_lock_"
 
 
@@ -377,6 +377,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         local_shard_num=1,
         global_shard_num=1,
         save_timeout=CheckpointConstant.SAVE_TIMEOUT,
+        unique_process_id=0,
     ) -> None:
         self.checkpoint_dir = checkpoint_dir
         self.local_shard_num = local_shard_num
@@ -387,6 +388,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         self._shm_locks: List[SharedLock] = []
         self._stop_commit = False
         self._save_timeout = save_timeout
+        self._unique_process_id = unique_process_id
 
         module = importlib.import_module(storage_meta.module_path)
         storage_class_def = getattr(module, storage_meta.class_name)
@@ -400,7 +402,12 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         self._event_queue = SharedQueue(name=qname, create=True)
         for i in range(self.local_shard_num):
             self._shm_handlers.append(SharedMemoryHandler(i))
-            lock_name = CheckpointSharedObjPrefix.SHM_LOCK_NAME + str(i)
+            lock_name = (
+                CheckpointSharedObjPrefix.SHM_LOCK_NAME
+                + str(i)
+                + "_"
+                + str(self._unique_process_id)
+            )
             self._shm_locks.append(SharedLock(name=lock_name, create=True))
         self._executor = ThreadPoolExecutor(
             max_workers=self.local_shard_num, thread_name_prefix="ckpt_saver-"
