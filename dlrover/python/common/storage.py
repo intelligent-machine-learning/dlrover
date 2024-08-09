@@ -92,7 +92,7 @@ class CheckpointStorage(metaclass=ABCMeta):
 
         Args:
             step (int): the iteration step.
-            succeed (bool): whether to persist the checkpoint of step.
+            success (bool): whether to persist the checkpoint of step.
         """
         pass
 
