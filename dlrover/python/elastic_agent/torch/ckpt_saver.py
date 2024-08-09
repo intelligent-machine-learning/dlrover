@@ -406,6 +406,11 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
             max_workers=self.local_shard_num, thread_name_prefix="ckpt_saver-"
         )
         self._master_client = None
+
+        # remove the history temp path if exists
+        self.storage.safe_rmtree(
+            os.path.join(self.checkpoint_dir, self._STAGE_DIR)
+        )
         logger.info(
             "Initialize the AsyncSaver with arguments: "
             f"checkpoint_dir={checkpoint_dir}, "
@@ -555,7 +560,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                     break
             except Exception as e:
                 logger.error(
-                    "Got unexpected exception " f"during checkpointing: {e}."
+                    f"Got unexpected exception during checkpointing: {e}."
                 )
                 self._report_failure_to_master(str(e))
 
@@ -622,22 +627,23 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 return
 
             logger.info(
-                f"Saves the checkpoint shard of rank {ckpt_config.rank} from "
-                f"the shared memory into the storage {ckpt_config}."
+                f"Saves the checkpoint shard {local_shard_id} "
+                f"of rank {ckpt_config.rank} from the "
+                f"shared memory into the storage {ckpt_config}."
             )
             self.persist_to_storage(local_shard_id, ckpt_config)
             shm_lock.release()
             step_done_file = os.path.join(step_done_dir, str(ckpt_config.rank))
             self.storage.write("done", step_done_file)
             logger.info(
-                "Finish saving the checkpoint shard of "
+                f"Finish saving the checkpoint shard {local_shard_id} of "
                 f"rank {ckpt_config.rank}."
             )
             return True
         except Exception as e:
             logger.error(
-                f"Fail to save the checkpoint shard of rank {ckpt_config.rank}"
-                f", error: {e}",
+                f"Fail to save the checkpoint shard {local_shard_id} "
+                f"of rank {ckpt_config.rank}, error: {e}",
                 exc_info=True,
             )
             return False
@@ -646,6 +652,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
 
     def _dist_make_dir(self, path, timeout=30):
         if self._node_rank == 0:
+            logger.info(f"Create path by rank0 worker: {path}.")
             self.storage.safe_rmtree(path)
             self.storage.safe_makedirs(path)
         else:
@@ -653,6 +660,10 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 if self.storage.exists(path):
                     break
                 time.sleep(1)
+            logger.warning(
+                f"Worker {self._node_rank} can't find path {path} "
+                f"with timeout {timeout}."
+            )
 
     def _any_rank_locked(self):
         """Verify that the shared memory of any rank is locked."""
@@ -928,7 +939,7 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
                 default 600s.
         """
         start_time = time.time()
-        suceess = False
+        success = False
         while True:
             if self._stop_commit:
                 logger.info(
@@ -945,7 +956,7 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
                 self.update_tracker_file(step)
                 # clean stage dir
                 self.storage.safe_rmtree(step_done_dir)
-                suceess = True
+                success = True
                 break
             logger.info(
                 f"The number of ready shards is {ready_num} "
@@ -964,7 +975,7 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
                 break
 
             time.sleep(5)
-        self.storage.commit(step, suceess)
+        self.storage.commit(step, success)
 
     def persist_to_storage(
         self, local_shard_id: int, ckpt_config: CheckpointConfig
@@ -1002,10 +1013,12 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
             )
             return
         self._writing_storage = True
+        mkdir_timeout = self._save_timeout / 2
+
         temp_dir = self._get_tmp_ckpt_dir(step)
-        self._dist_make_dir(temp_dir)
+        self._dist_make_dir(temp_dir, mkdir_timeout)
         step_done_dir = self._get_checkpoint_done_dir(step)
-        self._dist_make_dir(step_done_dir)
+        self._dist_make_dir(step_done_dir, mkdir_timeout)
 
         write_success = False
         # save to stage path for each local rank
