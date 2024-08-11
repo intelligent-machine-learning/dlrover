@@ -12,10 +12,11 @@
 # limitations under the License.
 
 import os
-from datetime import timedelta
 
 import torch
 import torch.distributed as dist
+
+from dlrover.python.common.log import default_logger as logger
 
 try:
     import torch_npu  # noqa: F401
@@ -23,7 +24,13 @@ try:
 except Exception:
     torch_npu = None
 
-from .utils import bm_allgather, matmul, record_execution_time
+from .utils import (
+    bm_allgather,
+    get_network_check_timeout,
+    init_process_group,
+    matmul,
+    record_execution_time,
+)
 
 
 @record_execution_time
@@ -36,20 +43,24 @@ def main():
         if "Ascend" in device:
             protocol = "hccl"
 
-    dist.init_process_group(protocol, timeout=timedelta(seconds=180))
+    init_process_group(protocol, timeout=get_network_check_timeout())
 
     if use_cuda:
         local_rank = int(os.environ["LOCAL_RANK"])
         torch.cuda.set_device(local_rank)
 
-    t = matmul(use_cuda)
-    shape = 1 << 24
-    t += bm_allgather(shape, use_cuda)
-
-    if torch_npu:
-        torch_npu._npu_shutdown()
-    dist.destroy_process_group()
-    return t
+    try:
+        result = matmul(use_cuda)
+        shape = 1 << 24
+        result += bm_allgather(shape, use_cuda)
+        return result
+    finally:
+        dist.destroy_process_group()
+        if torch_npu:
+            try:
+                torch_npu._npu_shutdown()
+            except Exception as e:
+                logger.warning(f"Got error when cleanup npu: {str(e)}.")
 
 
 if __name__ == "__main__":

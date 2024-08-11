@@ -113,6 +113,9 @@ class CheckpointBackupTest(unittest.TestCase):
         shard_manager = FullCkptReplicaManager(replica_count=2)
         self.assertListEqual(shard_manager.backup_ranks, [0, 8, 16, 24])
 
+        shard_manager = ShardCkptReplicaManager(replica_count=0)
+        self.assertListEqual(shard_manager.backup_ranks, [])
+
     def test_backup_checkpoint(self):
         world_size = 2
         mp.spawn(

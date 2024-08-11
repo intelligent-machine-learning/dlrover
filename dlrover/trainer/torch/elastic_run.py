@@ -86,7 +86,6 @@ For auto-tuning parallelism configuration, you need to specify:
 
 1. ``--auto-tunning``: Whether to auto tune the batch size and learning rate.
 """
-
 import os
 import socket
 import sys
@@ -106,6 +105,7 @@ from torch.distributed.run import (
     parse_min_max_nnodes,
 )
 
+import dlrover.python.util.common_util as cu
 from dlrover.python.common import env_utils, grpc
 from dlrover.python.common.constants import (
     Accelerators,
@@ -182,6 +182,14 @@ def parse_args(args):
         default=Accelerators.NVIDIA_GPU,
         choices=[Accelerators.NVIDIA_GPU, Accelerators.ASCEND_NPU],
         help="The type of accelerator chip of the machine.",
+    )
+    parser.add_argument(
+        "--training_port",
+        "--training-port",
+        type=int,
+        action=env,
+        default=60000,
+        help="The start of training port.",
     )
     return parser.parse_args(args)
 
@@ -276,7 +284,7 @@ def _check_dlrover_master_available(addr, timeout=120):
     while True:
         try:
             telnetlib.Telnet(host=host, port=port, timeout=3)
-            logger.info("DLRover job master starts!")
+            logger.info("DLRover master has already started.")
             return True
         except (socket.timeout, ConnectionRefusedError):
             time.sleep(1)
@@ -312,6 +320,7 @@ def _elastic_config_from_args(
         args, "exclude_straggler", False
     )
     elastic_config.set_node_unit(getattr(args, "node_unit", 1))
+    elastic_config.training_port = getattr(args, "training_port", 60000)
     elastic_config.save_at_breakpoint = getattr(
         args, "save_at_breakpoint", False
     )
@@ -340,9 +349,9 @@ def _check_to_use_dlrover_run(master_addr, max_nodes, timeout=120):
 
 
 def run(args):
+    logger.info(f"DLRover agent started with: {cu.get_dlrover_version()}.")
     master_handler = None
     master_addr = os.getenv(NodeEnv.DLROVER_MASTER_ADDR, "")
-    use_dlrover_launch = False
     node_rank = env_utils.get_node_rank()
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     job_name = os.getenv(NodeEnv.JOB_NAME, f"standalone_{timestamp}")

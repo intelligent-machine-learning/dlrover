@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import importlib
+import json
 import os
 import pickle
 import signal
@@ -20,14 +21,21 @@ import time
 from abc import ABCMeta, abstractmethod
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum, auto
 from pathlib import Path
 from typing import Callable, Dict, List, Mapping, Optional, Tuple
 
 import torch
 
+import dlrover.python.util.file_util as fu
 from dlrover.python.common import env_utils
-from dlrover.python.common.constants import CheckpointConstant, NodeEnv
+from dlrover.python.common.constants import (
+    CheckpointConstant,
+    NodeEnv,
+    TrainingExceptionLevel,
+)
+from dlrover.python.common.error import ProcessError
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.multi_process import (
     SharedDict,
@@ -200,10 +208,11 @@ def _write_shared_memory(value: torch.Tensor, meta: TensorMeta, buffer):
     """
     if value.numel() == 0:
         return
-    shm_tensor = torch.frombuffer(
-        buffer, dtype=value.dtype, count=value.numel(), offset=meta.offset
-    ).reshape(value.shape)
-    shm_tensor.copy_(value)
+    with torch.no_grad():
+        shm_tensor = torch.frombuffer(
+            buffer, dtype=value.dtype, count=value.numel(), offset=meta.offset
+        ).reshape(value.shape)
+        shm_tensor.copy_(value)
 
 
 class SharedMemoryHandler(object):
@@ -396,6 +405,12 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         self._executor = ThreadPoolExecutor(
             max_workers=self.local_shard_num, thread_name_prefix="ckpt_saver-"
         )
+        self._master_client = None
+
+        # remove the history temp path if exists
+        self.storage.safe_rmtree(
+            os.path.join(self.checkpoint_dir, self._STAGE_DIR)
+        )
         logger.info(
             "Initialize the AsyncSaver with arguments: "
             f"checkpoint_dir={checkpoint_dir}, "
@@ -493,6 +508,11 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         signal.signal(signal.SIGINT, _clean_shm_handler)
         signal.signal(signal.SIGTERM, _save_shm_before_exiting)
 
+    @classmethod
+    def register_master_client(cls, master_client):
+        if cls._saver_instance:
+            cls._saver_instance.setup_master_client(master_client)
+
     def wait_saving_checkpoint(self):
         """
         Check whether the saver finishes writing the
@@ -521,20 +541,60 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         """
         logger.info("Async flash checkpoint saver starts!")
         while True:
-            event: CheckpointEvent = self._event_queue.get()
-            if event.type == CheckpointEventType.UPDATE_SHARD:
-                logger.info(
-                    "Reset the shared memory after the training starts. "
-                    f"The number of global shards is {event.global_shard_num}."
+            try:
+                event: CheckpointEvent = self._event_queue.get()
+                if event.type == CheckpointEventType.UPDATE_SHARD:
+                    logger.info(
+                        "Reset the shared memory after the training starts. "
+                        "The number of global shards "
+                        f"is {event.global_shard_num}."
+                    )
+                    self.global_shard_num = event.global_shard_num
+                elif event.type == CheckpointEventType.SAVE:
+                    logger.info(
+                        "ShardingSaver save checkpoint to storage, "
+                        f"event {event}"
+                    )
+                    self.save_step_checkpoint(event.step)
+                elif event.type == CheckpointEventType.EXIT:
+                    break
+            except Exception as e:
+                logger.error(
+                    f"Got unexpected exception during checkpointing: {e}."
                 )
-                self.global_shard_num = event.global_shard_num
-            elif event.type == CheckpointEventType.SAVE:
-                logger.info(
-                    f"ShardingSaver save checkpoint to storage, event {event}"
-                )
-                self.save_step_checkpoint(event.step)
-            elif event.type == CheckpointEventType.EXIT:
-                break
+                self._report_failure_to_master(str(e))
+
+    def setup_master_client(self, master_client):
+        self._master_client = master_client
+
+    def _report_failure_to_master(self, error_msg):
+        if not self._master_client:
+            logger.warning(
+                "Skip ckpt saver failure reporting for master "
+                "client hasn't setup."
+            )
+            return
+
+        if not error_msg:
+            error_msg = "Unknown"
+        error_full_msg = "Async checkpoint saver got failure:" + error_msg
+
+        try:
+            error = ProcessError(
+                self._node_rank,
+                -1,
+                error_full_msg,
+                datetime.now().strftime("%m/%d/%Y %H:%M:%S"),
+            )
+
+            self._master_client.report_failures(
+                json.dumps(error),
+                level=TrainingExceptionLevel.PROCESS_ERROR,
+            )
+        except Exception as e:
+            logger.warning(
+                "Failed to report failure to master " f"in ckpt saver: {e}."
+            )
 
     def reset_shared_memory(self):
         self._stop_commit = True
@@ -567,22 +627,23 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 return
 
             logger.info(
-                f"Saves the checkpoint shard of rank {ckpt_config.rank} from "
-                f"the shared memory into the storage {ckpt_config}."
+                f"Saves the checkpoint shard {local_shard_id} "
+                f"of rank {ckpt_config.rank} from the "
+                f"shared memory into the storage {ckpt_config}."
             )
             self.persist_to_storage(local_shard_id, ckpt_config)
             shm_lock.release()
             step_done_file = os.path.join(step_done_dir, str(ckpt_config.rank))
             self.storage.write("done", step_done_file)
             logger.info(
-                "Finish saving the checkpoint shard of "
+                f"Finish saving the checkpoint shard {local_shard_id} of "
                 f"rank {ckpt_config.rank}."
             )
             return True
         except Exception as e:
             logger.error(
-                f"Fail to save the checkpoint shard of rank {ckpt_config.rank}"
-                f", error: {e}",
+                f"Fail to save the checkpoint shard {local_shard_id} "
+                f"of rank {ckpt_config.rank}, error: {e}",
                 exc_info=True,
             )
             return False
@@ -591,6 +652,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
 
     def _dist_make_dir(self, path, timeout=30):
         if self._node_rank == 0:
+            logger.info(f"Create path by rank0 worker: {path}.")
             self.storage.safe_rmtree(path)
             self.storage.safe_makedirs(path)
         else:
@@ -598,6 +660,10 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 if self.storage.exists(path):
                     break
                 time.sleep(1)
+            logger.warning(
+                f"Worker {self._node_rank} can't find path {path} "
+                f"with timeout {timeout}."
+            )
 
     def _any_rank_locked(self):
         """Verify that the shared memory of any rank is locked."""
@@ -873,7 +939,7 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
                 default 600s.
         """
         start_time = time.time()
-        suceess = False
+        success = False
         while True:
             if self._stop_commit:
                 logger.info(
@@ -890,7 +956,7 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
                 self.update_tracker_file(step)
                 # clean stage dir
                 self.storage.safe_rmtree(step_done_dir)
-                suceess = True
+                success = True
                 break
             logger.info(
                 f"The number of ready shards is {ready_num} "
@@ -909,7 +975,7 @@ class CommonDirCheckpointSaver(AsyncCheckpointSaver):
                 break
 
             time.sleep(5)
-        self.storage.commit(step, suceess)
+        self.storage.commit(step, success)
 
     def persist_to_storage(
         self, local_shard_id: int, ckpt_config: CheckpointConfig
@@ -947,10 +1013,12 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
             )
             return
         self._writing_storage = True
+        mkdir_timeout = self._save_timeout / 2
+
         temp_dir = self._get_tmp_ckpt_dir(step)
-        self._dist_make_dir(temp_dir)
+        self._dist_make_dir(temp_dir, mkdir_timeout)
         step_done_dir = self._get_checkpoint_done_dir(step)
-        self._dist_make_dir(step_done_dir)
+        self._dist_make_dir(step_done_dir, mkdir_timeout)
 
         write_success = False
         # save to stage path for each local rank
@@ -1015,7 +1083,7 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
             tmp_paths[name] = path.replace(path_dir, temp_dir)
             if not ckpt_dir:
                 ckpt_dir = path_dir
-            elif ckpt_dir != path_dir:
+            elif not fu.is_same_path(ckpt_dir, path_dir):
                 raise ValueError(
                     "The directories must be same. The latest dir "
                     f"is {ckpt_dir} and the current dir  of {name} "
@@ -1178,12 +1246,20 @@ class FsdpDcpSaver(CommonDirCheckpointSaver):
             ckpt_config : the checkpoint config with the path to
                 save the storage.
         """
+
         shm_handler = self._shm_handlers[local_shard_id]
         path = ckpt_config.paths[CheckpointConstant.MODEL_STATES_NAME]
         checkpoint_dir = os.path.dirname(path)
-        self._dist_make_dir(checkpoint_dir)
+
+        # only rank0 create dir
+        if self._is_agent_rank_0 and local_shard_id == 0:
+            self._dist_make_dir(checkpoint_dir)
+
+        # do saving
         assert shm_handler.shared_memory is not None
         self.storage.write(shm_handler.shared_memory.buf, path)
+
+        # operate meta
         if self._is_agent_rank_0 and local_shard_id == 0:
             parent_path = Path(os.path.dirname(path))
             meta_dict = shm_handler.metadata.get()

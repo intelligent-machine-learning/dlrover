@@ -22,7 +22,6 @@ from threading import Lock
 from typing import Dict, List
 
 from dlrover.python.common.constants import (
-    AscendConstants,
     DistributionStrategy,
     NodeResourceLimit,
     NodeStatus,
@@ -392,6 +391,7 @@ class TrainingNodeConfigure:
                     next_check_port=self._next_check_node_training_port,
                 )
             self._recv_node_training_ports[node_id] = port
+            logger.info(f"recv ports: {self._recv_node_training_ports.keys()}")
             if len(self._recv_node_training_ports) == self._n_node:
                 min_port = 0
                 max_port = 0
@@ -401,13 +401,12 @@ class TrainingNodeConfigure:
                     if max_port < recv_port:
                         max_port = recv_port
                 if min_port != max_port:
+                    self._recv_node_training_ports.clear()
+                    self._next_check_node_training_port = max_port
                     logger.info(
                         f"fail to sync node training ports: "
-                        f"{self._recv_node_training_ports}"
-                    )
-                    self._recv_node_training_ports.clear()
-                    self._next_check_node_training_port = (
-                        max_port + AscendConstants.NPU_PER_NODE
+                        f"{self._recv_node_training_ports}, "
+                        f"next sync port: {max_port}"
                     )
                     return SyncNodeTrainingPorts(
                         training_port=0,

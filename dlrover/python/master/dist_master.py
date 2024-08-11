@@ -33,6 +33,7 @@ from dlrover.python.master.elastic_training.rdzv_manager import (
 )
 from dlrover.python.master.elastic_training.sync_service import SyncService
 from dlrover.python.master.master import JobMaster
+from dlrover.python.master.monitor.error_monitor import ErrorMonitor
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.dist_job_manager import create_job_manager
 from dlrover.python.master.node.event_callback import (
@@ -103,7 +104,9 @@ class DistributedJobMaster(JobMaster):
     ElasticPSService: manages the hosts of alive PS nodes in a PS training job.
     """
 
-    def __init__(self, port, args: JobArgs):
+    def __init__(
+        self, port, args: JobArgs, error_monitor: ErrorMonitor = None
+    ):
         if args.platform in [
             PlatformType.KUBERNETES,
             PlatformType.PY_KUBERNETES,
@@ -133,8 +136,10 @@ class DistributedJobMaster(JobMaster):
         )
         elastic_training = RendezvousName.ELASTIC_TRAINING
         self.rdzv_managers: Dict[str, RendezvousManager] = {
-            elastic_training: ElasticTrainingRendezvousManager(),
-            RendezvousName.NETWORK_CHECK: NetworkCheckRendezvousManager(),
+            elastic_training: ElasticTrainingRendezvousManager(error_monitor),
+            RendezvousName.NETWORK_CHECK: NetworkCheckRendezvousManager(
+                error_monitor
+            ),
         }
         self.job_metric_collector = self._create_metric_collector_if_needed(
             args
@@ -217,9 +222,9 @@ class DistributedJobMaster(JobMaster):
             while True:
                 if self._stop_requested:
                     break
-                msg = self.job_manager.early_stop()
-                if msg:
-                    self.request_stop(False, msg)
+                should_stop, reason, msg = self.job_manager.should_early_stop()
+                if should_stop:
+                    self.request_stop(False, reason, msg)
                     continue
                 self.job_manager.clear_exited_nodes()
                 if self.job_manager and self.job_manager.all_workers_exited():
@@ -298,7 +303,13 @@ class DistributedJobMaster(JobMaster):
         self._exit_reason = reason
         if success:
             self._exit_code = 0
-            logger.info(msg)
+            logger.info(
+                f"Request to stop. Success: {success}, reason: {reason}, "
+                f"msg: {msg}."
+            )
         else:
             self._exit_code = 1
-            logger.error(msg)
+            logger.error(
+                f"Request to stop. Success: {success}, reason: {reason}, "
+                f"msg: {msg}."
+            )

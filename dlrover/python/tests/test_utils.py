@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import datetime
+import os
 from unittest import mock
 
 import yaml
@@ -35,17 +36,33 @@ from dlrover.python.master.shard.task_manager import TaskManager
 from dlrover.python.scheduler.job import JobArgs, LocalJobArgs, NodeArgs
 from dlrover.python.scheduler.kubernetes import k8sClient
 
+WITH_TO_DELETED = "WITH_TO_DELETED"
+
+
+def _is_local():
+    return "dlrover/python/tests" in os.getcwd()
+
 
 def get_test_scale_plan(*args, **kwargs):
-    with open("dlrover/python/tests/data/scaleplan_sample.yaml", "r") as f:
-        job_content = f.read()
+    if _is_local():
+        with open("data/scaleplan_sample.yaml", "r") as f:
+            job_content = f.read()
+    else:
+        with open("dlrover/python/tests/data/scaleplan_sample.yaml", "r") as f:
+            job_content = f.read()
     job = yaml.safe_load(job_content)
     return job
 
 
 def _get_training_job(*args, **kwargs):
-    with open("dlrover/python/tests/data/elasticjob_sample.yaml", "r") as f:
-        job_content = f.read()
+    if _is_local():
+        with open("data/elasticjob_sample.yaml", "r") as f:
+            job_content = f.read()
+    else:
+        with open(
+            "dlrover/python/tests/data" "/elasticjob_sample.yaml", "r"
+        ) as f:
+            job_content = f.read()
     job = yaml.safe_load(job_content)
     return job
 
@@ -99,9 +116,9 @@ class MockK8sAllreduceJobArgs(JobArgs):
             PlatformType.KUBERNETES, "default", "test"
         )
 
-    def initilize(self):
+    def initilize(self, worker_count=16):
         worker_resource = NodeGroupResource(
-            16, NodeResource(1, 4096, "a100", 8)
+            worker_count, NodeResource(1, 4096, "a100", 8)
         )
         self.node_args[NodeType.WORKER] = NodeArgs(
             worker_resource, True, 3, 0, ""
@@ -234,6 +251,17 @@ def mock_list_namespaced_pod(label_selector):
             }
             pod = create_pod(labels)
             pods.append(pod)
+
+    if os.getenv(WITH_TO_DELETED):
+        labels = {
+            ElasticJobLabel.APP_NAME: "test",
+            ElasticJobLabel.REPLICA_TYPE_KEY: NodeType.WORKER,
+            ElasticJobLabel.REPLICA_INDEX_KEY: str(99),
+            ElasticJobLabel.RANK_INDEX_KEY: str(99),
+            ElasticJobLabel.RELAUNCH_COUNT: "0",
+        }
+        pod = create_pod(labels, with_deletion_timestamp=True)
+        pods.append(pod)
 
     return client.V1PodList(
         items=pods, metadata=client.V1ListMeta(resource_version="12345678")

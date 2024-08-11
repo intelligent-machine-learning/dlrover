@@ -14,8 +14,10 @@
 import time
 from typing import Dict, List, Set, Tuple
 
+from dlrover.python.common.constants import ErrorMonitorConstants
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.master.monitor.error_monitor import ErrorMonitor
 
 _dlrover_context = Context.singleton_instance()
 
@@ -43,7 +45,7 @@ class EvaluationTime(object):
 class SpeedMonitor(object):
     """Monitor the training speed by the number of batch per second"""
 
-    def __init__(self):
+    def __init__(self, error_monitor: ErrorMonitor = None):
         self._global_step_records: List[GlobalStepRecord] = []
         self._workers: Set[Tuple[str, int]] = set()
         self._max_record_count = _dlrover_context.train_speed_record_num
@@ -53,6 +55,7 @@ class SpeedMonitor(object):
         self._start_training_time = None
         self._sample_count = 0
         self._worker_eval_times: Dict[int, EvaluationTime] = {}
+        self._error_monitor = error_monitor
 
     def set_target_worker_num(self, worker_num):
         """Set the target number of workers"""
@@ -88,6 +91,14 @@ class SpeedMonitor(object):
                 "The initial training time is %s",
                 self._start_training_time - self._init_time,
             )
+            if self._error_monitor:
+                self._error_monitor.report_event(
+                    ErrorMonitorConstants.TYPE_INFO,
+                    "job",
+                    ErrorMonitorConstants.ACTION_TRAINING_START,
+                    "",
+                    {},
+                )
         self._global_step = global_step
         if (
             not self._global_step_records
@@ -105,6 +116,14 @@ class SpeedMonitor(object):
                 self._global_step_records[-1].worker_num,
                 round(self.running_speed, 2),
             )
+            if self._error_monitor:
+                self._error_monitor.report_event(
+                    ErrorMonitorConstants.TYPE_INFO,
+                    "job",
+                    ErrorMonitorConstants.ACTION_GLOBAL_STEP,
+                    f"global_step={self._global_step}",
+                    {},
+                )
 
     def get_sample_count(self):
         return self._sample_count

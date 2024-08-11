@@ -1,4 +1,4 @@
-# Copyright 2023 The DLRover Authors. All rights reserved.
+# Copyright 2022 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -11,22 +11,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from abc import ABCMeta, abstractmethod
+import unittest
+
+import dlrover.python.util.common_util as cu
 
 
-class JobMaster(metaclass=ABCMeta):
-    @abstractmethod
-    def prepare(self):
-        pass
-
-    @abstractmethod
-    def run(self):
-        pass
-
-    @abstractmethod
-    def stop(self):
-        pass
-
-    @abstractmethod
-    def request_stop(self, success, reason, msg=""):
-        pass
+class CommonUtilTest(unittest.TestCase):
+    def test_get_dlrover_version(self):
+        self.assertIsNotNone(cu.get_dlrover_version())
+        self.assertNotEquals(cu.get_dlrover_version(), "Unknown")

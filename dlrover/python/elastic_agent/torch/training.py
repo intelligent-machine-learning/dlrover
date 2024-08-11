@@ -60,6 +60,7 @@ from torch.distributed.launcher.api import LaunchConfig, _get_entrypoint_name
 from dlrover.python.common import env_utils
 from dlrover.python.common.constants import (
     Accelerators,
+    AscendConstants,
     ConfigPath,
     NodeEnv,
     NodeErrorMessage,
@@ -67,6 +68,8 @@ from dlrover.python.common.constants import (
     RendezvousName,
     TrainingExceptionLevel,
 )
+from dlrover.python.common.diagnosis import node_failed
+from dlrover.python.common.error import ProcessError
 from dlrover.python.common.grpc import (
     find_free_port_for_hccl,
     find_free_port_in_range,
@@ -138,6 +141,7 @@ class ElasticLaunchConfig(LaunchConfig):
     network_check: bool = False
     comm_perf_test: bool = False
     node_unit: int = 1
+    training_port: int = AscendConstants.HCCL_PORT_START_DEFAULT
     auto_config: bool = False
     auto_tunning: bool = False
     exclude_straggler: bool = False
@@ -145,6 +149,7 @@ class ElasticLaunchConfig(LaunchConfig):
     accelerator: str = ""
     log_dir: Optional[str] = None  # Keep Compatibility with PyTorch>=2.3.0
     redirects: Union[Std, Dict[int, Std]] = Std.NONE
+    tee: Union[Std, Dict[int, Std]] = Std.NONE
 
     def set_node_unit(self, node_unit):
         """Set the number unint of ndoes."""
@@ -167,14 +172,6 @@ class ElasticLaunchConfig(LaunchConfig):
             self.nproc_per_node = torch.cuda.device_count()
         if self.min_nodes >= 4:
             self.network_check = True
-
-
-@dataclass
-class ProcessError:
-    local_rank: int
-    exitcode: int
-    message: str
-    datetime: Any
 
 
 class MasterRendezvousHandler(RendezvousHandler):
@@ -407,6 +404,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
         self._save_ckpt_executor = ThreadPoolExecutor(max_workers=1)
         self._save_ckpt_future = None
+        self._log_file = os.getenv(NodeEnv.TRAINING_LOG_FILE, "")
 
     @prof
     def _rendezvous(self, worker_group: WorkerGroup) -> None:
@@ -544,6 +542,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         return workers
 
     def _initialize_workers(self, worker_group):
+        logger.info("Start initializing training workers.")
         start_pending = 0
         pend_timeout = float(
             self._config.rdzv_configs.get("pend_timeout", "inf")
@@ -556,6 +555,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 # We need to register handler after starting workers because
                 # the PContext start_worker will overwrite the handler.
                 AsyncCheckpointSaver.register_signal_handler()
+
+                # need master client to report unexpected failures in saver
+                AsyncCheckpointSaver.register_master_client(self._client)
             except RendezvousOutSyncError:
                 if start_pending == 0:
                     start_pending = time.time()
@@ -567,16 +569,30 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 if time.time() - start_pending > pend_timeout:
                     raise TimeoutError("Timeout to wait for new nodes.")
             else:
-                logger.info("Finish initializing workers.")
+                logger.info("Finish initializing training workers.")
                 break
 
     @prof
-    def _stop_workers(self, worker_group: WorkerGroup) -> None:
-        if self._config.accelerator == Accelerators.ASCEND_NPU:
-            logger.info("stop workers via SIGKILL")
-            self._shutdown(death_sig=signal.SIGKILL)
-        else:
-            super()._stop_workers(worker_group)
+    def _stop_workers(self, worker_group: WorkerGroup, timeout=300) -> None:
+        try:
+            signal.signal(signal.SIGALRM, self._stop_timeout_handler)
+            signal.alarm(timeout)
+
+            if self._config.accelerator == Accelerators.ASCEND_NPU:
+                logger.info("stop workers via SIGKILL")
+                self._shutdown(death_sig=signal.SIGKILL)
+            else:
+                super()._stop_workers(worker_group)
+
+            signal.alarm(0)
+        except TimeoutError as te:
+            logger.error(str(te))
+            raise
+        finally:
+            signal.alarm(0)
+
+    def _stop_timeout_handler(self, signum, frame):
+        raise TimeoutError("Timed out waiting for stopping workers.")
 
     def _invoke_run(self, role: str = DEFAULT_ROLE) -> RunResult:
         # sync hccl port for NPU
@@ -590,7 +606,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         role = spec.role
 
         logger.info(
-            f"[{role}] starting workers for entrypoint: "
+            f"[{role}] starting training workers for entrypoint: "
             f"{spec.get_entrypoint_name()}"
         )
 
@@ -628,7 +644,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 logger.error(f"The worker fails with {run_result.failures}")
                 self._report_failure_to_master(run_result.failures)
                 self._save_ckpt_to_storage()
-                if self._remaining_failovers > 0:
+                if self._remaining_failovers > 0 and not node_failed(
+                    self._log_file
+                ):
                     logger.info(
                         f"[{role}] Worker group {state.name}. "
                         f"{self._remaining_failovers}/{spec.max_restarts}"
@@ -734,27 +752,38 @@ class ElasticTrainingAgent(LocalElasticAgent):
         """Shutdown the executor to save the checkpoint."""
         self._save_ckpt_executor.shutdown(wait=False)
 
-    def sync_training_ports(self):
+    def sync_training_ports(self, interval=20):
         logger.info(f"Accelerator: {self._config.accelerator}")
-        if self._config.accelerator == Accelerators.ASCEND_NPU:
-            start_port = 60000
+        if (
+            self._config.accelerator == Accelerators.ASCEND_NPU
+            and self._config.training_port > 0
+        ):
+            default_port_from_env = env_utils.get_env(
+                AscendConstants.HCCL_PORT_START
+            )
+            # use default port from env
+            if default_port_from_env:
+                start_port = int(default_port_from_env)
+            else:
+                start_port = self._config.training_port
+
             port = 0
             logger.info("synchronize worker training ports...")
             count = 0
-            max_count = 60
+            max_count = 120
             while True:
                 if count >= max_count:
                     logger.error(
                         f"exhausted {max_count} sync time. use default port"
                     )
                     break
-                time.sleep(20)
+                time.sleep(interval)
                 count = count + 1
                 if port == 0:
                     port = find_free_port_for_hccl(start_port)
                 if port == 0:
                     logger.error(
-                        "fail to find available ports between 60000 and 70000"
+                        f"fail to find available ports from {start_port}"
                     )
                     break
                 resp = self._client.sync_training_ports(port)
@@ -762,7 +791,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     continue
                 if resp.port > 0:
                     logger.info(f"config hccl port: {resp.port}")
-                    os.environ["HCCL_IF_BASE_PORT"] = str(resp.port)
+                    os.environ[AscendConstants.HCCL_PORT_START] = str(
+                        resp.port
+                    )
                     break
                 elif resp.newport > 0:
                     start_port = resp.newport
@@ -785,7 +816,7 @@ def launch_agent(
     node_rank = env_utils.get_node_rank()
 
     logger.info(
-        f"Starting elastic_operator with launch configs:\n"
+        f"Starting training agent with launch configs:\n"
         f"  entrypoint       : {entrypoint_name}\n"
         f"  min_nodes        : {config.min_nodes}\n"
         f"  max_nodes        : {config.max_nodes}\n"
@@ -945,7 +976,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
         role = spec.role
 
         logger.info(
-            f"[{role}] starting workers for entrypoint: "
+            f"[{role}] starting node-check workers for entrypoint: "
             f"{spec.get_entrypoint_name()}"
         )
         success = False
@@ -985,7 +1016,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
                     time.sleep(3)
                     continue
             else:
-                return True
+                return success
         if self._node_rank in fault_nodes:
             self._client.report_failures(
                 NodeErrorMessage.NETWORKER_ERROR,
@@ -996,7 +1027,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
             logger.warn("This node is a straggler!")
             if self._config.exclude_straggler:
                 raise RuntimeError("The node is a straggler and exits.")
-        return True
+        return success
 
     def _run_node_check(self, monitor_interval=3, timeout=300):
         self._initialize_workers(self._worker_group)
@@ -1074,7 +1105,7 @@ def _create_check_agent(
     node_rank = env_utils.get_node_rank()
 
     logger.info(
-        f"Starting elastic_operator with launch configs:\n"
+        f"Starting node-check agent with launch configs:\n"
         f"  entrypoint       : {entrypoint_name}\n"
         f"  min_nodes        : {config.min_nodes}\n"
         f"  max_nodes        : {config.max_nodes}\n"
@@ -1163,7 +1194,6 @@ def run_network_check(config: ElasticLaunchConfig, entrypoint):
             config=config, entrypoint=entrypoint, args=cmd_args
         )
         if success:
-            logger.info("Node check passed.")
             break
         else:
             logger.error(

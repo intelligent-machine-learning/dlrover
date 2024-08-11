@@ -1,4 +1,4 @@
-# Copyright 2023 The DLRover Authors. All rights reserved.
+# Copyright 2024 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -11,22 +11,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from abc import ABCMeta, abstractmethod
+import os
+import unittest
+
+from dlrover.python.common.diagnosis import node_failed
 
 
-class JobMaster(metaclass=ABCMeta):
-    @abstractmethod
-    def prepare(self):
+class DiagnosisTest(unittest.TestCase):
+    def setUp(self):
         pass
 
-    @abstractmethod
-    def run(self):
+    def tearDown(self):
         pass
 
-    @abstractmethod
-    def stop(self):
-        pass
-
-    @abstractmethod
-    def request_stop(self, success, reason, msg=""):
-        pass
+    def test_should_relaunch_worker(self):
+        file = "data/training.log"
+        path = os.path.dirname(__file__)
+        file_path = os.path.join(path, file)
+        self.assertTrue(node_failed(file_path))

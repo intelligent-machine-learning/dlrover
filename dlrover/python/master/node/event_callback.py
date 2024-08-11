@@ -300,8 +300,17 @@ class AllReduceNodeHandlingCallback(NodeEventCallback):
         stop_node = False
         if node.exit_reason == NodeExitReason.FATAL_ERROR:
             if not _dlrover_ctx.relaunch_always:
+                logger.info(
+                    f"Need to stop job for node: {node.name} "
+                    "has fatal error."
+                )
                 stop_node = True
         if node.relaunch_count >= node.max_relaunch_count:
+            logger.info(
+                "Need to stop job for node relaunching "
+                f"count: {node.relaunch_count} "
+                f"over limit: {node.max_relaunch_count}."
+            )
             self._available_worker_num -= 1
             stop_node = True
 

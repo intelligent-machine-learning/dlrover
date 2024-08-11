@@ -108,7 +108,8 @@ class JobAutoScaler(metaclass=ABCMeta):
     @abstractmethod
     def execute_job_optimization_plan(self, plan: ResourcePlan):
         """Scale nodes of a job by a ResourcePlan"""
-        logger.info(f"Execute job optimization plan: {plan.to_json()}.")
+        if plan and not plan.empty():
+            logger.info(f"Execute job optimization plan: {plan.to_json()}.")
 
 
 class PSTrainingAutoScaler(JobAutoScaler):
@@ -185,16 +186,19 @@ class PSTrainingAutoScaler(JobAutoScaler):
             if not self._autoscaling_started:
                 logger.info("Stop auto-scaling thread for PS Training.")
                 break
-            if (
-                self._speed_monitor.worker_adjustment_finished()
-                # Control the interval to query plans
-                and time.time() - last_plan_time > opt_interval
-                and not self._ps_manager.exist_migrated_ps_nodes()
-            ):
-                plan = self._job_optimizer.get_job_resource_plan()
-                if plan:
-                    last_plan_time = time.time()
-                self.execute_job_optimization_plan(plan)
+            try:
+                if (
+                    self._speed_monitor.worker_adjustment_finished()
+                    # Control the interval to query plans
+                    and time.time() - last_plan_time > opt_interval
+                    and not self._ps_manager.exist_migrated_ps_nodes()
+                ):
+                    plan = self._job_optimizer.get_job_resource_plan()
+                    if plan:
+                        last_plan_time = time.time()
+                    self.execute_job_optimization_plan(plan)
+            except Exception as e:
+                logger.error(f"Failed to auto-scale for PS Training: {e}")
             time.sleep(self._scale_interval)
 
     def execute_job_optimization_plan(self, plan: ResourcePlan):
@@ -312,14 +316,21 @@ class AllreduceTrainingAutoScaler(JobAutoScaler):
             if not self._autoscaling_started:
                 logger.info("Stop auto-scaling thread for AllReduce Training.")
                 break
-            time.sleep(self._scale_interval)
-            alive_num = self._get_alive_worker_num()
-            self._job_optimizer.set_alive_node_num(alive_num)
-            plan = self._job_optimizer.get_job_resource_plan()
-            new_worker_num = plan.node_group_resources[NodeType.WORKER].count
-            if new_worker_num <= alive_num:
-                continue
-            self.execute_job_optimization_plan(plan)
+            try:
+                time.sleep(self._scale_interval)
+                alive_num = self._get_alive_worker_num()
+                self._job_optimizer.set_alive_node_num(alive_num)
+                plan = self._job_optimizer.get_job_resource_plan()
+                new_worker_num = plan.node_group_resources[
+                    NodeType.WORKER
+                ].count
+                if new_worker_num <= alive_num:
+                    continue
+                self.execute_job_optimization_plan(plan)
+            except Exception as e:
+                logger.error(
+                    f"Failed to auto-scale for AllReduce Training: {e}"
+                )
 
     def _get_alive_worker_num(self):
         worker_num = 0

@@ -12,6 +12,10 @@
 # limitations under the License.
 
 
+class BasicClass(object):
+    LOG_LEVEL_ENV = "DLROVER_LOG_LEVEL"
+
+
 class PriorityClass(object):
     LOW = "low"
     HIGH = "high"
@@ -108,6 +112,8 @@ class JobExitReason(object):
     UNKNOWN_ERROR = "UnknownError"
     HANG_ERROR = "HangError"
     RDZV_TIMEOUT_ERROR = "RdzvTimeout"
+    PENDING_TIMEOUT = "PendingTimeout"
+    UNCOMPLETED_TIMEOUT = "UncompletedTimeout"
 
 
 class CustomMetricKeys:
@@ -228,6 +234,7 @@ class NodeEnv(object):
 
     # process env
     TORCHELASTIC_RUN_ID = "TORCHELASTIC_RUN_ID"
+    TRAINING_LOG_FILE = "TRAINING_LOG_FILE"
 
 
 class DatasetType(object):
@@ -281,6 +288,7 @@ class TrainingExceptionLevel(object):
     NODE_ERROR = "node_error"
     WARNING = "warning"
     INFO = "info"
+    ERROR = "error"
 
 
 class ConfigPath(object):
@@ -304,5 +312,25 @@ class Accelerators(object):
 
 
 class AscendConstants(object):
-    # By default there are 16 npu on one machine
+    # By default， there are 16(max) npu on one machine
     NPU_PER_NODE = 16
+
+    # represent the starting offset of the hccl's port using
+    HCCL_PORT_START = "HCCL_IF_BASE_PORT"
+    HCCL_PORT_START_DEFAULT = 64000
+
+
+class ErrorMonitorConstants(object):
+    TYPE_INFO = "info"
+    TYPE_ERROR = "error"
+
+    ACTION_WORKER_CREATE = "worker_create"
+    ACTION_STATUS_UPDATE = "status_update"
+    ACTION_EARLY_STOP = "early_stop"
+    ACTION_STOP = "stop"
+    ACTION_RELAUNCH = "relaunch"
+    ACTION_NOT_RELAUNCH = "not_relaunch"
+    ACTION_GLOBAL_STEP = "global_step"
+    ACTION_RDZV = "rendezvous"
+    ACTION_TRAINING_START = "training_start"
+    ACTION_RESTART_TRAINING = "restart_training"

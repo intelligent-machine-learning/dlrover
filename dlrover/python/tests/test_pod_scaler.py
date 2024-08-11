@@ -12,11 +12,14 @@
 # limitations under the License.
 
 import os
+import time
 import unittest
+from collections import deque
 
 from dlrover.python.common.constants import DistributionStrategy, NodeType
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
+from dlrover.python.master.monitor.error_monitor import SimpleErrorMonitor
 from dlrover.python.master.scaler.base_scaler import ScalePlan
 from dlrover.python.master.scaler.pod_scaler import PodScaler, new_tf_config
 from dlrover.python.tests.test_utils import mock_k8s_client
@@ -34,7 +37,8 @@ class PodScalerTest(unittest.TestCase):
         mock_k8s_client()
 
     def test_init_pod_template(self):
-        scaler = PodScaler("elasticjob-sample", "default")
+        error_monitor = SimpleErrorMonitor()
+        scaler = PodScaler("elasticjob-sample", "default", error_monitor)
         scaler.start()
         self.assertEqual(
             scaler._distribution_strategy,
@@ -58,7 +62,8 @@ class PodScalerTest(unittest.TestCase):
         )
 
     def test_check_master_service_avaliable(self):
-        scaler = PodScaler("elasticjob-sample", "default")
+        error_monitor = SimpleErrorMonitor()
+        scaler = PodScaler("elasticjob-sample", "default", error_monitor)
         _dlrover_ctx.config_master_port()
         port = _dlrover_ctx.master_port
         if 22222 == port:
@@ -78,8 +83,34 @@ class PodScalerTest(unittest.TestCase):
         passed = scaler._check_master_service_avaliable("localhost", port, 2)
         self.assertFalse(passed)
 
+    def test_periodic_create_pod(self):
+        error_monitor = SimpleErrorMonitor()
+        scaler = PodScaler("elasticjob-sample", "default", error_monitor)
+        scaler._check_master_service_avaliable = unittest.mock.MagicMock(
+            return_value=True
+        )
+        scaler._create_pod = unittest.mock.MagicMock(return_value=True)
+        scaler._create_service_for_pod = unittest.mock.MagicMock(
+            return_value=True
+        )
+
+        scaler._create_node_queue = deque()
+        test_num = 10
+        for i in range(test_num):
+            node = Node(
+                NodeType.WORKER, i, NodeResource(4, 8192), rank_index=i
+            )
+            scaler._create_node_queue.append(node)
+
+        scaler.start()
+        time.sleep(3)
+        scaler.stop()
+        self.assertEqual(scaler._create_pod.call_count, test_num)
+        self.assertEqual(scaler._create_service_for_pod.call_count, test_num)
+
     def test_create_pod(self):
-        scaler = PodScaler("elasticjob-sample", "default")
+        error_monitor = SimpleErrorMonitor()
+        scaler = PodScaler("elasticjob-sample", "default", error_monitor)
         _dlrover_ctx.config_master_port()
 
         scaler.start()
@@ -87,17 +118,19 @@ class PodScalerTest(unittest.TestCase):
         scaler._distribution_strategy = DistributionStrategy.PS
         resource = NodeResource(4, 8192)
         node = Node(NodeType.WORKER, 0, resource, rank_index=0)
-        pod_stats = {
+
+        # mock field
+        scaler._pod_stats = {
             NodeType.WORKER: 3,
             NodeType.CHIEF: 1,
             NodeType.PS: 2,
         }
-        ps_addrs = [
+        scaler._ps_addrs = [
             "elasticjob-sample-edljob-ps-0",
             "elasticjob-sample-edljob-ps-1",
         ]
         scaler._config_worker_num = 2
-        pod = scaler._create_pod(node, pod_stats, ps_addrs)
+        pod = scaler._create_pod(node)
         self.assertEqual(
             pod.metadata.name, "elasticjob-sample-edljob-worker-0"
         )
@@ -129,20 +162,20 @@ class PodScalerTest(unittest.TestCase):
         self.assertEqual(host_ports, "1,2,3,4,5")
 
         node = Node(NodeType.CHIEF, 0, resource, rank_index=0)
-        pod = scaler._create_pod(node, pod_stats, ps_addrs)
+        pod = scaler._create_pod(node)
         main_container = pod.spec.containers[0]
         self.assertTrue(
             """{"type": "chief", "index": 0}""" in main_container.env[-1].value
         )
         node = Node(NodeType.PS, 0, resource, rank_index=0)
-        pod = scaler._create_pod(node, pod_stats, ps_addrs)
+        pod = scaler._create_pod(node)
         main_container = pod.spec.containers[0]
         self.assertTrue(
             """{"type": "ps", "index": 0}""" in main_container.env[-1].value
         )
 
         node = Node(NodeType.WORKER, 0, resource, rank_index=0)
-        pod = scaler._create_pod(node, pod_stats, ps_addrs)
+        pod = scaler._create_pod(node)
         main_container = pod.spec.containers[0]
         self.assertEqual(len(pod.spec.volumes), 1)
         self.assertEqual(pod.spec.volumes[0].name, "pvc-nas")
@@ -150,7 +183,8 @@ class PodScalerTest(unittest.TestCase):
 
         scaler._distribution_strategy = DistributionStrategy.ALLREDUCE
         node = Node(NodeType.WORKER, 0, resource, rank_index=0)
-        pod = scaler._create_pod(node, pod_stats, [])
+        scaler._ps_addrs = []
+        pod = scaler._create_pod(node)
         main_container = pod.spec.containers[0]
         world_size = -1
         rank = -1
@@ -163,7 +197,8 @@ class PodScalerTest(unittest.TestCase):
         self.assertEqual(rank, 0)
 
     def test_scale(self):
-        scaler = PodScaler("elasticjob-sample", "default")
+        error_monitor = SimpleErrorMonitor()
+        scaler = PodScaler("elasticjob-sample", "default", error_monitor)
         scaler._distribution_strategy = DistributionStrategy.PS
         resource = NodeResource(4, 8192)
         scale_plan = ScalePlan()
