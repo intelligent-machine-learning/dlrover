@@ -58,8 +58,10 @@ def _pre_state_dict_sync(
     _sync_sharded_params(state, handle)
 
     if state.local_sgd_cpu_offload and (state.gta_reducer is not None or state.use_outer_optim):
-        state._H2D_stream.synchronize()
-        state._D2H_stream.synchronize()
+        state._param_D2H_stream.synchronize()
+        state._param_H2D_stream.synchronize()
+        state._outer_optim_D2H_stream.synchronize()
+        state._outer_optim_H2D_stream.synchronize()
     state._average_stream.synchronize()
     dist.barrier()
 
@@ -241,7 +243,7 @@ def _local_sgd_state_dict(
         ``model``. The sharding of the local sgd state is based on
         ``state_dict_type``.
     """
-    if not model.use_local_sgd or model.global_step < model.local_sgd_warmup_steps:
+    if not model.use_local_sgd:
         return {}
 
     state_dict_settings = torch.distributed.fsdp.FullyShardedDataParallel.get_state_dict_type(model)
@@ -256,13 +258,14 @@ def _local_sgd_state_dict(
     if dist.get_rank(model._inter_node_pg) != 0:
         return {}
 
-    if not model.use_outer_optim or model.outer_optimizer is None:
+    if not model.use_outer_optim or model.global_step < model.local_sgd_warmup_steps:
         if rank0_only and model.rank != 0:
             return {}
         return local_sgd_sd
 
     fsdp_modules = torch.distributed.fsdp.FullyShardedDataParallel.fsdp_modules(model)
     outer_optim_sd_l = []
+    local_sgd_anomaly_detector_sd_l = []
 
     for fsdp_m in fsdp_modules:
         if fsdp_m.outer_optimizer is None:
@@ -277,6 +280,11 @@ def _local_sgd_state_dict(
                             outer_optim_state[k] = v.to("cpu")
         outer_optim_sd_l.append(fsdp_m_outer_optim_sd)
 
+        if hasattr(fsdp_m, "local_sgd_anomaly_detector"):
+            local_sgd_anomaly_detector_sd_l.append(fsdp_m.local_sgd_anomaly_detector.state_dict())
+        else:
+            local_sgd_anomaly_detector_sd_l.append({})
+
     if group is None:
         group = model.process_group
     if state_dict_settings.state_dict_type == StateDictType.FULL_STATE_DICT:
@@ -288,16 +296,31 @@ def _local_sgd_state_dict(
                 dst=dist.get_rank() - model.rank,
                 group=group,
             )
+            gathered_local_sgd_anomaly_detector_sd_l = [None] * model.world_size if model.rank == 0 else None
+            dist.gather_object(
+                local_sgd_anomaly_detector_sd_l,
+                object_gather_list=gathered_local_sgd_anomaly_detector_sd_l,
+                dst=dist.get_rank() - model.rank,
+                group=group,
+            )
             if model.rank == 0:
                 local_sgd_sd["outer_optim"] = gathered_outer_optim_sd_l
+                local_sgd_sd["local_sgd_anomaly_detector"] = gathered_local_sgd_anomaly_detector_sd_l
             else:
                 local_sgd_sd = {}
         else:
             gathered_outer_optim_sd_l = [None] * model.world_size
             dist.all_gather_object(object_list=gathered_outer_optim_sd_l, obj=outer_optim_sd_l, group=group)
             local_sgd_sd["outer_optim"] = gathered_outer_optim_sd_l
+
+            gathered_local_sgd_anomaly_detector_sd_l = [None] * model.world_size
+            dist.all_gather_object(
+                object_list=gathered_local_sgd_anomaly_detector_sd_l, obj=local_sgd_anomaly_detector_sd_l, group=group
+            )
+            local_sgd_sd["local_sgd_anomaly_detector"] = gathered_local_sgd_anomaly_detector_sd_l
     else:
         local_sgd_sd["outer_optim"] = outer_optim_sd_l
+        local_sgd_sd["local_sgd_anomaly_detector"] = local_sgd_anomaly_detector_sd_l
 
     return local_sgd_sd
 
@@ -473,12 +496,40 @@ def _load_local_sgd_state_dict(
         if rank0_only:
             if model.rank == 0:
                 all_local_sgd_sd = torch.load(local_sgd_load_full_path)
-                if "outer_optim" not in all_local_sgd_sd.keys():
+                if (
+                    "outer_optim" not in all_local_sgd_sd.keys()
+                    and "local_sgd_anomaly_detector" not in all_local_sgd_sd.keys()
+                ):
                     all_local_sgd_sd = [{"global_step": all_local_sgd_sd["global_step"]}] * model.world_size
-                else:
+                elif (
+                    "outer_optim" not in all_local_sgd_sd.keys()
+                    and "local_sgd_anomaly_detector" in all_local_sgd_sd.keys()
+                ):
+                    all_local_sgd_sd = [
+                        {
+                            "global_step": all_local_sgd_sd["global_step"],
+                            "local_sgd_anomaly_detector": local_sgd_anomaly_detector_rank,
+                        }
+                        for local_sgd_anomaly_detector_rank in all_local_sgd_sd["local_sgd_anomaly_detector"]
+                    ]
+                elif (
+                    "outer_optim" in all_local_sgd_sd.keys()
+                    and "local_sgd_anomaly_detector" not in all_local_sgd_sd.keys()
+                ):
                     all_local_sgd_sd = [
                         {"global_step": all_local_sgd_sd["global_step"], "outer_optim": outer_optim_rank}
                         for outer_optim_rank in all_local_sgd_sd["outer_optim"]
+                    ]
+                else:
+                    all_local_sgd_sd = [
+                        {
+                            "global_step": all_local_sgd_sd["global_step"],
+                            "outer_optim": outer_optim_rank,
+                            "local_sgd_anomaly_detector": local_sgd_anomaly_detector_rank,
+                        }
+                        for outer_optim_rank, local_sgd_anomaly_detector_rank in zip(
+                            all_local_sgd_sd["outer_optim"], all_local_sgd_sd["local_sgd_anomaly_detector"]
+                        )
                     ]
             else:
                 all_local_sgd_sd = [None] * model.world_size
@@ -494,13 +545,11 @@ def _load_local_sgd_state_dict(
             local_sgd_sd = local_sgd_sd[0]
         else:
             all_local_sgd_sd = torch.load(local_sgd_load_full_path)
-            if "outer_optim" not in all_local_sgd_sd.keys():
-                local_sgd_sd = all_local_sgd_sd
-            else:
-                local_sgd_sd = {
-                    "global_step": all_local_sgd_sd["global_step"],
-                    "outer_optim": all_local_sgd_sd["outer_optim"][model.rank],
-                }
+            local_sgd_sd = {"global_step": all_local_sgd_sd["global_step"]}
+            if "outer_optim" in all_local_sgd_sd.keys():
+                local_sgd_sd["outer_optim"] = all_local_sgd_sd["outer_optim"][model.rank]
+            if "local_sgd_anomaly_detector" in all_local_sgd_sd.keys():
+                local_sgd_sd["local_sgd_anomaly_detector"] = all_local_sgd_sd["local_sgd_anomaly_detector"][model.rank]
     else:
         local_sgd_load_full_path = os.path.join(load_dir, f"{ckpt_name}_{model.rank:02d}.pt")
         if not os.path.exists(local_sgd_load_full_path):
@@ -511,12 +560,15 @@ def _load_local_sgd_state_dict(
 
     for i, fsdp_m in enumerate(fsdp_modules):
         fsdp_m.global_step = local_sgd_sd["global_step"]
-        if "outer_optim" in local_sgd_sd.keys():
+        if "outer_optim" in local_sgd_sd.keys() and local_sgd_sd["outer_optim"][i] != {}:
             _lazy_init_outer_optimizer(fsdp_m, fsdp_m._handle, cpu_init=fsdp_m.local_sgd_cpu_offload)
             assert (
                 fsdp_m.rank == local_sgd_sd["outer_optim"][i]["rank"]
             ), "The rank of FSDP module and state dict do not match."
             del local_sgd_sd["outer_optim"][i]["rank"]
             fsdp_m.outer_optimizer.load_state_dict(local_sgd_sd["outer_optim"][i])
+
+        if "local_sgd_anomaly_detector" in local_sgd_sd.keys() and hasattr(fsdp_m, "local_sgd_anomaly_detector"):
+            fsdp_m.local_sgd_anomaly_detector.load_state_dict(local_sgd_sd["local_sgd_anomaly_detector"][i])
 
     logger.info("Rank [%s] --> local sgd checkpoint loaded!", dist.get_rank())

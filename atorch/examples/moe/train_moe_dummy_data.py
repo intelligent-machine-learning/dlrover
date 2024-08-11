@@ -20,6 +20,9 @@ from atorch.distributed.distributed import destroy_parallel_group
 from atorch.modules.moe.grouped_gemm_moe import Grouped_GEMM_MoE
 from atorch.utils.meta_model_utils import init_empty_weights_with_disk_offload
 
+MOE_IMPLEMENTATION_TYPE = None
+MOE_TOKEN_DISPATCHER_TYPE = None
+
 
 class TopNRouter(torch.nn.Module):
     """
@@ -90,6 +93,9 @@ class _MLP(nn.Module):
 class _SparseMLP(nn.Module):
     def __init__(self, config, use_expert_parallelism=True):
         super().__init__()
+        global MOE_IMPLEMENTATION_TYPE
+        global MOE_TOKEN_DISPATCHER_TYPE
+
         self.config = config
         self.hidden_size = config.hidden_size
         self.num_experts = config.num_experts
@@ -113,6 +119,8 @@ class _SparseMLP(nn.Module):
             initializer_range=config.initializer_range,
             use_expert_parallelism=use_expert_parallelism,
             expert_parallel_group=None,
+            implementation_type=MOE_IMPLEMENTATION_TYPE,
+            token_dispatcher_type=MOE_TOKEN_DISPATCHER_TYPE,
         )
 
         if config.num_shared_expert > 0:
@@ -292,6 +300,8 @@ def parse_args():
     parser.add_argument("--max_checkpoint_module_num", type=int, default=-1, required=False)
     parser.add_argument("--record_timeline", default=False, action="store_true")
     parser.add_argument("--timeline_dir", type=str, default="timeline_dir", required=False)
+    parser.add_argument("--moe_implementation_type", type=str, default="Megatron", required=False)
+    parser.add_argument("--moe_token_dispatcher_type", type=str, default="MindSpeedAllGather", required=False)
 
     return parser.parse_args()
 
@@ -523,6 +533,14 @@ def train(args):
     destroy_parallel_group()
 
 
+def set_global_variable_from_args(args):
+    global MOE_IMPLEMENTATION_TYPE
+    global MOE_TOKEN_DISPATCHER_TYPE
+    MOE_IMPLEMENTATION_TYPE = args.moe_implementation_type
+    MOE_TOKEN_DISPATCHER_TYPE = args.moe_token_dispatcher_type
+
+
 if __name__ == "__main__":
     args = parse_args()
+    set_global_variable_from_args(args)
     train(args)

@@ -12,10 +12,17 @@ from torch.nn import Linear
 
 import atorch
 import atorch.distributed
+from atorch import npu  # noqa
 from atorch.common.util_func import divide, find_free_port
 from atorch.distributed.distributed import create_parallel_group
 from atorch.modules.moe.grouped_gemm_moe import Grouped_GEMM_MoE, SwiGLUActivatition
+from atorch.utils.import_util import is_torch_npu_available
+from atorch.utils.moe_util import transpose_moe
 from atorch.utils.version import torch_version
+
+if torch.cuda.is_available():
+    from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
+    from torch.distributed.fsdp.wrap import ModuleWrapPolicy
 
 
 def sd_trans(ref_sd, num_experts, use_bias):
@@ -155,7 +162,8 @@ class TestGroupedGemmMoE(unittest.TestCase):
         torch.cuda.manual_seed(self.seed)
         torch.backends.cudnn.set_flags(_benchmark=False, _deterministic=True)
 
-    def test_grouped_gemm_moe(self):
+    @unittest.skipIf(is_torch_npu_available(), "MegaBlocks implementation_type not supported yet for npu")
+    def test_grouped_gemm_moe_megablocks(self):
         # for num_experts, hidden_size, expert_intermediate_size, topk in [[8, 3072, 12288, 2], [30, 3072, 3072, 6]]:
         for num_experts, hidden_size, expert_intermediate_size, topk in [[8, 256, 1024, 2], [30, 512, 512, 6]]:
             for use_swiglu in [False, True]:
@@ -164,12 +172,227 @@ class TestGroupedGemmMoE(unittest.TestCase):
                         num_experts, hidden_size, expert_intermediate_size, topk, use_swiglu, use_bias
                     )
 
-    def _test_grouped_gemm_moe(self, num_experts, hidden_size, expert_intermediate_size, topk, use_swiglu, use_bias):
+    def test_grouped_gemm_moe_merge_w1_v1(self):
+        num_experts = 4
+        hidden_size = 256
+        expert_intermediate_size = 256
+        bs = 2
+        seq_len = 256
+        device = torch.cuda.current_device()
+
+        for num_experts in [1, 4]:
+            torch.manual_seed(42 + num_experts)
+            topk = 2 if num_experts > 2 else 1
+            moe_module_merge = Grouped_GEMM_MoE(
+                hidden_size,
+                expert_intermediate_size,
+                0.0,
+                num_experts,
+                topk,
+                use_swiglu=True,
+                use_bias=False,
+                use_expert_parallelism=False,
+                merge_w1_v1=True,
+                transpose_w1=False,
+                implementation_type="Megatron",
+                token_dispatcher_type="MindSpeedAllGather",
+            ).to(device)
+            moe_module_not_merge = Grouped_GEMM_MoE(
+                hidden_size,
+                expert_intermediate_size,
+                0.0,
+                num_experts,
+                topk,
+                use_swiglu=True,
+                use_bias=False,
+                use_expert_parallelism=False,
+                merge_w1_v1=False,
+                transpose_w1=False,
+                implementation_type="Megatron",
+                token_dispatcher_type="MindSpeedAllGather",
+            ).to(device)
+            # sync parameters w1 -> (w1, v1), w2 ->w2
+            with torch.no_grad():
+                moe_module_not_merge.w2.copy_(moe_module_merge.w2)
+                w1, v1 = torch.chunk(moe_module_merge.w1, 2, dim=-1)
+                moe_module_not_merge.w1.copy_(w1)
+                moe_module_not_merge.v1.copy_(v1)
+            # create inputs
+            inp = torch.randn(
+                bs,
+                seq_len,
+                hidden_size,
+                device=device,
+                requires_grad=True,
+            )
+            expert_weights = torch.randn(
+                bs,
+                seq_len,
+                topk,
+                device=device,
+            ).softmax(-1)
+
+            top_experts = torch.randint(
+                0,
+                num_experts,
+                (bs, seq_len, topk),
+                device=device,
+                dtype=torch.long,
+            )
+            with torch.cuda.amp.autocast(dtype=torch.bfloat16):
+                merge_out = moe_module_merge(inp, expert_weights, top_experts)
+                not_merge_out = moe_module_not_merge(inp, expert_weights, top_experts)
+                merge_sum = torch.sum(merge_out)
+                not_merge_sum = torch.sum(not_merge_out)
+            merge_sum.backward()
+            not_merge_sum.backward()
+            self.assertTrue(torch.allclose(merge_out, not_merge_out, atol=1e-3))
+            self.assertTrue(torch.allclose(moe_module_merge.w2.grad, moe_module_not_merge.w2.grad, atol=1e-3))
+            with torch.no_grad():
+                gw1, gv1 = torch.chunk(moe_module_merge.w1.grad, 2, dim=-1)
+                self.assertTrue(torch.allclose(moe_module_not_merge.w1.grad, gw1, rtol=1e-2, atol=1e-2))
+                self.assertTrue(torch.allclose(moe_module_not_merge.v1.grad, gv1, rtol=1e-2, atol=1e-2))
+
+            # test no token
+            inp = torch.empty([0, hidden_size], dtype=torch.float, device=device)
+            tokens_per_expert = torch.zeros([num_experts], dtype=torch.int, device=device)
+            with torch.cuda.amp.autocast(dtype=torch.bfloat16):
+                res = moe_module_not_merge.compute_expert(inp, tokens_per_expert)
+            self.assertEqual(res.shape[0], 0)
+
+    def test_grouped_gemm_moe_transpose_w1(self):
+        num_experts = 4
+        hidden_size = 256
+        expert_intermediate_size = 256
+        bs = 2
+        seq_len = 256
+        device = torch.cuda.current_device()
+
+        for num_experts in [1, 4]:
+            torch.manual_seed(42 + num_experts)
+            topk = 2 if num_experts > 2 else 1
+            moe_module_transpose = Grouped_GEMM_MoE(
+                hidden_size,
+                expert_intermediate_size,
+                0.0,
+                num_experts,
+                topk,
+                use_swiglu=True,
+                use_bias=False,
+                use_expert_parallelism=False,
+                merge_w1_v1=False,
+                transpose_w1=True,
+                implementation_type="Megatron",
+                token_dispatcher_type="MindSpeedAllGather",
+            ).to(device)
+            moe_module_not_transpose = Grouped_GEMM_MoE(
+                hidden_size,
+                expert_intermediate_size,
+                0.0,
+                num_experts,
+                topk,
+                use_swiglu=True,
+                use_bias=False,
+                use_expert_parallelism=False,
+                merge_w1_v1=False,
+                transpose_w1=False,
+                implementation_type="Megatron",
+                token_dispatcher_type="MindSpeedAllGather",
+            ).to(device)
+            # sync parameters w1 -> (w1, v1), w2 ->w2
+            with torch.no_grad():
+                moe_module_not_transpose.w2.copy_(moe_module_transpose.w2)
+                w1 = moe_module_transpose.w1.clone().transpose(-2, -1)
+                v1 = moe_module_transpose.v1.clone().transpose(-2, -1)
+                moe_module_not_transpose.w1.copy_(w1)
+                moe_module_not_transpose.v1.copy_(v1)
+            # create inputs
+            inp = torch.randn(
+                bs,
+                seq_len,
+                hidden_size,
+                device=device,
+                requires_grad=True,
+            )
+            expert_weights = torch.randn(
+                bs,
+                seq_len,
+                topk,
+                device=device,
+            ).softmax(-1)
+
+            top_experts = torch.randint(
+                0,
+                num_experts,
+                (bs, seq_len, topk),
+                device=device,
+                dtype=torch.long,
+            )
+            with torch.cuda.amp.autocast(dtype=torch.bfloat16):
+                merge_out = moe_module_transpose(inp, expert_weights, top_experts)
+                not_merge_out = moe_module_not_transpose(inp, expert_weights, top_experts)
+                merge_sum = torch.sum(merge_out)
+                not_merge_sum = torch.sum(not_merge_out)
+            merge_sum.backward()
+            not_merge_sum.backward()
+            self.assertTrue(torch.allclose(merge_out, not_merge_out, atol=1e-3))
+            self.assertTrue(torch.allclose(moe_module_transpose.w2.grad, moe_module_not_transpose.w2.grad, atol=1e-2))
+
+            # test no token
+            inp = torch.empty([0, hidden_size], dtype=torch.float, device=device)
+            tokens_per_expert = torch.zeros([num_experts], dtype=torch.int, device=device)
+            with torch.cuda.amp.autocast(dtype=torch.bfloat16):
+                res = moe_module_not_transpose.compute_expert(inp, tokens_per_expert)
+            self.assertEqual(res.shape[0], 0)
+
+    def test_grouped_gemm_moe_megatron(self):
+        implementation_type = "Megatron"
+        token_dispatcher_types = ["AllToAll", "AllGather", "MindSpeedAllGather", "MindSpeedAllToAll"]
+        for num_experts, hidden_size, expert_intermediate_size, topk in [[8, 256, 1024, 2], [30, 512, 512, 6]]:
+            for use_swiglu in [False, True]:
+                for use_bias in [False, True]:
+                    for token_dispatcher_type in token_dispatcher_types:
+                        self._test_grouped_gemm_moe(
+                            num_experts,
+                            hidden_size,
+                            expert_intermediate_size,
+                            topk,
+                            use_swiglu,
+                            use_bias,
+                            implementation_type,
+                            token_dispatcher_type,
+                        )
+
+    def _test_grouped_gemm_moe(
+        self,
+        num_experts,
+        hidden_size,
+        expert_intermediate_size,
+        topk,
+        use_swiglu,
+        use_bias,
+        implementation_type="MegaBlocks",
+        token_dispatcher_type="AllToAll",
+    ):
         print(
-            f"num_experts {num_experts}, hidden_size {hidden_size}, expert_intermediate_size "
-            f"{expert_intermediate_size}, topk {topk}, use_swiglu {use_swiglu}, use_bias {use_bias}"
+            f"token_dispatcher_type {token_dispatcher_type}, num_experts {num_experts}, hidden_size  {hidden_size}, "
+            f"expert_intermediate_size {expert_intermediate_size}, topk {topk}, "
+            f"use_swiglu {use_swiglu}, use_bias {use_bias}"
         )
-        GG_MoE = Grouped_GEMM_MoE(hidden_size, expert_intermediate_size, 0.0, num_experts, topk, use_swiglu, use_bias)
+        GG_MoE = Grouped_GEMM_MoE(
+            hidden_size,
+            expert_intermediate_size,
+            0.0,
+            num_experts,
+            topk,
+            use_swiglu,
+            use_bias,
+            transpose_w1=False,
+            implementation_type=implementation_type,
+            token_dispatcher_type=token_dispatcher_type,
+        )
+        if implementation_type == "Megatron" and use_bias:
+            use_bias = False
         ref_MoE = RefMoE(num_experts, hidden_size, expert_intermediate_size, use_swiglu, use_bias)
         fp32_ref_MoE = copy.deepcopy(ref_MoE)
 
@@ -182,7 +405,7 @@ class TestGroupedGemmMoE(unittest.TestCase):
         GG_MoE.to(torch.cuda.current_device())
 
         # inputs, grad
-        bs = 4
+        bs = 2
         seq_len = 4096
         inp = torch.randn(
             bs,
@@ -278,7 +501,7 @@ def run_ep_grouped_gemm_moe(rank, world_size):
     atorch.reset_distributed()
 
 
-def run_ep_grouped_gemm_moe_single(rank, world_size, no_local_token=False):
+def run_ep_grouped_gemm_moe_single(rank, world_size, no_local_token=False, implementation_type="MegaBlocks"):
     os.environ["LOCAL_RANK"] = str(rank)
     os.environ["RANK"] = str(rank)
     os.environ["WORLD_SIZE"] = str(world_size)
@@ -289,18 +512,27 @@ def run_ep_grouped_gemm_moe_single(rank, world_size, no_local_token=False):
 
     num_experts, hidden_size, expert_intermediate_size, topk, num_shared_experts = 8, 64, 128, 2, 2
     use_swiglu, use_bias = False, False
-    _inter_run_ep_grouped_gemm_moe(
-        rank,
-        world_size,
-        num_experts,
-        hidden_size,
-        expert_intermediate_size,
-        topk,
-        use_swiglu,
-        use_bias,
-        num_shared_experts,
-        no_local_token,
-    )
+
+    if implementation_type == "MegaBlocks":
+        token_dispatcher_types = ["AllToAll"]
+    elif implementation_type == "Megatron":
+        token_dispatcher_types = ["AllToAll", "AllGather", "MindSpeedAllGather", "MindSpeedAllToAll"]
+
+    for token_dispatcher_type in token_dispatcher_types:
+        _inter_run_ep_grouped_gemm_moe(
+            rank,
+            world_size,
+            num_experts,
+            hidden_size,
+            expert_intermediate_size,
+            topk,
+            use_swiglu,
+            use_bias,
+            num_shared_experts,
+            no_local_token,
+            implementation_type=implementation_type,
+            token_dispatcher_type=token_dispatcher_type,
+        )
     atorch.reset_distributed()
 
 
@@ -315,10 +547,22 @@ def _inter_run_ep_grouped_gemm_moe(
     use_bias,
     num_shared_experts,
     no_local_token=False,
+    implementation_type="MegaBlocks",
+    token_dispatcher_type="AllToAll",
 ):
 
     GG_MoE = Grouped_GEMM_MoE(
-        hidden_size, expert_intermediate_size, 0.0, num_experts, topk, use_swiglu, use_bias, use_expert_parallelism=True
+        hidden_size,
+        expert_intermediate_size,
+        0.0,
+        num_experts,
+        topk,
+        use_swiglu,
+        use_bias,
+        use_expert_parallelism=True,
+        transpose_w1=False,
+        implementation_type=implementation_type,
+        token_dispatcher_type=token_dispatcher_type,
     )
     # seed for same ref_MoE across rank
     seed = 1234
@@ -454,7 +698,8 @@ class TestEPGroupedGemmMoE(unittest.TestCase):
         torch.cuda.manual_seed(self.seed)
         torch.backends.cudnn.set_flags(_benchmark=False, _deterministic=True)
 
-    def test_ep_grouped_gemm_moe(self):
+    @unittest.skipIf(is_torch_npu_available(), "MegaBlocks implementation_type not supported yet for npu")
+    def test_ep_grouped_gemm_moe_megablocks(self):
         world_size = 4
         os.environ["MASTER_ADDR"] = "localhost"
         os.environ["MASTER_PORT"] = str(find_free_port())
@@ -467,7 +712,21 @@ class TestEPGroupedGemmMoE(unittest.TestCase):
         os.environ["MASTER_ADDR"] = ""
         os.environ["MASTER_PORT"] = ""
 
-    def test_ep_grouped_gemm_moe_no_local_token(self):
+    def test_ep_grouped_gemm_moe_megatron(self):
+        world_size = 4
+        os.environ["MASTER_ADDR"] = "localhost"
+        os.environ["MASTER_PORT"] = str(find_free_port())
+        mp.spawn(
+            run_ep_grouped_gemm_moe_single,
+            args=(world_size, False, "Megatron"),
+            nprocs=world_size,
+            join=True,
+        )
+        os.environ["MASTER_ADDR"] = ""
+        os.environ["MASTER_PORT"] = ""
+
+    @unittest.skipIf(is_torch_npu_available(), "MegaBlocks implementation_type not supported yet for npu")
+    def test_ep_grouped_gemm_moe_megablocks_no_local_token(self):
         world_size = 4
         os.environ["MASTER_ADDR"] = "localhost"
         os.environ["MASTER_PORT"] = str(find_free_port())
@@ -480,7 +739,21 @@ class TestEPGroupedGemmMoE(unittest.TestCase):
         os.environ["MASTER_ADDR"] = ""
         os.environ["MASTER_PORT"] = ""
 
-    def test_ep_grouped_gmm_moe_prefetch_attn_and_expert(self):
+    def test_ep_grouped_gemm_moe_megatron_no_local_token(self):
+        world_size = 4
+        os.environ["MASTER_ADDR"] = "localhost"
+        os.environ["MASTER_PORT"] = str(find_free_port())
+        mp.spawn(
+            run_ep_grouped_gemm_moe_single,
+            args=(world_size, True, "Megatron"),
+            nprocs=world_size,
+            join=True,
+        )
+        os.environ["MASTER_ADDR"] = ""
+        os.environ["MASTER_PORT"] = ""
+
+    @unittest.skipIf(is_torch_npu_available(), "MegaBlocks implementation_type not supported yet for npu")
+    def test_ep_grouped_gmm_moe_megablocks_prefetch_attn_and_expert(self):
         world_size = 4
         os.environ["MASTER_ADDR"] = "localhost"
         os.environ["MASTER_PORT"] = str(find_free_port())
@@ -494,3 +767,129 @@ class TestEPGroupedGemmMoE(unittest.TestCase):
         os.environ["MASTER_ADDR"] = ""
         os.environ["MASTER_PORT"] = ""
         del os.environ["MOE_FSDP_PREFETCH_NUM"]
+
+    def test_ep_grouped_gmm_moe_megatron_prefetch_attn_and_expert(self):
+        world_size = 4
+        os.environ["MASTER_ADDR"] = "localhost"
+        os.environ["MASTER_PORT"] = str(find_free_port())
+        os.environ["MOE_FSDP_PREFETCH_NUM"] = "2"
+        mp.spawn(
+            run_ep_grouped_gemm_moe_single,
+            args=(world_size, False, "Megatron"),
+            nprocs=world_size,
+            join=True,
+        )
+        os.environ["MASTER_ADDR"] = ""
+        os.environ["MASTER_PORT"] = ""
+        del os.environ["MOE_FSDP_PREFETCH_NUM"]
+
+
+class TranposeMOE(torch.nn.Module):
+    def __init__(
+        self,
+        num_experts,
+        hidden_size,
+        expert_intermediate_size,
+        topk,
+        use_swiglu,
+        use_bias,
+        implementation_type,
+        token_dispatcher_type,
+    ):
+        super().__init__()
+        self.moe1 = Grouped_GEMM_MoE(
+            hidden_size,
+            expert_intermediate_size,
+            0.0,
+            num_experts,
+            topk,
+            use_swiglu,
+            use_bias,
+            transpose_w1=False,
+            implementation_type=implementation_type,
+            token_dispatcher_type=token_dispatcher_type,
+            merge_w1_v1=False,
+        )
+        self.moe2 = Grouped_GEMM_MoE(
+            hidden_size,
+            expert_intermediate_size,
+            0.0,
+            num_experts,
+            topk,
+            use_swiglu,
+            use_bias,
+            transpose_w1=False,
+            implementation_type=implementation_type,
+            token_dispatcher_type=token_dispatcher_type,
+            merge_w1_v1=True,
+        )
+        self.m = torch.nn.Linear(2, 4)
+
+    def forward(self, x):
+        return x
+
+
+def run_transpose_moe(rank, world_size):
+    os.environ["LOCAL_RANK"] = str(rank)
+    os.environ["RANK"] = str(rank)
+    os.environ["WORLD_SIZE"] = str(world_size)
+    os.environ["NPROC_PER_NODE"] = str(world_size)
+    atorch.init_distributed(set_cuda_device_using_local_rank=True)
+    num_experts, hidden_size, expert_intermediate_size, topk = 4, 2, 3, 2
+    use_swiglu, use_bias = False, False
+    implementation_type = "Megatron"
+    token_dispatcher_type = "AllGather"
+    model = TranposeMOE(
+        hidden_size,
+        expert_intermediate_size,
+        num_experts,
+        topk,
+        use_swiglu,
+        use_bias,
+        implementation_type=implementation_type,
+        token_dispatcher_type=token_dispatcher_type,
+    )
+    w1_v1_shape = (num_experts, hidden_size, expert_intermediate_size)
+
+    temp = torch.arange(0, num_experts * hidden_size * expert_intermediate_size, dtype=torch.float32).reshape(
+        w1_v1_shape
+    )
+    model.moe1.w1 = torch.nn.Parameter(temp)
+    model.moe1.v1 = torch.nn.Parameter(temp.clone())
+    model.moe2.w1 = torch.nn.Parameter(temp.clone())
+    model.moe2.v1 = torch.nn.Parameter(temp.clone())
+    model = FSDP(
+        model, auto_wrap_policy=ModuleWrapPolicy({Grouped_GEMM_MoE}), sync_module_states=True, device_id=atorch.rank()
+    )
+
+    model = transpose_moe(model)
+
+    target = temp.to("cuda").transpose(-1, -2).reshape(w1_v1_shape)
+    with torch.distributed.fsdp.FullyShardedDataParallel.summon_full_params(model, writeback=False):
+        assert torch.allclose(model.moe1.w1, target)
+        assert torch.allclose(model.moe1.v1, target)
+        assert torch.allclose(model.moe2.w1, target)
+        assert torch.allclose(model.moe2.v1, target)
+    model(torch.ones((2, 2)).to("cuda"))
+
+    atorch.reset_distributed()
+
+
+@unittest.skipIf(
+    not torch.cuda.is_available() or torch.cuda.device_count() < 4 or torch_version() < (2, 0, 0),  # type: ignore
+    "Must have at least 4 GPUs for expert parallel test",
+)
+class TestTransposeMOE(unittest.TestCase):
+    def test_transpose_moe(self):
+        world_size = 4
+        os.environ["MASTER_ADDR"] = "localhost"
+        os.environ["MASTER_PORT"] = str(find_free_port())
+
+        mp.spawn(
+            run_transpose_moe,
+            args=(world_size,),
+            nprocs=world_size,
+            join=True,
+        )
+        os.environ["MASTER_ADDR"] = ""
+        os.environ["MASTER_PORT"] = ""

@@ -10,6 +10,7 @@ from atorch.kernels.extensions.flash_attention_1.flash_attn_func_ext_1 import Fl
 from atorch.kernels.extensions.grouped_gemm_exts.grouped_gemm_gmm import GroupedGEMMExtension
 from atorch.kernels.extensions.npu.adamw_npu import FusedAdamwNpuExtension
 from atorch.kernels.extensions.npu.flash_attention_npu import FlashAttentionNpuExtension
+from atorch.kernels.extensions.npu.grouped_gemm_gmm_npu import GroupedGEMMNpuExtension
 from atorch.utils.fa_util import patch_fa_interface_to_autocast
 
 
@@ -163,5 +164,24 @@ class KernelExtensionTest(unittest.TestCase):
             from torch_npu import npu_fusion_attention
 
             assert ext.is_available() and ext.load() == npu_fusion_attention
+        else:
+            assert (not ext.is_available()) and ext.load() is None
+
+    def test_grouped_gemm_npu_extension(self):
+        has_ext = False
+        try:
+            from mindspeed.ops import gmm  # noqa
+
+            has_ext = hasattr(gmm, "npu_gmm")
+        except (ImportError, ModuleNotFoundError):
+            has_ext = False
+
+        ext = GroupedGEMMNpuExtension()
+        if has_ext:
+            from mindspeed.ops import gmm
+
+            from atorch.kernels.extensions.npu.grouped_gemm_gmm_npu import _convert_fn
+
+            assert ext.is_available() and ext.load() == _convert_fn(gmm.npu_gmm)
         else:
             assert (not ext.is_available()) and ext.load() is None

@@ -6,6 +6,7 @@ from .extensions.flash_attention_1.flash_attn_func_ext_1 import flash_attn_unpad
 from .extensions.grouped_gemm_exts.grouped_gemm_gmm import gmm
 from .extensions.npu.adamw_npu import npu_apply_adam_w
 from .extensions.npu.flash_attention_npu import npu_fusion_attention
+from .extensions.npu.grouped_gemm_gmm_npu import npu_gmm
 from .extensions.npu.rms_norm_npu import npu_rms_norm
 from .extensions.xla.flash_attention_xla import xla_flash_attn, xla_flash_attn_varlen
 from .triton_jit.atorch_layer_norm import AtorchLayerNormFunc, atorch_layer_norm
@@ -18,6 +19,7 @@ __all__ = [
     "atorch_layer_norm",
     "AtorchLayerNormFunc",
     "gmm",
+    "npu_gmm",
     "npu_fusion_attention",
     "npu_apply_adam_w",
     "npu_rms_norm",

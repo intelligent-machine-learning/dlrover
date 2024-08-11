@@ -1320,6 +1320,8 @@ class FlashAttnModule(nn.Module):
             kwargs.update({"mask": additive_mask, "bias": additive_bias})
 
         if key_padding_mask is None or key_padding_mask.bool().all():
+            if is_torch_npu_available():
+                return npu_fa_with_glm_mask(q, k, v, **kwargs)
             if is_xla_device_available():
                 return xla_flash_attn(
                     q,

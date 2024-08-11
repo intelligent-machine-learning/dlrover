@@ -215,21 +215,38 @@ def npu_fa_with_glm_mask(
 
     assert pad_seqlen <= 524288, f"sequence length must smaller than 524288(512K) but got {pad_seqlen} after padding."
 
-    if causal and glm_mask is None:
-        atten_mask = torch.tril(torch.ones((b, s_q, s_q), device=pad_device)).view(b, 1, s_q, s_q)
-        if need_padding:
-            pad_m = torch.ones([b, 1, pad_seqlen, pad_seqlen], dtype=pad_dtype, device=pad_device).tril()
-            pad_m[:, :, :s_q, :s_q] = atten_mask
+    if glm_mask is None:
+        if causal is True:
+            atten_mask = torch.tril(torch.ones((b, s_q, s_q), device=pad_device)).view(b, 1, s_q, s_q)
+            if need_padding:
+                pad_m = torch.ones([b, 1, pad_seqlen, pad_seqlen], dtype=pad_dtype, device=pad_device).tril()
+                pad_m[:, :, :s_q, :s_q] = atten_mask
+            else:
+                pad_m = atten_mask
+            kwargs["atten_mask"] = (1.0 - pad_m).bool()
+            kwargs["next_tockens"] = 0
+            kwargs["sparse_mode"] = 0
+            fa_output = npu_fusion_attention(
+                pad_q.contiguous(), pad_k.contiguous(), pad_v.contiguous(), nh_q, **kwargs
+            )[0]
+            context_layer = fa_output[:, :s_q, :, :]
+            return context_layer
         else:
-            pad_m = atten_mask
-        kwargs["atten_mask"] = (1.0 - pad_m).bool()
-        kwargs["next_tockens"] = 0
-        kwargs["sparse_mode"] = 0
-        fa_output = npu_fusion_attention(pad_q.contiguous(), pad_k.contiguous(), pad_v.contiguous(), nh_q, **kwargs)[0]
-        context_layer = fa_output[:, :s_q, :, :]
-        return context_layer
-
-    if glm_mask is not None:
+            fa_output = npu_fusion_attention(
+                pad_q.contiguous(),
+                pad_k.contiguous(),
+                pad_v.contiguous(),
+                nh_q,
+                kwargs["input_layout"],
+                atten_mask=None,
+                pse=None,
+                padding_mask=None,
+                scale=kwargs["scale"],
+                keep_prob=kwargs["keep_prob"],
+            )[0]
+            context_layer = fa_output[:, :s_q, :, :]
+            return context_layer
+    else:  # glm_mask is not None
         assert isinstance(glm_mask, torch.Tensor), f"glm_mask shoule be a torch.Tensor but is a {type(glm_mask)}"
         assert glm_mask.is_npu, f"glm_mask should on NPU but on {glm_mask.device}"
         if glm_mask.dim() <= 1:

@@ -31,6 +31,7 @@ class LocalSGDConfigs:
     ewma_warmup_steps: int = 120
     ewma_threshold: int = 3
     cpu_offload: bool = True
+    synced_transfer: bool = False
 
 
 # HACK Add Outer Optimizer related configs

@@ -1,6 +1,6 @@
-NUM_GPUS_PER_NODE=$(nvidia-smi -L | wc -l)
+NUM_GPUS_PER_NODE=$(npu-smi info -l | grep "Total Count" | awk '{print $4}')
 
-STRATEGY_LIST="--use_fsdp --use_amp --use_module_replace --use_checkpointing --shared_expert_overlapping --moe_implementation_type Megatron --moe_token_dispatcher_type MindSpeedAllGather"
+STRATEGY_LIST="--use_fsdp --use_amp --use_module_replace --use_checkpointing --shared_expert_overlapping"
 
 HIDDEN_SIZE=2048
 INTERMEDIATE_SIZE=2816

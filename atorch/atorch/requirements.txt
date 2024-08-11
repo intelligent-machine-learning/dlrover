@@ -12,7 +12,7 @@ grpcio-tools
 pyarrow==12.0.0
 pandas==2.0.1
 tensorboard==2.11.0
-dlrover[torch]==0.4.2
+dlrover[torch]==0.4.6
 protobuf
 safetensors
 GPy

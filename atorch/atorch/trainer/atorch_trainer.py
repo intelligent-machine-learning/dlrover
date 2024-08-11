@@ -924,6 +924,9 @@ class AtorchTrainer:
         if self.args.async_save:
             self._init_async_save()
 
+        # Empty redundant memory.
+        torch.cuda.empty_cache()
+
         total_batched_samples = 0
         for epoch in range(epochs_trained, num_train_epochs):
             epoch_iterator = train_dataloader

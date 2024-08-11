@@ -326,7 +326,10 @@ class AtorchArguments(Seq2SeqTrainingArguments):
             if self.custom_lr_scheduler_type is None:
                 self.custom_lr_scheduler_type = self.atorch_lr_scheduler_type
         # Check lr_scheduler_type
-        if self.custom_lr_scheduler_type is not None and self.custom_lr_scheduler_type not in ATORCHSCHEDULER_NAMES:
+        if (
+            self.custom_lr_scheduler_type is not None
+            and self.custom_lr_scheduler_type not in SCHEDULER_NAMES + ATORCHSCHEDULER_NAMES
+        ):
             raise ValueError(
                 f"lr_scheduler_type={self.custom_lr_scheduler_type} is invalid, please select one of "
                 f"{SCHEDULER_NAMES + ATORCHSCHEDULER_NAMES}."

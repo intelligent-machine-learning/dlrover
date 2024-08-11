@@ -1,4 +1,5 @@
 from collections import deque
+from typing import Any, Dict
 
 import torch
 
@@ -13,6 +14,35 @@ class OnlineDynamicEWMA:
         self.base_threshold = base_threshold
         self.z_scores_window = deque(maxlen=warmup_steps)
         self.device = None
+
+    def state_dict(self):
+        # TODO does it make sense to make alpha and base threshold variable?
+        state_dict: Dict[str, Any] = {}
+        state_dict["mean"] = self.mean
+        state_dict["M2"] = self.M2
+        state_dict["count"] = self.count
+        state_dict["warmup_steps"] = self.warmup_steps
+        state_dict["z_scores_window"] = list(self.z_scores_window)
+        state_dict = torch.utils._pytree.tree_map(lambda x: x.cpu() if isinstance(x, torch.Tensor) else x, state_dict)
+        return state_dict
+
+    def load_state_dict(self, state_dict):
+        self.mean = state_dict.get("mean", self.mean)
+        self.M2 = state_dict.get("M2", self.M2)
+        self.count = state_dict.get("count", self.count)
+        self.warmup_steps = state_dict.get("warmup_steps", self.warmup_steps)
+        self.z_scores_window = deque(state_dict.get("z_scores_window", self.z_scores_window), maxlen=self.warmup_steps)
+
+    def _set_up_device(self, device):
+        if self.mean.device != device:
+            self.mean = self.mean.to(device)
+            self.M2 = self.M2.to(device)
+            self.z_scores_window = deque(
+                torch.utils._pytree.tree_map(
+                    lambda x: x.to(device) if isinstance(x, torch.Tensor) else x, list(self.z_scores_window)
+                ),
+                maxlen=self.warmup_steps,
+            )
 
     def update(self, value):
         device = value.device
@@ -54,6 +84,8 @@ class OnlineDynamicEWMA:
     def is_outlier(self, value):
         if self.count < self.warmup_steps:
             return False  # Skip outlier detection during warm-up period
+
+        self._set_up_device(value.device)
         z_score = self.get_z_score(value)
         threshold = self.base_threshold * self.dynamic_threshold_factor()
         return z_score > threshold  # Negative z-score is good for gradnorm

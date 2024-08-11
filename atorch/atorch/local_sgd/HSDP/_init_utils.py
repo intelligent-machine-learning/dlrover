@@ -282,6 +282,7 @@ def _init_local_sgd_state(
     state.temp_step = 0
 
     state.local_sgd_cpu_offload = local_sgd_configs.cpu_offload
+    state.local_sgd_synced_transfer = local_sgd_configs.synced_transfer
 
     # async related parameters
     state.local_sgd_sync_time = local_sgd_configs.local_sgd_sync_time

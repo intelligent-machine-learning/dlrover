@@ -158,42 +158,50 @@ class CheckpointOptimization(Optimization):
                     assert other_config is not None  # for mypy
                     # pytorch uses default None for use_reentrant parameter in checkpoint,
                     # which is equivalent to reentrant. This parameter will become mandatory in torch 2.4.
+                    use_te_impl = other_config.pop("use_te_impl", False)
                     no_reentrant = other_config.pop("no_reentrant", None)
                     selective_offload = other_config.pop("selective_offload", None)
-                    if no_reentrant is None:
-                        # Used no_reentrant for checkpoint selective offload
-                        no_reentrant = selective_offload is not None
-                        logger.warning(
-                            "checkpoint config does not contains no_reentrant value, "
-                            "set no_reentrant=True as selective_offload is used"
-                            if selective_offload is not None
-                            else "set no_reentrant=False as default"
-                        )
+                    if use_te_impl:
+                        if selective_offload is not None:
+                            logger.warning("selective_offload is not supported when use_te_impl")
+                        from atorch.utils.te_checkpoint import get_te_checkpoint_wrapper_fn
+
+                        checkpoint_wrapper_fn = get_te_checkpoint_wrapper_fn(use_reentrant=not no_reentrant)
                     else:
-                        logger.info(f"checkpoint config contains no_reentrant={no_reentrant}")
-                    checkpoint_impl = CheckpointImpl.NO_REENTRANT if no_reentrant else CheckpointImpl.REENTRANT
-                    checkpoint_wrapper_fn_kwargs = {"checkpoint_impl": checkpoint_impl}
-                    if selective_offload is not None:
-                        if checkpoint_impl == CheckpointImpl.REENTRANT:
-                            raise ValueError(
-                                "selective offloading don't support `CheckpointImpl.REENTRANT`, "
-                                "requires no_reentrant=False in checkpoint config"
+                        if no_reentrant is None:
+                            # Used no_reentrant for checkpoint selective offload
+                            no_reentrant = selective_offload is not None
+                            logger.warning(
+                                "checkpoint config does not contains no_reentrant value, "
+                                "set no_reentrant=True as selective_offload is used"
+                                if selective_offload is not None
+                                else "set no_reentrant=False as default"
                             )
-                        if "offload_args" not in selective_offload or "num_layers" not in selective_offload:
-                            raise ValueError("`offload_args` or `num_layers` is not passed")
+                        else:
+                            logger.info(f"checkpoint config contains no_reentrant={no_reentrant}")
+                        checkpoint_impl = CheckpointImpl.NO_REENTRANT if no_reentrant else CheckpointImpl.REENTRANT
+                        checkpoint_wrapper_fn_kwargs = {"checkpoint_impl": checkpoint_impl}
+                        if selective_offload is not None:
+                            if checkpoint_impl == CheckpointImpl.REENTRANT:
+                                raise ValueError(
+                                    "selective offloading don't support `CheckpointImpl.REENTRANT`, "
+                                    "requires no_reentrant=False in checkpoint config"
+                                )
+                            if "offload_args" not in selective_offload or "num_layers" not in selective_offload:
+                                raise ValueError("`offload_args` or `num_layers` is not passed")
 
-                        from .selective_offloading_checkpoint import (
-                            OffloadOpManagerArgs,
-                            get_selective_offloading_checkpoint_modes,
-                        )
+                            from .selective_offloading_checkpoint import (
+                                OffloadOpManagerArgs,
+                                get_selective_offloading_checkpoint_modes,
+                            )
 
-                        args = [OffloadOpManagerArgs(*arg) for arg in selective_offload["offload_args"]]
-                        num_layers = selective_offload["num_layers"]
-                        context_fn = get_selective_offloading_checkpoint_modes(args, num_layers)
-                        checkpoint_wrapper_fn_kwargs["context_fn"] = context_fn
-                        logger.info(f"selective_offloading_checkpoint is on, {selective_offload}")
+                            args = [OffloadOpManagerArgs(*arg) for arg in selective_offload["offload_args"]]
+                            num_layers = selective_offload["num_layers"]
+                            context_fn = get_selective_offloading_checkpoint_modes(args, num_layers)
+                            checkpoint_wrapper_fn_kwargs["context_fn"] = context_fn
+                            logger.info(f"selective_offloading_checkpoint is on, {selective_offload}")
 
-                    checkpoint_wrapper_fn = partial(checkpoint_wrapper, **checkpoint_wrapper_fn_kwargs)
+                        checkpoint_wrapper_fn = partial(checkpoint_wrapper, **checkpoint_wrapper_fn_kwargs)
                     apply_activation_checkpointing = partial(
                         apply_activation_checkpointing, checkpoint_wrapper_fn=checkpoint_wrapper_fn
                     )

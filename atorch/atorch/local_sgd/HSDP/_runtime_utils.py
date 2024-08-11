@@ -99,8 +99,10 @@ def _share_state_and_init_handle_attrs(
         # HACK Share the average stream across FSDP instances.
         fsdp_state._average_stream = root_state._average_stream
         if fsdp_state.use_local_sgd and fsdp_state.local_sgd_cpu_offload:
-            fsdp_state._D2H_stream = root_state._D2H_stream
-            fsdp_state._H2D_stream = root_state._H2D_stream
+            fsdp_state._param_D2H_stream = root_state._param_D2H_stream
+            fsdp_state._param_H2D_stream = root_state._param_H2D_stream
+            fsdp_state._outer_optim_D2H_stream = root_state._outer_optim_D2H_stream
+            fsdp_state._outer_optim_H2D_stream = root_state._outer_optim_H2D_stream
         fsdp_state._default_stream = root_state._default_stream
         fsdp_state._exec_order_data = root_state._exec_order_data
         fsdp_state._free_event_queue = root_state._free_event_queue
@@ -144,23 +146,31 @@ def _init_streams(
     state._pre_unshard_stream = state._device_handle.Stream(priority=high_priority)
     # HACK Add and modify some streams.
     # Stream to run HSDP's all-reduce as async (if using HSDP)
-    state._all_reduce_stream = (
-        state._device_handle.Stream() if (uses_hybrid_sharding and not uses_local_sgd) else state._default_stream
-    )
+    state._all_reduce_stream = state._device_handle.Stream() if uses_hybrid_sharding else state._default_stream
     # Stream to run HSDP's average parameters as async (if using HSDP)
     state._average_stream = (
         state._device_handle.Stream() if (uses_hybrid_sharding and uses_local_sgd) else state._default_stream
     )
-    state._D2H_stream = (
+    state._param_D2H_stream = (
         state._device_handle.Stream()
-        if state.use_local_sgd and (state.gta_reducer is not None or state.use_outer_optim)
-        else state._default_stream
+        if state.use_local_sgd
+        and (state.gta_reducer is not None or state.use_outer_optim)
+        and not state.local_sgd_synced_transfer
+        and state.local_sgd_cpu_offload
+        else state._average_stream
     )
-    state._H2D_stream = (
+    state._outer_optim_D2H_stream = (
         state._device_handle.Stream()
-        if state.use_local_sgd and (state.gta_reducer is not None or state.use_outer_optim)
-        else state._default_stream
+        if state.use_local_sgd
+        and (state.gta_reducer is not None or state.use_outer_optim)
+        and not state.local_sgd_synced_transfer
+        and state.local_sgd_cpu_offload
+        else state._average_stream
     )
+    # TODO use average stream
+    # if we can confirm the correctness, maybe change _outer_optim_H2D_streamback
+    state._param_H2D_stream = state._average_stream
+    state._outer_optim_H2D_stream = state._average_stream
 
 
 # HACK Lazy init outer optimizer.
@@ -237,6 +247,8 @@ def _sync_sharded_params(
     state: _FSDPState,
     handle: Optional[FlatParamHandle],
 ) -> None:
+    if not handle:
+        return
     with state._device_handle.stream(state._average_stream):
         pseudo_gradient = None
         if state.use_async and state.use_step_weight:
@@ -257,22 +269,21 @@ def _sync_sharded_params(
 
     if state.local_sgd_cpu_offload:
         param_device = handle.flat_param.device
-        if state.gta_reducer is not None or state.use_outer_optim:
-            with state._device_handle.stream(state._H2D_stream):
-                with torch.no_grad():
-                    state.last_synced_params.data = state.last_synced_params.data.to(param_device, non_blocking=True)
-
-            # wait for last synced params to be moved to cuda
-            state._average_stream.wait_stream(state._H2D_stream)
-
         # then we do async optim H2D
         if state.use_outer_optim:
-            with state._device_handle.stream(state._H2D_stream):
+            with state._device_handle.stream(state._outer_optim_H2D_stream):
                 # TODO separate opt and last sync params movement
                 for opt_state in state.outer_optimizer.state.values():
                     for k, v in opt_state.items():
                         if isinstance(v, torch.Tensor):
-                            opt_state[k].data = v.data.to(param_device, non_blocking=True)
+                            opt_state[k].data = v.data.to(param_device, non_blocking=False)
+
+        if state.gta_reducer is not None or state.use_outer_optim:
+            with state._device_handle.stream(state._param_H2D_stream):
+                with torch.no_grad():
+                    state.last_synced_params.data = state.last_synced_params.data.to(param_device, non_blocking=False)
+            if not state.local_sgd_synced_transfer:
+                state._param_H2D_stream.synchronize()
 
     with state._device_handle.stream(state._average_stream):
         if state.gta_reducer is not None or state.use_outer_optim:
@@ -324,7 +335,7 @@ def _sync_sharded_params(
                 clip_coef_clamped = torch.clamp(clip_coef, max=1.0)
                 pseudo_gradient.detach().mul_(clip_coef_clamped)
                 if dist.get_rank(state.process_group) == 0:
-                    logger.debug(
+                    print(
                         f"rank[{dist.get_rank()}]: "
                         f"total_norm:{total_norm}, "
                         f"clip_pseudo_grad:{state.clip_pseudo_grad}, "
@@ -334,8 +345,9 @@ def _sync_sharded_params(
         if pseudo_gradient is not None:
             if not (state.local_sgd_skip_anomaly and pseudo_gradient.abs().sum() < 1e-6):
                 if state.use_outer_optim:
-                    if state.local_sgd_cpu_offload:
-                        state._average_stream.wait_stream(state._H2D_stream)
+                    # use synchronize to make sure optimizer transfer is finished
+                    if state.local_sgd_cpu_offload and not state.local_sgd_synced_transfer:
+                        state._outer_optim_H2D_stream.synchronize()
                     state.last_synced_params.grad = pseudo_gradient.to(state.last_synced_params.device)
                     state.outer_optimizer.step()
                     state.outer_optimizer.zero_grad()
@@ -343,17 +355,17 @@ def _sync_sharded_params(
                     state.last_synced_params.data = state.last_synced_params.data - pseudo_gradient.to(
                         state.last_synced_params.device
                     )
-            # The _average_stream ensures that non-blocking copy is correct.
-            handle.flat_param.data.copy_(state.last_synced_params.data, non_blocking=True)
+            handle.flat_param.data.copy_(state.last_synced_params.data)
 
+    state._average_stream.synchronize()
     if state.local_sgd_cpu_offload:
-        state._D2H_stream.wait_stream(state._average_stream)
-        with state._device_handle.stream(state._D2H_stream):
+        with state._device_handle.stream(state._outer_optim_D2H_stream):
             if state.use_outer_optim:
                 for opt_state in state.outer_optimizer.state.values():
                     for k, v in opt_state.items():
                         if isinstance(v, torch.Tensor):
                             opt_state[k].data = v.data.to("cpu", non_blocking=True)
+        with state._device_handle.stream(state._param_D2H_stream):
             if state.gta_reducer is not None or state.use_outer_optim:
                 with torch.no_grad():
                     state.last_synced_params.data = state.last_synced_params.data.to("cpu", non_blocking=True)
@@ -608,6 +620,10 @@ def _root_pre_forward(
         global SYNC_MODE_CONTROL
         SYNC_MODE_CONTROL = _sync_if_needed(state, module)
         if SYNC_MODE_CONTROL:
+            state._param_D2H_stream.synchronize()
+            state._param_H2D_stream.synchronize()
+            state._outer_optim_D2H_stream.synchronize()
+            state._outer_optim_H2D_stream.synchronize()
             state._average_stream.wait_stream(state._device_handle.current_stream())
         else:
             _wait_for_computation_stream(

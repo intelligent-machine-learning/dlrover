@@ -98,6 +98,12 @@ def make_atorch_npu_patch():
         setattr(torch.distributed.fsdp.sharded_grad_scaler, "ShardedGradScaler", NPUShardedGradScaler)
         setattr(torch, "eye", npu_eye)
 
+    if is_torch_npu_available():
+        from torch_npu.npu import get_autocast_dtype, is_autocast_enabled
+
+        setattr(torch, "is_autocast_enabled", is_autocast_enabled)
+        setattr(torch, "get_autocast_gpu_dtype", get_autocast_dtype)
+
 
 try:
     make_atorch_npu_patch()

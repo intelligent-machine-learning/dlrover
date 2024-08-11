@@ -193,7 +193,7 @@ def run_hsdp_local_sgd(
     def loss_func(_, output):
         return output.loss
 
-    dataset = LlamaDataset(vocab_size=model_config.vocab_size, max_source_positions=32, total_samples=20)
+    dataset = LlamaDataset(vocab_size=model_config.vocab_size, max_source_positions=32, total_samples=200)
     dataloader_args = {
         "batch_size": 4,
         "drop_last": True,
@@ -219,6 +219,8 @@ def run_hsdp_local_sgd(
             gradient_accumulation_steps=1,
             clip_pseudo_grad=clip,
             cpu_offload=cpu_offload,
+            skip_anomaly=True,
+            ewma_warmup_steps=2,
         ),
         "outer_optim_configs": OuterOptimizerConfigs(
             outer_optim_class=torch.optim.SGD if outer_optim_class == "sgd" else None,
