@@ -2,6 +2,8 @@ version: "1.5"
 
 stages:
   - 构建&发布到测试库
+  - 发布正式库前检查
+  - 发布正式库
 agent:
   docker:
     image: reg.docker.alibaba-inc.com/elasticdl/elasticdl:dev_aci  # 不要更改此镜像，否则有protobuf 版本问题。
@@ -17,10 +19,37 @@ build_elasticdl_dev:
   stage: 构建&发布到测试库
   id: build
   component: pypi-artifact-uploader
-  only:
-    - master
   inputs:
     buildImage: reg.docker.alibaba-inc.com/elasticdl/elasticdl:dev_aci
     registry: "https://artifacts.antgroup-inc.cn/artifact/repositories/simple-dev" # yamllint disable-line rule:line-length
     workdir: ./
     buildCmd: "make -f dlrover/Makefile && python setup_internal.py bdist_wheel"
+
+选择迁移制品:
+  id: check
+  stage: 发布正式库前检查
+  component: artifact-transfer-check
+  only:
+    - ^v(\d+(\.\d+)*)(-[a-zA-Z0-9]+)?$
+  inputs:
+    artifactsConfigs:
+      - artifacts: ${{jobs.build.outputs.artifacts}}
+        antArtifactRepo: simple
+
+同步至正式库:
+  stage: 发布正式库
+  component: ant-artifact-transfer
+  only:
+    - ^v(\d+(\.\d+)*)(-[a-zA-Z0-9]+)?$
+  inputs:
+    transferArtifacts: ${{jobs.check.outputs.transferArtifacts}}
+  config:
+    beforeExecute:
+      isAutoSkip: ${{jobs.check.outputs.selectedCount}} = 0
+      confirm:
+        buttonName: 确认发布正式库
+        approvers: # 具备发布角色的用户的域账号
+          - chentianyi.cty
+          - jieyue.majy
+          - b.sang
+          - xiaobao.lxx
