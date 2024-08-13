@@ -20,7 +20,7 @@ from contextlib import closing
 from dlrover.proto import elastic_training_pb2, elastic_training_pb2_grpc
 from dlrover.python.common import env_utils, grpc
 from dlrover.python.common.constants import NetworkFailureReason, NodeEnv
-from dlrover.python.common.diagnosis import ChipMetrics, CudaLog, TrainingLog
+from dlrover.python.diagnose.common.diagnose_data import ChipMetrics, CudaLog, TrainingLog
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
 

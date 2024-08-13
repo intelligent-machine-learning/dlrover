@@ -15,20 +15,20 @@ import threading
 import time
 from typing import Dict
 
-from dlrover.python.common.diagnosis import ChipMetrics, CudaLog, TrainingLog
+from dlrover.python.diagnose.common.diagnose_data import ChipMetrics, CudaLog, TrainingLog
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
-from dlrover.python.elastic_agent.datacollector.cuda_log_collector import (
+from dlrover.python.diagnose.datacollector import (
     CudaLogCollector,
 )
-from dlrover.python.elastic_agent.datacollector.data_collector import (
+from dlrover.python.diagnose.datacollector import (
     CollectorType,
     DataCollector,
 )
-from dlrover.python.elastic_agent.datacollector.log_collector import (
+from dlrover.python.diagnose.datacollector import (
     LogCollector,
 )
-from dlrover.python.elastic_agent.datacollector.metrics_collector import (
+from dlrover.python.diagnose.datacollector.metrics_collector import (
     MetricsCollector,
 )
 from dlrover.python.elastic_agent.master_client import MasterClient

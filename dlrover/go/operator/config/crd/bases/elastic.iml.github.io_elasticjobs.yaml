@@ -259,7 +259,7 @@ spec:
                                                 items:
                                                   description: A node selector requirement
                                                     is a selector that contains values,
-                                                    a key, and an operator that relates
+                                                    a key, and an inferenceoperator that relates
                                                     the key and values.
                                                   properties:
                                                     key:
@@ -275,12 +275,12 @@ spec:
                                                       type: string
                                                     values:
                                                       description: An array of string
-                                                        values. If the operator is
+                                                        values. If the inferenceoperator is
                                                         In or NotIn, the values array
                                                         must be non-empty. If the
-                                                        operator is Exists or DoesNotExist,
+                                                        inferenceoperator is Exists or DoesNotExist,
                                                         the values array must be empty.
-                                                        If the operator is Gt or Lt,
+                                                        If the inferenceoperator is Gt or Lt,
                                                         the values array must have
                                                         a single element, which will
                                                         be interpreted as an integer.
@@ -291,7 +291,7 @@ spec:
                                                       type: array
                                                   required:
                                                   - key
-                                                  - operator
+                                                  - inferenceoperator
                                                   type: object
                                                 type: array
                                               matchFields:
@@ -300,7 +300,7 @@ spec:
                                                 items:
                                                   description: A node selector requirement
                                                     is a selector that contains values,
-                                                    a key, and an operator that relates
+                                                    a key, and an inferenceoperator that relates
                                                     the key and values.
                                                   properties:
                                                     key:
@@ -316,12 +316,12 @@ spec:
                                                       type: string
                                                     values:
                                                       description: An array of string
-                                                        values. If the operator is
+                                                        values. If the inferenceoperator is
                                                         In or NotIn, the values array
                                                         must be non-empty. If the
-                                                        operator is Exists or DoesNotExist,
+                                                        inferenceoperator is Exists or DoesNotExist,
                                                         the values array must be empty.
-                                                        If the operator is Gt or Lt,
+                                                        If the inferenceoperator is Gt or Lt,
                                                         the values array must have
                                                         a single element, which will
                                                         be interpreted as an integer.
@@ -332,7 +332,7 @@ spec:
                                                       type: array
                                                   required:
                                                   - key
-                                                  - operator
+                                                  - inferenceoperator
                                                   type: object
                                                 type: array
                                             type: object
@@ -373,7 +373,7 @@ spec:
                                                 items:
                                                   description: A node selector requirement
                                                     is a selector that contains values,
-                                                    a key, and an operator that relates
+                                                    a key, and an inferenceoperator that relates
                                                     the key and values.
                                                   properties:
                                                     key:
@@ -389,12 +389,12 @@ spec:
                                                       type: string
                                                     values:
                                                       description: An array of string
-                                                        values. If the operator is
+                                                        values. If the inferenceoperator is
                                                         In or NotIn, the values array
                                                         must be non-empty. If the
-                                                        operator is Exists or DoesNotExist,
+                                                        inferenceoperator is Exists or DoesNotExist,
                                                         the values array must be empty.
-                                                        If the operator is Gt or Lt,
+                                                        If the inferenceoperator is Gt or Lt,
                                                         the values array must have
                                                         a single element, which will
                                                         be interpreted as an integer.
@@ -405,7 +405,7 @@ spec:
                                                       type: array
                                                   required:
                                                   - key
-                                                  - operator
+                                                  - inferenceoperator
                                                   type: object
                                                 type: array
                                               matchFields:
@@ -414,7 +414,7 @@ spec:
                                                 items:
                                                   description: A node selector requirement
                                                     is a selector that contains values,
-                                                    a key, and an operator that relates
+                                                    a key, and an inferenceoperator that relates
                                                     the key and values.
                                                   properties:
                                                     key:
@@ -430,12 +430,12 @@ spec:
                                                       type: string
                                                     values:
                                                       description: An array of string
-                                                        values. If the operator is
+                                                        values. If the inferenceoperator is
                                                         In or NotIn, the values array
                                                         must be non-empty. If the
-                                                        operator is Exists or DoesNotExist,
+                                                        inferenceoperator is Exists or DoesNotExist,
                                                         the values array must be empty.
-                                                        If the operator is Gt or Lt,
+                                                        If the inferenceoperator is Gt or Lt,
                                                         the values array must have
                                                         a single element, which will
                                                         be interpreted as an integer.
@@ -446,7 +446,7 @@ spec:
                                                       type: array
                                                   required:
                                                   - key
-                                                  - operator
+                                                  - inferenceoperator
                                                   type: object
                                                 type: array
                                             type: object
@@ -500,7 +500,7 @@ spec:
                                                       description: A label selector
                                                         requirement is a selector
                                                         that contains values, a key,
-                                                        and an operator that relates
+                                                        and an inferenceoperator that relates
                                                         the key and values.
                                                       properties:
                                                         key:
@@ -509,7 +509,7 @@ spec:
                                                             applies to.
                                                           type: string
                                                         operator:
-                                                          description: operator represents
+                                                          description: inferenceoperator represents
                                                             a key's relationship to
                                                             a set of values. Valid
                                                             operators are In, NotIn,
@@ -518,10 +518,10 @@ spec:
                                                         values:
                                                           description: values is an
                                                             array of string values.
-                                                            If the operator is In
+                                                            If the inferenceoperator is In
                                                             or NotIn, the values array
                                                             must be non-empty. If
-                                                            the operator is Exists
+                                                            the inferenceoperator is Exists
                                                             or DoesNotExist, the values
                                                             array must be empty. This
                                                             array is replaced during
@@ -531,7 +531,7 @@ spec:
                                                           type: array
                                                       required:
                                                       - key
-                                                      - operator
+                                                      - inferenceoperator
                                                       type: object
                                                     type: array
                                                   matchLabels:
@@ -542,7 +542,7 @@ spec:
                                                       single {key,value} in the matchLabels
                                                       map is equivalent to an element
                                                       of matchExpressions, whose key
-                                                      field is "key", the operator
+                                                      field is "key", the inferenceoperator
                                                       is "In", and the values array
                                                       contains only "value". The requirements
                                                       are ANDed.
@@ -570,7 +570,7 @@ spec:
                                                       description: A label selector
                                                         requirement is a selector
                                                         that contains values, a key,
-                                                        and an operator that relates
+                                                        and an inferenceoperator that relates
                                                         the key and values.
                                                       properties:
                                                         key:
@@ -579,7 +579,7 @@ spec:
                                                             applies to.
                                                           type: string
                                                         operator:
-                                                          description: operator represents
+                                                          description: inferenceoperator represents
                                                             a key's relationship to
                                                             a set of values. Valid
                                                             operators are In, NotIn,
@@ -588,10 +588,10 @@ spec:
                                                         values:
                                                           description: values is an
                                                             array of string values.
-                                                            If the operator is In
+                                                            If the inferenceoperator is In
                                                             or NotIn, the values array
                                                             must be non-empty. If
-                                                            the operator is Exists
+                                                            the inferenceoperator is Exists
                                                             or DoesNotExist, the values
                                                             array must be empty. This
                                                             array is replaced during
@@ -601,7 +601,7 @@ spec:
                                                           type: array
                                                       required:
                                                       - key
-                                                      - operator
+                                                      - inferenceoperator
                                                       type: object
                                                     type: array
                                                   matchLabels:
@@ -612,7 +612,7 @@ spec:
                                                       single {key,value} in the matchLabels
                                                       map is equivalent to an element
                                                       of matchExpressions, whose key
-                                                      field is "key", the operator
+                                                      field is "key", the inferenceoperator
                                                       is "In", and the values array
                                                       contains only "value". The requirements
                                                       are ANDed.
@@ -692,7 +692,7 @@ spec:
                                                 items:
                                                   description: A label selector requirement
                                                     is a selector that contains values,
-                                                    a key, and an operator that relates
+                                                    a key, and an inferenceoperator that relates
                                                     the key and values.
                                                   properties:
                                                     key:
@@ -701,7 +701,7 @@ spec:
                                                         to.
                                                       type: string
                                                     operator:
-                                                      description: operator represents
+                                                      description: inferenceoperator represents
                                                         a key's relationship to a
                                                         set of values. Valid operators
                                                         are In, NotIn, Exists and
@@ -709,10 +709,10 @@ spec:
                                                       type: string
                                                     values:
                                                       description: values is an array
-                                                        of string values. If the operator
+                                                        of string values. If the inferenceoperator
                                                         is In or NotIn, the values
                                                         array must be non-empty. If
-                                                        the operator is Exists or
+                                                        the inferenceoperator is Exists or
                                                         DoesNotExist, the values array
                                                         must be empty. This array
                                                         is replaced during a strategic
@@ -722,7 +722,7 @@ spec:
                                                       type: array
                                                   required:
                                                   - key
-                                                  - operator
+                                                  - inferenceoperator
                                                   type: object
                                                 type: array
                                               matchLabels:
@@ -732,7 +732,7 @@ spec:
                                                   of {key,value} pairs. A single {key,value}
                                                   in the matchLabels map is equivalent
                                                   to an element of matchExpressions,
-                                                  whose key field is "key", the operator
+                                                  whose key field is "key", the inferenceoperator
                                                   is "In", and the values array contains
                                                   only "value". The requirements are
                                                   ANDed.
@@ -756,7 +756,7 @@ spec:
                                                 items:
                                                   description: A label selector requirement
                                                     is a selector that contains values,
-                                                    a key, and an operator that relates
+                                                    a key, and an inferenceoperator that relates
                                                     the key and values.
                                                   properties:
                                                     key:
@@ -765,7 +765,7 @@ spec:
                                                         to.
                                                       type: string
                                                     operator:
-                                                      description: operator represents
+                                                      description: inferenceoperator represents
                                                         a key's relationship to a
                                                         set of values. Valid operators
                                                         are In, NotIn, Exists and
@@ -773,10 +773,10 @@ spec:
                                                       type: string
                                                     values:
                                                       description: values is an array
-                                                        of string values. If the operator
+                                                        of string values. If the inferenceoperator
                                                         is In or NotIn, the values
                                                         array must be non-empty. If
-                                                        the operator is Exists or
+                                                        the inferenceoperator is Exists or
                                                         DoesNotExist, the values array
                                                         must be empty. This array
                                                         is replaced during a strategic
@@ -786,7 +786,7 @@ spec:
                                                       type: array
                                                   required:
                                                   - key
-                                                  - operator
+                                                  - inferenceoperator
                                                   type: object
                                                 type: array
                                               matchLabels:
@@ -796,7 +796,7 @@ spec:
                                                   of {key,value} pairs. A single {key,value}
                                                   in the matchLabels map is equivalent
                                                   to an element of matchExpressions,
-                                                  whose key field is "key", the operator
+                                                  whose key field is "key", the inferenceoperator
                                                   is "In", and the values array contains
                                                   only "value". The requirements are
                                                   ANDed.
@@ -875,7 +875,7 @@ spec:
                                                       description: A label selector
                                                         requirement is a selector
                                                         that contains values, a key,
-                                                        and an operator that relates
+                                                        and an inferenceoperator that relates
                                                         the key and values.
                                                       properties:
                                                         key:
@@ -884,7 +884,7 @@ spec:
                                                             applies to.
                                                           type: string
                                                         operator:
-                                                          description: operator represents
+                                                          description: inferenceoperator represents
                                                             a key's relationship to
                                                             a set of values. Valid
                                                             operators are In, NotIn,
@@ -893,10 +893,10 @@ spec:
                                                         values:
                                                           description: values is an
                                                             array of string values.
-                                                            If the operator is In
+                                                            If the inferenceoperator is In
                                                             or NotIn, the values array
                                                             must be non-empty. If
-                                                            the operator is Exists
+                                                            the inferenceoperator is Exists
                                                             or DoesNotExist, the values
                                                             array must be empty. This
                                                             array is replaced during
@@ -906,7 +906,7 @@ spec:
                                                           type: array
                                                       required:
                                                       - key
-                                                      - operator
+                                                      - inferenceoperator
                                                       type: object
                                                     type: array
                                                   matchLabels:
@@ -917,7 +917,7 @@ spec:
                                                       single {key,value} in the matchLabels
                                                       map is equivalent to an element
                                                       of matchExpressions, whose key
-                                                      field is "key", the operator
+                                                      field is "key", the inferenceoperator
                                                       is "In", and the values array
                                                       contains only "value". The requirements
                                                       are ANDed.
@@ -945,7 +945,7 @@ spec:
                                                       description: A label selector
                                                         requirement is a selector
                                                         that contains values, a key,
-                                                        and an operator that relates
+                                                        and an inferenceoperator that relates
                                                         the key and values.
                                                       properties:
                                                         key:
@@ -954,7 +954,7 @@ spec:
                                                             applies to.
                                                           type: string
                                                         operator:
-                                                          description: operator represents
+                                                          description: inferenceoperator represents
                                                             a key's relationship to
                                                             a set of values. Valid
                                                             operators are In, NotIn,
@@ -963,10 +963,10 @@ spec:
                                                         values:
                                                           description: values is an
                                                             array of string values.
-                                                            If the operator is In
+                                                            If the inferenceoperator is In
                                                             or NotIn, the values array
                                                             must be non-empty. If
-                                                            the operator is Exists
+                                                            the inferenceoperator is Exists
                                                             or DoesNotExist, the values
                                                             array must be empty. This
                                                             array is replaced during
@@ -976,7 +976,7 @@ spec:
                                                           type: array
                                                       required:
                                                       - key
-                                                      - operator
+                                                      - inferenceoperator
                                                       type: object
                                                     type: array
                                                   matchLabels:
@@ -987,7 +987,7 @@ spec:
                                                       single {key,value} in the matchLabels
                                                       map is equivalent to an element
                                                       of matchExpressions, whose key
-                                                      field is "key", the operator
+                                                      field is "key", the inferenceoperator
                                                       is "In", and the values array
                                                       contains only "value". The requirements
                                                       are ANDed.
@@ -1067,7 +1067,7 @@ spec:
                                                 items:
                                                   description: A label selector requirement
                                                     is a selector that contains values,
-                                                    a key, and an operator that relates
+                                                    a key, and an inferenceoperator that relates
                                                     the key and values.
                                                   properties:
                                                     key:
@@ -1076,7 +1076,7 @@ spec:
                                                         to.
                                                       type: string
                                                     operator:
-                                                      description: operator represents
+                                                      description: inferenceoperator represents
                                                         a key's relationship to a
                                                         set of values. Valid operators
                                                         are In, NotIn, Exists and
@@ -1084,10 +1084,10 @@ spec:
                                                       type: string
                                                     values:
                                                       description: values is an array
-                                                        of string values. If the operator
+                                                        of string values. If the inferenceoperator
                                                         is In or NotIn, the values
                                                         array must be non-empty. If
-                                                        the operator is Exists or
+                                                        the inferenceoperator is Exists or
                                                         DoesNotExist, the values array
                                                         must be empty. This array
                                                         is replaced during a strategic
@@ -1097,7 +1097,7 @@ spec:
                                                       type: array
                                                   required:
                                                   - key
-                                                  - operator
+                                                  - inferenceoperator
                                                   type: object
                                                 type: array
                                               matchLabels:
@@ -1107,7 +1107,7 @@ spec:
                                                   of {key,value} pairs. A single {key,value}
                                                   in the matchLabels map is equivalent
                                                   to an element of matchExpressions,
-                                                  whose key field is "key", the operator
+                                                  whose key field is "key", the inferenceoperator
                                                   is "In", and the values array contains
                                                   only "value". The requirements are
                                                   ANDed.
@@ -1131,7 +1131,7 @@ spec:
                                                 items:
                                                   description: A label selector requirement
                                                     is a selector that contains values,
-                                                    a key, and an operator that relates
+                                                    a key, and an inferenceoperator that relates
                                                     the key and values.
                                                   properties:
                                                     key:
@@ -1140,7 +1140,7 @@ spec:
                                                         to.
                                                       type: string
                                                     operator:
-                                                      description: operator represents
+                                                      description: inferenceoperator represents
                                                         a key's relationship to a
                                                         set of values. Valid operators
                                                         are In, NotIn, Exists and
@@ -1148,10 +1148,10 @@ spec:
                                                       type: string
                                                     values:
                                                       description: values is an array
-                                                        of string values. If the operator
+                                                        of string values. If the inferenceoperator
                                                         is In or NotIn, the values
                                                         array must be non-empty. If
-                                                        the operator is Exists or
+                                                        the inferenceoperator is Exists or
                                                         DoesNotExist, the values array
                                                         must be empty. This array
                                                         is replaced during a strategic
@@ -1161,7 +1161,7 @@ spec:
                                                       type: array
                                                   required:
                                                   - key
-                                                  - operator
+                                                  - inferenceoperator
                                                   type: object
                                                 type: array
                                               matchLabels:
@@ -1171,7 +1171,7 @@ spec:
                                                   of {key,value} pairs. A single {key,value}
                                                   in the matchLabels map is equivalent
                                                   to an element of matchExpressions,
-                                                  whose key field is "key", the operator
+                                                  whose key field is "key", the inferenceoperator
                                                   is "In", and the values array contains
                                                   only "value". The requirements are
                                                   ANDed.
@@ -5904,7 +5904,7 @@ spec:
                               items:
                                 description: The pod this Toleration is attached to
                                   tolerates any taint that matches the triple <key,value,effect>
-                                  using the matching operator <operator>.
+                                  using the matching inferenceoperator <inferenceoperator>.
                                 properties:
                                   effect:
                                     description: Effect indicates the taint effect
@@ -5915,7 +5915,7 @@ spec:
                                   key:
                                     description: Key is the taint key that the toleration
                                       applies to. Empty means match all taint keys.
-                                      If the key is empty, operator must be Exists;
+                                      If the key is empty, inferenceoperator must be Exists;
                                       this combination means to match all values and
                                       all keys.
                                     type: string
@@ -5938,7 +5938,7 @@ spec:
                                     type: integer
                                   value:
                                     description: Value is the taint value the toleration
-                                      matches to. If the operator is Exists, the value
+                                      matches to. If the inferenceoperator is Exists, the value
                                       should be empty, otherwise just a regular string.
                                     type: string
                                 type: object
@@ -5966,7 +5966,7 @@ spec:
                                         items:
                                           description: A label selector requirement
                                             is a selector that contains values, a
-                                            key, and an operator that relates the
+                                            key, and an inferenceoperator that relates the
                                             key and values.
                                           properties:
                                             key:
@@ -5974,16 +5974,16 @@ spec:
                                                 the selector applies to.
                                               type: string
                                             operator:
-                                              description: operator represents a key's
+                                              description: inferenceoperator represents a key's
                                                 relationship to a set of values. Valid
                                                 operators are In, NotIn, Exists and
                                                 DoesNotExist.
                                               type: string
                                             values:
                                               description: values is an array of string
-                                                values. If the operator is In or NotIn,
+                                                values. If the inferenceoperator is In or NotIn,
                                                 the values array must be non-empty.
-                                                If the operator is Exists or DoesNotExist,
+                                                If the inferenceoperator is Exists or DoesNotExist,
                                                 the values array must be empty. This
                                                 array is replaced during a strategic
                                                 merge patch.
@@ -5992,7 +5992,7 @@ spec:
                                               type: array
                                           required:
                                           - key
-                                          - operator
+                                          - inferenceoperator
                                           type: object
                                         type: array
                                       matchLabels:
@@ -6001,7 +6001,7 @@ spec:
                                         description: matchLabels is a map of {key,value}
                                           pairs. A single {key,value} in the matchLabels
                                           map is equivalent to an element of matchExpressions,
-                                          whose key field is "key", the operator is
+                                          whose key field is "key", the inferenceoperator is
                                           "In", and the values array contains only
                                           "value". The requirements are ANDed.
                                         type: object
@@ -6787,7 +6787,7 @@ spec:
                                                       description: A label selector
                                                         requirement is a selector
                                                         that contains values, a key,
-                                                        and an operator that relates
+                                                        and an inferenceoperator that relates
                                                         the key and values.
                                                       properties:
                                                         key:
@@ -6796,7 +6796,7 @@ spec:
                                                             applies to.
                                                           type: string
                                                         operator:
-                                                          description: operator represents
+                                                          description: inferenceoperator represents
                                                             a key's relationship to
                                                             a set of values. Valid
                                                             operators are In, NotIn,
@@ -6805,10 +6805,10 @@ spec:
                                                         values:
                                                           description: values is an
                                                             array of string values.
-                                                            If the operator is In
+                                                            If the inferenceoperator is In
                                                             or NotIn, the values array
                                                             must be non-empty. If
-                                                            the operator is Exists
+                                                            the inferenceoperator is Exists
                                                             or DoesNotExist, the values
                                                             array must be empty. This
                                                             array is replaced during
@@ -6818,7 +6818,7 @@ spec:
                                                           type: array
                                                       required:
                                                       - key
-                                                      - operator
+                                                      - inferenceoperator
                                                       type: object
                                                     type: array
                                                   matchLabels:
@@ -6829,7 +6829,7 @@ spec:
                                                       single {key,value} in the matchLabels
                                                       map is equivalent to an element
                                                       of matchExpressions, whose key
-                                                      field is "key", the operator
+                                                      field is "key", the inferenceoperator
                                                       is "In", and the values array
                                                       contains only "value". The requirements
                                                       are ANDed.
@@ -7984,7 +7984,7 @@ spec:
                                 requirements. The requirements are ANDed.
                               items:
                                 description: A label selector requirement is a selector
-                                  that contains values, a key, and an operator that
+                                  that contains values, a key, and an inferenceoperator that
                                   relates the key and values.
                                 properties:
                                   key:
@@ -7992,14 +7992,14 @@ spec:
                                       applies to.
                                     type: string
                                   operator:
-                                    description: operator represents a key's relationship
+                                    description: inferenceoperator represents a key's relationship
                                       to a set of values. Valid operators are In,
                                       NotIn, Exists and DoesNotExist.
                                     type: string
                                   values:
                                     description: values is an array of string values.
-                                      If the operator is In or NotIn, the values array
-                                      must be non-empty. If the operator is Exists
+                                      If the inferenceoperator is In or NotIn, the values array
+                                      must be non-empty. If the inferenceoperator is Exists
                                       or DoesNotExist, the values array must be empty.
                                       This array is replaced during a strategic merge
                                       patch.
@@ -8008,7 +8008,7 @@ spec:
                                     type: array
                                 required:
                                 - key
-                                - operator
+                                - inferenceoperator
                                 type: object
                               type: array
                             matchLabels:
@@ -8017,7 +8017,7 @@ spec:
                               description: matchLabels is a map of {key,value} pairs.
                                 A single {key,value} in the matchLabels map is equivalent
                                 to an element of matchExpressions, whose key field
-                                is "key", the operator is "In", and the values array
+                                is "key", the inferenceoperator is "In", and the values array
                                 contains only "value". The requirements are ANDed.
                               type: object
                           type: object

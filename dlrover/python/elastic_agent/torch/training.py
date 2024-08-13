@@ -68,7 +68,7 @@ from dlrover.python.common.constants import (
     RendezvousName,
     TrainingExceptionLevel,
 )
-from dlrover.python.common.diagnosis import node_failed
+from dlrover.python.common.worker import WorkerContext
 from dlrover.python.common.error import ProcessError
 from dlrover.python.common.grpc import (
     find_free_port_for_hccl,
@@ -84,6 +84,8 @@ from dlrover.python.elastic_agent.monitor.training import TorchTrainingMonitor
 from dlrover.python.elastic_agent.torch.ckpt_saver import AsyncCheckpointSaver
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
 from dlrover.trainer.torch.utils import version_less_than_230
+from dlrover.python.elastic_agent.diagnose.diagnose_agent import DiagnoseAgent
+from dlrover.python.diagnose.common.constants import DiagnoseAction
 
 try:
     from torch_npu.contrib import transfer_to_npu  # noqa: F401
@@ -379,6 +381,8 @@ class ElasticTrainingAgent(LocalElasticAgent):
         start_method="spawn",
         exit_barrier_timeout: float = 300,
         log_dir: Optional[str] = None,
+        training_log_file: str = "",
+        failure_node_errors: str = "",
     ):
         if version_less_than_230():
             super().__init__(spec, exit_barrier_timeout)
@@ -405,6 +409,8 @@ class ElasticTrainingAgent(LocalElasticAgent):
         self._save_ckpt_executor = ThreadPoolExecutor(max_workers=1)
         self._save_ckpt_future = None
         self._log_file = os.getenv(NodeEnv.TRAINING_LOG_FILE, "")
+        failure_node_errors = "error code is 507035"
+        self._diagnose_agent = DiagnoseAgent(training_log_file, failure_node_errors)
 
     @prof
     def _rendezvous(self, worker_group: WorkerGroup) -> None:
@@ -642,16 +648,16 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 return run_result
             elif state in {WorkerState.UNHEALTHY, WorkerState.FAILED}:
                 logger.error(f"The worker fails with {run_result.failures}")
-                self._report_failure_to_master(run_result.failures)
                 self._save_ckpt_to_storage()
-                if self._remaining_failovers > 0 and not node_failed(
-                    self._log_file
-                ):
-                    logger.info(
-                        f"[{role}] Worker group {state.name}. "
-                        f"{self._remaining_failovers}/{spec.max_restarts}"
-                        f" attempts left; will restart worker group"
-                    )
+
+                worker_context = WorkerContext(
+                    worker_spec=self._worker_group.spec,
+                    remaining_failovers=self._remaining_failovers,
+                    restart_count=self._restart_count,
+                    run_result=run_result,
+                )
+                action = self._diagnose_agent.diagnose_training(worker_context)
+                if action == DiagnoseAction.RESTART_WORKER:
                     self._remaining_failovers -= 1
                     self._restart_workers(self._worker_group)
                 else:

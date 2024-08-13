@@ -64,7 +64,7 @@ class MIPTensorParallelPlanner(BaseTensorParallelPlanner):
     def _get_mip_parameters(self, model, graph, sharding_specs, tensor_shapes, device_topo, optimizer=None):
         """construct mip model parameters
         FIXME This method depends on the ability to assess the memory/communication cost
-        of each operator/parallel operator. Refactor this method into a clearer form
+        of each inferenceoperator/parallel inferenceoperator. Refactor this method into a clearer form
         FIXME Maybe some sort of interpretor to do this
         Args:
             model: original model
@@ -78,7 +78,7 @@ class MIPTensorParallelPlanner(BaseTensorParallelPlanner):
                 parallelism
 
         model variables:
-            x_{i, j}: decision variable for shardable operator i, whether to use impl j
+            x_{i, j}: decision variable for shardable inferenceoperator i, whether to use impl j
                 j correspond to distributed implementation graph[node_name]['sharded_impl'][j - 1]
                 j = 0 correspond to the original implementation
             e_{i, k, j, r}: decision variable for edge i, j, to linearize the cost.
@@ -88,12 +88,12 @@ class MIPTensorParallelPlanner(BaseTensorParallelPlanner):
             inter_operator_communication_costs: communication cost of each edge
                 keys: ((i, k), (j, r)), value: if node i is parallelized as k, j is parallelized
                 as r, then value is the communication cost of resharding
-            intra_operator_communication_costs: communication cost of each operator
+            intra_operator_communication_costs: communication cost of each inferenceoperator
                 keys: (i, k), value: if node i is parallelized as k, then the value is the communication
-                cost of the corresponding parallel operator
-            memory_requirements: memory requirement of each operator
+                cost of the corresponding parallel inferenceoperator
+            memory_requirements: memory requirement of each inferenceoperator
                 keys: (i, k), value: if node i is parallelized as k, then the value is the memory
-                requirement of this parallel operator
+                requirement of this parallel inferenceoperator
             contracted_graph: contracted graph
             nx_graph: networkx graph that is not contracted
         """
@@ -206,7 +206,7 @@ class MIPTensorParallelPlanner(BaseTensorParallelPlanner):
     ):
         """Given the parameters, construct an mip model
         model variables:
-           x_{i, j}: decision variable for shardable operator i, whether to use impl j
+           x_{i, j}: decision variable for shardable inferenceoperator i, whether to use impl j
                j correspond to distributed implementation graph[node_name]['sharded_impl'][j - 1]
                j = 0 correspond to the original implementation
            e_{i, k, j, r}: decision variable for edge i, j, to linearize the cost.

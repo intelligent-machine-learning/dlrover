@@ -49,7 +49,7 @@ type JobStatus struct {
 
 // +k8s:openapi-gen=true
 
-// ReplicaType represents the type of the replica. Each operator needs to define its
+// ReplicaType represents the type of the replica. Each inferenceoperator needs to define its
 // own set of ReplicaTypes.
 type ReplicaType string
 
@@ -191,7 +191,7 @@ const (
 	RestartPolicyNever RestartPolicy = "Never"
 
 	// RestartPolicyExitCode policy means that user should add exit code by themselves,
-	// The job operator will check these exit codes to
+	// The job inferenceoperator will check these exit codes to
 	// determine the behavior when an error occurs:
 	// - 1-127: permanent error, do not restart.
 	// - 128-255: retryable error, will restart the pod.

@@ -13,6 +13,7 @@
 
 from abc import ABCMeta, abstractmethod
 from datetime import datetime
+from typing import List
 
 from dlrover.python.util.file_util import read_last_n_lines
 
@@ -51,12 +52,13 @@ class CudaLog(DiagnosisData):
 
 
 class TrainingLog(DiagnosisData):
-    def __init__(self, timestamp: int):
+    def __init__(self, timestamp: int = 0, logs: List[str] = None):
         super().__init__()
         if timestamp == 0:
             self.timestamp = int(round(datetime.now().timestamp()))
         else:
             self.timestamp = timestamp
+        self.logs: List[str] = logs
 
     def get_timestamp(self) -> int:
         return self.timestamp
@@ -77,16 +79,3 @@ class ChipMetrics(DiagnosisData):
 
     def get_type(self) -> str:
         return DiagnosisDataType.CHIPMETRICES
-
-
-def node_failed(log_file: str) -> bool:
-    if len(log_file) == 0:
-        return False
-    errors = ["error code is 507035"]
-
-    lines = read_last_n_lines(log_file, 5000)
-    for line in lines:
-        for error in errors:
-            if error in str(line):
-                return True
-    return False

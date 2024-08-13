@@ -19,7 +19,7 @@ from unittest.mock import patch
 
 from dlrover.python.common.constants import NodeEnv
 from dlrover.python.common.grpc import GPUStats
-from dlrover.python.elastic_agent.datacollector.data_collector import (
+from dlrover.python.diagnose.datacollector import (
     CollectorType,
 )
 from dlrover.python.elastic_agent.master_client import (

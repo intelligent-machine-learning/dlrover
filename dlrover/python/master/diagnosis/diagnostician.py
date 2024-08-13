@@ -13,8 +13,8 @@
 from typing import List
 
 from dlrover.python.master.diagnosis.diagnosis_data import DataManager
-from dlrover.python.master.diagnosis.inferencechain.common import Inference
-from dlrover.python.master.diagnosis.inferencechain.inference_chain import (
+from dlrover.python.diagnose.common.inference_chain import Inference
+from dlrover.python.diagnose.inferencechain.inference_chain import (
     InferenceChain,
 )
 

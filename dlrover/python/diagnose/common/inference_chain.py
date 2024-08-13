@@ -12,21 +12,25 @@
 # limitations under the License.
 
 from abc import ABCMeta, abstractmethod
-from dataclasses import dataclass
-from typing import List
+from dataclasses import dataclass, field
+from typing import List, Dict
 
 
 class InferenceName:
     END = "end"
     TRAINING = "training"
+    NODE = "node"
 
 
 class InferenceAttribute:
     ISORNOT = "is_or_not"
+    IS = "is"
+    NOT = "not"
 
 
 class InferenceDescription:
     HANG = "hang"
+    FAILURE = "failure"
 
 
 @dataclass
@@ -38,6 +42,7 @@ class Inference(object):
     name: str = ""
     attribution: str = ""
     description: str = ""
+    configs: Dict[str, str] = field(default_factory=dict)
 
 
 class InferenceOperator(metaclass=ABCMeta):
@@ -52,7 +57,7 @@ class InferenceOperator(metaclass=ABCMeta):
     def infer(self, inferences: List[Inference]) -> List[Inference]:
         pass
 
-    # check if the operator can be used to infer a given inference
+    # check if the InferenceOperator can be used to infer a given inference
     @abstractmethod
     def is_compatible(self, inference: Inference) -> bool:
         pass
@@ -67,6 +72,15 @@ def same_inference(inference1: Inference, inference2: Inference) -> bool:
         return True
     else:
         return False
+
+
+def include_inference(infs: List[Inference], inf: Inference) -> bool:
+    if not infs or not inf:
+        return False
+    for i in infs:
+        if same_inference(i, inf):
+            return True
+    return False
 
 
 def combine_inferences(

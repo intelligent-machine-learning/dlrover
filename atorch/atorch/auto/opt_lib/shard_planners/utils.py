@@ -2,7 +2,7 @@
 This includes:
     1. Turning an FX graph into a NX graph (which is more controllable)
     2. Contracting NX graph (maintaining DAG property), to reduce the size of graph.
-    3. Computing the cost of an operator:
+    3. Computing the cost of an inferenceoperator:
         a. Memory b. Communication c. Computation
     Some operators are distributed operators whose properties are tied with the distributed environment.
     We use DeviceTopology (describing physical connectivity of the devices) and ranks (the logical naming)
@@ -263,7 +263,7 @@ def transform_graph_to_nx(fx_graph, sharding_specs, model, device_topo, prepare_
     contract_nodes = []
     ranks = device_topo.get_device_ranks()
     # insert node into the nx_graph
-    # mark shardable operator, list all possible choices
+    # mark shardable inferenceoperator, list all possible choices
     for rank, node in enumerate(topo_nodes):
         # This rank is the topo-ordering of the node
         node_attr = {
@@ -290,7 +290,7 @@ def transform_graph_to_nx(fx_graph, sharding_specs, model, device_topo, prepare_
 
         target_name = shardable_operators_names.get(node_target, None)
         if target_name is None:
-            # not a shardable operator, assign a name for it
+            # not a shardable inferenceoperator, assign a name for it
             if hasattr(node_target, "__name__"):
                 target_name = node_target.__name__
             else:
@@ -324,7 +324,7 @@ def transform_graph_to_nx(fx_graph, sharding_specs, model, device_topo, prepare_
             elif node_target in _BCAST_ELEMENTWISE_OPS and len(list(node.all_input_nodes)) == 1:
                 contract_nodes.append(node.name)
             elif node_target == operator.getitem:
-                # handle the special operator __getitem__
+                # handle the special inferenceoperator __getitem__
                 contract_nodes.append(node.name)
 
     return nx_graph, contract_nodes

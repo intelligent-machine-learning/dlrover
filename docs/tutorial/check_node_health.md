@@ -48,7 +48,7 @@ ElasticJob CRD on the cluster by the following steps.
 
 ```bash
 git clone git@github.com:intelligent-machine-learning/dlrover.git
-cd dlrover/dlrover/go/operator/
+cd dlrover/dlrover/go/inferenceoperator/
 make deploy IMG=easydl/elasticjob-controller:master  # GO 1.18.
 # Grant permission for the DLRover master to Access CRDs.
 kubectl -n dlrover apply -f config/manifests/bases/default-role.yaml

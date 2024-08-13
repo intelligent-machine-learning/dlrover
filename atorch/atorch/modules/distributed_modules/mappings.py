@@ -161,7 +161,7 @@ def gather_split_1d_tensor(tensor, group="tensor"):
 def _split_last_dim_gather_first_dim(input_, group=None):
     """Split the input tensor (by last dim) across model parallel group.
     Gather the first dimension
-    This operator assumes that tensors are sharded in natural order
+    This inferenceoperator assumes that tensors are sharded in natural order
     of parallel group and performs no reshuffling
 
     Args:
@@ -198,7 +198,7 @@ def _split_last_dim_gather_first_dim(input_, group=None):
 def _split_first_dim_gather_last_dim(input_, group=None):
     """Split the input tensor (by first dim) across model parallel group.
     Gather the last dimension
-    This operator assumes that tensors are sharded in natural order
+    This inferenceoperator assumes that tensors are sharded in natural order
     of parallel group and performs no reshuffling
 
     Args:
@@ -423,7 +423,7 @@ def split_last_dim_with_reshuffle_check(input_, group=None, ranks=None):
 
 
 def collect_and_reshard(input_, prev_shard, cur_shard):
-    """A general resharding operator that collect input_ over prev_spec.group,
+    """A general resharding inferenceoperator that collect input_ over prev_spec.group,
     then aggregate and distribute over cur_shard.group.
 
     Currently only support 1d resharding.

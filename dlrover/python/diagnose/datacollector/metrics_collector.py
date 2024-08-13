@@ -11,20 +11,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dlrover.python.common.diagnosis import TrainingLog
-from dlrover.python.elastic_agent.datacollector.data_collector import (
+from dlrover.python.diagnose.common.diagnose_data import ChipMetrics
+from dlrover.python.diagnose.datacollector.data_collector import (
     DataCollector,
 )
 
 
-class LogCollector(DataCollector):
+class MetricsCollector(DataCollector):
     def __init__(self, *args, **kwargs):
-        super().__init__()
         pass
 
     def collect_data(self) -> object:
-        log = TrainingLog(0)
-        return log
+        chip_metrics = ChipMetrics(0)
+        return chip_metrics
 
     def to_collect_data(self) -> bool:
         return True

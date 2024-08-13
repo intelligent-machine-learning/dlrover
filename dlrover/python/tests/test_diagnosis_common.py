@@ -14,7 +14,7 @@
 import os
 import unittest
 
-from dlrover.python.common.diagnosis import node_failed
+from dlrover.python.diagnose.common.diagnose_data import node_failed
 
 
 class DiagnosisTest(unittest.TestCase):

@@ -20,7 +20,7 @@ from dlrover.python.master.diagnosis.diagnosis_data import (
     DiagnosisData,
 )
 from dlrover.python.master.diagnosis.diagnostician import Diagnostician
-from dlrover.python.master.diagnosis.inferencechain.common import (
+from dlrover.python.diagnose import (
     Inference,
     InferenceAttribute,
     InferenceDescription,

@@ -736,7 +736,7 @@ class PipelineStage(torch.nn.Module):
         # If submod is wrapped with DDP, we use the `no_sync` context manager to
         # avoid gradient all-reduce per microbatch
         if isinstance(self.submod, DistributedDataParallel):
-            with self.submod.no_sync():  # type: ignore[operator]
+            with self.submod.no_sync():  # type: ignore[inferenceoperator]
                 out_val = self.submod(*args, **kwargs)
         else:
             out_val = self.submod(*args, **kwargs)
@@ -746,7 +746,7 @@ class PipelineStage(torch.nn.Module):
         if isinstance(self.submod, DistributedDataParallel):
             if is_last_chunk:
                 # HACK: reaching into DDP implementation details here. Is there a better way?
-                self.submod.reducer.prepare_for_backward(  # type: ignore[union-attr, operator]
+                self.submod.reducer.prepare_for_backward(  # type: ignore[union-attr, inferenceoperator]
                     list(
                         torch.nn.parallel.distributed._find_tensors(  # type: ignore[attr-defined]
                             bwd_kwargs["stage_output"]
@@ -755,7 +755,7 @@ class PipelineStage(torch.nn.Module):
                 )
                 grads_input, _ = stage_backward(**bwd_kwargs)
             else:
-                with self.submod.no_sync():  # type: ignore[operator]
+                with self.submod.no_sync():  # type: ignore[inferenceoperator]
                     grads_input, _ = stage_backward(**bwd_kwargs)
         else:
             # Non-DDP submodule, regular backward

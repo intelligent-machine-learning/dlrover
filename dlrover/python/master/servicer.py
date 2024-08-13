@@ -29,7 +29,7 @@ from dlrover.python.common.constants import (
     TrainingExceptionLevel,
     TrainingLoopStatus,
 )
-from dlrover.python.common.diagnosis import (
+from dlrover.python.diagnose.common.diagnose_data import (
     ChipMetrics,
     CudaLog,
     DiagnosisDataType,

@@ -11,14 +11,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dlrover.python.common.diagnosis import CudaLog
-from dlrover.python.elastic_agent.datacollector.data_collector import (
+from dlrover.python.diagnose.common.diagnose_data import CudaLog
+from dlrover.python.diagnose.datacollector.data_collector import (
     DataCollector,
 )
 
 
 class CudaLogCollector(DataCollector):
     def __init__(self, *args, **kwargs):
+        super().__init__()
         pass
 
     def collect_data(self) -> object:

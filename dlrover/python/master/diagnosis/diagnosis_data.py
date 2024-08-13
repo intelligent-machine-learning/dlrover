@@ -14,7 +14,7 @@
 from datetime import datetime, timedelta
 from typing import List
 
-from dlrover.python.common.diagnosis import DiagnosisData
+from dlrover.python.diagnose.common.diagnose_data import DiagnosisData
 from dlrover.python.common.log import default_logger as logger
 
 
@@ -25,9 +25,10 @@ def has_expired(timestamp: float, time_period: int) -> bool:
 
 
 class DataManager:
-    def __init__(self, expire_time_period):
+    def __init__(self, expire_time_period, training_log_file: str = ""):
         self.diagnosis_data: dict[str, [DiagnosisData]] = {}
         self.expire_time_period = expire_time_period
+        self.training_log_file = training_log_file
 
     def store_data(self, data_type: str, data: DiagnosisData):
         if data_type not in self.diagnosis_data:

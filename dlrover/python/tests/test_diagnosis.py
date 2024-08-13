@@ -14,10 +14,10 @@
 import time
 import unittest
 
-from dlrover.python.common.diagnosis import CudaLog
+from dlrover.python.diagnose.common.diagnose_data import CudaLog
 from dlrover.python.master.diagnosis.diagnosis_data import DataManager
 from dlrover.python.master.diagnosis.diagnostician import Diagnostician
-from dlrover.python.master.diagnosis.inferencechain.common import (
+from dlrover.python.diagnose import (
     Inference,
     InferenceAttribute,
     InferenceDescription,

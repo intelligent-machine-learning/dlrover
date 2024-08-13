@@ -1,19 +1,19 @@
 # This registry resgisters all shardable operators and the corresponding sharded implementations
 
 # Global variables:
-#     _SHARDABLE_OPERATORS (dict): maps a unique identifier to the operator
-#     _SHARDED_OPERATORS (dict): maps a unique identifier to the sharded operator
+#     _SHARDABLE_OPERATORS (dict): maps a unique identifier to the inferenceoperator
+#     _SHARDED_OPERATORS (dict): maps a unique identifier to the sharded inferenceoperator
 #     _SHARD_MAP (dict): maps shardable operators to the corresponding sharded implementations
 #         uses encodings specified in _SHARDABLE_OPERATORS and _SHARDED_OPERATORS
-#     _REPLACE_SPECS (dict): maps a sharded operator to a callable. This callable should
+#     _REPLACE_SPECS (dict): maps a sharded inferenceoperator to a callable. This callable should
 #         specify the sharding specs for the input/output tensors, given the
-#         default sharding specs of the original operator. All tensors are default to DDP sharding
+#         default sharding specs of the original inferenceoperator. All tensors are default to DDP sharding
 #     _LOCAL_OPERATORS (list): a list of "local" operators. These operators perform element-wise
 #         operations and thus works for all shardings of a tensor
 #     _MAGIC_LOCAL_OPERATORS (list): a list of "local" operators. These operators are specified with
 #         there class names, including +, -, etc.
-#     To implement a tensor parallel operator that is supported by auto parallel optimization,
-#         the operator must be registered here
+#     To implement a tensor parallel inferenceoperator that is supported by auto parallel optimization,
+#         the inferenceoperator must be registered here
 import operator
 
 import numpy as np
@@ -311,16 +311,16 @@ def _megatron_gptneox_layer_spec(old_input_spec, old_output_spec, group="tensor"
 
 
 def _row_parallel_linear_com(ranks, tensor_shape, orig_module):
-    """Generates all the collective communication operators used by this parallel operator
-    and all args needed to compute the cost of each operator
+    """Generates all the collective communication operators used by this parallel inferenceoperator
+    and all args needed to compute the cost of each inferenceoperator
 
     Args:
-        ranks: on which this operator is working on
+        ranks: on which this inferenceoperator is working on
         tensor_shape: the shape of the output of the original module
         orig_module: the original module
 
     Return:
-        A list of operator names by which we can infer the function to compute the cost.
+        A list of inferenceoperator names by which we can infer the function to compute the cost.
             Example.
             >>> [("all_reduce", ranks, tensor_shape)]
             Through _COMMUNICATOR_COSTS we compute the cost of all_reduce by calling
@@ -1143,21 +1143,21 @@ def register_parallel_operator(
     orig_operator_flops=None,
     parallel_operator_flops=None,
 ):
-    """Register a distributed operator so that TensorParallelOptimization can use it
+    """Register a distributed inferenceoperator so that TensorParallelOptimization can use it
 
     Args:
-        parallel_operator_name (str): The unique name given to the distributed operator.
-        parallel_operator_class: The actual class of this distributed operator.
-        replace_spec (Callable): A callable that transforms the input/output_spec of original operator
+        parallel_operator_name (str): The unique name given to the distributed inferenceoperator.
+        parallel_operator_class: The actual class of this distributed inferenceoperator.
+        replace_spec (Callable): A callable that transforms the input/output_spec of original inferenceoperator
             into the distributed input/output_spec of the parallel_operator.
-        orig_operator_name (str): The unique name of the original operator.
-        parallel_mem_req (Callable): a callable that helps to compute the memory requirement of the sharded operator
-        parallel_com_cost (Callable): a callable that helps to compute the communication cost of the sharded operator
-        orig_operator_class: The actual class of the original operator. If the orig_operator_class is not registered,
+        orig_operator_name (str): The unique name of the original inferenceoperator.
+        parallel_mem_req (Callable): a callable that helps to compute the memory requirement of the sharded inferenceoperator
+        parallel_com_cost (Callable): a callable that helps to compute the communication cost of the sharded inferenceoperator
+        orig_operator_class: The actual class of the original inferenceoperator. If the orig_operator_class is not registered,
             then this must be provided
-        mem_req (Callable): a callable that helps to compute the memory requirement of the original operator
-        orig_operator_flops (Callable): a callable that helps to compute the flops of the original operator
-        parallel_operator_flops (Callable): a callable that helps to compute the flops of the parallel operator
+        mem_req (Callable): a callable that helps to compute the memory requirement of the original inferenceoperator
+        orig_operator_flops (Callable): a callable that helps to compute the flops of the original inferenceoperator
+        parallel_operator_flops (Callable): a callable that helps to compute the flops of the parallel inferenceoperator
     """
     if parallel_operator_name in _SHARDED_OPERATORS:
         logger.warning(f"{parallel_operator_name} already exists!")
@@ -1165,7 +1165,7 @@ def register_parallel_operator(
     if orig_operator_name not in _SHARDABLE_OPERATORS:
         if orig_operator_class is None:
             raise ValueError(
-                f"To parallelize {orig_operator_name}, must specify the original operator class by orig_operator_class"
+                f"To parallelize {orig_operator_name}, must specify the original inferenceoperator class by orig_operator_class"
             )
         else:
             _SHARDABLE_OPERATORS[orig_operator_name] = orig_operator_class
