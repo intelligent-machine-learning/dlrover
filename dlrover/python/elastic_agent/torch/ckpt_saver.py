@@ -539,10 +539,12 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         The loop to persist the state dict from the memory
         buffer into the storage.
         """
+
         logger.info("Async flash checkpoint saver starts!")
+        event: CheckpointEvent = None
         while True:
             try:
-                event: CheckpointEvent = self._event_queue.get()
+                event = self._event_queue.get()
                 if event.type == CheckpointEventType.UPDATE_SHARD:
                     logger.info(
                         "Reset the shared memory after the training starts. "
@@ -560,7 +562,8 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                     break
             except Exception as e:
                 logger.error(
-                    f"Got unexpected exception during checkpointing: {e}.",
+                    f"Got unexpected exception during checkpointing: {event}, "
+                    f"error: {e}.",
                     exc_info=True,
                 )
                 self._report_failure_to_master(str(e))
