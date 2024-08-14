@@ -14,9 +14,6 @@ from typing import List
 
 from dlrover.python.master.diagnosis.diagnosis_data import DataManager
 from dlrover.python.diagnose.common.inference_chain import Inference
-from dlrover.python.diagnose.inferencechain.inference_chain import (
-    InferenceChain,
-)
 
 
 class Diagnostician:
@@ -28,8 +25,7 @@ class Diagnostician:
         self.training_problems = problems
 
     def observe_training(self) -> List[Inference]:
-        ic = InferenceChain(self.data_manager, self.training_problems)
-        return ic.infer()
+        pass
 
     def diagnose_failure(self, inference: Inference) -> List[Inference]:
         pass

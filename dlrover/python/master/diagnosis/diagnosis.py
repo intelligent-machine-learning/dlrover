@@ -20,8 +20,8 @@ from dlrover.python.master.diagnosis.diagnosis_data import (
     DiagnosisData,
 )
 from dlrover.python.master.diagnosis.diagnostician import Diagnostician
-from dlrover.python.diagnose import (
-    Inference,
+from dlrover.python.diagnose.inferencechain.inference_chain import Inference
+from dlrover.python.diagnose.common.inference_chain import (
     InferenceAttribute,
     InferenceDescription,
     InferenceName,
@@ -65,12 +65,4 @@ class DiagnosisManager:
         pass
 
     def _diagnose_failures(self):
-        logger.info("Start to diagnose failures")
-        while True:
-            observed_problems = self.diagnostician.observe_training()
-            for problem in observed_problems:
-                logger.info(f"observed problems: {problem}")
-                root_causes = self.diagnostician.diagnose_failure(problem)
-                for root_cause in root_causes:
-                    logger.info(f"identify root cause: {root_cause}")
-            time.sleep(180)
+        pass

@@ -12,8 +12,6 @@
 # limitations under the License.
 
 from typing import List
-
-from dlrover.python.master.diagnosis.diagnosis_data import DataManager
 from dlrover.python.diagnose.common.inference_chain import (
     InferenceOperator,
 )
@@ -26,4 +24,7 @@ from dlrover.python.diagnose.inferencechain.inferenceoperator.check_failure_node
 
 
 def register_operators() -> List[InferenceOperator]:
-    return [CheckTrainingHangOperator(), CheckFailureNodeOperator()]
+    return [
+        CheckTrainingHangOperator(),
+        CheckFailureNodeOperator()
+    ]
