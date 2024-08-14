@@ -17,7 +17,7 @@ class BaseTensorParallelPlanner:
         self, model, graph, sharding_specs, tensor_shapes, device_topo, optimizer=None, **kwargs
     ):
         """Generates a sharding plan for the model. This implements the simplest strategy:
-        match every shardable inferenceoperator and replacement it with its first distributed implementation.
+        match every shardable operator and replacement it with its first distributed implementation.
 
         All distributed operators will be distributed over the process_group 'tensor', which is created
         externally. All operators should respect the order of ranks of the process_group 'tensor'
@@ -25,7 +25,7 @@ class BaseTensorParallelPlanner:
         group and ranks can be retreived via atorch.distributed.parallel_group_and_ranks('tensor')
 
         Overriding this method for other strategies. For example, this method can also get a topology of the
-        GPU cluster, and create individual process groups for each inferenceoperator.
+        GPU cluster, and create individual process groups for each operator.
         The group/ranks assignment can be specified in replaced_spec.
         Instruction on process group creation can be specified in process_groups.
 

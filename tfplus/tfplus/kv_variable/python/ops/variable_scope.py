@@ -10,7 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""A class to store named kv variables and a scope inferenceoperator to manage sharing.
+"""A class to store named kv variables and a scope operator to manage sharing.
 This file is based on
 https://github.com/tensorflow/tensorflow/blob/v1.13.1/tensorflow/python/ops/variable_scope.py
 and add some subclasses for get_kv_variable. get_kv_variable is similar

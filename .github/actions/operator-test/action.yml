@@ -1,10 +1,10 @@
 ---
-name: inferenceoperator-test
-description: run gotest to execute go test cases of ElasticJob inferenceoperator
+name: operator-test
+description: run gotest to execute go test cases of ElasticJob operator
 runs:
   using: 'docker'
   image: "easydl/dlrover:ci"
   args:
     - "/bin/bash"
     - "-c"
-    - "cd dlrover/go/inferenceoperator && go test ./..."
+    - "cd dlrover/go/operator && go test ./..."

@@ -79,7 +79,7 @@ $ helm upgrade -i nvdp nvdp/nvidia-device-plugin \
     --version=0.13.0 \
     --namespace nvidia-device-plugin \
     --create-namespace \
-    --set-file config.map.config=./dlrover/go/inferenceoperator/config/gpu/nvidia-device-plugin-gpu-shared.yaml
+    --set-file config.map.config=./dlrover/go/operator/config/gpu/nvidia-device-plugin-gpu-shared.yaml
 ```
 
 Then test your GPU resources by
@@ -177,7 +177,7 @@ a docker image.
 - Run the controller in the terminal.
 
 ```bash
-cd dlrover/go/inferenceoperator
+cd dlrover/go/operator
 make install
 make run
 ```
@@ -191,7 +191,7 @@ make deploy IMG=easydl/elasticjob-controller:master
 ### 3. Grant Permission for the DLRover Master to Access CRDs
 
 ```bash
-kubectl apply -f dlrover/go/inferenceoperator/config/manifests/bases/default-role.yaml
+kubectl apply -f dlrover/go/operator/config/manifests/bases/default-role.yaml
 ```
 
 ### 4. Build the Image

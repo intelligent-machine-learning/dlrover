@@ -21,7 +21,7 @@ make deploy IMG=easydl/elasticjob-controller:v0.1.1
 1. Grant permission for the DLRover master to Access CRDs.
 
 ```bash
-kubectl -n dlrover apply -f dlrover/go/inferenceoperator/config/rbac/default_role.yaml 
+kubectl -n dlrover apply -f dlrover/go/operator/config/rbac/default_role.yaml 
 ```
 
 ## Submit an Auto-Scaling Job

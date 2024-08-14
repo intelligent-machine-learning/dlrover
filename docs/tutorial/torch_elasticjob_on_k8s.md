@@ -25,7 +25,7 @@ git clone git@github.com:intelligent-machine-learning/dlrover.git
 2. Deploy the controller on the cluster.
 
 ```bash
-cd dlrover/dlrover/go/inferenceoperator/
+cd dlrover/dlrover/go/operator/
 make deploy IMG=easydl/elasticjob-controller:master  # GO 1.18
 ```
 

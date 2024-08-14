@@ -43,7 +43,7 @@ def get_communicator(prev_shard, cur_shard):
     """
 
     def identity_resharding(input_):
-        """This resharding inferenceoperator does nothing"""
+        """This resharding operator does nothing"""
         return input_
 
     if isinstance(prev_shard, list):
@@ -142,7 +142,7 @@ def get_communicator(prev_shard, cur_shard):
                 wrapped_intra_group_sharding_communicator = wrap_intra_group_sharding_communicator(func, prev_shard)
                 return wrapped_intra_group_sharding_communicator
         else:
-            # reshuffle/inter-group, use the general inferenceoperator
+            # reshuffle/inter-group, use the general operator
             func = wrap_collect_and_reshard(prev_shard, cur_shard)
         return func
 

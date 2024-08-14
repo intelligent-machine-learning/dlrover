@@ -662,7 +662,7 @@ class VocabParallelEmbedding(ATorchTPLayer):
         if self.tensor_model_parallel_size > 1:
             output_parallel[input_mask, :] = 0.0
         # Reduce across all the model parallel GPUs.
-        # FIXME use a backward enabled inferenceoperator
+        # FIXME use a backward enabled operator
         output = reduce_from_group(output_parallel, self.process_group)
         return output
 

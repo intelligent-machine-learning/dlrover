@@ -346,7 +346,7 @@ class FSDPWithDDP(FullyShardedDataParallel):
         # no need to prefetch the full params again.
         # Only prefetch full params if any of the next layer's outputs requires grad
         if self._need_prefetch_post_backward_hook():
-            self._fsdp_graph_order[self._my_fsdp_idx_in_graph - 1]._rebuild_full_params()  # type: ignore[inferenceoperator]
+            self._fsdp_graph_order[self._my_fsdp_idx_in_graph - 1]._rebuild_full_params()  # type: ignore[operator]
             # Next layer's computation will start right after this all_gather,
             # Wait for all_gather to finish before computation.
             torch.cuda.current_stream().wait_stream(self._streams["all_gather"])

@@ -4,7 +4,7 @@ github.com/pytorch/pytorch/blob/1.7/torch/distributed/launch.py
 Changes:
   0. launcher uses env to pass MASTER_ADDR/MASTER_PORT/WORLD_SIZE/LOCAL_SIZE
      to training script.
-  1. pytorch inferenceoperator will set MASTER_ADDR/MASTER_PORT/WORLD_SIZE env.
+  1. pytorch operator will set MASTER_ADDR/MASTER_PORT/WORLD_SIZE env.
      Thus, env values are used if corresponding args are not set.
      WORLD_SIZE is revised to env(WORLD_SIZE) * nproc_per_node.
   2. add not_use_env set default to True to use env for LOCAL_RANK.

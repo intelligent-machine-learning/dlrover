@@ -409,8 +409,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         self._save_ckpt_executor = ThreadPoolExecutor(max_workers=1)
         self._save_ckpt_future = None
         self._log_file = os.getenv(NodeEnv.TRAINING_LOG_FILE, "")
-        failure_node_errors = "error code is 507035"
-        self._diagnose_agent = DiagnoseAgent(training_log_file, failure_node_errors)
+        self._diagnose_agent = DiagnoseAgent(training_log_file, "error code is 507035")
 
     @prof
     def _rendezvous(self, worker_group: WorkerGroup) -> None:

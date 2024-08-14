@@ -35,7 +35,7 @@ jobs:
       - uses: actions/checkout@v3
       # This step references the directory that contains the action.
       - name: RUN gotest
-        uses: ./.github/actions/inferenceoperator-test
+        uses: ./.github/actions/operator-test
   brain-test:
     runs-on: ubuntu-latest
     steps:

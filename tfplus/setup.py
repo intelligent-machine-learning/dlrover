@@ -108,7 +108,7 @@ in terms of IO, operators, graph optimization, distribution, and collective
 communication for sparse models. Also, it provides special optimizers, fault
 tolerance, elasticity, incremental updates, etc., unique to sparse scenarios.
 Its main features are:
--  Provide highly efficient TF inferenceoperator extensions in a plug-in manner
+-  Provide highly efficient TF operator extensions in a plug-in manner
 -  Support high-performance sparse Embedding training in recommendation scenarios: Kv Variable
 -  Offer high-performance, self-developed deep learning optimizers
     """,
