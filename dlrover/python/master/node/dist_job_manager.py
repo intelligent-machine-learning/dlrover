@@ -1014,10 +1014,10 @@ class DistributedJobManager(JobManager):
         if node.is_released:
             logger.info(f"The node {node.name} has been released.")
             return
-        reluanch_node = self._process_error(
+        relaunch_node = self._process_error(
             node, restart_count, error_data, level
         )
-        if reluanch_node and node.relaunchable:
+        if relaunch_node and node.relaunchable:
             self._relaunch_node(node)
 
     def update_allreduce_node_unit(self, node_unit):
