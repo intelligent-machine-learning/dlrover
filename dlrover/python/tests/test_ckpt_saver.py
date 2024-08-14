@@ -286,7 +286,9 @@ class CheckpointSaverTest(unittest.TestCase):
         master, addr = start_local_master()
         MasterClient._instance = build_master_client(addr)
 
+        self.assertIsNone(saver._master_client)
         self.assertIsNotNone(saver.get_master_client())
+        self.assertIsNotNone(saver._master_client)
         saver._report_failure_to_master("test-error")
 
 
