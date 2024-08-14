@@ -12,20 +12,19 @@
 # limitations under the License.
 
 import threading
-import time
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.master.diagnosis.diagnosis_data import (
-    DataManager,
-    DiagnosisData,
-)
-from dlrover.python.master.diagnosis.diagnostician import Diagnostician
-from dlrover.python.diagnose.inferencechain.inference_chain import Inference
 from dlrover.python.diagnose.common.inference_chain import (
     InferenceAttribute,
     InferenceDescription,
     InferenceName,
 )
+from dlrover.python.diagnose.inferencechain.inference_chain import Inference
+from dlrover.python.master.diagnosis.diagnosis_data import (
+    DataManager,
+    DiagnosisData,
+)
+from dlrover.python.master.diagnosis.diagnostician import Diagnostician
 
 
 class DiagnosisManager:

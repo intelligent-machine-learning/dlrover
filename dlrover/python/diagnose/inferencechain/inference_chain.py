@@ -14,7 +14,6 @@
 from typing import List
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.master.diagnosis.diagnosis_data import DataManager
 from dlrover.python.diagnose.common.inference_chain import (
     Inference,
     InferenceOperator,

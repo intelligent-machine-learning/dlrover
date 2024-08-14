@@ -16,13 +16,6 @@ import unittest
 
 from dlrover.python.diagnose.common.diagnose_data import CudaLog
 from dlrover.python.master.diagnosis.diagnosis_data import DataManager
-from dlrover.python.master.diagnosis.diagnostician import Diagnostician
-from dlrover.python.diagnose.common.inference_chain import (
-    Inference,
-    InferenceAttribute,
-    InferenceDescription,
-    InferenceName,
-)
 
 
 class DiagnosisTest(unittest.TestCase):

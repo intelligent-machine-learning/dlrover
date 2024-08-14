@@ -1,24 +1,41 @@
-from dlrover.python.elastic_agent.master_client import MasterClient
-from dlrover.python.common.worker import WorkerContext
-from typing import Dict
-from torch.distributed.elastic.multiprocessing.errors import ProcessFailure
-from datetime import datetime
-from dlrover.python.common.error import ProcessError
+# Copyright 2024 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import json
+from datetime import datetime
+from typing import Dict
+
+from torch.distributed.elastic.multiprocessing.errors import ProcessFailure
+
 from dlrover.python.common.constants import TrainingExceptionLevel
-from dlrover.python.diagnose.inferencechain.inference_chain import InferenceChain
+from dlrover.python.common.error import ProcessError
+from dlrover.python.common.log import default_logger as logger
+from dlrover.python.common.worker import WorkerContext
+from dlrover.python.diagnose.common.constants import (
+    DiagnoseAction,
+    InferenceConfigKey,
+)
 from dlrover.python.diagnose.common.inference_chain import (
     Inference,
-    InferenceName,
     InferenceAttribute,
     InferenceDescription,
+    InferenceName,
     include_inference,
 )
-from dlrover.python.diagnose.common.constants import (
-    InferenceConfigKey,
-    DiagnoseAction,
+from dlrover.python.diagnose.inferencechain.inference_chain import (
+    InferenceChain,
 )
-from dlrover.python.common.log import default_logger as logger
+from dlrover.python.elastic_agent.master_client import MasterClient
 
 
 class DiagnoseAgent:
@@ -28,7 +45,9 @@ class DiagnoseAgent:
         self._errors = errors
 
     def diagnose_training(self, worker_context: WorkerContext) -> str:
-        self._report_failure_to_master(worker_context.run_result.failures, worker_context.restart_count)
+        self._report_failure_to_master(
+            worker_context.run_result.failures, worker_context.restart_count
+        )
         # check if the node is failed
         inference = Inference(
             name=InferenceName.NODE,
@@ -50,15 +69,19 @@ class DiagnoseAgent:
 
         if worker_context.remaining_failovers > 0 and not failure_node:
             logger.info(
-                f"[{worker_context.worker_spec.role}] Worker group {worker_context.run_result.state.name}. "
-                f"{worker_context.remaining_failovers}/{worker_context.worker_spec.max_restarts}"
+                f"[{worker_context.worker_spec.role}] Worker group "
+                f"{worker_context.run_result.state.name}. "
+                f"{worker_context.remaining_failovers}/"
+                f"{worker_context.worker_spec.max_restarts}"
                 f" attempts left; will restart worker group"
             )
             return DiagnoseAction.RESTART_WORKER
         else:
             return DiagnoseAction.RELAUNCH_WORKER
 
-    def _report_failure_to_master(self, failures: Dict[int, ProcessFailure], restart_count: int):
+    def _report_failure_to_master(
+        self, failures: Dict[int, ProcessFailure], restart_count: int
+    ):
         errors = {}
         if len(failures) == 0:
             return

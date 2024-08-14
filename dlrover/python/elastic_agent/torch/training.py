@@ -68,7 +68,6 @@ from dlrover.python.common.constants import (
     RendezvousName,
     TrainingExceptionLevel,
 )
-from dlrover.python.common.worker import WorkerContext
 from dlrover.python.common.error import ProcessError
 from dlrover.python.common.grpc import (
     find_free_port_for_hccl,
@@ -76,16 +75,17 @@ from dlrover.python.common.grpc import (
     find_free_port_in_set,
 )
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.common.worker import WorkerContext
+from dlrover.python.diagnose.common.constants import DiagnoseAction
 from dlrover.python.elastic_agent.config.paral_config_tuner import (
     ParalConfigTuner,
 )
+from dlrover.python.elastic_agent.diagnose.diagnose_agent import DiagnoseAgent
 from dlrover.python.elastic_agent.master_client import MasterClient
 from dlrover.python.elastic_agent.monitor.training import TorchTrainingMonitor
 from dlrover.python.elastic_agent.torch.ckpt_saver import AsyncCheckpointSaver
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
 from dlrover.trainer.torch.utils import version_less_than_230
-from dlrover.python.elastic_agent.diagnose.diagnose_agent import DiagnoseAgent
-from dlrover.python.diagnose.common.constants import DiagnoseAction
 
 try:
     from torch_npu.contrib import transfer_to_npu  # noqa: F401
@@ -409,7 +409,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
         self._save_ckpt_executor = ThreadPoolExecutor(max_workers=1)
         self._save_ckpt_future = None
         self._log_file = os.getenv(NodeEnv.TRAINING_LOG_FILE, "")
-        self._diagnose_agent = DiagnoseAgent(training_log_file, "error code is 507035")
+        self._diagnose_agent = DiagnoseAgent(
+            training_log_file, "error code is 507035"
+        )
 
     @prof
     def _rendezvous(self, worker_group: WorkerGroup) -> None:

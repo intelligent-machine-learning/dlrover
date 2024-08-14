@@ -1,4 +1,20 @@
-from dlrover.python.master.diagnosis.diagnosis_data import DataManager
+# Copyright 2024 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from typing import List
+
+from dlrover.python.common.log import default_logger as logger
+from dlrover.python.diagnose.common.constants import InferenceConfigKey
 from dlrover.python.diagnose.common.inference_chain import (
     Inference,
     InferenceAttribute,
@@ -6,10 +22,9 @@ from dlrover.python.diagnose.common.inference_chain import (
     InferenceName,
     InferenceOperator,
 )
-from typing import List
-from dlrover.python.diagnose.datacollector.training_log_collector import TrainingLogCollector
-from dlrover.python.common.log import default_logger as logger
-from dlrover.python.diagnose.common.constants import InferenceConfigKey
+from dlrover.python.diagnose.datacollector.training_log_collector import (
+    TrainingLogCollector,
+)
 
 
 class CheckFailureNodeOperator(InferenceOperator):
@@ -18,18 +33,21 @@ class CheckFailureNodeOperator(InferenceOperator):
 
     def is_compatible(self, inference: Inference) -> bool:
         if (
-                inference.name == InferenceName.NODE
-                and inference.attribution == InferenceAttribute.ISORNOT
-                and inference.description == InferenceDescription.FAILURE
+            inference.name == InferenceName.NODE
+            and inference.attribution == InferenceAttribute.ISORNOT
+            and inference.description == InferenceDescription.FAILURE
         ):
             return True
         else:
             return False
 
     def infer(self, inferences: List[Inference]) -> List[Inference]:
-        if (len(inferences) == 0 or not inferences[0].configs
-                or InferenceConfigKey.LOG_FILE not in inferences[0].configs
-                or InferenceConfigKey.ERRORS not in inferences[0].configs):
+        if (
+            len(inferences) == 0
+            or not inferences[0].configs
+            or InferenceConfigKey.LOG_FILE not in inferences[0].configs
+            or InferenceConfigKey.ERRORS not in inferences[0].configs
+        ):
             return [
                 Inference(
                     name=InferenceName.NODE,

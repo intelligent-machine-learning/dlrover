@@ -12,9 +12,7 @@
 # limitations under the License.
 
 from dlrover.python.diagnose.common.diagnose_data import TrainingLog
-from dlrover.python.diagnose.datacollector.data_collector import (
-    DataCollector,
-)
+from dlrover.python.diagnose.datacollector.data_collector import DataCollector
 from dlrover.python.util.file_util import read_last_n_lines
 
 

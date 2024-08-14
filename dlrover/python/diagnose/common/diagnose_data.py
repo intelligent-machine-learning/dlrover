@@ -13,9 +13,7 @@
 
 from abc import ABCMeta, abstractmethod
 from datetime import datetime
-from typing import List
-
-from dlrover.python.util.file_util import read_last_n_lines
+from typing import List, Optional
 
 
 class DiagnosisDataType:
@@ -58,7 +56,7 @@ class TrainingLog(DiagnosisData):
             self.timestamp = int(round(datetime.now().timestamp()))
         else:
             self.timestamp = timestamp
-        self.logs: List[str] = logs
+        self.logs: Optional[List[str]] = logs
 
     def get_timestamp(self) -> int:
         return self.timestamp

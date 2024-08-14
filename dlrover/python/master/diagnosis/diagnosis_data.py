@@ -12,10 +12,10 @@
 # limitations under the License.
 
 from datetime import datetime, timedelta
-from typing import List
+from typing import Dict, List
 
-from dlrover.python.diagnose.common.diagnose_data import DiagnosisData
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.diagnose.common.diagnose_data import DiagnosisData
 
 
 def has_expired(timestamp: float, time_period: int) -> bool:
@@ -26,7 +26,7 @@ def has_expired(timestamp: float, time_period: int) -> bool:
 
 class DataManager:
     def __init__(self, expire_time_period, training_log_file: str = ""):
-        self.diagnosis_data: dict[str, [DiagnosisData]] = {}
+        self.diagnosis_data: Dict[str, List[DiagnosisData]] = {}
         self.expire_time_period = expire_time_period
         self.training_log_file = training_log_file
 

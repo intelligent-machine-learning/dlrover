@@ -12,19 +12,15 @@
 # limitations under the License.
 
 from typing import List
-from dlrover.python.diagnose.common.inference_chain import (
-    InferenceOperator,
+
+from dlrover.python.diagnose.common.inference_chain import InferenceOperator
+from dlrover.python.diagnose.inferencechain.inferenceoperator.check_failure_node_operator import (  # noqa: E501
+    CheckFailureNodeOperator,
 )
 from dlrover.python.diagnose.inferencechain.inferenceoperator.check_training_hang_operator import (  # noqa: E501
     CheckTrainingHangOperator,
 )
-from dlrover.python.diagnose.inferencechain.inferenceoperator.check_failure_node_operator import (  # noqa: E501
-    CheckFailureNodeOperator,
-)
 
 
 def register_operators() -> List[InferenceOperator]:
-    return [
-        CheckTrainingHangOperator(),
-        CheckFailureNodeOperator()
-    ]
+    return [CheckTrainingHangOperator(), CheckFailureNodeOperator()]

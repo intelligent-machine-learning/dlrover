@@ -29,14 +29,14 @@ from dlrover.python.common.constants import (
     TrainingExceptionLevel,
     TrainingLoopStatus,
 )
+from dlrover.python.common.global_context import Context
+from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnose.common.diagnose_data import (
     ChipMetrics,
     CudaLog,
     DiagnosisDataType,
     TrainingLog,
 )
-from dlrover.python.common.global_context import Context
-from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.diagnosis.diagnosis import DiagnosisManager
 from dlrover.python.master.elastic_training.kv_store_service import (
     KVStoreService,

@@ -12,9 +12,7 @@
 # limitations under the License.
 
 from dlrover.python.diagnose.common.diagnose_data import ChipMetrics
-from dlrover.python.diagnose.datacollector.data_collector import (
-    DataCollector,
-)
+from dlrover.python.diagnose.datacollector.data_collector import DataCollector
 
 
 class MetricsCollector(DataCollector):

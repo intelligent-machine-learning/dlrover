@@ -12,8 +12,8 @@
 # limitations under the License.
 from typing import List
 
-from dlrover.python.master.diagnosis.diagnosis_data import DataManager
 from dlrover.python.diagnose.common.inference_chain import Inference
+from dlrover.python.master.diagnosis.diagnosis_data import DataManager
 
 
 class Diagnostician:

@@ -1,22 +1,36 @@
+# Copyright 2024 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import os
 import unittest
-from dlrover.python.diagnose.inferencechain.inferenceoperator.check_training_hang_operator import (  # noqa: E501
-    CheckTrainingHangOperator,
+
+from dlrover.python.diagnose.common.constants import InferenceConfigKey
+from dlrover.python.diagnose.common.inference_chain import (
+    Inference,
+    InferenceAttribute,
+    InferenceDescription,
+    InferenceName,
+    same_inference,
+)
+from dlrover.python.diagnose.inferencechain.inference_chain import (
+    InferenceChain,
 )
 from dlrover.python.diagnose.inferencechain.inferenceoperator.check_failure_node_operator import (  # noqa: E501
     CheckFailureNodeOperator,
 )
-from dlrover.python.diagnose.common.inference_chain import (
-    Inference,
-    InferenceName,
-    InferenceAttribute,
-    InferenceDescription,
-    same_inference,
+from dlrover.python.diagnose.inferencechain.inferenceoperator.check_training_hang_operator import (  # noqa: E501
+    CheckTrainingHangOperator,
 )
-from dlrover.python.diagnose.common.constants import (
-    InferenceConfigKey,
-)
-import os
-from dlrover.python.diagnose.inferencechain.inference_chain import InferenceChain
 
 
 class InferenceChainTest(unittest.TestCase):
@@ -87,5 +101,5 @@ class InferenceChainTest(unittest.TestCase):
         self.assertTrue(same_inference(results[0], failure_inf))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

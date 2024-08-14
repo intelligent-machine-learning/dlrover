@@ -13,7 +13,7 @@
 
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass, field
-from typing import List, Dict
+from typing import Dict, List
 
 
 class InferenceName:
