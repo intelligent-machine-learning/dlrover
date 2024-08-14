@@ -289,6 +289,10 @@ class CheckpointSaverTest(unittest.TestCase):
         self.assertIsNone(saver._master_client)
         self.assertIsNotNone(saver.get_master_client())
         self.assertIsNotNone(saver._master_client)
+        self.assertEqual(id(MasterClient._instance), id(saver._master_client))
+        self.assertEqual(
+            id(MasterClient._instance), id(saver.get_master_client())
+        )
         saver._report_failure_to_master("test-error")
 
 
