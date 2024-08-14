@@ -638,7 +638,11 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     "for other agents to finish."
                 )
                 self._exit_barrier()
+                logger.info("Barrier exited.")
+
                 self._wait_async_saver()
+                logger.info("Async saver stopped.")
+
                 return run_result
             elif state in {WorkerState.UNHEALTHY, WorkerState.FAILED}:
                 logger.error(f"The worker fails with {run_result.failures}")
