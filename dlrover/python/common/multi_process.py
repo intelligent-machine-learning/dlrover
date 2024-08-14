@@ -365,6 +365,10 @@ class SharedQueue(LocalSocketComm):
         else:
             self._queue = None
 
+    @property
+    def queue(self):
+        return self._queue
+
     def _sync(self):
         while True:
             connection, _ = self._server.accept()

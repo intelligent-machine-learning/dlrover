@@ -319,7 +319,7 @@ class SharedMemoryHandler(object):
         state_dict = _read_state_dict_from_shm(meta_dict, self.shared_memory)
         return state_dict
 
-    def no_checkpint_state(self):
+    def no_checkpoint_state(self):
         """
         The handler lazily initializes the shared memory. The shared memory
         of the handler on the host may be None even if the handler on the
@@ -524,7 +524,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         """Clear the resource of the shared objects."""
         event = CheckpointEvent(type=CheckpointEventType.EXIT)
         if not self._event_queue.empty():
-            self._event_queue._queue.get()
+            self._event_queue.queue.get()
         self._event_queue.put(event)
         for i in range(self.local_shard_num):
             if self._shm_handlers[i]:
@@ -539,10 +539,12 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         The loop to persist the state dict from the memory
         buffer into the storage.
         """
+
         logger.info("Async flash checkpoint saver starts!")
+        event: CheckpointEvent = None
         while True:
             try:
-                event: CheckpointEvent = self._event_queue.get()
+                event = self._event_queue.get()
                 if event.type == CheckpointEventType.UPDATE_SHARD:
                     logger.info(
                         "Reset the shared memory after the training starts. "
@@ -560,7 +562,9 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                     break
             except Exception as e:
                 logger.error(
-                    f"Got unexpected exception during checkpointing: {e}."
+                    f"Got unexpected exception during checkpointing: {event}, "
+                    f"error: {e}.",
+                    exc_info=True,
                 )
                 self._report_failure_to_master(str(e))
 
@@ -705,14 +709,14 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         processes.
         """
         if any(
-            [handler.no_checkpint_state() for handler in self._shm_handlers]
+            [handler.no_checkpoint_state() for handler in self._shm_handlers]
         ):
             logger.info(
                 "Skip because no any memory buffer with the state dict."
             )
             return
 
-        # Skip saving checkpiont if the step of checkpoint shard in the
+        # Skip saving checkpoint if the step of checkpoint shard in the
         # memory is not same.
         steps = []
         for shm_handler in self._shm_handlers:
@@ -1120,7 +1124,7 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
 
         Args:
             step (int): the iteration step.
-            step_donr_dir (str): the directory to save the done file of
+            step_done_dir (str): the directory to save the done file of
                 each shard.
             tmp_path: the temp directory path to save the latest checkpoint.
             target_path: the regular directory path to save the checkpoint.
