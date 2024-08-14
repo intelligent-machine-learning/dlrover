@@ -560,7 +560,8 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                     break
             except Exception as e:
                 logger.error(
-                    f"Got unexpected exception during checkpointing: {e}."
+                    f"Got unexpected exception during checkpointing: {e}.",
+                    exc_info=True,
                 )
                 self._report_failure_to_master(str(e))
 

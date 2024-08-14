@@ -278,6 +278,7 @@ class NodeErrorMessage(object):
 
 
 class NetworkFailureReason(object):
+    NO_INIT = "Not Initialized"
     NODE_FAILURE = "Node Failure"
     WAITING_NODE = "Waiting node"
 
