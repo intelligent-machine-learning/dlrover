@@ -147,7 +147,7 @@ class CheckpointSaverTest(unittest.TestCase):
         MasterClient._instance = build_master_client(addr)
         master_client = MasterClient.singleton_instance()
         self.assertIsNotNone(master_client)
-        AsyncCheckpointSaver.register_master_client(master_client)
+        AsyncCheckpointSaver.get_master_client(master_client)
         self.assertIsNotNone(
             AsyncCheckpointSaver._saver_instance._master_client
         )
@@ -285,9 +285,8 @@ class CheckpointSaverTest(unittest.TestCase):
         saver = DdpCheckpointSaver("test_ckpt", self.storage.get_class_meta())
         master, addr = start_local_master()
         MasterClient._instance = build_master_client(addr)
-        master_client = MasterClient.singleton_instance()
-        saver.setup_master_client(master_client)
 
+        self.assertIsNotNone(saver.get_master_client())
         saver._report_failure_to_master("test-error")
 
 
