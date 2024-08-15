@@ -174,7 +174,7 @@ class DistributedJobManager(JobManager):
         self._init_job_auto_scaler()
         plan = self._create_initial_scale_plan()
         if not self._has_running_workers():
-            # The the job relaunches the evicted master, there are alive
+            # The job relaunches the evicted master, there are alive
             # worker nodes and the master does not need to launch workers.
             logger.info(
                 "The newly master starts launching workers at beginning."
@@ -216,6 +216,12 @@ class DistributedJobManager(JobManager):
     def get_worker_num(self):
         return self._job_resource.worker_num
 
+    def is_all_reduce_type_job(self):
+        return (
+            self._job_args.distribution_strategy
+            == DistributionStrategy.ALLREDUCE
+        )
+
     def should_early_stop(self):
         # ps pending judgement: any ps pod pending timeout
         timeout_ps_nodes = (
@@ -244,8 +250,11 @@ class DistributedJobManager(JobManager):
             return True, JobExitReason.PENDING_TIMEOUT, msg
 
         # worker pending judgement:
-        if self._worker_manager.is_training_hang_by_pending(
-            self.get_worker_num()
+        if (
+            self.is_all_reduce_type_job()
+            and self._worker_manager.is_training_hang_by_pending(
+                self.get_worker_num()
+            )
         ):
             msg = (
                 "Stop the training early because 1) there is node pending "
@@ -265,7 +274,10 @@ class DistributedJobManager(JobManager):
             return True, JobExitReason.PENDING_TIMEOUT, msg
 
         # insufficient worker judgement
-        if self._worker_manager.is_training_hang_by_insufficient_worker():
+        if (
+            self.is_all_reduce_type_job()
+            and self._worker_manager.is_training_hang_by_insufficient_worker()
+        ):
             msg = (
                 "Stop the training early because there isn't enough node to "
                 "keep training."
