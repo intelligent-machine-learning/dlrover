@@ -142,14 +142,19 @@ class CheckpointSaverTest(unittest.TestCase):
 
         # test setup master client
         self.assertIsNone(AsyncCheckpointSaver._saver_instance._master_client)
-
         master, addr = start_local_master()
         MasterClient._instance = build_master_client(addr)
         master_client = MasterClient.singleton_instance()
         self.assertIsNotNone(master_client)
-        AsyncCheckpointSaver.get_master_client(master_client)
+        self.assertIsNotNone(
+            AsyncCheckpointSaver._saver_instance.get_master_client()
+        )
         self.assertIsNotNone(
             AsyncCheckpointSaver._saver_instance._master_client
+        )
+        self.assertEqual(
+            id(master_client),
+            id(AsyncCheckpointSaver._saver_instance._master_client),
         )
 
     def test_close_saver(self):
