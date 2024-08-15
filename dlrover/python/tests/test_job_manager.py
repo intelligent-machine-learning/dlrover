@@ -529,6 +529,9 @@ class DistributedJobManagerTest(unittest.TestCase):
         manager = create_job_manager(params, SpeedMonitor())
         manager._init_nodes()
 
+        manager.is_all_reduce_type_job = mock.MagicMock(
+            return_value=True
+        )
         manager._worker_manager.is_training_hang_by_pending = mock.MagicMock(
             return_value=True
         )
@@ -543,6 +546,9 @@ class DistributedJobManagerTest(unittest.TestCase):
         manager = create_job_manager(params, SpeedMonitor())
         manager._init_nodes()
 
+        manager.is_all_reduce_type_job = mock.MagicMock(
+            return_value=True
+        )
         manager._worker_manager.is_training_hang_by_insufficient_worker = (
             mock.MagicMock(return_value=True)
         )
