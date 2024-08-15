@@ -217,13 +217,10 @@ class DistributedJobManager(JobManager):
         return self._job_resource.worker_num
 
     def is_all_reduce_type_job(self):
-        if (
+        return (
             self._job_args.distribution_strategy
             == DistributionStrategy.ALLREDUCE
-        ):
-            return True
-
-        return False
+        )
 
     def should_early_stop(self):
         # ps pending judgement: any ps pod pending timeout
