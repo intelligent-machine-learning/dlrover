@@ -71,7 +71,6 @@ def _get_pod_exit_reason(pod):
                 ExitCode.GPU_DRIVER_ERROR,
                 ExitCode.GPU_POD_RESIDUE,
                 ExitCode.GPU_INFOROM_CORRUPTED,
-                ExitCode.UNKNOWN_DEVICE,
             ):
                 logger.info(
                     "Possible error found in GPU. Kill this node and launch a"
