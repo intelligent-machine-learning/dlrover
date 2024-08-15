@@ -658,12 +658,8 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     run_result=run_result,
                 )
                 action = self._diagnose_agent.diagnose_training(worker_context)
-                if action == DiagnoseAction.RESTART_WORKER:
-                    self._remaining_failovers -= 1
-                    self._restart_workers(self._worker_group)
-                else:
-                    self._stop_workers(self._worker_group)
-                    self._worker_group.state = WorkerState.FAILED
+                self._process_diagnose_action(action)
+                if self._worker_group.state == WorkerState.FAILED:
                     return run_result
             elif state == WorkerState.HEALTHY:
                 # membership changes do not count as retries
@@ -672,6 +668,14 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     self._restart_workers(self._worker_group)
             else:
                 raise Exception(f"[{role}] Worker group in {state.name} state")
+
+    def _process_diagnose_action(self, action: str):
+        if action == DiagnoseAction.RESTART_WORKER:
+            self._remaining_failovers -= 1
+            self._restart_workers(self._worker_group)
+        elif action == DiagnoseAction.RELAUNCH_WORKER:
+            self._stop_workers(self._worker_group)
+            self._worker_group.state = WorkerState.FAILED
 
     def _wait_async_saver(self):
         """
