@@ -508,10 +508,11 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         signal.signal(signal.SIGINT, _clean_shm_handler)
         signal.signal(signal.SIGTERM, _save_shm_before_exiting)
 
-    @classmethod
-    def register_master_client(cls, master_client):
-        if cls._saver_instance:
-            cls._saver_instance.setup_master_client(master_client)
+    def get_master_client(self):
+        if not self._master_client:
+            self._master_client = MasterClient.singleton_instance()
+            logger.info(f"Setup master client: {self._master_client}.")
+        return self._master_client
 
     def wait_saving_checkpoint(self):
         """
@@ -568,11 +569,9 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 )
                 self._report_failure_to_master(str(e))
 
-    def setup_master_client(self, master_client):
-        self._master_client = master_client
-
     def _report_failure_to_master(self, error_msg):
-        if not self._master_client:
+        master_client = self.get_master_client()
+        if not master_client:
             logger.warning(
                 "Skip ckpt saver failure reporting for master "
                 "client hasn't setup."
@@ -591,7 +590,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
                 datetime.now().strftime("%m/%d/%Y %H:%M:%S"),
             )
 
-            self._master_client.report_failures(
+            master_client.report_failures(
                 json.dumps(error),
                 level=TrainingExceptionLevel.PROCESS_ERROR,
             )
