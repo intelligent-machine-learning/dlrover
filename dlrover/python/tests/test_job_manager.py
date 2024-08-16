@@ -529,6 +529,7 @@ class DistributedJobManagerTest(unittest.TestCase):
         manager = create_job_manager(params, SpeedMonitor())
         manager._init_nodes()
 
+        manager.is_all_reduce_type_job = mock.MagicMock(return_value=True)
         manager._worker_manager.is_training_hang_by_pending = mock.MagicMock(
             return_value=True
         )
@@ -537,12 +538,17 @@ class DistributedJobManagerTest(unittest.TestCase):
         self.assertEqual(reason, JobExitReason.PENDING_TIMEOUT)
         self.assertTrue(msg)
 
+        manager.is_all_reduce_type_job = mock.MagicMock(return_value=False)
+        result, reason, msg = manager.should_early_stop()
+        self.assertFalse(result)
+
     def test_early_stop_part3(self):
         params = MockK8sPSJobArgs()
         params.initilize()
         manager = create_job_manager(params, SpeedMonitor())
         manager._init_nodes()
 
+        manager.is_all_reduce_type_job = mock.MagicMock(return_value=True)
         manager._worker_manager.is_training_hang_by_insufficient_worker = (
             mock.MagicMock(return_value=True)
         )
@@ -550,6 +556,10 @@ class DistributedJobManagerTest(unittest.TestCase):
         self.assertTrue(result)
         self.assertEqual(reason, JobExitReason.UNCOMPLETED_TIMEOUT)
         self.assertTrue(msg)
+
+        manager.is_all_reduce_type_job = mock.MagicMock(return_value=False)
+        result, reason, msg = manager.should_early_stop()
+        self.assertFalse(result)
 
     def test_when_node_not_init(self):
         params = MockK8sPSJobArgs()

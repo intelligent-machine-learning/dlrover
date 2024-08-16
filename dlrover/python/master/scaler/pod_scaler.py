@@ -544,16 +544,17 @@ class PodScaler(Scaler):
                 logger.info(f"Master service check pass with {host}:{port}")
                 return True
             except socket.gaierror:
-                logger.warning(
+                logger.info(
                     f"Attempt {i}: Encountered gaierror while "
-                    f"performing master service check. "
-                    f"Service may not be available."
+                    "performing master service check. "
+                    "Service may still be unavailable."
                 )
                 time.sleep(1)
             except Exception as e:
-                logger.warning(
+                logger.info(
                     f"Attempt {i}: Encountered {str(e)} while "
-                    f"performing master service check."
+                    "performing master service check. "
+                    "Service may still be unavailable."
                 )
                 time.sleep(1)
 
