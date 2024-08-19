@@ -14,21 +14,21 @@
 import os
 import unittest
 
-from dlrover.python.diagnose.common.constants import InferenceConfigKey
-from dlrover.python.diagnose.common.inference_chain import (
+from dlrover.python.diagnosis.common.constants import InferenceConfigKey
+from dlrover.python.diagnosis.common.inference_chain import (
     Inference,
     InferenceAttribute,
     InferenceDescription,
     InferenceName,
     same_inference,
 )
-from dlrover.python.diagnose.inferencechain.inference_chain import (
+from dlrover.python.diagnosis.inferencechain.inference_chain import (
     InferenceChain,
 )
-from dlrover.python.diagnose.inferencechain.inferenceoperator.check_failure_node_operator import (  # noqa: E501
+from dlrover.python.diagnosis.inferencechain.inferenceoperator.check_failure_node_operator import (  # noqa: E501
     CheckFailureNodeOperator,
 )
-from dlrover.python.diagnose.inferencechain.inferenceoperator.check_training_hang_operator import (  # noqa: E501
+from dlrover.python.diagnosis.inferencechain.inferenceoperator.check_training_hang_operator import (  # noqa: E501
     CheckTrainingHangOperator,
 )
 

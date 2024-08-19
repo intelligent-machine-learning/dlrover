@@ -599,13 +599,14 @@ class NetworkCheckRendezvousManager(RendezvousManager):
 
     def check_fault_node(self):
         """Check whether the job has fault nodes. Each task contains 2 rounds
-        allgather. If succeed, the round should be set to the multiples of 2.
+        allgather. If succeeded, the round should be set to the multiples of 2.
         """
         with self._lock:
             if not self._rdzv_nodes:
                 logger.warning(
                     "Skip check for rdzv_nodes hasn't been initialized."
                 )
+                return [], NetworkFailureReason.NO_INIT
             reason = ""
             all_joined = len(self._reported_nodes) >= len(self._rdzv_nodes)
             if not all_joined:

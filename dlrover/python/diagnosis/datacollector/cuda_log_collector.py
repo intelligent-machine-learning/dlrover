@@ -10,22 +10,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import List
 
-from dlrover.python.diagnose.common.inference_chain import Inference
-from dlrover.python.master.diagnosis.diagnosis_data import DataManager
+from dlrover.python.diagnosis.common.diagnosis_data import CudaLog
+from dlrover.python.diagnosis.datacollector.data_collector import DataCollector
 
 
-class Diagnostician:
-    def __init__(self, data_mgr: DataManager):
-        self.data_manager = data_mgr
-        self.training_problems: List[Inference] = []
-
-    def register_problems(self, problems: List[Inference]):
-        self.training_problems = problems
-
-    def observe_training(self) -> List[Inference]:
+class CudaLogCollector(DataCollector):
+    def __init__(self, *args, **kwargs):
+        super().__init__()
         pass
 
-    def diagnose_failure(self, inference: Inference) -> List[Inference]:
-        pass
+    def collect_data(self) -> object:
+        log = CudaLog(0)
+        return log
+
+    def to_collect_data(self) -> bool:
+        return True

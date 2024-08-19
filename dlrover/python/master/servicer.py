@@ -31,7 +31,7 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.diagnose.common.diagnose_data import (
+from dlrover.python.diagnosis.common.diagnosis_data import (
     ChipMetrics,
     CudaLog,
     DiagnosisDataType,
@@ -78,6 +78,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         job_manager,
         speed_monitor: SpeedMonitor,
         rdzv_managers: Dict[str, RendezvousManager],
+        diagnosis_manager: DiagnosisManager,
         job_metric_collector=None,
         elastic_ps_service=None,
         sync_service=None,
@@ -86,7 +87,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         self._job_manager: JobManager = job_manager
         self._speed_monitor = speed_monitor
         self._rdzv_managers = rdzv_managers
-        self._diagnosis_manager: DiagnosisManager = DiagnosisManager()
+        self._diagnosis_manager = diagnosis_manager
         self._kv_store = KVStoreService()
         self._job_metric_collector: JobMetricCollector = job_metric_collector
         self._elastic_ps_service: ElasticPsService = elastic_ps_service
@@ -615,28 +616,31 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
     def _report_chip_metrics(
         self, node_type, node_id, message: grpc.DiagnosisChipMetrics
     ):
-        data = ChipMetrics(message.timestamp)
-        self._diagnosis_manager.collect_diagnosis_data(
-            DiagnosisDataType.CHIPMETRICES, data
-        )
+        if self._diagnosis_manager:
+            data = ChipMetrics(message.timestamp)
+            self._diagnosis_manager.collect_diagnosis_data(
+                DiagnosisDataType.CHIPMETRICES, data
+            )
         return True
 
     def _report_training_log(
         self, node_type, node_id, message: grpc.DiagnosisTrainingLog
     ):
-        data = TrainingLog(message.timestamp)
-        self._diagnosis_manager.collect_diagnosis_data(
-            DiagnosisDataType.TRAININGLOG, data
-        )
+        if self._diagnosis_manager:
+            data = TrainingLog(message.timestamp)
+            self._diagnosis_manager.collect_diagnosis_data(
+                DiagnosisDataType.TRAININGLOG, data
+            )
         return True
 
     def _report_cuda_log(
         self, node_type, node_id, message: grpc.DiagnosisCudaLog
     ):
-        data = CudaLog(message.timestamp)
-        self._diagnosis_manager.collect_diagnosis_data(
-            DiagnosisDataType.CUDALOG, data
-        )
+        if self._diagnosis_manager:
+            data = CudaLog(message.timestamp)
+            self._diagnosis_manager.collect_diagnosis_data(
+                DiagnosisDataType.CUDALOG, data
+            )
         return True
 
     def _sync_training_ports(
@@ -657,6 +661,7 @@ def create_master_service(
     job_manager,
     speed_monitor,
     rdzv_managers,
+    diagnosis_manager,
     job_metric_collector,
     elastic_ps_service,
     sync_service,
@@ -678,6 +683,7 @@ def create_master_service(
         job_manager=job_manager,
         speed_monitor=speed_monitor,
         rdzv_managers=rdzv_managers,
+        diagnosis_manager=diagnosis_manager,
         job_metric_collector=job_metric_collector,
         elastic_ps_service=elastic_ps_service,
         sync_service=sync_service,

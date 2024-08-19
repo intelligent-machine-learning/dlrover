@@ -14,15 +14,15 @@
 from typing import List
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.diagnose.common.constants import InferenceConfigKey
-from dlrover.python.diagnose.common.inference_chain import (
+from dlrover.python.diagnosis.common.constants import InferenceConfigKey
+from dlrover.python.diagnosis.common.inference_chain import (
     Inference,
     InferenceAttribute,
     InferenceDescription,
     InferenceName,
     InferenceOperator,
 )
-from dlrover.python.diagnose.datacollector.training_log_collector import (
+from dlrover.python.diagnosis.datacollector.training_log_collector import (
     TrainingLogCollector,
 )
 

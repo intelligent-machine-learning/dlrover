@@ -14,24 +14,26 @@
 from typing import List
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.diagnose.common.inference_chain import (
+from dlrover.python.diagnosis.common.inference_chain import (
     Inference,
     InferenceOperator,
     combine_inferences,
-)
-from dlrover.python.diagnose.inferencechain.inferenceoperator.operator import (
-    register_operators,
 )
 
 
 class InferenceChain:
     """
-    InferenceChain is used to diagnose training failures
+    InferenceChain is used to
+    1. observe training problems
+    2. identify the root causes of a problem
+    3. propose solutions to a training problem
     """
 
-    def __init__(self, inferences: List[Inference]):
+    def __init__(
+        self, inferences: List[Inference], operators: List[InferenceOperator]
+    ):
         self.inferences = inferences
-        self.operators = register_operators()
+        self.operators = operators
 
     def infer(self) -> List[Inference]:
         inferences = self.inferences

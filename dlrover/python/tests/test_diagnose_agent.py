@@ -19,8 +19,8 @@ from torch.distributed.launcher.api import LaunchConfig
 
 from dlrover.python.common.constants import RendezvousName
 from dlrover.python.common.worker import WorkerContext
-from dlrover.python.diagnose.common.constants import DiagnoseAction
-from dlrover.python.elastic_agent.diagnose.diagnose_agent import DiagnoseAgent
+from dlrover.python.diagnosis.common.constants import DiagnoseAction
+from dlrover.python.elastic_agent.diagnosis.diagnosis_agent import DiagnosisAgent
 from dlrover.python.elastic_agent.master_client import (
     MasterClient,
     build_master_client,
@@ -54,7 +54,7 @@ class TestDiagnoseAgent(unittest.TestCase):
         file_path = os.path.join(path, file)
 
         errors = "error code is 11111"
-        agent = DiagnoseAgent(file_path, errors)
+        agent = DiagnosisAgent(file_path, errors)
 
         spec = _create_worker_spec(
             node_rank=0,

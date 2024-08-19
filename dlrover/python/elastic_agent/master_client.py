@@ -22,7 +22,7 @@ from dlrover.python.common import env_utils, grpc
 from dlrover.python.common.constants import NetworkFailureReason, NodeEnv
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
-from dlrover.python.diagnose.common.diagnose_data import (
+from dlrover.python.diagnosis.common.diagnosis_data import (
     ChipMetrics,
     CudaLog,
     TrainingLog,

@@ -76,11 +76,11 @@ from dlrover.python.common.grpc import (
 )
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.worker import WorkerContext
-from dlrover.python.diagnose.common.constants import DiagnoseAction
+from dlrover.python.diagnosis.common.constants import DiagnoseAction
 from dlrover.python.elastic_agent.config.paral_config_tuner import (
     ParalConfigTuner,
 )
-from dlrover.python.elastic_agent.diagnose.diagnose_agent import DiagnoseAgent
+from dlrover.python.elastic_agent.diagnosis.diagnosis_agent import DiagnosisAgent
 from dlrover.python.elastic_agent.master_client import MasterClient
 from dlrover.python.elastic_agent.monitor.training import TorchTrainingMonitor
 from dlrover.python.elastic_agent.torch.ckpt_saver import AsyncCheckpointSaver
@@ -409,7 +409,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         self._save_ckpt_executor = ThreadPoolExecutor(max_workers=1)
         self._save_ckpt_future = None
         self._log_file = os.getenv(NodeEnv.TRAINING_LOG_FILE, "")
-        self._diagnose_agent = DiagnoseAgent(
+        self._diagnose_agent = DiagnosisAgent(
             training_log_file, "error code is 507035"
         )
 
@@ -562,9 +562,6 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 # We need to register handler after starting workers because
                 # the PContext start_worker will overwrite the handler.
                 AsyncCheckpointSaver.register_signal_handler()
-
-                # need master client to report unexpected failures in saver
-                AsyncCheckpointSaver.register_master_client(self._client)
             except RendezvousOutSyncError:
                 if start_pending == 0:
                     start_pending = time.time()
@@ -612,6 +609,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
         spec = self._worker_group.spec
         role = spec.role
 
+        # TODO: call master to get approval of
+        #  training starting(to wait pre-check)
+
         logger.info(
             f"[{role}] starting training workers for entrypoint: "
             f"{spec.get_entrypoint_name()}"
@@ -645,7 +645,11 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     "for other agents to finish."
                 )
                 self._exit_barrier()
+                logger.info("Barrier exited.")
+
                 self._wait_async_saver()
+                logger.info("Async saver stopped.")
+
                 return run_result
             elif state in {WorkerState.UNHEALTHY, WorkerState.FAILED}:
                 logger.error(f"The worker fails with {run_result.failures}")
@@ -657,7 +661,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     restart_count=self._restart_count,
                     run_result=run_result,
                 )
-                action = self._diagnose_agent.diagnose_training(worker_context)
+                action = self._diagnose_agent.diagnose_training_failure(worker_context)
                 self._process_diagnose_action(action)
                 if self._worker_group.state == WorkerState.FAILED:
                     return run_result

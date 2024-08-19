@@ -114,7 +114,7 @@ class DeepSpeedCheckpointTest(unittest.TestCase):
                 tmpdirname, step, storage_type=StorageType.MEMORY
             )
             shm_handler = checkpointer._async_save_engine._shm_handler
-            self.assertFalse(shm_handler.no_checkpint_state())
+            self.assertFalse(shm_handler.no_checkpoint_state())
             self.assertEqual(
                 checkpointer._async_save_engine._shm_handler._buffer_size, 9640
             )

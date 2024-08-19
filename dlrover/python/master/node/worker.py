@@ -411,8 +411,8 @@ class WorkerManager(TrainingNodeManager):
         if not self.has_node_required_info():
             return False
 
-        # use twice pending time as timeout
-        timeout = _dlrover_context.seconds_to_wait_pending_pod * 2
+        # use pending time as timeout
+        timeout = _dlrover_context.seconds_to_wait_pending_pod
         cur_nodes = list(self._nodes.values())
 
         # collect available nodes

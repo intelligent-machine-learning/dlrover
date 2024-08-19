@@ -50,8 +50,8 @@ class InferenceOperator(metaclass=ABCMeta):
     InferenceOperator is used to infer the root cause of problems.
     """
 
-    def __init__(self):
-        pass
+    def __init__(self, data_manager):
+        self._data_manager = data_manager
 
     @abstractmethod
     def infer(self, inferences: List[Inference]) -> List[Inference]:
@@ -63,7 +63,7 @@ class InferenceOperator(metaclass=ABCMeta):
         pass
 
 
-def same_inference(inference1: Inference, inference2: Inference) -> bool:
+def is_same_inference(inference1: Inference, inference2: Inference) -> bool:
     if (
         inference1.name == inference2.name
         and inference1.attribution == inference2.attribution
@@ -74,11 +74,11 @@ def same_inference(inference1: Inference, inference2: Inference) -> bool:
         return False
 
 
-def include_inference(infs: List[Inference], inf: Inference) -> bool:
+def is_inference_included(infs: List[Inference], inf: Inference) -> bool:
     if not infs or not inf:
         return False
     for i in infs:
-        if same_inference(i, inf):
+        if is_same_inference(i, inf):
             return True
     return False
 
@@ -90,7 +90,7 @@ def combine_inferences(
     for inference2 in inferences2:
         is_duplicate = False
         for inference1 in inferences1:
-            if same_inference(inference1, inference2):
+            if is_same_inference(inference1, inference2):
                 is_duplicate = True
                 break
         if not is_duplicate:

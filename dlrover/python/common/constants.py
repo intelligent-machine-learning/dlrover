@@ -131,7 +131,7 @@ class ExitCode(object):
     GPU_DRIVER_ERROR = 201
     GPU_POD_RESIDUE = 202
     GPU_INFOROM_CORRUPTED = 14
-    UNKNOWN_DEVICE = 128
+    CONTAINER_FAILED_OR_UNKNOWN_DEVICE = 128
 
 
 class NodeResourceLimit(object):
@@ -278,6 +278,7 @@ class NodeErrorMessage(object):
 
 
 class NetworkFailureReason(object):
+    NO_INIT = "Not Initialized"
     NODE_FAILURE = "Node Failure"
     WAITING_NODE = "Waiting node"
 

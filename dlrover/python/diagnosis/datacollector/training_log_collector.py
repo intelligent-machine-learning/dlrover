@@ -11,8 +11,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dlrover.python.diagnose.common.diagnose_data import TrainingLog
-from dlrover.python.diagnose.datacollector.data_collector import DataCollector
+from dlrover.python.diagnosis.common.diagnosis_data import TrainingLog
+from dlrover.python.diagnosis.datacollector.data_collector import DataCollector
 from dlrover.python.util.file_util import read_last_n_lines
 
 
