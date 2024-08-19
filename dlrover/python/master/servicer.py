@@ -616,28 +616,31 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
     def _report_chip_metrics(
         self, node_type, node_id, message: grpc.DiagnosisChipMetrics
     ):
-        data = ChipMetrics(message.timestamp)
-        self._diagnosis_manager.collect_diagnosis_data(
-            DiagnosisDataType.CHIPMETRICES, data
-        )
+        if self._diagnosis_manager:
+            data = ChipMetrics(message.timestamp)
+            self._diagnosis_manager.collect_diagnosis_data(
+                DiagnosisDataType.CHIPMETRICES, data
+            )
         return True
 
     def _report_training_log(
         self, node_type, node_id, message: grpc.DiagnosisTrainingLog
     ):
-        data = TrainingLog(message.timestamp)
-        self._diagnosis_manager.collect_diagnosis_data(
-            DiagnosisDataType.TRAININGLOG, data
-        )
+        if self._diagnosis_manager:
+            data = TrainingLog(message.timestamp)
+            self._diagnosis_manager.collect_diagnosis_data(
+                DiagnosisDataType.TRAININGLOG, data
+            )
         return True
 
     def _report_cuda_log(
         self, node_type, node_id, message: grpc.DiagnosisCudaLog
     ):
-        data = CudaLog(message.timestamp)
-        self._diagnosis_manager.collect_diagnosis_data(
-            DiagnosisDataType.CUDALOG, data
-        )
+        if self._diagnosis_manager:
+            data = CudaLog(message.timestamp)
+            self._diagnosis_manager.collect_diagnosis_data(
+                DiagnosisDataType.CUDALOG, data
+            )
         return True
 
     def _sync_training_ports(
