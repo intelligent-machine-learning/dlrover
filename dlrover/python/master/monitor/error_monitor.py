@@ -38,6 +38,17 @@ class ErrorMonitor(metaclass=ABCMeta):
         """
         pass
 
+    @abstractmethod
+    def report_event(
+        self,
+        event_type: str,
+        instance: str,
+        action: str,
+        msg: str,
+        labels: Dict[str, str],
+    ):
+        pass
+
 
 class SimpleErrorMonitor(ErrorMonitor):
     """The monitor logs the error data."""
@@ -59,6 +70,16 @@ class SimpleErrorMonitor(ErrorMonitor):
         elif level == TrainingExceptionLevel.ERROR:
             logger.error(error_data)
         return False
+
+    def report_event(
+        self,
+        event_type: str,
+        instance: str,
+        action: str,
+        msg: str,
+        labels: Dict[str, str],
+    ):
+        pass
 
     def _handle_process_error(
         self, node: Node, restart_count: int, error_data: str
@@ -100,6 +121,16 @@ class K8sJobErrorMonitor(ErrorMonitor):
         elif level == TrainingExceptionLevel.ERROR:
             logger.error(error_data)
         return False
+
+    def report_event(
+        self,
+        event_type: str,
+        instance: str,
+        action: str,
+        msg: str,
+        labels: Dict[str, str],
+    ):
+        pass
 
     def _handle_process_error(
         self, node: Node, restart_count: int, error_data: str

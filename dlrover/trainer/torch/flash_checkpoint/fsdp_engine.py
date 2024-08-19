@@ -197,7 +197,7 @@ class SharedMemoryWriter(StorageWriter):
         self.file_name = f"{storage_plan.prefix}{file_count}{DEFAULT_SUFFIX}"
         for bucket in plan.items:
             files.append((self.file_name, bucket))
-        if self.shm_handler.no_checkpint_state():
+        if self.shm_handler.no_checkpoint_state():
             buffer_size = _get_buffer_size(files, planner)
             self.shm_handler.init_shared_memory(create=True, size=buffer_size)
         assert self.shm_handler.shared_memory is not None
@@ -449,7 +449,7 @@ class FsdpCheckpointEngine(CheckpointEngine):
         Args:
             step (int): the global iteration step.
             state_dict (dict): the state dict of model and optimizer to save.
-            path (str): the storage path to save the state dict.
+            paths (dict): the storage path to save the state dict.
                 Note, the path is used to save the state dict to storage
                 only if the training process fails.
         """
@@ -477,7 +477,7 @@ class FsdpCheckpointEngine(CheckpointEngine):
 
         # Broadcast dcp metadata and no sharding data to all ranks
         # and all ranks can restore the state dict from the CPU
-        # memory with those metada.
+        # memory with those metadata.
         bcast_list = [self._shm_writer.metadata]
         dist.broadcast_object_list(bcast_list, src=0)
         self._shm_writer.metadata = bcast_list[0]
@@ -501,6 +501,7 @@ class FsdpCheckpointEngine(CheckpointEngine):
         Args:
             step (int): the iteration step.
             state_dict (dict): the state dict of model and optimizer to save.
+            paths (dict): the storage path to save the state dict.
         """
         succeed = True
         if step > self._cached_step:
@@ -546,7 +547,7 @@ class FsdpCheckpointEngine(CheckpointEngine):
         config = self._shm_handler.get_checkpoint_config(default_config)
         step = config.step
         passed = verify_all_rank_step_consistent(self._saver_group, step)
-        if passed and not self._shm_handler.no_checkpint_state():
+        if passed and not self._shm_handler.no_checkpoint_state():
             logger.info(f"Create a shared memory reader with step {step}.")
             return self._shm_reader
         else:

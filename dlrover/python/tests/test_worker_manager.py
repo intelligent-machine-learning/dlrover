@@ -206,14 +206,19 @@ class WorkerManagerTest(unittest.TestCase):
             self._elastic_job.get_node_service_addr,
             self._elastic_job.get_node_name,
         )
-        self.assertFalse(worker_manager.is_training_hang_by_pending())
+        self.assertFalse(worker_manager.is_training_hang_by_pending(4))
 
         worker_manager.update_node_required_info((4, 8))
-        self.assertFalse(worker_manager.is_training_hang_by_pending())
+        self.assertFalse(worker_manager.is_training_hang_by_pending(4))
 
         mock_nodes = {}
 
+        # =========================================
+        # condition: when node required is updated
+        # =========================================
+
         # mock with 3 running + 1 pending short time
+        worker_num = 4
         for index in range(4):
             mock_node = Node(
                 NodeType.WORKER,
@@ -229,7 +234,9 @@ class WorkerManagerTest(unittest.TestCase):
                 mock_node.create_time = datetime.now() + timedelta(minutes=-20)
             mock_nodes[index] = mock_node
         worker_manager._nodes = mock_nodes
-        self.assertFalse(worker_manager.is_training_hang_by_pending())
+        self.assertFalse(
+            worker_manager.is_training_hang_by_pending(worker_num)
+        )
         mock_nodes.clear()
 
         # mock with 3 running + 1 pending long time
@@ -248,10 +255,11 @@ class WorkerManagerTest(unittest.TestCase):
                 mock_node.create_time = datetime.now() + timedelta(minutes=-20)
             mock_nodes[index] = mock_node
         worker_manager._nodes = mock_nodes
-        self.assertTrue(worker_manager.is_training_hang_by_pending())
+        self.assertTrue(worker_manager.is_training_hang_by_pending(worker_num))
         mock_nodes.clear()
 
         # mock with 4 running + 1 pending long time
+        worker_num = 5
         for index in range(5):
             mock_node = Node(
                 NodeType.WORKER,
@@ -267,10 +275,13 @@ class WorkerManagerTest(unittest.TestCase):
                 mock_node.create_time = datetime.now() + timedelta(minutes=-20)
             mock_nodes[index] = mock_node
         worker_manager._nodes = mock_nodes
-        self.assertFalse(worker_manager.is_training_hang_by_pending())
+        self.assertFalse(
+            worker_manager.is_training_hang_by_pending(worker_num)
+        )
         mock_nodes.clear()
 
         # mock with 3 running + 1 initial long time
+        worker_num = 4
         for index in range(4):
             mock_node = Node(
                 NodeType.WORKER,
@@ -286,7 +297,81 @@ class WorkerManagerTest(unittest.TestCase):
                 mock_node.create_time = datetime.now() + timedelta(minutes=-20)
             mock_nodes[index] = mock_node
         worker_manager._nodes = mock_nodes
-        self.assertTrue(worker_manager.is_training_hang_by_pending())
+        self.assertTrue(worker_manager.is_training_hang_by_pending(worker_num))
+
+        # =============================================
+        # condition: when node required is not updated
+        # =============================================
+        worker_manager.update_node_required_info((0, 0))
+
+        # mock with 1 pending short time
+        worker_num = 1
+        for index in range(1):
+            mock_node = Node(
+                NodeType.WORKER,
+                index,
+                NodeResource(0, 0),
+                "test-" + str(index),
+                NodeStatus.RUNNING,
+            )
+            if index == 0:
+                mock_node.status = NodeStatus.PENDING
+                mock_node.create_time = datetime.now() + timedelta(minutes=-10)
+            else:
+                mock_node.create_time = datetime.now() + timedelta(minutes=-10)
+            mock_nodes[index] = mock_node
+        worker_manager._nodes = mock_nodes
+        self.assertFalse(
+            worker_manager.is_training_hang_by_pending(worker_num)
+        )
+
+        # mock with 1 pending long time
+        for index in range(1):
+            mock_node = Node(
+                NodeType.WORKER,
+                index,
+                NodeResource(0, 0),
+                "test-" + str(index),
+                NodeStatus.PENDING,
+            )
+            mock_node.create_time = datetime.now() + timedelta(minutes=-20)
+            mock_nodes[index] = mock_node
+        worker_manager._nodes = mock_nodes
+        self.assertTrue(worker_manager.is_training_hang_by_pending(worker_num))
+
+        # mock with 2 pending long time
+        worker_num = 2
+        for index in range(2):
+            mock_node = Node(
+                NodeType.WORKER,
+                index,
+                NodeResource(0, 0),
+                "test-" + str(index),
+                NodeStatus.PENDING,
+            )
+            mock_node.create_time = datetime.now() + timedelta(minutes=-20)
+            mock_nodes[index] = mock_node
+        worker_manager._nodes = mock_nodes
+        self.assertTrue(worker_manager.is_training_hang_by_pending(worker_num))
+
+        # mock with 2 pending + 1 running long time
+        worker_num = 2
+        for index in range(2):
+            mock_node = Node(
+                NodeType.WORKER,
+                index,
+                NodeResource(0, 0),
+                "test-" + str(index),
+                NodeStatus.PENDING,
+            )
+            if index == 0:
+                mock_node.status = NodeStatus.RUNNING
+                mock_node.create_time = datetime.now() + timedelta(minutes=-20)
+            mock_nodes[index] = mock_node
+        worker_manager._nodes = mock_nodes
+        self.assertFalse(
+            worker_manager.is_training_hang_by_pending(worker_num)
+        )
 
     def test_is_training_hang_by_insufficient_worker(self):
         # mock timeout 2 second(seconds_to_wait_pending_pod * 2)

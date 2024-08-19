@@ -88,10 +88,10 @@ class FsdpShardCheckpointer(Checkpointer):
             step(int): the iteration step.
             model: A FSDP module.
             optimizer: An optimizer to train a FSDP model.
-            extra_sd(dict): A dict to store customized arguements
-                in the chechkpoint.
+            extra_sd(dict): A dict to store customized arguments
+                in the checkpoint.
             path(str): A path to store the checkpoint.
-            storage_tyep: Save the checkpoint into the memory
+            storage_type: Save the checkpoint into the memory
                 if `StorageType.MEMORY` and into the dist
                 if `StorageType.DISK`.
         """
@@ -111,7 +111,7 @@ class FsdpShardCheckpointer(Checkpointer):
                     raise ValueError(
                         "path cannot be empty if storage type is disk!"
                     )
-                self._engine.save_to_storage(step, state_dict, path)
+                self._engine.save_to_storage(step, state_dict, paths)
             else:
                 raise ValueError(f"No support storage type {storage_type}")
 
@@ -155,13 +155,6 @@ class FsdpFullCheckpointer(Checkpointer):
 
     Args:
         checkpoint_dir: the directory to save the checkpoint.
-        local_shard_num (int): the number of shards on a node,
-            The default is 1. If the model is partitioned on all ranks,
-            you should set the local_shard_num as the number of ranks
-            on a node.
-        global_shard_num (int): the number of shards across all ranks.
-            The default is 1.If the model is partitioned on all ranks,
-            you should set the local_shard_num as the number of all ranks.
         comm_backend (str): the communcation backend to create a process group,
             The default is the backend of general main process group.
         deletion_strategy: A `CheckpointDeletionStrategy` instance. The default
@@ -190,6 +183,7 @@ class FsdpFullCheckpointer(Checkpointer):
         checkpoint_dir: str,
         comm_backend="",
         deletion_strategy=None,
+        save_timeout: int = CheckpointConstant.SAVE_TIMEOUT,
     ):
         self.checkpoint_dir = checkpoint_dir
         if dist.is_initialized():
@@ -203,6 +197,7 @@ class FsdpFullCheckpointer(Checkpointer):
             local_shard_num=1,
             global_shard_num=1,
             comm_backend=comm_backend,
+            save_timeout=save_timeout,
         )
 
     def save_checkpoint(

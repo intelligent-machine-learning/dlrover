@@ -149,6 +149,7 @@ class ElasticLaunchConfig(LaunchConfig):
     accelerator: str = ""
     log_dir: Optional[str] = None  # Keep Compatibility with PyTorch>=2.3.0
     redirects: Union[Std, Dict[int, Std]] = Std.NONE
+    tee: Union[Std, Dict[int, Std]] = Std.NONE
 
     def set_node_unit(self, node_unit):
         """Set the number unint of ndoes."""
@@ -554,9 +555,6 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 # We need to register handler after starting workers because
                 # the PContext start_worker will overwrite the handler.
                 AsyncCheckpointSaver.register_signal_handler()
-
-                # need master client to report unexpected failures in saver
-                AsyncCheckpointSaver.register_master_client(self._client)
             except RendezvousOutSyncError:
                 if start_pending == 0:
                     start_pending = time.time()
@@ -640,7 +638,11 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     "for other agents to finish."
                 )
                 self._exit_barrier()
+                logger.info("Barrier exited.")
+
                 self._wait_async_saver()
+                logger.info("Async saver stopped.")
+
                 return run_result
             elif state in {WorkerState.UNHEALTHY, WorkerState.FAILED}:
                 logger.error(f"The worker fails with {run_result.failures}")

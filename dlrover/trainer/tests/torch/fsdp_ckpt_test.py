@@ -333,7 +333,6 @@ class FsdpCheckpointTest(unittest.TestCase):
         storage = PosixDiskStorage()
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir = Path(tmpdir)
-            engine = tmpdir
             path = tmpdir / str(step)
             paths = {CheckpointConstant.MODEL_STATES_NAME: path}
             engine = FsdpCheckpointEngine(tmpdir, storage)
