@@ -16,19 +16,19 @@ import time
 from datetime import datetime, timedelta
 from typing import Dict, List
 
-from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.diagnosis.inferencechain.inference_chain import (
-    Inference,
-    InferenceOperator,
-    InferenceChain,
-)
+from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
 from dlrover.python.diagnosis.common.inference_chain import (
     InferenceAttribute,
     InferenceDescription,
     InferenceName,
 )
-from dlrover.python.diagnosis.inferencechain.inferenceoperator.check_training_hang_operator import (
+from dlrover.python.diagnosis.inferencechain.inference_chain import (
+    Inference,
+    InferenceChain,
+    InferenceOperator,
+)
+from dlrover.python.diagnosis.inferencechain.inferenceoperator.check_training_hang_operator import (  # noqa: E501
     CheckTrainingHangOperator,
 )
 

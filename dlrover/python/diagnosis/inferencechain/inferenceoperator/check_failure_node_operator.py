@@ -28,8 +28,13 @@ from dlrover.python.diagnosis.datacollector.training_log_collector import (
 
 
 class CheckFailureNodeOperator(InferenceOperator):
+    """
+    CheckFailureNodeOperator is the operator to check
+    if the node is failure
+    """
+
     def __init__(self):
-        super().__init__()
+        super().__init__(None)
 
     def is_compatible(self, inference: Inference) -> bool:
         if (

@@ -80,7 +80,9 @@ from dlrover.python.diagnosis.common.constants import DiagnoseAction
 from dlrover.python.elastic_agent.config.paral_config_tuner import (
     ParalConfigTuner,
 )
-from dlrover.python.elastic_agent.diagnosis.diagnosis_agent import DiagnosisAgent
+from dlrover.python.elastic_agent.diagnosis.diagnosis_agent import (
+    DiagnosisAgent,
+)
 from dlrover.python.elastic_agent.master_client import MasterClient
 from dlrover.python.elastic_agent.monitor.training import TorchTrainingMonitor
 from dlrover.python.elastic_agent.torch.ckpt_saver import AsyncCheckpointSaver
@@ -661,7 +663,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     restart_count=self._restart_count,
                     run_result=run_result,
                 )
-                action = self._diagnose_agent.diagnose_training_failure(worker_context)
+                action = self._diagnose_agent.diagnose_training_failure(
+                    worker_context
+                )
                 self._process_diagnose_action(action)
                 if self._worker_group.state == WorkerState.FAILED:
                     return run_result

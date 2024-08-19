@@ -20,7 +20,9 @@ from torch.distributed.launcher.api import LaunchConfig
 from dlrover.python.common.constants import RendezvousName
 from dlrover.python.common.worker import WorkerContext
 from dlrover.python.diagnosis.common.constants import DiagnoseAction
-from dlrover.python.elastic_agent.diagnosis.diagnosis_agent import DiagnosisAgent
+from dlrover.python.elastic_agent.diagnosis.diagnosis_agent import (
+    DiagnosisAgent,
+)
 from dlrover.python.elastic_agent.master_client import (
     MasterClient,
     build_master_client,
@@ -32,7 +34,7 @@ from dlrover.python.elastic_agent.torch.training import (
 from dlrover.python.tests.test_utils import start_local_master
 
 
-class TestDiagnoseAgent(unittest.TestCase):
+class TestDiagnosisAgent(unittest.TestCase):
     def setUp(self):
         self.master_proc, self.addr = start_local_master()
         MasterClient._instance = build_master_client(self.addr, 1)
@@ -77,11 +79,16 @@ class TestDiagnoseAgent(unittest.TestCase):
             run_result=run_result,
         )
 
-        action = agent.diagnose_training(wc)
+        action = agent.diagnose_training_failure(wc)
         self.assertEqual(action, DiagnoseAction.RESTART_WORKER)
 
         agent._errors = "error code is 507035"
-        action = agent.diagnose_training(wc)
+        action = agent.diagnose_training_failure(wc)
+        self.assertEqual(action, DiagnoseAction.RELAUNCH_WORKER)
+
+        agent._errors = "error code is 11111"
+        wc.remaining_failovers = 0
+        action = agent.diagnose_training_failure(wc)
         self.assertEqual(action, DiagnoseAction.RELAUNCH_WORKER)
 
 

@@ -20,7 +20,7 @@ from dlrover.python.diagnosis.common.inference_chain import (
     InferenceAttribute,
     InferenceDescription,
     InferenceName,
-    same_inference,
+    is_same_inference,
 )
 from dlrover.python.diagnosis.inferencechain.inference_chain import (
     InferenceChain,
@@ -41,7 +41,7 @@ class InferenceChainTest(unittest.TestCase):
         pass
 
     def test_CheckTrainingHangOperator(self):
-        operator = CheckTrainingHangOperator()
+        operator = CheckTrainingHangOperator(None)
         inf = Inference(
             name=InferenceName.TRAINING,
             attribution=InferenceAttribute.ISORNOT,
@@ -75,7 +75,7 @@ class InferenceChainTest(unittest.TestCase):
             attribution=InferenceAttribute.IS,
             description=InferenceDescription.FAILURE,
         )
-        self.assertTrue(same_inference(results[0], failure_inf))
+        self.assertTrue(is_same_inference(results[0], failure_inf))
 
     def test_InferenceChain(self):
         file = "data/training.log"
@@ -91,14 +91,15 @@ class InferenceChainTest(unittest.TestCase):
             },
         )
 
-        ic = InferenceChain([inf])
+        operators = [CheckFailureNodeOperator()]
+        ic = InferenceChain([inf], operators)
         results = ic.infer()
         failure_inf = Inference(
             name=InferenceName.NODE,
             attribution=InferenceAttribute.IS,
             description=InferenceDescription.FAILURE,
         )
-        self.assertTrue(same_inference(results[0], failure_inf))
+        self.assertTrue(is_same_inference(results[0], failure_inf))
 
 
 if __name__ == "__main__":

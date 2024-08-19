@@ -14,8 +14,8 @@
 import time
 import unittest
 
-from dlrover.python.diagnose.common.diagnose_data import CudaLog
-from dlrover.python.master.diagnosis.diagnosis_data import DataManager
+from dlrover.python.diagnosis.common.diagnosis_data import CudaLog
+from dlrover.python.master.diagnosis.diagnosis import DiagnosisDataManager
 
 
 class DiagnosisTest(unittest.TestCase):
@@ -26,7 +26,7 @@ class DiagnosisTest(unittest.TestCase):
         pass
 
     def test_data_manager(self):
-        mgr = DataManager(5)
+        mgr = DiagnosisDataManager(5)
         data_type = "type"
         log1 = CudaLog(0)
         mgr.store_data(data_type, log1)

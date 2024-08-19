@@ -35,8 +35,10 @@ from dlrover.python.diagnosis.common.inference_chain import (
 from dlrover.python.diagnosis.inferencechain.inference_chain import (
     InferenceChain,
 )
+from dlrover.python.diagnosis.inferencechain.inferenceoperator.check_failure_node_operator import (  # noqa: E501
+    CheckFailureNodeOperator,
+)
 from dlrover.python.elastic_agent.master_client import MasterClient
-from dlrover.python.diagnosis.inferencechain.inferenceoperator.check_failure_node_operator import CheckFailureNodeOperator
 
 
 class DiagnosisAgent:

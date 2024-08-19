@@ -13,11 +13,7 @@
 
 from typing import List
 
-<<<<<<<< HEAD:dlrover/python/diagnose/inferencechain/inferenceoperator/check_training_hang_operator.py
 from dlrover.python.diagnosis.common.inference_chain import (
-========
-from dlrover.python.master.diagnosis.inferencechain.inference import (
->>>>>>>> origin/master:dlrover/python/diagnose/inferencechain/inferenceoperator/training_hang_operator.py
     Inference,
     InferenceAttribute,
     InferenceDescription,
@@ -27,13 +23,13 @@ from dlrover.python.master.diagnosis.inferencechain.inference import (
 
 
 class CheckTrainingHangOperator(InferenceOperator):
-<<<<<<<< HEAD:dlrover/python/diagnose/inferencechain/inferenceoperator/check_training_hang_operator.py
-    def __init__(self):
-        super().__init__()
-========
+    """
+    CheckTrainingHangOperator is the operator to check
+    if training is hanged
+    """
+
     def __init__(self, data_manager):
         super().__init__(data_manager)
->>>>>>>> origin/master:dlrover/python/diagnose/inferencechain/inferenceoperator/training_hang_operator.py
 
     def is_compatible(self, inference: Inference) -> bool:
         if (
