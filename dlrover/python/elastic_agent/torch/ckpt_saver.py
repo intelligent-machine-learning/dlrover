@@ -1016,7 +1016,7 @@ class TempDirCheckpointSaver(AsyncCheckpointSaver):
             )
             return
         self._writing_storage = True
-        mkdir_timeout = self._save_timeout / 2
+        mkdir_timeout = int(self._save_timeout / 2)
 
         temp_dir = self._get_tmp_ckpt_dir(step)
         self._dist_make_dir(temp_dir, mkdir_timeout)
