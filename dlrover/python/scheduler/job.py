@@ -26,7 +26,6 @@ class ElasticJob(metaclass=ABCMeta):
         job is in dlrover/go/elasticjob_operator/config/samples/
         elastic_v1alpha1_elasticjob.yaml
         Args:
-            image_name: Docker image path for DLRover pod.
             namespace: The name of the Kubernetes namespace where DLRover
                 pods will be created.
             job_name: DLRover job name, should be unique in the namespace.
@@ -74,14 +73,14 @@ class JobArgs(JsonSerializable):
             job is created.
         job_name: The name of the job.
         node_args: It contains resource and elasticity
-            configuraions of nodes.
+            configurations of nodes.
         enable_dynamic_sharding: Whether to use dynamic sharding of a dataset.
         enable_elastic_scheduling: Whether to use elastic scheduling.
         distribution_strategy: The distributed training strategy supports
-            ["ParameterServerStrategy", "AllreduceStrategy"]
+            ["ParameterServerStrategy", "AllReduceStrategy"]
         relaunch_always (bool): whether to always relaunch the error node.
         remove_exited_node (bool): whether to remove the exited node.
-        cordon_fault_node (bool): whether to set the fault node unschedulable.
+        cordon_fault_node (bool): whether to set the fault node unscheduled.
     """
 
     def __init__(self, platform, namespace, job_name):
