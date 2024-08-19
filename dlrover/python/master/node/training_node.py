@@ -89,24 +89,34 @@ def get_critical_worker_index(params: JobArgs):
     critical_worker_index = {}
     worker_params = params.node_args[NodeType.WORKER]
 
-    if worker_params.critical_nodes == "":
-        # for default, worker0 is critical if PS strategy with custom training
-        if params.distribution_strategy == DistributionStrategy.PS:
-            critical_worker_index[0] = worker_params.restart_count
-    elif worker_params.critical_nodes == "all":
-        for i in range(worker_params.group_resource.count):
-            critical_worker_index[i] = worker_params.restart_count
-    elif worker_params.critical_nodes != "none":
-        for pod_relaunch_conf in worker_params.critical_nodes.split(","):
-            # The conf is "pod_index:relaunch_times"
-            pod_relaunch = pod_relaunch_conf.strip().split(":")
-            critical_worker_index[int(pod_relaunch[0])] = int(pod_relaunch[1])
+    try:
+        if worker_params.critical_nodes == "":
+            # for default, worker0 is critical if PS strategy with
+            # custom training
+            if params.distribution_strategy == DistributionStrategy.PS:
+                critical_worker_index[0] = worker_params.restart_count
+        elif worker_params.critical_nodes == "all":
+            for i in range(worker_params.group_resource.count):
+                critical_worker_index[i] = worker_params.restart_count
+        elif worker_params.critical_nodes != "none":
+            for pod_relaunch_conf in worker_params.critical_nodes.split(","):
+                # The conf is "pod_index:relaunch_times"
+                pod_relaunch = pod_relaunch_conf.strip().split(":")
+                critical_worker_index[int(pod_relaunch[0])] = int(
+                    pod_relaunch[1]
+                )
 
-    return critical_worker_index
+        return critical_worker_index
+    except Exception as e:
+        logger.warning(
+            f"Invalid worker params: {worker_params.__dict__}, "
+            f"error: {str(e)}"
+        )
+        return {}
 
 
 def reduce_timeout_pending_node_resource(node: Node):
-    """Reduce CPU cores or memroy and relaunch it if the pending
+    """Reduce CPU cores or memory and relaunch it if the pending
     time is too long"""
     now = time.time()
     if (
