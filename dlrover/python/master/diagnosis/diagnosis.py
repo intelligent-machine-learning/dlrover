@@ -48,7 +48,7 @@ class DiagnosisManager:
     def collect_diagnosis_data(self, data_type: str, data: DiagnosisData):
         self._data_manager.store_data(data_type, data)
 
-    def start_pre_check(self):
+    def pre_check(self):
         logger.info("Start Diagnosis Manager to pre-check training...")
 
         # TODO
