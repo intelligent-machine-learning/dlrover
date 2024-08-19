@@ -192,12 +192,18 @@ class DistributedJobManagerTest(unittest.TestCase):
         params.initilize()
         critical_worker = get_critical_worker_index(params)
         self.assertDictEqual(critical_worker, {0: 3})
+
         params.node_args[NodeType.WORKER].critical_nodes = "0:1"
         critical_worker = get_critical_worker_index(params)
         self.assertDictEqual(critical_worker, {0: 1})
+
         params.node_args[NodeType.WORKER].critical_nodes = "all"
         critical_worker = get_critical_worker_index(params)
         self.assertDictEqual(critical_worker, {0: 3, 1: 3, 2: 3})
+
+        params.node_args[NodeType.WORKER].critical_nodes = "0"
+        critical_worker = get_critical_worker_index(params)
+        self.assertDictEqual(critical_worker, {})
 
     def test_relaunch_node(self):
         params = MockK8sPSJobArgs()

@@ -45,8 +45,8 @@ class InferenceOperator(metaclass=ABCMeta):
     InferenceOperator is used to infer the root cause of problems.
     """
 
-    def __init__(self):
-        pass
+    def __init__(self, data_manager):
+        self._data_manager = data_manager
 
     @abstractmethod
     def infer(self, inferences: List[Inference]) -> List[Inference]:

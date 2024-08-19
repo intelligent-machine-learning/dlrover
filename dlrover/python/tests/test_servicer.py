@@ -26,6 +26,7 @@ from dlrover.python.common.constants import (
     RendezvousName,
 )
 from dlrover.python.common.grpc import GPUStats
+from dlrover.python.master.diagnosis.diagnosis import DiagnosisManager
 from dlrover.python.master.elastic_training.elastic_ps import ElasticPsService
 from dlrover.python.master.elastic_training.rdzv_manager import (
     ElasticTrainingRendezvousManager,
@@ -77,6 +78,7 @@ class MasterServicerTest(unittest.TestCase):
             job_manager=self.job_manager,
             speed_monitor=speed_monitor,
             rdzv_managers=rdzv_managers,
+            diagnosis_manager=DiagnosisManager(),
             job_metric_collector=self.job_metric_collector,
             elastic_ps_service=self.elastic_ps_service,
             sync_service=sync_service,
@@ -420,6 +422,7 @@ class MasterServicerForRayTest(unittest.TestCase):
             job_manager=self.job_manager,
             speed_monitor=speed_monitor,
             rdzv_managers={},
+            diagnosis_manager=DiagnosisManager(),
             job_metric_collector=self.job_metric_collector,
             elastic_ps_service=self.elastic_ps_service,
         )

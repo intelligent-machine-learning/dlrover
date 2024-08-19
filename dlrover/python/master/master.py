@@ -20,6 +20,10 @@ class JobMaster(metaclass=ABCMeta):
         pass
 
     @abstractmethod
+    def pre_check(self):
+        pass
+
+    @abstractmethod
     def run(self):
         pass
 
