@@ -68,7 +68,7 @@ class CheckFailureNodeOperator(InferenceOperator):
         training_log = collector.collect_data()
         logs = training_log.logs
         if not logs or len(logs) == 0:
-            logger.error(f"fail to collect training log from {log_file}")
+            logger.warning(f"fail to collect training logs from {log_file}")
             return [
                 Inference(
                     name=InferenceName.NODE,

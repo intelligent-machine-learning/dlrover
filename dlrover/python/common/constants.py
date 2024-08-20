@@ -234,7 +234,10 @@ class NodeEnv(object):
 
     # process env
     TORCHELASTIC_RUN_ID = "TORCHELASTIC_RUN_ID"
+
+    # diagnosis env
     TRAINING_LOG_FILE = "TRAINING_LOG_FILE"
+    FAILURE_NODE_ERRORS = "FAILURE_NODE_ERRORS"
 
 
 class DatasetType(object):

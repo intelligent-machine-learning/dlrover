@@ -140,6 +140,9 @@ class ElasticLaunchConfig(LaunchConfig):
             memory into the disk after a failure occurs.
         accelerator: the type of acclerator processor like nvidia.com/gpu,
             ascend-npu.
+        training_log_file: the training log file of this training job
+        failure_node_errors: the error information that indicate the node
+            is a failure node
     """
 
     network_check: bool = False
@@ -154,6 +157,8 @@ class ElasticLaunchConfig(LaunchConfig):
     log_dir: Optional[str] = None  # Keep Compatibility with PyTorch>=2.3.0
     redirects: Union[Std, Dict[int, Std]] = Std.NONE
     tee: Union[Std, Dict[int, Std]] = Std.NONE
+    training_log_file: str = ""
+    failure_node_errors: str = ""
 
     def set_node_unit(self, node_unit):
         """Set the number unint of ndoes."""
@@ -176,6 +181,9 @@ class ElasticLaunchConfig(LaunchConfig):
             self.nproc_per_node = torch.cuda.device_count()
         if self.min_nodes >= 4:
             self.network_check = True
+
+        self.training_log_file = os.getenv(NodeEnv.TRAINING_LOG_FILE, "")
+        self.failure_node_errors = os.getenv(NodeEnv.FAILURE_NODE_ERRORS, "")
 
 
 class MasterRendezvousHandler(RendezvousHandler):
@@ -410,9 +418,8 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
         self._save_ckpt_executor = ThreadPoolExecutor(max_workers=1)
         self._save_ckpt_future = None
-        self._log_file = os.getenv(NodeEnv.TRAINING_LOG_FILE, "")
         self._diagnose_agent = DiagnosisAgent(
-            training_log_file, "error code is 507035"
+            training_log_file, failure_node_errors
         )
 
     @prof
@@ -869,6 +876,8 @@ def launch_agent(
         spec=spec,
         start_method=config.start_method,
         log_dir=config.log_dir,
+        training_log_file=config.training_log_file,
+        failure_node_errors=config.failure_node_errors,
     )
 
     shutdown_rdzv = True
