@@ -48,7 +48,7 @@ class CheckFailureNodeOperator(InferenceOperator):
 
     def infer(self, inferences: List[Inference]) -> List[Inference]:
         if (
-            len(inferences) == 0
+            len(inferences) != 1
             or not inferences[0].configs
             or InferenceConfigKey.LOG_FILE not in inferences[0].configs
             or InferenceConfigKey.ERRORS not in inferences[0].configs
