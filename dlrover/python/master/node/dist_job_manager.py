@@ -716,7 +716,7 @@ class DistributedJobManager(JobManager):
                 and not _dlrover_context.relaunch_always
             ):
                 should_relaunch = False
-                msg = "Not configure relaunch always"
+                msg = "Not enable relaunch always"
             elif node.exit_reason == NodeExitReason.OOM:
                 mem = node.config_resource.memory
                 if mem >= NodeResourceLimit.MAX_MEMORY:
@@ -737,6 +737,11 @@ class DistributedJobManager(JobManager):
                         node.relaunch_count,
                         node.max_relaunch_count,
                     )
+                    msg = (
+                        "The relaunched count %s is beyond the maximum %s.",
+                        node.relaunch_count,
+                        node.max_relaunch_count,
+                    )
                 else:
                     node.is_recovered_oom = True
                     self._job_optimizer.adjust_oom_resource(node)
@@ -748,10 +753,15 @@ class DistributedJobManager(JobManager):
                         "has been exhausted."
                     )
                     should_relaunch = False
-                    msg = "Exhausted relaunch times"
+                    msg = (
+                        "The relaunch count "
+                        f"{node.relaunch_count}/{node.max_relaunch_count} "
+                        "has been exhausted."
+                    )
         if should_relaunch:
             node.relaunch_count += 1
-        else:
+
+        if not should_relaunch and len(msg) > 0:
             self._report_event(
                 ErrorMonitorConstants.TYPE_INFO,
                 node.name,
