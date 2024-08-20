@@ -17,6 +17,11 @@ from dlrover.python.util.file_util import read_last_n_lines
 
 
 class TrainingLogCollector(DataCollector):
+    """
+    TrainingLogCollector collects the last n_line lines
+    from the given logs.
+    """
+
     def __init__(self, log_file: str = "", n_line: int = 0):
         super().__init__()
         self._log_file = log_file

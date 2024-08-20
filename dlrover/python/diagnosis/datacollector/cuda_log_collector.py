@@ -16,6 +16,10 @@ from dlrover.python.diagnosis.datacollector.data_collector import DataCollector
 
 
 class CudaLogCollector(DataCollector):
+    """
+    CudaLogCollector collects cuda runtime logs
+    """
+
     def __init__(self, *args, **kwargs):
         super().__init__()
         pass

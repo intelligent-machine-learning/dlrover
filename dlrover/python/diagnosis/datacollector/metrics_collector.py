@@ -17,6 +17,9 @@ from dlrover.python.diagnosis.datacollector.data_collector import DataCollector
 
 class MetricsCollector(DataCollector):
     def __init__(self, *args, **kwargs):
+        """
+        MetricsCollector collects GPU metrics
+        """
         pass
 
     def collect_data(self) -> object:
