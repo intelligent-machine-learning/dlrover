@@ -11,19 +11,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dlrover.python.common.diagnosis import ChipMetrics
-from dlrover.python.elastic_agent.datacollector.data_collector import (
-    DataCollector,
-)
+
+class InferenceConfigKey(object):
+    LOG_FILE = "log_file"
+    ERRORS = "errors"
 
 
-class MetricsCollector(DataCollector):
-    def __init__(self, *args, **kwargs):
-        pass
-
-    def collect_data(self) -> object:
-        chip_metrics = ChipMetrics(0)
-        return chip_metrics
-
-    def to_collect_data(self) -> bool:
-        return True
+class DiagnoseAction(object):
+    RESTART_WORKER = "restart_worker"
+    RELAUNCH_WORKER = "relaunch_worker"

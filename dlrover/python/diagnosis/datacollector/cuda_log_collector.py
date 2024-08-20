@@ -11,21 +11,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-import unittest
-
-from dlrover.python.common.diagnosis import node_failed
+from dlrover.python.diagnosis.common.diagnosis_data import CudaLog
+from dlrover.python.diagnosis.datacollector.data_collector import DataCollector
 
 
-class DiagnosisTest(unittest.TestCase):
-    def setUp(self):
+class CudaLogCollector(DataCollector):
+    """
+    CudaLogCollector collects cuda runtime logs
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__()
         pass
 
-    def tearDown(self):
-        pass
+    def collect_data(self) -> object:
+        log = CudaLog(0)
+        return log
 
-    def test_should_relaunch_worker(self):
-        file = "data/training.log"
-        path = os.path.dirname(__file__)
-        file_path = os.path.join(path, file)
-        self.assertTrue(node_failed(file_path))
+    def to_collect_data(self) -> bool:
+        return True
