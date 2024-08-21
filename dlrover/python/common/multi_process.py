@@ -29,7 +29,7 @@ import _posixshmem
 from .constants import NodeEnv
 from .log import default_logger as logger
 
-SOCKET_TMP_DIR = "/tmp/ckpt_sock/"
+SOCKET_TMP_DIR = "/tmp/checkpoint_sock/"
 
 SUCCESS_CODE = "OK"
 ERROR_CODE = "ERROR"
@@ -198,7 +198,7 @@ class LocalSocketComm(metaclass=ABCMeta):
         return os.path.join(root_dir, fname)
 
     def _init_socket(self):
-        """Initialize a socket server."""
+        """Initialze a socket server."""
         if self._create:
             self._server = _create_socket_server(self._socket_file)
             t = threading.Thread(
@@ -214,7 +214,7 @@ class LocalSocketComm(metaclass=ABCMeta):
 
     @retry_socket
     def _request(self, request: SocketRequest):
-        """Create a socket client to request the shared object."""
+        """Create a socket client to requet the shared object."""
         client = _create_socket_client(self._socket_file)
         message = pickle.dumps(request)
         _socket_send(client, message)

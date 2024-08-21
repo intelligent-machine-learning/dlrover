@@ -12,7 +12,6 @@
 # limitations under the License.
 
 import os
-import random
 import time
 from abc import ABCMeta, abstractmethod
 from datetime import timedelta
@@ -167,7 +166,6 @@ class CheckpointEngine(metaclass=ABCMeta):
         if not self.saver_proc:
             self.saver_proc = start_saver_process()
 
-        self._unique_process_id = random.randint(0, 999)
         self.checkpoint_dir = checkpoint_dir
         self.storage = storage
         self._save_timeout = save_timeout
@@ -185,11 +183,8 @@ class CheckpointEngine(metaclass=ABCMeta):
         # lock for shared memory
         local_shard_num = self.get_local_shard_num()
         self.local_shard_id = self._local_rank % local_shard_num
-        lock_name = (
-            CheckpointSharedObjPrefix.SHM_LOCK_NAME
-            + str(self.local_shard_id)
-            + "_"
-            + str(self._unique_process_id)
+        lock_name = CheckpointSharedObjPrefix.SHM_LOCK_NAME + str(
+            self.local_shard_id
         )
         self._shm_lock = SharedLock(name=lock_name, create=False)
         self._shm_handler = SharedMemoryHandler(
@@ -280,7 +275,6 @@ class CheckpointEngine(metaclass=ABCMeta):
                 "local_shard_num": local_shard_num,
                 "global_shard_num": global_shard_num,
                 "save_timeout": self._save_timeout,
-                "unique_process_id": self._unique_process_id,
             },
         )
 
