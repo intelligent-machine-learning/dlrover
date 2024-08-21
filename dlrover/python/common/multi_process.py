@@ -83,8 +83,16 @@ def _create_socket_client(path):
         path (str): a file path.
 
     """
-    client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    client.connect(path)
+
+    try:
+        client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        client.connect(path)
+    except Exception as e:
+        logger.warning(
+            "Unexpected error when creating socket client by "
+            f"path: {path}, error: {e}"
+        )
+        raise e
     return client
 
 
@@ -279,9 +287,15 @@ class SharedLock(LocalSocketComm):
                 method="acquire",
                 args={"blocking": blocking},
             )
-            response = self._request(request)
-            if response.status == SUCCESS_CODE:
-                return response.acquired
+            try:
+                response = self._request(request)
+                if response.status == SUCCESS_CODE:
+                    return response.acquired
+            except Exception as e:
+                logger.warning(
+                    "Failed to acquire lock due to unexpected " f"error: {e}",
+                    exc_info=True,
+                )
             return False
 
     def release(self):
