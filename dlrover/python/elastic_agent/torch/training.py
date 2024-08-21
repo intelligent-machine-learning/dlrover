@@ -68,7 +68,6 @@ from dlrover.python.common.constants import (
     RendezvousName,
     TrainingExceptionLevel,
 )
-from dlrover.python.common.diagnosis import node_failed
 from dlrover.python.common.error import ProcessError
 from dlrover.python.common.grpc import (
     find_free_port_for_hccl,
@@ -76,8 +75,13 @@ from dlrover.python.common.grpc import (
     find_free_port_in_set,
 )
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.common.worker import WorkerContext
+from dlrover.python.diagnosis.common.constants import DiagnoseAction
 from dlrover.python.elastic_agent.config.paral_config_tuner import (
     ParalConfigTuner,
+)
+from dlrover.python.elastic_agent.diagnosis.diagnosis_agent import (
+    DiagnosisAgent,
 )
 from dlrover.python.elastic_agent.master_client import MasterClient
 from dlrover.python.elastic_agent.monitor.training import TorchTrainingMonitor
@@ -136,6 +140,9 @@ class ElasticLaunchConfig(LaunchConfig):
             memory into the disk after a failure occurs.
         accelerator: the type of acclerator processor like nvidia.com/gpu,
             ascend-npu.
+        training_log_file: the training log file of this training job
+        failure_node_errors: the error information that indicate the node
+            is a failure node
     """
 
     network_check: bool = False
@@ -150,6 +157,8 @@ class ElasticLaunchConfig(LaunchConfig):
     log_dir: Optional[str] = None  # Keep Compatibility with PyTorch>=2.3.0
     redirects: Union[Std, Dict[int, Std]] = Std.NONE
     tee: Union[Std, Dict[int, Std]] = Std.NONE
+    training_log_file: str = ""
+    failure_node_errors: str = ""
 
     def set_node_unit(self, node_unit):
         """Set the number unint of ndoes."""
@@ -172,6 +181,9 @@ class ElasticLaunchConfig(LaunchConfig):
             self.nproc_per_node = torch.cuda.device_count()
         if self.min_nodes >= 4:
             self.network_check = True
+
+        self.training_log_file = os.getenv(NodeEnv.TRAINING_LOG_FILE, "")
+        self.failure_node_errors = os.getenv(NodeEnv.FAILURE_NODE_ERRORS, "")
 
 
 class MasterRendezvousHandler(RendezvousHandler):
@@ -379,6 +391,8 @@ class ElasticTrainingAgent(LocalElasticAgent):
         start_method="spawn",
         exit_barrier_timeout: float = 300,
         log_dir: Optional[str] = None,
+        training_log_file: str = "",
+        failure_node_errors: str = "",
     ):
         if version_less_than_230():
             super().__init__(spec, exit_barrier_timeout)
@@ -404,7 +418,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
         self._save_ckpt_executor = ThreadPoolExecutor(max_workers=1)
         self._save_ckpt_future = None
-        self._log_file = os.getenv(NodeEnv.TRAINING_LOG_FILE, "")
+        self._diagnose_agent = DiagnosisAgent(
+            training_log_file, failure_node_errors
+        )
 
     @prof
     def _rendezvous(self, worker_group: WorkerGroup) -> None:
@@ -646,21 +662,19 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 return run_result
             elif state in {WorkerState.UNHEALTHY, WorkerState.FAILED}:
                 logger.error(f"The worker fails with {run_result.failures}")
-                self._report_failure_to_master(run_result.failures)
                 self._save_ckpt_to_storage()
-                if self._remaining_failovers > 0 and not node_failed(
-                    self._log_file
-                ):
-                    logger.info(
-                        f"[{role}] Worker group {state.name}. "
-                        f"{self._remaining_failovers}/{spec.max_restarts}"
-                        f" attempts left; will restart worker group"
-                    )
-                    self._remaining_failovers -= 1
-                    self._restart_workers(self._worker_group)
-                else:
-                    self._stop_workers(self._worker_group)
-                    self._worker_group.state = WorkerState.FAILED
+
+                worker_context = WorkerContext(
+                    worker_spec=self._worker_group.spec,
+                    remaining_failovers=self._remaining_failovers,
+                    restart_count=self._restart_count,
+                    run_result=run_result,
+                )
+                action = self._diagnose_agent.diagnose_training_failure(
+                    worker_context
+                )
+                self._process_diagnose_action(action)
+                if self._worker_group.state == WorkerState.FAILED:
                     return run_result
             elif state == WorkerState.HEALTHY:
                 # membership changes do not count as retries
@@ -669,6 +683,14 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     self._restart_workers(self._worker_group)
             else:
                 raise Exception(f"[{role}] Worker group in {state.name} state")
+
+    def _process_diagnose_action(self, action: str):
+        if action == DiagnoseAction.RESTART_WORKER:
+            self._remaining_failovers -= 1
+            self._restart_workers(self._worker_group)
+        elif action == DiagnoseAction.RELAUNCH_WORKER:
+            self._stop_workers(self._worker_group)
+            self._worker_group.state = WorkerState.FAILED
 
     def _wait_async_saver(self):
         """
@@ -854,6 +876,8 @@ def launch_agent(
         spec=spec,
         start_method=config.start_method,
         log_dir=config.log_dir,
+        training_log_file=config.training_log_file,
+        failure_node_errors=config.failure_node_errors,
     )
 
     shutdown_rdzv = True

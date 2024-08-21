@@ -14,7 +14,7 @@
 from typing import List
 
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.master.diagnosis.inferencechain.inference import (
+from dlrover.python.diagnosis.common.inference_chain import (
     Inference,
     InferenceOperator,
     combine_inferences,
@@ -23,7 +23,10 @@ from dlrover.python.master.diagnosis.inferencechain.inference import (
 
 class InferenceChain:
     """
-    InferenceChain is used to diagnose training failures
+    InferenceChain is used to
+    1. observe training problems
+    2. identify the root causes of a problem
+    3. propose solutions to a training problem
     """
 
     def __init__(
