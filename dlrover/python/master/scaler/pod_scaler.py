@@ -96,6 +96,7 @@ class PodScaler(Scaler):
         self._plan = ScalePlan()
         self._ps_addrs: List[str] = []
         self._pod_stats: Dict[str, int] = {}
+        self._alive_pod_stats: Dict[str, int] = {}
         self._var_lock = threading.Lock()
         self._job_uid = ""
         self.api_client = client.ApiClient()
@@ -122,12 +123,26 @@ class PodScaler(Scaler):
             if key is None:
                 # return whole dict
                 return self._pod_stats
-            # return specifed value
+            # return specified value
             return self._pod_stats.get(key, default)
 
     def _safe_set_pod_status(self, key, value):
         with self._var_lock:
+            logger.info(f"Set pod number {value} for {key}.")
             self._pod_stats[key] = value
+
+    def _safe_get_alive_pod_status(self, key, default):
+        with self._var_lock:
+            if key is None:
+                # return whole dict
+                return self._alive_pod_stats
+            # return specified value
+            return self._alive_pod_stats.get(key, default)
+
+    def _safe_set_alive_pod_status(self, key, value):
+        with self._var_lock:
+            logger.info(f"Set alive pod number {value} for {key}.")
+            self._alive_pod_stats[key] = value
 
     def _get_master_addr(self):
         svc_name = f"elasticjob-{self._job_name}-dlrover-master"
@@ -135,11 +150,11 @@ class PodScaler(Scaler):
         master_addr = f"{svc_name}:{port}"
         target_port = _dlrover_context.master_port
         if not self._check_master_service_avaliable(svc_name, target_port):
-            # On some clusters, the k8s service may not be avaliable because of
+            # On some clusters, the k8s service may not be available because of
             # incorrect DNS configurations. In such cases, it is necessary to
             # revert to use the Master's IP address for worker to connect with
             # the master. Note, that failover of master is not supported if
-            # the service is not avalilable.
+            # the service is not available.
             logger.info(
                 f"The service {master_addr} is not available and "
                 f"use the IP of master Pod."
@@ -237,17 +252,28 @@ class PodScaler(Scaler):
                 self._k8s_client.delete_pod(node.name)
 
     def _update_job_pods(self, job_pods: Dict[str, List[Node]]):
-        for type in [
+        for node_type in [
             NodeType.CHIEF,
             NodeType.MASTER,
             NodeType.PS,
             NodeType.WORKER,
             NodeType.EVALUATOR,
         ]:
-            cur_pods = job_pods.get(type, []) + self._get_type_pod_in_queue(
-                type
+            cur_pods = job_pods.get(
+                node_type, []
+            ) + self._get_type_pod_in_queue(node_type)
+            self._safe_set_pod_status(node_type, len(cur_pods))
+            self._safe_set_alive_pod_status(
+                node_type,
+                len(
+                    [
+                        x
+                        for x in cur_pods
+                        if x.status != NodeStatus.FAILED
+                        and x.status != NodeStatus.DELETED
+                    ]
+                ),
             )
-            self._safe_set_pod_status(type, len(cur_pods))
 
     def _get_type_pod_in_queue(self, type):
         pods = []
