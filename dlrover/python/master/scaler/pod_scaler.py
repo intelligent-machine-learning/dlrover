@@ -267,18 +267,18 @@ class PodScaler(Scaler):
                 node_type,
                 len(
                     [
-                        x
-                        for x in cur_pods
-                        if x.status != NodeStatus.FAILED
-                        and x.status != NodeStatus.DELETED
+                        cur_pod
+                        for cur_pod in cur_pods
+                        if cur_pod.status != NodeStatus.FAILED
+                        and cur_pod.status != NodeStatus.DELETED
                     ]
                 ),
             )
 
-    def _get_type_pod_in_queue(self, type):
+    def _get_type_pod_in_queue(self, node_type):
         pods = []
         for pod in self._create_node_queue:
-            if pod.type == type:
+            if pod.type == node_type:
                 pods.append(pod)
         return pods
 
