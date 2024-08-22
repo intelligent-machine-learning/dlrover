@@ -258,7 +258,7 @@ class MasterRendezvousHandler(RendezvousHandler):
         return round
 
     def next_rendezvous(self):
-        """The handler will peroidically query the world from the master until
+        """The handler will periodically query the world from the master until
         the world is not empty. The world is a dictionary like
         like {0: 8, 1: 8, 2: 8} where the key is the node ID and the value is
         the local world size. The handler can get its rank by the position

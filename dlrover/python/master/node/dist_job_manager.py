@@ -664,11 +664,15 @@ class DistributedJobManager(JobManager):
             event_type = ErrorMonitorConstants.TYPE_ERROR
         logger.info(msg)
         self._report_event(
-            event_type,
-            cur_node.name,
-            ErrorMonitorConstants.ACTION_STATUS_UPDATE,
-            msg,
-            {},
+            event_type=event_type,
+            instance=cur_node.name,
+            action=ErrorMonitorConstants.ACTION_STATUS_UPDATE,
+            msg=msg,
+            labels={
+                "from_state": old_status,
+                "to_state": new_status,
+                "node": cur_node.host_name,
+            },
         )
 
         if should_relaunch:
@@ -791,13 +795,16 @@ class DistributedJobManager(JobManager):
             )
         else:
             logger.error("Not support node type %s", node.type)
-        if self._error_monitor and plan and len(plan.launch_nodes) > 0:
+        if plan and len(plan.launch_nodes) > 0:
             self._report_event(
-                ErrorMonitorConstants.TYPE_INFO,
-                node.name,
-                ErrorMonitorConstants.ACTION_RELAUNCH,
-                f"relaunch to {plan.launch_nodes[0].id}",
-                {},
+                event_type=ErrorMonitorConstants.TYPE_INFO,
+                instance=node.name,
+                action=ErrorMonitorConstants.ACTION_RELAUNCH,
+                msg=f"relaunch to {plan.launch_nodes[0].id}",
+                labels={
+                    "relaunch_pod": f"{plan.launch_nodes[0].id}",
+                    "node": node.host_name,
+                },
             )
         self._set_ps_addrs_in_plan(plan)
         if self._remove_exited_node:
