@@ -16,7 +16,11 @@ import time
 import unittest
 from collections import deque
 
-from dlrover.python.common.constants import DistributionStrategy, NodeType
+from dlrover.python.common.constants import (
+    DistributionStrategy,
+    NodeStatus,
+    NodeType,
+)
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.node import Node, NodeGroupResource, NodeResource
 from dlrover.python.master.monitor.error_monitor import SimpleErrorMonitor
@@ -291,4 +295,20 @@ class PodScalerTest(unittest.TestCase):
         self.assertEqual(
             scaler._create_node_queue[0].service_addr,
             "elasticjob-sample-edljob-worker-1.default.svc:3333",
+        )
+
+    def test_update_job_pods(self):
+        scaler = PodScaler("elasticjob-sample", "default")
+
+        test_nodes = [
+            Node(NodeType.WORKER, 0, rank_index=0, status=NodeStatus.RUNNING),
+            Node(NodeType.WORKER, 1, rank_index=1, status=NodeStatus.RUNNING),
+            Node(NodeType.WORKER, 2, rank_index=2, status=NodeStatus.FAILED),
+            Node(NodeType.WORKER, 3, rank_index=3, status=NodeStatus.RUNNING),
+        ]
+        job_pods = {NodeType.WORKER: test_nodes}
+        scaler._update_job_pods(job_pods)
+        self.assertEqual(scaler._safe_get_pod_status(NodeType.WORKER, 0), 4)
+        self.assertEqual(
+            scaler._safe_get_alive_pod_status(NodeType.WORKER, 0), 3
         )
