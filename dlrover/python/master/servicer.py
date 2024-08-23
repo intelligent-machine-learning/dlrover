@@ -552,7 +552,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         for manager in self._rdzv_managers.values():
             manager.update_rdzv_params(
                 min_nodes=message.min_nodes,
-                max_ndoes=message.max_nodes,
+                max_nodes=message.max_nodes,
                 waiting_timeout=message.waiting_timeout,
                 node_unit=message.node_unit,
             )

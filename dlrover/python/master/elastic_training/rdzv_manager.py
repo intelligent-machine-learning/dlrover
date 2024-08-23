@@ -87,7 +87,8 @@ class RendezvousManager(metaclass=ABCMeta):
         return self._rdzv_round
 
     def clear_waiting_nodes(self):
-        self._waiting_nodes.clear()
+        with self._lock:
+            self._waiting_nodes.clear()
 
     def add_alive_node(self, node: Node):
         """When a node is running, the master will add it to alive list."""
@@ -97,26 +98,29 @@ class RendezvousManager(metaclass=ABCMeta):
         """When a node is exited, the master will remove it from alive list."""
         if node.id in self._alive_nodes:
             self._alive_nodes.remove(node.id)
-            self._has_node_failed = True
-        remove_rank = -1
-        for rank, meta in self._waiting_nodes.items():
-            if meta.node_id == node.id:
-                remove_rank = rank
-                break
-        if remove_rank > 0:
-            self._waiting_nodes.pop(remove_rank, None)
-            logger.info(
-                f"Remove exited worker {node.name} with rank {remove_rank} "
-                f" from {self._name} rendezvous."
-            )
+
+        with self._lock:
+            remove_rank = -1
+            for rank, meta in self._waiting_nodes.items():
+                if meta.node_id == node.id:
+                    remove_rank = rank
+                    break
+            if remove_rank >= 0:
+                removed = self._waiting_nodes.pop(remove_rank, None)
+                if removed is not None:
+                    logger.info(
+                        f"Remove exited worker {removed.node_id} "
+                        f"with rank {remove_rank} "
+                        f"from {self._name} rendezvous."
+                    )
 
     def update_rdzv_params(
-        self, min_nodes, max_ndoes, waiting_timeout, node_unit
+        self, min_nodes, max_nodes, waiting_timeout, node_unit
     ):
         """Update rendezvous parameters
         Args:
             min_nodes: The minimum number of nodes.
-            max_nodes: THe maximum number of nodes.
+            max_nodes: The maximum number of nodes.
             waiting_timeout: the time to wait more workers.
             node_unit: the number unit of workers to build the communication
                 world. This is, the number of nodes in a world should be
@@ -125,19 +129,19 @@ class RendezvousManager(metaclass=ABCMeta):
         with self._lock:
             if self._rdzv_params.max_nodes == 0:
                 self._rdzv_params.min_nodes = min_nodes
-                self._rdzv_params.max_nodes = max_ndoes
+                self._rdzv_params.max_nodes = max_nodes
                 self._rdzv_params.waiting_timeout = waiting_timeout
                 self._node_unit = node_unit
                 logger.info(
                     f"{self._name} manager updates rdzv params: "
-                    f"min_nodes={min_nodes}, max_nodes={max_ndoes}, "
+                    f"min_nodes={min_nodes}, max_nodes={max_nodes}, "
                     f"waiting_timeout={waiting_timeout}, node_unit={node_unit}"
                 )
 
     def _check_rdzv_completed(self):
         rdzv_completed = False
         waiting_num = len(self._waiting_nodes)
-        if len(self._waiting_nodes) == self._rdzv_params.max_nodes:
+        if waiting_num == self._rdzv_params.max_nodes:
             rdzv_completed = True
         else:
             waiting_time = time.time() - self._lastcall_time
