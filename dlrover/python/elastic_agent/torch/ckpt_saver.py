@@ -1258,7 +1258,7 @@ class FsdpDcpSaver(CommonDirCheckpointSaver):
         if self._is_agent_rank_0 and local_shard_id == 0:
             self._dist_make_dir(checkpoint_dir)
         else:
-            while not self.storage.exists(path):
+            while not self.storage.exists(checkpoint_dir):
                 time.sleep(1)
 
         # do saving
