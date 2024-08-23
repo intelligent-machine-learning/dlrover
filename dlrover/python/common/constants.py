@@ -310,6 +310,10 @@ class CheckpointConstant(object):
     SAVE_TIMEOUT = 600
 
 
+class RdzvConstant(object):
+    JOIN_TIMEOUT = 600
+
+
 class Accelerators(object):
     NVIDIA_GPU = "nvidia.com/gpu"
     ASCEND_NPU = "ascend-npu"

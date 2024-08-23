@@ -65,6 +65,7 @@ from dlrover.python.common.constants import (
     NodeEnv,
     NodeErrorMessage,
     NodeStatus,
+    RdzvConstant,
     RendezvousName,
     TrainingExceptionLevel,
 )
@@ -225,7 +226,9 @@ class MasterRendezvousHandler(RendezvousHandler):
         self._node_rank = node_rank
         self._rdzv_params = rdzv_params
         self._local_world_size = local_world_size
-        self.join_timeout = int(rdzv_params.get("join_timeout", 600))
+        self.join_timeout = int(
+            rdzv_params.get("join_timeout", RdzvConstant.JOIN_TIMEOUT)
+        )
         self.pend_timeout = float(rdzv_params.get("pend_timeout", "inf"))
         self._client = MasterClient.singleton_instance()
         self._store = MasterKVStore(self._name, timedelta(seconds=60))
@@ -236,6 +239,7 @@ class MasterRendezvousHandler(RendezvousHandler):
             rdzv_params.max_nodes,
             lastcall_timeout,
             node_unit,
+            self.join_timeout,
         )
 
     def get_backend(self) -> str:

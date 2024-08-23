@@ -429,12 +429,16 @@ class WorkerManager(TrainingNodeManager):
         if len(available_nodes) < self.get_min_nodes_required():
             if self._last_insufficient_nodes_timestamp == 0:
                 self._last_insufficient_nodes_timestamp = int(now)
-                logger.warning(f"Job with insufficient nodes: {cur_nodes}.")
+                logger.warning(
+                    f"Job with insufficient nodes: {cur_nodes}. "
+                    f"Need at least: {self.get_min_nodes_required()}."
+                )
             else:
                 if now - self._last_insufficient_nodes_timestamp > timeout:
                     logger.warning(
                         f"Job with insufficient nodes: {cur_nodes} "
-                        f"lasts for more than {timeout}s."
+                        f"lasts for more than {timeout}s. "
+                        f"Need at least: {self.get_min_nodes_required()}."
                     )
                     return True
         else:

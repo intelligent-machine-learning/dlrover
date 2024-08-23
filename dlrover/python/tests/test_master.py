@@ -137,7 +137,7 @@ class LocalJobMasterTest(unittest.TestCase):
         self.assertTrue(succeed)
 
     def test_rdzv_manager(self):
-        self.master_client.report_rdzv_params(1, 1, 360, 1)
+        self.master_client.report_rdzv_params(1, 1, 360, 1, 600)
         self.master_client.join_rendezvous(
             0, 8, RendezvousName.ELASTIC_TRAINING
         )
