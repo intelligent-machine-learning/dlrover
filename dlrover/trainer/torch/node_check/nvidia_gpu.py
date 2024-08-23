@@ -47,7 +47,6 @@ def main():
     t = matmul(use_cuda)
     shape = 1 << 24
     t += bm_allreduce(shape, use_cuda)
-    local_rank = int(os.environ["LOCAL_RANK"])
     dist.destroy_process_group()
     return t
 

@@ -14,6 +14,7 @@
 import datetime
 import time
 import unittest
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from dlrover.python.common.constants import NetworkFailureReason
 from dlrover.python.common.node import Node
@@ -184,6 +185,49 @@ class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
 
         rdzv_manager._rdzv_params.min_nodes = 0
         self.assertEqual(rdzv_manager._get_lacking_ranks(), [])
+
+    def test_multi_updating_waiting_nodes(self):
+        rdzv_manager = ElasticTrainingRendezvousManager()
+
+        join_num = 1000
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            for i in range(join_num):
+                executor.submit(
+                    rdzv_manager.join_rendezvous,
+                    i,
+                    i,
+                    8,
+                )
+
+        remove_num = 900
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            for i in range(remove_num):
+                node = Node("worker", i, name=f"worker-{i}", rank_index=i)
+                executor.submit(
+                    rdzv_manager.remove_alive_node,
+                    node,
+                )
+
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            for i in range(300):
+                futures = [
+                    executor.submit(
+                        rdzv_manager.get_comm_world,
+                        i,
+                    )
+                ]
+                for future in as_completed(futures):
+                    try:
+                        future.result()
+                    except Exception:
+                        self.fail()
+
+        time.sleep(5)
+        self.assertEqual(
+            len(rdzv_manager._waiting_nodes.keys()), join_num - remove_num
+        )
+        for i in rdzv_manager._waiting_nodes.keys():
+            self.assertTrue(900 <= i <= 999)
 
 
 class NetworkCheckRendezvousManagerTest(unittest.TestCase):
