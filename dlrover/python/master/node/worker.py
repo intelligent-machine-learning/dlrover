@@ -16,6 +16,7 @@ import time
 from typing import Dict, List, Tuple
 
 from dlrover.python.common.constants import (
+    JobConstant,
     NodeExitReason,
     NodeStatus,
     NodeType,
@@ -411,8 +412,12 @@ class WorkerManager(TrainingNodeManager):
         if not self.has_node_required_info():
             return False
 
-        # use 1.5 * rdzv-timeout as timeout
+        # use 1.5 * rdzv-timeout with min: 600 and max: as timeout
         timeout = int(self.get_nodes_timeout() * 1.5)
+        if timeout < JobConstant.INSUFFICIENT_NODE_TIMEOUT_DEFAULT_MIN:
+            timeout = JobConstant.INSUFFICIENT_NODE_TIMEOUT_DEFAULT_MIN
+        elif timeout > JobConstant.INSUFFICIENT_NODE_TIMEOUT_DEFAULT_MAX:
+            timeout = JobConstant.INSUFFICIENT_NODE_TIMEOUT_DEFAULT_MAX
         cur_nodes = list(self._nodes.values())
 
         # collect available nodes

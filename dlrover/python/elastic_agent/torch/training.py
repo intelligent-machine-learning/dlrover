@@ -62,10 +62,10 @@ from dlrover.python.common.constants import (
     Accelerators,
     AscendConstants,
     ConfigPath,
+    JobConstant,
     NodeEnv,
     NodeErrorMessage,
     NodeStatus,
-    RdzvConstant,
     RendezvousName,
     TrainingExceptionLevel,
 )
@@ -227,7 +227,9 @@ class MasterRendezvousHandler(RendezvousHandler):
         self._rdzv_params = rdzv_params
         self._local_world_size = local_world_size
         self.join_timeout = int(
-            rdzv_params.get("join_timeout", RdzvConstant.JOIN_TIMEOUT)
+            rdzv_params.get(
+                "join_timeout", JobConstant.RDZV_JOIN_TIMEOUT_DEFAULT
+            )
         )
         self.pend_timeout = float(rdzv_params.get("pend_timeout", "inf"))
         self._client = MasterClient.singleton_instance()

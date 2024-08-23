@@ -23,9 +23,9 @@ from dlrover.python.common import grpc
 from dlrover.python.common.constants import (
     GRPC,
     CustomMetricKeys,
+    JobConstant,
     NodeStatus,
     NodeType,
-    RdzvConstant,
     RendezvousName,
     TrainingExceptionLevel,
     TrainingLoopStatus,
@@ -560,7 +560,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
 
         join_timeout = message.join_timeout
         if join_timeout == 0:  # Back compatibility
-            join_timeout = RdzvConstant.JOIN_TIMEOUT
+            join_timeout = JobConstant.RDZV_JOIN_TIMEOUT_DEFAULT
         self._job_manager.update_node_required_info(
             message.min_nodes, message.max_nodes, join_timeout
         )

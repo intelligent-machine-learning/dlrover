@@ -310,8 +310,10 @@ class CheckpointConstant(object):
     SAVE_TIMEOUT = 600
 
 
-class RdzvConstant(object):
-    JOIN_TIMEOUT = 600
+class JobConstant(object):
+    RDZV_JOIN_TIMEOUT_DEFAULT = 600
+    INSUFFICIENT_NODE_TIMEOUT_DEFAULT_MIN = 600
+    INSUFFICIENT_NODE_TIMEOUT_DEFAULT_MAX = 1800
 
 
 class Accelerators(object):
