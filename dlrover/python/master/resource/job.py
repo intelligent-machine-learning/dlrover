@@ -45,27 +45,27 @@ _dlrover_context = Context.singleton_instance()
 
 
 def new_ps_resource_optimizer(
-    optimize_mode: str, job_uuid, resoure_limits: ResourceLimits
+    optimize_mode: str, job_uuid, resource_limits: ResourceLimits
 ):
     logger.info(
-        "New  %s resource optimizer for job %s", optimize_mode, job_uuid
+        "New %s resource optimizer for job %s", optimize_mode, job_uuid
     )
     if optimize_mode == OptimizeMode.CLUSTER:
         if GlobalBrainClient.BRAIN_CLIENT.available():
-            return BrainResoureOptimizer(job_uuid, resoure_limits)
+            return BrainResoureOptimizer(job_uuid, resource_limits)
         else:
             logger.warning(
                 "Brain service is not available, use a local optimizer"
             )
-            return PSLocalOptimizer(job_uuid, resoure_limits)
+            return PSLocalOptimizer(job_uuid, resource_limits)
     elif optimize_mode == OptimizeMode.SINGLE_JOB:
-        return PSLocalOptimizer(job_uuid, resoure_limits)
+        return PSLocalOptimizer(job_uuid, resource_limits)
     else:
         logger.warning(
-            "Not support optiimzem mode %s, use a simple optimizer",
+            "Not support optimization mode %s, use a simple optimizer",
             optimize_mode,
         )
-        return SimpleOptimizer(job_uuid, resoure_limits)
+        return SimpleOptimizer(job_uuid, resource_limits)
 
 
 class JobResource(JsonSerializable):
