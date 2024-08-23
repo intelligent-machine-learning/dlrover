@@ -208,7 +208,7 @@ class WorkerManagerTest(unittest.TestCase):
         )
         self.assertFalse(worker_manager.is_training_hang_by_pending(4))
 
-        worker_manager.update_node_required_info((4, 8))
+        worker_manager.update_node_required_info((4, 8, 600))
         self.assertFalse(worker_manager.is_training_hang_by_pending(4))
 
         mock_nodes = {}
@@ -302,7 +302,7 @@ class WorkerManagerTest(unittest.TestCase):
         # =============================================
         # condition: when node required is not updated
         # =============================================
-        worker_manager.update_node_required_info((0, 0))
+        worker_manager.update_node_required_info((0, 0, 600))
 
         # mock with 1 pending short time
         worker_num = 1
