@@ -140,56 +140,54 @@ class RendezvousManager(metaclass=ABCMeta):
 
     def _check_rdzv_completed(self):
         rdzv_completed = False
-
-        with self._lock:
-            waiting_num = len(self._waiting_nodes)
-            if waiting_num == self._rdzv_params.max_nodes:
+        waiting_num = len(self._waiting_nodes)
+        if waiting_num == self._rdzv_params.max_nodes:
+            rdzv_completed = True
+        else:
+            waiting_time = time.time() - self._lastcall_time
+            if (
+                waiting_num >= self._rdzv_params.min_nodes
+                and waiting_time >= self._rdzv_params.waiting_timeout
+            ):
                 rdzv_completed = True
-            else:
-                waiting_time = time.time() - self._lastcall_time
-                if (
-                    waiting_num >= self._rdzv_params.min_nodes
-                    and waiting_time >= self._rdzv_params.waiting_timeout
-                ):
-                    rdzv_completed = True
-                    waiting_num = (
-                        waiting_num // self._node_unit
-                    ) * self._node_unit
+                waiting_num = (
+                    waiting_num // self._node_unit
+                ) * self._node_unit
 
-            if rdzv_completed:
-                node_ids = sorted(self._waiting_nodes.keys())[0:waiting_num]
-                self._rdzv_nodes = OrderedDict()
-                for i in node_ids:
-                    self._rdzv_nodes[i] = self._waiting_nodes[i]
-                self._latest_rdzv_nodes = list(self._rdzv_nodes.keys())
-                extra_nodes = {}
-                for i in self._waiting_nodes.keys():
-                    if i not in self._rdzv_nodes:
-                        extra_nodes[i] = self._waiting_nodes[i]
-                self._waiting_nodes = extra_nodes
-                self._lastcall_time = 0
-                self._log_rendezvous_info()
-                if self._waiting_nodes:
-                    waiting_node_ids = []
-                    for node in self._waiting_nodes.values():
-                        waiting_node_ids.append(node.node_id)
-                    logger.warning(
-                        f"Waiting nodes not in {self._rdzv_round} rendezvous "
-                        f"are {waiting_node_ids}."
-                    )
-            elif time.time() - self._latest_log_nodes_time > 60:
-                self._latest_log_nodes_time = time.time()
-                waiting_nodes = {}
-                for rank, node in self._waiting_nodes.items():
-                    waiting_nodes[node.node_id] = rank
-                lacking_ranks = self._get_lacking_ranks()
-                logger.info(
-                    f"Waiting nodes(required:{self._rdzv_params.min_nodes}"
-                    f"/{self._rdzv_params.max_nodes}) in rendezvous(size:"
-                    f"{len(waiting_nodes)}) are {waiting_nodes}, "
-                    f"lacking ranks(size:{len(lacking_ranks)}) "
-                    f"are {lacking_ranks}"
+        if rdzv_completed:
+            node_ids = sorted(self._waiting_nodes.keys())[0:waiting_num]
+            self._rdzv_nodes = OrderedDict()
+            for i in node_ids:
+                self._rdzv_nodes[i] = self._waiting_nodes[i]
+            self._latest_rdzv_nodes = list(self._rdzv_nodes.keys())
+            extra_nodes = {}
+            for i in self._waiting_nodes.keys():
+                if i not in self._rdzv_nodes:
+                    extra_nodes[i] = self._waiting_nodes[i]
+            self._waiting_nodes = extra_nodes
+            self._lastcall_time = 0
+            self._log_rendezvous_info()
+            if self._waiting_nodes:
+                waiting_node_ids = []
+                for node in self._waiting_nodes.values():
+                    waiting_node_ids.append(node.node_id)
+                logger.warning(
+                    f"Waiting nodes not in {self._rdzv_round} rendezvous "
+                    f"are {waiting_node_ids}."
                 )
+        elif time.time() - self._latest_log_nodes_time > 60:
+            self._latest_log_nodes_time = time.time()
+            waiting_nodes = {}
+            for rank, node in self._waiting_nodes.items():
+                waiting_nodes[node.node_id] = rank
+            lacking_ranks = self._get_lacking_ranks()
+            logger.info(
+                f"Waiting nodes(required:{self._rdzv_params.min_nodes}"
+                f"/{self._rdzv_params.max_nodes}) in rendezvous(size:"
+                f"{len(waiting_nodes)}) are {waiting_nodes}, "
+                f"lacking ranks(size:{len(lacking_ranks)}) "
+                f"are {lacking_ranks}"
+            )
         return rdzv_completed
 
     def _get_lacking_ranks(self) -> List[int]:

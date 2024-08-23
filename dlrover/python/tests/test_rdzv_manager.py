@@ -212,7 +212,8 @@ class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
             for i in range(300):
                 futures = [
                     executor.submit(
-                        rdzv_manager._check_rdzv_completed,
+                        rdzv_manager.get_comm_world,
+                        i,
                     )
                 ]
                 for future in as_completed(futures):
