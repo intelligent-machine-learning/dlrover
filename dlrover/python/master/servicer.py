@@ -558,7 +558,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             )
 
         self._job_manager.update_node_required_info(
-            message.min_nodes, message.max_nodes
+            message.min_nodes, message.max_nodes, message.waiting_timeout
         )
         return True
 

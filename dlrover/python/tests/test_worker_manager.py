@@ -374,9 +374,6 @@ class WorkerManagerTest(unittest.TestCase):
         )
 
     def test_is_training_hang_by_insufficient_worker(self):
-        # mock timeout 2 second(seconds_to_wait_pending_pod * 2)
-        _dlrover_ctx.seconds_to_wait_pending_pod = 1
-
         worker_manager = WorkerManager(
             self._job_nodes[NodeType.WORKER],
             self._job_resource,
@@ -388,7 +385,7 @@ class WorkerManagerTest(unittest.TestCase):
             worker_manager.is_training_hang_by_insufficient_worker()
         )
 
-        worker_manager.update_node_required_info((4, 8))
+        worker_manager.update_node_required_info((4, 8, 1))
         self.assertFalse(
             worker_manager.is_training_hang_by_insufficient_worker()
         )

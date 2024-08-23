@@ -128,7 +128,7 @@ class WorkerManager(TrainingNodeManager):
         self._max_relaunch_num = max_relaunch_num
         self._new_service_fn = new_service_fn
         # the required nodes number, format: (min_required, max_required)
-        self._nodes_required = (0, 0)
+        self._nodes_required = (0, 0, 0)
         self._last_insufficient_nodes_timestamp = 0
 
     def adjust_worker(self, worker_resource: NodeGroupResource):
@@ -411,8 +411,8 @@ class WorkerManager(TrainingNodeManager):
         if not self.has_node_required_info():
             return False
 
-        # use pending time as timeout
-        timeout = _dlrover_context.seconds_to_wait_pending_pod
+        # use 1.5 * rdzv-timeout as timeout
+        timeout = int(self.get_nodes_timeout() * 1.5)
         cur_nodes = list(self._nodes.values())
 
         # collect available nodes
@@ -443,7 +443,11 @@ class WorkerManager(TrainingNodeManager):
         return False
 
     def has_node_required_info(self):
-        if self._nodes_required[0] and self._nodes_required[1]:
+        if (
+            self._nodes_required[0]
+            and self._nodes_required[1]
+            and self._nodes_required[2]
+        ):
             return True
         return False
 
@@ -457,5 +461,10 @@ class WorkerManager(TrainingNodeManager):
 
         return self._nodes_required[1]
 
-    def update_node_required_info(self, nodes_required: Tuple[int, int]):
+    def get_nodes_timeout(self) -> int:
+        """Notice: it is meaningless when the result is 0."""
+
+        return self._nodes_required[2]
+
+    def update_node_required_info(self, nodes_required: Tuple[int, int, int]):
         self._nodes_required = nodes_required
