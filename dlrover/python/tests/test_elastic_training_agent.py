@@ -286,6 +286,20 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         self.assertDictEqual(run_result.failures, {})
         self.assertEqual(run_result.state, WorkerState.SUCCEEDED)
 
+    def test_failure_ending_after_training(self):
+        agent = ElasticTrainingAgent(
+            node_rank=0,
+            config=self.config,
+            entrypoint="echo",
+            spec=self.spec,
+            start_method=self.config.start_method,
+            log_dir=self.config.log_dir,
+        )
+        agent._wait_async_saver = mock.MagicMock(side_effect=[Exception])
+        run_result = agent._invoke_run()
+        self.assertDictEqual(run_result.failures, {})
+        self.assertEqual(run_result.state, WorkerState.SUCCEEDED)
+
     def test_report_resource_with_step(self):
         with tempfile.TemporaryDirectory() as tmpdirname:
             config_file = os.path.join(tmpdirname, "runtime_metrics.json")
