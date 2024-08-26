@@ -1046,8 +1046,11 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
                     # Run the next round check to detect the fault node.
                     time.sleep(3)
                     continue
+            elif stragglers and not self._config.exclude_straggler:
+                pass
             else:
                 return success
+
         if self._node_rank in fault_nodes:
             self._client.report_failures(
                 NodeErrorMessage.NETWORKER_ERROR,
