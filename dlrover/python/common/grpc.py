@@ -349,6 +349,7 @@ class RendezvousParams(Message):
     max_nodes: int = 0
     waiting_timeout: int = 0
     node_unit: int = 0
+    join_timeout: int = 0
 
 
 @dataclass

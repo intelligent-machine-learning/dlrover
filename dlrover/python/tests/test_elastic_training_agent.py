@@ -484,8 +484,8 @@ class NodeCheckElasticAgentTest(unittest.TestCase):
             rdzv_handler=self.rdzv_handler,
             max_restarts=self.config.max_restarts,
             monitor_interval=self.config.monitor_interval,
-            redirects=self.config.redirects,
-            tee=self.config.tee,
+            # redirects=self.config.redirects,
+            # tee=self.config.tee,
             master_addr=master_addr,
             local_addr=self.config.local_addr,
         )
@@ -529,6 +529,44 @@ class NodeCheckElasticAgentTest(unittest.TestCase):
             check_round=2,
         )
         self.assertEqual(agent._check_round, 2)
+
+    def test_run_agent(self):
+        config = ElasticLaunchConfig(4, 4, 8)
+        agent = _create_check_agent(
+            config=config,
+            entrypoint="python",
+            args=[],
+            rdzv_name="elastic-training",
+            check_round=2,
+        )
+
+        # with no fault and no stragglers
+        agent._run_node_check = mock.MagicMock(return_value=(True, 100))
+        agent._stop_workers = mock.MagicMock(return_value=True)
+        self.assertTrue(agent.run())
+
+        # with fault and no stragglers
+        agent._client.check_fault_node = mock.MagicMock(return_value=[0])
+        agent._client.check_straggler = mock.MagicMock(return_value=[])
+        try:
+            agent.run()
+            self.fail()
+        except RuntimeError:
+            pass
+
+        # with no fault and stragglers
+        agent._client.check_fault_node = mock.MagicMock(return_value=[])
+        agent._client.check_straggler = mock.MagicMock(return_value=[0])
+        self.assertTrue(agent.run())
+
+        # with fault and stragglers
+        agent._client.check_fault_node = mock.MagicMock(return_value=[1])
+        agent._client.check_straggler = mock.MagicMock(return_value=[0])
+        try:
+            agent.run()
+            self.fail()
+        except RuntimeError:
+            pass
 
     @mock.patch.object(NodeCheckElasticAgent, "run")
     def test_node_health_check(self, mock_run):
