@@ -1031,7 +1031,7 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
                 f" and stragglers are: {stragglers}."
             )
             self._stop_workers(self._worker_group)
-            if fault_nodes or stragglers:
+            if fault_nodes or (stragglers and self._config.exclude_straggler):
                 total_worker_num = len(self._client.get_running_nodes())
                 if total_worker_num <= 3:
                     # If the number of nodes <= 3, we cannot determine which
