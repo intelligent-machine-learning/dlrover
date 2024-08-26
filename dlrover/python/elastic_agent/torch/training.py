@@ -1037,7 +1037,10 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
                     # If the number of nodes <= 3, we cannot determine which
                     # node if fault because there is no normal node in the job
                     # to execute allgather tasks with the two nodes.
-                    logger.error("Network check needs at least 4 nodes.")
+                    logger.warning(
+                        "No need for another round of network "
+                        "check because the nodes is less than 3."
+                    )
                     raise RuntimeError("This node is down.")
                 else:
                     # Run the next round check to detect the fault node.
