@@ -398,6 +398,15 @@ class WorkerManager(TrainingNodeManager):
 
         return False
 
+    def _get_insufficient_timeout(self):
+        timeout = int(self.get_nodes_timeout() * 1.5)
+        if timeout < JobConstant.INSUFFICIENT_NODE_TIMEOUT_DEFAULT_MIN:
+            timeout = JobConstant.INSUFFICIENT_NODE_TIMEOUT_DEFAULT_MIN
+        elif timeout > JobConstant.INSUFFICIENT_NODE_TIMEOUT_DEFAULT_MAX:
+            timeout = JobConstant.INSUFFICIENT_NODE_TIMEOUT_DEFAULT_MAX
+
+        return timeout
+
     def is_training_hang_by_insufficient_worker(self) -> bool:
         """
         There is a small probability that due to unknown reason on the
@@ -413,11 +422,7 @@ class WorkerManager(TrainingNodeManager):
             return False
 
         # use 1.5 * rdzv-timeout with min: 600 and max: as timeout
-        timeout = int(self.get_nodes_timeout() * 1.5)
-        if timeout < JobConstant.INSUFFICIENT_NODE_TIMEOUT_DEFAULT_MIN:
-            timeout = JobConstant.INSUFFICIENT_NODE_TIMEOUT_DEFAULT_MIN
-        elif timeout > JobConstant.INSUFFICIENT_NODE_TIMEOUT_DEFAULT_MAX:
-            timeout = JobConstant.INSUFFICIENT_NODE_TIMEOUT_DEFAULT_MAX
+        timeout = self._get_insufficient_timeout()
         cur_nodes = list(self._nodes.values())
 
         # collect available nodes

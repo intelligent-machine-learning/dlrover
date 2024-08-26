@@ -14,6 +14,7 @@
 import time
 import unittest
 from datetime import datetime, timedelta
+from unittest import mock
 
 from dlrover.python.common.constants import (
     NodeExitReason,
@@ -392,6 +393,9 @@ class WorkerManagerTest(unittest.TestCase):
 
         mock_nodes = {}
         is_insufficient = 0
+        worker_manager._get_insufficient_timeout = mock.MagicMock(
+            return_value=1
+        )
 
         # mock with 3 running + 1 pending
         for index in range(4):
