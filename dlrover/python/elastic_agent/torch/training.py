@@ -128,18 +128,18 @@ class ElasticLaunchConfig(LaunchConfig):
     Creates a rendezvous config of elastic training.
 
     Args:
-        network_check: whether to check the network avaliable before training.
+        network_check: whether to check the network available before training.
         comm_perf_test: whether to test the communication performance.
         node_unit: the number of unit of nodes. The number of nodes must be
             a multiple of node_unit.
-        auto_config: wether to automatically configure the nnodes and
+        auto_config: whether to automatically configure the nnodes and
             nproc_per_node.
         auto_tunning: whether to auto-tune the parallelism configuration.
         exclude_straggler: The node will exit if it is a straggler in network
             check and exclude_straggler is True.
         save_at_breakpoint: wether to save the checkpoint from the shared
             memory into the disk after a failure occurs.
-        accelerator: the type of acclerator processor like nvidia.com/gpu,
+        accelerator: the type of accelerator processor like nvidia.com/gpu,
             ascend-npu.
         training_log_file: the training log file of this training job
         failure_node_errors: the error information that indicate the node
@@ -188,10 +188,10 @@ class ElasticLaunchConfig(LaunchConfig):
 
 
 class MasterRendezvousHandler(RendezvousHandler):
-    """The rendzevous handler completes rendezvous by connecting
+    """The rendezvous handler completes rendezvous by connecting
     with the ElasticJob master. The master will collect all nodes
     after the handler of all node agents calls `_join_rendezvous`.
-    Then, the handler will get the communcation world from the master
+    Then, the handler will get the communication world from the master
     and assign ranks to the training process.
 
     Args:
@@ -199,7 +199,7 @@ class MasterRendezvousHandler(RendezvousHandler):
         node_rank: the node rank.
         rdzv_params: RendezvousParameters instance. We can set timeout of
             rendezvous in the rdzv_params.config. Now we set:
-            join_timeout: the timeout to join the rendevous. The timeout
+            join_timeout: the timeout to join the rendezvous. The timeout
                 happens if the number of nodes is less than min_nodes
                 in the join_timeout.
             lastcall_timeout: the timeout to wait new nodes after the
@@ -264,7 +264,7 @@ class MasterRendezvousHandler(RendezvousHandler):
         return round
 
     def next_rendezvous(self):
-        """The handler will peroidically query the world from the master until
+        """The handler will periodically query the world from the master until
         the world is not empty. The world is a dictionary like
         like {0: 8, 1: 8, 2: 8} where the key is the node ID and the value is
         the local world size. The handler can get its rank by the position
@@ -306,7 +306,7 @@ class MasterRendezvousHandler(RendezvousHandler):
                 timeout = self.join_timeout
                 err_msg = (
                     f"Timeout {timeout}s to wait the enough nodes "
-                    "to complete rendzvous."
+                    "to complete rendezvous."
                 )
                 self._report_failure(
                     err_msg, level=TrainingExceptionLevel.RDZV_ERROR
@@ -1041,20 +1041,26 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
                 f" and stragglers are: {stragglers}."
             )
             self._stop_workers(self._worker_group)
-            if fault_nodes or stragglers:
+            if fault_nodes or (stragglers and self._config.exclude_straggler):
                 total_worker_num = len(self._client.get_running_nodes())
                 if total_worker_num <= 3:
                     # If the number of nodes <= 3, we cannot determine which
                     # node if fault because there is no normal node in the job
                     # to execute allgather tasks with the two nodes.
-                    logger.error("Network check needs at least 4 nodes.")
+                    logger.warning(
+                        "No need for another round of network "
+                        "check because the nodes is less than 3."
+                    )
                     raise RuntimeError("This node is down.")
                 else:
                     # Run the next round check to detect the fault node.
                     time.sleep(3)
                     continue
+            elif stragglers and not self._config.exclude_straggler:
+                pass
             else:
                 return success
+
         if self._node_rank in fault_nodes:
             self._client.report_failures(
                 NodeErrorMessage.NETWORKER_ERROR,

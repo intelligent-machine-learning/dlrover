@@ -182,6 +182,10 @@ class LocalSocketComm(metaclass=ABCMeta):
     """
 
     def __init__(self, name="", create=False):
+        logger.info(
+            f"Initialize(create:{create}) {self.__class__.__name__.lower()} "
+            f"for {name}"
+        )
         self._name = name
         self._socket_file = self._create_socket_path()
         self._create = create
@@ -483,7 +487,6 @@ class SharedDict(LocalSocketComm):
 
     def __init__(self, name="", create=False):
         super().__init__(name, create)
-
         self._dict = {}
 
         # The queue is used to notify the saver waiting for a new dict.

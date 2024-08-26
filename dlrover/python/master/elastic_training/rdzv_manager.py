@@ -660,7 +660,7 @@ class NetworkCheckRendezvousManager(RendezvousManager):
             return list(self._straggler_nodes), reason
 
     def _detect_stragglers(self):
-        """Detect wether there is the straggler in the job."""
+        """Detect whether there is the straggler in the job."""
         stragglers: Dict[int, float] = {}
         times = sorted(list(self._node_times.values()))
         if not times:
