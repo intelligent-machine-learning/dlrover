@@ -653,11 +653,15 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     f" Waiting {self._exit_barrier_timeout} seconds "
                     "for other agents to finish."
                 )
-                self._exit_barrier()
-                logger.info("Barrier exited.")
 
-                self._wait_async_saver()
-                logger.info("Async saver stopped.")
+                try:
+                    self._exit_barrier()
+                    logger.info("Barrier exited.")
+
+                    self._wait_async_saver()
+                    logger.info("Async saver stopped.")
+                except Exception as e:
+                    logger.warning(f"Unexpected exception when ending: {e}")
 
                 return run_result
             elif state in {WorkerState.UNHEALTHY, WorkerState.FAILED}:
