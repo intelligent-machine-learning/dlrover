@@ -517,7 +517,6 @@ class NodeCheckElasticAgentTest(unittest.TestCase):
         self.assertEqual(agent._check_round, 2)
 
     def test_run_agent(self):
-        os.environ["POD_IP"] = "127.0.0.1"
         config = ElasticLaunchConfig(4, 4, 8)
         agent = _create_check_agent(
             config=config,
