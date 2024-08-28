@@ -91,7 +91,7 @@ def _create_socket_client(path):
     except Exception as e:
         logger.warning(
             "Unexpected error when creating socket client by "
-            f"path: {path}, error: {e}", exc_info=True
+            f"path: {path}, error: {e}"
         )
         raise e
     return client
@@ -263,7 +263,6 @@ class SharedLock(LocalSocketComm):
             try:
                 recv_data = _socket_recv(connection)
                 msg: SocketRequest = pickle.loads(recv_data)
-                logger.info(f"SharedLock sync {msg.method}")
                 if msg.method == "acquire":
                     response = LockAcquireResponse()
                     response.acquired = self.acquire(**msg.args)
@@ -286,8 +285,6 @@ class SharedLock(LocalSocketComm):
         Args:
             blocking (bool): blocking or non-blocking.
         """
-        logger.info("SharedLock acquire")
-        traceback.print_stack()
         if self._server:
             return self._lock.acquire(blocking=blocking)
         else:
@@ -309,7 +306,6 @@ class SharedLock(LocalSocketComm):
         """
         Release a lock shared by multiple processes.
         """
-        logger.info("SharedLock release")
         if self._server:
             if self._lock.locked():
                 self._lock.release()
@@ -321,7 +317,6 @@ class SharedLock(LocalSocketComm):
             self._request(request)
 
     def locked(self):
-        logger.info("SharedLock locked")
         if self._server:
             return self._lock.locked()
         else:
