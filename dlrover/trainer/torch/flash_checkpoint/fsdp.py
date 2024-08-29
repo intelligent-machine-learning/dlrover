@@ -97,7 +97,7 @@ class FsdpShardCheckpointer(Checkpointer):
         """
         with FSDP.state_dict_type(model, StateDictType.SHARDED_STATE_DICT):
             state_dict = {
-                "model": model.local_state_dict(),
+                "model": model.state_dict(),
                 "optim": FSDP.optim_state_dict(model, optimizer),
             }
             state_dict.update(extra_sd)
@@ -132,7 +132,7 @@ class FsdpShardCheckpointer(Checkpointer):
             )
             model_sd = state_dict.pop("model", None)
             if model_sd:
-                model.load_local_state_dict(model_sd)
+                model.load_state_dict(model_sd)
 
             optim_state = load_sharded_optimizer_state_dict(
                 model_state_dict=model_sd,
