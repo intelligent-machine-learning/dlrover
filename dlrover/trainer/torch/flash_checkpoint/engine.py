@@ -292,9 +292,6 @@ class CheckpointEngine(metaclass=ABCMeta):
     def _update_saver_config(self):
         """Update the sharding configuration to the saver."""
         if self._local_rank == 0:
-            # need to wait saver async creation
-            time.sleep(3)
-
             global_shard_num = self.get_global_shard_num()
             event: CheckpointEvent = CheckpointEvent(
                 type=CheckpointEventType.UPDATE_SHARD,
@@ -304,6 +301,10 @@ class CheckpointEngine(metaclass=ABCMeta):
                 raise ValueError(
                     "The event queue cannot be None on local rank 0."
                 )
+
+            while not self._event_queue.is_available():
+                time.sleep(0.1)
+
             logger.info(f"Update saver config: {event.__dict__}")
             self._event_queue.put(event)
 

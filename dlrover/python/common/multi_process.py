@@ -235,6 +235,12 @@ class LocalSocketComm(metaclass=ABCMeta):
         response: LockAcquireResponse = pickle.loads(recv_data)
         return response
 
+    def is_available(self):
+        try:
+            return os.path.exists(self._socket_file)
+        except Exception:
+            return False
+
 
 class SharedLock(LocalSocketComm):
     """
