@@ -19,7 +19,6 @@ import shutil
 import socket
 import threading
 import time
-import traceback
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass, field
 from multiprocessing import shared_memory
