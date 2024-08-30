@@ -18,5 +18,6 @@ class InferenceConfigKey(object):
 
 
 class DiagnoseAction(object):
+    NO_ACTION = "no_action"
     RESTART_WORKER = "restart_worker"
     RELAUNCH_WORKER = "relaunch_worker"

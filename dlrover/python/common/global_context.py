@@ -126,10 +126,11 @@ class Context(Singleton):
             ConfigKeys.FACTOR_TO_CUT_PENDING_MEM,
             DefaultValues.FACTOR_TO_CUT_PENDING_MEM,
         )
-        self.seconds_to_wait_pending_pod = self.get_param_value_from_brain(
-            ConfigKeys.SECONDS_TO_WAIT_PENDING_POD,
-            DefaultValues.SEC_TO_WAIT_PENDING_POD,
-        )
+        if self.seconds_to_wait_pending_pod > 0:
+            self.seconds_to_wait_pending_pod = self.get_param_value_from_brain(
+                ConfigKeys.SECONDS_TO_WAIT_PENDING_POD,
+                DefaultValues.SEC_TO_WAIT_PENDING_POD,
+            )
         self.seconds_huge_training_threshold = self.get_param_value_from_brain(
             ConfigKeys.SECONDS_HUGE_TRAINING_THRESHOLD,
             DefaultValues.SEC_HUGE_TRAINING_THRESHOLD,

@@ -211,6 +211,7 @@ class OpStats(Message):
     read_op_count: int = 0
     input_fetch_dur: int = 0
     flops: int = 0
+    op_type: int = 0  # 0:training, 1:others
 
 
 @dataclass
