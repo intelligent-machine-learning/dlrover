@@ -83,8 +83,16 @@ def _create_socket_client(path):
         path (str): a file path.
 
     """
-    client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    client.connect(path)
+
+    try:
+        client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        client.connect(path)
+    except Exception as e:
+        logger.warning(
+            "Unexpected error when creating socket client by "
+            f"path: {path}, error: {e}"
+        )
+        raise e
     return client
 
 
@@ -174,6 +182,10 @@ class LocalSocketComm(metaclass=ABCMeta):
     """
 
     def __init__(self, name="", create=False):
+        logger.info(
+            f"Initialize(create:{create}) {self.__class__.__name__.lower()} "
+            f"for {name}"
+        )
         self._name = name
         self._socket_file = self._create_socket_path()
         self._create = create
@@ -222,6 +234,12 @@ class LocalSocketComm(metaclass=ABCMeta):
         client.close()
         response: LockAcquireResponse = pickle.loads(recv_data)
         return response
+
+    def is_available(self):
+        try:
+            return os.path.exists(self._socket_file)
+        except Exception:
+            return False
 
 
 class SharedLock(LocalSocketComm):
@@ -279,9 +297,14 @@ class SharedLock(LocalSocketComm):
                 method="acquire",
                 args={"blocking": blocking},
             )
-            response = self._request(request)
-            if response.status == SUCCESS_CODE:
-                return response.acquired
+            try:
+                response = self._request(request)
+                if response.status == SUCCESS_CODE:
+                    return response.acquired
+            except Exception as e:
+                logger.warning(
+                    f"Failed to acquire lock due to unexpected error: {e}"
+                )
             return False
 
     def release(self):
@@ -469,7 +492,6 @@ class SharedDict(LocalSocketComm):
 
     def __init__(self, name="", create=False):
         super().__init__(name, create)
-
         self._dict = {}
 
         # The queue is used to notify the saver waiting for a new dict.

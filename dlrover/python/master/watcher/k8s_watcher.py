@@ -131,7 +131,7 @@ def _convert_pod_event_to_node_event(event, k8s_client):
         ):
             logger.info(
                 f"Skip deleted event for pod : {pod_labels_selector} "
-                f"for same running pod already exisits."
+                f"for same running pod already exists."
             )
             return None
 

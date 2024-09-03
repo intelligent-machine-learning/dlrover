@@ -51,7 +51,7 @@ class JobManager(metaclass=ABCMeta):
         self._error_monitor: ErrorMonitor = error_monitor
 
         self._job_nodes: Dict[str, Dict[int, Node]] = {}
-        self._nodes_required = (0, 0)
+        self._nodes_required = (0, 0, 0)
 
         self._training_node_configure = TrainingNodeConfigure()
 
@@ -201,22 +201,24 @@ class JobManager(metaclass=ABCMeta):
             node_id, port
         )
 
-    def update_node_required_info(self, min_required, max_required):
+    def update_node_required_info(self, min_required, max_required, timeout):
         """
         Update the nodes min/max requirements.
 
         Args:
             min_required(int): Minimum number of nodes for training.
             max_required(int): Maximum number of nodes for training.
+            timeout(int): Required timeout in seconds.
         """
 
         if 0 < min_required <= max_required and max_required > 0:
-            self._nodes_required = (min_required, max_required)
+            self._nodes_required = (min_required, max_required, timeout)
             self.update_node_required_info_callback()
         else:
             logger.warning(
-                f"Invalid min_required: {min_required} "
-                f"and max_required: {max_required}."
+                f"Invalid required info, min_required: {min_required}, "
+                f"max_required: {max_required}, "
+                f"required_timeout: {timeout}."
             )
 
     def update_node_required_info_callback(self):

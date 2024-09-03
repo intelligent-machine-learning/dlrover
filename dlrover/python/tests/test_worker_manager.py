@@ -14,6 +14,7 @@
 import time
 import unittest
 from datetime import datetime, timedelta
+from unittest import mock
 
 from dlrover.python.common.constants import (
     NodeExitReason,
@@ -208,7 +209,7 @@ class WorkerManagerTest(unittest.TestCase):
         )
         self.assertFalse(worker_manager.is_training_hang_by_pending(4))
 
-        worker_manager.update_node_required_info((4, 8))
+        worker_manager.update_node_required_info((4, 8, 600))
         self.assertFalse(worker_manager.is_training_hang_by_pending(4))
 
         mock_nodes = {}
@@ -302,7 +303,7 @@ class WorkerManagerTest(unittest.TestCase):
         # =============================================
         # condition: when node required is not updated
         # =============================================
-        worker_manager.update_node_required_info((0, 0))
+        worker_manager.update_node_required_info((0, 0, 600))
 
         # mock with 1 pending short time
         worker_num = 1
@@ -373,10 +374,24 @@ class WorkerManagerTest(unittest.TestCase):
             worker_manager.is_training_hang_by_pending(worker_num)
         )
 
-    def test_is_training_hang_by_insufficient_worker(self):
-        # mock timeout 2 second(seconds_to_wait_pending_pod * 2)
-        _dlrover_ctx.seconds_to_wait_pending_pod = 1
+        # mock timeout=0 with 2 pending long time
+        worker_manager._get_pending_timeout = mock.MagicMock(return_value=0)
+        for index in range(2):
+            mock_node = Node(
+                NodeType.WORKER,
+                index,
+                NodeResource(0, 0),
+                "test-" + str(index),
+                NodeStatus.PENDING,
+            )
+            mock_node.create_time = datetime.now() + timedelta(minutes=-20)
+            mock_nodes[index] = mock_node
+        worker_manager._nodes = mock_nodes
+        self.assertFalse(
+            worker_manager.is_training_hang_by_pending(worker_num)
+        )
 
+    def test_is_training_hang_by_insufficient_worker(self):
         worker_manager = WorkerManager(
             self._job_nodes[NodeType.WORKER],
             self._job_resource,
@@ -388,13 +403,16 @@ class WorkerManagerTest(unittest.TestCase):
             worker_manager.is_training_hang_by_insufficient_worker()
         )
 
-        worker_manager.update_node_required_info((4, 8))
+        worker_manager.update_node_required_info((4, 8, 1))
         self.assertFalse(
             worker_manager.is_training_hang_by_insufficient_worker()
         )
 
         mock_nodes = {}
         is_insufficient = 0
+        worker_manager._get_insufficient_timeout = mock.MagicMock(
+            return_value=1
+        )
 
         # mock with 3 running + 1 pending
         for index in range(4):
@@ -455,6 +473,3 @@ class WorkerManagerTest(unittest.TestCase):
                 is_insufficient += 1
             time.sleep(1)
         self.assertTrue(is_insufficient >= 2)
-
-        # reset
-        _dlrover_ctx.seconds_to_wait_pending_pod = 900

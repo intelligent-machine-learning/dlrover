@@ -360,13 +360,14 @@ class MasterClient(Singleton):
         return result.nodes
 
     def report_rdzv_params(
-        self, min_nodes, max_nodes, waiting_timeout, node_unit
+        self, min_nodes, max_nodes, waiting_timeout, node_unit, joint_timeout
     ):
         message = grpc.RendezvousParams(
             min_nodes,
             max_nodes,
             waiting_timeout,
             node_unit,
+            joint_timeout,
         )
         response = self._report(message)
         return response.success

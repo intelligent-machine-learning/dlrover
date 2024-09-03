@@ -16,6 +16,7 @@ import time
 from typing import Dict, List, Tuple
 
 from dlrover.python.common.constants import (
+    JobConstant,
     NodeExitReason,
     NodeStatus,
     NodeType,
@@ -128,7 +129,7 @@ class WorkerManager(TrainingNodeManager):
         self._max_relaunch_num = max_relaunch_num
         self._new_service_fn = new_service_fn
         # the required nodes number, format: (min_required, max_required)
-        self._nodes_required = (0, 0)
+        self._nodes_required = (0, 0, 0)
         self._last_insufficient_nodes_timestamp = 0
 
     def adjust_worker(self, worker_resource: NodeGroupResource):
@@ -313,6 +314,15 @@ class WorkerManager(TrainingNodeManager):
             worker.restart_training = False
         return restart
 
+    def _get_pending_timeout(self):
+        timeout = _dlrover_context.seconds_to_wait_pending_pod
+        if timeout <= 0:
+            return 0
+        if timeout < JobConstant.PENDING_NODE_TIMEOUT_DEFAULT_MIN:
+            timeout = JobConstant.PENDING_NODE_TIMEOUT_DEFAULT_MIN
+
+        return timeout
+
     def is_training_hang_by_pending(self, total_node_num) -> bool:
         """
         To prevent training hanging by pending nodes. Should exit when there is
@@ -331,11 +341,13 @@ class WorkerManager(TrainingNodeManager):
         """
 
         # pending time as timeout for now
-        timeout = _dlrover_context.seconds_to_wait_pending_pod
+        timeout = self._get_pending_timeout()
         logger.debug(
             "Is training hang by pending with total worker "
             f"num: {total_node_num}, timeout: {timeout}."
         )
+        if timeout <= 0:
+            return False
 
         cur_nodes = list(self._nodes.values())
 
@@ -398,6 +410,15 @@ class WorkerManager(TrainingNodeManager):
 
         return False
 
+    def _get_insufficient_timeout(self):
+        timeout = int(self.get_nodes_timeout() * 1.5)
+        if timeout < JobConstant.INSUFFICIENT_NODE_TIMEOUT_DEFAULT_MIN:
+            timeout = JobConstant.INSUFFICIENT_NODE_TIMEOUT_DEFAULT_MIN
+        elif timeout > JobConstant.INSUFFICIENT_NODE_TIMEOUT_DEFAULT_MAX:
+            timeout = JobConstant.INSUFFICIENT_NODE_TIMEOUT_DEFAULT_MAX
+
+        return timeout
+
     def is_training_hang_by_insufficient_worker(self) -> bool:
         """
         There is a small probability that due to unknown reason on the
@@ -412,8 +433,8 @@ class WorkerManager(TrainingNodeManager):
         if not self.has_node_required_info():
             return False
 
-        # use pending time as timeout
-        timeout = _dlrover_context.seconds_to_wait_pending_pod
+        # use 1.5 * rdzv-timeout with min: 600 and max: as timeout
+        timeout = self._get_insufficient_timeout()
         cur_nodes = list(self._nodes.values())
 
         # collect available nodes
@@ -430,12 +451,16 @@ class WorkerManager(TrainingNodeManager):
         if len(available_nodes) < self.get_min_nodes_required():
             if self._last_insufficient_nodes_timestamp == 0:
                 self._last_insufficient_nodes_timestamp = int(now)
-                logger.warning(f"Job with insufficient nodes: {cur_nodes}.")
+                logger.warning(
+                    f"Job with insufficient nodes: {cur_nodes}. "
+                    f"Need at least: {self.get_min_nodes_required()}."
+                )
             else:
                 if now - self._last_insufficient_nodes_timestamp > timeout:
                     logger.warning(
                         f"Job with insufficient nodes: {cur_nodes} "
-                        f"lasts for more than {timeout}s."
+                        f"lasts for more than {timeout}s. "
+                        f"Need at least: {self.get_min_nodes_required()}."
                     )
                     return True
         else:
@@ -444,7 +469,11 @@ class WorkerManager(TrainingNodeManager):
         return False
 
     def has_node_required_info(self):
-        if self._nodes_required[0] and self._nodes_required[1]:
+        if (
+            self._nodes_required[0]
+            and self._nodes_required[1]
+            and self._nodes_required[2]
+        ):
             return True
         return False
 
@@ -458,5 +487,10 @@ class WorkerManager(TrainingNodeManager):
 
         return self._nodes_required[1]
 
-    def update_node_required_info(self, nodes_required: Tuple[int, int]):
+    def get_nodes_timeout(self) -> int:
+        """Notice: it is meaningless when the result is 0."""
+
+        return self._nodes_required[2]
+
+    def update_node_required_info(self, nodes_required: Tuple[int, int, int]):
         self._nodes_required = nodes_required

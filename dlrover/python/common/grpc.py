@@ -211,6 +211,7 @@ class OpStats(Message):
     read_op_count: int = 0
     input_fetch_dur: int = 0
     flops: int = 0
+    op_type: int = 0  # 0:training, 1:others
 
 
 @dataclass
@@ -349,6 +350,7 @@ class RendezvousParams(Message):
     max_nodes: int = 0
     waiting_timeout: int = 0
     node_unit: int = 0
+    join_timeout: int = 0
 
 
 @dataclass

@@ -62,6 +62,7 @@ from dlrover.python.common.constants import (
     Accelerators,
     AscendConstants,
     ConfigPath,
+    JobConstant,
     NodeEnv,
     NodeErrorMessage,
     NodeStatus,
@@ -187,10 +188,10 @@ class ElasticLaunchConfig(LaunchConfig):
 
 
 class MasterRendezvousHandler(RendezvousHandler):
-    """The rendzevous handler completes rendezvous by connecting
+    """The rendezvous handler completes rendezvous by connecting
     with the ElasticJob master. The master will collect all nodes
     after the handler of all node agents calls `_join_rendezvous`.
-    Then, the handler will get the communcation world from the master
+    Then, the handler will get the communication world from the master
     and assign ranks to the training process.
 
     Args:
@@ -198,7 +199,7 @@ class MasterRendezvousHandler(RendezvousHandler):
         node_rank: the node rank.
         rdzv_params: RendezvousParameters instance. We can set timeout of
             rendezvous in the rdzv_params.config. Now we set:
-            join_timeout: the timeout to join the rendevous. The timeout
+            join_timeout: the timeout to join the rendezvous. The timeout
                 happens if the number of nodes is less than min_nodes
                 in the join_timeout.
             lastcall_timeout: the timeout to wait new nodes after the
@@ -225,7 +226,11 @@ class MasterRendezvousHandler(RendezvousHandler):
         self._node_rank = node_rank
         self._rdzv_params = rdzv_params
         self._local_world_size = local_world_size
-        self.join_timeout = int(rdzv_params.get("join_timeout", 600))
+        self.join_timeout = int(
+            rdzv_params.get(
+                "join_timeout", JobConstant.RDZV_JOIN_TIMEOUT_DEFAULT
+            )
+        )
         self.pend_timeout = float(rdzv_params.get("pend_timeout", "inf"))
         self._client = MasterClient.singleton_instance()
         self._store = MasterKVStore(self._name, timedelta(seconds=60))
@@ -236,6 +241,7 @@ class MasterRendezvousHandler(RendezvousHandler):
             rdzv_params.max_nodes,
             lastcall_timeout,
             node_unit,
+            self.join_timeout,
         )
 
     def get_backend(self) -> str:
@@ -300,7 +306,7 @@ class MasterRendezvousHandler(RendezvousHandler):
                 timeout = self.join_timeout
                 err_msg = (
                     f"Timeout {timeout}s to wait the enough nodes "
-                    "to complete rendzvous."
+                    "to complete rendezvous."
                 )
                 self._report_failure(
                     err_msg, level=TrainingExceptionLevel.RDZV_ERROR
@@ -653,11 +659,15 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     f" Waiting {self._exit_barrier_timeout} seconds "
                     "for other agents to finish."
                 )
-                self._exit_barrier()
-                logger.info("Barrier exited.")
 
-                self._wait_async_saver()
-                logger.info("Async saver stopped.")
+                try:
+                    self._exit_barrier()
+                    logger.info("Barrier exited.")
+
+                    self._wait_async_saver()
+                    logger.info("Async saver stopped.")
+                except Exception as e:
+                    logger.warning(f"Unexpected exception when ending: {e}")
 
                 return run_result
             elif state in {WorkerState.UNHEALTHY, WorkerState.FAILED}:
@@ -1031,20 +1041,26 @@ class NodeCheckElasticAgent(ElasticTrainingAgent):
                 f" and stragglers are: {stragglers}."
             )
             self._stop_workers(self._worker_group)
-            if fault_nodes or stragglers:
+            if fault_nodes or (stragglers and self._config.exclude_straggler):
                 total_worker_num = len(self._client.get_running_nodes())
                 if total_worker_num <= 3:
                     # If the number of nodes <= 3, we cannot determine which
                     # node if fault because there is no normal node in the job
                     # to execute allgather tasks with the two nodes.
-                    logger.error("Network check needs at least 4 nodes.")
+                    logger.warning(
+                        "No need for another round of network "
+                        "check because the nodes is less than 3."
+                    )
                     raise RuntimeError("This node is down.")
                 else:
                     # Run the next round check to detect the fault node.
                     time.sleep(3)
                     continue
+            elif stragglers and not self._config.exclude_straggler:
+                pass
             else:
                 return success
+
         if self._node_rank in fault_nodes:
             self._client.report_failures(
                 NodeErrorMessage.NETWORKER_ERROR,

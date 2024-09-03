@@ -377,7 +377,6 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         local_shard_num=1,
         global_shard_num=1,
         save_timeout=CheckpointConstant.SAVE_TIMEOUT,
-        unique_process_id=0,
     ) -> None:
         self.checkpoint_dir = checkpoint_dir
         self.local_shard_num = local_shard_num
@@ -388,7 +387,6 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         self._shm_locks: List[SharedLock] = []
         self._stop_commit = False
         self._save_timeout = save_timeout
-        self._unique_process_id = unique_process_id
 
         module = importlib.import_module(storage_meta.module_path)
         storage_class_def = getattr(module, storage_meta.class_name)
@@ -402,12 +400,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         self._event_queue = SharedQueue(name=qname, create=True)
         for i in range(self.local_shard_num):
             self._shm_handlers.append(SharedMemoryHandler(i))
-            lock_name = (
-                CheckpointSharedObjPrefix.SHM_LOCK_NAME
-                + str(i)
-                + "_"
-                + str(self._unique_process_id)
-            )
+            lock_name = CheckpointSharedObjPrefix.SHM_LOCK_NAME + str(i)
             self._shm_locks.append(SharedLock(name=lock_name, create=True))
         self._executor = ThreadPoolExecutor(
             max_workers=self.local_shard_num, thread_name_prefix="ckpt_saver-"
@@ -1264,6 +1257,9 @@ class FsdpDcpSaver(CommonDirCheckpointSaver):
         # only rank0 create dir
         if self._is_agent_rank_0 and local_shard_id == 0:
             self._dist_make_dir(checkpoint_dir)
+        else:
+            while not self.storage.exists(checkpoint_dir):
+                time.sleep(1)
 
         # do saving
         assert shm_handler.shared_memory is not None
