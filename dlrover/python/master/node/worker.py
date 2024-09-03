@@ -350,6 +350,7 @@ class WorkerManager(TrainingNodeManager):
                 pending_nodes.append(node)
             elif node.status == NodeStatus.RUNNING:
                 running_nodes.append(node)
+        self._pending_nodes = pending_nodes
 
         if not self.has_node_required_info() and total_node_num != len(
             pending_nodes

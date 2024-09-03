@@ -127,18 +127,18 @@ class ElasticLaunchConfig(LaunchConfig):
     Creates a rendezvous config of elastic training.
 
     Args:
-        network_check: whether to check the network avaliable before training.
+        network_check: whether to check the network available before training.
         comm_perf_test: whether to test the communication performance.
         node_unit: the number of unit of nodes. The number of nodes must be
             a multiple of node_unit.
-        auto_config: wether to automatically configure the nnodes and
+        auto_config: indicate if automatically configure the nnodes and
             nproc_per_node.
         auto_tunning: whether to auto-tune the parallelism configuration.
         exclude_straggler: The node will exit if it is a straggler in network
             check and exclude_straggler is True.
-        save_at_breakpoint: wether to save the checkpoint from the shared
+        save_at_breakpoint: indicate if save the checkpoint from the shared
             memory into the disk after a failure occurs.
-        accelerator: the type of acclerator processor like nvidia.com/gpu,
+        accelerator: the type of accelerator processor like nvidia.com/gpu,
             ascend-npu.
         training_log_file: the training log file of this training job
         failure_node_errors: the error information that indicate the node
@@ -161,7 +161,7 @@ class ElasticLaunchConfig(LaunchConfig):
     failure_node_errors: str = ""
 
     def set_node_unit(self, node_unit):
-        """Set the number unint of ndoes."""
+        """Set the number unit of nodes."""
         self.node_unit = node_unit
         self.rdzv_configs["node_unit"] = node_unit
 

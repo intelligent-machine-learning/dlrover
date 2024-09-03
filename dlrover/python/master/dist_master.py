@@ -23,6 +23,7 @@ from dlrover.python.common.constants import (
     PlatformType,
     RendezvousName,
     ReporterType,
+    ErrorMonitorConstants,
 )
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.diagnosis.diagnosis import DiagnosisManager
@@ -153,6 +154,7 @@ class DistributedJobMaster(JobMaster):
         self._stop_requested = False
         self._exit_code = 0
         self._exit_reason = None
+        self._error_monitor = error_monitor
 
     def _create_master_grpc_service(self, port, params: JobArgs):
         return create_master_service(
@@ -333,3 +335,14 @@ class DistributedJobMaster(JobMaster):
                 f"Request to stop. Success: {success}, reason: {reason}, "
                 f"msg: {msg}."
             )
+            if self._error_monitor:
+                self._error_monitor.report_event(
+                    event_type=ErrorMonitorConstants.TYPE_ERROR,
+                    instance="job",
+                    action=ErrorMonitorConstants.ACTION_STOP,
+                    msg=msg,
+                    labels={
+                        "reason": reason,
+                        "message": msg,
+                    },
+                )

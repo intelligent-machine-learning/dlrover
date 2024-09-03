@@ -336,7 +336,7 @@ class ErrorMonitorConstants(object):
     ACTION_NOT_RELAUNCH = "not_relaunch_worker"
     ACTION_GLOBAL_STEP = "global_step"
     ACTION_RDZV_JOIN = "join_rendezvous"
-    ACTION_RDZV_COMPLETE = "complete_rendezvous"
+    ACTION_RDZV_COMPLETE = "rendezvous_complete"
     ACTION_RDZV_TIMEOUT = "rendezvous_timeout"
     ACTION_TRAINING_START = "training_start"
     ACTION_RESTART_TRAINING = "restart_training"
