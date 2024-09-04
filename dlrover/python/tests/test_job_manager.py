@@ -51,7 +51,9 @@ from dlrover.python.master.node.status_flow import (
     get_node_state_flow,
 )
 from dlrover.python.master.node.training_node import (
+    _dlrover_context,
     get_critical_worker_index,
+    get_pending_timeout,
     set_critical_node,
     update_nodes_priority,
 )
@@ -615,6 +617,14 @@ class DistributedJobManagerTest(unittest.TestCase):
             self.assertEqual(node.heartbeat_time, i)
 
         manager.stop()
+
+    def test_get_pending_timeout(self):
+        _dlrover_context.seconds_to_wait_pending_pod = 700
+        self.assertEqual(get_pending_timeout(), 700)
+        _dlrover_context.seconds_to_wait_pending_pod = 0
+        self.assertEqual(get_pending_timeout(), 600)
+        # reset
+        _dlrover_context.seconds_to_wait_pending_pod = 900
 
 
 class LocalJobManagerTest(unittest.TestCase):
