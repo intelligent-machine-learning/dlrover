@@ -17,13 +17,13 @@ from typing import Dict
 from dlrover.python.common.constants import (
     DistributionStrategy,
     ElasticJobLabel,
+    ErrorMonitorConstants,
     JobExitReason,
     NodeType,
     OptimizeMode,
     PlatformType,
     RendezvousName,
     ReporterType,
-    ErrorMonitorConstants,
 )
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.master.diagnosis.diagnosis import DiagnosisManager

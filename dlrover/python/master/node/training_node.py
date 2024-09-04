@@ -194,7 +194,7 @@ class TrainingNodeManager(object):
 
     @property
     def cur_nodes(self):
-        cur_nodes = [node.name for node in self._nodes]
+        cur_nodes = [node.name for node in self._nodes.values()]
         return cur_nodes
 
     def update_nodes(self, nodes):

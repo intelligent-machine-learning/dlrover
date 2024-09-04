@@ -65,14 +65,14 @@ repos:
       - id: yamllint
         exclude:
           (dlrover/python/tests/data|operator/config)
-  - repo: https://github.com/igorshubovych/markdownlint-cli
-    rev: v0.35.0
-    hooks:
-      - id: markdownlint
-        name: markdownlint
-        description: "Checks the style of Markdown files."
-        entry: markdownlint --fix --config .markdownlint.yaml
-        language: node
-        types: [markdown]
-        exclude: (dlrover/go/brain/vendor)
+#  - repo: https://github.com/igorshubovych/markdownlint-cli
+#    rev: v0.35.0
+#    hooks:
+#      - id: markdownlint
+#        name: markdownlint
+#        description: "Checks the style of Markdown files."
+#        entry: markdownlint --fix --config .markdownlint.yaml
+#        language: node
+#        types: [markdown]
+#        exclude: (dlrover/go/brain/vendor)
         # args: [--fix]

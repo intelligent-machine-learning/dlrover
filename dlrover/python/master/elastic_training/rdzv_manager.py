@@ -293,6 +293,7 @@ class RendezvousManager(metaclass=ABCMeta):
                 self._lastcall_time - self._start_rdzv_ts, 2
             )
             if self._error_monitor:
+                node_elapsed_time = self._node_rdzv_times[node_rank]
                 self._error_monitor.report_event(
                     ErrorMonitorConstants.TYPE_INFO,
                     node_rank,
@@ -303,7 +304,7 @@ class RendezvousManager(metaclass=ABCMeta):
                         "max_node": f"{self._rdzv_params.max_nodes}",
                         "min_node": f"{self._rdzv_params.min_nodes}",
                         "node_group": f"{self._waiting_nodes.keys()}",
-                        "node_elapsed_time": f"{self._node_rdzv_times[node_rank]}",
+                        "node_elapsed_time": f"{node_elapsed_time}",
                     },
                 )
 
@@ -437,6 +438,7 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
                     logger.info(
                         f"Node ids are {node_ids}.\n Node IPs are {node_ips}"
                     )
+                    node_elapsed_time = time.time() - self._lastcall_time
                     if self._error_monitor:
                         self._error_monitor.report_event(
                             ErrorMonitorConstants.TYPE_INFO,
@@ -449,13 +451,17 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
                                 "max_nodes": f"{self._rdzv_params.max_nodes}",
                                 "min_nodes": f"{self._rdzv_params.min_nodes}",
                                 "node_group": f"{node_ids}",
-                                "node_elapsed_time": f"{time.time() - self._lastcall_time}",
+                                "node_elapsed_time": f"{node_elapsed_time}",
                                 "error_message": "",
                             },
                         )
 
                 waiting_time = time.time() - self._lastcall_time
-                if waiting_time > self._rdzv_params.waiting_timeout and not rdzv_completed and self._error_monitor:
+                if (
+                    waiting_time > self._rdzv_params.waiting_timeout
+                    and not rdzv_completed
+                    and self._error_monitor
+                ):
                     self._error_monitor.report_event(
                         ErrorMonitorConstants.TYPE_ERROR,
                         "job",
@@ -532,6 +538,7 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                         self._clear_check_status()
                     self._reported_nodes = set()
                     self._rdzv_round += 1
+                    node_elapsed_time = time.time() - self._lastcall_time
                     if self._error_monitor:
                         self._error_monitor.report_event(
                             ErrorMonitorConstants.TYPE_INFO,
@@ -544,12 +551,17 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                                 "max_nodes": f"{self._rdzv_params.max_nodes}",
                                 "min_nodes": f"{self._rdzv_params.min_nodes}",
                                 "node_group": f"{self._node_groups}",
-                                "node_elapsed_time": f"{time.time() - self._lastcall_time}",
+                                "node_elapsed_time": f"{node_elapsed_time}",
                                 "error_message": "",
                             },
                         )
                 waiting_time = time.time() - self._lastcall_time
-                if waiting_time > self._rdzv_params.waiting_timeout and not rdzv_completed and self._error_monitor:
+                if (
+                    waiting_time > self._rdzv_params.waiting_timeout
+                    and not rdzv_completed
+                    and self._error_monitor
+                ):
+                    node_group = self._group_nodes(self._rdzv_round)
                     self._error_monitor.report_event(
                         ErrorMonitorConstants.TYPE_ERROR,
                         "job",
@@ -560,7 +572,7 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                             "status": "timeout",
                             "max_nodes": f"{self._rdzv_params.max_nodes}",
                             "min_nodes": f"{self._rdzv_params.min_nodes}",
-                            "node_group": f"{self._group_nodes(self._rdzv_round)}",
+                            "node_group": f"{node_group}",
                             "node_elapsed_time": f"{waiting_time}",
                             "error_message": "",
                         },

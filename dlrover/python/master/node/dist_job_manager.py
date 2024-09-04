@@ -264,7 +264,7 @@ class DistributedJobManager(JobManager):
             self._process_error(
                 None, 0, msg, level=TrainingExceptionLevel.ERROR
             )
-
+            first_pending_node = self._worker_manager.first_pending_node
             self._report_event(
                 ErrorMonitorConstants.TYPE_INFO,
                 "job",
@@ -272,7 +272,7 @@ class DistributedJobManager(JobManager):
                 "Pending nodes",
                 {
                     "pending_nodes": f"{self._worker_manager.pending_nodes}",
-                    "first_pending_node": f"{self._worker_manager.first_pending_node}",
+                    "first_pending_node": f"{first_pending_node}",
                 },
             )
             return True, JobExitReason.PENDING_TIMEOUT, msg
@@ -295,9 +295,7 @@ class DistributedJobManager(JobManager):
                 "job",
                 ErrorMonitorConstants.ACTION_EARLY_STOP,
                 "Not enough nodes",
-                {
-                    "nodes": f"{self._worker_manager.cur_nodes}"
-                },
+                {"nodes": f"{self._worker_manager.cur_nodes}"},
             )
             return True, JobExitReason.UNCOMPLETED_TIMEOUT, msg
 
@@ -737,9 +735,7 @@ class DistributedJobManager(JobManager):
                         mem,
                         NodeResourceLimit.MAX_MEMORY,
                     )
-                    msg = (
-                        f"{mem} beyond {NodeResourceLimit.MAX_MEMORY}"
-                    )
+                    msg = f"{mem} beyond {NodeResourceLimit.MAX_MEMORY}"
                 elif node.relaunch_count >= node.max_relaunch_count:
                     should_relaunch = False
                     logger.warning(
@@ -748,7 +744,8 @@ class DistributedJobManager(JobManager):
                         node.max_relaunch_count,
                     )
                     msg = (
-                        f"Relaunched {node.relaunch_count} beyond {node.max_relaunch_count}",
+                        f"Relaunched {node.relaunch_count} "
+                        f"beyond {node.max_relaunch_count}"
                     )
                 else:
                     node.is_recovered_oom = True
@@ -762,7 +759,8 @@ class DistributedJobManager(JobManager):
                     )
                     should_relaunch = False
                     msg = (
-                        f"{node.relaunch_count} exhausted {node.max_relaunch_count}"
+                        f"{node.relaunch_count} "
+                        f"exhausted {node.max_relaunch_count}"
                     )
         if should_relaunch:
             node.relaunch_count += 1
