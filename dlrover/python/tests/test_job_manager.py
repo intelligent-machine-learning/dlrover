@@ -54,6 +54,7 @@ from dlrover.python.master.node.training_node import (
     get_critical_worker_index,
     set_critical_node,
     update_nodes_priority,
+    get_pending_timeout, _dlrover_context,
 )
 from dlrover.python.master.resource.job import JobResource
 from dlrover.python.master.watcher.base_watcher import Node, NodeEvent
@@ -615,6 +616,12 @@ class DistributedJobManagerTest(unittest.TestCase):
             self.assertEqual(node.heartbeat_time, i)
 
         manager.stop()
+
+    def test_get_pending_timeout(self):
+        _dlrover_context.seconds_to_wait_pending_pod = 700
+        self.assertEqual(get_pending_timeout(), 700)
+        _dlrover_context.seconds_to_wait_pending_pod = 0
+        self.assertEqual(get_pending_timeout(), 600)
 
 
 class LocalJobManagerTest(unittest.TestCase):
