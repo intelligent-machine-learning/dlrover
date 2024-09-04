@@ -314,6 +314,15 @@ class WorkerManager(TrainingNodeManager):
             worker.restart_training = False
         return restart
 
+    def _get_pending_timeout(self):
+        timeout = _dlrover_context.seconds_to_wait_pending_pod
+        if timeout <= 0:
+            return 0
+        if timeout < JobConstant.PENDING_NODE_TIMEOUT_DEFAULT_MIN:
+            timeout = JobConstant.PENDING_NODE_TIMEOUT_DEFAULT_MIN
+
+        return timeout
+
     def is_training_hang_by_pending(self, total_node_num) -> bool:
         """
         To prevent training hanging by pending nodes. Should exit when there is
@@ -332,11 +341,13 @@ class WorkerManager(TrainingNodeManager):
         """
 
         # pending time as timeout for now
-        timeout = _dlrover_context.seconds_to_wait_pending_pod
+        timeout = self._get_pending_timeout()
         logger.debug(
             "Is training hang by pending with total worker "
             f"num: {total_node_num}, timeout: {timeout}."
         )
+        if timeout <= 0:
+            return False
 
         cur_nodes = list(self._nodes.values())
 

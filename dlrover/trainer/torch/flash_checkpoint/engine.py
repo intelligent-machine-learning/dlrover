@@ -113,7 +113,7 @@ def start_async_save():
 
 def start_saver_process():
     """
-    Start a process to to asynchronously save checkpoint if the training
+    Start a process to asynchronously save checkpoint if the training
     process is not launched by `dlrover-run`. This process will
     exit and cannot save the checkpoint after the training process exit.
     It is better to use `dlrover-run` to start the training process.
@@ -149,8 +149,8 @@ class CheckpointEngine(metaclass=ABCMeta):
     Args:
         checkpoint_dir (str): the directory to save checkpoint.
         storage: a CheckpointStorage instance to write/read the storage.
-        comm_backend (str): the communcation backend to create a process group,
-            The default is the backend of general main process group.
+        comm_backend (str): the communication backend to create a process
+            group, default: backend of general main process group.
     """
 
     saver_proc = None
@@ -163,6 +163,10 @@ class CheckpointEngine(metaclass=ABCMeta):
         save_timeout: int = CheckpointConstant.SAVE_TIMEOUT,
         replica_count=0,
     ):
+        logger.info(
+            "Initialize checkpoint engine: "
+            f"{self.__class__.__name__.lower()}."
+        )
         if not self.saver_proc:
             self.saver_proc = start_saver_process()
 
@@ -239,12 +243,12 @@ class CheckpointEngine(metaclass=ABCMeta):
             )
             if self._saving_ranks:
                 message = (
-                    f"Create a {backend} commumication group to save "
+                    f"Create a {backend} communication group to save "
                     f"checkpoint. Saving ranks are {self._saving_ranks}."
                 )
             else:
                 message = (
-                    f"Create a {backend} commumication group to save "
+                    f"Create a {backend} communication group to save "
                     "checkpoint. Saving ranks are all ranks."
                 )
             _local_rank0_log(self._local_rank, message)
@@ -260,6 +264,7 @@ class CheckpointEngine(metaclass=ABCMeta):
         """Notify the agent in the main process to create a checkpoint saver"""
         if self._local_rank != 0:
             return
+
         # the agent side will release the lock if training process restarts.
         queue = SharedQueue(name="factory")
 
@@ -278,6 +283,10 @@ class CheckpointEngine(metaclass=ABCMeta):
             },
         )
 
+        logger.info(
+            "Notify agent to create a checkpoint saver using: "
+            f"{class_meta.__dict__}."
+        )
         queue.put(class_meta)
 
     def _update_saver_config(self):
@@ -292,6 +301,11 @@ class CheckpointEngine(metaclass=ABCMeta):
                 raise ValueError(
                     "The event queue cannot be None on local rank 0."
                 )
+
+            while not self._event_queue.is_available():
+                time.sleep(0.1)
+
+            logger.info(f"Update saver config: {event.__dict__}")
             self._event_queue.put(event)
 
     def save_state_dict_to_memory(self, state_dict, conf: CheckpointConfig):

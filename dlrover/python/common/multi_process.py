@@ -235,6 +235,12 @@ class LocalSocketComm(metaclass=ABCMeta):
         response: LockAcquireResponse = pickle.loads(recv_data)
         return response
 
+    def is_available(self):
+        try:
+            return os.path.exists(self._socket_file)
+        except Exception:
+            return False
+
 
 class SharedLock(LocalSocketComm):
     """
@@ -297,8 +303,7 @@ class SharedLock(LocalSocketComm):
                     return response.acquired
             except Exception as e:
                 logger.warning(
-                    "Failed to acquire lock due to unexpected " f"error: {e}",
-                    exc_info=True,
+                    f"Failed to acquire lock due to unexpected error: {e}"
                 )
             return False
 
