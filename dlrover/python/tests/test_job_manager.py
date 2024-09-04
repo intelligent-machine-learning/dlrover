@@ -51,10 +51,11 @@ from dlrover.python.master.node.status_flow import (
     get_node_state_flow,
 )
 from dlrover.python.master.node.training_node import (
+    _dlrover_context,
     get_critical_worker_index,
+    get_pending_timeout,
     set_critical_node,
     update_nodes_priority,
-    get_pending_timeout, _dlrover_context,
 )
 from dlrover.python.master.resource.job import JobResource
 from dlrover.python.master.watcher.base_watcher import Node, NodeEvent
