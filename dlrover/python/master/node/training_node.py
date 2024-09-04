@@ -23,6 +23,7 @@ from typing import Dict, List
 
 from dlrover.python.common.constants import (
     DistributionStrategy,
+    JobConstant,
     NodeResourceLimit,
     NodeStatus,
     NodeType,
@@ -115,6 +116,12 @@ def get_critical_worker_index(params: JobArgs):
         return {}
 
 
+def get_pending_timeout():
+    if _dlrover_context.seconds_to_wait_pending_pod <= 0:
+        return JobConstant.PENDING_NODE_TIMEOUT_DEFAULT_MIN
+    return _dlrover_context.seconds_to_wait_pending_pod
+
+
 def reduce_timeout_pending_node_resource(node: Node):
     """Reduce CPU cores or memory and relaunch it if the pending
     time is too long"""
@@ -126,7 +133,8 @@ def reduce_timeout_pending_node_resource(node: Node):
     ):
         return False
     pending_time = now - node.create_time.timestamp()
-    if pending_time < _dlrover_context.seconds_to_wait_pending_pod:
+    pending_timeout = get_pending_timeout()
+    if pending_time < pending_timeout:
         return False
 
     original_cpu = node.config_resource.cpu
@@ -140,7 +148,7 @@ def reduce_timeout_pending_node_resource(node: Node):
             "Delete and relaunch it with CPU %s",
             node.name,
             pending_time,
-            _dlrover_context.seconds_to_wait_pending_pod,
+            pending_timeout,
             new_cpu,
         )
     original_memory = node.config_resource.memory
@@ -154,7 +162,7 @@ def reduce_timeout_pending_node_resource(node: Node):
             "Delete and relaunch it with memory %s",
             node.name,
             pending_time,
-            _dlrover_context.seconds_to_wait_pending_pod,
+            pending_timeout,
             new_memory,
         )
     return True
@@ -267,10 +275,8 @@ class TrainingNodeManager(object):
             ):
                 continue
             pending_time = now - node.create_time.timestamp()
-            if (
-                node.is_recovered_oom
-                and pending_time > _dlrover_context.seconds_to_wait_pending_pod
-            ):
+            pending_timeout = get_pending_timeout()
+            if node.is_recovered_oom and pending_time > pending_timeout:
                 logger.info(
                     f"Node {node.name} with resource f{node.config_resource} "
                     f"and pends f{pending_time}s."

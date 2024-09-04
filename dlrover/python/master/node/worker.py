@@ -435,6 +435,9 @@ class WorkerManager(TrainingNodeManager):
 
         # use 1.5 * rdzv-timeout with min: 600 and max: as timeout
         timeout = self._get_insufficient_timeout()
+        logger.debug(
+            f"Is training hang by insufficient worker with timeout: {timeout}."
+        )
         cur_nodes = list(self._nodes.values())
 
         # collect available nodes
