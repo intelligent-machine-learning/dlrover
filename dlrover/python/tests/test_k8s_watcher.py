@@ -96,43 +96,12 @@ class PodWatcherTest(unittest.TestCase):
         pod = create_pod(labels)
         event_type = NodeEventType.MODIFIED
         event = {"object": pod, "type": event_type}
-        node_event: NodeEvent = _convert_pod_event_to_node_event(
-            event, self.k8s_client
-        )
+        node_event: NodeEvent = _convert_pod_event_to_node_event(event)
         self.assertEqual(node_event.event_type, event_type)
         self.assertEqual(node_event.node.id, 0)
         self.assertEqual(node_event.node.type, NodeType.WORKER)
         self.assertEqual(node_event.node.config_resource.cpu, 1)
         self.assertEqual(node_event.node.config_resource.memory, 10240)
-
-    def test_convert_pod_deleted_event_to_node_event_with_existed_running_pod(
-        self,
-    ):
-        # one of the mocked label must be the same with the one generated in
-        # 'test_utils.py#mock_list_namespaced_pod'
-
-        # test DELETED event
-        labels = _mock_pod_labels()
-        pod = create_pod(labels)
-        event_type = NodeEventType.DELETED
-        event = {"object": pod, "type": event_type}
-        self.assertIsNone(
-            _convert_pod_event_to_node_event(event, self.k8s_client)
-        )
-
-        # test MODIFIED event without deletion_timestamp
-        event_type = NodeEventType.MODIFIED
-        event = {"object": pod, "type": event_type}
-        self.assertIsNotNone(
-            _convert_pod_event_to_node_event(event, self.k8s_client)
-        )
-
-        # test MODIFIED event with deletion_timestamp
-        pod = create_pod(labels, True)
-        event = {"object": pod, "type": event_type}
-        self.assertIsNone(
-            _convert_pod_event_to_node_event(event, self.k8s_client)
-        )
 
     def test_get_pod_exit_reason(self):
         labels = _mock_pod_labels()

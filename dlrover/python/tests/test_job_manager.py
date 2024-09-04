@@ -18,9 +18,12 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from unittest import mock
 
+from kubernetes import client
+
 from dlrover.proto import elastic_training_pb2
 from dlrover.python.common.constants import (
     DistributionStrategy,
+    ElasticJobLabel,
     JobExitReason,
     NodeEventType,
     NodeExitReason,
@@ -63,6 +66,7 @@ from dlrover.python.scheduler.job import LocalJobArgs
 from dlrover.python.tests.test_utils import (
     MockK8sAllreduceJobArgs,
     MockK8sPSJobArgs,
+    create_pod,
     create_task_manager,
     mock_k8s_client,
     new_dataset_splitter,
@@ -270,6 +274,61 @@ class DistributedJobManagerTest(unittest.TestCase):
         manager.handle_training_failure(
             NodeType.WORKER, 0, level=TrainingExceptionLevel.NODE_ERROR
         )
+
+    def test_relaunch_under_deleted_event(self):
+        params = MockK8sPSJobArgs()
+        params.initilize()
+        manager = create_job_manager(params, SpeedMonitor())
+        manager.start()
+
+        pods = []
+        for i in range(2):
+            labels = {
+                ElasticJobLabel.APP_NAME: "test",
+                ElasticJobLabel.REPLICA_TYPE_KEY: NodeType.WORKER,
+                ElasticJobLabel.REPLICA_INDEX_KEY: str(i),
+                ElasticJobLabel.RANK_INDEX_KEY: str(i),
+                ElasticJobLabel.RELAUNCH_COUNT: "0",
+            }
+            pod = create_pod(labels)
+            pods.append(pod)
+
+        return_pods = client.V1PodList(
+            items=pods, metadata=client.V1ListMeta(resource_version="12345678")
+        )
+        manager._k8s_client.list_namespaced_pod = mock.MagicMock(
+            return_value=return_pods
+        )
+
+        # deleted event + running status
+        node0 = Node(
+            NodeType.WORKER,
+            0,
+            NodeResource(0, 0),
+            rank_index=0,
+            status=NodeStatus.RUNNING,
+        )
+        manager._process_event(NodeEvent(NodeEventType.DELETED, node0))
+
+        # modified event + deleted status
+        node0 = Node(
+            NodeType.WORKER,
+            0,
+            NodeResource(0, 0),
+            rank_index=0,
+            status=NodeStatus.DELETED,
+        )
+        manager._process_event(NodeEvent(NodeEventType.MODIFIED, node0))
+
+        # modified event + running status
+        node0 = Node(
+            NodeType.WORKER,
+            0,
+            NodeResource(0, 0),
+            rank_index=0,
+            status=NodeStatus.RUNNING,
+        )
+        manager._process_event(NodeEvent(NodeEventType.MODIFIED, node0))
 
     def test_get_dead_node_event(self):
         params = MockK8sPSJobArgs()

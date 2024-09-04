@@ -21,6 +21,7 @@ from typing import Dict, List, Optional
 
 from dlrover.python.common.constants import (
     DistributionStrategy,
+    ElasticJobLabel,
     ErrorMonitorConstants,
     JobExitReason,
     NodeEventType,
@@ -73,6 +74,7 @@ from dlrover.python.master.watcher.factory import (
 )
 from dlrover.python.scheduler.factory import new_elastic_job
 from dlrover.python.scheduler.job import ElasticJob, JobArgs
+from dlrover.python.util import k8s_util
 
 _dlrover_context = Context.singleton_instance()
 
@@ -583,9 +585,46 @@ class DistributedJobManager(JobManager):
         self._scaler.scale(plan=plan)
         os._exit(0)
 
+    def _get_pod_unique_labels(self, node: Node):
+        return {
+            ElasticJobLabel.JOB_KEY: self._job_args.job_name,
+            ElasticJobLabel.REPLICA_TYPE_KEY: node.type,
+            ElasticJobLabel.RANK_INDEX_KEY: node.rank_index,
+        }
+
     def _process_event(self, event: NodeEvent):
         node_type = event.node.type
+        node_status = event.node.status
         node_id = event.node.id
+
+        # Skip deleted event of pod if the cluster has relaunched a new pod
+        # with the same type and rank as the deleted pod.
+        if (
+            event.event_type == NodeEventType.DELETED
+            or node_status == NodeStatus.DELETED
+        ):
+            pod_labels_selector = k8s_util.gen_k8s_label_selector_from_dict(
+                self._get_pod_unique_labels(event.node)
+            )
+            logger.info(
+                f"Recheck running pod with labels: {pod_labels_selector} "
+                f"for deleted event."
+            )
+            pods = self._k8s_client.list_namespaced_pod(pod_labels_selector)
+            if (
+                pods
+                and len(pods.items) > 0
+                and any(
+                    pod.status.phase == NodeStatus.RUNNING
+                    for pod in pods.items
+                )
+            ):
+                logger.info(
+                    f"Skip deleted event for pod : {pod_labels_selector} "
+                    f"for same running pod already exists."
+                )
+                return
+
         if node_id not in self._job_nodes[node_type]:
             logger.info(f"The node {event.node.name} is released.")
             return
