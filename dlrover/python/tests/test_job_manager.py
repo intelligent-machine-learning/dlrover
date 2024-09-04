@@ -623,6 +623,8 @@ class DistributedJobManagerTest(unittest.TestCase):
         self.assertEqual(get_pending_timeout(), 700)
         _dlrover_context.seconds_to_wait_pending_pod = 0
         self.assertEqual(get_pending_timeout(), 600)
+        # reset
+        _dlrover_context.seconds_to_wait_pending_pod = 900
 
 
 class LocalJobManagerTest(unittest.TestCase):
