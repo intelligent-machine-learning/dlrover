@@ -23,12 +23,13 @@ from typing import Dict, List
 
 from dlrover.python.common.constants import (
     DistributionStrategy,
+    JobConstant,
     NodeResourceLimit,
     NodeStatus,
     NodeType,
     PriorityClass,
 )
-from dlrover.python.common.global_context import Context, DefaultValues
+from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node
 from dlrover.python.master.scaler.base_scaler import ScalePlan
@@ -117,7 +118,7 @@ def get_critical_worker_index(params: JobArgs):
 
 def get_pending_timeout():
     if _dlrover_context.seconds_to_wait_pending_pod <= 0:
-        return DefaultValues.SEC_TO_WAIT_PENDING_POD_MIN
+        return JobConstant.PENDING_NODE_TIMEOUT_DEFAULT_MIN
     return _dlrover_context.seconds_to_wait_pending_pod
 
 
