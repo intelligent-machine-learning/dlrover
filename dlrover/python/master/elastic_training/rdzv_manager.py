@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import math
 import time
 from abc import ABCMeta, abstractmethod
@@ -294,16 +295,17 @@ class RendezvousManager(metaclass=ABCMeta):
             )
             if self._error_monitor:
                 node_elapsed_time = self._node_rdzv_times[node_rank]
+                class_type = type(self).__name__
                 self._error_monitor.report_event(
                     ErrorMonitorConstants.TYPE_INFO,
                     node_rank,
                     ErrorMonitorConstants.ACTION_RDZV_JOIN,
-                    f"rdzv_round={self._rdzv_round}",
+                    f"{class_type}={self._rdzv_round}",
                     {
-                        "rendezvous_type": type(self).__name__,
+                        "rendezvous_type": class_type,
                         "max_node": f"{self._rdzv_params.max_nodes}",
                         "min_node": f"{self._rdzv_params.min_nodes}",
-                        "node_group": f"{self._waiting_nodes.keys()}",
+                        "node_group": f"{[self._waiting_nodes.keys()]}",
                         "node_elapsed_time": f"{node_elapsed_time}",
                     },
                 )
@@ -440,13 +442,14 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
                     )
                     node_elapsed_time = time.time() - self._lastcall_time
                     if self._error_monitor:
+                        class_type = type(self).__name__
                         self._error_monitor.report_event(
                             ErrorMonitorConstants.TYPE_INFO,
                             "job",
                             ErrorMonitorConstants.ACTION_RDZV_COMPLETE,
-                            f"{self._rdzv_round-1}",
+                            f"{class_type}={self._rdzv_round-1}",
                             {
-                                "rendezvous_type": "elastic-training",
+                                "rendezvous_type": class_type,
                                 "status": "success",
                                 "max_nodes": f"{self._rdzv_params.max_nodes}",
                                 "min_nodes": f"{self._rdzv_params.min_nodes}",
@@ -462,13 +465,14 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
                     and not rdzv_completed
                     and self._error_monitor
                 ):
+                    class_type = type(self).__name__
                     self._error_monitor.report_event(
                         ErrorMonitorConstants.TYPE_ERROR,
                         "job",
                         ErrorMonitorConstants.ACTION_RDZV_TIMEOUT,
-                        f"{self._rdzv_round}",
+                        f"{class_type}={self._rdzv_round}",
                         {
-                            "rendezvous_type": "elastic-training",
+                            "rendezvous_type": class_type,
                             "status": "timeout",
                             "max_nodes": f"{self._rdzv_params.max_nodes}",
                             "min_nodes": f"{self._rdzv_params.min_nodes}",
@@ -540,17 +544,18 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                     self._rdzv_round += 1
                     node_elapsed_time = time.time() - self._lastcall_time
                     if self._error_monitor:
+                        class_type = type(self).__name__
                         self._error_monitor.report_event(
                             ErrorMonitorConstants.TYPE_INFO,
                             "job",
                             ErrorMonitorConstants.ACTION_RDZV_COMPLETE,
-                            f"{self._rdzv_round-1}",
+                            f"{class_type}={self._rdzv_round-1}",
                             {
-                                "rendezvous_type": "network-check",
+                                "rendezvous_type": class_type,
                                 "status": "success",
                                 "max_nodes": f"{self._rdzv_params.max_nodes}",
                                 "min_nodes": f"{self._rdzv_params.min_nodes}",
-                                "node_group": f"{self._node_groups}",
+                                "node_group": json.dumps(self._node_groups),
                                 "node_elapsed_time": f"{node_elapsed_time}",
                                 "error_message": "",
                             },
@@ -562,17 +567,18 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                     and self._error_monitor
                 ):
                     node_group = self._group_nodes(self._rdzv_round)
+                    class_type = type(self).__name__
                     self._error_monitor.report_event(
                         ErrorMonitorConstants.TYPE_ERROR,
                         "job",
                         ErrorMonitorConstants.ACTION_RDZV_TIMEOUT,
-                        f"{self._rdzv_round}",
+                        f"{class_type}={self._rdzv_round}",
                         {
-                            "rendezvous_type": "network-check",
+                            "rendezvous_type": class_type,
                             "status": "timeout",
                             "max_nodes": f"{self._rdzv_params.max_nodes}",
                             "min_nodes": f"{self._rdzv_params.min_nodes}",
-                            "node_group": f"{node_group}",
+                            "node_group": json.dumps(node_group),
                             "node_elapsed_time": f"{waiting_time}",
                             "error_message": "",
                         },
@@ -671,13 +677,14 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                 f"are {node_check_times}"
             )
             if self._error_monitor:
+                class_type = type(self).__name__
                 self._error_monitor.report_event(
                     event_type=ErrorMonitorConstants.TYPE_INFO,
-                    instance="network-check",
+                    instance=class_type,
                     action=ErrorMonitorConstants.ACTION_STOP,
                     msg="",
                     labels={
-                        "status": f"{node_status}",
+                        "status": json.dumps(node_status),
                         "elapsed_time": f"{node_check_times}",
                     },
                 )

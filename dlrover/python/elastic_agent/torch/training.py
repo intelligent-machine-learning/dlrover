@@ -680,9 +680,16 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     restart_count=self._restart_count,
                     run_result=run_result,
                 )
-                action = self._diagnose_agent.diagnose_training_failure(
-                    worker_context
-                )
+                try:
+                    action = self._diagnose_agent.diagnose_training_failure(
+                        worker_context
+                    )
+                except Exception as e:
+                    logger.error(f"fail to diagnose errors: {e}")
+                    if self._remaining_failovers > 0:
+                        action = DiagnoseAction.RESTART_WORKER
+                    else:
+                        action = DiagnoseAction.RELAUNCH_WORKER
                 self._process_diagnose_action(action)
                 if self._worker_group.state == WorkerState.FAILED:
                     return run_result

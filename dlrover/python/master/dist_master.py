@@ -335,14 +335,18 @@ class DistributedJobMaster(JobMaster):
                 f"Request to stop. Success: {success}, reason: {reason}, "
                 f"msg: {msg}."
             )
-            if self._error_monitor:
-                self._error_monitor.report_event(
-                    event_type=ErrorMonitorConstants.TYPE_ERROR,
-                    instance="job",
-                    action=ErrorMonitorConstants.ACTION_STOP,
-                    msg=msg,
-                    labels={
-                        "reason": reason,
-                        "message": msg,
-                    },
-                )
+
+        action = ErrorMonitorConstants.ACTION_STOP
+        if not success:
+            action = ErrorMonitorConstants.ACTION_EARLY_STOP
+        if self._error_monitor:
+            self._error_monitor.report_event(
+                event_type=ErrorMonitorConstants.TYPE_ERROR,
+                instance="job",
+                action=action,
+                msg=msg,
+                labels={
+                    "reason": reason,
+                    "success": f"{success}",
+                },
+            )

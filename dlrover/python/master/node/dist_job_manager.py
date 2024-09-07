@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import copy
+import json
 import os
 import threading
 import time
@@ -271,8 +272,10 @@ class DistributedJobManager(JobManager):
                 ErrorMonitorConstants.ACTION_EARLY_STOP,
                 "Pending nodes",
                 {
-                    "pending_nodes": f"{self._worker_manager.pending_nodes}",
-                    "first_pending_node": f"{first_pending_node}",
+                    "pending_nodes": json.dumps(
+                        self._worker_manager.pending_nodes
+                    ),
+                    "first_pending_node": first_pending_node,
                 },
             )
             return True, JobExitReason.PENDING_TIMEOUT, msg
@@ -295,7 +298,7 @@ class DistributedJobManager(JobManager):
                 "job",
                 ErrorMonitorConstants.ACTION_EARLY_STOP,
                 "Not enough nodes",
-                {"nodes": f"{self._worker_manager.cur_nodes}"},
+                {"nodes": json.dumps(self._worker_manager.cur_nodes)},
             )
             return True, JobExitReason.UNCOMPLETED_TIMEOUT, msg
 
@@ -800,7 +803,7 @@ class DistributedJobManager(JobManager):
                 event_type=ErrorMonitorConstants.TYPE_INFO,
                 instance=node.name,
                 action=ErrorMonitorConstants.ACTION_RELAUNCH,
-                msg=f"relaunch to {plan.launch_nodes[0].id}",
+                msg=f"{plan.launch_nodes[0].id}",
                 labels={
                     "relaunch_pod": f"{plan.launch_nodes[0].id}",
                     "node": node.host_name,
