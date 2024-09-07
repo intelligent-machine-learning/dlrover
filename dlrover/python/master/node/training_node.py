@@ -188,8 +188,7 @@ class TrainingNodeManager(object):
 
     @property
     def pending_nodes(self):
-        pending_nodes = [node.name for node in self._pending_nodes]
-        return pending_nodes
+        return [node.name for node in self._pending_nodes]
 
     @property
     def first_pending_node(self):

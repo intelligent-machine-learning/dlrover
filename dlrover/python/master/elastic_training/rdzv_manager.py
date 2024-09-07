@@ -534,13 +534,18 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                     self._fault_nodes.clear()
                     self._straggler_nodes.clear()
                     self._node_groups = self._group_nodes(self._rdzv_round)
+                    print_node_groups = self._get_print_node_groups()
                     logger.info(
                         f"Node groups of round {self._rdzv_round} "
-                        f"are: {self._get_print_node_groups()}."
+                        f"are: {print_node_groups}."
                     )
                     if self._rdzv_round % 2 == 0:
                         self._clear_check_status()
                     self._reported_nodes = set()
+                    print_node_group = []
+                    if len(print_node_groups) > self._rdzv_round:
+                        print_node_group = print_node_groups[self._rdzv_round]
+
                     self._rdzv_round += 1
                     node_elapsed_time = time.time() - self._lastcall_time
                     if self._error_monitor:
@@ -555,7 +560,7 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                                 "status": "success",
                                 "max_nodes": f"{self._rdzv_params.max_nodes}",
                                 "min_nodes": f"{self._rdzv_params.min_nodes}",
-                                "node_group": json.dumps(self._node_groups),
+                                "node_group": f"{print_node_group}",
                                 "node_elapsed_time": f"{node_elapsed_time}",
                                 "error_message": "",
                             },
@@ -682,7 +687,7 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                     event_type=ErrorMonitorConstants.TYPE_INFO,
                     instance=class_type,
                     action=ErrorMonitorConstants.ACTION_STOP,
-                    msg="",
+                    msg=f"{node_check_times}",
                     labels={
                         "status": json.dumps(node_status),
                         "elapsed_time": f"{node_check_times}",
