@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import math
 import time
 from abc import ABCMeta, abstractmethod
@@ -293,12 +294,20 @@ class RendezvousManager(metaclass=ABCMeta):
                 self._lastcall_time - self._start_rdzv_ts, 2
             )
             if self._error_monitor:
+                node_elapsed_time = self._node_rdzv_times[node_rank]
+                class_type = type(self).__name__
                 self._error_monitor.report_event(
                     ErrorMonitorConstants.TYPE_INFO,
-                    node_id,
-                    ErrorMonitorConstants.ACTION_RDZV,
-                    "",
-                    {},
+                    node_rank,
+                    ErrorMonitorConstants.ACTION_RDZV_JOIN,
+                    f"{class_type}={self._rdzv_round}",
+                    {
+                        "rendezvous_type": class_type,
+                        "max_node": f"{self._rdzv_params.max_nodes}",
+                        "min_node": f"{self._rdzv_params.min_nodes}",
+                        "node_group": f"{[self._waiting_nodes.keys()]}",
+                        "node_elapsed_time": f"{node_elapsed_time}",
+                    },
                 )
 
         return self._rdzv_round
@@ -431,6 +440,48 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
                     logger.info(
                         f"Node ids are {node_ids}.\n Node IPs are {node_ips}"
                     )
+                    node_elapsed_time = time.time() - self._lastcall_time
+                    if self._error_monitor:
+                        class_type = type(self).__name__
+                        self._error_monitor.report_event(
+                            ErrorMonitorConstants.TYPE_INFO,
+                            "job",
+                            ErrorMonitorConstants.ACTION_RDZV_COMPLETE,
+                            f"{class_type}={self._rdzv_round-1}",
+                            {
+                                "rendezvous_type": class_type,
+                                "status": "success",
+                                "max_nodes": f"{self._rdzv_params.max_nodes}",
+                                "min_nodes": f"{self._rdzv_params.min_nodes}",
+                                "node_group": f"{node_ids}",
+                                "node_elapsed_time": f"{node_elapsed_time}",
+                                "error_message": "",
+                            },
+                        )
+
+                waiting_time = time.time() - self._lastcall_time
+                if (
+                    waiting_time > self._rdzv_params.waiting_timeout
+                    and not rdzv_completed
+                    and self._error_monitor
+                ):
+                    class_type = type(self).__name__
+                    self._error_monitor.report_event(
+                        ErrorMonitorConstants.TYPE_ERROR,
+                        "job",
+                        ErrorMonitorConstants.ACTION_RDZV_TIMEOUT,
+                        f"{class_type}={self._rdzv_round}",
+                        {
+                            "rendezvous_type": class_type,
+                            "status": "timeout",
+                            "max_nodes": f"{self._rdzv_params.max_nodes}",
+                            "min_nodes": f"{self._rdzv_params.min_nodes}",
+                            "node_group": f"{node_ids}",
+                            "node_elapsed_time": f"{waiting_time}",
+                            "error_message": "",
+                        },
+                    )
+
             return self._rdzv_round, 0, self._rdzv_nodes
 
     def report_network_check_result(self, node_rank, normal, elapsed_time):
@@ -483,14 +534,60 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                     self._fault_nodes.clear()
                     self._straggler_nodes.clear()
                     self._node_groups = self._group_nodes(self._rdzv_round)
+                    print_node_groups = self._get_print_node_groups()
                     logger.info(
                         f"Node groups of round {self._rdzv_round} "
-                        f"are: {self._get_print_node_groups()}."
+                        f"are: {print_node_groups}."
                     )
                     if self._rdzv_round % 2 == 0:
                         self._clear_check_status()
                     self._reported_nodes = set()
+                    print_node_group = []
+                    if len(print_node_groups) > self._rdzv_round:
+                        print_node_group = print_node_groups[self._rdzv_round]
+
                     self._rdzv_round += 1
+                    node_elapsed_time = time.time() - self._lastcall_time
+                    if self._error_monitor:
+                        class_type = type(self).__name__
+                        self._error_monitor.report_event(
+                            ErrorMonitorConstants.TYPE_INFO,
+                            "job",
+                            ErrorMonitorConstants.ACTION_RDZV_COMPLETE,
+                            f"{class_type}={self._rdzv_round-1}",
+                            {
+                                "rendezvous_type": class_type,
+                                "status": "success",
+                                "max_nodes": f"{self._rdzv_params.max_nodes}",
+                                "min_nodes": f"{self._rdzv_params.min_nodes}",
+                                "node_group": f"{print_node_group}",
+                                "node_elapsed_time": f"{node_elapsed_time}",
+                                "error_message": "",
+                            },
+                        )
+                waiting_time = time.time() - self._lastcall_time
+                if (
+                    waiting_time > self._rdzv_params.waiting_timeout
+                    and not rdzv_completed
+                    and self._error_monitor
+                ):
+                    node_group = self._group_nodes(self._rdzv_round)
+                    class_type = type(self).__name__
+                    self._error_monitor.report_event(
+                        ErrorMonitorConstants.TYPE_ERROR,
+                        "job",
+                        ErrorMonitorConstants.ACTION_RDZV_TIMEOUT,
+                        f"{class_type}={self._rdzv_round}",
+                        {
+                            "rendezvous_type": class_type,
+                            "status": "timeout",
+                            "max_nodes": f"{self._rdzv_params.max_nodes}",
+                            "min_nodes": f"{self._rdzv_params.min_nodes}",
+                            "node_group": json.dumps(node_group),
+                            "node_elapsed_time": f"{waiting_time}",
+                            "error_message": "",
+                        },
+                    )
             for i, group in enumerate(self._node_groups):
                 if node_rank in group:
                     return self._rdzv_round, i, group
@@ -584,6 +681,18 @@ class NetworkCheckRendezvousManager(RendezvousManager):
                 f"Round {self._rdzv_round}: The node elapsed time "
                 f"are {node_check_times}"
             )
+            if self._error_monitor:
+                class_type = type(self).__name__
+                self._error_monitor.report_event(
+                    event_type=ErrorMonitorConstants.TYPE_INFO,
+                    instance=class_type,
+                    action=ErrorMonitorConstants.ACTION_STOP,
+                    msg=f"{node_check_times}",
+                    labels={
+                        "status": json.dumps(node_status),
+                        "elapsed_time": f"{node_check_times}",
+                    },
+                )
 
     def join_rendezvous(
         self,

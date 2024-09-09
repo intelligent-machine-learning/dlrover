@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import copy
+import json
 import os
 import threading
 import time
@@ -246,7 +247,7 @@ class DistributedJobManager(JobManager):
                 ErrorMonitorConstants.TYPE_INFO,
                 "job",
                 ErrorMonitorConstants.ACTION_EARLY_STOP,
-                msg,
+                "PS OOM",
                 {},
             )
             return True, JobExitReason.PENDING_TIMEOUT, msg
@@ -266,12 +267,18 @@ class DistributedJobManager(JobManager):
             self._process_error(
                 None, 0, msg, level=TrainingExceptionLevel.ERROR
             )
+            first_pending_node = self._worker_manager.first_pending_node
             self._report_event(
                 ErrorMonitorConstants.TYPE_INFO,
                 "job",
                 ErrorMonitorConstants.ACTION_EARLY_STOP,
-                msg,
-                {},
+                "Pending nodes",
+                {
+                    "pending_nodes": json.dumps(
+                        self._worker_manager.pending_nodes
+                    ),
+                    "first_pending_node": first_pending_node,
+                },
             )
             return True, JobExitReason.PENDING_TIMEOUT, msg
 
@@ -292,8 +299,8 @@ class DistributedJobManager(JobManager):
                 ErrorMonitorConstants.TYPE_INFO,
                 "job",
                 ErrorMonitorConstants.ACTION_EARLY_STOP,
-                msg,
-                {},
+                "Not enough nodes",
+                {"nodes": json.dumps(self._worker_manager.cur_nodes)},
             )
             return True, JobExitReason.UNCOMPLETED_TIMEOUT, msg
 
@@ -703,11 +710,16 @@ class DistributedJobManager(JobManager):
             event_type = ErrorMonitorConstants.TYPE_ERROR
         logger.info(msg)
         self._report_event(
-            event_type,
-            cur_node.name,
-            ErrorMonitorConstants.ACTION_STATUS_UPDATE,
-            msg,
-            {},
+            event_type=event_type,
+            instance=cur_node.name,
+            action=ErrorMonitorConstants.ACTION_STATUS_UPDATE,
+            msg=f"{old_status} to {new_status}",
+            labels={
+                "from_state": old_status,
+                "to_state": new_status,
+                "node": cur_node.host_name,
+                "exit reason": cur_node.exit_reason,
+            },
         )
 
         if should_relaunch:
@@ -755,7 +767,7 @@ class DistributedJobManager(JobManager):
                 and not _dlrover_context.relaunch_always
             ):
                 should_relaunch = False
-                msg = "Not configure relaunch always"
+                msg = "Disable relaunch"
             elif node.exit_reason == NodeExitReason.OOM:
                 mem = node.config_resource.memory
                 if mem >= NodeResourceLimit.MAX_MEMORY:
@@ -765,16 +777,17 @@ class DistributedJobManager(JobManager):
                         mem,
                         NodeResourceLimit.MAX_MEMORY,
                     )
-                    msg = (
-                        f"The memory of worker {mem} is beyond"
-                        f" the limit {NodeResourceLimit.MAX_MEMORY} MB."
-                    )
+                    msg = f"{mem} beyond {NodeResourceLimit.MAX_MEMORY}"
                 elif node.relaunch_count >= node.max_relaunch_count:
                     should_relaunch = False
                     logger.warning(
                         "The relaunched count %s is beyond the maximum %s.",
                         node.relaunch_count,
                         node.max_relaunch_count,
+                    )
+                    msg = (
+                        f"Relaunched {node.relaunch_count} "
+                        f"beyond {node.max_relaunch_count}"
                     )
                 else:
                     node.is_recovered_oom = True
@@ -787,10 +800,14 @@ class DistributedJobManager(JobManager):
                         "has been exhausted."
                     )
                     should_relaunch = False
-                    msg = "Exhausted relaunch times"
+                    msg = (
+                        f"{node.relaunch_count} "
+                        f"exhausted {node.max_relaunch_count}"
+                    )
         if should_relaunch:
             node.relaunch_count += 1
-        else:
+
+        if not should_relaunch and len(msg) > 0:
             self._report_event(
                 ErrorMonitorConstants.TYPE_INFO,
                 node.name,
@@ -820,13 +837,16 @@ class DistributedJobManager(JobManager):
             )
         else:
             logger.error("Not support node type %s", node.type)
-        if self._error_monitor and plan and len(plan.launch_nodes) > 0:
+        if plan and len(plan.launch_nodes) > 0:
             self._report_event(
-                ErrorMonitorConstants.TYPE_INFO,
-                node.name,
-                ErrorMonitorConstants.ACTION_RELAUNCH,
-                f"relaunch to {plan.launch_nodes[0].id}",
-                {},
+                event_type=ErrorMonitorConstants.TYPE_INFO,
+                instance=node.name,
+                action=ErrorMonitorConstants.ACTION_RELAUNCH,
+                msg=f"{plan.launch_nodes[0].id}",
+                labels={
+                    "relaunch_pod": f"{plan.launch_nodes[0].id}",
+                    "node": node.host_name,
+                },
             )
         self._set_ps_addrs_in_plan(plan)
         if self._remove_exited_node:
