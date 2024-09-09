@@ -17,6 +17,7 @@ from typing import Dict
 from dlrover.python.common.constants import (
     DistributionStrategy,
     ElasticJobLabel,
+    ErrorMonitorConstants,
     JobExitReason,
     NodeType,
     OptimizeMode,
@@ -153,6 +154,7 @@ class DistributedJobMaster(JobMaster):
         self._stop_requested = False
         self._exit_code = 0
         self._exit_reason = None
+        self._error_monitor = error_monitor
 
     def _create_master_grpc_service(self, port, params: JobArgs):
         return create_master_service(
@@ -332,4 +334,19 @@ class DistributedJobMaster(JobMaster):
             logger.error(
                 f"Request to stop. Success: {success}, reason: {reason}, "
                 f"msg: {msg}."
+            )
+
+        action = ErrorMonitorConstants.ACTION_STOP
+        if not success:
+            action = ErrorMonitorConstants.ACTION_EARLY_STOP
+        if self._error_monitor:
+            self._error_monitor.report_event(
+                event_type=ErrorMonitorConstants.TYPE_ERROR,
+                instance="job",
+                action=action,
+                msg=msg,
+                labels={
+                    "reason": reason,
+                    "success": f"{success}",
+                },
             )
