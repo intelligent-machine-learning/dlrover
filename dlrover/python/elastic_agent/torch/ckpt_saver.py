@@ -378,6 +378,13 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         global_shard_num=1,
         save_timeout=CheckpointConstant.SAVE_TIMEOUT,
     ) -> None:
+        logger.info(
+            "Initializing the AsyncSaver with arguments: "
+            f"checkpoint_dir={checkpoint_dir}, "
+            f"local_shard_num={local_shard_num}, "
+            f"global_shard_num={global_shard_num}, "
+            f"save_timeout={save_timeout}"
+        )
         self.checkpoint_dir = checkpoint_dir
         self.local_shard_num = local_shard_num
         self.global_shard_num = global_shard_num
@@ -411,12 +418,7 @@ class AsyncCheckpointSaver(metaclass=ABCMeta):
         self.storage.safe_rmtree(
             os.path.join(self.checkpoint_dir, self._STAGE_DIR)
         )
-        logger.info(
-            "Initialize the AsyncSaver with arguments: "
-            f"checkpoint_dir={checkpoint_dir}, "
-            f"local_shard_num={local_shard_num}, "
-            f"global_shard_num={global_shard_num}, "
-        )
+        logger.info("AsyncSaver initialized.")
 
     def __del__(self):
         self.close()
