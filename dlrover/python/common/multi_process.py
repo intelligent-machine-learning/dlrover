@@ -69,7 +69,7 @@ def _create_socket_server(path):
     if os.path.exists(path):
         os.unlink(path)
 
-    logger.info(f"Creating socket server at {path}.")
+    logger.debug(f"Creating socket server at {path}.")
     server.bind(path)
     server.listen(0)
     return server
@@ -81,16 +81,17 @@ def _create_socket_client(path):
 
     Args:
         path (str): a file path.
-
     """
 
     try:
+        logger.debug(f"Creating socket client at {path}.")
         client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         client.connect(path)
     except Exception as e:
         logger.warning(
             "Unexpected error when creating socket client by "
-            f"path: {path}, error: {e}"
+            f"path: {path}, error: {e}",
+            exc_info=True,
         )
         raise e
     return client
@@ -182,7 +183,7 @@ class LocalSocketComm(metaclass=ABCMeta):
     """
 
     def __init__(self, name="", create=False):
-        logger.info(
+        logger.debug(
             f"Initialize(create:{create}) {self.__class__.__name__.lower()} "
             f"for {name}"
         )
@@ -264,6 +265,9 @@ class SharedLock(LocalSocketComm):
 
     def _sync(self):
         while True:
+            if not self.is_available():
+                time.sleep(1)
+                continue
             connection, _ = self._server.accept()
             try:
                 recv_data = _socket_recv(connection)
@@ -394,6 +398,9 @@ class SharedQueue(LocalSocketComm):
 
     def _sync(self):
         while True:
+            if not self.is_available():
+                time.sleep(1)
+                continue
             connection, _ = self._server.accept()
             try:
                 recv_data = _socket_recv(connection)
@@ -501,6 +508,9 @@ class SharedDict(LocalSocketComm):
 
     def _sync(self):
         while True:
+            if not self.is_available():
+                time.sleep(1)
+                continue
             connection, _ = self._server.accept()
             try:
                 recv_data = _socket_recv(connection)

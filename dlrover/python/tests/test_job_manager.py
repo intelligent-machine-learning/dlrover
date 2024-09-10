@@ -330,6 +330,17 @@ class DistributedJobManagerTest(unittest.TestCase):
         )
         manager._process_event(NodeEvent(NodeEventType.MODIFIED, node0))
 
+        # modified event + running status + no-heartbeat reason
+        node0 = Node(
+            NodeType.WORKER,
+            0,
+            NodeResource(0, 0),
+            rank_index=0,
+            status=NodeStatus.RUNNING,
+        )
+        node0.exit_reason = NodeExitReason.NO_HEARTBEAT
+        manager._process_event(NodeEvent(NodeEventType.MODIFIED, node0))
+
     def test_get_dead_node_event(self):
         params = MockK8sPSJobArgs()
         params.initilize()
