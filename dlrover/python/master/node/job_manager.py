@@ -27,6 +27,7 @@ from dlrover.python.master.node.training_node import (
 )
 from dlrover.python.master.resource.job import JobResource
 from dlrover.python.scheduler.job import JobArgs
+from dlrover.python.scheduler.kubernetes import k8sClient
 
 
 class JobManager(metaclass=ABCMeta):
@@ -42,6 +43,7 @@ class JobManager(metaclass=ABCMeta):
     ):
         self._job_resource = JobResource()
         self._job_args = job_args
+        self._k8s_client = k8sClient.singleton_instance(job_args.namespace)
         self._job_strategy_generator: SimpleStrategyGenerator = (
             SimpleStrategyGenerator(self._job_args.job_uuid)
         )

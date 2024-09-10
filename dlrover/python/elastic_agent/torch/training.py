@@ -132,12 +132,12 @@ class ElasticLaunchConfig(LaunchConfig):
         comm_perf_test: whether to test the communication performance.
         node_unit: the number of unit of nodes. The number of nodes must be
             a multiple of node_unit.
-        auto_config: whether to automatically configure the nnodes and
+        auto_config: indicate if automatically configure the nnodes and
             nproc_per_node.
         auto_tunning: whether to auto-tune the parallelism configuration.
         exclude_straggler: The node will exit if it is a straggler in network
             check and exclude_straggler is True.
-        save_at_breakpoint: wether to save the checkpoint from the shared
+        save_at_breakpoint: indicate if save the checkpoint from the shared
             memory into the disk after a failure occurs.
         accelerator: the type of accelerator processor like nvidia.com/gpu,
             ascend-npu.
@@ -162,7 +162,7 @@ class ElasticLaunchConfig(LaunchConfig):
     failure_node_errors: str = ""
 
     def set_node_unit(self, node_unit):
-        """Set the number unint of ndoes."""
+        """Set the number unit of nodes."""
         self.node_unit = node_unit
         self.rdzv_configs["node_unit"] = node_unit
 
@@ -680,9 +680,16 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     restart_count=self._restart_count,
                     run_result=run_result,
                 )
-                action = self._diagnose_agent.diagnose_training_failure(
-                    worker_context
-                )
+                try:
+                    action = self._diagnose_agent.diagnose_training_failure(
+                        worker_context
+                    )
+                except Exception as e:
+                    logger.error(f"fail to diagnose errors: {e}")
+                    if self._remaining_failovers > 0:
+                        action = DiagnoseAction.RESTART_WORKER
+                    else:
+                        action = DiagnoseAction.RELAUNCH_WORKER
                 self._process_diagnose_action(action)
                 if self._worker_group.state == WorkerState.FAILED:
                     return run_result
