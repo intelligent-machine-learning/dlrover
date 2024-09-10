@@ -164,7 +164,7 @@ class CheckpointEngine(metaclass=ABCMeta):
         replica_count=0,
     ):
         logger.info(
-            "Initialize checkpoint engine: "
+            "Initializing checkpoint engine: "
             f"{self.__class__.__name__.lower()}."
         )
         if not self.saver_proc:
@@ -176,6 +176,10 @@ class CheckpointEngine(metaclass=ABCMeta):
         self._local_rank = env_utils.get_local_rank()
         self._cached_step = 0
         self._restart_count = env_utils.get_torch_restart_count()
+
+        # init saver
+        self._notify_agent_to_create_saver()
+
         # queue for agent to save to storage, only lock rank 0 needs the queue.
         if self._local_rank == 0:
             self._event_queue = SharedQueue(
@@ -184,6 +188,8 @@ class CheckpointEngine(metaclass=ABCMeta):
             )
         else:
             self._event_queue = None  # type: ignore
+        self._update_saver_config()
+
         # lock for shared memory
         local_shard_num = self.get_local_shard_num()
         self.local_shard_id = self._local_rank % local_shard_num
@@ -191,6 +197,11 @@ class CheckpointEngine(metaclass=ABCMeta):
             self.local_shard_id
         )
         self._shm_lock = SharedLock(name=lock_name, create=False)
+
+        # need to wait until socket server created(by the saver)
+        while not self._shm_lock.is_available():
+            time.sleep(0.1)
+
         self._shm_handler = SharedMemoryHandler(
             self.local_shard_id, host=False
         )
@@ -201,11 +212,13 @@ class CheckpointEngine(metaclass=ABCMeta):
         self._saver_group = None
         self._saving_ranks: Optional[List[int]] = None
         self._init_sync_group(comm_backend)
-        self._notify_agent_to_create_saver()
-        self._update_saver_config()
         shard_num = self.get_global_shard_num()
         self._replica_manager = CkptReplicaManger.create_replica_manager(
             shard_num, replica_count
+        )
+        logger.info(
+            "Checkpoint engine initialized with "
+            f"local rank: {self._local_rank}, rank: {self._rank}."
         )
 
     def _init_sync_group(self, comm_backend):
