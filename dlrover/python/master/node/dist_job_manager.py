@@ -609,7 +609,7 @@ class DistributedJobManager(JobManager):
         if (
             event.event_type == NodeEventType.DELETED
             or node_status == NodeStatus.DELETED
-        ):
+        ) and event.node.exit_reason != NodeExitReason.NO_HEARTBEAT:
             pod_labels_selector = k8s_util.gen_k8s_label_selector_from_dict(
                 self._get_pod_unique_labels(event.node)
             )
