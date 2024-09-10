@@ -43,6 +43,8 @@ class InferenceChain:
             for inference in inferences:
                 try:
                     operator = self.get_operator(inference)
+                    if not operator:
+                        continue
                     infs = operator.infer(inferences)
                     if len(infs) > 0:
                         has_new_inference = True
@@ -63,4 +65,5 @@ class InferenceChain:
         for operator in self.operators:
             if operator.is_compatible(inference):
                 return operator
-        raise TypeError(f"no compatible operator for {inference}")
+        logger.info(f"No operator for inference: {inference.__dict__}")
+        return None  # type: ignore

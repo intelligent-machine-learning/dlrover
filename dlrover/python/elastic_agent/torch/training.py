@@ -685,7 +685,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                         worker_context
                     )
                 except Exception as e:
-                    logger.error(f"fail to diagnose errors: {e}")
+                    logger.warning(f"Failed to diagnose errors: {e}")
                     if self._remaining_failovers > 0:
                         action = DiagnoseAction.RESTART_WORKER
                     else:
@@ -699,7 +699,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     self._save_ckpt_to_storage()
                     self._restart_workers(self._worker_group)
             else:
-                raise Exception(f"[{role}] Worker group in {state.name} state")
+                raise Exception(f"[{role}] worker group in {state.name} state")
 
     def _process_diagnose_action(self, action: str):
         if action == DiagnoseAction.RESTART_WORKER:
