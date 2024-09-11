@@ -1110,6 +1110,11 @@ class DistributedJobManager(JobManager):
 
     def collect_node_heart_beat(self, node_type, node_id, timestamp):
         with self._lock:
+            if (
+                node_type not in self._job_nodes
+                or node_id not in self._job_nodes[node_type]
+            ):
+                return
             node = self._job_nodes[node_type][node_id]
             if node.heartbeat_time == 0:
                 logger.info(
