@@ -62,6 +62,10 @@ class CheckFailureNodeOperator(InferenceOperator):
             ]
         log_file = inferences[0].configs[InferenceConfigKey.LOG_FILE]
         errors = inferences[0].configs[InferenceConfigKey.ERRORS]
+        # temp usage: express the env for specified error info
+        # e.g.
+        # export FAILURE_NODE_ERRORS="error code is 12345# error code is
+        # 23456# error code is 507035"
         error_codes = errors.split("#")
 
         collector = TrainingLogCollector(log_file, 5000)

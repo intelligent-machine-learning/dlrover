@@ -688,6 +688,13 @@ class DistributedJobManagerTest(unittest.TestCase):
 
         manager.stop()
 
+        # test when job manager not init
+        manager._job_nodes = {}
+        try:
+            manager.collect_node_heart_beat("worker", 1, 111)
+        except Exception:
+            self.fail()
+
     def test_get_pending_timeout(self):
         _dlrover_context.seconds_to_wait_pending_pod = 700
         self.assertEqual(get_pending_timeout(), 700)
@@ -702,11 +709,9 @@ class LocalJobManagerTest(unittest.TestCase):
         args = LocalJobArgs("local", "default", "test")
         args.initilize()
         args.node_args[NodeType.WORKER].group_resource.count = 4
-        job_mananger = LocalJobManager(
-            args, error_monitor=SimpleErrorMonitor()
-        )
-        job_mananger.start()
-        self.assertEqual(len(job_mananger._job_nodes[NodeType.WORKER]), 4)
+        job_manager = LocalJobManager(args, error_monitor=SimpleErrorMonitor())
+        job_manager.start()
+        self.assertEqual(len(job_manager._job_nodes[NodeType.WORKER]), 4)
         gpu_stats: list[GPUStats] = [
             GPUStats(
                 index=0,
@@ -715,11 +720,11 @@ class LocalJobManagerTest(unittest.TestCase):
                 gpu_utilization=55.5,
             )
         ]
-        job_mananger.update_node_resource_usage(
+        job_manager.update_node_resource_usage(
             NodeType.WORKER, 0, 10, 10240, gpu_stats
         )
 
-        worker = job_mananger._job_nodes[NodeType.WORKER][0]
+        worker = job_manager._job_nodes[NodeType.WORKER][0]
         self.assertEqual(worker.used_resource.cpu, 10)
         self.assertEqual(worker.used_resource.memory, 10240)
         self.assertEqual(worker.used_resource.gpu_stats, gpu_stats)
@@ -727,7 +732,7 @@ class LocalJobManagerTest(unittest.TestCase):
         dataloader_config = DataLoaderConfig(1, "test_dataloader", 2, 3, 4)
         optimizer_config = OptimizerConfig(1, "test_optimizer", 2)
         paral_config = ParallelConfig(dataloader_config, optimizer_config)
-        job_mananger.update_node_paral_config(NodeType.WORKER, 0, paral_config)
-        worker = job_mananger._job_nodes[NodeType.WORKER][0]
+        job_manager.update_node_paral_config(NodeType.WORKER, 0, paral_config)
+        worker = job_manager._job_nodes[NodeType.WORKER][0]
         self.assertEqual(worker.paral_config, paral_config)
-        job_mananger.handle_training_failure(NodeType.WORKER, 3)
+        job_manager.handle_training_failure(NodeType.WORKER, 3)
