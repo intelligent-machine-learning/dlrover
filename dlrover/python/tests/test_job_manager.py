@@ -677,6 +677,10 @@ class DistributedJobManagerTest(unittest.TestCase):
 
         manager.stop()
 
+        # test when job manager not init
+        manager._job_nodes = {}
+        manager.collect_node_heart_beat("worker", 1, 111)
+
     def test_get_pending_timeout(self):
         _dlrover_context.seconds_to_wait_pending_pod = 700
         self.assertEqual(get_pending_timeout(), 700)
