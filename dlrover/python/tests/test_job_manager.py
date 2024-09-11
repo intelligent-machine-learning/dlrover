@@ -695,9 +695,7 @@ class LocalJobManagerTest(unittest.TestCase):
         args = LocalJobArgs("local", "default", "test")
         args.initilize()
         args.node_args[NodeType.WORKER].group_resource.count = 4
-        job_manager = LocalJobManager(
-            args, error_monitor=SimpleErrorMonitor()
-        )
+        job_manager = LocalJobManager(args, error_monitor=SimpleErrorMonitor())
         job_manager.start()
         self.assertEqual(len(job_manager._job_nodes[NodeType.WORKER]), 4)
         gpu_stats: list[GPUStats] = [
