@@ -167,6 +167,8 @@ class ElasticLaunchConfig(LaunchConfig):
         self.rdzv_configs["node_unit"] = node_unit
 
     def auto_configure_params(self):
+        self.training_log_file = os.getenv(NodeEnv.TRAINING_LOG_FILE, "")
+        self.failure_node_errors = os.getenv(NodeEnv.FAILURE_NODE_ERRORS, "")
         device = ""
         if torch.cuda.is_available():
             device = torch.cuda.get_device_name()
@@ -182,9 +184,6 @@ class ElasticLaunchConfig(LaunchConfig):
             self.nproc_per_node = torch.cuda.device_count()
         if self.min_nodes >= 4:
             self.network_check = True
-
-        self.training_log_file = os.getenv(NodeEnv.TRAINING_LOG_FILE, "")
-        self.failure_node_errors = os.getenv(NodeEnv.FAILURE_NODE_ERRORS, "")
 
 
 class MasterRendezvousHandler(RendezvousHandler):
@@ -872,6 +871,8 @@ def launch_agent(
         f"  monitor_interval : {config.monitor_interval}\n"
         f"  log_dir          : {config.log_dir}\n"
         f"  metrics_cfg      : {config.metrics_cfg}\n"
+        f"  training_log     : {config.training_log_file}\n"
+        f"  failure_errors   : {config.failure_node_errors}\n"
     )
 
     _set_paral_config()

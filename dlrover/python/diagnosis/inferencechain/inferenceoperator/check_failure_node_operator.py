@@ -53,6 +53,12 @@ class CheckFailureNodeOperator(InferenceOperator):
             or InferenceConfigKey.LOG_FILE not in inferences[0].configs
             or InferenceConfigKey.ERRORS not in inferences[0].configs
         ):
+            if len(inferences) > 0 and inferences[0].configs:
+                logger.error(
+                    f"invalid configurations: {inferences[0].configs}"
+                )
+            else:
+                logger.error("no configurations found")
             return [
                 Inference(
                     name=InferenceName.NODE,
