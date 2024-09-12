@@ -20,6 +20,7 @@ from torch.distributed.elastic.multiprocessing.errors import ProcessFailure
 from dlrover.python.common.constants import TrainingExceptionLevel
 from dlrover.python.common.error import ProcessError
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.common.singleton import Singleton
 from dlrover.python.common.worker import WorkerContext
 from dlrover.python.diagnosis.common.constants import (
     DiagnoseAction,
@@ -41,7 +42,7 @@ from dlrover.python.diagnosis.inferencechain.inferenceoperator.operator import (
 from dlrover.python.elastic_agent.master_client import MasterClient
 
 
-class DiagnosisAgent:
+class DiagnosisAgent(Singleton):
     def __init__(self, training_log_file: str, errors: str):
         self._client = MasterClient.singleton_instance()
         self._training_log_file = training_log_file
