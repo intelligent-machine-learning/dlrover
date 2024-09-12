@@ -91,6 +91,11 @@ class TestDiagnosisAgent(unittest.TestCase):
         action = agent.diagnose_training_failure(wc)
         self.assertEqual(action, DiagnoseAction.RELAUNCH_WORKER)
 
+        agent._errors = ""
+        wc.remaining_failovers = 2
+        action = agent.diagnose_training_failure(wc)
+        self.assertEqual(action, DiagnoseAction.RESTART_WORKER)
+
 
 if __name__ == "__main__":
     unittest.main()
