@@ -32,6 +32,15 @@ class TrainingLogCollector(DataCollector):
             return TrainingLog()
         byte_logs = read_last_n_lines(self._log_file, self._n_line)
         logs = [str(line) for line in byte_logs]
+        # only collect training logs
+        if len(logs) > 0:
+            training_start_line = 0
+            start_str = "DLRover agent started with:"
+            for i in range(len(logs)):
+                if start_str in logs[i]:
+                    training_start_line = i
+                    break
+            logs = logs[training_start_line:]
         training_log = TrainingLog(logs=logs)
         return training_log
 
