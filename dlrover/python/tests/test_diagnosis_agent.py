@@ -19,7 +19,6 @@ from diagnosis.datacollector.training_log_collector import TrainingLogCollector
 from torch.distributed.elastic.agent.server.api import RunResult, WorkerState
 from torch.distributed.launcher.api import LaunchConfig
 
-import dlrover
 from dlrover.python.common.constants import RendezvousName
 from dlrover.python.common.worker import WorkerContext
 from dlrover.python.diagnosis.common.constants import DiagnoseAction
@@ -35,7 +34,6 @@ from dlrover.python.elastic_agent.torch.training import (
     _create_worker_spec,
 )
 from dlrover.python.tests.test_utils import start_local_master
-from dlrover.python.util.file_util import read_last_n_lines
 
 
 class TestDiagnosisAgent(unittest.TestCase):
