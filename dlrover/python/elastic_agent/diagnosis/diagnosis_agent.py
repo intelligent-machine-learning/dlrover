@@ -80,13 +80,21 @@ class DiagnosisAgent(Singleton):
         if worker_context.remaining_failovers > 0 and not failure_node:
             logger.info(
                 f"[{worker_context.worker_spec.role}] Worker group "
-                f"{worker_context.run_result.state.name}. "
+                f"{worker_context.run_result.state.name}, "
+                f"is failure node: {failure_node},"
                 f"{worker_context.remaining_failovers}/"
-                f"{worker_context.worker_spec.max_restarts}"
-                f" attempts left; will restart worker group"
+                f"{worker_context.worker_spec.max_restarts} "
+                f"attempts left; will restart worker group."
             )
             return DiagnoseAction.RESTART_WORKER
         else:
+            logger.info(
+                f"[{worker_context.worker_spec.role}] Worker group "
+                f"{worker_context.run_result.state.name}, "
+                f"is failure node: {failure_node}, "
+                f"no attempts({worker_context.worker_spec.max_restarts}) "
+                "left; will relaunch."
+            )
             return DiagnoseAction.RELAUNCH_WORKER
 
     def _report_failure_to_master(
