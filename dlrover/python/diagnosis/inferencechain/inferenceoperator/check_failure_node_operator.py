@@ -73,6 +73,7 @@ class CheckFailureNodeOperator(InferenceOperator):
         # export FAILURE_NODE_ERRORS="error code is 12345# error code is
         # 23456# error code is 507035"
         error_codes = errors.split("#")
+        error_codes = [error_code.strip() for error_code in error_codes]
 
         collector = TrainingLogCollector(log_file, 5000)
         training_log = collector.collect_data()
@@ -92,7 +93,8 @@ class CheckFailureNodeOperator(InferenceOperator):
             if is_failure_node:
                 break
             for error in error_codes:
-                if error in log:
+                if len(error) > 0 and error in log:
+                    logger.info(f"Got {error} in {log}, set as failure node.")
                     is_failure_node = True
                     break
         if is_failure_node:
