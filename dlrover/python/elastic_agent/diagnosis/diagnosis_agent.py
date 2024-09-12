@@ -91,9 +91,8 @@ class DiagnosisAgent:
                 f"[{worker_context.worker_spec.role}] Worker group "
                 f"{worker_context.run_result.state.name}, "
                 f"is failure node: {failure_node}, "
-                f"{worker_context.remaining_failovers}/"
-                f"{worker_context.worker_spec.max_restarts} "
-                f"no attempts left; will relaunch."
+                f"no attempts({worker_context.worker_spec.max_restarts}) "
+                "left; will relaunch."
             )
             return DiagnoseAction.RELAUNCH_WORKER
 
