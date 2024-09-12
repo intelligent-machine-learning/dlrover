@@ -13,10 +13,13 @@
 
 import os
 import unittest
+from unittest.mock import patch
 
+from diagnosis.datacollector.training_log_collector import TrainingLogCollector
 from torch.distributed.elastic.agent.server.api import RunResult, WorkerState
 from torch.distributed.launcher.api import LaunchConfig
 
+import dlrover
 from dlrover.python.common.constants import RendezvousName
 from dlrover.python.common.worker import WorkerContext
 from dlrover.python.diagnosis.common.constants import DiagnoseAction
@@ -32,6 +35,7 @@ from dlrover.python.elastic_agent.torch.training import (
     _create_worker_spec,
 )
 from dlrover.python.tests.test_utils import start_local_master
+from dlrover.python.util.file_util import read_last_n_lines
 
 
 class TestDiagnosisAgent(unittest.TestCase):
@@ -90,6 +94,20 @@ class TestDiagnosisAgent(unittest.TestCase):
         wc.remaining_failovers = 0
         action = agent.diagnose_training_failure(wc)
         self.assertEqual(action, DiagnoseAction.RELAUNCH_WORKER)
+
+    @patch("diagnosis.datacollector.training_log_collector.read_last_n_lines")
+    def test_log_collect(self, mock_file_util):
+        mock_file_util.return_value = [
+            "test0",
+            "DLRover agent started with:",
+            "test1",
+        ]
+        training_log_collector = TrainingLogCollector(
+            log_file="test", n_line=3
+        )
+        result = training_log_collector.collect_data()
+        self.assertTrue("test0" not in result.logs)
+        self.assertTrue("test1" in result.logs)
 
 
 if __name__ == "__main__":
