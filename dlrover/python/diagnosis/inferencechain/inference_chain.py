@@ -36,6 +36,7 @@ class InferenceChain:
         self.operators = operators
 
     def infer(self) -> List[Inference]:
+        logger.info(f"Infer {self.inferences}")
         inferences = self.inferences
         while True:
             has_new_inference = False
