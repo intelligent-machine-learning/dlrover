@@ -35,8 +35,8 @@ from dlrover.python.diagnosis.common.inference_chain import (
 from dlrover.python.diagnosis.inferencechain.inference_chain import (
     InferenceChain,
 )
-from dlrover.python.diagnosis.inferencechain.inferenceoperator.check_failure_node_operator import (  # noqa: E501
-    CheckFailureNodeOperator,
+from dlrover.python.diagnosis.inferencechain.inferenceoperator.operator import (  # noqa: E501
+    get_training_failure_operators,
 )
 from dlrover.python.elastic_agent.master_client import MasterClient
 
@@ -47,8 +47,11 @@ class DiagnosisAgent:
         self._training_log_file = training_log_file
         self._errors = errors
 
-    def get_training_failure_operators(self):
-        return [CheckFailureNodeOperator()]
+        logger.info(
+            "Initializing diagnosis agent with\n"
+            f"training_log_file:    {self._training_log_file}\n"
+            f"errors:               {self._errors}"
+        )
 
     def diagnose_training_failure(self, worker_context: WorkerContext) -> str:
         self._report_failure_to_master(
@@ -64,7 +67,7 @@ class DiagnosisAgent:
                 InferenceConfigKey.ERRORS: self._errors,
             },
         )
-        ic = InferenceChain([inference], self.get_training_failure_operators())
+        ic = InferenceChain([inference], get_training_failure_operators())
         infer_results = ic.infer()
         failure_inf = Inference(
             name=InferenceName.NODE,
