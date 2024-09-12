@@ -649,6 +649,10 @@ class NetworkCheckRendezvousManager(RendezvousManager):
         abnormal_nodes = []
         normal_nodes = []
         for node_rank, status in self._node_status.items():
+            if not self._rdzv_nodes or node_rank not in self._rdzv_nodes:
+                logger.info("Skip check abnormal nodes due to rdzv manager "
+                            "hasn't been initialized.")
+                return
             node_id = self._rdzv_nodes[node_rank].node_id
             if status:
                 normal_nodes.append(node_id)
