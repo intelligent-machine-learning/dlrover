@@ -5,6 +5,7 @@
 [2024-07-03 19:15:16,761] [INFO] [accelerate.py:655:if_skip_dryrun] Dryrun will be skipped. Set ignore_dryrun_on_load_strategy to False if you want to dryrun.
 /opt/rh/rh-python38/root/usr/local/lib64/python3.8/site-packages/torch_npu/contrib/transfer_to_npu.py:171: RuntimeWarning: torch.jit.script will be disabled by transfer_to_npu, which currently does not support it.
   warnings.warn(msg, RuntimeWarning) error code is 507035
+  warnings.warn(msg, RuntimeWarning) #error code is 123456#
 
   File "/opt/rh/rh-python38/root/usr/local/lib/python3.8/site-packages/atorch/auto/opt_lib/zero_optimization.py", line 418, in apply_wrapper
     model_context.model = fsdp_clz(

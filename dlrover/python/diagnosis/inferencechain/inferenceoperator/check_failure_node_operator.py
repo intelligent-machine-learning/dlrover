@@ -93,7 +93,7 @@ class CheckFailureNodeOperator(InferenceOperator):
             if is_failure_node:
                 break
             for error in error_codes:
-                if len(error) > 0 and error in log:
+                if len(error) > 0 and "#" not in log and error in log:
                     logger.info(f"Got {error} in {log}, set as failure node.")
                     is_failure_node = True
                     break
