@@ -169,6 +169,12 @@ class ElasticLaunchConfig(LaunchConfig):
     def auto_configure_params(self):
         self.training_log_file = os.getenv(NodeEnv.TRAINING_LOG_FILE, "")
         self.failure_node_errors = os.getenv(NodeEnv.FAILURE_NODE_ERRORS, "")
+        if len(self.failure_node_errors) > 0:
+            errors = self.failure_node_errors.strip()
+            if errors[0] != "#" or errors[-1] != "#":
+                logger.warning("invalid failure node errors: %s", errors)
+                self.failure_node_errors = ""
+
         device = ""
         if torch.cuda.is_available():
             device = torch.cuda.get_device_name()
