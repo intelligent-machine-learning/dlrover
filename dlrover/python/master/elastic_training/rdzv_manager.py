@@ -460,6 +460,7 @@ class ElasticTrainingRendezvousManager(RendezvousManager):
                         )
 
                 waiting_time = time.time() - self._lastcall_time
+                node_ids = []
                 if (
                     waiting_time > self._rdzv_params.waiting_timeout
                     and not rdzv_completed
