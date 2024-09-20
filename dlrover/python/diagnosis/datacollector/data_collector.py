@@ -31,8 +31,11 @@ class DataCollector(metaclass=ABCMeta):
 
     @abstractmethod
     def collect_data(self) -> object:
+        """The implementation of data collector."""
         pass
 
     @abstractmethod
-    def to_collect_data(self) -> bool:
-        pass
+    def is_enabled(self) -> bool:
+        """Whether the collector is enabled."""
+
+        return True

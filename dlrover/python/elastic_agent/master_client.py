@@ -23,7 +23,7 @@ from dlrover.python.common.constants import NetworkFailureReason, NodeEnv
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
 from dlrover.python.diagnosis.common.diagnosis_data import (
-    ChipMetrics,
+    AgentMetric,
     CudaLog,
     TrainingLog,
 )
@@ -389,8 +389,8 @@ class MasterClient(Singleton):
         message = grpc.DiagnosisTrainingLog(training_log.timestamp)
         self._report(message)
 
-    def report_diagnosis_chip_metrics(self, chip_metrics: ChipMetrics):
-        message = grpc.DiagnosisChipMetrics(chip_metrics.timestamp)
+    def report_diagnosis_agent_metrics(self, agent_metrics: AgentMetric):
+        message = grpc.DiagnosisChipMetrics(agent_metrics.timestamp)
         self._report(message)
 
     def report_diagnosis_cuda_log(self, cuda_log: CudaLog):
@@ -416,6 +416,11 @@ class MasterClient(Singleton):
         request.step = step
         response = self._report(request)
         return response.success
+
+    def sync_training_ports(self, port) -> grpc.SyncTrainingPort:
+        request = grpc.SyncTrainingPort(port=port)
+        response: grpc.SyncTrainingPort = self._get(request)
+        return response
 
     def sync_training_ports(self, port) -> grpc.SyncTrainingPort:
         request = grpc.SyncTrainingPort(port=port)

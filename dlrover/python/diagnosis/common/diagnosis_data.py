@@ -15,65 +15,88 @@ from abc import ABCMeta, abstractmethod
 from datetime import datetime
 from typing import List, Optional
 
+from dlrover.python.diagnosis.common.constants import DiagnoseMetricType
+
 
 class DiagnosisDataType:
-    CUDALOG = "cuda_log"
-    TRAININGLOG = "training_log"
-    CHIPMETRICES = "chip_metrics"
+    CUDA_LOG = "cuda_log"
+    TRAINING_LOG = "training_log"
+    AGENT_METRICS = "agent_metrics"
 
 
 class DiagnosisData(metaclass=ABCMeta):
-    def __init__(self):
-        pass
-
-    @abstractmethod
-    def get_timestamp(self) -> float:
-        pass
-
-    @abstractmethod
-    def get_type(self) -> str:
-        pass
-
-
-class CudaLog(DiagnosisData):
-    def __init__(self, timestamp: int):
+    def __init__(self, data_type, timestamp: int = 0):
+        self._data_type = data_type
         if timestamp == 0:
-            self.timestamp = int(round(datetime.now().timestamp()))
+            self._timestamp = int(round(datetime.now().timestamp()))
         else:
-            self.timestamp = timestamp
+            self._timestamp = timestamp
 
-    def get_timestamp(self) -> int:
-        return self.timestamp
+    @property
+    def timestamp(self) -> float:
+        return self._timestamp
 
-    def get_type(self) -> str:
-        return DiagnosisDataType.CUDALOG
+    @property
+    def data_type(self) -> str:
+        return self._data_type
 
 
-class TrainingLog(DiagnosisData):
+class DiagnosisLog(DiagnosisData):
+    def __init__(self, data_type, timestamp: int = 0, logs: List[str] = None):
+        super().__init__(data_type, timestamp)
+        self._logs: Optional[List[str]] = logs
+
+    @property
+    def logs(self):
+        return self._logs
+
+
+class CudaLog(DiagnosisLog):
     def __init__(self, timestamp: int = 0, logs: List[str] = None):
-        super().__init__()
-        if timestamp == 0:
-            self.timestamp = int(round(datetime.now().timestamp()))
-        else:
-            self.timestamp = timestamp
-        self.logs: Optional[List[str]] = logs
-
-    def get_timestamp(self) -> int:
-        return self.timestamp
-
-    def get_type(self) -> str:
-        return DiagnosisDataType.TRAININGLOG
+        super().__init__(DiagnosisDataType.CUDA_LOG, timestamp, logs)
 
 
-class ChipMetrics(DiagnosisData):
-    def __init__(self, timestamp: int):
-        if timestamp == 0:
-            self.timestamp = int(round(datetime.now().timestamp()))
-        else:
-            self.timestamp = timestamp
+class TrainingLog(DiagnosisLog):
+    def __init__(self, timestamp: int = 0, logs: List[str] = None):
+        super().__init__(DiagnosisDataType.TRAINING_LOG, timestamp, logs)
 
-    def get_timestamp(self) -> int:
-        return self.timestamp
 
-    def get_type(self) -> str:
-        return DiagnosisDataType.CHIPMETRICES
+class AgentMetric(DiagnosisData):
+    def __init__(self, timestamp: int = 0, metric_type: str = DiagnoseMetricType.GENERIC, metric_content: str = "", is_final_result=False, need_report=False):
+        """
+        General metric
+
+        Args:
+            metric_type (str): Type of metric. Defaults to "GENERIC".
+            metric_content (str): Content of the metric. Defaults to "".
+            is_final_result (bool, optional): Whether the metric is final result or not. Defaults to False.
+            need_report (bool, optional): Whether the metric needs report(to Brain). Defaults to False.
+        """
+
+        super().__init__(DiagnosisDataType.AGENT_METRICS, timestamp)
+        self._metric_type = metric_type
+        self._metric_content = metric_content
+        self._is_final_result = is_final_result
+        self._need_report = need_report
+
+    @property
+    def metric_type(self):
+        return self._metric_type
+
+    @property
+    def metric_content(self):
+        return self._metric_content
+
+    @property
+    def is_final_result(self):
+        return self._is_final_result
+
+    @property
+    def need_report(self):
+        return self._need_report
+
+    def is_resolvable(self):
+        if self._metric_type == DiagnoseMetricType.TRAINING_HANG_DETECTION:
+            return True
+        # TODO: add more resolvable metric type later
+        return False

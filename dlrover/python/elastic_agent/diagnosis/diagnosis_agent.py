@@ -12,11 +12,15 @@
 # limitations under the License.
 
 import json
+import threading
+import time
 from datetime import datetime
 from typing import Dict
 
 from torch.distributed.elastic.multiprocessing.errors import ProcessFailure
 
+from diagnosis.datacollector.xpu_timer_metric_collector import \
+    XpuTimerMetricsCollector
 from dlrover.python.common.constants import TrainingExceptionLevel
 from dlrover.python.common.error import ProcessError
 from dlrover.python.common.log import default_logger as logger
@@ -24,6 +28,7 @@ from dlrover.python.common.worker import WorkerContext
 from dlrover.python.diagnosis.common.constants import (
     DiagnoseAction,
     InferenceConfigKey,
+    DiagnoseConstant,
 )
 from dlrover.python.diagnosis.common.inference_chain import (
     Inference,
@@ -46,12 +51,39 @@ class DiagnosisAgent:
         self._client = MasterClient.singleton_instance()
         self._training_log_file = training_log_file
         self._errors = errors
+        self._xpu_timer_metric_collector = XpuTimerMetricsCollector()
+        self._stopped = False
+
+        self.start()
 
         logger.info(
             "Initializing diagnosis agent with\n"
             f"training_log_file:    {self._training_log_file}\n"
             f"errors:               {self._errors}"
         )
+
+    def start(self):
+        self._stopped = False
+
+        # start a async thread to diagnose periodically
+        thread = threading.Thread(
+            target=self._periodically_diagnosis,
+            name="periodically_diagnosis",
+            daemon=True,
+        )
+        thread.start()
+
+    def stop(self):
+        self._stopped = True
+
+    def _periodically_diagnosis(self):
+        logger.info("Start periodically diagnosis...")
+        while True:
+            if self._stopped:
+                logger.info("Stop periodically diagnosis.")
+                break
+
+            time.sleep(DiagnoseConstant.AGENT_PERIODICALLY_DIAGNOSIS_INTERVAL_SECS)
 
     def diagnose_training_failure(self, worker_context: WorkerContext) -> str:
         self._report_failure_to_master(

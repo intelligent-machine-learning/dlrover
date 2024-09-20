@@ -33,7 +33,7 @@ from dlrover.python.common.constants import (
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.diagnosis_data import (
-    ChipMetrics,
+    AgentMetric,
     CudaLog,
     DiagnosisDataType,
     TrainingLog,
@@ -356,8 +356,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             success = self._report_heartbeat(node_type, node_id, message)
         elif isinstance(message, grpc.NodeCheckpointState):
             success = self._sync_checkpoint(node_type, node_id, message)
-        elif isinstance(message, grpc.DiagnosisChipMetrics):
-            success = self._report_chip_metrics(node_type, node_id, message)
+        elif isinstance(message, grpc.DiagnosisAgentMetrics):
+            success = self._report_agent_metrics(node_type, node_id, message)
         elif isinstance(message, grpc.DiagnosisCudaLog):
             success = self._report_cuda_log(node_type, node_id, message)
         elif isinstance(message, grpc.DiagnosisTrainingLog):
@@ -617,13 +617,13 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         rdzv_manager = self._rdzv_managers[RendezvousName.ELASTIC_TRAINING]
         return rdzv_manager.sync_ckpt_nodes(node_id, message.step)
 
-    def _report_chip_metrics(
-        self, node_type, node_id, message: grpc.DiagnosisChipMetrics
+    def _report_agent_metrics(
+        self, node_type, node_id, message: grpc.DiagnosisAgentMetrics
     ):
         if self._diagnosis_manager:
-            data = ChipMetrics(message.timestamp)
+            data = AgentMetric(message.timestamp)
             self._diagnosis_manager.collect_diagnosis_data(
-                DiagnosisDataType.CHIPMETRICES, data
+                DiagnosisDataType.AGENT_METRICS, data
             )
         return True
 
@@ -633,7 +633,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         if self._diagnosis_manager:
             data = TrainingLog(message.timestamp)
             self._diagnosis_manager.collect_diagnosis_data(
-                DiagnosisDataType.TRAININGLOG, data
+                DiagnosisDataType.TRAINING_LOG, data
             )
         return True
 
@@ -643,7 +643,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         if self._diagnosis_manager:
             data = CudaLog(message.timestamp)
             self._diagnosis_manager.collect_diagnosis_data(
-                DiagnosisDataType.CUDALOG, data
+                DiagnosisDataType.CUDA_LOG, data
             )
         return True
 

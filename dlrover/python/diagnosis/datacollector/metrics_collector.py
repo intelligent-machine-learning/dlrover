@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dlrover.python.diagnosis.common.diagnosis_data import ChipMetrics
+from dlrover.python.diagnosis.common.diagnosis_data import AgentMetric
 from dlrover.python.diagnosis.datacollector.data_collector import DataCollector
 
 
@@ -23,8 +23,8 @@ class MetricsCollector(DataCollector):
         pass
 
     def collect_data(self) -> object:
-        chip_metrics = ChipMetrics(0)
+        chip_metrics = AgentMetric(0)
         return chip_metrics
 
-    def to_collect_data(self) -> bool:
+    def is_enabled(self) -> bool:
         return True

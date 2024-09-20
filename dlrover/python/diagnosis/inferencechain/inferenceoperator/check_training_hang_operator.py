@@ -42,6 +42,8 @@ class CheckTrainingHangOperator(InferenceOperator):
             return False
 
     def infer(self, inferences: List[Inference]) -> List[Inference]:
+        self._data_manager.get_data()
+
         return [
             Inference(
                 name=InferenceName.END,
@@ -49,3 +51,6 @@ class CheckTrainingHangOperator(InferenceOperator):
                 description="",
             )
         ]
+
+    def get_metric_resolver(self):
+        pass

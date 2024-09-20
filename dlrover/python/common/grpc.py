@@ -499,7 +499,7 @@ class DiagnosisCudaLog(Message):
 
 
 @dataclass
-class DiagnosisChipMetrics(Message):
+class DiagnosisAgentMetrics(Message):
     timestamp: int = 0
 
 

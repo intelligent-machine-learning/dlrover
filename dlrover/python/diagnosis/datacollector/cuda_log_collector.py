@@ -28,5 +28,5 @@ class CudaLogCollector(DataCollector):
         log = CudaLog(0)
         return log
 
-    def to_collect_data(self) -> bool:
+    def is_enabled(self) -> bool:
         return True

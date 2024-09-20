@@ -18,9 +18,12 @@ from unittest.mock import patch
 from torch.distributed.elastic.agent.server.api import RunResult, WorkerState
 from torch.distributed.launcher.api import LaunchConfig
 
+from dlrover.python.diagnosis.datacollector.xpu_timer_metric_collector import \
+    XpuTimerMetricsCollector
 from dlrover.python.common.constants import RendezvousName
 from dlrover.python.common.worker import WorkerContext
-from dlrover.python.diagnosis.common.constants import DiagnoseAction
+from dlrover.python.diagnosis.common.constants import DiagnoseAction, \
+    EnvConfigKey
 from dlrover.python.diagnosis.datacollector.training_log_collector import (
     TrainingLogCollector,
 )
@@ -36,6 +39,7 @@ from dlrover.python.elastic_agent.torch.training import (
     _create_worker_spec,
 )
 from dlrover.python.tests.test_utils import start_local_master
+from dlrover.python.common import env_utils
 
 
 class TestDiagnosisAgent(unittest.TestCase):
@@ -113,9 +117,20 @@ class TestDiagnosisAgent(unittest.TestCase):
         training_log_collector = TrainingLogCollector(
             log_file="test", n_line=3
         )
+        self.assertTrue(training_log_collector.is_enabled())
         result = training_log_collector.collect_data()
         self.assertTrue("test0" not in result.logs)
         self.assertTrue("test1" in result.logs)
+
+    def test_xpu_timer_metric_collect(self):
+        collector = XpuTimerMetricsCollector()
+        self.assertFalse(collector.is_enabled())
+
+        env_utils.set_env(EnvConfigKey.XPU_TIMER_PORT, 18888)
+        collector = XpuTimerMetricsCollector()
+        self.assertTrue(collector.is_enabled())
+
+        self.assertEqual(collector.collect_data(), None)
 
 
 if __name__ == "__main__":

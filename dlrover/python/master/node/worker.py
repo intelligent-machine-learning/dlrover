@@ -368,7 +368,7 @@ class WorkerManager(TrainingNodeManager):
             pending_nodes
         ):
             logger.debug(
-                "Skip for no required nodes info " "and not all nodes pending."
+                "Skip for no required nodes info and not all nodes pending."
             )
             return False
         elif 0 < len(pending_nodes) == total_node_num:
