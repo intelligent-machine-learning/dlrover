@@ -134,9 +134,9 @@ class DistributedJobManager(JobManager):
             raise ValueError(
                 f"Distribution strategy {job_args.distribution_strategy} "
                 "is not supported. You can specify it with "
-                "ParameterServerStrategy/AllreduceStrategy."
+                "ParameterServerStrategy/AllReduceStrategy."
             )
-        logger.info("New job optimizer : %s", self._job_optimizer.__class__)
+        logger.info(f"New job optimizer: {self._job_optimizer.__class__}")
 
         worker_restart_count = node_restart_count.get(NodeType.WORKER, 0)
         ps_restart_count = node_restart_count.get(NodeType.PS, 0)
@@ -150,6 +150,12 @@ class DistributedJobManager(JobManager):
         self._ps_relaunch_max_num = min(
             ps_restart_count, _MAX_POD_RELAUNCH_COUNT
         )
+        logger.info(
+            f"Worker relaunch number: {self._relaunch_on_worker_failure}; "
+            f"PS relaunch number: {self._ps_relaunch_max_num}; "
+            f"Critical worker index: {self._critical_worker_index}."
+        )
+
         self._node_event_callbacks: List[NodeEventCallback] = []
 
         # Protects followed variables, which are accessed from event_cb.
