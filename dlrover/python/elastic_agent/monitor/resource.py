@@ -117,7 +117,7 @@ class ResourceMonitor(Singleton):
 
         # The first time called cpu_percent will return a meaningless 0.0
         # value which we are supposed to ignore. So, here we call it at
-        # the begining of monitor and the next value is valid.
+        # the beginning of monitor and the next value is valid.
         get_process_cpu_percent()
 
     def stop(self):
