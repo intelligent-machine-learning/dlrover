@@ -16,6 +16,7 @@ import socket
 import threading
 import time
 from contextlib import closing
+from typing import Dict
 
 from dlrover.proto import elastic_training_pb2, elastic_training_pb2_grpc
 from dlrover.python.common import env_utils, grpc
@@ -421,6 +422,11 @@ class MasterClient(Singleton):
         request = grpc.SyncTrainingPort(port=port)
         response: grpc.SyncTrainingPort = self._get(request)
         return response
+
+    def get_elastic_run_config(self) -> Dict[str, str]:
+        request = grpc.ElasticRunConfigRequest()
+        response: grpc.ElasticRunConfig = self._get(request)
+        return response.configs
 
     @classmethod
     def singleton_instance(cls, *args, **kwargs):
