@@ -200,11 +200,15 @@ class RendezvousManager(metaclass=ABCMeta):
         """
 
         lacking_ranks: List[int] = []
-        if self._rdzv_params is None or self._rdzv_params.min_nodes <= 0:
+        if (
+            self._rdzv_params is None
+            or self._rdzv_params.min_nodes <= 0
+            or self._rdzv_params.max_nodes <= 0
+        ):
             return lacking_ranks
 
-        min_required = self._rdzv_params.min_nodes
-        min_ranks = set([i for i in range(min_required)])
+        max_required = self._rdzv_params.max_nodes
+        min_ranks = set([i for i in range(max_required)])
         if self._waiting_nodes:
             waiting_ranks = set(self._waiting_nodes.keys())
         else:
