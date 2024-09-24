@@ -138,7 +138,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         elif isinstance(req_message, grpc.SyncTrainingPort):
             message = self._sync_training_ports(node_id, req_message)
         elif isinstance(req_message, grpc.ElasticRunConfigRequest):
-            message = grpc.ElasticRunConfig(configs={})
+            configs = self._job_manager.get_elastic_run_configs()
+            message = grpc.ElasticRunConfig(configs=configs)
 
         if message:
             response.data = message.serialize()

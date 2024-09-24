@@ -40,6 +40,7 @@ class JobManager(metaclass=ABCMeta):
         job_args: JobArgs,
         speed_monitor=None,
         error_monitor=None,
+        external_configure=None,
     ):
         self._job_resource = JobResource()
         self._job_args = job_args
@@ -55,7 +56,9 @@ class JobManager(metaclass=ABCMeta):
         self._job_nodes: Dict[str, Dict[int, Node]] = {}
         self._nodes_required = (0, 0, 0)
 
-        self._training_node_configure = TrainingNodeConfigure()
+        self._training_node_configure = TrainingNodeConfigure(
+            external_configure
+        )
 
     @abstractmethod
     def start(self):
@@ -227,3 +230,6 @@ class JobManager(metaclass=ABCMeta):
         """Callback when 'update_node_required_info' is invoked."""
 
         pass
+
+    def get_elastic_run_configs(self) -> Dict[str, str]:
+        return self._training_node_configure.get_elastic_run_configs()

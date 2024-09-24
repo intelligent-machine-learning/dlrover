@@ -60,14 +60,11 @@ class ElasticRunTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             _check_to_use_dlrover_run("127.0.0.1:12345", 2, 3)
 
-    @patch(f"{MC_PATH}.get_elastic_run_config")
-    def test_elastic_config_from_args(self, mock_func):
+    def test_elastic_config_from_args(self):
         self._master, addr = start_local_master()
         MasterClient._instance = build_master_client(addr, 1)
-        mock_func.return_value = {
-            "network_check": "True",
-        }
         args = [
+            "--network_check",
             "--comm_perf_test",
             "--auto_tunning",
             "--node_unit",
@@ -90,3 +87,31 @@ class ElasticRunTest(unittest.TestCase):
         self.assertEqual(config.training_port, 1000)
         self.assertEqual(cmd, "/usr/local/bin/python")
         self.assertListEqual(cmd_args, ["-u", "test.py", "--batch_size", "16"])
+
+    @patch(f"{MC_PATH}.get_elastic_run_config")
+    def test_elastic_config_from_master(self, mock_func):
+        self._master, addr = start_local_master()
+        MasterClient._instance = build_master_client(addr, 1)
+        mock_func.return_value = {
+            "network_check": "True",
+            "comm_perf_test": "True",
+            "auto_tunning": "True",
+            "auto_config": "True",
+            "exclude_straggler": "True",
+            "save_at_breakpoint": "True",
+        }
+        args = [
+            "--training_port",
+            "1000",
+            "test.py",
+            "--batch_size",
+            "16",
+        ]
+        args = parse_args(args)
+        config, cmd, cmd_args = _elastic_config_from_args(args)
+        self.assertTrue(config.network_check)
+        self.assertTrue(config.comm_perf_test)
+        self.assertTrue(config.auto_tunning)
+        self.assertTrue(config.auto_config)
+        self.assertTrue(config.exclude_straggler)
+        self.assertTrue(config.save_at_breakpoint)
