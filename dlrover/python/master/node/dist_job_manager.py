@@ -106,7 +106,7 @@ class DistributedJobManager(JobManager):
             job_args=job_args,
             speed_monitor=speed_monitor,
             error_monitor=error_monitor,
-            external_configure=external_configure
+            external_configure=external_configure,
         )
         self._remove_exited_node = job_args.remove_exited_node
         node_restart_count: Dict[str, int] = {}
