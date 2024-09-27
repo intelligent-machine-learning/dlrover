@@ -25,7 +25,7 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Callable, Dict, List, Optional, Union, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import torch
 import torch.distributed.elastic.timer as timer
@@ -500,11 +500,11 @@ class ElasticTrainingAgent(LocalElasticAgent):
         )
 
     def _set_master_addr_port(
-            self,
-            store: Store,
-            master_addr: Optional[str],
-            master_port: Optional[int],
-            local_addr: Optional[str],
+        self,
+        store: Store,
+        master_addr: Optional[str],
+        master_port: Optional[int],
+        local_addr: Optional[str],
     ):
         if master_port is None:
             sock = self._get_socket_with_port()
@@ -544,8 +544,10 @@ class ElasticTrainingAgent(LocalElasticAgent):
             func(port)
         """
         addrs = socket.getaddrinfo(
-            host="localhost", port=None, family=socket.AF_UNSPEC,
-            type=socket.SOCK_STREAM
+            host="localhost",
+            port=None,
+            family=socket.AF_UNSPEC,
+            type=socket.SOCK_STREAM,
         )
         for addr in addrs:
             family, type, proto, _, _ = addr
@@ -702,7 +704,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 global_world_size,
                 base_role_rank,
                 role_world_size,
-            ) = json.loads(self._store.get(f"{ASSIGNED_RANKS_PREFIX}{group_rank}"))
+            ) = json.loads(
+                self._store.get(f"{ASSIGNED_RANKS_PREFIX}{group_rank}")
+            )
 
             workers = []
             for local_rank in range(spec.local_world_size):
