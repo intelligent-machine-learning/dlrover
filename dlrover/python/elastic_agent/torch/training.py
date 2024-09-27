@@ -543,7 +543,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
             role_infos.append(role_info)
         group_rank = nodes.index(node_id)
 
-        if version_less_than_240:
+        if version_less_than_240():
             my_role_info = role_infos[group_rank]
             worker_world_size, worker_global_ranks = self._get_ranks(
                 role_infos, group_rank
