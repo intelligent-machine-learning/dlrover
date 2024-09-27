@@ -25,7 +25,16 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import (
+    Any,
+    Callable,
+    DefaultDict,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    Union,
+)
 
 import torch
 import torch.distributed.elastic.timer as timer
@@ -504,7 +513,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         store: Store,
         master_addr: Optional[str],
         master_port: Optional[int],
-        local_addr: Optional[str],
+        local_addr: Optional[str] = None,
     ):
         if master_port is None:
             sock = self._get_socket_with_port()
@@ -512,7 +521,8 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 master_port = sock.getsockname()[1]
 
         if master_addr is None:
-            # If user specified the address for the local node, use it as the master addr if not exist
+            # If user specified the address for the local node,
+            # use it as the master addr if not exist
             if local_addr:
                 master_addr = local_addr
             else:
@@ -669,7 +679,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     for info_bytes in role_infos_bytes
                 ]
 
-                role_sizes = defaultdict(lambda: 0)
+                role_sizes: DefaultDict[str, int] = defaultdict(lambda: 0)
                 global_size = 0
                 for role_info in role_infos:
                     role_sizes[role_info.role] += role_info.local_world_size
