@@ -20,6 +20,7 @@ import socket
 import tempfile
 import time
 import uuid
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -88,7 +89,10 @@ from dlrover.python.elastic_agent.master_client import MasterClient
 from dlrover.python.elastic_agent.monitor.training import TorchTrainingMonitor
 from dlrover.python.elastic_agent.torch.ckpt_saver import AsyncCheckpointSaver
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
-from dlrover.trainer.torch.utils import version_less_than_230
+from dlrover.trainer.torch.utils import (
+    version_less_than_230,
+    version_less_than_240,
+)
 
 try:
     from torch_npu.contrib import transfer_to_npu  # noqa: F401
@@ -538,34 +542,114 @@ class ElasticTrainingAgent(LocalElasticAgent):
             )
             role_infos.append(role_info)
         group_rank = nodes.index(node_id)
-        my_role_info = role_infos[group_rank]
-        worker_world_size, worker_global_ranks = self._get_ranks(
-            role_infos, group_rank
-        )
-        role_infos = sorted(
-            role_infos, key=functools.cmp_to_key(_RoleInstanceInfo.compare)
-        )
-        role_start_idx, role_end_idx = _RoleInstanceInfo.find_role_boundaries(
-            role_infos, my_role_info.role
-        )
-        role_pos = next(
-            idx
-            for idx, role_info in enumerate(role_infos)
-            if _RoleInstanceInfo.compare(role_info, my_role_info) == 0
-        )
-        role_world_size, role_ranks = self._get_ranks(
-            role_infos, role_pos, role_start_idx, role_end_idx + 1
-        )
-        workers = []
-        for ind in range(spec.local_world_size):
-            worker = Worker(
-                local_rank=ind,
-                global_rank=worker_global_ranks[ind],
-                role_rank=role_ranks[ind],
-                world_size=worker_world_size,
-                role_world_size=role_world_size,
+
+        if version_less_than_240:
+            my_role_info = role_infos[group_rank]
+            worker_world_size, worker_global_ranks = self._get_ranks(
+                role_infos, group_rank
             )
-            workers.append(worker)
+            role_infos = sorted(
+                role_infos, key=functools.cmp_to_key(_RoleInstanceInfo.compare)
+            )
+            (
+                role_start_idx,
+                role_end_idx,
+            ) = _RoleInstanceInfo.find_role_boundaries(
+                role_infos, my_role_info.role
+            )
+            role_pos = next(
+                idx
+                for idx, role_info in enumerate(role_infos)
+                if _RoleInstanceInfo.compare(role_info, my_role_info) == 0
+            )
+            role_world_size, role_ranks = self._get_ranks(
+                role_infos, role_pos, role_start_idx, role_end_idx + 1
+            )
+            workers = []
+            for ind in range(spec.local_world_size):
+                worker = Worker(
+                    local_rank=ind,
+                    global_rank=worker_global_ranks[ind],
+                    role_rank=role_ranks[ind],
+                    world_size=worker_world_size,
+                    role_world_size=role_world_size,
+                )
+                workers.append(worker)
+        else:
+            with self.record_duration("RENDEZVOUS"):
+                rdzv_info = spec.rdzv_handler.next_rendezvous()
+            store = rdzv_info.store
+            group_world_size = rdzv_info.world_size
+
+            ROLE_INFO_PREFIX = "torchelastic/role_info/"
+            ASSIGNED_RANKS_PREFIX = "torchelastic/assigned_ranks/"
+
+            agent_role_info = _RoleInstanceInfo(
+                spec.role, group_rank, spec.local_world_size
+            )
+            store.set(
+                f"{ROLE_INFO_PREFIX}{group_rank}", agent_role_info.serialize()
+            )
+
+            if group_rank == 0:
+                role_infos_bytes = store.multi_get(
+                    [
+                        f"torchelastic/role_info/{i}"
+                        for i in range(group_world_size)
+                    ]
+                )
+                role_infos = [
+                    _RoleInstanceInfo.deserialize(info_bytes)
+                    for info_bytes in role_infos_bytes
+                ]
+
+                role_sizes = defaultdict(lambda: 0)
+                global_size = 0
+                for role_info in role_infos:
+                    role_sizes[role_info.role] += role_info.local_world_size
+                    global_size += role_info.local_world_size
+
+                base_global_rank = 0
+                role_ranks = defaultdict(lambda: 0)
+
+                keys = []
+                values = []
+                for i, role_info in enumerate(role_infos):
+                    keys.append(f"{ASSIGNED_RANKS_PREFIX}{i}")
+                    values.append(
+                        json.dumps(
+                            [
+                                base_global_rank,
+                                global_size,
+                                role_ranks[role_info.role],
+                                role_sizes[role_info.role],
+                            ]
+                        )
+                    )
+
+                    base_global_rank += role_info.local_world_size
+                    role_ranks[role_info.role] += role_info.local_world_size
+
+                store.multi_set(keys, values)
+
+            # get will block until the data is available in the store.
+            (
+                base_global_rank,
+                global_world_size,
+                base_role_rank,
+                role_world_size,
+            ) = json.loads(store.get(f"{ASSIGNED_RANKS_PREFIX}{group_rank}"))
+
+            workers = []
+            for local_rank in range(spec.local_world_size):
+                worker = Worker(
+                    local_rank=local_rank,
+                    global_rank=base_global_rank + local_rank,
+                    role_rank=base_role_rank + local_rank,
+                    world_size=global_world_size,
+                    role_world_size=role_world_size,
+                )
+                workers.append(worker)
         return workers
 
     def _initialize_workers(self, worker_group):
