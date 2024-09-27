@@ -22,9 +22,10 @@ import time
 import uuid
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union, Tuple
 
 import torch
 import torch.distributed.elastic.timer as timer
@@ -459,6 +460,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
         if group_rank == 0:
             spec.master_port = self._get_free_port()
+
             if hasattr(spec, "local_addr"):
                 self._set_master_addr_port(
                     store,
@@ -476,6 +478,11 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
         master_addr, master_port = self._get_master_addr_port(store)
 
+        # compatible with torch 2.4
+        if not version_less_than_240():
+            worker_group.master_addr = master_addr
+            worker_group.master_port = master_port
+
         logger.info(
             f"[{spec.role}] Rendezvous complete for workers. Result:\n"
             f"  restart_count={self._restart_count}\n"
@@ -491,6 +498,66 @@ class ElasticTrainingAgent(LocalElasticAgent):
             f"  global_world_sizes="
             f"{[worker.world_size for worker in workers]}\n"
         )
+
+    def _set_master_addr_port(
+            self,
+            store: Store,
+            master_addr: Optional[str],
+            master_port: Optional[int],
+            local_addr: Optional[str],
+    ):
+        if master_port is None:
+            sock = self._get_socket_with_port()
+            with closing(sock):
+                master_port = sock.getsockname()[1]
+
+        if master_addr is None:
+            # If user specified the address for the local node, use it as the master addr if not exist
+            if local_addr:
+                master_addr = local_addr
+            else:
+                master_addr = _get_fq_hostname()
+
+        store.set("MASTER_ADDR", master_addr.encode(encoding="UTF-8"))
+        store.set("MASTER_PORT", str(master_port).encode(encoding="UTF-8"))
+        os.environ["MASTER_ADDR"] = master_addr
+        os.environ["MASTER_PORT"] = str(master_port)
+
+    def _get_master_addr_port(self, store: Store) -> Tuple[str, int]:
+        master_addr = store.get("MASTER_ADDR").decode(encoding="UTF-8")
+        master_port = int(store.get("MASTER_PORT").decode(encoding="UTF-8"))
+        return (master_addr, master_port)
+
+    def _get_socket_with_port(self) -> socket.socket:
+        """Return a free port on localhost.
+
+        The free port is "reserved" by binding a temporary socket on it.
+        Close the socket before passing the port to the entity that
+        requires it. Usage example::
+
+        sock = _get_socket_with_port()
+        with closing(sock):
+            port = sock.getsockname()[1]
+            sock.close()
+            # there is still a race-condition that some other process
+            # may grab this port before func() runs
+            func(port)
+        """
+        addrs = socket.getaddrinfo(
+            host="localhost", port=None, family=socket.AF_UNSPEC,
+            type=socket.SOCK_STREAM
+        )
+        for addr in addrs:
+            family, type, proto, _, _ = addr
+            s = socket.socket(family, type, proto)
+            try:
+                s.bind(("localhost", 0))
+                s.listen(0)
+                return s
+            except OSError as e:
+                s.close()
+                logger.info("Socket creation attempt failed.", exc_info=e)
+        raise RuntimeError("Failed to create a socket")
 
     def _get_free_port(self):
         """Find a free port from the HOST_PORTS in env."""
@@ -576,10 +643,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 )
                 workers.append(worker)
         else:
-            with self.record_duration("RENDEZVOUS"):
-                rdzv_info = spec.rdzv_handler.next_rendezvous()
-            store = rdzv_info.store
-            group_world_size = rdzv_info.world_size
+            group_world_size = len(world)
 
             ROLE_INFO_PREFIX = "torchelastic/role_info/"
             ASSIGNED_RANKS_PREFIX = "torchelastic/assigned_ranks/"
@@ -587,12 +651,12 @@ class ElasticTrainingAgent(LocalElasticAgent):
             agent_role_info = _RoleInstanceInfo(
                 spec.role, group_rank, spec.local_world_size
             )
-            store.set(
+            self._store.set(
                 f"{ROLE_INFO_PREFIX}{group_rank}", agent_role_info.serialize()
             )
 
             if group_rank == 0:
-                role_infos_bytes = store.multi_get(
+                role_infos_bytes = self._store.multi_get(
                     [
                         f"torchelastic/role_info/{i}"
                         for i in range(group_world_size)
@@ -630,7 +694,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                     base_global_rank += role_info.local_world_size
                     role_ranks[role_info.role] += role_info.local_world_size
 
-                store.multi_set(keys, values)
+                self._store.multi_set(keys, values)
 
             # get will block until the data is available in the store.
             (
@@ -638,7 +702,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 global_world_size,
                 base_role_rank,
                 role_world_size,
-            ) = json.loads(store.get(f"{ASSIGNED_RANKS_PREFIX}{group_rank}"))
+            ) = json.loads(self._store.get(f"{ASSIGNED_RANKS_PREFIX}{group_rank}"))
 
             workers = []
             for local_rank in range(spec.local_world_size):
