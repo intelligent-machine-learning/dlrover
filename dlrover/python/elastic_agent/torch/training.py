@@ -769,7 +769,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 break
 
     @prof
-    def _stop_workers(self, worker_group: WorkerGroup, timeout=300) -> None:
+    def _stop_workers(
+        self, worker_group: WorkerGroup, is_restart=False, timeout=300
+    ) -> None:
         try:
             signal.signal(signal.SIGALRM, self._stop_timeout_handler)
             signal.alarm(timeout)
@@ -778,7 +780,10 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 logger.info("stop workers via SIGKILL")
                 self._shutdown(death_sig=signal.SIGKILL)
             else:
-                super()._stop_workers(worker_group)
+                if version_less_than_240():
+                    super()._stop_workers(worker_group)
+                else:
+                    super()._stop_workers(worker_group, is_restart)
 
             signal.alarm(0)
         except TimeoutError as te:
