@@ -508,6 +508,11 @@ class ElasticTrainingAgent(LocalElasticAgent):
             f"{[worker.world_size for worker in workers]}\n"
         )
 
+    """
+    The following function(copied from torch 230) is used to 
+    compatible with torch < 240
+    """
+
     def _set_master_addr_port(
         self,
         store: Store,
@@ -570,6 +575,11 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 s.close()
                 logger.info("Socket creation attempt failed.", exc_info=e)
         raise RuntimeError("Failed to create a socket")
+
+    """
+    The above function(copied from torch 230) is used to 
+    compatible with torch < 240
+    """
 
     def _get_free_port(self):
         """Find a free port from the HOST_PORTS in env."""
