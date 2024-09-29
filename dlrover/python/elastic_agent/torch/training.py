@@ -509,7 +509,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         )
 
     """
-    The following function(copied from torch 230) is used to 
+    The following function(copied from torch 230) is used to
     compatible with torch < 240
     """
 
@@ -577,7 +577,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
         raise RuntimeError("Failed to create a socket")
 
     """
-    The above function(copied from torch 230) is used to 
+    The above function(copied from torch 230) is used to
     compatible with torch < 240
     """
 
