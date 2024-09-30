@@ -172,23 +172,24 @@ class ElasticTrainingRendezvousManagerTest(unittest.TestCase):
         rdzv_manager = ElasticTrainingRendezvousManager(error_monitor)
 
         rdzv_manager._rdzv_params.min_nodes = 4
+        rdzv_manager._rdzv_params.max_nodes = 4
         rdzv_manager._waiting_nodes = {0: 0, 1: 1, 2: 2, 3: 3}
         self.assertEqual(rdzv_manager._get_lacking_ranks(), [])
 
-        rdzv_manager._rdzv_params.min_nodes = 5
+        rdzv_manager._rdzv_params.max_nodes = 5
         self.assertEqual(rdzv_manager._get_lacking_ranks(), [4])
 
-        rdzv_manager._rdzv_params.min_nodes = 3
+        rdzv_manager._rdzv_params.max_nodes = 3
         self.assertEqual(rdzv_manager._get_lacking_ranks(), [])
 
-        rdzv_manager._rdzv_params.min_nodes = 6
+        rdzv_manager._rdzv_params.max_nodes = 6
         self.assertEqual(rdzv_manager._get_lacking_ranks(), [4, 5])
 
-        rdzv_manager._rdzv_params.min_nodes = 4
+        rdzv_manager._rdzv_params.max_nodes = 4
         rdzv_manager._waiting_nodes = {}
         self.assertEqual(rdzv_manager._get_lacking_ranks(), [0, 1, 2, 3])
 
-        rdzv_manager._rdzv_params.min_nodes = 0
+        rdzv_manager._rdzv_params.max_nodes = 0
         self.assertEqual(rdzv_manager._get_lacking_ranks(), [])
 
     def test_multi_updating_waiting_nodes(self):

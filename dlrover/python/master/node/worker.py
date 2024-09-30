@@ -373,7 +373,7 @@ class WorkerManager(TrainingNodeManager):
             return False
         elif 0 < len(pending_nodes) == total_node_num:
             # all nodes pending
-            logger.debug(f"All nodes pending: {pending_nodes}.")
+            logger.info(f"All nodes pending: {pending_nodes}.")
         else:
             # partial nodes pending
             # with condition 1 + 2
@@ -404,7 +404,10 @@ class WorkerManager(TrainingNodeManager):
         if now - first_pending_node.create_time.timestamp() > timeout:
             logger.warning(
                 f"Node {first_pending_node.name} "
-                f"exceeded pending timeout: {timeout}s."
+                f"exceeded pending timeout: {timeout}s, "
+                f"running nodes(size:{len(running_nodes)}): {running_nodes}, "
+                f"pending nodes(size:{len(pending_nodes)}): {pending_nodes}, "
+                f"min required nodes size: {self.get_min_nodes_required()}."
             )
             return True
 

@@ -124,13 +124,17 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         )
         os.environ["NODE_NUM"] = "4"
         os.environ["TRAINING_LOG_FILE"] = "training_log"
-        os.environ["FAILURE_NODE_ERRORS"] = "errors"
+        os.environ["FAILURE_NODE_ERRORS"] = "#errors#"
         config.auto_configure_params()
         self.assertEqual(config.max_nodes, 4)
         self.assertEqual(config.min_nodes, 4)
         self.assertTrue(config.network_check)
         self.assertEqual(config.training_log_file, "training_log")
-        self.assertEqual(config.failure_node_errors, "errors")
+        self.assertEqual(config.failure_node_errors, "#errors#")
+
+        os.environ["FAILURE_NODE_ERRORS"] = " #errors"
+        config.auto_configure_params()
+        self.assertEqual(config.failure_node_errors, "")
 
     def test_rank0_rendzevous(self):
         agent = ElasticTrainingAgent(
@@ -420,7 +424,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         )
 
         # without timeout
-        agent._stop_workers(None, 3)
+        agent._stop_workers(None, is_restart=False, timeout=3)
 
         def sleep_10_seconds(*args, **kwargs):
             time.sleep(10)
@@ -438,7 +442,7 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
                 log_dir=self.config.log_dir,
             )
             try:
-                agent._stop_workers(None, 3)
+                agent._stop_workers(None, is_restart=False, timeout=3)
                 self.fail()
             except TimeoutError:
                 self.assertTrue(True)

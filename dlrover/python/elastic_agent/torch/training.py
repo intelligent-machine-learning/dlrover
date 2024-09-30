@@ -20,10 +20,21 @@ import socket
 import tempfile
 import time
 import uuid
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import (
+    Any,
+    Callable,
+    DefaultDict,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    Union,
+)
 
 import torch
 import torch.distributed.elastic.timer as timer
@@ -88,7 +99,10 @@ from dlrover.python.elastic_agent.master_client import MasterClient
 from dlrover.python.elastic_agent.monitor.training import TorchTrainingMonitor
 from dlrover.python.elastic_agent.torch.ckpt_saver import AsyncCheckpointSaver
 from dlrover.python.elastic_agent.torch.master_kv_store import MasterKVStore
-from dlrover.trainer.torch.utils import version_less_than_230
+from dlrover.trainer.torch.utils import (
+    version_less_than_230,
+    version_less_than_240,
+)
 
 try:
     from torch_npu.contrib import transfer_to_npu  # noqa: F401
@@ -169,6 +183,12 @@ class ElasticLaunchConfig(LaunchConfig):
     def auto_configure_params(self):
         self.training_log_file = os.getenv(NodeEnv.TRAINING_LOG_FILE, "")
         self.failure_node_errors = os.getenv(NodeEnv.FAILURE_NODE_ERRORS, "")
+        if len(self.failure_node_errors) > 0:
+            errors = self.failure_node_errors.strip()
+            if errors[0] != "#" or errors[-1] != "#":
+                logger.warning("invalid failure node errors: %s", errors)
+                self.failure_node_errors = ""
+
         device = ""
         if torch.cuda.is_available():
             device = torch.cuda.get_device_name()
@@ -449,6 +469,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
         if group_rank == 0:
             spec.master_port = self._get_free_port()
+
             if hasattr(spec, "local_addr"):
                 self._set_master_addr_port(
                     store,
@@ -466,6 +487,11 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
         master_addr, master_port = self._get_master_addr_port(store)
 
+        # compatible with torch 2.4
+        if not version_less_than_240():
+            worker_group.master_addr = master_addr
+            worker_group.master_port = master_port
+
         logger.info(
             f"[{spec.role}] Rendezvous complete for workers. Result:\n"
             f"  restart_count={self._restart_count}\n"
@@ -481,6 +507,79 @@ class ElasticTrainingAgent(LocalElasticAgent):
             f"  global_world_sizes="
             f"{[worker.world_size for worker in workers]}\n"
         )
+
+    """
+    The following function(copied from torch 230) is used to
+    compatible with torch < 240
+    """
+
+    def _set_master_addr_port(
+        self,
+        store: Store,
+        master_addr: Optional[str],
+        master_port: Optional[int],
+        local_addr: Optional[str] = None,
+    ):
+        if master_port is None:
+            sock = self._get_socket_with_port()
+            with closing(sock):
+                master_port = sock.getsockname()[1]
+
+        if master_addr is None:
+            # If user specified the address for the local node,
+            # use it as the master addr if not exist
+            if local_addr:
+                master_addr = local_addr
+            else:
+                master_addr = _get_fq_hostname()
+
+        store.set("MASTER_ADDR", master_addr.encode(encoding="UTF-8"))
+        store.set("MASTER_PORT", str(master_port).encode(encoding="UTF-8"))
+        os.environ["MASTER_ADDR"] = master_addr
+        os.environ["MASTER_PORT"] = str(master_port)
+
+    def _get_master_addr_port(self, store: Store) -> Tuple[str, int]:
+        master_addr = store.get("MASTER_ADDR").decode(encoding="UTF-8")
+        master_port = int(store.get("MASTER_PORT").decode(encoding="UTF-8"))
+        return (master_addr, master_port)
+
+    def _get_socket_with_port(self) -> socket.socket:
+        """Return a free port on localhost.
+
+        The free port is "reserved" by binding a temporary socket on it.
+        Close the socket before passing the port to the entity that
+        requires it. Usage example::
+
+        sock = _get_socket_with_port()
+        with closing(sock):
+            port = sock.getsockname()[1]
+            sock.close()
+            # there is still a race-condition that some other process
+            # may grab this port before func() runs
+            func(port)
+        """
+        addrs = socket.getaddrinfo(
+            host="localhost",
+            port=None,
+            family=socket.AF_UNSPEC,
+            type=socket.SOCK_STREAM,
+        )
+        for addr in addrs:
+            family, type, proto, _, _ = addr
+            s = socket.socket(family, type, proto)
+            try:
+                s.bind(("localhost", 0))
+                s.listen(0)
+                return s
+            except OSError as e:
+                s.close()
+                logger.info("Socket creation attempt failed.", exc_info=e)
+        raise RuntimeError("Failed to create a socket")
+
+    """
+    The above function(copied from torch 230) is used to
+    compatible with torch < 240
+    """
 
     def _get_free_port(self):
         """Find a free port from the HOST_PORTS in env."""
@@ -532,34 +631,113 @@ class ElasticTrainingAgent(LocalElasticAgent):
             )
             role_infos.append(role_info)
         group_rank = nodes.index(node_id)
-        my_role_info = role_infos[group_rank]
-        worker_world_size, worker_global_ranks = self._get_ranks(
-            role_infos, group_rank
-        )
-        role_infos = sorted(
-            role_infos, key=functools.cmp_to_key(_RoleInstanceInfo.compare)
-        )
-        role_start_idx, role_end_idx = _RoleInstanceInfo.find_role_boundaries(
-            role_infos, my_role_info.role
-        )
-        role_pos = next(
-            idx
-            for idx, role_info in enumerate(role_infos)
-            if _RoleInstanceInfo.compare(role_info, my_role_info) == 0
-        )
-        role_world_size, role_ranks = self._get_ranks(
-            role_infos, role_pos, role_start_idx, role_end_idx + 1
-        )
-        workers = []
-        for ind in range(spec.local_world_size):
-            worker = Worker(
-                local_rank=ind,
-                global_rank=worker_global_ranks[ind],
-                role_rank=role_ranks[ind],
-                world_size=worker_world_size,
-                role_world_size=role_world_size,
+
+        if version_less_than_240():
+            my_role_info = role_infos[group_rank]
+            worker_world_size, worker_global_ranks = self._get_ranks(
+                role_infos, group_rank
             )
-            workers.append(worker)
+            role_infos = sorted(
+                role_infos, key=functools.cmp_to_key(_RoleInstanceInfo.compare)
+            )
+            (
+                role_start_idx,
+                role_end_idx,
+            ) = _RoleInstanceInfo.find_role_boundaries(
+                role_infos, my_role_info.role
+            )
+            role_pos = next(
+                idx
+                for idx, role_info in enumerate(role_infos)
+                if _RoleInstanceInfo.compare(role_info, my_role_info) == 0
+            )
+            role_world_size, role_ranks = self._get_ranks(
+                role_infos, role_pos, role_start_idx, role_end_idx + 1
+            )
+            workers = []
+            for ind in range(spec.local_world_size):
+                worker = Worker(
+                    local_rank=ind,
+                    global_rank=worker_global_ranks[ind],
+                    role_rank=role_ranks[ind],
+                    world_size=worker_world_size,
+                    role_world_size=role_world_size,
+                )
+                workers.append(worker)
+        else:
+            group_world_size = len(world)
+
+            ROLE_INFO_PREFIX = "torchelastic/role_info/"
+            ASSIGNED_RANKS_PREFIX = "torchelastic/assigned_ranks/"
+
+            agent_role_info = _RoleInstanceInfo(
+                spec.role, group_rank, spec.local_world_size
+            )
+            self._store.set(
+                f"{ROLE_INFO_PREFIX}{group_rank}", agent_role_info.serialize()
+            )
+
+            if group_rank == 0:
+                role_infos_bytes = self._store.multi_get(
+                    [
+                        f"torchelastic/role_info/{i}"
+                        for i in range(group_world_size)
+                    ]
+                )
+                role_infos = [
+                    _RoleInstanceInfo.deserialize(info_bytes)
+                    for info_bytes in role_infos_bytes
+                ]
+
+                role_sizes: DefaultDict[str, int] = defaultdict(lambda: 0)
+                global_size = 0
+                for role_info in role_infos:
+                    role_sizes[role_info.role] += role_info.local_world_size
+                    global_size += role_info.local_world_size
+
+                base_global_rank = 0
+                role_ranks = defaultdict(lambda: 0)
+
+                keys = []
+                values = []
+                for i, role_info in enumerate(role_infos):
+                    keys.append(f"{ASSIGNED_RANKS_PREFIX}{i}")
+                    values.append(
+                        json.dumps(
+                            [
+                                base_global_rank,
+                                global_size,
+                                role_ranks[role_info.role],
+                                role_sizes[role_info.role],
+                            ]
+                        )
+                    )
+
+                    base_global_rank += role_info.local_world_size
+                    role_ranks[role_info.role] += role_info.local_world_size
+
+                self._store.multi_set(keys, values)
+
+            # get will block until the data is available in the store.
+            (
+                base_global_rank,
+                global_world_size,
+                base_role_rank,
+                role_world_size,
+            ) = json.loads(
+                self._store.get(f"{ASSIGNED_RANKS_PREFIX}{group_rank}")
+            )
+
+            workers = []
+            for local_rank in range(spec.local_world_size):
+                worker = Worker(
+                    local_rank=local_rank,
+                    global_rank=base_global_rank + local_rank,
+                    role_rank=base_role_rank + local_rank,
+                    world_size=global_world_size,
+                    role_world_size=role_world_size,
+                )
+                workers.append(worker)
         return workers
 
     def _initialize_workers(self, worker_group):
@@ -591,7 +769,9 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 break
 
     @prof
-    def _stop_workers(self, worker_group: WorkerGroup, timeout=300) -> None:
+    def _stop_workers(
+        self, worker_group: WorkerGroup, is_restart=False, timeout=300
+    ) -> None:
         try:
             signal.signal(signal.SIGALRM, self._stop_timeout_handler)
             signal.alarm(timeout)
@@ -600,7 +780,10 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 logger.info("stop workers via SIGKILL")
                 self._shutdown(death_sig=signal.SIGKILL)
             else:
-                super()._stop_workers(worker_group)
+                if version_less_than_240():
+                    super()._stop_workers(worker_group)
+                else:
+                    super()._stop_workers(worker_group, is_restart)
 
             signal.alarm(0)
         except TimeoutError as te:

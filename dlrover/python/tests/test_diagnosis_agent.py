@@ -64,7 +64,7 @@ class TestDiagnosisAgent(unittest.TestCase):
         file_path = os.path.join(path, file)
 
         errors = "error code is 11111"
-        agent = DiagnosisAgent(file_path, errors)
+        agent = DiagnosisAgent.singleton_instance(file_path, errors)
 
         spec = _create_worker_spec(
             node_rank=0,
