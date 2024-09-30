@@ -34,7 +34,6 @@ from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.diagnosis_data import (
     AgentMetric,
-    CudaLog,
     DiagnosisDataType,
     TrainingLog,
 )
@@ -356,10 +355,8 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             success = self._report_heartbeat(node_type, node_id, message)
         elif isinstance(message, grpc.NodeCheckpointState):
             success = self._sync_checkpoint(node_type, node_id, message)
-        elif isinstance(message, grpc.DiagnosisAgentMetrics):
+        elif isinstance(message, grpc.DiagnosisAgentMetric):
             success = self._report_agent_metrics(node_type, node_id, message)
-        elif isinstance(message, grpc.DiagnosisCudaLog):
-            success = self._report_cuda_log(node_type, node_id, message)
         elif isinstance(message, grpc.DiagnosisTrainingLog):
             success = self._report_training_log(node_type, node_id, message)
 
@@ -618,7 +615,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         return rdzv_manager.sync_ckpt_nodes(node_id, message.step)
 
     def _report_agent_metrics(
-        self, node_type, node_id, message: grpc.DiagnosisAgentMetrics
+        self, node_type, node_id, message: grpc.DiagnosisAgentMetric
     ):
         if self._diagnosis_manager:
             data = AgentMetric(message.timestamp)
@@ -634,16 +631,6 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
             data = TrainingLog(message.timestamp)
             self._diagnosis_manager.collect_diagnosis_data(
                 DiagnosisDataType.TRAINING_LOG, data
-            )
-        return True
-
-    def _report_cuda_log(
-        self, node_type, node_id, message: grpc.DiagnosisCudaLog
-    ):
-        if self._diagnosis_manager:
-            data = CudaLog(message.timestamp)
-            self._diagnosis_manager.collect_diagnosis_data(
-                DiagnosisDataType.CUDA_LOG, data
             )
         return True
 

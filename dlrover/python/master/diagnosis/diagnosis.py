@@ -16,8 +16,8 @@ import time
 from datetime import datetime, timedelta
 from typing import Dict, List
 
-from dlrover.python.diagnosis.common.constants import DiagnoseConstant
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.diagnosis.common.constants import DiagnosisConstant
 from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
 from dlrover.python.diagnosis.common.inference_chain import (
     InferenceAttribute,
@@ -101,7 +101,9 @@ class DiagnosisManager:
                 root_causes = self._diagnostician.diagnose_failure(problem)
                 for root_cause in root_causes:
                     logger.info(f"identify root cause: {root_cause}")
-            time.sleep(DiagnoseConstant.MASTER_DIAGNOSIS_OBSERVING_INTERVAL_SECS)
+            time.sleep(
+                DiagnosisConstant.MASTER_DIAGNOSIS_OBSERVING_INTERVAL_SECS
+            )
 
 
 class DiagnosisDataManager:

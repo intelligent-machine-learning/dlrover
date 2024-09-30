@@ -15,35 +15,34 @@ from abc import ABCMeta, abstractmethod
 from datetime import datetime
 from typing import List, Optional
 
-from dlrover.python.diagnosis.common.constants import DiagnoseMetricType
-
-
-class DiagnosisDataType:
-    CUDA_LOG = "cuda_log"
-    TRAINING_LOG = "training_log"
-    AGENT_METRICS = "agent_metrics"
+from dlrover.python.diagnosis.common.constants import DiagnosisDataType
 
 
 class DiagnosisData(metaclass=ABCMeta):
-    def __init__(self, data_type, timestamp: int = 0):
+    def __init__(self, data_type, timestamp: int = 0, data_content: str = ""):
         self._data_type = data_type
         if timestamp == 0:
             self._timestamp = int(round(datetime.now().timestamp()))
         else:
             self._timestamp = timestamp
-
-    @property
-    def timestamp(self) -> float:
-        return self._timestamp
+        self._data_content = data_content
 
     @property
     def data_type(self) -> str:
         return self._data_type
 
+    @property
+    def timestamp(self) -> int:
+        return self._timestamp
 
-class DiagnosisLog(DiagnosisData):
-    def __init__(self, data_type, timestamp: int = 0, logs: List[str] = None):
-        super().__init__(data_type, timestamp)
+    @property
+    def data_content(self) -> str:
+        return self._data_content
+
+
+class TrainingLog(DiagnosisData):
+    def __init__(self, timestamp: int = 0, logs: List[str] = None):
+        super().__init__(DiagnosisDataType.TRAINING_LOG, timestamp)
         self._logs: Optional[List[str]] = logs
 
     @property
@@ -51,41 +50,32 @@ class DiagnosisLog(DiagnosisData):
         return self._logs
 
 
-class CudaLog(DiagnosisLog):
-    def __init__(self, timestamp: int = 0, logs: List[str] = None):
-        super().__init__(DiagnosisDataType.CUDA_LOG, timestamp, logs)
-
-
-class TrainingLog(DiagnosisLog):
-    def __init__(self, timestamp: int = 0, logs: List[str] = None):
-        super().__init__(DiagnosisDataType.TRAINING_LOG, timestamp, logs)
-
-
 class AgentMetric(DiagnosisData):
-    def __init__(self, timestamp: int = 0, metric_type: str = DiagnoseMetricType.GENERIC, metric_content: str = "", is_final_result=False, need_report=False):
+    def __init__(
+        self,
+        timestamp: int = 0,
+        data_type: str = DiagnosisDataType.GENERIC,
+        data_content: str = "",
+        is_final_result=False,
+        need_report=False,
+        node_id: int = -1,
+        node_rank: int = -1,
+    ):
         """
         General metric
 
         Args:
-            metric_type (str): Type of metric. Defaults to "GENERIC".
-            metric_content (str): Content of the metric. Defaults to "".
+            data_type (str): Type of metric. Defaults to "GENERIC".
+            data_content (str): Content of the metric. Defaults to "".
             is_final_result (bool, optional): Whether the metric is final result or not. Defaults to False.
             need_report (bool, optional): Whether the metric needs report(to Brain). Defaults to False.
         """
 
-        super().__init__(DiagnosisDataType.AGENT_METRICS, timestamp)
-        self._metric_type = metric_type
-        self._metric_content = metric_content
+        super().__init__(data_type, timestamp, data_content, node_id, node_rank)
         self._is_final_result = is_final_result
         self._need_report = need_report
-
-    @property
-    def metric_type(self):
-        return self._metric_type
-
-    @property
-    def metric_content(self):
-        return self._metric_content
+        self._node_id = node_id
+        self._node_rank = node_rank
 
     @property
     def is_final_result(self):
@@ -95,8 +85,16 @@ class AgentMetric(DiagnosisData):
     def need_report(self):
         return self._need_report
 
+    @property
+    def node_id(self):
+        return self._node_id
+
+    @property
+    def node_rank(self):
+        return self._node_rank
+
     def is_resolvable(self):
-        if self._metric_type == DiagnoseMetricType.TRAINING_HANG_DETECTION:
+        if self.data_type == DiagnosisDataType.TRAINING_HANG_DETECTION:
             return True
         # TODO: add more resolvable metric type later
         return False

@@ -17,19 +17,22 @@ import time
 from datetime import datetime
 from typing import Dict
 
+from diagnosis.common.diagnosis_data import AgentMetric
+from diagnosis.datacollector.xpu_timer_metric_collector import (
+    XpuTimerMetricsCollector,
+)
 from torch.distributed.elastic.multiprocessing.errors import ProcessFailure
 
-from diagnosis.datacollector.xpu_timer_metric_collector import \
-    XpuTimerMetricsCollector
 from dlrover.python.common.constants import TrainingExceptionLevel
 from dlrover.python.common.error import ProcessError
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
 from dlrover.python.common.worker import WorkerContext
 from dlrover.python.diagnosis.common.constants import (
-    DiagnoseAction,
+    DiagnosisAction,
+    DiagnosisConstant,
+    DiagnosisDataType,
     InferenceConfigKey,
-    DiagnoseConstant,
 )
 from dlrover.python.diagnosis.common.inference_chain import (
     Inference,
@@ -84,7 +87,17 @@ class DiagnosisAgent(Singleton):
                 logger.info("Stop periodically diagnosis.")
                 break
 
-            time.sleep(DiagnoseConstant.AGENT_PERIODICALLY_DIAGNOSIS_INTERVAL_SECS)
+            xpu_timer_metric = self._xpu_timer_metric_collector.collect_data()
+            if xpu_timer_metric:
+                agent_xpu_metric = AgentMetric(
+                    data_type=DiagnosisDataType.TRAINING_HANG_DETECTION,
+                    data_content=xpu_timer_metric,
+                )
+                self._report_metric_to_master(agent_xpu_metric)
+
+            time.sleep(
+                DiagnosisConstant.AGENT_PERIODICALLY_DIAGNOSIS_INTERVAL_SECS
+            )
 
     def diagnose_training_failure(self, worker_context: WorkerContext) -> str:
         self._report_failure_to_master(
@@ -118,7 +131,7 @@ class DiagnosisAgent(Singleton):
                 f"{worker_context.worker_spec.max_restarts} "
                 f"attempts left; will restart worker group."
             )
-            return DiagnoseAction.RESTART_WORKER
+            return DiagnosisAction.RESTART_WORKER
         else:
             logger.info(
                 f"[{worker_context.worker_spec.role}] Worker group "
@@ -127,7 +140,7 @@ class DiagnosisAgent(Singleton):
                 f"no attempts({worker_context.worker_spec.max_restarts}) "
                 "left; will relaunch."
             )
-            return DiagnoseAction.RELAUNCH_WORKER
+            return DiagnosisAction.RELAUNCH_WORKER
 
     def _report_failure_to_master(
         self, failures: Dict[int, ProcessFailure], restart_count: int
@@ -147,3 +160,6 @@ class DiagnosisAgent(Singleton):
             restart_count,
             TrainingExceptionLevel.PROCESS_ERROR,
         )
+
+    def _report_metric_to_master(self, agent_metric: AgentMetric):
+        self._client.report_diagnosis_agent_metrics(agent_metric)

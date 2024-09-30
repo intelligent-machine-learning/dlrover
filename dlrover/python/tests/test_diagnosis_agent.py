@@ -18,14 +18,18 @@ from unittest.mock import patch
 from torch.distributed.elastic.agent.server.api import RunResult, WorkerState
 from torch.distributed.launcher.api import LaunchConfig
 
-from dlrover.python.diagnosis.datacollector.xpu_timer_metric_collector import \
-    XpuTimerMetricsCollector
+from dlrover.python.common import env_utils
 from dlrover.python.common.constants import RendezvousName
 from dlrover.python.common.worker import WorkerContext
-from dlrover.python.diagnosis.common.constants import DiagnoseAction, \
-    EnvConfigKey
+from dlrover.python.diagnosis.common.constants import (
+    DiagnosisAction,
+    EnvConfigKey,
+)
 from dlrover.python.diagnosis.datacollector.training_log_collector import (
     TrainingLogCollector,
+)
+from dlrover.python.diagnosis.datacollector.xpu_timer_metric_collector import (
+    XpuTimerMetricsCollector,
 )
 from dlrover.python.elastic_agent.diagnosis.diagnosis_agent import (
     DiagnosisAgent,
@@ -39,7 +43,6 @@ from dlrover.python.elastic_agent.torch.training import (
     _create_worker_spec,
 )
 from dlrover.python.tests.test_utils import start_local_master
-from dlrover.python.common import env_utils
 
 
 class TestDiagnosisAgent(unittest.TestCase):
@@ -88,21 +91,21 @@ class TestDiagnosisAgent(unittest.TestCase):
         )
 
         action = agent.diagnose_training_failure(wc)
-        self.assertEqual(action, DiagnoseAction.RESTART_WORKER)
+        self.assertEqual(action, DiagnosisAction.RESTART_WORKER)
 
         agent._errors = "error code is 507035"
         action = agent.diagnose_training_failure(wc)
-        self.assertEqual(action, DiagnoseAction.RELAUNCH_WORKER)
+        self.assertEqual(action, DiagnosisAction.RELAUNCH_WORKER)
 
         agent._errors = "error code is 11111"
         wc.remaining_failovers = 0
         action = agent.diagnose_training_failure(wc)
-        self.assertEqual(action, DiagnoseAction.RELAUNCH_WORKER)
+        self.assertEqual(action, DiagnosisAction.RELAUNCH_WORKER)
 
         agent._errors = " #"
         wc.remaining_failovers = 2
         action = agent.diagnose_training_failure(wc)
-        self.assertEqual(action, DiagnoseAction.RESTART_WORKER)
+        self.assertEqual(action, DiagnosisAction.RESTART_WORKER)
 
     @patch(
         "dlrover.python.diagnosis.datacollector.training_log_collector"
@@ -126,11 +129,20 @@ class TestDiagnosisAgent(unittest.TestCase):
         collector = XpuTimerMetricsCollector()
         self.assertFalse(collector.is_enabled())
 
-        env_utils.set_env(EnvConfigKey.XPU_TIMER_PORT, 18888)
+        env_utils.set_env(EnvConfigKey.XPU_TIMER_PORT, 18889)
         collector = XpuTimerMetricsCollector()
         self.assertTrue(collector.is_enabled())
 
         self.assertEqual(collector.collect_data(), None)
+
+        file = "data/xpu_timer_metrics"
+        file_path = os.path.join(os.path.dirname(__file__), file)
+        with open(file_path, "r", encoding="utf-8") as file:
+            test_metrics = file.read()
+        result = collector._preprocess_metrics(test_metrics)
+        self.assertTrue(result)
+        if "#" in result or "exposer" in result:
+            self.fail()
 
 
 if __name__ == "__main__":

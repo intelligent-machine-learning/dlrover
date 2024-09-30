@@ -12,27 +12,32 @@
 # limitations under the License.
 
 import requests
-from dlrover.python.diagnosis.datacollector.metrics_collector import MetricsCollector
-from dlrover.python.diagnosis.common.constants import EnvConfigKey
+
 from dlrover.python.common import env_utils
 from dlrover.python.common.log import default_logger as logger
+from dlrover.python.diagnosis.common.constants import EnvConfigKey
+from dlrover.python.diagnosis.datacollector.metrics_collector import (
+    MetricsCollector,
+)
 
 
 class XpuTimerMetricsCollector(MetricsCollector):
-    def __init__(self, *args, **kwargs):
+    def __init__(self):
         """
         MetricsCollector collects GPU metrics from xpu-timer.
         """
-
+        super().__init__()
         self._metric_port = env_utils.get_env(EnvConfigKey.XPU_TIMER_PORT)
         if self._metric_port:
-            self._metric_endpoint = ("http://127.0.0.1:" + self._metric_port + "/metrics")
+            self._metric_endpoint = (
+                "http://127.0.0.1:" + self._metric_port + "/metrics"
+            )
         else:
             self._metric_endpoint = None
 
-    def collect_data(self) -> object:
+    def collect_data(self) -> str:
         if not self.is_enabled():
-            return None
+            return ""
 
         try:
             response = requests.get(self._metric_endpoint)
@@ -41,13 +46,23 @@ class XpuTimerMetricsCollector(MetricsCollector):
             # data preprocessing
             return self._preprocess_metrics(response.text)
         except requests.exceptions.RequestException as e:
-            logger.warning("Error fetching metrics from "
-                           f"xpu-timer: {self._metric_endpoint}, error: {e}")
-            return None
+            logger.warning(
+                "Error fetching metrics from "
+                f"xpu-timer: {self._metric_endpoint}, error: {e}"
+            )
+            return ""
 
-    def _preprocess_metrics(self, metrics):
-        # TODO
-        return metrics
+    def _preprocess_metrics(self, metric_str):
+        try:
+            metric_list = [
+                line
+                for line in metric_str.splitlines()
+                if not line.startswith("#") and not line.startswith("exposer")
+            ]
+            return "\n".join(metric_list)
+        except Exception as e:
+            logger.warning(f"Error preprocessing metrics from xpu-timer: {e}")
+            return ""
 
     def is_enabled(self) -> bool:
         return self._metric_endpoint is not None

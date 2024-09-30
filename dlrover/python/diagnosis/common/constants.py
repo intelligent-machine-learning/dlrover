@@ -21,17 +21,18 @@ class InferenceConfigKey(object):
     ERRORS = "errors"
 
 
-class DiagnoseConstant(object):
+class DiagnosisConstant(object):
     MASTER_DIAGNOSIS_OBSERVING_INTERVAL_SECS = 180
     AGENT_PERIODICALLY_DIAGNOSIS_INTERVAL_SECS = 60
 
 
-class DiagnoseMetricType(object):
+class DiagnosisDataType(object):
     GENERIC = "GENERIC"
+    TRAINING_LOG = "TRAINING_LOG"
     TRAINING_HANG_DETECTION = "TRAINING_HANG_DETECTION"
 
 
-class DiagnoseAction(object):
+class DiagnosisAction(object):
     NO_ACTION = "no_action"
     RESTART_WORKER = "restart_worker"
     RELAUNCH_WORKER = "relaunch_worker"

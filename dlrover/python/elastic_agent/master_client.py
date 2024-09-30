@@ -22,11 +22,7 @@ from dlrover.python.common import env_utils, grpc
 from dlrover.python.common.constants import NetworkFailureReason, NodeEnv
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
-from dlrover.python.diagnosis.common.diagnosis_data import (
-    AgentMetric,
-    CudaLog,
-    TrainingLog,
-)
+from dlrover.python.diagnosis.common.diagnosis_data import AgentMetric
 
 
 def retry_grpc_request(func):
@@ -385,16 +381,13 @@ class MasterClient(Singleton):
     def report_paral_config(self, config: grpc.ParallelConfig):
         self._report(config)
 
-    def report_diagnosis_training_log(self, training_log: TrainingLog):
-        message = grpc.DiagnosisTrainingLog(training_log.timestamp)
-        self._report(message)
-
-    def report_diagnosis_agent_metrics(self, agent_metrics: AgentMetric):
-        message = grpc.DiagnosisChipMetrics(agent_metrics.timestamp)
-        self._report(message)
-
-    def report_diagnosis_cuda_log(self, cuda_log: CudaLog):
-        message = grpc.DiagnosisCudaLog(cuda_log.timestamp)
+    def report_diagnosis_agent_metrics(self, agent_metric: AgentMetric):
+        message = grpc.DiagnosisAgentMetric(
+            agent_metric.data_type,
+            agent_metric.timestamp,
+            agent_metric.data_content,
+            agent_metric.node_id
+        )
         self._report(message)
 
     def get_paral_config(self) -> grpc.ParallelConfig:

@@ -16,15 +16,14 @@ from dlrover.python.diagnosis.datacollector.data_collector import DataCollector
 
 
 class MetricsCollector(DataCollector):
-    def __init__(self, *args, **kwargs):
+    def __init__(self):
         """
-        MetricsCollector collects GPU metrics
+        MetricsCollector collects XPU metrics
         """
-        pass
+        super().__init__()
 
     def collect_data(self) -> object:
-        chip_metrics = AgentMetric(0)
-        return chip_metrics
+        pass
 
     def is_enabled(self) -> bool:
         return True
