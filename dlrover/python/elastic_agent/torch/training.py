@@ -1,6 +1,6 @@
 # Copyright 2023 The DLRover Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
+ you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
 # http://www.apache.org/licenses/LICENSE-2.0
@@ -20,6 +20,7 @@ import socket
 import tempfile
 import time
 import uuid
+import psutil
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
@@ -778,6 +779,17 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
             if self._config.accelerator == Accelerators.ASCEND_NPU:
                 logger.info("stop workers via SIGKILL")
+                """The ASCEND framework might fork multiple sub-processes, we should
+                stop all the children processes before shutdown the workers
+                """
+                pids = self._pcontext.pids()
+                for pid in pids:
+                    pp = psutil.Process(pid)
+                    cp = pp.children()
+                    for proc in cp:
+                        logger.info(f"kill sub {proc.pid} of parent {pid}")
+                        os.kill(proc.pid, signal.SIGKILL)
+                
                 self._shutdown(death_sig=signal.SIGKILL)
             else:
                 if version_less_than_240():
