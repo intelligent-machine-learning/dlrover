@@ -426,9 +426,23 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         # without timeout
         agent._stop_workers(None, is_restart=False, timeout=3)
 
+        # test Ascend NPU
+        self.config.accelerator = Accelerators.ASCEND_NPU
+        agent = ElasticTrainingAgent(
+            node_rank=0,
+            config=self.config,
+            entrypoint="echo",
+            spec=self.spec,
+            start_method=self.config.start_method,
+            log_dir=self.config.log_dir,
+        )
+
+        agent._stop_workers(None, is_restart=False, timeout=3)
+
         def sleep_10_seconds(*args, **kwargs):
             time.sleep(10)
 
+        self.config.accelerator = Accelerators.NVIDIA_GPU
         # with timeout
         with patch.object(
             LocalElasticAgent, "_stop_workers", side_effect=sleep_10_seconds

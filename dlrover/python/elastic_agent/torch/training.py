@@ -36,6 +36,7 @@ from typing import (
     Union,
 )
 
+import psutil
 import torch
 import torch.distributed.elastic.timer as timer
 from torch.distributed import PrefixStore, Store
@@ -778,6 +779,16 @@ class ElasticTrainingAgent(LocalElasticAgent):
 
             if self._config.accelerator == Accelerators.ASCEND_NPU:
                 logger.info("stop workers via SIGKILL")
+                """The ASCEND framework might fork multiple sub-processes, we should
+                stop all the children processes before shutdown the workers
+                """
+                if self._pcontext is not None:
+                    for pid in self._pcontext.pids():
+                        pp = psutil.Process(pid)
+                        cp = pp.children()
+                        for proc in cp:
+                            logger.info(f"kill sub {proc.pid} of parent {pid}")
+                            os.kill(proc.pid, signal.SIGKILL)
                 self._shutdown(death_sig=signal.SIGKILL)
             else:
                 if version_less_than_240():
