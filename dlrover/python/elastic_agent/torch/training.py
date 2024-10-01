@@ -784,11 +784,19 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 """
                 if self._pcontext is not None:
                     for pid in self._pcontext.pids():
-                        pp = psutil.Process(pid)
-                        cp = pp.children()
-                        for proc in cp:
-                            logger.info(f"kill sub {proc.pid} of parent {pid}")
-                            os.kill(proc.pid, signal.SIGKILL)
+                        logger.info(f"kill process {pid} and its sub processes")
+                        if pid == 0:
+                            logger.info("skip invalid process 0")
+                            continue
+                        try:
+                            pp = psutil.Process(pid)
+                            cp = pp.children()
+                            for proc in cp:
+                                logger.info(f"kill sub {proc.pid} of parent {pid}")
+                                os.kill(proc.pid, signal.SIGKILL)
+                        except Exception as e:
+                            logger.info(f"Error when kill {pid}: {str(e)}")
+
                 self._shutdown(death_sig=signal.SIGKILL)
             else:
                 if version_less_than_240():
