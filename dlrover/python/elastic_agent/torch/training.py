@@ -783,11 +783,10 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 stop all the children processes before shutdown the workers
                 """
                 if self._pcontext is not None:
-                    for pid in self._pcontext.pids():
-                        logger.info(f"kill process {pid} and its sub processes")
-                        if pid == 0:
-                            logger.info("skip invalid process 0")
-                            continue
+                    pc_pids = set(self._pcontext.pids().values())
+                    logger.info(f"try to kill child processes of %s", pc_pids)
+                    for pid in pc_pids:
+                        logger.info(f"kill child processes of process {pid}")
                         try:
                             pp = psutil.Process(pid)
                             cp = pp.children()
