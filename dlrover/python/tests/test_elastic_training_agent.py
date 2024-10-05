@@ -17,6 +17,8 @@ import shutil
 import socket
 import tempfile
 import time
+import asyncio
+import threading
 import unittest
 from unittest import mock
 from unittest.mock import patch
@@ -413,6 +415,44 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
             str(65000),
         )
 
+    def test_stop_workers_ascend(self):
+        # test Ascend NPU
+        config = self.config
+        spec = self.spec
+
+        self.config.accelerator = Accelerators.ASCEND_NPU
+        self.spec.max_restarts = 0
+        self.spec.entrypoint = "sleep"
+        self.spec.args = tuple(['150'])
+
+        self.config.network_check = False
+        agent = ElasticTrainingAgent(
+            node_rank=0,
+            config=self.config,
+            entrypoint=self.spec.entrypoint,
+            spec=self.spec,
+            start_method=self.config.start_method,
+            log_dir=self.config.log_dir,
+        )
+
+        def stop_task(agent):
+            print("entering stop_task")
+            time.sleep(30)
+            print("running _stop_workers_ascend...")
+            agent._stop_workers_ascend(None, is_restart=False)
+
+        stop_task = threading.Thread(target=stop_task, args=(agent,))
+        stop_task.start()
+
+        run_result = agent._invoke_run()
+        print(run_result)
+        self.assertEqual(run_result.state, WorkerState.FAILED)
+
+        stop_task.join()
+
+        self.spec = spec
+        self.config = config
+
     def test_stop_workers(self):
         agent = ElasticTrainingAgent(
             node_rank=0,
@@ -426,23 +466,9 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         # without timeout
         agent._stop_workers(None, is_restart=False, timeout=3)
 
-        # test Ascend NPU
-        self.config.accelerator = Accelerators.ASCEND_NPU
-        agent = ElasticTrainingAgent(
-            node_rank=0,
-            config=self.config,
-            entrypoint="echo",
-            spec=self.spec,
-            start_method=self.config.start_method,
-            log_dir=self.config.log_dir,
-        )
-
-        agent._stop_workers(None, is_restart=False, timeout=3)
-
         def sleep_10_seconds(*args, **kwargs):
             time.sleep(10)
 
-        self.config.accelerator = Accelerators.NVIDIA_GPU
         # with timeout
         with patch.object(
             LocalElasticAgent, "_stop_workers", side_effect=sleep_10_seconds
