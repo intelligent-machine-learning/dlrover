@@ -770,6 +770,31 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 break
 
     @prof
+    def _stop_workers_ascend(
+        self, worker_group: WorkerGroup, is_restart=False 
+    ) -> None:
+        logger.info("stop workers via SIGKILL for Ascend NPU")
+        """The ASCEND framework might fork multiple sub-processes, we should
+        stop all the children processes before shutdown the workers
+        """
+        if self._pcontext is not None:
+            pc_pids = set(self._pcontext.pids().values())
+            logger.info(f"try to kill child processes of %s", pc_pids)
+            for pid in pc_pids:
+                logger.info(f"kill child processes of process {pid}")
+                try:
+                    pp = psutil.Process(pid)
+                    cp = pp.children()
+                    for proc in cp:
+                        logger.info(f"kill sub {proc.pid} of parent {pid}")
+                        os.kill(proc.pid, signal.SIGKILL)
+                except Exception as e:
+                    logger.info(f"Error when kill {pid}: {str(e)}")
+
+        self._shutdown(death_sig=signal.SIGKILL)
+
+
+    @prof
     def _stop_workers(
         self, worker_group: WorkerGroup, is_restart=False, timeout=300
     ) -> None:
@@ -778,25 +803,7 @@ class ElasticTrainingAgent(LocalElasticAgent):
             signal.alarm(timeout)
 
             if self._config.accelerator == Accelerators.ASCEND_NPU:
-                logger.info("stop workers via SIGKILL")
-                """The ASCEND framework might fork multiple sub-processes, we should
-                stop all the children processes before shutdown the workers
-                """
-                if self._pcontext is not None:
-                    pc_pids = set(self._pcontext.pids().values())
-                    logger.info(f"try to kill child processes of %s", pc_pids)
-                    for pid in pc_pids:
-                        logger.info(f"kill child processes of process {pid}")
-                        try:
-                            pp = psutil.Process(pid)
-                            cp = pp.children()
-                            for proc in cp:
-                                logger.info(f"kill sub {proc.pid} of parent {pid}")
-                                os.kill(proc.pid, signal.SIGKILL)
-                        except Exception as e:
-                            logger.info(f"Error when kill {pid}: {str(e)}")
-
-                self._shutdown(death_sig=signal.SIGKILL)
+                self._stop_workers_ascend(worker_group, is_restart)
             else:
                 if version_less_than_240():
                     super()._stop_workers(worker_group)
