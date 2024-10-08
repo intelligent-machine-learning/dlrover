@@ -114,7 +114,7 @@ class DiagnosisDataManager:
     def store_data(self, data: DiagnosisData):
         data_type = data.data_type
         if data_type not in self.diagnosis_data:
-            logger.warning(f"{data_type} is not found in the store")
+            logger.debug(f"{data_type} is not found in the store")
             self.diagnosis_data[data_type] = []
         self.diagnosis_data[data_type].append(data)
         self._clean_diagnosis_data(data_type)

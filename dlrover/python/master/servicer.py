@@ -32,10 +32,7 @@ from dlrover.python.common.constants import (
 )
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
-from dlrover.python.diagnosis.common.diagnosis_data import (
-    AgentMetric,
-    TrainingLog,
-)
+from dlrover.python.diagnosis.common.diagnosis_data import AgentMetric
 from dlrover.python.master.diagnosis.diagnosis import DiagnosisManager
 from dlrover.python.master.elastic_training.kv_store_service import (
     KVStoreService,
@@ -355,9 +352,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         elif isinstance(message, grpc.NodeCheckpointState):
             success = self._sync_checkpoint(node_type, node_id, message)
         elif isinstance(message, grpc.DiagnosisAgentMetric):
-            success = self._report_agent_metrics(node_type, node_id, message)
-        elif isinstance(message, grpc.DiagnosisTrainingLog):
-            success = self._report_training_log(node_type, node_id, message)
+            success = self._report_agent_metrics(message)
 
         response.success = success
         return response
@@ -623,12 +618,6 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
                 node_type=message.node_type,
                 node_rank=message.node_rank,
             )
-            self._diagnosis_manager.collect_diagnosis_data(data)
-        return True
-
-    def _report_training_log(self, message: grpc.DiagnosisTrainingLog):
-        if self._diagnosis_manager:
-            data = TrainingLog(message.timestamp)
             self._diagnosis_manager.collect_diagnosis_data(data)
         return True
 

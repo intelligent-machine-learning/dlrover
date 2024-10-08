@@ -13,8 +13,9 @@
 
 from abc import ABCMeta
 from datetime import datetime
-from typing import List, Optional
+from typing import List
 
+from dlrover.python.common import env_utils
 from dlrover.python.diagnosis.common.constants import DiagnosisDataType
 
 
@@ -40,16 +41,6 @@ class DiagnosisData(metaclass=ABCMeta):
         return self._data_content
 
 
-class TrainingLog(DiagnosisData):
-    def __init__(self, timestamp: int = 0, logs: List[str] = None):
-        super().__init__(DiagnosisDataType.TRAINING_LOG, timestamp)
-        self._logs: Optional[List[str]] = logs
-
-    @property
-    def logs(self):
-        return self._logs
-
-
 class AgentMetric(DiagnosisData):
     def __init__(
         self,
@@ -72,6 +63,9 @@ class AgentMetric(DiagnosisData):
                 result or not. Defaults to False.
             need_report (bool, optional): Whether the metric needs
                 report(to Brain). Defaults to False.
+            node_id (int): Node ID. Defaults to -1.
+            node_type (str): Node type. Defaults to "".
+            node_rank (int): Node rank. Defaults to -1.
         """
 
         super().__init__(data_type, timestamp, data_content)
@@ -106,3 +100,28 @@ class AgentMetric(DiagnosisData):
             return True
         # TODO: add more resolvable metric type later
         return False
+
+
+class TrainingLog(AgentMetric):
+    def __init__(self, timestamp: int = 0, logs: List[str] = None):
+        if logs is None:
+            data_content = ""
+        else:
+            data_content = "\n".join(logs)
+
+        super().__init__(
+            timestamp,
+            DiagnosisDataType.TRAINING_LOG,
+            data_content,
+            True,
+            False,
+            env_utils.get_node_id(),
+            env_utils.get_node_type(),
+            env_utils.get_node_rank(),
+        )
+
+    @property
+    def logs(self) -> List[str]:
+        if not self.data_content:
+            return []
+        return [line for line in self.data_content.splitlines()]
