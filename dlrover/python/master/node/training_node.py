@@ -401,7 +401,7 @@ class SyncNodeTrainingPorts:
     next_check_port: int = 0
 
 
-class ExternalConfigure(metaclass=ABCMeta):
+class ExternalConfig(metaclass=ABCMeta):
     def __init__(self):
         pass
 
@@ -410,14 +410,14 @@ class ExternalConfigure(metaclass=ABCMeta):
         pass
 
 
-class TrainingNodeConfigure:
-    def __init__(self, external_configure: ExternalConfigure = None):
+class TrainingNodeConfig:
+    def __init__(self, external_config: ExternalConfig = None):
         self._lock = Lock()
         self._recv_node_training_ports: Dict[int, int] = {}
         self._node_training_port = 0
         self._next_check_node_training_port = 0
         self._n_node = 0
-        self._external_configure = external_configure
+        self._external_config = external_config
 
     def set_node_num(self, num):
         logger.info(f"set worker count: {num}")
@@ -470,6 +470,6 @@ class TrainingNodeConfigure:
                 )
 
     def get_elastic_run_configs(self) -> Dict[str, str]:
-        if not self._external_configure:
+        if not self._external_config:
             return {}
-        return self._external_configure.get_elastic_run_configs()
+        return self._external_config.get_elastic_run_configs()

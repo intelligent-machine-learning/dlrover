@@ -100,13 +100,13 @@ class DistributedJobManager(JobManager):
         node_watcher: Optional[NodeWatcher] = None,
         job_scaler=None,
         error_monitor=None,
-        external_configure=None,
+        external_config=None,
     ):
         super().__init__(
             job_args=job_args,
             speed_monitor=speed_monitor,
             error_monitor=error_monitor,
-            external_configure=external_configure,
+            external_config=external_config,
         )
         self._remove_exited_node = job_args.remove_exited_node
         node_restart_count: Dict[str, int] = {}
@@ -205,7 +205,7 @@ class DistributedJobManager(JobManager):
         if NodeType.CHIEF in plan.node_group_resources:
             worker_num += plan.node_group_resources[NodeType.CHIEF].count
         self._speed_monitor.set_target_worker_num(worker_num)
-        self._training_node_configure.set_node_num(worker_num)
+        self._training_node_config.set_node_num(worker_num)
         threading.Thread(
             target=self._monitor_nodes, name="node_monitor", daemon=True
         ).start()
