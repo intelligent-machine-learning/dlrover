@@ -34,7 +34,6 @@ from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.diagnosis_data import (
     AgentMetric,
-    DiagnosisDataType,
     TrainingLog,
 )
 from dlrover.python.master.diagnosis.diagnosis import DiagnosisManager
@@ -614,24 +613,23 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         rdzv_manager = self._rdzv_managers[RendezvousName.ELASTIC_TRAINING]
         return rdzv_manager.sync_ckpt_nodes(node_id, message.step)
 
-    def _report_agent_metrics(
-        self, node_type, node_id, message: grpc.DiagnosisAgentMetric
-    ):
+    def _report_agent_metrics(self, message: grpc.DiagnosisAgentMetric):
         if self._diagnosis_manager:
-            data = AgentMetric(message.timestamp)
-            self._diagnosis_manager.collect_diagnosis_data(
-                DiagnosisDataType.AGENT_METRICS, data
+            data = AgentMetric(
+                timestamp=message.timestamp,
+                data_type=message.type,
+                data_content=message.metric_content,
+                node_id=message.node_id,
+                node_type=message.node_type,
+                node_rank=message.node_rank,
             )
+            self._diagnosis_manager.collect_diagnosis_data(data)
         return True
 
-    def _report_training_log(
-        self, node_type, node_id, message: grpc.DiagnosisTrainingLog
-    ):
+    def _report_training_log(self, message: grpc.DiagnosisTrainingLog):
         if self._diagnosis_manager:
             data = TrainingLog(message.timestamp)
-            self._diagnosis_manager.collect_diagnosis_data(
-                DiagnosisDataType.TRAINING_LOG, data
-            )
+            self._diagnosis_manager.collect_diagnosis_data(data)
         return True
 
     def _sync_training_ports(

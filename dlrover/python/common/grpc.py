@@ -499,8 +499,10 @@ class DiagnosisTrainingLog(Message):
 class DiagnosisAgentMetric(Message):
     type: str = ""
     timestamp: int = 0
-    metric_content = ""
-    node_id: int = 0
+    metric_content: str = ""
+    node_id: int = -1
+    node_type: str = ""
+    node_rank: int = -1
 
 
 @dataclass

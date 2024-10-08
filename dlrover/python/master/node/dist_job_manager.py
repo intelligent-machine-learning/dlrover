@@ -418,9 +418,6 @@ class DistributedJobManager(JobManager):
             try:
                 nodes = self._node_watcher.list()
                 self._process_list_nodes(nodes)
-                if self._stopped:
-                    logger.info("Stop processing node events")
-                    break
                 for event in self._node_watcher.watch():
                     try:
                         self._process_event(event)

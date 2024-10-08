@@ -23,6 +23,7 @@ from diagnosis.datacollector.xpu_timer_metric_collector import (
 )
 from torch.distributed.elastic.multiprocessing.errors import ProcessFailure
 
+from dlrover.python.common import env_utils
 from dlrover.python.common.constants import TrainingExceptionLevel
 from dlrover.python.common.error import ProcessError
 from dlrover.python.common.log import default_logger as logger
@@ -92,6 +93,9 @@ class DiagnosisAgent(Singleton):
                 agent_xpu_metric = AgentMetric(
                     data_type=DiagnosisDataType.TRAINING_HANG_DETECTION,
                     data_content=xpu_timer_metric,
+                    node_id=env_utils.get_node_id(),
+                    node_type=env_utils.get_node_type(),
+                    node_rank=env_utils.get_node_rank(),
                 )
                 self._report_metric_to_master(agent_xpu_metric)
 

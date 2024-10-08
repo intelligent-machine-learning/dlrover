@@ -15,14 +15,16 @@ import os
 import unittest
 from unittest.mock import patch
 
+from diagnosis.common.diagnosis_data import AgentMetric
 from torch.distributed.elastic.agent.server.api import RunResult, WorkerState
 from torch.distributed.launcher.api import LaunchConfig
 
 from dlrover.python.common import env_utils
-from dlrover.python.common.constants import RendezvousName
+from dlrover.python.common.constants import NodeEnv, NodeType, RendezvousName
 from dlrover.python.common.worker import WorkerContext
 from dlrover.python.diagnosis.common.constants import (
     DiagnosisAction,
+    DiagnosisDataType,
     EnvConfigKey,
 )
 from dlrover.python.diagnosis.datacollector.training_log_collector import (
@@ -133,7 +135,7 @@ class TestDiagnosisAgent(unittest.TestCase):
         collector = XpuTimerMetricsCollector()
         self.assertTrue(collector.is_enabled())
 
-        self.assertEqual(collector.collect_data(), None)
+        self.assertEqual(collector.collect_data(), "")
 
         file = "data/xpu_timer_metrics"
         file_path = os.path.join(os.path.dirname(__file__), file)
@@ -143,6 +145,26 @@ class TestDiagnosisAgent(unittest.TestCase):
         self.assertTrue(result)
         if "#" in result or "exposer" in result:
             self.fail()
+
+        env_utils.set_env(NodeEnv.NODE_ID, 1)
+        env_utils.set_env(NodeEnv.NODE_TYPE, NodeType.WORKER)
+        env_utils.set_env(NodeEnv.NODE_RANK, 1)
+        agent_xpu_metric = AgentMetric(
+            data_type=DiagnosisDataType.TRAINING_HANG_DETECTION,
+            data_content=result,
+            node_id=env_utils.get_node_id(),
+            node_type=env_utils.get_node_type(),
+            node_rank=env_utils.get_node_rank(),
+        )
+        self.assertEqual(
+            agent_xpu_metric.data_type,
+            DiagnosisDataType.TRAINING_HANG_DETECTION,
+        )
+        self.assertEqual(agent_xpu_metric.data_content, result)
+        self.assertEqual(agent_xpu_metric.node_id, 1)
+        self.assertEqual(agent_xpu_metric.node_type, NodeType.WORKER)
+        self.assertEqual(agent_xpu_metric.node_rank, 1)
+        self.assertTrue(agent_xpu_metric.timestamp > 0)
 
 
 if __name__ == "__main__":

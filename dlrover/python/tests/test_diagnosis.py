@@ -14,7 +14,7 @@
 import time
 import unittest
 
-from dlrover.python.diagnosis.common.diagnosis_data import CudaLog
+from dlrover.python.diagnosis.common.diagnosis_data import TrainingLog
 from dlrover.python.master.diagnosis.diagnosis import DiagnosisDataManager
 
 
@@ -28,17 +28,17 @@ class DiagnosisTest(unittest.TestCase):
     def test_data_manager(self):
         mgr = DiagnosisDataManager(5)
         data_type = "type"
-        log1 = CudaLog(0)
+        log1 = TrainingLog(0)
         mgr.store_data(data_type, log1)
         time.sleep(1)
-        log2 = CudaLog(0)
+        log2 = TrainingLog(0)
         mgr.store_data(data_type, log2)
 
         logs = mgr.get_data(data_type)
         self.assertEqual(len(logs), 2)
 
         time.sleep(6)
-        log3 = CudaLog(0)
+        log3 = TrainingLog(0)
         mgr.store_data(data_type, log3)
         logs = mgr.get_data(data_type)
         self.assertEqual(len(logs), 1)

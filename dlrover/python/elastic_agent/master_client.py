@@ -386,7 +386,9 @@ class MasterClient(Singleton):
             agent_metric.data_type,
             agent_metric.timestamp,
             agent_metric.data_content,
-            agent_metric.node_id
+            agent_metric.node_id,
+            agent_metric.node_type,
+            agent_metric.node_rank,
         )
         self._report(message)
 
@@ -409,11 +411,6 @@ class MasterClient(Singleton):
         request.step = step
         response = self._report(request)
         return response.success
-
-    def sync_training_ports(self, port) -> grpc.SyncTrainingPort:
-        request = grpc.SyncTrainingPort(port=port)
-        response: grpc.SyncTrainingPort = self._get(request)
-        return response
 
     def sync_training_ports(self, port) -> grpc.SyncTrainingPort:
         request = grpc.SyncTrainingPort(port=port)

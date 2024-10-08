@@ -165,10 +165,16 @@ class PodWatcher(NodeWatcher):
     """PodWatcher monitors all Pods of a k8s Job."""
 
     def __init__(self, job_name, namespace):
+        super().__init__(job_name)
         self._job_name = job_name
         self._namespace = namespace
         self._k8s_client = k8sClient.singleton_instance(namespace)
         self._job_selector = ElasticJobLabel.JOB_KEY + "=" + self._job_name
+        logger.info(
+            f"Initialize PodWatcher with "
+            f"namespace: {self._namespace}, "
+            f"job-selector: {self._job_selector}"
+        )
 
     def watch(self):
         resource_version = None

@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from abc import ABCMeta, abstractmethod
+from abc import ABCMeta
 from datetime import datetime
 from typing import List, Optional
 
@@ -59,6 +59,7 @@ class AgentMetric(DiagnosisData):
         is_final_result=False,
         need_report=False,
         node_id: int = -1,
+        node_type: str = "",
         node_rank: int = -1,
     ):
         """
@@ -67,14 +68,17 @@ class AgentMetric(DiagnosisData):
         Args:
             data_type (str): Type of metric. Defaults to "GENERIC".
             data_content (str): Content of the metric. Defaults to "".
-            is_final_result (bool, optional): Whether the metric is final result or not. Defaults to False.
-            need_report (bool, optional): Whether the metric needs report(to Brain). Defaults to False.
+            is_final_result (bool, optional): Whether the metric is final
+                result or not. Defaults to False.
+            need_report (bool, optional): Whether the metric needs
+                report(to Brain). Defaults to False.
         """
 
-        super().__init__(data_type, timestamp, data_content, node_id, node_rank)
+        super().__init__(data_type, timestamp, data_content)
         self._is_final_result = is_final_result
         self._need_report = need_report
         self._node_id = node_id
+        self._node_type = node_type
         self._node_rank = node_rank
 
     @property
@@ -88,6 +92,10 @@ class AgentMetric(DiagnosisData):
     @property
     def node_id(self):
         return self._node_id
+
+    @property
+    def node_type(self):
+        return self._node_type
 
     @property
     def node_rank(self):
