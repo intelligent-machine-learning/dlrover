@@ -5,7 +5,11 @@ import grpc
 from google.protobuf import empty_pb2  # type: ignore
 
 from atorch.common.log_utils import default_logger as logger
-from atorch.protos import coworker_pb2_grpc  # type: ignore
+
+try:
+    from atorch.protos import coworker_pb2_grpc  # type: ignore
+except ImportError:
+    coworker_pb2_grpc = None
 
 
 def create_data_info_service(port, pool_size=10):

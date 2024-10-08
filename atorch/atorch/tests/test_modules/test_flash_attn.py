@@ -9,7 +9,7 @@ import unittest
 
 import numpy as np
 import torch
-from pkg_resources import packaging  # type: ignore
+from packaging.version import parse as parse_version
 from torch.cuda.amp import GradScaler
 
 from atorch.modules.transformer.inject import replace_module
@@ -26,6 +26,7 @@ from atorch.modules.transformer.layers import (
     is_additive_mask_bias_supported_fa1,
     is_pack_glm_mask_supported_fa2,
 )
+from atorch.utils.import_util import is_xla_device_available
 
 try:
     from transformers.modeling_bert import BertAttention, BertConfig, BertLayer  # 3.5
@@ -190,6 +191,15 @@ class TestFlashAttn(unittest.TestCase):
             for batch_size in [1, 4, 16]:
                 for seq_len in [32, 128, 512, 1024]:
                     self._test_Llama(batch_size, seq_len)
+
+    @unittest.skipIf(
+        not torch.cuda.is_available() or not is_xla_device_available() or not _llama_supported_transformers,
+        "xla is not available",
+    )
+    def test_flash_attn_xla(self):
+        for batch_size in [1, 4, 16]:
+            for seq_len in [32, 128, 512, 1024]:
+                self._test_Llama(batch_size, seq_len, is_xla=True)
 
     def _test_pack_glm_mask(self, b, s_q, s_k, dtype):
         print(f"############## test_pack_glm_mask, bs: {b}, seq_q: {s_q}, seq_k: {s_k}, dtype: {dtype}")
@@ -372,7 +382,7 @@ class TestFlashAttn(unittest.TestCase):
 
     def _test_fa2_with_glm_mask(self, b, s_q, s_k, dtype):
         print(f"############## test_fa2_with_glm_mask, bs: {b}, seq_q: {s_q}, seq_k: {s_k}, dtype: {dtype}")
-        _is_flash_attn_2 = _flash_attn_version >= packaging.version.Version("2")
+        _is_flash_attn_2 = _flash_attn_version >= parse_version("2")
         if not _is_flash_attn_2:
             print("glm mask supported version FA2 needed.")
             return
@@ -1074,10 +1084,18 @@ class TestFlashAttn(unittest.TestCase):
             start_timer()
             end_timer_and_print("")
 
-    def _test_Llama(self, batch_size, seq_len):
+    def _test_Llama(self, batch_size, seq_len, is_xla=False):
         print(f"############## Llama autocast, bs: {batch_size}, seq_len: {seq_len}")
-        device = torch.cuda.current_device()
-        torch.cuda.set_device(device)
+        cuda_device = torch.cuda.current_device()
+        torch.cuda.set_device(cuda_device)
+
+        if is_xla:
+            import torch_xla.core.xla_model as xm  # type: ignore
+
+            device = xm.xla_device()
+        else:
+            device = cuda_device
+
         dtype = torch.float32
         config = LlamaConfig(hidden_size=512, intermediate_size=2048)  # default 4096/11008
         hidden_state = torch.randn(

@@ -227,26 +227,40 @@ class Fp8Optimization(Optimization):
             amax_history_len: default 1024
             amax_compute_algo: “max” (default) or “most_recent”
             reduce_amax: default True
+            override_linear_precision (te 1.5+), default (False, False, False)
+            fp8_dpa (te 1.6+), default False
+            fp8_mha (te 1.6+), default False
         """
         import transformer_engine.pytorch as te
         from transformer_engine.common import recipe
         from transformer_engine.pytorch.utils import check_dim_for_fp8_exec
 
         config = {} if wrapper_config is None else wrapper_config
+        delayed_scaling_config = {}
         include = config.get("include", None)
         exclude = config.get("exclude", None)
-        margin = config.get("margin", 0)
-        interval = config.get("interval", 1)
+        delayed_scaling_config["margin"] = config.get("margin", 0)
+        delayed_scaling_config["interval"] = config.get("interval", 1)
         fp8_format = config.get("fp8_format", "HYBRID").upper()
-        amax_history_len = config.get("amax_history_len", 1024)
-        amax_compute_algo = config.get("amax_compute_algo", "max")
-        reduce_amax = config.get("reduce_amax", True)
         if fp8_format == "HYBRID":
             fp8_format_type = recipe.Format.HYBRID
         elif fp8_format == "E4M3":
             fp8_format_type = recipe.Format.E4M3
         else:
             raise f"fp8_format only supports HYBRID and E4M3, not {fp8_format}"
+        delayed_scaling_config["fp8_format"] = fp8_format_type
+        delayed_scaling_config["amax_history_len"] = config.get("amax_history_len", 1024)
+        delayed_scaling_config["amax_compute_algo"] = config.get("amax_compute_algo", "max")
+        if hasattr(recipe.DelayedScaling, "override_linear_precision"):
+            delayed_scaling_config["override_linear_precision"] = config.get(
+                "override_linear_precision", (False, False, False)
+            )
+        delayed_scaling_config["reduce_amax"] = config.get("reduce_amax", True)
+        if hasattr(recipe.DelayedScaling, "fp8_dpa"):
+            delayed_scaling_config["fp8_dpa"] = config.get("fp8_dpa", False)
+        if hasattr(recipe.DelayedScaling, "fp8_mha"):
+            delayed_scaling_config["fp8_mha"] = config.get("fp8_mha", False)
+
         verbose = config.get("verbose", False)
 
         def check_if_replace(key, module, m_include, m_exclude):
@@ -283,7 +297,11 @@ class Fp8Optimization(Optimization):
                 config["out_features"] = module.out_features
                 config["bias"] = hasattr(module, "bias") and module.bias is not None
                 config["params_dtype"] = module.weight.dtype
-                config["device"] = module.weight.device
+                # te.Linear checks meta device by "meta" str, not torch.device. Thus, use str if meta.
+                if isinstance(module.weight.device, torch.device) and module.weight.device.type == "meta":
+                    config["device"] = "meta"
+                else:
+                    config["device"] = module.weight.device
                 new_module = te.Linear(**config)
                 with torch.no_grad():
                     new_module.weight.copy_(module.weight)
@@ -336,14 +354,7 @@ class Fp8Optimization(Optimization):
             )
 
         # step 2: fp8_autocast forward, loss_func
-        fp8_recipe = recipe.DelayedScaling(
-            margin=margin,
-            interval=interval,
-            fp8_format=fp8_format_type,
-            amax_history_len=amax_history_len,
-            amax_compute_algo=amax_compute_algo,
-            reduce_amax=reduce_amax,
-        )
+        fp8_recipe = recipe.DelayedScaling(**delayed_scaling_config)
 
         ori_forward_func = model_context.model.forward
 

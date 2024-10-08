@@ -15,7 +15,7 @@ from atorch.modules.distributed_modules.cross_entropy import vocab_parallel_cros
 from atorch.modules.distributed_modules.layers import _initialize_affine_weight
 from atorch.modules.distributed_modules.mappings import copy_to_group
 from atorch.modules.distributed_modules.randomizer import init_randomizer
-from atorch.utils.manual_tp_utils import TPInfo, hf_init_weights_custom_fn, tp_manual_shard_custom_fn
+from atorch.tensor_parallel.manual_tp import TPInfo, hf_init_weights_custom_fn, tp_manual_shard_custom_fn
 from atorch.utils.meta_model_utils import build_recorded_module, record_module_init
 from atorch.utils.version import torch_version
 

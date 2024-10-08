@@ -11,8 +11,8 @@ from atorch.auto.auto_accelerate_context import AutoAccelerateContext
 from atorch.auto.model_context import ModelContext
 from atorch.auto.opt_lib.optimization_library import OptimizationLibrary
 from atorch.auto.strategy import Strategy
-from atorch.normalization import AtorchLayerNorm
-from atorch.normalization import LayerNorm as ApexLayerNorm
+from atorch.modules.normalization import AtorchLayerNorm
+from atorch.modules.normalization import LayerNorm as ApexLayerNorm
 from atorch.utils.parse_trace_json import analyze_gpu_kernel, prepare_df
 
 

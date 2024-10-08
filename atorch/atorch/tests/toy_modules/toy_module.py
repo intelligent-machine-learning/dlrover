@@ -4,9 +4,12 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import Dataset
+from torch.utils.data import DataLoader, Dataset
+from torch.utils.data.distributed import DistributedSampler
 from transformers.models.gpt2.configuration_gpt2 import GPT2Config
 from transformers.models.gpt2.modeling_gpt2 import GPT2MLP, GPT2Attention, GPT2Block, GPT2Model
+from transformers.models.llama.configuration_llama import LlamaConfig
+from transformers.models.llama.modeling_llama import LlamaDecoderLayer, LlamaModel, LlamaRMSNorm
 
 from atorch.auto.model_context import ModelContext
 from atorch.common.util_func import data_to_device, recursively_apply
@@ -109,7 +112,7 @@ class ToyDataset(Dataset):
 
 
 # copy from pytorch/benchmarks/distributed/pipeline/benchmark_dataset.py with some modification
-def collate_sentences_lm(samples):
+def collate_sentences_lm(samples, input_name="input", label_name="target"):
     if len(samples) == 0:
         return {}
 
@@ -117,13 +120,13 @@ def collate_sentences_lm(samples):
     tgt_tokens = torch.stack([s["target"] for s in samples], 0)
 
     batch = {
-        "input": src_tokens,
-        "target": tgt_tokens,
+        input_name: src_tokens,
+        label_name: tgt_tokens,
     }
     return batch
 
 
-# copy from pytorch/benchmarks/distributed/pipeline/benchmark_dataset.py with some modification
+# copy from pytorch/benchmarks/distributed/pipeline/benchmark_dataset.py with some modification with modification
 class BenchmarkLMDataset(Dataset):
     def __init__(
         self,
@@ -134,10 +137,10 @@ class BenchmarkLMDataset(Dataset):
         self.vocab_size = vocab_size
         self.max_source_positions = max_source_positions
         self.total_samples = total_samples
-        self.sizes = [self.max_source_positions] * self.total_samples
 
     def __getitem__(self, index):
-        length = self.sizes[index]
+        length = self.max_source_positions
+        torch.manual_seed(index)
         source = torch.randint(1, self.vocab_size, (length,))
         target = source.clone()
         return {
@@ -273,9 +276,104 @@ class ToyGPT2Model(GPT2Model):
         return self.config.vocab_size
 
 
-def gpt2_loss_func(inputs, output, vocab_size):
+def decoder_loss_func(inputs, output, vocab_size):
+    shift_logits = output[..., :-1, :].contiguous()
+    if isinstance(inputs, dict):
+        if "labels" in inputs:
+            labels = inputs["labels"]
+        elif "target" in inputs:
+            labels = inputs["target"]
+    else:
+        labels = inputs
+    shift_labels = labels[..., 1:].contiguous()
+
     criterion = torch.nn.CrossEntropyLoss()
-    return criterion(output.view(-1, vocab_size), inputs["target"].view(-1))
+    return criterion(shift_logits.view(-1, vocab_size), shift_labels.view(-1))
+
+
+class ToyLlamaChunk(LlamaModel):
+    def __init__(self, config, layer_num=None, pre_process=True, post_process=True):
+        nn.Module.__init__(self)
+        self.config = config
+
+        if pre_process:
+            self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size, config.pad_token_id)
+        else:
+            self.embed_tokens = None
+
+        if layer_num is None:
+            self.layer_num = config.num_hidden_layers
+        else:
+            self.layer_num = layer_num
+        self.layers = nn.ModuleList([LlamaDecoderLayer(config) for _ in range(self.layer_num)])
+
+        if post_process:
+            self.norm = LlamaRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
+            self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
+        else:
+            self.norm = None
+            self.lm_head = None
+
+    def forward(self, input_ids, attention_mask=None, position_ids=None, labels=None):
+        if self.embed_tokens is not None:
+            hidden_states = self.embed_tokens(input_ids)
+        else:
+            hidden_states = input_ids
+
+        if position_ids is None and attention_mask is not None:
+            position_ids = attention_mask.long().cumsum(-1) - 1
+            position_ids.masked_fill_(attention_mask == 0, 1)
+
+        for decoder_layer in self.layers:
+            layer_outputs = decoder_layer(hidden_states, attention_mask=attention_mask, position_ids=position_ids)
+
+        hidden_states = layer_outputs[0]
+        if self.norm is not None:
+            hidden_states = self.norm(hidden_states)
+            logits = self.lm_head(hidden_states)
+            return logits
+
+        return hidden_states
+
+
+def get_llama_model_chunk(model_config, layer_num=None, pre_process=True, post_process=True):
+    return ToyLlamaChunk(config=model_config, layer_num=layer_num, pre_process=pre_process, post_process=post_process)
+
+
+def get_llama_config(hidden_size=512, head_num=4, layer_num=4, seq_length=256, vocab_size=1024):
+    model_config = LlamaConfig()
+    c_s = f"hidden_size={hidden_size},num_attention_heads={head_num},num_hidden_layers={layer_num},"
+    c_s += f"num_key_value_heads={head_num},max_position_embeddings={seq_length},vocab_size={vocab_size}"
+    model_config.update_from_string(c_s)
+    return model_config
+
+
+def get_llama_input_output_mapping():
+    default_input_info = ([("input_ids", 0)], None)
+
+    stage_0_input_info = (None, [("input_ids", "input_ids")])
+    last_stage_input_info = ([("input_ids", 0)], [("labels", "labels")])
+    stage_input_info = {"default": default_input_info, 0: stage_0_input_info, -1: last_stage_input_info}
+    return stage_input_info
+
+
+def get_llama_dataset(seq_length=128, vocab_size=32000, data_size=1000):
+    return BenchmarkLMDataset(vocab_size=vocab_size, max_source_positions=seq_length, total_samples=data_size)
+
+
+def get_llama_dataloader(dataset, batch_size, rank=None, dp_size=None):
+    dataloader_args = {"batch_size": batch_size, "drop_last": True, "shuffle": False, "num_workers": 2}
+    input_name = "input_ids"
+    label_name = "labels"
+    dataloader_args["collate_fn"] = functools.partial(
+        collate_sentences_lm, input_name=input_name, label_name=label_name
+    )
+    if rank is not None and dp_size is not None:
+        sampler = DistributedSampler(dataset, shuffle=False, num_replicas=dp_size, rank=rank)
+    else:
+        sampler = None
+    dataloader = DataLoader(dataset, sampler=sampler, **dataloader_args)
+    return dataloader
 
 
 def create_model_context(
@@ -300,7 +398,7 @@ def create_model_context(
             vocab_size=model.vocab_size(), max_source_positions=seq_length, total_samples=data_size
         )
         dataloader_args["collate_fn"] = collate_sentences_lm
-        model_loss_func = functools.partial(gpt2_loss_func, vocab_size=model.vocab_size())
+        model_loss_func = functools.partial(decoder_loss_func, vocab_size=model.vocab_size())
     else:
         model = ToyModel(use_custom_module=use_custom_module)
         dataset = ToyDataset(data_size) if dataset is None else dataset

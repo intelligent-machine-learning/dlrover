@@ -12,11 +12,11 @@ from atorch.auto import auto_accelerate
 from atorch.auto.opt_lib.ds_3d_parallel_optimization import DeepSpeed3DParallelConfig
 from atorch.common.util_func import find_free_port
 from atorch.modules.distributed_modules.cross_entropy import vocab_parallel_cross_entropy
+from atorch.tensor_parallel.manual_tp import tp_manual_shard_custom_fn
 from atorch.tests.common_tests.ds_pipe_test import _weight_align as _ds_pipe_weight_align
 from atorch.tests.common_tests.ds_pipe_test import gpt2_custom_patcher
 from atorch.tests.common_tests.manual_tp_test import _weight_align as _tp_weigth_align
 from atorch.tests.common_tests.manual_tp_test import get_gpt2_tpinfo
-from atorch.utils.manual_tp_utils import tp_manual_shard_custom_fn
 from atorch.utils.meta_model_utils import build_recorded_module, record_module_init
 from atorch.utils.version import torch_version
 

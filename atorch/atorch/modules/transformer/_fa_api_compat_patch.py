@@ -3,7 +3,6 @@ https://github.com/Dao-AILab/flash-attention/blob/6d48e14a6c2f551db96f0badc658a6
 this file is deleted in v2.0 release, recover and update it for api compat
 """
 
-import math
 
 import torch
 import torch.nn as nn

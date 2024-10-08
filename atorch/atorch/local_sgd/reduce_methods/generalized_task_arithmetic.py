@@ -41,13 +41,15 @@ class GTAReducer(TensorReducer):
         normalize: bool = True,
         density: float = 1.0,
         int8_mask: bool = False,
+        weight_softmax_temperature: Optional[float] = None,
     ):
-        super().__init__(process_group)
+        super().__init__(process_group, weight_softmax_temperature)
         self.concensus_method = consensus_method
         self.sparsification_method = sparsification_method
-        self.normalize = normalize
         self.density = density
         self.int8_mask = int8_mask
+        # for gta is still make sense to do the post normalization even after softmax weight normalization
+        self.normalize = normalize
 
     # since we require the computation to be done inplace, restrict all computation over "tensor"
     def _reduce_tensor(self, tensor: torch.Tensor, **kwargs):
@@ -56,8 +58,7 @@ class GTAReducer(TensorReducer):
             if self.sparsification_method:
                 tensor = sparsify(tensor, density=self.density, method=self.sparsification_method)
 
-            weight = kwargs.get("weight", 1.0)
-            weight = torch.tensor(weight, dtype=tensor.dtype, device=tensor.device)
+            weight = self._refine_weight(tensor.device, tensor.dtype, **kwargs)
             tensor *= weight
 
             tensor_dtype = tensor.dtype

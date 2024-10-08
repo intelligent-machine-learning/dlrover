@@ -217,7 +217,7 @@ setup(
     python_requires=">=3.8",
     packages=find_packages(exclude=["*test*", "benchmarks*"]),
     install_requires=required_deps,
-    package_data={"": ["*.so", "_fa_api_compat_patch"], "atorch": package_data},
+    package_data={"": ["*.so"], "atorch": package_data},
     ext_modules=ext_modules,
     cmdclass=cmdclass,
     data_files=["atorch/requirements.txt", "dev/scripts/build_proto.sh"] + proto_files,
