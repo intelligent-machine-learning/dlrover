@@ -52,8 +52,6 @@ class WorkerDiagnosisData(DiagnosisData):
         timestamp: int = 0,
         data_type: str = DiagnosisDataType.GENERIC,
         data_content: str = "",
-        node_id: int = -1,
-        node_type: str = "",
         node_rank: int = -1,
     ):
         """
@@ -62,23 +60,11 @@ class WorkerDiagnosisData(DiagnosisData):
         Args:
             data_type (str): Type of metric. Defaults to "GENERIC".
             data_content (str): Content of the metric. Defaults to "".
-            node_id (int): Node ID. Defaults to -1.
-            node_type (str): Node type. Defaults to "".
             node_rank (int): Node rank. Defaults to -1.
         """
 
         super().__init__(timestamp, data_type, data_content)
-        self._node_id = node_id
-        self._node_type = node_type
         self._node_rank = node_rank
-
-    @property
-    def node_id(self):
-        return self._node_id
-
-    @property
-    def node_type(self):
-        return self._node_type
 
     @property
     def node_rank(self):
@@ -91,8 +77,6 @@ class WorkerTrainingMetric(WorkerDiagnosisData):
         timestamp: int = 0,
         data_type: str = DiagnosisDataType.GENERIC,
         data_content: str = "",
-        node_id: int = -1,
-        node_type: str = "",
         node_rank: int = -1,
         is_final_result=False,
         need_report=False,
@@ -107,14 +91,10 @@ class WorkerTrainingMetric(WorkerDiagnosisData):
                 result or not. Defaults to False.
             need_report (bool, optional): Whether the metric needs
                 report(to Brain). Defaults to False.
-            node_id (int): Node ID. Defaults to -1.
-            node_type (str): Node type. Defaults to "".
             node_rank (int): Node rank. Defaults to -1.
         """
 
-        super().__init__(
-            timestamp, data_type, data_content, node_id, node_type, node_rank
-        )
+        super().__init__(timestamp, data_type, data_content, node_rank)
         self._is_final_result = is_final_result
         self._need_report = need_report
 
@@ -144,8 +124,6 @@ class TrainingLog(WorkerDiagnosisData):
             timestamp,
             DiagnosisDataType.TRAINING_LOG,
             data_content,
-            env_utils.get_node_id(),
-            env_utils.get_node_type(),
             env_utils.get_node_rank(),
         )
 

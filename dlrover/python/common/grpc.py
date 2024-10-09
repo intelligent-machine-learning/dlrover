@@ -493,8 +493,6 @@ class WorkerDiagnosisData(Message):
     type: str = ""
     timestamp: int = 0
     content: str = ""
-    node_id: int = -1
-    node_type: str = ""
     node_rank: int = -1
 
 

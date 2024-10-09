@@ -387,8 +387,6 @@ class MasterClient(Singleton):
             data.data_type,
             data.timestamp,
             data.data_content,
-            data.node_id,
-            data.node_type,
             data.node_rank,
         )
         self._report(message)
