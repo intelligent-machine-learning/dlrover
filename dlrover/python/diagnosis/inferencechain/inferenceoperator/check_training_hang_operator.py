@@ -13,6 +13,8 @@
 
 from typing import List
 
+from dlrover.python.diagnosis.common.constants import DiagnosisDataType
+from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
 from dlrover.python.diagnosis.common.inference_chain import (
     Inference,
     InferenceAttribute,
@@ -20,6 +22,8 @@ from dlrover.python.diagnosis.common.inference_chain import (
     InferenceName,
     InferenceOperator,
 )
+
+HANG_METRIC_PREFIX = "XPU_TIMER_COMMON_HANG"
 
 
 class CheckTrainingHangOperator(InferenceOperator):
@@ -42,15 +46,39 @@ class CheckTrainingHangOperator(InferenceOperator):
             return False
 
     def infer(self, inferences: List[Inference]) -> List[Inference]:
-        self._data_manager.get_data()
+        diagnosis_data = self._data_manager.get_data(
+            DiagnosisDataType.TRAINING_HANG_DETECTION
+        )
+
+        if diagnosis_data and self.is_hang(diagnosis_data):
+            return [
+                Inference(
+                    name=InferenceName.TRAINING,
+                    attribution=InferenceAttribute.IS,
+                    description=InferenceDescription.HANG,
+                )
+            ]
 
         return [
             Inference(
-                name=InferenceName.END,
-                attribution="",
-                description="",
+                name=InferenceName.TRAINING,
+                attribution=InferenceAttribute.NOT,
+                description=InferenceDescription.HANG,
             )
         ]
 
-    def get_metric_resolver(self):
-        pass
+    def is_hang(self, diagnosis_data: List[DiagnosisData]):
+        hang_metric = []
+        if not diagnosis_data:
+            return False
+
+        for data in diagnosis_data:
+            each_metric = [
+                line
+                for line in data.data_content.splitlines()
+                if line.startswith(HANG_METRIC_PREFIX)
+            ]
+            hang_metric.append(each_metric)
+
+        # TODO: implement the judgement
+        return False
