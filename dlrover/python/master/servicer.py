@@ -355,7 +355,9 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         elif isinstance(message, grpc.NodeCheckpointState):
             success = self._sync_checkpoint(node_type, node_id, message)
         elif isinstance(message, grpc.WorkerDiagnosisData):
-            success = self._report_worker_diagnosis_data(message)
+            success = self._report_worker_diagnosis_data(
+                node_type, node_id, message
+            )
 
         response.success = success
         return response
@@ -611,14 +613,16 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         rdzv_manager = self._rdzv_managers[RendezvousName.ELASTIC_TRAINING]
         return rdzv_manager.sync_ckpt_nodes(node_id, message.step)
 
-    def _report_worker_diagnosis_data(self, message: grpc.WorkerDiagnosisData):
+    def _report_worker_diagnosis_data(
+        self, node_type, node_id, message: grpc.WorkerDiagnosisData
+    ):
         if self._diagnosis_manager:
             data = WorkerTrainingMetric(
                 timestamp=message.timestamp,
                 data_type=message.type,
                 data_content=message.content,
-                node_id=message.node_id,
-                node_type=message.node_type,
+                node_id=node_id,
+                node_type=node_type,
                 node_rank=message.node_rank,
             )
             self._diagnosis_manager.collect_diagnosis_data(data)
