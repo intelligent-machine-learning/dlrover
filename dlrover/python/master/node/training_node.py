@@ -16,6 +16,7 @@ import itertools
 import math
 import threading
 import time
+from abc import ABCMeta, abstractmethod
 from collections import Counter
 from dataclasses import dataclass
 from threading import Lock
@@ -400,13 +401,23 @@ class SyncNodeTrainingPorts:
     next_check_port: int = 0
 
 
-class TrainingNodeConfigure:
+class ExternalConfig(metaclass=ABCMeta):
     def __init__(self):
+        pass
+
+    @abstractmethod
+    def get_elastic_run_configs(self) -> Dict[str, str]:
+        pass
+
+
+class TrainingNodeConfig:
+    def __init__(self, external_config: ExternalConfig = None):
         self._lock = Lock()
         self._recv_node_training_ports: Dict[int, int] = {}
         self._node_training_port = 0
         self._next_check_node_training_port = 0
         self._n_node = 0
+        self._external_config = external_config
 
     def set_node_num(self, num):
         logger.info(f"set worker count: {num}")
@@ -457,3 +468,8 @@ class TrainingNodeConfigure:
                 return SyncNodeTrainingPorts(
                     training_port=0, next_check_port=0
                 )
+
+    def get_elastic_run_configs(self) -> Dict[str, str]:
+        if not self._external_config:
+            return {}
+        return self._external_config.get_elastic_run_configs()

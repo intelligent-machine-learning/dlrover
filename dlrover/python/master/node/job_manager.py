@@ -23,7 +23,7 @@ from dlrover.python.master.monitor.error_monitor import ErrorMonitor
 from dlrover.python.master.monitor.speed_monitor import SpeedMonitor
 from dlrover.python.master.node.training_node import (
     SyncNodeTrainingPorts,
-    TrainingNodeConfigure,
+    TrainingNodeConfig,
 )
 from dlrover.python.master.resource.job import JobResource
 from dlrover.python.scheduler.job import JobArgs
@@ -40,6 +40,7 @@ class JobManager(metaclass=ABCMeta):
         job_args: JobArgs,
         speed_monitor=None,
         error_monitor=None,
+        external_config=None,
     ):
         self._job_resource = JobResource()
         self._job_args = job_args
@@ -55,7 +56,7 @@ class JobManager(metaclass=ABCMeta):
         self._job_nodes: Dict[str, Dict[int, Node]] = {}
         self._nodes_required = (0, 0, 0)
 
-        self._training_node_configure = TrainingNodeConfigure()
+        self._training_node_config = TrainingNodeConfig(external_config)
 
     @abstractmethod
     def start(self):
@@ -199,7 +200,7 @@ class JobManager(metaclass=ABCMeta):
         pass
 
     def sync_node_training_port(self, node_id, port) -> SyncNodeTrainingPorts:
-        return self._training_node_configure.sync_node_training_port(
+        return self._training_node_config.sync_node_training_port(
             node_id, port
         )
 
@@ -227,3 +228,6 @@ class JobManager(metaclass=ABCMeta):
         """Callback when 'update_node_required_info' is invoked."""
 
         pass
+
+    def get_elastic_run_configs(self) -> Dict[str, str]:
+        return self._training_node_config.get_elastic_run_configs()
