@@ -15,7 +15,6 @@ import os
 import unittest
 from unittest.mock import patch
 
-from diagnosis.common.diagnosis_data import WorkerTrainingMetric
 from torch.distributed.elastic.agent.server.api import RunResult, WorkerState
 from torch.distributed.launcher.api import LaunchConfig
 
@@ -27,6 +26,7 @@ from dlrover.python.diagnosis.common.constants import (
     DiagnosisDataType,
     EnvConfigKey,
 )
+from dlrover.python.diagnosis.common.diagnosis_data import WorkerTrainingMetric
 from dlrover.python.diagnosis.datacollector.training_log_collector import (
     TrainingLogCollector,
 )

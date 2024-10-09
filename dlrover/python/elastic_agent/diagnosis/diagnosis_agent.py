@@ -17,10 +17,6 @@ import time
 from datetime import datetime
 from typing import Dict
 
-from diagnosis.common.diagnosis_data import WorkerTrainingMetric
-from diagnosis.datacollector.xpu_timer_metric_collector import (
-    XpuTimerMetricsCollector,
-)
 from torch.distributed.elastic.multiprocessing.errors import ProcessFailure
 
 from dlrover.python.common import env_utils
@@ -35,12 +31,16 @@ from dlrover.python.diagnosis.common.constants import (
     DiagnosisDataType,
     InferenceConfigKey,
 )
+from dlrover.python.diagnosis.common.diagnosis_data import WorkerTrainingMetric
 from dlrover.python.diagnosis.common.inference_chain import (
     Inference,
     InferenceAttribute,
     InferenceDescription,
     InferenceName,
     is_inference_included,
+)
+from dlrover.python.diagnosis.datacollector.xpu_timer_metric_collector import (
+    XpuTimerMetricsCollector,
 )
 from dlrover.python.diagnosis.inferencechain.inference_chain import (
     InferenceChain,
