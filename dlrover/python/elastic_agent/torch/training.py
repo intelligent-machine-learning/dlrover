@@ -539,9 +539,19 @@ class ElasticTrainingAgent(LocalElasticAgent):
         os.environ["MASTER_PORT"] = str(master_port)
 
     def _get_master_addr_port(self, store: Store) -> Tuple[str, int]:
-        master_addr = store.get("MASTER_ADDR").decode(encoding="UTF-8")
-        master_port = int(store.get("MASTER_PORT").decode(encoding="UTF-8"))
-        return (master_addr, master_port)
+        for i in range(4):
+            try:
+                master_addr = store.get("MASTER_ADDR").decode(encoding="UTF-8")
+                master_port = int(
+                    store.get("MASTER_PORT").decode(encoding="UTF-8")
+                )
+                return (master_addr, master_port)
+            except ValueError:
+                logger.warning("Failed to get master addr and port.")
+                time.sleep(10)
+                continue
+        raise RuntimeError("Failed to get master addr and port during "
+                           "rendezvous.")
 
     def _get_socket_with_port(self) -> socket.socket:
         """Return a free port on localhost.
