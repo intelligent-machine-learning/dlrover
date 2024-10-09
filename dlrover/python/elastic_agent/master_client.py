@@ -23,9 +23,7 @@ from dlrover.python.common import env_utils, grpc
 from dlrover.python.common.constants import NetworkFailureReason, NodeEnv
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
-from dlrover.python.diagnosis.common.diagnosis_data import (
-    WorkerDiagnosisData,
-)
+from dlrover.python.diagnosis.common.diagnosis_data import WorkerDiagnosisData
 
 
 def retry_grpc_request(func):
