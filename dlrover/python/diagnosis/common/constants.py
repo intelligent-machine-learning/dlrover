@@ -29,7 +29,7 @@ class DiagnosisConstant(object):
 class DiagnosisDataType(object):
     GENERIC = "GENERIC"
     TRAINING_LOG = "TRAINING_LOG"
-    TRAINING_HANG_DETECTION = "TRAINING_HANG_DETECTION"
+    XPU_TIMER_METRIC = "XPU_TIMER_METRIC"
 
 
 class DiagnosisAction(object):

@@ -17,7 +17,7 @@ import time
 from datetime import datetime
 from typing import Dict
 
-from diagnosis.common.diagnosis_data import AgentMetric
+from diagnosis.common.diagnosis_data import WorkerTrainingMetric
 from diagnosis.datacollector.xpu_timer_metric_collector import (
     XpuTimerMetricsCollector,
 )
@@ -90,8 +90,8 @@ class DiagnosisAgent(Singleton):
 
             xpu_timer_metric = self._xpu_timer_metric_collector.collect_data()
             if xpu_timer_metric:
-                agent_xpu_metric = AgentMetric(
-                    data_type=DiagnosisDataType.TRAINING_HANG_DETECTION,
+                agent_xpu_metric = WorkerTrainingMetric(
+                    data_type=DiagnosisDataType.XPU_TIMER_METRIC,
                     data_content=xpu_timer_metric,
                     node_id=env_utils.get_node_id(),
                     node_type=env_utils.get_node_type(),
@@ -165,5 +165,5 @@ class DiagnosisAgent(Singleton):
             TrainingExceptionLevel.PROCESS_ERROR,
         )
 
-    def _report_metric_to_master(self, agent_metric: AgentMetric):
+    def _report_metric_to_master(self, agent_metric: WorkerTrainingMetric):
         self._client.report_diagnosis_agent_metrics(agent_metric)

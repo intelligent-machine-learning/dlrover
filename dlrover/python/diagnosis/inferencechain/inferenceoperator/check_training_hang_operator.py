@@ -47,7 +47,7 @@ class CheckTrainingHangOperator(InferenceOperator):
 
     def infer(self, inferences: List[Inference]) -> List[Inference]:
         diagnosis_data = self._data_manager.get_data(
-            DiagnosisDataType.TRAINING_HANG_DETECTION
+            DiagnosisDataType.XPU_TIMER_METRIC
         )
 
         if diagnosis_data and self.is_hang(diagnosis_data):

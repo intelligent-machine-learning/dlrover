@@ -489,17 +489,10 @@ class NodeCheckpointState(Message):
 
 
 @dataclass
-class DiagnosisTrainingLog(Message):
+class WorkerDiagnosisData(Message):
     type: str = ""
     timestamp: int = 0
-    log_content = ""
-
-
-@dataclass
-class DiagnosisAgentMetric(Message):
-    type: str = ""
-    timestamp: int = 0
-    metric_content: str = ""
+    content: str = ""
     node_id: int = -1
     node_type: str = ""
     node_rank: int = -1

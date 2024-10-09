@@ -16,12 +16,10 @@ import requests
 from dlrover.python.common import env_utils
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.diagnosis.common.constants import EnvConfigKey
-from dlrover.python.diagnosis.datacollector.metrics_collector import (
-    MetricsCollector,
-)
+from dlrover.python.diagnosis.datacollector.data_collector import DataCollector
 
 
-class XpuTimerMetricsCollector(MetricsCollector):
+class XpuTimerMetricsCollector(DataCollector):
     def __init__(self):
         """
         MetricsCollector collects GPU metrics from xpu-timer.

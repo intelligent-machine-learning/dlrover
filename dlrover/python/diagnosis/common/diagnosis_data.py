@@ -20,12 +20,17 @@ from dlrover.python.diagnosis.common.constants import DiagnosisDataType
 
 
 class DiagnosisData(metaclass=ABCMeta):
-    def __init__(self, data_type, timestamp: int = 0, data_content: str = ""):
-        self._data_type = data_type
+    def __init__(
+        self,
+        timestamp: int = 0,
+        data_type: str = DiagnosisDataType.GENERIC,
+        data_content: str = "",
+    ):
         if timestamp == 0:
             self._timestamp = int(round(datetime.now().timestamp()))
         else:
             self._timestamp = timestamp
+        self._data_type = data_type
         self._data_content = data_content
 
     @property
@@ -41,17 +46,56 @@ class DiagnosisData(metaclass=ABCMeta):
         return self._data_content
 
 
-class AgentMetric(DiagnosisData):
+class WorkerDiagnosisData(DiagnosisData):
     def __init__(
         self,
         timestamp: int = 0,
         data_type: str = DiagnosisDataType.GENERIC,
         data_content: str = "",
-        is_final_result=False,
-        need_report=False,
         node_id: int = -1,
         node_type: str = "",
         node_rank: int = -1,
+    ):
+        """
+        General metric
+
+        Args:
+            data_type (str): Type of metric. Defaults to "GENERIC".
+            data_content (str): Content of the metric. Defaults to "".
+            node_id (int): Node ID. Defaults to -1.
+            node_type (str): Node type. Defaults to "".
+            node_rank (int): Node rank. Defaults to -1.
+        """
+
+        super().__init__(timestamp, data_type, data_content)
+        self._node_id = node_id
+        self._node_type = node_type
+        self._node_rank = node_rank
+
+    @property
+    def node_id(self):
+        return self._node_id
+
+    @property
+    def node_type(self):
+        return self._node_type
+
+    @property
+    def node_rank(self):
+        return self._node_rank
+
+
+class WorkerTrainingMetric(WorkerDiagnosisData):
+    def __init__(
+        self,
+        timestamp: int = 0,
+        data_type: str = DiagnosisDataType.GENERIC,
+        data_content: str = "",
+        node_id: int = -1,
+        node_type: str = "",
+        node_rank: int = -1,
+        is_final_result=False,
+        need_report=False,
     ):
         """
         General metric
@@ -68,12 +112,11 @@ class AgentMetric(DiagnosisData):
             node_rank (int): Node rank. Defaults to -1.
         """
 
-        super().__init__(data_type, timestamp, data_content)
+        super().__init__(
+            timestamp, data_type, data_content, node_id, node_type, node_rank
+        )
         self._is_final_result = is_final_result
         self._need_report = need_report
-        self._node_id = node_id
-        self._node_type = node_type
-        self._node_rank = node_rank
 
     @property
     def is_final_result(self):
@@ -83,26 +126,14 @@ class AgentMetric(DiagnosisData):
     def need_report(self):
         return self._need_report
 
-    @property
-    def node_id(self):
-        return self._node_id
-
-    @property
-    def node_type(self):
-        return self._node_type
-
-    @property
-    def node_rank(self):
-        return self._node_rank
-
     def is_resolvable(self):
-        if self.data_type == DiagnosisDataType.TRAINING_HANG_DETECTION:
+        if self.data_type == DiagnosisDataType.XPU_TIMER_METRIC:
             return True
         # TODO: add more resolvable metric type later
         return False
 
 
-class TrainingLog(AgentMetric):
+class TrainingLog(WorkerDiagnosisData):
     def __init__(self, timestamp: int = 0, logs: List[str] = None):
         if logs is None:
             data_content = ""
@@ -113,8 +144,6 @@ class TrainingLog(AgentMetric):
             timestamp,
             DiagnosisDataType.TRAINING_LOG,
             data_content,
-            True,
-            False,
             env_utils.get_node_id(),
             env_utils.get_node_type(),
             env_utils.get_node_rank(),

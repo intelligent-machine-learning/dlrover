@@ -15,7 +15,7 @@ import os
 import unittest
 from unittest.mock import patch
 
-from diagnosis.common.diagnosis_data import AgentMetric
+from diagnosis.common.diagnosis_data import WorkerTrainingMetric
 from torch.distributed.elastic.agent.server.api import RunResult, WorkerState
 from torch.distributed.launcher.api import LaunchConfig
 
@@ -149,8 +149,8 @@ class TestDiagnosisAgent(unittest.TestCase):
         env_utils.set_env(NodeEnv.NODE_ID, 1)
         env_utils.set_env(NodeEnv.NODE_TYPE, NodeType.WORKER)
         env_utils.set_env(NodeEnv.NODE_RANK, 1)
-        agent_xpu_metric = AgentMetric(
-            data_type=DiagnosisDataType.TRAINING_HANG_DETECTION,
+        agent_xpu_metric = WorkerTrainingMetric(
+            data_type=DiagnosisDataType.XPU_TIMER_METRIC,
             data_content=result,
             node_id=env_utils.get_node_id(),
             node_type=env_utils.get_node_type(),
@@ -158,7 +158,7 @@ class TestDiagnosisAgent(unittest.TestCase):
         )
         self.assertEqual(
             agent_xpu_metric.data_type,
-            DiagnosisDataType.TRAINING_HANG_DETECTION,
+            DiagnosisDataType.XPU_TIMER_METRIC,
         )
         self.assertEqual(agent_xpu_metric.data_content, result)
         self.assertEqual(agent_xpu_metric.node_id, 1)

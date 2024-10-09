@@ -23,7 +23,9 @@ from dlrover.python.common import env_utils, grpc
 from dlrover.python.common.constants import NetworkFailureReason, NodeEnv
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
-from dlrover.python.diagnosis.common.diagnosis_data import AgentMetric
+from dlrover.python.diagnosis.common.diagnosis_data import (
+    WorkerDiagnosisData,
+)
 
 
 def retry_grpc_request(func):
@@ -382,14 +384,14 @@ class MasterClient(Singleton):
     def report_paral_config(self, config: grpc.ParallelConfig):
         self._report(config)
 
-    def report_diagnosis_agent_metrics(self, agent_metric: AgentMetric):
-        message = grpc.DiagnosisAgentMetric(
-            agent_metric.data_type,
-            agent_metric.timestamp,
-            agent_metric.data_content,
-            agent_metric.node_id,
-            agent_metric.node_type,
-            agent_metric.node_rank,
+    def report_diagnosis_agent_metrics(self, data: WorkerDiagnosisData):
+        message = grpc.WorkerDiagnosisData(
+            data.data_type,
+            data.timestamp,
+            data.data_content,
+            data.node_id,
+            data.node_type,
+            data.node_rank,
         )
         self._report(message)
 
