@@ -50,11 +50,14 @@ class InferenceChainTest(unittest.TestCase):
         self.assertTrue(operator.is_compatible(inf))
 
         results = operator.infer([inf])
-        self.assertEqual(results[0],  Inference(
+        self.assertEqual(
+            results[0],
+            Inference(
                 name=InferenceName.TRAINING,
                 attribution=InferenceAttribute.NOT,
                 description=InferenceDescription.HANG,
-            ))
+            ),
+        )
 
     def test_check_failure_node_operator(self):
         file = "data/training.log"
