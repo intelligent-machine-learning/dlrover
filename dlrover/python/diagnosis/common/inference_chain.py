@@ -20,17 +20,20 @@ class InferenceName:
     END = "end"
     TRAINING = "training"
     NODE = "node"
+    WORKER = "worker"
 
 
 class InferenceAttribute:
     ISORNOT = "is_or_not"
     IS = "is"
     NOT = "not"
+    COLLECT = "collect"
 
 
 class InferenceDescription:
     HANG = "hang"
     FAILURE = "failure"
+    METRICS = "metrics"
 
 
 @dataclass
@@ -92,12 +95,7 @@ def combine_inferences(
 ) -> List[Inference]:
     inferences = []
     for inference2 in inferences2:
-        is_duplicate = False
-        for inference1 in inferences1:
-            if is_same_inference(inference1, inference2):
-                is_duplicate = True
-                break
-        if not is_duplicate:
+        if not is_inference_included(inferences1, inference2):
             inferences.append(inference2)
 
     for inference1 in inferences1:
