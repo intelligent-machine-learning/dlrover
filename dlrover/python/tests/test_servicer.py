@@ -10,7 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import os
 import time
 import unittest
 from unittest import mock
@@ -84,6 +84,9 @@ class MasterServicerTest(unittest.TestCase):
             elastic_ps_service=self.elastic_ps_service,
             sync_service=sync_service,
         )
+
+    def tearDown(self) -> None:
+        os.environ.clear()
 
     def test_query_running_nodes(self):
         request = elastic_training_pb2.Message()
