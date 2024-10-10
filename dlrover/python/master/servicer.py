@@ -10,7 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import importlib
 import threading
 import time
 from concurrent import futures
@@ -92,6 +92,11 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
         self._version = 0
         self._start_training_time = 0
         self._start_autoscale = False
+
+        # preload module for class reflection
+        self._diagnosis_data_module = importlib.import_module(
+            "dlrover.python.diagnosis.common.diagnosis_data"
+        )
 
     def get(self, request, _):
         node_type = request.node_type
@@ -613,7 +618,10 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
 
     def _report_worker_diagnosis_data(self, message: grpc.DiagnosisReportData):
         if self._diagnosis_manager:
-            data_cls: Optional[DiagnosisData] = globals().get(message.data_cls)
+            data_cls: Optional[DiagnosisData] = getattr(
+                self._diagnosis_data_module,
+                message.data_cls,
+            )
             if data_cls is None:
                 logger.warning(
                     "Invalid diagnosis report "
