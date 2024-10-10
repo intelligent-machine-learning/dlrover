@@ -12,26 +12,35 @@
 # limitations under the License.
 
 import json
+import threading
+import time
 from datetime import datetime
 from typing import Dict
 
 from torch.distributed.elastic.multiprocessing.errors import ProcessFailure
 
+from dlrover.python.common import env_utils
 from dlrover.python.common.constants import TrainingExceptionLevel
 from dlrover.python.common.error import ProcessError
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.singleton import Singleton
 from dlrover.python.common.worker import WorkerContext
 from dlrover.python.diagnosis.common.constants import (
-    DiagnoseAction,
+    DiagnosisAction,
+    DiagnosisConstant,
+    DiagnosisDataType,
     InferenceConfigKey,
 )
+from dlrover.python.diagnosis.common.diagnosis_data import WorkerTrainingMetric
 from dlrover.python.diagnosis.common.inference_chain import (
     Inference,
     InferenceAttribute,
     InferenceDescription,
     InferenceName,
     is_inference_included,
+)
+from dlrover.python.diagnosis.datacollector.xpu_timer_metric_collector import (
+    XpuTimerMetricsCollector,
 )
 from dlrover.python.diagnosis.inferencechain.inference_chain import (
     InferenceChain,
@@ -47,12 +56,52 @@ class DiagnosisAgent(Singleton):
         self._client = MasterClient.singleton_instance()
         self._training_log_file = training_log_file
         self._errors = errors
+        self._xpu_timer_metric_collector = XpuTimerMetricsCollector()
+        self._stopped = False
+
+        self.start()
 
         logger.info(
             "Initializing diagnosis agent with\n"
             f"training_log_file:    {self._training_log_file}\n"
             f"errors:               {self._errors}"
         )
+
+    def start(self):
+        self._stopped = False
+
+        # start a async thread to diagnose periodically
+        thread = threading.Thread(
+            target=self._periodically_diagnosis,
+            name="periodically_diagnosis",
+            daemon=True,
+        )
+        thread.start()
+
+    def stop(self):
+        self._stopped = True
+
+    def _periodically_diagnosis(self):
+        logger.info("Start periodically diagnosis...")
+        while True:
+            if self._stopped:
+                logger.info("Stop periodically diagnosis.")
+                break
+
+            xpu_timer_metric = self._xpu_timer_metric_collector.collect_data()
+            if xpu_timer_metric:
+                agent_xpu_metric = WorkerTrainingMetric(
+                    data_type=DiagnosisDataType.XPU_TIMER_METRIC,
+                    data_content=xpu_timer_metric,
+                    node_id=env_utils.get_node_id(),
+                    node_type=env_utils.get_node_type(),
+                    node_rank=env_utils.get_node_rank(),
+                )
+                self._report_metric_to_master(agent_xpu_metric)
+
+            time.sleep(
+                DiagnosisConstant.AGENT_PERIODICALLY_DIAGNOSIS_INTERVAL_SECS
+            )
 
     def diagnose_training_failure(self, worker_context: WorkerContext) -> str:
         self._report_failure_to_master(
@@ -86,7 +135,7 @@ class DiagnosisAgent(Singleton):
                 f"{worker_context.worker_spec.max_restarts} "
                 f"attempts left; will restart worker group."
             )
-            return DiagnoseAction.RESTART_WORKER
+            return DiagnosisAction.RESTART_WORKER
         else:
             logger.info(
                 f"[{worker_context.worker_spec.role}] Worker group "
@@ -95,7 +144,7 @@ class DiagnosisAgent(Singleton):
                 f"no attempts({worker_context.worker_spec.max_restarts}) "
                 "left; will relaunch."
             )
-            return DiagnoseAction.RELAUNCH_WORKER
+            return DiagnosisAction.RELAUNCH_WORKER
 
     def _report_failure_to_master(
         self, failures: Dict[int, ProcessFailure], restart_count: int
@@ -115,3 +164,6 @@ class DiagnosisAgent(Singleton):
             restart_count,
             TrainingExceptionLevel.PROCESS_ERROR,
         )
+
+    def _report_metric_to_master(self, agent_metric: WorkerTrainingMetric):
+        self._client.report_diagnosis_agent_metrics(agent_metric)

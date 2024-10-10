@@ -40,7 +40,7 @@ class InferenceChainTest(unittest.TestCase):
     def tearDown(self):
         pass
 
-    def test_CheckTrainingHangOperator(self):
+    def test_check_training_hang_operator(self):
         operator = CheckTrainingHangOperator(None)
         inf = Inference(
             name=InferenceName.TRAINING,
@@ -50,9 +50,16 @@ class InferenceChainTest(unittest.TestCase):
         self.assertTrue(operator.is_compatible(inf))
 
         results = operator.infer([inf])
-        self.assertEqual(results[0].name, InferenceName.END)
+        self.assertEqual(
+            results[0],
+            Inference(
+                name=InferenceName.TRAINING,
+                attribution=InferenceAttribute.NOT,
+                description=InferenceDescription.HANG,
+            ),
+        )
 
-    def test_CheckFailureNodeOperator(self):
+    def test_check_failure_node_operator(self):
         file = "data/training.log"
         path = os.path.dirname(__file__)
         file_path = os.path.join(path, file)
@@ -96,7 +103,7 @@ class InferenceChainTest(unittest.TestCase):
         )
         self.assertTrue(is_same_inference(results[0], not_failure_inf))
 
-    def test_InferenceChain(self):
+    def test_inference_chain(self):
         file = "data/training.log"
         path = os.path.dirname(__file__)
         file_path = os.path.join(path, file)
