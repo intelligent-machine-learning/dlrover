@@ -619,9 +619,7 @@ class MasterServicer(elastic_training_pb2_grpc.MasterServicer):
     def _report_worker_diagnosis_data(self, message: grpc.DiagnosisReportData):
         if self._diagnosis_manager:
             data_cls: Optional[DiagnosisData] = getattr(
-                importlib.import_module(
-                    "dlrover.python.diagnosis.common.diagnosis_data"
-                ),
+                self._diagnosis_data_module,
                 message.data_cls,
             )
             if data_cls is None:
