@@ -13,6 +13,7 @@
 
 import os
 import unittest
+from unittest.mock import patch
 
 from dlrover.python.diagnosis.common.constants import InferenceConfigKey
 from dlrover.python.diagnosis.common.inference_chain import (
@@ -31,11 +32,25 @@ from dlrover.python.diagnosis.inferencechain.inferenceoperator.check_failure_nod
 from dlrover.python.diagnosis.inferencechain.inferenceoperator.check_training_hang_operator import (  # noqa: E501
     CheckTrainingHangOperator,
 )
+from dlrover.python.diagnosis.inferencechain.inferenceoperator.collect_metrics_operator import (  # noqa: E501
+    CollectMetricsOperator,
+)
+from dlrover.python.tests.test_utils import start_local_master
+from dlrover.python.elastic_agent.master_client import (
+    MasterClient,
+    build_master_client,
+)
+from dlrover.python.common import env_utils
+from dlrover.python.diagnosis.common.constants import (
+    EnvConfigKey,
+)
+from dlrover.python.common.constants import NodeEnv, NodeType
 
 
 class InferenceChainTest(unittest.TestCase):
     def setUp(self):
-        pass
+        self.master_proc, self.addr = start_local_master()
+        MasterClient._instance = build_master_client(self.addr, 1)
 
     def tearDown(self):
         pass
@@ -126,6 +141,27 @@ class InferenceChainTest(unittest.TestCase):
             description=InferenceDescription.FAILURE,
         )
         self.assertTrue(is_same_inference(results[0], failure_inf))
+
+    @patch(
+        "dlrover.python.diagnosis.datacollector.xpu_timer_metrics_collector.XpuTimerMetricsCollector"
+        ".collect_metrics"
+    )
+    def test_collect_metrics_operator(self, mock_collector):
+        mock_collector.return_value = "data"
+        operator = CollectMetricsOperator()
+        inf = Inference(
+            name=InferenceName.WORKER,
+            attribution=InferenceAttribute.COLLECT,
+            description=InferenceDescription.METRICS,
+        )
+        self.assertTrue(operator.is_compatible(inf))
+
+        env_utils.set_env(EnvConfigKey.XPU_TIMER_PORT, 18889)
+        env_utils.set_env(NodeEnv.NODE_ID, 1)
+        env_utils.set_env(NodeEnv.NODE_TYPE, NodeType.WORKER)
+        env_utils.set_env(NodeEnv.NODE_RANK, 1)
+        infs = operator.infer([])
+        self.assertEqual(len(infs), 0)
 
 
 if __name__ == "__main__":

@@ -14,7 +14,18 @@
 from dlrover.python.diagnosis.inferencechain.inferenceoperator.check_failure_node_operator import (  # noqa: E501
     CheckFailureNodeOperator,
 )
+from dlrover.python.diagnosis.inferencechain.inferenceoperator.collect_metrics_operator import (  # noqa: E501
+    CollectMetricsOperator,
+)
 
 
 def get_training_failure_operators():
     return [CheckFailureNodeOperator()]
+
+
+def get_worker_observe_operators():
+    return [CollectMetricsOperator()]
+
+
+def get_worker_diagnosis_operators():
+    return []
