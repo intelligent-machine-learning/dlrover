@@ -46,6 +46,15 @@ class CheckTrainingHangOperator(InferenceOperator):
             return False
 
     def infer(self, inferences: List[Inference]) -> List[Inference]:
+        if not self.data_manager:
+            return [
+                Inference(
+                    name=InferenceName.TRAINING,
+                    attribution=InferenceAttribute.NOT,
+                    description=InferenceDescription.HANG,
+                )
+            ]
+
         diagnosis_data = self._data_manager.get_data(
             DiagnosisDataType.XPU_TIMER_METRIC
         )

@@ -62,6 +62,10 @@ class InferenceOperator(metaclass=ABCMeta):
     def is_compatible(self, inference: Inference) -> bool:
         pass
 
+    @property
+    def data_manager(self):
+        return self._data_manager
+
 
 def is_same_inference(inference1: Inference, inference2: Inference) -> bool:
     if (
