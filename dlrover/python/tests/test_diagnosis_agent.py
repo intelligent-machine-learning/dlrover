@@ -61,7 +61,7 @@ class TestDiagnosisAgent(unittest.TestCase):
         self.config = ElasticLaunchConfig(**launch_config.__dict__)
 
     def tearDown(self):
-        pass
+        os.environ.clear()
 
     def test_diagnose_training(self):
         file = "data/training.log"

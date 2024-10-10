@@ -32,7 +32,8 @@ from dlrover.python.common.constants import (
     Accelerators,
     AscendConstants,
     ConfigPath,
-    RendezvousName, NodeEnv,
+    NodeEnv,
+    RendezvousName,
 )
 from dlrover.python.common.storage import PosixDiskStorage
 from dlrover.python.elastic_agent.master_client import (
