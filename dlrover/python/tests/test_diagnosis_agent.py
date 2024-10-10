@@ -166,6 +166,36 @@ class TestDiagnosisAgent(unittest.TestCase):
         self.assertEqual(agent_xpu_metric.node_rank, 1)
         self.assertTrue(agent_xpu_metric.timestamp > 0)
 
+    def test_worker_training_metric(self):
+        test = WorkerTrainingMetric(
+            data_content="test123",
+            node_id=env_utils.get_node_id(),
+            node_type=env_utils.get_node_type(),
+            node_rank=env_utils.get_node_rank(),
+            is_final_result=True,
+        )
+
+        test_str = test.to_json()
+        self.assertTrue('"data_content": "test123"' in test_str)
+
+        test_new = WorkerTrainingMetric.from_json(test_str)
+        self.assertEqual(test_new.timestamp, test.timestamp)
+        self.assertEqual(test_new.data_content, test.data_content)
+        self.assertEqual(test_new.data_type, test.data_type)
+        self.assertEqual(test_new.is_final_result, test.is_final_result)
+
+        test_new = globals().get("WorkerTrainingMetric").from_json(test_str)
+        self.assertEqual(test_new.timestamp, test.timestamp)
+        self.assertEqual(test_new.data_content, test.data_content)
+        self.assertEqual(test_new.data_type, test.data_type)
+        self.assertEqual(test_new.is_final_result, test.is_final_result)
+
+        test_new = globals().get(test.__class__.__name__).from_json(test_str)
+        self.assertEqual(test_new.timestamp, test.timestamp)
+        self.assertEqual(test_new.data_content, test.data_content)
+        self.assertEqual(test_new.data_type, test.data_type)
+        self.assertEqual(test_new.is_final_result, test.is_final_result)
+
 
 if __name__ == "__main__":
     unittest.main()

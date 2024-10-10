@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 from abc import ABCMeta
 from datetime import datetime
 from typing import List
@@ -20,11 +21,26 @@ from dlrover.python.diagnosis.common.constants import DiagnosisDataType
 
 
 class DiagnosisData(metaclass=ABCMeta):
+    """
+    Basic definition of diagnosis data.
+
+    Args:
+        timestamp (datetime): Timestamp of diagnosis data.
+        data_type (str): Type of metric. Defaults to "GENERIC".
+        data_content (str): Content of the metric. Defaults to "".
+        node_id (int): Node ID. Defaults to -1.
+        node_type (str): Node type. Defaults to "".
+        node_rank (int): Node rank. Defaults to -1.
+    """
+
     def __init__(
         self,
         timestamp: int = 0,
         data_type: str = DiagnosisDataType.GENERIC,
         data_content: str = "",
+        node_id: int = -1,
+        node_type: str = "",
+        node_rank: int = -1,
     ):
         if timestamp == 0:
             self._timestamp = int(round(datetime.now().timestamp()))
@@ -32,6 +48,9 @@ class DiagnosisData(metaclass=ABCMeta):
             self._timestamp = timestamp
         self._data_type = data_type
         self._data_content = data_content
+        self._node_id = node_id
+        self._node_type = node_type
+        self._node_rank = node_rank
 
     @property
     def data_type(self) -> str:
@@ -45,33 +64,6 @@ class DiagnosisData(metaclass=ABCMeta):
     def data_content(self) -> str:
         return self._data_content
 
-
-class WorkerDiagnosisData(DiagnosisData):
-    def __init__(
-        self,
-        timestamp: int = 0,
-        data_type: str = DiagnosisDataType.GENERIC,
-        data_content: str = "",
-        node_id: int = -1,
-        node_type: str = "",
-        node_rank: int = -1,
-    ):
-        """
-        General metric
-
-        Args:
-            data_type (str): Type of metric. Defaults to "GENERIC".
-            data_content (str): Content of the metric. Defaults to "".
-            node_id (int): Node ID. Defaults to -1.
-            node_type (str): Node type. Defaults to "".
-            node_rank (int): Node rank. Defaults to -1.
-        """
-
-        super().__init__(timestamp, data_type, data_content)
-        self._node_id = node_id
-        self._node_type = node_type
-        self._node_rank = node_rank
-
     @property
     def node_id(self):
         return self._node_id
@@ -84,35 +76,47 @@ class WorkerDiagnosisData(DiagnosisData):
     def node_rank(self):
         return self._node_rank
 
+    def to_json(self):
+        data = {k.lstrip("_"): v for k, v in self.__dict__.items()}
+        return json.dumps(data)
 
-class WorkerTrainingMetric(WorkerDiagnosisData):
+    @classmethod
+    def from_json(cls, json_data):
+        return cls(**json.loads(json_data))
+
+    def is_from_worker(self):
+        return self._node_id != -1
+
+
+class WorkerTrainingMetric(DiagnosisData):
+    """
+    Diagnosis data for worker training metric.
+
+    Args:
+        timestamp (datetime): Timestamp of diagnosis data.
+        data_type (str): Type of metric. Defaults to "GENERIC".
+        data_content (str): Content of the metric. Defaults to "".
+        node_id (int): Node ID. Defaults to -1.
+        node_type (str): Node type. Defaults to "".
+        node_rank (int): Node rank. Defaults to -1.
+        is_final_result (bool, optional): Whether the metric is final result.
+            Defaults to False.
+        need_report (bool, optional): Whether the metric needs report.
+            Defaults to False.
+    """
+
     def __init__(
         self,
         timestamp: int = 0,
         data_type: str = DiagnosisDataType.GENERIC,
         data_content: str = "",
-        node_id: int = -1,
-        node_type: str = "",
-        node_rank: int = -1,
+        node_id=env_utils.get_node_id(),
+        node_type=env_utils.get_node_type(),
+        node_rank=env_utils.get_node_rank(),
         is_final_result=False,
         need_report=False,
     ):
-        """
-        General metric
-
-        Args:
-            data_type (str): Type of metric. Defaults to "GENERIC".
-            data_content (str): Content of the metric. Defaults to "".
-            is_final_result (bool, optional): Whether the metric is final
-                result or not. Defaults to False.
-            need_report (bool, optional): Whether the metric needs
-                report(to Brain). Defaults to False.
-            node_id (int): Node ID. Defaults to -1.
-            node_type (str): Node type. Defaults to "".
-            node_rank (int): Node rank. Defaults to -1.
-        """
-
-        super().__init__(
+        super(WorkerTrainingMetric, self).__init__(
             timestamp, data_type, data_content, node_id, node_type, node_rank
         )
         self._is_final_result = is_final_result
@@ -133,8 +137,26 @@ class WorkerTrainingMetric(WorkerDiagnosisData):
         return False
 
 
-class TrainingLog(WorkerDiagnosisData):
-    def __init__(self, timestamp: int = 0, logs: List[str] = None):
+class TrainingLog(DiagnosisData):
+    """
+    Worker's training log.
+
+    Args:
+        timestamp (datetime): Timestamp of diagnosis data.
+        logs (list): Log content in list format.
+        node_id (int): Node ID. Defaults to -1.
+        node_type (str): Node type. Defaults to "".
+        node_rank (int): Node rank. Defaults to -1.
+    """
+
+    def __init__(
+        self,
+        timestamp: int = 0,
+        logs: List[str] = None,
+        node_id=env_utils.get_node_id(),
+        node_type=env_utils.get_node_type(),
+        node_rank=env_utils.get_node_rank(),
+    ):
         if logs is None:
             data_content = ""
         else:
@@ -144,9 +166,9 @@ class TrainingLog(WorkerDiagnosisData):
             timestamp,
             DiagnosisDataType.TRAINING_LOG,
             data_content,
-            env_utils.get_node_id(),
-            env_utils.get_node_type(),
-            env_utils.get_node_rank(),
+            node_id,
+            node_type,
+            node_rank,
         )
 
     @property
