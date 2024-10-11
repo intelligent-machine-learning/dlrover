@@ -19,7 +19,6 @@ from typing import Dict, List
 
 from torch.distributed.elastic.multiprocessing.errors import ProcessFailure
 
-from dlrover.python.common import env_utils
 from dlrover.python.common.constants import TrainingExceptionLevel
 from dlrover.python.common.error import ProcessError
 from dlrover.python.common.log import default_logger as logger
@@ -28,32 +27,30 @@ from dlrover.python.common.worker import WorkerContext
 from dlrover.python.diagnosis.common.constants import (
     DiagnosisAction,
     DiagnosisConstant,
-    DiagnosisDataType,
     InferenceConfigKey,
 )
+from dlrover.python.diagnosis.common.diagnose_action import DiagnoseAction
 from dlrover.python.diagnosis.common.diagnosis_data import WorkerTrainingMetric
 from dlrover.python.diagnosis.common.inference_chain import (
     Inference,
     InferenceAttribute,
     InferenceDescription,
     InferenceName,
-    is_inference_included,
     combine_inferences,
+    is_inference_included,
 )
-from dlrover.python.diagnosis.datacollector.xpu_timer_metric_collector import (
-    XpuTimerMetricsCollector,
+from dlrover.python.diagnosis.inferencechain.coordinator import (
+    coordinate_inferences,
 )
 from dlrover.python.diagnosis.inferencechain.inference_chain import (
     InferenceChain,
 )
-from dlrover.python.diagnosis.inferencechain.coordinator import coordinate_inferences
 from dlrover.python.diagnosis.inferencechain.inferenceoperator.operator import (  # noqa: E501
     get_training_failure_operators,
-    get_worker_observe_operators,
     get_worker_diagnosis_operators,
+    get_worker_observe_operators,
 )
 from dlrover.python.elastic_agent.master_client import MasterClient
-from dlrover.python.diagnosis.common.diagnose_action import DiagnoseAction
 
 
 class DiagnosisAgent(Singleton):
@@ -61,7 +58,6 @@ class DiagnosisAgent(Singleton):
         self._client = MasterClient.singleton_instance()
         self._training_log_file = training_log_file
         self._errors = errors
-        self._xpu_timer_metric_collector = XpuTimerMetricsCollector()
         self._stopped = False
         self._observe_problems: List[Inference] = [
             Inference(
@@ -107,7 +103,9 @@ class DiagnosisAgent(Singleton):
                 logger.error(f"fail to observe problem {problem}: {e}")
         return observations
 
-    def _diagnose_observations(self, observations: List[Inference]) -> DiagnoseAction:
+    def _diagnose_observations(
+        self, observations: List[Inference]
+    ) -> DiagnoseAction:
         conclusions: List[Inference] = []
         for ob in observations:
             ic = InferenceChain([ob], self._diagnosis_operators)

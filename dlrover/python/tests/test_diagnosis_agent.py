@@ -13,17 +13,14 @@
 
 import os
 import unittest
-from unittest.mock import patch
 
 from torch.distributed.elastic.agent.server.api import RunResult, WorkerState
 from torch.distributed.launcher.api import LaunchConfig
 
 from dlrover.python.common import env_utils
-from dlrover.python.common.constants import NodeEnv, NodeType, RendezvousName
+from dlrover.python.common.constants import RendezvousName
 from dlrover.python.common.worker import WorkerContext
-from dlrover.python.diagnosis.common.constants import (
-    DiagnosisAction,
-)
+from dlrover.python.diagnosis.common.constants import DiagnosisAction
 from dlrover.python.diagnosis.common.diagnosis_data import WorkerTrainingMetric
 from dlrover.python.elastic_agent.diagnosis.diagnosis_agent import (
     DiagnosisAgent,

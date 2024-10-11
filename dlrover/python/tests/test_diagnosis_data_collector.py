@@ -1,24 +1,38 @@
+# Copyright 2024 The DLRover Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import os
 import unittest
-from dlrover.python.tests.test_utils import start_local_master
-from dlrover.python.elastic_agent.master_client import (
-    MasterClient,
-    build_master_client,
-)
 from unittest.mock import patch
+
+from dlrover.python.common import env_utils
+from dlrover.python.common.constants import NodeEnv, NodeType
+from dlrover.python.diagnosis.common.constants import (
+    DiagnosisDataType,
+    EnvConfigKey,
+)
+from dlrover.python.diagnosis.common.diagnosis_data import WorkerTrainingMetric
 from dlrover.python.diagnosis.datacollector.training_log_collector import (
     TrainingLogCollector,
 )
 from dlrover.python.diagnosis.datacollector.xpu_timer_metric_collector import (
     XpuTimerMetricsCollector,
 )
-import os
-from dlrover.python.common import env_utils
-from dlrover.python.diagnosis.common.constants import (
-    DiagnosisDataType,
-    EnvConfigKey,
+from dlrover.python.elastic_agent.master_client import (
+    MasterClient,
+    build_master_client,
 )
-from dlrover.python.common.constants import NodeEnv, NodeType
-from dlrover.python.diagnosis.common.diagnosis_data import WorkerTrainingMetric
+from dlrover.python.tests.test_utils import start_local_master
 
 
 class TestDiagnosisDataCollector(unittest.TestCase):

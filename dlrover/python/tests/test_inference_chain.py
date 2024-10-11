@@ -15,7 +15,12 @@ import os
 import unittest
 from unittest.mock import patch
 
-from dlrover.python.diagnosis.common.constants import InferenceConfigKey
+from dlrover.python.common import env_utils
+from dlrover.python.common.constants import NodeEnv, NodeType
+from dlrover.python.diagnosis.common.constants import (
+    EnvConfigKey,
+    InferenceConfigKey,
+)
 from dlrover.python.diagnosis.common.inference_chain import (
     Inference,
     InferenceAttribute,
@@ -35,16 +40,11 @@ from dlrover.python.diagnosis.inferencechain.inferenceoperator.check_training_ha
 from dlrover.python.diagnosis.inferencechain.inferenceoperator.collect_metrics_operator import (  # noqa: E501
     CollectMetricsOperator,
 )
-from dlrover.python.tests.test_utils import start_local_master
 from dlrover.python.elastic_agent.master_client import (
     MasterClient,
     build_master_client,
 )
-from dlrover.python.common import env_utils
-from dlrover.python.diagnosis.common.constants import (
-    EnvConfigKey,
-)
-from dlrover.python.common.constants import NodeEnv, NodeType
+from dlrover.python.tests.test_utils import start_local_master
 
 
 class InferenceChainTest(unittest.TestCase):
@@ -143,8 +143,8 @@ class InferenceChainTest(unittest.TestCase):
         self.assertTrue(is_same_inference(results[0], failure_inf))
 
     @patch(
-        "dlrover.python.diagnosis.datacollector.xpu_timer_metrics_collector.XpuTimerMetricsCollector"
-        ".collect_metrics"
+        "dlrover.python.diagnosis.datacollector.xpu_timer_metric_collector"
+        ".XpuTimerMetricsCollector.collect_data"
     )
     def test_collect_metrics_operator(self, mock_collector):
         mock_collector.return_value = "data"
