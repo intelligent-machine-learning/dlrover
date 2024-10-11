@@ -53,7 +53,7 @@ class InferenceChainTest(unittest.TestCase):
         MasterClient._instance = build_master_client(self._addr, 1)
 
     def tearDown(self):
-        self._master.stop()
+        os.environ.clear()
 
     def test_check_training_hang_operator(self):
         operator = CheckTrainingHangOperator(None)
