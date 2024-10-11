@@ -20,7 +20,8 @@ from dlrover.python.diagnosis.common.diagnose_action import DiagnoseAction
 from dlrover.python.diagnosis.common.inference_chain import Inference
 
 
-def coordinate_inferences(inferences: List[Inference]) -> DiagnoseAction:
+def coordinate_inferences(observations: List[Inference]) -> DiagnoseAction:
     action = DiagnoseAction()
-    action.add_action(DiagnosisActionConstant.NO_ACTION)
+    if len(observations) == 0:
+        action.add_action(DiagnosisActionConstant.NO_ACTION)
     return action
